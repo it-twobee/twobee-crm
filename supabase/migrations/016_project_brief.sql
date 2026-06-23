@@ -1,0 +1,3 @@
+ALTER TABLE public.projects
+  ADD COLUMN IF NOT EXISTS brief TEXT,
+  ADD COLUMN IF NOT EXISTS brief_updated_at TIMESTAMPTZ;

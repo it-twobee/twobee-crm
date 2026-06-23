@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-text-primary font-sans;
+    font-family: Arial, 'Arial Black', sans-serif;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #1A1A1A;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #2A2A2A;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3A3A3A;
+  }
+}
+
+/* react-grid-layout dark theme overrides */
+.react-grid-item.react-grid-placeholder {
+  background: rgba(245, 200, 0, 0.04) !important;
+  border: 1px dashed rgba(245, 200, 0, 0.18) !important;
+  border-radius: 12px !important;
+  opacity: 1 !important;
+}
+
+/* Looker Studio-style resize handles — thin edge lines */
+.react-resizable-handle {
+  position: absolute;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  background: transparent !important;
+}
+.react-resizable-handle::after {
+  display: none !important;
+}
+.react-grid-item:hover .react-resizable-handle {
+  opacity: 1;
+}
+
+/* Edge handles — thin highlight lines */
+.react-resizable-handle-s,
+.react-resizable-handle-n {
+  left: 4px !important; right: 4px !important; height: 6px !important; cursor: ns-resize;
+  border-bottom: 2px solid rgba(245, 200, 0, 0.35);
+}
+.react-resizable-handle-n { top: 0 !important; bottom: auto !important; border-bottom: none; border-top: 2px solid rgba(245, 200, 0, 0.35); }
+.react-resizable-handle-s { bottom: 0 !important; top: auto !important; }
+.react-resizable-handle-e,
+.react-resizable-handle-w {
+  top: 4px !important; bottom: 4px !important; width: 6px !important; cursor: ew-resize;
+  border-right: 2px solid rgba(245, 200, 0, 0.35);
+}
+.react-resizable-handle-w { left: 0 !important; right: auto !important; border-right: none; border-left: 2px solid rgba(245, 200, 0, 0.35); }
+.react-resizable-handle-e { right: 0 !important; left: auto !important; }
+
+/* Corner handles — small gold squares */
+.react-resizable-handle-se,
+.react-resizable-handle-sw,
+.react-resizable-handle-ne,
+.react-resizable-handle-nw {
+  width: 10px !important; height: 10px !important;
+  background: rgba(245, 200, 0, 0.5) !important;
+  border-radius: 2px !important;
+}
+.react-resizable-handle-se { bottom: 0 !important; right: 0 !important; cursor: se-resize; }
+.react-resizable-handle-sw { bottom: 0 !important; left: 0 !important; cursor: sw-resize; }
+.react-resizable-handle-ne { top: 0 !important; right: 0 !important; cursor: ne-resize; }
+.react-resizable-handle-nw { top: 0 !important; left: 0 !important; cursor: nw-resize; }
+
+/* Smooth widget transitions */
+.react-grid-item { transition: none !important; }
+.react-grid-item.react-draggable-dragging { transition: none !important; box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important; z-index: 100 !important; }
+.react-grid-item.resizing { transition: none !important; z-index: 100 !important; }
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .gold-gradient {
+    background: linear-gradient(135deg, #F5C800 0%, #E6B800 100%);
+  }
+}
