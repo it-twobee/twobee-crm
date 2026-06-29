@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Bell, Search, LogOut, User, Settings, ChevronDown, Crown, CheckCheck } from 'lucide-react'
+import { Bell, LogOut, User, Settings, ChevronDown, Crown, CheckCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { GlobalSearch } from '@/components/shared/GlobalSearch'
 import { getInitials } from '@/lib/utils'
 import type { Profile, Notification } from '@/lib/types/database'
 import { SUPER_ADMIN_EMAILS, ROLE_LABELS } from '@/lib/permissions'
@@ -94,11 +95,7 @@ export function Header({ profile }: HeaderProps) {
     <header className="h-16 bg-surface border-b border-[#2A2A2A] flex items-center px-6 gap-4 sticky top-0 z-40">
       {/* Search */}
       <div className="flex-1 max-w-md">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
-          <input type="text" placeholder="Cerca clienti, task, messaggi..."
-            className="w-full bg-background border border-[#2A2A2A] rounded-lg pl-9 pr-4 py-2 text-sm text-white placeholder-text-secondary focus:outline-none focus:border-gold transition-colors" />
-        </div>
+        <GlobalSearch />
       </div>
 
       <div className="flex items-center gap-3 ml-auto">
