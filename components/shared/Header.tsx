@@ -5,12 +5,18 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Bell, LogOut, User, Settings, ChevronDown, Crown, CheckCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { toast } from 'sonner'
 import { GlobalSearch } from '@/components/shared/GlobalSearch'
 import { getInitials } from '@/lib/utils'
 import type { Profile, Notification } from '@/lib/types/database'
 import { SUPER_ADMIN_EMAILS, ROLE_LABELS } from '@/lib/permissions'
 
 interface HeaderProps { profile: Profile | null }
+
+const NOTIF_ICONS: Record<string, string> = {
+  task_assigned: '✅', task_due: '⏰', mention: '💬',
+  approval_request: '🔔', approval_resolved: '✓', invite: '✉️', new_lead: '🎯',
+}
 
 function timeAgo(date: string) {
   const diff = Date.now() - new Date(date).getTime()
@@ -51,7 +57,11 @@ export function Header({ profile }: HeaderProps) {
     const channel = supabase
       .channel('notif-realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` },
-        (payload) => setNotifications((p) => [payload.new as Notification, ...p]))
+        (payload) => {
+          const n = payload.new as Notification
+          setNotifications((p) => [n, ...p])
+          toast(n.title, { description: n.body ?? undefined, icon: NOTIF_ICONS[n.type] ?? '🔔' })
+        })
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
@@ -84,11 +94,6 @@ export function Header({ profile }: HeaderProps) {
     await supabase.auth.signOut()
     router.push('/login')
     router.refresh()
-  }
-
-  const NOTIF_ICONS: Record<string, string> = {
-    task_assigned: '✅', task_due: '⏰', mention: '💬',
-    approval_request: '🔔', approval_resolved: '✓', invite: '✉️',
   }
 
   return (

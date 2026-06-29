@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Plus, X, Loader2, UserCheck, TrendingDown, AlertTriangle, CheckCircle2, Phone, Mail, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { sendLeadSms } from '@/app/actions/lead-notify'
 import type { Client, Lead, LeadStatus, LeadSource } from '@/lib/types/database'
 
 interface Props {
@@ -66,7 +67,14 @@ function LeadModal({ lead, clients, onClose, onSaved }: {
       : await supabase.from('leads').insert(payload).select().single()
     setLoading(false)
     if (result.error) { toast.error(result.error.message); return }
-    toast.success(lead ? 'Lead aggiornato' : 'Lead creato')
+    // Notifiche in-app gestite dal trigger DB; qui solo l'SMS opzionale per i nuovi lead
+    if (!lead) {
+      sendLeadSms({ name: payload.name, company: payload.company, source: payload.source, phone: payload.phone })
+        .catch(() => {})
+      toast.success('Lead creato — team notificato')
+    } else {
+      toast.success('Lead aggiornato')
+    }
     onSaved(result.data as Lead)
     onClose()
   }
