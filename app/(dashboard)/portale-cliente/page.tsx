@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import Link from 'next/link'
 import { Users, ArrowRight, Eye, AlertCircle } from 'lucide-react'
+import { InviteClientButton } from '@/components/portale-cliente/InviteClientButton'
 
 export const revalidate = 0
 
@@ -16,10 +17,18 @@ export default async function PortaleClienteIndexPage() {
   const isSuperAdmin = SUPER_ADMIN_EMAILS.includes(profile?.email ?? '') || profile?.app_role === 'super_admin'
   if (!isSuperAdmin) redirect('/dashboard')
 
-  const { data: clients } = await createAdminClient()
-    .from('clients')
-    .select('id, company_name, client_type, package, mrr, risk_score, client_label')
-    .order('company_name')
+  const admin = createAdminClient()
+  const [{ data: clients }, { data: clientUsers }] = await Promise.all([
+    admin.from('clients')
+      .select('id, company_name, client_type, package, mrr, risk_score, client_label')
+      .order('company_name'),
+    // client_id che hanno almeno un utente con ruolo 'client' assegnato
+    admin.from('client_assignments')
+      .select('client_id, profiles!inner(role)')
+      .eq('profiles.role', 'client'),
+  ])
+
+  const withAccess = new Set((clientUsers ?? []).map((r: { client_id: string }) => r.client_id))
 
   const typeLabel: Record<string, string> = {
     growth: 'Growth', digital: 'Digital', growth_digital: 'Growth+Digital',
@@ -63,6 +72,7 @@ export default async function PortaleClienteIndexPage() {
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <InviteClientButton clientId={c.id} clientName={c.company_name} hasAccess={withAccess.has(c.id)} />
               {c.client_label && (
                 <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${labelColor[c.client_label] ?? 'text-[#444] bg-[#1A1A1A]'}`}>
                   {c.client_label.replace('_', ' ')}

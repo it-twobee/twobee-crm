@@ -471,7 +471,7 @@ function ChatTab({ ccChannelId, client, currentProfile, allProfiles }: {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 type PortalTab = 'panoramica' | 'progetti' | 'task' | 'aggiornamenti' | 'chat' | 'kpi' | 'fatture'
 
-export function ClientPortalView({ client, projects, sprints, clientTasks, kpis, invoices, ccChannelId, comments, currentProfile, allProfiles }: {
+export function ClientPortalView({ client, projects, sprints, clientTasks, kpis, invoices, ccChannelId, comments, currentProfile, allProfiles, isPreview = true }: {
   client: Client
   projects: Project[]
   sprints: Sprint[]
@@ -482,6 +482,7 @@ export function ClientPortalView({ client, projects, sprints, clientTasks, kpis,
   comments: ProjectComment[]
   currentProfile: Profile
   allProfiles: Profile[]
+  isPreview?: boolean
 }) {
   const [tab, setTab] = useState<PortalTab>('panoramica')
 
@@ -502,17 +503,19 @@ export function ClientPortalView({ client, projects, sprints, clientTasks, kpis,
 
   return (
     <div className="min-h-screen bg-[#111111]">
-      {/* Super admin banner */}
-      <div className="bg-[#F5C800]/10 border-b border-[#F5C800]/20 px-6 py-2 flex items-center gap-2">
-        <Eye className="w-3.5 h-3.5 text-[#F5C800]" />
-        <span className="text-xs text-[#F5C800] font-bold">Stai visualizzando il portale come il cliente</span>
-        <Link href="/portale-cliente" className="ml-auto text-[10px] text-[#F5C800]/60 hover:text-[#F5C800] flex items-center gap-1">
-          <ArrowLeft className="w-3 h-3" /> Lista clienti
-        </Link>
-        <Link href={`/clienti/${client.id}`} className="text-[10px] text-[#F5C800]/60 hover:text-[#F5C800] flex items-center gap-1">
-          Vista admin <ChevronRight className="w-3 h-3" />
-        </Link>
-      </div>
+      {/* Banner preview — solo per il super admin che ispeziona il portale */}
+      {isPreview && (
+        <div className="bg-[#F5C800]/10 border-b border-[#F5C800]/20 px-6 py-2 flex items-center gap-2">
+          <Eye className="w-3.5 h-3.5 text-[#F5C800]" />
+          <span className="text-xs text-[#F5C800] font-bold">Stai visualizzando il portale come il cliente</span>
+          <Link href="/portale-cliente" className="ml-auto text-[10px] text-[#F5C800]/60 hover:text-[#F5C800] flex items-center gap-1">
+            <ArrowLeft className="w-3 h-3" /> Lista clienti
+          </Link>
+          <Link href={`/clienti/${client.id}`} className="text-[10px] text-[#F5C800]/60 hover:text-[#F5C800] flex items-center gap-1">
+            Vista admin <ChevronRight className="w-3 h-3" />
+          </Link>
+        </div>
+      )}
 
       <div className="max-w-3xl mx-auto px-6 py-8">
         {/* Header */}

@@ -36,26 +36,50 @@ export async function middleware(request: NextRequest) {
     '/chat',
     '/report',
     '/impostazioni',
+    '/portale',
+    '/reparti',
+    '/commerciale',
+    '/fatturazione',
+    '/hr',
+    '/strategia',
   ]
 
   const isProtected = protectedPaths.some((p) => pathname.startsWith(p))
 
-  if (!user && isProtected) {
+  const redirectTo = (path: string) => {
     const url = request.nextUrl.clone()
-    url.pathname = '/login'
+    url.pathname = path
     return NextResponse.redirect(url)
   }
 
-  if (user && pathname === '/login') {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
-    return NextResponse.redirect(url)
-  }
+  if (!user && isProtected) return redirectTo('/login')
 
-  if (user && pathname === '/') {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
-    return NextResponse.redirect(url)
+  // Routing per ruolo: i clienti vivono solo nel proprio portale
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles').select('role').eq('id', user.id).single()
+    const isClient = profile?.role === 'client' || profile?.role === 'guest'
+    const home = isClient ? '/portale' : '/dashboard'
+
+    if (isClient) {
+      // Il cliente può accedere solo a /portale (+ onboarding e profilo)
+      const allowedForClient =
+        pathname === '/portale' ||
+        pathname.startsWith('/portale/') ||
+        pathname.startsWith('/onboarding') ||
+        pathname === '/impostazioni/profilo'
+      // /portale-cliente è la PREVIEW admin: vietata ai clienti
+      if (pathname.startsWith('/portale-cliente') || !allowedForClient) {
+        if (pathname !== '/portale') return redirectTo('/portale')
+      }
+    } else {
+      // Lo staff non usa la rotta cliente /portale
+      if (pathname === '/portale' || pathname.startsWith('/portale/')) {
+        return redirectTo('/dashboard')
+      }
+    }
+
+    if (pathname === '/login' || pathname === '/') return redirectTo(home)
   }
 
   return supabaseResponse
