@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ClientPortalView } from '@/components/portale-cliente/ClientPortalView'
-import type { Client, Project, Sprint, Task, ClientKpi, Invoice, Profile } from '@/lib/types/database'
+import type { Client, Project, Sprint, Task, ClientKpi, Invoice, Profile, Document } from '@/lib/types/database'
 import type { ProjectComment } from '@/components/projects/project-shared'
 
 export const revalidate = 0
@@ -33,7 +33,7 @@ export default async function PortalePage() {
   const { data: projects } = await sb.from('projects').select('*').eq('client_id', clientId).order('created_at')
   const projectIds = (projects ?? []).map((p: Project) => p.id)
 
-  const [tasksRes, sprintsRes, kpisRes, invoicesRes, channelRes, commentsRes] = await Promise.all([
+  const [tasksRes, sprintsRes, kpisRes, invoicesRes, channelRes, commentsRes, docsRes] = await Promise.all([
     projectIds.length > 0
       ? sb.from('tasks').select('*').in('project_id', projectIds).order('order')
       : Promise.resolve({ data: [] }),
@@ -46,6 +46,7 @@ export default async function PortalePage() {
     projectIds.length > 0
       ? sb.from('project_comments').select('*').in('project_id', projectIds).is('parent_id', null).order('created_at', { ascending: false }).limit(50)
       : Promise.resolve({ data: [] }),
+    sb.from('documents').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
   ])
 
   return (
@@ -58,6 +59,7 @@ export default async function PortalePage() {
       invoices={(invoicesRes.data ?? []) as Invoice[]}
       ccChannelId={channelRes.data?.id ?? null}
       comments={(commentsRes.data ?? []) as ProjectComment[]}
+      documents={(docsRes.data ?? []) as Document[]}
       currentProfile={profile as Profile}
       allProfiles={[profile as Profile]}
       isPreview={false}

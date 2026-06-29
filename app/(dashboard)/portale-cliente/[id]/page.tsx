@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { ClientPortalView } from '@/components/portale-cliente/ClientPortalView'
-import type { Client, Project, Sprint, Task, ClientKpi, Invoice, Profile } from '@/lib/types/database'
+import type { Client, Project, Sprint, Task, ClientKpi, Invoice, Profile, Document } from '@/lib/types/database'
 import type { ProjectComment } from '@/components/projects/project-shared'
 
 export const revalidate = 0
@@ -29,7 +29,7 @@ export default async function PortaleClienteDetailPage({ params }: { params: { i
   const { data: projects } = await admin.from('projects').select('*').eq('client_id', id).order('created_at')
   const projectIds = (projects ?? []).map((p: Project) => p.id)
 
-  const [tasksRes, sprintsRes, kpisRes, invoicesRes, channelRes, commentsRes] = await Promise.all([
+  const [tasksRes, sprintsRes, kpisRes, invoicesRes, channelRes, commentsRes, docsRes] = await Promise.all([
     projectIds.length > 0
       ? admin.from('tasks').select('*').in('project_id', projectIds).eq('is_client_task', true as never).order('order')
       : Promise.resolve({ data: [] }),
@@ -54,6 +54,7 @@ export default async function PortaleClienteDetailPage({ params }: { params: { i
           .order('created_at', { ascending: false })
           .limit(50)
       : Promise.resolve({ data: [] }),
+    admin.from('documents').select('*').eq('client_id', id).order('created_at', { ascending: false }),
   ])
 
   return (
@@ -66,6 +67,7 @@ export default async function PortaleClienteDetailPage({ params }: { params: { i
       invoices={(invoicesRes.data ?? []) as Invoice[]}
       ccChannelId={channelRes.data?.id ?? null}
       comments={(commentsRes.data ?? []) as ProjectComment[]}
+      documents={(docsRes.data ?? []) as Document[]}
       currentProfile={profile as Profile}
       allProfiles={(allProfilesRaw ?? []) as Profile[]}
     />

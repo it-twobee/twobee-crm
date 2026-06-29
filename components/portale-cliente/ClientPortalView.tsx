@@ -5,15 +5,17 @@ import Link from 'next/link'
 import {
   ArrowLeft, Check, Eye, FolderKanban, BarChart3, FileText,
   Star, ChevronRight, ChevronDown, MessageCircle, MessageSquare,
-  Send, Loader2, Trash2, Reply, Flag,
+  Send, Loader2, Trash2, Reply, Flag, FolderOpen, ExternalLink, X,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { SlackChat } from '@/components/chat/SlackChat'
+import { DriveEmbed } from '@/components/shared/DriveEmbed'
+import { isDriveUrl, driveKind } from '@/lib/drive'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/utils'
 import { timeAgo, UPDATE_TAGS, type ProjectComment } from '@/components/projects/project-shared'
 import { PHASE_LABEL, PHASE_COLOR } from '@/lib/reparti-constants'
-import type { Client, Project, Sprint, Task, ClientKpi, Invoice, Profile } from '@/lib/types/database'
+import type { Client, Project, Sprint, Task, ClientKpi, Invoice, Profile, Document } from '@/lib/types/database'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
@@ -468,10 +470,73 @@ function ChatTab({ ccChannelId, client, currentProfile, allProfiles }: {
   )
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
-type PortalTab = 'panoramica' | 'progetti' | 'task' | 'aggiornamenti' | 'chat' | 'kpi' | 'fatture'
+// ─── Documenti tab ────────────────────────────────────────────────────────────
+function DocumentiTab({ documents }: { documents: Document[] }) {
+  const [preview, setPreview] = useState<Document | null>(null)
+  const folders = documents.filter(d => driveKind(d.file_url) === 'folder')
+  const files   = documents.filter(d => driveKind(d.file_url) !== 'folder')
 
-export function ClientPortalView({ client, projects, sprints, clientTasks, kpis, invoices, ccChannelId, comments, currentProfile, allProfiles, isPreview = true }: {
+  if (documents.length === 0) {
+    return (
+      <div className="text-center py-16">
+        <FolderOpen className="w-8 h-8 text-[#1A1A1A] mx-auto mb-3" />
+        <p className="text-[#444] text-sm">Nessun documento condiviso</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {folders.map(d => <DriveEmbed key={d.id} url={d.file_url} title={d.name} height={460} />)}
+
+      {files.length > 0 && (
+        <div className="space-y-2">
+          {files.map(d => {
+            const drive = isDriveUrl(d.file_url)
+            return (
+              <div key={d.id} className="flex items-center gap-3 bg-[#0D0D0D] border border-[#1A1A1A] rounded-xl px-4 py-3">
+                <FileText className="w-4 h-4 text-[#444] shrink-0" />
+                <span className="flex-1 text-sm text-white truncate">{d.name}</span>
+                <span className="text-[9px] text-[#333]">{timeAgo(d.created_at)}</span>
+                {drive ? (
+                  <button onClick={() => setPreview(d)}
+                    className="flex items-center gap-1 text-[10px] font-bold text-[#F5C800] hover:text-yellow-400 shrink-0">
+                    <Eye className="w-3.5 h-3.5" /> Anteprima
+                  </button>
+                ) : (
+                  <a href={d.file_url} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-[10px] font-bold text-[#F5C800] hover:text-yellow-400 shrink-0">
+                    <ExternalLink className="w-3.5 h-3.5" /> Apri
+                  </a>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {preview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setPreview(null) }}>
+          <div className="w-full max-w-4xl">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-bold text-white truncate">{preview.name}</p>
+              <button onClick={() => setPreview(null)} className="text-[#444] hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <DriveEmbed url={preview.file_url} title={preview.name} height={600} />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+type PortalTab = 'panoramica' | 'progetti' | 'task' | 'aggiornamenti' | 'chat' | 'documenti' | 'kpi' | 'fatture'
+
+export function ClientPortalView({ client, projects, sprints, clientTasks, kpis, invoices, ccChannelId, comments, documents, currentProfile, allProfiles, isPreview = true }: {
   client: Client
   projects: Project[]
   sprints: Sprint[]
@@ -480,6 +545,7 @@ export function ClientPortalView({ client, projects, sprints, clientTasks, kpis,
   invoices: Invoice[]
   ccChannelId: string | null
   comments: ProjectComment[]
+  documents: Document[]
   currentProfile: Profile
   allProfiles: Profile[]
   isPreview?: boolean
@@ -497,6 +563,7 @@ export function ClientPortalView({ client, projects, sprints, clientTasks, kpis,
     { id: 'task',           label: 'Da fare',        badge: pendingTasks.length > 0 ? pendingTasks.length : undefined },
     { id: 'aggiornamenti',  label: 'Aggiornamenti',  badge: comments.length > 0 ? comments.length : undefined },
     { id: 'chat',           label: 'Chat',           badge: ccChannelId ? undefined : undefined },
+    { id: 'documenti',      label: 'Documenti',      badge: documents.length > 0 ? documents.length : undefined },
     { id: 'kpi',            label: 'Report KPI' },
     { id: 'fatture',        label: 'Fatture' },
   ]
@@ -712,6 +779,10 @@ export function ClientPortalView({ client, projects, sprints, clientTasks, kpis,
             currentProfile={currentProfile}
             allProfiles={allProfiles}
           />
+        )}
+
+        {tab === 'documenti' && (
+          <DocumentiTab documents={documents} />
         )}
 
         {tab === 'kpi' && (
