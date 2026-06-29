@@ -4,23 +4,26 @@ import { useState } from 'react'
 import {
   Users, Calendar, Star, ClipboardList, Plus, Check, X,
   Loader2, ChevronDown, Award, TrendingUp, Clock, AlertTriangle,
-  User, Briefcase, Mail, Phone, Edit2,
+  User, Briefcase, Mail, Phone, Edit2, Network,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { Organigramma } from '@/components/hr/Organigramma'
 import type {
-  Profile, TeamLeave, PerformanceReview, LeaveType, LeaveStatus, ContractType,
+  Profile, TeamLeave, PerformanceReview, LeaveType, LeaveStatus, ContractType, OrgUnit, OrgMember,
 } from '@/lib/types/database'
 
 interface Props {
   profiles: Profile[]
   leaves: TeamLeave[]
   reviews: PerformanceReview[]
+  orgUnits: OrgUnit[]
+  orgMembers: OrgMember[]
   currentUserId: string
   isAdmin: boolean
 }
 
-type Tab = 'team' | 'ferie' | 'performance'
+type Tab = 'team' | 'ferie' | 'performance' | 'organigramma'
 
 const ic = 'w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold/50'
 
@@ -231,7 +234,7 @@ function ReviewModal({ reviewee, currentUserId, quarter, existing, onClose, onSa
   )
 }
 
-export function HRClient({ profiles, leaves: initialLeaves, reviews: initialReviews, currentUserId, isAdmin }: Props) {
+export function HRClient({ profiles, leaves: initialLeaves, reviews: initialReviews, orgUnits, orgMembers, currentUserId, isAdmin }: Props) {
   const [tab, setTab] = useState<Tab>('team')
   const [leaves, setLeaves] = useState(initialLeaves)
   const [reviews, setReviews] = useState(initialReviews)
@@ -300,6 +303,7 @@ export function HRClient({ profiles, leaves: initialLeaves, reviews: initialRevi
           { key: 'team', label: 'Team', icon: <Users className="w-3.5 h-3.5" /> },
           { key: 'ferie', label: `Assenze${pending.length > 0 ? ` (${pending.length})` : ''}`, icon: <Calendar className="w-3.5 h-3.5" /> },
           { key: 'performance', label: 'Performance', icon: <Star className="w-3.5 h-3.5" /> },
+          { key: 'organigramma', label: 'Organigramma', icon: <Network className="w-3.5 h-3.5" /> },
         ] as { key: Tab; label: string; icon: React.ReactNode }[]).map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${tab === t.key ? 'bg-gold text-black' : 'text-text-secondary hover:text-white'}`}>
@@ -495,6 +499,11 @@ export function HRClient({ profiles, leaves: initialLeaves, reviews: initialRevi
             })}
           </div>
         </div>
+      )}
+
+      {/* ── ORGANIGRAMMA ── */}
+      {tab === 'organigramma' && (
+        <Organigramma profiles={profiles} units={orgUnits} members={orgMembers} isAdmin={isAdmin} />
       )}
 
       {showLeaveModal && (

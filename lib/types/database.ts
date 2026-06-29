@@ -60,6 +60,24 @@ export interface Profile {
   created_at: string
 }
 
+export interface OrgUnit {
+  id: string
+  name: string
+  color: string
+  responsibilities: string | null
+  lead_id: string | null
+  position: number
+  created_at: string
+}
+
+export interface OrgMember {
+  id: string
+  unit_id: string
+  profile_id: string
+  role_in_unit: string | null
+  created_at: string
+}
+
 export interface RolePermission {
   id: string
   role: Exclude<AppRole, 'super_admin'>
