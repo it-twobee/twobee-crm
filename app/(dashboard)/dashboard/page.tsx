@@ -40,11 +40,18 @@ export default async function DashboardPage() {
   const noop    = { data: null, error: null }
   const noopArr: never[] = []
   const noopN   = { count: 0, error: null }
-  // PostgrestFilterBuilder è PromiseLike, non Promise — serve Promise.resolve() per .catch()
+  // Logga gli errori di query (Supabase risolve con { error } invece di reject) per renderli osservabili
+  const logErr = (label: string, err: unknown) =>
+    console.error(`[dashboard] ${label}:`, err instanceof Error ? err.message : err)
+  // PostgrestFilterBuilder è PromiseLike, non Promise — serve Promise.resolve() per .then/.catch()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const safe = (q: PromiseLike<unknown>) => Promise.resolve(q).catch(() => noop) as Promise<any>
+  const safe = (q: PromiseLike<unknown>, label = 'query') => Promise.resolve(q)
+    .then((r: any) => { if (r?.error) logErr(label, r.error.message ?? r.error); return r })
+    .catch((e) => { logErr(`${label} (throw)`, e); return noop }) as Promise<any>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const safeData = (q: PromiseLike<unknown>) => Promise.resolve(q).then((r: any) => r?.data ?? []).catch(() => []) as Promise<any[]>
+  const safeData = (q: PromiseLike<unknown>, label = 'query') => Promise.resolve(q)
+    .then((r: any) => { if (r?.error) logErr(label, r.error.message ?? r.error); return r?.data ?? [] })
+    .catch((e) => { logErr(`${label} (throw)`, e); return [] }) as Promise<any[]>
 
   const [
     clientsResult,
@@ -69,92 +76,92 @@ export default async function DashboardPage() {
     kpiSnapshotResult,
   ] = await Promise.all([
     isAdminLevel
-      ? safe(supabase.from('clients').select('*').order('company_name'))
+      ? safe(supabase.from('clients').select('*').order('company_name'), 'clients')
       : noop,
 
     !isAdminLevel
-      ? safe(supabase.from('user_client_assignments').select('client_id').eq('user_id', user.id))
+      ? safe(supabase.from('user_client_assignments').select('client_id').eq('user_id', user.id), 'assignments')
       : noop,
 
     isJuniorLevel
       ? safe(supabase.from('tasks')
           .select(`*, assignee:profiles!tasks_assignee_id_fkey(id,full_name,avatar_url), project:projects(id,name,client_id)`)
           .neq('status', 'completato').lte('due_date', weekLater).gte('due_date', today)
-          .is('parent_task_id', null).eq('assigned_to', user.id).order('due_date'))
+          .is('parent_task_id', null).eq('assigned_to', user.id).order('due_date'), 'tasksDueSoon')
       : safe(supabase.from('tasks')
           .select(`*, assignee:profiles!tasks_assignee_id_fkey(id,full_name,avatar_url), project:projects(id,name,client_id)`)
           .neq('status', 'completato').lte('due_date', weekLater).gte('due_date', today)
-          .is('parent_task_id', null).order('due_date')),
+          .is('parent_task_id', null).order('due_date'), 'tasksDueSoon'),
 
     isJuniorLevel
-      ? safe(supabase.from('tasks').select('id,title').neq('status','completato').eq('due_date', today).eq('assigned_to', user.id))
-      : safe(supabase.from('tasks').select('id,title').neq('status','completato').eq('due_date', today)),
+      ? safe(supabase.from('tasks').select('id,title').neq('status','completato').eq('due_date', today).eq('assigned_to', user.id), 'tasksToday')
+      : safe(supabase.from('tasks').select('id,title').neq('status','completato').eq('due_date', today), 'tasksToday'),
 
     isAdminLevel
       ? safe(supabase.from('tasks')
           .select(`*, assignee:profiles!tasks_assignee_id_fkey(id,full_name,avatar_url,email), project:projects(id,name)`)
-          .neq('status', 'completato').not('assigned_to', 'is', null))
+          .neq('status', 'completato').not('assigned_to', 'is', null), 'allActiveTasks')
       : noop,
 
     isAdminLevel
-      ? safe(supabase.from('profiles').select('*').eq('is_active', true).order('full_name'))
+      ? safe(supabase.from('profiles').select('*').eq('is_active', true).order('full_name'), 'allProfiles')
       : noop,
 
     isAdminLevel
-      ? safe(supabase.from('invoices').select('*', { count: 'exact', head: true }).in('status', ['da_inviare','in_ritardo']))
+      ? safe(supabase.from('invoices').select('*', { count: 'exact', head: true }).in('status', ['da_inviare','in_ritardo']), 'invoicesPending')
       : noopN,
 
     isAdminLevel
-      ? safe(supabase.from('invoices').select('month,amount').eq('invoice_type','fattura').eq('status','pagata').gte('month', sixMonthsAgo).order('month'))
+      ? safe(supabase.from('invoices').select('month,amount').eq('invoice_type','fattura').eq('status','pagata').gte('month', sixMonthsAgo).order('month'), 'invoicesByMonth')
       : noop,
 
     isAdminLevel
-      ? safe(supabase.from('approvals').select('*', { count: 'exact', head: true }).eq('status','pending').then(r => r.error ? { count: 0 } : r))
+      ? safe(supabase.from('approvals').select('*', { count: 'exact', head: true }).eq('status','pending').then(r => r.error ? { count: 0 } : r), 'approvals')
       : { count: 0 },
 
-    safe(supabase.from('channel_members').select('channel_id,last_read_at').eq('profile_id', user.id)),
+    safe(supabase.from('channel_members').select('channel_id,last_read_at').eq('profile_id', user.id), 'memberships'),
 
     isAdminLevel
-      ? safeData(supabase.from('deals').select('id,title,value,stage,probability,expected_close,company_name'))
+      ? safeData(supabase.from('deals').select('id,title,value,stage,probability,expected_close,company_name'), 'deals')
       : noopArr,
 
     isAdminLevel
-      ? safeData(supabase.from('tickets').select('status'))
+      ? safeData(supabase.from('tickets').select('status'), 'ticketsStatus')
       : noopArr,
 
     isAdminLevel
-      ? safeData(supabase.from('objectives').select('id,title,description,quarter,owner_id,status,progress,area').order('progress', { ascending: false }))
+      ? safeData(supabase.from('objectives').select('id,title,description,quarter,owner_id,status,progress,area').order('progress', { ascending: false }), 'objectives')
       : noopArr,
 
     isAdminLevel
-      ? safeData(supabase.from('tasks').select('status'))
+      ? safeData(supabase.from('tasks').select('status'), 'allTasksStatus')
       : noopArr,
 
     isAdminLevel
-      ? safe(supabase.from('invoices').select('id,amount,client:clients(company_name)').eq('status','in_ritardo').limit(3))
+      ? safe(supabase.from('invoices').select('id,amount,client:clients(company_name)').eq('status','in_ritardo').limit(3), 'lateInvoices')
       : noop,
 
     isAdminLevel
-      ? safe(supabase.from('tickets').select('id,title,sla_hours,created_at').in('status',['aperto','in_lavorazione']).eq('priority','urgente').limit(2))
+      ? safe(supabase.from('tickets').select('id,title,sla_hours,created_at').in('status',['aperto','in_lavorazione']).eq('priority','urgente').limit(2), 'urgentTickets')
       : noop,
 
     safe(supabase.from('projects')
       .select(`id, name, project_type, project_kind, client_id, clients(company_name), tasks(id,status,due_date)`)
-      .eq('status', 'attivo').order('created_at', { ascending: false })),
+      .eq('status', 'attivo').order('created_at', { ascending: false }), 'projectsWidget'),
 
     isAdminLevel
-      ? safeData(supabase.from('invoices').select('status,amount').eq('invoice_type', 'fattura'))
+      ? safeData(supabase.from('invoices').select('status,amount').eq('invoice_type', 'fattura'), 'invoicesAll')
       : noopArr,
 
     isAdminLevel
       ? safeData(supabase.from('decisions').select('id,title,context,status,priority,outcome,decided_at,created_at')
-          .neq('status', 'archiviata').order('created_at', { ascending: false }).limit(30))
+          .neq('status', 'archiviata').order('created_at', { ascending: false }).limit(30), 'decisions')
       : noopArr,
 
     isAdminLevel
       ? safe(supabase.from('client_kpis')
           .select('client_id, month, mer, revenue_attributed, organic_sessions, uptime, leads_generated')
-          .gte('month', twoMonthsAgo).order('month', { ascending: false }))
+          .gte('month', twoMonthsAgo).order('month', { ascending: false }), 'kpiSnapshot')
       : noop,
   ])
 
@@ -165,8 +172,13 @@ export default async function DashboardPage() {
 
   if (!isAdminLevel && assignmentsResult.data?.length) {
     const ids = assignmentsResult.data.map((a: { client_id: string }) => a.client_id)
-    const { data } = await supabase.from('clients').select('*').in('id', ids).order('company_name')
-    clients = (data ?? []) as Client[]
+    try {
+      const { data, error } = await supabase.from('clients').select('*').in('id', ids).order('company_name')
+      if (error) logErr('clientsAssigned', error.message)
+      clients = (data ?? []) as Client[]
+    } catch (e) {
+      logErr('clientsAssigned (throw)', e)
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -194,8 +206,8 @@ export default async function DashboardPage() {
       ])
       recentMessages = msgs ?? []
       unreadCount = unread ?? 0
-    } catch {
-      // network error — defaults già impostati
+    } catch (e) {
+      logErr('chatMessages (throw)', e)
     }
   }
 
