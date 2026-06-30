@@ -33,6 +33,8 @@ export default async function DashboardPage() {
   const sixMonthsAgo  = new Date(Date.now() - 24 * 30 * 86400000).toISOString().slice(0, 7)
   const twoMonthsAgoDate = new Date(); twoMonthsAgoDate.setMonth(twoMonthsAgoDate.getMonth() - 2); twoMonthsAgoDate.setDate(1)
   const twoMonthsAgo  = twoMonthsAgoDate.toISOString().slice(0, 10)
+  const sixMonthsDate = new Date(); sixMonthsDate.setMonth(sixMonthsDate.getMonth() - 5); sixMonthsDate.setDate(1)
+  const sixMonthsStart = sixMonthsDate.toISOString().slice(0, 10)
 
   // ═══════════════════════════════════════════════════════════════
   // FASE 1 — Tutto in parallelo: nessuna query aspetta un'altra
@@ -74,6 +76,7 @@ export default async function DashboardPage() {
     invoicesAllResult,
     decisionsResult,
     kpiSnapshotResult,
+    growthKpisResult,
   ] = await Promise.all([
     isAdminLevel
       ? safe(supabase.from('clients').select('*').order('company_name'), 'clients')
@@ -163,6 +166,12 @@ export default async function DashboardPage() {
           .select('client_id, month, mer, revenue_attributed, organic_sessions, uptime, leads_generated')
           .gte('month', twoMonthsAgo).order('month', { ascending: false }), 'kpiSnapshot')
       : noop,
+
+    isAdminLevel
+      ? safeData(supabase.from('client_kpis')
+          .select('client_id, month, revenue_attributed, mer, leads_generated')
+          .gte('month', sixMonthsStart).order('month', { ascending: true }), 'growthKpis')
+      : noopArr,
   ])
 
   // ═══════════════════════════════════════════════════════════════
@@ -388,6 +397,7 @@ export default async function DashboardPage() {
     decisions: decisionsResult as import('@/components/dashboard/DecisionCenter').Decision[],
     kpiSnapshot,
     objectives: okrAll,
+    growthKpis: (growthKpisResult ?? []) as import('@/components/dashboard/GrowthPerformance').GrowthKpiRow[],
   }
 
   return (

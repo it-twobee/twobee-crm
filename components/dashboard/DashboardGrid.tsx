@@ -29,7 +29,9 @@ import { DecisionCenter }        from './DecisionCenter'
 import { KpiPerformanceWidget } from './KpiPerformanceWidget'
 import { AIAutomationCenter }   from './AIAutomationCenter'
 import { StrategicObjectives }  from './StrategicObjectives'
+import { GrowthPerformance }    from './GrowthPerformance'
 import type { KpiSnapshotRow }  from './KpiPerformanceWidget'
+import type { GrowthKpiRow }    from './GrowthPerformance'
 import type { FocusItem }      from './DailyFocus'
 import type { DashAlert }      from './AlertCenter'
 import type { MonthRevenue }   from './RevenueSnapshot'
@@ -77,6 +79,7 @@ export interface DashboardData {
   decisions: Decision[]
   kpiSnapshot: KpiSnapshotRow[]
   objectives: Objective[]
+  growthKpis: GrowthKpiRow[]
 }
 
 // ─── Widget registry ──────────────────────────────────────────────────────────
@@ -100,6 +103,7 @@ const WIDGETS = [
   { id: 'kpiperf',  label: 'KPI Performance',      emoji: '📊', desc: 'KPI mensili per cliente con trend' },
   { id: 'aiautomation',  label: 'AI & Automation',       emoji: '🧠', desc: 'Log chiamate Groq, automazioni attive, ore risparmiate' },
   { id: 'objectives',    label: 'OKR Aziendali',         emoji: '🎯', desc: 'Obiettivi strategici con progress bar e status' },
+  { id: 'growthperf',    label: 'Growth Performance',    emoji: '📈', desc: 'Revenue aggregato clienti growth, trend e ranking con sparkline' },
 ]
 
 // ─── Layout defaults ──────────────────────────────────────────────────────────
@@ -128,6 +132,7 @@ const DEFAULT_LAYOUT: GridItem[] = [
   { i: 'kpiperf',      x: 0, y: 47, w: 12, h: 6,  minH: 5, minW: 4 },
   { i: 'aiautomation', x: 0, y: 53, w: 12, h: 7,  minH: 6, minW: 4 },
   { i: 'objectives',   x: 0, y: 60, w: 6,  h: 8,  minH: 5, minW: 3 },
+  { i: 'growthperf',   x: 6, y: 60, w: 6,  h: 8,  minH: 5, minW: 4 },
 ]
 
 interface Template {
@@ -243,13 +248,14 @@ function TemplatePreview({ template, active }: { template: Template; active: boo
     chat: 'AI', focus: 'Focus', alerts: 'Alert', metrics: 'KPI',
     revenue: 'Rev', tasks: 'Task', projects: 'Proj', risk: 'Risk',
     pulse: 'Pulse', workload: 'Team', insights: 'Insights', aibrief: 'Brief', kpiperf: 'KPI',
+    growthperf: 'Growth',
   }
   const tintMap: Record<string, string> = {
     chat: '#A855F7', focus: '#F5C800', alerts: '#EF4444', metrics: '#3B82F6',
     revenue: '#22C55E', tasks: '#F59E0B', projects: '#6366F1',
     risk: '#EF4444', pulse: '#14B8A6', workload: '#8B5CF6', insights: '#F5C800',
     margin: '#22C55E', financial: '#3B82F6', pipeline: '#F5C800', decision: '#A855F7', aibrief: '#F5C800',
-    kpiperf: '#F5C800',
+    kpiperf: '#F5C800', growthperf: '#22C55E',
   }
 
   return (
@@ -765,7 +771,7 @@ function MetricCards({ mrr, clientsCount, clientsAtRisk, tasksDueSoon, invoicesP
 
 // ─── DashboardGrid ────────────────────────────────────────────────────────────
 export function DashboardGrid({ data, initialConfig }: { data: DashboardData; initialConfig?: DashboardConfig | null }) {
-  const NEW_WIDGETS = ['margin', 'financial', 'pipeline', 'decision', 'kpiperf']
+  const NEW_WIDGETS = ['margin', 'financial', 'pipeline', 'decision', 'kpiperf', 'growthperf']
 
   const [mounted, setMounted]               = useState(false)
   const [panelOpen, setPanelOpen]           = useState(false)
@@ -975,6 +981,7 @@ export function DashboardGrid({ data, initialConfig }: { data: DashboardData; in
     kpiperf:      <KpiPerformanceWidget kpiSnapshot={data.kpiSnapshot} />,
     aiautomation: <AIAutomationCenter />,
     objectives:   <StrategicObjectives objectives={data.objectives} />,
+    growthperf:   <GrowthPerformance clients={data.clients} kpis={data.growthKpis} />,
   }
 
   return (
