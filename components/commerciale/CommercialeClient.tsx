@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Deal, DealStage, Profile, Client } from '@/lib/types/database'
 import { LeadGenModule } from './LeadGenModule'
+import { QuotesSection } from '@/components/sales/QuotesSection'
 
 interface Props {
   deals: Deal[]
@@ -158,7 +159,7 @@ function DealModal({ deal, profiles, clients, onClose, onSaved }: {
 
 export function CommercialeClient({ deals: initialDeals, profiles, clients, currentUserId }: Props) {
   const [deals, setDeals] = useState(initialDeals)
-  const [section, setSection] = useState<'pipeline' | 'leadgen'>('pipeline')
+  const [section, setSection] = useState<'pipeline' | 'leadgen' | 'preventivi'>('pipeline')
   const [view, setView] = useState<'kanban' | 'lista'>('kanban')
   const [showModal, setShowModal] = useState(false)
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null)
@@ -242,7 +243,7 @@ export function CommercialeClient({ deals: initialDeals, profiles, clients, curr
 
       {/* Tab selector */}
       <div className="flex bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg overflow-hidden w-fit">
-        {([['pipeline', 'Pipeline'], ['leadgen', 'Lead Gen']] as const).map(([key, label]) => (
+        {([['pipeline', 'Pipeline'], ['leadgen', 'Lead Gen'], ['preventivi', 'Preventivi']] as const).map(([key, label]) => (
           <button key={key} onClick={() => setSection(key)}
             className={`px-4 py-2 text-sm font-semibold transition-colors ${section === key ? 'bg-[#F5C800] text-black' : 'text-[#666] hover:text-white'}`}>
             {label}
@@ -251,6 +252,7 @@ export function CommercialeClient({ deals: initialDeals, profiles, clients, curr
       </div>
 
       {section === 'leadgen' && <LeadGenModule clients={clients} />}
+      {section === 'preventivi' && <QuotesSection clients={clients} deals={deals} />}
       {section === 'pipeline' && (<>
 
       {/* KPI */}

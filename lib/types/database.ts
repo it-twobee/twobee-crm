@@ -600,18 +600,44 @@ export interface DealActivity {
   created_at: string
 }
 
+export type QuoteStatus = 'bozza' | 'inviata' | 'accettata' | 'rifiutata' | 'scaduta'
+
+export interface QuoteItem {
+  id: string
+  service_name: string
+  resource_cost_id: string | null
+  resource_name: string | null
+  hours: number
+  cost_rate: number
+  markup: number
+  sale_price: number
+}
+
+export interface QuoteExternalCost {
+  id: string
+  label: string
+  amount: number
+}
+
 export interface Quote {
   id: string
   deal_id: string | null
   client_id: string | null
   title: string
-  items: { description: string; qty: number; unit_price: number }[]
+  items: QuoteItem[]
+  external_costs: QuoteExternalCost[]
   total: number
-  status: 'bozza' | 'inviata' | 'accettata' | 'rifiutata' | 'scaduta'
+  total_cost: number
+  target_margin: number
+  final_price: number | null
+  margin_amount: number | null
+  margin_percentage: number | null
+  status: QuoteStatus
   valid_until: string | null
   notes: string | null
   created_by: string | null
   created_at: string
+  updated_at: string | null
 }
 
 // ─── Area Operativa ──────────────────────────────────────────
