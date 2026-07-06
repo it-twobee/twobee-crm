@@ -42,6 +42,17 @@ export async function POST(req: NextRequest) {
         .eq('client_id', body.clientId).order('month', { ascending: false }).limit(3)).data ?? []
     : []
 
+  // Knowledge base strutturata (migration 066) — se assente, si degrada senza errori
+  const knowledge = body.clientId
+    ? (await sb.from('client_knowledge')
+        .select('business_model, main_offer, target_audience, competitors, tone_of_voice, pain_points, buyer_personas, services_active, do_not_do, opportunities')
+        .eq('client_id', body.clientId).maybeSingle()).data ?? null
+    : null
+
+  const knowledgeFacts = knowledge
+    ? Object.entries(knowledge).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('\n')
+    : null
+
   // Solo dati client-facing: MAI cost_rate, markup, total_cost o margini
   const quoteFacts = quote ? {
     titolo: quote.title,
@@ -70,6 +81,7 @@ ${client ? `Cliente esistente — settore: ${client.industry ?? 'n/d'}, area: ${
 ${deal ? `Deal: "${deal.title}"${deal.value ? `, valore stimato €${deal.value}` : ''}` : ''}
 ${quoteFacts ? `Preventivo: ${JSON.stringify(quoteFacts)}` : 'Nessun preventivo collegato'}
 ${kpis.length ? `KPI recenti del cliente: ${JSON.stringify(kpis)}` : ''}
+${knowledgeFacts ? `Knowledge base del cliente (usa questi dati per contesto, pain points, tone of voice e sezione strategia; rispetta "do_not_do"):\n${knowledgeFacts}` : ''}
 
 ═══ REGOLE FERREE ═══
 - NON inventare prezzi: usa solo prezzo_finale e i prezzi dei servizi se presenti. Se mancano, nella sezione Investimento scrivi "[da definire]" e aggiungi la voce a missing_data.

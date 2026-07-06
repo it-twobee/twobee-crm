@@ -600,6 +600,26 @@ export interface DealActivity {
   created_at: string
 }
 
+export interface ClientKnowledge {
+  id: string
+  client_id: string
+  business_model: string | null
+  main_offer: string | null
+  target_audience: string | null
+  competitors: string | null
+  tone_of_voice: string | null
+  brand_assets_url: string | null
+  access_status: string | null
+  pain_points: string | null
+  strategic_notes: string | null
+  buyer_personas: string | null
+  services_active: string | null
+  do_not_do: string | null
+  opportunities: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type BrandMode = 'twobee' | 'white_label' | 'partner_branded' | 'neutral'
 export type ProposalStatus = 'draft' | 'ready' | 'sent' | 'accepted' | 'rejected'
 

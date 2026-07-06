@@ -13,6 +13,7 @@ import { FatturazioneTab } from './tabs/FatturazioneTab'
 import { DocumentsTab } from './tabs/DocumentsTab'
 import { PanoramicaTab } from './tabs/PanoramicaTab'
 import { RelazioneTab } from './tabs/RelazioneTab'
+import { ClientKnowledgeTab } from './tabs/ClientKnowledgeTab'
 import { ClientAlertBanner } from './ClientAlertBanner'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -214,6 +215,7 @@ export function ClientPageClient({
     { label: 'Documenti', index: 3 },
     ...(canSeeAnagrafica ? [{ label: 'Anagrafica', index: 4 }] : []),
     ...(isAdminLevel ? [{ label: 'Relazione', index: 5 }] : []),
+    { label: 'Knowledge', index: 6 },
   ]
 
   const [activeTab, setActiveTab] = useState(initialTab ?? 0)
@@ -323,6 +325,7 @@ export function ClientPageClient({
           <RelazioneTab clientId={client.id} client={client} interactions={interactions} allProfiles={allProfiles}
             currentProfile={currentProfile} isAdmin={isAdmin} />
         )}
+        {activeTab === 6 && <ClientKnowledgeTab clientId={client.id} />}
 
       </div>
     </div>
