@@ -60,6 +60,35 @@ export interface Profile {
   created_at: string
 }
 
+export type ResourceType = 'internal_employee' | 'external_freelancer' | 'partner' | 'agency_supplier' | 'consultant' | 'contractor'
+export type ResourceCostType = 'monthly_salary' | 'hourly' | 'daily' | 'project_fee' | 'retainer' | 'partner_percentage'
+
+export interface ResourceCost {
+  id: string
+  profile_id: string | null
+  name: string
+  resource_type: ResourceType
+  role_title: string | null
+  department: string | null
+  seniority: string | null
+  cost_type: ResourceCostType
+  monthly_cost: number | null
+  hourly_cost: number | null
+  daily_cost: number | null
+  project_fee: number | null
+  partner_percentage: number | null
+  tools_cost_monthly: number
+  overhead_percentage: number
+  availability_hours_month: number
+  billable_target_hours_month: number
+  calculated_hourly_cost: number | null
+  markup_default: number
+  is_active: boolean
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface OrgUnit {
   id: string
   name: string

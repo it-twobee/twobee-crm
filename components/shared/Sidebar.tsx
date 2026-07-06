@@ -8,12 +8,14 @@ import {
   BarChart3, FolderOpen, Settings, ChevronRight, ChevronLeft,
   CheckCircle2, FolderKanban, Briefcase, CalendarDays, Receipt, Headphones, Crown,
   Wrench, ShoppingCart, Ticket, UserCircle2, Target, History, FlaskConical, Clock,
-  Layers, Eye,
+  Layers, Eye, Euro,
 } from 'lucide-react'
 import { useState } from 'react'
 import { usePermissions } from '@/lib/hooks/usePermissions'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 
+// Macro-aree UX: Oggi · Clienti · Lavori · Vendite · Soldi · Team · Direzione.
+// Solo regroup: tutte le rotte esistenti restano invariate e raggiungibili.
 const sections = [
   {
     label: null,
@@ -22,34 +24,51 @@ const sections = [
     ],
   },
   {
+    label: 'Oggi',
+    items: [
+      { href: '/le-mie-attivita', icon: CheckCircle2, label: 'Le mie attività' },
+      { href: '/task', icon: CheckSquare, label: 'Task' },
+      { href: '/operativa', icon: Wrench, label: 'Operativa' },
+      { href: '/calendario', icon: CalendarDays, label: 'Calendario' },
+      { href: '/chat', icon: MessageSquare, label: 'Chat' },
+    ],
+  },
+  {
     label: 'Clienti',
     items: [
       { href: '/clienti', icon: Users, label: 'Clienti' },
       { href: '/customer-care', icon: Headphones, label: 'Customer Care' },
       { href: '/customer-care/tickets', icon: Ticket, label: 'Ticket' },
+      { href: '/report', icon: BarChart3, label: 'Report KPI' },
+      { href: '/portale-cliente', icon: Eye, label: 'Portale Cliente', superAdminOnly: true },
     ],
   },
   {
-    label: 'Business',
+    label: 'Lavori',
+    items: [
+      { href: '/progetti', icon: FolderKanban, label: 'Progetti' },
+      { href: '/portfolio', icon: Briefcase, label: 'Portfolio' },
+      { href: '/documenti', icon: FolderOpen, label: 'Documenti' },
+    ],
+  },
+  {
+    label: 'Vendite',
     items: [
       { href: '/commerciale', icon: ShoppingCart, label: 'Commerciale' },
+    ],
+  },
+  {
+    label: 'Soldi',
+    items: [
       { href: '/fatturazione', icon: Receipt, label: 'Fatturazione' },
-      { href: '/report', icon: BarChart3, label: 'Report KPI' },
+      { href: '/soldi/costi-risorse', icon: Euro, label: 'Costi risorse' },
     ],
   },
   {
-    label: 'Operations',
+    label: 'Team',
     items: [
-      { href: '/operativa', icon: Wrench, label: 'Operativa' },
-      { href: '/portfolio', icon: Briefcase, label: 'Portfolio' },
-      { href: '/progetti', icon: FolderKanban, label: 'Progetti' },
-      { href: '/task', icon: CheckSquare, label: 'Task' },
-      { href: '/le-mie-attivita', icon: CheckCircle2, label: 'Le mie attività' },
-    ],
-  },
-  {
-    label: 'Reparti',
-    items: [
+      { href: '/hr', icon: UserCircle2, label: 'HR & Team' },
+      { href: '/hr/timesheet', icon: Clock, label: 'Timesheet' },
       { href: '/reparti/growth',    icon: Layers, label: '🌱 Growth' },
       { href: '/reparti/marketing', icon: Layers, label: '📣 Marketing' },
       { href: '/reparti/digital',   icon: Layers, label: '💻 Digital' },
@@ -57,28 +76,17 @@ const sections = [
     ],
   },
   {
-    label: 'Azienda',
+    label: 'Direzione',
     items: [
       { href: '/strategia', icon: Target, label: 'Strategia & OKR' },
-      { href: '/hr', icon: UserCircle2, label: 'HR & Team' },
-      { href: '/hr/timesheet', icon: Clock, label: 'Timesheet' },
+      { href: '/twobee-os', icon: FlaskConical, label: 'TwoBee OS', superAdminOnly: true },
     ],
   },
   {
-    label: 'Hub',
+    label: 'Sistema',
     items: [
-      { href: '/chat', icon: MessageSquare, label: 'Chat' },
-      { href: '/calendario', icon: CalendarDays, label: 'Calendario' },
-      { href: '/documenti', icon: FolderOpen, label: 'Documenti' },
       { href: '/impostazioni/cronologia', icon: History, label: 'Cronologia' },
       { href: '/impostazioni', icon: Settings, label: 'Impostazioni' },
-    ],
-  },
-  {
-    label: 'Dev',
-    items: [
-      { href: '/twobee-os',        icon: FlaskConical, label: 'TwoBee OS',       superAdminOnly: true },
-      { href: '/portale-cliente',  icon: Eye,          label: 'Portale Cliente', superAdminOnly: true },
     ],
   },
 ]
@@ -128,7 +136,7 @@ export function Sidebar() {
             )}
             <div className="space-y-0.5">
               {section.items.map((item) => {
-                if ((item.href === '/impostazioni' || item.href === '/impostazioni/cronologia') && !isAdmin) return null
+                if ((item.href === '/impostazioni' || item.href === '/impostazioni/cronologia' || item.href === '/soldi/costi-risorse') && !isAdmin) return null
                 if ((item as { superAdminOnly?: boolean }).superAdminOnly && !isSuperAdmin) return null
                 const isActive = pathname === item.href || (pathname.startsWith(item.href + '/') && !section.items.some(other => other.href !== item.href && pathname.startsWith(other.href)))
                 const isGod = item.href === '/impostazioni' && isSuperAdmin
