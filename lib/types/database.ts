@@ -600,6 +600,41 @@ export interface DealActivity {
   created_at: string
 }
 
+export type BrandMode = 'twobee' | 'white_label' | 'partner_branded' | 'neutral'
+export type ProposalStatus = 'draft' | 'ready' | 'sent' | 'accepted' | 'rejected'
+
+export interface ProposalSection {
+  title: string
+  content: string
+  bullets: string[]
+  speaker_notes?: string
+}
+
+export interface ProposalContent {
+  title: string
+  sections: ProposalSection[]
+  commercial_summary: string
+  next_steps: string[]
+  missing_data: string[]
+}
+
+export interface ProposalDocument {
+  id: string
+  quote_id: string | null
+  client_id: string | null
+  deal_id: string | null
+  title: string
+  brand_mode: BrandMode
+  white_label_partner_name: string | null
+  status: ProposalStatus
+  content_json: ProposalContent
+  html_content: string | null
+  pdf_url: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type QuoteStatus = 'bozza' | 'inviata' | 'accettata' | 'rifiutata' | 'scaduta'
 
 export interface QuoteItem {

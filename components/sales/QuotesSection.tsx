@@ -1,13 +1,16 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Loader2, FileText, Trash2, Pencil, Send, Check, X as XIcon } from 'lucide-react'
+import { Plus, Loader2, FileText, Trash2, Pencil, Send, Check, X as XIcon, Presentation, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { updateQuoteStatus, deleteQuote } from '@/app/actions/quote-builder'
+import { updateProposalStatus, deleteProposal } from '@/app/actions/proposals'
 import { marginBand } from '@/lib/quote-math'
+import { buildProposalHtml } from '@/lib/proposal-html'
 import { QuoteBuilder } from './QuoteBuilder'
-import type { Quote, QuoteStatus, ResourceCost, Deal, Client } from '@/lib/types/database'
+import { ProposalGenerator } from './ProposalGenerator'
+import type { Quote, QuoteStatus, ResourceCost, Deal, Client, ProposalDocument, ProposalStatus, BrandMode } from '@/lib/types/database'
 
 const STATUS_META: Record<QuoteStatus, { label: string; color: string }> = {
   bozza:     { label: 'Bozza',     color: '#6B7280' },
@@ -19,15 +22,28 @@ const STATUS_META: Record<QuoteStatus, { label: string; color: string }> = {
 
 const eur = (v: number | null | undefined) => v == null ? '—' : `€${Math.round(v).toLocaleString('it-IT')}`
 
+const PROPOSAL_STATUS: Record<ProposalStatus, { label: string; color: string }> = {
+  draft:    { label: 'Bozza',     color: '#6B7280' },
+  ready:    { label: 'Pronta',    color: '#F5C800' },
+  sent:     { label: 'Inviata',   color: '#3B82F6' },
+  accepted: { label: 'Accettata', color: '#22C55E' },
+  rejected: { label: 'Rifiutata', color: '#EF4444' },
+}
+const BRAND_LABEL: Record<BrandMode, string> = {
+  twobee: 'TWO BEE', white_label: 'White Label', partner_branded: 'Partner', neutral: 'Neutro',
+}
+
 export function QuotesSection({ clients, deals }: {
   clients: Pick<Client, 'id' | 'company_name'>[]
   deals: Deal[]
 }) {
-  const [quotes, setQuotes]       = useState<Quote[]>([])
-  const [resources, setResources] = useState<ResourceCost[]>([])
-  const [loading, setLoading]     = useState(true)
-  const [showBuilder, setBuilder] = useState(false)
-  const [editing, setEditing]     = useState<Quote | null>(null)
+  const [quotes, setQuotes]         = useState<Quote[]>([])
+  const [resources, setResources]   = useState<ResourceCost[]>([])
+  const [proposals, setProposals]   = useState<ProposalDocument[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [showBuilder, setBuilder]   = useState(false)
+  const [editing, setEditing]       = useState<Quote | null>(null)
+  const [proposalQuote, setProposalQuote] = useState<Quote | null>(null)
 
   useEffect(() => {
     const sb = createClient()
@@ -35,10 +51,12 @@ export function QuotesSection({ clients, deals }: {
       sb.from('quotes').select('*').order('created_at', { ascending: false }),
       // RLS: solo admin legge i costi risorse — per gli altri il picker resta vuoto (rate manuale)
       sb.from('resource_costs').select('*').eq('is_active', true).order('name'),
-    ]).then(([q, r]) => {
+      sb.from('proposal_documents').select('*').order('created_at', { ascending: false }),
+    ]).then(([q, r, p]) => {
       if (q.error) toast.error('Errore caricamento preventivi: ' + q.error.message)
       setQuotes((q.data ?? []) as Quote[])
       setResources((r.data ?? []) as ResourceCost[])
+      setProposals((p.data ?? []) as ProposalDocument[])
       setLoading(false)
     })
   }, [])
@@ -59,6 +77,29 @@ export function QuotesSection({ clients, deals }: {
       await deleteQuote(q.id)
       setQuotes(prev => prev.filter(x => x.id !== q.id))
       toast.success('Preventivo eliminato')
+    } catch (e) { toast.error((e as Error).message) }
+  }
+
+  const openProposal = (p: ProposalDocument) => {
+    const html = buildProposalHtml(p.content_json, p.brand_mode, p.white_label_partner_name, clientName(p.client_id))
+    const win = window.open('', '_blank')
+    if (win) { win.document.write(html); win.document.close() }
+  }
+
+  const setProposalStatusLocal = async (p: ProposalDocument, status: ProposalStatus) => {
+    try {
+      await updateProposalStatus(p.id, status)
+      setProposals(prev => prev.map(x => x.id === p.id ? { ...x, status } : x))
+      toast.success(`Proposta ${PROPOSAL_STATUS[status].label.toLowerCase()}`)
+    } catch (e) { toast.error((e as Error).message) }
+  }
+
+  const removeProposal = async (p: ProposalDocument) => {
+    if (!confirm(`Eliminare la proposta "${p.title}"?`)) return
+    try {
+      await deleteProposal(p.id)
+      setProposals(prev => prev.filter(x => x.id !== p.id))
+      toast.success('Proposta eliminata')
     } catch (e) { toast.error((e as Error).message) }
   }
 
@@ -143,6 +184,8 @@ export function QuotesSection({ clients, deals }: {
                         className="p-1.5 rounded-lg text-[#555] hover:text-error hover:bg-white/5"><XIcon className="w-3.5 h-3.5" /></button>
                     </>
                   )}
+                  <button onClick={() => setProposalQuote(q)} title="Genera proposta commerciale"
+                    className="p-1.5 rounded-lg text-[#555] hover:text-gold hover:bg-white/5"><Presentation className="w-3.5 h-3.5" /></button>
                   <button onClick={() => { setEditing(q); setBuilder(true) }} title="Modifica"
                     className="p-1.5 rounded-lg text-[#555] hover:text-white hover:bg-white/5"><Pencil className="w-3.5 h-3.5" /></button>
                   <button onClick={() => remove(q)} title="Elimina"
@@ -152,6 +195,61 @@ export function QuotesSection({ clients, deals }: {
             )
           })}
         </div>
+      )}
+
+      {/* ── Proposte generate ── */}
+      {proposals.length > 0 && (
+        <div className="space-y-2 pt-2">
+          <p className="text-[10px] font-black text-[#555] uppercase tracking-wider">Proposte commerciali ({proposals.length})</p>
+          {proposals.map(p => {
+            const ps = PROPOSAL_STATUS[p.status]
+            return (
+              <div key={p.id} className="flex items-center gap-4 bg-surface border border-[#2A2A2A] rounded-xl px-4 py-3 hover:border-gold/30 transition-colors">
+                <Presentation className="w-4 h-4 text-[#555] shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-white truncate">{p.title}</p>
+                  <p className="text-[10px] text-[#555] mt-0.5">
+                    {clientName(p.client_id)} · {new Date(p.created_at).toLocaleDateString('it-IT')}
+                  </p>
+                </div>
+                <span className="text-[9px] font-black px-2 py-0.5 rounded-full shrink-0 bg-[#1A1A1A] text-[#888]">
+                  {BRAND_LABEL[p.brand_mode]}
+                </span>
+                <span className="text-[9px] font-black px-2 py-0.5 rounded-full shrink-0"
+                  style={{ background: `${ps.color}18`, color: ps.color }}>
+                  {ps.label}
+                </span>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button onClick={() => openProposal(p)} title="Apri / Stampa PDF"
+                    className="p-1.5 rounded-lg text-[#555] hover:text-gold hover:bg-white/5"><ExternalLink className="w-3.5 h-3.5" /></button>
+                  {p.status === 'draft' && (
+                    <button onClick={() => setProposalStatusLocal(p, 'sent')} title="Segna come inviata"
+                      className="p-1.5 rounded-lg text-[#555] hover:text-[#3B82F6] hover:bg-white/5"><Send className="w-3.5 h-3.5" /></button>
+                  )}
+                  {p.status === 'sent' && (
+                    <>
+                      <button onClick={() => setProposalStatusLocal(p, 'accepted')} title="Accettata"
+                        className="p-1.5 rounded-lg text-[#555] hover:text-success hover:bg-white/5"><Check className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => setProposalStatusLocal(p, 'rejected')} title="Rifiutata"
+                        className="p-1.5 rounded-lg text-[#555] hover:text-error hover:bg-white/5"><XIcon className="w-3.5 h-3.5" /></button>
+                    </>
+                  )}
+                  <button onClick={() => removeProposal(p)} title="Elimina"
+                    className="p-1.5 rounded-lg text-[#555] hover:text-error hover:bg-white/5"><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {proposalQuote && (
+        <ProposalGenerator
+          quote={proposalQuote}
+          clients={clients}
+          onClose={() => setProposalQuote(null)}
+          onSaved={p => setProposals(prev => [p, ...prev])}
+        />
       )}
 
       {showBuilder && (
