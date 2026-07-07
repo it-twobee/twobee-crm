@@ -8,7 +8,7 @@ import {
   BarChart3, FolderOpen, Settings, ChevronRight, ChevronLeft,
   CheckCircle2, FolderKanban, Briefcase, CalendarDays, Receipt, Headphones, Crown,
   Wrench, ShoppingCart, Ticket, UserCircle2, Target, History, FlaskConical, Clock,
-  Layers, Eye, Euro,
+  Layers, Eye, Euro, LayoutGrid,
 } from 'lucide-react'
 import { useState } from 'react'
 import { usePermissions } from '@/lib/hooks/usePermissions'
@@ -26,6 +26,7 @@ const sections = [
   {
     label: 'Oggi',
     items: [
+      { href: '/risorsa', icon: LayoutGrid, label: 'Il mio portale' },
       { href: '/le-mie-attivita', icon: CheckCircle2, label: 'Le mie attività' },
       { href: '/task', icon: CheckSquare, label: 'Task' },
       { href: '/operativa', icon: Wrench, label: 'Operativa' },

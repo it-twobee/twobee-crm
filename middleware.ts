@@ -37,6 +37,7 @@ export async function middleware(request: NextRequest) {
     '/report',
     '/impostazioni',
     '/portale',
+    '/risorsa',
     '/reparti',
     '/commerciale',
     '/fatturazione',
