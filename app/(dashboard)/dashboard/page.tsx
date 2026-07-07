@@ -4,6 +4,8 @@ import { MyTasksPanel } from '@/components/dashboard/MyTasksPanel'
 import { AlertCenter } from '@/components/dashboard/AlertCenter'
 import { DailyFocus } from '@/components/dashboard/DailyFocus'
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid'
+import { RisorsaView } from '@/components/dashboard/RisorsaView'
+import type { ActiveChannel } from '@/components/dashboard/RisorsaView'
 import type { DashboardData } from '@/components/dashboard/DashboardGrid'
 import type { Client, TaskWithAssignee, Profile } from '@/lib/types/database'
 import type { DashAlert, AlertSeverity } from '@/components/dashboard/AlertCenter'
@@ -221,6 +223,41 @@ export default async function DashboardPage() {
   }
 
   // ═══════════════════════════════════════════════════════════════
+  // FASE 3b — Canali attivi per vista Risorsa
+  // ═══════════════════════════════════════════════════════════════
+  let activeChannels: ActiveChannel[] = []
+  if (!isAdminLevel && channelIds.length > 0) {
+    try {
+      const { data: chData } = await supabase.from('chat_channels')
+        .select('id, name, type')
+        .in('id', channelIds)
+      const channels = (chData ?? []) as { id: string; name: string; type: string }[]
+      activeChannels = channels.map(ch => {
+        const membership = memberships.find((m: { channel_id: string; last_read_at: string }) => m.channel_id === ch.id)
+        const lastMsg = (recentMessages as Array<{ channel?: { id: string }; created_at: string; content: string; sender?: { full_name: string } }>)
+          .find(m => m.channel?.id === ch.id)
+        const lastRead = membership?.last_read_at ? new Date(membership.last_read_at) : new Date(0)
+        const msgTime = lastMsg?.created_at ? new Date(lastMsg.created_at) : null
+        return {
+          id: ch.id,
+          name: ch.name ?? ch.type,
+          type: ch.type,
+          unread: msgTime ? msgTime > lastRead : false,
+          lastMessage: lastMsg?.content?.slice(0, 80),
+          lastMessageTime: lastMsg?.created_at,
+          lastSender: lastMsg?.sender?.full_name,
+        }
+      }).sort((a, b) => {
+        if (a.unread && !b.unread) return -1
+        if (!a.unread && b.unread) return 1
+        return 0
+      })
+    } catch (e) {
+      logErr('activeChannels (throw)', e)
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   // Aggrega risultati
   // ═══════════════════════════════════════════════════════════════
   const mrr             = clients.reduce((s, c) => s + (c.mrr ?? 0), 0)
@@ -401,22 +438,22 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="p-5 lg:p-6 min-h-screen">
+    <div className="p-5 lg:p-8 min-h-screen">
 
       {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-black text-white">{greeting}, {greetingName}</h1>
-          <p className="text-[#444] text-xs mt-0.5">
+          <h1 className="text-xl font-black text-white font-heading tracking-tight">{greeting}, {greetingName}</h1>
+          <p className="text-white/25 text-xs mt-1">
             {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}
             {isAdminLevel && ` · ${clients.length} clienti · ${allProfiles.length} nel team`}
             {!isAdminLevel && ` · ${clients.length} clienti assegnati`}
           </p>
         </div>
         {isGod && (
-          <div className="flex items-center gap-1.5 bg-[#F5C800]/10 border border-[#F5C800]/20 rounded-xl px-3 py-1.5">
-            <Crown className="w-3.5 h-3.5 text-[#F5C800]" />
-            <span className="text-xs font-black text-[#F5C800]">GOD MODE</span>
+          <div className="flex items-center gap-1.5 bg-gold/[0.08] border border-gold/[0.15] rounded-xl px-3 py-1.5">
+            <Crown className="w-3.5 h-3.5 text-gold" />
+            <span className="text-xs font-black text-gold">GOD MODE</span>
           </div>
         )}
       </div>
@@ -424,15 +461,13 @@ export default async function DashboardPage() {
       {/* ── ADMIN: Dashboard modulare drag/resize/collapse ── */}
       {isAdminLevel && <DashboardGrid data={dashboardData} initialConfig={profile.dashboard_config as import('@/components/dashboard/DashboardGrid').DashboardConfig | null} />}
 
-      {/* ── JUNIOR/SENIOR VIEW ── */}
+      {/* ── RISORSA VIEW (non-admin) ── */}
       {!isAdminLevel && (
-        <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <DailyFocus items={focusItems.slice(0, 4)} name={greetingName} />
-            <AlertCenter alerts={alerts.slice(0, 4)} />
-          </div>
-          <MyTasksPanel userId={user.id} tasks={tasks} />
-        </div>
+        <RisorsaView
+          tasksToday={tasksDueToday as { id: string; title: string }[]}
+          tasksDueSoon={tasks as unknown as Parameters<typeof RisorsaView>[0]['tasksDueSoon']}
+          activeChannels={activeChannels}
+        />
       )}
     </div>
   )

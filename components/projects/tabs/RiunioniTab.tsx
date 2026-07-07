@@ -106,13 +106,30 @@ export function MeetingRecapsSection({ meetings: initial, project, client, curre
     setForm(true)
   }
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [fileLoading, setFileLoading] = useState(false)
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = ev => setUploadText(ev.target?.result as string ?? '')
-    reader.readAsText(file)
     if (!form.title) setForm2(p => ({ ...p, title: file.name.replace(/\.[^.]+$/, '') }))
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+    if (['txt', 'md', 'text'].includes(ext)) {
+      const reader = new FileReader()
+      reader.onload = ev => setUploadText(ev.target?.result as string ?? '')
+      reader.readAsText(file)
+    } else {
+      setFileLoading(true)
+      try {
+        const fd = new FormData()
+        fd.append('file', file)
+        const res = await fetch('/api/parse-file', { method: 'POST', body: fd })
+        const data = await res.json()
+        if (data.error) { toast.error(data.error); setFileLoading(false); return }
+        setUploadText(data.text)
+        toast.success(`File analizzato: ${data.chars.toLocaleString()} caratteri estratti`)
+      } catch { toast.error('Errore nella lettura del file') }
+      setFileLoading(false)
+    }
   }
 
   const extractFromFile = async () => {
@@ -190,7 +207,7 @@ export function MeetingRecapsSection({ meetings: initial, project, client, curre
           <div>
             <p className="text-sm font-semibold text-[#333]">Nessun recap ancora</p>
             <p className="text-xs text-[#222] mt-0.5 max-w-xs mx-auto">
-              Carica la trascrizione di Plaud o Gemini, oppure scrivi un recap manuale.
+              Carica una trascrizione (TXT, Word, PDF) oppure scrivi un recap manuale.
             </p>
           </div>
           {isAdmin && <button onClick={openNew} className="text-xs font-bold mt-1" style={{ color: accent }}>+ Aggiungi il primo</button>}
@@ -386,9 +403,10 @@ export function MeetingRecapsSection({ meetings: initial, project, client, curre
                     onClick={() => fileRef.current?.click()}>
                     <Upload className="w-6 h-6 text-[#333] mx-auto mb-2" />
                     <p className="text-sm font-semibold text-[#555]">Carica trascrizione</p>
-                    <p className="text-[10px] text-[#333] mt-1">TXT da Plaud, Gemini, Otter, Fireflies…</p>
-                    {uploadText && <p className="text-[10px] mt-2 font-bold" style={{ color: accent }}>✓ File caricato ({uploadText.length.toLocaleString()} caratteri)</p>}
-                    <input ref={fileRef} type="file" accept=".txt,.md,.text" className="hidden" onChange={handleFile} />
+                    <p className="text-[10px] text-[#333] mt-1">TXT, Word (.docx) o PDF — da Plaud, Gemini, Otter, Fireflies…</p>
+                    {fileLoading && <p className="text-[10px] mt-2 font-bold" style={{ color: accent }}><Loader2 className="w-3 h-3 animate-spin inline mr-1" />Analisi file in corso…</p>}
+                    {uploadText && !fileLoading && <p className="text-[10px] mt-2 font-bold" style={{ color: accent }}>✓ File caricato ({uploadText.length.toLocaleString()} caratteri)</p>}
+                    <input ref={fileRef} type="file" accept=".txt,.md,.text,.doc,.docx,.pdf" className="hidden" onChange={handleFile} />
                   </div>
 
                   {uploadText && (

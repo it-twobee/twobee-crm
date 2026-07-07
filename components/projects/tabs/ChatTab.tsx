@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
 import type { Profile } from '@/lib/types/database'
 import { SlackChat } from '@/components/chat/SlackChat'
+import { ChatBridgeWidget } from '@/components/chat/ChatBridgeWidget'
 import { ensureProjectChannels } from '@/app/actions/project-channels'
 
 export function ProjectChatSection({ projectId, clientId, projectName, currentProfile, allProfiles, isAdmin, accent }: {
@@ -43,6 +44,9 @@ export function ProjectChatSection({ projectId, clientId, projectName, currentPr
       </div>
       {channelId ? (
         <div className="flex-1 min-h-0 border border-[#2A2A2A] rounded-xl overflow-hidden">
+          {chatTab === 'cliente_interno' && channels['customer_care'] && (
+            <ChatBridgeWidget internalChannelId={channelId} customerCareChannelId={channels['customer_care']} />
+          )}
           <SlackChat
             key={channelId}
             channelId={channelId}

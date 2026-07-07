@@ -343,6 +343,7 @@ export function ProgettiClient({ projects: initialProjects }: { projects: Projec
   const [projects, setProjects]       = useState(initialProjects)
   const [search, setSearch]           = useState('')
   const [filterStatus, setFilterStatus] = useState('tutti')
+  const [filterKind, setFilterKind]   = useState('tutti')
   const [sortKey, setSortKey]         = useState<SortKey>('newest')
   const [viewMode, setViewMode]       = useState<ViewMode>('grid')
   const [syncProject, setSyncProject] = useState<Project | null>(null)
@@ -358,7 +359,8 @@ export function ProgettiClient({ projects: initialProjects }: { projects: Projec
       const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
         p.clients?.company_name.toLowerCase().includes(search.toLowerCase())
       const matchStatus = filterStatus === 'tutti' || p.status === filterStatus
-      return matchSearch && matchStatus
+      const matchKind = filterKind === 'tutti' || p.project_kind === filterKind
+      return matchSearch && matchStatus && matchKind
     })
     .sort((a, b) => {
       if (sortKey === 'alpha')        return a.name.localeCompare(b.name, 'it')
@@ -413,6 +415,16 @@ export function ProgettiClient({ projects: initialProjects }: { projects: Projec
               <button key={s} onClick={() => setFilterStatus(s)}
                 className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors capitalize ${filterStatus === s ? 'bg-gold text-black font-bold' : 'text-text-secondary hover:text-white'}`}>
                 {s === 'tutti' ? 'Tutti' : STATUS_LABEL[s]}
+              </button>
+            ))}
+          </div>
+
+          {/* Kind filter */}
+          <div className="flex bg-surface border border-[#2A2A2A] rounded-lg p-0.5">
+            {['tutti', 'growth', 'digital', 'marketing', 'ai'].map(k => (
+              <button key={k} onClick={() => setFilterKind(k)}
+                className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${filterKind === k ? 'bg-gold text-black font-bold' : 'text-text-secondary hover:text-white'}`}>
+                {k === 'tutti' ? 'Tutti' : k === 'growth' ? '🌱 Growth' : k === 'digital' ? '💻 Digital' : k === 'marketing' ? '📣 Marketing' : '🤖 AI'}
               </button>
             ))}
           </div>

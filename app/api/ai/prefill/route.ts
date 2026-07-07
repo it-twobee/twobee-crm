@@ -98,6 +98,20 @@ Rispondi SOLO con JSON: { "suggestions": { "description": "..." }, "confidence":
       })
     }
 
+    if (body.entityType === 'chat_summary') {
+      const message = String(body.context?.message ?? '').trim()
+      const sender = String(body.context?.sender ?? 'Cliente')
+      if (!message) return NextResponse.json({ error: 'Messaggio vuoto' }, { status: 400 })
+      const prompt = `Riassumi in 1-2 frasi concise questo messaggio di un cliente (${sender}) destinato al team interno dell'agenzia. Mantieni le informazioni chiave, rimuovi convenevoli e ripetizioni. Rispondi SOLO con JSON: { "suggestions": { "summary": "..." }, "confidence": 0.0, "missing_data": [], "sources_used": ["chat_message"] }
+Messaggio: "${message}"`
+      const parsed = await groqJson(prompt, 500)
+      return NextResponse.json({
+        suggestions: parsed.suggestions ?? {},
+        confidence: parsed.confidence ?? 0.8,
+        missing_data: [], sources_used: ['chat_message'],
+      })
+    }
+
     return NextResponse.json({ error: `entityType "${body.entityType}" non ancora supportato` }, { status: 501 })
   } catch (e) {
     console.error('[ai/prefill]', e)

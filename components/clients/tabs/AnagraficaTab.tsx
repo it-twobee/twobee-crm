@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Loader2, Trash2, Pencil, Save, X, Check } from 'lucide-react'
+import { Plus, Loader2, Trash2, Pencil, Save, X, Check, Building2, Receipt, FileText, Users2, Crown } from 'lucide-react'
 import { formatDate, getInitials } from '@/lib/utils'
 import { createClient as createSupabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -39,9 +39,9 @@ const roleBadge: Record<StakeholderRole, string> = {
 
 function Field({ label, value, editMode, children }: { label: string; value: React.ReactNode; editMode: boolean; children: React.ReactNode }) {
   return (
-    <div>
-      <p className="text-text-secondary text-xs mb-1">{label}</p>
-      {editMode ? children : <p className="text-white text-sm font-medium">{value || <span className="text-text-secondary italic">—</span>}</p>}
+    <div className={editMode ? '' : 'bg-[#0D0D0D] rounded-lg px-3 py-2.5'}>
+      <p className="text-text-secondary text-[10px] uppercase tracking-wider font-semibold mb-1">{label}</p>
+      {editMode ? children : <p className="text-white text-sm font-medium">{value || <span className="text-text-secondary italic text-xs">Non compilato</span>}</p>}
     </div>
   )
 }
@@ -117,9 +117,18 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
     toast.success('Rimosso')
   }
 
+  const sectionIcons: Record<string, React.ReactNode> = {
+    azienda: <Building2 className="w-4 h-4 text-gold" />,
+    fiscale: <Receipt className="w-4 h-4 text-blue-400" />,
+    contratto: <FileText className="w-4 h-4 text-purple-400" />,
+  }
+
   const SectionHeader = ({ title, section, editing }: { title: string; section: string; editing: boolean }) => (
     <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#2A2A2A]">
-      <h3 className="text-sm font-bold text-white">{title}</h3>
+      <div className="flex items-center gap-2.5">
+        {sectionIcons[section]}
+        <h3 className="text-sm font-bold text-white">{title}</h3>
+      </div>
       {editing ? (
         <div className="flex items-center gap-2">
           <button onClick={cancel} className="flex items-center gap-1 text-xs text-text-secondary hover:text-white transition-colors">
@@ -141,12 +150,12 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
   )
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6">
 
       {/* Dati Aziendali */}
-      <section className="bg-surface border border-[#2A2A2A] rounded-card p-5">
+      <section className="bg-surface border border-[#2A2A2A] rounded-2xl p-5">
         <SectionHeader title="Dati Aziendali" section="azienda" editing={editAzienda} />
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <Field label="Ragione Sociale" value={client.company_name} editMode={editAzienda}>
             <Input value={form.company_name} onChange={(v) => setForm((p) => ({ ...p, company_name: v }))} />
           </Field>
@@ -174,7 +183,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
           <Field label="Area di Mercato" value={client.market_area} editMode={editAzienda}>
             <Input value={form.market_area ?? ''} onChange={(v) => setForm((p) => ({ ...p, market_area: v }))} placeholder="es. Nord Italia, Nazionale, Europa..." />
           </Field>
-          <div className="col-span-2">
+          <div className="sm:col-span-2 lg:col-span-3">
             <Field label="Note Interne" value={client.notes} editMode={editAzienda}>
               <textarea value={form.notes ?? ''} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} rows={3}
                 className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-gold/60 resize-none" />
@@ -205,9 +214,9 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
       </section>
 
       {/* Dati Fiscali (per Aruba) */}
-      <section className="bg-surface border border-[#2A2A2A] rounded-card p-5">
+      <section className="bg-surface border border-[#2A2A2A] rounded-2xl p-5">
         <SectionHeader title="Dati Fiscali & Fatturazione Elettronica" section="fiscale" editing={editFiscale} />
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <Field label="P.IVA" value={client.piva} editMode={editFiscale}>
             <Input value={form.piva ?? ''} onChange={(v) => setForm((p) => ({ ...p, piva: v }))} placeholder="IT12345678901" />
           </Field>
@@ -238,9 +247,9 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
       </section>
 
       {/* Contratto & Pagamenti */}
-      <section className="bg-surface border border-[#2A2A2A] rounded-card p-5">
+      <section className="bg-surface border border-[#2A2A2A] rounded-2xl p-5">
         <SectionHeader title="Contratto & Pagamenti" section="contratto" editing={editContratto} />
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <Field label="Pacchetto" value={client.package} editMode={editContratto}>
             <Select value={form.package} onChange={(v) => setForm((p) => ({ ...p, package: v as ClientPackage }))}
               options={PACKAGES.map((pk) => ({ value: pk, label: pk }))} />
@@ -262,8 +271,11 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
       </section>
 
       {/* Referenti Cliente */}
-      <section className="bg-surface border border-[#2A2A2A] rounded-card p-5">
-        <h3 className="text-sm font-bold text-white mb-4 pb-3 border-b border-[#2A2A2A]">Referenti Cliente</h3>
+      <section className="bg-surface border border-[#2A2A2A] rounded-2xl p-5">
+        <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-[#2A2A2A]">
+          <Users2 className="w-4 h-4 text-green-400" />
+          <h3 className="text-sm font-bold text-white">Referenti Cliente</h3>
+        </div>
         {contacts.length === 0 ? (
           <p className="text-text-secondary text-sm">Nessun referente inserito</p>
         ) : (
@@ -291,9 +303,12 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
       </section>
 
       {/* Stakeholders */}
-      <section className="bg-surface border border-[#2A2A2A] rounded-card p-5">
+      <section className="bg-surface border border-[#2A2A2A] rounded-2xl p-5">
         <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#2A2A2A]">
-          <h3 className="text-sm font-bold text-white">Owner, Stakeholder & Collaboratori</h3>
+          <div className="flex items-center gap-2.5">
+            <Crown className="w-4 h-4 text-amber-400" />
+            <h3 className="text-sm font-bold text-white">Owner, Stakeholder & Collaboratori</h3>
+          </div>
           <button onClick={() => setShowStakeholderModal(true)} className="flex items-center gap-1 text-xs text-gold hover:underline">
             <Plus className="w-3.5 h-3.5" /> Aggiungi
           </button>
@@ -331,8 +346,11 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
       </section>
 
       {/* Team TWO BEE */}
-      <section className="bg-surface border border-[#2A2A2A] rounded-card p-5">
-        <h3 className="text-sm font-bold text-white mb-4 pb-3 border-b border-[#2A2A2A]">Team TWO BEE Assegnato</h3>
+      <section className="bg-surface border border-[#2A2A2A] rounded-2xl p-5">
+        <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-[#2A2A2A]">
+          <Users2 className="w-4 h-4 text-gold" />
+          <h3 className="text-sm font-bold text-white">Team TWO BEE Assegnato</h3>
+        </div>
         {teamMembers.length === 0 ? (
           <p className="text-text-secondary text-sm">Nessun membro assegnato</p>
         ) : (

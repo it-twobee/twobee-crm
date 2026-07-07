@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Loader2, Save, Brain, Link2, ShieldAlert } from 'lucide-react'
+import { Loader2, Save, Brain, Link2, ShieldAlert, Briefcase, Target, Palette, Lightbulb } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { AIPrefillPanel } from '@/components/shared/AIPrefillPanel'
@@ -11,11 +11,13 @@ import type { ClientKnowledge } from '@/lib/types/database'
 type FieldKey = keyof Omit<ClientKnowledgeInput, 'client_id'>
 
 interface FieldDef { key: FieldKey; label: string; placeholder: string; rows?: number }
-interface GroupDef { title: string; fields: FieldDef[] }
+interface GroupDef { title: string; description: string; icon: string; fields: FieldDef[] }
 
 const GROUPS: GroupDef[] = [
   {
     title: 'Business e offerta',
+    description: 'Come funziona il business del cliente e cosa facciamo per lui',
+    icon: 'briefcase',
     fields: [
       { key: 'business_model',  label: 'Modello di business', placeholder: 'es. E-commerce B2C con abbonamento mensile…', rows: 2 },
       { key: 'main_offer',      label: 'Offerta principale',  placeholder: 'Prodotti/servizi core, prezzi indicativi, USP…', rows: 2 },
@@ -24,6 +26,8 @@ const GROUPS: GroupDef[] = [
   },
   {
     title: 'Mercato e target',
+    description: 'Chi è il cliente del cliente, dove opera e chi sono i competitor',
+    icon: 'target',
     fields: [
       { key: 'target_audience', label: 'Target audience',  placeholder: 'Chi compra, dove, fascia età, geografia…', rows: 2 },
       { key: 'buyer_personas',  label: 'Buyer personas',   placeholder: 'Persona 1: … / Persona 2: …', rows: 3 },
@@ -32,6 +36,8 @@ const GROUPS: GroupDef[] = [
   },
   {
     title: 'Comunicazione e brand',
+    description: 'Come parla il brand, asset grafici e stato degli accessi alle piattaforme',
+    icon: 'palette',
     fields: [
       { key: 'tone_of_voice',    label: 'Tone of voice',        placeholder: 'es. Diretto e ironico, mai formale, evita anglicismi…', rows: 2 },
       { key: 'brand_assets_url', label: 'Brand assets (URL)',   placeholder: 'Link Drive/Canva a logo, font, palette…', rows: 1 },
@@ -40,6 +46,8 @@ const GROUPS: GroupDef[] = [
   },
   {
     title: 'Strategia',
+    description: 'Problemi, opportunità e direzione strategica — guida le scelte operative',
+    icon: 'lightbulb',
     fields: [
       { key: 'pain_points',     label: 'Pain points',            placeholder: 'Problemi reali del cliente e del suo mercato…', rows: 3 },
       { key: 'opportunities',   label: 'Opportunità',            placeholder: 'Leve non ancora sfruttate, quick win…', rows: 2 },
@@ -106,7 +114,7 @@ export function ClientKnowledgeTab({ clientId }: { clientId: string }) {
   }
 
   return (
-    <div className="space-y-5 max-w-3xl">
+    <div className="space-y-5">
       {/* Header + completezza */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
@@ -143,7 +151,7 @@ export function ClientKnowledgeTab({ clientId }: { clientId: string }) {
       </div>
 
       {filled === 0 && (
-        <div className="flex items-start gap-2.5 bg-gold/5 border border-gold/20 rounded-xl px-4 py-3">
+        <div className="flex items-start gap-2.5 bg-gold/5 border border-gold/20 rounded-2xl px-4 py-3">
           <ShieldAlert className="w-4 h-4 text-gold shrink-0 mt-0.5" />
           <p className="text-xs text-[#999] leading-relaxed">
             Knowledge base vuota: compilarla migliora la qualità delle proposte AI e velocizza l'onboarding di chi entra sul cliente.
@@ -152,9 +160,20 @@ export function ClientKnowledgeTab({ clientId }: { clientId: string }) {
         </div>
       )}
 
-      {GROUPS.map(g => (
-        <div key={g.title} className="bg-surface border border-[#2A2A2A] rounded-xl p-5 space-y-4">
-          <p className="text-[10px] font-black text-[#555] uppercase tracking-wider">{g.title}</p>
+      {GROUPS.map(g => {
+        const GroupIcon = g.icon === 'briefcase' ? Briefcase : g.icon === 'target' ? Target : g.icon === 'palette' ? Palette : Lightbulb
+        const iconColor = g.icon === 'briefcase' ? 'text-gold' : g.icon === 'target' ? 'text-blue-400' : g.icon === 'palette' ? 'text-purple-400' : 'text-green-400'
+        return (
+        <div key={g.title} className="bg-surface border border-[#2A2A2A] rounded-2xl p-5 space-y-4">
+          <div className="flex items-start gap-3 pb-3 border-b border-[#2A2A2A]">
+            <div className={`w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center shrink-0`}>
+              <GroupIcon className={`w-4 h-4 ${iconColor}`} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-white">{g.title}</p>
+              <p className="text-[11px] text-text-secondary mt-0.5">{g.description}</p>
+            </div>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {g.fields.map(f => (
               <div key={f.key} className={f.rows && f.rows >= 3 ? 'sm:col-span-2' : ''}>
@@ -174,7 +193,7 @@ export function ClientKnowledgeTab({ clientId }: { clientId: string }) {
             ))}
           </div>
         </div>
-      ))}
+      )})}
     </div>
   )
 }

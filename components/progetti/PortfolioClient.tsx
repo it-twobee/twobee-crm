@@ -27,8 +27,11 @@ interface ClientData {
 }
 interface PortfolioProjectEntry { project_id: string; priority: 'alta' | 'media' | 'bassa'; added_at: string }
 interface PortfolioClientEntry { client_id: string; priority: 'alta' | 'media' | 'bassa' }
+type SmartFilter = { client_type?: string; project_status?: string; project_kind?: string }
+
 interface Portfolio {
   id: string; name: string; description: string | null; color: string; created_at: string
+  smart_filter?: SmartFilter | null
   portfolio_projects: PortfolioProjectEntry[]
   portfolio_clients: PortfolioClientEntry[]
   created_by_profile?: { id: string; full_name: string; avatar_url: string | null } | null
@@ -86,6 +89,10 @@ function NewPortfolioModal({ clients, onClose, onCreated }: {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [color, setColor] = useState('#F5C800')
+  const [mode, setMode] = useState<'manual' | 'smart'>('manual')
+  const [smartClientType, setSmartClientType] = useState('')
+  const [smartProjectKind, setSmartProjectKind] = useState('')
+  const [smartProjectStatus, setSmartProjectStatus] = useState('')
   const [selectedProjects, setSelectedProjects] = useState<string[]>([])
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
@@ -109,25 +116,32 @@ function NewPortfolioModal({ clients, onClose, onCreated }: {
     setLoading(true)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
+
+    const smartFilter: SmartFilter | null = mode === 'smart'
+      ? { ...(smartClientType ? { client_type: smartClientType } : {}),
+          ...(smartProjectKind ? { project_kind: smartProjectKind } : {}),
+          ...(smartProjectStatus ? { project_status: smartProjectStatus } : {}) }
+      : null
+
     const { data: portfolio, error } = await supabase.from('portfolios').insert({
       name: name.trim(), description: description || null, color, created_by: user?.id,
+      ...(smartFilter && Object.keys(smartFilter).length > 0 ? { smart_filter: smartFilter } : {}),
     }).select().single()
     if (error) { toast.error('Errore: ' + error.message); setLoading(false); return }
 
     const ppEntries: PortfolioProjectEntry[] = []
-    if (selectedProjects.length > 0) {
+    if (mode === 'manual' && selectedProjects.length > 0) {
       await supabase.from('portfolio_projects').insert(
         selectedProjects.map(project_id => ({ portfolio_id: portfolio.id, project_id, priority: 'media' }))
       )
       selectedProjects.forEach(pid => ppEntries.push({ project_id: pid, priority: 'media', added_at: new Date().toISOString() }))
     }
 
-    // Derive unique clients from selected projects
     const clientIds = Array.from(new Set(
       clients.filter(c => c.projects.some(p => selectedProjects.includes(p.id))).map(c => c.id)
     ))
     const pcEntries: PortfolioClientEntry[] = []
-    if (clientIds.length > 0) {
+    if (mode === 'manual' && clientIds.length > 0) {
       await supabase.from('portfolio_clients').insert(
         clientIds.map(client_id => ({ portfolio_id: portfolio.id, client_id, priority: 'media' }))
       )
@@ -135,8 +149,8 @@ function NewPortfolioModal({ clients, onClose, onCreated }: {
     }
 
     setLoading(false)
-    toast.success('Portfolio creato!')
-    onCreated({ ...portfolio, portfolio_projects: ppEntries, portfolio_clients: pcEntries } as Portfolio)
+    toast.success(`Portfolio ${mode === 'smart' ? 'smart ' : ''}creato!`)
+    onCreated({ ...portfolio, smart_filter: smartFilter, portfolio_projects: ppEntries, portfolio_clients: pcEntries } as Portfolio)
   }
 
   return (
@@ -168,7 +182,55 @@ function NewPortfolioModal({ clients, onClose, onCreated }: {
               ))}
             </div>
           </div>
+          {/* Mode selector */}
           <div>
+            <label className="block text-xs text-text-secondary mb-2">Tipo portfolio</label>
+            <div className="flex gap-2">
+              {([['manual', 'Manuale'], ['smart', 'Smart (dinamico)']] as const).map(([k, v]) => (
+                <button key={k} type="button" onClick={() => setMode(k)}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-colors ${mode === k ? 'bg-gold text-black' : 'bg-[#1A1A1A] border border-[#2A2A2A] text-text-secondary hover:text-white'}`}>{v}</button>
+              ))}
+            </div>
+          </div>
+
+          {mode === 'smart' && (
+            <div className="space-y-3 bg-[#0C0C0C] border border-[#2A2A2A] rounded-xl p-4">
+              <p className="text-[10px] text-[#555] uppercase font-bold tracking-wider">Filtri dinamici — il portfolio si aggiorna automaticamente</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[10px] text-text-secondary mb-1">Tipo cliente</label>
+                  <select value={smartClientType} onChange={e => setSmartClientType(e.target.value)}
+                    className="w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-2 py-1.5 text-xs text-white">
+                    <option value="">Tutti</option>
+                    <option value="growth">Growth</option>
+                    <option value="digital">Digital</option>
+                    <option value="growth_digital">Growth + Digital</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-text-secondary mb-1">Tipo progetto</label>
+                  <select value={smartProjectKind} onChange={e => setSmartProjectKind(e.target.value)}
+                    className="w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-2 py-1.5 text-xs text-white">
+                    <option value="">Tutti</option>
+                    <option value="growth">Growth</option>
+                    <option value="digital">Digital</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-text-secondary mb-1">Stato progetto</label>
+                  <select value={smartProjectStatus} onChange={e => setSmartProjectStatus(e.target.value)}
+                    className="w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-2 py-1.5 text-xs text-white">
+                    <option value="">Tutti</option>
+                    <option value="attivo">Attivo</option>
+                    <option value="pianificato">Pianificato</option>
+                    <option value="completato">Completato</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {mode === 'manual' && <div>
             <label className="block text-xs text-text-secondary mb-2">
               Progetti da includere
               {selectedProjects.length > 0 && <span className="text-gold ml-2">{selectedProjects.length} selezionati</span>}
@@ -208,7 +270,7 @@ function NewPortfolioModal({ clients, onClose, onCreated }: {
                 )
               })}
             </div>
-          </div>
+          </div>}
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose}
               className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary hover:text-white">Annulla</button>
@@ -336,7 +398,12 @@ function PortfolioCard({ portfolio, clients, onClick, onDelete }: {
       <div className={`w-14 h-14 rounded-xl ${folderStyle.bg} border ${folderStyle.border} flex items-center justify-center mb-4`}>
         <Briefcase className="w-7 h-7" style={{ color: portfolio.color }} />
       </div>
-      <p className="text-sm font-bold text-white mb-0.5 truncate pr-6">{portfolio.name}</p>
+      <div className="flex items-center gap-1.5 mb-0.5">
+        <p className="text-sm font-bold text-white truncate pr-6">{portfolio.name}</p>
+        {portfolio.smart_filter && Object.keys(portfolio.smart_filter).length > 0 && (
+          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 shrink-0">Smart</span>
+        )}
+      </div>
       {portfolio.description && <p className="text-xs text-text-secondary mb-2 truncate">{portfolio.description}</p>}
       <div className="flex items-center gap-3 mt-3">
         <div className="flex -space-x-1.5">
@@ -686,9 +753,25 @@ export function PortfolioClient({ clients, portfolios: initialPortfolios, profil
 
   const inDetail = activePortfolio !== null || showAllClients
 
-  // Clients visible in current portfolio detail
   const visibleClients = (() => {
-    if (!activePortfolio) return clients // all clients view
+    if (!activePortfolio) return clients
+    const sf = activePortfolio.smart_filter
+    if (sf && Object.keys(sf).length > 0) {
+      return clients
+        .filter(c => !sf.client_type || c.client_type === sf.client_type)
+        .map(c => ({
+          ...c,
+          projects: c.projects.filter(p => {
+            if (sf.project_status && p.status !== sf.project_status) return false
+            if (sf.project_kind) {
+              const proj = c.projects.find(pp => pp.id === p.id) as ProjectMin & { project_kind?: string }
+              if (proj && (proj as unknown as { project_kind?: string }).project_kind !== sf.project_kind) return false
+            }
+            return true
+          }),
+        }))
+        .filter(c => c.projects.length > 0)
+    }
     const projIds = new Set(activePortfolio.portfolio_projects.map(pp => pp.project_id))
     return clients
       .map(c => ({ ...c, projects: c.projects.filter(p => projIds.has(p.id)) }))

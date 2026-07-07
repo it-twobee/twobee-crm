@@ -1050,6 +1050,7 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
   const healthScore   = isGrowthDigital
     ? Math.round((growthHealth + digitalHealth) / 2)
     : isDigital ? digitalHealth : growthHealth
+  const activeProjects = projects.filter(p => p.status === 'attivo')
   const openTasks    = tasks.filter(t => t.status !== 'completato')
   const overdueTasks = openTasks.filter(t => t.due_date && new Date(t.due_date) < now)
   const urgentTasks  = openTasks.filter(t => {
@@ -1224,90 +1225,53 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
         </button>
       </div>
 
-      {/* 4 ── Task attive + Relazione (2 colonne) ──────────────────────── */}
+      {/* 4 ── Relazione commerciale ──────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-        {/* Task attive per progetto */}
+        {/* Progetti attivi con link alla pagina completa */}
         <div className="bg-[#111] border border-[#2A2A2A] rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 text-text-secondary">
-              <CheckSquare className="w-3.5 h-3.5" />
-              <span className="text-[10px] uppercase tracking-wider font-bold">Task attive</span>
+              <FolderKanban className="w-3.5 h-3.5" />
+              <span className="text-[10px] uppercase tracking-wider font-bold">Progetti attivi</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className={`text-[10px] font-bold ${overdueTasks.length > 0 ? 'text-error' : 'text-text-secondary'}`}>
-                {openTasks.length} open{overdueTasks.length > 0 ? ` · ${overdueTasks.length} scadute` : ''}
-              </span>
-              {onTabChange && <button onClick={() => onTabChange(1)} className="text-[10px] text-gold hover:text-yellow-400 flex items-center gap-1">Tutte <ChevronRight className="w-3 h-3" /></button>}
-            </div>
+            <span className="text-[10px] text-text-secondary">{activeProjects.length} attivi</span>
           </div>
-          {openTasks.length === 0 ? (
-            <p className="text-xs text-text-secondary">Nessuna task aperta ✓</p>
+          {activeProjects.length === 0 ? (
+            <p className="text-xs text-text-secondary">Nessun progetto attivo</p>
           ) : (
-            <div className="space-y-3">
-              {projects.filter(p => openTasks.some(t => t.project_id === p.id)).map(proj => {
-                const projTasks = openTasks.filter(t => t.project_id === proj.id)
-                const projOverdue = projTasks.filter(t => t.due_date && new Date(t.due_date) < now)
-                const projUrgent  = projTasks.filter(t => {
-                  if (!t.due_date) return false
-                  const d = new Date(t.due_date)
-                  return d >= now && d <= new Date(now.getTime() + 7 * 86400000)
-                })
+            <div className="space-y-2">
+              {activeProjects.map(proj => {
                 const isG = proj.project_kind === 'growth'
+                const isD = proj.project_kind === 'digital'
+                const isM = proj.project_kind === 'marketing'
+                const isAI = proj.project_kind === 'ai'
                 const title = proj.name.includes(' – ') ? proj.name.split(' – ').slice(1).join(' – ') : proj.name
-                const sorted = [...projOverdue, ...projUrgent, ...projTasks.filter(t => !projOverdue.includes(t) && !projUrgent.includes(t))]
+                const projTasks = tasks.filter(t => t.project_id === proj.id)
+                const pct = projTasks.length ? Math.round((projTasks.filter(t => t.status === 'completato').length / projTasks.length) * 100) : 0
                 return (
-                  <div key={proj.id}>
-                    {/* Intestazione progetto */}
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
-                        isG ? 'bg-gold/10 text-gold border-gold/25' : 'bg-blue-500/10 text-blue-400 border-blue-400/25'
-                      }`}>{isG ? '📈 Growth' : '💻 Digital'}</span>
-                      <span className="text-[10px] text-text-secondary font-semibold truncate">{title}</span>
-                      <span className="text-[10px] text-text-secondary ml-auto shrink-0">{projTasks.length} task</span>
+                  <Link key={proj.id} href={`/clienti/${client.id}/progetto/${proj.id}`}
+                    className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/[0.03] transition-colors group">
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+                      isG ? 'bg-gold/10 text-gold border-gold/25' :
+                      isD ? 'bg-blue-500/10 text-blue-400 border-blue-400/25' :
+                      isM ? 'bg-amber-400/10 text-amber-400 border-amber-400/25' :
+                      isAI ? 'bg-purple-400/10 text-purple-400 border-purple-400/25' :
+                      'bg-[#1A1A1A] text-text-secondary border-[#2A2A2A]'
+                    }`}>{isG ? 'G' : isD ? 'D' : isM ? 'M' : isAI ? 'AI' : '—'}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-white truncate group-hover:text-gold transition-colors">{title}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="flex-1 h-1 bg-[#2A2A2A] rounded-full overflow-hidden">
+                          <div className="h-full bg-gold/60 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-[9px] text-text-secondary shrink-0">{pct}%</span>
+                      </div>
                     </div>
-                    <div className="space-y-1 pl-0.5">
-                      {sorted.slice(0, 3).map(t => {
-                        const isOv = projOverdue.includes(t)
-                        const isUr = projUrgent.includes(t)
-                        return (
-                          <div key={t.id} className="flex items-center gap-2 py-0.5 border-b border-[#1A1A1A] last:border-0">
-                            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${t.priority === 'alta' ? 'bg-error' : t.priority === 'media' ? 'bg-warning' : 'bg-[#3A3A3A]'}`} />
-                            <span className="text-xs text-white flex-1 truncate">{t.title}</span>
-                            {isOv && <span className="text-[10px] text-error font-bold shrink-0">Scaduta</span>}
-                            {!isOv && isUr && <span className="text-[10px] text-warning font-bold shrink-0">7gg</span>}
-                            {!isOv && !isUr && <span className="text-[10px] text-text-secondary shrink-0 capitalize">{t.status.replace('_', ' ')}</span>}
-                          </div>
-                        )
-                      })}
-                      {projTasks.length > 3 && (
-                        <p className="text-[10px] text-text-secondary pt-0.5">+{projTasks.length - 3} altre</p>
-                      )}
-                    </div>
-                  </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-text-secondary opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                  </Link>
                 )
               })}
-              {/* Task senza progetto */}
-              {openTasks.filter(t => !t.project_id).length > 0 && (
-                <div>
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-[#2A2A2A] text-text-secondary">Senza progetto</span>
-                  </div>
-                  {openTasks.filter(t => !t.project_id).slice(0, 3).map(t => {
-                    const isOv = overdueTasks.includes(t)
-                    const isUr = urgentTasks.includes(t)
-                    return (
-                      <div key={t.id} className="flex items-center gap-2 py-0.5 border-b border-[#1A1A1A] last:border-0">
-                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${t.priority === 'alta' ? 'bg-error' : t.priority === 'media' ? 'bg-warning' : 'bg-[#3A3A3A]'}`} />
-                        <span className="text-xs text-white flex-1 truncate">{t.title}</span>
-                        {isOv && <span className="text-[10px] text-error font-bold shrink-0">Scaduta</span>}
-                        {!isOv && isUr && <span className="text-[10px] text-warning font-bold shrink-0">7gg</span>}
-                        {!isOv && !isUr && <span className="text-[10px] text-text-secondary shrink-0 capitalize">{t.status.replace('_', ' ')}</span>}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
             </div>
           )}
         </div>

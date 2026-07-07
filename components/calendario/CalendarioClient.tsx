@@ -1,92 +1,105 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, Plus, Calendar, ExternalLink, Loader2, Link2 } from 'lucide-react'
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isToday, isSameDay, addMonths, subMonths } from 'date-fns'
+import { useState, useEffect, useMemo } from 'react'
+import { ChevronLeft, ChevronRight, Plus, Loader2, Link2, X, Filter, CheckSquare, Search, Calendar as CalIcon } from 'lucide-react'
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isToday, isSameDay, addMonths, subMonths, addWeeks, subWeeks } from 'date-fns'
 import { it } from 'date-fns/locale'
+import type { Profile } from '@/lib/types/database'
 
 interface GoogleEvent {
-  id: string
-  summary: string
-  start: { dateTime?: string; date?: string }
-  end: { dateTime?: string; date?: string }
-  description?: string
-  attendees?: { email: string }[]
-  colorId?: string
+  id: string; summary: string
+  start: { dateTime?: string; date?: string }; end: { dateTime?: string; date?: string }
+  description?: string; attendees?: { email: string }[]; colorId?: string
 }
 
 interface LocalMeeting {
-  id: string
-  title: string
-  meeting_date: string
-  duration_minutes?: number
-  description?: string
+  id: string; title: string; meeting_date: string; duration_minutes?: number; description?: string
 }
 
-const EVENT_COLORS: Record<string, string> = {
-  '1': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  '2': 'bg-green-500/20 text-green-400 border-green-500/30',
-  '3': 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-  '4': 'bg-red-500/20 text-red-400 border-red-500/30',
-  '5': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-  default: 'bg-gold/10 text-gold border-gold/20',
+interface CalTask {
+  id: string; title: string; due_date: string | null; status: string; priority: string; assignee_id: string | null
+  assignee: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
+  project: { id: string; name: string; clients: { company_name: string } | null } | null
+}
+
+type ViewMode = 'settimana' | 'mese'
+
+const EVENT_STYLE = 'bg-blue-500/15 text-blue-400 border-blue-500/25'
+const MEETING_STYLE = 'bg-purple-500/15 text-purple-400 border-purple-500/25'
+
+function taskStyle(due: string): string {
+  const d = new Date(due); d.setHours(0, 0, 0, 0)
+  const now = new Date(); now.setHours(0, 0, 0, 0)
+  const diff = Math.ceil((d.getTime() - now.getTime()) / 86400000)
+  if (diff < 0) return 'bg-red-500/15 text-red-400 border-red-500/25 ring-1 ring-red-500/30'
+  if (diff <= 3) return 'bg-orange-500/15 text-orange-400 border-orange-500/25'
+  if (diff <= 7) return 'bg-amber-500/15 text-amber-400 border-amber-500/25'
+  return 'bg-gold/10 text-gold border-gold/20'
 }
 
 export function CalendarioClient({
-  isGoogleConnected,
-  localMeetings = [],
+  isGoogleConnected, localMeetings = [], tasks = [], profiles = [], currentUserId,
 }: {
-  isGoogleConnected: boolean
-  localMeetings: LocalMeeting[]
+  isGoogleConnected: boolean; localMeetings: LocalMeeting[]; tasks: CalTask[]
+  profiles: Pick<Profile, 'id' | 'full_name' | 'avatar_url'>[]; currentUserId: string
 }) {
-  const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [currentDate, setCurrentDate] = useState(new Date())
+  const [viewMode, setViewMode] = useState<ViewMode>('mese')
   const [googleEvents, setGoogleEvents] = useState<GoogleEvent[]>([])
   const [loadingEvents, setLoadingEvents] = useState(false)
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
   const [showNewEvent, setShowNewEvent] = useState(false)
   const [newEvent, setNewEvent] = useState({ title: '', date: '', startTime: '09:00', endTime: '10:00', description: '' })
   const [saving, setSaving] = useState(false)
+  const [filterUser, setFilterUser] = useState<string | null>(null)
+  const [showFilter, setShowFilter] = useState(false)
+  const [showTasks, setShowTasks] = useState(true)
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     if (!isGoogleConnected) return
     fetchEvents()
-  }, [currentMonth, isGoogleConnected])
+  }, [currentDate, isGoogleConnected])
 
   const fetchEvents = async () => {
     setLoadingEvents(true)
     try {
-      const timeMin = startOfMonth(currentMonth).toISOString()
-      const timeMax = endOfMonth(currentMonth).toISOString()
+      const timeMin = startOfMonth(currentDate).toISOString()
+      const timeMax = endOfMonth(currentDate).toISOString()
       const res = await fetch(`/api/google/events?timeMin=${timeMin}&timeMax=${timeMax}`)
       const { events } = await res.json()
       setGoogleEvents(events ?? [])
-    } catch {
-      // silent
-    } finally {
-      setLoadingEvents(false)
-    }
+    } catch { /* silent */ } finally { setLoadingEvents(false) }
   }
 
-  const calendarDays = () => {
-    const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 })
-    const end = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 })
-    const days: Date[] = []
-    let d = start
-    while (d <= end) {
-      days.push(d)
-      d = addDays(d, 1)
+  const filteredTasks = useMemo(() => {
+    let t = tasks
+    if (filterUser) t = t.filter(tk => tk.assignee_id === filterUser)
+    if (search) {
+      const q = search.toLowerCase()
+      t = t.filter(tk => tk.title.toLowerCase().includes(q) || tk.project?.name.toLowerCase().includes(q))
     }
-    return days
-  }
+    return t
+  }, [tasks, filterUser, search])
 
-  const eventsForDay = (day: Date): GoogleEvent[] =>
-    googleEvents.filter((e) => {
-      const dt = e.start.dateTime ?? e.start.date
-      return dt && isSameDay(new Date(dt), day)
-    })
+  const filteredEvents = useMemo(() => {
+    if (!search) return googleEvents
+    const q = search.toLowerCase()
+    return googleEvents.filter(e => e.summary.toLowerCase().includes(q))
+  }, [googleEvents, search])
 
-  const meetingsForDay = (day: Date): LocalMeeting[] =>
-    localMeetings.filter((m) => isSameDay(new Date(m.meeting_date), day))
+  const filteredMeetings = useMemo(() => {
+    if (!search) return localMeetings
+    const q = search.toLowerCase()
+    return localMeetings.filter(m => m.title.toLowerCase().includes(q))
+  }, [localMeetings, search])
+
+  const eventsForDay = (day: Date) => filteredEvents.filter(e => {
+    const dt = e.start.dateTime ?? e.start.date
+    return dt && isSameDay(new Date(dt), day)
+  })
+  const meetingsForDay = (day: Date) => filteredMeetings.filter(m => isSameDay(new Date(m.meeting_date), day))
+  const tasksForDay = (day: Date) => showTasks ? filteredTasks.filter(t => t.due_date && isSameDay(new Date(t.due_date), day)) : []
 
   const saveEvent = async () => {
     if (!newEvent.title || !newEvent.date) return
@@ -95,158 +108,226 @@ export function CalendarioClient({
       const start = new Date(`${newEvent.date}T${newEvent.startTime}:00`)
       const end = new Date(`${newEvent.date}T${newEvent.endTime}:00`)
       await fetch('/api/google/events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: newEvent.title, description: newEvent.description, start: start.toISOString(), end: end.toISOString() }),
       })
-      setShowNewEvent(false)
-      setNewEvent({ title: '', date: '', startTime: '09:00', endTime: '10:00', description: '' })
+      setShowNewEvent(false); setNewEvent({ title: '', date: '', startTime: '09:00', endTime: '10:00', description: '' })
       fetchEvents()
-    } finally {
-      setSaving(false)
-    }
+    } finally { setSaving(false) }
   }
 
-  const days = calendarDays()
-  const dayNames = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']
+  const navPrev = () => {
+    if (viewMode === 'mese') setCurrentDate(subMonths(currentDate, 1))
+    else setCurrentDate(subWeeks(currentDate, 1))
+  }
+  const navNext = () => {
+    if (viewMode === 'mese') setCurrentDate(addMonths(currentDate, 1))
+    else setCurrentDate(addWeeks(currentDate, 1))
+  }
+  const goToday = () => setCurrentDate(new Date())
+
+  const headerLabel = viewMode === 'mese'
+    ? format(currentDate, 'MMMM yyyy', { locale: it })
+    : `${format(startOfWeek(currentDate, { weekStartsOn: 1 }), 'd MMM', { locale: it })} — ${format(endOfWeek(currentDate, { weekStartsOn: 1 }), 'd MMM yyyy', { locale: it })}`
 
   const selectedDayEvents = selectedDay ? eventsForDay(selectedDay) : []
   const selectedDayMeetings = selectedDay ? meetingsForDay(selectedDay) : []
+  const selectedDayTasks = selectedDay ? tasksForDay(selectedDay) : []
 
   return (
     <div className="flex h-full">
-      {/* Main calendar */}
       <div className="flex-1 p-6 flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-bold text-white capitalize">
-              {format(currentMonth, 'MMMM yyyy', { locale: it })}
-            </h1>
+            <h1 className="text-2xl font-bold text-white capitalize">{headerLabel}</h1>
             <div className="flex items-center gap-1">
-              <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-1.5 rounded-lg hover:bg-[#2A2A2A] text-text-secondary hover:text-white transition-colors">
+              <button onClick={navPrev} className="p-1.5 rounded-lg hover:bg-white/[0.04] text-white/30 hover:text-white transition-colors">
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <button onClick={() => setCurrentMonth(new Date())} className="px-3 py-1 text-xs bg-[#2A2A2A] rounded-lg text-text-secondary hover:text-white transition-colors">
-                Oggi
-              </button>
-              <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-1.5 rounded-lg hover:bg-[#2A2A2A] text-text-secondary hover:text-white transition-colors">
+              <button onClick={goToday} className="px-3 py-1 text-xs bg-white/[0.04] rounded-lg text-white/40 hover:text-white transition-colors">Oggi</button>
+              <button onClick={navNext} className="p-1.5 rounded-lg hover:bg-white/[0.04] text-white/30 hover:text-white transition-colors">
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
             {loadingEvents && <Loader2 className="w-4 h-4 text-gold animate-spin" />}
           </div>
+          <div className="flex items-center gap-2">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20" />
+              <input value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Cerca eventi o task..."
+                className="w-48 bg-white/[0.03] border border-white/[0.08] rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-white/20 focus:outline-none focus:border-gold/40 transition-colors" />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/50">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
 
-          <div className="flex items-center gap-3">
+            {/* View mode */}
+            <div className="flex bg-white/[0.03] border border-white/[0.06] rounded-lg p-0.5">
+              {(['settimana', 'mese'] as ViewMode[]).map(v => (
+                <button key={v} onClick={() => setViewMode(v)}
+                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors capitalize ${viewMode === v ? 'bg-gold text-black font-bold' : 'text-white/40 hover:text-white'}`}>
+                  {v === 'settimana' ? 'Settimana' : 'Mese'}
+                </button>
+              ))}
+            </div>
+
+            {/* Task toggle */}
+            <button onClick={() => setShowTasks(!showTasks)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                showTasks ? 'bg-gold/10 text-gold' : 'text-white/30 hover:text-white'
+              }`}>
+              <CheckSquare className="w-3.5 h-3.5" /> Task
+            </button>
+
+            {/* User filter */}
+            <div className="relative">
+              <button onClick={() => setShowFilter(!showFilter)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  filterUser ? 'bg-gold/10 text-gold' : 'text-white/30 hover:text-white'
+                }`}>
+                <Filter className="w-3.5 h-3.5" />
+                {filterUser ? profiles.find(p => p.id === filterUser)?.full_name?.split(' ')[0] ?? 'Filtro' : 'Colleghi'}
+              </button>
+              {showFilter && (
+                <div className="absolute right-0 top-full mt-1 glass rounded-xl p-2 w-52 z-20 shadow-xl">
+                  <button onClick={() => { setFilterUser(null); setShowFilter(false) }}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-xs ${!filterUser ? 'bg-gold/10 text-gold' : 'text-white/40 hover:text-white hover:bg-white/[0.04]'}`}>
+                    Tutti
+                  </button>
+                  {profiles.map(p => (
+                    <button key={p.id} onClick={() => { setFilterUser(p.id); setShowFilter(false) }}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center gap-2 ${filterUser === p.id ? 'bg-gold/10 text-gold' : 'text-white/40 hover:text-white hover:bg-white/[0.04]'}`}>
+                      <div className="w-5 h-5 rounded-full bg-gold/20 flex items-center justify-center text-[9px] font-bold text-gold shrink-0">
+                        {(p.full_name ?? '?')[0]}
+                      </div>
+                      <span className="truncate">{p.full_name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Google Connect / New event */}
             {!isGoogleConnected ? (
-              <a href="/api/google/auth" className="flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg text-sm text-white hover:border-gold/40 transition-colors">
-                <Link2 className="w-4 h-4 text-gold" />
-                Connetti Google Calendar
+              <a href="/api/google/auth" className="flex items-center gap-2 px-3 py-1.5 glass rounded-lg text-xs text-white hover:border-gold/40 transition-colors">
+                <Link2 className="w-3.5 h-3.5 text-gold" /> Connetti Google
               </a>
             ) : (
-              <button onClick={() => setShowNewEvent(true)} className="flex items-center gap-2 px-4 py-2 bg-gold text-black rounded-lg text-sm font-semibold hover:bg-gold/90 transition-colors">
-                <Plus className="w-4 h-4" />
-                Nuovo evento
+              <button onClick={() => setShowNewEvent(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-gold text-black rounded-lg text-xs font-bold hover:bg-gold/90 transition-colors">
+                <Plus className="w-3.5 h-3.5" /> Evento
               </button>
             )}
           </div>
         </div>
 
-        {/* Grid */}
-        <div className="grid grid-cols-7 gap-px bg-[#2A2A2A] rounded-xl overflow-hidden flex-1">
-          {dayNames.map((d) => (
-            <div key={d} className="bg-[#1A1A1A] px-3 py-2 text-xs font-semibold text-text-secondary text-center">
-              {d}
-            </div>
-          ))}
-
-          {days.map((day) => {
-            const events = eventsForDay(day)
-            const meetings = meetingsForDay(day)
-            const total = events.length + meetings.length
-            const isSelected = selectedDay && isSameDay(day, selectedDay)
-
-            return (
-              <div
-                key={day.toISOString()}
-                onClick={() => setSelectedDay(isSameDay(day, selectedDay ?? new Date(0)) ? null : day)}
-                className={`bg-[#111111] p-2 min-h-[100px] cursor-pointer transition-colors ${
-                  !isSameMonth(day, currentMonth) ? 'opacity-40' : ''
-                } ${isSelected ? 'ring-1 ring-inset ring-gold/50 bg-gold/5' : 'hover:bg-[#1A1A1A]'}`}
-              >
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium mb-1 ${
-                  isToday(day) ? 'bg-gold text-black' : 'text-white'
-                }`}>
-                  {format(day, 'd')}
-                </div>
-
-                <div className="space-y-0.5">
-                  {events.slice(0, 2).map((e) => (
-                    <div key={e.id} className={`text-[10px] px-1.5 py-0.5 rounded truncate border ${EVENT_COLORS[e.colorId ?? 'default']}`}>
-                      {e.summary}
-                    </div>
-                  ))}
-                  {meetings.slice(0, 2 - Math.min(events.length, 2)).map((m) => (
-                    <div key={m.id} className="text-[10px] px-1.5 py-0.5 rounded truncate bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                      {m.title}
-                    </div>
-                  ))}
-                  {total > 2 && (
-                    <div className="text-[10px] text-text-secondary px-1">+{total - 2} altri</div>
-                  )}
-                </div>
-              </div>
-            )
-          })}
+        {/* Legend */}
+        <div className="flex items-center gap-4 mb-3 text-[10px]">
+          <span className="flex items-center gap-1.5 text-white/30">
+            <span className="w-2.5 h-2.5 rounded-sm bg-blue-500/40" /> Eventi
+          </span>
+          <span className="flex items-center gap-1.5 text-white/30">
+            <span className="w-2.5 h-2.5 rounded-sm bg-purple-500/40" /> Riunioni
+          </span>
+          {showTasks && (
+            <span className="flex items-center gap-1.5 text-white/30">
+              <span className="w-2.5 h-2.5 rounded-sm bg-gold/40" /> Task
+            </span>
+          )}
         </div>
+
+        {/* Calendar Grid */}
+        {viewMode === 'mese' ? (
+          <MonthView
+            currentDate={currentDate}
+            eventsForDay={eventsForDay}
+            meetingsForDay={meetingsForDay}
+            tasksForDay={tasksForDay}
+            selectedDay={selectedDay}
+            onSelectDay={d => setSelectedDay(isSameDay(d, selectedDay ?? new Date(0)) ? null : d)}
+          />
+        ) : (
+          <WeekView
+            currentDate={currentDate}
+            eventsForDay={eventsForDay}
+            meetingsForDay={meetingsForDay}
+            tasksForDay={tasksForDay}
+            selectedDay={selectedDay}
+            onSelectDay={d => setSelectedDay(isSameDay(d, selectedDay ?? new Date(0)) ? null : d)}
+          />
+        )}
       </div>
 
-      {/* Side panel for selected day */}
+      {/* Side panel */}
       {selectedDay && (
-        <div className="w-80 border-l border-[#2A2A2A] p-4 flex flex-col gap-4">
-          <div>
-            <h3 className="text-sm font-semibold text-white capitalize">
-              {format(selectedDay, 'EEEE d MMMM', { locale: it })}
-            </h3>
-            <p className="text-xs text-text-secondary">{selectedDayEvents.length + selectedDayMeetings.length} eventi</p>
+        <div className="w-80 border-l border-white/[0.06] p-4 flex flex-col gap-4 bg-[rgba(255,255,255,0.01)]">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-white capitalize">{format(selectedDay, 'EEEE d MMMM', { locale: it })}</h3>
+              <p className="text-xs text-white/30">{selectedDayEvents.length + selectedDayMeetings.length + selectedDayTasks.length} elementi</p>
+            </div>
+            <button onClick={() => setSelectedDay(null)} className="text-white/30 hover:text-white"><X className="w-4 h-4" /></button>
           </div>
 
           <div className="space-y-2 flex-1 overflow-y-auto">
-            {selectedDayEvents.map((e) => (
-              <div key={e.id} className={`p-3 rounded-lg border ${EVENT_COLORS[e.colorId ?? 'default']}`}>
+            {selectedDayEvents.length > 0 && (
+              <p className="text-[9px] font-bold text-blue-400/60 uppercase tracking-wider">Eventi</p>
+            )}
+            {selectedDayEvents.map(e => (
+              <div key={e.id} className={`p-3 rounded-xl border ${EVENT_STYLE}`}>
                 <p className="text-sm font-medium">{e.summary}</p>
                 {e.start.dateTime && (
-                  <p className="text-xs opacity-70 mt-1">
-                    {format(new Date(e.start.dateTime), 'HH:mm')} — {format(new Date(e.end.dateTime!), 'HH:mm')}
-                  </p>
+                  <p className="text-xs opacity-70 mt-1">{format(new Date(e.start.dateTime), 'HH:mm')} — {format(new Date(e.end.dateTime!), 'HH:mm')}</p>
                 )}
-                {e.attendees && e.attendees.length > 0 && (
-                  <p className="text-xs opacity-60 mt-1">{e.attendees.length} partecipanti</p>
-                )}
+                {e.attendees && e.attendees.length > 0 && <p className="text-xs opacity-60 mt-1">{e.attendees.length} partecipanti</p>}
               </div>
             ))}
 
-            {selectedDayMeetings.map((m) => (
-              <div key={m.id} className="p-3 rounded-lg border bg-purple-500/10 text-purple-400 border-purple-500/20">
+            {selectedDayMeetings.length > 0 && (
+              <p className="text-[9px] font-bold text-purple-400/60 uppercase tracking-wider mt-2">Riunioni</p>
+            )}
+            {selectedDayMeetings.map(m => (
+              <div key={m.id} className={`p-3 rounded-xl border ${MEETING_STYLE}`}>
                 <p className="text-sm font-medium">{m.title}</p>
-                {m.duration_minutes && (
-                  <p className="text-xs opacity-70 mt-1">{m.duration_minutes} minuti</p>
-                )}
+                {m.duration_minutes && <p className="text-xs opacity-70 mt-1">{m.duration_minutes} minuti</p>}
               </div>
             ))}
 
-            {selectedDayEvents.length === 0 && selectedDayMeetings.length === 0 && (
-              <p className="text-xs text-text-secondary">Nessun evento in questo giorno.</p>
+            {selectedDayTasks.length > 0 && (
+              <p className="text-[9px] font-bold text-gold/60 uppercase tracking-wider mt-2">Task</p>
+            )}
+            {selectedDayTasks.map(t => (
+              <div key={t.id} className={`p-3 rounded-xl border ${taskStyle(t.due_date!)}`}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <CheckSquare className="w-3 h-3 opacity-50" />
+                  <p className="text-sm font-medium">{t.title}</p>
+                </div>
+                <div className="flex items-center gap-2 mt-1.5">
+                  {t.assignee && (
+                    <span className="text-[10px] opacity-70 flex items-center gap-1">
+                      <span className="w-4 h-4 rounded-full bg-gold/20 flex items-center justify-center text-[8px] font-bold text-gold">
+                        {(t.assignee.full_name ?? '?')[0]}
+                      </span>
+                      {t.assignee.full_name}
+                    </span>
+                  )}
+                  {t.project && <span className="text-[10px] opacity-60">{t.project.clients?.company_name ?? t.project.name}</span>}
+                </div>
+              </div>
+            ))}
+            {selectedDayEvents.length === 0 && selectedDayMeetings.length === 0 && selectedDayTasks.length === 0 && (
+              <p className="text-xs text-white/30">Nessun elemento in questo giorno.</p>
             )}
           </div>
 
           {isGoogleConnected && (
-            <button
-              onClick={() => { setNewEvent({ ...newEvent, date: format(selectedDay, 'yyyy-MM-dd') }); setShowNewEvent(true) }}
-              className="flex items-center gap-2 justify-center px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg text-sm text-white hover:border-gold/40 transition-colors"
-            >
-              <Plus className="w-4 h-4 text-gold" />
-              Aggiungi evento
+            <button onClick={() => { setNewEvent({ ...newEvent, date: format(selectedDay, 'yyyy-MM-dd') }); setShowNewEvent(true) }}
+              className="flex items-center gap-2 justify-center px-3 py-2 glass rounded-xl text-sm text-white hover:border-gold/40 transition-colors">
+              <Plus className="w-4 h-4 text-gold" /> Aggiungi evento
             </button>
           )}
         </div>
@@ -254,55 +335,149 @@ export function CalendarioClient({
 
       {/* New event modal */}
       {showNewEvent && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
-          <div className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl p-6 w-[420px] space-y-4">
-            <h3 className="text-lg font-bold text-white">Nuovo evento Google Calendar</h3>
-
-            <input
-              value={newEvent.title}
-              onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
-              placeholder="Titolo evento"
-              className="w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white placeholder:text-text-secondary outline-none focus:border-gold/40"
-            />
-            <input
-              type="date"
-              value={newEvent.date}
-              onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
-              className="w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-gold/40"
-            />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="glass-strong rounded-2xl p-6 w-[420px] space-y-4">
+            <h3 className="text-lg font-bold text-white font-heading">Nuovo evento</h3>
+            <input value={newEvent.title} onChange={e => setNewEvent({ ...newEvent, title: e.target.value })} placeholder="Titolo evento"
+              className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white placeholder:text-white/20 outline-none focus:border-gold/40" />
+            <input type="date" value={newEvent.date} onChange={e => setNewEvent({ ...newEvent, date: e.target.value })}
+              className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-gold/40" />
             <div className="flex gap-3">
-              <input
-                type="time"
-                value={newEvent.startTime}
-                onChange={(e) => setNewEvent({ ...newEvent, startTime: e.target.value })}
-                className="flex-1 bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-gold/40"
-              />
-              <input
-                type="time"
-                value={newEvent.endTime}
-                onChange={(e) => setNewEvent({ ...newEvent, endTime: e.target.value })}
-                className="flex-1 bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-gold/40"
-              />
+              <input type="time" value={newEvent.startTime} onChange={e => setNewEvent({ ...newEvent, startTime: e.target.value })}
+                className="flex-1 bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-gold/40" />
+              <input type="time" value={newEvent.endTime} onChange={e => setNewEvent({ ...newEvent, endTime: e.target.value })}
+                className="flex-1 bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-gold/40" />
             </div>
-            <textarea
-              value={newEvent.description}
-              onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
-              placeholder="Descrizione (opzionale)"
-              rows={3}
-              className="w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white placeholder:text-text-secondary outline-none focus:border-gold/40 resize-none"
-            />
-
+            <textarea value={newEvent.description} onChange={e => setNewEvent({ ...newEvent, description: e.target.value })} placeholder="Descrizione (opzionale)"
+              rows={3} className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white placeholder:text-white/20 outline-none focus:border-gold/40 resize-none" />
             <div className="flex gap-3">
-              <button onClick={() => setShowNewEvent(false)} className="flex-1 py-2 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary hover:text-white transition-colors">
-                Annulla
-              </button>
-              <button onClick={saveEvent} disabled={saving || !newEvent.title || !newEvent.date} className="flex-1 py-2 bg-gold text-black rounded-lg text-sm font-semibold disabled:opacity-50 hover:bg-gold/90 transition-colors">
+              <button onClick={() => setShowNewEvent(false)} className="flex-1 py-2 border border-white/[0.08] rounded-xl text-sm text-white/40 hover:text-white transition-colors">Annulla</button>
+              <button onClick={saveEvent} disabled={saving || !newEvent.title || !newEvent.date}
+                className="flex-1 py-2 bg-gold text-black rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-gold/90 transition-colors">
                 {saving ? 'Salvataggio...' : 'Crea evento'}
               </button>
             </div>
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/* ── MONTH VIEW ─────────────────────────────────── */
+function MonthView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, selectedDay, onSelectDay }: {
+  currentDate: Date
+  eventsForDay: (d: Date) => GoogleEvent[]
+  meetingsForDay: (d: Date) => LocalMeeting[]
+  tasksForDay: (d: Date) => CalTask[]
+  selectedDay: Date | null
+  onSelectDay: (d: Date) => void
+}) {
+  const start = startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 })
+  const end = endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 })
+  const days: Date[] = []; let d = start
+  while (d <= end) { days.push(d); d = addDays(d, 1) }
+  const dayNames = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']
+
+  return (
+    <div className="grid grid-cols-7 gap-px bg-white/[0.04] rounded-xl overflow-hidden flex-1">
+      {dayNames.map(dn => (
+        <div key={dn} className="bg-[rgba(255,255,255,0.02)] px-3 py-2 text-xs font-semibold text-white/30 text-center">{dn}</div>
+      ))}
+      {days.map(day => {
+        const events = eventsForDay(day)
+        const meetings = meetingsForDay(day)
+        const dayTasks = tasksForDay(day)
+        const total = events.length + meetings.length + dayTasks.length
+        const isSelected = selectedDay && isSameDay(day, selectedDay)
+        return (
+          <div key={day.toISOString()}
+            onClick={() => onSelectDay(day)}
+            className={`bg-[#0B0B0C] p-2 min-h-[100px] cursor-pointer transition-colors ${
+              !isSameMonth(day, currentDate) ? 'opacity-40' : ''
+            } ${isSelected ? 'ring-1 ring-inset ring-gold/50 bg-gold/[0.03]' : 'hover:bg-white/[0.02]'}`}>
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium mb-1 ${
+              isToday(day) ? 'bg-gold text-black' : 'text-white'
+            }`}>{format(day, 'd')}</div>
+            <div className="space-y-0.5">
+              {events.slice(0, 2).map(e => (
+                <div key={e.id} className={`text-[10px] px-1.5 py-0.5 rounded truncate border ${EVENT_STYLE}`}>{e.summary}</div>
+              ))}
+              {meetings.slice(0, Math.max(0, 2 - events.length)).map(m => (
+                <div key={m.id} className={`text-[10px] px-1.5 py-0.5 rounded truncate border ${MEETING_STYLE}`}>{m.title}</div>
+              ))}
+              {dayTasks.slice(0, Math.max(0, 3 - events.length - meetings.length)).map(t => (
+                <div key={t.id} className={`text-[10px] px-1.5 py-0.5 rounded truncate border ${taskStyle(t.due_date!)}`}>
+                  {t.title}
+                </div>
+              ))}
+              {total > 3 && <div className="text-[10px] text-white/20 px-1">+{total - 3} altri</div>}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/* ── WEEK VIEW ──────────────────────────────────── */
+function WeekView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, selectedDay, onSelectDay }: {
+  currentDate: Date
+  eventsForDay: (d: Date) => GoogleEvent[]
+  meetingsForDay: (d: Date) => LocalMeeting[]
+  tasksForDay: (d: Date) => CalTask[]
+  selectedDay: Date | null
+  onSelectDay: (d: Date) => void
+}) {
+  const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 })
+  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+
+  return (
+    <div className="flex-1 grid grid-cols-7 gap-px bg-white/[0.04] rounded-xl overflow-hidden">
+      {days.map(day => {
+        const events = eventsForDay(day)
+        const meetings = meetingsForDay(day)
+        const dayTasks = tasksForDay(day)
+        const isSelected = selectedDay && isSameDay(day, selectedDay)
+        return (
+          <div key={day.toISOString()}
+            onClick={() => onSelectDay(day)}
+            className={`bg-[#0B0B0C] p-3 cursor-pointer transition-colors flex flex-col min-h-[300px] ${
+              isSelected ? 'ring-1 ring-inset ring-gold/50 bg-gold/[0.03]' : 'hover:bg-white/[0.02]'
+            }`}>
+            <div className="text-center mb-3">
+              <p className="text-[10px] text-white/30 uppercase">{format(day, 'EEE', { locale: it })}</p>
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold mx-auto mt-1 ${
+                isToday(day) ? 'bg-gold text-black' : 'text-white'
+              }`}>{format(day, 'd')}</div>
+            </div>
+            <div className="space-y-1.5 flex-1 overflow-y-auto">
+              {events.map(e => (
+                <div key={e.id} className={`text-[10px] px-2 py-1.5 rounded-lg border ${EVENT_STYLE}`}>
+                  <p className="font-medium truncate">{e.summary}</p>
+                  {e.start.dateTime && (
+                    <p className="opacity-60 mt-0.5">{format(new Date(e.start.dateTime), 'HH:mm')}</p>
+                  )}
+                </div>
+              ))}
+              {meetings.map(m => (
+                <div key={m.id} className={`text-[10px] px-2 py-1.5 rounded-lg border ${MEETING_STYLE}`}>
+                  <p className="font-medium truncate">{m.title}</p>
+                  {m.duration_minutes && <p className="opacity-60 mt-0.5">{m.duration_minutes}min</p>}
+                </div>
+              ))}
+              {dayTasks.map(t => (
+                <div key={t.id} className={`text-[10px] px-2 py-1.5 rounded-lg border ${taskStyle(t.due_date!)}`}>
+                  <div className="flex items-center gap-1">
+                    <CheckSquare className="w-2.5 h-2.5 shrink-0 opacity-50" />
+                    <p className="font-medium truncate">{t.title}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

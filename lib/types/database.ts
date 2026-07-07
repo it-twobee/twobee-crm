@@ -883,6 +883,43 @@ export interface StrategicNote {
   updated_at: string
 }
 
+export type TaskAssigneeRole = 'owner' | 'collaborator' | 'reviewer'
+
+export interface TaskAssignee {
+  id: string
+  task_id: string
+  profile_id: string
+  role: TaskAssigneeRole
+  is_primary_owner: boolean
+  assigned_at: string
+  assigned_by: string | null
+}
+
+export type TaskDeletionRequestStatus = 'pending' | 'approved' | 'rejected'
+
+export interface TaskDeletionRequest {
+  id: string
+  task_id: string
+  requested_by: string
+  reason: string | null
+  status: TaskDeletionRequestStatus
+  reviewed_by: string | null
+  reviewed_at: string | null
+  created_at: string
+}
+
+export interface ChatBridgeEvent {
+  id: string
+  source_message_id: string
+  source_channel_id: string
+  target_channel_id: string
+  status: 'pending' | 'accepted' | 'declined'
+  ai_summary: string | null
+  handled_by: string | null
+  handled_at: string | null
+  created_at: string
+}
+
 export type LeadStatus = 'nuovo' | 'contattato' | 'qualificato' | 'convertito' | 'perso'
 export type LeadSource = 'facebook' | 'google' | 'linkedin' | 'organic' | 'referral' | 'email' | 'evento' | 'altro'
 

@@ -1,21 +1,9 @@
 'use client'
 import { useState, useCallback } from 'react'
 import { Sparkles, RefreshCw, Loader2 } from 'lucide-react'
-import type { AIContext } from './AIDashboardChat'
-import type { FinancialSummary } from './FinancialControl'
+import { generateExecutiveBrief } from '@/app/actions/executive-brief'
 
-interface Props {
-  context: AIContext
-  financialSummary: FinancialSummary
-  pulseRaw: {
-    dealsTotal: number; dealsActive: number; dealsWon: number
-    tasksTotal: number; tasksDone: number
-    ticketsOpen: number; ticketsResolved: number
-    okrProgress: number
-  }
-}
-
-export function AIExecutiveBrief({ context, financialSummary, pulseRaw }: Props) {
+export function AIExecutiveBrief() {
   const [brief, setBrief]     = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState<string | null>(null)
@@ -24,26 +12,21 @@ export function AIExecutiveBrief({ context, financialSummary, pulseRaw }: Props)
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/ai/executive-brief', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context, financialSummary, pulseRaw }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Errore API')
-      setBrief(data.brief)
+      const result = await generateExecutiveBrief()
+      if (result.error) throw new Error(result.error)
+      setBrief(result.brief)
     } catch (e) {
       setError((e as Error).message)
     } finally {
       setLoading(false)
     }
-  }, [context, financialSummary, pulseRaw])
+  }, [])
 
   return (
     <div className="p-3 h-full flex flex-col gap-3">
       <div className="flex items-center gap-2 shrink-0">
         <Sparkles className="w-3.5 h-3.5" style={{ color: '#F5C800' }} />
-        <p className="text-[10px] flex-1" style={{ color: '#333' }}>Brief narrativo generato da AI — sintetico e azionabile</p>
+        <p className="text-[10px] flex-1" style={{ color: '#333' }}>Brief esecutivo AI — 3 righe, dati reali dal DB</p>
         <button
           onClick={generate}
           disabled={loading}
@@ -78,7 +61,7 @@ export function AIExecutiveBrief({ context, financialSummary, pulseRaw }: Props)
         <div className="flex-1 flex items-center justify-center">
           <div className="flex items-center gap-2" style={{ color: '#333' }}>
             <Loader2 className="w-4 h-4 animate-spin" />
-            <p className="text-[10px]">Analisi in corso...</p>
+            <p className="text-[10px]">Analisi dati reali in corso...</p>
           </div>
         </div>
       )}

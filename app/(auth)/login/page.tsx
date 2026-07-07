@@ -13,7 +13,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [resetMode, setResetMode] = useState(false)
 
-  // Gestisce magic link e password reset dal hash URL
   useEffect(() => {
     const supabase = createClient()
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -62,27 +61,27 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#0B0B0C] flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-10">
-          <h1 className="text-5xl font-black tracking-tight mb-2">
+          <h1 className="text-5xl font-black tracking-tight mb-2 font-heading">
             <span className="text-white">two bee</span>
             <span className="text-gold">.</span>
           </h1>
-          <p className="text-text-secondary text-sm tracking-widest uppercase">
+          <p className="text-white/30 text-sm tracking-[0.2em] uppercase">
             Gestionale Interno
           </p>
         </div>
 
         {/* Card */}
-        <div className="bg-surface border border-[#2A2A2A] rounded-card p-8">
+        <div className="glass-strong rounded-3xl p-8">
           {!resetMode ? (
             <>
-              <h2 className="text-xl font-bold mb-6 text-center">Accedi</h2>
+              <h2 className="text-xl font-bold mb-6 text-center font-heading">Accedi</h2>
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
-                  <label className="block text-sm text-text-secondary mb-1.5">
+                  <label className="block text-sm text-white/40 mb-1.5">
                     Email
                   </label>
                   <input
@@ -90,13 +89,13 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="w-full bg-background border border-[#2A2A2A] rounded-lg px-4 py-3 text-sm text-white placeholder-text-secondary focus:outline-none focus:border-gold transition-colors"
+                    className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-gold/40 transition-colors"
                     placeholder="marco@twobee.it"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm text-text-secondary mb-1.5">
+                  <label className="block text-sm text-white/40 mb-1.5">
                     Password
                   </label>
                   <input
@@ -104,7 +103,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="w-full bg-background border border-[#2A2A2A] rounded-lg px-4 py-3 text-sm text-white placeholder-text-secondary focus:outline-none focus:border-gold transition-colors"
+                    className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-gold/40 transition-colors"
                     placeholder="••••••••"
                   />
                 </div>
@@ -112,7 +111,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-gold text-black font-bold py-3 rounded-lg hover:bg-yellow-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full gold-gradient text-black font-bold py-3 rounded-xl hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                   Accedi
@@ -121,20 +120,20 @@ export default function LoginPage() {
 
               <button
                 onClick={() => setResetMode(true)}
-                className="w-full text-center text-sm text-text-secondary hover:text-gold mt-4 transition-colors"
+                className="w-full text-center text-sm text-white/30 hover:text-gold mt-4 transition-colors"
               >
                 Password dimenticata?
               </button>
             </>
           ) : (
             <>
-              <h2 className="text-xl font-bold mb-2 text-center">Reset Password</h2>
-              <p className="text-text-secondary text-sm text-center mb-6">
+              <h2 className="text-xl font-bold mb-2 text-center font-heading">Reset Password</h2>
+              <p className="text-white/40 text-sm text-center mb-6">
                 Inserisci la tua email per ricevere il link di reset.
               </p>
               <form onSubmit={handleReset} className="space-y-4">
                 <div>
-                  <label className="block text-sm text-text-secondary mb-1.5">
+                  <label className="block text-sm text-white/40 mb-1.5">
                     Email
                   </label>
                   <input
@@ -142,7 +141,7 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="w-full bg-background border border-[#2A2A2A] rounded-lg px-4 py-3 text-sm text-white placeholder-text-secondary focus:outline-none focus:border-gold transition-colors"
+                    className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-gold/40 transition-colors"
                     placeholder="marco@twobee.it"
                   />
                 </div>
@@ -150,7 +149,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-gold text-black font-bold py-3 rounded-lg hover:bg-yellow-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="w-full gold-gradient text-black font-bold py-3 rounded-xl hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                   Invia Link Reset
@@ -159,7 +158,7 @@ export default function LoginPage() {
 
               <button
                 onClick={() => setResetMode(false)}
-                className="w-full text-center text-sm text-text-secondary hover:text-gold mt-4 transition-colors"
+                className="w-full text-center text-sm text-white/30 hover:text-gold mt-4 transition-colors"
               >
                 ← Torna al login
               </button>
@@ -167,7 +166,7 @@ export default function LoginPage() {
           )}
         </div>
 
-        <p className="text-center text-text-secondary text-xs mt-6">
+        <p className="text-center text-white/15 text-xs mt-6">
           Accesso riservato ai membri del team TWO BEE
         </p>
       </div>

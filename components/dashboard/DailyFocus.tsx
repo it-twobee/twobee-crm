@@ -18,7 +18,7 @@ interface Props {
 }
 
 const PRIORITY_COLOR: Record<string, string> = {
-  alta: '#EF4444', media: '#F5C800', bassa: '#3B82F6',
+  alta: '#EF4444', media: '#FFC501', bassa: '#53BDEB',
 }
 
 export function DailyFocus({ items, name }: Props) {
@@ -29,14 +29,14 @@ export function DailyFocus({ items, name }: Props) {
   const total = items.length
 
   return (
-    <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5 h-full overflow-auto">
+    <div className="p-5 h-full overflow-auto">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Sun className="w-4 h-4 text-gold" />
-          <p className="text-xs font-bold text-text-secondary uppercase tracking-widest">Focus di oggi</p>
+          <p className="text-xs font-semibold text-white/30 uppercase tracking-widest">Focus di oggi</p>
         </div>
         {total > 0 && (
-          <span className="text-[10px] text-text-secondary">
+          <span className="text-[10px] text-white/30">
             <span className="text-gold font-bold">{doneCount}</span>/{total}
           </span>
         )}
@@ -45,7 +45,7 @@ export function DailyFocus({ items, name }: Props) {
       {items.length === 0 ? (
         <div className="flex items-center gap-2 py-2">
           <CheckCircle2 className="w-4 h-4 text-success" />
-          <p className="text-xs text-text-secondary">Nessuna priorità urgente, {name}. Buon lavoro!</p>
+          <p className="text-xs text-white/40">Nessuna priorità urgente, {name}. Buon lavoro!</p>
         </div>
       ) : (
         <>
@@ -57,16 +57,16 @@ export function DailyFocus({ items, name }: Props) {
                   <button onClick={() => toggle(item.id)} className="mt-0.5 shrink-0 transition-transform hover:scale-110">
                     {isDone
                       ? <CheckCircle2 className="w-4 h-4 text-success" />
-                      : <Circle className="w-4 h-4 text-[#333]" />
+                      : <Circle className="w-4 h-4 text-white/15" />
                     }
                   </button>
                   <div className="flex-1 min-w-0">
                     <Link href={item.href}>
-                      <p className={`text-xs leading-snug transition-colors ${isDone ? 'line-through text-[#444]' : 'text-white hover:text-gold'}`}>
+                      <p className={`text-xs leading-snug transition-colors ${isDone ? 'line-through text-white/20' : 'text-white/80 hover:text-gold'}`}>
                         {item.text}
                       </p>
                     </Link>
-                    <p className="text-[9px] text-[#444] mt-0.5">{item.source}</p>
+                    <p className="text-[9px] text-white/20 mt-0.5">{item.source}</p>
                   </div>
                   <span className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0"
                     style={{ background: PRIORITY_COLOR[item.priority] }} />
@@ -74,9 +74,8 @@ export function DailyFocus({ items, name }: Props) {
               )
             })}
           </div>
-          {/* Progress bar */}
           {total > 0 && (
-            <div className="h-1 bg-[#2A2A2A] rounded-full overflow-hidden">
+            <div className="h-1 bg-white/[0.06] rounded-full overflow-hidden">
               <div className="h-full bg-gold rounded-full transition-all duration-300"
                 style={{ width: `${(doneCount / total) * 100}%` }} />
             </div>
