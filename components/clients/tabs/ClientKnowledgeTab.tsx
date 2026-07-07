@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Loader2, Save, Brain, Link2, ShieldAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
+import { AIPrefillPanel } from '@/components/shared/AIPrefillPanel'
 import { upsertClientKnowledge, type ClientKnowledgeInput } from '@/app/actions/client-knowledge'
 import type { ClientKnowledge } from '@/lib/types/database'
 
@@ -49,6 +50,10 @@ const GROUPS: GroupDef[] = [
 ]
 
 const ALL_KEYS = GROUPS.flatMap(g => g.fields.map(f => f.key))
+// Campi che l'AI Prefill può compilare dai dati reali (esclude URL/accessi)
+const AI_FIELDS = GROUPS.flatMap(g => g.fields)
+  .filter(f => !['brand_assets_url', 'access_status'].includes(f.key))
+  .map(f => ({ key: f.key as string, label: f.label }))
 
 const emptyForm = (clientId: string): ClientKnowledgeInput => ({
   client_id: clientId,
@@ -114,6 +119,15 @@ export function ClientKnowledgeTab({ clientId }: { clientId: string }) {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <AIPrefillPanel
+            entityType="client"
+            entityId={clientId}
+            fields={AI_FIELDS}
+            onApply={vals => {
+              setForm(p => ({ ...p, ...Object.fromEntries(Object.entries(vals).map(([k, v]) => [k, v || null])) }))
+              setDirty(true)
+            }}
+          />
           <div className="flex items-center gap-2">
             <div className="w-24 h-1.5 bg-[#1A1A1A] rounded-full overflow-hidden">
               <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: pct >= 70 ? '#22C55E' : pct >= 40 ? '#F5C800' : '#EF4444' }} />
