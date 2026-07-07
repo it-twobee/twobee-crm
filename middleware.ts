@@ -55,21 +55,37 @@ export async function middleware(request: NextRequest) {
 
   if (!user && isProtected) return redirectTo('/login')
 
-  // Routing per ruolo: i clienti vivono solo nel proprio portale
+  // Routing per ruolo: client → /portale · risorsa esterna → /risorsa · staff → /dashboard
   if (user) {
     const { data: profile } = await supabase
       .from('profiles').select('role').eq('id', user.id).single()
-    const isClient = profile?.role === 'client' || profile?.role === 'guest'
-    const home = isClient ? '/portale' : '/dashboard'
+    const role = profile?.role
 
-    if (isClient) {
+    // Distinzione risorsa esterna vs guest-cliente (solo per i guest)
+    let isResource = false
+    if (role === 'guest') {
+      const { data: rp } = await supabase
+        .from('resource_profiles').select('can_access_resource_portal').eq('profile_id', user.id).maybeSingle()
+      isResource = !!rp?.can_access_resource_portal
+    }
+
+    const isClient = (role === 'client' || role === 'guest') && !isResource
+
+    if (isResource) {
+      // La risorsa vive solo nel proprio portale (+ onboarding e profilo)
+      const allowedForResource =
+        pathname === '/risorsa' ||
+        pathname.startsWith('/risorsa/') ||
+        pathname.startsWith('/onboarding') ||
+        pathname === '/impostazioni/profilo'
+      if (!allowedForResource && pathname !== '/risorsa') return redirectTo('/risorsa')
+    } else if (isClient) {
       // Il cliente può accedere solo a /portale (+ onboarding e profilo)
       const allowedForClient =
         pathname === '/portale' ||
         pathname.startsWith('/portale/') ||
         pathname.startsWith('/onboarding') ||
         pathname === '/impostazioni/profilo'
-      // /portale-cliente è la PREVIEW admin: vietata ai clienti
       if (pathname.startsWith('/portale-cliente') || !allowedForClient) {
         if (pathname !== '/portale') return redirectTo('/portale')
       }
@@ -80,6 +96,7 @@ export async function middleware(request: NextRequest) {
       }
     }
 
+    const home = isResource ? '/risorsa' : isClient ? '/portale' : '/dashboard'
     if (pathname === '/login' || pathname === '/') return redirectTo(home)
   }
 

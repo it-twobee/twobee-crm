@@ -60,6 +60,27 @@ export interface Profile {
   created_at: string
 }
 
+export type ResourceProfileType =
+  | 'internal_employee' | 'vat_consultant' | 'external_freelancer'
+  | 'partner_company' | 'partner_user' | 'agency_supplier' | 'contractor' | 'consultant'
+
+export interface ResourceProfile {
+  id: string
+  profile_id: string
+  resource_type: ResourceProfileType
+  company_name: string | null
+  partner_company_id: string | null
+  is_external: boolean
+  can_access_resource_portal: boolean
+  can_view_own_compensation: boolean
+  can_view_project_context: boolean
+  can_view_client_context: boolean
+  can_log_time: boolean
+  can_upload_documents: boolean
+  created_at: string
+  updated_at: string
+}
+
 export type ResourceType = 'internal_employee' | 'external_freelancer' | 'partner' | 'agency_supplier' | 'consultant' | 'contractor'
 export type ResourceCostType = 'monthly_salary' | 'hourly' | 'daily' | 'project_fee' | 'retainer' | 'partner_percentage'
 

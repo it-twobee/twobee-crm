@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { classifyUser } from '@/lib/resource'
 import { RisorsaNav } from '@/components/risorsa/RisorsaNav'
 import type { Profile } from '@/lib/types/database'
 
@@ -8,13 +9,16 @@ export default async function RisorsaLayout({ children }: { children: React.Reac
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  // Client → /portale; staff e risorse (guest con resource_profile) → ok
+  const { kind } = await classifyUser(supabase, user.id)
+  if (kind === 'client') redirect('/portale')
+
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-  // I clienti vivono nel loro portale; il portale risorsa è per chi opera (staff/team)
-  if (profile?.role === 'client' || profile?.role === 'guest') redirect('/portale')
+  const isExternal = kind === 'resource'
 
   return (
     <div className="min-h-screen bg-[#111111] flex flex-col">
-      <RisorsaNav profile={profile as Profile} />
+      <RisorsaNav profile={profile as Profile} isExternal={isExternal} />
       <main className="flex-1">{children}</main>
     </div>
   )

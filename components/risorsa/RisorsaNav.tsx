@@ -2,25 +2,30 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutGrid, CheckSquare, Clock, MessageSquare, User, LogOut, ArrowLeft } from 'lucide-react'
+import { LayoutGrid, CheckSquare, Clock, FolderKanban, FolderOpen, MessageSquare, User, LogOut, ArrowLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { getInitials } from '@/lib/utils'
-import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import type { Profile } from '@/lib/types/database'
 
+// Rotte sempre dentro /risorsa (sicure anche per risorse esterne)
 const NAV = [
   { href: '/risorsa',           icon: LayoutGrid,   label: 'Oggi' },
   { href: '/risorsa/attivita',  icon: CheckSquare,  label: 'Attività' },
+  { href: '/risorsa/progetti',  icon: FolderKanban, label: 'Progetti' },
   { href: '/risorsa/timesheet', icon: Clock,        label: 'Timesheet' },
-  { href: '/chat',              icon: MessageSquare, label: 'Chat' },
-  { href: '/impostazioni/profilo', icon: User,      label: 'Profilo' },
+  { href: '/risorsa/documenti', icon: FolderOpen,   label: 'Documenti' },
+]
+// Rotte nell'area admin: solo per staff interno (le risorse esterne le eviterebbero)
+const STAFF_NAV = [
+  { href: '/chat',                 icon: MessageSquare, label: 'Chat' },
+  { href: '/impostazioni/profilo', icon: User,          label: 'Profilo' },
 ]
 
-export function RisorsaNav({ profile }: { profile: Profile | null }) {
+export function RisorsaNav({ profile, isExternal }: { profile: Profile | null; isExternal: boolean }) {
   const pathname = usePathname()
   const router = useRouter()
-  // Lo staff interno può tornare all'area admin; le risorse esterne (Fase 3) no
-  const isStaff = SUPER_ADMIN_EMAILS.includes(profile?.email ?? '') || ['admin', 'manager'].includes(profile?.app_role ?? '')
+  const isStaff = !isExternal
+  const nav = isStaff ? [...NAV, ...STAFF_NAV] : NAV
 
   const logout = async () => {
     await createClient().auth.signOut()
@@ -35,7 +40,7 @@ export function RisorsaNav({ profile }: { profile: Profile | null }) {
       </span>
 
       <nav className="flex items-center gap-0.5">
-        {NAV.map(item => {
+        {nav.map(item => {
           const active = pathname === item.href
           return (
             <Link key={item.href} href={item.href}
