@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -14,6 +14,14 @@ interface InviteData {
 }
 
 export default function RegistratiPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#111111]" />}>
+      <RegistratiForm />
+    </Suspense>
+  )
+}
+
+function RegistratiForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get('token')

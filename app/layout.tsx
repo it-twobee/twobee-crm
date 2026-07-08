@@ -1,6 +1,21 @@
 import type { Metadata } from 'next'
+import { Inter, League_Spartan } from 'next/font/google'
 import { Toaster } from 'sonner'
 import './globals.css'
+
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700', '800', '900'],
+  variable: '--font-inter',
+  display: 'swap',
+})
+
+const leagueSpartan = League_Spartan({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800', '900'],
+  variable: '--font-league',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: 'TWO BEE Gestionale',
@@ -13,15 +28,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="it">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=League+Spartan:wght@400;500;600;700;800;900&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html lang="it" className={`${inter.variable} ${leagueSpartan.variable}`}>
       <body className="bg-background antialiased">
         {children}
         <Toaster

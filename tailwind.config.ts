@@ -28,8 +28,8 @@ const config: Config = {
         info: "#53BDEB",
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
-        heading: ["League Spartan", "Inter", "system-ui", "sans-serif"],
+        sans: ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
+        heading: ["var(--font-league)", "League Spartan", "var(--font-inter)", "system-ui", "sans-serif"],
       },
       borderRadius: {
         DEFAULT: "12px",
