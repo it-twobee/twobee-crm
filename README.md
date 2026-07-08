@@ -1,5 +1,5 @@
-# B.E.O.T.A.
-### Business Engine & Operations Tool for Agencies
+# TwoBee OS
+### Il sistema operativo interno di TWO BEE S.R.L.
 
 > Piattaforma operativa interna per **TWO BEE S.R.L.** — progettata per sostituire l'intero stack ClickUp + Slack + fogli Excel con un unico gestionale su misura per agenzie di digital marketing e growth.
 
@@ -7,7 +7,7 @@
 
 ## Cosa è
 
-B.E.O.T.A. è un gestionale full-stack costruito attorno ai processi reali di un'agenzia. Non è un template: ogni funzionalità nasce da un problema operativo specifico.
+TwoBee OS è un gestionale full-stack costruito attorno ai processi reali di un'agenzia. Non è un template: ogni funzionalità nasce da un problema operativo specifico.
 
 ```
 Clienti → Progetti → Sprint → Milestone → Task → Subtask
