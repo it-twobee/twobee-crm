@@ -7,7 +7,7 @@ import {
   Send, TrendingUp, TrendingDown, GripVertical, ChevronDown, ChevronRight,
   Sparkles, Check, X, Edit2, FileText, Zap, ChevronUp, AlertCircle,
   Clock, Calendar, MoreHorizontal, MapPin, Users, BookOpen, Upload,
-  Printer, Tag, Link as LinkIcon, RefreshCw,
+  Printer, Tag, Link as LinkIcon, RefreshCw, UserCheck,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -1608,6 +1608,8 @@ function ProgettoView({ project, client, allSprints, allTasks, profiles, isAdmin
   const [savingSprint, setSavingSprint] = useState(false)
   const spAddRef = useRef<HTMLInputElement>(null)
 
+  const [showReassign, setShowReassign] = useState(false)
+
   const sorted = [...allSprints].sort((a, b) => ((a.order ?? 0) - (b.order ?? 0)) || new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
   const unassigned = allTasks
     .filter(t => t.is_milestone && !t.sprint_id)
@@ -1715,6 +1717,18 @@ function ProgettoView({ project, client, allSprints, allTasks, profiles, isAdmin
 
   return (
     <div>
+      {showReassign && (
+        <BulkReassignModal
+          tasks={allTasks.filter(t => !t.is_milestone)}
+          profiles={profiles}
+          onClose={() => setShowReassign(false)}
+          onDone={(ids, assigneeId) => {
+            onUpdateTasks(allTasks.map(t => ids.includes(t.id) ? { ...t, assignee_id: assigneeId } : t))
+            setShowReassign(false)
+          }}
+        />
+      )}
+
       <BriefPanel project={project} client={client} isAdmin={isAdmin} accent={accent}
         onPlanGenerated={handlePlanGenerated}
         sprintsCount={allSprints.length}
@@ -1727,7 +1741,17 @@ function ProgettoView({ project, client, allSprints, allTasks, profiles, isAdmin
 
       {/* Sprint tree */}
       <Section title="Sprint & Milestone" icon={<Zap className="w-3.5 h-3.5" />}
-        count={sorted.length} accent={accent}>
+        count={sorted.length} accent={accent}
+        right={
+          <button
+            onClick={() => setShowReassign(true)}
+            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white/30 hover:text-white/70 hover:bg-white/5 border border-transparent hover:border-white/10 transition-colors"
+          >
+            <UserCheck className="w-3 h-3" />
+            Riassegna
+          </button>
+        }
+      >
         <div className="p-3">
           {sorted.length === 0 && (
             <div className="flex flex-col items-center py-12 text-center gap-3">
@@ -1792,6 +1816,114 @@ function ProgettoView({ project, client, allSprints, allTasks, profiles, isAdmin
           ))}
         </div>
       </Section>
+    </div>
+  )
+}
+
+// ─── Bulk Reassign Modal ──────────────────────────────────────────────────────
+function BulkReassignModal({ tasks, profiles, onClose, onDone }: {
+  tasks: ExtTask[]
+  profiles: Profile[]
+  onClose: () => void
+  onDone: (ids: string[], assigneeId: string) => void
+}) {
+  const [selected, setSelected] = useState<string[]>(tasks.map(t => t.id))
+  const [assigneeId, setAssigneeId] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const toggle = (id: string) =>
+    setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+
+  const confirm = async () => {
+    if (!assigneeId || selected.length === 0) return
+    setSaving(true)
+    await createClient().from('tasks').update({ assignee_id: assigneeId } as never).in('id', selected)
+    toast.success(`${selected.length} task riassegnat${selected.length === 1 ? 'a' : 'e'}`)
+    onDone(selected, assigneeId)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      onClick={onClose}>
+      <div className="bg-[#0E0E0E] border border-[#2A2A2A] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[80vh] flex flex-col shadow-2xl"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1A1A1A] shrink-0">
+          <div>
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-[#F5C800]" />
+              Riassegna task
+            </h2>
+            <p className="text-white/30 text-xs mt-0.5">{selected.length} di {tasks.length} selezionate</p>
+          </div>
+          <button onClick={onClose} className="text-white/30 hover:text-white transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Assignee picker */}
+        <div className="px-5 py-3 border-b border-[#1A1A1A] shrink-0">
+          <label className="text-white/40 text-xs mb-1.5 block">Assegna a</label>
+          <select
+            value={assigneeId}
+            onChange={e => setAssigneeId(e.target.value)}
+            className="w-full bg-[#111] border border-[#2A2A2A] rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C800]/40"
+          >
+            <option value="">Seleziona risorsa…</option>
+            {profiles.map(p => (
+              <option key={p.id} value={p.id}>{p.full_name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Task list */}
+        <div className="flex-1 overflow-y-auto px-5 py-3 flex flex-col gap-1">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-white/30 text-xs">Task disponibili</span>
+            <button
+              onClick={() => setSelected(selected.length === tasks.length ? [] : tasks.map(t => t.id))}
+              className="text-xs text-[#F5C800]/60 hover:text-[#F5C800] transition-colors"
+            >
+              {selected.length === tasks.length ? 'Deseleziona tutte' : 'Seleziona tutte'}
+            </button>
+          </div>
+          {tasks.map(t => {
+            const isSelected = selected.includes(t.id)
+            const assignee = profiles.find(p => p.id === t.assignee_id)
+            return (
+              <button
+                key={t.id}
+                onClick={() => toggle(t.id)}
+                className={`flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-colors ${
+                  isSelected ? 'bg-[#F5C800]/5 border border-[#F5C800]/20' : 'bg-[#1A1A1A] border border-[#2A2A2A] hover:border-[#2A2A2A]/80'
+                }`}
+              >
+                <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                  isSelected ? 'bg-[#F5C800] border-[#F5C800]' : 'border-[#3A3A3A]'
+                }`}>
+                  {isSelected && <Check className="w-2.5 h-2.5 text-black" />}
+                </div>
+                <span className="text-white text-sm flex-1 truncate">{t.title}</span>
+                {assignee && (
+                  <span className="text-white/30 text-xs shrink-0">{assignee.full_name.split(' ')[0]}</span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="px-5 py-4 border-t border-[#1A1A1A] flex gap-2 shrink-0">
+          <button
+            onClick={confirm}
+            disabled={!assigneeId || selected.length === 0 || saving}
+            className="flex-1 py-2.5 bg-[#F5C800] text-black text-sm font-semibold rounded-xl hover:bg-[#F5C800]/90 disabled:opacity-40 transition-colors"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : `Riassegna ${selected.length} task`}
+          </button>
+          <button onClick={onClose} className="px-4 py-2.5 text-white/40 text-sm rounded-xl hover:text-white transition-colors">
+            Annulla
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

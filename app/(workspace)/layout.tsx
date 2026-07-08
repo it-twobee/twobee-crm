@@ -1,9 +1,11 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { WorkspaceSidebar } from '@/components/workspace/WorkspaceSidebar'
+import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import type { AppRole } from '@/lib/types/database'
 
 const WORKSPACE_ROLES: AppRole[] = ['manager', 'senior', 'junior', 'stage', 'freelance']
+const ADMIN_ROLES: AppRole[] = ['super_admin', 'admin', 'founder']
 
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -13,23 +15,33 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, full_name, avatar_url, app_role')
+    .select('id, full_name, avatar_url, app_role, email')
     .eq('id', user.id)
     .single()
 
-  if (!profile || !WORKSPACE_ROLES.includes(profile.app_role as AppRole)) {
+  const isSuperAdmin = SUPER_ADMIN_EMAILS.includes(profile?.email ?? '') || profile?.app_role === 'super_admin'
+  const isAdminLevel = isSuperAdmin || ADMIN_ROLES.includes(profile?.app_role as AppRole)
+  const isWorkspaceUser = WORKSPACE_ROLES.includes(profile?.app_role as AppRole)
+
+  if (!profile || (!isWorkspaceUser && !isAdminLevel)) {
     redirect('/dashboard')
   }
 
   const [sectionsRes, permsRes] = await Promise.all([
     supabase.from('workspace_sections').select('*').eq('is_active', true).order('sort_order'),
-    supabase.from('workspace_section_permissions')
-      .select('section_id, can_view')
-      .eq('app_role', profile.app_role),
+    isAdminLevel
+      ? supabase.from('workspace_section_permissions').select('section_id, can_view').eq('can_view', true)
+      : supabase.from('workspace_section_permissions').select('section_id, can_view').eq('app_role', profile.app_role),
   ])
 
-  const permMap = new Map((permsRes.data ?? []).map((p: { section_id: string; can_view: boolean }) => [p.section_id, p.can_view]))
-  const visibleSections = (sectionsRes.data ?? []).filter((s: { id: string }) => permMap.get(s.id) === true)
+  let visibleSections: typeof sectionsRes.data
+  if (isAdminLevel) {
+    // Admin/super_admin vede tutte le sezioni attive
+    visibleSections = sectionsRes.data ?? []
+  } else {
+    const permMap = new Map((permsRes.data ?? []).map((p: { section_id: string; can_view: boolean }) => [p.section_id, p.can_view]))
+    visibleSections = (sectionsRes.data ?? []).filter((s: { id: string }) => permMap.get(s.id) === true)
+  }
 
   return (
     <div className="flex h-screen bg-[#111111] overflow-hidden">

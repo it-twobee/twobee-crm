@@ -65,6 +65,7 @@ export async function middleware(request: NextRequest) {
 
     const WORKSPACE_ROLES = ['manager', 'senior', 'junior', 'stage', 'freelance']
     const isWorkspace = WORKSPACE_ROLES.includes(appRole ?? '')
+    const isAdminLevel = role === 'admin' || appRole === 'super_admin' || appRole === 'admin' || appRole === 'founder'
 
     if (isWorkspace) {
       const allowedForWorkspace =
@@ -74,6 +75,11 @@ export async function middleware(request: NextRequest) {
         pathname === '/impostazioni/profilo'
       if (!allowedForWorkspace) return redirectTo('/workspace')
       if (pathname === '/login' || pathname === '/') return redirectTo('/workspace')
+      return supabaseResponse
+    }
+
+    // Admin/super_admin possono visitare /workspace senza restrizioni
+    if (isAdminLevel && (pathname === '/workspace' || pathname.startsWith('/workspace/'))) {
       return supabaseResponse
     }
 

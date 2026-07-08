@@ -206,7 +206,7 @@ function TaskList({
           <span className="text-white text-sm truncate flex-1">{t.title}</span>
           {t.project && (
             <Link
-              href={`/clienti/${t.project.client_id}/progetto/${t.project.id}`}
+              href={`/workspace/progetti/${t.project.id}`}
               className="text-white/25 hover:text-white/50 text-xs truncate max-w-[120px] shrink-0 transition-colors"
             >
               {t.project.name}

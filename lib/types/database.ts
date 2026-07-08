@@ -822,7 +822,7 @@ export interface TicketMessage {
 // ─── HR & Team ───────────────────────────────────────────────
 export type LeaveType = 'ferie' | 'permesso' | 'malattia' | 'straordinario' | 'altro'
 export type LeaveStatus = 'in_attesa' | 'approvato' | 'rifiutato'
-export type ContractType = 'dipendente' | 'collaboratore' | 'partita_iva' | 'stage'
+export type LegacyContractType = 'dipendente' | 'collaboratore' | 'partita_iva' | 'stage'
 
 export interface TeamLeave {
   id: string
@@ -1050,6 +1050,9 @@ export interface HrRequest {
   status: HrRequestStatus
   start_date: string | null
   end_date: string | null
+  is_full_day: boolean
+  start_time: string | null
+  end_time: string | null
   notes: string | null
   amount: number | null
   attachment_url: string | null
@@ -1061,6 +1064,36 @@ export interface HrRequest {
   // join
   profile?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
   reviewer?: Pick<Profile, 'id' | 'full_name'> | null
+}
+
+export type ContractType = 'indeterminato' | 'determinato' | 'stage' | 'freelance' | 'collaborazione' | 'apprendistato'
+
+export interface EmployeeContract {
+  id: string
+  profile_id: string
+  contract_type: ContractType
+  start_date: string
+  end_date: string | null
+  annual_vacation_days: number
+  annual_leave_hours: number
+  weekly_hours: number
+  ral: number | null
+  level: string | null
+  ccnl: string | null
+  notes: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface VacationBalance {
+  annual_days: number
+  accrued_days: number
+  used_days: number
+  remaining_days: number
+  annual_leave_hours: number
+  used_leave_hours: number
+  remaining_leave_hours: number
 }
 
 export interface LeadContact {

@@ -11,7 +11,7 @@ import { toast } from 'sonner'
 import { Organigramma } from '@/components/hr/Organigramma'
 import { ResourceProfilesTab } from '@/components/hr/ResourceProfilesTab'
 import type {
-  Profile, TeamLeave, PerformanceReview, LeaveType, LeaveStatus, ContractType, OrgUnit, OrgMember, ResourceProfile,
+  Profile, TeamLeave, PerformanceReview, LeaveType, LeaveStatus, LegacyContractType, OrgUnit, OrgMember, ResourceProfile,
 } from '@/lib/types/database'
 
 interface Props {
@@ -41,7 +41,7 @@ const STATUS_LABELS: Record<LeaveStatus, { label: string; color: string }> = {
   approvato:  { label: 'Approvato', color: 'text-success' },
   rifiutato:  { label: 'Rifiutato', color: 'text-error' },
 }
-const CONTRACT_LABELS: Record<ContractType, string> = {
+const CONTRACT_LABELS: Record<LegacyContractType, string> = {
   dipendente: 'Dipendente', collaboratore: 'Collaboratore',
   partita_iva: 'P.IVA', stage: 'Stage',
 }

@@ -29,9 +29,9 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 
 interface WorkspaceSection {
   id: string
-  slug: string
+  key: string
   label: string
-  path: string
+  route: string
   icon: string
   sort_order: number
 }
@@ -60,21 +60,24 @@ export function WorkspaceSidebar({ sections, profile }: Props) {
         'flex items-center h-14 px-4 border-b border-[#2A2A2A] shrink-0',
         collapsed ? 'justify-center' : 'gap-2',
       )}>
-        <span className="text-[#F5C800] font-black text-lg leading-none">2B</span>
-        {!collapsed && <span className="text-white/70 text-xs font-medium tracking-widest uppercase">Workspace</span>}
+        {collapsed ? (
+          <span className="text-[#F5C800] font-black text-lg leading-none">2B</span>
+        ) : (
+          <img src="/logo.svg" alt="TWO BEE" className="h-8 w-auto" />
+        )}
       </div>
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 flex flex-col gap-0.5">
         {sections.map((s) => {
           const Icon = ICON_MAP[s.icon] ?? FileText
-          const isActive = s.path === '/workspace'
+          const isActive = s.route === '/workspace'
             ? pathname === '/workspace'
-            : pathname.startsWith(s.path)
+            : pathname.startsWith(s.route)
           return (
             <Link
               key={s.id}
-              href={s.path}
+              href={s.route}
               title={collapsed ? s.label : undefined}
               className={cn(
                 'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
