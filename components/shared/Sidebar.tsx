@@ -8,7 +8,7 @@ import {
   BarChart3, FolderOpen, Settings, ChevronRight, ChevronLeft, ChevronDown,
   CheckCircle2, FolderKanban, Briefcase, CalendarDays, Receipt, Headphones, Crown,
   ShoppingCart, Ticket, UserCircle2, Target, History, FlaskConical,
-  Layers, Eye, Calculator, MonitorSmartphone,
+  Layers, Eye, Calculator, MonitorSmartphone, Map, Scale,
 } from 'lucide-react'
 import { useState, useCallback } from 'react'
 import { usePermissions } from '@/lib/hooks/usePermissions'
@@ -82,6 +82,8 @@ const sections: NavSection[] = [
     items: [
       { href: '/controllo-gestione', icon: Calculator, label: 'Controllo Gestione', adminOnly: true },
       { href: '/strategia', icon: Target, label: 'Strategia & OKR' },
+      { href: '/direzione/roadmap', icon: Map, label: 'Roadmap', superAdminOnly: true },
+      { href: '/direzione/decision-center', icon: Scale, label: 'Decision Center', superAdminOnly: true },
       { href: '/twobee-os', icon: FlaskConical, label: 'TwoBee OS', superAdminOnly: true },
     ],
   },

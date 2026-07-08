@@ -916,6 +916,33 @@ export interface RoadmapItem {
   created_at: string
 }
 
+// ─── Decision Center ─────────────────────────────────────────
+export type DecisionStatus = 'aperta' | 'decisa' | 'archiviata'
+export type DecisionImpact = 'alto' | 'medio' | 'basso'
+
+export interface DecisionOption {
+  label: string
+  pros: string
+  cons: string
+}
+
+export interface Decision {
+  id: string
+  title: string
+  context: string | null
+  options: DecisionOption[]
+  decision: string | null
+  rationale: string | null
+  status: DecisionStatus
+  impact: DecisionImpact
+  area: string | null
+  due_date: string | null
+  decided_at: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
 // ─── Activity Log ────────────────────────────────────────────
 export type ActivityAction = 'create' | 'update' | 'delete'
 
