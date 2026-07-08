@@ -256,6 +256,7 @@ export function FatturazioneTab({ client, invoices: initialInvoices }: Props) {
           }}
         />
       )}
+
     </div>
   )
 }

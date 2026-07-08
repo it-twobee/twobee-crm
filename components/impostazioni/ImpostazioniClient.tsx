@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Users, Shield, Bell, Mail, Crown, X, Check, ChevronDown, Loader2, Trash2, Plus, AlertCircle, Pencil, KeyRound, AtSign, User } from 'lucide-react'
+import { Users, Shield, Bell, Mail, Crown, X, Check, ChevronDown, Loader2, Trash2, Plus, AlertCircle, Pencil, KeyRound, AtSign, User, Copy, Link2, RefreshCw } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Profile, RolePermission, Invitation, Approval, AppRole, PermissionSection, PermissionAction } from '@/lib/types/database'
@@ -567,6 +567,19 @@ function InvitationsTab({ currentProfile, invitations: initialInvitations }: { c
   const [invitations, setInvitations] = useState(initialInvitations)
   const [form, setForm] = useState({ email: '', app_role: 'junior' as AppRole, area: '', job_title: '' })
   const [sending, setSending] = useState(false)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  const getInviteUrl = (token: string) => {
+    const base = typeof window !== 'undefined' ? window.location.origin : ''
+    return `${base}/registrati?token=${token}`
+  }
+
+  const copyLink = (inv: Invitation) => {
+    navigator.clipboard.writeText(getInviteUrl(inv.token))
+    setCopiedId(inv.id)
+    toast.success('Link copiato!')
+    setTimeout(() => setCopiedId(null), 2000)
+  }
 
   const sendInvite = async () => {
     if (!form.email.trim()) return
@@ -581,9 +594,11 @@ function InvitationsTab({ currentProfile, invitations: initialInvitations }: { c
     }).select().single()
     setSending(false)
     if (error) { toast.error(error.message); return }
-    setInvitations((p) => [data as Invitation, ...p])
+    const inv = data as Invitation
+    setInvitations((p) => [inv, ...p])
     setForm({ email: '', app_role: 'junior', area: '', job_title: '' })
-    toast.success(`Invito creato per ${form.email} — link nel token`)
+    navigator.clipboard.writeText(getInviteUrl(inv.token))
+    toast.success('Invito creato — link copiato negli appunti!')
   }
 
   const revokeInvite = async (id: string) => {
@@ -591,6 +606,24 @@ function InvitationsTab({ currentProfile, invitations: initialInvitations }: { c
     await supabase.from('invitations').delete().eq('id', id)
     setInvitations((p) => p.filter((i) => i.id !== id))
     toast.success('Invito revocato')
+  }
+
+  const renewInvite = async (inv: Invitation) => {
+    const supabase = createClient()
+    const { data, error } = await supabase.from('invitations').insert({
+      email: inv.email,
+      app_role: inv.app_role,
+      area: inv.area,
+      job_title: inv.job_title,
+      invited_by: currentProfile.id,
+    }).select().single()
+    if (error) { toast.error(error.message); return }
+    // Elimina il vecchio
+    await supabase.from('invitations').delete().eq('id', inv.id)
+    const newInv = data as Invitation
+    setInvitations((p) => [newInv, ...p.filter(i => i.id !== inv.id)])
+    navigator.clipboard.writeText(getInviteUrl(newInv.token))
+    toast.success('Nuovo invito creato — link copiato!')
   }
 
   return (
@@ -624,6 +657,10 @@ function InvitationsTab({ currentProfile, invitations: initialInvitations }: { c
         <button onClick={sendInvite} disabled={sending || !form.email} className="flex items-center gap-2 bg-gold text-black text-sm font-bold px-4 py-2 rounded-lg hover:bg-gold/90 disabled:opacity-50">
           {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Crea invito
         </button>
+        <p className="text-xs text-text-secondary mt-2 flex items-center gap-1.5">
+          <Link2 className="w-3.5 h-3.5" />
+          Il link di registrazione verrà copiato automaticamente. Condividilo con l'invitato.
+        </p>
       </div>
 
       {/* List */}
@@ -636,21 +673,59 @@ function InvitationsTab({ currentProfile, invitations: initialInvitations }: { c
             {invitations.map((inv) => {
               const expired = new Date(inv.expires_at) < new Date()
               const accepted = !!inv.accepted_at
+              const pending = !accepted && !expired
               return (
-                <div key={inv.id} className={`bg-surface border rounded-xl px-5 py-3 flex items-center justify-between ${accepted ? 'border-success/30' : expired ? 'border-error/20 opacity-60' : 'border-[#2A2A2A]'}`}>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-white">{inv.email}</span>
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${ROLE_COLORS[inv.app_role] ?? ''}`}>{ROLE_LABELS[inv.app_role]}</span>
-                      {accepted && <span className="text-xs bg-success/20 text-success px-2 py-0.5 rounded-full">✓ Accettato</span>}
-                      {!accepted && expired && <span className="text-xs bg-error/20 text-error px-2 py-0.5 rounded-full">Scaduto</span>}
-                      {!accepted && !expired && <span className="text-xs bg-gold/20 text-gold px-2 py-0.5 rounded-full">In attesa</span>}
+                <div key={inv.id} className={`bg-surface border rounded-xl px-5 py-4 ${accepted ? 'border-success/30' : expired ? 'border-error/20 opacity-60' : 'border-[#2A2A2A]'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium text-white">{inv.email}</span>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${ROLE_COLORS[inv.app_role] ?? ''}`}>{ROLE_LABELS[inv.app_role]}</span>
+                        {accepted && <span className="text-xs bg-success/20 text-success px-2 py-0.5 rounded-full">Accettato</span>}
+                        {expired && !accepted && <span className="text-xs bg-error/20 text-error px-2 py-0.5 rounded-full">Scaduto</span>}
+                        {pending && <span className="text-xs bg-gold/20 text-gold px-2 py-0.5 rounded-full">In attesa</span>}
+                      </div>
+                      <p className="text-xs text-text-secondary mt-1">
+                        {accepted ? `Accettato il ${new Date(inv.accepted_at!).toLocaleDateString('it-IT')}` :
+                         expired ? `Scaduto il ${new Date(inv.expires_at).toLocaleDateString('it-IT')}` :
+                         `Scade il ${new Date(inv.expires_at).toLocaleDateString('it-IT')}`}
+                      </p>
+                      {pending && (
+                        <div className="mt-2 flex items-center gap-1.5">
+                          <input
+                            readOnly
+                            value={getInviteUrl(inv.token)}
+                            className="flex-1 bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-1.5 text-xs text-text-secondary font-mono truncate"
+                            onClick={(e) => (e.target as HTMLInputElement).select()}
+                          />
+                          <button
+                            onClick={() => copyLink(inv)}
+                            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+                              copiedId === inv.id
+                                ? 'bg-success/20 border-success/30 text-success'
+                                : 'border-[#2A2A2A] text-text-secondary hover:text-white hover:border-[#3A3A3A]'
+                            }`}
+                          >
+                            {copiedId === inv.id ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                            {copiedId === inv.id ? 'Copiato' : 'Copia'}
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <p className="text-xs text-text-secondary mt-0.5">Scade: {new Date(inv.expires_at).toLocaleDateString('it-IT')}</p>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {expired && !accepted && (
+                        <button onClick={() => renewInvite(inv)} title="Rinnova invito"
+                          className="flex items-center gap-1 text-xs text-gold border border-gold/30 px-2.5 py-1.5 rounded-lg hover:bg-gold/10 transition-colors">
+                          <RefreshCw className="w-3.5 h-3.5" /> Rinnova
+                        </button>
+                      )}
+                      {!accepted && (
+                        <button onClick={() => revokeInvite(inv.id)} className="text-error hover:text-red-400 p-1.5" title="Elimina invito">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  {!accepted && (
-                    <button onClick={() => revokeInvite(inv.id)} className="text-error hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
-                  )}
                 </div>
               )
             })}

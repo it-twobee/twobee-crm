@@ -4,25 +4,33 @@ export const SUPER_ADMIN_EMAILS = ['m.lucci@twobee.it']
 export const SUPER_ADMIN_EMAIL = SUPER_ADMIN_EMAILS[0] // legacy compat
 
 export const ROLE_LABELS: Record<AppRole, string> = {
-  super_admin: '👑 Super Admin',
-  admin: '🔑 Admin',
-  manager: '📊 Manager',
-  senior: '⭐ Senior',
-  junior: '🌱 Junior',
-  viewer: '👁 Viewer',
-  client: '🏢 Cliente',
-  guest: '🔗 Ospite',
+  super_admin: 'Super Admin',
+  founder:     'Founder',
+  admin:       'Admin',
+  manager:     'Manager',
+  senior:      'Senior',
+  junior:      'Junior',
+  stage:       'Stage',
+  freelance:   'Freelance',
+  partner:     'Partner',
+  viewer:      'Viewer',
+  client:      'Cliente',
+  guest:       'Ospite',
 }
 
 export const ROLE_COLORS: Record<AppRole, string> = {
   super_admin: 'bg-gold text-black',
-  admin: 'bg-gold/20 text-gold border border-gold/30',
-  manager: 'bg-red-500/20 text-red-400 border border-red-500/30',
-  senior: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
-  junior: 'bg-green-500/20 text-green-400 border border-green-500/30',
-  viewer: 'bg-purple-500/20 text-purple-400 border border-purple-500/30',
-  client: 'bg-gray-500/20 text-gray-400 border border-gray-500/30',
-  guest: 'bg-teal-500/20 text-teal-400 border border-teal-500/30',
+  founder:     'bg-gold/30 text-gold border border-gold/40',
+  admin:       'bg-gold/20 text-gold border border-gold/30',
+  manager:     'bg-red-500/20 text-red-400 border border-red-500/30',
+  senior:      'bg-blue-500/20 text-blue-400 border border-blue-500/30',
+  junior:      'bg-green-500/20 text-green-400 border border-green-500/30',
+  stage:       'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
+  freelance:   'bg-orange-500/20 text-orange-400 border border-orange-500/30',
+  partner:     'bg-violet-500/20 text-violet-400 border border-violet-500/30',
+  viewer:      'bg-purple-500/20 text-purple-400 border border-purple-500/30',
+  client:      'bg-gray-500/20 text-gray-400 border border-gray-500/30',
+  guest:       'bg-teal-500/20 text-teal-400 border border-teal-500/30',
 }
 
 export const SECTIONS: PermissionSection[] = ['clienti', 'fatturazione', 'task', 'chat', 'report', 'customer_care', 'impostazioni', 'mrr', 'anagrafica_fiscale']

@@ -1,5 +1,29 @@
 export type Role = 'admin' | 'team' | 'client' | 'guest'
-export type AppRole = 'super_admin' | 'admin' | 'manager' | 'senior' | 'junior' | 'viewer' | 'client' | 'guest'
+export type AppRole =
+  | 'super_admin' | 'founder' | 'admin' | 'manager'
+  | 'senior' | 'junior' | 'stage' | 'freelance'
+  | 'partner' | 'viewer' | 'client' | 'guest'
+
+export type ResourceTypePrimary =
+  | 'dipendente' | 'piva' | 'freelance_continuativo'
+  | 'collaboratore_una_tantum' | 'partner_aziendale'
+
+export type SeniorityLevel = 'lead' | 'senior' | 'mid' | 'junior' | 'stage'
+
+export type DocumentVisibility =
+  | 'internal' | 'operations_visible' | 'partner_visible' | 'client_visible'
+  | 'private_admin' | 'private_founder' | 'shared_in_report' | 'draft'
+
+export type HrRequestType = 'ferie' | 'permesso' | 'malattia' | 'spesa' | 'documento_hr'
+export type HrRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
+
+export type LeadContactSource = 'meta_ads' | 'google_ads' | 'website' | 'organic' | 'whatsapp' | 'email' | 'referral' | 'other'
+export type LeadContactStatus = 'nuovo' | 'contattato' | 'qualificato' | 'in_trattativa' | 'convertito' | 'perso'
+
+export type ProfilePermissionKey =
+  | 'can_view_full_financials' | 'can_view_macro_revenue' | 'can_view_manager_economics'
+  | 'can_view_deals' | 'can_view_team_data' | 'can_view_strategy'
+  | 'can_approve_hr' | 'can_configure_workspace' | 'can_manage_partners'
 export type PermissionSection = 'clienti' | 'fatturazione' | 'task' | 'chat' | 'report' | 'customer_care' | 'impostazioni' | 'mrr' | 'anagrafica_fiscale'
 export type PermissionAction = 'view' | 'create' | 'edit' | 'delete'
 export type ClientPackage =
@@ -21,7 +45,7 @@ export type ProjectStatus = 'attivo' | 'in_pausa' | 'completato' | 'archiviato'
 export type SprintStatus = 'pianificato' | 'in_corso' | 'completato'
 export type TaskPriority = 'alta' | 'media' | 'bassa'
 export type TaskStatus = 'da_fare' | 'in_corso' | 'in_revisione' | 'completato'
-export type ChannelType = 'cliente' | 'interno' | 'task' | 'customer_care' | 'cliente_interno'
+export type ChannelType = 'cliente' | 'interno' | 'task' | 'customer_care' | 'cliente_interno' | 'partner_customer_care'
 
 export type NotificationType = 'task_assigned' | 'task_due' | 'message' | 'mention'
 export type InteractionType = 'call' | 'meeting' | 'email' | 'demo' | 'visit' | 'slack' | 'proposta' | 'altro'
@@ -58,6 +82,8 @@ export interface Profile {
   invited_by: string | null
   last_seen_at: string | null
   created_at: string
+  resource_type: ResourceTypePrimary | null
+  seniority: SeniorityLevel | null
 }
 
 export type ResourceProfileType =
@@ -104,6 +130,38 @@ export interface ResourceCost {
   billable_target_hours_month: number
   calculated_hourly_cost: number | null
   markup_default: number
+  is_active: boolean
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type ProjectCostCategory = 'risorsa' | 'software' | 'provvigione' | 'cac' | 'produzione' | 'indiretto' | 'altro'
+
+export interface ProjectCostEntry {
+  id: string
+  project_id: string
+  client_id: string | null
+  category: ProjectCostCategory
+  description: string
+  amount: number
+  resource_cost_id: string | null
+  hours: number | null
+  hourly_rate: number | null
+  month: string | null
+  is_recurring: boolean
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type BusinessCostCategory = 'affitto' | 'software' | 'amministrazione' | 'marketing' | 'personale' | 'formazione' | 'altro'
+
+export interface BusinessCost {
+  id: string
+  category: BusinessCostCategory
+  description: string
+  monthly_amount: number
   is_active: boolean
   notes: string | null
   created_at: string
@@ -291,6 +349,7 @@ export interface Project {
   project_type: ProjectType
   project_kind: ProjectKind | null
   sprint_current: number
+  manager_id: string | null
   created_at: string
 }
 
@@ -325,6 +384,7 @@ export interface Task {
   asana_gid: string | null
   assigned_to: string | null
   is_client_task: boolean
+  links: { url: string; label: string }[]
   created_at: string
   created_by: string | null
 }
@@ -941,4 +1001,94 @@ export interface Lead {
   value: number | null
   assigned_to: string | null
   converted_at: string | null
+}
+
+// ─── TwoBee OS — Fase 1 ──────────────────────────────────────────────────────
+
+export interface ProfilePermission {
+  id: string
+  profile_id: string
+  permission: ProfilePermissionKey
+  granted: boolean
+  granted_by: string | null
+  created_at: string
+}
+
+export interface WorkspaceSection {
+  id: string
+  key: string
+  label: string
+  description: string | null
+  route: string
+  icon: string | null
+  sort_order: number
+  is_active: boolean
+  is_beta: boolean
+  is_phase2: boolean
+  requires_permission: ProfilePermissionKey | null
+  created_at: string
+  updated_at: string
+}
+
+export interface WorkspaceSectionPermission {
+  id: string
+  section_id: string
+  app_role: AppRole | null
+  resource_type: ResourceTypePrimary | null
+  seniority: SeniorityLevel | null
+  can_view: boolean
+  can_create: boolean
+  can_edit: boolean
+  can_delete: boolean
+  created_at: string
+}
+
+export interface HrRequest {
+  id: string
+  profile_id: string
+  type: HrRequestType
+  status: HrRequestStatus
+  start_date: string | null
+  end_date: string | null
+  notes: string | null
+  amount: number | null
+  attachment_url: string | null
+  reviewed_by: string | null
+  reviewed_at: string | null
+  review_note: string | null
+  created_at: string
+  updated_at: string
+  // join
+  profile?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
+  reviewer?: Pick<Profile, 'id' | 'full_name'> | null
+}
+
+export interface LeadContact {
+  id: string
+  client_id: string
+  project_id: string | null
+  source: LeadContactSource | null
+  full_name: string | null
+  email: string | null
+  phone: string | null
+  status: LeadContactStatus
+  notes: string | null
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface TaskBlockReport {
+  id: string
+  task_id: string
+  reported_by: string
+  reason: string
+  status: 'open' | 'acknowledged' | 'resolved'
+  resolved_by: string | null
+  resolved_at: string | null
+  created_at: string
+  updated_at: string
+  // join
+  reporter?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
+  task?: Pick<Task, 'id' | 'title'> | null
 }

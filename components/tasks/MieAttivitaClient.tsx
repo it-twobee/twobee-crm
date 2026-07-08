@@ -4,7 +4,8 @@ import { useState, useMemo } from 'react'
 import {
   CheckCircle2, Circle, Calendar, Flag, Plus, Loader2, ChevronDown, ChevronRight,
   List, LayoutGrid, GanttChartSquare, CalendarDays, BarChart3, Trash2, AlertTriangle,
-  X, ExternalLink, Clock,
+  X, ExternalLink, Clock, UserPlus, CheckSquare, Square, Users,
+  Pencil, Save, Link2, FileText, FolderKanban,
 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -84,6 +85,43 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles }: {
   const [adding, setAdding] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [selectedTask, setSelectedTask] = useState<TaskWithMeta | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [showAssignModal, setShowAssignModal] = useState(false)
+  const [assigning, setAssigning] = useState(false)
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  const selectAll = () => {
+    const activeTasks = tasks.filter(t => t.status !== 'completato')
+    if (selectedIds.size === activeTasks.length) setSelectedIds(new Set())
+    else setSelectedIds(new Set(activeTasks.map(t => t.id)))
+  }
+
+  const bulkAssign = async (profileIds: string[]) => {
+    if (selectedIds.size === 0 || profileIds.length === 0) return
+    setAssigning(true)
+    const sb = createClient()
+    let count = 0
+    for (const taskId of Array.from(selectedIds)) {
+      for (const profileId of profileIds) {
+        const { error } = await sb.from('task_assignees').upsert(
+          { task_id: taskId, profile_id: profileId, role: 'collaborator', assigned_by: profile.id },
+          { onConflict: 'task_id,profile_id' }
+        )
+        if (!error) count++
+      }
+    }
+    setAssigning(false)
+    setShowAssignModal(false)
+    setSelectedIds(new Set())
+    toast.success(`${count} assegnazioni create per ${selectedIds.size} task`)
+  }
 
   const sections = categorizeTasks(tasks)
   const active = tasks.filter(t => t.status !== 'completato')
@@ -97,8 +135,19 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles }: {
   }
 
   const updateStatus = async (id: string, ns: TaskStatus) => {
-    await createClient().from('tasks').update({ status: ns }).eq('id', id)
+    const { error } = await createClient().from('tasks').update({ status: ns }).eq('id', id)
+    if (error) { toast.error(error.message); return }
     setTasks(p => p.map(t => t.id === id ? { ...t, status: ns } : t))
+    if (selectedTask?.id === id) setSelectedTask(prev => prev ? { ...prev, status: ns } : null)
+    toast.success(`Stato → ${STATUS_META[ns].label}`)
+  }
+
+  const updateTask = async (id: string, updates: Partial<Task>) => {
+    const { error } = await createClient().from('tasks').update(updates).eq('id', id)
+    if (error) { toast.error(error.message); return }
+    setTasks(p => p.map(t => t.id === id ? { ...t, ...updates } : t))
+    if (selectedTask?.id === id) setSelectedTask(prev => prev ? { ...prev, ...updates } : null)
+    toast.success('Task aggiornata')
   }
 
   const addTask = async (section: Section) => {
@@ -161,6 +210,22 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles }: {
               style={{ width: `${Math.round((done.length / (active.length + done.length)) * 100)}%` }} />
           </div>
         )}
+
+        {/* Selection toolbar */}
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-3 mt-3 px-4 py-2.5 bg-gold/10 border border-gold/20 rounded-xl">
+            <button onClick={() => setSelectedIds(new Set())} className="p-1 text-white/40 hover:text-white"><X className="w-4 h-4" /></button>
+            <span className="text-sm font-bold text-gold">{selectedIds.size} task selezionate</span>
+            <div className="flex-1" />
+            <button onClick={selectAll} className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-text-secondary hover:text-white transition-colors">
+              <CheckSquare className="w-3.5 h-3.5" /> {selectedIds.size === active.length ? 'Deseleziona tutto' : 'Seleziona tutto'}
+            </button>
+            <button onClick={() => setShowAssignModal(true)}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-gold text-black rounded-lg text-xs font-bold hover:bg-yellow-400 transition-colors">
+              <UserPlus className="w-3.5 h-3.5" /> Assegna a...
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Body */}
@@ -169,8 +234,9 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles }: {
           {view === 'elenco' && <ElencoView tasks={tasks} sections={sections} collapsed={collapsed} setCollapsed={setCollapsed}
             addingIn={addingIn} setAddingIn={setAddingIn} newTitle={newTitle} setNewTitle={setNewTitle}
             newDue={newDue} setNewDue={setNewDue} adding={adding} addTask={addTask} toggleStatus={toggleStatus}
-            requestDelete={requestDelete} deleting={deleting} onSelect={setSelectedTask} />}
-          {view === 'bacheca' && <BachecaView tasks={tasks} updateStatus={updateStatus} />}
+            requestDelete={requestDelete} deleting={deleting} onSelect={setSelectedTask}
+            selectedIds={selectedIds} toggleSelect={toggleSelect} />}
+          {view === 'bacheca' && <BachecaView tasks={tasks} updateStatus={updateStatus} onSelect={setSelectedTask} />}
           {view === 'timeline' && <TimelineView tasks={active} />}
           {view === 'calendario' && <CalendarioView tasks={tasks} />}
           {view === 'analitica' && <AnaliticaView tasks={tasks} />}
@@ -178,15 +244,27 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles }: {
 
         {/* Detail panel */}
         {selectedTask && (
-          <TaskDetailPanel task={selectedTask} onClose={() => setSelectedTask(null)} toggleStatus={toggleStatus} />
+          <TaskDetailPanel task={selectedTask} onClose={() => setSelectedTask(null)} toggleStatus={toggleStatus}
+            updateTask={updateTask} updateStatus={updateStatus} profiles={profiles} />
         )}
       </div>
+
+      {/* Assign modal */}
+      {showAssignModal && (
+        <AssignModal
+          profiles={profiles}
+          taskCount={selectedIds.size}
+          assigning={assigning}
+          onAssign={bulkAssign}
+          onClose={() => setShowAssignModal(false)}
+        />
+      )}
     </div>
   )
 }
 
 /* ── ELENCO (enhanced original) ────────────────────── */
-function ElencoView({ tasks, sections, collapsed, setCollapsed, addingIn, setAddingIn, newTitle, setNewTitle, newDue, setNewDue, adding, addTask, toggleStatus, requestDelete, deleting, onSelect }: {
+function ElencoView({ tasks, sections, collapsed, setCollapsed, addingIn, setAddingIn, newTitle, setNewTitle, newDue, setNewDue, adding, addTask, toggleStatus, requestDelete, deleting, onSelect, selectedIds, toggleSelect }: {
   tasks: TaskWithMeta[]; sections: Record<Section, TaskWithMeta[]>
   collapsed: Record<Section, boolean>; setCollapsed: (fn: (p: Record<Section, boolean>) => Record<Section, boolean>) => void
   addingIn: Section | null; setAddingIn: (s: Section | null) => void
@@ -194,6 +272,7 @@ function ElencoView({ tasks, sections, collapsed, setCollapsed, addingIn, setAdd
   adding: boolean; addTask: (s: Section) => Promise<void>; toggleStatus: (t: TaskWithMeta) => Promise<void>
   requestDelete: (t: TaskWithMeta) => Promise<void>; deleting: string | null
   onSelect: (t: TaskWithMeta) => void
+  selectedIds: Set<string>; toggleSelect: (id: string) => void
 }) {
   const sectionEntries: [Section, TaskWithMeta[]][] = [
     ['oggi', sections.oggi], ['prossimi', sections.prossimi], ['dopo', sections.dopo], ['completati', sections.completati],
@@ -214,7 +293,8 @@ function ElencoView({ tasks, sections, collapsed, setCollapsed, addingIn, setAdd
                 {list.length === 0 ? (
                   <p className="text-xs text-text-secondary pl-6 py-2 italic">{meta.emptyMsg}</p>
                 ) : list.map(task => (
-                  <TaskRow key={task.id} task={task} toggleStatus={toggleStatus} requestDelete={requestDelete} deleting={deleting} onSelect={onSelect} />
+                  <TaskRow key={task.id} task={task} toggleStatus={toggleStatus} requestDelete={requestDelete} deleting={deleting} onSelect={onSelect}
+                    isSelected={selectedIds.has(task.id)} toggleSelect={toggleSelect} />
                 ))}
                 {addingIn === key ? (
                   <div className="flex items-center gap-2 px-3 py-2">
@@ -246,25 +326,37 @@ function ElencoView({ tasks, sections, collapsed, setCollapsed, addingIn, setAdd
   )
 }
 
-function TaskRow({ task, toggleStatus, requestDelete, deleting, onSelect }: {
+function TaskRow({ task, toggleStatus, requestDelete, deleting, onSelect, isSelected, toggleSelect }: {
   task: TaskWithMeta; toggleStatus: (t: TaskWithMeta) => Promise<void>
   requestDelete: (t: TaskWithMeta) => Promise<void>; deleting: string | null
   onSelect: (t: TaskWithMeta) => void
+  isSelected: boolean; toggleSelect: (id: string) => void
 }) {
   const completed = task.status === 'completato'
   return (
-    <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/[0.03] group transition-colors cursor-pointer"
+    <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/[0.03] group transition-colors cursor-pointer ${isSelected ? 'bg-gold/[0.06] border border-gold/20' : ''}`}
       onClick={() => onSelect(task)}>
+      <button onClick={e => { e.stopPropagation(); toggleSelect(task.id) }}
+        className={`shrink-0 transition-colors ${isSelected ? 'text-gold' : 'text-transparent group-hover:text-white/20 hover:!text-gold'}`}>
+        {isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+      </button>
       <button onClick={e => { e.stopPropagation(); toggleStatus(task) }} className={`shrink-0 transition-colors ${completed ? 'text-success' : 'text-text-secondary hover:text-gold'}`}>
         {completed ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
       </button>
-      <span className={`flex-1 text-sm ${completed ? 'line-through text-text-secondary' : 'text-white hover:text-gold transition-colors'}`}>{task.title}</span>
+      <div className="flex-1 min-w-0">
+        <span className={`text-sm ${completed ? 'line-through text-text-secondary' : 'text-white hover:text-gold transition-colors'}`}>{task.title}</span>
+        {task.project && (
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <FolderKanban className="w-3 h-3 text-text-secondary shrink-0" />
+            <span className="text-[10px] text-text-secondary truncate">{task.project.name}</span>
+            {task.project.clients && <span className="text-[10px] text-white/20">·</span>}
+            {task.project.clients && <span className="text-[10px] text-text-secondary truncate">{task.project.clients.company_name}</span>}
+          </div>
+        )}
+      </div>
       {task.is_milestone && <Flag className="w-3.5 h-3.5 text-gold shrink-0" />}
-      {task.project && (
-        <span className="text-xs text-text-secondary opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-          {task.project.clients?.company_name ?? task.project.name}
-        </span>
-      )}
+      {task.description && <FileText className="w-3 h-3 text-white/20 shrink-0" />}
+      {(task.links?.length ?? 0) > 0 && <Link2 className="w-3 h-3 text-blue-400/50 shrink-0" />}
       {task.due_date && (
         <div className={`flex items-center gap-1 text-xs shrink-0 ${deadlineColor(task.due_date)}`}>
           <Calendar className="w-3 h-3" />{formatDate(task.due_date)}
@@ -279,14 +371,43 @@ function TaskRow({ task, toggleStatus, requestDelete, deleting, onSelect }: {
   )
 }
 
-/* ── TASK DETAIL PANEL ─────────────────────────────── */
-function TaskDetailPanel({ task, onClose, toggleStatus }: {
+/* ── TASK DETAIL PANEL (editable) ─────────────────── */
+function TaskDetailPanel({ task, onClose, toggleStatus, updateTask, updateStatus, profiles }: {
   task: TaskWithMeta; onClose: () => void; toggleStatus: (t: TaskWithMeta) => Promise<void>
+  updateTask: (id: string, updates: Partial<Task>) => Promise<void>
+  updateStatus: (id: string, ns: TaskStatus) => Promise<void>
+  profiles: Pick<Profile, 'id' | 'full_name' | 'avatar_url'>[]
 }) {
   const completed = task.status === 'completato'
-  const priorityLabel = task.priority === 'alta' ? 'Alta' : task.priority === 'media' ? 'Media' : 'Bassa'
-  const priorityColor = task.priority === 'alta' ? 'text-red-400 bg-red-400/10' : task.priority === 'media' ? 'text-yellow-400 bg-yellow-400/10' : 'text-green-400 bg-green-400/10'
-  const statusLabel = STATUS_META[task.status as TaskStatus]
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [title, setTitle] = useState(task.title)
+  const [editingDesc, setEditingDesc] = useState(false)
+  const [desc, setDesc] = useState(task.description ?? '')
+  const [newLinkUrl, setNewLinkUrl] = useState('')
+  const [newLinkLabel, setNewLinkLabel] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const inp = 'w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-gold/40 placeholder:text-[#444]'
+
+  const saveTitle = async () => {
+    if (!title.trim() || title === task.title) { setEditingTitle(false); return }
+    setSaving(true); await updateTask(task.id, { title: title.trim() }); setSaving(false); setEditingTitle(false)
+  }
+  const saveDesc = async () => {
+    const val = desc.trim() || null
+    if (val === (task.description ?? null)) { setEditingDesc(false); return }
+    setSaving(true); await updateTask(task.id, { description: val }); setSaving(false); setEditingDesc(false)
+  }
+  const addLink = async () => {
+    if (!newLinkUrl.trim()) return
+    const links = [...(task.links ?? []), { url: newLinkUrl.trim(), label: newLinkLabel.trim() || newLinkUrl.trim() }]
+    setSaving(true); await updateTask(task.id, { links } as Partial<Task>); setSaving(false)
+    setNewLinkUrl(''); setNewLinkLabel('')
+  }
+  const removeLink = async (idx: number) => {
+    const links = (task.links ?? []).filter((_, i) => i !== idx)
+    await updateTask(task.id, { links } as Partial<Task>)
+  }
 
   return (
     <div className="w-80 lg:w-96 border-l border-white/[0.06] flex flex-col bg-[rgba(255,255,255,0.02)] shrink-0">
@@ -298,82 +419,172 @@ function TaskDetailPanel({ task, onClose, toggleStatus }: {
       </div>
 
       <div className="flex-1 overflow-y-auto p-5 space-y-5">
-        {/* Title + status toggle */}
-        <div>
-          <h2 className="text-base font-bold text-white mb-3">{task.title}</h2>
-          <button onClick={() => toggleStatus(task)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${completed ? 'bg-green-500/10 text-green-400' : 'bg-white/[0.04] text-white/60 hover:bg-gold/10 hover:text-gold'}`}>
-            {completed ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
-            {completed ? 'Completata' : 'Segna come completata'}
-          </button>
-        </div>
+        {/* Project badge (first!) */}
+        {task.project && (
+          <Link href={`/clienti/${task.project.client_id}/progetto/${task.project.id}`}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:border-gold/30 transition-colors">
+            <FolderKanban className="w-4 h-4 text-gold shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-white truncate">{task.project.name}</p>
+              {task.project.clients && <p className="text-[10px] text-text-secondary truncate">{task.project.clients.company_name}</p>}
+            </div>
+            <ExternalLink className="w-3 h-3 text-text-secondary shrink-0" />
+          </Link>
+        )}
 
-        {/* Info grid */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-white/30">Stato</span>
-            <span className={`text-xs font-semibold ${statusLabel?.color ?? ''}`}>{statusLabel?.label ?? task.status}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-white/30">Priorità</span>
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${priorityColor}`}>{priorityLabel}</span>
-          </div>
-          {task.due_date && (
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-white/30">Scadenza</span>
-              <span className={`flex items-center gap-1 text-xs font-semibold ${deadlineColor(task.due_date)}`}>
-                <Clock className="w-3 h-3" /> {formatDate(task.due_date)}
-              </span>
+        {/* Title (editable) */}
+        <div>
+          {editingTitle ? (
+            <div className="flex items-center gap-2">
+              <input autoFocus value={title} onChange={e => setTitle(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') saveTitle(); if (e.key === 'Escape') { setEditingTitle(false); setTitle(task.title) } }}
+                className={inp + ' !text-base !font-bold'} />
+              <button onClick={saveTitle} disabled={saving} className="text-gold hover:text-yellow-400 shrink-0">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 group cursor-pointer" onClick={() => setEditingTitle(true)}>
+              <h2 className="text-base font-bold text-white flex-1">{task.title}</h2>
+              <Pencil className="w-3.5 h-3.5 text-text-secondary opacity-0 group-hover:opacity-100 shrink-0" />
             </div>
           )}
-          {task.assignee && (
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-white/30">Assegnata a</span>
-              <div className="flex items-center gap-1.5">
-                <div className="w-5 h-5 rounded-full bg-gold/20 flex items-center justify-center text-[9px] font-bold text-gold">
-                  {getInitials(task.assignee.full_name)}
-                </div>
-                <span className="text-xs text-white/70">{task.assignee.full_name}</span>
+        </div>
+
+        {/* Status + complete toggle */}
+        <div className="space-y-2">
+          <p className="text-[10px] text-white/30 uppercase tracking-wider">Stato</p>
+          <div className="flex gap-1.5 flex-wrap">
+            {(Object.keys(STATUS_META) as TaskStatus[]).map(s => (
+              <button key={s} onClick={() => updateStatus(task.id, s)}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${
+                  task.status === s ? 'bg-gold text-black' : 'bg-white/[0.04] text-text-secondary hover:text-white hover:bg-white/[0.06]'
+                }`}>
+                {STATUS_META[s].label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Priority */}
+        <div className="space-y-2">
+          <p className="text-[10px] text-white/30 uppercase tracking-wider">Priorità</p>
+          <div className="flex gap-1.5">
+            {(['alta', 'media', 'bassa'] as const).map(p => {
+              const colors = { alta: 'bg-red-400/10 text-red-400 border-red-400/20', media: 'bg-yellow-400/10 text-yellow-400 border-yellow-400/20', bassa: 'bg-green-400/10 text-green-400 border-green-400/20' }
+              return (
+                <button key={p} onClick={() => updateTask(task.id, { priority: p })}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold capitalize border transition-colors ${
+                    task.priority === p ? colors[p] : 'bg-white/[0.02] text-text-secondary border-transparent hover:bg-white/[0.04]'
+                  }`}>
+                  {p}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Due date */}
+        <div className="space-y-2">
+          <p className="text-[10px] text-white/30 uppercase tracking-wider">Scadenza</p>
+          <input type="date" value={task.due_date ?? ''} onChange={e => updateTask(task.id, { due_date: e.target.value || null })}
+            className={inp} />
+        </div>
+
+        {/* Assignee */}
+        <div className="space-y-2">
+          <p className="text-[10px] text-white/30 uppercase tracking-wider">Assegnata a</p>
+          <select value={task.assignee_id ?? ''} onChange={e => updateTask(task.id, { assignee_id: e.target.value || null })}
+            className={inp}>
+            <option value="">— Nessuno —</option>
+            {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+          </select>
+        </div>
+
+        {/* Description (editable) */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] text-white/30 uppercase tracking-wider">Descrizione</p>
+            {!editingDesc && (
+              <button onClick={() => setEditingDesc(true)} className="text-text-secondary hover:text-gold">
+                <Pencil className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+          {editingDesc ? (
+            <div className="space-y-2">
+              <textarea autoFocus value={desc} onChange={e => setDesc(e.target.value)} rows={4}
+                placeholder="Aggiungi una descrizione..."
+                className={inp + ' resize-none'} />
+              <div className="flex justify-end gap-2">
+                <button onClick={() => { setEditingDesc(false); setDesc(task.description ?? '') }} className="text-xs text-text-secondary hover:text-white">Annulla</button>
+                <button onClick={saveDesc} disabled={saving}
+                  className="flex items-center gap-1 px-3 py-1 bg-gold text-black rounded-lg text-xs font-bold hover:bg-yellow-400 disabled:opacity-50">
+                  {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Salva
+                </button>
               </div>
             </div>
-          )}
-          {task.is_milestone && (
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-white/30">Tipo</span>
-              <span className="flex items-center gap-1 text-xs font-semibold text-gold"><Flag className="w-3 h-3" /> Milestone</span>
+          ) : (
+            <div onClick={() => setEditingDesc(true)} className="cursor-pointer">
+              {task.description ? (
+                <p className="text-xs text-white/60 leading-relaxed whitespace-pre-line">{task.description}</p>
+              ) : (
+                <p className="text-xs text-text-secondary italic">Nessuna descrizione — clicca per aggiungere</p>
+              )}
             </div>
           )}
         </div>
 
-        {/* Project link */}
-        {task.project && (
-          <div className="glass rounded-xl p-4">
-            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-2">Progetto</p>
-            <p className="text-sm font-bold text-white mb-1">{task.project.name}</p>
-            {task.project.clients && (
-              <p className="text-xs text-white/40 mb-3">{task.project.clients.company_name}</p>
-            )}
-            <Link
-              href={`/clienti/${task.project.client_id}/progetto/${task.project.id}`}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all bg-gold/10 text-gold hover:bg-gold/20 border border-gold/20">
-              <ExternalLink className="w-3.5 h-3.5" /> Apri pagina progetto
-            </Link>
+        {/* Links */}
+        <div className="space-y-2">
+          <p className="text-[10px] text-white/30 uppercase tracking-wider">Link</p>
+          {(task.links ?? []).length > 0 && (
+            <div className="space-y-1">
+              {(task.links ?? []).map((lnk, i) => (
+                <div key={i} className="flex items-center gap-2 group">
+                  <Link2 className="w-3 h-3 text-blue-400 shrink-0" />
+                  <a href={lnk.url} target="_blank" rel="noopener noreferrer"
+                    className="text-xs text-blue-400 hover:text-blue-300 truncate flex-1">{lnk.label}</a>
+                  <button onClick={() => removeLink(i)} className="text-text-secondary hover:text-red-400 opacity-0 group-hover:opacity-100 shrink-0">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <input value={newLinkUrl} onChange={e => setNewLinkUrl(e.target.value)} placeholder="https://..."
+              onKeyDown={e => { if (e.key === 'Enter') addLink() }}
+              className={inp + ' flex-1'} />
+            <input value={newLinkLabel} onChange={e => setNewLinkLabel(e.target.value)} placeholder="Etichetta"
+              onKeyDown={e => { if (e.key === 'Enter') addLink() }}
+              className={inp + ' w-24'} />
+            <button onClick={addLink} disabled={!newLinkUrl.trim() || saving} className="text-gold hover:text-yellow-400 disabled:opacity-30 shrink-0">
+              <Plus className="w-4 h-4" />
+            </button>
           </div>
-        )}
+        </div>
 
-        {task.description && (
-          <div>
-            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-2">Descrizione</p>
-            <p className="text-xs text-white/60 leading-relaxed">{task.description}</p>
-          </div>
-        )}
+        {/* Milestone toggle */}
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-white/30">Milestone</span>
+          <button onClick={() => updateTask(task.id, { is_milestone: !task.is_milestone })}
+            className={`flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+              task.is_milestone ? 'bg-gold/10 text-gold border border-gold/20' : 'bg-white/[0.04] text-text-secondary hover:text-white'
+            }`}>
+            <Flag className="w-3 h-3" /> {task.is_milestone ? 'Sì' : 'No'}
+          </button>
+        </div>
       </div>
     </div>
   )
 }
 
 /* ── BACHECA (kanban by status) ────────────────────── */
-function BachecaView({ tasks, updateStatus }: { tasks: TaskWithMeta[]; updateStatus: (id: string, s: TaskStatus) => Promise<void> }) {
+function BachecaView({ tasks, updateStatus, onSelect }: {
+  tasks: TaskWithMeta[]; updateStatus: (id: string, s: TaskStatus) => Promise<void>
+  onSelect: (t: TaskWithMeta) => void
+}) {
   const cols: TaskStatus[] = ['da_fare', 'in_corso', 'in_revisione', 'completato']
   const grouped = useMemo(() => {
     const m: Record<TaskStatus, TaskWithMeta[]> = { da_fare: [], in_corso: [], in_revisione: [], completato: [] }
@@ -395,29 +606,33 @@ function BachecaView({ tasks, updateStatus }: { tasks: TaskWithMeta[]; updateSta
               </div>
               <div className="flex-1 overflow-y-auto p-2 space-y-2">
                 {list.map(task => (
-                  <div key={task.id} className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg p-3 space-y-2 hover:border-gold/30 transition-colors">
+                  <div key={task.id} onClick={() => onSelect(task)}
+                    className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg p-3 space-y-2 hover:border-gold/30 transition-colors cursor-pointer">
                     <p className="text-sm text-white font-medium">{task.title}</p>
+                    {task.project && (
+                      <div className="flex items-center gap-1.5">
+                        <FolderKanban className="w-3 h-3 text-text-secondary shrink-0" />
+                        <span className="text-[10px] text-text-secondary truncate">{task.project.name}</span>
+                        {task.project.clients && <span className="text-[10px] text-white/20">·</span>}
+                        {task.project.clients && <span className="text-[10px] text-text-secondary truncate">{task.project.clients.company_name}</span>}
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 flex-wrap">
-                      {task.project && (
-                        <span className="text-[10px] text-[#888] bg-[#2A2A2A] px-1.5 py-0.5 rounded">
-                          {task.project.clients?.company_name ?? task.project.name}
-                        </span>
-                      )}
                       {task.due_date && (
                         <span className={`text-[10px] ${deadlineColor(task.due_date)}`}>{formatDate(task.due_date)}</span>
                       )}
                       {task.is_milestone && <Flag className="w-3 h-3 text-gold" />}
+                      {task.description && <FileText className="w-3 h-3 text-white/20" />}
+                      {(task.links?.length ?? 0) > 0 && <Link2 className="w-3 h-3 text-blue-400/50" />}
                     </div>
-                    {status !== 'completato' && (
-                      <div className="flex gap-1">
-                        {cols.filter(s => s !== status).map(ns => (
-                          <button key={ns} onClick={() => updateStatus(task.id, ns)}
-                            className={`text-[9px] px-1.5 py-0.5 rounded ${STATUS_META[ns].color} bg-white/5 hover:bg-white/10 transition-colors`}>
-                            → {STATUS_META[ns].label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    <div className="flex gap-1 flex-wrap">
+                      {cols.filter(s => s !== status).map(ns => (
+                        <button key={ns} onClick={e => { e.stopPropagation(); updateStatus(task.id, ns) }}
+                          className={`text-[9px] px-1.5 py-0.5 rounded ${STATUS_META[ns].color} bg-white/5 hover:bg-white/10 transition-colors`}>
+                          → {STATUS_META[ns].label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -482,6 +697,7 @@ function TimelineView({ tasks }: { tasks: TaskWithMeta[] }) {
                   }}>
                   {task.is_milestone && <Flag className="w-2.5 h-2.5 shrink-0" />}
                   <span className="truncate">{task.title}</span>
+                  {task.project && <span className="text-[8px] opacity-60 ml-1 shrink-0">({task.project.name})</span>}
                 </div>
               </div>
             )
@@ -545,7 +761,7 @@ function CalendarioView({ tasks }: { tasks: TaskWithMeta[] }) {
                     t.status === 'completato' ? 'bg-green-500/10 text-green-400 border-green-500/20'
                     : new Date(t.due_date!) < today ? 'bg-red-500/10 text-red-400 border-red-500/20'
                     : 'bg-gold/10 text-gold border-gold/20'
-                  }`}>{t.title}</div>
+                  }`} title={t.project ? `${t.title} — ${t.project.name}` : t.title}>{t.title}</div>
                 ))}
                 {dayTasks.length > 3 && <div className="text-[10px] text-[#555] px-1">+{dayTasks.length - 3}</div>}
               </div>
@@ -678,6 +894,91 @@ function AnaliticaView({ tasks }: { tasks: TaskWithMeta[] }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/* ── ASSIGN MODAL ─────────────────────────────── */
+function AssignModal({ profiles, taskCount, assigning, onAssign, onClose }: {
+  profiles: Pick<Profile, 'id' | 'full_name' | 'avatar_url'>[]
+  taskCount: number; assigning: boolean
+  onAssign: (profileIds: string[]) => Promise<void>
+  onClose: () => void
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [search, setSearch] = useState('')
+
+  const filtered = profiles.filter(p =>
+    p.full_name.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const toggle = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-8" onClick={onClose}>
+      <div className="bg-[#111] border border-[#2A2A2A] rounded-2xl w-full max-w-md flex flex-col max-h-[70vh]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#2A2A2A]">
+          <div className="flex items-center gap-3">
+            <Users className="w-5 h-5 text-gold" />
+            <div>
+              <p className="text-sm font-bold text-white">Assegna {taskCount} task</p>
+              <p className="text-[10px] text-text-secondary">Seleziona una o più risorse</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-text-secondary hover:text-white"><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="px-5 pt-3">
+          <input
+            autoFocus
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Cerca risorsa..."
+            className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold/40 placeholder:text-[#444]"
+          />
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-3 space-y-1">
+          {filtered.map(p => {
+            const isOn = selected.has(p.id)
+            return (
+              <button key={p.id} onClick={() => toggle(p.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${isOn ? 'bg-gold/10 border border-gold/20' : 'hover:bg-white/[0.03] border border-transparent'}`}>
+                <span className={`shrink-0 transition-colors ${isOn ? 'text-gold' : 'text-white/20'}`}>
+                  {isOn ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                </span>
+                <div className="w-8 h-8 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-xs font-bold text-gold shrink-0">
+                  {p.avatar_url
+                    ? <img src={p.avatar_url} className="w-full h-full rounded-full object-cover" alt="" />
+                    : getInitials(p.full_name)}
+                </div>
+                <span className="text-sm text-white font-medium flex-1 text-left">{p.full_name}</span>
+              </button>
+            )
+          })}
+          {filtered.length === 0 && (
+            <p className="text-xs text-text-secondary text-center py-6">Nessuna risorsa trovata</p>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between px-5 py-4 border-t border-[#2A2A2A]">
+          <p className="text-[10px] text-text-secondary">{selected.size} risorse selezionate</p>
+          <div className="flex items-center gap-2">
+            <button onClick={onClose} className="px-4 py-2 text-xs text-text-secondary hover:text-white">Annulla</button>
+            <button onClick={() => onAssign(Array.from(selected))} disabled={assigning || selected.size === 0}
+              className="flex items-center gap-1.5 px-5 py-2 bg-gold text-black rounded-lg text-xs font-bold hover:bg-yellow-400 transition-colors disabled:opacity-50">
+              {assigning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
+              Assegna
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

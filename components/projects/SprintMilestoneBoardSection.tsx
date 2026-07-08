@@ -3,10 +3,11 @@
 import { useState, useRef } from 'react'
 import {
   ChevronDown, ChevronRight, Flag, GripVertical, Plus, Trash2,
-  Check, X, Loader2, Calendar, MoreHorizontal,
+  Check, X, Loader2, Calendar, MoreHorizontal, CheckSquare, Square, UserPlus, Users,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { getInitials } from '@/lib/utils'
 import type { Profile, Task, Sprint } from '@/lib/types/database'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -196,10 +197,11 @@ function TaskDetailModal({ task, profiles, isAdmin, onSave, onDelete, onClose, a
 }
 
 // ─── TaskRow ──────────────────────────────────────────────────────────────────
-function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, milestoneId, accent, onUpdate }: {
+function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, milestoneId, accent, onUpdate, selectedIds, toggleSelect }: {
   task: ExtTask; allTasks: ExtTask[]; profiles: Profile[]; isAdmin: boolean
   depth: number; projectId: string; milestoneId: string; accent: string
   onUpdate: (tasks: ExtTask[]) => void
+  selectedIds?: Set<string>; toggleSelect?: (id: string) => void
 }) {
   const [expanded, setExpanded]   = useState(false)
   const [addingChild, setAdding]  = useState(false)
@@ -256,8 +258,14 @@ function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, mileston
 
   return (
     <div>
-      <div className="group flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[#0D0D0D] transition-colors"
+      <div className={`group flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[#0D0D0D] transition-colors ${selectedIds?.has(task.id) ? 'bg-[#F5C800]/[0.06] ring-1 ring-[#F5C800]/20' : ''}`}
         style={{ paddingLeft: pl + 12 }}>
+        {toggleSelect && (
+          <button onClick={() => toggleSelect(task.id)}
+            className={`shrink-0 transition-colors ${selectedIds?.has(task.id) ? 'text-[#F5C800]' : 'text-transparent group-hover:text-[#2A2A2A] hover:!text-[#F5C800]'}`}>
+            {selectedIds?.has(task.id) ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
+          </button>
+        )}
         {isAdmin && <GripVertical className="w-3 h-3 text-[#222] group-hover:text-[#444] shrink-0 cursor-grab" />}
 
         <button onClick={() => setExpanded(e => !e)} className="w-4 shrink-0 flex items-center justify-center text-[#333] hover:text-[#666]">
@@ -323,7 +331,7 @@ function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, mileston
       {expanded && children.map(c => (
         <TaskRow key={c.id} task={c} allTasks={allTasks} profiles={profiles}
           isAdmin={isAdmin} depth={depth + 1} projectId={projectId} milestoneId={milestoneId}
-          accent={accent} onUpdate={onUpdate} />
+          accent={accent} onUpdate={onUpdate} selectedIds={selectedIds} toggleSelect={toggleSelect} />
       ))}
 
       {expanded && addingChild && (
@@ -353,9 +361,10 @@ function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, mileston
 }
 
 // ─── MilestoneBlock ───────────────────────────────────────────────────────────
-function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, accent, onUpdate }: {
+function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, accent, onUpdate, selectedIds, toggleSelect }: {
   milestone: ExtTask; allTasks: ExtTask[]; profiles: Profile[]
   isAdmin: boolean; projectId: string; accent: string
+  selectedIds?: Set<string>; toggleSelect?: (id: string) => void
   onUpdate: (t: ExtTask[]) => void
 }) {
   const [open, setOpen]         = useState(true)
@@ -460,7 +469,7 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
           {tasks.map(t => (
             <TaskRow key={t.id} task={t} allTasks={allTasks} profiles={profiles}
               isAdmin={isAdmin} depth={0} projectId={projectId} milestoneId={milestone.id}
-              accent={accent} onUpdate={onUpdate} />
+              accent={accent} onUpdate={onUpdate} selectedIds={selectedIds} toggleSelect={toggleSelect} />
           ))}
 
           {addingTask ? (
@@ -490,12 +499,13 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
 }
 
 // ─── SprintBlock ──────────────────────────────────────────────────────────────
-function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, sprintIndex, onUpdateTasks, onUpdateSprint, onDeleteSprint }: {
+function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, sprintIndex, onUpdateTasks, onUpdateSprint, onDeleteSprint, selectedIds, toggleSelect }: {
   sprint: ExtSprint; allTasks: ExtTask[]; profiles: Profile[]
   isAdmin: boolean; projectId: string; accent: string; sprintIndex: number
   onUpdateTasks: (t: ExtTask[]) => void
   onUpdateSprint: (s: ExtSprint) => void
   onDeleteSprint: (id: string) => void
+  selectedIds?: Set<string>; toggleSelect?: (id: string) => void
 }) {
   const [open, setOpen]     = useState(true)
   const [addingM, setAddM]  = useState(false)
@@ -613,7 +623,8 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, s
 
           {milestones.map(m => (
             <MilestoneBlock key={m.id} milestone={m} allTasks={allTasks} profiles={profiles}
-              isAdmin={isAdmin} projectId={projectId} accent={accent} onUpdate={onUpdateTasks} />
+              isAdmin={isAdmin} projectId={projectId} accent={accent} onUpdate={onUpdateTasks}
+              selectedIds={selectedIds} toggleSelect={toggleSelect} />
           ))}
 
           {addingM ? (
@@ -642,6 +653,59 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, s
   )
 }
 
+// ─── AssignModal ─────────────────────────────────────────────────────────────
+function AssignModal({ profiles, assigning, onConfirm, onClose }: {
+  profiles: Profile[]; assigning: boolean
+  onConfirm: (ids: string[]) => void; onClose: () => void
+}) {
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const filtered = profiles.filter(p => p.full_name?.toLowerCase().includes(search.toLowerCase()))
+
+  return (
+    <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+      <div className="bg-[#0E0E0E] border border-[#2A2A2A] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1A1A1A]">
+          <h3 className="text-sm font-bold text-white flex items-center gap-2">
+            <Users className="w-4 h-4 text-[#F5C800]" /> Assegna task
+          </h3>
+          <button onClick={onClose} className="p-1.5 text-[#444] hover:text-white"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-4 space-y-3">
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Cerca risorsa…"
+            className="w-full bg-[#111] border border-[#2A2A2A] rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C800] placeholder:text-[#333]" />
+          <div className="max-h-48 overflow-y-auto space-y-1">
+            {filtered.map(p => {
+              const on = selected.has(p.id)
+              return (
+                <button key={p.id}
+                  onClick={() => { const n = new Set(selected); if (on) n.delete(p.id); else n.add(p.id); setSelected(n) }}
+                  className={`flex items-center gap-3 w-full px-3 py-2 rounded-xl text-left transition-colors ${on ? 'bg-[#F5C800]/10 ring-1 ring-[#F5C800]/20' : 'hover:bg-white/5'}`}>
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                    style={{ background: on ? '#F5C800' : '#1A1A1A', color: on ? '#000' : '#555' }}>
+                    {getInitials(p.full_name || '')}
+                  </div>
+                  <span className={`text-sm ${on ? 'text-[#F5C800] font-semibold' : 'text-[#999]'}`}>{p.full_name}</span>
+                  <div className="flex-1" />
+                  {on ? <CheckSquare className="w-4 h-4 text-[#F5C800]" /> : <Square className="w-4 h-4 text-[#2A2A2A]" />}
+                </button>
+              )
+            })}
+          </div>
+          <button
+            onClick={() => onConfirm(Array.from(selected))}
+            disabled={selected.size === 0 || assigning}
+            className="w-full py-2.5 rounded-xl text-sm font-bold text-black bg-[#F5C800] disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
+            {assigning ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+            Assegna a {selected.size || '…'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 export function SprintMilestoneBoardSection({ tasks: initialTasks, sprints: initialSprints, profiles, projectId, isAdmin = true, accent = '#F5C800' }: {
   tasks: ExtTask[]; sprints: ExtSprint[]
@@ -654,6 +718,32 @@ export function SprintMilestoneBoardSection({ tasks: initialTasks, sprints: init
   const [sprintDraft, setSprintDraft]   = useState({ name: '', start: '', end: '' })
   const [saving, setSaving] = useState(false)
   const addRef = useRef<HTMLInputElement>(null)
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [showAssignModal, setShowAssignModal] = useState(false)
+  const [assigning, setAssigning] = useState(false)
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const bulkAssign = async (profileIds: string[]) => {
+    setAssigning(true)
+    const rows = Array.from(selectedIds).flatMap(taskId =>
+      profileIds.map(profileId => ({ task_id: taskId, profile_id: profileId, role: 'assignee' }))
+    )
+    const { error } = await createClient().from('task_assignees').upsert(rows, { onConflict: 'task_id,profile_id' })
+    setAssigning(false)
+    if (error) { toast.error(error.message); return }
+    toast.success(`Assegnate ${selectedIds.size} task a ${profileIds.length} risorsa/e`)
+    setSelectedIds(new Set())
+    setShowAssignModal(false)
+  }
 
   const updateSprint = (s: ExtSprint) =>
     setAllSprints(prev => prev.map(x => x.id === s.id ? s : x))
@@ -706,6 +796,19 @@ export function SprintMilestoneBoardSection({ tasks: initialTasks, sprints: init
 
   return (
     <div>
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2.5 mb-3 rounded-xl bg-[#F5C800]/10 border border-[#F5C800]/20">
+          <span className="text-sm font-bold text-[#F5C800]">{selectedIds.size} selezionate</span>
+          <button onClick={() => setSelectedIds(new Set())}
+            className="text-xs text-[#888] hover:text-white transition-colors">Deseleziona</button>
+          <div className="flex-1" />
+          <button onClick={() => setShowAssignModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-black bg-[#F5C800] hover:bg-[#F5C800]/90 transition-colors">
+            <UserPlus className="w-3.5 h-3.5" /> Assegna a…
+          </button>
+        </div>
+      )}
+
       {allSprints.map((s, i) => (
         <SprintBlock
           key={s.id} sprint={s} allTasks={allTasks} profiles={profiles}
@@ -713,6 +816,8 @@ export function SprintMilestoneBoardSection({ tasks: initialTasks, sprints: init
           onUpdateTasks={setAllTasks}
           onUpdateSprint={updateSprint}
           onDeleteSprint={deleteSprint}
+          selectedIds={selectedIds}
+          toggleSelect={toggleSelect}
         />
       ))}
 
@@ -748,6 +853,15 @@ export function SprintMilestoneBoardSection({ tasks: initialTasks, sprints: init
             <Plus className="w-3.5 h-3.5" /> Aggiungi sprint
           </button>
         )
+      )}
+
+      {showAssignModal && (
+        <AssignModal
+          profiles={profiles}
+          assigning={assigning}
+          onConfirm={bulkAssign}
+          onClose={() => setShowAssignModal(false)}
+        />
       )}
     </div>
   )

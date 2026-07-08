@@ -38,6 +38,7 @@ export async function middleware(request: NextRequest) {
     '/impostazioni',
     '/portale',
     '/risorsa',
+    '/workspace',
     '/reparti',
     '/commerciale',
     '/fatturazione',
@@ -55,11 +56,26 @@ export async function middleware(request: NextRequest) {
 
   if (!user && isProtected) return redirectTo('/login')
 
-  // Routing per ruolo: client → /portale · risorsa esterna → /risorsa · staff → /dashboard
+  // Routing per ruolo: client → /portale · workspace → /workspace · risorsa esterna → /risorsa · staff → /dashboard
   if (user) {
     const { data: profile } = await supabase
-      .from('profiles').select('role').eq('id', user.id).single()
+      .from('profiles').select('role, app_role').eq('id', user.id).single()
     const role = profile?.role
+    const appRole = profile?.app_role
+
+    const WORKSPACE_ROLES = ['manager', 'senior', 'junior', 'stage', 'freelance']
+    const isWorkspace = WORKSPACE_ROLES.includes(appRole ?? '')
+
+    if (isWorkspace) {
+      const allowedForWorkspace =
+        pathname === '/workspace' ||
+        pathname.startsWith('/workspace/') ||
+        pathname.startsWith('/onboarding') ||
+        pathname === '/impostazioni/profilo'
+      if (!allowedForWorkspace) return redirectTo('/workspace')
+      if (pathname === '/login' || pathname === '/') return redirectTo('/workspace')
+      return supabaseResponse
+    }
 
     // Distinzione risorsa esterna vs guest-cliente (solo per i guest)
     let isResource = false
