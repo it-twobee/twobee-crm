@@ -260,9 +260,10 @@ export default async function DashboardPage() {
   // ═══════════════════════════════════════════════════════════════
   // Aggrega risultati
   // ═══════════════════════════════════════════════════════════════
-  const mrr             = clients.reduce((s, c) => s + (c.mrr ?? 0), 0)
-  const clientsAtRisk   = clients.filter(c => c.client_label === 'in_bilico').length
-  const clientsLost     = clients.filter(c => c.client_label === 'perso').length
+  const externalClients = clients.filter(c => !c.is_internal)
+  const mrr             = externalClients.reduce((s, c) => s + (c.mrr ?? 0), 0)
+  const clientsAtRisk   = externalClients.filter(c => c.client_label === 'in_bilico').length
+  const clientsLost     = externalClients.filter(c => c.client_label === 'perso').length
   const tasks           = tasksResult.data as TaskWithAssignee[] ?? []
   const tasksDueToday   = tasksTodayResult.data ?? []
   const allActiveTasks  = (allTasksResult.data ?? []) as TaskWithAssignee[]
@@ -329,10 +330,10 @@ export default async function DashboardPage() {
       const clientName = (inv.client as any)?.company_name ?? 'Cliente'
       alerts.push({ id: `inv-${inv.id}`, severity: 'critico', icon: 'invoice', title: `Fattura in ritardo — ${clientName}`, detail: `€${inv.amount?.toLocaleString('it-IT')} non incassata`, href: '/fatturazione' })
     }
-    for (const c of clients.filter(c => c.client_label === 'in_bilico').slice(0, 2)) {
+    for (const c of externalClients.filter(c => c.client_label === 'in_bilico').slice(0, 2)) {
       alerts.push({ id: `client-${c.id}`, severity: 'attenzione', icon: 'client', title: `Cliente in bilico — ${c.company_name}`, detail: `MRR a rischio: €${c.mrr?.toLocaleString('it-IT') ?? 0}/mese`, href: `/clienti/${c.id}` })
     }
-    for (const c of clients.filter(c => c.client_label === 'perso').slice(0, 1)) {
+    for (const c of externalClients.filter(c => c.client_label === 'perso').slice(0, 1)) {
       alerts.push({ id: `lost-${c.id}`, severity: 'critico', icon: 'client', title: `Cliente perso — ${c.company_name}`, detail: `Churn: -€${c.mrr?.toLocaleString('it-IT') ?? 0}/mese`, href: `/clienti/${c.id}` })
     }
     for (const t of urgentTicketsResult.data ?? []) {
@@ -391,14 +392,14 @@ export default async function DashboardPage() {
 
   const aiContext = {
     mrr,
-    clientsCount: clients.length,
+    clientsCount: externalClients.length,
     clientsAtRisk,
     clientsLost,
     alertsCount: alerts.length,
     tasksDueSoon: tasks.length,
     projectsCount: projectSummaries.length,
     topAlerts: alerts.slice(0, 4).map(a => ({ title: a.title, severity: a.severity })),
-    clients: clients.slice(0, 20).map(c => ({ name: c.company_name, label: c.client_label ?? 'stabile', mrr: c.mrr, type: c.client_type ?? 'growth', id: c.id })),
+    clients: externalClients.slice(0, 20).map(c => ({ name: c.company_name, label: c.client_label ?? 'stabile', mrr: c.mrr, type: c.client_type ?? 'growth', id: c.id })),
   }
 
   // ─── KPI snapshot ─────────────────────────────────────────────

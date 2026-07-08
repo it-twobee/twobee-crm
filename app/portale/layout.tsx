@@ -11,5 +11,5 @@ export default async function PortaleLayout({ children }: { children: React.Reac
     .from('profiles').select('role').eq('id', user.id).single()
   if (profile?.role !== 'client' && profile?.role !== 'guest') redirect('/dashboard')
 
-  return <div className="min-h-screen bg-[#111111]">{children}</div>
+  return <div className="min-h-screen bg-[#F7F7F5]">{children}</div>
 }

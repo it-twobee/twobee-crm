@@ -37,6 +37,7 @@ export function NewClientModal({ onClose, onCreated }: NewClientModalProps) {
     company_name: '', package: 'Hive Basic' as ClientPackage, mrr: '', ad_budget_monthly: '',
     contract_start: '', contract_end: '', payment_status: 'pagato' as PaymentStatus,
     active_channels: [] as string[], client_type: 'growth' as ClientType, client_label: 'stabile' as ClientLabel,
+    is_internal: false,
     notes: '', industry: '', market_area: '',
     target_leads_monthly: '', target_roas: '', target_revenue_monthly: '',
     target_cpa: '', target_followers_monthly: '', target_ctr: '', target_conv_rate: '', goals_notes: '',
@@ -70,7 +71,7 @@ export function NewClientModal({ onClose, onCreated }: NewClientModalProps) {
       ad_budget_monthly: form.ad_budget_monthly ? parseFloat(form.ad_budget_monthly) : null,
       contract_start: form.contract_start, contract_end: form.contract_end,
       payment_status: form.payment_status, active_channels: form.active_channels,
-      client_type: form.client_type, client_label: form.client_label,
+      client_type: form.client_type, client_label: form.client_label, is_internal: form.is_internal,
       notes: form.notes || null, industry: form.industry || null, market_area: form.market_area || null,
       target_leads_monthly: form.target_leads_monthly ? parseInt(form.target_leads_monthly) : null,
       target_roas: form.target_roas ? parseFloat(form.target_roas) : null,
@@ -145,6 +146,7 @@ export function NewClientModal({ onClose, onCreated }: NewClientModalProps) {
                   <select value={form.client_type} onChange={(e) => f('client_type', e.target.value as ClientType)} className={ic}>
                     <option value="growth">🚀 Growth (marketing)</option>
                     <option value="digital">💻 Digital (AI/IT)</option>
+                    <option value="growth_digital">🔄 Growth + Digital</option>
                   </select>
                 </div>
                 <div>
@@ -157,6 +159,14 @@ export function NewClientModal({ onClose, onCreated }: NewClientModalProps) {
                   </select>
                 </div>
               </div>
+              <label className="flex items-center gap-3 bg-[#111] border border-[#2A2A2A] rounded-xl px-4 py-3 cursor-pointer hover:border-[#3A3A3A] transition-colors">
+                <input type="checkbox" checked={form.is_internal} onChange={e => setForm(p => ({ ...p, is_internal: e.target.checked }))}
+                  className="w-4 h-4 rounded accent-gold" />
+                <div>
+                  <span className="text-sm text-white font-medium">Cliente interno</span>
+                  <p className="text-[10px] text-text-secondary mt-0.5">Escluso da statistiche commerciali e finanziarie (es. TwoBee, scambi merce)</p>
+                </div>
+              </label>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-text-secondary mb-1.5">Settore</label>

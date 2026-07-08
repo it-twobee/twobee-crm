@@ -18,7 +18,7 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
     supabase.from('profiles').select('*').eq('is_active', true).order('full_name'),
     supabase.from('clients').select('id, company_name, package, client_label').order('company_name'),
     supabase.rpc('get_unread_counts', { p_user_id: user.id }),
-    supabase.from('projects').select('id, name, client_id, client:clients(id, company_name)').eq('status', 'attivo').order('name'),
+    supabase.from('projects').select('id, name, client_id, status, project_kind, client:clients(id, company_name)').order('name'),
   ])
 
   const unreadCounts: Record<string, number> = {}
@@ -28,9 +28,18 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
 
   if (!profile) redirect('/login')
 
-  // Assicura che l'utente sia membro dei canali interni
-  const internalChannels = (channels ?? []).filter((c: ChatChannel) => c.type === 'interno')
-  for (const ch of internalChannels) {
+  const activeProjectIds = new Set(
+    (projects ?? []).filter((p: { status: string }) => p.status === 'attivo').map((p: { id: string }) => p.id)
+  )
+
+  const filteredChannels = (channels ?? []).filter((c: ChatChannel) => {
+    if (c.type === 'interno' && !c.client_id && !c.project_id) return true
+    if (c.project_id && activeProjectIds.has(c.project_id)) return true
+    if (c.is_archived) return true
+    return false
+  })
+
+  for (const ch of filteredChannels.filter((c: ChatChannel) => c.type === 'interno' && !c.client_id)) {
     await supabase.from('channel_members').upsert(
       { channel_id: ch.id, profile_id: user.id },
       { onConflict: 'channel_id,profile_id', ignoreDuplicates: true }
@@ -40,11 +49,11 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
   return (
     <div className="h-full">
       <ChatLayout
-        channels={(channels ?? []) as ChatChannel[]}
+        channels={filteredChannels as ChatChannel[]}
         currentProfile={profile as Profile}
         allProfiles={(allProfiles ?? []) as Profile[]}
         clients={(clients ?? []) as Client[]}
-        projects={(projects ?? []) as unknown as Array<{ id: string; name: string; client_id: string; client: { id: string; company_name: string } | null }>}
+        projects={(projects ?? []).filter((p: { status: string }) => p.status === 'attivo') as unknown as Array<{ id: string; name: string; client_id: string; project_kind: string | null; client: { id: string; company_name: string } | null }>}
         initialChannelId={channelId}
         unreadCounts={unreadCounts}
       />

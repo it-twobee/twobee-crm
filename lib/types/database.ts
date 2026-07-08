@@ -194,6 +194,7 @@ export interface Client {
   client_type: ClientType
   client_label: ClientLabel
   notes: string | null
+  is_internal: boolean
   created_at: string
   created_by: string | null
   // Obiettivi (migration 008)
@@ -323,6 +324,7 @@ export interface Task {
   section: string | null
   asana_gid: string | null
   assigned_to: string | null
+  is_client_task: boolean
   created_at: string
   created_by: string | null
 }

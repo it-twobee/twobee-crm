@@ -39,12 +39,13 @@ const typeBadge: Record<string, string> = {
   growth_digital: 'bg-purple-500/15 text-purple-400',
 }
 
-type PortfolioTab = 'tutti' | 'growth' | 'digital' | 'growth_digital'
+type PortfolioTab = 'tutti' | 'growth' | 'digital' | 'growth_digital' | 'interni'
 const PORTFOLIO_TABS: { key: PortfolioTab; label: string; emoji: string }[] = [
   { key: 'tutti',          label: 'Tutti',          emoji: '🗂️' },
   { key: 'growth',         label: 'Growth',         emoji: '📈' },
   { key: 'digital',        label: 'Digital',        emoji: '💻' },
   { key: 'growth_digital', label: 'Growth+Digital', emoji: '⚡' },
+  { key: 'interni',        label: 'Interni',        emoji: '🏢' },
 ]
 
 const SORT_LABELS: Record<SortKey, string> = {
@@ -275,7 +276,7 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
     const matchLabel = filterLabel === ALL || c.client_label === filterLabel
     const matchMrrMin = filterMrrMin === '' || c.mrr >= parseFloat(filterMrrMin)
     const matchMrrMax = filterMrrMax === '' || c.mrr <= parseFloat(filterMrrMax)
-    const matchPortfolio = portfolioTab === 'tutti' || c.client_type === portfolioTab
+    const matchPortfolio = portfolioTab === 'tutti' || (portfolioTab === 'interni' ? c.is_internal : c.client_type === portfolioTab)
     return matchSearch && matchPackage && matchPayment && matchType && matchLabel && matchMrrMin && matchMrrMax && matchPortfolio
   })
 
@@ -369,6 +370,9 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
               <span className={`inline-flex items-center gap-1 whitespace-nowrap text-[10px] font-semibold px-1.5 py-0.5 rounded ${labelBadge[client.client_label ?? 'stabile']}`}>
                 {labelIcon[client.client_label ?? 'stabile']} {(client.client_label ?? 'stabile').replace('_', ' ')}
               </span>
+              {client.is_internal && (
+                <span className="inline-flex items-center whitespace-nowrap text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400">interno</span>
+              )}
             </div>
           </div>
           <button onClick={onPin} className={`shrink-0 transition-colors ${pinned ? 'text-gold' : 'text-[#333] hover:text-gold opacity-0 group-hover:opacity-100'}`}>

@@ -7,6 +7,7 @@ import {
   ChevronDown, ChevronRight, Headphones, Search,
   MoreHorizontal, Pencil, Trash2, Archive,
   Shield, Check, Users, ChevronUp, AlertCircle,
+  FolderKanban, UserPlus, Mail,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -18,6 +19,7 @@ interface ProjectInfo {
   id: string
   name: string
   client_id: string
+  project_kind: string | null
   client: { id: string; company_name: string } | null
 }
 
@@ -31,8 +33,6 @@ interface Props {
   unreadCounts?: Record<string, number>
 }
 
-// ─── Utils ────────────────────────────────────────────────────────────────────
-
 function toSlug(s: string) {
   return s.toLowerCase()
     .replace(/[àáâãäå]/g, 'a').replace(/[èéêë]/g, 'e')
@@ -41,17 +41,22 @@ function toSlug(s: string) {
 }
 
 function channelDisplayName(ch: ChatChannel): string {
-  // Nome ha priorità: cc-* = Customer Care, team-* = Chat Interna
   if (ch.name.startsWith('cc-')) return 'Customer Care'
-  if (ch.name.startsWith('team-')) return 'Chat Interna'
-  // Poi tipo
+  if (ch.name.startsWith('team-')) return 'Chat Team'
   if (ch.type === 'customer_care') return 'Customer Care'
-  if (ch.type === 'cliente_interno') return 'Chat Interna'
+  if (ch.type === 'cliente_interno') return 'Chat Team'
   if (ch.type === 'cliente') return 'Customer Care'
   return ch.name.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
-// ─── Modal: nuovo canale team generale (2 step) ──────────────────────────────
+const KIND_BADGE: Record<string, { label: string; cls: string }> = {
+  growth:    { label: 'G', cls: 'bg-gold/15 text-gold border-gold/25' },
+  digital:   { label: 'D', cls: 'bg-blue-500/15 text-blue-400 border-blue-400/25' },
+  marketing: { label: 'M', cls: 'bg-amber-400/15 text-amber-400 border-amber-400/25' },
+  ai:        { label: 'AI', cls: 'bg-purple-400/15 text-purple-400 border-purple-400/25' },
+}
+
+// ─── Modal: nuovo canale team ────────────────────────────────────────────────
 
 function NewTeamChannelModal({ onClose, onCreate, currentProfileId, allProfiles }: {
   onClose: () => void; onCreate: (ch: ChatChannel) => void
@@ -101,7 +106,6 @@ function NewTeamChannelModal({ onClose, onCreate, currentProfileId, allProfiles 
           {name && slug !== name.trim() && <p className="text-[10px] text-text-secondary mt-1">Slug: {slug}</p>}
           {name && !slug && <p className="text-[10px] text-error mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />Nome non valido</p>}
         </div>
-        <p className="text-[10px] text-text-secondary">I canali sono dove il team collabora. Potrai sempre cambiare questo nome.</p>
         <div className="flex items-center justify-between pt-1">
           <span className="text-[10px] text-[#555]">Passaggio 1 di 2</span>
           <button disabled={!slug} onClick={() => setStep(2)}
@@ -153,7 +157,55 @@ function NewTeamChannelModal({ onClose, onCreate, currentProfileId, allProfiles 
   )
 }
 
-// ─── Modal: rinomina ──────────────────────────────────────────────────────────
+// ─── Modal: invita esterno ───────────────────────────────────────────────────
+
+function InviteExternalModal({ channelId, onClose }: { channelId: string; onClose: () => void }) {
+  const [email, setEmail] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const invite = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email.trim()) return
+    setLoading(true)
+    const sb = createClient()
+    const { data: profile } = await sb.from('profiles').select('id').eq('email', email.trim()).maybeSingle()
+    if (!profile) {
+      toast.error('Nessun profilo trovato con questa email. L\'utente deve prima essere registrato.')
+      setLoading(false)
+      return
+    }
+    const { data: existing } = await sb.from('channel_members')
+      .select('id').eq('channel_id', channelId).eq('profile_id', profile.id).maybeSingle()
+    if (existing) {
+      toast.info('Già membro di questo canale')
+      setLoading(false)
+      onClose()
+      return
+    }
+    const { error } = await sb.from('channel_members').insert({ channel_id: channelId, profile_id: profile.id })
+    setLoading(false)
+    if (error) { toast.error(error.message); return }
+    toast.success(`${email} aggiunto al canale`)
+    onClose()
+  }
+
+  return (
+    <Modal title="Invita esterno" icon={<UserPlus className="w-4 h-4" />} onClose={onClose}>
+      <form onSubmit={invite} className="space-y-4">
+        <p className="text-xs text-text-secondary">Aggiungi un professionista, partner o collaboratore esterno tramite email.</p>
+        <InputRow prefix={<Mail className="w-3.5 h-3.5 text-text-secondary shrink-0" />}>
+          <input autoFocus type="email" value={email} onChange={e => setEmail(e.target.value)}
+            placeholder="nome@azienda.it" required
+            className="flex-1 bg-transparent text-sm text-white focus:outline-none placeholder:text-[#555]" />
+        </InputRow>
+        <p className="text-[10px] text-[#555]">Max 10 esterni per progetto. L'utente deve avere un profilo registrato.</p>
+        <ModalButtons onClose={onClose} loading={loading} label="Invita" />
+      </form>
+    </Modal>
+  )
+}
+
+// ─── Modal: rinomina ─────────────────────────────────────────────────────────
 
 function RenameModal({ channel, onClose, onRename }: {
   channel: ChatChannel; onClose: () => void; onRename: (id: string, name: string) => void
@@ -166,8 +218,7 @@ function RenameModal({ channel, onClose, onRename }: {
     const slug = toSlug(name.trim())
     if (!slug || slug === channel.name) { onClose(); return }
     setSaving(true)
-    const sb = createClient()
-    await sb.from('chat_channels').update({ name: slug }).eq('id', channel.id)
+    await createClient().from('chat_channels').update({ name: slug }).eq('id', channel.id)
     setSaving(false)
     toast.success('Rinominato')
     onRename(channel.id, slug)
@@ -187,7 +238,7 @@ function RenameModal({ channel, onClose, onRename }: {
   )
 }
 
-// ─── Shared modal shell ───────────────────────────────────────────────────────
+// ─── Shared components ───────────────────────────────────────────────────────
 
 function Modal({ title, icon, onClose, children }: { title: string; icon: React.ReactNode; onClose: () => void; children: React.ReactNode }) {
   return (
@@ -222,7 +273,7 @@ function ModalButtons({ onClose, loading, label = 'Crea' }: { onClose: () => voi
   )
 }
 
-// ─── Channel context menu ─────────────────────────────────────────────────────
+// ─── Channel context menu ────────────────────────────────────────────────────
 
 function ChannelMenu({ channel, onClose, onRename, onArchive, onDelete }: {
   channel: ChatChannel; onClose: () => void
@@ -258,18 +309,18 @@ function ChannelMenu({ channel, onClose, onRename, onArchive, onDelete }: {
           <Shield className="w-2.5 h-2.5 text-gold" /> Admin · #{channel.name}
         </p>
       </div>
-      <Item icon={<Pencil className="w-3 h-3" />} label="Rinomina" onClick={() => { onRename(); onClose() }} />
-      <Item icon={busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Archive className="w-3 h-3" />}
+      <MenuItem icon={<Pencil className="w-3 h-3" />} label="Rinomina" onClick={() => { onRename(); onClose() }} />
+      <MenuItem icon={busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Archive className="w-3 h-3" />}
         label={channel.is_archived ? 'Riattiva' : 'Archivia'}
         onClick={archive}
         className={channel.is_archived ? 'text-blue-400' : ''} />
       <div className="h-px bg-[#2A2A2A] my-1" />
-      <Item icon={<Trash2 className="w-3 h-3" />} label="Elimina" onClick={del} className="text-error hover:bg-error/10" />
+      <MenuItem icon={<Trash2 className="w-3 h-3" />} label="Elimina" onClick={del} className="text-error hover:bg-error/10" />
     </div>
   )
 }
 
-function Item({ icon, label, onClick, className = '' }: { icon: React.ReactNode; label: string; onClick: () => void; className?: string }) {
+function MenuItem({ icon, label, onClick, className = '' }: { icon: React.ReactNode; label: string; onClick: () => void; className?: string }) {
   return (
     <button onClick={onClick}
       className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[#2A2A2A] transition-colors text-left ${className || 'text-white'}`}>
@@ -278,39 +329,26 @@ function Item({ icon, label, onClick, className = '' }: { icon: React.ReactNode;
   )
 }
 
-// ─── Channel row (within client group or general) ─────────────────────────────
+// ─── Channel row ─────────────────────────────────────────────────────────────
 
-function ChannelRow({ channel, active, onClick, isAdmin, first, last, onMoveUp, onMoveDown,
-  onRename, onArchive, onDelete, indent, unread,
-  onDragStart, onDragOver, onDrop }: {
+function ChannelRow({ channel, active, onClick, isAdmin, onRename, onArchive, onDelete, indent, unread }: {
   channel: ChatChannel; active: boolean; onClick: () => void
-  isAdmin: boolean; first: boolean; last: boolean
-  onMoveUp: () => void; onMoveDown: () => void
+  isAdmin: boolean
   onRename: () => void
   onArchive: (v: boolean) => void; onDelete: () => void
   indent?: boolean; unread?: number
-  onDragStart?: (e: React.DragEvent) => void
-  onDragOver?: (e: React.DragEvent) => void
-  onDrop?: (e: React.DragEvent) => void
 }) {
   const [showMenu, setShowMenu] = useState(false)
-  const [isDragOver, setIsDragOver] = useState(false)
   const isCC = channel.type === 'customer_care' || channel.type === 'cliente'
   const isInternal = channel.type === 'cliente_interno' || channel.type === 'interno'
   const label = channelDisplayName(channel)
   const hasUnread = typeof unread === 'number' && unread > 0 && !active
 
   return (
-    <div
-      draggable={isAdmin}
-      onDragStart={onDragStart}
-      onDragOver={e => { e.preventDefault(); setIsDragOver(true); onDragOver?.(e) }}
-      onDragLeave={() => setIsDragOver(false)}
-      onDrop={e => { setIsDragOver(false); onDrop?.(e) }}
-      className={`relative flex items-center rounded-lg transition-colors cursor-grab active:cursor-grabbing
-        ${active ? 'bg-white/10' : isDragOver ? 'bg-gold/10 border border-gold/30' : 'hover:bg-white/5'} group`}>
+    <div className={`relative flex items-center rounded-lg transition-colors
+      ${active ? 'bg-white/10' : 'hover:bg-white/5'} group`}>
       <button onClick={onClick}
-        className={`flex-1 flex items-center gap-2 py-1 text-xs text-left truncate transition-colors
+        className={`flex-1 flex items-center gap-2 py-1.5 text-xs text-left truncate transition-colors
           ${indent ? 'pl-6 pr-2' : 'px-3'}
           ${active ? 'text-white font-semibold' : hasUnread ? 'text-white font-bold' : 'text-[#8B8B8B] hover:text-white'}`}>
         {isCC
@@ -322,7 +360,6 @@ function ChannelRow({ channel, active, onClick, isAdmin, first, last, onMoveUp, 
         {channel.is_archived && <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />}
       </button>
 
-      {/* Badge unread — solo quando > 0, nascosto su hover admin */}
       {hasUnread && !showMenu && (
         <span className={`text-[9px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full mr-1 shrink-0 min-w-[18px] text-center leading-none
           ${isAdmin ? 'group-hover:hidden' : ''}`}>
@@ -330,21 +367,10 @@ function ChannelRow({ channel, active, onClick, isAdmin, first, last, onMoveUp, 
         </span>
       )}
 
-      {/* Admin controls: ··· sempre visibile, frecce solo su hover */}
       {isAdmin && (
-        <div className="flex items-center pr-1 shrink-0 gap-0.5">
-          <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity">
-            <button disabled={first} onClick={e => { e.stopPropagation(); onMoveUp() }}
-              className="p-0.5 text-[#555] hover:text-white disabled:opacity-20 transition-colors">
-              <ChevronUp className="w-2.5 h-2.5" />
-            </button>
-            <button disabled={last} onClick={e => { e.stopPropagation(); onMoveDown() }}
-              className="p-0.5 text-[#555] hover:text-white disabled:opacity-20 transition-colors">
-              <ChevronDown className="w-2.5 h-2.5" />
-            </button>
-          </div>
+        <div className="flex items-center pr-1 shrink-0">
           <button onClick={e => { e.stopPropagation(); setShowMenu(v => !v) }}
-            className={`p-1 rounded transition-colors ${showMenu ? 'text-gold bg-gold/10' : 'text-[#444] hover:text-white hover:bg-white/5'}`}>
+            className={`p-1 rounded transition-colors opacity-0 group-hover:opacity-100 ${showMenu ? 'text-gold bg-gold/10' : 'text-[#444] hover:text-white hover:bg-white/5'}`}>
             <MoreHorizontal className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -359,38 +385,38 @@ function ChannelRow({ channel, active, onClick, isAdmin, first, last, onMoveUp, 
   )
 }
 
-// ─── Client group ─────────────────────────────────────────────────────────────
+// ─── Project group ───────────────────────────────────────────────────────────
 
-function ClientGroup({ clientId, client, groupLabel, groupSublabel, groupClientId, channels, activeId, onSelect, isAdmin,
-  onRename, onArchive, onDelete, onReorder, unreadCounts }: {
-  clientId: string; client?: Client
-  groupLabel?: string; groupSublabel?: string; groupClientId?: string
+function ProjectGroup({ project, channels, activeId, onSelect, isAdmin, onRename, onArchive, onDelete, unreadCounts, onInviteExternal }: {
+  project: ProjectInfo
   channels: ChatChannel[]; activeId?: string
   onSelect: (ch: ChatChannel) => void; isAdmin: boolean
   onRename: (ch: ChatChannel) => void
   onArchive: (ch: ChatChannel, v: boolean) => void; onDelete: (id: string) => void
-  onReorder: (channelId: string, direction: 'up' | 'down') => void
   unreadCounts: Record<string, number>
+  onInviteExternal: (channelId: string) => void
 }) {
   const [collapsed, setCollapsed] = useState(false)
-  const isPerso = client?.client_label === 'perso'
   const sorted = [...channels].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
   const totalUnread = channels.reduce((sum, ch) => sum + (unreadCounts[ch.id] ?? 0), 0)
-  const displayLabel = groupLabel ?? client?.company_name ?? clientId
-  const displaySublabel = groupSublabel
-  const navClientId = groupClientId ?? (client ? clientId : undefined)
+  const kind = project.project_kind
+  const badge = kind ? KIND_BADGE[kind] : null
+  const title = project.name.includes(' – ') ? project.name.split(' – ').slice(1).join(' – ') : project.name
 
   return (
     <div className="mb-0.5">
-      <div className="flex items-center gap-1 px-2 py-0.5 cursor-pointer group/cg rounded-lg hover:bg-white/[0.02] transition-colors"
+      <div className="flex items-center gap-1.5 px-2 py-1 cursor-pointer group/pg rounded-lg hover:bg-white/[0.02] transition-colors"
         onClick={() => setCollapsed(v => !v)}>
         {collapsed ? <ChevronRight className="w-2.5 h-2.5 text-[#555] shrink-0" /> : <ChevronDown className="w-2.5 h-2.5 text-[#555] shrink-0" />}
+        {badge && (
+          <span className={`text-[8px] font-bold px-1 py-0.5 rounded border shrink-0 ${badge.cls}`}>{badge.label}</span>
+        )}
         <div className="flex-1 min-w-0">
           <span className={`block text-xs truncate ${totalUnread > 0 ? 'font-bold text-white' : 'font-semibold text-[#9B9B9B]'}`}>
-            {displayLabel}
+            {title}
           </span>
-          {displaySublabel && (
-            <span className="block text-[9px] text-[#555] truncate leading-none mt-0.5">{displaySublabel}</span>
+          {project.client && (
+            <span className="block text-[9px] text-[#555] truncate leading-none mt-0.5">{project.client.company_name}</span>
           )}
         </div>
         {totalUnread > 0 && collapsed && (
@@ -398,36 +424,40 @@ function ClientGroup({ clientId, client, groupLabel, groupSublabel, groupClientI
             {totalUnread > 99 ? '99+' : totalUnread}
           </span>
         )}
-        {isPerso && <span className="text-[9px] text-error bg-error/10 px-1 py-0.5 rounded shrink-0">perso</span>}
-        {navClientId && (
-          <Link href={`/clienti/${navClientId}`} onClick={e => e.stopPropagation()}
-            className="opacity-0 group-hover/cg:opacity-100 p-0.5 text-[#555] hover:text-gold transition-all shrink-0">
-            <ExternalLink className="w-2.5 h-2.5" />
-          </Link>
-        )}
+        <Link href={`/clienti/${project.client_id}/progetto/${project.id}`} onClick={e => e.stopPropagation()}
+          className="opacity-0 group-hover/pg:opacity-100 p-0.5 text-[#555] hover:text-gold transition-all shrink-0">
+          <ExternalLink className="w-2.5 h-2.5" />
+        </Link>
       </div>
 
       {!collapsed && (
         <div className="space-y-0.5">
-          {sorted.map((ch, i) => (
+          {sorted.map(ch => (
             <ChannelRow key={ch.id} channel={ch} active={activeId === ch.id}
               onClick={() => onSelect(ch)} isAdmin={isAdmin}
-              first={i === 0} last={i === sorted.length - 1}
-              onMoveUp={() => onReorder(ch.id, 'up')}
-              onMoveDown={() => onReorder(ch.id, 'down')}
               onRename={() => onRename(ch)}
               onArchive={v => onArchive(ch, v)} onDelete={() => onDelete(ch.id)}
               indent={true} unread={unreadCounts[ch.id]} />
           ))}
+          {isAdmin && (
+            <button onClick={() => {
+              const ccChannel = sorted.find(c => c.type === 'customer_care')
+              if (ccChannel) onInviteExternal(ccChannel.id)
+              else toast.info('Nessun canale Customer Care trovato per questo progetto')
+            }}
+              className="flex items-center gap-1.5 pl-6 pr-2 py-1 text-[10px] text-[#555] hover:text-gold transition-colors w-full text-left">
+              <UserPlus className="w-2.5 h-2.5" /> Invita esterno
+            </button>
+          )}
         </div>
       )}
     </div>
   )
 }
 
-// ─── Sidebar section wrapper ──────────────────────────────────────────────────
+// ─── Section wrapper ─────────────────────────────────────────────────────────
 
-function Section({ label, icon, onAdd, defaultCollapsed = false, children }: {
+function SidebarSection({ label, icon, onAdd, defaultCollapsed = false, children }: {
   label: string; icon: React.ReactNode; onAdd?: () => void
   defaultCollapsed?: boolean; children: React.ReactNode
 }) {
@@ -449,17 +479,19 @@ function Section({ label, icon, onAdd, defaultCollapsed = false, children }: {
   )
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+// ─── Main ────────────────────────────────────────────────────────────────────
 
 export function ChatLayout({ channels: initialChannels, currentProfile, allProfiles, clients, projects = [], initialChannelId, unreadCounts: initialUnread = {} }: Props) {
   const [channels, setChannels] = useState(initialChannels)
   const [activeChannel, setActiveChannel] = useState<ChatChannel | null>(
     initialChannels.find(c => c.id === initialChannelId) ??
-    initialChannels.filter(c => !c.is_archived && c.type === 'interno')[0] ?? null
+    initialChannels.filter(c => !c.is_archived)[0] ?? null
   )
   const [showNewTeam, setShowNewTeam] = useState(false)
   const [renameTarget, setRenameTarget] = useState<ChatChannel | null>(null)
+  const [inviteChannelId, setInviteChannelId] = useState<string | null>(null)
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>(initialUnread)
+  const [searchTerm, setSearchTerm] = useState('')
   const isAdmin = isSuperAdmin(currentProfile)
 
   useEffect(() => {
@@ -467,9 +499,8 @@ export function ChatLayout({ channels: initialChannels, currentProfile, allProfi
       const found = channels.find(c => c.id === initialChannelId)
       if (found) setActiveChannel(found)
     }
-  }, [initialChannelId])
+  }, [initialChannelId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Realtime: aggiorna unread quando arriva un messaggio su canali non attivi
   useEffect(() => {
     const sb = createClient()
     const sub = sb.channel('global-messages')
@@ -479,14 +510,12 @@ export function ChatLayout({ channels: initialChannels, currentProfile, allProfi
         if (senderId === currentProfile.id) return
         if (activeChannel?.id === chId) return
         setUnreadCounts(prev => ({ ...prev, [chId]: (prev[chId] ?? 0) + 1 }))
-        // Aggiorna last_message_at localmente
         setChannels(prev => prev.map(c => c.id === chId ? { ...c, last_message_at: payload.new.created_at } : c))
       })
       .subscribe()
     return () => { sb.removeChannel(sub) }
   }, [currentProfile.id, activeChannel?.id])
 
-  // Quando cambio canale attivo → mark as read
   const selectChannel = (ch: ChatChannel) => {
     setActiveChannel(ch)
     setUnreadCounts(prev => { const n = { ...prev }; delete n[ch.id]; return n })
@@ -495,125 +524,66 @@ export function ChatLayout({ channels: initialChannels, currentProfile, allProfi
       .eq('channel_id', ch.id).eq('profile_id', currentProfile.id)
   }
 
-  // Suddivisione
+  // Group channels
   const teamChannels = channels
-    .filter(c => c.type === 'interno' && !c.client_id && !c.is_archived)
+    .filter(c => c.type === 'interno' && !c.client_id && !c.project_id && !c.is_archived)
     .sort((a, b) => {
       const aU = unreadCounts[a.id] ?? 0; const bU = unreadCounts[b.id] ?? 0
-      if (aU !== bU) return bU - aU // unread prima
+      if (aU !== bU) return bU - aU
       return new Date(b.last_message_at ?? 0).getTime() - new Date(a.last_message_at ?? 0).getTime()
     })
-  const clientChannels = channels.filter(c =>
-    ['customer_care', 'cliente', 'cliente_interno'].includes(c.type) && !c.is_archived)
-  const archivedChannels = channels.filter(c => c.is_archived)
 
-  // Mappa progetti e clienti
-  const clientMap: Record<string, Client> = {}
-  clients.forEach(c => { clientMap[c.id] = c })
   const projectMap: Record<string, ProjectInfo> = {}
   projects.forEach(p => { projectMap[p.id] = p })
+  const clientMap: Record<string, Client> = {}
+  clients.forEach(c => { clientMap[c.id] = c })
 
-  // Raggruppa per project_id se disponibile, altrimenti per client_id
-  // La chiave è "p:{project_id}" oppure "c:{client_id}"
-  const projectGroups: Record<string, ChatChannel[]> = {}
-  clientChannels.forEach(ch => {
-    const key = ch.project_id ? `p:${ch.project_id}` : ch.client_id ? `c:${ch.client_id}` : null
-    if (!key) return
-    if (!projectGroups[key]) projectGroups[key] = []
-    projectGroups[key].push(ch)
+  const projectChannels: Record<string, ChatChannel[]> = {}
+  channels.filter(c => c.project_id && !c.is_archived).forEach(ch => {
+    const pid = ch.project_id!
+    if (!projectChannels[pid]) projectChannels[pid] = []
+    projectChannels[pid].push(ch)
   })
 
-  const archivedGroups: { groupKey: string; channels: ChatChannel[] }[] = []
-  const archivedGeneral: ChatChannel[] = []
-  const tmpGroups: Record<string, ChatChannel[]> = {}
-  archivedChannels.forEach(ch => {
-    const key = ch.project_id ? `p:${ch.project_id}` : ch.client_id ? `c:${ch.client_id}` : null
-    if (key) {
-      if (!tmpGroups[key]) tmpGroups[key] = []
-      tmpGroups[key].push(ch)
-    } else {
-      archivedGeneral.push(ch)
-    }
+  const archivedChannels = channels.filter(c => c.is_archived)
+
+  // Search filter
+  const matchesSearch = (text: string) => !searchTerm || text.toLowerCase().includes(searchTerm.toLowerCase())
+
+  const filteredTeam = teamChannels.filter(c => matchesSearch(c.name))
+  const filteredProjectIds = Object.keys(projectChannels).filter(pid => {
+    const p = projectMap[pid]
+    if (!p) return false
+    return matchesSearch(p.name) || matchesSearch(p.client?.company_name ?? '')
   })
-  Object.entries(tmpGroups).forEach(([key, chs]) => archivedGroups.push({ groupKey: key, channels: chs }))
 
-  const existingClientIds = Object.keys(projectGroups).filter(k => k.startsWith('c:')).map(k => k.slice(2))
-
-  // Mutazioni
+  // Mutations
   const mutate = (id: string, patch: Partial<ChatChannel>) => {
     setChannels(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c))
     if (activeChannel?.id === id) setActiveChannel(p => p ? { ...p, ...patch } : null)
   }
-
   const handleCreateSingle = (ch: ChatChannel) => {
     setChannels(prev => [...prev, ch])
     setActiveChannel(ch)
     setShowNewTeam(false)
   }
-
-  const handleReorder = async (channelId: string, direction: 'up' | 'down') => {
-    const ch = channels.find(c => c.id === channelId)
-    if (!ch) return
-    const siblings = channels
-      .filter(c => c.client_id === ch.client_id && !c.is_archived)
-      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-    const idx = siblings.findIndex(c => c.id === channelId)
-    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
-    if (swapIdx < 0 || swapIdx >= siblings.length) return
-    const swapCh = siblings[swapIdx]
-    const newPos = swapCh.position ?? swapIdx
-    const oldPos = ch.position ?? idx
-    const sb = createClient()
-    await Promise.all([
-      sb.from('chat_channels').update({ position: newPos }).eq('id', channelId),
-      sb.from('chat_channels').update({ position: oldPos }).eq('id', swapCh.id),
-    ])
-    mutate(channelId, { position: newPos })
-    mutate(swapCh.id, { position: oldPos })
-  }
-
   const handleRename = (id: string, name: string) => mutate(id, { name })
   const handleArchive = (ch: ChatChannel, val: boolean) => mutate(ch.id, { is_archived: val, is_read_only: val })
   const handleDelete = (id: string) => {
     setChannels(prev => prev.filter(c => c.id !== id))
-    if (activeChannel?.id === id) {
-      setActiveChannel(channels.filter(c => !c.is_archived && c.id !== id)[0] ?? null)
-    }
-  }
-
-  const getGroupInfo = (key: string) => {
-    if (key.startsWith('p:')) {
-      const p = projectMap[key.slice(2)]
-      if (p) return { label: p.name, sublabel: p.client?.company_name, clientId: p.client_id, client: clientMap[p.client_id] }
-    }
-    if (key.startsWith('c:')) {
-      const c = clientMap[key.slice(2)]
-      if (c) return { label: c.company_name, sublabel: undefined, clientId: c.id, client: c }
-    }
-    return { label: key, sublabel: undefined, clientId: undefined, client: undefined }
+    if (activeChannel?.id === id) setActiveChannel(channels.filter(c => !c.is_archived && c.id !== id)[0] ?? null)
   }
 
   const activeClient = activeChannel?.client_id ? clientMap[activeChannel.client_id] : null
-  const isActivePerso = activeClient?.client_label === 'perso'
-  const isActiveArchived = activeChannel?.is_archived ?? false
-
-  const sharedHandlers = {
-    isAdmin,
-    onRename: setRenameTarget,
-    onArchive: handleArchive,
-    onDelete: handleDelete,
-    onReorder: handleReorder,
-    unreadCounts,
-  }
+  const activeProject = activeChannel?.project_id ? projectMap[activeChannel.project_id] : null
 
   return (
     <div className="flex h-full bg-[#0F0F0F]">
 
       {/* ── Sidebar ──────────────────────────────────────────────────────── */}
-      <aside className="w-56 bg-[#111] border-r border-[#1E1E1E] flex flex-col shrink-0">
-        {/* Header */}
+      <aside className="w-60 bg-[#111] border-r border-[#1E1E1E] flex flex-col shrink-0">
         <div className="px-4 py-3 border-b border-[#1E1E1E]">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-2">
             <div>
               <p className="text-sm font-black text-white leading-none">two bee<span className="text-gold">.</span></p>
               <p className="text-[10px] text-[#555] mt-0.5">Chat</p>
@@ -621,81 +591,77 @@ export function ChatLayout({ channels: initialChannels, currentProfile, allProfi
             {isAdmin && (
               <button onClick={() => setShowNewTeam(true)}
                 className="w-6 h-6 flex items-center justify-center text-[#555] hover:text-white hover:bg-[#2A2A2A] rounded-lg transition-colors" title="Nuovo canale team">
-                <Lock className="w-3 h-3" />
+                <Plus className="w-3.5 h-3.5" />
               </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2 bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-2.5 py-1.5">
+            <Search className="w-3 h-3 text-[#555] shrink-0" />
+            <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Cerca progetto…"
+              className="flex-1 bg-transparent text-xs text-white focus:outline-none placeholder:text-[#444]" />
+            {searchTerm && (
+              <button onClick={() => setSearchTerm('')} className="text-[#555] hover:text-white"><X className="w-3 h-3" /></button>
             )}
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto py-2 px-1.5">
-
           {/* Team */}
-          <Section label="Team" icon={<Users className="w-2.5 h-2.5" />}
+          <SidebarSection label="Team" icon={<Users className="w-2.5 h-2.5" />}
             onAdd={isAdmin ? () => setShowNewTeam(true) : undefined}>
-            {teamChannels.length === 0
+            {filteredTeam.length === 0
               ? <p className="text-[10px] text-[#555] px-3 py-1 italic">Nessun canale</p>
-              : teamChannels.map((ch, i) => (
+              : filteredTeam.map(ch => (
                 <ChannelRow key={ch.id} channel={ch} active={activeChannel?.id === ch.id}
                   onClick={() => selectChannel(ch)} isAdmin={isAdmin}
-                  first={i === 0} last={i === teamChannels.length - 1}
-                  onMoveUp={() => handleReorder(ch.id, 'up')}
-                  onMoveDown={() => handleReorder(ch.id, 'down')}
                   onRename={() => setRenameTarget(ch)}
                   onArchive={v => handleArchive(ch, v)} onDelete={() => handleDelete(ch.id)}
-                  indent={false} unread={unreadCounts[ch.id]}
-                  onDragStart={e => e.dataTransfer.setData('channelId', ch.id)} />
+                  indent={false} unread={unreadCounts[ch.id]} />
               ))}
-          </Section>
+          </SidebarSection>
 
-          {/* Progetti / Clienti — ordinati per unread count poi last_message_at */}
-          <Section label="Progetti" icon={<Headphones className="w-2.5 h-2.5" />}>
-            {Object.keys(projectGroups).length === 0
-              ? <p className="text-[10px] text-[#555] px-3 py-1 italic">Nessun progetto</p>
-              : Object.entries(projectGroups)
-                  .sort(([aKey, aChs], [bKey, bChs]) => {
-                    const aU = aChs.reduce((s, c) => s + (unreadCounts[c.id] ?? 0), 0)
-                    const bU = bChs.reduce((s, c) => s + (unreadCounts[c.id] ?? 0), 0)
+          {/* Progetti attivi */}
+          <SidebarSection label="Progetti attivi" icon={<FolderKanban className="w-2.5 h-2.5" />}>
+            {filteredProjectIds.length === 0
+              ? <p className="text-[10px] text-[#555] px-3 py-1 italic">Nessun progetto attivo</p>
+              : filteredProjectIds
+                  .sort((a, b) => {
+                    const aU = (projectChannels[a] ?? []).reduce((s, c) => s + (unreadCounts[c.id] ?? 0), 0)
+                    const bU = (projectChannels[b] ?? []).reduce((s, c) => s + (unreadCounts[c.id] ?? 0), 0)
                     if (aU !== bU) return bU - aU
-                    const aLast = Math.max(...aChs.map(c => new Date(c.last_message_at ?? 0).getTime()))
-                    const bLast = Math.max(...bChs.map(c => new Date(c.last_message_at ?? 0).getTime()))
-                    if (aLast !== bLast) return bLast - aLast
-                    return getGroupInfo(aKey).label.localeCompare(getGroupInfo(bKey).label)
+                    const pA = projectMap[a], pB = projectMap[b]
+                    return (pA?.name ?? '').localeCompare(pB?.name ?? '')
                   })
-                  .map(([key, chs]) => {
-                    const info = getGroupInfo(key)
+                  .map(pid => {
+                    const proj = projectMap[pid]
+                    if (!proj) return null
                     return (
-                      <ClientGroup key={key} clientId={info.clientId ?? key}
-                        client={info.client}
-                        groupLabel={info.label} groupSublabel={info.sublabel} groupClientId={info.clientId}
-                        channels={chs} activeId={activeChannel?.id}
-                        onSelect={selectChannel} {...sharedHandlers} />
+                      <ProjectGroup key={pid} project={proj}
+                        channels={projectChannels[pid]}
+                        activeId={activeChannel?.id}
+                        onSelect={selectChannel}
+                        isAdmin={isAdmin}
+                        onRename={setRenameTarget}
+                        onArchive={handleArchive}
+                        onDelete={handleDelete}
+                        unreadCounts={unreadCounts}
+                        onInviteExternal={setInviteChannelId} />
                     )
                   })}
-          </Section>
+          </SidebarSection>
 
           {/* Archiviate */}
           {archivedChannels.length > 0 && (
-            <Section label="Archiviate" icon={<Archive className="w-2.5 h-2.5" />} defaultCollapsed>
-              {archivedGeneral.map((ch, i) => (
+            <SidebarSection label={`Archiviate (${archivedChannels.length})`} icon={<Archive className="w-2.5 h-2.5" />} defaultCollapsed>
+              {archivedChannels.map(ch => (
                 <ChannelRow key={ch.id} channel={ch} active={activeChannel?.id === ch.id}
                   onClick={() => selectChannel(ch)} isAdmin={isAdmin}
-                  first={i === 0} last={i === archivedGeneral.length - 1}
-                  onMoveUp={() => {}} onMoveDown={() => {}}
                   onRename={() => setRenameTarget(ch)}
                   onArchive={v => handleArchive(ch, v)} onDelete={() => handleDelete(ch.id)}
                   indent={false} />
               ))}
-              {archivedGroups.map(({ groupKey, channels: chs }) => {
-                const info = getGroupInfo(groupKey)
-                return (
-                  <ClientGroup key={groupKey} clientId={info.clientId ?? groupKey}
-                    client={info.client}
-                    groupLabel={info.label} groupSublabel={info.sublabel} groupClientId={info.clientId}
-                    channels={chs} activeId={activeChannel?.id}
-                    onSelect={selectChannel} {...sharedHandlers} />
-                )
-              })}
-            </Section>
+            </SidebarSection>
           )}
         </div>
 
@@ -725,7 +691,6 @@ export function ChatLayout({ channels: initialChannels, currentProfile, allProfi
             channelName={activeChannel.name}
             channelType={activeChannel.type as 'interno' | 'cliente' | 'customer_care' | 'task' | 'cliente_interno'}
             channelLabel={(() => {
-              const activeProject = activeChannel.project_id ? projectMap[activeChannel.project_id] : null
               const contextLabel = activeProject
                 ? `${activeProject.name} (${activeProject.client?.company_name ?? activeClient?.company_name ?? ''})`
                 : activeClient?.company_name ?? ''
@@ -738,12 +703,17 @@ export function ChatLayout({ channels: initialChannels, currentProfile, allProfi
             currentProfile={currentProfile}
             allProfiles={allProfiles}
             isAdmin={isAdmin}
-            isArchived={isActivePerso || isActiveArchived}
-            isReadOnly={(isActivePerso || isActiveArchived) && !isAdmin}
+            isArchived={activeChannel.is_archived}
+            isReadOnly={activeChannel.is_archived && !isAdmin}
             clientId={activeChannel.client_id ?? undefined}
             onArchiveToggle={val => handleArchive(activeChannel, val)}
             headerExtra={
-              activeChannel.client_id ? (
+              activeProject ? (
+                <Link href={`/clienti/${activeProject.client_id}/progetto/${activeProject.id}`}
+                  className="text-[10px] text-text-secondary hover:text-gold transition-colors flex items-center gap-1 ml-1">
+                  <ExternalLink className="w-3 h-3" /> vai al progetto
+                </Link>
+              ) : activeChannel.client_id ? (
                 <Link href={`/clienti/${activeChannel.client_id}`}
                   className="text-[10px] text-text-secondary hover:text-gold transition-colors flex items-center gap-1 ml-1">
                   <ExternalLink className="w-3 h-3" /> vai al cliente
@@ -756,12 +726,12 @@ export function ChatLayout({ channels: initialChannels, currentProfile, allProfi
             <div className="w-14 h-14 rounded-2xl bg-[#1A1A1A] border border-[#2A2A2A] flex items-center justify-center text-2xl">💬</div>
             <div>
               <p className="text-white font-bold mb-1">Seleziona un canale</p>
-              <p className="text-text-secondary text-sm">Scegli un progetto dalla sidebar.</p>
+              <p className="text-text-secondary text-sm">Scegli un progetto dalla sidebar per iniziare a chattare.</p>
             </div>
             {isAdmin && (
               <button onClick={() => setShowNewTeam(true)}
                 className="flex items-center gap-2 px-4 py-2 border border-[#2A2A2A] text-text-secondary text-sm rounded-xl hover:text-white hover:border-[#3A3A3A] transition-colors">
-                <Lock className="w-4 h-4" /> Nuovo canale team
+                <Plus className="w-4 h-4" /> Nuovo canale team
               </button>
             )}
           </div>
@@ -771,6 +741,7 @@ export function ChatLayout({ channels: initialChannels, currentProfile, allProfi
       {/* Modali */}
       {showNewTeam && <NewTeamChannelModal onClose={() => setShowNewTeam(false)} onCreate={handleCreateSingle} currentProfileId={currentProfile.id} allProfiles={allProfiles} />}
       {renameTarget && <RenameModal channel={renameTarget} onClose={() => setRenameTarget(null)} onRename={handleRename} />}
+      {inviteChannelId && <InviteExternalModal channelId={inviteChannelId} onClose={() => setInviteChannelId(null)} />}
     </div>
   )
 }

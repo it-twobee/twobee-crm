@@ -20,11 +20,12 @@ import { MeetingRecapsSection } from './tabs/RiunioniTab'
 import { KpiSection } from './tabs/KpiTab'
 import { AggiornamentiFeed } from './tabs/AggiornamentiTab'
 import { ProjectChatSection } from './tabs/ChatTab'
+import { ClientPlanSection } from './tabs/ClientPlanTab'
 
 export type { ProjectComment }
 
 // ─── Local types ───────────────────────────────────────────────────────────────
-type PageTab   = 'progetto' | 'appuntamenti' | 'riunioni' | 'kpi' | 'aggiornamenti' | 'chat'
+type PageTab   = 'progetto' | 'appuntamenti' | 'riunioni' | 'kpi' | 'aggiornamenti' | 'chat' | 'piano_cliente'
 type ExtTask   = Task & { milestone_id?: string | null; parent_id?: string | null; order?: number }
 type ExtSprint = Sprint & { order?: number }
 interface AiPlanTask      { title: string; priority: string }
@@ -1900,6 +1901,7 @@ export function ProjectPageClient({
     { key: 'riunioni',      label: '📖 Riunioni', badge: meetings.length || undefined },
     { key: 'kpi',           label: '📊 KPI' },
     { key: 'aggiornamenti', label: '💬 Aggiornamenti', badge: newUpdates || undefined },
+    { key: 'piano_cliente', label: '⭐ Piano Cliente' },
     { key: 'chat',          label: '🗨️ Chat' },
   ]
 
@@ -2019,6 +2021,9 @@ export function ProjectPageClient({
           <AggiornamentiFeed comments={localComments} currentProfile={currentProfile}
             projectId={localProject.id} allProfiles={allProfiles} isAdmin={isAdmin}
             onUpdate={setLocalComments} accent={accent} />
+        )}
+        {activeTab === 'piano_cliente' && (
+          <ClientPlanSection project={localProject} client={client} isAdmin={isAdmin} accent={accent} />
         )}
         {activeTab === 'chat' && currentProfile && (
           <ProjectChatSection
