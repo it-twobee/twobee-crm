@@ -64,11 +64,11 @@ export function AppointmentsSection({ accent, isAdmin, project, client }: {
   const inp = 'w-full bg-[#111] border border-[#2A2A2A] rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C800] placeholder:text-[#333]'
 
   const today = new Date().toISOString().slice(0, 10)
-  const clientName = client.company_name.toLowerCase()
+  const projectName = project.name.toLowerCase()
   const upcoming = events.filter(e => {
     const d = (e.start?.dateTime ?? e.start?.date ?? '')
     const title = (e.summary ?? '').toLowerCase()
-    return d >= today && title.includes(clientName)
+    return d >= today && title.includes(projectName)
   })
 
   if (loading) return (

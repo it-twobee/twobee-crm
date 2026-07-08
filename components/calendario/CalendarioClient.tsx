@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { ChevronLeft, ChevronRight, Plus, Loader2, Link2, X, Filter, CheckSquare, Search, Calendar as CalIcon } from 'lucide-react'
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isToday, isSameDay, addMonths, subMonths, addWeeks, subWeeks } from 'date-fns'
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, subDays, isSameMonth, isToday, isSameDay, addMonths, subMonths, addWeeks, subWeeks, addYears, subYears, startOfYear, endOfYear } from 'date-fns'
 import { it } from 'date-fns/locale'
 import type { Profile } from '@/lib/types/database'
 
@@ -22,7 +22,22 @@ interface CalTask {
   project: { id: string; name: string; clients: { company_name: string } | null } | null
 }
 
-type ViewMode = 'settimana' | 'mese'
+type ViewMode = 'giorno' | 'settimana' | 'mese' | 'anno' | 'personalizzato'
+
+function getViewRange(vm: ViewMode, date: Date, rs: string, re: string): { from: Date; to: Date } | null {
+  if (vm === 'giorno') {
+    const from = new Date(date); from.setHours(0, 0, 0, 0)
+    const to = new Date(date); to.setHours(23, 59, 59, 999)
+    return { from, to }
+  }
+  if (vm === 'settimana') return { from: startOfWeek(date, { weekStartsOn: 1 }), to: endOfWeek(date, { weekStartsOn: 1 }) }
+  if (vm === 'anno') return { from: startOfYear(date), to: endOfYear(date) }
+  if (vm === 'personalizzato') {
+    if (!rs || !re) return null
+    return { from: new Date(rs + 'T00:00:00'), to: new Date(re + 'T23:59:59') }
+  }
+  return { from: startOfMonth(date), to: endOfMonth(date) }
+}
 
 const EVENT_STYLE = 'bg-blue-500/15 text-blue-400 border-blue-500/25'
 const MEETING_STYLE = 'bg-purple-500/15 text-purple-400 border-purple-500/25'
@@ -55,22 +70,25 @@ export function CalendarioClient({
   const [showFilter, setShowFilter] = useState(false)
   const [showTasks, setShowTasks] = useState(true)
   const [search, setSearch] = useState('')
+  const [rangeStart, setRangeStart] = useState('')
+  const [rangeEnd, setRangeEnd]     = useState('')
 
-  useEffect(() => {
-    if (!isGoogleConnected) return
-    fetchEvents()
-  }, [currentDate, isGoogleConnected])
-
-  const fetchEvents = async () => {
+  const fetchEvents = async (from: Date, to: Date) => {
     setLoadingEvents(true)
     try {
-      const timeMin = startOfMonth(currentDate).toISOString()
-      const timeMax = endOfMonth(currentDate).toISOString()
-      const res = await fetch(`/api/google/events?timeMin=${timeMin}&timeMax=${timeMax}`)
+      const res = await fetch(`/api/google/events?timeMin=${from.toISOString()}&timeMax=${to.toISOString()}`)
       const { events } = await res.json()
       setGoogleEvents(events ?? [])
-    } catch { /* silent */ } finally { setLoadingEvents(false) }
+    } catch { } finally { setLoadingEvents(false) }
   }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!isGoogleConnected) return
+    const range = getViewRange(viewMode, currentDate, rangeStart, rangeEnd)
+    if (!range) return
+    fetchEvents(range.from, range.to)
+  }, [viewMode, currentDate, rangeStart, rangeEnd, isGoogleConnected])
 
   const filteredTasks = useMemo(() => {
     let t = tasks
@@ -112,23 +130,33 @@ export function CalendarioClient({
         body: JSON.stringify({ title: newEvent.title, description: newEvent.description, start: start.toISOString(), end: end.toISOString() }),
       })
       setShowNewEvent(false); setNewEvent({ title: '', date: '', startTime: '09:00', endTime: '10:00', description: '' })
-      fetchEvents()
+      const r = getViewRange(viewMode, currentDate, rangeStart, rangeEnd)
+      if (r) fetchEvents(r.from, r.to)
     } finally { setSaving(false) }
   }
 
   const navPrev = () => {
     if (viewMode === 'mese') setCurrentDate(subMonths(currentDate, 1))
-    else setCurrentDate(subWeeks(currentDate, 1))
+    else if (viewMode === 'settimana') setCurrentDate(subWeeks(currentDate, 1))
+    else if (viewMode === 'giorno') setCurrentDate(subDays(currentDate, 1))
+    else if (viewMode === 'anno') setCurrentDate(subYears(currentDate, 1))
   }
   const navNext = () => {
     if (viewMode === 'mese') setCurrentDate(addMonths(currentDate, 1))
-    else setCurrentDate(addWeeks(currentDate, 1))
+    else if (viewMode === 'settimana') setCurrentDate(addWeeks(currentDate, 1))
+    else if (viewMode === 'giorno') setCurrentDate(addDays(currentDate, 1))
+    else if (viewMode === 'anno') setCurrentDate(addYears(currentDate, 1))
   }
   const goToday = () => setCurrentDate(new Date())
 
-  const headerLabel = viewMode === 'mese'
-    ? format(currentDate, 'MMMM yyyy', { locale: it })
-    : `${format(startOfWeek(currentDate, { weekStartsOn: 1 }), 'd MMM', { locale: it })} — ${format(endOfWeek(currentDate, { weekStartsOn: 1 }), 'd MMM yyyy', { locale: it })}`
+  const headerLabel =
+    viewMode === 'mese' ? format(currentDate, 'MMMM yyyy', { locale: it })
+    : viewMode === 'settimana' ? `${format(startOfWeek(currentDate, { weekStartsOn: 1 }), 'd MMM', { locale: it })} — ${format(endOfWeek(currentDate, { weekStartsOn: 1 }), 'd MMM yyyy', { locale: it })}`
+    : viewMode === 'giorno' ? format(currentDate, 'EEEE d MMMM yyyy', { locale: it })
+    : viewMode === 'anno' ? format(currentDate, 'yyyy')
+    : rangeStart && rangeEnd
+      ? `${format(new Date(rangeStart + 'T12:00:00'), 'd MMM', { locale: it })} — ${format(new Date(rangeEnd + 'T12:00:00'), 'd MMM yyyy', { locale: it })}`
+      : 'Periodo personalizzato'
 
   const selectedDayEvents = selectedDay ? eventsForDay(selectedDay) : []
   const selectedDayMeetings = selectedDay ? meetingsForDay(selectedDay) : []
@@ -140,16 +168,29 @@ export function CalendarioClient({
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-bold text-white capitalize">{headerLabel}</h1>
-            <div className="flex items-center gap-1">
-              <button onClick={navPrev} className="p-1.5 rounded-lg hover:bg-white/[0.04] text-white/30 hover:text-white transition-colors">
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button onClick={goToday} className="px-3 py-1 text-xs bg-white/[0.04] rounded-lg text-white/40 hover:text-white transition-colors">Oggi</button>
-              <button onClick={navNext} className="p-1.5 rounded-lg hover:bg-white/[0.04] text-white/30 hover:text-white transition-colors">
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
+            {viewMode !== 'personalizzato' ? (
+              <>
+                <h1 className="text-2xl font-bold text-white capitalize">{headerLabel}</h1>
+                <div className="flex items-center gap-1">
+                  <button onClick={navPrev} className="p-1.5 rounded-lg hover:bg-white/[0.04] text-white/30 hover:text-white transition-colors">
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button onClick={goToday} className="px-3 py-1 text-xs bg-white/[0.04] rounded-lg text-white/40 hover:text-white transition-colors">Oggi</button>
+                  <button onClick={navNext} className="p-1.5 rounded-lg hover:bg-white/[0.04] text-white/30 hover:text-white transition-colors">
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-white/40">Da</span>
+                <input type="date" value={rangeStart} onChange={e => setRangeStart(e.target.value)}
+                  className="bg-white/[0.03] border border-white/[0.08] rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-gold/40" />
+                <span className="text-xs text-white/40">a</span>
+                <input type="date" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)}
+                  className="bg-white/[0.03] border border-white/[0.08] rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-gold/40" />
+              </div>
+            )}
             {loadingEvents && <Loader2 className="w-4 h-4 text-gold animate-spin" />}
           </div>
           <div className="flex items-center gap-2">
@@ -168,10 +209,10 @@ export function CalendarioClient({
 
             {/* View mode */}
             <div className="flex bg-white/[0.03] border border-white/[0.06] rounded-lg p-0.5">
-              {(['settimana', 'mese'] as ViewMode[]).map(v => (
+              {(['giorno', 'settimana', 'mese', 'anno', 'personalizzato'] as ViewMode[]).map(v => (
                 <button key={v} onClick={() => setViewMode(v)}
-                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors capitalize ${viewMode === v ? 'bg-gold text-black font-bold' : 'text-white/40 hover:text-white'}`}>
-                  {v === 'settimana' ? 'Settimana' : 'Mese'}
+                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${viewMode === v ? 'bg-gold text-black font-bold' : 'text-white/40 hover:text-white'}`}>
+                  {v === 'giorno' ? 'Giorno' : v === 'settimana' ? 'Sett.' : v === 'mese' ? 'Mese' : v === 'anno' ? 'Anno' : 'Periodo'}
                 </button>
               ))}
             </div>
@@ -250,13 +291,38 @@ export function CalendarioClient({
             selectedDay={selectedDay}
             onSelectDay={d => setSelectedDay(isSameDay(d, selectedDay ?? new Date(0)) ? null : d)}
           />
-        ) : (
+        ) : viewMode === 'settimana' ? (
           <WeekView
             currentDate={currentDate}
             eventsForDay={eventsForDay}
             meetingsForDay={meetingsForDay}
             tasksForDay={tasksForDay}
             selectedDay={selectedDay}
+            onSelectDay={d => setSelectedDay(isSameDay(d, selectedDay ?? new Date(0)) ? null : d)}
+          />
+        ) : viewMode === 'giorno' ? (
+          <DayView
+            currentDate={currentDate}
+            eventsForDay={eventsForDay}
+            meetingsForDay={meetingsForDay}
+            tasksForDay={tasksForDay}
+          />
+        ) : viewMode === 'anno' ? (
+          <YearView
+            currentDate={currentDate}
+            eventsForDay={eventsForDay}
+            meetingsForDay={meetingsForDay}
+            tasksForDay={tasksForDay}
+            selectedDay={selectedDay}
+            onSelectDay={d => setSelectedDay(isSameDay(d, selectedDay ?? new Date(0)) ? null : d)}
+          />
+        ) : (
+          <ListView
+            events={filteredEvents}
+            meetings={filteredMeetings}
+            tasks={filteredTasks}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
             onSelectDay={d => setSelectedDay(isSameDay(d, selectedDay ?? new Date(0)) ? null : d)}
           />
         )}
@@ -420,6 +486,56 @@ function MonthView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, sel
   )
 }
 
+/* ── DAY VIEW ───────────────────────────────────── */
+function DayView({ currentDate, eventsForDay, meetingsForDay, tasksForDay }: {
+  currentDate: Date
+  eventsForDay: (d: Date) => GoogleEvent[]
+  meetingsForDay: (d: Date) => LocalMeeting[]
+  tasksForDay: (d: Date) => CalTask[]
+}) {
+  const events   = eventsForDay(currentDate)
+  const meetings = meetingsForDay(currentDate)
+  const tasks    = tasksForDay(currentDate)
+  const allEmpty = events.length === 0 && meetings.length === 0 && tasks.length === 0
+
+  return (
+    <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+      {events.map(e => (
+        <div key={e.id} className={`p-4 rounded-xl border ${EVENT_STYLE}`}>
+          <p className="text-sm font-semibold">{e.summary}</p>
+          {e.start.dateTime && (
+            <p className="text-xs opacity-70 mt-1">
+              {format(new Date(e.start.dateTime), 'HH:mm')}{e.end?.dateTime ? ` — ${format(new Date(e.end.dateTime), 'HH:mm')}` : ''}
+            </p>
+          )}
+          {e.attendees && e.attendees.length > 0 && <p className="text-xs opacity-60 mt-1">{e.attendees.length} partecipanti</p>}
+        </div>
+      ))}
+      {meetings.map(m => (
+        <div key={m.id} className={`p-4 rounded-xl border ${MEETING_STYLE}`}>
+          <p className="text-sm font-semibold">{m.title}</p>
+          {m.duration_minutes && <p className="text-xs opacity-70 mt-1">{m.duration_minutes} min</p>}
+          {m.description && <p className="text-xs opacity-60 mt-1 line-clamp-2">{m.description}</p>}
+        </div>
+      ))}
+      {tasks.map(t => (
+        <div key={t.id} className={`p-4 rounded-xl border ${taskStyle(t.due_date!)}`}>
+          <div className="flex items-center gap-2">
+            <CheckSquare className="w-4 h-4 opacity-50 shrink-0" />
+            <p className="text-sm font-semibold">{t.title}</p>
+          </div>
+          {t.project && <p className="text-xs opacity-60 mt-1">{t.project.clients?.company_name ?? t.project.name}</p>}
+        </div>
+      ))}
+      {allEmpty && (
+        <div className="flex items-center justify-center py-20">
+          <p className="text-sm text-white/30">Nessun elemento per questo giorno</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ── WEEK VIEW ──────────────────────────────────── */
 function WeekView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, selectedDay, onSelectDay }: {
   currentDate: Date
@@ -471,6 +587,146 @@ function WeekView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, sele
                   <div className="flex items-center gap-1">
                     <CheckSquare className="w-2.5 h-2.5 shrink-0 opacity-50" />
                     <p className="font-medium truncate">{t.title}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/* ── YEAR VIEW ──────────────────────────────────── */
+function YearView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, selectedDay, onSelectDay }: {
+  currentDate: Date
+  eventsForDay: (d: Date) => GoogleEvent[]
+  meetingsForDay: (d: Date) => LocalMeeting[]
+  tasksForDay: (d: Date) => CalTask[]
+  selectedDay: Date | null
+  onSelectDay: (d: Date) => void
+}) {
+  const year   = currentDate.getFullYear()
+  const months = Array.from({ length: 12 }, (_, i) => new Date(year, i, 1))
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <div className="grid grid-cols-4 gap-3">
+        {months.map(monthDate => {
+          const monthStart = startOfWeek(startOfMonth(monthDate), { weekStartsOn: 1 })
+          const monthEnd   = endOfWeek(endOfMonth(monthDate), { weekStartsOn: 1 })
+          const days: Date[] = []; let d = monthStart
+          while (d <= monthEnd) { days.push(d); d = addDays(d, 1) }
+
+          return (
+            <div key={monthDate.getMonth()} className="bg-[#0B0B0C] rounded-xl p-3 border border-white/[0.04]">
+              <p className="text-xs font-bold text-white/60 mb-2 capitalize">
+                {format(monthDate, 'MMMM', { locale: it })}
+              </p>
+              <div className="grid grid-cols-7 gap-0">
+                {['L','M','M','G','V','S','D'].map((n, i) => (
+                  <div key={i} className="text-[8px] text-white/20 text-center pb-1">{n}</div>
+                ))}
+                {days.map((day, i) => {
+                  const inMonth = isSameMonth(day, monthDate)
+                  const total   = inMonth ? eventsForDay(day).length + meetingsForDay(day).length + tasksForDay(day).length : 0
+                  const isSel   = selectedDay && isSameDay(day, selectedDay)
+                  return (
+                    <button key={i} onClick={() => inMonth && onSelectDay(day)}
+                      className={`relative text-[10px] text-center w-5 h-5 rounded-full flex items-center justify-center mx-auto transition-colors ${
+                        !inMonth ? 'invisible' :
+                        isSel ? 'bg-gold text-black font-bold' :
+                        isToday(day) ? 'text-gold font-bold' :
+                        'text-white/50 hover:text-white hover:bg-white/[0.06]'
+                      }`}>
+                      {inMonth ? format(day, 'd') : ''}
+                      {total > 0 && inMonth && !isSel && (
+                        <span className="absolute bottom-0 right-0 w-1 h-1 rounded-full bg-blue-400 translate-x-px -translate-y-px" />
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/* ── LIST VIEW (periodo personalizzato) ─────────── */
+function ListView({ events, meetings, tasks, rangeStart, rangeEnd, onSelectDay }: {
+  events: GoogleEvent[]
+  meetings: LocalMeeting[]
+  tasks: CalTask[]
+  rangeStart: string
+  rangeEnd: string
+  onSelectDay: (d: Date) => void
+}) {
+  if (!rangeStart || !rangeEnd) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-sm text-white/30">Seleziona un intervallo di date sopra</p>
+      </div>
+    )
+  }
+
+  const byDay: Record<string, { ev: GoogleEvent[]; mt: LocalMeeting[]; tk: CalTask[] }> = {}
+  const ensure = (d: string) => { if (!byDay[d]) byDay[d] = { ev: [], mt: [], tk: [] } }
+
+  events.forEach(e => {
+    const d = (e.start.dateTime ?? e.start.date ?? '').slice(0, 10)
+    ensure(d); byDay[d].ev.push(e)
+  })
+  meetings.forEach(m => {
+    const d = m.meeting_date.slice(0, 10)
+    ensure(d); byDay[d].mt.push(m)
+  })
+  tasks.filter(t => t.due_date && t.due_date >= rangeStart && t.due_date <= rangeEnd).forEach(t => {
+    const d = t.due_date!.slice(0, 10)
+    ensure(d); byDay[d].tk.push(t)
+  })
+
+  const sortedDays = Object.keys(byDay).sort()
+
+  if (sortedDays.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-sm text-white/30">Nessun elemento nel periodo selezionato</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto space-y-5 pr-1">
+      {sortedDays.map(day => {
+        const { ev, mt, tk } = byDay[day]
+        return (
+          <div key={day}>
+            <button onClick={() => onSelectDay(new Date(day + 'T12:00:00'))}
+              className="text-[10px] font-bold text-white/40 uppercase tracking-wider mb-2 hover:text-white/60 transition-colors capitalize block">
+              {format(new Date(day + 'T12:00:00'), 'EEEE d MMMM', { locale: it })}
+            </button>
+            <div className="space-y-1.5">
+              {ev.map(e => (
+                <div key={e.id} className={`p-3 rounded-xl border ${EVENT_STYLE}`}>
+                  <p className="text-sm font-medium">{e.summary}</p>
+                  {e.start.dateTime && <p className="text-xs opacity-70 mt-0.5">{format(new Date(e.start.dateTime), 'HH:mm')}</p>}
+                </div>
+              ))}
+              {mt.map(m => (
+                <div key={m.id} className={`p-3 rounded-xl border ${MEETING_STYLE}`}>
+                  <p className="text-sm font-medium">{m.title}</p>
+                  {m.duration_minutes && <p className="text-xs opacity-70 mt-0.5">{m.duration_minutes} min</p>}
+                </div>
+              ))}
+              {tk.map(t => (
+                <div key={t.id} className={`p-3 rounded-xl border ${taskStyle(t.due_date!)}`}>
+                  <div className="flex items-center gap-2">
+                    <CheckSquare className="w-3.5 h-3.5 opacity-50 shrink-0" />
+                    <p className="text-sm font-medium">{t.title}</p>
                   </div>
                 </div>
               ))}
