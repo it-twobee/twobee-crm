@@ -18,6 +18,11 @@ COPY . .
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG NEXT_PUBLIC_APP_URL
+ARG NEXT_PUBLIC_SITE_URL
+# Serve a build-time: alcune route (asana, invite, admin) creano il client
+# service-role a livello di modulo, valutato durante `next build` (collect page data).
+# Resta confinato al builder stage: non finisce nell'immagine runner nè nel bundle.
+ARG SUPABASE_SERVICE_ROLE_KEY
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
