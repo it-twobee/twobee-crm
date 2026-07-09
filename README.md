@@ -28,7 +28,7 @@ Fatture    Portale Cliente
 | AI | Groq `llama-3.3-70b-versatile` |
 | Charts | Recharts · SVG inline |
 | UI | Radix UI · Lucide · Sonner toast |
-| Deploy | Vercel |
+| Deploy | Coolify (Docker · Next.js standalone) — os.twobee.it |
 
 ---
 
