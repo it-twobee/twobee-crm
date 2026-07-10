@@ -148,7 +148,9 @@
       "Bash(echo \"dev PID $!\")",
       "Bash(curl -s -o /dev/null --max-time 5 http://localhost:3000/login)",
       "Bash(curl -s -o /dev/null -w \"status=%{http_code}\\\\nlocation=%{redirect_url}\\\\n\" --max-time 60 \"http://localhost:3000/api/google/auth\")",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 60 http://localhost:3000/workspace/profilo)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 60 http://localhost:3000/workspace/profilo)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 60 http://localhost:3000/workspace/task)",
+      "Bash(git commit -q -m 'chore: aggiorna allowlist permessi locali *)"
     ]
   }
 }
