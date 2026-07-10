@@ -84,7 +84,8 @@ con `*{transition:none!important}` prima di misurare).
 - `client_kpis`: KPI mensili, unique `(client_id, month)`
 - `chat_channels`: `type (cliente|interno|task|customer_care|cliente_interno|team|dm), client_id, project_id, team_key`
 - `chat_messages`: `channel_id, sender_id, content`
-- `tasks`: `project_id, title, status (da_fare|in_corso|completato), is_milestone, due_date`
+- `tasks`: `project_id, title, status (da_fare|in_corso|completato), is_milestone, due_date, assignee_id (PRIMARIO)`
+- `task_assignees`: multi-assegnatario `(task_id, profile_id, is_primary_owner, role)`. **Sorgente canonica** dei 0..N assegnatari; `tasks.assignee_id` resta il primario (= primo della lista) perché molte viste lo leggono. Scrivi SEMPRE via `setTaskAssignees`/`bulkSetTaskAssignees` (service role), che tengono i due in sync.
 - `objectives`: OKR aziendali con `progress, status`
 - `deals`: pipeline commerciale con `stage`
 
@@ -92,6 +93,7 @@ con `*{transition:none!important}` prima di misurare).
 - `isSuperAdmin()` → `SUPER_ADMIN_EMAILS = ['m.lucci@twobee.it']` OR `app_role === 'super_admin'`
 - `marco.d.lucci@gmail.com` = account sviluppo, NON è super admin
 - RLS: `get_my_role()` legge `role` da `profiles` (non `app_role`) — admin, team, client, guest
+- **`coarseRole(app_role)` in `lib/permissions.ts` è l'unica fonte per `app_role → role`.** Usala in registrazione (invite/accept), cambio ruolo admin e ovunque serva. Non-admin (manager…partner, viewer) → `role='team'` → il middleware li confina a `/workspace`. Non duplicare la mappa.
 - INSERT su `chat_channels` richiede `role = 'admin'` → usare sempre `createAdminClient()` server-side
 
 ## Pattern ricorrenti
