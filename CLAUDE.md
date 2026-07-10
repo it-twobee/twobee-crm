@@ -3,7 +3,7 @@
 ## Stack & architettura
 - **Next.js 14** App Router, TypeScript strict, Tailwind CSS
 - **Supabase** PostgreSQL + Auth + RLS (`@/lib/supabase/server` server-side, `@/lib/supabase/client` client-side, `@/lib/supabase/admin` service role)
-- **UI**: bg `#111111`, gold `#F5C800`, surface `#1A1A1A`, border `#2A2A2A`; Radix UI; lucide-react; sonner toast
+- **UI**: design token light/dark (vedi «Design system» sotto); Radix UI; lucide-react; sonner toast
 - **AI**: Groq `llama-3.3-70b-versatile` via fetch — chiave `GROQ_API_KEY` server-side
 - **Charts**: Recharts (client), SVG inline (server/report)
 - **Dashboard grid**: react-grid-layout/legacy — layout in localStorage (`twobee-dash-layout-v3`)
@@ -35,6 +35,40 @@ lib/types/database.ts             ← tutti i tipi
 app/api/ai/                       ← extract-project, extract-meeting, sprint-plan, kpi-report, project-summary
 supabase/migrations/              ← 001–034 (vedi BUG NOTO sotto)
 ```
+
+## Design system — MAI colori hardcoded
+L'app ha tema chiaro e scuro (`[data-theme="light"]` su `<html>`). Ogni colore
+passa dai token in `app/globals.css` + `tailwind.config.ts`. Un `#hex`,
+un `text-white`, un `bg-red-500` non reagiscono al tema e rompono il contrasto.
+
+**Vietato**: `bg-[#1A1A1A]`, `text-white/40`, `text-red-400`, `text-black`,
+`style={{ color: '#F5C800' }}`, `text-[10px]`.
+
+| Serve | Usa |
+|---|---|
+| sfondo pagina / superficie / hover | `bg-background` `bg-surface` `bg-surface-hover` `bg-surface-active` |
+| bordi | `border-border` `border-border-strong` · input/select: `border-border-interactive` |
+| testo | `text-text-primary` `text-text-secondary` `text-text-tertiary` |
+| **gold come riempimento** (bottone) | `bg-gold` + `text-on-gold` |
+| **gold come inchiostro** (testo, icona) | `text-gold-text` |
+| stati | `text-success` `text-error` `text-warning` `text-info` `text-accent` `text-orange` (+ `-dim` per i chip) |
+| overlay modale | `bg-scrim` |
+
+**I due gold non sono intercambiabili.** `--color-gold` resta vivo in entrambi i
+temi perché serve da fondo (nero sopra = 12.4:1). Come testo su bianco farebbe
+1.74:1, quindi `--color-gold-text` scurisce in light. Se scrivi `text-gold` il
+tema chiaro diventa illeggibile.
+
+- Tipografia: mai sotto `text-2xs` (12px). La scala parte da `text-sm` = 15px.
+- Style inline: usa `var(--color-*)`. Per l'alfa niente `${c}18` → `color-mix(in srgb, ${c} 9%, transparent)`.
+- Eccezioni legittime: `app/api/**` (HTML standalone senza `:root`), `app/global-error.tsx`
+  (fuori dal ThemeProvider), colori brand di terzi (Asana `#F06A35`, Google).
+- Ogni interattivo deve avere focus visibile (già globale via `:focus-visible`) e
+  `aria-label` se ha solo un'icona.
+
+Verifica: apri la pagina, cambia tema, e controlla il contrasto sul DOM renderizzato
+(gli screenshot mentono; le transizioni CSS falsano `getComputedStyle` — disabilitale
+con `*{transition:none!important}` prima di misurare).
 
 ## Convenzioni codice
 - Nessun commento salvo WHY non ovvi
