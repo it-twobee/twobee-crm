@@ -917,8 +917,9 @@ export interface RoadmapItem {
 }
 
 // ─── Decision Center ─────────────────────────────────────────
-export type DecisionStatus = 'aperta' | 'decisa' | 'archiviata'
-export type DecisionImpact = 'alto' | 'medio' | 'basso'
+// Schema reale: tabella creata dalla 044, estesa dalla 086.
+export type DecisionStatus = 'aperta' | 'in_revisione' | 'decisa' | 'archiviata'
+export type DecisionPriority = 'bassa' | 'media' | 'alta' | 'critica'
 
 export interface DecisionOption {
   label: string
@@ -931,14 +932,17 @@ export interface Decision {
   title: string
   context: string | null
   options: DecisionOption[]
-  decision: string | null
+  /** La scelta effettuata (colonna storica `outcome`) */
+  outcome: string | null
   rationale: string | null
   status: DecisionStatus
-  impact: DecisionImpact
+  priority: DecisionPriority
   area: string | null
   due_date: string | null
   decided_at: string | null
+  client_id: string | null
   created_by: string | null
+  decided_by: string | null
   created_at: string
   updated_at: string
 }

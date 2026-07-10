@@ -7,12 +7,13 @@ import {
   Scale, Plus, X, Loader2, Check, Archive, Clock, AlertTriangle,
   ChevronDown, ChevronUp, Trash2,
 } from 'lucide-react'
-import type { Decision, DecisionStatus, DecisionImpact, DecisionOption } from '@/lib/types/database'
+import type { Decision, DecisionStatus, DecisionPriority, DecisionOption } from '@/lib/types/database'
 
-const IMPACT_STYLE: Record<DecisionImpact, { color: string; label: string }> = {
-  alto: { color: 'var(--color-error)', label: 'Alto impatto' },
-  medio: { color: 'var(--color-gold-text)', label: 'Medio impatto' },
-  basso: { color: 'var(--color-info)', label: 'Basso impatto' },
+const PRIORITY_STYLE: Record<DecisionPriority, { color: string; label: string }> = {
+  critica: { color: 'var(--color-error)', label: 'Critica' },
+  alta:    { color: 'var(--color-orange)', label: 'Alta' },
+  media:   { color: 'var(--color-gold-text)', label: 'Media' },
+  bassa:   { color: 'var(--color-info)', label: 'Bassa' },
 }
 
 export function DecisionCenterClient({ decisions: initial, currentUserId }: {
@@ -23,7 +24,8 @@ export function DecisionCenterClient({ decisions: initial, currentUserId }: {
   const [showNew, setShowNew] = useState(false)
   const [deciding, setDeciding] = useState<Decision | null>(null)
 
-  const open = decisions.filter(d => d.status === 'aperta')
+  // 'in_revisione' esiste nello schema (044): senza questo filtro sparirebbe dalla UI
+  const open = decisions.filter(d => d.status === 'aperta' || d.status === 'in_revisione')
   const decided = decisions.filter(d => d.status === 'decisa')
   const archived = decisions.filter(d => d.status === 'archiviata')
 
@@ -131,15 +133,15 @@ function DecisionCard({ decision: d, onDecide, onArchive, onDelete }: {
   onDelete: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
-  const impact = IMPACT_STYLE[d.impact]
-  const isOverdue = d.status === 'aperta' && d.due_date && d.due_date < new Date().toISOString().slice(0, 10)
+  const priority = PRIORITY_STYLE[d.priority]
+  const isOverdue = d.status !== 'decisa' && d.status !== 'archiviata' && d.due_date && d.due_date < new Date().toISOString().slice(0, 10)
   const options = (d.options ?? []) as DecisionOption[]
 
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden">
       <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-surface-hover transition-colors"
         onClick={() => setExpanded(!expanded)}>
-        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: impact.color }} title={impact.label} />
+        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: priority.color }} title={`Priorità ${priority.label}`} />
         <div className="flex-1 min-w-0">
           <p className="text-text-primary text-sm font-medium truncate">{d.title}</p>
           <div className="flex items-center gap-2 mt-0.5 text-2xs text-text-tertiary">
@@ -153,7 +155,7 @@ function DecisionCard({ decision: d, onDecide, onArchive, onDelete }: {
             {d.decided_at && <span className="text-success/60">decisa il {new Date(d.decided_at).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}</span>}
           </div>
         </div>
-        {d.status === 'aperta' && onDecide && (
+        {(d.status === 'aperta' || d.status === 'in_revisione') && onDecide && (
           <button
             onClick={e => { e.stopPropagation(); onDecide() }}
             className="px-3 py-1.5 bg-gold/10 text-gold-text text-xs font-semibold rounded-lg hover:bg-gold/20 transition-colors shrink-0"
@@ -177,9 +179,9 @@ function DecisionCard({ decision: d, onDecide, onArchive, onDelete }: {
               <p className="text-2xs uppercase tracking-wider text-text-tertiary font-bold mb-1.5">Opzioni</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {options.map((o, i) => (
-                  <div key={i} className={`rounded-lg border p-3 ${d.decision === o.label ? 'border-gold/40 bg-gold/5' : 'border-border bg-background'}`}>
+                  <div key={i} className={`rounded-lg border p-3 ${d.outcome === o.label ? 'border-gold/40 bg-gold/5' : 'border-border bg-background'}`}>
                     <p className="text-text-primary font-medium text-xs mb-1.5 flex items-center gap-1.5">
-                      {d.decision === o.label && <Check className="w-3 h-3 text-gold-text" />}
+                      {d.outcome === o.label && <Check className="w-3 h-3 text-gold-text" />}
                       {o.label}
                     </p>
                     {o.pros && <p className="text-success/60 text-2xs">+ {o.pros}</p>}
@@ -219,7 +221,7 @@ function NewDecisionModal({ currentUserId, onClose, onCreated }: {
   const [title, setTitle] = useState('')
   const [context, setContext] = useState('')
   const [area, setArea] = useState('')
-  const [impact, setImpact] = useState<DecisionImpact>('medio')
+  const [priority, setPriority] = useState<DecisionPriority>('media')
   const [dueDate, setDueDate] = useState('')
   const [options, setOptions] = useState<DecisionOption[]>([{ label: '', pros: '', cons: '' }, { label: '', pros: '', cons: '' }])
   const [saving, setSaving] = useState(false)
@@ -232,7 +234,7 @@ function NewDecisionModal({ currentUserId, onClose, onCreated }: {
       title: title.trim(),
       context: context.trim() || null,
       area: area.trim() || null,
-      impact,
+      priority,
       due_date: dueDate || null,
       options: cleanOptions,
       created_by: currentUserId,
@@ -265,12 +267,13 @@ function NewDecisionModal({ currentUserId, onClose, onCreated }: {
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="text-text-tertiary text-xs mb-1.5 block">Impatto</label>
-              <select value={impact} onChange={e => setImpact(e.target.value as DecisionImpact)}
-                className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none">
-                <option value="alto">Alto</option>
-                <option value="medio">Medio</option>
-                <option value="basso">Basso</option>
+              <label className="text-text-tertiary text-xs mb-1.5 block">Priorità</label>
+              <select value={priority} onChange={e => setPriority(e.target.value as DecisionPriority)}
+                className="w-full bg-background border border-border-interactive rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none">
+                <option value="critica">Critica</option>
+                <option value="alta">Alta</option>
+                <option value="media">Media</option>
+                <option value="bassa">Bassa</option>
               </select>
             </div>
             <div>
@@ -344,7 +347,7 @@ function DecideModal({ decision, onClose, onDecided }: {
     setSaving(true)
     const decidedAt = new Date().toISOString()
     const { error } = await createClient().from('decisions').update({
-      decision: finalChoice,
+      outcome: finalChoice,
       rationale: rationale.trim() || null,
       status: 'decisa',
       decided_at: decidedAt,
@@ -352,7 +355,7 @@ function DecideModal({ decision, onClose, onDecided }: {
     setSaving(false)
     if (error) { toast.error(error.message); return }
     toast.success('Decisione presa')
-    onDecided({ ...decision, decision: finalChoice, rationale: rationale.trim() || null, status: 'decisa', decided_at: decidedAt })
+    onDecided({ ...decision, outcome: finalChoice, rationale: rationale.trim() || null, status: 'decisa', decided_at: decidedAt })
   }
 
   return (
