@@ -184,9 +184,9 @@ function KpiCard({ def, actual, target }: { def: StdKpiDef | CustomKpiDef; actua
   const fmt = (v: number) => prefix + v.toFixed(decimals) + unit
 
   return (
-    <div className={`bg-surface border rounded-xl p-4 ${status === 'bad' ? 'border-error/30' : status === 'warn' ? 'border-warning/20' : 'border-[#2A2A2A]'}`}>
+    <div className={`bg-surface border rounded-xl p-4 ${status === 'bad' ? 'border-error/30' : status === 'warn' ? 'border-warning/20' : 'border-border'}`}>
       <p className="text-xs text-text-secondary mb-2">{label}</p>
-      <p className={`text-2xl font-black ${actual != null ? statusColor : 'text-[#444]'}`}>
+      <p className={`text-2xl font-black ${actual != null ? statusColor : 'text-text-tertiary'}`}>
         {actual != null ? fmt(actual) : '—'}
       </p>
       {target != null && (
@@ -203,7 +203,7 @@ function KpiCard({ def, actual, target }: { def: StdKpiDef | CustomKpiDef; actua
             )}
           </div>
           {actual != null && (
-            <div className="h-1 bg-[#2A2A2A] rounded-full overflow-hidden">
+            <div className="h-1 bg-surface-active rounded-full overflow-hidden">
               <div className={`h-full rounded-full ${status === 'good' ? 'bg-success' : status === 'warn' ? 'bg-warning' : 'bg-error'}`}
                 style={{ width: `${Math.min((actual / target) * 100, 120)}%` }} />
             </div>
@@ -295,13 +295,13 @@ function KpiSetupChat({
 
   if (!started) {
     return (
-      <div className="bg-surface border border-[#2A2A2A] rounded-xl overflow-hidden">
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-[#2A2A2A] bg-[#111]">
+      <div className="bg-surface border border-border rounded-xl overflow-hidden">
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-surface">
           <div className="w-8 h-8 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center">
             <Sparkles className="w-4 h-4 text-gold" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-white">Imposta gli obiettivi con l&apos;AI</p>
+            <p className="text-sm font-semibold text-text-primary">Imposta gli obiettivi con l&apos;AI</p>
             <p className="text-[11px] text-text-secondary">
               Nessun KPI configurato — l&apos;AI ti guida a definire target realistici per un cliente {isGrowth ? 'Growth' : 'Digital'}
             </p>
@@ -317,7 +317,7 @@ function KpiSetupChat({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-5">
             {suggestions.map(s => (
               <button key={s} onClick={() => startChat(s)}
-                className="text-left text-xs px-3 py-2.5 rounded-lg border border-[#2A2A2A] bg-[#111] text-text-secondary hover:border-gold/40 hover:text-white transition-all">
+                className="text-left text-xs px-3 py-2.5 rounded-lg border border-border bg-surface text-text-secondary hover:border-gold/40 hover:text-text-primary transition-all">
                 {s}
               </button>
             ))}
@@ -328,15 +328,15 @@ function KpiSetupChat({
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && input.trim() && startChat(input)}
               placeholder={`Descrivi il progetto o i tuoi obiettivi per ${client.company_name}…`}
-              className="flex-1 bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white placeholder-[#555] focus:outline-none focus:border-gold/50"
+              className="flex-1 bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-secondary focus:outline-none focus:border-gold/50"
             />
             <button onClick={() => input.trim() && startChat(input)}
               className="px-3 py-2 bg-gold text-black rounded-lg hover:bg-gold/90 transition-colors">
               <Send className="w-4 h-4" />
             </button>
           </div>
-          <div className="mt-4 pt-4 border-t border-[#2A2A2A] flex items-center justify-between">
-            <p className="text-[11px] text-[#444]">Oppure inserisci i KPI manualmente</p>
+          <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
+            <p className="text-[11px] text-text-tertiary">Oppure inserisci i KPI manualmente</p>
             <button onClick={onInsertKpi} className="text-xs text-text-secondary hover:text-gold transition-colors">
               Inserisci primo mese →
             </button>
@@ -347,18 +347,18 @@ function KpiSetupChat({
   }
 
   return (
-    <div className="bg-surface border border-[#2A2A2A] rounded-xl overflow-hidden">
-      <div className="flex items-center gap-3 px-5 py-3.5 border-b border-[#2A2A2A] bg-[#111]">
+    <div className="bg-surface border border-border rounded-xl overflow-hidden">
+      <div className="flex items-center gap-3 px-5 py-3.5 border-b border-border bg-surface">
         <div className="w-7 h-7 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center">
           <Bot className="w-3.5 h-3.5 text-gold" />
         </div>
-        <p className="text-sm font-semibold text-white flex-1">AI KPI Advisor</p>
+        <p className="text-sm font-semibold text-text-primary flex-1">AI KPI Advisor</p>
         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
           style={{ color: isGrowth ? '#F5C800' : '#60A5FA', borderColor: isGrowth ? '#F5C800' : '#60A5FA', background: isGrowth ? '#F5C80012' : '#60A5FA12' }}>
           {isGrowth ? 'GROWTH' : 'DIGITAL'}
         </span>
         <button onClick={onInsertKpi}
-          className="ml-2 text-xs text-text-secondary hover:text-gold transition-colors border border-[#2A2A2A] rounded-lg px-2.5 py-1">
+          className="ml-2 text-xs text-text-secondary hover:text-gold transition-colors border border-border rounded-lg px-2.5 py-1">
           + Inserisci KPI
         </button>
       </div>
@@ -373,7 +373,7 @@ function KpiSetupChat({
             )}
             <div className={`max-w-[80%] px-3 py-2 rounded-xl text-sm leading-relaxed ${
               m.role === 'ai'
-                ? 'bg-[#111] border border-[#2A2A2A] text-white'
+                ? 'bg-surface border border-border text-text-primary'
                 : 'bg-gold text-black font-medium'
             }`}>
               {m.text}
@@ -385,7 +385,7 @@ function KpiSetupChat({
             <div className="w-6 h-6 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center flex-shrink-0">
               <Loader2 className="w-3 h-3 text-gold animate-spin" />
             </div>
-            <div className="bg-[#111] border border-[#2A2A2A] rounded-xl px-3 py-2">
+            <div className="bg-surface border border-border rounded-xl px-3 py-2">
               <div className="flex gap-1 items-center h-4">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#555] animate-bounce" style={{ animationDelay: '0ms' }} />
                 <span className="w-1.5 h-1.5 rounded-full bg-[#555] animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -404,7 +404,7 @@ function KpiSetupChat({
           onKeyDown={e => e.key === 'Enter' && sendMessage()}
           placeholder="Rispondi all'AI…"
           disabled={loading}
-          className="flex-1 bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white placeholder-[#555] focus:outline-none focus:border-gold/50 disabled:opacity-50"
+          className="flex-1 bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-secondary focus:outline-none focus:border-gold/50 disabled:opacity-50"
         />
         <button onClick={sendMessage} disabled={loading || !input.trim()}
           className="px-3 py-2 bg-gold text-black rounded-lg hover:bg-gold/90 transition-colors disabled:opacity-40">
@@ -491,25 +491,25 @@ function KpiTargetPrecompileModal({ client, isGrowth, selectedProject, onClose, 
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[#111] border border-[#2A2A2A] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-start justify-between px-6 py-4 border-b border-[#2A2A2A] sticky top-0 bg-[#111] z-10">
+      <div className="bg-surface border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-start justify-between px-6 py-4 border-b border-border sticky top-0 bg-surface z-10">
           <div>
             <div className="flex items-center gap-2 mb-0.5">
               <Sparkles className="w-4 h-4" style={{ color: accentColor }} />
-              <h2 className="text-sm font-bold text-white">Precompila obiettivi KPI</h2>
+              <h2 className="text-sm font-bold text-text-primary">Precompila obiettivi KPI</h2>
             </div>
-            <p className="text-[11px]" style={{ color: '#555' }}>
+            <p className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
               {client.company_name} · benchmark {isGrowth ? 'Growth' : 'Digital'} mercato italiano
             </p>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={generate} disabled={loading}
               className="flex items-center gap-1 text-[10px] px-2.5 py-1.5 rounded-lg"
-              style={{ background: '#0A0A0A', border: '1px solid #1A1A1A', color: loading ? '#333' : '#555' }}>
+              style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: loading ? 'var(--color-text-tertiary)' : 'var(--color-text-secondary)' }}>
               {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
               {loading ? 'Analisi…' : 'Rigenera'}
             </button>
-            <button onClick={onClose}><X className="w-4 h-4 text-[#555] hover:text-white transition-colors" /></button>
+            <button onClick={onClose}><X className="w-4 h-4 text-text-secondary hover:text-text-primary transition-colors" /></button>
           </div>
         </div>
 
@@ -517,7 +517,7 @@ function KpiTargetPrecompileModal({ client, isGrowth, selectedProject, onClose, 
           {loading ? (
             <div className="flex flex-col items-center py-16 gap-3">
               <Loader2 className="w-6 h-6 animate-spin" style={{ color: accentColor }} />
-              <p className="text-xs" style={{ color: '#444' }}>Analisi benchmark di settore…</p>
+              <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Analisi benchmark di settore…</p>
             </div>
           ) : levels ? (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -526,12 +526,12 @@ function KpiTargetPrecompileModal({ client, isGrowth, selectedProject, onClose, 
                   style={{ border: `1px solid ${lvl.color}22`, background: lvl.color + '08' }}>
                   <div className="px-4 py-3 border-b" style={{ borderColor: lvl.color + '20' }}>
                     <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: lvl.color }}>{lvl.label}</p>
-                    <p className="text-[9px] mt-0.5" style={{ color: '#444' }}>{lvl.desc}</p>
+                    <p className="text-[9px] mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>{lvl.desc}</p>
                   </div>
                   <div className="p-3 space-y-2">
                     {kpiKeys.map(k => (
                       <div key={k} className="flex items-center justify-between">
-                        <span className="text-[10px]" style={{ color: '#555' }}>{KPI_LABELS_MAP[k] ?? k}</span>
+                        <span className="text-[10px]" style={{ color: 'var(--color-text-secondary)' }}>{KPI_LABELS_MAP[k] ?? k}</span>
                         <span className="text-[11px] font-bold" style={{ color: lvl.color }}>
                           {levels[lvl.key]?.[k] != null ? fmtTarget(k, levels[lvl.key][k]) : '—'}
                         </span>
@@ -541,7 +541,7 @@ function KpiTargetPrecompileModal({ client, isGrowth, selectedProject, onClose, 
                   <div className="px-3 pb-3">
                     <button onClick={() => apply(lvl.key)} disabled={!!saving}
                       className="w-full py-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1.5"
-                      style={{ background: lvl.color + '15', border: `1px solid ${lvl.color}30`, color: saving ? '#444' : lvl.color }}>
+                      style={{ background: lvl.color + '15', border: `1px solid ${lvl.color}30`, color: saving ? 'var(--color-text-tertiary)' : lvl.color }}>
                       {saving === lvl.key
                         ? <><Loader2 className="w-3 h-3 animate-spin" /> Salvo…</>
                         : 'Usa questi obiettivi'}
@@ -551,7 +551,7 @@ function KpiTargetPrecompileModal({ client, isGrowth, selectedProject, onClose, 
               ))}
             </div>
           ) : (
-            <p className="text-center py-10 text-xs" style={{ color: '#444' }}>Errore. Riprova.</p>
+            <p className="text-center py-10 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Errore. Riprova.</p>
           )}
         </div>
       </div>
@@ -668,7 +668,7 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
         <p className="text-text-secondary text-sm">Nessun progetto Growth o Digital trovato.</p>
-        <p className="text-xs text-[#555]">Crea un progetto dalla tab Progetti e assegnagli la natura Growth o Digital.</p>
+        <p className="text-xs text-text-secondary">Crea un progetto dalla tab Progetti e assegnagli la natura Growth o Digital.</p>
       </div>
     )
   }
@@ -698,7 +698,7 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
                   ? isG
                     ? 'bg-gold/10 border-gold text-gold'
                     : 'bg-blue-500/10 border-blue-400 text-blue-400'
-                  : 'bg-surface border-[#2A2A2A] text-text-secondary hover:border-[#444] hover:text-white'
+                  : 'bg-surface border-border text-text-secondary hover:border-border-strong hover:text-text-primary'
               }`}>
               <span>{isG ? '📈' : '💻'}</span>
               <span className="truncate max-w-[180px]">{projectTitle}</span>
@@ -711,7 +711,7 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3 flex-wrap">
-          <h2 className="text-lg font-bold text-white">KPI & Performance</h2>
+          <h2 className="text-lg font-bold text-text-primary">KPI & Performance</h2>
           {latest && <HealthRing score={healthScore} />}
           <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
             isGrowth ? 'bg-gold/10 text-gold border-gold/30' : 'bg-blue-500/10 text-blue-400 border-blue-400/30'
@@ -721,15 +721,15 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
         </div>
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => setShowConfig(true)} disabled={!selectedProject}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary border border-[#2A2A2A] rounded-lg hover:text-white hover:border-white/20 transition-colors disabled:opacity-40">
+            className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary border border-border rounded-lg hover:text-text-primary hover:border-overlay/20 transition-colors disabled:opacity-40">
             <Settings2 className="w-4 h-4" /> Configura KPI
           </button>
           <button onClick={exportCsv}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary border border-[#2A2A2A] rounded-lg hover:text-white hover:border-white/20 transition-colors">
+            className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary border border-border rounded-lg hover:text-text-primary hover:border-overlay/20 transition-colors">
             <Download className="w-4 h-4" /> CSV
           </button>
           <button onClick={() => setShowReport(true)}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary border border-[#2A2A2A] rounded-lg hover:text-white hover:border-white/20 transition-colors">
+            className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary border border-border rounded-lg hover:text-text-primary hover:border-overlay/20 transition-colors">
             <FileText className="w-4 h-4" /> Report PDF
           </button>
           <button onClick={() => { setEditingKpi(null); setShowModal(true) }} disabled={!selectedProject}
@@ -740,16 +740,16 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
       </div>
 
       {/* Sezione obiettivi */}
-      <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
+      <div className="bg-surface border border-border rounded-xl p-5">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <p className="text-xs font-bold text-text-secondary uppercase tracking-wider">Obiettivi configurati</p>
           <div className="flex items-center gap-2">
             <button onClick={() => setShowTargetPrecompile(true)} disabled={!selectedProject}
               className="flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-all disabled:opacity-40"
-              style={{ background: 'rgba(245,200,0,0.06)', border: '1px solid rgba(245,200,0,0.2)', color: '#F5C800' }}>
+              style={{ background: 'var(--color-gold-dim)', border: '1px solid var(--color-gold)', color: 'var(--color-gold)' }}>
               <Sparkles className="w-3 h-3" /> Precompila con AI
             </button>
-            <span className="text-[10px] text-[#555] bg-[#111] border border-[#2A2A2A] px-2 py-0.5 rounded-full">
+            <span className="text-[10px] text-text-secondary bg-surface border border-border px-2 py-0.5 rounded-full">
               {isGrowth ? 'Growth' : 'Digital'} · {enabledStd.length + customKpis.length} KPI attivi
             </span>
           </div>
@@ -761,21 +761,21 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
             const unit = d.unit ?? ''
             const fmt = (v: number) => prefix + v.toFixed(d.decimals ?? 0) + unit
             return (
-              <div key={d.key} className="bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2.5">
+              <div key={d.key} className="bg-surface border border-border rounded-lg px-3 py-2.5">
                 <p className="text-[10px] text-text-secondary mb-0.5">{d.label}</p>
-                <p className={`text-sm font-bold ${target ? 'text-white' : 'text-[#444]'}`}>
-                  {target ? fmt(target) + '/mese' : <span className="text-[#333] italic text-xs">non impostato</span>}
+                <p className={`text-sm font-bold ${target ? 'text-text-primary' : 'text-text-tertiary'}`}>
+                  {target ? fmt(target) + '/mese' : <span className="text-text-tertiary italic text-xs">non impostato</span>}
                 </p>
               </div>
             )
           })}
           {customKpis.map(c => (
-            <div key={c.id} className="bg-[#111] border border-gold/20 rounded-lg px-3 py-2.5">
+            <div key={c.id} className="bg-surface border border-gold/20 rounded-lg px-3 py-2.5">
               <p className="text-[10px] text-text-secondary mb-0.5 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-gold inline-block" /> {c.name}
               </p>
-              <p className={`text-sm font-bold ${c.target ? 'text-white' : 'text-[#444]'}`}>
-                {c.target ? `${c.target} ${c.unit}/mese` : <span className="text-[#333] italic text-xs">nessun target</span>}
+              <p className={`text-sm font-bold ${c.target ? 'text-text-primary' : 'text-text-tertiary'}`}>
+                {c.target ? `${c.target} ${c.unit}/mese` : <span className="text-text-tertiary italic text-xs">nessun target</span>}
               </p>
             </div>
           ))}
@@ -840,9 +840,9 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
                 </div>
               )}
               {latest.notes && (
-                <div className="mt-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl px-4 py-3">
+                <div className="mt-2 bg-surface border border-border rounded-xl px-4 py-3">
                   <p className="text-xs text-text-secondary font-semibold mb-0.5">Note del mese</p>
-                  <p className="text-xs text-white">{latest.notes}</p>
+                  <p className="text-xs text-text-primary">{latest.notes}</p>
                 </div>
               )}
             </div>
@@ -852,14 +852,14 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
           {isGrowth && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {enabledKeys.includes('roas') && (
-                <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
-                  <h3 className="text-sm font-semibold text-white mb-4">ROAS — ultimi 6 mesi</h3>
+                <div className="bg-surface border border-border rounded-xl p-5">
+                  <h3 className="text-sm font-semibold text-text-primary mb-4">ROAS — ultimi 6 mesi</h3>
                   <ResponsiveContainer width="100%" height={200}>
                     <LineChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                       <XAxis dataKey="month" tick={{ fill: chartTheme.text, fontSize: 11 }} />
                       <YAxis tick={{ fill: chartTheme.text, fontSize: 11 }} />
-                      <Tooltip contentStyle={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8 }} labelStyle={{ color: '#fff' }} />
+                      <Tooltip contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8 }} labelStyle={{ color: 'var(--color-text-primary)' }} />
                       {client.target_roas && <ReferenceLine y={client.target_roas} stroke={chartTheme.gold} strokeDasharray="4 4" label={{ value: 'target', fill: chartTheme.gold, fontSize: 10 }} />}
                       <Line type="monotone" dataKey="ROAS" stroke={chartTheme.gold} strokeWidth={2} dot={{ fill: chartTheme.gold, r: 4 }} />
                     </LineChart>
@@ -867,14 +867,14 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
                 </div>
               )}
               {enabledKeys.includes('leads_generated') && (
-                <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
-                  <h3 className="text-sm font-semibold text-white mb-4">Lead generati per mese</h3>
+                <div className="bg-surface border border-border rounded-xl p-5">
+                  <h3 className="text-sm font-semibold text-text-primary mb-4">Lead generati per mese</h3>
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                       <XAxis dataKey="month" tick={{ fill: chartTheme.text, fontSize: 11 }} />
                       <YAxis tick={{ fill: chartTheme.text, fontSize: 11 }} />
-                      <Tooltip contentStyle={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8 }} labelStyle={{ color: '#fff' }} />
+                      <Tooltip contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8 }} labelStyle={{ color: 'var(--color-text-primary)' }} />
                       {client.target_leads_monthly && <ReferenceLine y={client.target_leads_monthly} stroke={chartTheme.green} strokeDasharray="4 4" label={{ value: 'target', fill: chartTheme.green, fontSize: 10 }} />}
                       <Bar dataKey="Lead" fill={chartTheme.green} radius={[4, 4, 0, 0]} />
                     </BarChart>
@@ -882,14 +882,14 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
                 </div>
               )}
               {enabledKeys.includes('revenue_attributed') && (
-                <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5 lg:col-span-2">
-                  <h3 className="text-sm font-semibold text-white mb-4">Revenue attribuita vs Ad Spend</h3>
+                <div className="bg-surface border border-border rounded-xl p-5 lg:col-span-2">
+                  <h3 className="text-sm font-semibold text-text-primary mb-4">Revenue attribuita vs Ad Spend</h3>
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                       <XAxis dataKey="month" tick={{ fill: chartTheme.text, fontSize: 11 }} />
                       <YAxis tick={{ fill: chartTheme.text, fontSize: 11 }} tickFormatter={v => `€${(v / 1000).toFixed(0)}k`} />
-                      <Tooltip contentStyle={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8 }} labelStyle={{ color: '#fff' }} formatter={(v: number) => formatCurrency(v)} />
+                      <Tooltip contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8 }} labelStyle={{ color: 'var(--color-text-primary)' }} formatter={(v: number) => formatCurrency(v)} />
                       <Legend wrapperStyle={{ color: '#A0A0A0', fontSize: 12 }} />
                       {client.target_revenue_monthly && <ReferenceLine y={client.target_revenue_monthly} stroke={chartTheme.gold} strokeDasharray="4 4" label={{ value: 'target', fill: chartTheme.gold, fontSize: 10 }} />}
                       <Bar dataKey="Revenue" fill={chartTheme.gold} radius={[4, 4, 0, 0]} />
@@ -905,14 +905,14 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
           {!isGrowth && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {enabledKeys.includes('followers_gained') && (
-                <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
-                  <h3 className="text-sm font-semibold text-white mb-4">Follower guadagnati per mese</h3>
+                <div className="bg-surface border border-border rounded-xl p-5">
+                  <h3 className="text-sm font-semibold text-text-primary mb-4">Follower guadagnati per mese</h3>
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                       <XAxis dataKey="month" tick={{ fill: chartTheme.text, fontSize: 11 }} />
                       <YAxis tick={{ fill: chartTheme.text, fontSize: 11 }} />
-                      <Tooltip contentStyle={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8 }} labelStyle={{ color: '#fff' }} />
+                      <Tooltip contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8 }} labelStyle={{ color: 'var(--color-text-primary)' }} />
                       {client.target_followers_monthly && <ReferenceLine y={client.target_followers_monthly} stroke={chartTheme.gold} strokeDasharray="4 4" label={{ value: 'target', fill: chartTheme.gold, fontSize: 10 }} />}
                       <Bar dataKey="Follower" fill={chartTheme.gold} radius={[4, 4, 0, 0]} />
                     </BarChart>
@@ -920,42 +920,42 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
                 </div>
               )}
               {enabledKeys.includes('organic_sessions') && (
-                <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
-                  <h3 className="text-sm font-semibold text-white mb-4">Sessioni organiche per mese</h3>
+                <div className="bg-surface border border-border rounded-xl p-5">
+                  <h3 className="text-sm font-semibold text-text-primary mb-4">Sessioni organiche per mese</h3>
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                       <XAxis dataKey="month" tick={{ fill: chartTheme.text, fontSize: 11 }} />
                       <YAxis tick={{ fill: chartTheme.text, fontSize: 11 }} />
-                      <Tooltip contentStyle={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8 }} labelStyle={{ color: '#fff' }} />
+                      <Tooltip contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8 }} labelStyle={{ color: 'var(--color-text-primary)' }} />
                       <Bar dataKey="Sessioni organiche" fill={chartTheme.green} radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               )}
               {enabledKeys.includes('engagement_rate') && (
-                <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
-                  <h3 className="text-sm font-semibold text-white mb-4">Engagement rate (%)</h3>
+                <div className="bg-surface border border-border rounded-xl p-5">
+                  <h3 className="text-sm font-semibold text-text-primary mb-4">Engagement rate (%)</h3>
                   <ResponsiveContainer width="100%" height={200}>
                     <LineChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                       <XAxis dataKey="month" tick={{ fill: chartTheme.text, fontSize: 11 }} />
                       <YAxis tick={{ fill: chartTheme.text, fontSize: 11 }} unit="%" />
-                      <Tooltip contentStyle={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8 }} labelStyle={{ color: '#fff' }} />
+                      <Tooltip contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8 }} labelStyle={{ color: 'var(--color-text-primary)' }} />
                       <Line type="monotone" dataKey="Engagement %" stroke={chartTheme.blue} strokeWidth={2} dot={{ fill: chartTheme.blue, r: 4 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
               )}
               {enabledKeys.includes('reach') && (
-                <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
-                  <h3 className="text-sm font-semibold text-white mb-4">Reach mensile</h3>
+                <div className="bg-surface border border-border rounded-xl p-5">
+                  <h3 className="text-sm font-semibold text-text-primary mb-4">Reach mensile</h3>
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                       <XAxis dataKey="month" tick={{ fill: chartTheme.text, fontSize: 11 }} />
                       <YAxis tick={{ fill: chartTheme.text, fontSize: 11 }} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} />
-                      <Tooltip contentStyle={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8 }} labelStyle={{ color: '#fff' }} />
+                      <Tooltip contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8 }} labelStyle={{ color: 'var(--color-text-primary)' }} />
                       <Bar dataKey="Reach" fill={chartTheme.blue} radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -965,11 +965,11 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
           )}
 
           {/* Storico */}
-          <div className="bg-surface border border-[#2A2A2A] rounded-xl overflow-hidden">
-            <div className="px-5 py-3 border-b border-[#2A2A2A]">
+          <div className="bg-surface border border-border rounded-xl overflow-hidden">
+            <div className="px-5 py-3 border-b border-border">
               <p className="text-xs font-bold text-text-secondary uppercase tracking-wider">Storico mensile</p>
             </div>
-            <div className="divide-y divide-[#2A2A2A]">
+            <div className="divide-y divide-border">
               {sorted.map(k => {
                 const score = calcHealthScore(k, client, stdDefs, enabledKeys)
                 const isOpen = expandedMonth === k.id
@@ -977,8 +977,8 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
                 return (
                   <div key={k.id}>
                     <button onClick={() => setExpandedMonth(isOpen ? null : k.id)}
-                      className="w-full flex items-center gap-4 px-5 py-3 hover:bg-white/5 transition-colors text-left">
-                      <span className="text-sm font-semibold text-white w-24">
+                      className="w-full flex items-center gap-4 px-5 py-3 hover:bg-overlay/5 transition-colors text-left">
+                      <span className="text-sm font-semibold text-text-primary w-24">
                         {new Date(k.month).toLocaleDateString('it-IT', { month: 'short', year: 'numeric' })}
                       </span>
                       <div className="flex items-center gap-4 flex-1 text-xs text-text-secondary overflow-hidden">
@@ -991,7 +991,7 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
                           const shortLabel = d.label.split(' ')[0]
                           return (
                             <span key={d.key} className="whitespace-nowrap">
-                              {shortLabel} <strong className="text-white">{display}</strong>
+                              {shortLabel} <strong className="text-text-primary">{display}</strong>
                             </span>
                           )
                         })}
@@ -1008,7 +1008,7 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
                       {isOpen ? <ChevronUp className="w-4 h-4 text-text-secondary" /> : <ChevronDown className="w-4 h-4 text-text-secondary" />}
                     </button>
                     {isOpen && (
-                      <div className="px-5 pb-4 bg-[#111] grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="px-5 pb-4 bg-surface grid grid-cols-2 md:grid-cols-4 gap-3">
                         {enabledStd.map(d => {
                           const v = getKpiValue(k, d.key)
                           if (!v) return null
@@ -1017,7 +1017,7 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
                           return (
                             <div key={d.key} className="py-2">
                               <p className="text-[10px] text-text-secondary">{d.label}</p>
-                              <p className="text-sm font-bold text-white">{prefix}{v.toFixed(d.decimals ?? 0)}{unit}</p>
+                              <p className="text-sm font-bold text-text-primary">{prefix}{v.toFixed(d.decimals ?? 0)}{unit}</p>
                             </div>
                           )
                         })}
@@ -1027,14 +1027,14 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
                           return (
                             <div key={c.id} className="py-2">
                               <p className="text-[10px] text-text-secondary">{c.name}</p>
-                              <p className="text-sm font-bold text-white">{v} {c.unit}</p>
+                              <p className="text-sm font-bold text-text-primary">{v} {c.unit}</p>
                             </div>
                           )
                         })}
                         {k.notes && (
-                          <div className="col-span-full py-2 border-t border-[#2A2A2A] mt-1">
+                          <div className="col-span-full py-2 border-t border-border mt-1">
                             <p className="text-[10px] text-text-secondary mb-0.5">Note</p>
-                            <p className="text-xs text-white">{k.notes}</p>
+                            <p className="text-xs text-text-primary">{k.notes}</p>
                           </div>
                         )}
                       </div>
@@ -1151,19 +1151,19 @@ function ReportModal({ client, kpis, isGrowth, stdDefs, enabledKeys, onClose }: 
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[#141414] border border-[#2A2A2A] rounded-2xl w-full max-w-md">
+      <div className="bg-surface border border-border rounded-2xl w-full max-w-md">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-gold/10 border border-gold/30 flex items-center justify-center">
               <FileText className="w-4 h-4 text-gold" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white">Genera Report PDF</h2>
+              <h2 className="text-base font-bold text-text-primary">Genera Report PDF</h2>
               <p className="text-[11px] text-text-secondary">{client.company_name} · {isGrowth ? 'Growth' : 'Digital'}</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-text-secondary hover:text-white transition-colors">
+          <button onClick={onClose} className="text-text-secondary hover:text-text-primary transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1174,26 +1174,26 @@ function ReportModal({ client, kpis, isGrowth, stdDefs, enabledKeys, onClose }: 
             <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">Seleziona periodo</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-[#666] mb-1.5">Da</label>
+                <label className="block text-xs text-text-secondary mb-1.5">Da</label>
                 <input
                   type="month"
                   value={from}
                   max={to}
                   onChange={e => setFrom(e.target.value)}
                   onClick={e => (e.target as HTMLInputElement).showPicker?.()}
-                  className="w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-gold/50 cursor-pointer"
+                  className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text-primary focus:outline-none focus:border-gold/50 cursor-pointer"
                   style={{ colorScheme: 'dark' }}
                 />
               </div>
               <div>
-                <label className="block text-xs text-[#666] mb-1.5">A</label>
+                <label className="block text-xs text-text-secondary mb-1.5">A</label>
                 <input
                   type="month"
                   value={to}
                   min={from}
                   onChange={e => setTo(e.target.value)}
                   onClick={e => (e.target as HTMLInputElement).showPicker?.()}
-                  className="w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-gold/50 cursor-pointer"
+                  className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text-primary focus:outline-none focus:border-gold/50 cursor-pointer"
                   style={{ colorScheme: 'dark' }}
                 />
               </div>
@@ -1201,7 +1201,7 @@ function ReportModal({ client, kpis, isGrowth, stdDefs, enabledKeys, onClose }: 
           </div>
 
           {/* Preview mesi selezionati */}
-          <div className="bg-[#111] border border-[#2A2A2A] rounded-xl p-4">
+          <div className="bg-surface border border-border rounded-xl p-4">
             <p className="text-xs text-text-secondary mb-2">Il report includerà:</p>
             <div className="flex flex-wrap gap-1.5">
               {availableMonths.length > 0 ? availableMonths.map(m => (
@@ -1209,11 +1209,11 @@ function ReportModal({ client, kpis, isGrowth, stdDefs, enabledKeys, onClose }: 
                   {fmtLabel(m)}
                 </span>
               )) : (
-                <span className="text-xs text-[#555]">Nessun dato nel periodo selezionato</span>
+                <span className="text-xs text-text-secondary">Nessun dato nel periodo selezionato</span>
               )}
             </div>
             {availableMonths.length > 0 && (
-              <p className="text-[10px] text-[#555] mt-2">
+              <p className="text-[10px] text-text-secondary mt-2">
                 {availableMonths.length} {availableMonths.length === 1 ? 'mese' : 'mesi'} · {enabledKeys.length} KPI monitorati
               </p>
             )}
@@ -1232,7 +1232,7 @@ function ReportModal({ client, kpis, isGrowth, stdDefs, enabledKeys, onClose }: 
 
         <div className="flex gap-3 px-6 pb-6">
           <button onClick={onClose}
-            className="flex-1 py-2.5 border border-[#2A2A2A] rounded-xl text-sm text-text-secondary hover:text-white transition-colors">
+            className="flex-1 py-2.5 border border-border rounded-xl text-sm text-text-secondary hover:text-text-primary transition-colors">
             Annulla
           </button>
           <button onClick={generate} disabled={loading || !from || !to}
@@ -1295,7 +1295,7 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
   const [notes, setNotes]   = useState(initialData?.notes ?? '')
 
   const accentColor = isGrowth ? '#F5C800' : '#60A5FA'
-  const inputCls    = 'w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold/50 placeholder-[#444]'
+  const inputCls    = 'w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/50 placeholder-text-tertiary'
 
   const fetchAiLevels = async () => {
     setAiLoading(true)
@@ -1364,18 +1364,18 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-[#2A2A2A] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-surface border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A] sticky top-0 bg-surface z-10">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-surface z-10">
           <div>
-            <h2 className="text-base font-bold text-white">{initialData ? 'Modifica KPI' : 'Inserisci KPI mensile'}</h2>
+            <h2 className="text-base font-bold text-text-primary">{initialData ? 'Modifica KPI' : 'Inserisci KPI mensile'}</h2>
             <p className="text-[11px] text-text-secondary">
               <span style={{ color: accentColor }}>{isGrowth ? 'Growth' : 'Digital'}</span>
               {' · '}{enabledStd.length} KPI attivi
             </p>
           </div>
-          <button onClick={onClose} className="text-text-secondary hover:text-white"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="text-text-secondary hover:text-text-primary"><X className="w-5 h-5" /></button>
         </div>
 
         {/* Mode tabs (solo per inserimento nuovo) */}
@@ -1385,8 +1385,8 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
               <button key={tab.key} onClick={() => setInputMode(tab.key)}
                 className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg transition-all"
                 style={{
-                  background: inputMode === tab.key ? accentColor + '15' : '#0A0A0A',
-                  border: `1px solid ${inputMode === tab.key ? accentColor + '40' : '#1A1A1A'}`,
+                  background: inputMode === tab.key ? accentColor + '15' : 'var(--color-surface)',
+                  border: `1px solid ${inputMode === tab.key ? accentColor + '40' : 'var(--color-border)'}`,
                   color: inputMode === tab.key ? accentColor : '#555',
                 }}>
                 {tab.icon} {tab.label}
@@ -1400,7 +1400,7 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
           <div className="p-6 space-y-4">
             <div className="flex items-center gap-2 mb-1">
               <Zap className="w-4 h-4" style={{ color: accentColor }} />
-              <p className="text-sm font-bold text-white">Importa da strumenti esterni</p>
+              <p className="text-sm font-bold text-text-primary">Importa da strumenti esterni</p>
             </div>
             <p className="text-[11px] text-text-secondary -mt-2">
               Connetti le tue piattaforme per importare i KPI automaticamente ogni mese.
@@ -1408,20 +1408,20 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
             <div className="grid grid-cols-2 gap-3">
               {CONNECTORS.map(c => (
                 <div key={c.name} className="rounded-xl p-4 flex items-start gap-3 relative overflow-hidden"
-                  style={{ background: '#0A0A0A', border: '1px solid #1A1A1A' }}>
+                  style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
                   <span className="text-2xl leading-none mt-0.5">{c.emoji}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <p className="text-xs font-bold text-white">{c.name}</p>
+                      <p className="text-xs font-bold text-text-primary">{c.name}</p>
                       <span className="text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider"
-                        style={{ background: '#1A1A1A', color: '#333', border: '1px solid #222' }}>presto</span>
+                        style={{ background: 'var(--color-surface)', color: 'var(--color-text-tertiary)', border: '1px solid var(--color-border)' }}>presto</span>
                     </div>
-                    <p className="text-[10px] leading-relaxed" style={{ color: '#444' }}>{c.desc}</p>
+                    <p className="text-[10px] leading-relaxed" style={{ color: 'var(--color-text-tertiary)' }}>{c.desc}</p>
                   </div>
                 </div>
               ))}
             </div>
-            <p className="text-[10px] text-center" style={{ color: '#333' }}>
+            <p className="text-[10px] text-center" style={{ color: 'var(--color-text-tertiary)' }}>
               Le integrazioni saranno disponibili nella prossima versione del gestionale.
             </p>
           </div>
@@ -1433,11 +1433,11 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4" style={{ color: accentColor }} />
-                <p className="text-sm font-bold text-white">Benchmark di settore</p>
+                <p className="text-sm font-bold text-text-primary">Benchmark di settore</p>
               </div>
               <button onClick={fetchAiLevels} disabled={aiLoading}
                 className="flex items-center gap-1 text-[10px] px-2.5 py-1.5 rounded-lg"
-                style={{ background: '#0A0A0A', border: '1px solid #1A1A1A', color: aiLoading ? '#333' : '#555' }}>
+                style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: aiLoading ? 'var(--color-text-tertiary)' : 'var(--color-text-secondary)' }}>
                 {aiLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                 Rigenera
               </button>
@@ -1445,11 +1445,11 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
             {aiLoading ? (
               <div className="flex flex-col items-center py-12 gap-3">
                 <Loader2 className="w-6 h-6 animate-spin" style={{ color: accentColor }} />
-                <p className="text-xs" style={{ color: '#444' }}>Analisi benchmark di settore…</p>
+                <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Analisi benchmark di settore…</p>
               </div>
             ) : aiLevels ? (
               <>
-                <p className="text-[11px]" style={{ color: '#555' }}>
+                <p className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
                   Seleziona un livello come base — potrai modificare ogni valore nel form.
                 </p>
                 <div className="grid grid-cols-3 gap-3">
@@ -1458,12 +1458,12 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
                       style={{ border: `1px solid ${lvl.color}22`, background: lvl.color + '08' }}>
                       <div className="px-3 py-2.5 border-b" style={{ borderColor: lvl.color + '20' }}>
                         <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: lvl.color }}>{lvl.label}</p>
-                        <p className="text-[9px]" style={{ color: '#444' }}>{lvl.desc}</p>
+                        <p className="text-[9px]" style={{ color: 'var(--color-text-tertiary)' }}>{lvl.desc}</p>
                       </div>
                       <div className="p-2.5 space-y-1.5">
                         {aiKpiKeys.map(k => (
                           <div key={k} className="flex items-center justify-between">
-                            <span className="text-[9px]" style={{ color: '#555' }}>{KPI_LABELS_MAP[k] ?? k}</span>
+                            <span className="text-[9px]" style={{ color: 'var(--color-text-secondary)' }}>{KPI_LABELS_MAP[k] ?? k}</span>
                             <span className="text-[10px] font-bold" style={{ color: lvl.color }}>
                               {aiLevels[lvl.key]?.[k] != null ? fmtTarget(k, aiLevels[lvl.key][k]) : '—'}
                             </span>
@@ -1482,7 +1482,7 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
                 </div>
               </>
             ) : (
-              <p className="text-center py-8 text-xs" style={{ color: '#444' }}>Errore. Riprova.</p>
+              <p className="text-center py-8 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Errore. Riprova.</p>
             )}
           </div>
         )}
@@ -1493,13 +1493,13 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
             {/* Banner AI source */}
             {aiSource && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg"
-                style={{ background: 'rgba(245,200,0,0.06)', border: '1px solid rgba(245,200,0,0.2)' }}>
-                <Sparkles className="w-3.5 h-3.5 shrink-0" style={{ color: '#F5C800' }} />
-                <p className="text-[11px]" style={{ color: '#888' }}>
-                  Precompilato da AI · livello <strong style={{ color: '#F5C800' }}>{aiSource}</strong> — modifica i valori se necessario
+                style={{ background: 'var(--color-gold-dim)', border: '1px solid var(--color-gold)' }}>
+                <Sparkles className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--color-gold)' }} />
+                <p className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
+                  Precompilato da AI · livello <strong style={{ color: 'var(--color-gold)' }}>{aiSource}</strong> — modifica i valori se necessario
                 </p>
                 <button type="button" onClick={() => setAiSource(null)} className="ml-auto">
-                  <X className="w-3 h-3" style={{ color: '#555' }} />
+                  <X className="w-3 h-3" style={{ color: 'var(--color-text-secondary)' }} />
                 </button>
               </div>
             )}
@@ -1517,8 +1517,8 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
                 .filter((d): d is StdKpiDef => !!d && enabledKeys.has(d.key))
               if (catDefs.length === 0) return null
               return (
-                <div key={cat.label} className="border border-[#2A2A2A] rounded-xl overflow-hidden">
-                  <div className="flex items-center gap-2 px-4 py-2.5 bg-[#111] border-b border-[#2A2A2A]">
+                <div key={cat.label} className="border border-border rounded-xl overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-2.5 bg-surface border-b border-border">
                     <span>{cat.emoji}</span>
                     <span className="text-xs font-bold text-text-secondary uppercase tracking-wider">{cat.label}</span>
                   </div>
@@ -1527,9 +1527,9 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
                       <div key={d.key}>
                         <label className="block text-xs text-text-secondary mb-1">
                           {d.label}
-                          {d.prefix && <span className="text-[#555] ml-1">({d.prefix})</span>}
-                          {d.unit && <span className="text-[#555] ml-1">({d.unit})</span>}
-                          {d.lower_is_better && <span className="text-[#555] ml-1">↓</span>}
+                          {d.prefix && <span className="text-text-secondary ml-1">({d.prefix})</span>}
+                          {d.unit && <span className="text-text-secondary ml-1">({d.unit})</span>}
+                          {d.lower_is_better && <span className="text-text-secondary ml-1">↓</span>}
                         </label>
                         <input type="number" step={d.isInt ? '1' : 'any'} min="0"
                           value={stdValues[d.key] ?? ''}
@@ -1554,7 +1554,7 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
                 <div className="p-4 grid grid-cols-2 gap-3">
                   {customKpis.map(c => (
                     <div key={c.id}>
-                      <label className="block text-xs text-text-secondary mb-1">{c.name} <span className="text-[#555]">({c.unit})</span></label>
+                      <label className="block text-xs text-text-secondary mb-1">{c.name} <span className="text-text-secondary">({c.unit})</span></label>
                       <input type="number" step="any" min="0" value={customValues[c.id] ?? ''}
                         onChange={e => setCustomValues(p => ({ ...p, [c.id]: e.target.value }))}
                         placeholder={c.target ? `target: ${c.target}` : 'es. 0'} className={inputCls} />
@@ -1574,7 +1574,7 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
 
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose}
-                className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary hover:text-white transition-colors">
+                className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary transition-colors">
                 Annulla
               </button>
               <button type="submit" disabled={loading}
@@ -1642,29 +1642,29 @@ function KpiConfigModal({ client, projectId, config, stdDefs, categories, isGrow
     onClose()
   }
 
-  const inputCls = 'bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold/50 placeholder-[#444]'
+  const inputCls = 'bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/50 placeholder-text-tertiary'
   const accent = isGrowth ? { color: '#F5C800', bg: '#F5C80018', border: '#F5C80044' } : { color: '#60A5FA', bg: '#60A5FA18', border: '#60A5FA44' }
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[#141414] border border-[#2A2A2A] rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+      <div className="bg-surface border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
 
         {/* Header fisso */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A] flex-shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center text-lg"
               style={{ background: accent.bg, border: `1px solid ${accent.border}` }}>
               {isGrowth ? '📣' : '📱'}
             </div>
             <div>
-              <h2 className="text-base font-bold text-white">Configura KPI</h2>
+              <h2 className="text-base font-bold text-text-primary">Configura KPI</h2>
               <p className="text-[11px] text-text-secondary">
                 <span style={{ color: accent.color }}>{isGrowth ? 'Growth' : 'Digital'}</span>
                 {' · '}{enabled.length} di {stdDefs.length} KPI attivi
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="text-text-secondary hover:text-white transition-colors">
+          <button onClick={onClose} className="text-text-secondary hover:text-text-primary transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1673,7 +1673,7 @@ function KpiConfigModal({ client, projectId, config, stdDefs, categories, isGrow
         <div className="overflow-y-auto flex-1 p-5 space-y-4">
 
           {/* Attiva / disattiva tutto */}
-          <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-[#111] border border-[#2A2A2A]">
+          <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-surface border border-border">
             <span className="text-xs text-text-secondary">Seleziona tutto</span>
             <button onClick={() => setEnabled(enabled.length === stdDefs.length ? [] : stdDefs.map(d => d.key))}
               className="text-xs font-semibold transition-colors"
@@ -1688,38 +1688,38 @@ function KpiConfigModal({ client, projectId, config, stdDefs, categories, isGrow
             const onCount = cat.keys.filter(k => enabled.includes(k)).length
             const allOn = onCount === catDefs.length
             return (
-              <div key={cat.label} className="rounded-xl border border-[#232323] overflow-hidden">
+              <div key={cat.label} className="rounded-xl border border-border overflow-hidden">
                 {/* Header categoria */}
-                <div className="flex items-center gap-3 px-4 py-3 bg-[#0E0E0E]">
+                <div className="flex items-center gap-3 px-4 py-3 bg-surface">
                   <span className="text-lg leading-none">{cat.emoji}</span>
-                  <span className="text-sm font-semibold text-white flex-1">{cat.label}</span>
+                  <span className="text-sm font-semibold text-text-primary flex-1">{cat.label}</span>
                   <span className="text-[10px] text-text-secondary mr-3">
                     {onCount}/{catDefs.length} attivi
                   </span>
                   {/* Toggle gruppo */}
                   <button onClick={() => toggleCategory(cat.keys)}
                     className="relative w-10 h-5 rounded-full transition-colors flex-shrink-0"
-                    style={{ background: allOn ? accent.color : '#2A2A2A' }}>
+                    style={{ background: allOn ? accent.color : 'var(--color-surface-active)' }}>
                     <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${allOn ? 'left-[22px]' : 'left-0.5'}`} />
                   </button>
                 </div>
 
                 {/* KPI grid 2 colonne */}
-                <div className="grid grid-cols-2 divide-x divide-[#1A1A1A]">
+                <div className="grid grid-cols-2 divide-x divide-border">
                   {catDefs.map((d, i) => {
                     const on = enabled.includes(d.key)
                     return (
                       <label key={d.key}
-                        className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors border-t border-[#1A1A1A] ${on ? 'bg-[#131313]' : 'bg-[#0A0A0A] hover:bg-[#111]'} ${i % 2 === 0 ? '' : ''}`}>
+                        className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors border-t border-border ${on ? 'bg-surface-active' : 'bg-surface hover:bg-surface'} ${i % 2 === 0 ? '' : ''}`}>
                         {/* Mini toggle */}
                         <div onClick={() => toggleKey(d.key)}
                           className="relative w-8 h-4 rounded-full transition-colors flex-shrink-0"
-                          style={{ background: on ? accent.color : '#2A2A2A' }}>
+                          style={{ background: on ? accent.color : 'var(--color-surface-active)' }}>
                           <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${on ? 'left-[18px]' : 'left-0.5'}`} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className={`text-xs font-medium leading-tight ${on ? 'text-white' : 'text-[#555]'}`}>{d.label}</p>
-                          <p className="text-[10px] text-[#444] mt-0.5">
+                          <p className={`text-xs font-medium leading-tight ${on ? 'text-text-primary' : 'text-text-secondary'}`}>{d.label}</p>
+                          <p className="text-[10px] text-text-tertiary mt-0.5">
                             {d.prefix ?? ''}{d.unit ?? (d.isInt ? 'n°' : 'val')}
                             {d.lower_is_better ? ' · ↓ meglio' : ''}
                             {d.targetKey ? ' · target' : ''}
@@ -1736,21 +1736,21 @@ function KpiConfigModal({ client, projectId, config, stdDefs, categories, isGrow
           {/* KPI personalizzati esistenti */}
           {customKpis.length > 0 && (
             <div className="rounded-xl border border-gold/20 overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-3 bg-[#0E0E0E] border-b border-gold/10">
+              <div className="flex items-center gap-2 px-4 py-3 bg-surface border-b border-gold/10">
                 <span className="w-2 h-2 rounded-full bg-gold" />
-                <span className="text-sm font-semibold text-white flex-1">KPI Personalizzati</span>
+                <span className="text-sm font-semibold text-text-primary flex-1">KPI Personalizzati</span>
               </div>
-              <div className="divide-y divide-[#1A1A1A]">
+              <div className="divide-y divide-border">
                 {customKpis.map(c => (
-                  <div key={c.id} className="flex items-center gap-3 px-4 py-3 bg-[#0A0A0A]">
+                  <div key={c.id} className="flex items-center gap-3 px-4 py-3 bg-surface">
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-white">{c.name}</p>
-                      <p className="text-[10px] text-[#555]">
+                      <p className="text-sm font-medium text-text-primary">{c.name}</p>
+                      <p className="text-[10px] text-text-secondary">
                         {c.unit}{c.target ? ` · target: ${c.target}` : ''}{c.lower_is_better ? ' · ↓ meglio' : ''}
                       </p>
                     </div>
                     <button onClick={() => setCustomKpis(p => p.filter(x => x.id !== c.id))}
-                      className="p-1.5 text-[#444] hover:text-red-400 transition-colors rounded-lg hover:bg-red-400/10">
+                      className="p-1.5 text-text-tertiary hover:text-red-400 transition-colors rounded-lg hover:bg-red-400/10">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -1760,7 +1760,7 @@ function KpiConfigModal({ client, projectId, config, stdDefs, categories, isGrow
           )}
 
           {/* Aggiungi KPI custom */}
-          <div className="rounded-xl border border-dashed border-[#2A2A2A] p-4 space-y-3">
+          <div className="rounded-xl border border-dashed border-border p-4 space-y-3">
             <p className="text-xs font-bold text-text-secondary uppercase tracking-wider">Aggiungi KPI personalizzato</p>
             <div className="grid grid-cols-2 gap-2">
               <input value={newKpi.name} onChange={e => setNewKpi(p => ({ ...p, name: e.target.value }))}
@@ -1774,7 +1774,7 @@ function KpiConfigModal({ client, projectId, config, stdDefs, categories, isGrow
               <label className="flex items-center gap-2 cursor-pointer">
                 <div onClick={() => setNewKpi(p => ({ ...p, lower_is_better: !p.lower_is_better }))}
                   className="relative w-8 h-4 rounded-full transition-colors"
-                  style={{ background: newKpi.lower_is_better ? '#F5C800' : '#2A2A2A' }}>
+                  style={{ background: newKpi.lower_is_better ? 'var(--color-gold)' : 'var(--color-surface-active)' }}>
                   <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${newKpi.lower_is_better ? 'left-[18px]' : 'left-0.5'}`} />
                 </div>
                 <span className="text-xs text-text-secondary">Valore più basso = meglio</span>
@@ -1788,9 +1788,9 @@ function KpiConfigModal({ client, projectId, config, stdDefs, categories, isGrow
         </div>
 
         {/* Footer fisso */}
-        <div className="flex gap-3 px-5 py-4 border-t border-[#2A2A2A] flex-shrink-0">
+        <div className="flex gap-3 px-5 py-4 border-t border-border flex-shrink-0">
           <button onClick={onClose}
-            className="flex-1 py-2.5 border border-[#2A2A2A] rounded-xl text-sm text-text-secondary hover:text-white hover:border-[#444] transition-colors">
+            className="flex-1 py-2.5 border border-border rounded-xl text-sm text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors">
             Annulla
           </button>
           <button onClick={save} disabled={loading}

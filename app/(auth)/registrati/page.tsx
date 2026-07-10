@@ -15,7 +15,7 @@ interface InviteData {
 
 export default function RegistratiPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#111111]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
       <RegistratiForm />
     </Suspense>
   )
@@ -98,37 +98,37 @@ function RegistratiForm() {
   }
 
   if (step === 'loading') return (
-    <div className="min-h-screen bg-[#0B0B0C] flex items-center justify-center">
-      <Loader2 className="w-8 h-8 text-[#F5C800] animate-spin" />
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <Loader2 className="w-8 h-8 text-gold animate-spin" />
     </div>
   )
 
   if (step === 'expired') return (
-    <div className="min-h-screen bg-[#0B0B0C] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="text-center max-w-sm">
-        <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-        <h1 className="text-2xl font-black text-white mb-2">Invito scaduto</h1>
-        <p className="text-white/40 text-sm">Questo link di invito è scaduto. Chiedi al tuo admin di generarne uno nuovo.</p>
+        <AlertCircle className="w-12 h-12 text-error mx-auto mb-4" />
+        <h1 className="text-2xl font-black text-text-primary mb-2">Invito scaduto</h1>
+        <p className="text-overlay/40 text-sm">Questo link di invito è scaduto. Chiedi al tuo admin di generarne uno nuovo.</p>
       </div>
     </div>
   )
 
   if (step === 'error') return (
-    <div className="min-h-screen bg-[#0B0B0C] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="text-center max-w-sm">
-        <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-        <h1 className="text-2xl font-black text-white mb-2">Link non valido</h1>
-        <p className="text-white/40 text-sm">Il link di registrazione non è valido o è già stato usato.</p>
+        <AlertCircle className="w-12 h-12 text-error mx-auto mb-4" />
+        <h1 className="text-2xl font-black text-text-primary mb-2">Link non valido</h1>
+        <p className="text-overlay/40 text-sm">Il link di registrazione non è valido o è già stato usato.</p>
       </div>
     </div>
   )
 
   if (step === 'done') return (
-    <div className="min-h-screen bg-[#0B0B0C] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="text-center">
-        <CheckCircle2 className="w-12 h-12 text-green-400 mx-auto mb-4" />
-        <h1 className="text-2xl font-black text-white mb-2">Benvenuto in TWO BEE!</h1>
-        <p className="text-white/40 text-sm">Stai per entrare nella piattaforma...</p>
+        <CheckCircle2 className="w-12 h-12 text-success mx-auto mb-4" />
+        <h1 className="text-2xl font-black text-text-primary mb-2">Benvenuto in TWO BEE!</h1>
+        <p className="text-overlay/40 text-sm">Stai per entrare nella piattaforma...</p>
       </div>
     </div>
   )
@@ -139,21 +139,21 @@ function RegistratiForm() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0B0B0C] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
           <h1 className="text-5xl font-black tracking-tight mb-2">
-            <span className="text-white">two bee</span>
-            <span className="text-[#F5C800]">.</span>
+            <span className="text-text-primary">two bee</span>
+            <span className="text-gold">.</span>
           </h1>
-          <p className="text-white/30 text-sm tracking-[0.2em] uppercase">Crea il tuo account</p>
+          <p className="text-overlay/30 text-sm tracking-[0.2em] uppercase">Crea il tuo account</p>
         </div>
 
-        <div className="bg-white/[0.02] backdrop-blur border border-white/[0.08] rounded-3xl p-8">
+        <div className="bg-overlay/[0.02] backdrop-blur border border-overlay/[0.08] rounded-3xl p-8">
           {invite && (
-            <div className="mb-6 p-3 rounded-xl bg-[#F5C800]/5 border border-[#F5C800]/20">
-              <p className="text-xs text-[#F5C800]/70">Sei stato invitato come</p>
-              <p className="text-sm font-bold text-[#F5C800] mt-0.5">
+            <div className="mb-6 p-3 rounded-xl bg-gold-dim border border-gold/20">
+              <p className="text-xs text-gold/70">Sei stato invitato come</p>
+              <p className="text-sm font-bold text-gold mt-0.5">
                 {ROLE_DISPLAY[invite.app_role] ?? invite.app_role}
                 {invite.job_title ? ` · ${invite.job_title}` : ''}
               </p>
@@ -162,29 +162,29 @@ function RegistratiForm() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm text-white/40 mb-1.5">Email</label>
+              <label className="block text-sm text-overlay/40 mb-1.5">Email</label>
               <input
                 type="email"
                 value={invite?.email ?? ''}
                 disabled
-                className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white/50 cursor-not-allowed"
+                className="w-full bg-overlay/[0.03] border border-overlay/[0.08] rounded-xl px-4 py-3 text-sm text-overlay/50 cursor-not-allowed"
               />
             </div>
 
             <div>
-              <label className="block text-sm text-white/40 mb-1.5">Nome e Cognome *</label>
+              <label className="block text-sm text-overlay/40 mb-1.5">Nome e Cognome *</label>
               <input
                 type="text"
                 value={fullName}
                 onChange={e => setFullName(e.target.value)}
                 required
                 placeholder="Mario Rossi"
-                className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#F5C800]/40 transition-colors"
+                className="w-full bg-overlay/[0.03] border border-overlay/[0.08] rounded-xl px-4 py-3 text-sm text-text-primary placeholder-overlay/20 focus:outline-none focus:border-gold/40 transition-colors"
               />
             </div>
 
             <div>
-              <label className="block text-sm text-white/40 mb-1.5">Password *</label>
+              <label className="block text-sm text-overlay/40 mb-1.5">Password *</label>
               <input
                 type="password"
                 value={password}
@@ -192,24 +192,24 @@ function RegistratiForm() {
                 required
                 minLength={6}
                 placeholder="Minimo 6 caratteri"
-                className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#F5C800]/40 transition-colors"
+                className="w-full bg-overlay/[0.03] border border-overlay/[0.08] rounded-xl px-4 py-3 text-sm text-text-primary placeholder-overlay/20 focus:outline-none focus:border-gold/40 transition-colors"
               />
             </div>
 
             <div>
-              <label className="block text-sm text-white/40 mb-1.5">Conferma Password *</label>
+              <label className="block text-sm text-overlay/40 mb-1.5">Conferma Password *</label>
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
                 required
                 placeholder="Ripeti la password"
-                className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#F5C800]/40 transition-colors"
+                className="w-full bg-overlay/[0.03] border border-overlay/[0.08] rounded-xl px-4 py-3 text-sm text-text-primary placeholder-overlay/20 focus:outline-none focus:border-gold/40 transition-colors"
               />
             </div>
 
             {errorMsg && (
-              <div className="flex items-center gap-2 text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-xl px-4 py-2">
+              <div className="flex items-center gap-2 text-sm text-error bg-error/10 border border-error/20 rounded-xl px-4 py-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 {errorMsg}
               </div>
@@ -218,7 +218,7 @@ function RegistratiForm() {
             <button
               type="submit"
               disabled={saving}
-              className="w-full bg-[#F5C800] text-black font-bold py-3 rounded-xl hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full bg-gold text-black font-bold py-3 rounded-xl hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {saving && <Loader2 className="w-4 h-4 animate-spin" />}
               Crea account
@@ -226,7 +226,7 @@ function RegistratiForm() {
           </form>
         </div>
 
-        <p className="text-center text-white/15 text-xs mt-6">
+        <p className="text-center text-overlay/15 text-xs mt-6">
           Accesso riservato ai membri del team TWO BEE
         </p>
       </div>

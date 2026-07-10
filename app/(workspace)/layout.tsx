@@ -44,7 +44,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   }
 
   return (
-    <div className="flex h-screen bg-[#111111] overflow-hidden">
+    <div className="flex h-screen bg-background overflow-hidden">
       <WorkspaceSidebar
         sections={visibleSections}
         profile={{

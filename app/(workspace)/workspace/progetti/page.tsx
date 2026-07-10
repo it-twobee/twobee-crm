@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { WorkspaceProjectsClient } from '@/components/workspace/WorkspaceProjectsClient'
+import type { ProjectKind } from '@/lib/types/database'
 
 export const revalidate = 0
 
@@ -11,51 +12,30 @@ export default async function WorkspaceProgettiPage() {
 
   const today = new Date().toISOString().slice(0, 10)
 
-  // Progetti da task assegnate (con titolo e id per timeline)
-  const [ownedTasksRes, assignedIdsRes] = await Promise.all([
-    supabase.from('tasks')
-      .select('id, title, project_id, status, due_date, assignee_id')
-      .eq('assignee_id', user.id)
-      .neq('status', 'completato'),
-    supabase.from('task_assignees').select('task_id').eq('profile_id', user.id),
-  ])
-
-  const assignedIds = (assignedIdsRes.data ?? []).map((a: { task_id: string }) => a.task_id)
-  let extraTaskMeta: Array<{ id: string; title: string; project_id: string | null; status: string; due_date: string | null; assignee_id: string | null }> = []
-  if (assignedIds.length > 0) {
-    const { data } = await supabase.from('tasks')
-      .select('id, title, project_id, status, due_date, assignee_id')
-      .in('id', assignedIds)
-      .neq('status', 'completato')
-    extraTaskMeta = data ?? []
-  }
-
-  type TaskMeta = { id: string; title: string; project_id: string | null; status: string; due_date: string | null; assignee_id: string | null }
-  const ownedSet = new Set((ownedTasksRes.data ?? []).map((t: TaskMeta) => t.id))
-  const allTaskMeta: TaskMeta[] = [
-    ...(ownedTasksRes.data ?? []),
-    ...extraTaskMeta.filter((t: TaskMeta) => !ownedSet.has(t.id)),
-  ]
-
-  const projectIds = Array.from(new Set(allTaskMeta.map(t => t.project_id).filter(Boolean) as string[]))
-
-  if (projectIds.length === 0) {
-    return (
-      <div className="p-6 text-center py-20 text-white/30 text-sm">
-        Nessun progetto con task assegnate
-      </div>
-    )
-  }
-
   const { data: projectsData } = await supabase
     .from('projects')
     .select('id, name, status, project_kind, client:clients(id, company_name)')
-    .in('id', projectIds)
+    .eq('status', 'attivo')
     .order('name')
+
+  type ProjectRow = {
+    id: string; name: string; status: string; project_kind: ProjectKind | null
+    client: { id: string; company_name: string } | null
+  }
+  const projectList = (projectsData ?? []) as unknown as ProjectRow[]
+  const projectIds = projectList.map(p => p.id)
+
+  type TaskMeta = { id: string; title: string; project_id: string | null; status: string; due_date: string | null }
+  const { data: tasksData } = projectIds.length > 0
+    ? await supabase.from('tasks')
+        .select('id, title, project_id, status, due_date')
+        .in('project_id', projectIds)
+        .neq('status', 'completato')
+    : { data: [] as TaskMeta[] }
 
   const taskCountMap = new Map<string, { total: number; overdue: number }>()
   const tasksByProject = new Map<string, TaskMeta[]>()
-  for (const t of allTaskMeta) {
+  for (const t of (tasksData ?? []) as TaskMeta[]) {
     if (!t.project_id) continue
     const cur = taskCountMap.get(t.project_id) ?? { total: 0, overdue: 0 }
     cur.total++
@@ -66,15 +46,12 @@ export default async function WorkspaceProgettiPage() {
     tasksByProject.set(t.project_id, arr)
   }
 
-  const projects = (projectsData ?? []).map((p: {
-    id: string; name: string; status: string; project_kind: string | null;
-    client: unknown
-  }) => ({
+  const projects = projectList.map(p => ({
     id: p.id,
     name: p.name,
     status: p.status,
     project_kind: p.project_kind,
-    client: (p.client as { id: string; company_name: string } | null),
+    client: p.client,
     taskCount: taskCountMap.get(p.id)?.total ?? 0,
     overdueCount: taskCountMap.get(p.id)?.overdue ?? 0,
     tasks: (tasksByProject.get(p.id) ?? []).map(t => ({

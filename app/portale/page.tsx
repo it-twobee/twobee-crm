@@ -20,8 +20,8 @@ export default async function PortalePage() {
   if (!clientId) {
     return (
       <div className="max-w-md mx-auto px-6 py-24 text-center">
-        <h1 className="text-lg font-black text-white mb-2">Nessun account collegato</h1>
-        <p className="text-sm text-[#444]">Il tuo profilo non è ancora associato a un cliente. Contatta il team TwoBee.</p>
+        <h1 className="text-lg font-black text-text-primary mb-2">Nessun account collegato</h1>
+        <p className="text-sm text-text-tertiary">Il tuo profilo non è ancora associato a un cliente. Contatta il team TwoBee.</p>
       </div>
     )
   }

@@ -42,15 +42,15 @@ export function ClientsRiskPanel({ clients, totalMrr }: Props) {
   const active = tab === 'rischio' ? atRisk : lost
 
   return (
-    <div className="bg-surface border border-[#2A2A2A] rounded-xl overflow-hidden h-full flex flex-col">
+    <div className="bg-surface border border-border rounded-xl overflow-hidden h-full flex flex-col">
 
       {/* Header con tabs */}
       <div className="flex items-center justify-between px-5 pt-4 pb-0">
-        <div className="flex gap-1 bg-[#111] border border-[#2A2A2A] rounded-lg p-0.5">
+        <div className="flex gap-1 bg-surface border border-border rounded-lg p-0.5">
           <button
             onClick={() => setTab('rischio')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
-              tab === 'rischio' ? 'bg-warning text-black' : 'text-text-secondary hover:text-white'
+              tab === 'rischio' ? 'bg-warning text-black' : 'text-text-secondary hover:text-text-primary'
             }`}
           >
             <AlertTriangle className="w-3 h-3" />
@@ -64,7 +64,7 @@ export function ClientsRiskPanel({ clients, totalMrr }: Props) {
           <button
             onClick={() => setTab('persi')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
-              tab === 'persi' ? 'bg-error text-white' : 'text-text-secondary hover:text-white'
+              tab === 'persi' ? 'bg-error text-white' : 'text-text-secondary hover:text-text-primary'
             }`}
           >
             <TrendingDown className="w-3 h-3" />
@@ -113,12 +113,12 @@ export function ClientsRiskPanel({ clients, totalMrr }: Props) {
       <div className="p-5 flex-1 overflow-auto">
         {active.length === 0 ? (
           <div className="text-center py-6">
-            <div className={`w-10 h-10 rounded-full mx-auto mb-2 flex items-center justify-center ${tab === 'rischio' ? 'bg-success/10' : 'bg-[#1A1A1A]'}`}>
+            <div className={`w-10 h-10 rounded-full mx-auto mb-2 flex items-center justify-center ${tab === 'rischio' ? 'bg-success/10' : 'bg-surface'}`}>
               {tab === 'rischio'
                 ? <AlertTriangle className="w-5 h-5 text-success" />
-                : <TrendingDown className="w-5 h-5 text-[#444]" />}
+                : <TrendingDown className="w-5 h-5 text-text-tertiary" />}
             </div>
-            <p className="text-sm font-bold text-white">
+            <p className="text-sm font-bold text-text-primary">
               {tab === 'rischio' ? 'Nessun cliente in bilico' : 'Nessun cliente perso'}
             </p>
             <p className="text-xs text-text-secondary mt-0.5">
@@ -150,7 +150,7 @@ export function ClientsRiskPanel({ clients, totalMrr }: Props) {
                   {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-bold text-white truncate">{c.company_name}</p>
+                      <p className="text-sm font-bold text-text-primary truncate">{c.company_name}</p>
                       <span className="text-[10px] text-text-secondary shrink-0">
                         {packageShort[c.package] ?? c.package}
                       </span>
@@ -158,7 +158,7 @@ export function ClientsRiskPanel({ clients, totalMrr }: Props) {
                     <div className="flex items-center gap-3 mt-0.5 text-[10px] text-text-secondary">
                       <span className="capitalize">{c.client_type}</span>
                       {tab === 'persi' && (
-                        <span>LTV stimato: <strong className="text-white">€{ltv.toLocaleString('it-IT')}</strong></span>
+                        <span>LTV stimato: <strong className="text-text-primary">€{ltv.toLocaleString('it-IT')}</strong></span>
                       )}
                       {tab === 'rischio' && c.notes && (
                         <span className="truncate max-w-[160px]">{c.notes}</span>
@@ -174,7 +174,7 @@ export function ClientsRiskPanel({ clients, totalMrr }: Props) {
                     <p className="text-[9px] text-text-secondary">/mese</p>
                   </div>
 
-                  <ExternalLink className="w-3.5 h-3.5 text-[#333] group-hover:text-text-secondary shrink-0" />
+                  <ExternalLink className="w-3.5 h-3.5 text-text-tertiary group-hover:text-text-secondary shrink-0" />
                 </Link>
               )
             })}
@@ -183,12 +183,12 @@ export function ClientsRiskPanel({ clients, totalMrr }: Props) {
 
         {/* Footer churn bar — solo tab persi */}
         {tab === 'persi' && lost.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-[#2A2A2A]">
+          <div className="mt-4 pt-4 border-t border-border">
             <div className="flex items-center justify-between text-[10px] text-text-secondary mb-1.5">
               <span>Distribuzione clienti</span>
               <span>{clients.filter(c => c.client_label === 'stabile').length} stabili · {atRisk.length} in bilico · {lost.length} persi</span>
             </div>
-            <div className="h-2 bg-[#1A1A1A] rounded-full overflow-hidden flex gap-px">
+            <div className="h-2 bg-surface rounded-full overflow-hidden flex gap-px">
               {clients.filter(c => c.client_label === 'stabile').length > 0 && (
                 <div className="h-full bg-success rounded-l-full transition-all"
                   style={{ width: `${(clients.filter(c => c.client_label === 'stabile').length / total) * 100}%` }} />

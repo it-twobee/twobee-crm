@@ -26,14 +26,14 @@ const packageShort: Record<string, string> = {
 
 export function ClientsStatusTable({ clients }: ClientsStatusTableProps) {
   return (
-    <div className="bg-surface border border-[#2A2A2A] rounded-card overflow-hidden">
-      <div className="px-5 py-4 border-b border-[#2A2A2A]">
-        <h2 className="font-bold text-white">Stato Progetti</h2>
+    <div className="bg-surface border border-border rounded-card overflow-hidden">
+      <div className="px-5 py-4 border-b border-border">
+        <h2 className="font-bold text-text-primary">Stato Progetti</h2>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-[#2A2A2A]">
+            <tr className="border-b border-border">
               {['Cliente', 'Pacchetto', 'MRR', 'Stato', 'Pagamenti', 'Canali'].map((h) => (
                 <th
                   key={h}
@@ -48,14 +48,14 @@ export function ClientsStatusTable({ clients }: ClientsStatusTableProps) {
             {clients.map((client, i) => (
               <tr
                 key={client.id}
-                className={`border-b border-[#2A2A2A] hover:bg-white/3 transition-colors ${
+                className={`border-b border-border hover:bg-overlay/3 transition-colors ${
                   i === clients.length - 1 ? 'border-b-0' : ''
                 }`}
               >
                 <td className="px-5 py-3.5">
                   <Link
                     href={`/clienti/${client.id}`}
-                    className="font-semibold text-white hover:text-gold transition-colors text-sm"
+                    className="font-semibold text-text-primary hover:text-gold transition-colors text-sm"
                   >
                     {client.company_name}
                   </Link>
@@ -80,7 +80,7 @@ export function ClientsStatusTable({ clients }: ClientsStatusTableProps) {
                     {client.active_channels.slice(0, 3).map((ch) => (
                       <span
                         key={ch}
-                        className="text-xs bg-background border border-[#2A2A2A] px-1.5 py-0.5 rounded text-text-secondary"
+                        className="text-xs bg-background border border-border px-1.5 py-0.5 rounded text-text-secondary"
                       >
                         {ch}
                       </span>

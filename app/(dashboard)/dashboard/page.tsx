@@ -444,8 +444,8 @@ export default async function DashboardPage() {
       {/* ── Header ── */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-black text-white font-heading tracking-tight">{greeting}, {greetingName}</h1>
-          <p className="text-white/25 text-xs mt-1">
+          <h1 className="text-xl font-black text-text-primary font-heading tracking-tight">{greeting}, {greetingName}</h1>
+          <p className="text-overlay/25 text-xs mt-1">
             {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}
             {isAdminLevel && ` · ${clients.length} clienti · ${allProfiles.length} nel team`}
             {!isAdminLevel && ` · ${clients.length} clienti assegnati`}

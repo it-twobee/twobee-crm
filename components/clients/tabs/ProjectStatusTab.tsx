@@ -37,8 +37,8 @@ const PROJECT_TYPE_META: Record<string, { icon: string; label: string }> = {
 const STATUS_CFG: Record<string, { label: string; badge: string; dot: string }> = {
   attivo:     { label: 'Attivo',     badge: 'bg-success/10 text-success border-success/20',         dot: 'bg-success' },
   in_pausa:   { label: 'In pausa',   badge: 'bg-warning/10 text-warning border-warning/20',         dot: 'bg-warning' },
-  completato: { label: 'Completato', badge: 'bg-[#2A2A2A] text-text-secondary border-[#3A3A3A]',   dot: 'bg-[#555]' },
-  archiviato: { label: 'Archiviato', badge: 'bg-[#2A2A2A] text-text-secondary border-[#3A3A3A]',   dot: 'bg-[#555]' },
+  completato: { label: 'Completato', badge: 'bg-surface-active text-text-secondary border-border-strong',   dot: 'bg-[#555]' },
+  archiviato: { label: 'Archiviato', badge: 'bg-surface-active text-text-secondary border-border-strong',   dot: 'bg-[#555]' },
 }
 
 const TASK_COLS: { key: Task['status']; label: string; top: string }[] = [
@@ -93,7 +93,7 @@ function ProjectCard({ project, tasks, sprints, isSelected, onSelect, onEdit }: 
 
   return (
     <button onClick={onSelect} className={`w-full text-left rounded-xl border p-4 transition-all duration-200 hover:border-gold/40 ${
-      isSelected ? 'bg-gold/5 border-gold/50 ring-1 ring-gold/15' : 'bg-surface border-[#2A2A2A]'
+      isSelected ? 'bg-gold/5 border-gold/50 ring-1 ring-gold/15' : 'bg-surface border-border'
     }`}>
       <div className="flex items-center gap-4">
         <ProgressRing pct={pct} />
@@ -101,7 +101,7 @@ function ProjectCard({ project, tasks, sprints, isSelected, onSelect, onEdit }: 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-base leading-none">{meta.icon}</span>
-            <span className="text-sm font-bold text-white">{project.name}</span>
+            <span className="text-sm font-bold text-text-primary">{project.name}</span>
             <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${status.badge}`}>{status.label}</span>
             {project.project_kind === 'growth' && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-gold/10 text-gold border-gold/25">📈 Growth</span>
@@ -128,7 +128,7 @@ function ProjectCard({ project, tasks, sprints, isSelected, onSelect, onEdit }: 
 
         <div className="flex items-center gap-2 shrink-0">
           <span onClick={onEdit}
-            className="p-1.5 rounded-lg text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+            className="p-1.5 rounded-lg text-text-secondary hover:text-text-primary hover:bg-overlay/5 transition-colors"
             title="Modifica progetto">
             <Pencil className="w-3.5 h-3.5" />
           </span>
@@ -155,7 +155,7 @@ function MilestoneTracker({ tasks, onAdd, onEdit, onDelete }: {
       <div className="flex items-center justify-between mb-4">
         {milestones.length > 0 && (
           <div className="flex items-center gap-3 flex-1 mr-4">
-            <div className="flex-1 h-2 bg-[#2A2A2A] rounded-full overflow-hidden">
+            <div className="flex-1 h-2 bg-surface-active rounded-full overflow-hidden">
               <div className="h-full bg-gold rounded-full transition-all duration-700"
                 style={{ width: `${Math.round(completedCount / milestones.length * 100)}%` }} />
             </div>
@@ -170,7 +170,7 @@ function MilestoneTracker({ tasks, onAdd, onEdit, onDelete }: {
 
       {milestones.length === 0 ? (
         <div className="text-center py-8">
-          <Flag className="w-8 h-8 text-[#2A2A2A] mx-auto mb-2" />
+          <Flag className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
           <p className="text-sm text-text-secondary mb-3">Nessuna milestone definita per questo progetto.</p>
           <button onClick={onAdd} className="text-xs text-gold hover:underline">Aggiungi la prima milestone</button>
         </div>
@@ -190,7 +190,7 @@ function MilestoneTracker({ tasks, onAdd, onEdit, onDelete }: {
                     isDone    ? 'bg-success border-success' :
                     isCurrent ? 'bg-gold border-gold shadow-[0_0_12px_rgba(245,200,0,0.4)]' :
                     isOverdue ? 'bg-error/10 border-error' :
-                    'bg-[#1A1A1A] border-[#333]'
+                    'bg-surface border-border'
                   }`}>
                     {isDone ? (
                       <svg className="w-3.5 h-3.5 text-black" viewBox="0 0 14 14" fill="none">
@@ -200,7 +200,7 @@ function MilestoneTracker({ tasks, onAdd, onEdit, onDelete }: {
                       <div className={`w-2 h-2 rounded-full ${isCurrent ? 'bg-black' : isOverdue ? 'bg-error' : 'bg-[#444]'}`} />
                     )}
                   </div>
-                  {!isLast && <div className={`w-px flex-1 my-1.5 ${isDone ? 'bg-success/30' : 'bg-[#2A2A2A]'}`} />}
+                  {!isLast && <div className={`w-px flex-1 my-1.5 ${isDone ? 'bg-success/30' : 'bg-surface-active'}`} />}
                 </div>
 
                 {/* Content */}
@@ -209,7 +209,7 @@ function MilestoneTracker({ tasks, onAdd, onEdit, onDelete }: {
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-semibold leading-snug ${
                         isDone ? 'text-text-secondary line-through decoration-[#444]' :
-                        isCurrent ? 'text-white' : 'text-[#888]'
+                        isCurrent ? 'text-text-primary' : 'text-text-secondary'
                       }`}>{m.title}</p>
                       {m.description && !isDone && (
                         <p className="text-xs text-text-secondary mt-0.5 leading-relaxed">{m.description}</p>
@@ -219,7 +219,7 @@ function MilestoneTracker({ tasks, onAdd, onEdit, onDelete }: {
                       {isCurrent && <span className="text-[10px] bg-gold/10 text-gold border border-gold/30 px-2 py-0.5 rounded-full font-bold whitespace-nowrap">In corso</span>}
                       {isOverdue && <span className="text-[10px] bg-error/10 text-error border border-error/30 px-2 py-0.5 rounded-full font-bold whitespace-nowrap">Scaduta</span>}
                       {m.due_date && <span className="text-[10px] text-text-secondary whitespace-nowrap">{formatDate(m.due_date)}</span>}
-                      <button onClick={() => onEdit(m)} className="p-1 rounded hover:bg-white/5 text-text-secondary hover:text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => onEdit(m)} className="p-1 rounded hover:bg-overlay/5 text-text-secondary hover:text-text-primary opacity-0 group-hover:opacity-100 transition-opacity">
                         <Pencil className="w-3 h-3" />
                       </button>
                       <button onClick={() => { if (confirm('Eliminare questa milestone?')) onDelete(m.id) }}
@@ -267,8 +267,8 @@ function MiniTaskBoard({ tasks, profiles, onStatusChange, onAdd, onEdit, onDelet
             const colTasks = nonMilestone.filter(t => t.status === col.key)
             return (
               <div key={col.key}>
-                <div className={`bg-surface border border-[#2A2A2A] border-t-2 ${col.top} rounded-xl px-3 py-2 mb-2 flex items-center justify-between`}>
-                  <span className="text-xs font-bold text-white">{col.label}</span>
+                <div className={`bg-surface border border-border border-t-2 ${col.top} rounded-xl px-3 py-2 mb-2 flex items-center justify-between`}>
+                  <span className="text-xs font-bold text-text-primary">{col.label}</span>
                   <span className="text-[10px] bg-background text-text-secondary px-1.5 py-0.5 rounded-full font-semibold">{colTasks.length}</span>
                 </div>
                 <div className="space-y-1.5">
@@ -276,12 +276,12 @@ function MiniTaskBoard({ tasks, profiles, onStatusChange, onAdd, onEdit, onDelet
                     const assignee = profiles.find(p => p.id === t.assignee_id || p.id === t.assigned_to)
                     const isOverdue = t.status !== 'completato' && !!t.due_date && new Date(t.due_date) < new Date()
                     return (
-                      <div key={t.id} className="group bg-[#111] border border-[#2A2A2A] rounded-lg p-2.5 hover:border-[#3A3A3A] transition-colors">
+                      <div key={t.id} className="group bg-surface border border-border rounded-lg p-2.5 hover:border-border-strong transition-colors">
                         <div className="flex items-start gap-1.5 mb-1">
                           <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${
                             t.priority === 'alta' ? 'bg-error' : t.priority === 'media' ? 'bg-warning' : 'bg-[#3A3A3A]'
                           }`} />
-                          <p className="text-xs text-white leading-snug flex-1">{t.title}</p>
+                          <p className="text-xs text-text-primary leading-snug flex-1">{t.title}</p>
                         </div>
                         <div className="flex items-center gap-1 pl-3">
                           {t.due_date && (
@@ -298,13 +298,13 @@ function MiniTaskBoard({ tasks, profiles, onStatusChange, onAdd, onEdit, onDelet
                             <select value={t.status}
                               onChange={e => onStatusChange(t.id, e.target.value as Task['status'])}
                               onClick={e => e.stopPropagation()}
-                              className="text-[9px] bg-[#1A1A1A] border border-[#2A2A2A] rounded px-1 py-0.5 text-text-secondary focus:outline-none focus:border-gold cursor-pointer">
+                              className="text-[9px] bg-surface border border-border rounded px-1 py-0.5 text-text-secondary focus:outline-none focus:border-gold cursor-pointer">
                               <option value="da_fare">Da fare</option>
                               <option value="in_corso">In corso</option>
                               <option value="in_revisione">In rev.</option>
                               <option value="completato">Done</option>
                             </select>
-                            <button onClick={() => onEdit(t)} className="p-0.5 rounded hover:bg-white/5 text-text-secondary hover:text-white">
+                            <button onClick={() => onEdit(t)} className="p-0.5 rounded hover:bg-overlay/5 text-text-secondary hover:text-text-primary">
                               <Pencil className="w-2.5 h-2.5" />
                             </button>
                             <button onClick={() => { if (confirm('Eliminare questa task?')) onDelete(t.id) }}
@@ -320,8 +320,8 @@ function MiniTaskBoard({ tasks, profiles, onStatusChange, onAdd, onEdit, onDelet
                     <p className="text-[10px] text-text-secondary px-1 pt-0.5">+{colTasks.length - 8} altre</p>
                   )}
                   {colTasks.length === 0 && (
-                    <div className="h-14 border border-dashed border-[#222] rounded-lg flex items-center justify-center">
-                      <span className="text-[10px] text-[#444]">Nessuna</span>
+                    <div className="h-14 border border-dashed border-border rounded-lg flex items-center justify-center">
+                      <span className="text-[10px] text-text-tertiary">Nessuna</span>
                     </div>
                   )}
                 </div>
@@ -384,20 +384,20 @@ function SprintPanel({ project, sprints, tasks, onAdd, onEdit, onDelete }: {
         return (
           <>
             {/* Sprint corrente */}
-            <div className="bg-[#111] border border-[#2A2A2A] rounded-xl p-4 group">
+            <div className="bg-surface border border-border rounded-xl p-4 group">
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
                       current.status === 'in_corso'   ? 'bg-gold/10 text-gold border-gold/30' :
                       current.status === 'completato' ? 'bg-success/10 text-success border-success/30' :
-                      'bg-surface text-text-secondary border-[#2A2A2A]'
+                      'bg-surface text-text-secondary border-border'
                     }`}>
                       {current.status === 'in_corso' ? 'In corso' : current.status === 'completato' ? 'Completato' : 'Pianificato'}
                     </span>
-                    <h3 className="text-sm font-bold text-white">{current.name}</h3>
+                    <h3 className="text-sm font-bold text-text-primary">{current.name}</h3>
                     <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => onEdit(current)} className="p-1 rounded hover:bg-white/5 text-text-secondary hover:text-white">
+                      <button onClick={() => onEdit(current)} className="p-1 rounded hover:bg-overlay/5 text-text-secondary hover:text-text-primary">
                         <Pencil className="w-3 h-3" />
                       </button>
                       <button onClick={() => { if (confirm('Eliminare questo sprint?')) onDelete(current.id) }}
@@ -416,14 +416,14 @@ function SprintPanel({ project, sprints, tasks, onAdd, onEdit, onDelete }: {
                   <p className="text-[10px] text-text-secondary">{done}/{sprintTasks.length} task</p>
                 </div>
               </div>
-              <div className="h-2 bg-[#2A2A2A] rounded-full overflow-hidden mt-3">
+              <div className="h-2 bg-surface-active rounded-full overflow-hidden mt-3">
                 <div className="h-full bg-gold rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
               </div>
             </div>
 
             {/* AI Report */}
-            <div className="border border-[#2A2A2A] rounded-xl overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 bg-[#111] border-b border-[#2A2A2A]">
+            <div className="border border-border rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 bg-surface border-b border-border">
                 <div className="flex items-center gap-2 text-text-secondary">
                   <Brain className="w-3.5 h-3.5" />
                   <span className="text-xs font-bold uppercase tracking-wider">Report Sprint AI</span>
@@ -434,12 +434,12 @@ function SprintPanel({ project, sprints, tasks, onAdd, onEdit, onDelete }: {
                     {loading ? <><Loader2 className="w-3 h-3 animate-spin" />Generando...</> : 'Genera →'}
                   </button>
                 ) : (
-                  <button onClick={() => setReport(null)} className="text-[10px] text-text-secondary hover:text-white">Rigenera</button>
+                  <button onClick={() => setReport(null)} className="text-[10px] text-text-secondary hover:text-text-primary">Rigenera</button>
                 )}
               </div>
               <div className="px-4 py-3 bg-background">
                 {report ? (
-                  <p className="text-sm text-white leading-relaxed whitespace-pre-line">{report}</p>
+                  <p className="text-sm text-text-primary leading-relaxed whitespace-pre-line">{report}</p>
                 ) : (
                   <p className="text-xs text-text-secondary">
                     {loading ? 'L\'AI sta analizzando le task dello sprint...' : 'Genera un riassunto leggibile dal cliente: cosa è stato fatto, cosa è in corso, prossimi passi.'}
@@ -457,12 +457,12 @@ function SprintPanel({ project, sprints, tasks, onAdd, onEdit, onDelete }: {
                     const st = tasks.filter(t => t.sprint_id === s.id)
                     const sp = st.length ? Math.round(st.filter(t => t.status === 'completato').length / st.length * 100) : 0
                     return (
-                      <div key={s.id} className="group flex items-center gap-3 py-2 border-b border-[#1A1A1A] last:border-0">
+                      <div key={s.id} className="group flex items-center gap-3 py-2 border-b border-border last:border-0">
                         <span className="text-xs text-text-secondary flex-1 truncate">{s.name}</span>
                         <span className="text-[10px] text-text-secondary hidden sm:block">{formatDate(s.start_date)} → {formatDate(s.end_date)}</span>
                         <span className={`text-xs font-bold ${sp === 100 ? 'text-success' : 'text-text-secondary'}`}>{sp}%</span>
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => onEdit(s)} className="p-1 rounded hover:bg-white/5 text-text-secondary hover:text-white">
+                          <button onClick={() => onEdit(s)} className="p-1 rounded hover:bg-overlay/5 text-text-secondary hover:text-text-primary">
                             <Pencil className="w-3 h-3" />
                           </button>
                           <button onClick={() => { if (confirm('Eliminare questo sprint?')) onDelete(s.id) }}
@@ -495,11 +495,11 @@ function AgendaSection({ meetings, onAdd }: { meetings: MeetingNote[]; onAdd: ()
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
       {/* Prossimi appuntamenti */}
-      <div className="bg-[#111] border border-[#2A2A2A] rounded-xl overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[#2A2A2A]">
+      <div className="bg-surface border border-border rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <div className="flex items-center gap-2">
             <Calendar className="w-3.5 h-3.5 text-gold" />
-            <span className="text-xs font-bold text-white uppercase tracking-wider">Prossimi Appuntamenti</span>
+            <span className="text-xs font-bold text-text-primary uppercase tracking-wider">Prossimi Appuntamenti</span>
           </div>
           <button onClick={onAdd} className="text-[10px] text-gold hover:text-yellow-400 font-semibold flex items-center gap-1">
             <Plus className="w-3 h-3" /> Aggiungi
@@ -508,7 +508,7 @@ function AgendaSection({ meetings, onAdd }: { meetings: MeetingNote[]; onAdd: ()
         <div className="p-4">
           {upcoming.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 gap-2">
-              <Calendar className="w-8 h-8 text-[#2A2A2A]" />
+              <Calendar className="w-8 h-8 text-text-tertiary" />
               <p className="text-sm text-text-secondary">Nessun appuntamento schedulato</p>
               <button onClick={onAdd} className="text-xs text-gold hover:text-yellow-400 underline underline-offset-2">Aggiungi il primo</button>
             </div>
@@ -518,15 +518,15 @@ function AgendaSection({ meetings, onAdd }: { meetings: MeetingNote[]; onAdd: ()
                 const d     = new Date(m.date)
                 const isNext = i === 0
                 return (
-                  <div key={m.id} className={`flex items-start gap-3 p-3 rounded-xl border ${isNext ? 'bg-gold/5 border-gold/25' : 'bg-background border-[#2A2A2A]'}`}>
-                    <div className={`shrink-0 rounded-xl p-2.5 text-center min-w-[48px] ${isNext ? 'bg-gold/15' : 'bg-[#1A1A1A]'}`}>
+                  <div key={m.id} className={`flex items-start gap-3 p-3 rounded-xl border ${isNext ? 'bg-gold/5 border-gold/25' : 'bg-background border-border'}`}>
+                    <div className={`shrink-0 rounded-xl p-2.5 text-center min-w-[48px] ${isNext ? 'bg-gold/15' : 'bg-surface'}`}>
                       <p className={`text-[9px] font-bold uppercase tracking-wider ${isNext ? 'text-gold' : 'text-text-secondary'}`}>
                         {d.toLocaleDateString('it-IT', { month: 'short' })}
                       </p>
-                      <p className={`text-xl font-black leading-tight ${isNext ? 'text-gold' : 'text-white'}`}>{d.getDate()}</p>
+                      <p className={`text-xl font-black leading-tight ${isNext ? 'text-gold' : 'text-text-primary'}`}>{d.getDate()}</p>
                     </div>
                     <div className="flex-1 min-w-0 pt-0.5">
-                      <p className="text-sm font-semibold text-white truncate">{m.title}</p>
+                      <p className="text-sm font-semibold text-text-primary truncate">{m.title}</p>
                       {m.attendees && m.attendees.length > 0 && (
                         <p className="text-[10px] text-text-secondary mt-0.5 flex items-center gap-1">
                           <Users2 className="w-3 h-3 shrink-0" />
@@ -546,17 +546,17 @@ function AgendaSection({ meetings, onAdd }: { meetings: MeetingNote[]; onAdd: ()
       </div>
 
       {/* Ultimi incontri */}
-      <div className="bg-[#111] border border-[#2A2A2A] rounded-xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-[#2A2A2A]">
+      <div className="bg-surface border border-border rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-border">
           <div className="flex items-center gap-2">
             <FileText className="w-3.5 h-3.5 text-text-secondary" />
-            <span className="text-xs font-bold text-white uppercase tracking-wider">Ultimi Incontri</span>
+            <span className="text-xs font-bold text-text-primary uppercase tracking-wider">Ultimi Incontri</span>
           </div>
         </div>
         <div className="p-4">
           {past.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 gap-2">
-              <MessageSquare className="w-8 h-8 text-[#2A2A2A]" />
+              <MessageSquare className="w-8 h-8 text-text-tertiary" />
               <p className="text-sm text-text-secondary">Nessun incontro registrato.</p>
             </div>
           ) : (
@@ -564,14 +564,14 @@ function AgendaSection({ meetings, onAdd }: { meetings: MeetingNote[]; onAdd: ()
               {past.slice(0, 5).map(m => {
                 const isOpen = expandedId === m.id
                 return (
-                  <div key={m.id} className="border border-[#1E1E1E] rounded-xl overflow-hidden">
+                  <div key={m.id} className="border border-border rounded-xl overflow-hidden">
                     <button onClick={() => setExpandedId(isOpen ? null : m.id)}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/[0.02] transition-colors text-left">
-                      <div className="w-7 h-7 rounded-lg bg-[#1A1A1A] border border-[#2A2A2A] flex items-center justify-center text-text-secondary shrink-0">
+                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-overlay/[0.02] transition-colors text-left">
+                      <div className="w-7 h-7 rounded-lg bg-surface border border-border flex items-center justify-center text-text-secondary shrink-0">
                         <MessageSquare className="w-3.5 h-3.5" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-white truncate">{m.title}</p>
+                        <p className="text-xs font-semibold text-text-primary truncate">{m.title}</p>
                         <p className="text-[10px] text-text-secondary">
                           {new Date(m.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
                         </p>
@@ -582,23 +582,23 @@ function AgendaSection({ meetings, onAdd }: { meetings: MeetingNote[]; onAdd: ()
                     </button>
 
                     {isOpen && (
-                      <div className="px-4 pb-4 space-y-2.5 border-t border-[#1A1A1A] pt-3">
+                      <div className="px-4 pb-4 space-y-2.5 border-t border-border pt-3">
                         {m.summary && (
                           <div>
                             <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold mb-1">Sintesi</p>
-                            <p className="text-xs text-white leading-relaxed">{m.summary}</p>
+                            <p className="text-xs text-text-primary leading-relaxed">{m.summary}</p>
                           </div>
                         )}
                         {m.decisions && (
                           <div>
                             <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold mb-1">Decisioni</p>
-                            <p className="text-xs text-white leading-relaxed">{m.decisions}</p>
+                            <p className="text-xs text-text-primary leading-relaxed">{m.decisions}</p>
                           </div>
                         )}
                         {m.next_actions && (
                           <div>
                             <p className="text-[10px] text-gold uppercase tracking-wider font-bold mb-1">Prossime azioni</p>
-                            <p className="text-xs text-white leading-relaxed">{m.next_actions}</p>
+                            <p className="text-xs text-text-primary leading-relaxed">{m.next_actions}</p>
                           </div>
                         )}
                         {m.attendees && m.attendees.length > 0 && (
@@ -645,12 +645,12 @@ function ProjectDetail({ project, tasks, sprints, profiles, activeTab, onTabChan
   onAddSprint: () => void; onEditSprint: (s: Sprint) => void; onDeleteSprint: (id: string) => void
 }) {
   return (
-    <div className="mt-2 bg-[#0C0C0C] border border-gold/20 rounded-xl overflow-hidden">
-      <div className="flex border-b border-[#2A2A2A] overflow-x-auto">
+    <div className="mt-2 bg-surface border border-gold/20 rounded-xl overflow-hidden">
+      <div className="flex border-b border-border overflow-x-auto">
         {DETAIL_TABS.map(tab => (
           <button key={tab.key} onClick={() => onTabChange(tab.key)}
             className={`px-4 py-3 text-xs font-semibold whitespace-nowrap border-b-2 transition-colors ${
-              activeTab === tab.key ? 'border-gold text-gold' : 'border-transparent text-text-secondary hover:text-white'
+              activeTab === tab.key ? 'border-gold text-gold' : 'border-transparent text-text-secondary hover:text-text-primary'
             }`}>
             {tab.label}
           </button>
@@ -672,8 +672,8 @@ function ProjectDetail({ project, tasks, sprints, profiles, activeTab, onTabChan
           <div>
             <textarea value={briefText} onChange={e => onBriefChange(e.target.value)} rows={7}
               placeholder="Descrivi il brief del progetto: obiettivi, contesto, vincoli, aspettative del cliente..."
-              className="w-full bg-transparent text-sm text-white resize-none outline-none placeholder:text-[#333] leading-relaxed" />
-            <div className="flex justify-end mt-3 pt-3 border-t border-[#2A2A2A]">
+              className="w-full bg-transparent text-sm text-text-primary resize-none outline-none placeholder:text-text-tertiary leading-relaxed" />
+            <div className="flex justify-end mt-3 pt-3 border-t border-border">
               <button onClick={onSaveBrief}
                 disabled={briefSaving || briefText === (project.brief ?? '')}
                 className="text-xs px-4 py-2 bg-gold text-black font-bold rounded-lg disabled:opacity-40 hover:bg-yellow-400 transition-colors flex items-center gap-1.5">
@@ -712,7 +712,7 @@ function KindSelector({ value, onChange }: { value: ProjectKind | ''; onChange: 
             className={`py-3 rounded-xl border text-sm font-bold transition-all ${
               value === k
                 ? k === 'growth' ? 'bg-gold/10 border-gold text-gold' : 'bg-blue-500/10 border-blue-400 text-blue-400'
-                : 'bg-background border-[#2A2A2A] text-text-secondary hover:border-[#444]'
+                : 'bg-background border-border text-text-secondary hover:border-border-strong'
             }`}>
             {k === 'growth' ? '📈 Growth' : '💻 Digital'}
           </button>
@@ -728,19 +728,19 @@ function ProjectNameField({ prefix, value, onChange, required = false }: {
   return (
     <div>
       <label className="block text-xs text-text-secondary mb-1">Titolo progetto{required ? ' *' : ''}</label>
-      <div className="flex items-center rounded-lg border border-[#2A2A2A] bg-background focus-within:border-gold overflow-hidden">
+      <div className="flex items-center rounded-lg border border-border bg-background focus-within:border-gold overflow-hidden">
         <span className="pl-3 pr-1 text-sm text-text-secondary whitespace-nowrap shrink-0 select-none">{prefix} –</span>
         <input
           required={required}
           value={value}
           onChange={e => onChange(e.target.value)}
           placeholder="es. Campagna Meta Q3 2025"
-          className="flex-1 bg-transparent py-2 pr-3 text-sm text-white focus:outline-none min-w-0"
+          className="flex-1 bg-transparent py-2 pr-3 text-sm text-text-primary focus:outline-none min-w-0"
         />
       </div>
       {value && (
         <p className="text-[10px] text-text-secondary mt-1">
-          Nome completo: <span className="text-white">{prefix} – {value}</span>
+          Nome completo: <span className="text-text-primary">{prefix} – {value}</span>
         </p>
       )}
     </div>
@@ -775,10 +775,10 @@ function NewProjectModal({ clientId, clientName, onClose, onCreated }: {
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-[#2A2A2A] rounded-card w-full max-w-md">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A]">
-          <h2 className="text-base font-bold text-white">Nuovo Progetto</h2>
-          <button onClick={onClose}><X className="w-5 h-5 text-text-secondary hover:text-white" /></button>
+      <div className="bg-surface border border-border rounded-card w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 className="text-base font-bold text-text-primary">Nuovo Progetto</h2>
+          <button onClick={onClose}><X className="w-5 h-5 text-text-secondary hover:text-text-primary" /></button>
         </div>
         <form onSubmit={submit} className="p-6 space-y-4">
           <KindSelector value={form.kind} onChange={k => setForm(p => ({ ...p, kind: k }))} />
@@ -786,12 +786,12 @@ function NewProjectModal({ clientId, clientName, onClose, onCreated }: {
           <div>
             <label className="block text-xs text-text-secondary mb-1">Descrizione</label>
             <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
-              rows={2} className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold resize-none" />
+              rows={2} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold resize-none" />
           </div>
           <div>
             <label className="block text-xs text-text-secondary mb-1">Stato</label>
             <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value as Project['status'] }))}
-              className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold">
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold">
               <option value="attivo">Attivo</option>
               <option value="in_pausa">In pausa</option>
               <option value="completato">Completato</option>
@@ -799,7 +799,7 @@ function NewProjectModal({ clientId, clientName, onClose, onCreated }: {
             </select>
           </div>
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary hover:text-white">Annulla</button>
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
             <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />} Crea Progetto
             </button>
@@ -850,10 +850,10 @@ function EditProjectModal({ project, clientId, clientName, onClose, onSaved }: {
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-[#2A2A2A] rounded-card w-full max-w-lg">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A]">
-          <h2 className="text-base font-bold text-white">Modifica Progetto</h2>
-          <button onClick={onClose}><X className="w-5 h-5 text-text-secondary hover:text-white" /></button>
+      <div className="bg-surface border border-border rounded-card w-full max-w-lg">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 className="text-base font-bold text-text-primary">Modifica Progetto</h2>
+          <button onClick={onClose}><X className="w-5 h-5 text-text-secondary hover:text-text-primary" /></button>
         </div>
         <form onSubmit={submit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
 
@@ -866,7 +866,7 @@ function EditProjectModal({ project, clientId, clientName, onClose, onSaved }: {
             <div>
               <label className="block text-xs text-text-secondary mb-1">Categoria</label>
               <select value={form.project_type} onChange={e => setForm(p => ({ ...p, project_type: e.target.value as Project['project_type'] }))}
-                className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold">
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold">
                 <option value="ecommerce">🛒 E-commerce</option>
                 <option value="lead_gen">🎯 Lead Gen</option>
                 <option value="sito_web">🌐 Sito Web</option>
@@ -878,7 +878,7 @@ function EditProjectModal({ project, clientId, clientName, onClose, onSaved }: {
             <div>
               <label className="block text-xs text-text-secondary mb-1">Stato</label>
               <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value as Project['status'] }))}
-                className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold">
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold">
                 <option value="attivo">Attivo</option>
                 <option value="in_pausa">In pausa</option>
                 <option value="completato">Completato</option>
@@ -892,11 +892,11 @@ function EditProjectModal({ project, clientId, clientName, onClose, onSaved }: {
             <label className="block text-xs text-text-secondary mb-1">Descrizione</label>
             <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
               rows={2} placeholder="Contesto e overview del progetto..."
-              className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold resize-none" />
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold resize-none" />
           </div>
 
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary hover:text-white">Annulla</button>
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
             <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />} Salva modifiche
             </button>
@@ -929,10 +929,10 @@ function NewMeetingModal({ clientId, onClose, onCreated }: { clientId: string; o
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-[#2A2A2A] rounded-card w-full max-w-lg">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A]">
-          <h2 className="text-base font-bold text-white">Nuovo Incontro / Appuntamento</h2>
-          <button onClick={onClose}><X className="w-5 h-5 text-text-secondary hover:text-white" /></button>
+      <div className="bg-surface border border-border rounded-card w-full max-w-lg">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 className="text-base font-bold text-text-primary">Nuovo Incontro / Appuntamento</h2>
+          <button onClick={onClose}><X className="w-5 h-5 text-text-secondary hover:text-text-primary" /></button>
         </div>
         <form onSubmit={submit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
           <div className="grid grid-cols-2 gap-3">
@@ -940,38 +940,38 @@ function NewMeetingModal({ clientId, onClose, onCreated }: { clientId: string; o
               <label className="block text-xs text-text-secondary mb-1">Titolo *</label>
               <input required value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
                 placeholder="es. Call settimanale"
-                className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold" />
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" />
             </div>
             <div>
               <label className="block text-xs text-text-secondary mb-1">Data *</label>
               <input type="date" required value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))}
-                className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold" />
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" />
             </div>
           </div>
           <div>
             <label className="block text-xs text-text-secondary mb-1">Partecipanti (separati da virgola)</label>
             <input value={form.attendees} onChange={e => setForm(p => ({ ...p, attendees: e.target.value }))}
               placeholder="es. Marco, Luca, Cliente"
-              className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold" />
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" />
           </div>
           <div>
             <label className="block text-xs text-text-secondary mb-1">Sintesi *</label>
             <textarea required value={form.summary} onChange={e => setForm(p => ({ ...p, summary: e.target.value }))}
               rows={3} placeholder="Cosa è stato discusso / cosa si farà..."
-              className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold resize-none" />
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold resize-none" />
           </div>
           <div>
             <label className="block text-xs text-text-secondary mb-1">Decisioni prese</label>
             <textarea value={form.decisions} onChange={e => setForm(p => ({ ...p, decisions: e.target.value }))}
-              rows={2} className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold resize-none" />
+              rows={2} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold resize-none" />
           </div>
           <div>
             <label className="block text-xs text-text-secondary mb-1">Prossime azioni</label>
             <textarea value={form.next_actions} onChange={e => setForm(p => ({ ...p, next_actions: e.target.value }))}
-              rows={2} className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold resize-none" />
+              rows={2} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold resize-none" />
           </div>
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary hover:text-white">Annulla</button>
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
             <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />} Salva
             </button>
@@ -1028,31 +1028,31 @@ function TaskModal({ projectId, sprints, profiles, task, isMilestone, onClose, o
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-[#2A2A2A] rounded-card w-full max-w-lg">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A]">
-          <h2 className="text-base font-bold text-white flex items-center gap-2">
+      <div className="bg-surface border border-border rounded-card w-full max-w-lg">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 className="text-base font-bold text-text-primary flex items-center gap-2">
             {isMilestone ? <Flag className="w-4 h-4 text-gold" /> : null}
             {task ? 'Modifica' : 'Nuova'} {isMilestone ? 'Milestone' : 'Task'}
           </h2>
-          <button onClick={onClose}><X className="w-5 h-5 text-text-secondary hover:text-white" /></button>
+          <button onClick={onClose}><X className="w-5 h-5 text-text-secondary hover:text-text-primary" /></button>
         </div>
         <form onSubmit={submit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           <div>
             <label className="block text-xs text-text-secondary mb-1">Titolo *</label>
             <input required value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
               placeholder={isMilestone ? 'es. MVP pronto' : 'es. Setup campagna Meta Ads'}
-              className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold" />
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" />
           </div>
           <div>
             <label className="block text-xs text-text-secondary mb-1">Descrizione</label>
             <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
-              rows={2} className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold resize-none" />
+              rows={2} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold resize-none" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-text-secondary mb-1">Stato</label>
               <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value as Task['status'] }))}
-                className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold">
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold">
                 <option value="da_fare">Da fare</option>
                 <option value="in_corso">In corso</option>
                 <option value="in_revisione">In revisione</option>
@@ -1062,7 +1062,7 @@ function TaskModal({ projectId, sprints, profiles, task, isMilestone, onClose, o
             <div>
               <label className="block text-xs text-text-secondary mb-1">Priorità</label>
               <select value={form.priority} onChange={e => setForm(p => ({ ...p, priority: e.target.value as TaskPriority }))}
-                className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold">
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold">
                 <option value="bassa">Bassa</option>
                 <option value="media">Media</option>
                 <option value="alta">Alta</option>
@@ -1073,13 +1073,13 @@ function TaskModal({ projectId, sprints, profiles, task, isMilestone, onClose, o
             <div>
               <label className="block text-xs text-text-secondary mb-1">Scadenza</label>
               <input type="date" value={form.due_date} onChange={e => setForm(p => ({ ...p, due_date: e.target.value }))}
-                className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold" />
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" />
             </div>
             {!isMilestone && (
               <div>
                 <label className="block text-xs text-text-secondary mb-1">Sprint</label>
                 <select value={form.sprint_id} onChange={e => setForm(p => ({ ...p, sprint_id: e.target.value }))}
-                  className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold">
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold">
                   <option value="">Nessuno</option>
                   {sprints.filter(s => s.project_id === projectId).map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
@@ -1092,14 +1092,14 @@ function TaskModal({ projectId, sprints, profiles, task, isMilestone, onClose, o
             <div>
               <label className="block text-xs text-text-secondary mb-1">Assegnata a</label>
               <select value={form.assignee_id} onChange={e => setForm(p => ({ ...p, assignee_id: e.target.value }))}
-                className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold">
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold">
                 <option value="">Nessuno</option>
                 {profiles.map(pr => <option key={pr.id} value={pr.id}>{pr.full_name}</option>)}
               </select>
             </div>
           )}
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary hover:text-white">Annulla</button>
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
             <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />} {task ? 'Salva' : 'Aggiungi'}
             </button>
@@ -1144,41 +1144,41 @@ function SprintModal({ projectId, sprint, onClose, onSaved }: {
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-[#2A2A2A] rounded-card w-full max-w-md">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A]">
-          <h2 className="text-base font-bold text-white">{sprint ? 'Modifica Sprint' : 'Nuovo Sprint'}</h2>
-          <button onClick={onClose}><X className="w-5 h-5 text-text-secondary hover:text-white" /></button>
+      <div className="bg-surface border border-border rounded-card w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 className="text-base font-bold text-text-primary">{sprint ? 'Modifica Sprint' : 'Nuovo Sprint'}</h2>
+          <button onClick={onClose}><X className="w-5 h-5 text-text-secondary hover:text-text-primary" /></button>
         </div>
         <form onSubmit={submit} className="p-6 space-y-4">
           <div>
             <label className="block text-xs text-text-secondary mb-1">Nome *</label>
             <input required value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
               placeholder="es. Sprint 1 – Setup"
-              className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold" />
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-text-secondary mb-1">Inizio</label>
               <input type="date" value={form.start_date} onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))}
-                className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold" />
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" />
             </div>
             <div>
               <label className="block text-xs text-text-secondary mb-1">Fine</label>
               <input type="date" value={form.end_date} onChange={e => setForm(p => ({ ...p, end_date: e.target.value }))}
-                className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold" />
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" />
             </div>
           </div>
           <div>
             <label className="block text-xs text-text-secondary mb-1">Stato</label>
             <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value as SprintStatus }))}
-              className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold">
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold">
               <option value="pianificato">Pianificato</option>
               <option value="in_corso">In corso</option>
               <option value="completato">Completato</option>
             </select>
           </div>
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary hover:text-white">Annulla</button>
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
             <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />} {sprint ? 'Salva' : 'Crea Sprint'}
             </button>
@@ -1314,7 +1314,7 @@ export function ProjectStatusTab({ client, projects: initialProjects, sprints: i
 
       {/* 1 ── Agenda ──────────────────────────────────────────────────────── */}
       <section>
-        <h2 className="text-sm font-bold text-white mb-3">Agenda</h2>
+        <h2 className="text-sm font-bold text-text-primary mb-3">Agenda</h2>
         <AgendaSection meetings={meetings} onAdd={() => setShowNewMeeting(true)} />
       </section>
 
@@ -1322,7 +1322,7 @@ export function ProjectStatusTab({ client, projects: initialProjects, sprints: i
       <section>
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-sm font-bold text-white">
+            <h2 className="text-sm font-bold text-text-primary">
               Progetti Attivi
               {activeProjects.length > 0 && (
                 <span className="ml-1.5 text-text-secondary font-normal">({activeProjects.length})</span>
@@ -1346,8 +1346,8 @@ export function ProjectStatusTab({ client, projects: initialProjects, sprints: i
         </div>
 
         {activeProjects.length === 0 ? (
-          <div className="bg-[#111] border border-dashed border-[#2A2A2A] rounded-xl py-12 flex flex-col items-center gap-3">
-            <FolderKanban className="w-10 h-10 text-[#2A2A2A]" />
+          <div className="bg-surface border border-dashed border-border rounded-xl py-12 flex flex-col items-center gap-3">
+            <FolderKanban className="w-10 h-10 text-text-tertiary" />
             <p className="text-sm text-text-secondary">Nessun progetto attivo</p>
             <button onClick={() => setShowNewProject(true)} className="text-sm text-gold hover:underline">Crea il primo progetto</button>
           </div>

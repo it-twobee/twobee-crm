@@ -48,28 +48,28 @@ function MonthPicker({ label, value, onChange, min, max }: {
     <div className="relative" ref={ref}>
       <button
         onClick={() => { setOpen(v => !v); setViewYear(selYear) }}
-        className="flex items-center gap-2 h-8 px-3 rounded-lg bg-[#0D0D0D] border border-[#252525] text-[11px] hover:border-[#3A3A3A] transition-colors"
+        className="flex items-center gap-2 h-8 px-3 rounded-lg bg-surface border border-border text-[11px] hover:border-border-strong transition-colors"
       >
-        <Calendar className="w-3 h-3 text-[#555] shrink-0" />
-        <span className="text-[#555]">{label}</span>
-        <span className="text-white font-semibold">{MESI[selM]} {selYear}</span>
+        <Calendar className="w-3 h-3 text-text-secondary shrink-0" />
+        <span className="text-text-secondary">{label}</span>
+        <span className="text-text-primary font-semibold">{MESI[selM]} {selYear}</span>
       </button>
 
       {open && (
-        <div className="absolute top-[calc(100%+6px)] left-0 z-50 w-48 bg-[#0A0A0A] border border-[#252525] rounded-xl shadow-2xl p-3">
+        <div className="absolute top-[calc(100%+6px)] left-0 z-50 w-48 bg-surface border border-border rounded-xl shadow-2xl p-3">
           <div className="flex items-center justify-between mb-3">
             <button
               onClick={() => setViewYear(y => Math.max(minY, y - 1))}
               disabled={viewYear <= minY}
-              className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[#1A1A1A] text-[#555] hover:text-white disabled:opacity-20 transition-colors"
+              className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-surface-hover text-text-secondary hover:text-text-primary disabled:opacity-20 transition-colors"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
             </button>
-            <span className="text-xs font-bold text-white">{viewYear}</span>
+            <span className="text-xs font-bold text-text-primary">{viewYear}</span>
             <button
               onClick={() => setViewYear(y => Math.min(maxY, y + 1))}
               disabled={viewYear >= maxY}
-              className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[#1A1A1A] text-[#555] hover:text-white disabled:opacity-20 transition-colors"
+              className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-surface-hover text-text-secondary hover:text-text-primary disabled:opacity-20 transition-colors"
             >
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
@@ -83,8 +83,8 @@ function MonthPicker({ label, value, onChange, min, max }: {
                   onClick={() => { onChange(`${viewYear}-${String(i + 1).padStart(2, '0')}`); setOpen(false) }}
                   className={`py-1.5 rounded-lg text-[11px] font-medium transition-all ${
                     sel ? 'bg-gold text-black font-bold'
-                    : dis ? 'text-[#222] cursor-not-allowed'
-                    : 'text-[#666] hover:bg-[#1A1A1A] hover:text-white'
+                    : dis ? 'text-text-tertiary cursor-not-allowed'
+                    : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
                   }`}
                 >
                   {m}
@@ -118,15 +118,15 @@ function ChartTooltip({ active, payload, label, vis, currentMrr }: {
   if (!items.length) return null
 
   return (
-    <div className="bg-[#0A0A0A] border border-[#252525] rounded-xl px-4 py-3 shadow-2xl min-w-[180px]">
-      <p className="text-[10px] font-bold text-[#555] uppercase tracking-widest mb-2.5">{label}</p>
+    <div className="bg-surface border border-border rounded-xl px-4 py-3 shadow-2xl min-w-[180px]">
+      <p className="text-[10px] font-bold text-text-secondary uppercase tracking-widest mb-2.5">{label}</p>
       {items.map(p => (
         <div key={p.dataKey} className="flex items-center justify-between gap-6 mb-1.5 last:mb-0">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.dataKey === 'incassato' ? '#F5C800' : p.dataKey === 'proiezione' ? '#555' : '#F5C800' }} />
-            <span className="text-[11px] text-[#888]">{NAMES[p.dataKey]}</span>
+            <span className="text-[11px] text-text-secondary">{NAMES[p.dataKey]}</span>
           </div>
-          <span className="text-[12px] font-bold text-white tabular-nums">{fmt(p.value)}</span>
+          <span className="text-[12px] font-bold text-text-primary tabular-nums">{fmt(p.value)}</span>
         </div>
       ))}
     </div>
@@ -288,33 +288,33 @@ export function RevenueChart({ months, currentMrr }: Props) {
   }
 
   return (
-    <div className="bg-surface border border-[#2A2A2A] rounded-xl overflow-hidden flex flex-col h-full">
+    <div className="bg-surface border border-border rounded-xl overflow-hidden flex flex-col h-full">
 
       {/* ── HEADER KPI ── */}
       <div className="flex items-start justify-between gap-4 px-5 pt-5 pb-4">
         <div>
-          <p className="text-[10px] font-bold text-[#555] uppercase tracking-widest mb-1">Revenue</p>
+          <p className="text-[10px] font-bold text-text-secondary uppercase tracking-widest mb-1">Revenue</p>
           <p className="text-2xl font-black text-gold leading-none">
             {fmt(currentMrr)}
-            <span className="text-sm text-[#555] font-normal ml-2">/mese MRR</span>
+            <span className="text-sm text-text-secondary font-normal ml-2">/mese MRR</span>
           </p>
         </div>
         <div className="flex items-start gap-6 shrink-0">
           {lastMonth && (
             <div className="text-right">
-              <p className="text-[10px] text-[#555] mb-0.5">Incassato {MESI[parseInt(lastMonth.month.slice(5,7))-1]}</p>
-              <p className="text-xl font-black text-white">{fmt(lastMonth.amount)}</p>
+              <p className="text-[10px] text-text-secondary mb-0.5">Incassato {MESI[parseInt(lastMonth.month.slice(5,7))-1]}</p>
+              <p className="text-xl font-black text-text-primary">{fmt(lastMonth.amount)}</p>
             </div>
           )}
           {realInRange.length > 1 && (
             <div className="text-right">
-              <p className="text-[10px] text-[#555] mb-0.5">Tot. periodo</p>
-              <p className="text-xl font-black text-white">{fmt(total)}</p>
+              <p className="text-[10px] text-text-secondary mb-0.5">Tot. periodo</p>
+              <p className="text-xl font-black text-text-primary">{fmt(total)}</p>
             </div>
           )}
           {growth !== null && (
-            <div className={`text-right ${growth > 0 ? 'text-success' : growth < 0 ? 'text-error' : 'text-[#555]'}`}>
-              <p className="text-[10px] text-[#555] mb-0.5">MoM</p>
+            <div className={`text-right ${growth > 0 ? 'text-success' : growth < 0 ? 'text-error' : 'text-text-secondary'}`}>
+              <p className="text-[10px] text-text-secondary mb-0.5">MoM</p>
               <p className="text-xl font-black flex items-center gap-1 justify-end">
                 {growth > 0 ? <TrendingUp className="w-4 h-4" /> : growth < 0 ? <TrendingDown className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
                 {growth > 0 ? '+' : ''}{growth}%
@@ -328,11 +328,11 @@ export function RevenueChart({ months, currentMrr }: Props) {
       <div className="flex items-center justify-between gap-3 px-5 pb-3 flex-wrap">
         {/* Sinistra: preset + calendario */}
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center rounded-lg border border-[#252525] overflow-hidden bg-[#0D0D0D]">
+          <div className="flex items-center rounded-lg border border-border overflow-hidden bg-surface">
             {PRESETS.map(p => (
               <button key={p.label} onClick={() => applyPreset(p.label, p.n)}
-                className={`h-8 px-3.5 text-[11px] font-bold transition-all border-r border-[#252525] last:border-r-0 ${
-                  activePreset === p.label ? 'bg-gold text-black' : 'text-[#666] hover:text-white hover:bg-[#1A1A1A]'
+                className={`h-8 px-3.5 text-[11px] font-bold transition-all border-r border-border last:border-r-0 ${
+                  activePreset === p.label ? 'bg-gold text-black' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
                 }`}
               >
                 {p.label}
@@ -340,24 +340,24 @@ export function RevenueChart({ months, currentMrr }: Props) {
             ))}
           </div>
 
-          <div className="w-px h-5 bg-[#252525]" />
+          <div className="w-px h-5 bg-border" />
 
           <MonthPicker label="Da" value={rangeStart}
             onChange={v => { if (v <= rangeEnd) { setRangeStart(v); setActivePreset('') } }}
             min={BUSINESS_START} max={rangeEnd} />
-          <span className="text-[#333] text-xs">→</span>
+          <span className="text-text-tertiary text-xs">→</span>
           <MonthPicker label="A" value={rangeEnd}
             onChange={v => { if (v >= rangeStart) { setRangeEnd(v); setActivePreset('') } }}
             min={rangeStart} max={maxMonth} />
         </div>
 
         {/* Destra: tipo di grafico */}
-        <div className="flex items-center rounded-lg border border-[#252525] overflow-hidden bg-[#0D0D0D]">
+        <div className="flex items-center rounded-lg border border-border overflow-hidden bg-surface">
           {CHART_TYPES.map(ct => (
             <button key={ct.type} onClick={() => setChartType(ct.type)}
               title={ct.label}
-              className={`h-8 px-3 flex items-center justify-center transition-all border-r border-[#252525] last:border-r-0 ${
-                chartType === ct.type ? 'bg-[#1A1A1A] text-gold' : 'text-[#555] hover:text-white hover:bg-[#141414]'
+              className={`h-8 px-3 flex items-center justify-center transition-all border-r border-border last:border-r-0 ${
+                chartType === ct.type ? 'bg-surface-active text-gold' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
               }`}
             >
               {ct.icon}
@@ -374,10 +374,10 @@ export function RevenueChart({ months, currentMrr }: Props) {
       </div>
 
       {/* ── LEGENDA TOGGLE ── */}
-      <div className="flex items-center gap-1 px-5 py-3 border-t border-[#1A1A1A] flex-wrap">
+      <div className="flex items-center gap-1 px-5 py-3 border-t border-border flex-wrap">
         <button onClick={() => toggle('incassato')}
           className={`flex items-center gap-2 h-8 px-3 rounded-lg text-[11px] font-medium border transition-all ${
-            vis.incassato ? 'border-gold/20 bg-gold/10 text-gold' : 'border-transparent text-[#333] hover:text-[#555]'
+            vis.incassato ? 'border-gold/20 bg-gold/10 text-gold' : 'border-transparent text-text-tertiary hover:text-text-secondary'
           }`}
         >
           <span className="w-4 h-[2.5px] rounded-full block" style={{ background: vis.incassato ? '#F5C800' : '#333' }} />
@@ -385,7 +385,7 @@ export function RevenueChart({ months, currentMrr }: Props) {
         </button>
         <button onClick={() => toggle('mrr')}
           className={`flex items-center gap-2 h-8 px-3 rounded-lg text-[11px] font-medium border transition-all ${
-            vis.mrr ? 'border-[#252525] bg-[#1A1A1A] text-[#888]' : 'border-transparent text-[#333] hover:text-[#555]'
+            vis.mrr ? 'border-border bg-surface-active text-text-secondary' : 'border-transparent text-text-tertiary hover:text-text-secondary'
           }`}
         >
           <span className="w-4 shrink-0 inline-block" style={{ borderTop: `2px dashed ${vis.mrr ? '#F5C800' : '#333'}` }} />
@@ -393,7 +393,7 @@ export function RevenueChart({ months, currentMrr }: Props) {
         </button>
         <button onClick={() => toggle('proiezione')}
           className={`flex items-center gap-2 h-8 px-3 rounded-lg text-[11px] font-medium border transition-all ${
-            vis.proiezione ? 'border-[#252525] bg-[#1A1A1A] text-[#888]' : 'border-transparent text-[#333] hover:text-[#555]'
+            vis.proiezione ? 'border-border bg-surface-active text-text-secondary' : 'border-transparent text-text-tertiary hover:text-text-secondary'
           }`}
         >
           <span className="w-4 shrink-0 inline-block" style={{ borderTop: `2px dashed ${vis.proiezione ? '#555' : '#333'}` }} />

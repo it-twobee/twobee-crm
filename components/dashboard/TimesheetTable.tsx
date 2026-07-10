@@ -19,7 +19,7 @@ const CATEGORIES: { value: TimeEntryCategory; label: string; color: string }[] =
 const catColor = (c: string) => CATEGORIES.find(x => x.value === c)?.color ?? '#9CA3AF'
 const catLabel = (c: string) => CATEGORIES.find(x => x.value === c)?.label ?? c
 
-const inp = 'w-full bg-[#0A0A0A] border border-[#2A2A2A] rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C800] placeholder:text-[#333]'
+const inp = 'w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold placeholder:text-text-tertiary'
 
 type FormState = {
   date: string; hours: string; category: TimeEntryCategory
@@ -135,20 +135,20 @@ export function TimesheetTable({ initialEntries, profiles, projects, clients, cu
     <div>
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-        <div className="bg-[#0C0C0C] border border-[#1A1A1A] rounded-2xl p-4">
-          <p className="text-[10px] text-[#444] uppercase tracking-wider mb-1">Ore totali</p>
-          <p className="text-2xl font-black text-[#F5C800]">{totalHours.toFixed(1)}</p>
-          <p className="text-[10px] text-[#333] mt-0.5">{filtered.length} voci</p>
+        <div className="bg-surface border border-border rounded-2xl p-4">
+          <p className="text-[10px] text-text-tertiary uppercase tracking-wider mb-1">Ore totali</p>
+          <p className="text-2xl font-black text-gold">{totalHours.toFixed(1)}</p>
+          <p className="text-[10px] text-text-tertiary mt-0.5">{filtered.length} voci</p>
         </div>
-        <div className="bg-[#0C0C0C] border border-[#1A1A1A] rounded-2xl p-4">
-          <p className="text-[10px] text-[#444] uppercase tracking-wider mb-1">Media giornaliera</p>
-          <p className="text-2xl font-black text-white">
+        <div className="bg-surface border border-border rounded-2xl p-4">
+          <p className="text-[10px] text-text-tertiary uppercase tracking-wider mb-1">Media giornaliera</p>
+          <p className="text-2xl font-black text-text-primary">
             {filtered.length ? (totalHours / new Set(filtered.map(e => e.date)).size).toFixed(1) : '—'}
           </p>
-          <p className="text-[10px] text-[#333] mt-0.5">ore/giorno attivo</p>
+          <p className="text-[10px] text-text-tertiary mt-0.5">ore/giorno attivo</p>
         </div>
-        <div className="col-span-2 bg-[#0C0C0C] border border-[#1A1A1A] rounded-2xl p-4">
-          <p className="text-[10px] text-[#444] uppercase tracking-wider mb-2">Per categoria</p>
+        <div className="col-span-2 bg-surface border border-border rounded-2xl p-4">
+          <p className="text-[10px] text-text-tertiary uppercase tracking-wider mb-2">Per categoria</p>
           <div className="flex flex-wrap gap-2">
             {CATEGORIES.filter(c => filtered.some(e => e.category === c.value)).map(c => {
               const h = filtered.filter(e => e.category === c.value).reduce((s, e) => s + e.hours, 0)
@@ -166,17 +166,17 @@ export function TimesheetTable({ initialEntries, profiles, projects, clients, cu
       {/* Filters + action */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <div className="flex items-center gap-2 flex-1 flex-wrap">
-          <div className="flex items-center gap-1.5 bg-[#0C0C0C] border border-[#1A1A1A] rounded-xl px-3 py-2">
-            <Calendar className="w-3.5 h-3.5 text-[#444]" />
+          <div className="flex items-center gap-1.5 bg-surface border border-border rounded-xl px-3 py-2">
+            <Calendar className="w-3.5 h-3.5 text-text-tertiary" />
             <input type="month" value={filterMonth}
               onChange={e => setFilterMonth(e.target.value)}
-              className="bg-transparent text-sm text-white focus:outline-none" />
+              className="bg-transparent text-sm text-text-primary focus:outline-none" />
           </div>
           {isAdmin && (
-            <div className="flex items-center gap-1.5 bg-[#0C0C0C] border border-[#1A1A1A] rounded-xl px-3 py-2">
-              <Filter className="w-3.5 h-3.5 text-[#444]" />
+            <div className="flex items-center gap-1.5 bg-surface border border-border rounded-xl px-3 py-2">
+              <Filter className="w-3.5 h-3.5 text-text-tertiary" />
               <select value={filterUser} onChange={e => setFilterUser(e.target.value)}
-                className="bg-transparent text-sm text-white focus:outline-none">
+                className="bg-transparent text-sm text-text-primary focus:outline-none">
                 <option value="">Tutti i membri</option>
                 {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
               </select>
@@ -184,7 +184,7 @@ export function TimesheetTable({ initialEntries, profiles, projects, clients, cu
           )}
         </div>
         <button onClick={openNew}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-black bg-[#F5C800] hover:bg-yellow-400 transition-colors">
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-black bg-gold hover:bg-yellow-400 transition-colors">
           <Plus className="w-3.5 h-3.5" /> Registra ore
         </button>
       </div>
@@ -194,7 +194,7 @@ export function TimesheetTable({ initialEntries, profiles, projects, clients, cu
         <div className="flex flex-wrap gap-2 mb-4">
           {Object.entries(byUser).map(([pid, h]) => (
             <button key={pid} onClick={() => setFilterUser(pid)}
-              className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-xl border border-[#1A1A1A] bg-[#0A0A0A] text-[#666] hover:text-white hover:border-[#333] transition-all">
+              className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-xl border border-border bg-surface text-text-secondary hover:text-text-primary hover:border-border transition-all">
               <Clock className="w-3 h-3" /> {profileName(pid)} · {h.toFixed(1)}h
             </button>
           ))}
@@ -202,46 +202,46 @@ export function TimesheetTable({ initialEntries, profiles, projects, clients, cu
       )}
 
       {/* Table */}
-      <div className="border border-[#1A1A1A] rounded-2xl overflow-hidden">
+      <div className="border border-border rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[#111] bg-[#0A0A0A]">
-                <th className="text-left px-4 py-3 text-[10px] font-bold text-[#444] uppercase tracking-wider">Data</th>
-                {(isAdmin && !filterUser) && <th className="text-left px-4 py-3 text-[10px] font-bold text-[#444] uppercase tracking-wider">Persona</th>}
-                <th className="text-left px-4 py-3 text-[10px] font-bold text-[#444] uppercase tracking-wider">Progetto / Cliente</th>
-                <th className="text-left px-4 py-3 text-[10px] font-bold text-[#444] uppercase tracking-wider">Categoria</th>
-                <th className="text-right px-4 py-3 text-[10px] font-bold text-[#444] uppercase tracking-wider">Ore</th>
-                <th className="text-left px-4 py-3 text-[10px] font-bold text-[#444] uppercase tracking-wider">Note</th>
+              <tr className="border-b border-border bg-surface">
+                <th className="text-left px-4 py-3 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Data</th>
+                {(isAdmin && !filterUser) && <th className="text-left px-4 py-3 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Persona</th>}
+                <th className="text-left px-4 py-3 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Progetto / Cliente</th>
+                <th className="text-left px-4 py-3 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Categoria</th>
+                <th className="text-right px-4 py-3 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Ore</th>
+                <th className="text-left px-4 py-3 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Note</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-14 text-[#333] text-sm">
+                  <td colSpan={7} className="text-center py-14 text-text-tertiary text-sm">
                     Nessuna voce per il periodo selezionato.
                   </td>
                 </tr>
               ) : (
                 filtered.map(e => (
-                  <tr key={e.id} className="group border-b border-[#0E0E0E] hover:bg-[#0A0A0A] transition-colors">
-                    <td className="px-4 py-3 text-white text-sm whitespace-nowrap">
+                  <tr key={e.id} className="group border-b border-border hover:bg-surface-hover transition-colors">
+                    <td className="px-4 py-3 text-text-primary text-sm whitespace-nowrap">
                       {new Date(e.date).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </td>
                     {(isAdmin && !filterUser) && (
-                      <td className="px-4 py-3 text-[#888] text-sm">{e.profile?.full_name ?? profileName(e.profile_id)}</td>
+                      <td className="px-4 py-3 text-text-secondary text-sm">{e.profile?.full_name ?? profileName(e.profile_id)}</td>
                     )}
                     <td className="px-4 py-3">
                       {e.project ? (
                         <div>
-                          <p className="text-sm text-white font-semibold leading-tight">{e.project.name}</p>
-                          {e.client && <p className="text-[10px] text-[#444]">{e.client.company_name}</p>}
+                          <p className="text-sm text-text-primary font-semibold leading-tight">{e.project.name}</p>
+                          {e.client && <p className="text-[10px] text-text-tertiary">{e.client.company_name}</p>}
                         </div>
                       ) : e.client ? (
-                        <p className="text-sm text-[#888]">{e.client.company_name}</p>
+                        <p className="text-sm text-text-secondary">{e.client.company_name}</p>
                       ) : (
-                        <p className="text-sm text-[#333]">—</p>
+                        <p className="text-sm text-text-tertiary">—</p>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -250,20 +250,20 @@ export function TimesheetTable({ initialEntries, profiles, projects, clients, cu
                         {catLabel(e.category)}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right font-black text-white">
+                    <td className="px-4 py-3 text-right font-black text-text-primary">
                       {e.hours.toFixed(1)}h
                     </td>
-                    <td className="px-4 py-3 text-[#555] text-xs max-w-xs truncate">{e.note ?? '—'}</td>
+                    <td className="px-4 py-3 text-text-secondary text-xs max-w-xs truncate">{e.note ?? '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
                         {(isAdmin || e.profile_id === currentUserId) && (
                           <>
                             <button onClick={() => openEdit(e)}
-                              className="p-1.5 rounded-lg text-[#333] hover:text-white hover:bg-white/5 transition-all">
+                              className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-overlay/5 transition-all">
                               <Edit2 className="w-3 h-3" />
                             </button>
                             <button onClick={() => remove(e.id)}
-                              className="p-1.5 rounded-lg text-[#333] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all">
+                              className="p-1.5 rounded-lg text-text-tertiary hover:text-error hover:bg-error/10 transition-all">
                               <Trash2 className="w-3 h-3" />
                             </button>
                           </>
@@ -282,14 +282,14 @@ export function TimesheetTable({ initialEntries, profiles, projects, clients, cu
       {showForm && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
           onClick={() => setShowForm(false)}>
-          <div className="bg-[#0E0E0E] border border-[#2A2A2A] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md shadow-2xl"
+          <div className="bg-surface border border-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md shadow-2xl"
             onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#1A1A1A]">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
               <div>
-                <h3 className="text-sm font-bold text-white">{editId ? 'Modifica voce' : 'Registra ore'}</h3>
-                <p className="text-[10px] text-[#444] mt-0.5">Aggiungi una voce al tuo timesheet</p>
+                <h3 className="text-sm font-bold text-text-primary">{editId ? 'Modifica voce' : 'Registra ore'}</h3>
+                <p className="text-[10px] text-text-tertiary mt-0.5">Aggiungi una voce al tuo timesheet</p>
               </div>
-              <button onClick={() => setShowForm(false)} className="p-1 text-[#444] hover:text-white">
+              <button onClick={() => setShowForm(false)} className="p-1 text-text-tertiary hover:text-text-primary">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -297,7 +297,7 @@ export function TimesheetTable({ initialEntries, profiles, projects, clients, cu
             <div className="p-5 space-y-3">
               {isAdmin && (
                 <div>
-                  <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Persona</label>
+                  <label className="block text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wider">Persona</label>
                   <select value={form.profile_id} onChange={e => setForm(p => ({ ...p, profile_id: e.target.value }))} className={inp}>
                     {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
                   </select>
@@ -306,11 +306,11 @@ export function TimesheetTable({ initialEntries, profiles, projects, clients, cu
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Data *</label>
+                  <label className="block text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wider">Data *</label>
                   <input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} className={inp} />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Ore *</label>
+                  <label className="block text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wider">Ore *</label>
                   <input type="number" step="0.5" min="0.5" max="24" value={form.hours}
                     onChange={e => setForm(p => ({ ...p, hours: e.target.value }))}
                     className={inp} placeholder="8" />
@@ -318,14 +318,14 @@ export function TimesheetTable({ initialEntries, profiles, projects, clients, cu
               </div>
 
               <div>
-                <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Categoria</label>
+                <label className="block text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wider">Categoria</label>
                 <div className="flex flex-wrap gap-1.5">
                   {CATEGORIES.map(c => (
                     <button key={c.value} type="button" onClick={() => setForm(p => ({ ...p, category: c.value }))}
                       className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition-all"
                       style={form.category === c.value
                         ? { background: `${c.color}20`, color: c.color, border: `1px solid ${c.color}40` }
-                        : { background: 'transparent', color: '#444', border: '1px solid #1A1A1A' }}>
+                        : { background: 'transparent', color: 'var(--color-text-tertiary)', border: '1px solid var(--color-border)' }}>
                       {c.label}
                     </button>
                   ))}
@@ -333,7 +333,7 @@ export function TimesheetTable({ initialEntries, profiles, projects, clients, cu
               </div>
 
               <div>
-                <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Cliente</label>
+                <label className="block text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wider">Cliente</label>
                 <select value={form.client_id}
                   onChange={e => setForm(p => ({ ...p, client_id: e.target.value, project_id: '' }))}
                   className={inp}>
@@ -343,7 +343,7 @@ export function TimesheetTable({ initialEntries, profiles, projects, clients, cu
               </div>
 
               <div>
-                <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Progetto</label>
+                <label className="block text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wider">Progetto</label>
                 <select value={form.project_id} onChange={e => setForm(p => ({ ...p, project_id: e.target.value }))} className={inp}>
                   <option value="">— Nessun progetto —</option>
                   {filteredProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -351,7 +351,7 @@ export function TimesheetTable({ initialEntries, profiles, projects, clients, cu
               </div>
 
               <div>
-                <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Note</label>
+                <label className="block text-[10px] text-text-tertiary mb-1.5 uppercase tracking-wider">Note</label>
                 <textarea value={form.note} onChange={e => setForm(p => ({ ...p, note: e.target.value }))}
                   rows={2} className={`${inp} resize-none`} placeholder="Cosa hai fatto…" />
               </div>
@@ -359,11 +359,11 @@ export function TimesheetTable({ initialEntries, profiles, projects, clients, cu
 
             <div className="flex gap-3 px-5 pb-5">
               <button onClick={() => setShowForm(false)}
-                className="flex-1 py-2.5 border border-[#2A2A2A] rounded-xl text-sm text-[#555] hover:text-white">
+                className="flex-1 py-2.5 border border-border rounded-xl text-sm text-text-secondary hover:text-text-primary">
                 Annulla
               </button>
               <button onClick={save} disabled={saving || !form.hours || !form.date}
-                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-black bg-[#F5C800] hover:bg-yellow-400 disabled:opacity-40 flex items-center justify-center gap-2">
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-black bg-gold hover:bg-yellow-400 disabled:opacity-40 flex items-center justify-center gap-2">
                 {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 {editId ? 'Aggiorna' : 'Salva ore'}
               </button>

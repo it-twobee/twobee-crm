@@ -20,6 +20,8 @@ import { PrioritaOggi } from './PrioritaOggi'
 interface ClientiListProps {
   clients: Client[]
   currentProfile?: Profile
+  /** Portale operativo: oscura MRR, pagamenti, export ed elimina — solo vista clienti attivi */
+  hideEconomics?: boolean
 }
 
 type SortKey = 'company_name' | 'mrr' | 'client_type' | 'client_label' | 'payment_status' | 'package' | 'contract_end' | 'risk_score'
@@ -62,10 +64,10 @@ const SORT_LABELS: Record<SortKey, string> = {
 function RiskInfoTooltip() {
   return (
     <div className="relative group/tip inline-flex items-center" onClick={e => e.stopPropagation()}>
-      <div className="w-3.5 h-3.5 rounded-full border border-[#444] text-[#555] text-[9px] font-bold flex items-center justify-center cursor-default select-none hover:border-gold/50 hover:text-gold transition-colors">i</div>
-      <div className="pointer-events-none absolute left-0 top-full mt-2 w-60 bg-[#111] border border-[#2A2A2A] rounded-xl shadow-2xl opacity-0 group-hover/tip:opacity-100 transition-opacity z-[999] p-3.5 normal-case tracking-normal font-normal overflow-hidden">
-        <div className="text-[11px] font-bold text-white mb-1">Come funziona il punteggio?</div>
-        <div className="text-[10px] text-[#555] mb-3 leading-snug break-words">Score 0–100 per cliente. Più è alto, più è a rischio. Si aggiorna automaticamente.</div>
+      <div className="w-3.5 h-3.5 rounded-full border border-border-strong text-text-secondary text-[9px] font-bold flex items-center justify-center cursor-default select-none hover:border-gold/50 hover:text-gold transition-colors">i</div>
+      <div className="pointer-events-none absolute left-0 top-full mt-2 w-60 bg-surface border border-border rounded-xl shadow-2xl opacity-0 group-hover/tip:opacity-100 transition-opacity z-[999] p-3.5 normal-case tracking-normal font-normal overflow-hidden">
+        <div className="text-[11px] font-bold text-text-primary mb-1">Come funziona il punteggio?</div>
+        <div className="text-[10px] text-text-secondary mb-3 leading-snug break-words">Score 0–100 per cliente. Più è alto, più è a rischio. Si aggiorna automaticamente.</div>
         <div className="space-y-1.5 mb-3">
           {([
             ['💳', 'Pagamenti in ritardo', '+10–30'],
@@ -78,11 +80,11 @@ function RiskInfoTooltip() {
             <div key={label} className="flex items-center gap-2">
               <span className="shrink-0 text-[11px]">{icon}</span>
               <span className="flex-1 text-[10px] text-text-secondary">{label}</span>
-              <span className="shrink-0 text-[9px] text-[#444] tabular-nums">{pts}</span>
+              <span className="shrink-0 text-[9px] text-text-tertiary tabular-nums">{pts}</span>
             </div>
           ))}
         </div>
-        <div className="border-t border-[#2A2A2A] pt-2 grid grid-cols-3 gap-1 text-center">
+        <div className="border-t border-border pt-2 grid grid-cols-3 gap-1 text-center">
           <div className="text-[9px] font-bold text-success bg-success/10 rounded px-1 py-0.5">0–34 Basso</div>
           <div className="text-[9px] font-bold text-warning bg-warning/10 rounded px-1 py-0.5">35–59 Medio</div>
           <div className="text-[9px] font-bold text-error bg-error/10 rounded px-1 py-0.5">60+ Alto</div>
@@ -103,7 +105,7 @@ function RiskBadge({ score, trend, factors }: {
     : 'text-success bg-success/10 border-success/20'
   const levelLabel = score >= 60 ? 'Alto rischio' : score >= 35 ? 'Rischio medio' : 'Basso rischio'
   const TrendIcon = trend === 'peggiora' ? TrendingUp : trend === 'migliora' ? TrendingDown : Minus
-  const trendColor = trend === 'peggiora' ? 'text-error' : trend === 'migliora' ? 'text-success' : 'text-[#555]'
+  const trendColor = trend === 'peggiora' ? 'text-error' : trend === 'migliora' ? 'text-success' : 'text-text-secondary'
   const trendLabel = trend === 'peggiora' ? '↑ in peggioramento' : trend === 'migliora' ? '↓ in miglioramento' : '→ stabile'
   const factorEntries = factors ? Object.entries(factors) : []
 
@@ -114,7 +116,7 @@ function RiskBadge({ score, trend, factors }: {
         <TrendIcon className={`w-2.5 h-2.5 ${trendColor}`} />
       </span>
       {/* Tooltip per riga */}
-      <span className="pointer-events-none absolute left-0 bottom-full mb-2 w-56 bg-[#111] border border-[#2A2A2A] rounded-xl p-3 shadow-2xl opacity-0 group-hover/risk:opacity-100 transition-opacity z-[999] text-left">
+      <span className="pointer-events-none absolute left-0 bottom-full mb-2 w-56 bg-surface border border-border rounded-xl p-3 shadow-2xl opacity-0 group-hover/risk:opacity-100 transition-opacity z-[999] text-left">
         <div className="flex items-center justify-between mb-2">
           <span className={`text-[11px] font-bold ${score >= 60 ? 'text-error' : score >= 35 ? 'text-warning' : 'text-success'}`}>{levelLabel}</span>
           <span className={`text-[9px] ${trendColor}`}>{trendLabel}</span>
@@ -129,13 +131,13 @@ function RiskBadge({ score, trend, factors }: {
                 </span>
               </div>
             ))}
-            <div className="border-t border-[#2A2A2A] pt-1.5 flex items-center justify-between">
-              <span className="text-[9px] text-[#555]">Score totale</span>
-              <span className="text-[10px] font-black text-white">{score}/100</span>
+            <div className="border-t border-border pt-1.5 flex items-center justify-between">
+              <span className="text-[9px] text-text-secondary">Score totale</span>
+              <span className="text-[10px] font-black text-text-primary">{score}/100</span>
             </div>
           </div>
         ) : (
-          <p className="text-[10px] text-[#555]">Nessun fattore di rischio rilevato.</p>
+          <p className="text-[10px] text-text-secondary">Nessun fattore di rischio rilevato.</p>
         )}
       </span>
     </span>
@@ -143,7 +145,7 @@ function RiskBadge({ score, trend, factors }: {
 }
 
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
-  if (col !== sortKey) return <ChevronsUpDown className="w-3 h-3 text-[#444]" />
+  if (col !== sortKey) return <ChevronsUpDown className="w-3 h-3 text-text-tertiary" />
   return sortDir === 'asc'
     ? <ChevronUp className="w-3 h-3 text-gold" />
     : <ChevronDown className="w-3 h-3 text-gold" />
@@ -164,9 +166,10 @@ function SortValue(c: Client, key: SortKey): string | number {
 const STORAGE_PINS = 'twobee_pinned_clients'
 const STORAGE_PIN_ORDER = 'twobee_pinned_order'
 
-export function ClientiList({ clients: initialClients, currentProfile }: ClientiListProps) {
-  const canSeeMrr = !currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || ['admin', 'manager'].includes(currentProfile.app_role ?? '')
-  const canCreateClient = !currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || ['admin', 'manager'].includes(currentProfile.app_role ?? '')
+export function ClientiList({ clients: initialClients, currentProfile, hideEconomics = false }: ClientiListProps) {
+  const canSeeMrr = !hideEconomics && (!currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || ['admin', 'manager'].includes(currentProfile.app_role ?? ''))
+  const canCreateClient = !hideEconomics && (!currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || ['admin', 'manager'].includes(currentProfile.app_role ?? ''))
+  const showPayments = !hideEconomics
   const [clients, setClients] = useState(initialClients)
   const [search, setSearch] = useState('')
 
@@ -334,7 +337,7 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
   const ColHeader = ({ col, label }: { col: SortKey; label: string }) => (
     <th
       onClick={() => handleSort(col)}
-      className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider cursor-pointer select-none hover:text-white transition-colors"
+      className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider cursor-pointer select-none hover:text-text-primary transition-colors"
     >
       <div className="flex items-center gap-1">
         {label}
@@ -353,14 +356,14 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
     const expiringSoon = daysLeft !== null && daysLeft < 30
 
     return (
-      <div className="bg-surface border border-[#2A2A2A] rounded-xl p-4 hover:border-gold/20 transition-colors group flex flex-col gap-3">
+      <div className="bg-surface border border-border rounded-xl p-4 hover:border-gold/20 transition-colors group flex flex-col gap-3">
         {/* Top: avatar + nome + pin */}
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gold/20 to-gold/5 border border-gold/20 flex items-center justify-center text-base font-black text-gold shrink-0">
             {client.company_name[0].toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <Link href={`/clienti/${client.id}`} className="font-bold text-white hover:text-gold transition-colors text-sm leading-tight block truncate">
+            <Link href={hideEconomics ? `/workspace/clienti/${client.id}` : `/clienti/${client.id}`} className="font-bold text-text-primary hover:text-gold transition-colors text-sm leading-tight block truncate">
               {client.company_name}
             </Link>
             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
@@ -375,7 +378,7 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
               )}
             </div>
           </div>
-          <button onClick={onPin} className={`shrink-0 transition-colors ${pinned ? 'text-gold' : 'text-[#333] hover:text-gold opacity-0 group-hover:opacity-100'}`}>
+          <button onClick={onPin} className={`shrink-0 transition-colors ${pinned ? 'text-gold' : 'text-text-tertiary hover:text-gold opacity-0 group-hover:opacity-100'}`}>
             <Pin className={`w-3.5 h-3.5 ${pinned ? 'fill-gold' : ''}`} />
           </button>
         </div>
@@ -383,7 +386,7 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
         {/* Metriche */}
         <div className="grid grid-cols-2 gap-2">
           {canSeeMrr && (
-            <div className="bg-[#111] rounded-lg p-2.5">
+            <div className="bg-surface rounded-lg p-2.5">
               <p className="text-[9px] text-text-secondary uppercase tracking-wider mb-0.5">MRR</p>
               <p className="text-sm font-black text-gold">{formatCurrency(client.mrr)}</p>
             </div>
@@ -393,9 +396,11 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
         {/* Pacchetto + pagamento + risk */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[10px] bg-gold/10 text-gold border border-gold/20 px-2 py-0.5 rounded font-semibold">{client.package}</span>
-          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${getPaymentBadge(client.payment_status)}`}>
-            {client.payment_status === 'in_attesa' ? 'Attesa pagamento' : client.payment_status === 'pagato' ? 'Pagato' : 'Scaduto'}
-          </span>
+          {showPayments && (
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${getPaymentBadge(client.payment_status)}`}>
+              {client.payment_status === 'in_attesa' ? 'Attesa pagamento' : client.payment_status === 'pagato' ? 'Pagato' : 'Scaduto'}
+            </span>
+          )}
           {client.risk_score != null && <RiskBadge score={client.risk_score} trend={client.risk_trend} factors={client.risk_factors} />}
         </div>
 
@@ -413,22 +418,24 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
         {client.active_channels.length > 0 && (
           <div className="flex gap-1 flex-wrap">
             {client.active_channels.slice(0, 3).map(ch => (
-              <span key={ch} className="text-[10px] bg-background border border-[#2A2A2A] px-1.5 py-0.5 rounded text-text-secondary">{ch}</span>
+              <span key={ch} className="text-[10px] bg-background border border-border px-1.5 py-0.5 rounded text-text-secondary">{ch}</span>
             ))}
             {client.active_channels.length > 3 && <span className="text-[10px] text-text-secondary">+{client.active_channels.length - 3}</span>}
           </div>
         )}
 
         {/* Footer azioni */}
-        <div className="flex items-center justify-between pt-1 border-t border-[#2A2A2A] mt-auto">
-          <Link href={`/clienti/${client.id}`}
+        <div className="flex items-center justify-between pt-1 border-t border-border mt-auto">
+          <Link href={hideEconomics ? `/workspace/clienti/${client.id}` : `/clienti/${client.id}`}
             className="flex items-center gap-1 text-[11px] text-text-secondary hover:text-gold transition-colors">
             <ExternalLink className="w-3 h-3" /> Apri scheda
           </Link>
-          <button onClick={() => onDelete(client.id, client.company_name)} disabled={deleting}
-            className="text-text-secondary hover:text-error transition-colors disabled:opacity-50 opacity-0 group-hover:opacity-100">
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          {!hideEconomics && (
+            <button onClick={() => onDelete(client.id, client.company_name)} disabled={deleting}
+              className="text-text-secondary hover:text-error transition-colors disabled:opacity-50 opacity-0 group-hover:opacity-100">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
     )
@@ -441,16 +448,16 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
       onDragStart={pinned ? () => handleDragStart(client.id) : undefined}
       onDragOver={pinned ? (e) => handleDragOver(e, client.id) : undefined}
       onDrop={pinned ? handleDrop : undefined}
-      className={`border-b border-[#2A2A2A] hover:bg-white/3 transition-colors group ${pinned ? 'cursor-grab active:cursor-grabbing' : ''}`}
+      className={`border-b border-border hover:bg-overlay/3 transition-colors group ${pinned ? 'cursor-grab active:cursor-grabbing' : ''}`}
     >
       {/* Grip + pin */}
       <td className="px-2 py-3.5 w-8">
         <div className="flex items-center gap-1">
-          {pinned && <GripVertical className="w-3.5 h-3.5 text-[#444] group-hover:text-text-secondary transition-colors" />}
+          {pinned && <GripVertical className="w-3.5 h-3.5 text-text-tertiary group-hover:text-text-secondary transition-colors" />}
           <button
             onClick={() => togglePin(client.id)}
             title={pinned ? 'Rimuovi dai fissati' : 'Fissa in cima'}
-            className={`transition-colors ${pinned ? 'text-gold hover:text-gold/60' : 'text-[#333] hover:text-gold opacity-0 group-hover:opacity-100'}`}
+            className={`transition-colors ${pinned ? 'text-gold hover:text-gold/60' : 'text-text-tertiary hover:text-gold opacity-0 group-hover:opacity-100'}`}
           >
             {pinned ? <Pin className="w-3.5 h-3.5 fill-gold" /> : <Pin className="w-3.5 h-3.5" />}
           </button>
@@ -459,7 +466,7 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
       <td className="px-4 py-3.5">
         <div className="flex items-center gap-2">
           {pinned && <span className="text-[10px] text-gold bg-gold/10 border border-gold/20 px-1.5 py-0.5 rounded font-semibold">FISSATO</span>}
-          <Link href={`/clienti/${client.id}`} className="font-semibold text-white hover:text-gold transition-colors text-sm">
+          <Link href={hideEconomics ? `/workspace/clienti/${client.id}` : `/clienti/${client.id}`} className="font-semibold text-text-primary hover:text-gold transition-colors text-sm">
             {client.company_name}
           </Link>
         </div>
@@ -481,29 +488,33 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
         <span className="inline-flex whitespace-nowrap text-xs text-text-secondary bg-background px-2 py-1 rounded">{client.package}</span>
       </td>
       {canSeeMrr && <td className="px-4 py-3.5 text-sm font-bold text-gold">{formatCurrency(client.mrr)}</td>}
-      <td className="px-4 py-3.5">
-        <span className={`inline-flex items-center whitespace-nowrap text-xs font-semibold px-2 py-0.5 rounded ${getPaymentBadge(client.payment_status)}`}>
-          {client.payment_status === 'in_attesa' ? 'Attesa pagamento' : client.payment_status === 'pagato' ? 'Pagato' : 'Scaduto'}
-        </span>
-      </td>
+      {showPayments && (
+        <td className="px-4 py-3.5">
+          <span className={`inline-flex items-center whitespace-nowrap text-xs font-semibold px-2 py-0.5 rounded ${getPaymentBadge(client.payment_status)}`}>
+            {client.payment_status === 'in_attesa' ? 'Attesa pagamento' : client.payment_status === 'pagato' ? 'Pagato' : 'Scaduto'}
+          </span>
+        </td>
+      )}
       <td className="px-4 py-3.5">
         {client.industry
-          ? <span className="inline-flex whitespace-nowrap text-xs text-text-secondary bg-background border border-[#2A2A2A] px-2 py-0.5 rounded">{client.industry}</span>
-          : <span className="text-xs text-[#444]">—</span>}
+          ? <span className="inline-flex whitespace-nowrap text-xs text-text-secondary bg-background border border-border px-2 py-0.5 rounded">{client.industry}</span>
+          : <span className="text-xs text-text-tertiary">—</span>}
       </td>
       <td className="px-4 py-3.5">
         <div className="flex items-center gap-3">
-          <Link href={`/clienti/${client.id}`} className="flex items-center gap-1 text-xs text-text-secondary hover:text-gold transition-colors">
+          <Link href={hideEconomics ? `/workspace/clienti/${client.id}` : `/clienti/${client.id}`} className="flex items-center gap-1 text-xs text-text-secondary hover:text-gold transition-colors">
             <ExternalLink className="w-3.5 h-3.5" /> Apri
           </Link>
-          <button
-            onClick={() => handleDelete(client.id, client.company_name)}
-            disabled={deletingId === client.id}
-            className="text-text-secondary hover:text-error transition-colors disabled:opacity-50"
-            title="Elimina cliente"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          {!hideEconomics && (
+            <button
+              onClick={() => handleDelete(client.id, client.company_name)}
+              disabled={deletingId === client.id}
+              className="text-text-secondary hover:text-error transition-colors disabled:opacity-50"
+              title="Elimina cliente"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </td>
     </tr>
@@ -511,33 +522,35 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
 
   return (
     <div className="p-6 space-y-4">
-      <PrioritaOggi clients={clients} />
+      {!hideEconomics && <PrioritaOggi clients={clients} />}
 
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-white">Clienti</h1>
+          <h1 className="text-2xl font-black text-text-primary">Clienti</h1>
           <p className="text-text-secondary text-sm mt-0.5">
             {allFiltered.length} clienti{canSeeMrr && <> · MRR totale <span className="text-gold font-semibold">{formatCurrency(totalMrr)}</span></>}
           </p>
         </div>
         <div className="flex gap-2">
           {/* Vista toggle */}
-          <div className="flex border border-[#2A2A2A] rounded-lg overflow-hidden">
+          <div className="flex border border-border rounded-lg overflow-hidden">
             <button onClick={() => setViewMode('table')}
-              className={`px-2.5 py-2 transition-colors ${viewMode === 'table' ? 'bg-gold/10 text-gold' : 'text-text-secondary hover:text-white'}`}
+              className={`px-2.5 py-2 transition-colors ${viewMode === 'table' ? 'bg-gold/10 text-gold' : 'text-text-secondary hover:text-text-primary'}`}
               title="Vista tabella">
               <List className="w-4 h-4" />
             </button>
             <button onClick={() => setViewMode('grid')}
-              className={`px-2.5 py-2 transition-colors ${viewMode === 'grid' ? 'bg-gold/10 text-gold' : 'text-text-secondary hover:text-white'}`}
+              className={`px-2.5 py-2 transition-colors ${viewMode === 'grid' ? 'bg-gold/10 text-gold' : 'text-text-secondary hover:text-text-primary'}`}
               title="Vista card">
               <LayoutGrid className="w-4 h-4" />
             </button>
           </div>
-          <button onClick={exportCsv} className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary border border-[#2A2A2A] rounded-lg hover:text-white hover:border-white/20 transition-colors">
-            <Download className="w-4 h-4" /> Export CSV
-          </button>
+          {!hideEconomics && (
+            <button onClick={exportCsv} className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary border border-border rounded-lg hover:text-text-primary hover:border-overlay/20 transition-colors">
+              <Download className="w-4 h-4" /> Export CSV
+            </button>
+          )}
           {canCreateClient && (
             <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-gold text-black rounded-lg hover:bg-yellow-400 transition-colors">
               <Plus className="w-4 h-4" /> Nuovo Cliente
@@ -560,12 +573,12 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
                   ? tab.key === 'growth'         ? 'bg-gold/10 text-gold border-gold/30'
                   : tab.key === 'digital'        ? 'bg-blue-500/10 text-blue-400 border-blue-400/30'
                   : tab.key === 'growth_digital' ? 'bg-purple-500/10 text-purple-400 border-purple-400/30'
-                  : 'bg-white/5 text-white border-white/10'
-                  : 'bg-transparent text-text-secondary border-[#2A2A2A] hover:border-[#444] hover:text-white'
+                  : 'bg-overlay/5 text-text-primary border-overlay/10'
+                  : 'bg-transparent text-text-secondary border-border hover:border-border-strong hover:text-text-primary'
               }`}>
               <span>{tab.emoji}</span>
               <span>{tab.label}</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${portfolioTab === tab.key ? 'bg-white/10' : 'bg-[#2A2A2A] text-[#666]'}`}>{count}</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${portfolioTab === tab.key ? 'bg-overlay/10' : 'bg-surface-hover text-text-secondary'}`}>{count}</span>
             </button>
           )
         })}
@@ -579,10 +592,10 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
           <input
             type="text" placeholder="Cerca azienda..." value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="bg-surface border border-[#2A2A2A] rounded-lg pl-9 pr-4 py-2 text-sm text-white placeholder:text-text-secondary focus:outline-none focus:border-gold/40 w-52"
+            className="bg-surface border border-border rounded-lg pl-9 pr-4 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-gold/40 w-52"
           />
           {search && (
-            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-white">
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary">
               <X className="w-3.5 h-3.5" />
             </button>
           )}
@@ -590,14 +603,14 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
 
         {/* Filtri rapidi */}
         <select value={filterType} onChange={(e) => setFilterType(e.target.value as ClientType | typeof ALL)}
-          className="bg-surface border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold/40">
+          className="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/40">
           <option value={ALL}>Tutti i tipi</option>
           <option value="growth">Growth</option>
           <option value="digital">Digital</option>
         </select>
 
         <select value={filterLabel} onChange={(e) => setFilterLabel(e.target.value as ClientLabel | typeof ALL)}
-          className="bg-surface border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold/40">
+          className="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/40">
           <option value={ALL}>Tutte le label</option>
           <option value="stabile">✅ Stabile</option>
           <option value="in_bilico">⚠️ In bilico</option>
@@ -605,18 +618,20 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
           <option value="partner">🤝 Partner</option>
         </select>
 
-        <select value={filterPayment} onChange={(e) => setFilterPayment(e.target.value as PaymentStatus | typeof ALL)}
-          className="bg-surface border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold/40">
-          <option value={ALL}>Tutti i pagamenti</option>
-          <option value="pagato">Pagato</option>
-          <option value="in_attesa">Attesa pagamento</option>
-          <option value="scaduto">Scaduto</option>
-        </select>
+        {showPayments && (
+          <select value={filterPayment} onChange={(e) => setFilterPayment(e.target.value as PaymentStatus | typeof ALL)}
+            className="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/40">
+            <option value={ALL}>Tutti i pagamenti</option>
+            <option value="pagato">Pagato</option>
+            <option value="in_attesa">Attesa pagamento</option>
+            <option value="scaduto">Scaduto</option>
+          </select>
+        )}
 
         {/* Toggle filtri avanzati */}
         <button
           onClick={() => setShowAdvanced((v) => !v)}
-          className={`flex items-center gap-2 px-3 py-2 text-sm border rounded-lg transition-colors ${showAdvanced || activeFilters > 0 ? 'border-gold/40 text-gold bg-gold/5' : 'border-[#2A2A2A] text-text-secondary hover:text-white hover:border-[#3A3A3A]'}`}
+          className={`flex items-center gap-2 px-3 py-2 text-sm border rounded-lg transition-colors ${showAdvanced || activeFilters > 0 ? 'border-gold/40 text-gold bg-gold/5' : 'border-border text-text-secondary hover:text-text-primary hover:border-border-strong'}`}
         >
           <SlidersHorizontal className="w-4 h-4" />
           Avanzati
@@ -632,11 +647,11 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
 
       {/* Filtri avanzati */}
       {showAdvanced && (
-        <div className="bg-surface border border-[#2A2A2A] rounded-xl p-4 flex flex-wrap gap-4">
+        <div className="bg-surface border border-border rounded-xl p-4 flex flex-wrap gap-4">
           <div>
             <label className="block text-xs text-text-secondary mb-1">Pacchetto</label>
             <select value={filterPackage} onChange={(e) => setFilterPackage(e.target.value as ClientPackage | typeof ALL)}
-              className="bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold/40">
+              className="bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/40">
               <option value={ALL}>Tutti</option>
               <option value="Worker Bee Start">Worker Bee Start</option>
               <option value="Worker Bee Basic">Worker Bee Basic</option>
@@ -647,23 +662,27 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
               <option value="Partner Quota">Partner Quota</option>
             </select>
           </div>
-          <div>
-            <label className="block text-xs text-text-secondary mb-1">MRR minimo (€)</label>
-            <input
-              type="number" value={filterMrrMin} onChange={(e) => setFilterMrrMin(e.target.value)}
-              placeholder="0" className="bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold/40 w-32"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-text-secondary mb-1">MRR massimo (€)</label>
-            <input
-              type="number" value={filterMrrMax} onChange={(e) => setFilterMrrMax(e.target.value)}
-              placeholder="∞" className="bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold/40 w-32"
-            />
-          </div>
+          {canSeeMrr && (
+            <>
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">MRR minimo (€)</label>
+                <input
+                  type="number" value={filterMrrMin} onChange={(e) => setFilterMrrMin(e.target.value)}
+                  placeholder="0" className="bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/40 w-32"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-text-secondary mb-1">MRR massimo (€)</label>
+                <input
+                  type="number" value={filterMrrMax} onChange={(e) => setFilterMrrMax(e.target.value)}
+                  placeholder="∞" className="bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/40 w-32"
+                />
+              </div>
+            </>
+          )}
           <div className="flex items-end">
-            <div className="text-xs text-text-secondary bg-background border border-[#2A2A2A] rounded-lg px-3 py-2">
-              <span className="text-white font-semibold">{allFiltered.length}</span> risultati · MRR medio <span className="text-gold font-semibold">{formatCurrency(allFiltered.length ? totalMrr / allFiltered.length : 0)}</span>
+            <div className="text-xs text-text-secondary bg-background border border-border rounded-lg px-3 py-2">
+              <span className="text-text-primary font-semibold">{allFiltered.length}</span> risultati{canSeeMrr && <> · MRR medio <span className="text-gold font-semibold">{formatCurrency(allFiltered.length ? totalMrr / allFiltered.length : 0)}</span></>}
             </div>
           </div>
         </div>
@@ -679,17 +698,17 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
 
       {viewMode === 'table' ? (
         /* ── VISTA TABELLA ── */
-        <div className="bg-surface border border-[#2A2A2A] rounded-card overflow-x-auto">
+        <div className="bg-surface border border-border rounded-card overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-[#2A2A2A]">
+              <tr className="border-b border-border">
                 <th className="px-2 py-3 w-8" />
                 <ColHeader col="company_name" label="Azienda" />
                 <ColHeader col="client_type" label="Tipo" />
                 <ColHeader col="client_label" label="Label" />
                 <th
                   onClick={() => handleSort('risk_score')}
-                  className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider cursor-pointer select-none hover:text-white transition-colors whitespace-nowrap"
+                  className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider cursor-pointer select-none hover:text-text-primary transition-colors whitespace-nowrap"
                 >
                   <div className="flex items-center gap-1.5">
                     AI Risk
@@ -699,7 +718,7 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
                 </th>
                 <ColHeader col="package" label="Pacchetto" />
                 {canSeeMrr && <ColHeader col="mrr" label="MRR" />}
-                <ColHeader col="payment_status" label="Pagamenti" />
+                {showPayments && <ColHeader col="payment_status" label="Pagamenti" />}
                 <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Settore</th>
                 <th className="px-4 py-3 w-24" />
               </tr>
@@ -713,11 +732,11 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
               ))}
               {pinnedClients.length > 0 && unpinnedClients.length > 0 && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-1.5 bg-[#0D0D0D]">
+                  <td colSpan={10} className="px-4 py-1.5 bg-surface">
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 h-px bg-[#2A2A2A]" />
+                      <div className="flex-1 h-px bg-surface-hover" />
                       <span className="text-[10px] text-text-secondary uppercase tracking-widest">Altri clienti</span>
-                      <div className="flex-1 h-px bg-[#2A2A2A]" />
+                      <div className="flex-1 h-px bg-surface-hover" />
                     </div>
                   </td>
                 </tr>
@@ -746,9 +765,9 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
           )}
           {pinnedClients.length > 0 && unpinnedClients.length > 0 && (
             <div className="flex items-center gap-3 my-4">
-              <div className="flex-1 h-px bg-[#2A2A2A]" />
+              <div className="flex-1 h-px bg-surface-hover" />
               <span className="text-[10px] text-text-secondary uppercase tracking-widest">Altri clienti</span>
-              <div className="flex-1 h-px bg-[#2A2A2A]" />
+              <div className="flex-1 h-px bg-surface-hover" />
             </div>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -757,8 +776,8 @@ export function ClientiList({ clients: initialClients, currentProfile }: Clienti
         </>
       )}
 
-      {/* ── SEZIONE LOST ── */}
-      {lostClients.length > 0 && <LostSection clients={lostClients} canSeeMrr={canSeeMrr} onDelete={handleDelete} deletingId={deletingId} />}
+      {/* ── SEZIONE LOST ── (nascosta nel portale operativo: solo clienti attivi) */}
+      {!hideEconomics && lostClients.length > 0 && <LostSection clients={lostClients} canSeeMrr={canSeeMrr} onDelete={handleDelete} deletingId={deletingId} />}
 
       {showModal && (
         <NewClientModal
@@ -777,14 +796,14 @@ function LostSection({ clients, canSeeMrr, onDelete, deletingId }: {
   const lostMrr = clients.reduce((s, c) => s + c.mrr, 0)
 
   return (
-    <div className="border border-[#2A2A2A] rounded-card overflow-hidden">
+    <div className="border border-border rounded-card overflow-hidden">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-5 py-3.5 bg-[#111] hover:bg-white/3 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-3.5 bg-surface hover:bg-overlay/3 transition-colors"
       >
         <div className="flex items-center gap-3">
           <span className="text-sm font-semibold text-text-secondary">Clienti Persi</span>
-          <span className="text-xs bg-[#1A1A1A] border border-[#2A2A2A] text-text-secondary px-2 py-0.5 rounded-full">{clients.length}</span>
+          <span className="text-xs bg-surface border border-border text-text-secondary px-2 py-0.5 rounded-full">{clients.length}</span>
           {canSeeMrr && (
             <span className="text-xs text-text-secondary">MRR perso: <span className="text-error font-semibold">{formatCurrency(lostMrr)}</span></span>
           )}
@@ -795,7 +814,7 @@ function LostSection({ clients, canSeeMrr, onDelete, deletingId }: {
       {open && (
         <table className="w-full">
           <thead>
-            <tr className="border-y border-[#2A2A2A] bg-[#0D0D0D]">
+            <tr className="border-y border-border bg-surface">
               <th className="text-left px-5 py-2.5 text-xs font-semibold text-text-secondary uppercase tracking-wider">Azienda</th>
               <th className="text-left px-4 py-2.5 text-xs font-semibold text-text-secondary uppercase tracking-wider">Tipo</th>
               <th className="text-left px-4 py-2.5 text-xs font-semibold text-text-secondary uppercase tracking-wider">Pacchetto</th>
@@ -806,13 +825,13 @@ function LostSection({ clients, canSeeMrr, onDelete, deletingId }: {
           </thead>
           <tbody>
             {clients.map((c) => (
-              <tr key={c.id} className="border-b border-[#1A1A1A] hover:bg-white/2 transition-colors group opacity-60 hover:opacity-100">
+              <tr key={c.id} className="border-b border-border hover:bg-overlay/2 transition-colors group opacity-60 hover:opacity-100">
                 <td className="px-5 py-3">
                   <Link href={`/clienti/${c.id}`} className="flex items-center gap-2.5 hover:text-gold transition-colors">
-                    <div className="w-7 h-7 rounded-lg bg-[#1A1A1A] border border-[#2A2A2A] flex items-center justify-center text-xs font-black text-text-secondary shrink-0">
+                    <div className="w-7 h-7 rounded-lg bg-surface border border-border flex items-center justify-center text-xs font-black text-text-secondary shrink-0">
                       {c.company_name[0].toUpperCase()}
                     </div>
-                    <span className="text-sm text-white font-medium">{c.company_name}</span>
+                    <span className="text-sm text-text-primary font-medium">{c.company_name}</span>
                   </Link>
                 </td>
                 <td className="px-4 py-3">

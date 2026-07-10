@@ -13,6 +13,7 @@ interface Props {
   contacts: ClientContact[]
   teamMembers: Profile[]
   stakeholders: ClientStakeholder[]
+  hideEconomics?: boolean
 }
 
 const PACKAGES: ClientPackage[] = ['Worker Bee Start', 'Worker Bee Basic', 'Hive Basic', 'Hive Custom', 'Royal Queen', 'IT Digital Partner', 'Partner Quota']
@@ -39,9 +40,9 @@ const roleBadge: Record<StakeholderRole, string> = {
 
 function Field({ label, value, editMode, children }: { label: string; value: React.ReactNode; editMode: boolean; children: React.ReactNode }) {
   return (
-    <div className={editMode ? '' : 'bg-[#0D0D0D] rounded-lg px-3 py-2.5'}>
+    <div className={editMode ? '' : 'bg-surface rounded-lg px-3 py-2.5'}>
       <p className="text-text-secondary text-[10px] uppercase tracking-wider font-semibold mb-1">{label}</p>
-      {editMode ? children : <p className="text-white text-sm font-medium">{value || <span className="text-text-secondary italic text-xs">Non compilato</span>}</p>}
+      {editMode ? children : <p className="text-text-primary text-sm font-medium">{value || <span className="text-text-secondary italic text-xs">Non compilato</span>}</p>}
     </div>
   )
 }
@@ -53,7 +54,7 @@ function Input({ value, onChange, placeholder, type = 'text' }: { value: string;
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-gold/60 placeholder:text-text-secondary"
+      className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-gold/60 placeholder:text-text-secondary"
     />
   )
 }
@@ -63,14 +64,14 @@ function Select({ value, onChange, options }: { value: string; onChange: (v: str
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-gold/60"
+      className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-gold/60"
     >
       {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
   )
 }
 
-export function AnagraficaTab({ client: initialClient, contacts, teamMembers, stakeholders: initialStakeholders }: Props) {
+export function AnagraficaTab({ client: initialClient, contacts, teamMembers, stakeholders: initialStakeholders, hideEconomics = false }: Props) {
   const [client, setClient] = useState(initialClient)
   const router = useRouter()
   const [stakeholders, setStakeholders] = useState(initialStakeholders)
@@ -124,14 +125,14 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
   }
 
   const SectionHeader = ({ title, section, editing }: { title: string; section: string; editing: boolean }) => (
-    <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#2A2A2A]">
+    <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
       <div className="flex items-center gap-2.5">
         {sectionIcons[section]}
-        <h3 className="text-sm font-bold text-white">{title}</h3>
+        <h3 className="text-sm font-bold text-text-primary">{title}</h3>
       </div>
       {editing ? (
         <div className="flex items-center gap-2">
-          <button onClick={cancel} className="flex items-center gap-1 text-xs text-text-secondary hover:text-white transition-colors">
+          <button onClick={cancel} className="flex items-center gap-1 text-xs text-text-secondary hover:text-text-primary transition-colors">
             <X className="w-3.5 h-3.5" /> Annulla
           </button>
           <button onClick={() => save(section)} disabled={saving} className="flex items-center gap-1.5 text-xs bg-gold text-black px-3 py-1 rounded-lg font-semibold hover:bg-gold/90 transition-colors disabled:opacity-50">
@@ -153,7 +154,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
     <div className="space-y-6">
 
       {/* Dati Aziendali */}
-      <section className="bg-surface border border-[#2A2A2A] rounded-2xl p-5">
+      <section className="bg-surface border border-border rounded-2xl p-5">
         <SectionHeader title="Dati Aziendali" section="azienda" editing={editAzienda} />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <Field label="Ragione Sociale" value={client.company_name} editMode={editAzienda}>
@@ -175,7 +176,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
           </Field>
           <Field label="Settore" value={client.industry} editMode={editAzienda}>
             <select value={form.industry ?? ''} onChange={(e) => setForm((p) => ({ ...p, industry: e.target.value || null }))}
-              className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-gold/60">
+              className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-gold/60">
               <option value="">— Seleziona settore —</option>
               {INDUSTRIES.map((ind) => <option key={ind} value={ind}>{ind}</option>)}
             </select>
@@ -186,7 +187,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
           <div className="sm:col-span-2 lg:col-span-3">
             <Field label="Note Interne" value={client.notes} editMode={editAzienda}>
               <textarea value={form.notes ?? ''} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} rows={3}
-                className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-gold/60 resize-none" />
+                className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-gold/60 resize-none" />
             </Field>
           </div>
         </div>
@@ -198,7 +199,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
             <div className="flex gap-2 flex-wrap">
               {CHANNELS.map((ch) => (
                 <button key={ch} onClick={() => toggleChannel(ch)}
-                  className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${form.active_channels?.includes(ch) ? 'bg-gold/20 border-gold/40 text-gold' : 'bg-background border-[#2A2A2A] text-text-secondary hover:border-[#3A3A3A]'}`}>
+                  className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${form.active_channels?.includes(ch) ? 'bg-gold/20 border-gold/40 text-gold' : 'bg-background border-border text-text-secondary hover:border-border-strong'}`}>
                   {form.active_channels?.includes(ch) && <Check className="w-3 h-3 inline mr-1" />}{ch}
                 </button>
               ))}
@@ -206,7 +207,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
           ) : (
             <div className="flex gap-2 flex-wrap">
               {client.active_channels.map((ch) => (
-                <span key={ch} className="bg-background border border-[#2A2A2A] text-text-secondary text-xs px-2.5 py-1 rounded">{ch}</span>
+                <span key={ch} className="bg-background border border-border text-text-secondary text-xs px-2.5 py-1 rounded">{ch}</span>
               ))}
             </div>
           )}
@@ -214,7 +215,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
       </section>
 
       {/* Dati Fiscali (per Aruba) */}
-      <section className="bg-surface border border-[#2A2A2A] rounded-2xl p-5">
+      <section className="bg-surface border border-border rounded-2xl p-5">
         <SectionHeader title="Dati Fiscali & Fatturazione Elettronica" section="fiscale" editing={editFiscale} />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <Field label="P.IVA" value={client.piva} editMode={editFiscale}>
@@ -246,35 +247,37 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
         )}
       </section>
 
-      {/* Contratto & Pagamenti */}
-      <section className="bg-surface border border-[#2A2A2A] rounded-2xl p-5">
-        <SectionHeader title="Contratto & Pagamenti" section="contratto" editing={editContratto} />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <Field label="Pacchetto" value={client.package} editMode={editContratto}>
-            <Select value={form.package} onChange={(v) => setForm((p) => ({ ...p, package: v as ClientPackage }))}
-              options={PACKAGES.map((pk) => ({ value: pk, label: pk }))} />
-          </Field>
-          <Field label="MRR (€/mese)" value={`€${client.mrr.toLocaleString('it-IT')}`} editMode={editContratto}>
-            <Input type="number" value={form.mrr.toString()} onChange={(v) => setForm((p) => ({ ...p, mrr: parseFloat(v) || 0 }))} />
-          </Field>
-          <Field label="Inizio Contratto" value={formatDate(client.contract_start)} editMode={editContratto}>
-            <Input type="date" value={form.contract_start?.slice(0, 10) ?? ''} onChange={(v) => setForm((p) => ({ ...p, contract_start: v }))} />
-          </Field>
-          <Field label="Fine Contratto" value={formatDate(client.contract_end)} editMode={editContratto}>
-            <Input type="date" value={form.contract_end?.slice(0, 10) ?? ''} onChange={(v) => setForm((p) => ({ ...p, contract_end: v }))} />
-          </Field>
-          <Field label="Stato Pagamenti" value={client.payment_status} editMode={editContratto}>
-            <Select value={form.payment_status} onChange={(v) => setForm((p) => ({ ...p, payment_status: v as PaymentStatus }))}
-              options={[{ value: 'pagato', label: 'Pagato' }, { value: 'in_attesa', label: 'In Attesa' }, { value: 'scaduto', label: 'Scaduto' }]} />
-          </Field>
-        </div>
-      </section>
+      {/* Contratto & Pagamenti — nascosto nel portale operativo (dati economici) */}
+      {!hideEconomics && (
+        <section className="bg-surface border border-border rounded-2xl p-5">
+          <SectionHeader title="Contratto & Pagamenti" section="contratto" editing={editContratto} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <Field label="Pacchetto" value={client.package} editMode={editContratto}>
+              <Select value={form.package} onChange={(v) => setForm((p) => ({ ...p, package: v as ClientPackage }))}
+                options={PACKAGES.map((pk) => ({ value: pk, label: pk }))} />
+            </Field>
+            <Field label="MRR (€/mese)" value={`€${client.mrr.toLocaleString('it-IT')}`} editMode={editContratto}>
+              <Input type="number" value={form.mrr.toString()} onChange={(v) => setForm((p) => ({ ...p, mrr: parseFloat(v) || 0 }))} />
+            </Field>
+            <Field label="Inizio Contratto" value={formatDate(client.contract_start)} editMode={editContratto}>
+              <Input type="date" value={form.contract_start?.slice(0, 10) ?? ''} onChange={(v) => setForm((p) => ({ ...p, contract_start: v }))} />
+            </Field>
+            <Field label="Fine Contratto" value={formatDate(client.contract_end)} editMode={editContratto}>
+              <Input type="date" value={form.contract_end?.slice(0, 10) ?? ''} onChange={(v) => setForm((p) => ({ ...p, contract_end: v }))} />
+            </Field>
+            <Field label="Stato Pagamenti" value={client.payment_status} editMode={editContratto}>
+              <Select value={form.payment_status} onChange={(v) => setForm((p) => ({ ...p, payment_status: v as PaymentStatus }))}
+                options={[{ value: 'pagato', label: 'Pagato' }, { value: 'in_attesa', label: 'In Attesa' }, { value: 'scaduto', label: 'Scaduto' }]} />
+            </Field>
+          </div>
+        </section>
+      )}
 
       {/* Referenti Cliente */}
-      <section className="bg-surface border border-[#2A2A2A] rounded-2xl p-5">
-        <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-[#2A2A2A]">
+      <section className="bg-surface border border-border rounded-2xl p-5">
+        <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
           <Users2 className="w-4 h-4 text-green-400" />
-          <h3 className="text-sm font-bold text-white">Referenti Cliente</h3>
+          <h3 className="text-sm font-bold text-text-primary">Referenti Cliente</h3>
         </div>
         {contacts.length === 0 ? (
           <p className="text-text-secondary text-sm">Nessun referente inserito</p>
@@ -287,7 +290,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-white">{c.full_name}</p>
+                    <p className="text-sm font-semibold text-text-primary">{c.full_name}</p>
                     {c.is_primary && <span className="text-xs bg-gold/20 text-gold px-1.5 py-0.5 rounded">Principale</span>}
                   </div>
                   {c.role && <p className="text-xs text-text-secondary">{c.role}</p>}
@@ -303,11 +306,11 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
       </section>
 
       {/* Stakeholders */}
-      <section className="bg-surface border border-[#2A2A2A] rounded-2xl p-5">
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#2A2A2A]">
+      <section className="bg-surface border border-border rounded-2xl p-5">
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
           <div className="flex items-center gap-2.5">
             <Crown className="w-4 h-4 text-amber-400" />
-            <h3 className="text-sm font-bold text-white">Owner, Stakeholder & Collaboratori</h3>
+            <h3 className="text-sm font-bold text-text-primary">Owner, Stakeholder & Collaboratori</h3>
           </div>
           <button onClick={() => setShowStakeholderModal(true)} className="flex items-center gap-1 text-xs text-gold hover:underline">
             <Plus className="w-3.5 h-3.5" /> Aggiungi
@@ -325,7 +328,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-white">{s.full_name}</p>
+                      <p className="text-sm font-semibold text-text-primary">{s.full_name}</p>
                       <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${roleBadge[s.role]}`}>{roleLabel[s.role]}</span>
                     </div>
                     {s.company && <p className="text-xs text-text-secondary">{s.company}{s.piva ? ` · P.IVA ${s.piva}` : ''}</p>}
@@ -346,10 +349,10 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
       </section>
 
       {/* Team TWO BEE */}
-      <section className="bg-surface border border-[#2A2A2A] rounded-2xl p-5">
-        <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-[#2A2A2A]">
+      <section className="bg-surface border border-border rounded-2xl p-5">
+        <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
           <Users2 className="w-4 h-4 text-gold" />
-          <h3 className="text-sm font-bold text-white">Team TWO BEE Assegnato</h3>
+          <h3 className="text-sm font-bold text-text-primary">Team TWO BEE Assegnato</h3>
         </div>
         {teamMembers.length === 0 ? (
           <p className="text-text-secondary text-sm">Nessun membro assegnato</p>
@@ -361,7 +364,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
                   {getInitials(m.full_name)}
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-white">{m.full_name}</p>
+                  <p className="text-sm font-medium text-text-primary">{m.full_name}</p>
                   <p className="text-xs text-text-secondary capitalize">{m.role}</p>
                 </div>
               </div>
@@ -398,16 +401,16 @@ function StakeholderModal({ clientId, onClose, onCreated }: { clientId: string; 
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-[#2A2A2A] rounded-card w-full max-w-md">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A]">
+      <div className="bg-surface border border-border rounded-card w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-lg font-bold">Aggiungi Stakeholder</h2>
-          <button onClick={onClose} className="text-text-secondary hover:text-white"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="text-text-secondary hover:text-text-primary"><X className="w-5 h-5" /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="block text-xs text-text-secondary mb-1">Nome *</label><input value={form.full_name} onChange={(e) => setForm((p) => ({ ...p, full_name: e.target.value }))} required className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold" /></div>
+            <div><label className="block text-xs text-text-secondary mb-1">Nome *</label><input value={form.full_name} onChange={(e) => setForm((p) => ({ ...p, full_name: e.target.value }))} required className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" /></div>
             <div><label className="block text-xs text-text-secondary mb-1">Ruolo *</label>
-              <select value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value as StakeholderRole }))} className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold">
+              <select value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value as StakeholderRole }))} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold">
                 <option value="owner">Owner</option>
                 <option value="stakeholder">Stakeholder</option>
                 <option value="collaboratore_esterno">Collaboratore Esterno</option>
@@ -416,16 +419,16 @@ function StakeholderModal({ clientId, onClose, onCreated }: { clientId: string; 
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="block text-xs text-text-secondary mb-1">Email *</label><input type="email" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} required className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold" /></div>
-            <div><label className="block text-xs text-text-secondary mb-1">Telefono</label><input value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold" /></div>
+            <div><label className="block text-xs text-text-secondary mb-1">Email *</label><input type="email" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} required className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" /></div>
+            <div><label className="block text-xs text-text-secondary mb-1">Telefono</label><input value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" /></div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="block text-xs text-text-secondary mb-1">Azienda</label><input value={form.company} onChange={(e) => setForm((p) => ({ ...p, company: e.target.value }))} className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold" /></div>
-            <div><label className="block text-xs text-text-secondary mb-1">P.IVA</label><input value={form.piva} onChange={(e) => setForm((p) => ({ ...p, piva: e.target.value }))} className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold" /></div>
+            <div><label className="block text-xs text-text-secondary mb-1">Azienda</label><input value={form.company} onChange={(e) => setForm((p) => ({ ...p, company: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" /></div>
+            <div><label className="block text-xs text-text-secondary mb-1">P.IVA</label><input value={form.piva} onChange={(e) => setForm((p) => ({ ...p, piva: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" /></div>
           </div>
-          <div><label className="block text-xs text-text-secondary mb-1">Note</label><textarea value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} rows={2} className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold resize-none" /></div>
+          <div><label className="block text-xs text-text-secondary mb-1">Note</label><textarea value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} rows={2} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold resize-none" /></div>
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary hover:text-white transition-colors">Annulla</button>
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary transition-colors">Annulla</button>
             <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />} Aggiungi
             </button>

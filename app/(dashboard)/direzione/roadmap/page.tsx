@@ -60,20 +60,20 @@ export default async function RoadmapPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <MapIcon className="w-5 h-5 text-[#F5C800]" />
+          <h1 className="text-xl font-bold text-text-primary flex items-center gap-2">
+            <MapIcon className="w-5 h-5 text-gold" />
             Roadmap
           </h1>
-          <p className="text-white/40 text-sm mt-0.5">{items.length} iniziative su {quarters.length} trimestri</p>
+          <p className="text-overlay/40 text-sm mt-0.5">{items.length} iniziative su {quarters.length} trimestri</p>
         </div>
-        <Link href="/strategia" className="flex items-center gap-1.5 text-xs text-white/40 hover:text-[#F5C800] transition-colors">
+        <Link href="/strategia" className="flex items-center gap-1.5 text-xs text-overlay/40 hover:text-gold transition-colors">
           <Target className="w-3.5 h-3.5" /> OKR & Strategia <ArrowUpRight className="w-3 h-3" />
         </Link>
       </div>
 
       {items.length === 0 && (
-        <div className="text-center py-20 text-white/30 text-sm">
-          Nessuna iniziativa in roadmap. Aggiungile da <Link href="/strategia" className="text-[#F5C800]/70 hover:text-[#F5C800]">Strategia & OKR</Link>.
+        <div className="text-center py-20 text-overlay/30 text-sm">
+          Nessuna iniziativa in roadmap. Aggiungile da <Link href="/strategia" className="text-gold/70 hover:text-gold">Strategia & OKR</Link>.
         </div>
       )}
 
@@ -84,45 +84,45 @@ export default async function RoadmapPage() {
           return (
             <section key={q} className="relative">
               <div className="flex items-center gap-3 mb-3">
-                <h2 className={`text-sm font-bold ${isCurrent ? 'text-[#F5C800]' : 'text-white/60'}`}>{q}</h2>
+                <h2 className={`text-sm font-bold ${isCurrent ? 'text-gold' : 'text-overlay/60'}`}>{q}</h2>
                 {isCurrent && (
-                  <span className="text-[10px] font-bold uppercase tracking-wider bg-[#F5C800]/10 text-[#F5C800] px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] font-bold uppercase tracking-wider bg-gold-dim text-gold px-2 py-0.5 rounded-full">
                     In corso
                   </span>
                 )}
-                <div className="flex-1 h-px bg-[#2A2A2A]" />
-                <span className="text-xs text-white/30">{qItems.length}</span>
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-xs text-overlay/30">{qItems.length}</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {qItems.map(item => {
                   const st = STATUS_STYLE[item.status]
                   const obj = item.objective_id ? objectiveById.get(item.objective_id) : null
                   return (
-                    <div key={item.id} className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl p-4 flex flex-col gap-2">
+                    <div key={item.id} className="bg-surface border border-border rounded-xl p-4 flex flex-col gap-2">
                       <div className="flex items-start justify-between gap-2">
-                        <p className="text-white text-sm font-medium leading-snug">{item.title}</p>
+                        <p className="text-text-primary text-sm font-medium leading-snug">{item.title}</p>
                         <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full"
                           style={{ color: st.color, background: `${st.color}18` }}>
                           {st.label}
                         </span>
                       </div>
                       {item.description && (
-                        <p className="text-white/40 text-xs leading-relaxed line-clamp-2">{item.description}</p>
+                        <p className="text-overlay/40 text-xs leading-relaxed line-clamp-2">{item.description}</p>
                       )}
-                      <div className="flex items-center gap-2 mt-auto pt-1 text-[11px] text-white/30">
+                      <div className="flex items-center gap-2 mt-auto pt-1 text-[11px] text-overlay/30">
                         <span className="uppercase tracking-wide">{item.area}</span>
                         {item.due_date && (
                           <span>· {new Date(item.due_date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}</span>
                         )}
-                        <span className={`ml-auto font-semibold ${item.priority === 'critica' ? 'text-red-400' : item.priority === 'alta' ? 'text-[#F5C800]/70' : ''}`}>
+                        <span className={`ml-auto font-semibold ${item.priority === 'critica' ? 'text-red-400' : item.priority === 'alta' ? 'text-gold/70' : ''}`}>
                           {item.priority}
                         </span>
                       </div>
                       {obj && (
-                        <div className="border-t border-[#222] pt-2 flex items-center gap-2">
-                          <Target className="w-3 h-3 text-[#F5C800]/50 shrink-0" />
-                          <span className="text-[11px] text-white/40 truncate flex-1">{obj.title}</span>
-                          <span className="text-[11px] text-[#F5C800]/70 font-semibold">{obj.progress}%</span>
+                        <div className="border-t border-border pt-2 flex items-center gap-2">
+                          <Target className="w-3 h-3 text-gold/50 shrink-0" />
+                          <span className="text-[11px] text-overlay/40 truncate flex-1">{obj.title}</span>
+                          <span className="text-[11px] text-gold/70 font-semibold">{obj.progress}%</span>
                         </div>
                       )}
                     </div>
@@ -136,23 +136,23 @@ export default async function RoadmapPage() {
         {noDate.length > 0 && (
           <section>
             <div className="flex items-center gap-3 mb-3">
-              <h2 className="text-sm font-bold text-white/40">Senza scadenza</h2>
-              <div className="flex-1 h-px bg-[#2A2A2A]" />
-              <span className="text-xs text-white/30">{noDate.length}</span>
+              <h2 className="text-sm font-bold text-overlay/40">Senza scadenza</h2>
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-overlay/30">{noDate.length}</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {noDate.map(item => {
                 const st = STATUS_STYLE[item.status]
                 return (
-                  <div key={item.id} className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl p-4">
+                  <div key={item.id} className="bg-surface border border-border rounded-xl p-4">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-white text-sm font-medium leading-snug">{item.title}</p>
+                      <p className="text-text-primary text-sm font-medium leading-snug">{item.title}</p>
                       <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full"
                         style={{ color: st.color, background: `${st.color}18` }}>
                         {st.label}
                       </span>
                     </div>
-                    <p className="text-[11px] text-white/30 uppercase tracking-wide mt-2">{item.area}</p>
+                    <p className="text-[11px] text-overlay/30 uppercase tracking-wide mt-2">{item.area}</p>
                   </div>
                 )
               })}

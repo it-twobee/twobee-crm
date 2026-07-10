@@ -35,21 +35,21 @@ export default async function RisorsaHome() {
   const greeting = (() => { const h = new Date().getHours(); return h < 12 ? 'Buongiorno' : h < 18 ? 'Buon pomeriggio' : 'Buonasera' })()
 
   const Stat = ({ icon, label, value, color, href }: { icon: React.ReactNode; label: string; value: string; color: string; href: string }) => (
-    <Link href={href} className="bg-[#0D0D0D] border border-[#1A1A1A] rounded-2xl p-4 hover:border-[#2A2A2A] transition-colors group">
+    <Link href={href} className="bg-surface border border-border rounded-2xl p-4 hover:border-border transition-colors group">
       <div className="flex items-center justify-between mb-2">
         <span className="p-2 rounded-xl" style={{ background: `${color}15`, color }}>{icon}</span>
-        <ArrowRight className="w-3.5 h-3.5 text-[#222] group-hover:text-[#555]" />
+        <ArrowRight className="w-3.5 h-3.5 text-text-tertiary group-hover:text-text-secondary" />
       </div>
       <p className="text-2xl font-black" style={{ color }}>{value}</p>
-      <p className="text-[10px] text-[#555] uppercase tracking-wider font-bold mt-0.5">{label}</p>
+      <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold mt-0.5">{label}</p>
     </Link>
   )
 
   return (
     <div className="max-w-4xl mx-auto px-5 py-6 space-y-5">
       <div>
-        <h1 className="text-xl font-black text-white">{greeting}, {profile?.full_name?.split(' ')[0] ?? ''}</h1>
-        <p className="text-[#444] text-xs mt-0.5">{new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+        <h1 className="text-xl font-black text-text-primary">{greeting}, {profile?.full_name?.split(' ')[0] ?? ''}</h1>
+        <p className="text-text-tertiary text-xs mt-0.5">{new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -60,18 +60,18 @@ export default async function RisorsaHome() {
       </div>
 
       {/* Prossime attività */}
-      <div className="bg-[#0D0D0D] border border-[#1A1A1A] rounded-2xl p-4">
+      <div className="bg-surface border border-border rounded-2xl p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <CheckSquare className="w-4 h-4 text-[#F5C800]" />
-            <span className="text-sm font-bold text-white">Le mie prossime attività</span>
+            <CheckSquare className="w-4 h-4 text-gold" />
+            <span className="text-sm font-bold text-text-primary">Le mie prossime attività</span>
           </div>
-          <Link href="/risorsa/attivita" className="text-[10px] text-[#555] hover:text-white flex items-center gap-1">Tutte <ArrowRight className="w-3 h-3" /></Link>
+          <Link href="/risorsa/attivita" className="text-[10px] text-text-secondary hover:text-text-primary flex items-center gap-1">Tutte <ArrowRight className="w-3 h-3" /></Link>
         </div>
         {tasks.length === 0 ? (
           <div className="text-center py-10">
-            <p className="text-[#555] text-sm">Nessuna attività assegnata.</p>
-            <p className="text-[#333] text-xs mt-1">Quando ti verrà assegnato un task, lo troverai qui.</p>
+            <p className="text-text-secondary text-sm">Nessuna attività assegnata.</p>
+            <p className="text-text-tertiary text-xs mt-1">Quando ti verrà assegnato un task, lo troverai qui.</p>
           </div>
         ) : (
           <div className="space-y-1.5">
@@ -80,11 +80,11 @@ export default async function RisorsaHome() {
               const isOver = t.due_date && t.due_date < today
               return (
                 <Link key={t.id} href={proj?.client_id ? `/clienti/${proj.client_id}/progetto/${proj.id}` : '/risorsa/attivita'}
-                  className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-white/[0.03] transition-colors">
+                  className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-overlay/[0.03] transition-colors">
                   <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: isOver ? '#EF4444' : t.due_date === today ? '#F5C800' : '#3B82F6' }} />
-                  <span className="flex-1 text-sm text-white truncate">{t.title}</span>
-                  <span className="text-[10px] text-[#444] truncate hidden sm:block">{proj?.clients?.company_name ?? proj?.name ?? ''}</span>
-                  {t.due_date && <span className={`text-[10px] shrink-0 ${isOver ? 'text-red-400' : 'text-[#555]'}`}>{new Date(t.due_date).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}</span>}
+                  <span className="flex-1 text-sm text-text-primary truncate">{t.title}</span>
+                  <span className="text-[10px] text-text-tertiary truncate hidden sm:block">{proj?.clients?.company_name ?? proj?.name ?? ''}</span>
+                  {t.due_date && <span className={`text-[10px] shrink-0 ${isOver ? 'text-red-400' : 'text-text-secondary'}`}>{new Date(t.due_date).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}</span>}
                 </Link>
               )
             })}

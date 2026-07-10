@@ -26,7 +26,7 @@ export function ClientHealthMap({ clients }: Props) {
   const perso    = clients.filter(c => c.client_label === 'perso').length
 
   return (
-    <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
+    <div className="bg-surface border border-border rounded-xl p-5">
       <div className="flex items-center justify-between mb-4">
         <p className="text-xs font-bold text-text-secondary uppercase tracking-widest">Client Health Map</p>
         <div className="flex items-center gap-3 text-[10px] text-text-secondary">
@@ -59,8 +59,8 @@ export function ClientHealthMap({ clients }: Props) {
               {/* Tooltip */}
               {isH && (
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-20 pointer-events-none">
-                  <div className="bg-[#0A0A0A] border border-[#2A2A2A] rounded-lg px-2.5 py-1.5 text-center whitespace-nowrap shadow-xl">
-                    <p className="text-[10px] font-bold text-white">{c.company_name}</p>
+                  <div className="bg-surface border border-border rounded-lg px-2.5 py-1.5 text-center whitespace-nowrap shadow-xl">
+                    <p className="text-[10px] font-bold text-text-primary">{c.company_name}</p>
                     <p className="text-[9px] mt-0.5" style={{ color }}>{LABEL_TEXT[c.client_label ?? ''] ?? c.client_label}</p>
                     {c.mrr && <p className="text-[9px] text-text-secondary">€{c.mrr?.toLocaleString('it-IT')}/mese</p>}
                   </div>
@@ -70,7 +70,7 @@ export function ClientHealthMap({ clients }: Props) {
           )
         })}
         {clients.length === 0 && (
-          <p className="text-xs text-[#444] py-4">Nessun cliente ancora</p>
+          <p className="text-xs text-text-tertiary py-4">Nessun cliente ancora</p>
         )}
       </div>
     </div>

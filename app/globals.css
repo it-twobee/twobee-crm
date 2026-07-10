@@ -2,23 +2,137 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Theme tokens ────────────────────────────────────────────────────────────
+   :root = dark (default, no flash before JS runs).
+   [data-theme="light"] overrides for light mode.
+   Every semantic Tailwind color resolves through these variables — see
+   tailwind.config.ts. Component classes reference the Tailwind tokens
+   (bg-surface, text-text-secondary, border-border, text-gold-text…), never the
+   raw hex, so switching [data-theme] repaints the whole app.
+
+   WHY two golds: a single gold cannot both fill a button and label text.
+   The vivid brand gold reads as 12.4:1 behind black (great for fills) but only
+   ~1.9:1 as text on a white surface. --color-gold stays vivid for fills;
+   --color-gold-text darkens in light mode so gold *text* clears 4.5:1.
+   Every value below is verified against WCAG AA (4.5:1 text, 3:1 UI). */
+:root {
+  --color-background: #0B0B0C;
+  --color-surface: #141416;
+  --color-surface-hover: #1B1B1E;
+  --color-surface-active: #232326;
+  --color-border: rgba(255,255,255,0.10);
+  --color-border-strong: rgba(255,255,255,0.18);
+  --color-border-interactive: rgba(255,255,255,0.34);
+
+  --color-gold: #FFC501;
+  --color-gold-text: #FFC501;
+  --color-gold-dim: rgba(255,197,1,0.14);
+  --color-on-gold: #0B0B0C;
+
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: rgba(255,255,255,0.62);
+  --color-text-tertiary: rgba(255,255,255,0.50);
+
+  --color-success: #34D9AC;
+  --color-success-dim: rgba(52,217,172,0.14);
+  --color-warning: #FFC501;
+  --color-warning-dim: rgba(255,197,1,0.14);
+  --color-error: #FCA5A5;
+  --color-error-dim: rgba(252,165,165,0.14);
+  --color-info: #7DD3FC;
+  --color-info-dim: rgba(125,211,252,0.14);
+
+  --overlay-tint: 255,255,255;
+  --shadow-color: rgba(0,0,0,0.45);
+  --color-scrim: rgba(0,0,0,0.72);
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --color-background: #F4F4F2;
+  --color-surface: #FFFFFF;
+  --color-surface-hover: #F0F0EE;
+  --color-surface-active: #E6E6E3;
+  --color-border: rgba(11,11,12,0.12);
+  --color-border-strong: rgba(11,11,12,0.20);
+  --color-border-interactive: rgba(11,11,12,0.46);
+
+  --color-gold: #F5BC00;
+  --color-gold-text: #6F4A00;
+  --color-gold-dim: rgba(111,74,0,0.10);
+  --color-on-gold: #0B0B0C;
+
+  --color-text-primary: #16161A;
+  --color-text-secondary: rgba(22,22,26,0.70);
+  --color-text-tertiary: rgba(22,22,26,0.60);
+
+  --color-success: #05604A;
+  --color-success-dim: rgba(5,96,74,0.10);
+  --color-warning: #6F4A00;
+  --color-warning-dim: rgba(111,74,0,0.10);
+  --color-error: #C0261B;
+  --color-error-dim: rgba(192,38,27,0.09);
+  --color-info: #0369A1;
+  --color-info-dim: rgba(3,105,161,0.09);
+
+  --overlay-tint: 11,11,12;
+  --shadow-color: rgba(20,20,20,0.10);
+  --color-scrim: rgba(28,28,26,0.55);
+  color-scheme: light;
+}
+
 @layer base {
   * {
-    border-color: rgba(255,255,255,0.08);
+    border-color: var(--color-border);
   }
 
   body {
     @apply bg-background text-text-primary antialiased;
     font-family: var(--font-inter), Inter, system-ui, sans-serif;
+    font-size: 1rem;
+    line-height: 1.6;
+    transition: background-color 0.15s ease, color 0.15s ease;
   }
 
-  h1, h2, h3 {
+  h1, h2, h3, h4 {
     font-family: var(--font-league), 'League Spartan', var(--font-inter), system-ui, sans-serif;
+    text-wrap: balance;
+    letter-spacing: -0.015em;
+    line-height: 1.2;
+  }
+
+  h1 { @apply text-3xl font-bold; }
+  h2 { @apply text-2xl font-bold; }
+  h3 { @apply text-xl font-semibold; }
+  h4 { @apply text-lg font-semibold; }
+
+  /* Keyboard focus must always be visible. Mouse clicks stay clean via
+     :focus-visible, so this never fires on pointer interaction. */
+  :focus-visible {
+    outline: 2px solid var(--color-gold-text);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Inputs/selects need a 3:1 boundary to be perceivable (WCAG 1.4.11). */
+  input, textarea, select {
+    border-color: var(--color-border-interactive);
+    color: var(--color-text-primary);
+  }
+
+  input::placeholder, textarea::placeholder {
+    color: var(--color-text-tertiary);
+    opacity: 1;
+  }
+
+  ::selection {
+    background: var(--color-gold-dim);
+    color: var(--color-text-primary);
   }
 
   ::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
+    width: 10px;
+    height: 10px;
   }
 
   ::-webkit-scrollbar-track {
@@ -26,19 +140,31 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgba(255,255,255,0.08);
+    background: var(--color-border-strong);
     border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255,255,255,0.15);
+    background: var(--color-border-interactive);
+    background-clip: content-box;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
-/* react-grid-layout dark theme overrides */
+/* react-grid-layout overrides */
 .react-grid-item.react-grid-placeholder {
-  background: rgba(255, 197, 1, 0.04) !important;
-  border: 1px dashed rgba(255, 197, 1, 0.18) !important;
+  background: var(--color-gold-dim) !important;
+  border: 1px dashed var(--color-gold) !important;
   border-radius: 1.25rem !important;
   opacity: 1 !important;
 }
@@ -99,24 +225,38 @@
   }
 
   .gold-gradient {
-    background: linear-gradient(135deg, #FFC501 0%, #E6A800 100%);
+    background: linear-gradient(135deg, var(--color-gold) 0%, #E6A800 100%);
+    color: var(--color-on-gold);
   }
 
   .glass {
-    background: rgba(255,255,255,0.04);
+    background: rgb(var(--overlay-tint) / 0.05);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,0.08);
+    border: 1px solid var(--color-border);
+  }
+
+  [data-theme="light"] .glass {
+    background: rgba(255,255,255,0.72);
   }
 
   .glass-strong {
-    background: rgba(255,255,255,0.06);
+    background: rgb(var(--overlay-tint) / 0.08);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.10);
+    border: 1px solid var(--color-border-strong);
+  }
+
+  [data-theme="light"] .glass-strong {
+    background: rgba(255,255,255,0.88);
   }
 
   .glass-hover:hover {
-    background: rgba(255,255,255,0.06);
+    background: var(--color-surface-hover);
+  }
+
+  /* Digits that stack in columns must not wobble between rows. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
   }
 }

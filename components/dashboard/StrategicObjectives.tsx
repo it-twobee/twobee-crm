@@ -33,10 +33,10 @@ export function StrategicObjectives({ objectives }: Props) {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-[#1A1A1A]">
-        <Target className="w-4 h-4 text-[#F5C800]" />
-        <span className="text-xs font-black text-white uppercase tracking-widest">OKR Aziendali</span>
-        <span className="ml-auto text-[10px] text-[#333] font-mono">{avgProgress}% avg</span>
+      <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-border">
+        <Target className="w-4 h-4 text-gold" />
+        <span className="text-xs font-black text-text-primary uppercase tracking-widest">OKR Aziendali</span>
+        <span className="ml-auto text-[10px] text-text-tertiary font-mono">{avgProgress}% avg</span>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -59,21 +59,21 @@ export function StrategicObjectives({ objectives }: Props) {
         {/* Objectives list */}
         <div className="px-3 pb-4 space-y-2">
           {objectives.length === 0 ? (
-            <div className="flex flex-col items-center py-8 gap-2 bg-[#0D0D0D] rounded-xl border border-[#1A1A1A]">
-              <Target className="w-6 h-6 text-[#2A2A2A]" />
-              <p className="text-[11px] text-[#444]">Nessun obiettivo trovato</p>
+            <div className="flex flex-col items-center py-8 gap-2 bg-surface rounded-xl border border-border">
+              <Target className="w-6 h-6 text-text-tertiary" />
+              <p className="text-[11px] text-text-tertiary">Nessun obiettivo trovato</p>
             </div>
           ) : objectives.map(obj => {
             const key = statusFromProgress(obj.progress, obj.status)
             const cfg = STATUS_CONFIG[key]
             return (
               <div key={obj.id}
-                className="bg-[#0D0D0D] rounded-xl p-3 border border-[#1A1A1A]">
+                className="bg-surface rounded-xl p-3 border border-border">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-[11px] font-bold text-white leading-snug truncate">{obj.title}</p>
+                    <p className="text-[11px] font-bold text-text-primary leading-snug truncate">{obj.title}</p>
                     {obj.area && (
-                      <p className="text-[9px] text-[#444] mt-0.5">{obj.area} · {obj.quarter}</p>
+                      <p className="text-[9px] text-text-tertiary mt-0.5">{obj.area} · {obj.quarter}</p>
                     )}
                   </div>
                   <span className="flex items-center gap-1 shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded"
@@ -85,7 +85,7 @@ export function StrategicObjectives({ objectives }: Props) {
 
                 {/* Progress bar */}
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1.5 bg-[#1A1A1A] rounded-full overflow-hidden">
+                  <div className="flex-1 h-1.5 bg-surface rounded-full overflow-hidden">
                     <div className="h-full rounded-full transition-all"
                       style={{ width: `${Math.min(obj.progress, 100)}%`, background: cfg.color }} />
                   </div>

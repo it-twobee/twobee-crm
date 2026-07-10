@@ -123,12 +123,12 @@ export function SmartInsights({ clients, totalMrr }: Props) {
 
   if (insights.length === 0) {
     return (
-      <div className="bg-surface border border-[#2A2A2A] rounded-xl p-4 flex items-center gap-3">
+      <div className="bg-surface border border-border rounded-xl p-4 flex items-center gap-3">
         <div className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center">
           <CheckCircle2 className="w-4 h-4 text-success" />
         </div>
         <div>
-          <p className="text-sm font-bold text-white">Tutto sotto controllo</p>
+          <p className="text-sm font-bold text-text-primary">Tutto sotto controllo</p>
           <p className="text-xs text-text-secondary">Nessun segnale critico rilevato dall'AI</p>
         </div>
       </div>
@@ -136,34 +136,34 @@ export function SmartInsights({ clients, totalMrr }: Props) {
   }
 
   return (
-    <div className="bg-surface border border-[#2A2A2A] rounded-xl overflow-hidden h-full flex flex-col">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-[#2A2A2A]">
-        <div className="w-5 h-5 rounded bg-gold/10 flex items-center justify-center">
+    <div className="bg-surface border border-border rounded-xl overflow-hidden h-full flex flex-col">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+        <div className="w-5 h-5 rounded bg-gold-dim flex items-center justify-center">
           <Sparkles className="w-3 h-3 text-gold" />
         </div>
-        <span className="text-xs font-bold text-white uppercase tracking-wider">AI Insights</span>
+        <span className="text-xs font-bold text-text-primary uppercase tracking-wider">AI Insights</span>
         <span className="text-[10px] text-text-secondary ml-auto">aggiornati in tempo reale</span>
       </div>
 
-      <div className="divide-y divide-[#1E1E1E] flex-1 overflow-auto">
+      <div className="divide-y divide-border flex-1 overflow-auto">
         {insights.map(insight => {
           const cfg = insightConfig[insight.type]
           const Icon = cfg.icon
           return (
-            <div key={insight.id} className={`flex items-start gap-3 p-3.5 hover:bg-white/2 transition-colors`}>
+            <div key={insight.id} className={`flex items-start gap-3 p-3.5 hover:bg-overlay/[0.02] transition-colors`}>
               <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${cfg.bg} border`}>
                 <Icon className={`w-3.5 h-3.5 ${cfg.color}`} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-white">{insight.title}</p>
+                <p className="text-xs font-bold text-text-primary">{insight.title}</p>
                 <p className="text-[10px] text-text-secondary mt-0.5 leading-relaxed">{insight.detail}</p>
                 <div className="flex items-center gap-3 mt-2">
                   {/* Confidence bar */}
                   <div className="flex items-center gap-1.5">
-                    <div className="w-16 h-1 bg-[#2A2A2A] rounded-full overflow-hidden">
+                    <div className="w-16 h-1 bg-border rounded-full overflow-hidden">
                       <div className="h-full bg-gold/60 rounded-full" style={{ width: `${insight.confidence}%` }} />
                     </div>
-                    <span className="text-[9px] text-[#555]">{insight.confidence}% conf.</span>
+                    <span className="text-[9px] text-text-secondary">{insight.confidence}% conf.</span>
                   </div>
                 </div>
               </div>
@@ -174,7 +174,7 @@ export function SmartInsights({ clients, totalMrr }: Props) {
                   </Link>
                 )}
                 <button onClick={() => setDismissed(p => { const n = new Set(p); n.add(insight.id); return n })}
-                  className="p-1 text-[#333] hover:text-text-secondary transition-colors text-[10px]">✕</button>
+                  className="p-1 text-text-tertiary hover:text-text-secondary transition-colors text-[10px]">✕</button>
               </div>
             </div>
           )

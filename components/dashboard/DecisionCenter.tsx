@@ -63,19 +63,19 @@ export function DecisionCenter({ decisions: initial }: { decisions: Decision[] }
     <div className="p-3 h-full overflow-auto flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-center gap-2 shrink-0">
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: '#1A1A1A', color: '#F5C800' }}>
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: 'var(--color-surface)', color: 'var(--color-gold)' }}>
           {open.length} aperte
         </span>
-        <span className="text-[10px] px-2 py-0.5 rounded-md" style={{ background: '#1A1A1A', color: '#444' }}>
+        <span className="text-[10px] px-2 py-0.5 rounded-md" style={{ background: 'var(--color-surface)', color: 'var(--color-text-tertiary)' }}>
           {closed.length} chiuse
         </span>
         <button
           onClick={() => setShowAdd(v => !v)}
           className="ml-auto flex items-center gap-1 text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-all"
           style={{
-            background: showAdd ? 'rgba(245,200,0,0.08)' : '#111',
-            border: '1px solid #1A1A1A',
-            color: showAdd ? '#F5C800' : '#555',
+            background: showAdd ? 'var(--color-gold-dim)' : 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            color: showAdd ? 'var(--color-gold)' : 'var(--color-text-secondary)',
           }}>
           {showAdd ? <X className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
           {showAdd ? 'Annulla' : 'Aggiungi'}
@@ -84,29 +84,29 @@ export function DecisionCenter({ decisions: initial }: { decisions: Decision[] }
 
       {/* Add form */}
       {showAdd && (
-        <div className="rounded-xl p-3 flex flex-col gap-2 shrink-0" style={{ background: '#111', border: '1px solid rgba(245,200,0,0.2)' }}>
+        <div className="rounded-xl p-3 flex flex-col gap-2 shrink-0" style={{ background: 'var(--color-surface)', border: '1px solid rgba(245,200,0,0.2)' }}>
           <input
             value={newTitle}
             onChange={e => setNewTitle(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleAdd()}
             placeholder="Titolo decisione..."
-            className="w-full text-xs bg-transparent outline-none placeholder-[#2A2A2A] text-white pb-2"
-            style={{ borderBottom: '1px solid #1A1A1A' }}
+            className="w-full text-xs bg-transparent outline-none placeholder-text-tertiary text-text-primary pb-2"
+            style={{ borderBottom: '1px solid var(--color-border)' }}
           />
           <textarea
             value={newContext}
             onChange={e => setNewContext(e.target.value)}
             placeholder="Contesto (opzionale)..."
             rows={2}
-            className="w-full text-[10px] bg-transparent outline-none placeholder-[#1E1E1E] resize-none"
-            style={{ color: '#666' }}
+            className="w-full text-[10px] bg-transparent outline-none placeholder-text-tertiary resize-none"
+            style={{ color: 'var(--color-text-secondary)' }}
           />
           <div className="flex items-center gap-2">
             <select
               value={newPriority}
               onChange={e => setNewPriority(e.target.value)}
               className="text-[10px] rounded-md px-2 py-1 outline-none"
-              style={{ background: '#1A1A1A', color: '#888', border: '1px solid #2A2A2A' }}>
+              style={{ background: 'var(--color-surface)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}>
               <option value="bassa">Bassa</option>
               <option value="media">Media</option>
               <option value="alta">Alta</option>
@@ -117,9 +117,9 @@ export function DecisionCenter({ decisions: initial }: { decisions: Decision[] }
               disabled={isPending || !newTitle.trim()}
               className="ml-auto text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all"
               style={{
-                background: 'rgba(245,200,0,0.1)',
+                background: 'var(--color-gold-dim)',
                 border: '1px solid rgba(245,200,0,0.2)',
-                color: '#F5C800',
+                color: 'var(--color-gold)',
                 opacity: !newTitle.trim() || isPending ? 0.5 : 1,
               }}>
               Salva
@@ -130,13 +130,13 @@ export function DecisionCenter({ decisions: initial }: { decisions: Decision[] }
 
       {/* Open decisions */}
       {open.length === 0 && !showAdd && (
-        <p className="text-[10px] text-center py-2" style={{ color: '#1E1E1E' }}>Nessuna decisione aperta</p>
+        <p className="text-[10px] text-center py-2" style={{ color: 'var(--color-text-tertiary)' }}>Nessuna decisione aperta</p>
       )}
       <div className="space-y-1.5">
         {open.map(d => {
           const st = STATUS_CONFIG[d.status] ?? STATUS_CONFIG.aperta
           return (
-            <div key={d.id} className="rounded-lg p-2.5 flex items-start gap-2" style={{ background: '#111', border: '1px solid #1A1A1A' }}>
+            <div key={d.id} className="rounded-lg p-2.5 flex items-start gap-2" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
               <button
                 onClick={() => handleStatus(d.id, st.next)}
                 disabled={isPending}
@@ -145,16 +145,16 @@ export function DecisionCenter({ decisions: initial }: { decisions: Decision[] }
                 {st.icon}
               </button>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-semibold text-white leading-tight">{d.title}</p>
+                <p className="text-[10px] font-semibold text-text-primary leading-tight">{d.title}</p>
                 {d.context && (
-                  <p className="text-[9px] mt-0.5 line-clamp-2" style={{ color: '#2A2A2A' }}>{d.context}</p>
+                  <p className="text-[9px] mt-0.5 line-clamp-2" style={{ color: 'var(--color-text-tertiary)' }}>{d.context}</p>
                 )}
               </div>
               <div className="shrink-0 flex flex-col items-end gap-0.5">
-                <span className="text-[9px] font-bold" style={{ color: PRIORITY_COLOR[d.priority] ?? '#444' }}>
+                <span className="text-[9px] font-bold" style={{ color: PRIORITY_COLOR[d.priority] ?? 'var(--color-text-tertiary)' }}>
                   {d.priority}
                 </span>
-                <span className="text-[8px]" style={{ color: '#222' }}>{st.label}</span>
+                <span className="text-[8px]" style={{ color: 'var(--color-text-tertiary)' }}>{st.label}</span>
               </div>
             </div>
           )
@@ -164,15 +164,15 @@ export function DecisionCenter({ decisions: initial }: { decisions: Decision[] }
       {/* Closed decisions */}
       {closed.length > 0 && (
         <div className="space-y-1 mt-1">
-          <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: '#1E1E1E' }}>Recenti chiuse</p>
+          <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: 'var(--color-text-tertiary)' }}>Recenti chiuse</p>
           {closed.slice(0, 3).map(d => {
             const st = STATUS_CONFIG[d.status] ?? STATUS_CONFIG.archiviata
             return (
               <div key={d.id} className="flex items-center gap-2 rounded-lg px-2.5 py-2"
-                style={{ background: '#0D0D0D', border: '1px solid #141414' }}>
+                style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
                 <span style={{ color: st.color }}>{st.icon}</span>
-                <p className="text-[9px] flex-1 truncate" style={{ color: '#2A2A2A' }}>{d.title}</p>
-                <span className="text-[8px]" style={{ color: '#1A1A1A' }}>{st.label}</span>
+                <p className="text-[9px] flex-1 truncate" style={{ color: 'var(--color-text-tertiary)' }}>{d.title}</p>
+                <span className="text-[8px]" style={{ color: 'var(--color-text-tertiary)' }}>{st.label}</span>
               </div>
             )
           })}

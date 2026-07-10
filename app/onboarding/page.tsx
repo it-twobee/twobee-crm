@@ -4,7 +4,7 @@ import { OnboardingClient } from './OnboardingClient'
 
 function OnboardingFallback() {
   return (
-    <div className="min-h-screen bg-[#111111] flex items-center justify-center">
+    <div className="min-h-screen bg-background flex items-center justify-center">
       <Loader2 className="w-8 h-8 text-gold animate-spin" />
     </div>
   )

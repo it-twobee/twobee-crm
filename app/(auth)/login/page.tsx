@@ -61,15 +61,15 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0B0B0C] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-10">
           <h1 className="text-5xl font-black tracking-tight mb-2 font-heading">
-            <span className="text-white">two bee</span>
+            <span className="text-text-primary">two bee</span>
             <span className="text-gold">.</span>
           </h1>
-          <p className="text-white/30 text-sm tracking-[0.2em] uppercase">
+          <p className="text-overlay/30 text-sm tracking-[0.2em] uppercase">
             Gestionale Interno
           </p>
         </div>
@@ -81,7 +81,7 @@ export default function LoginPage() {
               <h2 className="text-xl font-bold mb-6 text-center font-heading">Accedi</h2>
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
-                  <label className="block text-sm text-white/40 mb-1.5">
+                  <label className="block text-sm text-overlay/40 mb-1.5">
                     Email
                   </label>
                   <input
@@ -89,13 +89,13 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-gold/40 transition-colors"
+                    className="w-full bg-overlay/[0.03] border border-overlay/[0.08] rounded-xl px-4 py-3 text-sm text-text-primary placeholder-overlay/20 focus:outline-none focus:border-gold/40 transition-colors"
                     placeholder="marco@twobee.it"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm text-white/40 mb-1.5">
+                  <label className="block text-sm text-overlay/40 mb-1.5">
                     Password
                   </label>
                   <input
@@ -103,7 +103,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-gold/40 transition-colors"
+                    className="w-full bg-overlay/[0.03] border border-overlay/[0.08] rounded-xl px-4 py-3 text-sm text-text-primary placeholder-overlay/20 focus:outline-none focus:border-gold/40 transition-colors"
                     placeholder="••••••••"
                   />
                 </div>
@@ -120,7 +120,7 @@ export default function LoginPage() {
 
               <button
                 onClick={() => setResetMode(true)}
-                className="w-full text-center text-sm text-white/30 hover:text-gold mt-4 transition-colors"
+                className="w-full text-center text-sm text-overlay/30 hover:text-gold mt-4 transition-colors"
               >
                 Password dimenticata?
               </button>
@@ -128,12 +128,12 @@ export default function LoginPage() {
           ) : (
             <>
               <h2 className="text-xl font-bold mb-2 text-center font-heading">Reset Password</h2>
-              <p className="text-white/40 text-sm text-center mb-6">
+              <p className="text-overlay/40 text-sm text-center mb-6">
                 Inserisci la tua email per ricevere il link di reset.
               </p>
               <form onSubmit={handleReset} className="space-y-4">
                 <div>
-                  <label className="block text-sm text-white/40 mb-1.5">
+                  <label className="block text-sm text-overlay/40 mb-1.5">
                     Email
                   </label>
                   <input
@@ -141,7 +141,7 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-gold/40 transition-colors"
+                    className="w-full bg-overlay/[0.03] border border-overlay/[0.08] rounded-xl px-4 py-3 text-sm text-text-primary placeholder-overlay/20 focus:outline-none focus:border-gold/40 transition-colors"
                     placeholder="marco@twobee.it"
                   />
                 </div>
@@ -158,7 +158,7 @@ export default function LoginPage() {
 
               <button
                 onClick={() => setResetMode(false)}
-                className="w-full text-center text-sm text-white/30 hover:text-gold mt-4 transition-colors"
+                className="w-full text-center text-sm text-overlay/30 hover:text-gold mt-4 transition-colors"
               >
                 ← Torna al login
               </button>
@@ -166,7 +166,7 @@ export default function LoginPage() {
           )}
         </div>
 
-        <p className="text-center text-white/15 text-xs mt-6">
+        <p className="text-center text-overlay/15 text-xs mt-6">
           Accesso riservato ai membri del team TWO BEE
         </p>
       </div>

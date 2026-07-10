@@ -40,8 +40,8 @@ export function SalesPipeline({ deals }: { deals: DealFull[] }) {
           { label: 'Weighted', value: formatCurrency(weighted),       color: '#22C55E' },
           { label: 'Attivi',   value: String(active.length),          color: '#3B82F6' },
         ].map(k => (
-          <div key={k.label} className="rounded-lg p-2" style={{ background: '#111', border: '1px solid #1A1A1A' }}>
-            <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: '#333' }}>{k.label}</p>
+          <div key={k.label} className="rounded-lg p-2" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+            <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--color-text-tertiary)' }}>{k.label}</p>
             <p className="text-sm font-black leading-none" style={{ color: k.color }}>{k.value}</p>
           </div>
         ))}
@@ -56,13 +56,13 @@ export function SalesPipeline({ deals }: { deals: DealFull[] }) {
           return (
             <div key={s.id} className="flex items-center gap-2">
               <p className="w-[68px] text-[9px] font-bold shrink-0" style={{ color: s.color }}>{s.label}</p>
-              <div className="flex-1 h-5 relative rounded-sm overflow-hidden" style={{ background: '#0D0D0D' }}>
+              <div className="flex-1 h-5 relative rounded-sm overflow-hidden" style={{ background: 'var(--color-surface)' }}>
                 <div className="absolute inset-y-0 left-0 rounded-sm transition-all" style={{ width: `${barW}%`, background: s.color + '22' }} />
                 <span className="absolute inset-y-0 left-2 flex items-center text-[9px] font-bold" style={{ color: s.color }}>
                   {stageDeals.length}
                 </span>
               </div>
-              <p className="w-[68px] shrink-0 text-right text-[9px]" style={{ color: '#444' }}>
+              <p className="w-[68px] shrink-0 text-right text-[9px]" style={{ color: 'var(--color-text-tertiary)' }}>
                 {stageValue > 0 ? formatCurrency(stageValue) : '—'}
               </p>
             </div>
@@ -73,7 +73,7 @@ export function SalesPipeline({ deals }: { deals: DealFull[] }) {
       {/* Top active deals */}
       {active.length > 0 && (
         <div className="space-y-1.5 flex-1">
-          <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: '#222' }}>Top deal attivi</p>
+          <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: 'var(--color-text-tertiary)' }}>Top deal attivi</p>
           {active
             .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
             .slice(0, 4)
@@ -82,17 +82,17 @@ export function SalesPipeline({ deals }: { deals: DealFull[] }) {
               return (
                 <Link key={d.id} href="/commerciale"
                   className="flex items-center gap-2 rounded-lg px-2.5 py-2 block transition-all"
-                  style={{ background: '#111', border: '1px solid #1A1A1A' }}
+                  style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = (stg?.color ?? '#444') + '44' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#1A1A1A' }}>
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-border)' }}>
                   <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: stg?.color ?? '#555' }} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-semibold truncate text-white">{d.title}</p>
-                    <p className="text-[9px] truncate" style={{ color: '#333' }}>{d.company_name}</p>
+                    <p className="text-[10px] font-semibold truncate text-text-primary">{d.title}</p>
+                    <p className="text-[9px] truncate" style={{ color: 'var(--color-text-tertiary)' }}>{d.company_name}</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-[10px] font-bold" style={{ color: '#888' }}>{d.value ? formatCurrency(d.value) : '—'}</p>
-                    <p className="text-[9px]" style={{ color: '#333' }}>{d.probability ?? 50}%</p>
+                    <p className="text-[10px] font-bold" style={{ color: 'var(--color-text-secondary)' }}>{d.value ? formatCurrency(d.value) : '—'}</p>
+                    <p className="text-[9px]" style={{ color: 'var(--color-text-tertiary)' }}>{d.probability ?? 50}%</p>
                   </div>
                 </Link>
               )
@@ -101,7 +101,7 @@ export function SalesPipeline({ deals }: { deals: DealFull[] }) {
       )}
 
       {active.length === 0 && (
-        <p className="text-[10px] text-center py-2" style={{ color: '#2A2A2A' }}>Nessun deal attivo</p>
+        <p className="text-[10px] text-center py-2" style={{ color: 'var(--color-text-tertiary)' }}>Nessun deal attivo</p>
       )}
     </div>
   )

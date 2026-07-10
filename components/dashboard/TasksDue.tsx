@@ -12,24 +12,24 @@ interface TasksDueProps {
 
 export function TasksDue({ tasks }: TasksDueProps) {
   return (
-    <div className="bg-surface border border-[#2A2A2A] rounded-card h-full flex flex-col overflow-hidden">
-      <div className="px-5 py-4 border-b border-[#2A2A2A] flex items-center justify-between">
-        <h2 className="font-bold text-white">Task della Settimana</h2>
+    <div className="bg-surface border border-border rounded-card h-full flex flex-col overflow-hidden">
+      <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+        <h2 className="font-bold text-text-primary">Task della Settimana</h2>
         <Link href="/task" className="text-xs text-gold hover:underline">
           Vedi tutti →
         </Link>
       </div>
-      <div className="divide-y divide-[#2A2A2A] flex-1 overflow-auto">
+      <div className="divide-y divide-border flex-1 overflow-auto">
         {tasks.length === 0 && (
           <div className="px-5 py-8 text-center text-text-secondary text-sm">
             Nessun task in scadenza questa settimana 🎉
           </div>
         )}
         {tasks.slice(0, 8).map((task) => (
-          <div key={task.id} className="px-5 py-3.5 hover:bg-white/3 transition-colors">
+          <div key={task.id} className="px-5 py-3.5 hover:bg-overlay/3 transition-colors">
             <div className="flex items-start gap-3">
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">{task.title}</p>
+                <p className="text-sm font-medium text-text-primary truncate">{task.title}</p>
                 {task.project && (
                   <p className="text-xs text-text-secondary mt-0.5 truncate">
                     {task.project.name}

@@ -117,9 +117,9 @@ export function ChatBridgeWidget({ internalChannelId, customerCareChannelId }: {
 
   return (
     <div className="mx-3 mb-3">
-      <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl overflow-hidden">
+      <div className="bg-info/5 border border-info/20 rounded-xl overflow-hidden">
         <button onClick={() => setCollapsed(!collapsed)}
-          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-blue-400">
+          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-info">
           <ArrowRightLeft className="w-3.5 h-3.5" />
           <span>{events.length} messaggi dal cliente in attesa</span>
           <MessageSquare className="w-3 h-3 ml-auto" />
@@ -128,24 +128,24 @@ export function ChatBridgeWidget({ internalChannelId, customerCareChannelId }: {
         {!collapsed && (
           <div className="px-3 pb-3 space-y-2">
             {events.map(ev => (
-              <div key={ev.id} className="bg-[#111] border border-[#2A2A2A] rounded-lg p-3 space-y-2">
+              <div key={ev.id} className="bg-surface border border-border rounded-lg p-3 space-y-2">
                 <div className="flex items-start gap-2">
-                  <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-[9px] font-bold text-blue-400 shrink-0 mt-0.5">
+                  <div className="w-6 h-6 rounded-full bg-info/20 flex items-center justify-center text-[9px] font-bold text-info shrink-0 mt-0.5">
                     {(ev.message?.sender?.full_name ?? 'C')[0]}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] text-blue-400 font-semibold">{ev.message?.sender?.full_name ?? 'Cliente'}</p>
-                    <p className="text-xs text-white mt-0.5 line-clamp-3">{ev.message?.content ?? '(messaggio)'}</p>
+                    <p className="text-[10px] text-info font-semibold">{ev.message?.sender?.full_name ?? 'Cliente'}</p>
+                    <p className="text-xs text-text-primary mt-0.5 line-clamp-3">{ev.message?.content ?? '(messaggio)'}</p>
                   </div>
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => handleAction(ev.id, 'accepted')} disabled={acting === ev.id}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-green-500/10 text-green-400 text-[10px] font-bold rounded-lg hover:bg-green-500/20 transition-colors disabled:opacity-50">
+                    className="flex items-center gap-1 px-3 py-1.5 bg-success/10 text-success text-[10px] font-bold rounded-lg hover:bg-success/20 transition-colors disabled:opacity-50">
                     {acting === ev.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
                     Condividi <Sparkles className="w-2.5 h-2.5" />
                   </button>
                   <button onClick={() => handleAction(ev.id, 'declined')} disabled={acting === ev.id}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-red-500/10 text-red-400 text-[10px] font-bold rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50">
+                    className="flex items-center gap-1 px-3 py-1.5 bg-error/10 text-error text-[10px] font-bold rounded-lg hover:bg-error/20 transition-colors disabled:opacity-50">
                     <X className="w-3 h-3" /> Ignora
                   </button>
                 </div>

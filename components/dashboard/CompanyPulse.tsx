@@ -18,10 +18,10 @@ interface Props {
 
 export function CompanyPulse({ areas }: Props) {
   return (
-    <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5 h-full overflow-auto">
+    <div className="bg-surface border border-border rounded-xl p-5 h-full overflow-auto">
       <div className="flex items-center justify-between mb-4">
         <p className="text-xs font-bold text-text-secondary uppercase tracking-widest">Company Pulse</p>
-        <span className="text-[10px] text-[#444]">Stato aree in tempo reale</span>
+        <span className="text-[10px] text-text-tertiary">Stato aree in tempo reale</span>
       </div>
       <div className="space-y-3">
         {areas.map(area => (
@@ -30,16 +30,16 @@ export function CompanyPulse({ areas }: Props) {
               style={{ background: area.color + '15' }}>
               <span style={{ color: area.color }}>{area.icon}</span>
             </div>
-            <span className="text-xs text-text-secondary w-28 shrink-0 group-hover:text-white transition-colors">{area.label}</span>
-            <div className="flex-1 h-1.5 bg-[#2A2A2A] rounded-full overflow-hidden">
+            <span className="text-xs text-text-secondary w-28 shrink-0 group-hover:text-text-primary transition-colors">{area.label}</span>
+            <div className="flex-1 h-1.5 bg-border rounded-full overflow-hidden">
               <div className="h-full rounded-full transition-all duration-700"
-                style={{ width: `${area.value}%`, background: area.value >= 70 ? '#22C55E' : area.value >= 40 ? '#F5C800' : '#EF4444' }} />
+                style={{ width: `${area.value}%`, background: area.value >= 70 ? 'var(--color-success)' : area.value >= 40 ? 'var(--color-gold)' : 'var(--color-error)' }} />
             </div>
-            <span className="text-xs font-bold text-white w-8 text-right shrink-0"
-              style={{ color: area.value >= 70 ? '#22C55E' : area.value >= 40 ? '#F5C800' : '#EF4444' }}>
+            <span className="text-xs font-bold text-text-primary w-8 text-right shrink-0"
+              style={{ color: area.value >= 70 ? 'var(--color-success)' : area.value >= 40 ? 'var(--color-gold)' : 'var(--color-error)' }}>
               {area.value}%
             </span>
-            <span className="text-[10px] text-[#444] w-32 text-right shrink-0 hidden xl:block">{area.detail}</span>
+            <span className="text-[10px] text-text-tertiary w-32 text-right shrink-0 hidden xl:block">{area.detail}</span>
           </Link>
         ))}
       </div>

@@ -75,17 +75,17 @@ export function AIDashboardChat({ context }: { context: AIContext }) {
     <div className="w-full mb-6">
       {/* ── Chat history ── */}
       {hasMessages && (
-        <div className="bg-[#0A0A0A] border border-[#1A1A1A] rounded-2xl mb-2 overflow-hidden">
+        <div className="bg-surface border border-border rounded-2xl mb-2 overflow-hidden">
           {/* Chat header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[#111]">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-[#F5C800]/10 border border-[#F5C800]/20 flex items-center justify-center">
-                <Sparkles className="w-2.5 h-2.5 text-[#F5C800]" />
+              <div className="w-5 h-5 rounded-full bg-gold-dim border border-gold/20 flex items-center justify-center">
+                <Sparkles className="w-2.5 h-2.5 text-gold" />
               </div>
-              <span className="text-xs font-bold text-[#F5C800] tracking-wide">TWO BEE AI</span>
+              <span className="text-xs font-bold text-gold tracking-wide">TWO BEE AI</span>
             </div>
             <button onClick={() => setMessages([])}
-              className="text-[#333] hover:text-[#888] transition-colors p-1 rounded-lg hover:bg-[#1A1A1A]">
+              className="text-text-tertiary hover:text-text-secondary transition-colors p-1 rounded-lg hover:bg-surface-hover">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -96,24 +96,24 @@ export function AIDashboardChat({ context }: { context: AIContext }) {
               <div key={i}>
                 {msg.role === 'user' ? (
                   <div className="flex justify-end">
-                    <div className="bg-[#1A1A1A] border border-[#252525] rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[75%]">
-                      <p className="text-sm text-white leading-relaxed">{msg.text}</p>
+                    <div className="bg-surface-hover border border-border rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[75%]">
+                      <p className="text-sm text-text-primary leading-relaxed">{msg.text}</p>
                     </div>
                   </div>
                 ) : (
                   <div className="flex gap-3 items-start">
-                    <div className="w-6 h-6 rounded-full bg-[#F5C800]/10 border border-[#F5C800]/20 flex items-center justify-center shrink-0 mt-0.5">
-                      <Sparkles className="w-3 h-3 text-[#F5C800]" />
+                    <div className="w-6 h-6 rounded-full bg-gold-dim border border-gold/20 flex items-center justify-center shrink-0 mt-0.5">
+                      <Sparkles className="w-3 h-3 text-gold" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-[#C0C0C0] leading-relaxed">{msg.text}</p>
+                      <p className="text-sm text-text-secondary leading-relaxed">{msg.text}</p>
                       {msg.actions && msg.actions.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-3">
                           {msg.actions.map((a, j) => (
                             <Link key={j} href={a.href}
-                              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-[#252525] bg-[#111] text-[#888] hover:text-white hover:border-[#F5C800]/30 transition-all group">
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-border bg-surface text-text-secondary hover:text-text-primary hover:border-gold/30 transition-all group">
                               {a.icon && ICON_MAP[a.icon] && (
-                                <span className="text-[#444] group-hover:text-[#F5C800] transition-colors">
+                                <span className="text-text-tertiary group-hover:text-gold transition-colors">
                                   {ICON_MAP[a.icon]}
                                 </span>
                               )}
@@ -131,14 +131,14 @@ export function AIDashboardChat({ context }: { context: AIContext }) {
 
             {loading && (
               <div className="flex gap-3 items-start">
-                <div className="w-6 h-6 rounded-full bg-[#F5C800]/10 border border-[#F5C800]/20 flex items-center justify-center shrink-0">
-                  <Sparkles className="w-3 h-3 text-[#F5C800]" />
+                <div className="w-6 h-6 rounded-full bg-gold-dim border border-gold/20 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-3 h-3 text-gold" />
                 </div>
                 <div className="flex items-center gap-2 py-1">
                   <div className="flex gap-1">
-                    <span className="w-1.5 h-1.5 bg-[#333] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-1.5 h-1.5 bg-[#333] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-1.5 h-1.5 bg-[#333] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    <span className="w-1.5 h-1.5 bg-text-tertiary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 bg-text-tertiary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 bg-text-tertiary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                   </div>
                 </div>
               </div>
@@ -153,8 +153,8 @@ export function AIDashboardChat({ context }: { context: AIContext }) {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
           {SUGGESTED.map((s, i) => (
             <button key={i} onClick={() => send(s.text)}
-              className="flex items-center gap-2 text-left text-xs text-[#444] bg-[#0A0A0A] border border-[#1A1A1A] rounded-xl px-3 py-2.5 hover:border-[#2A2A2A] hover:text-[#888] transition-all">
-              <span className="shrink-0 text-[#333]">{s.icon}</span>
+              className="flex items-center gap-2 text-left text-xs text-text-tertiary bg-surface border border-border rounded-xl px-3 py-2.5 hover:border-border hover:text-text-secondary transition-all">
+              <span className="shrink-0 text-text-tertiary">{s.icon}</span>
               {s.text}
             </button>
           ))}
@@ -162,24 +162,24 @@ export function AIDashboardChat({ context }: { context: AIContext }) {
       )}
 
       {/* ── Input bar ── */}
-      <div className="relative flex items-center gap-3 bg-[#0A0A0A] border border-[#1A1A1A] rounded-2xl px-4 py-3 focus-within:border-[#F5C800]/25 transition-colors">
-        <Sparkles className="w-4 h-4 text-[#2A2A2A] shrink-0" />
+      <div className="relative flex items-center gap-3 bg-surface border border-border rounded-2xl px-4 py-3 focus-within:border-gold/25 transition-colors">
+        <Sparkles className="w-4 h-4 text-text-tertiary shrink-0" />
         <input
           ref={inputRef}
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input) } }}
           placeholder="Chiedi qualcosa al gestionale…"
-          className="flex-1 bg-transparent text-sm text-white placeholder:text-[#2A2A2A] outline-none"
+          className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary outline-none"
         />
         <button
           onClick={() => send(input)}
           disabled={!input.trim() || loading}
           className="shrink-0 w-8 h-8 rounded-xl flex items-center justify-center transition-all disabled:opacity-20"
-          style={{ background: input.trim() && !loading ? '#F5C800' : '#111', border: '1px solid #1A1A1A' }}>
+          style={{ background: input.trim() && !loading ? 'var(--color-gold)' : 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
           {loading
-            ? <Loader2 className="w-3.5 h-3.5 text-[#444] animate-spin" />
-            : <Send className="w-3.5 h-3.5" style={{ color: input.trim() ? '#000' : '#333' }} />}
+            ? <Loader2 className="w-3.5 h-3.5 text-text-tertiary animate-spin" />
+            : <Send className="w-3.5 h-3.5" style={{ color: input.trim() ? '#000' : 'var(--color-text-tertiary)' }} />}
         </button>
       </div>
     </div>

@@ -31,7 +31,7 @@ export default async function TicketsPage() {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-black text-white">Ticket & Supporto</h1>
+        <h1 className="text-2xl font-black text-text-primary">Ticket & Supporto</h1>
         <p className="text-text-secondary text-sm mt-1">Sistema di ticketing per richieste e assistenza clienti</p>
       </div>
       <TicketSystem

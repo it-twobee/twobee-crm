@@ -170,25 +170,25 @@ export function CalendarioClient({
           <div className="flex items-center gap-4">
             {viewMode !== 'personalizzato' ? (
               <>
-                <h1 className="text-2xl font-bold text-white capitalize">{headerLabel}</h1>
+                <h1 className="text-2xl font-bold text-text-primary capitalize">{headerLabel}</h1>
                 <div className="flex items-center gap-1">
-                  <button onClick={navPrev} className="p-1.5 rounded-lg hover:bg-white/[0.04] text-white/30 hover:text-white transition-colors">
+                  <button onClick={navPrev} className="p-1.5 rounded-lg hover:bg-overlay/[0.04] text-overlay/30 hover:text-text-primary transition-colors">
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  <button onClick={goToday} className="px-3 py-1 text-xs bg-white/[0.04] rounded-lg text-white/40 hover:text-white transition-colors">Oggi</button>
-                  <button onClick={navNext} className="p-1.5 rounded-lg hover:bg-white/[0.04] text-white/30 hover:text-white transition-colors">
+                  <button onClick={goToday} className="px-3 py-1 text-xs bg-overlay/[0.04] rounded-lg text-overlay/40 hover:text-text-primary transition-colors">Oggi</button>
+                  <button onClick={navNext} className="p-1.5 rounded-lg hover:bg-overlay/[0.04] text-overlay/30 hover:text-text-primary transition-colors">
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
               </>
             ) : (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-white/40">Da</span>
+                <span className="text-xs text-overlay/40">Da</span>
                 <input type="date" value={rangeStart} onChange={e => setRangeStart(e.target.value)}
-                  className="bg-white/[0.03] border border-white/[0.08] rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-gold/40" />
-                <span className="text-xs text-white/40">a</span>
+                  className="bg-overlay/[0.03] border border-overlay/[0.08] rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-gold/40" />
+                <span className="text-xs text-overlay/40">a</span>
                 <input type="date" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)}
-                  className="bg-white/[0.03] border border-white/[0.08] rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-gold/40" />
+                  className="bg-overlay/[0.03] border border-overlay/[0.08] rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-gold/40" />
               </div>
             )}
             {loadingEvents && <Loader2 className="w-4 h-4 text-gold animate-spin" />}
@@ -196,22 +196,22 @@ export function CalendarioClient({
           <div className="flex items-center gap-2">
             {/* Search */}
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-overlay/20" />
               <input value={search} onChange={e => setSearch(e.target.value)}
                 placeholder="Cerca eventi o task..."
-                className="w-48 bg-white/[0.03] border border-white/[0.08] rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-white/20 focus:outline-none focus:border-gold/40 transition-colors" />
+                className="w-48 bg-overlay/[0.03] border border-overlay/[0.08] rounded-lg pl-8 pr-3 py-1.5 text-xs text-text-primary placeholder-overlay/20 focus:outline-none focus:border-gold/40 transition-colors" />
               {search && (
-                <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/50">
+                <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-overlay/20 hover:text-overlay/50">
                   <X className="w-3 h-3" />
                 </button>
               )}
             </div>
 
             {/* View mode */}
-            <div className="flex bg-white/[0.03] border border-white/[0.06] rounded-lg p-0.5">
+            <div className="flex bg-overlay/[0.03] border border-overlay/[0.06] rounded-lg p-0.5">
               {(['giorno', 'settimana', 'mese', 'anno', 'personalizzato'] as ViewMode[]).map(v => (
                 <button key={v} onClick={() => setViewMode(v)}
-                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${viewMode === v ? 'bg-gold text-black font-bold' : 'text-white/40 hover:text-white'}`}>
+                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${viewMode === v ? 'bg-gold text-black font-bold' : 'text-overlay/40 hover:text-text-primary'}`}>
                   {v === 'giorno' ? 'Giorno' : v === 'settimana' ? 'Sett.' : v === 'mese' ? 'Mese' : v === 'anno' ? 'Anno' : 'Periodo'}
                 </button>
               ))}
@@ -220,7 +220,7 @@ export function CalendarioClient({
             {/* Task toggle */}
             <button onClick={() => setShowTasks(!showTasks)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                showTasks ? 'bg-gold/10 text-gold' : 'text-white/30 hover:text-white'
+                showTasks ? 'bg-gold/10 text-gold' : 'text-overlay/30 hover:text-text-primary'
               }`}>
               <CheckSquare className="w-3.5 h-3.5" /> Task
             </button>
@@ -229,7 +229,7 @@ export function CalendarioClient({
             <div className="relative">
               <button onClick={() => setShowFilter(!showFilter)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                  filterUser ? 'bg-gold/10 text-gold' : 'text-white/30 hover:text-white'
+                  filterUser ? 'bg-gold/10 text-gold' : 'text-overlay/30 hover:text-text-primary'
                 }`}>
                 <Filter className="w-3.5 h-3.5" />
                 {filterUser ? profiles.find(p => p.id === filterUser)?.full_name?.split(' ')[0] ?? 'Filtro' : 'Colleghi'}
@@ -237,12 +237,12 @@ export function CalendarioClient({
               {showFilter && (
                 <div className="absolute right-0 top-full mt-1 glass rounded-xl p-2 w-52 z-20 shadow-xl">
                   <button onClick={() => { setFilterUser(null); setShowFilter(false) }}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-xs ${!filterUser ? 'bg-gold/10 text-gold' : 'text-white/40 hover:text-white hover:bg-white/[0.04]'}`}>
+                    className={`w-full text-left px-3 py-2 rounded-lg text-xs ${!filterUser ? 'bg-gold/10 text-gold' : 'text-overlay/40 hover:text-text-primary hover:bg-overlay/[0.04]'}`}>
                     Tutti
                   </button>
                   {profiles.map(p => (
                     <button key={p.id} onClick={() => { setFilterUser(p.id); setShowFilter(false) }}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center gap-2 ${filterUser === p.id ? 'bg-gold/10 text-gold' : 'text-white/40 hover:text-white hover:bg-white/[0.04]'}`}>
+                      className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center gap-2 ${filterUser === p.id ? 'bg-gold/10 text-gold' : 'text-overlay/40 hover:text-text-primary hover:bg-overlay/[0.04]'}`}>
                       <div className="w-5 h-5 rounded-full bg-gold/20 flex items-center justify-center text-[9px] font-bold text-gold shrink-0">
                         {(p.full_name ?? '?')[0]}
                       </div>
@@ -255,7 +255,7 @@ export function CalendarioClient({
 
             {/* Google Connect / New event */}
             {!isGoogleConnected ? (
-              <a href="/api/google/auth" className="flex items-center gap-2 px-3 py-1.5 glass rounded-lg text-xs text-white hover:border-gold/40 transition-colors">
+              <a href="/api/google/auth" className="flex items-center gap-2 px-3 py-1.5 glass rounded-lg text-xs text-text-primary hover:border-gold/40 transition-colors">
                 <Link2 className="w-3.5 h-3.5 text-gold" /> Connetti Google
               </a>
             ) : (
@@ -268,14 +268,14 @@ export function CalendarioClient({
 
         {/* Legend */}
         <div className="flex items-center gap-4 mb-3 text-[10px]">
-          <span className="flex items-center gap-1.5 text-white/30">
+          <span className="flex items-center gap-1.5 text-overlay/30">
             <span className="w-2.5 h-2.5 rounded-sm bg-blue-500/40" /> Eventi
           </span>
-          <span className="flex items-center gap-1.5 text-white/30">
+          <span className="flex items-center gap-1.5 text-overlay/30">
             <span className="w-2.5 h-2.5 rounded-sm bg-purple-500/40" /> Riunioni
           </span>
           {showTasks && (
-            <span className="flex items-center gap-1.5 text-white/30">
+            <span className="flex items-center gap-1.5 text-overlay/30">
               <span className="w-2.5 h-2.5 rounded-sm bg-gold/40" /> Task
             </span>
           )}
@@ -330,13 +330,13 @@ export function CalendarioClient({
 
       {/* Side panel */}
       {selectedDay && (
-        <div className="w-80 border-l border-white/[0.06] p-4 flex flex-col gap-4 bg-[rgba(255,255,255,0.01)]">
+        <div className="w-80 border-l border-overlay/[0.06] p-4 flex flex-col gap-4 bg-surface">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-white capitalize">{format(selectedDay, 'EEEE d MMMM', { locale: it })}</h3>
-              <p className="text-xs text-white/30">{selectedDayEvents.length + selectedDayMeetings.length + selectedDayTasks.length} elementi</p>
+              <h3 className="text-sm font-semibold text-text-primary capitalize">{format(selectedDay, 'EEEE d MMMM', { locale: it })}</h3>
+              <p className="text-xs text-overlay/30">{selectedDayEvents.length + selectedDayMeetings.length + selectedDayTasks.length} elementi</p>
             </div>
-            <button onClick={() => setSelectedDay(null)} className="text-white/30 hover:text-white"><X className="w-4 h-4" /></button>
+            <button onClick={() => setSelectedDay(null)} className="text-overlay/30 hover:text-text-primary"><X className="w-4 h-4" /></button>
           </div>
 
           <div className="space-y-2 flex-1 overflow-y-auto">
@@ -386,13 +386,13 @@ export function CalendarioClient({
               </div>
             ))}
             {selectedDayEvents.length === 0 && selectedDayMeetings.length === 0 && selectedDayTasks.length === 0 && (
-              <p className="text-xs text-white/30">Nessun elemento in questo giorno.</p>
+              <p className="text-xs text-overlay/30">Nessun elemento in questo giorno.</p>
             )}
           </div>
 
           {isGoogleConnected && (
             <button onClick={() => { setNewEvent({ ...newEvent, date: format(selectedDay, 'yyyy-MM-dd') }); setShowNewEvent(true) }}
-              className="flex items-center gap-2 justify-center px-3 py-2 glass rounded-xl text-sm text-white hover:border-gold/40 transition-colors">
+              className="flex items-center gap-2 justify-center px-3 py-2 glass rounded-xl text-sm text-text-primary hover:border-gold/40 transition-colors">
               <Plus className="w-4 h-4 text-gold" /> Aggiungi evento
             </button>
           )}
@@ -403,21 +403,21 @@ export function CalendarioClient({
       {showNewEvent && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
           <div className="glass-strong rounded-2xl p-6 w-[420px] space-y-4">
-            <h3 className="text-lg font-bold text-white font-heading">Nuovo evento</h3>
+            <h3 className="text-lg font-bold text-text-primary font-heading">Nuovo evento</h3>
             <input value={newEvent.title} onChange={e => setNewEvent({ ...newEvent, title: e.target.value })} placeholder="Titolo evento"
-              className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white placeholder:text-white/20 outline-none focus:border-gold/40" />
+              className="w-full bg-overlay/[0.03] border border-overlay/[0.08] rounded-xl px-3 py-2 text-sm text-text-primary placeholder:text-overlay/20 outline-none focus:border-gold/40" />
             <input type="date" value={newEvent.date} onChange={e => setNewEvent({ ...newEvent, date: e.target.value })}
-              className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-gold/40" />
+              className="w-full bg-overlay/[0.03] border border-overlay/[0.08] rounded-xl px-3 py-2 text-sm text-text-primary outline-none focus:border-gold/40" />
             <div className="flex gap-3">
               <input type="time" value={newEvent.startTime} onChange={e => setNewEvent({ ...newEvent, startTime: e.target.value })}
-                className="flex-1 bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-gold/40" />
+                className="flex-1 bg-overlay/[0.03] border border-overlay/[0.08] rounded-xl px-3 py-2 text-sm text-text-primary outline-none focus:border-gold/40" />
               <input type="time" value={newEvent.endTime} onChange={e => setNewEvent({ ...newEvent, endTime: e.target.value })}
-                className="flex-1 bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-gold/40" />
+                className="flex-1 bg-overlay/[0.03] border border-overlay/[0.08] rounded-xl px-3 py-2 text-sm text-text-primary outline-none focus:border-gold/40" />
             </div>
             <textarea value={newEvent.description} onChange={e => setNewEvent({ ...newEvent, description: e.target.value })} placeholder="Descrizione (opzionale)"
-              rows={3} className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white placeholder:text-white/20 outline-none focus:border-gold/40 resize-none" />
+              rows={3} className="w-full bg-overlay/[0.03] border border-overlay/[0.08] rounded-xl px-3 py-2 text-sm text-text-primary placeholder:text-overlay/20 outline-none focus:border-gold/40 resize-none" />
             <div className="flex gap-3">
-              <button onClick={() => setShowNewEvent(false)} className="flex-1 py-2 border border-white/[0.08] rounded-xl text-sm text-white/40 hover:text-white transition-colors">Annulla</button>
+              <button onClick={() => setShowNewEvent(false)} className="flex-1 py-2 border border-overlay/[0.08] rounded-xl text-sm text-overlay/40 hover:text-text-primary transition-colors">Annulla</button>
               <button onClick={saveEvent} disabled={saving || !newEvent.title || !newEvent.date}
                 className="flex-1 py-2 bg-gold text-black rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-gold/90 transition-colors">
                 {saving ? 'Salvataggio...' : 'Crea evento'}
@@ -446,9 +446,9 @@ function MonthView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, sel
   const dayNames = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']
 
   return (
-    <div className="grid grid-cols-7 gap-px bg-white/[0.04] rounded-xl overflow-hidden flex-1">
+    <div className="grid grid-cols-7 gap-px bg-overlay/[0.04] rounded-xl overflow-hidden flex-1">
       {dayNames.map(dn => (
-        <div key={dn} className="bg-[rgba(255,255,255,0.02)] px-3 py-2 text-xs font-semibold text-white/30 text-center">{dn}</div>
+        <div key={dn} className="bg-surface px-3 py-2 text-xs font-semibold text-overlay/30 text-center">{dn}</div>
       ))}
       {days.map(day => {
         const events = eventsForDay(day)
@@ -459,11 +459,11 @@ function MonthView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, sel
         return (
           <div key={day.toISOString()}
             onClick={() => onSelectDay(day)}
-            className={`bg-[#0B0B0C] p-2 min-h-[100px] cursor-pointer transition-colors ${
+            className={`bg-surface p-2 min-h-[100px] cursor-pointer transition-colors ${
               !isSameMonth(day, currentDate) ? 'opacity-40' : ''
-            } ${isSelected ? 'ring-1 ring-inset ring-gold/50 bg-gold/[0.03]' : 'hover:bg-white/[0.02]'}`}>
+            } ${isSelected ? 'ring-1 ring-inset ring-gold/50 bg-gold/[0.03]' : 'hover:bg-overlay/[0.02]'}`}>
             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium mb-1 ${
-              isToday(day) ? 'bg-gold text-black' : 'text-white'
+              isToday(day) ? 'bg-gold text-black' : 'text-text-primary'
             }`}>{format(day, 'd')}</div>
             <div className="space-y-0.5">
               {events.slice(0, 2).map(e => (
@@ -477,7 +477,7 @@ function MonthView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, sel
                   {t.title}
                 </div>
               ))}
-              {total > 3 && <div className="text-[10px] text-white/20 px-1">+{total - 3} altri</div>}
+              {total > 3 && <div className="text-[10px] text-overlay/20 px-1">+{total - 3} altri</div>}
             </div>
           </div>
         )
@@ -529,7 +529,7 @@ function DayView({ currentDate, eventsForDay, meetingsForDay, tasksForDay }: {
       ))}
       {allEmpty && (
         <div className="flex items-center justify-center py-20">
-          <p className="text-sm text-white/30">Nessun elemento per questo giorno</p>
+          <p className="text-sm text-overlay/30">Nessun elemento per questo giorno</p>
         </div>
       )}
     </div>
@@ -549,7 +549,7 @@ function WeekView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, sele
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
 
   return (
-    <div className="flex-1 grid grid-cols-7 gap-px bg-white/[0.04] rounded-xl overflow-hidden">
+    <div className="flex-1 grid grid-cols-7 gap-px bg-overlay/[0.04] rounded-xl overflow-hidden">
       {days.map(day => {
         const events = eventsForDay(day)
         const meetings = meetingsForDay(day)
@@ -558,13 +558,13 @@ function WeekView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, sele
         return (
           <div key={day.toISOString()}
             onClick={() => onSelectDay(day)}
-            className={`bg-[#0B0B0C] p-3 cursor-pointer transition-colors flex flex-col min-h-[300px] ${
-              isSelected ? 'ring-1 ring-inset ring-gold/50 bg-gold/[0.03]' : 'hover:bg-white/[0.02]'
+            className={`bg-surface p-3 cursor-pointer transition-colors flex flex-col min-h-[300px] ${
+              isSelected ? 'ring-1 ring-inset ring-gold/50 bg-gold/[0.03]' : 'hover:bg-overlay/[0.02]'
             }`}>
             <div className="text-center mb-3">
-              <p className="text-[10px] text-white/30 uppercase">{format(day, 'EEE', { locale: it })}</p>
+              <p className="text-[10px] text-overlay/30 uppercase">{format(day, 'EEE', { locale: it })}</p>
               <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold mx-auto mt-1 ${
-                isToday(day) ? 'bg-gold text-black' : 'text-white'
+                isToday(day) ? 'bg-gold text-black' : 'text-text-primary'
               }`}>{format(day, 'd')}</div>
             </div>
             <div className="space-y-1.5 flex-1 overflow-y-auto">
@@ -620,13 +620,13 @@ function YearView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, sele
           while (d <= monthEnd) { days.push(d); d = addDays(d, 1) }
 
           return (
-            <div key={monthDate.getMonth()} className="bg-[#0B0B0C] rounded-xl p-3 border border-white/[0.04]">
-              <p className="text-xs font-bold text-white/60 mb-2 capitalize">
+            <div key={monthDate.getMonth()} className="bg-surface rounded-xl p-3 border border-overlay/[0.04]">
+              <p className="text-xs font-bold text-overlay/60 mb-2 capitalize">
                 {format(monthDate, 'MMMM', { locale: it })}
               </p>
               <div className="grid grid-cols-7 gap-0">
                 {['L','M','M','G','V','S','D'].map((n, i) => (
-                  <div key={i} className="text-[8px] text-white/20 text-center pb-1">{n}</div>
+                  <div key={i} className="text-[8px] text-overlay/20 text-center pb-1">{n}</div>
                 ))}
                 {days.map((day, i) => {
                   const inMonth = isSameMonth(day, monthDate)
@@ -638,7 +638,7 @@ function YearView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, sele
                         !inMonth ? 'invisible' :
                         isSel ? 'bg-gold text-black font-bold' :
                         isToday(day) ? 'text-gold font-bold' :
-                        'text-white/50 hover:text-white hover:bg-white/[0.06]'
+                        'text-overlay/50 hover:text-text-primary hover:bg-overlay/[0.06]'
                       }`}>
                       {inMonth ? format(day, 'd') : ''}
                       {total > 0 && inMonth && !isSel && (
@@ -668,7 +668,7 @@ function ListView({ events, meetings, tasks, rangeStart, rangeEnd, onSelectDay }
   if (!rangeStart || !rangeEnd) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <p className="text-sm text-white/30">Seleziona un intervallo di date sopra</p>
+        <p className="text-sm text-overlay/30">Seleziona un intervallo di date sopra</p>
       </div>
     )
   }
@@ -694,7 +694,7 @@ function ListView({ events, meetings, tasks, rangeStart, rangeEnd, onSelectDay }
   if (sortedDays.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <p className="text-sm text-white/30">Nessun elemento nel periodo selezionato</p>
+        <p className="text-sm text-overlay/30">Nessun elemento nel periodo selezionato</p>
       </div>
     )
   }
@@ -706,7 +706,7 @@ function ListView({ events, meetings, tasks, rangeStart, rangeEnd, onSelectDay }
         return (
           <div key={day}>
             <button onClick={() => onSelectDay(new Date(day + 'T12:00:00'))}
-              className="text-[10px] font-bold text-white/40 uppercase tracking-wider mb-2 hover:text-white/60 transition-colors capitalize block">
+              className="text-[10px] font-bold text-overlay/40 uppercase tracking-wider mb-2 hover:text-overlay/60 transition-colors capitalize block">
               {format(new Date(day + 'T12:00:00'), 'EEEE d MMMM', { locale: it })}
             </button>
             <div className="space-y-1.5">

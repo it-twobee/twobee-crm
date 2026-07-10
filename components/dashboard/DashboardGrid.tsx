@@ -156,25 +156,25 @@ function MetricCards({ mrr, clientsCount, clientsAtRisk, tasksDueSoon, invoicesP
   tasksDueSoon: number; invoicesPending: number
 }) {
   const cards = [
-    { href: '/fatturazione', icon: <TrendingUp className="w-4 h-4" />, iconColor: '#FFC501', label: 'MRR', value: formatCurrency(mrr), sub: '/mese contratti', accent: '#FFC501' },
+    { href: '/fatturazione', icon: <TrendingUp className="w-4 h-4" />, iconColor: 'var(--color-gold)', label: 'MRR', value: formatCurrency(mrr), sub: '/mese contratti', accent: 'var(--color-gold)' },
     { href: '/clienti',      icon: <Users       className="w-4 h-4" />, iconColor: '#3B82F6', label: 'Clienti', value: String(clientsCount), sub: clientsAtRisk > 0 ? `${clientsAtRisk} in bilico` : 'tutti stabili', accent: '#3B82F6', subWarning: clientsAtRisk > 0 },
-    { href: '/le-mie-attivita', icon: <CheckSquare className="w-4 h-4" />, iconColor: tasksDueSoon > 0 ? '#F59E0B' : '#333', label: 'Task', value: String(tasksDueSoon), sub: 'in scadenza 7gg', accent: tasksDueSoon > 0 ? '#F59E0B' : '#888' },
-    { href: '/fatturazione', icon: <Receipt     className="w-4 h-4" />, iconColor: invoicesPending > 0 ? '#EF4444' : '#333', label: 'Fatture', value: String(invoicesPending), sub: 'in attesa', accent: invoicesPending > 0 ? '#EF4444' : '#888' },
+    { href: '/le-mie-attivita', icon: <CheckSquare className="w-4 h-4" />, iconColor: tasksDueSoon > 0 ? 'var(--color-warning)' : 'var(--color-text-tertiary)', label: 'Task', value: String(tasksDueSoon), sub: 'in scadenza 7gg', accent: tasksDueSoon > 0 ? 'var(--color-warning)' : 'var(--color-text-secondary)' },
+    { href: '/fatturazione', icon: <Receipt     className="w-4 h-4" />, iconColor: invoicesPending > 0 ? 'var(--color-error)' : 'var(--color-text-tertiary)', label: 'Fatture', value: String(invoicesPending), sub: 'in attesa', accent: invoicesPending > 0 ? 'var(--color-error)' : 'var(--color-text-secondary)' },
   ]
   return (
     <div className="grid grid-cols-2 gap-2.5 p-3 h-full content-start">
       {cards.map(c => (
         <Link key={c.label} href={c.href}
           className="flex flex-col rounded-xl p-3.5 transition-all"
-          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = c.accent + '33'; (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.06)'; (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.03)' }}>
+          style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = c.accent + '33'; (e.currentTarget as HTMLElement).style.background = 'var(--color-surface-hover)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-border)'; (e.currentTarget as HTMLElement).style.background = 'var(--color-surface)' }}>
           <div className="flex items-center gap-1.5 mb-2">
             <span style={{ color: c.iconColor }}>{c.icon}</span>
-            <span className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.25)' }}>{c.label}</span>
+            <span className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: 'var(--color-text-tertiary)' }}>{c.label}</span>
           </div>
           <p className="text-xl font-black leading-none font-heading" style={{ color: c.accent }}>{c.value}</p>
-          <p className="text-[9px] mt-1.5" style={{ color: (c as { subWarning?: boolean }).subWarning ? '#FFC501' : 'rgba(255,255,255,0.20)' }}>{c.sub}</p>
+          <p className="text-[9px] mt-1.5" style={{ color: (c as { subWarning?: boolean }).subWarning ? 'var(--color-gold)' : 'var(--color-text-tertiary)' }}>{c.sub}</p>
         </Link>
       ))}
     </div>
@@ -187,21 +187,21 @@ function WidgetCard({ def, children }: { def: WidgetDef; children: React.ReactNo
     <div
       className={`flex flex-col rounded-2xl overflow-hidden ${def.span === 'full' ? 'col-span-2' : ''}`}
       style={{
-        background: 'rgba(255,255,255,0.03)',
-        border: '1px solid rgba(255,255,255,0.06)',
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
         minHeight: def.id === 'chat' || def.id === 'insights' || def.id === 'aiautomation' ? '200px' : '220px',
       }}>
       <Link
         href={def.href}
-        className="flex items-center gap-2 px-4 py-2.5 shrink-0 group transition-colors hover:bg-white/[0.02]"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+        className="flex items-center gap-2 px-4 py-2.5 shrink-0 group transition-colors hover:bg-overlay/[0.02]"
+        style={{ borderBottom: '1px solid var(--color-border)' }}>
         <span className="text-sm shrink-0">{def.emoji}</span>
         <span className="text-[10px] font-semibold flex-1 truncate uppercase tracking-[0.1em]"
-          style={{ color: 'rgba(255,255,255,0.25)' }}>{def.label}</span>
+          style={{ color: 'var(--color-text-tertiary)' }}>{def.label}</span>
         <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity"
-          style={{ color: 'rgba(255,255,255,0.25)' }} />
+          style={{ color: 'var(--color-text-tertiary)' }} />
       </Link>
       <div className="flex-1 overflow-auto min-h-0">
         {children}
@@ -234,21 +234,21 @@ function TemplatePicker({
         className="fixed right-0 top-0 bottom-0 z-50 flex flex-col"
         style={{
           width: '360px',
-          background: '#0A0A0A',
-          borderLeft: '1px solid rgba(255,255,255,0.06)',
+          background: 'var(--color-surface)',
+          borderLeft: '1px solid var(--color-border)',
           transform: open ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)',
           boxShadow: open ? '-24px 0 80px rgba(0,0,0,0.6)' : 'none',
         }}>
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-white/[0.06] shrink-0">
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-overlay/[0.06] shrink-0">
           <Crown className="w-4 h-4 text-gold" />
-          <span className="text-sm font-black text-white flex-1">Template Dashboard</span>
+          <span className="text-sm font-black text-text-primary flex-1">Template Dashboard</span>
           <button onClick={async () => { await onSave(); onClose() }} disabled={saving}
             className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl"
-            style={{ background: 'rgba(255,197,1,0.1)', border: '1px solid rgba(255,197,1,0.25)', color: '#FFC501' }}>
+            style={{ background: 'var(--color-gold-dim)', border: '1px solid rgba(255,197,1,0.25)', color: 'var(--color-gold)' }}>
             <Check className="w-3 h-3" /> {saving ? 'Salvo…' : 'Salva'}
           </button>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-white/20 hover:text-white/50">
+          <button onClick={onClose} className="p-1.5 rounded-lg text-overlay/20 hover:text-overlay/50">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -260,27 +260,27 @@ function TemplatePicker({
               <button key={t.id} onClick={() => onSelect(t.id)}
                 className="w-full text-left p-4 rounded-2xl transition-all"
                 style={{
-                  background: isActive ? t.color + '10' : 'rgba(255,255,255,0.02)',
-                  border: `1px solid ${isActive ? t.color + '40' : 'rgba(255,255,255,0.06)'}`,
+                  background: isActive ? t.color + '10' : 'var(--color-surface)',
+                  border: `1px solid ${isActive ? t.color + '40' : 'var(--color-border)'}`,
                 }}>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-lg">{t.emoji}</span>
-                  <span className="text-sm font-black text-white">{t.name}</span>
+                  <span className="text-sm font-black text-text-primary">{t.name}</span>
                   {isActive && <Check className="w-4 h-4 ml-auto" style={{ color: t.color }} />}
                 </div>
-                <p className="text-xs text-white/30 mb-3">{t.desc}</p>
+                <p className="text-xs text-overlay/30 mb-3">{t.desc}</p>
                 <div className="flex flex-wrap gap-1">
                   {t.widgets.slice(0, 8).map(wid => {
                     const wd = WIDGET_DEFS.find(w => w.id === wid)
                     return wd ? (
                       <span key={wid} className="text-[9px] px-2 py-0.5 rounded-full"
-                        style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.3)' }}>
+                        style={{ background: 'var(--color-surface)', color: 'var(--color-text-tertiary)' }}>
                         {wd.emoji} {wd.label}
                       </span>
                     ) : null
                   })}
                   {t.widgets.length > 8 && (
-                    <span className="text-[9px] px-2 py-0.5 rounded-full text-white/20">
+                    <span className="text-[9px] px-2 py-0.5 rounded-full text-overlay/20">
                       +{t.widgets.length - 8} altri
                     </span>
                   )}
@@ -290,8 +290,8 @@ function TemplatePicker({
           })}
         </div>
 
-        <div className="px-5 py-3 border-t border-white/[0.06] shrink-0">
-          <p className="text-[9px] text-white/10 text-center">
+        <div className="px-5 py-3 border-t border-overlay/[0.06] shrink-0">
+          <p className="text-[9px] text-overlay/10 text-center">
             Solo i Super Admin possono cambiare template
           </p>
         </div>
@@ -371,23 +371,23 @@ export function DashboardGrid({ data, initialConfig }: { data: DashboardData; in
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <LayoutGrid className="w-4 h-4 text-white/15" />
-          <span className="text-xs text-white/20">{template.emoji} {template.name}</span>
+          <LayoutGrid className="w-4 h-4 text-overlay/15" />
+          <span className="text-xs text-overlay/20">{template.emoji} {template.name}</span>
         </div>
         {data.isSuperAdmin && (
           <button
             onClick={() => setPickerOpen(true)}
             className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl transition-all"
-            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.3)' }}
+            style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text-tertiary)' }}
             onMouseEnter={e => {
-              (e.currentTarget as HTMLElement).style.background = 'rgba(255,197,1,0.06)';
+              (e.currentTarget as HTMLElement).style.background = 'var(--color-gold-dim)';
               (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,197,1,0.15)';
-              (e.currentTarget as HTMLElement).style.color = '#FFC501'
+              (e.currentTarget as HTMLElement).style.color = 'var(--color-gold)'
             }}
             onMouseLeave={e => {
-              (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.03)';
-              (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.06)';
-              (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.3)'
+              (e.currentTarget as HTMLElement).style.background = 'var(--color-surface)';
+              (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-border)';
+              (e.currentTarget as HTMLElement).style.color = 'var(--color-text-tertiary)'
             }}>
             <Crown className="w-3 h-3" /> Template <ChevronRight className="w-3 h-3" />
           </button>

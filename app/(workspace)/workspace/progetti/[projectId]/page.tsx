@@ -58,6 +58,7 @@ export default async function WorkspaceProgettoPage({ params }: Props) {
       comments={(comments ?? []) as ProjectComment[]}
       appointments={(appointments ?? []) as ProjectAppointment[]}
       meetings={(meetings ?? []) as MeetingNote[]}
+      backHref={`/workspace/clienti/${clientId}`}
     />
   )
 }

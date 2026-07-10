@@ -16,12 +16,12 @@ import type { ClientInteraction, InteractionType, InteractionOutcome, Profile, C
 const TYPE_CONFIG: Record<InteractionType, { label: string; icon: React.ReactNode; color: string }> = {
   call:      { label: 'Chiamata',   icon: <Phone className="w-3.5 h-3.5" />,         color: 'bg-blue-500/15 text-blue-400 border-blue-500/20' },
   meeting:   { label: 'Meeting',    icon: <Users className="w-3.5 h-3.5" />,         color: 'bg-purple-500/15 text-purple-400 border-purple-500/20' },
-  email:     { label: 'Email',      icon: <Mail className="w-3.5 h-3.5" />,          color: 'bg-[#1A1A1A] text-text-secondary border-[#2A2A2A]' },
+  email:     { label: 'Email',      icon: <Mail className="w-3.5 h-3.5" />,          color: 'bg-surface text-text-secondary border-border' },
   demo:      { label: 'Demo',       icon: <Presentation className="w-3.5 h-3.5" />,  color: 'bg-gold/15 text-gold border-gold/20' },
   visit:     { label: 'Visita',     icon: <MapPin className="w-3.5 h-3.5" />,        color: 'bg-green-500/15 text-green-400 border-green-500/20' },
-  slack:     { label: 'Slack',      icon: <MessageSquare className="w-3.5 h-3.5" />, color: 'bg-[#1A1A1A] text-text-secondary border-[#2A2A2A]' },
+  slack:     { label: 'Slack',      icon: <MessageSquare className="w-3.5 h-3.5" />, color: 'bg-surface text-text-secondary border-border' },
   proposta:  { label: 'Proposta',   icon: <FileText className="w-3.5 h-3.5" />,      color: 'bg-warning/15 text-warning border-warning/20' },
-  altro:     { label: 'Altro',      icon: <HelpCircle className="w-3.5 h-3.5" />,    color: 'bg-[#1A1A1A] text-text-secondary border-[#2A2A2A]' },
+  altro:     { label: 'Altro',      icon: <HelpCircle className="w-3.5 h-3.5" />,    color: 'bg-surface text-text-secondary border-border' },
 }
 
 const OUTCOME_CONFIG: Record<InteractionOutcome, { label: string; icon: React.ReactNode; color: string }> = {
@@ -71,7 +71,7 @@ function SentimentPanel({ interactions, client }: { interactions: ClientInteract
   return (
     <div className="rounded-xl p-4 space-y-3" style={{ background: '#0D0D0D', border: '1px solid #1A1A1A' }}>
       <div className="flex items-center justify-between">
-        <p className="text-[10px] font-black uppercase tracking-widest text-[#333]">Sentiment cliente</p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Sentiment cliente</p>
         <SentimentBadge score={score} />
       </div>
 
@@ -83,7 +83,7 @@ function SentimentPanel({ interactions, client }: { interactions: ClientInteract
         }} />
       </div>
 
-      <div className="flex items-center justify-between text-[9px] text-[#333]">
+      <div className="flex items-center justify-between text-[9px] text-text-tertiary">
         <span>Basato sulle ultime {Math.min(interactions.length, 10)} interazioni</span>
         {riskTrend && (
           <span className="flex items-center gap-1">
@@ -122,11 +122,11 @@ function NoteStoriche({ clientId, initialNotes, isAdmin }: { clientId: string; i
     <div className="rounded-xl p-4 space-y-3" style={{ background: '#0D0D0D', border: '1px solid #1A1A1A' }}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <NotebookPen className="w-3.5 h-3.5 text-[#444]" />
-          <p className="text-[10px] font-black uppercase tracking-widest text-[#333]">Note storiche</p>
+          <NotebookPen className="w-3.5 h-3.5 text-text-tertiary" />
+          <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Note storiche</p>
         </div>
         {isAdmin && !editing && (
-          <button onClick={() => setEditing(true)} className="text-[10px] text-[#444] hover:text-white transition-colors flex items-center gap-1">
+          <button onClick={() => setEditing(true)} className="text-[10px] text-text-tertiary hover:text-text-primary transition-colors flex items-center gap-1">
             <Edit2 className="w-3 h-3" /> Modifica
           </button>
         )}
@@ -139,10 +139,10 @@ function NoteStoriche({ clientId, initialNotes, isAdmin }: { clientId: string; i
             onChange={e => setNotes(e.target.value)}
             rows={5}
             placeholder="Note sulla relazione, storia del cliente, contesto chiave per il team..."
-            className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-[#333] focus:outline-none focus:border-gold/40 resize-none leading-relaxed"
+            className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-gold/40 resize-none leading-relaxed"
           />
           <div className="flex gap-2 justify-end">
-            <button onClick={() => setEditing(false)} className="px-3 py-1.5 text-xs text-[#444] border border-[#2A2A2A] rounded-lg hover:text-white transition-colors">
+            <button onClick={() => setEditing(false)} className="px-3 py-1.5 text-xs text-text-tertiary border border-border rounded-lg hover:text-text-primary transition-colors">
               Annulla
             </button>
             <button onClick={save} disabled={saving} className="px-3 py-1.5 text-xs font-bold bg-gold text-black rounded-lg hover:bg-yellow-400 transition-colors flex items-center gap-1.5 disabled:opacity-40">
@@ -154,7 +154,7 @@ function NoteStoriche({ clientId, initialNotes, isAdmin }: { clientId: string; i
       ) : (
         notes
           ? <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-wrap">{notes}</p>
-          : <p className="text-xs text-[#333] italic">{isAdmin ? 'Nessuna nota. Clicca Modifica per aggiungerne.' : 'Nessuna nota.'}</p>
+          : <p className="text-xs text-text-tertiary italic">{isAdmin ? 'Nessuna nota. Clicca Modifica per aggiungerne.' : 'Nessuna nota.'}</p>
       )}
     </div>
   )
@@ -169,7 +169,7 @@ interface SystemEvent {
   description?: string
 }
 
-function buildSystemEvents(client: Client): SystemEvent[] {
+function buildSystemEvents(client: Client, hideEconomics: boolean): SystemEvent[] {
   const events: SystemEvent[] = []
 
   if (client.contract_start) {
@@ -178,7 +178,7 @@ function buildSystemEvents(client: Client): SystemEvent[] {
       label: 'Inizio contratto',
       icon: <CalendarDays className="w-3.5 h-3.5" />,
       color: 'bg-gold/20 border-gold/30 text-gold',
-      description: `Package: ${client.package} · MRR: €${client.mrr.toLocaleString('it-IT')}`,
+      description: hideEconomics ? `Package: ${client.package}` : `Package: ${client.package} · MRR: €${client.mrr.toLocaleString('it-IT')}`,
     })
   }
 
@@ -198,14 +198,14 @@ function buildSystemEvents(client: Client): SystemEvent[] {
 function SystemEventItem({ event }: { event: SystemEvent }) {
   return (
     <div className="relative pl-8 pb-6 last:pb-0">
-      <div className="absolute left-[13px] top-6 bottom-0 w-px bg-[#1A1A1A] last:hidden group-last:hidden" />
+      <div className="absolute left-[13px] top-6 bottom-0 w-px bg-surface last:hidden group-last:hidden" />
       <div className={`absolute left-0 top-1 w-7 h-7 rounded-full border flex items-center justify-center shrink-0 ${event.color}`}>
         {event.icon}
       </div>
-      <div className="bg-[#0D0D0D] border border-[#1A1A1A] rounded-xl p-3.5">
-        <p className="text-xs font-bold text-white mb-0.5">{event.label}</p>
-        <p className="text-[10px] text-[#444]">{fmtDateShort(event.date)}</p>
-        {event.description && <p className="text-[10px] text-[#555] mt-1">{event.description}</p>}
+      <div className="bg-surface border border-border rounded-xl p-3.5">
+        <p className="text-xs font-bold text-text-primary mb-0.5">{event.label}</p>
+        <p className="text-[10px] text-text-tertiary">{fmtDateShort(event.date)}</p>
+        {event.description && <p className="text-[10px] text-text-secondary mt-1">{event.description}</p>}
       </div>
     </div>
   )
@@ -258,21 +258,21 @@ function InteractionForm({ clientId, allProfiles, currentProfile, onSaved, onCan
   }
 
   return (
-    <div className="bg-[#111] border border-gold/20 rounded-xl p-5 space-y-4">
+    <div className="bg-surface border border-gold/20 rounded-xl p-5 space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-bold text-white">{editing ? 'Modifica interazione' : 'Nuova interazione'}</p>
-        <button onClick={onCancel} className="text-text-secondary hover:text-white transition-colors"><X className="w-4 h-4" /></button>
+        <p className="text-sm font-bold text-text-primary">{editing ? 'Modifica interazione' : 'Nuova interazione'}</p>
+        <button onClick={onCancel} className="text-text-secondary hover:text-text-primary transition-colors"><X className="w-4 h-4" /></button>
       </div>
 
       <div className="flex flex-wrap gap-2">
         {(Object.keys(TYPE_CONFIG) as InteractionType[]).map(t => (
           <button key={t} onClick={() => setType(t)}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${type === t ? TYPE_CONFIG[t].color : 'border-transparent text-[#444] hover:text-text-secondary'}`}>
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${type === t ? TYPE_CONFIG[t].color : 'border-transparent text-text-tertiary hover:text-text-secondary'}`}>
             {TYPE_CONFIG[t].icon} {TYPE_CONFIG[t].label}
           </button>
         ))}
         <button onClick={() => setIsMilestone(v => !v)}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ml-auto ${isMilestone ? 'border-gold/30 bg-gold/10 text-gold' : 'border-[#2A2A2A] text-[#444] hover:text-text-secondary'}`}>
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ml-auto ${isMilestone ? 'border-gold/30 bg-gold/10 text-gold' : 'border-border text-text-tertiary hover:text-text-secondary'}`}>
           <Star className="w-3 h-3" /> Milestone
         </button>
       </div>
@@ -281,12 +281,12 @@ function InteractionForm({ clientId, allProfiles, currentProfile, onSaved, onCan
         <div>
           <label className="text-[10px] text-text-secondary uppercase tracking-wider mb-1 block">Data e ora</label>
           <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)}
-            className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold/40" />
+            className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/40" />
         </div>
         <div>
           <label className="text-[10px] text-text-secondary uppercase tracking-wider mb-1 block">Referente interno</label>
           <select value={conductedBy} onChange={e => setConductedBy(e.target.value)}
-            className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold/40">
+            className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/40">
             {allProfiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
           </select>
         </div>
@@ -296,14 +296,14 @@ function InteractionForm({ clientId, allProfiles, currentProfile, onSaved, onCan
         <label className="text-[10px] text-text-secondary uppercase tracking-wider mb-1 block">Titolo / Oggetto</label>
         <input value={title} onChange={e => setTitle(e.target.value)}
           placeholder="es. Prima call conoscitiva, Presentazione proposta Growth..."
-          className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[#444] focus:outline-none focus:border-gold/40" />
+          className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-gold/40" />
       </div>
 
       <div>
         <label className="text-[10px] text-text-secondary uppercase tracking-wider mb-1 block">Note / Riassunto</label>
         <textarea value={summary} onChange={e => setSummary(e.target.value)} rows={3}
           placeholder="Cosa è stato discusso, decisioni prese, prossimi step..."
-          className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[#444] focus:outline-none focus:border-gold/40 resize-none" />
+          className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-gold/40 resize-none" />
       </div>
 
       <div>
@@ -312,7 +312,7 @@ function InteractionForm({ clientId, allProfiles, currentProfile, onSaved, onCan
           {(Object.keys(OUTCOME_CONFIG) as InteractionOutcome[]).map(o => (
             <button key={o} onClick={() => setOutcome(o)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                outcome === o ? `border-[#2A2A2A] bg-[#1A1A1A] ${OUTCOME_CONFIG[o].color}` : 'border-transparent text-[#444] hover:text-text-secondary'
+                outcome === o ? `border-border bg-surface ${OUTCOME_CONFIG[o].color}` : 'border-transparent text-text-tertiary hover:text-text-secondary'
               }`}>
               {OUTCOME_CONFIG[o].icon} {OUTCOME_CONFIG[o].label}
             </button>
@@ -321,7 +321,7 @@ function InteractionForm({ clientId, allProfiles, currentProfile, onSaved, onCan
       </div>
 
       <div className="flex justify-end gap-2">
-        <button onClick={onCancel} className="px-4 py-2 text-sm text-text-secondary hover:text-white border border-[#2A2A2A] rounded-lg transition-colors">
+        <button onClick={onCancel} className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary border border-border rounded-lg transition-colors">
           Annulla
         </button>
         <button onClick={save} disabled={saving || !title.trim()}
@@ -346,14 +346,14 @@ function TimelineItem({ item, isAdmin, onEdit, onDelete }: {
 
   return (
     <div className={`relative pl-8 pb-6 last:pb-0 group ${item.is_milestone ? 'opacity-100' : 'opacity-90 hover:opacity-100'}`}>
-      <div className="absolute left-[13px] top-6 bottom-0 w-px bg-[#2A2A2A] last:hidden group-last:hidden" />
+      <div className="absolute left-[13px] top-6 bottom-0 w-px bg-surface-active last:hidden group-last:hidden" />
       <div className={`absolute left-0 top-1 w-7 h-7 rounded-full border flex items-center justify-center shrink-0 ${
         item.is_milestone ? 'bg-gold/20 border-gold/40 text-gold' : tc.color
       }`}>
         {item.is_milestone ? <Star className="w-3.5 h-3.5" /> : tc.icon}
       </div>
 
-      <div className={`bg-[#111] border rounded-xl p-4 transition-colors ${item.is_milestone ? 'border-gold/20' : 'border-[#2A2A2A] hover:border-[#333]'}`}>
+      <div className={`bg-surface border rounded-xl p-4 transition-colors ${item.is_milestone ? 'border-gold/20' : 'border-border hover:border-border'}`}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -367,8 +367,8 @@ function TimelineItem({ item, isAdmin, onEdit, onDelete }: {
                 {oc.icon} {oc.label}
               </span>
             </div>
-            <p className="text-sm font-semibold text-white leading-snug">{item.title}</p>
-            <div className="flex items-center gap-3 mt-1.5 text-[10px] text-[#555]">
+            <p className="text-sm font-semibold text-text-primary leading-snug">{item.title}</p>
+            <div className="flex items-center gap-3 mt-1.5 text-[10px] text-text-secondary">
               <span>{fmtDate(item.date)}</span>
               {item.conductor && (
                 <span className="flex items-center gap-1">
@@ -385,10 +385,10 @@ function TimelineItem({ item, isAdmin, onEdit, onDelete }: {
 
           {isAdmin && (
             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-              <button onClick={() => onEdit(item)} className="p-1.5 rounded-lg hover:bg-[#1A1A1A] text-text-secondary hover:text-white transition-colors">
+              <button onClick={() => onEdit(item)} className="p-1.5 rounded-lg hover:bg-surface text-text-secondary hover:text-text-primary transition-colors">
                 <Edit2 className="w-3 h-3" />
               </button>
-              <button onClick={() => onDelete(item.id)} className="p-1.5 rounded-lg hover:bg-[#1A1A1A] text-text-secondary hover:text-error transition-colors">
+              <button onClick={() => onDelete(item.id)} className="p-1.5 rounded-lg hover:bg-surface text-text-secondary hover:text-error transition-colors">
                 <Trash2 className="w-3 h-3" />
               </button>
             </div>
@@ -398,7 +398,7 @@ function TimelineItem({ item, isAdmin, onEdit, onDelete }: {
         {item.summary && (
           <>
             {!expanded && item.summary.length > 120 ? (
-              <button onClick={() => setExpanded(true)} className="mt-2 text-xs text-[#555] hover:text-text-secondary text-left transition-colors line-clamp-2">
+              <button onClick={() => setExpanded(true)} className="mt-2 text-xs text-text-secondary hover:text-text-secondary text-left transition-colors line-clamp-2">
                 {item.summary}
                 <span className="text-gold ml-1">Leggi tutto</span>
               </button>
@@ -420,9 +420,10 @@ interface Props {
   allProfiles: Profile[]
   currentProfile: Profile
   isAdmin: boolean
+  hideEconomics?: boolean
 }
 
-export function RelazioneTab({ clientId, client, interactions: initial, allProfiles, currentProfile, isAdmin }: Props) {
+export function RelazioneTab({ clientId, client, interactions: initial, allProfiles, currentProfile, isAdmin, hideEconomics = false }: Props) {
   const [items, setItems]           = useState<ClientInteraction[]>(initial)
   const [showForm, setShowForm]     = useState(false)
   const [editing, setEditing]       = useState<ClientInteraction | undefined>()
@@ -430,7 +431,7 @@ export function RelazioneTab({ clientId, client, interactions: initial, allProfi
   const [onlyMilestones, setOnlyMilestones] = useState(false)
   const [activeSection, setActiveSection]   = useState<'timeline' | 'note' | 'contratto'>('timeline')
 
-  const systemEvents = useMemo(() => buildSystemEvents(client), [client])
+  const systemEvents = useMemo(() => buildSystemEvents(client, hideEconomics), [client, hideEconomics])
 
   const filtered = items.filter(i => {
     if (onlyMilestones && !i.is_milestone) return false
@@ -465,7 +466,7 @@ export function RelazioneTab({ clientId, client, interactions: initial, allProfi
 
   const tabs = [
     { key: 'timeline', label: `Interazioni (${stats.total})` },
-    { key: 'contratto', label: 'Contratto' },
+    ...(hideEconomics ? [] : [{ key: 'contratto', label: 'Contratto' }] as const),
     { key: 'note', label: 'Note storiche' },
   ] as const
 
@@ -475,7 +476,7 @@ export function RelazioneTab({ clientId, client, interactions: initial, allProfi
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="text-base font-bold text-white mb-0.5">Relazione Commerciale</h2>
+          <h2 className="text-base font-bold text-text-primary mb-0.5">Relazione Commerciale</h2>
           <p className="text-xs text-text-secondary">
             {stats.total} interazioni · {stats.milestones} milestone · {stats.positivi} esiti positivi
             {stats.da_seguire > 0 && <span className="text-warning ml-1">· {stats.da_seguire} da seguire</span>}
@@ -493,11 +494,11 @@ export function RelazioneTab({ clientId, client, interactions: initial, allProfi
       <SentimentPanel interactions={items} client={client} />
 
       {/* Sub-tabs */}
-      <div className="flex gap-0.5 rounded-lg border border-[#2A2A2A] bg-[#0D0D0D] p-0.5 w-full overflow-x-auto">
+      <div className="flex gap-0.5 rounded-lg border border-border bg-surface p-0.5 w-full overflow-x-auto">
         {tabs.map(t => (
           <button key={t.key} onClick={() => setActiveSection(t.key)}
             className={`flex-1 min-w-0 px-3 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${
-              activeSection === t.key ? 'bg-[#1A1A1A] text-white' : 'text-[#444] hover:text-text-secondary'
+              activeSection === t.key ? 'bg-surface text-text-primary' : 'text-text-tertiary hover:text-text-secondary'
             }`}>
             {t.label}
           </button>
@@ -518,20 +519,20 @@ export function RelazioneTab({ clientId, client, interactions: initial, allProfi
 
           {items.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center rounded-lg border border-[#2A2A2A] overflow-hidden bg-[#0D0D0D]">
+              <div className="flex items-center rounded-lg border border-border overflow-hidden bg-surface">
                 <button onClick={() => setFilterType('tutti')}
-                  className={`h-7 px-3 text-[11px] font-bold border-r border-[#2A2A2A] transition-all ${filterType === 'tutti' ? 'bg-[#1A1A1A] text-white' : 'text-[#555] hover:text-text-secondary'}`}>
+                  className={`h-7 px-3 text-[11px] font-bold border-r border-border transition-all ${filterType === 'tutti' ? 'bg-surface text-text-primary' : 'text-text-secondary hover:text-text-secondary'}`}>
                   Tutti
                 </button>
                 {(Object.keys(TYPE_CONFIG) as InteractionType[]).filter(t => items.some(i => i.type === t)).map(t => (
                   <button key={t} onClick={() => setFilterType(t === filterType ? 'tutti' : t)}
-                    className={`h-7 px-3 text-[11px] font-bold border-r border-[#2A2A2A] last:border-r-0 transition-all ${filterType === t ? 'bg-[#1A1A1A] text-white' : 'text-[#555] hover:text-text-secondary'}`}>
+                    className={`h-7 px-3 text-[11px] font-bold border-r border-border last:border-r-0 transition-all ${filterType === t ? 'bg-surface text-text-primary' : 'text-text-secondary hover:text-text-secondary'}`}>
                     {TYPE_CONFIG[t].label}
                   </button>
                 ))}
               </div>
               <button onClick={() => setOnlyMilestones(v => !v)}
-                className={`flex items-center gap-1.5 h-7 px-3 rounded-lg text-[11px] font-bold border transition-all ${onlyMilestones ? 'border-gold/30 bg-gold/10 text-gold' : 'border-[#2A2A2A] text-[#555] hover:text-text-secondary'}`}>
+                className={`flex items-center gap-1.5 h-7 px-3 rounded-lg text-[11px] font-bold border transition-all ${onlyMilestones ? 'border-gold/30 bg-gold/10 text-gold' : 'border-border text-text-secondary hover:text-text-secondary'}`}>
                 <Star className="w-3 h-3" /> Solo milestone
               </button>
             </div>
@@ -560,7 +561,7 @@ export function RelazioneTab({ clientId, client, interactions: initial, allProfi
       )}
 
       {/* ── CONTRATTO ── */}
-      {activeSection === 'contratto' && (
+      {!hideEconomics && activeSection === 'contratto' && (
         <div className="space-y-4">
           {/* Info contratto */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -575,7 +576,7 @@ export function RelazioneTab({ clientId, client, interactions: initial, allProfi
                   {icon}
                   <span className="text-[9px] font-black uppercase tracking-widest">{label}</span>
                 </div>
-                <p className="text-sm font-bold text-white">{value}</p>
+                <p className="text-sm font-bold text-text-primary">{value}</p>
               </div>
             ))}
           </div>
@@ -583,7 +584,7 @@ export function RelazioneTab({ clientId, client, interactions: initial, allProfi
           {/* Timeline eventi di sistema */}
           {systemEvents.length > 0 && (
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-[#333] mb-3">Eventi chiave</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-3">Eventi chiave</p>
               <div className="pt-1">
                 {systemEvents.map((e, i) => <SystemEventItem key={i} event={e} />)}
               </div>

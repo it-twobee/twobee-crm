@@ -36,33 +36,33 @@ export default function ResetPasswordPage() {
     setTimeout(() => router.push('/dashboard'), 2500)
   }
 
-  const ic = 'w-full bg-background border border-[#2A2A2A] rounded-lg px-4 py-3 text-sm text-white placeholder-text-secondary focus:outline-none focus:border-gold transition-colors'
+  const ic = 'w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-text-primary placeholder-text-secondary focus:outline-none focus:border-gold transition-colors'
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
           <h1 className="text-4xl font-black tracking-tight mb-2">
-            <span className="text-white">two bee</span><span className="text-gold">.</span>
+            <span className="text-text-primary">two bee</span><span className="text-gold">.</span>
           </h1>
         </div>
-        <div className="bg-surface border border-[#2A2A2A] rounded-2xl p-8">
+        <div className="bg-surface border border-border rounded-2xl p-8">
           {done ? (
             <div className="text-center py-4">
               <CheckCircle2 className="w-12 h-12 text-gold mx-auto mb-3" />
-              <h2 className="text-lg font-bold text-white mb-1">Password aggiornata!</h2>
+              <h2 className="text-lg font-bold text-text-primary mb-1">Password aggiornata!</h2>
               <p className="text-text-secondary text-sm">Reindirizzamento in corso...</p>
             </div>
           ) : (
             <>
-              <h2 className="text-xl font-bold mb-2 text-center text-white">Nuova Password</h2>
+              <h2 className="text-xl font-bold mb-2 text-center text-text-primary">Nuova Password</h2>
               <p className="text-text-secondary text-sm text-center mb-6">Scegli una password sicura di almeno 8 caratteri.</p>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm text-text-secondary mb-1.5">Nuova password</label>
                   <div className="relative">
                     <input type={showPw ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} className={ic} placeholder="••••••••" />
-                    <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-white">
+                    <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary">
                       {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>

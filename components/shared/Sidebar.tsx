@@ -13,6 +13,7 @@ import {
 import { useState, useCallback } from 'react'
 import { usePermissions } from '@/lib/hooks/usePermissions'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
+import { ThemeToggle } from '@/components/theme/ThemeToggle'
 
 interface NavItem {
   href: string
@@ -131,15 +132,15 @@ export function Sidebar() {
     <aside
       className={cn(
         'flex flex-col h-screen sticky top-0 transition-all duration-200 shrink-0',
-        'bg-[rgba(255,255,255,0.02)] backdrop-blur-xl border-r border-white/[0.06]',
+        'bg-surface backdrop-blur-xl border-r border-border',
         sidebarCollapsed ? 'w-16' : 'w-56'
       )}
     >
       {/* Logo */}
-      <div className="flex items-center h-14 px-4 border-b border-white/[0.06]">
+      <div className="flex items-center h-14 px-4 border-b border-border">
         {!sidebarCollapsed ? (
           <Link href="/dashboard" className="text-lg font-black font-heading tracking-tight">
-            <span className="text-white">two bee</span>
+            <span className="text-text-primary">two bee</span>
             <span className="text-gold">.</span>
           </Link>
         ) : (
@@ -169,7 +170,7 @@ export function Sidebar() {
                     'w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors',
                     hasActiveChild && isSectionCollapsed
                       ? 'text-gold'
-                      : 'text-white/30 hover:text-white/50'
+                      : 'text-text-tertiary hover:text-text-secondary'
                   )}
                 >
                   <span>{section.label}</span>
@@ -179,7 +180,7 @@ export function Sidebar() {
                   }
                 </button>
               ) : (
-                <div className="h-px bg-white/[0.04] mx-2 my-2" />
+                <div className="h-px bg-border mx-2 my-2" />
               )}
 
               {!isSectionCollapsed && (
@@ -194,11 +195,11 @@ export function Sidebar() {
                         className={cn(
                           'flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] transition-all duration-150 group',
                           isActive
-                            ? 'bg-gold/[0.08] text-gold font-medium'
-                            : 'text-white/50 hover:text-white/80 hover:bg-white/[0.03]'
+                            ? 'bg-gold-dim text-gold font-medium'
+                            : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
                         )}
                       >
-                        <item.icon className={cn('w-[18px] h-[18px] shrink-0', isActive ? 'text-gold' : 'text-white/30 group-hover:text-white/50')} />
+                        <item.icon className={cn('w-[18px] h-[18px] shrink-0', isActive ? 'text-gold' : 'text-text-tertiary group-hover:text-text-secondary')} />
                         {!sidebarCollapsed && (
                           <span className="truncate flex-1">{item.label}</span>
                         )}
@@ -215,26 +216,31 @@ export function Sidebar() {
 
       {/* User mini profile */}
       {profile && !sidebarCollapsed && (
-        <div className="border-t border-white/[0.06] px-3 py-3">
+        <div className="border-t border-border px-3 py-3">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center text-xs font-bold text-gold shrink-0">
               {profile.avatar_url ? <img src={profile.avatar_url} className="w-full h-full rounded-full object-cover" alt="" /> : (profile.full_name || profile.email)[0].toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1">
-                <p className="text-xs font-medium text-white/80 truncate">{profile.full_name}</p>
+                <p className="text-xs font-medium text-text-secondary truncate">{profile.full_name}</p>
                 {SUPER_ADMIN_EMAILS.includes(profile.email) && <Crown className="w-3 h-3 text-gold shrink-0" />}
               </div>
-              <p className="text-[10px] text-white/30 capitalize">{SUPER_ADMIN_EMAILS.includes(profile.email) ? 'super admin' : (profile.app_role?.replace('_', ' ') ?? profile.role)}</p>
+              <p className="text-[10px] text-text-tertiary capitalize">{SUPER_ADMIN_EMAILS.includes(profile.email) ? 'super admin' : (profile.app_role?.replace('_', ' ') ?? profile.role)}</p>
             </div>
           </div>
         </div>
       )}
 
+      {/* Theme toggle */}
+      <div className="border-t border-border px-2 py-1.5">
+        <ThemeToggle collapsed={sidebarCollapsed} className="w-full" />
+      </div>
+
       {/* Collapse toggle */}
       <button
         onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-        className="flex items-center justify-center h-10 border-t border-white/[0.06] text-white/20 hover:text-white/50 transition-colors"
+        className="flex items-center justify-center h-10 border-t border-border text-text-tertiary hover:text-text-secondary transition-colors"
       >
         {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
       </button>

@@ -37,8 +37,8 @@ export default async function TimesheetPage() {
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-xl font-black text-white">Timesheet</h1>
-        <p className="text-xs text-[#444] mt-0.5">Registra e monitora le ore lavorate per progetto</p>
+        <h1 className="text-xl font-black text-text-primary">Timesheet</h1>
+        <p className="text-xs text-text-tertiary mt-0.5">Registra e monitora le ore lavorate per progetto</p>
       </div>
       <TimesheetTable
         initialEntries={entries}

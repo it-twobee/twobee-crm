@@ -8,12 +8,12 @@ export const revalidate = 0
 
 function kpiCard(label: string, value: number, icon: React.ReactNode, accent: string) {
   return (
-    <div className={cn('p-5 rounded-2xl bg-[#1A1A1A] border', accent)}>
+    <div className={cn('p-5 rounded-2xl bg-surface border', accent)}>
       <div className="flex items-center justify-between mb-2">
-        <span className="text-white/50 text-xs">{label}</span>
+        <span className="text-overlay/50 text-xs">{label}</span>
         <span className={cn('p-1.5 rounded-lg bg-current/10')}>{icon}</span>
       </div>
-      <p className="text-2xl font-bold text-white">{value}</p>
+      <p className="text-2xl font-bold text-text-primary">{value}</p>
     </div>
   )
 }
@@ -83,52 +83,52 @@ export default async function WorkspaceDashboardPage() {
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white">Ciao, {name} 👋</h1>
-        <p className="text-white/40 text-sm mt-1">
+        <h1 className="text-2xl font-bold text-text-primary">Ciao, {name} 👋</h1>
+        <p className="text-overlay/40 text-sm mt-1">
           {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
       </div>
 
       {/* KPI */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-        <div className="p-5 rounded-2xl bg-[#1A1A1A] border border-red-500/20">
+        <div className="p-5 rounded-2xl bg-surface border border-error/20">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-white/50 text-xs">Scadute</span>
-            <AlertCircle className="w-4 h-4 text-red-400" />
+            <span className="text-overlay/50 text-xs">Scadute</span>
+            <AlertCircle className="w-4 h-4 text-error" />
           </div>
-          <p className="text-2xl font-bold text-white">{overdue.length}</p>
+          <p className="text-2xl font-bold text-text-primary">{overdue.length}</p>
         </div>
-        <div className="p-5 rounded-2xl bg-[#1A1A1A] border border-[#F5C800]/20">
+        <div className="p-5 rounded-2xl bg-surface border border-gold/20">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-white/50 text-xs">Oggi</span>
-            <Clock className="w-4 h-4 text-[#F5C800]" />
+            <span className="text-overlay/50 text-xs">Oggi</span>
+            <Clock className="w-4 h-4 text-gold" />
           </div>
-          <p className="text-2xl font-bold text-white">{dueToday.length}</p>
+          <p className="text-2xl font-bold text-text-primary">{dueToday.length}</p>
         </div>
-        <div className="p-5 rounded-2xl bg-[#1A1A1A] border border-blue-500/20">
+        <div className="p-5 rounded-2xl bg-surface border border-info/20">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-white/50 text-xs">Settimana</span>
-            <Calendar className="w-4 h-4 text-blue-400" />
+            <span className="text-overlay/50 text-xs">Settimana</span>
+            <Calendar className="w-4 h-4 text-info" />
           </div>
-          <p className="text-2xl font-bold text-white">{dueWeek.length}</p>
+          <p className="text-2xl font-bold text-text-primary">{dueWeek.length}</p>
         </div>
-        <div className="p-5 rounded-2xl bg-[#1A1A1A] border border-green-500/20">
+        <div className="p-5 rounded-2xl bg-surface border border-success/20">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-white/50 text-xs">Progetti</span>
-            <FolderKanban className="w-4 h-4 text-green-400" />
+            <span className="text-overlay/50 text-xs">Progetti</span>
+            <FolderKanban className="w-4 h-4 text-success" />
           </div>
-          <p className="text-2xl font-bold text-white">{projectIds.length}</p>
+          <p className="text-2xl font-bold text-text-primary">{projectIds.length}</p>
         </div>
       </div>
 
       {/* HR alert */}
       {(hrRes.data?.length ?? 0) > 0 && (
-        <div className="mb-6 flex items-center gap-3 p-4 rounded-xl bg-[#F5C800]/5 border border-[#F5C800]/20">
-          <Clock className="w-4 h-4 text-[#F5C800] shrink-0" />
-          <span className="text-[#F5C800] text-sm">
+        <div className="mb-6 flex items-center gap-3 p-4 rounded-xl bg-gold-dim border border-gold/20">
+          <Clock className="w-4 h-4 text-gold shrink-0" />
+          <span className="text-gold text-sm">
             {hrRes.data!.length} richiesta HR in attesa
           </span>
-          <Link href="/workspace/hr" className="ml-auto text-[#F5C800]/60 hover:text-[#F5C800] text-xs flex items-center gap-1">
+          <Link href="/workspace/hr" className="ml-auto text-gold/60 hover:text-gold text-xs flex items-center gap-1">
             Vedi <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
@@ -138,7 +138,7 @@ export default async function WorkspaceDashboardPage() {
       <div className="flex flex-col gap-6">
         {overdue.length > 0 && (
           <section>
-            <h2 className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-2">
+            <h2 className="text-xs font-semibold text-error uppercase tracking-wider mb-2">
               Scadute ({overdue.length})
             </h2>
             <TaskList tasks={overdue} statusColorMap={STATUS_COLOR} />
@@ -147,7 +147,7 @@ export default async function WorkspaceDashboardPage() {
 
         {dueToday.length > 0 && (
           <section>
-            <h2 className="text-xs font-semibold text-[#F5C800] uppercase tracking-wider mb-2">
+            <h2 className="text-xs font-semibold text-gold uppercase tracking-wider mb-2">
               Oggi ({dueToday.length})
             </h2>
             <TaskList tasks={dueToday} statusColorMap={STATUS_COLOR} />
@@ -156,7 +156,7 @@ export default async function WorkspaceDashboardPage() {
 
         {dueWeek.length > 0 && (
           <section>
-            <h2 className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-2">
+            <h2 className="text-xs font-semibold text-info uppercase tracking-wider mb-2">
               Prossimi 7 giorni ({dueWeek.length})
             </h2>
             <TaskList tasks={dueWeek} statusColorMap={STATUS_COLOR} />
@@ -164,15 +164,15 @@ export default async function WorkspaceDashboardPage() {
         )}
 
         {allTasks.length === 0 && (
-          <div className="text-center py-20 text-white/30 text-sm">
-            <CheckCircle2 className="w-8 h-8 mx-auto mb-3 text-green-400/30" />
+          <div className="text-center py-20 text-overlay/30 text-sm">
+            <CheckCircle2 className="w-8 h-8 mx-auto mb-3 text-success/30" />
             Nessuna task attiva. Ottimo lavoro!
           </div>
         )}
 
         {allTasks.length > 0 && overdue.length === 0 && dueToday.length === 0 && dueWeek.length === 0 && (
           <section>
-            <h2 className="text-xs font-semibold text-white/30 uppercase tracking-wider mb-2">
+            <h2 className="text-xs font-semibold text-overlay/30 uppercase tracking-wider mb-2">
               Altre task ({allTasks.length})
             </h2>
             <TaskList tasks={allTasks.slice(0, 15)} statusColorMap={STATUS_COLOR} />
@@ -180,8 +180,8 @@ export default async function WorkspaceDashboardPage() {
         )}
       </div>
 
-      <div className="mt-6 pt-4 border-t border-[#2A2A2A]">
-        <Link href="/workspace/attivita" className="text-white/30 hover:text-white/60 text-sm flex items-center gap-1 transition-colors">
+      <div className="mt-6 pt-4 border-t border-border">
+        <Link href="/workspace/attivita" className="text-overlay/30 hover:text-overlay/60 text-sm flex items-center gap-1 transition-colors">
           Tutte le attività <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>
@@ -199,21 +199,21 @@ function TaskList({
   return (
     <div className="flex flex-col gap-1">
       {tasks.map(t => (
-        <div key={t.id} className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-[#1A1A1A] border border-[#2A2A2A] hover:border-[#2A2A2A]/80">
+        <div key={t.id} className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-surface border border-border hover:border-border/80">
           <span className={cn('text-xs w-16 shrink-0', statusColorMap[t.status] ?? 'text-white/40')}>
             {t.status === 'da_fare' ? 'Da fare' : t.status === 'in_corso' ? 'In corso' : 'Revisione'}
           </span>
-          <span className="text-white text-sm truncate flex-1">{t.title}</span>
+          <span className="text-text-primary text-sm truncate flex-1">{t.title}</span>
           {t.project && (
             <Link
               href={`/workspace/progetti/${t.project.id}`}
-              className="text-white/25 hover:text-white/50 text-xs truncate max-w-[120px] shrink-0 transition-colors"
+              className="text-overlay/25 hover:text-overlay/50 text-xs truncate max-w-[120px] shrink-0 transition-colors"
             >
               {t.project.name}
             </Link>
           )}
           {t.due_date && (
-            <span className="text-white/25 text-xs shrink-0">
+            <span className="text-overlay/25 text-xs shrink-0">
               {new Date(t.due_date + 'T00:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
             </span>
           )}

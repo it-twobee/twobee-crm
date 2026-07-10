@@ -45,16 +45,16 @@ export function AlertCenter({ alerts: initial }: Props) {
     <div className="p-5 h-full overflow-auto">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <p className="text-xs font-semibold text-white/30 uppercase tracking-widest">Alert</p>
+          <p className="text-xs font-semibold text-overlay/30 uppercase tracking-widest">Alert</p>
           {visible.length > 0 && (
-            <span className="text-[10px] font-black bg-red-500/10 text-red-400 px-2 py-0.5 rounded-full">
+            <span className="text-[10px] font-black bg-error/10 text-error px-2 py-0.5 rounded-full">
               {visible.length}
             </span>
           )}
         </div>
         {visible.length > 0 && (
           <button onClick={() => setDismissed(new Set(alerts.map(a => a.id)))}
-            className="text-[10px] text-white/30 hover:text-white/60 transition-colors">
+            className="text-[10px] text-overlay/30 hover:text-overlay/60 transition-colors">
             Ignora tutti
           </button>
         )}
@@ -65,7 +65,7 @@ export function AlertCenter({ alerts: initial }: Props) {
           <CheckCircle2 className="w-5 h-5 shrink-0" />
           <div>
             <p className="text-sm font-bold">Tutto sotto controllo</p>
-            <p className="text-xs text-white/30 mt-0.5">Nessuna azione urgente richiesta</p>
+            <p className="text-xs text-overlay/30 mt-0.5">Nessuna azione urgente richiesta</p>
           </div>
         </div>
       ) : (
@@ -80,12 +80,12 @@ export function AlertCenter({ alerts: initial }: Props) {
                   {ICONS[alert.icon]}
                 </div>
                 <Link href={alert.href} className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-white/90 leading-snug">{alert.title}</p>
-                  <p className="text-[10px] text-white/30 mt-0.5 leading-snug">{alert.detail}</p>
-                  {alert.time && <p className="text-[9px] text-white/20 mt-1">{alert.time}</p>}
+                  <p className="text-xs font-bold text-overlay/90 leading-snug">{alert.title}</p>
+                  <p className="text-[10px] text-overlay/30 mt-0.5 leading-snug">{alert.detail}</p>
+                  {alert.time && <p className="text-[9px] text-overlay/20 mt-1">{alert.time}</p>}
                 </Link>
                 <button onClick={() => dismiss(alert.id)}
-                  className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-white/15 hover:text-white/40 mt-0.5">
+                  className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-overlay/15 hover:text-overlay/40 mt-0.5">
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>

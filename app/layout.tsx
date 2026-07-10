@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter, League_Spartan } from 'next/font/google'
-import { Toaster } from 'sonner'
+import { ThemeProvider } from '@/components/theme/ThemeProvider'
+import { ThemedToaster } from '@/components/theme/ThemedToaster'
 import './globals.css'
 
 const inter = Inter({
@@ -29,20 +30,18 @@ export default function RootLayout({
 }) {
   return (
     <html lang="it" className={`${inter.variable} ${leagueSpartan.variable}`}>
-      <body className="bg-background antialiased">
-        {children}
-        <Toaster
-          theme="dark"
-          toastOptions={{
-            style: {
-              background: 'rgba(255,255,255,0.06)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              border: '1px solid rgba(255,255,255,0.10)',
-              color: '#FFFFFF',
-            },
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('twobee-theme');if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t)}}catch(e){}})();`,
           }}
         />
+      </head>
+      <body className="bg-background antialiased">
+        <ThemeProvider>
+          {children}
+          <ThemedToaster />
+        </ThemeProvider>
       </body>
     </html>
   )

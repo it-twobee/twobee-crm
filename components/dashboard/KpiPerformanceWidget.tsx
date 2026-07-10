@@ -26,12 +26,12 @@ function Delta({ curr, prev, lowerBetter = false }: {
   curr?: number | null; prev?: number | null; lowerBetter?: boolean
 }) {
   if (curr == null || prev == null || prev === 0) {
-    return <span className="text-[#333] text-[9px]">—</span>
+    return <span className="text-text-tertiary text-[9px]">—</span>
   }
   const pct = ((curr - prev) / Math.abs(prev)) * 100
   const flat = Math.abs(pct) < 0.5
   const isGood = flat ? true : lowerBetter ? pct < 0 : pct > 0
-  const color = flat ? '#444' : isGood ? '#22C55E' : '#EF4444'
+  const color = flat ? 'var(--color-text-tertiary)' : isGood ? 'var(--color-success)' : 'var(--color-error)'
   const Icon = flat ? Minus : isGood ? TrendingUp : TrendingDown
   return (
     <span className="flex items-center gap-0.5 text-[9px] font-bold" style={{ color }}>
@@ -44,8 +44,8 @@ function Delta({ curr, prev, lowerBetter = false }: {
 function KpiCell({ label, value, delta }: { label: string; value: string; delta: React.ReactNode }) {
   return (
     <div className="text-right min-w-[52px]">
-      <div className="text-[9px] text-[#555] leading-none mb-0.5">{label}</div>
-      <div className="text-xs font-bold text-white leading-none">{value}</div>
+      <div className="text-[9px] text-text-secondary leading-none mb-0.5">{label}</div>
+      <div className="text-xs font-bold text-text-primary leading-none">{value}</div>
       <div className="mt-0.5">{delta}</div>
     </div>
   )
@@ -73,8 +73,8 @@ export function KpiPerformanceWidget({ kpiSnapshot, clientsById }: {
   if (rows.length === 0) {
     return (
       <div className="p-4 h-full flex flex-col items-center justify-center gap-1.5 text-center">
-        <p className="text-[#444] text-sm font-semibold">Nessun dato KPI</p>
-        <p className="text-[#333] text-xs">Inserisci KPI mensili dai progetti</p>
+        <p className="text-text-tertiary text-sm font-semibold">Nessun dato KPI</p>
+        <p className="text-text-tertiary text-xs">Inserisci KPI mensili dai progetti</p>
       </div>
     )
   }
@@ -84,9 +84,9 @@ export function KpiPerformanceWidget({ kpiSnapshot, clientsById }: {
   return (
     <div className="p-3 h-full flex flex-col overflow-hidden">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] font-black text-[#555] uppercase tracking-wider">KPI Performance</span>
+        <span className="text-[10px] font-black text-text-secondary uppercase tracking-wider">KPI Performance</span>
         {latestMonth && (
-          <span className="text-[9px] text-[#333] bg-[#1A1A1A] border border-[#2A2A2A] rounded px-1.5 py-0.5">
+          <span className="text-[9px] text-text-tertiary bg-surface border border-border rounded px-1.5 py-0.5">
             {new Date(latestMonth + '-01').toLocaleDateString('it-IT', { month: 'short', year: '2-digit' })}
           </span>
         )}
@@ -101,7 +101,7 @@ export function KpiPerformanceWidget({ kpiSnapshot, clientsById }: {
             <Link
               key={clientId}
               href={`/clienti/${clientId}`}
-              className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-[#1E1E1E] transition-colors cursor-pointer"
+              className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-hover transition-colors cursor-pointer"
             >
               <span className={`shrink-0 text-[8px] font-black px-1 py-0.5 rounded leading-none ${
                 isGrowth ? 'bg-[#F5C800]/10 text-[#F5C800]' : 'bg-[#3B82F6]/10 text-[#60A5FA]'
@@ -109,7 +109,7 @@ export function KpiPerformanceWidget({ kpiSnapshot, clientsById }: {
                 {isGrowth ? 'G' : 'D'}
               </span>
 
-              <span className="text-white text-xs font-semibold truncate flex-1 min-w-0">
+              <span className="text-text-primary text-xs font-semibold truncate flex-1 min-w-0">
                 {latest.company_name}
               </span>
 

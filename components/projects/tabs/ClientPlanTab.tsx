@@ -3,10 +3,11 @@
 import { useState } from 'react'
 import {
   Plus, Check, Trash2, Loader2, ChevronDown, ChevronRight,
-  Calendar, GripVertical, Star,
+  Calendar, Star, Sparkles, ListChecks, PenLine, RefreshCw,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { CLIENT_TASK_TEMPLATES, PHASE_COLOR, type ClientTaskTemplate } from '@/lib/reparti-constants'
 import type { Task, Project, Client } from '@/lib/types/database'
 
 interface Props {
@@ -20,6 +21,10 @@ interface ClientTask extends Task {
   is_client_task: boolean
 }
 
+type Suggestion = ClientTaskTemplate
+
+type AddMode = 'closed' | 'picker' | 'manuale' | 'template' | 'ai'
+
 export function ClientPlanSection({ project, client, isAdmin, accent }: Props) {
   const [tasks, setTasks]       = useState<ClientTask[]>([])
   const [loaded, setLoaded]     = useState(false)
@@ -28,13 +33,17 @@ export function ClientPlanSection({ project, client, isAdmin, accent }: Props) {
   const [newDue, setNewDue]     = useState('')
   const [newHint, setNewHint]   = useState('')
   const [adding, setAdding]     = useState(false)
-  const [showAdd, setShowAdd]   = useState(false)
+  const [addMode, setAddMode]   = useState<AddMode>('closed')
   const [editId, setEditId]     = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editDue, setEditDue]   = useState('')
   const [editHint, setEditHint] = useState('')
   const [saving, setSaving]     = useState(false)
   const [showCompleted, setShowCompleted] = useState(false)
+
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [selected, setSelected]       = useState<Set<number>>(new Set())
+  const [aiLoading, setAiLoading]     = useState(false)
 
   const sb = createClient()
 
@@ -53,6 +62,12 @@ export function ClientPlanSection({ project, client, isAdmin, accent }: Props) {
 
   const pending   = tasks.filter(t => t.status !== 'completato')
   const completed = tasks.filter(t => t.status === 'completato')
+
+  const closeAdd = () => {
+    setAddMode('closed')
+    setNewTitle(''); setNewDue(''); setNewHint('')
+    setSuggestions([]); setSelected(new Set())
+  }
 
   const addTask = async () => {
     if (!newTitle.trim() || adding) return
@@ -74,11 +89,74 @@ export function ClientPlanSection({ project, client, isAdmin, accent }: Props) {
     setAdding(false)
     if (error) { toast.error(error.message); return }
     setTasks(prev => [...prev, data as ClientTask])
-    setNewTitle('')
-    setNewDue('')
-    setNewHint('')
-    setShowAdd(false)
+    closeAdd()
     toast.success('Task aggiunta al piano cliente')
+  }
+
+  const addBulkTasks = async (items: Suggestion[]) => {
+    if (items.length === 0 || adding) return
+    setAdding(true)
+    const rows = items.map((it, i) => ({
+      project_id: project.id,
+      title: it.title,
+      description: it.hint?.trim() || null,
+      status: 'da_fare' as const,
+      priority: it.priority ?? 'media',
+      is_client_task: true,
+      is_milestone: false,
+      due_date: null,
+      position: tasks.length + i,
+      tags: [it.category, it.phase].filter(Boolean),
+      logged_hours: 0,
+      depth: 0,
+    }))
+    const { data, error } = await sb.from('tasks').insert(rows).select()
+    setAdding(false)
+    if (error) { toast.error(error.message); return }
+    setTasks(prev => [...prev, ...((data ?? []) as ClientTask[])])
+    closeAdd()
+    toast.success(`${items.length} task aggiunte al piano cliente`)
+  }
+
+  const generateWithAi = async () => {
+    setAiLoading(true)
+    setSuggestions([])
+    try {
+      const res = await fetch('/api/reparti/client-tasks-ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectName: project.name,
+          projectType: project.project_type,
+          clientName: client.company_name,
+          existingTasks: tasks.map(t => ({ title: t.title, phase: (t.tags ?? []).find(x => ['onboarding', 'build', 'lancio'].includes(x)) ?? '', category: '' })),
+        }),
+      })
+      const data = await res.json()
+      const items = (data.tasks ?? []) as Suggestion[]
+      setSuggestions(items)
+      setSelected(new Set(items.map((_, i) => i)))
+      if (items.length === 0) toast.error('Nessun suggerimento generato')
+    } catch {
+      toast.error('Errore nella generazione AI')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  const openTemplate = () => {
+    const items = CLIENT_TASK_TEMPLATES[project.project_type] ?? CLIENT_TASK_TEMPLATES.custom
+    setSuggestions(items)
+    setSelected(new Set(items.map((_, i) => i)))
+    setAddMode('template')
+  }
+
+  const toggleSelected = (i: number) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i); else next.add(i)
+      return next
+    })
   }
 
   const toggleStatus = async (task: ClientTask) => {
@@ -137,7 +215,7 @@ export function ClientPlanSection({ project, client, isAdmin, accent }: Props) {
             <Star className="w-4 h-4" style={{ color: accent }} />
           </div>
           <div>
-            <h2 className="text-sm font-black text-white">Piano Cliente</h2>
+            <h2 className="text-sm font-black text-white">Task al cliente</h2>
             <p className="text-[10px] text-text-secondary mt-0.5">
               Task assegnate a {client.company_name} — visibili nel portale cliente
             </p>
@@ -147,8 +225,8 @@ export function ClientPlanSection({ project, client, isAdmin, accent }: Props) {
           <span className="text-[10px] text-text-secondary">
             {completed.length}/{tasks.length} completate
           </span>
-          {isAdmin && (
-            <button onClick={() => setShowAdd(v => !v)}
+          {isAdmin && addMode === 'closed' && (
+            <button onClick={() => setAddMode('picker')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
               style={{ background: `${accent}15`, color: accent }}>
               <Plus className="w-3 h-3" /> Aggiungi
@@ -170,8 +248,36 @@ export function ClientPlanSection({ project, client, isAdmin, accent }: Props) {
         </div>
       )}
 
-      {/* Add form */}
-      {showAdd && isAdmin && (
+      {/* Mode picker */}
+      {isAdmin && addMode === 'picker' && (
+        <div className="bg-surface border border-[#2A2A2A] rounded-xl p-4">
+          <p className="text-xs text-text-secondary mb-3">Come vuoi aggiungere le task?</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <button onClick={() => setAddMode('manuale')}
+              className="flex flex-col items-center gap-2 p-3 rounded-xl border border-[#2A2A2A] hover:border-[#3A3A3A] bg-[#111] transition-colors">
+              <PenLine className="w-4 h-4 text-text-secondary" />
+              <span className="text-xs font-bold text-white">Manuale</span>
+              <span className="text-[10px] text-text-secondary text-center">Scrivi una task alla volta</span>
+            </button>
+            <button onClick={openTemplate}
+              className="flex flex-col items-center gap-2 p-3 rounded-xl border border-[#2A2A2A] hover:border-[#3A3A3A] bg-[#111] transition-colors">
+              <ListChecks className="w-4 h-4 text-text-secondary" />
+              <span className="text-xs font-bold text-white">Template intelligente</span>
+              <span className="text-[10px] text-text-secondary text-center">Checklist pronta in base al tipo di progetto</span>
+            </button>
+            <button onClick={() => { setAddMode('ai'); generateWithAi() }}
+              className="flex flex-col items-center gap-2 p-3 rounded-xl border border-[#2A2A2A] hover:border-[#3A3A3A] bg-[#111] transition-colors">
+              <Sparkles className="w-4 h-4 text-text-secondary" />
+              <span className="text-xs font-bold text-white">Genera con AI</span>
+              <span className="text-[10px] text-text-secondary text-center">Suggerimenti su misura per il progetto</span>
+            </button>
+          </div>
+          <button onClick={closeAdd} className="mt-3 text-xs text-text-secondary hover:text-white transition-colors">Annulla</button>
+        </div>
+      )}
+
+      {/* Manuale */}
+      {isAdmin && addMode === 'manuale' && (
         <div className="bg-surface border border-[#2A2A2A] rounded-xl p-4 space-y-3">
           <input autoFocus value={newTitle} onChange={e => setNewTitle(e.target.value)}
             placeholder="Cosa deve fare il cliente?"
@@ -186,13 +292,70 @@ export function ClientPlanSection({ project, client, isAdmin, accent }: Props) {
               <input type="date" value={newDue} onChange={e => setNewDue(e.target.value)}
                 className="bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-gold/40" />
             </div>
-            <button onClick={() => { setShowAdd(false); setNewTitle(''); setNewDue(''); setNewHint('') }}
+            <button onClick={closeAdd}
               className="px-3 py-2 text-xs text-text-secondary hover:text-white transition-colors">Annulla</button>
             <button onClick={addTask} disabled={!newTitle.trim() || adding}
               className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg text-black disabled:opacity-40 transition-colors"
               style={{ background: accent }}>
               {adding ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
               Aggiungi
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Template / AI review */}
+      {isAdmin && (addMode === 'template' || addMode === 'ai') && (
+        <div className="bg-surface border border-[#2A2A2A] rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-white flex items-center gap-1.5">
+              {addMode === 'ai' ? <Sparkles className="w-3.5 h-3.5" style={{ color: accent }} /> : <ListChecks className="w-3.5 h-3.5" style={{ color: accent }} />}
+              {addMode === 'ai' ? 'Suggerimenti AI' : `Template — ${project.project_type}`}
+            </p>
+            {addMode === 'ai' && (
+              <button onClick={generateWithAi} disabled={aiLoading}
+                className="flex items-center gap-1 text-[10px] text-text-secondary hover:text-white transition-colors disabled:opacity-40">
+                <RefreshCw className={`w-3 h-3 ${aiLoading ? 'animate-spin' : ''}`} /> Rigenera
+              </button>
+            )}
+          </div>
+
+          {aiLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-5 h-5 animate-spin" style={{ color: accent }} />
+            </div>
+          ) : suggestions.length === 0 ? (
+            <p className="text-xs text-text-secondary py-4 text-center">Nessun suggerimento disponibile.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {suggestions.map((s, i) => (
+                <label key={i} className="flex items-start gap-2.5 p-2.5 rounded-lg hover:bg-white/[0.03] cursor-pointer transition-colors">
+                  <input type="checkbox" checked={selected.has(i)} onChange={() => toggleSelected(i)}
+                    className="mt-0.5 accent-gold" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-white">{s.title}</p>
+                    {s.hint && <p className="text-[10px] text-text-secondary mt-0.5">{s.hint}</p>}
+                  </div>
+                  {s.phase && (
+                    <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full shrink-0"
+                      style={{ background: `${PHASE_COLOR[s.phase] ?? '#6B7280'}18`, color: PHASE_COLOR[s.phase] ?? '#6B7280' }}>
+                      {s.phase}
+                    </span>
+                  )}
+                </label>
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button onClick={closeAdd} className="px-3 py-2 text-xs text-text-secondary hover:text-white transition-colors">Annulla</button>
+            <button
+              onClick={() => addBulkTasks(suggestions.filter((_, i) => selected.has(i)))}
+              disabled={selected.size === 0 || adding || aiLoading}
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg text-black disabled:opacity-40 transition-colors"
+              style={{ background: accent }}>
+              {adding ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+              Aggiungi selezionate ({selected.size})
             </button>
           </div>
         </div>
@@ -293,7 +456,7 @@ export function ClientPlanSection({ project, client, isAdmin, accent }: Props) {
       )}
 
       {/* Empty */}
-      {tasks.length === 0 && (
+      {tasks.length === 0 && addMode === 'closed' && (
         <div className="text-center py-16">
           <div className="w-14 h-14 rounded-2xl bg-surface border border-[#2A2A2A] flex items-center justify-center mx-auto mb-4">
             <Star className="w-6 h-6 text-[#2A2A2A]" />
@@ -303,7 +466,7 @@ export function ClientPlanSection({ project, client, isAdmin, accent }: Props) {
             Crea task che appariranno nel portale di {client.company_name}
           </p>
           {isAdmin && (
-            <button onClick={() => setShowAdd(true)}
+            <button onClick={() => setAddMode('picker')}
               className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl text-black"
               style={{ background: accent }}>
               <Plus className="w-3.5 h-3.5" /> Prima task

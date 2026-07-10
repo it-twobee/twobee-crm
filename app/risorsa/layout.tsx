@@ -17,7 +17,7 @@ export default async function RisorsaLayout({ children }: { children: React.Reac
   const isExternal = kind === 'resource'
 
   return (
-    <div className="min-h-screen bg-[#111111] flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       <RisorsaNav profile={profile as Profile} isExternal={isExternal} />
       <main className="flex-1">{children}</main>
     </div>

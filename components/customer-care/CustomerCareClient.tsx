@@ -61,7 +61,7 @@ const STATUS = {
   active:   { dot: 'bg-success', label: 'Attivo',    chip: 'text-success bg-success/10 border-success/20' },
   atrisk:   { dot: 'bg-warning', label: 'A rischio', chip: 'text-warning bg-warning/10 border-warning/20' },
   inactive: { dot: 'bg-error',   label: 'Inattivo',  chip: 'text-error bg-error/10 border-error/20' },
-  new:      { dot: 'bg-[#444]',  label: 'Nuovo',     chip: 'text-[#888] bg-[#1A1A1A] border-[#2A2A2A]' },
+  new:      { dot: 'bg-text-tertiary',  label: 'Nuovo',     chip: 'text-text-secondary bg-surface border-border' },
 }
 
 function timeAgo(iso: string | null): string {
@@ -164,7 +164,7 @@ function CcMessageRow({ msg, isOwn, compact, canEdit, currentUserId, channelType
     >
       {/* Avatar */}
       {!compact
-        ? <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${isOwn ? 'bg-gold/20 text-gold' : 'bg-[#2A2A2A] text-white'}`}>
+        ? <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${isOwn ? 'bg-gold/20 text-gold' : 'bg-surface-hover text-text-primary'}`}>
             {msg.sender ? getInitials(msg.sender.full_name) : '?'}
           </div>
         : <div className="w-8 shrink-0" />
@@ -173,9 +173,9 @@ function CcMessageRow({ msg, isOwn, compact, canEdit, currentUserId, channelType
       <div className="max-w-[65%] flex flex-col">
         {!compact && (
           <div className={`flex items-baseline gap-2 mb-1 ${isOwn ? 'flex-row-reverse' : ''}`}>
-            {!isOwn && <span className="text-xs font-semibold text-white">{msg.sender?.full_name}</span>}
-            <span className="text-[10px] text-[#555]">{fmtTime(msg.created_at)}</span>
-            {(msg as ChatMessageWithSender & { edited_at?: string }).edited_at && <span className="text-[10px] text-[#444] italic">(modificato)</span>}
+            {!isOwn && <span className="text-xs font-semibold text-text-primary">{msg.sender?.full_name}</span>}
+            <span className="text-[10px] text-text-tertiary">{fmtTime(msg.created_at)}</span>
+            {(msg as ChatMessageWithSender & { edited_at?: string }).edited_at && <span className="text-[10px] text-text-tertiary italic">(modificato)</span>}
           </div>
         )}
 
@@ -185,13 +185,13 @@ function CcMessageRow({ msg, isOwn, compact, canEdit, currentUserId, channelType
             <textarea
               value={editText} onChange={e => setEditText(e.target.value)} autoFocus rows={2}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit() } if (e.key === 'Escape') setEditMode(false) }}
-              className="w-full bg-[#1A1A1A] border border-gold/40 rounded-xl px-3 py-2 text-sm text-white resize-none focus:outline-none"
+              className="w-full bg-surface border border-gold/40 rounded-xl px-3 py-2 text-sm text-text-primary resize-none focus:outline-none"
             />
             <div className="flex gap-2 mt-1.5">
               <button onClick={saveEdit} disabled={saving} className="flex items-center gap-1 text-xs bg-gold text-black font-bold px-2.5 py-1 rounded-lg disabled:opacity-50">
                 {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Salva
               </button>
-              <button onClick={() => setEditMode(false)} className="text-xs text-[#555] hover:text-white px-2 py-1">Annulla</button>
+              <button onClick={() => setEditMode(false)} className="text-xs text-text-tertiary hover:text-text-primary px-2 py-1">Annulla</button>
             </div>
           </div>
         ) : isTicket ? (() => {
@@ -199,18 +199,18 @@ function CcMessageRow({ msg, isOwn, compact, canEdit, currentUserId, channelType
             const data = JSON.parse(msg.content.slice(10))
             const pc: Record<string, string> = { urgente: 'border-red-500/40 bg-red-500/10', alta: 'border-orange-500/40 bg-orange-500/10', normale: 'border-blue-500/40 bg-blue-500/10', bassa: 'border-green-500/40 bg-green-500/10' }
             return (
-              <button onClick={onOpenTicket} className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl border text-left w-full transition-all hover:opacity-80 active:scale-[0.98] ${pc[data.priority] ?? 'border-[#2A2A2A] bg-[#1A1A1A]'}`}>
+              <button onClick={onOpenTicket} className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl border text-left w-full transition-all hover:opacity-80 active:scale-[0.98] ${pc[data.priority] ?? 'border-border bg-surface'}`}>
                 <span className="text-2xl shrink-0">{data.emoji}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-black text-[#888] uppercase tracking-wider mb-0.5">Ticket · {data.priorityLabel}</p>
-                  <p className="text-sm font-bold text-white truncate">{data.title}</p>
-                  <p className="text-[10px] text-[#555] mt-0.5">Clicca per gestire →</p>
+                  <p className="text-[10px] font-black text-text-secondary uppercase tracking-wider mb-0.5">Ticket · {data.priorityLabel}</p>
+                  <p className="text-sm font-bold text-text-primary truncate">{data.title}</p>
+                  <p className="text-[10px] text-text-tertiary mt-0.5">Clicca per gestire →</p>
                 </div>
               </button>
             )
-          } catch { return <div className="px-3.5 py-2.5 rounded-2xl text-sm text-[#555]">[ticket]</div> }
+          } catch { return <div className="px-3.5 py-2.5 rounded-2xl text-sm text-text-tertiary">[ticket]</div> }
         })() : (
-          <div className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed break-words ${isOwn ? 'bg-gold text-black font-medium rounded-br-sm' : 'bg-[#1A1A1A] border border-[#2A2A2A] text-white rounded-bl-sm'}`}>
+          <div className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed break-words ${isOwn ? 'bg-gold text-black font-medium rounded-br-sm' : 'bg-surface border border-border text-text-primary rounded-bl-sm'}`}>
             {msg.content}
           </div>
         )}
@@ -221,22 +221,22 @@ function CcMessageRow({ msg, isOwn, compact, canEdit, currentUserId, channelType
             {reactions.map(r => (
               <div key={r.emoji} className="relative group/reaction">
                 <button onClick={() => toggleReaction(r.emoji)}
-                  className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs transition-all hover:scale-105 active:scale-95 ${r.byMe ? 'bg-gold/20 border-gold/40 text-gold' : 'bg-[#1A1A1A] border-[#2A2A2A] text-[#888] hover:border-[#3A3A3A] hover:text-white'}`}>
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs transition-all hover:scale-105 active:scale-95 ${r.byMe ? 'bg-gold/20 border-gold/40 text-gold' : 'bg-surface border-border text-text-secondary hover:border-border-strong hover:text-text-primary'}`}>
                   <span className="text-sm leading-none">{r.emoji}</span>
                   <span className="font-bold leading-none">{r.count}</span>
                 </button>
                 {r.profiles.length > 0 && (
                   <div className={`absolute bottom-full mb-1.5 ${isOwn ? 'right-0' : 'left-0'} hidden group-hover/reaction:flex flex-col items-${isOwn ? 'end' : 'start'} z-30 pointer-events-none`}>
-                    <div className="bg-[#0D0D0D] border border-[#2A2A2A] rounded-xl px-3 py-2 shadow-2xl whitespace-nowrap">
-                      <p className="text-[10px] text-[#555] font-bold uppercase tracking-wider mb-1">{r.emoji} {r.count} {r.count === 1 ? 'reazione' : 'reazioni'}</p>
+                    <div className="bg-surface border border-border rounded-xl px-3 py-2 shadow-2xl whitespace-nowrap">
+                      <p className="text-[10px] text-text-tertiary font-bold uppercase tracking-wider mb-1">{r.emoji} {r.count} {r.count === 1 ? 'reazione' : 'reazioni'}</p>
                       {r.profiles.map(name => (
-                        <p key={name} className="text-xs text-white leading-snug">{name}</p>
+                        <p key={name} className="text-xs text-text-primary leading-snug">{name}</p>
                       ))}
                       {r.byMe && !r.profiles.includes('Tu') && (
                         <p className="text-xs text-gold leading-snug">Tu</p>
                       )}
                     </div>
-                    <div className={`w-2 h-2 bg-[#0D0D0D] border-r border-b border-[#2A2A2A] rotate-45 ${isOwn ? 'self-end mr-3' : 'self-start ml-3'} -mt-1`} />
+                    <div className={`w-2 h-2 bg-surface border-r border-b border-border rotate-45 ${isOwn ? 'self-end mr-3' : 'self-start ml-3'} -mt-1`} />
                   </div>
                 )}
               </div>
@@ -247,18 +247,18 @@ function CcMessageRow({ msg, isOwn, compact, canEdit, currentUserId, channelType
 
       {/* Hover toolbar */}
       {hover && !editMode && !isTicket && (
-        <div className={`absolute -top-3 ${isOwn ? 'left-0' : 'right-0'} flex items-center gap-0.5 bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl shadow-2xl z-10 px-1.5 py-1`}>
+        <div className={`absolute -top-3 ${isOwn ? 'left-0' : 'right-0'} flex items-center gap-0.5 bg-surface border border-border rounded-xl shadow-2xl z-10 px-1.5 py-1`}>
           {/* Emoji picker — solo in chat interna */}
           {channelType === 'cliente_interno' && (
             <div className="relative">
-              <button onClick={() => setShowPicker(v => !v)} className="p-1.5 hover:bg-[#2A2A2A] rounded-lg text-[#666] hover:text-white transition-colors" title="Reazione">
+              <button onClick={() => setShowPicker(v => !v)} className="p-1.5 hover:bg-surface-hover rounded-lg text-text-secondary hover:text-text-primary transition-colors" title="Reazione">
                 <Smile className="w-3.5 h-3.5" />
               </button>
               {showPicker && (
-                <div className={`absolute bottom-full ${isOwn ? 'right-0' : 'left-0'} mb-1 bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl p-2 flex gap-1 shadow-2xl z-20`}>
+                <div className={`absolute bottom-full ${isOwn ? 'right-0' : 'left-0'} mb-1 bg-surface border border-border rounded-2xl p-2 flex gap-1 shadow-2xl z-20`}>
                   {QUICK_REACTIONS.map(e => (
                     <button key={e} onClick={() => toggleReaction(e)}
-                      className={`text-base hover:scale-125 transition-transform p-1 rounded hover:bg-[#2A2A2A] ${reactions.find(r => r.emoji === e)?.byMe ? 'bg-gold/20' : ''}`}>
+                      className={`text-base hover:scale-125 transition-transform p-1 rounded hover:bg-surface-hover ${reactions.find(r => r.emoji === e)?.byMe ? 'bg-gold/20' : ''}`}>
                       {e}
                     </button>
                   ))}
@@ -268,13 +268,13 @@ function CcMessageRow({ msg, isOwn, compact, canEdit, currentUserId, channelType
           )}
           {/* Edit */}
           {canEdit && (
-            <button onClick={() => setEditMode(true)} className="p-1.5 hover:bg-[#2A2A2A] rounded-lg text-[#666] hover:text-white transition-colors" title="Modifica">
+            <button onClick={() => setEditMode(true)} className="p-1.5 hover:bg-surface-hover rounded-lg text-text-secondary hover:text-text-primary transition-colors" title="Modifica">
               <Edit3 className="w-3.5 h-3.5" />
             </button>
           )}
           {/* Delete */}
           {canEdit && (
-            <button onClick={handleDelete} className="p-1.5 hover:bg-[#2A2A2A] rounded-lg text-[#666] hover:text-red-400 transition-colors" title="Elimina">
+            <button onClick={handleDelete} className="p-1.5 hover:bg-surface-hover rounded-lg text-text-secondary hover:text-red-400 transition-colors" title="Elimina">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
@@ -782,40 +782,40 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
     <div className="flex h-full overflow-hidden">
 
       {/* ── Sidebar ────────────────────────────────────────────────────────── */}
-      <div className="w-72 bg-surface border-r border-[#2A2A2A] flex flex-col shrink-0">
+      <div className="w-72 bg-surface border-r border-border flex flex-col shrink-0">
 
         {/* Header + search */}
-        <div className="px-4 pt-4 pb-3 border-b border-[#2A2A2A]">
+        <div className="px-4 pt-4 pb-3 border-b border-border">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-bold text-white">Customer Care</h2>
-            <span className="text-[10px] text-[#555]">{activeProjects.length} progetti</span>
+            <h2 className="text-sm font-bold text-text-primary">Customer Care</h2>
+            <span className="text-[10px] text-text-tertiary">{activeProjects.length} progetti</span>
           </div>
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[#555]" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-text-tertiary" />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca progetto..."
-              className="w-full bg-background border border-[#2A2A2A] rounded-lg pl-7 pr-3 py-1.5 text-xs text-white placeholder:text-[#444] focus:outline-none focus:border-gold/40" />
+              className="w-full bg-background border border-border rounded-lg pl-7 pr-3 py-1.5 text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-gold/40" />
           </div>
         </div>
 
         {/* Ordinamento */}
-        <div className="px-3 pt-2 pb-2 border-b border-[#2A2A2A]">
+        <div className="px-3 pt-2 pb-2 border-b border-border">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-[#555]">Ordina per</span>
+            <span className="text-[10px] text-text-tertiary">Ordina per</span>
             <div className="relative">
               <button onClick={() => setShowSortMenu(v => !v)}
-                className={`flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-lg border transition-colors ${showSortMenu ? 'border-gold/30 text-gold bg-gold/5' : 'border-[#2A2A2A] text-[#888] hover:text-white'}`}>
+                className={`flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-lg border transition-colors ${showSortMenu ? 'border-gold/30 text-gold bg-gold/5' : 'border-border text-text-secondary hover:text-text-primary'}`}>
                 <SlidersHorizontal className="w-2.5 h-2.5" />
                 {sortKey === 'activity' ? 'Ultima attività' : sortKey === 'name' ? 'Nome A→Z' : 'Più messaggi'}
               </button>
               {showSortMenu && (
-                <div className="absolute right-0 top-7 w-40 bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl shadow-xl z-20 py-1 overflow-hidden">
+                <div className="absolute right-0 top-7 w-40 bg-surface border border-border rounded-xl shadow-xl z-20 py-1 overflow-hidden">
                   {([
                     { key: 'activity', label: 'Ultima attività' },
                     { key: 'name',     label: 'Nome A→Z' },
                     { key: 'messages', label: 'Più messaggi' },
                   ] as { key: SortKey; label: string }[]).map(s => (
                     <button key={s.key} onClick={() => { setSortKey(s.key); setShowSortMenu(false) }}
-                      className={`w-full text-left px-3 py-2 text-xs transition-colors ${sortKey === s.key ? 'text-gold bg-gold/5' : 'text-text-secondary hover:text-white hover:bg-[#2A2A2A]'}`}>
+                      className={`w-full text-left px-3 py-2 text-xs transition-colors ${sortKey === s.key ? 'text-gold bg-gold/5' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'}`}>
                       {sortKey === s.key && '✓ '}{s.label}
                     </button>
                   ))}
@@ -829,7 +829,7 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
         <div className="flex-1 overflow-y-auto">
           <div className="p-2 space-y-0.5">
             {sortedProjects.length === 0 && (
-              <p className="text-xs text-[#555] text-center py-6">Nessun progetto trovato</p>
+              <p className="text-xs text-text-tertiary text-center py-6">Nessun progetto trovato</p>
             )}
             {sortedProjects.map(project => {
               const st = getClientStatus(lastMsgAt[project.id] ?? null)
@@ -841,11 +841,11 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
 
               return (
                 <button key={project.id} onClick={() => setSelectedProjectId(project.id)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all ${isSel ? 'bg-gold/10 ring-1 ring-gold/20' : 'hover:bg-white/5'}`}>
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all ${isSel ? 'bg-gold/10 ring-1 ring-gold/20' : 'hover:bg-overlay/5'}`}>
 
                   {/* Avatar + status dot */}
                   <div className="relative shrink-0">
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold ${isSel ? 'bg-gold/20 text-gold' : 'bg-[#2A2A2A] text-white'}`}>
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold ${isSel ? 'bg-gold/20 text-gold' : 'bg-surface-hover text-text-primary'}`}>
                       {getInitials(project.name)}
                     </div>
                     <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-surface flex items-center justify-center ${sc.dot}`} />
@@ -854,12 +854,12 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
                   {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1 mb-0.5">
-                      <span className={`text-xs truncate font-semibold ${isSel ? 'text-gold' : u > 0 ? 'text-white' : 'text-text-secondary'}`}>
+                      <span className={`text-xs truncate font-semibold ${isSel ? 'text-gold' : u > 0 ? 'text-text-primary' : 'text-text-secondary'}`}>
                         {project.name}
                       </span>
                       {/* Badge non letti o icona canale */}
                       {u > 0
-                        ? <span className="shrink-0 bg-error text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{u > 9 ? '9+' : u}</span>
+                        ? <span className="shrink-0 bg-error text-text-primary text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{u > 9 ? '9+' : u}</span>
                         : channels[project.id] && <MessageSquare className="w-3 h-3 text-gold/40 shrink-0" />
                       }
                     </div>
@@ -867,9 +867,9 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
                     {/* Riga info secondaria: cliente + velocità */}
                     <div className="flex items-center gap-2">
                       {project.client && (
-                        <span className="text-[10px] text-[#555] truncate max-w-[80px]">{project.client.company_name}</span>
+                        <span className="text-[10px] text-text-tertiary truncate max-w-[80px]">{project.client.company_name}</span>
                       )}
-                      <span className="text-[10px] text-[#444]" suppressHydrationWarning>{timeAgo(lastMsgAt[project.id] ?? null)}</span>
+                      <span className="text-[10px] text-text-tertiary" suppressHydrationWarning>{timeAgo(lastMsgAt[project.id] ?? null)}</span>
 
                       {/* Velocità */}
                       {vel && (
@@ -880,7 +880,7 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
 
                       {/* Contatore messaggi totali */}
                       {msgCount > 0 && (
-                        <span className="text-[10px] text-[#444]">{msgCount > 99 ? '99+' : msgCount}</span>
+                        <span className="text-[10px] text-text-tertiary">{msgCount > 99 ? '99+' : msgCount}</span>
                       )}
                     </div>
                   </div>
@@ -891,16 +891,16 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
 
           {/* ── Sezione Archiviati ────────────────────────────────────────── */}
           {(filteredArchived.length > 0 || archivedProjects.length > 0) && (
-            <div className="border-t border-[#2A2A2A] mt-2">
+            <div className="border-t border-border mt-2">
               <button onClick={() => setArchivedOpen(v => !v)}
-                className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-white/5 transition-colors">
-                <Archive className="w-3 h-3 text-[#555]" />
-                <span className="text-[10px] text-[#555] font-bold uppercase tracking-wider flex-1">
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-overlay/5 transition-colors">
+                <Archive className="w-3 h-3 text-text-tertiary" />
+                <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-wider flex-1">
                   Archiviati ({archivedProjects.length})
                 </span>
                 {archivedOpen
-                  ? <ChevronDown className="w-3 h-3 text-[#555]" />
-                  : <ChevronRight className="w-3 h-3 text-[#555]" />
+                  ? <ChevronDown className="w-3 h-3 text-text-tertiary" />
+                  : <ChevronRight className="w-3 h-3 text-text-tertiary" />
                 }
               </button>
 
@@ -910,15 +910,15 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
                     const isSel = project.id === selectedProjectId
                     return (
                       <button key={project.id} onClick={() => setSelectedProjectId(project.id)}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-colors opacity-60 hover:opacity-100 ${isSel ? 'bg-[#2A2A2A]' : 'hover:bg-white/5'}`}>
-                        <div className="w-7 h-7 rounded-full bg-[#2A2A2A] flex items-center justify-center text-[10px] font-bold text-[#555] shrink-0">
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-colors opacity-60 hover:opacity-100 ${isSel ? 'bg-surface-hover' : 'hover:bg-overlay/5'}`}>
+                        <div className="w-7 h-7 rounded-full bg-surface-hover flex items-center justify-center text-[10px] font-bold text-text-tertiary shrink-0">
                           {getInitials(project.name)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs text-[#555] truncate line-through">{project.name}</p>
-                          <p className="text-[10px] text-[#444]" suppressHydrationWarning>{project.client?.company_name} · {timeAgo(lastMsgAt[project.id] ?? null)}</p>
+                          <p className="text-xs text-text-tertiary truncate line-through">{project.name}</p>
+                          <p className="text-[10px] text-text-tertiary" suppressHydrationWarning>{project.client?.company_name} · {timeAgo(lastMsgAt[project.id] ?? null)}</p>
                         </div>
-                        <Archive className="w-3 h-3 text-[#444] shrink-0" />
+                        <Archive className="w-3 h-3 text-text-tertiary shrink-0" />
                       </button>
                     )
                   })}
@@ -937,47 +937,47 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-[#2A2A2A] bg-[#1A1A1A] shrink-0">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-surface shrink-0">
               <div className="flex items-center gap-3 min-w-0">
                 <Hash className="w-4 h-4 text-text-secondary shrink-0" />
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-white text-sm">{selectedProject.name}</span>
+                    <span className="font-bold text-text-primary text-sm">{selectedProject.name}</span>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold ${STATUS[clientStatus].chip}`}>
                       {STATUS[clientStatus].label}
                     </span>
                     {lastMsgAt[selectedProjectId] && (
-                      <span className="text-[10px] text-[#555] flex items-center gap-1">
+                      <span className="text-[10px] text-text-tertiary flex items-center gap-1">
                         <Clock className="w-2.5 h-2.5" /><span suppressHydrationWarning>{timeAgo(lastMsgAt[selectedProjectId])}</span>
                       </span>
                     )}
                   </div>
-                  <p className="text-[10px] text-[#555] mt-0.5">
+                  <p className="text-[10px] text-text-tertiary mt-0.5">
                     {clientAccounts.length} account · {channelMembers.length} team · {partnerGuests.length} partner · {notes.length} note
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <button onClick={getSummary} disabled={loadingSummary || messages.length < 3}
-                  className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-[#2A2A2A] rounded-lg text-text-secondary hover:text-gold hover:border-gold/30 transition-colors disabled:opacity-40">
+                  className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-border rounded-lg text-text-secondary hover:text-gold hover:border-gold/30 transition-colors disabled:opacity-40">
                   {loadingSummary ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                   Riepilogo AI
                 </button>
                 {isAdmin ? (
                   <button onClick={() => { setShowTicketPanel(v => !v); setShowPanel(false) }}
-                    className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 border rounded-lg transition-colors ${showTicketPanel ? 'border-[#F5C800]/40 text-[#F5C800] bg-[#F5C800]/5' : 'border-[#2A2A2A] text-text-secondary hover:text-white'}`}>
+                    className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 border rounded-lg transition-colors ${showTicketPanel ? 'border-gold/40 text-gold bg-gold-dim' : 'border-border text-text-secondary hover:text-text-primary'}`}>
                     <Shield className="w-3.5 h-3.5" />
                     Ticket
                   </button>
                 ) : (
                   <button onClick={() => { setShowTicketPanel(v => !v); setShowPanel(false) }}
-                    className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 border rounded-lg transition-colors ${showTicketPanel ? 'border-[#F5C800]/40 text-[#F5C800] bg-[#F5C800]/5' : 'border-[#2A2A2A] text-text-secondary hover:text-white'}`}>
+                    className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 border rounded-lg transition-colors ${showTicketPanel ? 'border-gold/40 text-gold bg-gold-dim' : 'border-border text-text-secondary hover:text-text-primary'}`}>
                     <Shield className="w-3.5 h-3.5" />
                     Supporto
                   </button>
                 )}
                 <button onClick={() => { setShowPanel(v => !v); setShowTicketPanel(false) }}
-                  className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 border rounded-lg transition-colors ${showPanel ? 'border-gold/40 text-gold bg-gold/5' : 'border-[#2A2A2A] text-text-secondary hover:text-white'}`}>
+                  className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 border rounded-lg transition-colors ${showPanel ? 'border-gold/40 text-gold bg-gold/5' : 'border-border text-text-secondary hover:text-text-primary'}`}>
                   <Users className="w-3.5 h-3.5" />
                   Accessi
                 </button>
@@ -990,9 +990,9 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
                 <Sparkles className="w-4 h-4 text-gold shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-[10px] text-gold font-bold uppercase tracking-wider mb-1">Riepilogo AI</p>
-                  <p className="text-xs text-white leading-relaxed">{aiSummary}</p>
+                  <p className="text-xs text-text-primary leading-relaxed">{aiSummary}</p>
                 </div>
-                <button onClick={() => setAiSummary('')}><X className="w-3.5 h-3.5 text-[#555] hover:text-white" /></button>
+                <button onClick={() => setAiSummary('')}><X className="w-3.5 h-3.5 text-text-tertiary hover:text-text-primary" /></button>
               </div>
             )}
 
@@ -1008,7 +1008,7 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
                     <MessageSquare className="w-7 h-7 text-gold" />
                   </div>
                   <div>
-                    <p className="text-white font-semibold text-sm mb-1">Canale Customer Care</p>
+                    <p className="text-text-primary font-semibold text-sm mb-1">Canale Customer Care</p>
                     <p className="text-text-secondary text-xs max-w-xs">Scrivi il primo messaggio a {selectedProject.name} o aggiungi i loro account dal pannello Accessi.</p>
                   </div>
                 </div>
@@ -1017,9 +1017,9 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
                   {grouped.map(group => (
                     <div key={group.date} className="mb-5">
                       <div className="flex items-center gap-3 mb-4">
-                        <div className="flex-1 h-px bg-[#2A2A2A]" />
-                        <span className="text-xs text-[#555]">{group.date}</span>
-                        <div className="flex-1 h-px bg-[#2A2A2A]" />
+                        <div className="flex-1 h-px bg-border" />
+                        <span className="text-xs text-text-tertiary">{group.date}</span>
+                        <div className="flex-1 h-px bg-border" />
                       </div>
                       <div className="space-y-0.5">
                         {group.messages.map((msg, i) => (
@@ -1051,13 +1051,13 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
                   <Sparkles className="w-3 h-3 text-gold" />
                   <span className="text-[10px] text-gold font-bold uppercase tracking-wider">Risposte suggerite da AI</span>
                   <button onClick={() => setAiSuggestions([])} className="ml-auto p-0.5">
-                    <X className="w-3 h-3 text-[#555] hover:text-white" />
+                    <X className="w-3 h-3 text-text-tertiary hover:text-text-primary" />
                   </button>
                 </div>
                 <div className="space-y-1">
                   {aiSuggestions.map((s, i) => (
                     <button key={i} onClick={() => { setText(s); setAiSuggestions([]); textareaRef.current?.focus() }}
-                      className="w-full text-left text-xs px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl text-text-secondary hover:text-white hover:border-gold/30 transition-colors">
+                      className="w-full text-left text-xs px-3 py-2 bg-surface border border-border rounded-xl text-text-secondary hover:text-text-primary hover:border-gold/30 transition-colors">
                       {s}
                     </button>
                   ))}
@@ -1069,16 +1069,16 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
             {showTemplates && (
               <div className="px-4 pb-2 shrink-0">
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <FileText className="w-3 h-3 text-[#888]" />
-                  <span className="text-[10px] text-[#888] font-bold uppercase tracking-wider">Template rapidi</span>
+                  <FileText className="w-3 h-3 text-text-secondary" />
+                  <span className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">Template rapidi</span>
                   <button onClick={() => setShowTemplates(false)} className="ml-auto p-0.5">
-                    <X className="w-3 h-3 text-[#555] hover:text-white" />
+                    <X className="w-3 h-3 text-text-tertiary hover:text-text-primary" />
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {QUICK_TEMPLATES.map((t, i) => (
                     <button key={i} onClick={() => { setText(t.text); setShowTemplates(false); textareaRef.current?.focus() }}
-                      className="text-xs px-2.5 py-1.5 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg text-text-secondary hover:text-white hover:border-gold/30 transition-colors whitespace-nowrap">
+                      className="text-xs px-2.5 py-1.5 bg-surface border border-border rounded-lg text-text-secondary hover:text-text-primary hover:border-gold/30 transition-colors whitespace-nowrap">
                       {t.label}
                     </button>
                   ))}
@@ -1087,25 +1087,25 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
             )}
 
             {/* Input area */}
-            <div className="p-4 border-t border-[#2A2A2A] shrink-0">
+            <div className="p-4 border-t border-border shrink-0">
               <div className="flex items-center gap-2 mb-2">
                 <button onClick={getAISuggestions} disabled={loadingAI || messages.length === 0}
-                  className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg border border-[#2A2A2A] text-[#555] hover:text-gold hover:border-gold/30 transition-colors disabled:opacity-40">
+                  className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg border border-border text-text-tertiary hover:text-gold hover:border-gold/30 transition-colors disabled:opacity-40">
                   {loadingAI ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
                   AI
                 </button>
                 <button onClick={() => { setShowTemplates(v => !v); setAiSuggestions([]) }}
-                  className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${showTemplates ? 'text-gold border-gold/30 bg-gold/5' : 'border-[#2A2A2A] text-[#555] hover:text-gold hover:border-gold/30'}`}>
+                  className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${showTemplates ? 'text-gold border-gold/30 bg-gold/5' : 'border-border text-text-tertiary hover:text-gold hover:border-gold/30'}`}>
                   <FileText className="w-3 h-3" />
                   Template
                 </button>
                 <button onClick={() => { setPanelTab('note'); setShowPanel(true) }}
-                  className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg border border-[#2A2A2A] text-[#555] hover:text-warning hover:border-warning/30 transition-colors">
+                  className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg border border-border text-text-tertiary hover:text-warning hover:border-warning/30 transition-colors">
                   <StickyNote className="w-3 h-3" />
                   Note{notes.length > 0 ? ` (${notes.length})` : ''}
                 </button>
               </div>
-              <div className="flex items-end gap-3 bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl px-4 py-3 focus-within:border-gold/40 transition-colors">
+              <div className="flex items-end gap-3 bg-surface border border-border rounded-xl px-4 py-3 focus-within:border-gold/40 transition-colors">
                 <div className="w-6 h-6 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold text-[10px] font-bold shrink-0 mb-0.5">
                   {getInitials(currentProfile.full_name)}
                 </div>
@@ -1120,11 +1120,11 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
                   placeholder={`Scrivi a ${selectedProject.name}… (Invio per inviare, Shift+Invio per andare a capo)`}
                   rows={1}
-                  className="flex-1 bg-transparent text-sm text-white placeholder:text-[#444] focus:outline-none resize-none leading-6 overflow-hidden"
+                  className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none resize-none leading-6 overflow-hidden"
                   style={{ minHeight: '24px', maxHeight: '120px' }}
                 />
                 <button onClick={sendMessage} disabled={!text.trim() || sending}
-                  className="text-gold disabled:text-[#333] transition-colors mb-0.5 shrink-0 hover:text-yellow-400">
+                  className="text-gold disabled:text-text-tertiary transition-colors mb-0.5 shrink-0 hover:text-yellow-400">
                   {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 </button>
               </div>
@@ -1148,22 +1148,22 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
 
           {/* ── Panel Accessi ─────────────────────────────────────────────── */}
           {showPanel && (
-            <div className="w-80 border-l border-[#1E1E1E] bg-[#111] flex flex-col shrink-0 overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-[#1E1E1E] shrink-0">
+            <div className="w-80 border-l border-border bg-surface flex flex-col shrink-0 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
                 <div className="flex items-center gap-2">
                   <Users className="w-4 h-4 text-gold" />
-                  <h3 className="text-sm font-bold text-white">Gestisci Accessi</h3>
+                  <h3 className="text-sm font-bold text-text-primary">Gestisci Accessi</h3>
                 </div>
-                <button onClick={() => setShowPanel(false)}><X className="w-4 h-4 text-[#555] hover:text-white" /></button>
+                <button onClick={() => setShowPanel(false)}><X className="w-4 h-4 text-text-tertiary hover:text-text-primary" /></button>
               </div>
 
               {/* Tabs */}
-              <div className="flex border-b border-[#1E1E1E] shrink-0 overflow-x-auto">
+              <div className="flex border-b border-border shrink-0 overflow-x-auto">
                 {panelTabs.map(t => (
                   <button key={t.id} onClick={() => setPanelTab(t.id)}
-                    className={`flex-1 py-2 text-[9px] font-bold uppercase tracking-wider transition-colors border-b-2 whitespace-nowrap px-1 ${panelTab === t.id ? 'text-gold border-gold' : 'text-[#555] border-transparent hover:text-white'}`}>
+                    className={`flex-1 py-2 text-[9px] font-bold uppercase tracking-wider transition-colors border-b-2 whitespace-nowrap px-1 ${panelTab === t.id ? 'text-gold border-gold' : 'text-text-tertiary border-transparent hover:text-text-primary'}`}>
                     {t.label}
-                    {' '}<span className={panelTab === t.id ? 'text-gold' : 'text-[#444]'}>
+                    {' '}<span className={panelTab === t.id ? 'text-gold' : 'text-text-tertiary'}>
                       {t.max != null ? `${t.count}/${t.max}` : t.count}
                     </span>
                   </button>
@@ -1175,40 +1175,40 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
                 {/* TAB: Team */}
                 {panelTab === 'team' && (
                   <div className="p-3">
-                    <p className="text-[10px] text-[#555] px-1 mb-3">Membri TwoBee con accesso a questo canale</p>
-                    {channelMembers.length === 0 && <p className="text-xs text-[#555] text-center py-4">Nessun membro</p>}
+                    <p className="text-[10px] text-text-tertiary px-1 mb-3">Membri TwoBee con accesso a questo canale</p>
+                    {channelMembers.length === 0 && <p className="text-xs text-text-tertiary text-center py-4">Nessun membro</p>}
                     {channelMembers.map(m => (
-                      <div key={m.id} className="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-[#1A1A1A] group transition-colors">
+                      <div key={m.id} className="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-surface group transition-colors">
                         <div className="w-7 h-7 rounded-full bg-gold/20 flex items-center justify-center text-gold text-[10px] font-bold shrink-0 overflow-hidden">
                           {m.avatar_url ? <img src={m.avatar_url} className="w-full h-full object-cover" alt="" /> : getInitials(m.full_name)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-white truncate">{m.full_name}</p>
-                          <p className="text-[10px] text-[#555] capitalize">{m.role}</p>
+                          <p className="text-xs font-semibold text-text-primary truncate">{m.full_name}</p>
+                          <p className="text-[10px] text-text-tertiary capitalize">{m.role}</p>
                         </div>
                         {m.id === currentProfile.id
                           ? <span className="text-[10px] text-gold shrink-0">Tu</span>
                           : isAdmin && <button onClick={() => removeMember(m.id)}
-                              className="opacity-0 group-hover:opacity-100 p-1 text-[#555] hover:text-error transition-all shrink-0"><X className="w-3 h-3" /></button>
+                              className="opacity-0 group-hover:opacity-100 p-1 text-text-tertiary hover:text-error transition-all shrink-0"><X className="w-3 h-3" /></button>
                         }
                       </div>
                     ))}
                     {isAdmin && nonMembers.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-[#1E1E1E]">
-                        <p className="text-[10px] text-[#555] uppercase tracking-wider font-bold px-1 mb-2">Aggiungi</p>
-                        <div className="flex items-center gap-2 bg-[#0F0F0F] border border-[#2A2A2A] rounded-xl px-2.5 py-1.5 mb-2">
-                          <Search className="w-3 h-3 text-[#555] shrink-0" />
+                      <div className="mt-3 pt-3 border-t border-border">
+                        <p className="text-[10px] text-text-tertiary uppercase tracking-wider font-bold px-1 mb-2">Aggiungi</p>
+                        <div className="flex items-center gap-2 bg-surface border border-border rounded-xl px-2.5 py-1.5 mb-2">
+                          <Search className="w-3 h-3 text-text-tertiary shrink-0" />
                           <input value={memberSearch} onChange={e => setMemberSearch(e.target.value)} placeholder="Cerca..."
-                            className="flex-1 bg-transparent text-xs text-white focus:outline-none placeholder:text-[#555]" />
+                            className="flex-1 bg-transparent text-xs text-text-primary focus:outline-none placeholder:text-text-tertiary" />
                         </div>
                         {nonMembers.map(p => (
                           <button key={p.id} onClick={() => addMember(p.id)}
-                            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-[#1A1A1A] transition-colors group/a">
-                            <div className="w-6 h-6 rounded-full bg-[#2A2A2A] flex items-center justify-center text-[10px] font-bold text-white shrink-0">
+                            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-surface transition-colors group/a">
+                            <div className="w-6 h-6 rounded-full bg-surface-hover flex items-center justify-center text-[10px] font-bold text-text-primary shrink-0">
                               {getInitials(p.full_name)}
                             </div>
-                            <span className="text-xs text-[#555] group-hover/a:text-white flex-1 truncate">{p.full_name}</span>
-                            <Plus className="w-3 h-3 text-[#555] opacity-0 group-hover/a:opacity-100 shrink-0" />
+                            <span className="text-xs text-text-tertiary group-hover/a:text-text-primary flex-1 truncate">{p.full_name}</span>
+                            <Plus className="w-3 h-3 text-text-tertiary opacity-0 group-hover/a:opacity-100 shrink-0" />
                           </button>
                         ))}
                       </div>
@@ -1219,10 +1219,10 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
                 {/* TAB: Cliente */}
                 {panelTab === 'cliente' && (
                   <div className="flex flex-col h-full">
-                    <div className="p-3 border-b border-[#1E1E1E] shrink-0">
+                    <div className="p-3 border-b border-border shrink-0">
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-[10px] text-[#555]">Contatti cliente · max {MAX_ACCOUNTS}</p>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${clientAccounts.length >= MAX_ACCOUNTS ? 'bg-error/20 text-error' : 'bg-[#2A2A2A] text-[#888]'}`}>
+                        <p className="text-[10px] text-text-tertiary">Contatti cliente · max {MAX_ACCOUNTS}</p>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${clientAccounts.length >= MAX_ACCOUNTS ? 'bg-error/20 text-error' : 'bg-surface-hover text-text-secondary'}`}>
                           {clientAccounts.length}/{MAX_ACCOUNTS}
                         </span>
                       </div>
@@ -1230,13 +1230,13 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
                         <form onSubmit={addAccount} className="space-y-2">
                           <input value={newAccount.full_name} onChange={e => setNewAccount(p => ({ ...p, full_name: e.target.value }))}
                             placeholder="Nome e cognome *" required
-                            className="w-full bg-[#0F0F0F] border border-[#2A2A2A] rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-gold/40" />
+                            className="w-full bg-surface border border-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-gold/40" />
                           <input type="email" value={newAccount.email} onChange={e => setNewAccount(p => ({ ...p, email: e.target.value }))}
                             placeholder="Email *" required
-                            className="w-full bg-[#0F0F0F] border border-[#2A2A2A] rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-gold/40" />
+                            className="w-full bg-surface border border-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-gold/40" />
                           <input value={newAccount.role} onChange={e => setNewAccount(p => ({ ...p, role: e.target.value }))}
                             placeholder="Ruolo (es: CEO)"
-                            className="w-full bg-[#0F0F0F] border border-[#2A2A2A] rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-gold/40" />
+                            className="w-full bg-surface border border-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-gold/40" />
                           <button type="submit" disabled={addingAccount}
                             className="w-full py-1.5 bg-gold text-black text-xs font-bold rounded-lg hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-1.5">
                             {addingAccount ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserPlus className="w-3 h-3" />}
@@ -1252,26 +1252,26 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
                     </div>
                     <div className="flex-1 overflow-y-auto p-3 space-y-2">
                       {clientAccounts.length === 0
-                        ? <p className="text-xs text-[#555] text-center py-4">Nessun account</p>
+                        ? <p className="text-xs text-text-tertiary text-center py-4">Nessun account</p>
                         : clientAccounts.map(acc => (
-                          <div key={acc.id} className="bg-[#0F0F0F] border border-[#2A2A2A] rounded-xl p-3 group">
+                          <div key={acc.id} className="bg-surface border border-border rounded-xl p-3 group">
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex items-start gap-2 min-w-0">
                                 <div className="w-7 h-7 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 text-[10px] font-bold shrink-0">
                                   {getInitials(acc.full_name)}
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="text-xs font-semibold text-white truncate">{acc.full_name}</p>
-                                  <p className="text-[10px] text-[#555] truncate">{acc.email}</p>
-                                  {acc.role && <p className="text-[10px] text-[#444]">{acc.role}</p>}
+                                  <p className="text-xs font-semibold text-text-primary truncate">{acc.full_name}</p>
+                                  <p className="text-[10px] text-text-tertiary truncate">{acc.email}</p>
+                                  {acc.role && <p className="text-[10px] text-text-tertiary">{acc.role}</p>}
                                   {acc.accepted_at
                                     ? <span className="text-[10px] text-success flex items-center gap-0.5 mt-0.5"><Check className="w-2.5 h-2.5" />Attivo</span>
                                     : <span className="text-[10px] text-warning mt-0.5 block">In attesa</span>}
                                 </div>
                               </div>
                               <div className="flex flex-col gap-1 shrink-0">
-                                <button onClick={() => resendInvite(acc)} title="Reinvia" className="text-[#555] hover:text-gold transition-colors"><Mail className="w-3.5 h-3.5" /></button>
-                                {isAdmin && <button onClick={() => deleteAccount(acc.id)} className="text-[#555] hover:text-error transition-colors opacity-0 group-hover:opacity-100"><Trash2 className="w-3.5 h-3.5" /></button>}
+                                <button onClick={() => resendInvite(acc)} title="Reinvia" className="text-text-tertiary hover:text-gold transition-colors"><Mail className="w-3.5 h-3.5" /></button>
+                                {isAdmin && <button onClick={() => deleteAccount(acc.id)} className="text-text-tertiary hover:text-error transition-colors opacity-0 group-hover:opacity-100"><Trash2 className="w-3.5 h-3.5" /></button>}
                               </div>
                             </div>
                           </div>
@@ -1285,25 +1285,25 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
                 {panelTab === 'esterni' && (
                   <div className="p-3">
                     <div className="flex items-center justify-between mb-3">
-                      <p className="text-[10px] text-[#555]">Partner/professionisti · max {MAX_GUESTS}</p>
+                      <p className="text-[10px] text-text-tertiary">Partner/professionisti · max {MAX_GUESTS}</p>
                       {isAdmin && partnerGuests.length < MAX_GUESTS && (
                         <button onClick={() => setShowExtForm(v => !v)}
-                          className={`p-1.5 rounded-lg transition-colors ${showExtForm ? 'text-gold bg-gold/10' : 'text-[#555] hover:text-gold'}`}>
+                          className={`p-1.5 rounded-lg transition-colors ${showExtForm ? 'text-gold bg-gold/10' : 'text-text-tertiary hover:text-gold'}`}>
                           <UserPlus className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
                     {showExtForm && (
-                      <form onSubmit={sendExtInvite} className="bg-[#0F0F0F] border border-[#2A2A2A] rounded-xl p-3 space-y-2 mb-3">
-                        <p className="text-[10px] text-[#888] font-bold uppercase tracking-wider">🤝 Invita partner</p>
+                      <form onSubmit={sendExtInvite} className="bg-surface border border-border rounded-xl p-3 space-y-2 mb-3">
+                        <p className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">🤝 Invita partner</p>
                         <input required value={extForm.name} onChange={e => setExtForm(p => ({ ...p, name: e.target.value }))} placeholder="Nome Cognome *" autoFocus
-                          className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-gold/40" />
+                          className="w-full bg-surface border border-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-gold/40" />
                         <input required type="email" value={extForm.email} onChange={e => setExtForm(p => ({ ...p, email: e.target.value }))} placeholder="Email *"
-                          className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-gold/40" />
+                          className="w-full bg-surface border border-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-gold/40" />
                         <input required value={extForm.role} onChange={e => setExtForm(p => ({ ...p, role: e.target.value }))} placeholder="Azienda / Ruolo *"
-                          className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-gold/40" />
+                          className="w-full bg-surface border border-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-gold/40" />
                         <div className="flex gap-2">
-                          <button type="button" onClick={() => setShowExtForm(false)} className="flex-1 py-1.5 border border-[#2A2A2A] rounded-lg text-xs text-[#888] hover:text-white">Annulla</button>
+                          <button type="button" onClick={() => setShowExtForm(false)} className="flex-1 py-1.5 border border-border rounded-lg text-xs text-text-secondary hover:text-text-primary">Annulla</button>
                           <button type="submit" disabled={sendingInvite} className="flex-1 py-1.5 bg-gold text-black font-bold rounded-lg text-xs hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-1">
                             {sendingInvite ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />} Invia
                           </button>
@@ -1312,25 +1312,25 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
                     )}
                     {partnerGuests.length === 0
                       ? <div className="text-center py-8">
-                          <UserPlus className="w-8 h-8 text-[#2A2A2A] mx-auto mb-2" />
-                          <p className="text-xs text-[#555] mb-2">Nessun partner invitato</p>
+                          <UserPlus className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
+                          <p className="text-xs text-text-tertiary mb-2">Nessun partner invitato</p>
                           {isAdmin && <button onClick={() => setShowExtForm(true)} className="text-xs text-gold hover:underline">+ Invia primo invito</button>}
                         </div>
                       : partnerGuests.map(g => (
-                          <div key={g.id} className="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-[#1A1A1A] group transition-colors">
-                            <div className="w-7 h-7 rounded-full bg-[#2A2A2A] border border-[#3A3A3A] flex items-center justify-center text-[10px] font-bold text-white shrink-0">
+                          <div key={g.id} className="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-surface group transition-colors">
+                            <div className="w-7 h-7 rounded-full bg-surface-hover border border-border-strong flex items-center justify-center text-[10px] font-bold text-text-primary shrink-0">
                               {getInitials(g.full_name ?? g.email)}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-semibold text-white truncate">{g.full_name ?? g.email}</p>
+                              <p className="text-xs font-semibold text-text-primary truncate">{g.full_name ?? g.email}</p>
                               <div className="flex items-center gap-1.5">
                                 <div className={`w-1.5 h-1.5 rounded-full ${g.status === 'active' ? 'bg-success' : 'bg-warning'}`} />
-                                <span className="text-[10px] text-[#555]">{g.status === 'active' ? 'Attivo' : 'In attesa'}</span>
-                                {g.role && <span className="text-[10px] text-[#444] truncate">· {g.role}</span>}
+                                <span className="text-[10px] text-text-tertiary">{g.status === 'active' ? 'Attivo' : 'In attesa'}</span>
+                                {g.role && <span className="text-[10px] text-text-tertiary truncate">· {g.role}</span>}
                               </div>
                             </div>
                             {isAdmin && <button onClick={() => revokeGuest(g.id, g.email)}
-                              className="opacity-0 group-hover:opacity-100 p-1 text-[#555] hover:text-error transition-all shrink-0"><X className="w-3 h-3" /></button>}
+                              className="opacity-0 group-hover:opacity-100 p-1 text-text-tertiary hover:text-error transition-all shrink-0"><X className="w-3 h-3" /></button>}
                           </div>
                         ))
                     }
@@ -1341,14 +1341,14 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
                 {panelTab === 'note' && (
                   <div className="flex flex-col h-full">
                     {/* Nuova nota */}
-                    <div className="p-3 border-b border-[#1E1E1E] shrink-0">
-                      <p className="text-[10px] text-[#555] mb-2">Note interne del team — non visibili al cliente</p>
+                    <div className="p-3 border-b border-border shrink-0">
+                      <p className="text-[10px] text-text-tertiary mb-2">Note interne del team — non visibili al cliente</p>
                       <textarea
                         value={noteText}
                         onChange={e => setNoteText(e.target.value)}
                         placeholder="Scrivi una nota interna su questo cliente…"
                         rows={3}
-                        className="w-full bg-[#0F0F0F] border border-[#2A2A2A] rounded-xl px-3 py-2.5 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-gold/40 resize-none"
+                        className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-gold/40 resize-none"
                       />
                       <button
                         onClick={saveNote}
@@ -1365,18 +1365,18 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
                         ? <div className="flex justify-center py-6"><Loader2 className="w-4 h-4 text-gold animate-spin" /></div>
                         : notes.length === 0
                           ? <div className="text-center py-8">
-                              <StickyNote className="w-8 h-8 text-[#2A2A2A] mx-auto mb-2" />
-                              <p className="text-xs text-[#555]">Nessuna nota per questo cliente</p>
+                              <StickyNote className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
+                              <p className="text-xs text-text-tertiary">Nessuna nota per questo cliente</p>
                             </div>
                           : notes.map(note => (
-                              <div key={note.id} className="bg-[#0F0F0F] border border-[#2A2A2A] rounded-xl p-3 group">
+                              <div key={note.id} className="bg-surface border border-border rounded-xl p-3 group">
                                 {editingNoteId === note.id ? (
                                   <>
                                     <textarea value={editNoteText} onChange={e => setEditNoteText(e.target.value)} rows={3} autoFocus
-                                      className="w-full bg-[#1A1A1A] border border-gold/30 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none resize-none mb-2" />
+                                      className="w-full bg-surface border border-gold/30 rounded-lg px-2.5 py-2 text-xs text-text-primary focus:outline-none resize-none mb-2" />
                                     <div className="flex gap-2">
                                       <button onClick={() => { setEditingNoteId(null); setEditNoteText('') }}
-                                        className="flex-1 py-1 border border-[#2A2A2A] rounded-lg text-[10px] text-[#888] hover:text-white">Annulla</button>
+                                        className="flex-1 py-1 border border-border rounded-lg text-[10px] text-text-secondary hover:text-text-primary">Annulla</button>
                                       <button onClick={() => updateNote(note.id)}
                                         className="flex-1 py-1 bg-gold text-black font-bold rounded-lg text-[10px] hover:bg-yellow-400">Salva</button>
                                     </div>
@@ -1390,16 +1390,16 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
                                           ? <img src={note.author.avatar_url} className="w-full h-full object-cover" alt="" />
                                           : getInitials(note.author?.full_name ?? '?')}
                                       </div>
-                                      <span className="text-[10px] font-semibold text-white truncate flex-1">{note.author?.full_name ?? 'Sconosciuto'}</span>
+                                      <span className="text-[10px] font-semibold text-text-primary truncate flex-1">{note.author?.full_name ?? 'Sconosciuto'}</span>
                                       <div className="flex items-center gap-1 shrink-0">
                                         {note.author_id === currentProfile.id && (
                                           <>
                                             <button onClick={() => { setEditingNoteId(note.id); setEditNoteText(note.content) }}
-                                              className="p-0.5 text-[#555] hover:text-gold transition-colors opacity-0 group-hover:opacity-100">
+                                              className="p-0.5 text-text-tertiary hover:text-gold transition-colors opacity-0 group-hover:opacity-100">
                                               <Edit3 className="w-3 h-3" />
                                             </button>
                                             <button onClick={() => deleteNote(note.id)}
-                                              className="p-0.5 text-[#555] hover:text-error transition-colors opacity-0 group-hover:opacity-100">
+                                              className="p-0.5 text-text-tertiary hover:text-error transition-colors opacity-0 group-hover:opacity-100">
                                               <Trash2 className="w-3 h-3" />
                                             </button>
                                           </>
@@ -1410,8 +1410,8 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
                                     <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-wrap">{note.content}</p>
                                     {/* Footer con timestamp */}
                                     <div className="flex items-center gap-1 mt-2">
-                                      <Clock className="w-2.5 h-2.5 text-[#444]" />
-                                      <span className="text-[10px] text-[#444]">
+                                      <Clock className="w-2.5 h-2.5 text-text-tertiary" />
+                                      <span className="text-[10px] text-text-tertiary">
                                         {fmtDate(note.created_at)} · {fmtTime(note.created_at)}
                                         {note.updated_at !== note.created_at && ' · modificata'}
                                       </span>
@@ -1430,7 +1430,7 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
           )}
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center text-[#555] text-sm">
+        <div className="flex-1 flex items-center justify-center text-text-tertiary text-sm">
           Seleziona un cliente per iniziare
         </div>
       )}

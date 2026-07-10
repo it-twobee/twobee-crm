@@ -37,6 +37,7 @@ interface Props {
   kpis: ClientKpi[]; kpiConfig: ClientKpiConfig | null
   currentProfile: Profile; allProfiles: Profile[]; comments: ProjectComment[]
   appointments: ProjectAppointment[]; meetings: MeetingNote[]
+  backHref?: string
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -1995,7 +1996,7 @@ let accent = '#F5C800'
 export function ProjectPageClient({
   client, project: initialProject, tasks: initialTasks, sprints: initialSprints,
   kpis, currentProfile, allProfiles, comments: initialComments,
-  appointments, meetings,
+  appointments, meetings, backHref,
 }: Props) {
   const [activeTab, setActiveTab]         = useState<PageTab>('progetto')
   const [localTasks, setLocalTasks]       = useState<ExtTask[]>(initialTasks as ExtTask[])
@@ -2033,7 +2034,7 @@ export function ProjectPageClient({
     { key: 'riunioni',      label: '📖 Riunioni', badge: meetings.length || undefined },
     { key: 'kpi',           label: '📊 KPI' },
     { key: 'aggiornamenti', label: '💬 Aggiornamenti', badge: newUpdates || undefined },
-    { key: 'piano_cliente', label: '⭐ Piano Cliente' },
+    { key: 'piano_cliente', label: '⭐ Task al cliente' },
     { key: 'chat',          label: '🗨️ Chat' },
   ]
 
@@ -2045,7 +2046,7 @@ export function ProjectPageClient({
       <div className="border-b border-[#111] bg-[#0C0C0C]">
         {/* Breadcrumb */}
         <div className="px-4 sm:px-6 pt-4 pb-0">
-          <Link href={`/clienti/${client.id}`}
+          <Link href={backHref ?? `/clienti/${client.id}`}
             className="inline-flex items-center gap-1.5 text-xs text-[#333] hover:text-white transition-colors mb-3">
             <ArrowLeft className="w-3.5 h-3.5" /> {client.company_name}
           </Link>

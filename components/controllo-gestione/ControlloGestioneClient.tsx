@@ -410,7 +410,7 @@ Rispondi SOLO con JSON valido:
     finally { setAiLoading(false) }
   }
 
-  const inp = 'w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-gold/40 placeholder:text-[#444]'
+  const inp = 'w-full bg-surface border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-gold/40 placeholder:text-text-tertiary'
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto space-y-6">
@@ -421,7 +421,7 @@ Rispondi SOLO con JSON valido:
             <Calculator className="w-5 h-5 text-gold" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-white font-heading">Controllo di Gestione</h1>
+            <h1 className="text-xl font-black text-text-primary font-heading">Controllo di Gestione</h1>
             <p className="text-xs text-text-secondary mt-0.5">Costi, margini e performance aziendale</p>
           </div>
         </div>
@@ -453,11 +453,11 @@ Rispondi SOLO con JSON valido:
       </div>
 
       {/* Break-even */}
-      <div className="bg-surface border border-[#2A2A2A] rounded-xl p-4 flex items-center justify-between">
+      <div className="bg-surface border border-border rounded-xl p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
           <div>
-            <p className="text-sm font-bold text-white">Break-Even Floor mensile</p>
+            <p className="text-sm font-bold text-text-primary">Break-Even Floor mensile</p>
             <p className="text-[10px] text-text-secondary mt-0.5">
               Costi risorse ({formatCurrency(totalResourceCostMonthly)}) + costi fissi ({formatCurrency(monthlyOverhead)}) = soglia minima fatturato/mese
             </p>
@@ -467,13 +467,13 @@ Rispondi SOLO con JSON valido:
       </div>
 
       {/* Tabs */}
-      <div className="flex bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl p-1 gap-1">
+      <div className="flex bg-surface border border-border rounded-xl p-1 gap-1">
         {TABS.map(tab => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-colors ${
-              activeTab === tab.key ? 'bg-gold text-black' : 'text-text-secondary hover:text-white'
+              activeTab === tab.key ? 'bg-gold text-black' : 'text-text-secondary hover:text-text-primary'
             }`}
           >
             {tab.icon}{tab.label}
@@ -485,8 +485,8 @@ Rispondi SOLO con JSON valido:
       {activeTab === 'panoramica' && (
         <div className="space-y-4">
           {/* Cost breakdown by category */}
-          <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
-            <p className="text-sm font-bold text-white mb-4">Distribuzione costi per categoria</p>
+          <div className="bg-surface border border-border rounded-xl p-5">
+            <p className="text-sm font-bold text-text-primary mb-4">Distribuzione costi per categoria</p>
             <div className="grid grid-cols-7 gap-3">
               {COST_CATEGORIES.map(cat => {
                 const total = pCosts.filter(c => c.category === cat.key).reduce((s, c) => s + c.amount, 0)
@@ -495,7 +495,7 @@ Rispondi SOLO con JSON valido:
                   <div key={cat.key} className="text-center">
                     <p className={`text-lg font-black ${cat.color}`}>{formatCurrency(total)}</p>
                     <p className="text-[10px] text-text-secondary mt-1">{cat.label}</p>
-                    <div className="w-full h-1.5 bg-[#1A1A1A] rounded-full mt-2 overflow-hidden">
+                    <div className="w-full h-1.5 bg-surface rounded-full mt-2 overflow-hidden">
                       <div className="h-full rounded-full bg-gold/60 transition-all" style={{ width: `${pct}%` }} />
                     </div>
                     <p className="text-[9px] text-text-secondary mt-1">{pct}%</p>
@@ -506,8 +506,8 @@ Rispondi SOLO con JSON valido:
           </div>
 
           {/* Top clients by margin */}
-          <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
-            <p className="text-sm font-bold text-white mb-4">Margine per cliente (top 10)</p>
+          <div className="bg-surface border border-border rounded-xl p-5">
+            <p className="text-sm font-bold text-text-primary mb-4">Margine per cliente (top 10)</p>
             <div className="space-y-2">
               {externalClients
                 .map(c => {
@@ -521,8 +521,8 @@ Rispondi SOLO con JSON valido:
                 .slice(0, 10)
                 .map(c => (
                   <Link key={c.id} href={`/clienti/${c.id}?tab=2`}
-                    className="flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-white/[0.03] transition-colors group">
-                    <span className="text-sm text-white font-medium flex-1">{c.company_name}</span>
+                    className="flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-overlay/[0.03] transition-colors group">
+                    <span className="text-sm text-text-primary font-medium flex-1">{c.company_name}</span>
                     <span className="text-xs text-text-secondary w-28 text-right">{formatCurrency(c.rev)}</span>
                     <span className="text-xs text-red-400 w-28 text-right">-{formatCurrency(c.cost)}</span>
                     <span className={`text-xs font-bold w-20 text-right ${c.pct >= 60 ? 'text-emerald-400' : c.pct >= 40 ? 'text-amber-400' : 'text-red-400'}`}>
@@ -540,7 +540,7 @@ Rispondi SOLO con JSON valido:
       {activeTab === 'risorse' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-bold text-white">Costo Uomo — Risorse Aziendali</p>
+            <p className="text-sm font-bold text-text-primary">Costo Uomo — Risorse Aziendali</p>
             <div className="flex items-center gap-2">
               <button onClick={() => fetchSuggestions('resource')} disabled={suggesting}
                 className="flex items-center gap-1.5 px-3 py-2 bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded-lg text-xs font-semibold hover:bg-purple-500/20 transition-colors disabled:opacity-50">
@@ -561,11 +561,11 @@ Rispondi SOLO con JSON valido:
             <AddResourceForm profiles={profiles} onAdd={addResource} onCancel={() => setShowAddResource(false)} />
           )}
 
-          <div className="bg-surface border border-[#2A2A2A] rounded-xl overflow-hidden">
+          <div className="bg-surface border border-border rounded-xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-[#2A2A2A] text-text-secondary text-left">
+                  <tr className="border-b border-border text-text-secondary text-left">
                     {['Risorsa', 'Tipo', 'Costo/mese', '€/ora costo', 'Ore fatt.', 'Saturaz.', 'Markup', '€/ora vendita', ''].map(h => (
                       <th key={h} className="px-4 py-3 font-semibold uppercase tracking-wider text-[10px]">{h}</th>
                     ))}
@@ -583,17 +583,17 @@ Rispondi SOLO con JSON valido:
                     }
 
                     return (
-                      <tr key={r.id} className={`border-b border-[#1A1A1A] hover:bg-white/[0.02] transition-colors ${!r.is_active ? 'opacity-40' : ''}`}>
+                      <tr key={r.id} className={`border-b border-border hover:bg-overlay/[0.02] transition-colors ${!r.is_active ? 'opacity-40' : ''}`}>
                         <td className="px-4 py-3">
                           <div>
-                            <p className="text-sm font-medium text-white">{r.name}</p>
+                            <p className="text-sm font-medium text-text-primary">{r.name}</p>
                             {r.role_title && <p className="text-[10px] text-text-secondary">{r.role_title}</p>}
                           </div>
                         </td>
                         <td className="px-4 py-3 text-text-secondary capitalize">{r.resource_type.replace(/_/g, ' ')}</td>
-                        <td className="px-4 py-3 text-white font-bold">{formatCurrency(r.monthly_cost ?? 0)}</td>
-                        <td className="px-4 py-3 text-white font-bold">{formatCurrency(hourly)}</td>
-                        <td className="px-4 py-3 text-white">{r.billable_target_hours_month}h/{r.availability_hours_month}h</td>
+                        <td className="px-4 py-3 text-text-primary font-bold">{formatCurrency(r.monthly_cost ?? 0)}</td>
+                        <td className="px-4 py-3 text-text-primary font-bold">{formatCurrency(hourly)}</td>
+                        <td className="px-4 py-3 text-text-primary">{r.billable_target_hours_month}h/{r.availability_hours_month}h</td>
                         <td className="px-4 py-3">
                           <span className={`font-bold ${satPct >= 70 ? 'text-emerald-400' : satPct >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
                             {satPct}%
@@ -619,21 +619,21 @@ Rispondi SOLO con JSON valido:
           </div>
 
           {/* Formule reference */}
-          <div className="bg-[#111] border border-[#2A2A2A] rounded-xl p-4 space-y-3">
+          <div className="bg-surface border border-border rounded-xl p-4 space-y-3">
             <p className="text-[10px] font-bold text-gold uppercase tracking-wider">Formule di riferimento</p>
             <div className="grid grid-cols-3 gap-4 text-[11px] text-text-secondary">
               <div>
-                <p className="text-white font-semibold mb-1">Costo Uomo Orario</p>
+                <p className="text-text-primary font-semibold mb-1">Costo Uomo Orario</p>
                 <p>CAA ÷ Ore Fatturabili Reali</p>
                 <p className="text-[10px] mt-1">Dipendente: RAL × 1.35 ÷ ore billable</p>
               </div>
               <div>
-                <p className="text-white font-semibold mb-1">Saturation Rate</p>
+                <p className="text-text-primary font-semibold mb-1">Saturation Rate</p>
                 <p>Ore su clienti ÷ Ore totali × 100</p>
                 <p className="text-[10px] mt-1">Target: 70-80% (specialist)</p>
               </div>
               <div>
-                <p className="text-white font-semibold mb-1">ROI Risorsa</p>
+                <p className="text-text-primary font-semibold mb-1">ROI Risorsa</p>
                 <p>Fatturato generato ÷ Costo aziendale</p>
                 <p className="text-[10px] mt-1">Target: ≥ 2.5x — 3x</p>
               </div>
@@ -647,7 +647,7 @@ Rispondi SOLO con JSON valido:
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-bold text-white">Costi Fissi Aziendali</p>
+              <p className="text-sm font-bold text-text-primary">Costi Fissi Aziendali</p>
               <p className="text-[10px] text-text-secondary mt-0.5">
                 Totale attivo: <strong className="text-orange-400">{formatCurrency(monthlyOverhead)}/mese</strong> — {formatCurrency(monthlyOverhead * 12)}/anno
               </p>
@@ -672,10 +672,10 @@ Rispondi SOLO con JSON valido:
             <AddBizCostForm onAdd={addBizCost} onCancel={() => setShowAddBiz(false)} />
           )}
 
-          <div className="bg-surface border border-[#2A2A2A] rounded-xl overflow-hidden">
+          <div className="bg-surface border border-border rounded-xl overflow-hidden">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-[#2A2A2A] text-text-secondary text-left">
+                <tr className="border-b border-border text-text-secondary text-left">
                   {['Categoria', 'Descrizione', 'Importo/mese', 'Importo/anno', 'Stato', ''].map(h => (
                     <th key={h} className="px-4 py-3 font-semibold uppercase tracking-wider text-[10px]">{h}</th>
                   ))}
@@ -685,13 +685,13 @@ Rispondi SOLO con JSON valido:
                 {bizCosts.map(b => {
                   const catLabel = BIZ_CATEGORIES.find(bc => bc.key === b.category)?.label ?? b.category
                   return (
-                    <tr key={b.id} className={`border-b border-[#1A1A1A] hover:bg-white/[0.02] transition-colors ${!b.is_active ? 'opacity-40' : ''}`}>
+                    <tr key={b.id} className={`border-b border-border hover:bg-overlay/[0.02] transition-colors ${!b.is_active ? 'opacity-40' : ''}`}>
                       <td className="px-4 py-3 text-text-secondary capitalize">{catLabel}</td>
-                      <td className="px-4 py-3 text-white font-medium">{b.description}</td>
-                      <td className="px-4 py-3 text-white font-bold">{formatCurrency(b.monthly_amount)}</td>
+                      <td className="px-4 py-3 text-text-primary font-medium">{b.description}</td>
+                      <td className="px-4 py-3 text-text-primary font-bold">{formatCurrency(b.monthly_amount)}</td>
                       <td className="px-4 py-3 text-text-secondary">{formatCurrency(b.monthly_amount * 12)}</td>
                       <td className="px-4 py-3">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${b.is_active ? 'bg-emerald-500/15 text-emerald-400' : 'bg-[#2A2A2A] text-text-secondary'}`}>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${b.is_active ? 'bg-emerald-500/15 text-emerald-400' : 'bg-surface-hover text-text-secondary'}`}>
                           {b.is_active ? 'Attivo' : 'Inattivo'}
                         </span>
                       </td>
@@ -713,9 +713,9 @@ Rispondi SOLO con JSON valido:
             {BIZ_CATEGORIES.map(cat => {
               const total = bizCosts.filter(b => b.category === cat.key && b.is_active).reduce((s, b) => s + b.monthly_amount, 0)
               return (
-                <div key={cat.key} className="bg-surface border border-[#2A2A2A] rounded-xl p-3 text-center">
+                <div key={cat.key} className="bg-surface border border-border rounded-xl p-3 text-center">
                   <p className="text-[10px] text-text-secondary">{cat.label}</p>
-                  <p className="text-sm font-bold text-white mt-1">{formatCurrency(total)}</p>
+                  <p className="text-sm font-bold text-text-primary mt-1">{formatCurrency(total)}</p>
                   <p className="text-[9px] text-text-secondary">/mese</p>
                 </div>
               )
@@ -727,20 +727,20 @@ Rispondi SOLO con JSON valido:
       {/* ── PER PROGETTO ── */}
       {activeTab === 'progetti' && (
         <div className="space-y-2">
-          <p className="text-sm font-bold text-white mb-3">Costi e margine per progetto</p>
+          <p className="text-sm font-bold text-text-primary mb-3">Costi e margine per progetto</p>
           {projectsWithCosts.map(p => {
             const isExpanded = expandedProject === p.id
             const marginPct = p.revenue > 0 ? Math.round(((p.revenue - p.totalCost) / p.revenue) * 100) : 0
             return (
-              <div key={p.id} className="bg-surface border border-[#2A2A2A] rounded-xl overflow-hidden">
+              <div key={p.id} className="bg-surface border border-border rounded-xl overflow-hidden">
                 <button
                   onClick={() => setExpandedProject(isExpanded ? null : p.id)}
-                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.02] transition-colors"
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-overlay/[0.02] transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-text-secondary" /> : <ChevronRight className="w-3.5 h-3.5 text-text-secondary" />}
                     <div className="text-left">
-                      <span className="text-sm font-semibold text-white">{p.name}</span>
+                      <span className="text-sm font-semibold text-text-primary">{p.name}</span>
                       {p.client && <span className="text-[10px] text-text-secondary ml-2">{p.client.company_name}</span>}
                     </div>
                   </div>
@@ -754,7 +754,7 @@ Rispondi SOLO con JSON valido:
                 </button>
 
                 {isExpanded && (
-                  <div className="border-t border-[#2A2A2A] px-4 py-3 space-y-2">
+                  <div className="border-t border-border px-4 py-3 space-y-2">
                     {p.costs.length === 0 && <p className="text-xs text-text-secondary py-2">Nessun costo registrato</p>}
                     {p.costs.map(c => {
                       const catInfo = COST_CATEGORIES.find(cc => cc.key === c.category)
@@ -763,9 +763,9 @@ Rispondi SOLO con JSON valido:
                           <span className={`text-[10px] font-bold uppercase w-20 shrink-0 ${catInfo?.color ?? 'text-white/40'}`}>
                             {catInfo?.label ?? c.category}
                           </span>
-                          <span className="text-sm text-white flex-1 truncate">{c.description}</span>
+                          <span className="text-sm text-text-primary flex-1 truncate">{c.description}</span>
                           {c.hours && <span className="text-[10px] text-text-secondary shrink-0">{c.hours}h × €{c.hourly_rate}</span>}
-                          <span className="text-sm font-bold text-white shrink-0 w-24 text-right">{formatCurrency(c.amount)}</span>
+                          <span className="text-sm font-bold text-text-primary shrink-0 w-24 text-right">{formatCurrency(c.amount)}</span>
                           <button onClick={() => deleteProjectCost(c.id)}
                             className="p-1 text-text-secondary hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">
                             <Trash2 className="w-3 h-3" />
@@ -777,7 +777,7 @@ Rispondi SOLO con JSON valido:
                     {showAddCost === p.id ? (
                       <AddProjectCostForm resources={resources} onAdd={form => addProjectCost(p.id, p.client_id, form)} onCancel={() => setShowAddCost(null)} />
                     ) : (
-                      <div className="flex items-center justify-between pt-2 border-t border-[#1A1A1A]">
+                      <div className="flex items-center justify-between pt-2 border-t border-border">
                         <button onClick={() => setShowAddCost(p.id)} className="flex items-center gap-1.5 text-xs text-gold hover:text-yellow-400">
                           <Plus className="w-3 h-3" /> Aggiungi costo
                         </button>
@@ -807,8 +807,8 @@ Rispondi SOLO con JSON valido:
 
           {!aiLoading && !aiResult && (
             <div className="text-center py-20">
-              <Brain className="w-12 h-12 text-[#2A2A2A] mx-auto mb-4" />
-              <p className="text-white font-bold mb-1">Analisi AI non ancora eseguita</p>
+              <Brain className="w-12 h-12 text-text-tertiary mx-auto mb-4" />
+              <p className="text-text-primary font-bold mb-1">Analisi AI non ancora eseguita</p>
               <p className="text-xs text-text-secondary mb-4">Clicca "Analisi AI Completa" per generare un report finanziario dettagliato</p>
               <button onClick={runAI} className="inline-flex items-center gap-2 px-5 py-2.5 bg-gold text-black rounded-xl text-sm font-bold">
                 <Brain className="w-4 h-4" /> Genera analisi
@@ -819,23 +819,23 @@ Rispondi SOLO con JSON valido:
           {aiResult && (
             <div className="space-y-4">
               <div className="grid grid-cols-4 gap-3">
-                <div className="bg-surface border border-[#2A2A2A] rounded-xl p-4 text-center">
+                <div className="bg-surface border border-border rounded-xl p-4 text-center">
                   <p className="text-[10px] text-text-secondary">Margine Netto</p>
                   <p className={`text-2xl font-black ${(aiResult.margine_netto_pct ?? 0) >= 30 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {aiResult.margine_netto_pct}%
                   </p>
                 </div>
-                <div className="bg-surface border border-[#2A2A2A] rounded-xl p-4 text-center">
+                <div className="bg-surface border border-border rounded-xl p-4 text-center">
                   <p className="text-[10px] text-text-secondary">Break-Even/mese</p>
                   <p className="text-2xl font-black text-amber-400">{formatCurrency(aiResult.break_even_mensile)}</p>
                 </div>
-                <div className="bg-surface border border-[#2A2A2A] rounded-xl p-4 text-center">
+                <div className="bg-surface border border-border rounded-xl p-4 text-center">
                   <p className="text-[10px] text-text-secondary">Saturazione Media</p>
                   <p className={`text-2xl font-black ${(aiResult.saturazione_media_pct ?? 0) >= 70 ? 'text-emerald-400' : 'text-amber-400'}`}>
                     {aiResult.saturazione_media_pct}%
                   </p>
                 </div>
-                <div className="bg-surface border border-[#2A2A2A] rounded-xl p-4 text-center">
+                <div className="bg-surface border border-border rounded-xl p-4 text-center">
                   <p className="text-[10px] text-text-secondary">ROI Risorse</p>
                   <p className={`text-2xl font-black ${(aiResult.roi_medio_risorse ?? 0) >= 2.5 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {aiResult.roi_medio_risorse}x
@@ -860,12 +860,12 @@ Rispondi SOLO con JSON valido:
               )}
 
               {aiResult.top_clients?.length > 0 && (
-                <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
-                  <p className="text-sm font-bold text-white mb-3">Top clienti per margine (AI)</p>
+                <div className="bg-surface border border-border rounded-xl p-5">
+                  <p className="text-sm font-bold text-text-primary mb-3">Top clienti per margine (AI)</p>
                   {aiResult.top_clients.map((c, i) => (
                     <div key={i} className="flex items-center gap-3 py-1.5">
                       <span className="text-xs text-text-secondary w-6">{i + 1}.</span>
-                      <span className="text-sm text-white flex-1">{c.name}</span>
+                      <span className="text-sm text-text-primary flex-1">{c.name}</span>
                       <span className="text-xs text-text-secondary">{formatCurrency(c.revenue)}</span>
                       <span className={`text-xs font-bold w-16 text-right ${c.margin_pct >= 60 ? 'text-emerald-400' : c.margin_pct >= 40 ? 'text-amber-400' : 'text-red-400'}`}>
                         {c.margin_pct}%
@@ -880,7 +880,7 @@ Rispondi SOLO con JSON valido:
                   <p className="text-[10px] font-bold text-gold uppercase tracking-wider mb-3">Raccomandazioni</p>
                   <div className="space-y-2">
                     {aiResult.raccomandazioni.map((r, i) => (
-                      <div key={i} className="flex items-start gap-2 text-sm text-white/80">
+                      <div key={i} className="flex items-start gap-2 text-sm text-overlay/80">
                         <span className="text-gold font-bold shrink-0 mt-0.5">{i + 1}.</span>
                         <span>{r}</span>
                       </div>
@@ -890,9 +890,9 @@ Rispondi SOLO con JSON valido:
               )}
 
               {aiResult.analisi_narrativa && (
-                <div className="bg-[#111] border border-[#2A2A2A] rounded-xl p-5">
+                <div className="bg-surface border border-border rounded-xl p-5">
                   <p className="text-[10px] font-bold text-text-secondary uppercase tracking-wider mb-3">Analisi dettagliata</p>
-                  <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">{aiResult.analisi_narrativa}</p>
+                  <p className="text-sm text-overlay/80 leading-relaxed whitespace-pre-line">{aiResult.analisi_narrativa}</p>
                 </div>
               )}
             </div>
@@ -906,25 +906,25 @@ Rispondi SOLO con JSON valido:
       {/* Upload/Suggest preview modal */}
       {uploadPreview && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-8" onClick={() => setUploadPreview(null)}>
-          <div className="bg-[#111] border border-[#2A2A2A] rounded-2xl w-full max-w-4xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A]">
+          <div className="bg-surface border border-border rounded-2xl w-full max-w-4xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <div className="flex items-center gap-3">
                 <FileSpreadsheet className="w-5 h-5 text-gold" />
                 <div>
-                  <p className="text-sm font-bold text-white">
+                  <p className="text-sm font-bold text-text-primary">
                     Anteprima dati — {uploadPreview.target === 'resource_costs' ? 'Risorse' : uploadPreview.target === 'business_costs' ? 'Costi Fissi' : 'Costi Progetto'}
                   </p>
                   <p className="text-[10px] text-text-secondary">{uploadPreview.rows.length} righe pronte per l&apos;importazione</p>
                 </div>
               </div>
-              <button onClick={() => setUploadPreview(null)} className="text-text-secondary hover:text-white"><X className="w-4 h-4" /></button>
+              <button onClick={() => setUploadPreview(null)} className="text-text-secondary hover:text-text-primary"><X className="w-4 h-4" /></button>
             </div>
 
             <div className="flex-1 overflow-auto p-4">
               {uploadPreview.target === 'resource_costs' && (
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b border-[#2A2A2A] text-text-secondary text-left">
+                    <tr className="border-b border-border text-text-secondary text-left">
                       {['Nome', 'Tipo', 'Ruolo', 'Costo/mese', '€/ora', 'Ore fatt.', 'Markup', 'Note'].map(h => (
                         <th key={h} className="px-3 py-2 font-semibold text-[10px] uppercase">{h}</th>
                       ))}
@@ -932,12 +932,12 @@ Rispondi SOLO con JSON valido:
                   </thead>
                   <tbody>
                     {uploadPreview.rows.map((r, i) => (
-                      <tr key={i} className="border-b border-[#1A1A1A]">
-                        <td className="px-3 py-2 text-white font-medium">{String(r.name ?? '')}</td>
+                      <tr key={i} className="border-b border-border">
+                        <td className="px-3 py-2 text-text-primary font-medium">{String(r.name ?? '')}</td>
                         <td className="px-3 py-2 text-text-secondary capitalize">{String(r.resource_type ?? '').replace(/_/g, ' ')}</td>
                         <td className="px-3 py-2 text-text-secondary">{String(r.role_title ?? '')}</td>
-                        <td className="px-3 py-2 text-white">{formatCurrency(Number(r.monthly_cost) || 0)}</td>
-                        <td className="px-3 py-2 text-white">{formatCurrency(Number(r.hourly_cost) || 0)}</td>
+                        <td className="px-3 py-2 text-text-primary">{formatCurrency(Number(r.monthly_cost) || 0)}</td>
+                        <td className="px-3 py-2 text-text-primary">{formatCurrency(Number(r.hourly_cost) || 0)}</td>
                         <td className="px-3 py-2 text-text-secondary">{String(r.billable_target_hours_month ?? '120')}h</td>
                         <td className="px-3 py-2 text-text-secondary">{String(r.markup_default ?? '2')}x</td>
                         <td className="px-3 py-2 text-text-secondary truncate max-w-[150px]">{String(r.notes ?? '')}</td>
@@ -950,7 +950,7 @@ Rispondi SOLO con JSON valido:
               {uploadPreview.target === 'business_costs' && (
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b border-[#2A2A2A] text-text-secondary text-left">
+                    <tr className="border-b border-border text-text-secondary text-left">
                       {['Categoria', 'Descrizione', 'Importo/mese', 'Note'].map(h => (
                         <th key={h} className="px-3 py-2 font-semibold text-[10px] uppercase">{h}</th>
                       ))}
@@ -958,10 +958,10 @@ Rispondi SOLO con JSON valido:
                   </thead>
                   <tbody>
                     {uploadPreview.rows.map((r, i) => (
-                      <tr key={i} className="border-b border-[#1A1A1A]">
+                      <tr key={i} className="border-b border-border">
                         <td className="px-3 py-2 text-text-secondary capitalize">{String(r.category ?? '')}</td>
-                        <td className="px-3 py-2 text-white font-medium">{String(r.description ?? '')}</td>
-                        <td className="px-3 py-2 text-white font-bold">{formatCurrency(Number(r.monthly_amount) || 0)}</td>
+                        <td className="px-3 py-2 text-text-primary font-medium">{String(r.description ?? '')}</td>
+                        <td className="px-3 py-2 text-text-primary font-bold">{formatCurrency(Number(r.monthly_amount) || 0)}</td>
                         <td className="px-3 py-2 text-text-secondary truncate max-w-[200px]">{String(r.notes ?? '')}</td>
                       </tr>
                     ))}
@@ -972,7 +972,7 @@ Rispondi SOLO con JSON valido:
               {uploadPreview.target === 'project_costs' && (
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b border-[#2A2A2A] text-text-secondary text-left">
+                    <tr className="border-b border-border text-text-secondary text-left">
                       {['Categoria', 'Descrizione', 'Ore', 'Tariffa', 'Importo', 'Note'].map(h => (
                         <th key={h} className="px-3 py-2 font-semibold text-[10px] uppercase">{h}</th>
                       ))}
@@ -980,12 +980,12 @@ Rispondi SOLO con JSON valido:
                   </thead>
                   <tbody>
                     {uploadPreview.rows.map((r, i) => (
-                      <tr key={i} className="border-b border-[#1A1A1A]">
+                      <tr key={i} className="border-b border-border">
                         <td className="px-3 py-2 text-text-secondary capitalize">{String(r.category ?? '')}</td>
-                        <td className="px-3 py-2 text-white font-medium">{String(r.description ?? '')}</td>
+                        <td className="px-3 py-2 text-text-primary font-medium">{String(r.description ?? '')}</td>
                         <td className="px-3 py-2 text-text-secondary">{r.hours ? `${r.hours}h` : '—'}</td>
                         <td className="px-3 py-2 text-text-secondary">{r.hourly_rate ? formatCurrency(Number(r.hourly_rate)) : '—'}</td>
-                        <td className="px-3 py-2 text-white font-bold">{formatCurrency(Number(r.amount) || 0)}</td>
+                        <td className="px-3 py-2 text-text-primary font-bold">{formatCurrency(Number(r.amount) || 0)}</td>
                         <td className="px-3 py-2 text-text-secondary truncate max-w-[150px]">{String(r.notes ?? '')}</td>
                       </tr>
                     ))}
@@ -994,10 +994,10 @@ Rispondi SOLO con JSON valido:
               )}
             </div>
 
-            <div className="flex items-center justify-between px-6 py-4 border-t border-[#2A2A2A]">
+            <div className="flex items-center justify-between px-6 py-4 border-t border-border">
               <p className="text-[10px] text-text-secondary">Controlla i dati prima di importare. I valori verranno inseriti nel database.</p>
               <div className="flex items-center gap-2">
-                <button onClick={() => setUploadPreview(null)} className="px-4 py-2 text-xs text-text-secondary hover:text-white">Annulla</button>
+                <button onClick={() => setUploadPreview(null)} className="px-4 py-2 text-xs text-text-secondary hover:text-text-primary">Annulla</button>
                 <button onClick={confirmUpload} disabled={uploading}
                   className="flex items-center gap-1.5 px-5 py-2 bg-gold text-black rounded-lg text-xs font-bold hover:bg-yellow-400 transition-colors disabled:opacity-50">
                   {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
@@ -1018,7 +1018,7 @@ function KpiCard({ label, value, icon, color, subtitle }: {
   label: string; value: string; icon: React.ReactNode; color: string; subtitle?: string
 }) {
   return (
-    <div className="bg-surface border border-[#2A2A2A] rounded-xl p-3">
+    <div className="bg-surface border border-border rounded-xl p-3">
       <div className="flex items-center gap-2 mb-1.5">
         <span className={color}>{icon}</span>
         <span className="text-[10px] text-text-secondary">{label}</span>
@@ -1065,7 +1065,7 @@ function AddResourceForm({ profiles, onAdd, onCancel }: {
     setSaving(false)
   }
 
-  const inp = 'w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-gold/40 placeholder:text-[#444]'
+  const inp = 'w-full bg-surface border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-gold/40 placeholder:text-text-tertiary'
 
   return (
     <div className="bg-surface border border-gold/20 rounded-xl p-4 space-y-3">
@@ -1117,7 +1117,7 @@ function AddResourceForm({ profiles, onAdd, onCancel }: {
         </div>
       </div>
       <div className="flex items-center justify-end gap-2 pt-1">
-        <button onClick={onCancel} className="px-3 py-2 text-xs text-text-secondary hover:text-white">Annulla</button>
+        <button onClick={onCancel} className="px-3 py-2 text-xs text-text-secondary hover:text-text-primary">Annulla</button>
         <button onClick={handleSubmit} disabled={saving || !form.name.trim()}
           className="flex items-center gap-1.5 px-4 py-2 bg-gold text-black rounded-lg text-xs font-bold disabled:opacity-40">
           {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />} Aggiungi
@@ -1137,7 +1137,7 @@ function EditResourceRow({ resource: r, onSave, onCancel }: {
   const [markup, setMarkup] = useState(String(r.markup_default))
   const [saving, setSaving] = useState(false)
 
-  const inp = 'bg-[#111] border border-[#2A2A2A] rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-gold/40 w-full'
+  const inp = 'bg-surface border border-border rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-gold/40 w-full'
 
   const handleSave = async () => {
     setSaving(true)
@@ -1151,7 +1151,7 @@ function EditResourceRow({ resource: r, onSave, onCancel }: {
 
   return (
     <tr className="border-b border-gold/20 bg-gold/[0.03]">
-      <td className="px-4 py-2 text-sm text-white font-medium">{r.name}</td>
+      <td className="px-4 py-2 text-sm text-text-primary font-medium">{r.name}</td>
       <td className="px-4 py-2 text-text-secondary capitalize text-xs">{r.resource_type.replace(/_/g, ' ')}</td>
       <td className="px-4 py-2"><input type="number" value={monthly} onChange={e => setMonthly(e.target.value)} className={inp} /></td>
       <td className="px-4 py-2 text-xs text-text-secondary">auto</td>
@@ -1164,7 +1164,7 @@ function EditResourceRow({ resource: r, onSave, onCancel }: {
           <button onClick={handleSave} disabled={saving} className="p-1 text-gold hover:text-yellow-400">
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
           </button>
-          <button onClick={onCancel} className="p-1 text-text-secondary hover:text-white"><X className="w-3.5 h-3.5" /></button>
+          <button onClick={onCancel} className="p-1 text-text-secondary hover:text-text-primary"><X className="w-3.5 h-3.5" /></button>
         </div>
       </td>
     </tr>
@@ -1177,7 +1177,7 @@ function AddBizCostForm({ onAdd, onCancel }: {
 }) {
   const [form, setForm] = useState({ category: 'altro' as BusinessCostCategory, description: '', monthly_amount: '' })
   const [saving, setSaving] = useState(false)
-  const inp = 'bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-gold/40 placeholder:text-[#444]'
+  const inp = 'bg-surface border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-gold/40 placeholder:text-text-tertiary'
 
   return (
     <div className="flex items-end gap-3 bg-surface border border-gold/20 rounded-xl p-4">
@@ -1195,7 +1195,7 @@ function AddBizCostForm({ onAdd, onCancel }: {
         <label className="text-[10px] text-text-secondary mb-1 block">€/mese</label>
         <input type="number" value={form.monthly_amount} onChange={e => setForm(f => ({ ...f, monthly_amount: e.target.value }))} placeholder="100" className={inp} />
       </div>
-      <button onClick={onCancel} className="px-3 py-2 text-xs text-text-secondary hover:text-white">Annulla</button>
+      <button onClick={onCancel} className="px-3 py-2 text-xs text-text-secondary hover:text-text-primary">Annulla</button>
       <button onClick={async () => { setSaving(true); await onAdd(form); setSaving(false) }}
         disabled={saving || !form.description.trim()}
         className="flex items-center gap-1.5 px-4 py-2 bg-gold text-black rounded-lg text-xs font-bold disabled:opacity-40">
@@ -1215,7 +1215,7 @@ function AddProjectCostForm({ resources, onAdd, onCancel }: {
     hours: '', hourly_rate: '', resource_cost_id: '',
   })
   const [saving, setSaving] = useState(false)
-  const inp = 'bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-gold/40 placeholder:text-[#444]'
+  const inp = 'bg-surface border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-gold/40 placeholder:text-text-tertiary'
 
   const handleResourceSelect = (resId: string) => {
     const r = resources.find(rc => rc.id === resId)
@@ -1223,7 +1223,7 @@ function AddProjectCostForm({ resources, onAdd, onCancel }: {
   }
 
   return (
-    <div className="bg-[#111] border border-gold/20 rounded-xl p-3 space-y-2 mt-2">
+    <div className="bg-surface border border-gold/20 rounded-xl p-3 space-y-2 mt-2">
       <div className="grid grid-cols-3 gap-2">
         <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as ProjectCostCategory }))} className={inp}>
           {COST_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
@@ -1243,14 +1243,14 @@ function AddProjectCostForm({ resources, onAdd, onCancel }: {
             <span className="text-[10px] text-text-secondary">×</span>
             <input type="number" value={form.hourly_rate} onChange={e => setForm(f => ({ ...f, hourly_rate: e.target.value }))} placeholder="€/h" className={`${inp} w-24`} />
             {form.hours && form.hourly_rate && (
-              <span className="text-xs text-text-secondary">= <strong className="text-white">{formatCurrency(parseFloat(form.hours) * parseFloat(form.hourly_rate))}</strong></span>
+              <span className="text-xs text-text-secondary">= <strong className="text-text-primary">{formatCurrency(parseFloat(form.hours) * parseFloat(form.hourly_rate))}</strong></span>
             )}
           </>
         ) : (
           <input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="Importo €" className={`${inp} w-32`} />
         )}
         <div className="flex-1" />
-        <button onClick={onCancel} className="text-xs text-text-secondary hover:text-white px-2">Annulla</button>
+        <button onClick={onCancel} className="text-xs text-text-secondary hover:text-text-primary px-2">Annulla</button>
         <button onClick={async () => { setSaving(true); await onAdd(form); setSaving(false) }}
           disabled={saving || !form.description.trim()}
           className="flex items-center gap-1 px-3 py-2 bg-gold text-black rounded-lg text-xs font-bold disabled:opacity-40">

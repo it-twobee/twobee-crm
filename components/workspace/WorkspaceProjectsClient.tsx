@@ -32,6 +32,20 @@ const STATUS_META: Record<string, { label: string; color: string }> = {
   chiuso:    { label: 'Chiuso',   color: 'text-white/30 bg-white/5 border-white/10' },
 }
 
+const KIND_META: Record<string, { label: string; short: string; color: string }> = {
+  growth:   { label: 'Growth',   short: 'G',  color: 'border-[#F5C800]/25 text-[#F5C800]/70' },
+  digital:  { label: 'Digital',  short: 'D',  color: 'border-blue-400/25 text-blue-400/70' },
+  marketing:{ label: 'Marketing', short: 'M', color: 'border-amber-400/25 text-amber-400/70' },
+  ai:       { label: 'AI',       short: 'AI', color: 'border-purple-400/25 text-purple-400/70' },
+}
+const KIND_OPTIONS: { value: string; label: string }[] = [
+  { value: 'tutti', label: 'Tutte le tipologie' },
+  { value: 'growth', label: '📈 Growth' },
+  { value: 'digital', label: '💻 Digital' },
+  { value: 'marketing', label: '📣 Marketing' },
+  { value: 'ai', label: '🤖 AI' },
+]
+
 const TASK_STATUS_COLOR: Record<string, string> = {
   da_fare:      '#3B82F6',
   in_corso:     '#F5C800',
@@ -48,23 +62,32 @@ type TimeGrain = 'day' | 'month'
 
 export function WorkspaceProjectsClient({ projects }: Props) {
   const [search, setSearch] = useState('')
+  const [kind, setKind]     = useState('tutti')
   const [view, setView]     = useState<ViewMode>('cards')
   const [grain, setGrain]   = useState<TimeGrain>('month')
   const [offset, setOffset] = useState(0)
 
   const filtered = projects.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.client?.company_name.toLowerCase().includes(search.toLowerCase())
+    (kind === 'tutti' || p.project_kind === kind) &&
+    (p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.client?.company_name.toLowerCase().includes(search.toLowerCase()))
   )
 
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-bold text-white">Progetti assegnati</h1>
-          <p className="text-white/40 text-sm mt-0.5">{projects.length} progett{projects.length === 1 ? 'o' : 'i'} con task assegnate</p>
+          <h1 className="text-xl font-bold text-white">Progetti attivi</h1>
+          <p className="text-white/40 text-sm mt-0.5">{projects.length} progett{projects.length === 1 ? 'o' : 'i'} attiv{projects.length === 1 ? 'o' : 'i'} in totale</p>
         </div>
         <div className="flex items-center gap-2">
+          <select
+            value={kind}
+            onChange={e => setKind(e.target.value)}
+            className="px-3 py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl text-sm text-white focus:border-[#F5C800]/40 outline-none"
+          >
+            {KIND_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
             <input
@@ -95,7 +118,7 @@ export function WorkspaceProjectsClient({ projects }: Props) {
 
       {filtered.length === 0 ? (
         <div className="text-center py-16 text-white/30 text-sm">
-          {search ? 'Nessun progetto trovato' : 'Nessun progetto assegnato'}
+          {search || kind !== 'tutti' ? 'Nessun progetto trovato' : 'Nessun progetto attivo'}
         </div>
       ) : view === 'cards' ? (
         <CardsView projects={filtered} />
@@ -138,9 +161,9 @@ function CardsView({ projects }: { projects: ProjectWithMeta[] }) {
               <span className={cn('px-2 py-0.5 rounded-full text-xs border', statusMeta.color)}>
                 {statusMeta.label}
               </span>
-              {p.project_kind && (
-                <span className="px-2 py-0.5 rounded-full text-xs border border-[#F5C800]/20 text-[#F5C800]/60">
-                  {p.project_kind === 'growth' ? 'G' : 'D'}
+              {p.project_kind && KIND_META[p.project_kind] && (
+                <span className={cn('px-2 py-0.5 rounded-full text-xs border', KIND_META[p.project_kind].color)}>
+                  {KIND_META[p.project_kind].short}
                 </span>
               )}
             </div>

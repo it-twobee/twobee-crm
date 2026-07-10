@@ -54,6 +54,8 @@ interface Props {
   isAdmin: boolean
   openTickets: number
   onTabChange?: (tab: number) => void
+  /** Portale operativo: oscura MRR, fatture, ricavi e "da incassare" */
+  hideEconomics?: boolean
 }
 
 function scoreChecks(checks: { actual: number | null; target: number | null; lowerIsBetter?: boolean }[]): number {
@@ -111,10 +113,10 @@ function AgendaSection({ meetings }: { meetings: MeetingNote[] }) {
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
       {/* Prossimi appuntamenti */}
-      <div className="bg-[#111] border border-[#2A2A2A] rounded-xl overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-[#2A2A2A]">
+      <div className="bg-surface border border-border rounded-xl overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
           <Calendar className="w-3.5 h-3.5 text-gold" />
-          <span className="text-xs font-bold text-white uppercase tracking-wider">Prossimi Appuntamenti</span>
+          <span className="text-xs font-bold text-text-primary uppercase tracking-wider">Prossimi Appuntamenti</span>
         </div>
         <div className="p-4">
           {upcoming.length === 0 ? (
@@ -125,15 +127,15 @@ function AgendaSection({ meetings }: { meetings: MeetingNote[] }) {
                 const d = new Date(m.date)
                 const isNext = i === 0
                 return (
-                  <div key={m.id} className={`flex items-start gap-3 p-3 rounded-xl border ${isNext ? 'bg-gold/5 border-gold/25' : 'bg-background border-[#2A2A2A]'}`}>
-                    <div className={`shrink-0 rounded-xl p-2.5 text-center min-w-[48px] ${isNext ? 'bg-gold/15' : 'bg-[#1A1A1A]'}`}>
+                  <div key={m.id} className={`flex items-start gap-3 p-3 rounded-xl border ${isNext ? 'bg-gold/5 border-gold/25' : 'bg-background border-border'}`}>
+                    <div className={`shrink-0 rounded-xl p-2.5 text-center min-w-[48px] ${isNext ? 'bg-gold/15' : 'bg-surface'}`}>
                       <p className={`text-[9px] font-bold uppercase tracking-wider ${isNext ? 'text-gold' : 'text-text-secondary'}`}>
                         {d.toLocaleDateString('it-IT', { month: 'short' })}
                       </p>
-                      <p className={`text-xl font-black leading-tight ${isNext ? 'text-gold' : 'text-white'}`}>{d.getDate()}</p>
+                      <p className={`text-xl font-black leading-tight ${isNext ? 'text-gold' : 'text-text-primary'}`}>{d.getDate()}</p>
                     </div>
                     <div className="flex-1 min-w-0 pt-0.5">
-                      <p className="text-sm font-semibold text-white truncate">{m.title}</p>
+                      <p className="text-sm font-semibold text-text-primary truncate">{m.title}</p>
                       {m.attendees && m.attendees.length > 0 && (
                         <p className="text-[10px] text-text-secondary mt-0.5 flex items-center gap-1">
                           <Users2 className="w-3 h-3 shrink-0" />
@@ -150,10 +152,10 @@ function AgendaSection({ meetings }: { meetings: MeetingNote[] }) {
       </div>
 
       {/* Ultimi incontri */}
-      <div className="bg-[#111] border border-[#2A2A2A] rounded-xl overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-[#2A2A2A]">
+      <div className="bg-surface border border-border rounded-xl overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
           <MessageSquare className="w-3.5 h-3.5 text-text-secondary" />
-          <span className="text-xs font-bold text-white uppercase tracking-wider">Ultimi Incontri</span>
+          <span className="text-xs font-bold text-text-primary uppercase tracking-wider">Ultimi Incontri</span>
         </div>
         <div className="p-4">
           {past.length === 0 ? (
@@ -163,14 +165,14 @@ function AgendaSection({ meetings }: { meetings: MeetingNote[] }) {
               {past.slice(0, 5).map(m => {
                 const isOpen = expandedId === m.id
                 return (
-                  <div key={m.id} className="border border-[#1E1E1E] rounded-xl overflow-hidden">
+                  <div key={m.id} className="border border-border rounded-xl overflow-hidden">
                     <button onClick={() => setExpandedId(isOpen ? null : m.id)}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/[0.02] transition-colors text-left">
-                      <div className="w-7 h-7 rounded-lg bg-[#1A1A1A] border border-[#2A2A2A] flex items-center justify-center text-text-secondary shrink-0">
+                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-overlay/[0.02] transition-colors text-left">
+                      <div className="w-7 h-7 rounded-lg bg-surface border border-border flex items-center justify-center text-text-secondary shrink-0">
                         <MessageSquare className="w-3.5 h-3.5" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-white truncate">{m.title}</p>
+                        <p className="text-xs font-semibold text-text-primary truncate">{m.title}</p>
                         <p className="text-[10px] text-text-secondary">
                           {new Date(m.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
                         </p>
@@ -178,23 +180,23 @@ function AgendaSection({ meetings }: { meetings: MeetingNote[] }) {
                       {isOpen ? <ChevronUp className="w-3.5 h-3.5 text-text-secondary shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 text-text-secondary shrink-0" />}
                     </button>
                     {isOpen && (
-                      <div className="px-4 pb-4 space-y-2.5 border-t border-[#1A1A1A] pt-3">
+                      <div className="px-4 pb-4 space-y-2.5 border-t border-border pt-3">
                         {m.summary && (
                           <div>
                             <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold mb-1">Sintesi</p>
-                            <p className="text-xs text-white leading-relaxed">{m.summary}</p>
+                            <p className="text-xs text-text-primary leading-relaxed">{m.summary}</p>
                           </div>
                         )}
                         {m.decisions && (
                           <div>
                             <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold mb-1">Decisioni</p>
-                            <p className="text-xs text-white leading-relaxed">{m.decisions}</p>
+                            <p className="text-xs text-text-primary leading-relaxed">{m.decisions}</p>
                           </div>
                         )}
                         {m.next_actions && (
                           <div>
                             <p className="text-[10px] text-gold uppercase tracking-wider font-bold mb-1">Prossime azioni</p>
-                            <p className="text-xs text-white leading-relaxed">{m.next_actions}</p>
+                            <p className="text-xs text-text-primary leading-relaxed">{m.next_actions}</p>
                           </div>
                         )}
                         {m.attendees && m.attendees.length > 0 && (
@@ -233,9 +235,9 @@ function ProgressRing({ pct, size = 52 }: { pct: number; size?: number }) {
   )
 }
 
-function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelete }: {
+function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelete, hideEconomics = false }: {
   project: Project; tasks: Task[]; sprints: Sprint[]; kpis: ClientKpi[]; clientId: string
-  onEdit: () => void; onDelete: () => void
+  onEdit: () => void; onDelete: () => void; hideEconomics?: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
   const [aiSummary, setAiSummary] = useState<string | null>(null)
@@ -267,16 +269,16 @@ function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelet
   }
 
   return (
-    <div className={`rounded-xl border transition-all duration-200 ${expanded ? 'bg-gold/5 border-gold/30' : 'bg-surface border-[#2A2A2A] hover:border-gold/20'}`}>
+    <div className={`rounded-xl border transition-all duration-200 ${expanded ? 'bg-gold/5 border-gold/30' : 'bg-surface border-border hover:border-gold/20'}`}>
       {/* Header card */}
       <div onClick={() => setExpanded(e => !e)} className="w-full text-left p-4 cursor-pointer">
         <div className="flex items-center gap-4">
           <ProgressRing pct={pct} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span className="text-sm font-bold text-white">{title}</span>
+              <span className="text-sm font-bold text-text-primary">{title}</span>
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
-                project.status === 'attivo' ? 'bg-success/10 text-success border-success/20' : 'bg-[#2A2A2A] text-text-secondary border-[#3A3A3A]'
+                project.status === 'attivo' ? 'bg-success/10 text-success border-success/20' : 'bg-surface-active text-text-secondary border-border-strong'
               }`}>{project.status === 'attivo' ? 'Attivo' : project.status}</span>
               {project.project_kind && (
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
@@ -301,12 +303,12 @@ function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelet
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <button onClick={e => { e.stopPropagation(); onEdit() }}
-              className="p-1.5 text-text-secondary hover:text-white border border-[#2A2A2A] hover:border-[#3A3A3A] rounded-lg transition-colors"
+              className="p-1.5 text-text-secondary hover:text-text-primary border border-border hover:border-border-strong rounded-lg transition-colors"
               title="Modifica">
               <Pencil className="w-3.5 h-3.5" />
             </button>
             <button onClick={e => { e.stopPropagation(); onDelete() }}
-              className="p-1.5 text-text-secondary hover:text-red-400 border border-[#2A2A2A] hover:border-red-500/40 rounded-lg transition-colors"
+              className="p-1.5 text-text-secondary hover:text-red-400 border border-border hover:border-red-500/40 rounded-lg transition-colors"
               title="Elimina">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -328,7 +330,7 @@ function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelet
             </div>
             <div className="bg-background rounded-lg p-3">
               <p className="text-[10px] text-text-secondary mb-1">Milestone</p>
-              <p className="text-lg font-black text-white">{doneMilestones}/{milestones.length}</p>
+              <p className="text-lg font-black text-text-primary">{doneMilestones}/{milestones.length}</p>
               <p className={`text-[10px] ${doneMilestones === milestones.length && milestones.length > 0 ? 'text-success' : 'text-text-secondary'}`}>
                 {milestones.length === 0 ? 'Nessuna' : doneMilestones === milestones.length ? 'Tutte ✓' : 'In corso'}
               </p>
@@ -342,7 +344,7 @@ function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelet
               <p className="text-[10px] text-text-secondary mb-1">{isG ? 'KPI principale' : 'Uptime'}</p>
               {lastKpi ? (
                 <>
-                  <p className="text-lg font-black text-white">
+                  <p className="text-lg font-black text-text-primary">
                     {isG
                       ? (lastKpi.roas != null ? `${lastKpi.roas}×` : lastKpi.leads_generated != null ? String(lastKpi.leads_generated) : '—')
                       : (lastKpi.uptime != null ? `${lastKpi.uptime}%` : lastKpi.organic_sessions != null ? lastKpi.organic_sessions.toLocaleString('it-IT') : '—')}
@@ -350,14 +352,14 @@ function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelet
                   <p className="text-[10px] text-text-secondary">{isG ? 'ROAS / Lead' : 'Uptime / Sessioni'}</p>
                 </>
               ) : (
-                <p className="text-lg font-black text-[#444]">—</p>
+                <p className="text-lg font-black text-text-tertiary">—</p>
               )}
             </div>
           </div>
 
           {/* AI Summary */}
-          <div className="bg-[#0C0C0C] border border-[#2A2A2A] rounded-xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#1A1A1A]">
+          <div className="bg-surface border border-border rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
               <div className="flex items-center gap-2 text-text-secondary">
                 <Brain className="w-3.5 h-3.5" />
                 <span className="text-[10px] font-bold uppercase tracking-wider">Analisi AI fase progettuale</span>
@@ -369,12 +371,12 @@ function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelet
                 </button>
               )}
               {aiSummary && (
-                <button onClick={() => setAiSummary(null)} className="text-[10px] text-text-secondary hover:text-white">Rigenera</button>
+                <button onClick={() => setAiSummary(null)} className="text-[10px] text-text-secondary hover:text-text-primary">Rigenera</button>
               )}
             </div>
             <div className="px-4 py-3">
               {aiSummary ? (
-                <p className="text-sm text-white leading-relaxed">{aiSummary}</p>
+                <p className="text-sm text-text-primary leading-relaxed">{aiSummary}</p>
               ) : (
                 <p className="text-xs text-text-secondary">
                   {aiLoading ? 'Sto analizzando task, sprint e KPI del progetto...' : 'Un riassunto AI della fase attuale: cosa è completato, dove siete bloccati, prossimi passi critici.'}
@@ -385,7 +387,7 @@ function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelet
 
           {/* CTA pagina progetto */}
           <Link
-            href={`/clienti/${clientId}/progetto/${project.id}`}
+            href={hideEconomics ? `/workspace/progetti/${project.id}` : `/clienti/${clientId}/progetto/${project.id}`}
             className="flex items-center justify-between w-full px-4 py-3 bg-gold/5 hover:bg-gold/10 border border-gold/20 hover:border-gold/40 rounded-xl transition-all group"
           >
             <div className="flex items-center gap-2">
@@ -400,8 +402,8 @@ function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelet
   )
 }
 
-function ProgettiAttivi({ projects: initialProjects, tasks, sprints, kpis, clientId }: {
-  projects: Project[]; tasks: Task[]; sprints: Sprint[]; kpis: ClientKpi[]; clientId: string
+function ProgettiAttivi({ projects: initialProjects, tasks, sprints, kpis, clientId, hideEconomics = false }: {
+  projects: Project[]; tasks: Task[]; sprints: Sprint[]; kpis: ClientKpi[]; clientId: string; hideEconomics?: boolean
 }) {
   const [projects, setProjects] = useState(initialProjects)
   const [showNew, setShowNew]   = useState(false)
@@ -414,7 +416,7 @@ function ProgettiAttivi({ projects: initialProjects, tasks, sprints, kpis, clien
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-white flex items-center gap-2">
+        <h3 className="text-sm font-bold text-text-primary flex items-center gap-2">
           <FolderKanban className="w-4 h-4 text-text-secondary" />
           Progetti Attivi
           {active.length > 0 && <span className="text-text-secondary font-normal">({active.length})</span>}
@@ -426,8 +428,8 @@ function ProgettiAttivi({ projects: initialProjects, tasks, sprints, kpis, clien
       </div>
 
       {projects.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-8 border border-dashed border-[#2A2A2A] rounded-xl text-center">
-          <FolderKanban className="w-8 h-8 text-[#333] mb-2" />
+        <div className="flex flex-col items-center justify-center py-8 border border-dashed border-border rounded-xl text-center">
+          <FolderKanban className="w-8 h-8 text-text-tertiary mb-2" />
           <p className="text-sm text-text-secondary">Nessun progetto ancora</p>
           <button onClick={() => setShowNew(true)} className="mt-3 text-xs text-gold hover:text-yellow-400 font-bold">
             + Crea il primo progetto
@@ -438,19 +440,19 @@ function ProgettiAttivi({ projects: initialProjects, tasks, sprints, kpis, clien
           <div className="space-y-2">
             {active.map(p => (
               <ProgettoCard key={p.id} project={p} tasks={tasks} sprints={sprints} kpis={kpis} clientId={clientId}
-                onEdit={() => setEditP(p)} onDelete={() => setDeleteP(p)} />
+                onEdit={() => setEditP(p)} onDelete={() => setDeleteP(p)} hideEconomics={hideEconomics} />
             ))}
           </div>
           {other.length > 0 && (
             <details className="group">
-              <summary className="text-[10px] text-text-secondary uppercase tracking-wider font-bold cursor-pointer hover:text-white list-none flex items-center gap-1">
+              <summary className="text-[10px] text-text-secondary uppercase tracking-wider font-bold cursor-pointer hover:text-text-primary list-none flex items-center gap-1">
                 <ChevronDown className="w-3 h-3 group-open:rotate-180 transition-transform" />
                 Completati / archiviati ({other.length})
               </summary>
               <div className="space-y-2 mt-2">
                 {other.map(p => (
                   <ProgettoCard key={p.id} project={p} tasks={tasks} sprints={sprints} kpis={kpis} clientId={clientId}
-                    onEdit={() => setEditP(p)} onDelete={() => setDeleteP(p)} />
+                    onEdit={() => setEditP(p)} onDelete={() => setDeleteP(p)} hideEconomics={hideEconomics} />
                 ))}
               </div>
             </details>
@@ -522,7 +524,7 @@ function NewProjectDetailedModal({ clientId, onClose, onCreated }: {
   const [fileName, setFileName] = useState('')
   const fileRef                 = useRef<HTMLInputElement>(null)
 
-  const inp = 'w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold placeholder:text-[#555]'
+  const inp = 'w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold placeholder:text-text-secondary'
 
   const handleFile = async (file: File) => {
     setFileName(file.name)
@@ -619,25 +621,25 @@ function NewProjectDetailedModal({ clientId, onClose, onCreated }: {
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto">
-      <div className="bg-surface border border-[#2A2A2A] rounded-card w-full max-w-2xl my-4">
+      <div className="bg-surface border border-border rounded-card w-full max-w-2xl my-4">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div>
-            <h2 className="text-base font-bold text-white">Nuovo Progetto</h2>
+            <h2 className="text-base font-bold text-text-primary">Nuovo Progetto</h2>
             <p className="text-xs text-text-secondary mt-0.5">Compila manualmente o carica un file di riunione</p>
           </div>
-          <button onClick={onClose}><X className="w-5 h-5 text-text-secondary hover:text-white" /></button>
+          <button onClick={onClose}><X className="w-5 h-5 text-text-secondary hover:text-text-primary" /></button>
         </div>
 
         {/* Mode switcher */}
-        <div className="flex gap-2 p-4 border-b border-[#2A2A2A]">
+        <div className="flex gap-2 p-4 border-b border-border">
           <button onClick={() => setMode('manual')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${mode === 'manual' ? 'bg-gold text-black' : 'border border-[#2A2A2A] text-text-secondary hover:text-white'}`}>
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${mode === 'manual' ? 'bg-gold text-black' : 'border border-border text-text-secondary hover:text-text-primary'}`}>
             <Pencil className="w-3.5 h-3.5" /> Inserimento manuale
           </button>
           <button onClick={() => setMode('upload')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${mode === 'upload' ? 'bg-gold text-black' : 'border border-[#2A2A2A] text-text-secondary hover:text-white'}`}>
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${mode === 'upload' ? 'bg-gold text-black' : 'border border-border text-text-secondary hover:text-text-primary'}`}>
             <Sparkles className="w-3.5 h-3.5" /> Carica file riunione (AI)
           </button>
         </div>
@@ -649,23 +651,23 @@ function NewProjectDetailedModal({ clientId, onClose, onCreated }: {
               onDragOver={e => e.preventDefault()}
               onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}
               onClick={() => fileRef.current?.click()}
-              className="border-2 border-dashed border-[#2A2A2A] hover:border-gold/40 rounded-xl p-10 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all">
-              <Upload className="w-8 h-8 text-[#444]" />
+              className="border-2 border-dashed border-border hover:border-gold/40 rounded-xl p-10 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all">
+              <Upload className="w-8 h-8 text-text-tertiary" />
               <div className="text-center">
-                <p className="text-sm font-bold text-white">{fileName || 'Trascina qui il file oppure clicca'}</p>
+                <p className="text-sm font-bold text-text-primary">{fileName || 'Trascina qui il file oppure clicca'}</p>
                 <p className="text-xs text-text-secondary mt-1">Supporta .txt, .md, .pdf — trascrizioni Gemini, Plaud, Notion</p>
               </div>
               <input ref={fileRef} type="file" accept=".txt,.md,.pdf" className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
             </div>
             {fileText && (
-              <div className="bg-[#111] border border-[#2A2A2A] rounded-xl p-4">
+              <div className="bg-surface border border-border rounded-xl p-4">
                 <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold mb-2">Anteprima testo ({fileText.length} caratteri)</p>
-                <p className="text-xs text-white font-mono leading-relaxed line-clamp-5">{fileText.slice(0, 500)}…</p>
+                <p className="text-xs text-text-primary font-mono leading-relaxed line-clamp-5">{fileText.slice(0, 500)}…</p>
               </div>
             )}
             <div className="flex gap-3">
-              <button onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary hover:text-white">Annulla</button>
+              <button onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
               <button onClick={extractFromFile} disabled={!fileText || aiLoading}
                 className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
                 {aiLoading ? <><Loader2 className="w-4 h-4 animate-spin" />Estrazione AI...</> : <><Sparkles className="w-4 h-4" />Estrai con AI</>}
@@ -690,7 +692,7 @@ function NewProjectDetailedModal({ clientId, onClose, onCreated }: {
                 ]).map(({ v, label, active }) => (
                   <button key={v} type="button" onClick={() => setForm(p => ({ ...p, kind: v }))}
                     className={`py-3 rounded-xl border text-sm font-black transition-all ${
-                      form.kind === v ? active : 'border-[#2A2A2A] text-text-secondary hover:border-[#3A3A3A] hover:text-white'
+                      form.kind === v ? active : 'border-border text-text-secondary hover:border-border-strong hover:text-text-primary'
                     }`}>
                     {label}
                   </button>
@@ -707,7 +709,7 @@ function NewProjectDetailedModal({ clientId, onClose, onCreated }: {
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-bold transition-all ${
                       form.project_type === t.value
                         ? 'bg-gold/10 text-gold border-gold/40'
-                        : 'border-[#2A2A2A] text-text-secondary hover:border-[#3A3A3A] hover:text-white'
+                        : 'border-border text-text-secondary hover:border-border-strong hover:text-text-primary'
                     }`}>
                     <span>{t.icon}</span>{t.label}
                   </button>
@@ -790,11 +792,11 @@ function NewProjectDetailedModal({ clientId, onClose, onCreated }: {
               <div className="space-y-2">
                 {form.milestones.map((m, i) => (
                   <div key={i} className="flex gap-2 items-center">
-                    <span className="text-[10px] text-[#444] w-5 text-right shrink-0">{i + 1}.</span>
+                    <span className="text-[10px] text-text-tertiary w-5 text-right shrink-0">{i + 1}.</span>
                     <input value={m} onChange={e => setMilestone(i, e.target.value)}
                       placeholder={`Milestone ${i + 1}...`} className={`${inp} flex-1`} />
                     {form.milestones.length > 1 && (
-                      <button type="button" onClick={() => removeMilestone(i)} className="text-[#444] hover:text-red-400 shrink-0">
+                      <button type="button" onClick={() => removeMilestone(i)} className="text-text-tertiary hover:text-red-400 shrink-0">
                         <X className="w-3.5 h-3.5" />
                       </button>
                     )}
@@ -803,8 +805,8 @@ function NewProjectDetailedModal({ clientId, onClose, onCreated }: {
               </div>
             </div>
 
-            <div className="flex gap-3 pt-2 border-t border-[#2A2A2A]">
-              <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary hover:text-white">Annulla</button>
+            <div className="flex gap-3 pt-2 border-t border-border">
+              <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
               <button type="submit" disabled={loading}
                 className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -833,7 +835,7 @@ function EditProjectModal({ project, onClose, onSaved }: {
     project_kind: (project.project_kind ?? '') as ProjectKind | '',
   })
   const [loading, setLoading] = useState(false)
-  const inp = 'w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold'
+  const inp = 'w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold'
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -852,10 +854,10 @@ function EditProjectModal({ project, onClose, onSaved }: {
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-[#2A2A2A] rounded-card w-full max-w-md">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A]">
-          <h2 className="text-base font-bold text-white">Modifica progetto</h2>
-          <button onClick={onClose}><X className="w-5 h-5 text-text-secondary hover:text-white" /></button>
+      <div className="bg-surface border border-border rounded-card w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 className="text-base font-bold text-text-primary">Modifica progetto</h2>
+          <button onClick={onClose}><X className="w-5 h-5 text-text-secondary hover:text-text-primary" /></button>
         </div>
         <form onSubmit={save} className="p-6 space-y-4">
           <div>
@@ -892,11 +894,11 @@ function EditProjectModal({ project, onClose, onSaved }: {
                 { v: 'marketing' as const, label: '📣 Mktg',       active: 'bg-amber-500/15 text-amber-400 border-amber-400/40' },
                 { v: 'digital' as const,   label: '💻 Digital',   active: 'bg-blue-500/15 text-blue-400 border-blue-400/40' },
                 { v: 'ai' as const,        label: '🤖 AI',        active: 'bg-purple-500/15 text-purple-400 border-purple-400/40' },
-                { v: '' as const,          label: '—',            active: 'bg-[#2A2A2A] text-white border-[#3A3A3A]' },
+                { v: '' as const,          label: '—',            active: 'bg-surface-active text-text-primary border-border-strong' },
               ]).map(({ v, label, active }) => (
                 <button key={v} type="button" onClick={() => setForm(p => ({ ...p, project_kind: v }))}
                   className={`py-2 rounded-lg border text-[10px] font-bold transition-all ${
-                    form.project_kind === v ? active : 'border-[#2A2A2A] text-text-secondary hover:border-[#3A3A3A]'
+                    form.project_kind === v ? active : 'border-border text-text-secondary hover:border-border-strong'
                   }`}>
                   {label}
                 </button>
@@ -904,7 +906,7 @@ function EditProjectModal({ project, onClose, onSaved }: {
             </div>
           </div>
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary hover:text-white">Annulla</button>
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
             <button type="submit" disabled={loading}
               className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />} Salva
@@ -934,23 +936,23 @@ function DeleteProjectModal({ project, onClose, onDeleted }: {
   }
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-[#2A2A2A] rounded-card w-full max-w-sm p-6">
+      <div className="bg-surface border border-border rounded-card w-full max-w-sm p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
             <Trash2 className="w-5 h-5 text-red-400" />
           </div>
           <div>
-            <p className="text-sm font-bold text-white">Elimina progetto</p>
+            <p className="text-sm font-bold text-text-primary">Elimina progetto</p>
             <p className="text-xs text-text-secondary">Azione irreversibile</p>
           </div>
         </div>
         <p className="text-sm text-text-secondary mb-5">
-          Vuoi eliminare <span className="font-bold text-white">{project.name}</span> e tutte le sue task?
+          Vuoi eliminare <span className="font-bold text-text-primary">{project.name}</span> e tutte le sue task?
         </p>
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary hover:text-white">Annulla</button>
+          <button onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
           <button onClick={doDelete} disabled={loading}
-            className="flex-1 py-2.5 bg-red-500 text-white font-bold rounded-lg text-sm hover:bg-red-400 disabled:opacity-50 flex items-center justify-center gap-2">
+            className="flex-1 py-2.5 bg-red-500 text-text-primary font-bold rounded-lg text-sm hover:bg-red-400 disabled:opacity-50 flex items-center justify-center gap-2">
             {loading && <Loader2 className="w-4 h-4 animate-spin" />} Elimina
           </button>
         </div>
@@ -969,7 +971,7 @@ function KpiSnapshotPanel({ label, accent, month, items, onTabChange }: {
   items: { label: string; raw: number | null; fmt: (v: number) => string; target?: number | null }[]
 }) {
   return (
-    <div className="bg-[#111] border border-[#2A2A2A] rounded-xl p-4">
+    <div className="bg-surface border border-border rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <BarChart3 className="w-3.5 h-3.5" style={{ color: accent }} />
@@ -987,14 +989,14 @@ function KpiSnapshotPanel({ label, accent, month, items, onTabChange }: {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {items.map(k => {
           const pct = k.raw != null && k.target ? Math.round((k.raw / k.target) * 100) : null
-          const color = pct == null ? (k.raw != null ? 'text-white' : 'text-[#444]') : pct >= 100 ? 'text-success' : pct >= 70 ? 'text-warning' : 'text-error'
+          const color = pct == null ? (k.raw != null ? 'text-text-primary' : 'text-text-tertiary') : pct >= 100 ? 'text-success' : pct >= 70 ? 'text-warning' : 'text-error'
           return (
             <div key={k.label} className="bg-background rounded-lg p-3">
               <p className="text-[10px] text-text-secondary mb-1">{k.label}</p>
               <p className={`text-base font-black ${color}`}>{k.raw != null ? k.fmt(k.raw) : '—'}</p>
               {pct !== null && (
                 <div className="mt-1.5">
-                  <div className="h-1 bg-[#2A2A2A] rounded-full overflow-hidden">
+                  <div className="h-1 bg-surface-active rounded-full overflow-hidden">
                     <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, background: pct >= 100 ? '#22C55E' : pct >= 70 ? accent : '#EF4444' }} />
                   </div>
                   <p className="text-[10px] text-text-secondary mt-0.5">{pct}% target</p>
@@ -1030,7 +1032,7 @@ function HealthRing({ score }: { score: number }) {
   )
 }
 
-export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints, meetings, allProfiles, teamMembers, interactions, isAdmin, openTickets, onTabChange }: Props) {
+export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints, meetings, allProfiles, teamMembers, interactions, isAdmin, openTickets, onTabChange, hideEconomics = false }: Props) {
   const now = new Date()
 
   // KPI più recente per tipo progetto
@@ -1077,7 +1079,7 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
 
   // ── Alert items (priorità decrescente) ──────────────────────────────────
   const alerts: { level: 'error' | 'warning'; msg: string; action?: () => void; actionLabel?: string }[] = []
-  if (lateInvoices.length > 0)
+  if (!hideEconomics && lateInvoices.length > 0)
     alerts.push({ level: 'error', msg: `${lateInvoices.length} fattura${lateInvoices.length > 1 ? 'e' : ''} in ritardo (${formatCurrency(lateInvoices.reduce((s,i) => s+i.amount,0))})`, action: () => onTabChange?.(2), actionLabel: 'Vai a fatturazione' })
   if (overdueTasks.length > 0)
     alerts.push({ level: 'error', msg: `${overdueTasks.length} task scadut${overdueTasks.length > 1 ? 'e' : 'a'}` })
@@ -1115,25 +1117,39 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
       )}
 
       {/* 2 ── Hero: Health Score + MRR ─────────────────────────────────── */}
-      <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
+      <div className="bg-surface border border-border rounded-xl p-5">
         <div className="flex flex-col sm:flex-row items-center sm:items-stretch gap-5">
           <div className="shrink-0">
             <HealthRing score={healthScore} />
           </div>
-          <div className="hidden sm:block w-px bg-[#2A2A2A]" />
+          <div className="hidden sm:block w-px bg-surface-active" />
           <div className="flex-1 flex flex-col justify-center gap-1 text-center sm:text-left">
-            <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold">MRR</p>
-            <p className="text-3xl font-black text-gold">{formatCurrency(client.mrr)}</p>
-            {mrrTrend !== null && (
-              <p className={`text-xs font-bold ${mrrTrend >= 0 ? 'text-success' : 'text-error'}`}>
-                {mrrTrend > 0 ? '+' : ''}{mrrTrend}% vs mese scorso
-              </p>
+            {hideEconomics ? (
+              <>
+                <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold">Progetti attivi</p>
+                <p className="text-3xl font-black text-gold">{activeProjects.length}</p>
+                {openTasks.length > 0 && (
+                  <p className={`text-xs font-bold ${overdueTasks.length > 0 ? 'text-error' : 'text-text-secondary'}`}>
+                    {openTasks.length} task aperte{overdueTasks.length > 0 ? ` · ${overdueTasks.length} scadute` : ''}
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold">MRR</p>
+                <p className="text-3xl font-black text-gold">{formatCurrency(client.mrr)}</p>
+                {mrrTrend !== null && (
+                  <p className={`text-xs font-bold ${mrrTrend >= 0 ? 'text-success' : 'text-error'}`}>
+                    {mrrTrend > 0 ? '+' : ''}{mrrTrend}% vs mese scorso
+                  </p>
+                )}
+              </>
             )}
             <p className="text-[10px] text-text-secondary mt-1">
               {isGrowthDigital ? '📈 Growth + 💻 Digital' : isGrowth ? '📈 Cliente Growth' : '💻 Cliente Digital'} · {client.package}
             </p>
           </div>
-          <div className="hidden sm:block w-px bg-[#2A2A2A]" />
+          <div className="hidden sm:block w-px bg-surface-active" />
           <div className="flex-1 flex flex-col justify-center gap-1 text-center sm:text-left">
             <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold">Contratto</p>
             <div className="flex items-center gap-2 justify-center sm:justify-start">
@@ -1142,7 +1158,7 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
               </span>
               {daysToExpiry > 0 && <span className="text-xs text-text-secondary">rimanenti</span>}
             </div>
-            <div className="h-1.5 bg-[#2A2A2A] rounded-full overflow-hidden mt-1">
+            <div className="h-1.5 bg-surface-active rounded-full overflow-hidden mt-1">
               {(() => {
                 const s = new Date(client.contract_start).getTime()
                 const e = contractEnd.getTime()
@@ -1160,7 +1176,7 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
 
       {/* 3 ── 4 urgency metrics ────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-[#111] border border-[#2A2A2A] rounded-xl p-4 text-left">
+        <div className="bg-surface border border-border rounded-xl p-4 text-left">
           <div className="flex items-center gap-2 text-text-secondary mb-2">
             <CheckSquare className="w-3.5 h-3.5" />
             <span className="text-[10px] uppercase tracking-wider font-bold">Task aperte</span>
@@ -1177,7 +1193,7 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
           </p>
         </div>
 
-        <div className="bg-[#111] border border-[#2A2A2A] rounded-xl p-4 text-left">
+        <div className="bg-surface border border-border rounded-xl p-4 text-left">
           <div className="flex items-center gap-2 text-text-secondary mb-2">
             <AlertCircle className="w-3.5 h-3.5" />
             <span className="text-[10px] uppercase tracking-wider font-bold">Ticket aperti</span>
@@ -1190,29 +1206,31 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
           </p>
         </div>
 
-        <button onClick={() => onTabChange?.(2)}
-          className="bg-[#111] border border-[#2A2A2A] rounded-xl p-4 text-left hover:border-gold/20 transition-colors">
-          <div className="flex items-center gap-2 text-text-secondary mb-2">
-            <FileText className="w-3.5 h-3.5" />
-            <span className="text-[10px] uppercase tracking-wider font-bold">Da incassare</span>
-          </div>
-          <p className={`text-2xl font-black ${unpaidAmount > 0 ? 'text-warning' : 'text-success'}`}>
-            {unpaidAmount > 0 ? formatCurrency(unpaidAmount) : '✓'}
-          </p>
-          <p className="text-[10px] text-text-secondary mt-0.5">
-            {lateInvoices.length > 0
-              ? <span className="text-error font-bold">{lateInvoices.length} in ritardo</span>
-              : unpaidAmount > 0 ? 'In attesa di pagamento' : 'Tutto pagato'}
-          </p>
-        </button>
+        {!hideEconomics && (
+          <button onClick={() => onTabChange?.(2)}
+            className="bg-surface border border-border rounded-xl p-4 text-left hover:border-gold/20 transition-colors">
+            <div className="flex items-center gap-2 text-text-secondary mb-2">
+              <FileText className="w-3.5 h-3.5" />
+              <span className="text-[10px] uppercase tracking-wider font-bold">Da incassare</span>
+            </div>
+            <p className={`text-2xl font-black ${unpaidAmount > 0 ? 'text-warning' : 'text-success'}`}>
+              {unpaidAmount > 0 ? formatCurrency(unpaidAmount) : '✓'}
+            </p>
+            <p className="text-[10px] text-text-secondary mt-0.5">
+              {lateInvoices.length > 0
+                ? <span className="text-error font-bold">{lateInvoices.length} in ritardo</span>
+                : unpaidAmount > 0 ? 'In attesa di pagamento' : 'Tutto pagato'}
+            </p>
+          </button>
+        )}
 
         <button onClick={() => onTabChange?.(6)}
-          className="bg-[#111] border border-[#2A2A2A] rounded-xl p-4 text-left hover:border-gold/20 transition-colors">
+          className="bg-surface border border-border rounded-xl p-4 text-left hover:border-gold/20 transition-colors">
           <div className="flex items-center gap-2 text-text-secondary mb-2">
             <MessageSquare className="w-3.5 h-3.5" />
             <span className="text-[10px] uppercase tracking-wider font-bold">Ultimo contatto</span>
           </div>
-          <p className={`text-2xl font-black ${daysSinceContact === null ? 'text-[#444]' : daysSinceContact > 21 ? 'text-warning' : 'text-success'}`}>
+          <p className={`text-2xl font-black ${daysSinceContact === null ? 'text-text-tertiary' : daysSinceContact > 21 ? 'text-warning' : 'text-success'}`}>
             {daysSinceContact === null ? '—' : `${daysSinceContact}gg`}
           </p>
           <p className="text-[10px] text-text-secondary mt-0.5">
@@ -1229,7 +1247,7 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
         {/* Progetti attivi con link alla pagina completa */}
-        <div className="bg-[#111] border border-[#2A2A2A] rounded-xl p-4">
+        <div className="bg-surface border border-border rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 text-text-secondary">
               <FolderKanban className="w-3.5 h-3.5" />
@@ -1250,19 +1268,19 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
                 const projTasks = tasks.filter(t => t.project_id === proj.id)
                 const pct = projTasks.length ? Math.round((projTasks.filter(t => t.status === 'completato').length / projTasks.length) * 100) : 0
                 return (
-                  <Link key={proj.id} href={`/clienti/${client.id}/progetto/${proj.id}`}
-                    className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/[0.03] transition-colors group">
+                  <Link key={proj.id} href={hideEconomics ? `/workspace/progetti/${proj.id}` : `/clienti/${client.id}/progetto/${proj.id}`}
+                    className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-overlay/[0.03] transition-colors group">
                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
                       isG ? 'bg-gold/10 text-gold border-gold/25' :
                       isD ? 'bg-blue-500/10 text-blue-400 border-blue-400/25' :
                       isM ? 'bg-amber-400/10 text-amber-400 border-amber-400/25' :
                       isAI ? 'bg-purple-400/10 text-purple-400 border-purple-400/25' :
-                      'bg-[#1A1A1A] text-text-secondary border-[#2A2A2A]'
+                      'bg-surface text-text-secondary border-border'
                     }`}>{isG ? 'G' : isD ? 'D' : isM ? 'M' : isAI ? 'AI' : '—'}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-white truncate group-hover:text-gold transition-colors">{title}</p>
+                      <p className="text-xs font-semibold text-text-primary truncate group-hover:text-gold transition-colors">{title}</p>
                       <div className="flex items-center gap-2 mt-1">
-                        <div className="flex-1 h-1 bg-[#2A2A2A] rounded-full overflow-hidden">
+                        <div className="flex-1 h-1 bg-surface-active rounded-full overflow-hidden">
                           <div className="h-full bg-gold/60 rounded-full" style={{ width: `${pct}%` }} />
                         </div>
                         <span className="text-[9px] text-text-secondary shrink-0">{pct}%</span>
@@ -1277,7 +1295,7 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
         </div>
 
         {/* Relazione commerciale */}
-        <div className="bg-[#111] border border-[#2A2A2A] rounded-xl p-4">
+        <div className="bg-surface border border-border rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 text-text-secondary">
               <MessageSquare className="w-3.5 h-3.5" />
@@ -1291,12 +1309,12 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
             <div className="space-y-3">
               {interactions.slice(0, 4).map(i => (
                 <div key={i.id} className="flex items-start gap-2.5">
-                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${i.is_milestone ? 'bg-gold/20 text-gold' : 'bg-[#1A1A1A] text-text-secondary'}`}>
+                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${i.is_milestone ? 'bg-gold/20 text-gold' : 'bg-surface text-text-secondary'}`}>
                     {TYPE_ICON[i.type]}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-semibold text-white truncate">{i.title}</span>
+                      <span className="text-xs font-semibold text-text-primary truncate">{i.title}</span>
                       <span className={`text-[10px] flex items-center gap-0.5 ${OUTCOME_COLOR[i.outcome]}`}>
                         {OUTCOME_ICON[i.outcome]}
                         {i.outcome.replace('_', ' ')}
@@ -1391,6 +1409,7 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
         sprints={sprints}
         kpis={kpis}
         clientId={client.id}
+        hideEconomics={hideEconomics}
       />
 
       {/* 8 ── Footer info: Team · Fatture recenti ──────────────────────── */}
@@ -1398,18 +1417,18 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
 
         {/* Team */}
         {teamMembers.length > 0 && (
-          <div className="bg-[#111] border border-[#2A2A2A] rounded-xl p-4">
+          <div className="bg-surface border border-border rounded-xl p-4">
             <div className="flex items-center gap-2 text-text-secondary mb-3">
               <Users className="w-3.5 h-3.5" />
               <span className="text-[10px] uppercase tracking-wider font-bold">Team assegnato</span>
             </div>
             <div className="flex flex-wrap gap-2">
               {teamMembers.map(m => (
-                <div key={m.id} className="flex items-center gap-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-3 py-1.5">
+                <div key={m.id} className="flex items-center gap-2 bg-surface border border-border rounded-lg px-3 py-1.5">
                   <div className="w-5 h-5 rounded-full bg-gold/20 flex items-center justify-center text-[9px] font-black text-gold overflow-hidden shrink-0">
                     {m.avatar_url ? <img src={m.avatar_url} className="w-full h-full object-cover rounded-full" alt="" /> : m.full_name[0]}
                   </div>
-                  <span className="text-xs text-white">{m.full_name.split(' ')[0]}</span>
+                  <span className="text-xs text-text-primary">{m.full_name.split(' ')[0]}</span>
                   <span className="text-[10px] text-text-secondary capitalize">{m.app_role}</span>
                 </div>
               ))}
@@ -1417,16 +1436,16 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
           </div>
         )}
 
-        {/* Cosa ci serve da te (task cliente) */}
+        {/* Cosa ci serve dal cliente (task cliente) */}
         {(() => {
           const clientTasks = tasks.filter((t: any) => t.is_client_task && t.status !== 'completato')
           if (clientTasks.length === 0) return null
           return (
-            <div className="bg-[#111] border border-[#F5C800]/20 rounded-xl p-4">
+            <div className="bg-surface border border-[#F5C800]/20 rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 text-[#F5C800]">
                   <Star className="w-3.5 h-3.5" />
-                  <span className="text-[10px] uppercase tracking-wider font-bold">Cosa ci serve da te</span>
+                  <span className="text-[10px] uppercase tracking-wider font-bold">Cosa ci serve dal cliente</span>
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-[#F5C800]/15 text-[#F5C800]">{clientTasks.length} pending</span>
                 </div>
               </div>
@@ -1434,17 +1453,24 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
                 {clientTasks.slice(0, 6).map((t: any) => {
                   const phase = (t.tags ?? []).find((x: string) => ['onboarding','build','lancio'].includes(x))
                   const phaseColor: Record<string, string> = { onboarding: '#F59E0B', build: '#3B82F6', lancio: '#22C55E' }
+                  const proj = projects.find(p => p.id === t.project_id)
                   return (
                     <div key={t.id} className="flex items-center gap-2.5 py-1">
-                      <div className="w-3.5 h-3.5 rounded border border-[#2A2A2A] shrink-0" />
-                      <span className="flex-1 text-xs text-[#888]">{t.title}</span>
+                      <div className="w-3.5 h-3.5 rounded border border-border shrink-0" />
+                      <span className="flex-1 text-xs text-text-secondary truncate">{t.title}</span>
+                      {proj && (
+                        <Link href={hideEconomics ? `/workspace/progetti/${proj.id}` : `/clienti/${client.id}/progetto/${proj.id}`}
+                          className="text-[9px] text-text-secondary hover:text-gold shrink-0 truncate max-w-[100px]">
+                          {proj.name}
+                        </Link>
+                      )}
                       {phase && (
                         <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full shrink-0"
                           style={{ background: `${phaseColor[phase] ?? '#6B7280'}18`, color: phaseColor[phase] ?? '#6B7280' }}>
                           {phase}
                         </span>
                       )}
-                      <span className={`text-[9px] font-bold shrink-0 ${t.priority === 'alta' ? 'text-red-400' : t.priority === 'media' ? 'text-yellow-400' : 'text-[#444]'}`}>
+                      <span className={`text-[9px] font-bold shrink-0 ${t.priority === 'alta' ? 'text-red-400' : t.priority === 'media' ? 'text-yellow-400' : 'text-text-tertiary'}`}>
                         {t.priority}
                       </span>
                     </div>
@@ -1452,7 +1478,7 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
                 })}
               </div>
               {clientTasks.length > 6 && (
-                <p className="text-[9px] text-[#444] mt-2 text-center">+{clientTasks.length - 6} altre task</p>
+                <p className="text-[9px] text-text-tertiary mt-2 text-center">+{clientTasks.length - 6} altre task</p>
               )}
             </div>
           )
@@ -1460,7 +1486,7 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
 
         {/* Fatture recenti */}
         {invoices.length > 0 && (
-          <div className="bg-[#111] border border-[#2A2A2A] rounded-xl p-4">
+          <div className="bg-surface border border-border rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2 text-text-secondary">
                 <FileText className="w-3.5 h-3.5" />
@@ -1475,7 +1501,7 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
                 return (
                   <div key={inv.id} className="flex items-center justify-between gap-2 py-0.5">
                     <span className="text-xs text-text-secondary">{new Date(inv.month).toLocaleDateString('it-IT', { month: 'short', year: 'numeric' })}</span>
-                    <span className="text-xs font-bold text-white">{formatCurrency(inv.amount)}</span>
+                    <span className="text-xs font-bold text-text-primary">{formatCurrency(inv.amount)}</span>
                     <span className={`text-[10px] font-bold ${sc}`}>{sl}</span>
                   </div>
                 )

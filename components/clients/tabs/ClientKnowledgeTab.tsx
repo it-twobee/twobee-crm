@@ -122,7 +122,7 @@ export function ClientKnowledgeTab({ clientId }: { clientId: string }) {
             <Brain className="w-4 h-4 text-gold" />
           </div>
           <div>
-            <p className="text-sm font-bold text-white">Knowledge base cliente</p>
+            <p className="text-sm font-bold text-text-primary">Knowledge base cliente</p>
             <p className="text-[11px] text-text-secondary">Alimenta proposte commerciali, AI, report e onboarding — solo staff, mai visibile al cliente</p>
           </div>
         </div>
@@ -137,10 +137,10 @@ export function ClientKnowledgeTab({ clientId }: { clientId: string }) {
             }}
           />
           <div className="flex items-center gap-2">
-            <div className="w-24 h-1.5 bg-[#1A1A1A] rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: pct >= 70 ? '#22C55E' : pct >= 40 ? '#F5C800' : '#EF4444' }} />
+            <div className="w-24 h-1.5 bg-surface rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: pct >= 70 ? 'var(--color-success)' : pct >= 40 ? 'var(--color-gold)' : 'var(--color-error)' }} />
             </div>
-            <span className="text-[10px] text-[#555] font-bold">{filled}/{ALL_KEYS.length}</span>
+            <span className="text-[10px] text-text-tertiary font-bold">{filled}/{ALL_KEYS.length}</span>
           </div>
           <button onClick={save} disabled={saving || !dirty}
             className="flex items-center gap-2 px-4 py-2 bg-gold text-black text-xs font-bold rounded-lg disabled:opacity-40 hover:bg-yellow-400 transition-colors">
@@ -153,7 +153,7 @@ export function ClientKnowledgeTab({ clientId }: { clientId: string }) {
       {filled === 0 && (
         <div className="flex items-start gap-2.5 bg-gold/5 border border-gold/20 rounded-2xl px-4 py-3">
           <ShieldAlert className="w-4 h-4 text-gold shrink-0 mt-0.5" />
-          <p className="text-xs text-[#999] leading-relaxed">
+          <p className="text-xs text-text-secondary leading-relaxed">
             Knowledge base vuota: compilarla migliora la qualità delle proposte AI e velocizza l'onboarding di chi entra sul cliente.
             Le note libere restano nella tab <span className="text-gold">Relazione</span> — qui vanno i dati strutturati.
           </p>
@@ -164,30 +164,30 @@ export function ClientKnowledgeTab({ clientId }: { clientId: string }) {
         const GroupIcon = g.icon === 'briefcase' ? Briefcase : g.icon === 'target' ? Target : g.icon === 'palette' ? Palette : Lightbulb
         const iconColor = g.icon === 'briefcase' ? 'text-gold' : g.icon === 'target' ? 'text-blue-400' : g.icon === 'palette' ? 'text-purple-400' : 'text-green-400'
         return (
-        <div key={g.title} className="bg-surface border border-[#2A2A2A] rounded-2xl p-5 space-y-4">
-          <div className="flex items-start gap-3 pb-3 border-b border-[#2A2A2A]">
-            <div className={`w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center shrink-0`}>
+        <div key={g.title} className="bg-surface border border-border rounded-2xl p-5 space-y-4">
+          <div className="flex items-start gap-3 pb-3 border-b border-border">
+            <div className={`w-8 h-8 rounded-lg bg-overlay/[0.04] flex items-center justify-center shrink-0`}>
               <GroupIcon className={`w-4 h-4 ${iconColor}`} />
             </div>
             <div>
-              <p className="text-sm font-bold text-white">{g.title}</p>
+              <p className="text-sm font-bold text-text-primary">{g.title}</p>
               <p className="text-[11px] text-text-secondary mt-0.5">{g.description}</p>
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {g.fields.map(f => (
               <div key={f.key} className={f.rows && f.rows >= 3 ? 'sm:col-span-2' : ''}>
-                <label className="block text-xs text-[#888] mb-1.5">
+                <label className="block text-xs text-text-secondary mb-1.5">
                   {f.key === 'brand_assets_url' && <Link2 className="w-3 h-3 inline mr-1 -mt-0.5" />}
                   {f.label}
                 </label>
                 {f.rows === 1 ? (
                   <input value={form[f.key] ?? ''} onChange={e => set(f.key, e.target.value)} placeholder={f.placeholder}
-                    className="w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white placeholder-[#3A3A3A] focus:outline-none focus:border-gold" />
+                    className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-tertiary focus:outline-none focus:border-gold" />
                 ) : (
                   <textarea value={form[f.key] ?? ''} onChange={e => set(f.key, e.target.value)} placeholder={f.placeholder}
                     rows={f.rows ?? 2}
-                    className="w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white placeholder-[#3A3A3A] focus:outline-none focus:border-gold resize-none" />
+                    className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-tertiary focus:outline-none focus:border-gold resize-none" />
                 )}
               </div>
             ))}

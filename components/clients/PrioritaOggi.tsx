@@ -78,33 +78,33 @@ export function PrioritaOggi({ clients }: { clients: Client[] }) {
   if (dismissed || alerts.length === 0) return null
 
   return (
-    <div className="mb-5 rounded-xl border border-[#2A2A2A] bg-[#111] overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#2A2A2A]">
+    <div className="mb-5 rounded-xl border border-border bg-surface overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-error animate-pulse" />
-          <span className="text-sm font-semibold text-white">Priorità oggi</span>
+          <span className="text-sm font-semibold text-text-primary">Priorità oggi</span>
           <span className="text-xs text-text-secondary">{alerts.length} {alerts.length === 1 ? 'cliente richiede attenzione' : 'clienti richiedono attenzione'}</span>
         </div>
-        <button onClick={() => setDismissed(true)} className="text-text-secondary hover:text-white transition-colors">
+        <button onClick={() => setDismissed(true)} className="text-text-secondary hover:text-text-primary transition-colors">
           <X className="w-4 h-4" />
         </button>
       </div>
 
-      <div className="divide-y divide-[#1E1E1E]">
+      <div className="divide-y divide-border">
         {alerts.map((alert) => (
           <Link
             key={alert.clientId}
             href={`/clienti/${alert.clientId}`}
-            className="flex items-center gap-3 px-4 py-3 hover:bg-white/3 transition-colors group"
+            className="flex items-center gap-3 px-4 py-3 hover:bg-overlay/3 transition-colors group"
           >
             <div className={`flex items-center justify-center w-7 h-7 rounded-lg border shrink-0 ${urgencyStyle[alert.urgency]}`}>
               {typeIcon[alert.type]}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">{alert.companyName}</p>
+              <p className="text-sm font-medium text-text-primary truncate">{alert.companyName}</p>
               <p className="text-xs text-text-secondary truncate">{alert.label} · {alert.detail}</p>
             </div>
-            <ChevronRight className="w-4 h-4 text-[#333] group-hover:text-text-secondary transition-colors shrink-0" />
+            <ChevronRight className="w-4 h-4 text-text-tertiary group-hover:text-text-secondary transition-colors shrink-0" />
           </Link>
         ))}
       </div>

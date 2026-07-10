@@ -106,7 +106,7 @@ export function ClientChatTab({ client, currentProfile, allProfiles }: Props) {
           className={`flex items-center gap-2 px-4 py-2 rounded-t-xl text-sm font-semibold border-b-2 transition-colors
             ${activeChat === 'cc'
               ? 'text-gold border-gold bg-gold/5'
-              : 'text-text-secondary border-transparent hover:text-white hover:bg-white/[0.03]'}`}
+              : 'text-text-secondary border-transparent hover:text-text-primary hover:bg-overlay/[0.03]'}`}
         >
           <Headphones className="w-3.5 h-3.5" />
           Customer Care
@@ -116,8 +116,8 @@ export function ClientChatTab({ client, currentProfile, allProfiles }: Props) {
           onClick={() => setActiveChat('internal')}
           className={`flex items-center gap-2 px-4 py-2 rounded-t-xl text-sm font-semibold border-b-2 transition-colors
             ${activeChat === 'internal'
-              ? 'text-white border-white/30 bg-white/[0.03]'
-              : 'text-text-secondary border-transparent hover:text-white hover:bg-white/[0.03]'}`}
+              ? 'text-text-primary border-overlay/30 bg-overlay/[0.03]'
+              : 'text-text-secondary border-transparent hover:text-text-primary hover:bg-overlay/[0.03]'}`}
         >
           <Lock className="w-3.5 h-3.5" />
           Interno team
@@ -126,7 +126,7 @@ export function ClientChatTab({ client, currentProfile, allProfiles }: Props) {
       </div>
 
       {/* Chat */}
-      <div className="flex-1 min-h-0 border-t border-[#2A2A2A]">
+      <div className="flex-1 min-h-0 border-t border-border">
         {activeChannelId ? (
           <SlackChat
             key={activeChannelId}
