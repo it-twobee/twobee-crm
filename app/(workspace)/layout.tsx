@@ -45,6 +45,12 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   } else {
     const permMap = new Map((permsRes.data ?? []).map((p: { section_id: string; can_view: boolean }) => [p.section_id, p.can_view]))
     visibleSections = (sectionsRes.data ?? []).filter((s: { id: string }) => permMap.get(s.id) === true)
+
+    // Sezioni universali: ogni membro deve vedere il proprio Profilo, anche se
+    // in tabella mancano i permessi (la 079 non li ha seminati per 'profilo').
+    const present = new Set((visibleSections ?? []).map((s: { key: string }) => s.key))
+    const universal = (sectionsRes.data ?? []).filter((s: { key: string }) => ['profilo'].includes(s.key) && !present.has(s.key))
+    visibleSections = [...(visibleSections ?? []), ...universal]
   }
 
   // La chat è disattivata: resta solo il Customer Care. Nascondo la voce a monte,

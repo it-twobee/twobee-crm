@@ -145,7 +145,10 @@
       "Bash(grep -nE 'text-gold\\([^-]|$\\)' components/tasks/MieAttivitaClient.tsx components/workspace/WorkspaceQuickCreate.tsx)",
       "Bash(grep -nE '#[0-9a-fA-F]{3,6}|text-white|text-black|bg-\\\\[#|text-red-|text-\\\\[[0-9]' components/tasks/MieAttivitaClient.tsx components/workspace/WorkspaceQuickCreate.tsx app/actions/workspace-create.ts)",
       "Bash(grep -rn \"from\\('tasks'\\)\\\\s*$\\\\|\\\\.insert\\(\" /Users/marcolucci/Claude_TwoBee_HQ_Room/app/actions)",
-      "Bash(echo \"dev PID $!\")"
+      "Bash(echo \"dev PID $!\")",
+      "Bash(curl -s -o /dev/null --max-time 5 http://localhost:3000/login)",
+      "Bash(curl -s -o /dev/null -w \"status=%{http_code}\\\\nlocation=%{redirect_url}\\\\n\" --max-time 60 \"http://localhost:3000/api/google/auth\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 60 http://localhost:3000/workspace/profilo)"
     ]
   }
 }

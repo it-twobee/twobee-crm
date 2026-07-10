@@ -30,6 +30,11 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
+  // Le rotte API gestiscono da sole l'autenticazione: non devono passare dal
+  // routing per ruolo, altrimenti un utente workspace verrebbe reindirizzato a
+  // /workspace anche quando chiama /api/google/* (collegamento ed eventi).
+  if (pathname.startsWith('/api/')) return supabaseResponse
+
   const protectedPaths = [
     '/dashboard',
     '/clienti',
