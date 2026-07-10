@@ -60,7 +60,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   visibleSections = (visibleSections ?? []).filter((s: { key: string }) => !HIDDEN_WORKSPACE_KEYS.includes(s.key))
 
   // Workload: visibile a tutti nel workspace. Iniettata come fallback se la
-  // migration 092 non è ancora stata applicata, così la voce compare subito.
+  // migration 095 non è ancora stata applicata, così la voce compare subito.
   if (!(visibleSections ?? []).some((s: { key: string }) => s.key === 'workload')) {
     visibleSections = [
       ...(visibleSections ?? []),

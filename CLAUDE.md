@@ -117,7 +117,7 @@ const parsed = JSON.parse((await res.json()).choices?.[0]?.message?.content?.mat
 
 ## Migration da eseguire (Supabase Dashboard → SQL Editor)
 `chat_channels.project_id` **esiste** in produzione: il vecchio "BUG NOTO" è risolto.
-Numerazione: attenzione, `080_*` e `081_*` compaiono due volte. Il prossimo libero è **092**.
+Numerazione: attenzione, `080_*`, `081_*` e `092_*` compaiono due volte. Il prossimo libero è **096**.
 
 | # | Cosa fa | Serve anche |
 |---|---|---|
@@ -129,6 +129,16 @@ Numerazione: attenzione, `080_*` e `081_*` compaiono due volte. Il prossimo libe
 | `091_google_credentials.sql` | token Google fuori da `user_metadata` | ricollegare Google una volta |
 | `092_workspace_team_read_all.sql` | i ruoli `team` (manager…partner) leggono TUTTI clienti/progetti/task (scrittura task resta scoped) | — |
 | `093_feedback.sql` | tabelle `feedback` + `feedback_votes` (RLS staff-read/own-write/admin-manage) + sezione workspace `feedback` | — |
+| `095_workspace_workload_section.sql` | voce sidebar `workload` nel workspace (il layout la inietta comunque come fallback) | — |
+
+## Workload (`/workload` e `/workspace/workload`)
+Vista strategica dei progetti in parallelo: effort (ore stimate, default 4h dove
+manca), timeline, carico per risorsa. Stessa `WorkloadClient` per admin e workspace.
+`lib/workload.ts` = calcoli puri (l'effort di una task multi-assegnata si **divide**
+fra gli assegnatari). Filtri: tipo/cliente/risorsa/periodo. Editing (stato,
+riassegnazione, elimina) riservato al **PM** (`projects.manager_id`), al `manager`
+di ruolo o all'admin, via `app/actions/workload-tasks.ts` (service role). Nessun
+dato economico: è sicuro anche nel workspace.
 | `094_private_personal_tasks.sql` | task senza progetto = personali/private: `tasks_team_read_all` ora richiede `project_id IS NOT NULL` (i colleghi non le vedono) | — |
 
 **Scorciatoia**: `supabase/APPLY_PENDING.sql` è il concatenato (081, 086–093) in
