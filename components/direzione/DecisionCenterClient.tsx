@@ -284,7 +284,7 @@ function NewDecisionModal({ currentUserId, onClose, onCreated }: {
             <div>
               <label className="text-text-tertiary text-xs mb-1.5 block">Entro</label>
               <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
-                className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none [color-scheme:dark]" />
+                className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none" />
             </div>
           </div>
           <div>

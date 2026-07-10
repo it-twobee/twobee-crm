@@ -84,6 +84,12 @@ export interface Profile {
   created_at: string
   resource_type: ResourceTypePrimary | null
   seniority: SeniorityLevel | null
+  hire_date: string | null
+  birth_date: string | null
+  contract_type: ContractType | null
+  // NB: `monthly_cost` esiste in tabella ma è deliberatamente fuori da questo
+  // tipo: è un costo risorsa (founder/super_admin only). Chi ne ha bisogno lo
+  // seleziona esplicitamente, così non finisce in un client component per sbaglio.
 }
 
 export type ResourceProfileType =
@@ -943,6 +949,36 @@ export interface Decision {
   client_id: string | null
   created_by: string | null
   decided_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+// ─── Buste paga (088) ────────────────────────────────────────
+export interface Payslip {
+  id: string
+  profile_id: string
+  year: number
+  month: number
+  file_path: string
+  file_name: string | null
+  notes: string | null
+  uploaded_by: string | null
+  uploaded_at: string
+}
+
+// ─── Documenti personali (089) ───────────────────────────────
+export interface PersonalDocument {
+  id: string
+  profile_id: string
+  doc_type: string
+  label: string
+  file_path: string | null
+  file_name: string | null
+  issued_at: string | null
+  expires_at: string | null
+  reminder_days_before: number
+  notes: string | null
+  created_by: string | null
   created_at: string
   updated_at: string
 }

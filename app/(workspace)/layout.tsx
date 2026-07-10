@@ -4,6 +4,13 @@ import { WorkspaceSidebar } from '@/components/workspace/WorkspaceSidebar'
 import { isSuperAdminRaw, isAdminRole, isWorkspaceRole } from '@/lib/permissions'
 import type { AppRole } from '@/lib/types/database'
 
+// group_key/group_order arrivano dalla migration 087: opzionali finché non è
+// applicata, la sidebar ha un fallback per chiave.
+type WorkspaceSectionRow = {
+  id: string; key: string; label: string; route: string; icon: string; sort_order: number
+  group_key?: string | null; group_order?: number | null
+}
+
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
 
@@ -43,7 +50,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <WorkspaceSidebar
-        sections={visibleSections}
+        sections={(visibleSections ?? []) as WorkspaceSectionRow[]}
         isSuperAdmin={isSuperAdmin}
         profile={{
           full_name: profile.full_name,
