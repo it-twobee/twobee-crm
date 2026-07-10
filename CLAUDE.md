@@ -33,7 +33,7 @@ components/chat/SlackChat.tsx     ← componente chat completo (props: channelId
 components/progetti/ProgettiClient.tsx     ← CRUD progetti: NewProjectDetailedModal + EditProgettoModal + DeleteConfirmModal
 lib/types/database.ts             ← tutti i tipi
 app/api/ai/                       ← extract-project, extract-meeting, sprint-plan, kpi-report, project-summary
-supabase/migrations/              ← 001–034 (vedi BUG NOTO sotto)
+supabase/migrations/              ← 001–091 (086–091 da eseguire, vedi sotto)
 ```
 
 ## Design system — MAI colori hardcoded
@@ -82,7 +82,7 @@ con `*{transition:none!important}` prima di misurare).
 - `clients`: `company_name, client_type (growth|digital|growth_digital), package, mrr, client_label, risk_score`
 - `projects`: `client_id, name, status, project_type, project_kind (growth|digital), sprint_current`
 - `client_kpis`: KPI mensili, unique `(client_id, month)`
-- `chat_channels`: `type (cliente|interno|task|customer_care|cliente_interno), client_id` — **project_id NON ancora in prod** (vedi BUG)
+- `chat_channels`: `type (cliente|interno|task|customer_care|cliente_interno|team|dm), client_id, project_id, team_key`
 - `chat_messages`: `channel_id, sender_id, content`
 - `tasks`: `project_id, title, status (da_fare|in_corso|completato), is_milestone, due_date`
 - `objectives`: OKR aziendali con `progress, status`
