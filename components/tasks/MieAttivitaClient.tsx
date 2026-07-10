@@ -12,6 +12,8 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { formatDate, getInitials } from '@/lib/utils'
 import type { Task, Profile } from '@/lib/types/database'
+import { BachecaView } from './BachecaView'
+import { TimelineView } from './TimelineView'
 
 interface TaskWithMeta extends Task {
   assignee: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
@@ -574,134 +576,6 @@ function TaskDetailPanel({ task, onClose, toggleStatus, updateTask, updateStatus
             }`}>
             <Flag className="w-3 h-3" /> {task.is_milestone ? 'Sì' : 'No'}
           </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ── BACHECA (kanban by status) ────────────────────── */
-function BachecaView({ tasks, updateStatus, onSelect }: {
-  tasks: TaskWithMeta[]; updateStatus: (id: string, s: TaskStatus) => Promise<void>
-  onSelect: (t: TaskWithMeta) => void
-}) {
-  const cols: TaskStatus[] = ['da_fare', 'in_corso', 'in_revisione', 'completato']
-  const grouped = useMemo(() => {
-    const m: Record<TaskStatus, TaskWithMeta[]> = { da_fare: [], in_corso: [], in_revisione: [], completato: [] }
-    for (const t of tasks) m[t.status as TaskStatus]?.push(t)
-    return m
-  }, [tasks])
-
-  return (
-    <div className="h-full overflow-x-auto p-6">
-      <div className="flex gap-4 min-w-max h-full">
-        {cols.map(status => {
-          const meta = STATUS_META[status]
-          const list = grouped[status]
-          return (
-            <div key={status} className="w-72 flex flex-col bg-surface border border-border rounded-xl">
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-                <span className={`text-sm font-bold ${meta.color}`}>{meta.label}</span>
-                <span className="text-xs text-text-tertiary bg-surface-active px-1.5 py-0.5 rounded">{list.length}</span>
-              </div>
-              <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                {list.map(task => (
-                  <div key={task.id} onClick={() => onSelect(task)}
-                    className="bg-surface border border-border rounded-lg p-3 space-y-2 hover:border-gold/30 transition-colors cursor-pointer">
-                    <p className="text-sm text-text-primary font-medium">{task.title}</p>
-                    {task.project && (
-                      <div className="flex items-center gap-1.5">
-                        <FolderKanban className="w-3 h-3 text-text-secondary shrink-0" />
-                        <span className="text-2xs text-text-secondary truncate">{task.project.name}</span>
-                        {task.project.clients && <span className="text-2xs text-text-tertiary">·</span>}
-                        {task.project.clients && <span className="text-2xs text-text-secondary truncate">{task.project.clients.company_name}</span>}
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {task.due_date && (
-                        <span className={`text-2xs ${deadlineColor(task.due_date)}`}>{formatDate(task.due_date)}</span>
-                      )}
-                      {task.is_milestone && <Flag className="w-3 h-3 text-gold-text" />}
-                      {task.description && <FileText className="w-3 h-3 text-text-tertiary" />}
-                      {(task.links?.length ?? 0) > 0 && <Link2 className="w-3 h-3 text-info/50" />}
-                    </div>
-                    <div className="flex gap-1 flex-wrap">
-                      {cols.filter(s => s !== status).map(ns => (
-                        <button key={ns} onClick={e => { e.stopPropagation(); updateStatus(task.id, ns) }}
-                          className={`text-2xs px-1.5 py-0.5 rounded ${STATUS_META[ns].color} bg-surface hover:bg-surface-hover transition-colors`}>
-                          → {STATUS_META[ns].label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-/* ── TIMELINE (Gantt semplificato) ────────────────────── */
-function TimelineView({ tasks }: { tasks: TaskWithMeta[] }) {
-  const withDate = tasks.filter(t => t.due_date).sort((a, b) => a.due_date!.localeCompare(b.due_date!))
-  if (withDate.length === 0) return <div className="p-8 text-text-secondary text-sm">Nessun task con scadenza da visualizzare.</div>
-
-  const now = new Date(); now.setHours(0, 0, 0, 0)
-  const minDate = new Date(Math.min(now.getTime(), new Date(withDate[0].due_date!).getTime()))
-  minDate.setDate(minDate.getDate() - 7)
-  const maxDate = new Date(withDate[withDate.length - 1].due_date!)
-  maxDate.setDate(maxDate.getDate() + 14)
-  const rangeMs = maxDate.getTime() - minDate.getTime()
-  const todayPct = ((now.getTime() - minDate.getTime()) / rangeMs) * 100
-
-  const months: { label: string; left: number; width: number }[] = []
-  const d = new Date(minDate.getFullYear(), minDate.getMonth(), 1)
-  while (d <= maxDate) {
-    const mStart = Math.max(d.getTime(), minDate.getTime())
-    const nextM = new Date(d.getFullYear(), d.getMonth() + 1, 1)
-    const mEnd = Math.min(nextM.getTime(), maxDate.getTime())
-    months.push({ label: d.toLocaleDateString('it-IT', { month: 'short', year: '2-digit' }), left: ((mStart - minDate.getTime()) / rangeMs) * 100, width: ((mEnd - mStart) / rangeMs) * 100 })
-    d.setMonth(d.getMonth() + 1)
-  }
-
-  return (
-    <div className="h-full overflow-auto p-6">
-      <div className="relative min-w-[800px]">
-        {/* Month headers */}
-        <div className="flex h-8 mb-2 relative">
-          {months.map((m, i) => (
-            <div key={i} className="absolute text-2xs font-bold text-text-tertiary uppercase border-l border-border pl-2"
-              style={{ left: `${m.left}%`, width: `${m.width}%` }}>{m.label}</div>
-          ))}
-        </div>
-        {/* Today line */}
-        <div className="absolute top-8 bottom-0 w-px bg-gold/40 z-10" style={{ left: `${todayPct}%` }}>
-          <div className="absolute -top-1 -left-1.5 w-3 h-3 rounded-full bg-gold" />
-        </div>
-        {/* Tasks */}
-        <div className="space-y-1.5">
-          {withDate.map(task => {
-            const due = new Date(task.due_date!)
-            const pct = ((due.getTime() - minDate.getTime()) / rangeMs) * 100
-            const barW = Math.max(8, Math.min(20, pct * 0.15))
-            return (
-              <div key={task.id} className="relative h-8 flex items-center">
-                <div className="absolute rounded-md h-6 flex items-center px-2 gap-1 border text-2xs font-medium truncate max-w-[200px]"
-                  style={{ left: `${Math.max(0, pct - barW)}%`, width: `${barW}%`,
-                    background: task.status === 'completato' ? 'rgba(34,197,94,0.15)' : due < now ? 'rgba(239,68,68,0.15)' : 'var(--color-gold-dim)',
-                    borderColor: task.status === 'completato' ? 'rgba(34,197,94,0.3)' : due < now ? 'rgba(239,68,68,0.3)' : 'var(--color-gold-dim)',
-                    color: task.status === 'completato' ? 'var(--color-success)' : due < now ? 'var(--color-error)' : 'var(--color-gold-text)',
-                  }}>
-                  {task.is_milestone && <Flag className="w-2.5 h-2.5 shrink-0" />}
-                  <span className="truncate">{task.title}</span>
-                  {task.project && <span className="text-[8px] opacity-60 ml-1 shrink-0">({task.project.name})</span>}
-                </div>
-              </div>
-            )
-          })}
         </div>
       </div>
     </div>
