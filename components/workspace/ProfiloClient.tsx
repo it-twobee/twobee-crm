@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
@@ -19,6 +19,14 @@ export function ProfiloClient({ profile, googleConnected }: {
   const [jobTitle, setJobTitle] = useState(profile.job_title ?? '')
   const [competencies, setCompetencies] = useState((profile.competencies ?? []).join(', '))
   const [disconnecting, setDisconnecting] = useState(false)
+  // Esito del ritorno da /api/google/auth (letto da window per evitare Suspense).
+  const [googleError, setGoogleError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('error') === 'google_not_configured') setGoogleError('config')
+    else if (params.get('connected') === 'true') toast.success('Google Calendar collegato')
+  }, [])
 
   async function disconnectGoogle() {
     setDisconnecting(true)
@@ -136,6 +144,17 @@ export function ProfiloClient({ profile, googleConnected }: {
       {/* Integrazioni */}
       <section className="rounded-2xl border border-border bg-surface p-5">
         <h2 className="text-sm font-bold text-text-primary mb-3">Integrazioni</h2>
+
+        {googleError === 'config' && (
+          <div className="mb-3 rounded-xl border border-warning/30 bg-warning-dim px-3 py-2.5 text-2xs text-text-secondary leading-relaxed">
+            <strong className="text-warning">Google Calendar non configurato sul server.</strong> Mancano
+            le variabili <code className="bg-surface px-1 rounded">GOOGLE_CLIENT_ID</code> /
+            <code className="bg-surface px-1 rounded">GOOGLE_CLIENT_SECRET</code> nell'ambiente di deploy,
+            e il redirect URI in Google Console dev'essere <code className="bg-surface px-1 rounded">{'<dominio>'}/api/google/callback</code>.
+            Contatta l'amministratore.
+          </div>
+        )}
+
         <div className="flex items-center gap-3">
           <Calendar className="w-5 h-5 text-text-tertiary shrink-0" aria-hidden="true" />
           <div className="flex-1 min-w-0">
