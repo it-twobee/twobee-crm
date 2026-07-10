@@ -19,11 +19,10 @@ export default async function ProfiloPage() {
   if (!profile) redirect('/login')
 
   // I token stanno in google_credentials (deny-all): qui basta il flag pubblico.
-  // Fallback al metadata per chi aveva collegato Google prima della 091.
+  // Nessun fallback al metadata: rispecchia solo credenziali realmente presenti.
   const { data: flag } = await sb
     .from('profiles').select('google_connected').eq('id', user.id).maybeSingle()
-  const googleConnected =
-    Boolean(flag?.google_connected) || Boolean(user.user_metadata?.google_refresh_token)
+  const googleConnected = Boolean(flag?.google_connected)
 
   return <ProfiloClient profile={profile as Profile} googleConnected={googleConnected} />
 }

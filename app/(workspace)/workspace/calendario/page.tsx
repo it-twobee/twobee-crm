@@ -10,7 +10,11 @@ export default async function WorkspaceCalendarioPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const isGoogleConnected = !!user.user_metadata?.google_access_token
+  // Verità unica: profiles.google_connected. I token veri stanno in
+  // google_credentials, mai leggibili dal client. Niente fallback al metadata.
+  const { data: flag } = await supabase
+    .from('profiles').select('google_connected').eq('id', user.id).maybeSingle()
+  const isGoogleConnected = Boolean(flag?.google_connected)
 
   const startDate = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString()
 

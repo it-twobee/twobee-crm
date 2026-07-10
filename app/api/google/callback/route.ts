@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export async function GET(req: NextRequest) {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin
   const code = req.nextUrl.searchParams.get('code')
-  if (!code) return NextResponse.redirect(`${base}/calendario?error=no_code`)
+  if (!code) return NextResponse.redirect(`${base}/workspace/calendario?error=no_code`)
 
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   } as never, { onConflict: 'profile_id' })
 
   if (error) {
-    return NextResponse.redirect(`${base}/calendario?error=${encodeURIComponent(error.message)}`)
+    return NextResponse.redirect(`${base}/workspace/calendario?error=${encodeURIComponent(error.message)}`)
   }
 
   await admin.from('profiles').update({ google_connected: true } as never).eq('id', user.id)
@@ -46,5 +46,5 @@ export async function GET(req: NextRequest) {
     data: { google_access_token: null, google_refresh_token: null, google_token_expiry: null },
   })
 
-  return NextResponse.redirect(`${base}/calendario?connected=true`)
+  return NextResponse.redirect(`${base}/workspace/calendario?connected=true`)
 }

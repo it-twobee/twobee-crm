@@ -16,7 +16,7 @@ export default async function MieAttivitaPage() {
     project:projects(id, name, client_id, clients(company_name))
   `
 
-  const [ownedRes, assignedRes, profileRes, profilesRes] = await Promise.all([
+  const [ownedRes, assignedRes, profileRes, profilesRes, projectsRes] = await Promise.all([
     supabase.from('tasks').select(taskSelect)
       .eq('assignee_id', user.id)
       .is('parent_task_id', null)
@@ -32,6 +32,7 @@ export default async function MieAttivitaPage() {
       }),
     supabase.from('profiles').select('*').eq('id', user.id).single(),
     supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true).order('full_name'),
+    supabase.from('projects').select('id, name, clients(company_name)').eq('status', 'attivo').order('name'),
   ])
 
   const ownedTasks = (ownedRes.data ?? []) as Parameters<typeof MieAttivitaClient>[0]['tasks']
@@ -39,11 +40,15 @@ export default async function MieAttivitaPage() {
   const seen = new Set(ownedTasks.map(t => t.id))
   const merged = [...ownedTasks, ...assignedTasks.filter(t => !seen.has(t.id))]
 
+  const projects = ((projectsRes.data ?? []) as unknown as { id: string; name: string; clients: { company_name: string } | null }[])
+    .map(p => ({ id: p.id, name: p.name, company_name: p.clients?.company_name ?? null }))
+
   return (
     <MieAttivitaClient
       tasks={merged}
       profile={profileRes.data as Profile}
       profiles={(profilesRes.data ?? []) as Pick<Profile, 'id' | 'full_name' | 'avatar_url'>[]}
+      projects={projects}
     />
   )
 }

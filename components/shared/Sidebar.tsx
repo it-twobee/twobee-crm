@@ -8,7 +8,7 @@ import {
   BarChart3, FolderOpen, Settings, ChevronRight, ChevronLeft, ChevronDown,
   CheckCircle2, FolderKanban, Briefcase, CalendarDays, Receipt, Headphones, Crown,
   ShoppingCart, Ticket, UserCircle2, Target, History, FlaskConical,
-  Layers, Eye, Calculator, MonitorSmartphone, Map, Scale,
+  Layers, Calculator, Map, Scale, Lightbulb,
 } from 'lucide-react'
 import { useState, useCallback } from 'react'
 import { usePermissions } from '@/lib/hooks/usePermissions'
@@ -46,7 +46,6 @@ const sections: NavSection[] = [
       { href: '/progetti', icon: FolderKanban, label: 'Progetti' },
       { href: '/portfolio', icon: Briefcase, label: 'Portfolio' },
       { href: '/documenti', icon: FolderOpen, label: 'Documenti' },
-      { href: '/workspace', icon: MonitorSmartphone, label: 'Portale Operativo', superAdminOnly: true },
     ],
   },
   {
@@ -55,7 +54,6 @@ const sections: NavSection[] = [
       { href: '/clienti', icon: Users, label: 'Clienti' },
       { href: '/customer-care', icon: Headphones, label: 'Customer Care' },
       { href: '/customer-care/tickets', icon: Ticket, label: 'Ticket' },
-      { href: '/portale-cliente', icon: Eye, label: 'Portale Cliente', superAdminOnly: true },
     ],
   },
   {
@@ -93,6 +91,7 @@ const sections: NavSection[] = [
   {
     label: 'Sistema',
     items: [
+      { href: '/feedback', icon: Lightbulb, label: 'Feedback', adminOnly: true },
       { href: '/impostazioni/cronologia', icon: History, label: 'Cronologia', adminOnly: true },
       { href: '/impostazioni', icon: Settings, label: 'Impostazioni', adminOnly: true },
     ],

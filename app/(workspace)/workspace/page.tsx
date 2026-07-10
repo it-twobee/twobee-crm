@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { AlertCircle, Clock, Calendar, FolderKanban, CheckCircle2, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { isAdminRole, isSuperAdminRaw } from '@/lib/permissions'
+import { WorkspaceQuickCreate } from '@/components/workspace/WorkspaceQuickCreate'
 
 export const revalidate = 0
 
@@ -31,7 +33,7 @@ export default async function WorkspaceDashboardPage() {
     project:projects(id, name, client_id, clients(company_name))
   `
 
-  const [ownedRes, assignedIdsRes, hrRes, { data: profile }] = await Promise.all([
+  const [ownedRes, assignedIdsRes, hrRes, { data: profile }, clientsRes, activeProjectsRes] = await Promise.all([
     supabase.from('tasks')
       .select(taskSelect)
       .eq('assignee_id', user.id)
@@ -43,8 +45,15 @@ export default async function WorkspaceDashboardPage() {
       .select('id, status')
       .eq('profile_id', user.id)
       .eq('status', 'pending'),
-    supabase.from('profiles').select('full_name').eq('id', user.id).single(),
+    supabase.from('profiles').select('full_name, app_role, email').eq('id', user.id).single(),
+    supabase.from('clients').select('id, company_name').neq('client_label', 'perso').order('company_name'),
+    supabase.from('projects').select('id, name').eq('status', 'attivo').order('name'),
   ])
+
+  // Solo manager/senior (e admin+) creano progetti/sprint/task dalla dashboard.
+  const canCreate =
+    profile?.app_role === 'manager' || profile?.app_role === 'senior'
+    || isAdminRole(profile?.app_role) || isSuperAdminRaw(profile?.email, profile?.app_role)
 
   const assignedIds = (assignedIdsRes.data ?? []).map((a: { task_id: string }) => a.task_id)
   let extraTasks: typeof ownedRes.data = []
@@ -82,11 +91,19 @@ export default async function WorkspaceDashboardPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-text-primary">Ciao, {name} 👋</h1>
-        <p className="text-overlay/40 text-sm mt-1">
-          {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}
-        </p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-text-primary">Ciao, {name} 👋</h1>
+          <p className="text-overlay/40 text-sm mt-1">
+            {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
+        </div>
+        {canCreate && (
+          <WorkspaceQuickCreate
+            clients={(clientsRes.data ?? []) as { id: string; company_name: string }[]}
+            projects={(activeProjectsRes.data ?? []) as { id: string; name: string }[]}
+          />
+        )}
       </div>
 
       {/* KPI */}

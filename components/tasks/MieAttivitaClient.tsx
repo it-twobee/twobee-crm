@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { createMyTask } from '@/app/actions/workspace-create'
 import { toast } from 'sonner'
 import { formatDate, getInitials } from '@/lib/utils'
 import type { Task, Profile } from '@/lib/types/database'
@@ -73,10 +74,11 @@ function deadlineColor(due: string | null): string {
   return 'text-success'
 }
 
-export function MieAttivitaClient({ tasks: initialTasks, profile, profiles }: {
+export function MieAttivitaClient({ tasks: initialTasks, profile, profiles, projects = [] }: {
   tasks: TaskWithMeta[]
   profile: Profile
   profiles: Pick<Profile, 'id' | 'full_name' | 'avatar_url'>[]
+  projects?: { id: string; name: string; company_name: string | null }[]
 }) {
   const [tasks, setTasks] = useState(initialTasks)
   const [view, setView] = useState<View>('elenco')
@@ -84,6 +86,7 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles }: {
   const [addingIn, setAddingIn] = useState<Section | null>(null)
   const [newTitle, setNewTitle] = useState('')
   const [newDue, setNewDue] = useState('')
+  const [newProjectId, setNewProjectId] = useState('')
   const [adding, setAdding] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [selectedTask, setSelectedTask] = useState<TaskWithMeta | null>(null)
@@ -156,15 +159,18 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles }: {
     if (!newTitle.trim()) return
     setAdding(true)
     const dueDate = section === 'oggi' ? new Date().toISOString().slice(0, 10) : newDue || null
-    const { data, error } = await createClient().from('tasks').insert({
-      title: newTitle.trim(), assignee_id: profile.id, status: 'da_fare' as const,
-      priority: 'media' as const, due_date: dueDate, project_id: null as unknown as string,
-    }).select(`*, assignee:profiles!tasks_assignee_id_fkey(id, full_name, avatar_url), project:projects(id, name, client_id, clients(company_name))`).single()
+    // Server action: funziona per ogni membro (self-assign). Senza progetto la
+    // task è personale/privata; con progetto è condivisa sul board di progetto.
+    const r = await createMyTask({
+      title: newTitle.trim(),
+      projectId: newProjectId || null,
+      dueDate: dueDate ?? undefined,
+    })
     setAdding(false)
-    if (error) { toast.error('Errore: ' + error.message); return }
-    setTasks(p => [data as TaskWithMeta, ...p])
-    setNewTitle(''); setNewDue(''); setAddingIn(null)
-    toast.success('Task aggiunta!')
+    if (!r.ok) { toast.error('Errore: ' + (r.error ?? '')); return }
+    setTasks(p => [r.task as TaskWithMeta, ...p])
+    setNewTitle(''); setNewDue(''); setNewProjectId(''); setAddingIn(null)
+    toast.success(newProjectId ? 'Task creata sul progetto!' : 'Task privata creata!')
   }
 
   const requestDelete = async (task: TaskWithMeta) => {
@@ -237,7 +243,8 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles }: {
             addingIn={addingIn} setAddingIn={setAddingIn} newTitle={newTitle} setNewTitle={setNewTitle}
             newDue={newDue} setNewDue={setNewDue} adding={adding} addTask={addTask} toggleStatus={toggleStatus}
             requestDelete={requestDelete} deleting={deleting} onSelect={setSelectedTask}
-            selectedIds={selectedIds} toggleSelect={toggleSelect} />}
+            selectedIds={selectedIds} toggleSelect={toggleSelect}
+            projects={projects} newProjectId={newProjectId} setNewProjectId={setNewProjectId} />}
           {view === 'bacheca' && <BachecaView tasks={tasks} updateStatus={updateStatus} onSelect={setSelectedTask} />}
           {view === 'timeline' && <TimelineView tasks={active} />}
           {view === 'calendario' && <CalendarioView tasks={tasks} />}
@@ -266,7 +273,7 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles }: {
 }
 
 /* ── ELENCO (enhanced original) ────────────────────── */
-function ElencoView({ tasks, sections, collapsed, setCollapsed, addingIn, setAddingIn, newTitle, setNewTitle, newDue, setNewDue, adding, addTask, toggleStatus, requestDelete, deleting, onSelect, selectedIds, toggleSelect }: {
+function ElencoView({ tasks, sections, collapsed, setCollapsed, addingIn, setAddingIn, newTitle, setNewTitle, newDue, setNewDue, adding, addTask, toggleStatus, requestDelete, deleting, onSelect, selectedIds, toggleSelect, projects, newProjectId, setNewProjectId }: {
   tasks: TaskWithMeta[]; sections: Record<Section, TaskWithMeta[]>
   collapsed: Record<Section, boolean>; setCollapsed: (fn: (p: Record<Section, boolean>) => Record<Section, boolean>) => void
   addingIn: Section | null; setAddingIn: (s: Section | null) => void
@@ -275,6 +282,8 @@ function ElencoView({ tasks, sections, collapsed, setCollapsed, addingIn, setAdd
   requestDelete: (t: TaskWithMeta) => Promise<void>; deleting: string | null
   onSelect: (t: TaskWithMeta) => void
   selectedIds: Set<string>; toggleSelect: (id: string) => void
+  projects: { id: string; name: string; company_name: string | null }[]
+  newProjectId: string; setNewProjectId: (s: string) => void
 }) {
   const sectionEntries: [Section, TaskWithMeta[]][] = [
     ['oggi', sections.oggi], ['prossimi', sections.prossimi], ['dopo', sections.dopo], ['completati', sections.completati],
@@ -304,6 +313,14 @@ function ElencoView({ tasks, sections, collapsed, setCollapsed, addingIn, setAdd
                     <input autoFocus value={newTitle} onChange={e => setNewTitle(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') addTask(key); if (e.key === 'Escape') { setAddingIn(null); setNewTitle('') } }}
                       placeholder="Titolo task..." className="flex-1 bg-background border border-gold rounded px-2 py-1 text-sm text-text-primary focus:outline-none" />
+                    <select value={newProjectId} onChange={e => setNewProjectId(e.target.value)}
+                      title="Collega a un progetto cliente, oppure lascia privata"
+                      className="bg-background border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-gold max-w-[180px]">
+                      <option value="">🔒 Privata (nessun progetto)</option>
+                      {projects.map(p => (
+                        <option key={p.id} value={p.id}>{p.company_name ? `${p.company_name} — ${p.name}` : p.name}</option>
+                      ))}
+                    </select>
                     {key !== 'oggi' && (
                       <input type="date" value={newDue} onChange={e => setNewDue(e.target.value)}
                         className="bg-background border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-gold" />
@@ -312,7 +329,7 @@ function ElencoView({ tasks, sections, collapsed, setCollapsed, addingIn, setAdd
                       className="px-3 py-1 bg-gold text-on-gold text-xs font-bold rounded hover:bg-gold/90 disabled:opacity-50 flex items-center gap-1">
                       {adding && <Loader2 className="w-3 h-3 animate-spin" />} Aggiungi
                     </button>
-                    <button onClick={() => { setAddingIn(null); setNewTitle('') }} className="text-text-secondary hover:text-text-primary text-xs">✕</button>
+                    <button onClick={() => { setAddingIn(null); setNewTitle(''); setNewProjectId('') }} className="text-text-secondary hover:text-text-primary text-xs">✕</button>
                   </div>
                 ) : (
                   <button onClick={() => setAddingIn(key)} className="flex items-center gap-2 px-3 py-2 text-text-secondary hover:text-gold-text text-xs transition-colors w-full">

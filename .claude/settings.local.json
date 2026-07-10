@@ -117,7 +117,22 @@
       "Bash(echo \"--- exit: $? ---\")",
       "Bash(grep -rhoE '\\\\b\\(text|bg|border\\)-\\(red|green|blue|yellow|orange|purple|emerald|amber|rose|sky|violet|indigo|gray|slate|zinc|neutral\\)-[0-9]{2,3}\\(/[0-9]+\\)?\\\\b' app components)",
       "Bash(grep -rhoE '\\\\b\\(text|bg|border\\)-\\(gray|slate|zinc|neutral\\)-[0-9]{2,3}' app components)",
-      "Bash(grep -rhoE '\\\\b\\(text|bg|border\\)-\\(red|green|blue|yellow|purple|orange|amber|emerald\\)-[0-9]{2,3}' app components)"
+      "Bash(grep -rhoE '\\\\b\\(text|bg|border\\)-\\(red|green|blue|yellow|purple|orange|amber|emerald\\)-[0-9]{2,3}' app components)",
+      "Bash(echo \"=== exit $? \\(1 = none found, good\\) ===\")",
+      "Bash(awk '/^      sprints: \\\\{/,/^      \\\\}/' lib/types/database.ts)",
+      "Bash(awk '/^      tasks: \\\\{/,/^        Insert:/{print}' lib/types/database.ts)",
+      "Bash(grep -vE \"^\\\\s*$\")",
+      "Bash(awk '{print $2, $11, $12, $13}')",
+      "Bash(lsof -iTCP:3000 -sTCP:LISTEN -n)",
+      "Bash(kill 19944 19945)",
+      "Bash(pkill -f \"next-server\")",
+      "Bash(echo \"avviato, PID $!\")",
+      "Bash(break)",
+      "Bash(curl -s -o /dev/null -w \"login status: %{http_code}\\\\n\" --max-time 90 http://localhost:3000/login)",
+      "Bash(curl -s --max-time 60 http://localhost:3000/login)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 30 http://localhost:3000/_next/static/css/app/layout.css)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 90 http://localhost:3000/dashboard)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 90 http://localhost:3000/calendario)"
     ]
   }
 }

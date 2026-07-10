@@ -126,6 +126,13 @@ Numerazione: attenzione, `080_*` e `081_*` compaiono due volte. Il prossimo libe
 | `090_chat_rework.sql` | canali `team`/`dm`, `chat_dm_participants`, `chat_best_ideas` | bucket `best-ideas` |
 | `091_google_credentials.sql` | token Google fuori da `user_metadata` | ricollegare Google una volta |
 | `092_workspace_team_read_all.sql` | i ruoli `team` (manager…partner) leggono TUTTI clienti/progetti/task (scrittura task resta scoped) | — |
+| `093_feedback.sql` | tabelle `feedback` + `feedback_votes` (RLS staff-read/own-write/admin-manage) + sezione workspace `feedback` | — |
+| `094_private_personal_tasks.sql` | task senza progetto = personali/private: `tasks_team_read_all` ora richiede `project_id IS NOT NULL` (i colleghi non le vedono) | — |
+
+**Scorciatoia**: `supabase/APPLY_PENDING.sql` è il concatenato (081, 086–093) in
+transazione, da incollare una volta sola nel SQL Editor. Bucket privati da creare
+a mano: `payslips`, `personal-documents`, `best-ideas`. Le env Google
+(`GOOGLE_CLIENT_ID/SECRET`, `NEXT_PUBLIC_APP_URL`) sono già presenti.
 
 Finché non le esegui l'app **non si rompe**: le pagine mostrano `SetupNotice`
 e le funzioni nuove degradano con un messaggio. I bucket vanno creati a mano

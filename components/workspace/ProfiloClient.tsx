@@ -18,6 +18,15 @@ export function ProfiloClient({ profile, googleConnected }: {
   const [phone, setPhone] = useState(profile.phone ?? '')
   const [jobTitle, setJobTitle] = useState(profile.job_title ?? '')
   const [competencies, setCompetencies] = useState((profile.competencies ?? []).join(', '))
+  const [disconnecting, setDisconnecting] = useState(false)
+
+  async function disconnectGoogle() {
+    setDisconnecting(true)
+    const res = await fetch('/api/google/disconnect', { method: 'POST' })
+    setDisconnecting(false)
+    if (res.ok) { toast.success('Google Calendar scollegato'); router.refresh() }
+    else toast.error('Errore durante lo scollegamento')
+  }
   const [saving, setSaving] = useState(false)
 
   const initials = (profile.full_name ?? 'U').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
@@ -138,9 +147,21 @@ export function ProfiloClient({ profile, googleConnected }: {
             </p>
           </div>
           {googleConnected
-            ? <span className="flex items-center gap-1.5 text-2xs font-semibold text-success bg-success-dim px-2.5 py-1 rounded-full shrink-0">
-                <CheckCircle2 className="w-3 h-3" aria-hidden="true" /> Collegato
-              </span>
+            ? <div className="flex items-center gap-2 shrink-0">
+                <span className="flex items-center gap-1.5 text-2xs font-semibold text-success bg-success-dim px-2.5 py-1 rounded-full">
+                  <CheckCircle2 className="w-3 h-3" aria-hidden="true" /> Collegato
+                </span>
+                <a href="/api/google/auth"
+                  className="text-2xs font-medium text-text-secondary hover:text-text-primary underline underline-offset-2">
+                  Ricollega
+                </a>
+                <button
+                  onClick={disconnectGoogle}
+                  disabled={disconnecting}
+                  className="text-2xs font-medium text-error hover:opacity-80 disabled:opacity-50">
+                  {disconnecting ? 'Scollego…' : 'Scollega'}
+                </button>
+              </div>
             : <a href="/api/google/auth"
                 className="px-3 py-1.5 bg-gold text-on-gold text-xs font-semibold rounded-lg hover:bg-gold/90 transition-colors shrink-0">
                 Collega

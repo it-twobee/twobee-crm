@@ -13,6 +13,11 @@ export interface CalendarEvent {
   allDay: boolean
   /** true se il titolo è stato oscurato perché l'evento è di un collega */
   masked: boolean
+  // Popolati solo per i propri eventi (masked=false): servono all'editor.
+  description?: string | null
+  location?: string | null
+  meetLink?: string | null
+  attendeeEmails?: string[]
 }
 
 function oauthFor(accessToken: string | null, refreshToken: string | null) {
@@ -110,6 +115,13 @@ export async function GET(req: NextRequest) {
           end,
           allDay: !e.start?.dateTime,
           masked: !isMine,
+          // Dettagli solo per i propri eventi: dei colleghi non si espone nulla.
+          ...(isMine ? {
+            description: e.description ?? null,
+            location: e.location ?? null,
+            meetLink: e.hangoutLink ?? null,
+            attendeeEmails: (e.attendees ?? []).map(a => a.email ?? '').filter(Boolean),
+          } : {}),
         })
       }
     } catch {
@@ -121,35 +133,124 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ events, notConnected })
 }
 
+interface EventBody {
+  title?: string
+  description?: string
+  location?: string
+  start?: string        // ISO datetime, oppure YYYY-MM-DD se allDay
+  end?: string
+  allDay?: boolean
+  addMeet?: boolean
+  attendeeIds?: string[]    // profili colleghi: le email si risolvono lato server
+  attendeeEmails?: string[] // indirizzi liberi
+  eventId?: string          // solo per PATCH/DELETE
+}
+
+/** Le email degli invitati non passano dal client: si risolvono dai profili. */
+async function resolveAttendeeEmails(
+  admin: ReturnType<typeof createAdminClient>, body: EventBody,
+): Promise<string[]> {
+  const emails = new Set((body.attendeeEmails ?? []).map(e => e.trim()).filter(Boolean))
+  if (body.attendeeIds?.length) {
+    const { data } = await admin.from('profiles').select('email').in('id', body.attendeeIds)
+    for (const p of (data ?? []) as { email: string | null }[]) if (p.email) emails.add(p.email)
+  }
+  return Array.from(emails)
+}
+
+function buildRequestBody(body: EventBody, attendeeEmails: string[]) {
+  const rb: Record<string, unknown> = {
+    summary: body.title,
+    description: body.description || undefined,
+    location: body.location || undefined,
+  }
+  if (body.allDay && body.start && body.end) {
+    // Google: per l'all-day end.date è esclusivo. Il client manda già il giorno dopo.
+    rb.start = { date: body.start }
+    rb.end = { date: body.end }
+  } else {
+    rb.start = { dateTime: body.start, timeZone: 'Europe/Rome' }
+    rb.end = { dateTime: body.end, timeZone: 'Europe/Rome' }
+  }
+  if (attendeeEmails.length) rb.attendees = attendeeEmails.map(email => ({ email }))
+  if (body.addMeet) {
+    rb.conferenceData = {
+      createRequest: { requestId: `twobee-${body.start}`, conferenceSolutionKey: { type: 'hangoutsMeet' } },
+    }
+  }
+  return rb
+}
+
+/** OAuth del solo utente corrente: si può scrivere unicamente sul proprio calendario. */
+async function myCalendar(userId: string) {
+  const admin = createAdminClient()
+  const { data: cred } = await admin
+    .from('google_credentials')
+    .select('access_token, refresh_token')
+    .eq('profile_id', userId)
+    .maybeSingle()
+  if (!cred?.access_token && !cred?.refresh_token) return null
+  return {
+    admin,
+    calendar: google.calendar({ version: 'v3', auth: oauthFor(cred.access_token, cred.refresh_token) }),
+  }
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const admin = createAdminClient()
-  const { data: cred } = await admin
-    .from('google_credentials')
-    .select('access_token, refresh_token')
-    .eq('profile_id', user.id)
-    .maybeSingle()
+  const ctx = await myCalendar(user.id)
+  if (!ctx) return NextResponse.json({ error: 'not_connected' }, { status: 403 })
 
-  if (!cred?.access_token && !cred?.refresh_token) {
-    return NextResponse.json({ error: 'not_connected' }, { status: 403 })
-  }
+  const body = (await req.json()) as EventBody
+  const attendees = await resolveAttendeeEmails(ctx.admin, body)
 
-  const body = await req.json()
-  const calendar = google.calendar({ version: 'v3', auth: oauthFor(cred.access_token, cred.refresh_token) })
-
-  const { data } = await calendar.events.insert({
+  const { data } = await ctx.calendar.events.insert({
     calendarId: 'primary',
-    requestBody: {
-      summary: body.title,
-      description: body.description,
-      start: { dateTime: body.start, timeZone: 'Europe/Rome' },
-      end: { dateTime: body.end, timeZone: 'Europe/Rome' },
-      attendees: body.attendees?.map((email: string) => ({ email })),
-    },
+    conferenceDataVersion: body.addMeet ? 1 : 0,
+    sendUpdates: attendees.length ? 'all' : 'none',
+    requestBody: buildRequestBody(body, attendees),
   })
 
   return NextResponse.json({ event: data })
+}
+
+export async function PATCH(req: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const ctx = await myCalendar(user.id)
+  if (!ctx) return NextResponse.json({ error: 'not_connected' }, { status: 403 })
+
+  const body = (await req.json()) as EventBody
+  if (!body.eventId) return NextResponse.json({ error: 'missing_event_id' }, { status: 400 })
+  const attendees = await resolveAttendeeEmails(ctx.admin, body)
+
+  const { data } = await ctx.calendar.events.patch({
+    calendarId: 'primary',
+    eventId: body.eventId,
+    conferenceDataVersion: body.addMeet ? 1 : 0,
+    sendUpdates: attendees.length ? 'all' : 'none',
+    requestBody: buildRequestBody(body, attendees),
+  })
+
+  return NextResponse.json({ event: data })
+}
+
+export async function DELETE(req: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const eventId = req.nextUrl.searchParams.get('eventId')
+  if (!eventId) return NextResponse.json({ error: 'missing_event_id' }, { status: 400 })
+
+  const ctx = await myCalendar(user.id)
+  if (!ctx) return NextResponse.json({ error: 'not_connected' }, { status: 403 })
+
+  await ctx.calendar.events.delete({ calendarId: 'primary', eventId, sendUpdates: 'all' })
+  return NextResponse.json({ ok: true })
 }
