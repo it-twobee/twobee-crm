@@ -73,3 +73,42 @@ export async function globalSearch(raw: string): Promise<SearchResult[]> {
 
   return results
 }
+
+// Ricerca del portale workspace: stesso motore, ma limitata al perimetro
+// informativo del workspace (clienti, progetti, task, documenti) e con rotte
+// /workspace/*. Niente chat/commerciale. La RLS scopa già ciò che l'utente vede.
+export async function workspaceSearch(raw: string): Promise<SearchResult[]> {
+  const q = raw.trim()
+  if (q.length < 2) return []
+
+  const sb = await createClient()
+  const { data: { user } } = await sb.auth.getUser()
+  if (!user) return []
+
+  const term = `%${q.replace(/[%_\\]/g, (m) => '\\' + m)}%`
+
+  const [clientsR, projectsR, tasksR, documentsR] = await Promise.all([
+    sb.from('clients').select('id, company_name').neq('client_label', 'perso').ilike('company_name', term).limit(6),
+    sb.from('projects').select('id, name').eq('status', 'attivo').ilike('name', term).limit(8),
+    sb.from('tasks').select('id, title, project_id').ilike('title', term).limit(10),
+    sb.from('documents').select('id, name').ilike('name', term).limit(6),
+  ])
+
+  const results: SearchResult[] = []
+  for (const c of (clientsR.data ?? []) as { id: string; company_name: string }[]) {
+    results.push({ type: 'cliente', id: c.id, title: c.company_name, href: `/workspace/clienti/${c.id}` })
+  }
+  for (const p of (projectsR.data ?? []) as { id: string; name: string }[]) {
+    results.push({ type: 'progetto', id: p.id, title: p.name, href: `/workspace/progetti/${p.id}` })
+  }
+  for (const t of (tasksR.data ?? []) as { id: string; title: string; project_id: string | null }[]) {
+    results.push({
+      type: 'task', id: t.id, title: t.title,
+      href: t.project_id ? `/workspace/progetti/${t.project_id}` : '/workspace/attivita',
+    })
+  }
+  for (const d of (documentsR.data ?? []) as { id: string; name: string }[]) {
+    results.push({ type: 'documento', id: d.id, title: d.name, href: '/workspace/documenti' })
+  }
+  return results
+}

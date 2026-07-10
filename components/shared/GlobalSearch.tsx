@@ -16,7 +16,17 @@ const TYPE_META: Record<SearchType, { label: string; icon: React.ReactNode; colo
 
 const TYPE_ORDER: SearchType[] = ['cliente', 'progetto', 'task', 'messaggio', 'documento', 'deal']
 
-export function GlobalSearch() {
+// Riusabile: l'admin usa globalSearch su tutto; il workspace passa una search
+// scoped al proprio perimetro (clienti/progetti/task/documenti) con rotte /workspace.
+export function GlobalSearch({
+  search = globalSearch,
+  types = TYPE_ORDER,
+  placeholder = 'Cerca clienti, task, messaggi…',
+}: {
+  search?: (q: string) => Promise<SearchResult[]>
+  types?: SearchType[]
+  placeholder?: string
+} = {}) {
   const router = useRouter()
   const [open, setOpen]       = useState(false)
   const [query, setQuery]     = useState('')
@@ -49,11 +59,11 @@ export function GlobalSearch() {
     setLoading(true)
     const id = ++reqId.current
     const t = setTimeout(async () => {
-      const res = await globalSearch(query)
+      const res = await search(query)
       if (id === reqId.current) { setResults(res); setActive(0); setLoading(false) }
     }, 250)
     return () => clearTimeout(t)
-  }, [query])
+  }, [query, search])
 
   const go = useCallback((r: SearchResult) => {
     setOpen(false)
@@ -66,7 +76,7 @@ export function GlobalSearch() {
     if (e.key === 'Enter' && results[active]) { e.preventDefault(); go(results[active]) }
   }
 
-  const grouped = TYPE_ORDER
+  const grouped = types
     .map((type) => ({ type, items: results.filter((r) => r.type === type) }))
     .filter((g) => g.items.length > 0)
 
@@ -78,7 +88,7 @@ export function GlobalSearch() {
       <button onClick={() => setOpen(true)}
         className="w-full flex items-center gap-2 bg-background border border-border rounded-lg pl-9 pr-3 py-2 text-sm text-text-secondary hover:border-gold/40 transition-colors relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" />
-        <span className="flex-1 text-left">Cerca clienti, task, messaggi…</span>
+        <span className="flex-1 text-left">{placeholder}</span>
         <kbd className="hidden sm:inline-block text-2xs font-bold text-text-tertiary border border-border rounded px-1.5 py-0.5">⌘K</kbd>
       </button>
 

@@ -14,7 +14,6 @@ import { ROLE_LABELS } from '@/lib/permissions'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { PortalSwitcher } from '@/components/shared/PortalSwitcher'
 import { Logo } from '@/components/shared/Logo'
-import { WorkspaceSearch } from '@/components/workspace/WorkspaceSearch'
 import type { AppRole } from '@/lib/types/database'
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -150,11 +149,6 @@ export function WorkspaceSidebar({ sections, profile, isSuperAdmin = false }: Pr
             : <Logo className="h-6" priority />}
         </Link>
       </div>
-
-      {/* Ricerca (solo espansa): naviga le sezioni del workspace */}
-      {!collapsed && (
-        <WorkspaceSearch sections={sections.map(s => ({ key: s.key, label: s.label, route: s.route }))} />
-      )}
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 flex flex-col gap-0.5">

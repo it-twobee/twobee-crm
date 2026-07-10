@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { WorkspaceSidebar } from '@/components/workspace/WorkspaceSidebar'
+import { GlobalSearch } from '@/components/shared/GlobalSearch'
+import { workspaceSearch } from '@/app/actions/global-search'
 import { isSuperAdminRaw, isAdminRole, isWorkspaceRole } from '@/lib/permissions'
 import type { AppRole } from '@/lib/types/database'
 
@@ -79,9 +81,21 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
           app_role: profile.app_role as AppRole | null,
         }}
       />
-      <main className="flex-1 overflow-y-auto">
-        {children}
-      </main>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header con ricerca, come nel portale admin — scoped al workspace */}
+        <header className="h-14 bg-surface backdrop-blur-xl border-b border-border flex items-center px-6 gap-4 sticky top-0 z-40 shrink-0">
+          <div className="flex-1 max-w-md">
+            <GlobalSearch
+              search={workspaceSearch}
+              types={['cliente', 'progetto', 'task', 'documento']}
+              placeholder="Cerca clienti, progetti, task…"
+            />
+          </div>
+        </header>
+        <main className="flex-1 overflow-y-auto">
+          {children}
+        </main>
+      </div>
     </div>
   )
 }
