@@ -113,17 +113,51 @@ const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
 const parsed = JSON.parse((await res.json()).choices?.[0]?.message?.content?.match(/\{[\s\S]*\}/)?.[0] ?? '{}')
 ```
 
-## BUG NOTO — da risolvere subito
-**`chat_channels.project_id` non esiste in produzione.**
-La migrazione `030_channels_by_project.sql` è nei file locali ma mai applicata al DB live.
-Eseguire su Supabase Dashboard → SQL Editor:
-```sql
-ALTER TABLE public.chat_channels
-  ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES public.projects(id) ON DELETE SET NULL;
-CREATE INDEX IF NOT EXISTS idx_chat_channels_project ON public.chat_channels(project_id);
-```
-Finché non viene eseguita, la Chat nei progetti usa un fallback (primo canale per tipo per client_id).
-Dopo l'esecuzione i canali saranno correttamente isolati per progetto.
+## Migration da eseguire (Supabase Dashboard → SQL Editor)
+`chat_channels.project_id` **esiste** in produzione: il vecchio "BUG NOTO" è risolto.
+Numerazione: attenzione, `080_*` e `081_*` compaiono due volte. Il prossimo libero è **092**.
+
+| # | Cosa fa | Serve anche |
+|---|---|---|
+| `086_decisions.sql` | ALTER su `decisions` (la 044 l'aveva già creata: NON ricrearla) | — |
+| `087_workspace_groups_sections.sql` | `group_key`/`group_order` + sezioni workspace nuove | — |
+| `088_payslips.sql` | Buste paga, RLS owner-only | bucket **privato** `payslips` |
+| `089_personal_documents.sql` | Documenti personali con scadenze | bucket privato `personal-documents` |
+| `090_chat_rework.sql` | canali `team`/`dm`, `chat_dm_participants`, `chat_best_ideas` | bucket `best-ideas` |
+| `091_google_credentials.sql` | token Google fuori da `user_metadata` | ricollegare Google una volta |
+
+Finché non le esegui l'app **non si rompe**: le pagine mostrano `SetupNotice`
+e le funzioni nuove degradano con un messaggio. I bucket vanno creati a mano
+(le migration non li creano).
+
+## Architettura portali
+- **Admin** (`/dashboard`, tutto): `super_admin`, `founder`, `admin`.
+- **Workspace** (`/workspace/**` e nient'altro): `manager`, `senior`, `junior`, `stage`, `freelance`, `partner`.
+- **Cliente** (`/portale/**`): `client`, `guest` non-risorsa.
+- **Risorsa esterna** (`/risorsa/**`): `guest` con `resource_profiles.can_access_resource_portal`.
+
+Il gate è in `middleware.ts` **e** nei layout: nascondere una voce di menu non è
+una barriera. I gruppi di ruolo stanno in `lib/permissions.ts`
+(`ADMIN_ROLES` / `WORKSPACE_ROLES`), unica fonte di verità: non riscriverli inline.
+
+Solo il super admin vede `PortalSwitcher` e può entrare in `/portale` (in anteprima,
+scegliendo il cliente da `?client=<id>`).
+
+## Chat — quattro gruppi
+`Team` (canali `type='team'`: `team-intern`, `angolo-informativo`, `best-ideas`) ·
+`Progetti` (un solo canale interno per progetto) · `Messaggi diretti` (`type='dm'`,
+partecipanti in `chat_dm_participants`, leggibili **solo** dai due, nemmeno dall'admin).
+
+Il **Customer Care non sta più nella chat**: i canali `customer_care`/`cliente` esistono
+ancora e li usa `/customer-care`. La chat li esclude a monte, non li cancella.
+`#best-ideas` non è una chat: è un raccoglitore (`chat_best_ideas`).
+
+## Calendario e Google
+I token stanno in `google_credentials` (RLS deny-all, solo service role).
+**Mai** in `user_metadata`: il client dell'utente lo legge e lo riscrive.
+`/api/google/events?profileIds=a,b` legge le agende dei colleghi; degli eventi
+altrui espone solo `"Occupato"` — niente titolo, descrizione o partecipanti.
+Le task del calendario sono personali e nascoste di default.
 
 ## Stato attuale — widget dashboard
 | Widget | Componente | Stato |
