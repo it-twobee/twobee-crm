@@ -45,7 +45,14 @@ export type ProjectStatus = 'attivo' | 'in_pausa' | 'completato' | 'archiviato'
 export type SprintStatus = 'pianificato' | 'in_corso' | 'completato'
 export type TaskPriority = 'alta' | 'media' | 'bassa'
 export type TaskStatus = 'da_fare' | 'in_corso' | 'in_revisione' | 'completato'
-export type ChannelType = 'cliente' | 'interno' | 'task' | 'customer_care' | 'cliente_interno' | 'partner_customer_care'
+// 'team' e 'dm' arrivano dalla migration 090. 'customer_care'/'cliente' esistono
+// ancora ma la chat non li mostra più: vivono nella sezione Customer Care.
+export type ChannelType =
+  | 'cliente' | 'interno' | 'task' | 'customer_care' | 'cliente_interno'
+  | 'partner_customer_care' | 'team' | 'dm'
+
+/** Sottotipo dei tre canali aziendali fissi (chat_channels.team_key) */
+export type TeamChannelKey = 'team_intern' | 'angolo_informativo' | 'best_ideas'
 
 export type NotificationType = 'task_assigned' | 'task_due' | 'message' | 'mention'
 export type InteractionType = 'call' | 'meeting' | 'email' | 'demo' | 'visit' | 'slack' | 'proposta' | 'altro'
@@ -576,6 +583,8 @@ export interface ChatChannel {
   pinned_message_ids: string[]
   position: number
   last_message_at: string | null
+  /** Solo per i canali 'team' (migration 090) */
+  team_key?: TeamChannelKey | null
 }
 
 export interface ClientAccount {

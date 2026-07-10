@@ -7,9 +7,12 @@ import {
   ChevronDown, ChevronRight, Headphones, Search,
   MoreHorizontal, Pencil, Trash2, Archive,
   Shield, Check, Users, ChevronUp, AlertCircle,
-  FolderKanban, UserPlus, Mail,
+  FolderKanban, UserPlus, Mail, AtSign,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
+import { openDirectMessage } from '@/app/actions/chat-dm'
+import { BestIdeasBoard } from './BestIdeasBoard'
 import { toast } from 'sonner'
 import { SlackChat } from '@/components/chat/SlackChat'
 import { isSuperAdmin } from '@/lib/permissions'
@@ -32,6 +35,8 @@ interface Props {
   projects?: ProjectInfo[]
   initialChannelId?: string
   unreadCounts?: Record<string, number>
+  /** channel_id -> profile_id dell'altro partecipante del DM */
+  dmPeers?: Record<string, string>
 }
 
 function toSlug(s: string) {
@@ -470,8 +475,9 @@ function SidebarSection({ label, icon, onAdd, defaultCollapsed = false, children
         <span className="flex items-center gap-1 text-2xs font-bold text-text-secondary uppercase tracking-widest flex-1">{icon}{label}</span>
         {onAdd && (
           <button onClick={e => { e.stopPropagation(); onAdd() }}
-            className="opacity-0 group-hover/sec:opacity-100 transition-opacity text-text-secondary hover:text-text-primary p-0.5">
-            <Plus className="w-3 h-3" />
+            aria-label={`Aggiungi in ${label}`}
+            className="opacity-0 group-hover/sec:opacity-100 focus-visible:opacity-100 transition-opacity text-text-secondary hover:text-text-primary p-0.5">
+            <Plus className="w-3 h-3" aria-hidden="true" />
           </button>
         )}
       </div>
@@ -482,13 +488,16 @@ function SidebarSection({ label, icon, onAdd, defaultCollapsed = false, children
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 
-export function ChatLayout({ channels: initialChannels, currentProfile, allProfiles, clients, projects = [], initialChannelId, unreadCounts: initialUnread = {} }: Props) {
+export function ChatLayout({ channels: initialChannels, currentProfile, allProfiles, clients, projects = [], initialChannelId, unreadCounts: initialUnread = {}, dmPeers = {} }: Props) {
   const [channels, setChannels] = useState(initialChannels)
   const [activeChannel, setActiveChannel] = useState<ChatChannel | null>(
     initialChannels.find(c => c.id === initialChannelId) ??
     initialChannels.filter(c => !c.is_archived)[0] ?? null
   )
+  const router = useRouter()
+  const [pendingChannelId, setPendingChannelId] = useState<string | null>(null)
   const [showNewTeam, setShowNewTeam] = useState(false)
+  const [showNewDm, setShowNewDm] = useState(false)
   const [renameTarget, setRenameTarget] = useState<ChatChannel | null>(null)
   const [inviteChannelId, setInviteChannelId] = useState<string | null>(null)
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>(initialUnread)
@@ -517,6 +526,13 @@ export function ChatLayout({ channels: initialChannels, currentProfile, allProfi
     return () => { sb.removeChannel(sub) }
   }, [currentProfile.id, activeChannel?.id])
 
+  // Dopo router.refresh() il canale nuovo compare fra i channels: selezionalo.
+  useEffect(() => {
+    if (!pendingChannelId) return
+    const ch = channels.find(c => c.id === pendingChannelId)
+    if (ch) { setActiveChannel(ch); setPendingChannelId(null) }
+  }, [channels, pendingChannelId])
+
   const selectChannel = (ch: ChatChannel) => {
     setActiveChannel(ch)
     setUnreadCounts(prev => { const n = { ...prev }; delete n[ch.id]; return n })
@@ -526,25 +542,43 @@ export function ChatLayout({ channels: initialChannels, currentProfile, allProfi
   }
 
   // Group channels
+  // Team: i tre canali fissi (type 'team'), più i vecchi 'interno' senza contesto.
   const teamChannels = channels
-    .filter(c => c.type === 'interno' && !c.client_id && !c.project_id && !c.is_archived)
+    .filter(c => (c.type === 'team' || (c.type === 'interno' && !c.client_id && !c.project_id)) && !c.is_archived)
+    .sort((a, b) => (a.position ?? 99) - (b.position ?? 99) || a.name.localeCompare(b.name))
+
+  const dmChannels = channels
+    .filter(c => c.type === 'dm' && !c.is_archived)
     .sort((a, b) => {
       const aU = unreadCounts[a.id] ?? 0; const bU = unreadCounts[b.id] ?? 0
       if (aU !== bU) return bU - aU
       return new Date(b.last_message_at ?? 0).getTime() - new Date(a.last_message_at ?? 0).getTime()
     })
 
+  const profileById: Record<string, Profile> = {}
+  allProfiles.forEach(p => { profileById[p.id] = p })
+  /** Il nome del DM è il nome dell'altra persona, non il nome salvato sul canale. */
+  const dmTitle = (ch: ChatChannel) => {
+    const peer = dmPeers[ch.id]
+    return peer ? (profileById[peer]?.full_name ?? 'Utente') : ch.name
+  }
+
   const projectMap: Record<string, ProjectInfo> = {}
   projects.forEach(p => { projectMap[p.id] = p })
   const clientMap: Record<string, Client> = {}
   clients.forEach(c => { clientMap[c.id] = c })
 
+  // Un solo canale per progetto: quello interno di team. Il customer care è già
+  // escluso a monte (chat/page.tsx) e vive nella sua sezione.
+  const INTERNAL_TYPES = new Set(['cliente_interno', 'interno', 'task'])
   const projectChannels: Record<string, ChatChannel[]> = {}
-  channels.filter(c => c.project_id && !c.is_archived).forEach(ch => {
-    const pid = ch.project_id!
-    if (!projectChannels[pid]) projectChannels[pid] = []
-    projectChannels[pid].push(ch)
-  })
+  channels
+    .filter(c => c.project_id && !c.is_archived && INTERNAL_TYPES.has(c.type))
+    .forEach(ch => {
+      const pid = ch.project_id!
+      if (!projectChannels[pid]) projectChannels[pid] = []
+      projectChannels[pid].push(ch)
+    })
 
   const archivedChannels = channels.filter(c => c.is_archived)
 
@@ -652,6 +686,43 @@ export function ChatLayout({ channels: initialChannels, currentProfile, allProfi
                   })}
           </SidebarSection>
 
+          {/* Messaggi diretti */}
+          <SidebarSection label="Messaggi diretti" icon={<AtSign className="w-2.5 h-2.5" />}
+            onAdd={() => setShowNewDm(true)}>
+            {dmChannels.length === 0
+              ? <p className="text-2xs text-text-secondary px-3 py-1 italic">Nessuna conversazione</p>
+              : dmChannels
+                  .filter(ch => matchesSearch(dmTitle(ch)))
+                  .map(ch => {
+                    const peer = dmPeers[ch.id] ? profileById[dmPeers[ch.id]] : null
+                    const unread = unreadCounts[ch.id] ?? 0
+                    const active = activeChannel?.id === ch.id
+                    return (
+                      <button key={ch.id} onClick={() => selectChannel(ch)}
+                        aria-current={active ? 'true' : undefined}
+                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors ${
+                          active ? 'bg-gold-dim' : 'hover:bg-surface-hover'
+                        }`}>
+                        <span className="relative shrink-0">
+                          {peer?.avatar_url
+                            ? <img src={peer.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                            : <span className="w-5 h-5 rounded-full bg-surface-active flex items-center justify-center text-[9px] font-bold text-text-secondary">
+                                {(peer?.full_name ?? '?')[0].toUpperCase()}
+                              </span>}
+                        </span>
+                        <span className={`flex-1 truncate text-xs ${unread > 0 ? 'font-bold text-text-primary' : active ? 'text-gold-text font-semibold' : 'text-text-secondary'}`}>
+                          {dmTitle(ch)}
+                        </span>
+                        {unread > 0 && (
+                          <span className="shrink-0 min-w-[16px] h-4 px-1 rounded-full bg-gold text-on-gold text-[9px] font-bold flex items-center justify-center tabular">
+                            {unread}
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
+          </SidebarSection>
+
           {/* Archiviate */}
           {archivedChannels.length > 0 && (
             <SidebarSection label={`Archiviate (${archivedChannels.length})`} icon={<Archive className="w-2.5 h-2.5" />} defaultCollapsed>
@@ -685,7 +756,10 @@ export function ChatLayout({ channels: initialChannels, currentProfile, allProfi
 
       {/* ── Main ─────────────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0">
-        {activeChannel ? (
+        {activeChannel?.team_key === 'best_ideas' || activeChannel?.name === 'best-ideas' ? (
+          // #best-ideas non è una chat: è un raccoglitore di link e documenti.
+          <BestIdeasBoard currentProfileId={currentProfile.id} />
+        ) : activeChannel ? (
           <SlackChat
             key={activeChannel.id}
             channelId={activeChannel.id}
@@ -741,8 +815,87 @@ export function ChatLayout({ channels: initialChannels, currentProfile, allProfi
 
       {/* Modali */}
       {showNewTeam && <NewTeamChannelModal onClose={() => setShowNewTeam(false)} onCreate={handleCreateSingle} currentProfileId={currentProfile.id} allProfiles={allProfiles} />}
+      {showNewDm && (
+        <NewDmModal
+          profiles={allProfiles.filter(p => p.id !== currentProfile.id && p.is_active)}
+          alreadyOpen={new Set(Object.values(dmPeers))}
+          onClose={() => setShowNewDm(false)}
+          onOpened={id => { setShowNewDm(false); router.refresh(); setPendingChannelId(id) }}
+        />
+      )}
       {renameTarget && <RenameModal channel={renameTarget} onClose={() => setRenameTarget(null)} onRename={handleRename} />}
       {inviteChannelId && <InviteExternalModal channelId={inviteChannelId} onClose={() => setInviteChannelId(null)} />}
+    </div>
+  )
+}
+
+
+/* ── Nuovo messaggio diretto ─────────────────────────────────────────────── */
+function NewDmModal({ profiles, alreadyOpen, onClose, onOpened }: {
+  profiles: Profile[]
+  alreadyOpen: Set<string>
+  onClose: () => void
+  onOpened: (channelId: string) => void
+}) {
+  const [query, setQuery] = useState('')
+  const [busy, setBusy] = useState<string | null>(null)
+
+  const list = profiles.filter(p =>
+    p.full_name.toLowerCase().includes(query.trim().toLowerCase()))
+
+  const open = async (id: string) => {
+    setBusy(id)
+    const res = await openDirectMessage(id)
+    setBusy(null)
+    if ('error' in res) { toast.error(res.error); return }
+    onOpened(res.channelId)
+  }
+
+  return (
+    <div role="dialog" aria-modal="true" aria-labelledby="new-dm-title"
+      className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={onClose}>
+      <div className="bg-surface border border-border rounded-2xl w-full max-w-sm max-h-[75vh] flex flex-col shadow-2xl"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <h2 id="new-dm-title" className="text-sm font-bold text-text-primary">Nuovo messaggio diretto</h2>
+          <button onClick={onClose} aria-label="Chiudi" className="text-text-tertiary hover:text-text-primary">
+            <X className="w-4 h-4" aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="px-5 py-3 border-b border-border shrink-0">
+          <input value={query} onChange={e => setQuery(e.target.value)} autoFocus
+            placeholder="Cerca un collega…" aria-label="Cerca un collega"
+            className="w-full bg-background border border-border-interactive rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/40" />
+        </div>
+
+        <ul className="flex-1 overflow-y-auto p-2">
+          {list.length === 0 && (
+            <li className="text-2xs text-text-tertiary text-center py-6">Nessun collega trovato</li>
+          )}
+          {list.map(p => (
+            <li key={p.id}>
+              <button onClick={() => open(p.id)} disabled={busy === p.id}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-surface-hover transition-colors text-left disabled:opacity-50">
+                {p.avatar_url
+                  ? <img src={p.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+                  : <span className="w-7 h-7 rounded-full bg-surface-active flex items-center justify-center text-2xs font-bold text-text-secondary shrink-0">
+                      {p.full_name[0].toUpperCase()}
+                    </span>}
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm text-text-primary truncate">{p.full_name}</span>
+                  {p.job_title && <span className="block text-2xs text-text-tertiary truncate">{p.job_title}</span>}
+                </span>
+                {alreadyOpen.has(p.id) && (
+                  <span className="text-2xs text-text-tertiary shrink-0">già aperta</span>
+                )}
+                {busy === p.id && <Loader2 className="w-4 h-4 animate-spin text-text-tertiary shrink-0" aria-hidden="true" />}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   )
 }
