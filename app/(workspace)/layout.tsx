@@ -53,9 +53,11 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     visibleSections = [...(visibleSections ?? []), ...universal]
   }
 
-  // La chat è disattivata: resta solo il Customer Care. Nascondo la voce a monte,
-  // in entrambi i livelli (la rotta /workspace/chat reindirizza comunque).
-  visibleSections = (visibleSections ?? []).filter((s: { key: string }) => s.key !== 'chat')
+  // Sezioni disattivate nel workspace: Chat (resta solo il Customer Care) e la
+  // vista Task globale (le task si gestiscono da "Le mie attività" e dai progetti).
+  // Nascondo le voci a monte; le rotte reindirizzano comunque.
+  const HIDDEN_WORKSPACE_KEYS = ['chat', 'task']
+  visibleSections = (visibleSections ?? []).filter((s: { key: string }) => !HIDDEN_WORKSPACE_KEYS.includes(s.key))
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
