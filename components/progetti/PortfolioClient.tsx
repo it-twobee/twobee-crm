@@ -8,6 +8,8 @@ import {
   ChevronDown, ChevronRight, FolderKanban, ListFilter,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
+import { PortfolioSuggestions } from './PortfolioSuggestions'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/utils'
 import type { ClientType, ClientLabel } from '@/lib/types/database'
@@ -748,6 +750,7 @@ export function PortfolioClient({ clients, portfolios: initialPortfolios, profil
   portfolios: Portfolio[]
   profiles: ProfileMin[]
 }) {
+  const router = useRouter()
   const [portfolios, setPortfolios] = useState(initialPortfolios)
   const [activePortfolio, setActivePortfolio] = useState<Portfolio | null>(null)
   const [showAllClients, setShowAllClients] = useState(false)
@@ -855,6 +858,11 @@ export function PortfolioClient({ clients, portfolios: initialPortfolios, profil
           </div>
 
           <div className="flex-1 overflow-y-auto p-8">
+            <PortfolioSuggestions
+              clients={clients}
+              existingNames={portfolios.map(p => p.name)}
+              onCreated={() => router.refresh()}
+            />
             {portfolios.length > 0 && (
               <p className="text-xs font-bold text-text-secondary uppercase tracking-widest mb-4">
                 {homeTab === 'recenti' ? 'Portfolio recenti' : 'Tutti i portfolio'}
