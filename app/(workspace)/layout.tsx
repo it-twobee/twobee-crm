@@ -59,6 +59,15 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   const HIDDEN_WORKSPACE_KEYS = ['chat', 'task']
   visibleSections = (visibleSections ?? []).filter((s: { key: string }) => !HIDDEN_WORKSPACE_KEYS.includes(s.key))
 
+  // Workload: visibile a tutti nel workspace. Iniettata come fallback se la
+  // migration 092 non è ancora stata applicata, così la voce compare subito.
+  if (!(visibleSections ?? []).some((s: { key: string }) => s.key === 'workload')) {
+    visibleSections = [
+      ...(visibleSections ?? []),
+      { id: 'synthetic-workload', key: 'workload', label: 'Workload', route: '/workspace/workload', icon: 'Gauge', sort_order: 7, group_key: 'lavori', group_order: 1 },
+    ]
+  }
+
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <WorkspaceSidebar

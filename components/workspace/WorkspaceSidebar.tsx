@@ -7,7 +7,7 @@ import {
   LayoutDashboard, CheckSquare, FolderKanban, Calendar, MessageSquare,
   FileText, Heart, User, UserCircle2, Users, BarChart3, Bot, TrendingUp,
   ListChecks, Headset, Briefcase, Headphones, Ticket, Receipt, History,
-  Lightbulb, ChevronLeft, ChevronRight, ChevronDown, LogOut,
+  Lightbulb, Gauge, ChevronLeft, ChevronRight, ChevronDown, LogOut,
 } from 'lucide-react'
 import { useState, useCallback } from 'react'
 import { ROLE_LABELS } from '@/lib/permissions'
@@ -38,6 +38,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Receipt,
   History,
   Lightbulb,
+  Gauge,
 }
 
 // Etichette dei gruppi della sidebar. L'ordine è dato da group_order in tabella;
@@ -60,6 +61,7 @@ const GROUP_FALLBACK: Record<string, { key: string; order: number }> = {
   chat:                { key: 'lavori',    order: 1 },
   progetti:            { key: 'lavori',    order: 1 },
   portfolio:           { key: 'lavori',    order: 1 },
+  workload:            { key: 'lavori',    order: 1 },
   documenti:           { key: 'lavori',    order: 1 },
   clienti_attivi:      { key: 'clienti',   order: 2 },
   customer_care:       { key: 'clienti',   order: 2 },
