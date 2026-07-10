@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { coarseRole } from '@/lib/permissions'
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
@@ -55,28 +56,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: authError?.message ?? 'Errore creazione account' }, { status: 500 })
   }
 
-  // Mapping app_role → role per compatibilità con il sistema RLS esistente
-  const roleMap: Record<string, string> = {
-    super_admin: 'admin',
-    founder: 'admin',
-    admin: 'admin',
-    manager: 'team',
-    senior: 'team',
-    junior: 'team',
-    stage: 'team',
-    freelance: 'team',
-    partner: 'guest',
-    viewer: 'team',
-    client: 'client',
-    guest: 'guest',
-  }
+  // app_role → role: unica fonte di verità in lib/permissions. Un ruolo non-admin
+  // diventa 'team' e il middleware lo confina a /workspace. (Prima 'partner' qui
+  // era mappato a 'guest', incoerente con l'admin che cambia ruolo.)
+  const role = coarseRole(invite.app_role)
 
   // Aggiorna profilo (il trigger handle_new_user dovrebbe già averlo creato)
   await supabase.from('profiles').upsert({
     id: authData.user.id,
     email: invite.email,
     full_name: fullName,
-    role: roleMap[invite.app_role] ?? 'team',
+    role,
     app_role: invite.app_role,
     area: invite.area,
     job_title: invite.job_title,

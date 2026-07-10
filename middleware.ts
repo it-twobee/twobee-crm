@@ -69,9 +69,12 @@ export async function middleware(request: NextRequest) {
     const role = profile?.role
     const appRole = profile?.app_role
 
-    const isWorkspace = isWorkspaceRole(appRole)
     const isSuper = isSuperAdminRaw(profile?.email, appRole)
     const isAdminLevel = isSuper || role === 'admin' || isAdminRole(appRole)
+    // Confinato a /workspace: chiunque sia staff non-admin. Non basta guardare
+    // WORKSPACE_ROLES (manager…partner): un `viewer`, o un legacy con role='team'
+    // e app_role fuori lista, altrimenti raggiungerebbe il tool admin completo.
+    const isWorkspace = !isAdminLevel && (isWorkspaceRole(appRole) || role === 'team')
 
     if (isWorkspace) {
       const allowedForWorkspace =

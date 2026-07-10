@@ -9,9 +9,9 @@ import {
   SUPER_ADMIN_EMAILS, ROLE_LABELS, ROLE_COLORS, SECTIONS, ACTIONS,
   SECTION_LABELS, ACTION_LABELS, isSuperAdmin, buildPermMap,
 } from '@/lib/permissions'
-import { adminChangeUserEmail, adminChangeUserName, adminSendPasswordReset } from '@/app/actions/admin-user'
+import { adminChangeUserEmail, adminChangeUserName, adminSendPasswordReset, adminUpdateUserProfile } from '@/app/actions/admin-user'
 
-const EDITABLE_ROLES: Exclude<AppRole, 'super_admin'>[] = ['admin', 'manager', 'senior', 'junior', 'viewer', 'client']
+const EDITABLE_ROLES: Exclude<AppRole, 'super_admin'>[] = ['admin', 'manager', 'senior', 'junior', 'stage', 'freelance', 'partner', 'viewer', 'client', 'guest']
 const AREAS = ['growth', 'digital', 'ops', 'hr']
 const COMPETENCIES = ['Meta Ads','Google Ads','TikTok Ads','LinkedIn Ads','YouTube Ads','SEO','Content','Email Marketing','Copywriting','Web Design','E-commerce','CRM','Analytics','IT / AI','Strategia','Customer Care']
 
@@ -96,16 +96,18 @@ function UserEditModal({
 
   const saveProfile = async () => {
     setSavingProfile(true)
-    const supabase = createClient()
     const updates = { app_role: appRole, area: area || null, job_title: jobTitle || null, competencies, is_active: isActive }
-    const { error } = await supabase.from('profiles').update(updates).eq('id', user.id)
-    // Nome via server action
-    if (fullName !== user.full_name) {
-      try { await adminChangeUserName(user.id, fullName) } catch (e) { toast.error((e as Error).message); setSavingProfile(false); return }
-    }
+    try {
+      // Tutto via server action (service role): l'RLS su profiles consente
+      // l'update solo del proprio profilo, quindi l'admin deve passare da qui.
+      // adminUpdateUserProfile allinea anche `role` → aggiorna il portale.
+      if (fullName !== user.full_name) await adminChangeUserName(user.id, fullName)
+      await adminUpdateUserProfile(user.id, {
+        appRole, area: area || null, jobTitle: jobTitle || null, competencies, isActive,
+      })
+    } catch (e) { toast.error((e as Error).message); setSavingProfile(false); return }
     setSavingProfile(false)
-    if (error) { toast.error(error.message); return }
-    toast.success('Profilo aggiornato')
+    toast.success('Profilo e ruolo aggiornati — il portale si adegua al nuovo ruolo')
     onSaved({ ...updates, full_name: fullName })
   }
 
@@ -309,8 +311,9 @@ function UsersTab({ currentProfile, profiles: initialProfiles, clients }: { curr
   const godMode = isSuperAdmin(currentProfile)
 
   const deactivate = async (profileId: string) => {
-    const supabase = createClient()
-    await supabase.from('profiles').update({ is_active: false }).eq('id', profileId)
+    try {
+      await adminUpdateUserProfile(profileId, { isActive: false })
+    } catch (e) { toast.error((e as Error).message); return }
     setProfiles((p) => p.map((u) => u.id === profileId ? { ...u, is_active: false } : u))
     toast.success('Utente disattivato')
   }

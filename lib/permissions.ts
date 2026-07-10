@@ -73,6 +73,22 @@ export function isWorkspaceRole(appRole: string | null | undefined): boolean {
   return WORKSPACE_ROLES.includes(appRole as AppRole)
 }
 
+/**
+ * app_role (granulare) → role (grezzo, quello che legge la RLS via get_my_role()
+ * e su cui si appoggia il routing). Unica fonte di verità: la usano la
+ * registrazione (invite/accept), l'admin che cambia ruolo, e implicitamente il
+ * middleware. Se qui e altrove divergono, un utente finisce nel portale sbagliato.
+ *
+ * `viewer` è staff a sola lettura → 'team' (vive in /workspace, non nel tool admin).
+ * `partner` è una risorsa esterna che lavora come il team → 'team', NON 'guest'.
+ */
+export function coarseRole(appRole: string | null | undefined): 'admin' | 'team' | 'client' | 'guest' {
+  if (isAdminRole(appRole)) return 'admin'
+  if (isWorkspaceRole(appRole) || appRole === 'viewer') return 'team'
+  if (appRole === 'client') return 'client'
+  return 'guest'
+}
+
 /** True se l'utente è super admin (GOD MODE) */
 export function isSuperAdmin(profile: Profile | null): boolean {
   if (!profile) return false
