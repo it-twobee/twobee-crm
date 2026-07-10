@@ -52,11 +52,37 @@ export const ACTION_LABELS: Record<PermissionAction, string> = {
   view: 'Visualizza', create: 'Crea', edit: 'Modifica', delete: 'Elimina',
 }
 
+// ─── Gruppi di ruolo ─────────────────────────────────────────────────────────
+// Unica fonte di verità: il middleware e la UI devono concordare, altrimenti si
+// nasconde una voce di menu lasciando la rotta raggiungibile.
+
+/** Accesso al tool completo (dashboard admin, controllo gestione, direzione…) */
+export const ADMIN_ROLES: AppRole[] = ['super_admin', 'founder', 'admin']
+
+/** Dipendenti, collaboratori e partner: vivono solo dentro /workspace */
+export const WORKSPACE_ROLES: AppRole[] = ['manager', 'senior', 'junior', 'stage', 'freelance', 'partner']
+
+/** Il cliente vive solo dentro /portale */
+export const CLIENT_ROLES: AppRole[] = ['client']
+
+export function isAdminRole(appRole: string | null | undefined): boolean {
+  return ADMIN_ROLES.includes(appRole as AppRole)
+}
+
+export function isWorkspaceRole(appRole: string | null | undefined): boolean {
+  return WORKSPACE_ROLES.includes(appRole as AppRole)
+}
+
 /** True se l'utente è super admin (GOD MODE) */
 export function isSuperAdmin(profile: Profile | null): boolean {
   if (!profile) return false
   // Controlla sia email che app_role per robustezza (il campo email potrebbe non essere sincronizzato)
   return (!!profile.email && SUPER_ADMIN_EMAILS.includes(profile.email)) || profile.app_role === 'super_admin'
+}
+
+/** Variante per il middleware, dove abbiamo email e app_role sciolti (niente Profile completo) */
+export function isSuperAdminRaw(email: string | null | undefined, appRole: string | null | undefined): boolean {
+  return (!!email && SUPER_ADMIN_EMAILS.includes(email)) || appRole === 'super_admin'
 }
 
 /** True se può gestire utenti e permessi */

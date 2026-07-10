@@ -1,12 +1,17 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ClientPortalView } from '@/components/portale-cliente/ClientPortalView'
+import { isSuperAdmin } from '@/lib/permissions'
 import type { Client, Project, Sprint, Task, ClientKpi, Invoice, Profile, Document } from '@/lib/types/database'
 import type { ProjectComment } from '@/components/projects/project-shared'
 
 export const revalidate = 0
 
-export default async function PortalePage() {
+export default async function PortalePage({
+  searchParams,
+}: {
+  searchParams: { client?: string }
+}) {
   const sb = await createClient()
   const { data: { user } } = await sb.auth.getUser()
   if (!user) redirect('/login')
@@ -16,12 +21,36 @@ export default async function PortalePage() {
     sb.from('client_assignments').select('client_id').eq('profile_id', user.id).limit(1).maybeSingle(),
   ])
 
-  const clientId = assignment?.client_id
+  // Il super admin non ha client_assignments: entra in anteprima e sceglie il
+  // cliente da ispezionare. Per tutti gli altri il cliente resta quello assegnato.
+  const isSuper = isSuperAdmin(profile as Profile | null)
+  let previewClients: { id: string; company_name: string }[] = []
+  let clientId = assignment?.client_id ?? null
+
+  if (isSuper) {
+    const { data: all } = await sb
+      .from('clients')
+      .select('id, company_name')
+      .eq('is_internal', false)
+      .order('company_name')
+    previewClients = (all ?? []) as { id: string; company_name: string }[]
+    const requested = searchParams.client
+    clientId = previewClients.some(c => c.id === requested)
+      ? (requested as string)
+      : (clientId ?? previewClients[0]?.id ?? null)
+  }
+
   if (!clientId) {
     return (
       <div className="max-w-md mx-auto px-6 py-24 text-center">
-        <h1 className="text-lg font-black text-text-primary mb-2">Nessun account collegato</h1>
-        <p className="text-sm text-text-tertiary">Il tuo profilo non è ancora associato a un cliente. Contatta il team TwoBee.</p>
+        <h1 className="text-lg font-black text-text-primary mb-2">
+          {isSuper ? 'Nessun cliente disponibile' : 'Nessun account collegato'}
+        </h1>
+        <p className="text-sm text-text-tertiary">
+          {isSuper
+            ? 'Non ci sono clienti da ispezionare in anteprima.'
+            : 'Il tuo profilo non è ancora associato a un cliente. Contatta il team TwoBee.'}
+        </p>
       </div>
     )
   }
@@ -62,7 +91,8 @@ export default async function PortalePage() {
       documents={(docsRes.data ?? []) as Document[]}
       currentProfile={profile as Profile}
       allProfiles={[profile as Profile]}
-      isPreview={false}
+      isPreview={isSuper}
+      superAdminBar={isSuper ? { clients: previewClients, activeClientId: clientId } : undefined}
     />
   )
 }

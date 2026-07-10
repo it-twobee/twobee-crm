@@ -1,11 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { WorkspaceSidebar } from '@/components/workspace/WorkspaceSidebar'
-import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
+import { isSuperAdminRaw, isAdminRole, isWorkspaceRole } from '@/lib/permissions'
 import type { AppRole } from '@/lib/types/database'
-
-const WORKSPACE_ROLES: AppRole[] = ['manager', 'senior', 'junior', 'stage', 'freelance']
-const ADMIN_ROLES: AppRole[] = ['super_admin', 'admin', 'founder']
 
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -19,9 +16,9 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     .eq('id', user.id)
     .single()
 
-  const isSuperAdmin = SUPER_ADMIN_EMAILS.includes(profile?.email ?? '') || profile?.app_role === 'super_admin'
-  const isAdminLevel = isSuperAdmin || ADMIN_ROLES.includes(profile?.app_role as AppRole)
-  const isWorkspaceUser = WORKSPACE_ROLES.includes(profile?.app_role as AppRole)
+  const isSuperAdmin = isSuperAdminRaw(profile?.email, profile?.app_role)
+  const isAdminLevel = isSuperAdmin || isAdminRole(profile?.app_role)
+  const isWorkspaceUser = isWorkspaceRole(profile?.app_role)
 
   if (!profile || (!isWorkspaceUser && !isAdminLevel)) {
     redirect('/dashboard')
@@ -47,6 +44,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     <div className="flex h-screen bg-background overflow-hidden">
       <WorkspaceSidebar
         sections={visibleSections}
+        isSuperAdmin={isSuperAdmin}
         profile={{
           full_name: profile.full_name,
           avatar_url: profile.avatar_url,

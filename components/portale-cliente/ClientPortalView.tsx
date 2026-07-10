@@ -11,6 +11,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { SlackChat } from '@/components/chat/SlackChat'
 import { DriveEmbed } from '@/components/shared/DriveEmbed'
+import { PortalSwitcher } from '@/components/shared/PortalSwitcher'
 import { isDriveUrl, driveKind } from '@/lib/drive'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/utils'
@@ -516,10 +517,11 @@ const TAB_ICONS: Record<PortalTab, React.ReactNode> = {
   fatture:       <Receipt className="w-3.5 h-3.5" />,
 }
 
-export function ClientPortalView({ client, projects, sprints, clientTasks, kpis, invoices, ccChannelId, comments, documents, currentProfile, allProfiles, isPreview = true }: {
+export function ClientPortalView({ client, projects, sprints, clientTasks, kpis, invoices, ccChannelId, comments, documents, currentProfile, allProfiles, isPreview = true, superAdminBar }: {
   client: Client; projects: Project[]; sprints: Sprint[]; clientTasks: Task[]; kpis: ClientKpi[]; invoices: Invoice[]
   ccChannelId: string | null; comments: ProjectComment[]; documents: Document[]
   currentProfile: Profile; allProfiles: Profile[]; isPreview?: boolean
+  superAdminBar?: { clients: { id: string; company_name: string }[]; activeClientId: string }
 }) {
   const [tab, setTab] = useState<PortalTab>('panoramica')
 
@@ -543,15 +545,32 @@ export function ClientPortalView({ client, projects, sprints, clientTasks, kpis,
     <div className="min-h-screen" style={{ background: bg }}>
       {/* Banner preview — solo super admin */}
       {isPreview && (
-        <div className="bg-surface px-6 py-2.5 flex items-center gap-2">
-          <Eye className="w-3.5 h-3.5 text-gold-text" />
+        <div className="bg-surface border-b border-border px-6 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Eye className="w-3.5 h-3.5 text-gold-text shrink-0" aria-hidden="true" />
           <span className="text-xs text-text-primary font-medium">Stai visualizzando il portale come il cliente</span>
-          <Link href="/portale-cliente" className="ml-auto text-2xs text-text-tertiary hover:text-text-primary flex items-center gap-1">
-            <ArrowLeft className="w-3 h-3" /> Lista clienti
-          </Link>
-          <Link href={`/clienti/${client.id}`} className="text-2xs text-text-tertiary hover:text-text-primary flex items-center gap-1">
-            Vista admin <ChevronRight className="w-3 h-3" />
-          </Link>
+
+          {superAdminBar && superAdminBar.clients.length > 1 && (
+            <label className="flex items-center gap-1.5 text-2xs text-text-tertiary">
+              <span>Cliente</span>
+              <select
+                aria-label="Cliente da ispezionare"
+                defaultValue={superAdminBar.activeClientId}
+                onChange={e => { window.location.href = `/portale?client=${e.target.value}` }}
+                className="bg-background border border-border-interactive rounded-lg px-2 py-1 text-xs text-text-primary"
+              >
+                {superAdminBar.clients.map(c => (
+                  <option key={c.id} value={c.id}>{c.company_name}</option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          <div className="ml-auto flex items-center gap-3">
+            {superAdminBar && <div className="w-48"><PortalSwitcher direction="down" /></div>}
+            <Link href={`/clienti/${client.id}`} className="text-2xs text-text-tertiary hover:text-text-primary flex items-center gap-1">
+              Vista admin <ChevronRight className="w-3 h-3" aria-hidden="true" />
+            </Link>
+          </div>
         </div>
       )}
 

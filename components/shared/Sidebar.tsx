@@ -14,6 +14,7 @@ import { useState, useCallback } from 'react'
 import { usePermissions } from '@/lib/hooks/usePermissions'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
+import { PortalSwitcher } from '@/components/shared/PortalSwitcher'
 
 interface NavItem {
   href: string
@@ -229,6 +230,13 @@ export function Sidebar() {
               <p className="text-2xs text-text-tertiary capitalize">{SUPER_ADMIN_EMAILS.includes(profile.email) ? 'super admin' : (profile.app_role?.replace('_', ' ') ?? profile.role)}</p>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Portal switcher — solo super admin */}
+      {isSuperAdmin && (
+        <div className="border-t border-border px-2 py-2">
+          <PortalSwitcher collapsed={sidebarCollapsed} />
         </div>
       )}
 

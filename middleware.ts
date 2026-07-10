@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { isWorkspaceRole, isAdminRole, isSuperAdminRaw } from '@/lib/permissions'
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -59,13 +60,13 @@ export async function middleware(request: NextRequest) {
   // Routing per ruolo: client → /portale · workspace → /workspace · risorsa esterna → /risorsa · staff → /dashboard
   if (user) {
     const { data: profile } = await supabase
-      .from('profiles').select('role, app_role').eq('id', user.id).single()
+      .from('profiles').select('role, app_role, email').eq('id', user.id).single()
     const role = profile?.role
     const appRole = profile?.app_role
 
-    const WORKSPACE_ROLES = ['manager', 'senior', 'junior', 'stage', 'freelance']
-    const isWorkspace = WORKSPACE_ROLES.includes(appRole ?? '')
-    const isAdminLevel = role === 'admin' || appRole === 'super_admin' || appRole === 'admin' || appRole === 'founder'
+    const isWorkspace = isWorkspaceRole(appRole)
+    const isSuper = isSuperAdminRaw(profile?.email, appRole)
+    const isAdminLevel = isSuper || role === 'admin' || isAdminRole(appRole)
 
     if (isWorkspace) {
       const allowedForWorkspace =
@@ -75,6 +76,12 @@ export async function middleware(request: NextRequest) {
         pathname === '/impostazioni/profilo'
       if (!allowedForWorkspace) return redirectTo('/workspace')
       if (pathname === '/login' || pathname === '/') return redirectTo('/workspace')
+      return supabaseResponse
+    }
+
+    // Solo il super admin entra nel portale cliente per ispezionarlo: /portale
+    // mostra i dati di un singolo cliente, non è una vista aggregata.
+    if (isSuper && (pathname === '/portale' || pathname.startsWith('/portale/'))) {
       return supabaseResponse
     }
 

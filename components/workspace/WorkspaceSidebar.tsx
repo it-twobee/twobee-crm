@@ -12,6 +12,7 @@ import {
 import { useState } from 'react'
 import { ROLE_LABELS } from '@/lib/permissions'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
+import { PortalSwitcher } from '@/components/shared/PortalSwitcher'
 import type { AppRole } from '@/lib/types/database'
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -44,9 +45,10 @@ interface WorkspaceSection {
 interface Props {
   sections: WorkspaceSection[]
   profile: { full_name: string | null; avatar_url: string | null; app_role: AppRole | null }
+  isSuperAdmin?: boolean
 }
 
-export function WorkspaceSidebar({ sections, profile }: Props) {
+export function WorkspaceSidebar({ sections, profile, isSuperAdmin = false }: Props) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
 
@@ -101,6 +103,7 @@ export function WorkspaceSidebar({ sections, profile }: Props) {
 
       {/* User + collapse */}
       <div className="border-t border-border p-3 flex flex-col gap-2 shrink-0">
+        {isSuperAdmin && <PortalSwitcher collapsed={collapsed} />}
         <ThemeToggle collapsed={collapsed} />
         {!collapsed && (
           <div className="flex items-center gap-2 px-1">
