@@ -125,6 +125,7 @@ Numerazione: attenzione, `080_*` e `081_*` compaiono due volte. Il prossimo libe
 | `089_personal_documents.sql` | Documenti personali con scadenze | bucket privato `personal-documents` |
 | `090_chat_rework.sql` | canali `team`/`dm`, `chat_dm_participants`, `chat_best_ideas` | bucket `best-ideas` |
 | `091_google_credentials.sql` | token Google fuori da `user_metadata` | ricollegare Google una volta |
+| `092_workspace_team_read_all.sql` | i ruoli `team` (manager…partner) leggono TUTTI clienti/progetti/task (scrittura task resta scoped) | — |
 
 Finché non le esegui l'app **non si rompe**: le pagine mostrano `SetupNotice`
 e le funzioni nuove degradano con un messaggio. I bucket vanno creati a mano
