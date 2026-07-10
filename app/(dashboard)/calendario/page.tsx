@@ -10,7 +10,12 @@ export default async function CalendarioPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const isGoogleConnected = !!user.user_metadata?.google_access_token
+  // profiles.google_connected (migration 091). Fallback al metadata per gli
+  // utenti che avevano collegato Google prima dello spostamento dei token.
+  const { data: meProfile } = await supabase
+    .from('profiles').select('google_connected').eq('id', user.id).maybeSingle()
+  const isGoogleConnected =
+    Boolean(meProfile?.google_connected) || !!user.user_metadata?.google_access_token
 
   const [meetingsRes, tasksRes, profilesRes] = await Promise.all([
     supabase.from('meetings')

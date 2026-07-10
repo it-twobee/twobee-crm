@@ -18,9 +18,12 @@ export default async function ProfiloPage() {
     .single()
   if (!profile) redirect('/login')
 
-  // I token Google vivono in user_metadata (vedi /api/google/callback).
-  // Qui ci serve solo sapere se il collegamento esiste, non il token.
-  const googleConnected = Boolean(user.user_metadata?.google_refresh_token)
+  // I token stanno in google_credentials (deny-all): qui basta il flag pubblico.
+  // Fallback al metadata per chi aveva collegato Google prima della 091.
+  const { data: flag } = await sb
+    .from('profiles').select('google_connected').eq('id', user.id).maybeSingle()
+  const googleConnected =
+    Boolean(flag?.google_connected) || Boolean(user.user_metadata?.google_refresh_token)
 
   return <ProfiloClient profile={profile as Profile} googleConnected={googleConnected} />
 }

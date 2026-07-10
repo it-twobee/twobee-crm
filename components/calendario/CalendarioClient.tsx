@@ -1,15 +1,22 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Plus, Loader2, Link2, X, Filter, CheckSquare, Search, Calendar as CalIcon } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Loader2, Link2, X, Filter, CheckSquare, Search, Calendar as CalIcon, Users} from 'lucide-react'
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, subDays, isSameMonth, isToday, isSameDay, addMonths, subMonths, addWeeks, subWeeks, addYears, subYears, startOfYear, endOfYear } from 'date-fns'
 import { it } from 'date-fns/locale'
 import type { Profile } from '@/lib/types/database'
+import { colorFor } from '@/lib/calendar-colors'
 
+/** Forma restituita da /api/google/events (già normalizzata e filtrata) */
 interface GoogleEvent {
-  id: string; summary: string
-  start: { dateTime?: string; date?: string }; end: { dateTime?: string; date?: string }
-  description?: string; attendees?: { email: string }[]; colorId?: string
+  id: string
+  profileId: string
+  summary: string
+  start: string
+  end: string
+  allDay: boolean
+  /** true quando è l'agenda di un collega: il titolo è "Occupato" */
+  masked: boolean
 }
 
 interface LocalMeeting {
@@ -66,39 +73,49 @@ export function CalendarioClient({
   const [showNewEvent, setShowNewEvent] = useState(false)
   const [newEvent, setNewEvent] = useState({ title: '', date: '', startTime: '09:00', endTime: '10:00', description: '' })
   const [saving, setSaving] = useState(false)
-  const [filterUser, setFilterUser] = useState<string | null>(null)
+  // Di default vedo solo la mia agenda. Le task sono personali e restano
+  // nascoste finché non le chiedo esplicitamente.
+  const [selectedProfiles, setSelectedProfiles] = useState<string[]>([currentUserId])
   const [showFilter, setShowFilter] = useState(false)
-  const [showTasks, setShowTasks] = useState(true)
+  const [showTasks, setShowTasks] = useState(false)
+  const [notConnected, setNotConnected] = useState<string[]>([])
   const [search, setSearch] = useState('')
   const [rangeStart, setRangeStart] = useState('')
   const [rangeEnd, setRangeEnd]     = useState('')
 
-  const fetchEvents = async (from: Date, to: Date) => {
+  const fetchEvents = async (from: Date, to: Date, profileIds: string[]) => {
+    if (profileIds.length === 0) { setGoogleEvents([]); return }
     setLoadingEvents(true)
     try {
-      const res = await fetch(`/api/google/events?timeMin=${from.toISOString()}&timeMax=${to.toISOString()}`)
-      const { events } = await res.json()
+      const qs = new URLSearchParams({
+        timeMin: from.toISOString(),
+        timeMax: to.toISOString(),
+        profileIds: profileIds.join(','),
+      })
+      const res = await fetch(`/api/google/events?${qs}`)
+      if (!res.ok) { setGoogleEvents([]); return }
+      const { events, notConnected: nc } = await res.json()
       setGoogleEvents(events ?? [])
+      setNotConnected(nc ?? [])
     } catch { } finally { setLoadingEvents(false) }
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!isGoogleConnected) return
     const range = getViewRange(viewMode, currentDate, rangeStart, rangeEnd)
     if (!range) return
-    fetchEvents(range.from, range.to)
-  }, [viewMode, currentDate, rangeStart, rangeEnd, isGoogleConnected])
+    fetchEvents(range.from, range.to, selectedProfiles)
+  }, [viewMode, currentDate, rangeStart, rangeEnd, selectedProfiles])
 
   const filteredTasks = useMemo(() => {
-    let t = tasks
-    if (filterUser) t = t.filter(tk => tk.assignee_id === filterUser)
+    // Le task restano personali: quelle di un collega non si vedono mai.
+    let t = tasks.filter(tk => tk.assignee_id === currentUserId)
     if (search) {
       const q = search.toLowerCase()
       t = t.filter(tk => tk.title.toLowerCase().includes(q) || tk.project?.name.toLowerCase().includes(q))
     }
     return t
-  }, [tasks, filterUser, search])
+  }, [tasks, currentUserId, search])
 
   const filteredEvents = useMemo(() => {
     if (!search) return googleEvents
@@ -113,7 +130,7 @@ export function CalendarioClient({
   }, [localMeetings, search])
 
   const eventsForDay = (day: Date) => filteredEvents.filter(e => {
-    const dt = e.start.dateTime ?? e.start.date
+    const dt = e.start
     return dt && isSameDay(new Date(dt), day)
   })
   const meetingsForDay = (day: Date) => filteredMeetings.filter(m => isSameDay(new Date(m.meeting_date), day))
@@ -131,7 +148,7 @@ export function CalendarioClient({
       })
       setShowNewEvent(false); setNewEvent({ title: '', date: '', startTime: '09:00', endTime: '10:00', description: '' })
       const r = getViewRange(viewMode, currentDate, rangeStart, rangeEnd)
-      if (r) fetchEvents(r.from, r.to)
+      if (r) fetchEvents(r.from, r.to, selectedProfiles)
     } finally { setSaving(false) }
   }
 
@@ -217,38 +234,60 @@ export function CalendarioClient({
               ))}
             </div>
 
-            {/* Task toggle */}
-            <button onClick={() => setShowTasks(!showTasks)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                showTasks ? 'bg-gold/10 text-gold-text' : 'text-overlay/30 hover:text-text-primary'
-              }`}>
-              <CheckSquare className="w-3.5 h-3.5" /> Task
-            </button>
+            {/* Task personali: nascoste di default */}
+            <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
+              showTasks ? 'bg-gold-dim text-gold-text' : 'text-text-tertiary hover:text-text-primary'
+            }`}>
+              <input type="checkbox" checked={showTasks} onChange={e => setShowTasks(e.target.checked)}
+                className="accent-gold w-3.5 h-3.5" />
+              Mostra le mie task
+            </label>
 
-            {/* User filter */}
+            {/* I miei calendari */}
             <div className="relative">
               <button onClick={() => setShowFilter(!showFilter)}
+                aria-expanded={showFilter}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                  filterUser ? 'bg-gold/10 text-gold-text' : 'text-overlay/30 hover:text-text-primary'
+                  selectedProfiles.length > 1 ? 'bg-gold-dim text-gold-text' : 'text-text-tertiary hover:text-text-primary'
                 }`}>
-                <Filter className="w-3.5 h-3.5" />
-                {filterUser ? profiles.find(p => p.id === filterUser)?.full_name?.split(' ')[0] ?? 'Filtro' : 'Colleghi'}
+                <Users className="w-3.5 h-3.5" aria-hidden="true" />
+                {selectedProfiles.length === 1 ? 'I miei calendari' : `${selectedProfiles.length} calendari`}
               </button>
+
               {showFilter && (
-                <div className="absolute right-0 top-full mt-1 glass rounded-xl p-2 w-52 z-20 shadow-xl">
-                  <button onClick={() => { setFilterUser(null); setShowFilter(false) }}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-xs ${!filterUser ? 'bg-gold/10 text-gold-text' : 'text-overlay/40 hover:text-text-primary hover:bg-overlay/[0.04]'}`}>
-                    Tutti
-                  </button>
-                  {profiles.map(p => (
-                    <button key={p.id} onClick={() => { setFilterUser(p.id); setShowFilter(false) }}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center gap-2 ${filterUser === p.id ? 'bg-gold/10 text-gold-text' : 'text-overlay/40 hover:text-text-primary hover:bg-overlay/[0.04]'}`}>
-                      <div className="w-5 h-5 rounded-full bg-gold/20 flex items-center justify-center text-2xs font-bold text-gold-text shrink-0">
-                        {(p.full_name ?? '?')[0]}
-                      </div>
-                      <span className="truncate">{p.full_name}</span>
-                    </button>
-                  ))}
+                <div className="absolute right-0 top-full mt-1 rounded-xl border border-border bg-surface p-2 w-60 z-20 shadow-xl">
+                  <p className="text-2xs uppercase tracking-wider text-text-tertiary font-bold px-2 py-1.5">
+                    I miei calendari
+                  </p>
+                  {profiles.map(p => {
+                    const checked = selectedProfiles.includes(p.id)
+                    const col = colorFor(p.id)
+                    const isMe = p.id === currentUserId
+                    const offline = notConnected.includes(p.id)
+                    return (
+                      <label key={p.id}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-surface-hover transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => setSelectedProfiles(prev =>
+                            prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev, p.id])}
+                          className="w-3.5 h-3.5 rounded shrink-0"
+                          style={{ accentColor: col.dot }}
+                          aria-label={`Mostra il calendario di ${p.full_name}`}
+                        />
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: col.dot }} aria-hidden="true" />
+                        <span className="flex-1 min-w-0 text-xs text-text-primary truncate">
+                          {isMe ? `${p.full_name} (tu)` : p.full_name}
+                        </span>
+                        {checked && offline && (
+                          <span className="text-2xs text-text-tertiary shrink-0" title="Google non collegato">
+                            non collegato
+                          </span>
+                        )}
+                      </label>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -346,10 +385,10 @@ export function CalendarioClient({
             {selectedDayEvents.map(e => (
               <div key={e.id} className={`p-3 rounded-xl border ${EVENT_STYLE}`}>
                 <p className="text-sm font-medium">{e.summary}</p>
-                {e.start.dateTime && (
-                  <p className="text-xs opacity-70 mt-1">{format(new Date(e.start.dateTime), 'HH:mm')} — {format(new Date(e.end.dateTime!), 'HH:mm')}</p>
+                {!e.allDay && (
+                  <p className="text-xs opacity-70 mt-1">{format(new Date(e.start), 'HH:mm')} — {format(new Date(e.end), 'HH:mm')}</p>
                 )}
-                {e.attendees && e.attendees.length > 0 && <p className="text-xs opacity-60 mt-1">{e.attendees.length} partecipanti</p>}
+
               </div>
             ))}
 
@@ -439,49 +478,103 @@ function MonthView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, sel
   selectedDay: Date | null
   onSelectDay: (d: Date) => void
 }) {
-  const start = startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 })
-  const end = endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 })
+  const start = startOfWeek(startOfMonth(currentDate), { weekStartsOn: 0 })
+  const end = endOfWeek(endOfMonth(currentDate), { weekStartsOn: 0 })
   const days: Date[] = []; let d = start
   while (d <= end) { days.push(d); d = addDays(d, 1) }
-  const dayNames = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']
+  // Come Google Calendar: la settimana parte da domenica.
+  const dayNames = ['DOM', 'LUN', 'MAR', 'MER', 'GIO', 'VEN', 'SAB']
+
+  /** Quante righe evento entrano prima di dover mostrare "+N in più". */
+  const MAX_ROWS = 3
 
   return (
-    <div className="grid grid-cols-7 gap-px bg-overlay/[0.04] rounded-xl overflow-hidden flex-1">
-      {dayNames.map(dn => (
-        <div key={dn} className="bg-surface px-3 py-2 text-xs font-semibold text-overlay/30 text-center">{dn}</div>
-      ))}
+    // Due griglie: con una sola, auto-rows-fr allargherebbe anche la riga delle
+    // intestazioni fino all'altezza di una settimana.
+    <div className="flex-1 flex flex-col rounded-xl overflow-hidden border border-border">
+      <div className="grid grid-cols-7 gap-px bg-border shrink-0">
+        {dayNames.map(dn => (
+          <div key={dn} className="bg-surface px-2 py-1.5 text-2xs font-semibold text-text-tertiary text-center tracking-wider">
+            {dn}
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7 gap-px bg-border flex-1 auto-rows-fr border-t border-border">
       {days.map(day => {
         const events = eventsForDay(day)
         const meetings = meetingsForDay(day)
         const dayTasks = tasksForDay(day)
-        const total = events.length + meetings.length + dayTasks.length
+
+        // Un'unica lista ordinata: gli eventi non si mescolano a caso.
+        const rows: { key: string; dot: string; label: string; time: string | null; muted: boolean }[] = [
+          ...events.map(e => ({
+            key: `e-${e.id}`,
+            dot: colorFor(e.profileId).dot,
+            label: e.summary,
+            time: e.allDay ? null : format(new Date(e.start), 'HH:mm'),
+            muted: e.masked,
+          })),
+          ...meetings.map(m => ({
+            key: `m-${m.id}`,
+            dot: 'var(--color-info)',
+            label: m.title,
+            time: format(new Date(m.meeting_date), 'HH:mm'),
+            muted: false,
+          })),
+          ...dayTasks.map(t => ({
+            key: `t-${t.id}`,
+            dot: 'var(--color-text-tertiary)',
+            label: t.title,
+            time: null,
+            muted: false,
+          })),
+        ]
+
+        const visible = rows.slice(0, MAX_ROWS)
+        const hidden = rows.length - visible.length
         const isSelected = selectedDay && isSameDay(day, selectedDay)
+        const outside = !isSameMonth(day, currentDate)
+
         return (
           <div key={day.toISOString()}
             onClick={() => onSelectDay(day)}
-            className={`bg-surface p-2 min-h-[100px] cursor-pointer transition-colors ${
-              !isSameMonth(day, currentDate) ? 'opacity-40' : ''
-            } ${isSelected ? 'ring-1 ring-inset ring-gold/50 bg-gold/[0.03]' : 'hover:bg-overlay/[0.02]'}`}>
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium mb-1 ${
-              isToday(day) ? 'bg-gold text-on-gold' : 'text-text-primary'
-            }`}>{format(day, 'd')}</div>
-            <div className="space-y-0.5">
-              {events.slice(0, 2).map(e => (
-                <div key={e.id} className={`text-2xs px-1.5 py-0.5 rounded truncate border ${EVENT_STYLE}`}>{e.summary}</div>
-              ))}
-              {meetings.slice(0, Math.max(0, 2 - events.length)).map(m => (
-                <div key={m.id} className={`text-2xs px-1.5 py-0.5 rounded truncate border ${MEETING_STYLE}`}>{m.title}</div>
-              ))}
-              {dayTasks.slice(0, Math.max(0, 3 - events.length - meetings.length)).map(t => (
-                <div key={t.id} className={`text-2xs px-1.5 py-0.5 rounded truncate border ${taskStyle(t.due_date!)}`}>
-                  {t.title}
+            className={`bg-surface px-1.5 pt-1 pb-1.5 min-h-[6.5rem] cursor-pointer transition-colors flex flex-col ${
+              outside ? 'opacity-45' : ''
+            } ${isSelected ? 'ring-1 ring-inset ring-gold/50' : 'hover:bg-surface-hover'}`}>
+
+            <div className="flex justify-center mb-1 shrink-0">
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium tabular ${
+                isToday(day) ? 'bg-gold text-on-gold font-bold' : 'text-text-primary'
+              }`}>
+                {format(day, 'd')}
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-0.5 min-h-0">
+              {visible.map(r => (
+                <div key={r.key}
+                  className="flex items-center gap-1 px-1 rounded hover:bg-surface-active transition-colors">
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: r.dot }} aria-hidden="true" />
+                  {r.time && <span className="text-2xs text-text-tertiary tabular shrink-0">{r.time}</span>}
+                  <span className={`text-2xs truncate ${r.muted ? 'text-text-tertiary italic' : 'text-text-secondary'}`}>
+                    {r.label}
+                  </span>
                 </div>
               ))}
-              {total > 3 && <div className="text-2xs text-overlay/20 px-1">+{total - 3} altri</div>}
+
+              {hidden > 0 && (
+                <button
+                  onClick={e => { e.stopPropagation(); onSelectDay(day) }}
+                  className="text-2xs text-text-tertiary hover:text-text-primary px-1 text-left transition-colors">
+                  {hidden} in più
+                </button>
+              )}
             </div>
           </div>
         )
       })}
+      </div>
     </div>
   )
 }
@@ -503,12 +596,11 @@ function DayView({ currentDate, eventsForDay, meetingsForDay, tasksForDay }: {
       {events.map(e => (
         <div key={e.id} className={`p-4 rounded-xl border ${EVENT_STYLE}`}>
           <p className="text-sm font-semibold">{e.summary}</p>
-          {e.start.dateTime && (
+          {!e.allDay && (
             <p className="text-xs opacity-70 mt-1">
-              {format(new Date(e.start.dateTime), 'HH:mm')}{e.end?.dateTime ? ` — ${format(new Date(e.end.dateTime), 'HH:mm')}` : ''}
+              {format(new Date(e.start), 'HH:mm')} — {format(new Date(e.end), 'HH:mm')}
             </p>
           )}
-          {e.attendees && e.attendees.length > 0 && <p className="text-xs opacity-60 mt-1">{e.attendees.length} partecipanti</p>}
         </div>
       ))}
       {meetings.map(m => (
@@ -571,8 +663,8 @@ function WeekView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, sele
               {events.map(e => (
                 <div key={e.id} className={`text-2xs px-2 py-1.5 rounded-lg border ${EVENT_STYLE}`}>
                   <p className="font-medium truncate">{e.summary}</p>
-                  {e.start.dateTime && (
-                    <p className="opacity-60 mt-0.5">{format(new Date(e.start.dateTime), 'HH:mm')}</p>
+                  {!e.allDay && (
+                    <p className="opacity-60 mt-0.5">{format(new Date(e.start), 'HH:mm')}</p>
                   )}
                 </div>
               ))}
@@ -677,7 +769,7 @@ function ListView({ events, meetings, tasks, rangeStart, rangeEnd, onSelectDay }
   const ensure = (d: string) => { if (!byDay[d]) byDay[d] = { ev: [], mt: [], tk: [] } }
 
   events.forEach(e => {
-    const d = (e.start.dateTime ?? e.start.date ?? '').slice(0, 10)
+    const d = e.start.slice(0, 10)
     ensure(d); byDay[d].ev.push(e)
   })
   meetings.forEach(m => {
@@ -713,7 +805,7 @@ function ListView({ events, meetings, tasks, rangeStart, rangeEnd, onSelectDay }
               {ev.map(e => (
                 <div key={e.id} className={`p-3 rounded-xl border ${EVENT_STYLE}`}>
                   <p className="text-sm font-medium">{e.summary}</p>
-                  {e.start.dateTime && <p className="text-xs opacity-70 mt-0.5">{format(new Date(e.start.dateTime), 'HH:mm')}</p>}
+                  {!e.allDay && <p className="text-xs opacity-70 mt-0.5">{format(new Date(e.start), 'HH:mm')}</p>}
                 </div>
               ))}
               {mt.map(m => (
