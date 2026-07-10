@@ -12,6 +12,8 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { formatDate, formatCurrency } from '@/lib/utils'
+import { AssigneePicker } from '@/components/tasks/AssigneePicker'
+import { setTaskAssignees, bulkSetTaskAssignees } from '@/app/actions/task-assignees'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import type { Client, Project, Sprint, Task, ClientKpi, ClientKpiConfig, Profile, MeetingNote, ProjectAppointment } from '@/lib/types/database'
 import { Section, timeAgo, trendDir, type ProjectComment } from './project-shared'
@@ -181,10 +183,26 @@ function TaskDetailModal({ task, profiles, isAdmin, onSave, onDelete, onClose, a
     priority:   task.priority as string,
     status:     task.status as string,
     due_date:   task.due_date ?? '',
-    assignee_id: task.assignee_id ?? '',
     notes:      (task as ExtTask & { notes?: string }).notes ?? '',
   })
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(task.assignee_id ? [task.assignee_id] : [])
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    createClient()
+      .from('task_assignees')
+      .select('profile_id, is_primary_owner')
+      .eq('task_id', task.id)
+      .then(({ data }) => {
+        if (!alive || !data || data.length === 0) return
+        const ids = [...data]
+          .sort((a, b) => Number(b.is_primary_owner) - Number(a.is_primary_owner))
+          .map(r => r.profile_id as string)
+        setAssigneeIds(ids)
+      })
+    return () => { alive = false }
+  }, [task.id])
 
   const save = async () => {
     setSaving(true)
@@ -193,10 +211,12 @@ function TaskDetailModal({ task, profiles, isAdmin, onSave, onDelete, onClose, a
       priority:   form.priority as Task['priority'],
       status:     form.status as Task['status'],
       due_date:   form.due_date || null,
-      assignee_id: form.assignee_id || null,
+      assignee_id: assigneeIds[0] ?? null,
     }
     await createClient().from('tasks').update(patch as Record<string, unknown>).eq('id', task.id)
+    const res = await setTaskAssignees(task.id, assigneeIds)
     setSaving(false)
+    if ('error' in res) { toast.error(res.error); return }
     onSave(patch)
     onClose()
   }
@@ -245,10 +265,7 @@ function TaskDetailModal({ task, profiles, isAdmin, onSave, onDelete, onClose, a
             </div>
             <div>
               <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Assegnato a</label>
-              <select value={form.assignee_id} onChange={e => setForm(p => ({ ...p, assignee_id: e.target.value }))} disabled={!isAdmin} className={inp}>
-                <option value="">—</option>
-                {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-              </select>
+              <AssigneePicker profiles={profiles} value={assigneeIds} onChange={setAssigneeIds} disabled={!isAdmin} />
             </div>
           </div>
         </div>
@@ -1826,21 +1843,23 @@ function BulkReassignModal({ tasks, profiles, onClose, onDone }: {
   tasks: ExtTask[]
   profiles: Profile[]
   onClose: () => void
-  onDone: (ids: string[], assigneeId: string) => void
+  onDone: (ids: string[], assigneeId: string | null) => void
 }) {
   const [selected, setSelected] = useState<string[]>(tasks.map(t => t.id))
-  const [assigneeId, setAssigneeId] = useState('')
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
 
   const toggle = (id: string) =>
     setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
 
   const confirm = async () => {
-    if (!assigneeId || selected.length === 0) return
+    if (assigneeIds.length === 0 || selected.length === 0) return
     setSaving(true)
-    await createClient().from('tasks').update({ assignee_id: assigneeId } as never).in('id', selected)
+    const res = await bulkSetTaskAssignees(selected, assigneeIds)
+    setSaving(false)
+    if ('error' in res) { toast.error(res.error); return }
     toast.success(`${selected.length} task riassegnat${selected.length === 1 ? 'a' : 'e'}`)
-    onDone(selected, assigneeId)
+    onDone(selected, res.primaryId)
   }
 
   return (
@@ -1861,19 +1880,10 @@ function BulkReassignModal({ tasks, profiles, onClose, onDone }: {
           </button>
         </div>
 
-        {/* Assignee picker */}
+        {/* Assignee picker — una o più risorse; la prima è la primaria */}
         <div className="px-5 py-3 border-b border-border shrink-0">
           <label className="text-text-tertiary text-xs mb-1.5 block">Assegna a</label>
-          <select
-            value={assigneeId}
-            onChange={e => setAssigneeId(e.target.value)}
-            className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/40"
-          >
-            <option value="">Seleziona risorsa…</option>
-            {profiles.map(p => (
-              <option key={p.id} value={p.id}>{p.full_name}</option>
-            ))}
-          </select>
+          <AssigneePicker profiles={profiles} value={assigneeIds} onChange={setAssigneeIds} />
         </div>
 
         {/* Task list */}
@@ -1915,7 +1925,7 @@ function BulkReassignModal({ tasks, profiles, onClose, onDone }: {
         <div className="px-5 py-4 border-t border-border flex gap-2 shrink-0">
           <button
             onClick={confirm}
-            disabled={!assigneeId || selected.length === 0 || saving}
+            disabled={assigneeIds.length === 0 || selected.length === 0 || saving}
             className="flex-1 py-2.5 bg-gold text-on-gold text-sm font-semibold rounded-xl hover:bg-gold/90 disabled:opacity-40 transition-colors"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : `Riassegna ${selected.length} task`}

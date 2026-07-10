@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   ChevronDown, ChevronRight, Flag, GripVertical, Plus, Trash2,
   Check, X, Loader2, Calendar, MoreHorizontal, CheckSquare, Square, UserPlus, Users,
@@ -8,6 +8,8 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { getInitials } from '@/lib/utils'
+import { AssigneePicker } from '@/components/tasks/AssigneePicker'
+import { setTaskAssignees } from '@/app/actions/task-assignees'
 import type { Profile, Task, Sprint } from '@/lib/types/database'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -111,9 +113,28 @@ function TaskDetailModal({ task, profiles, isAdmin, onSave, onDelete, onClose, a
     priority:    task.priority as string,
     status:      task.status as string,
     due_date:    task.due_date ?? '',
-    assignee_id: task.assignee_id ?? '',
   })
+  // Multi-assegnatario: il primo è il primario (= tasks.assignee_id). Partiamo
+  // dal primario finché non arriva l'elenco completo dal bridge.
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(task.assignee_id ? [task.assignee_id] : [])
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    createClient()
+      .from('task_assignees')
+      .select('profile_id, is_primary_owner')
+      .eq('task_id', task.id)
+      .then(({ data }) => {
+        if (!alive || !data || data.length === 0) return
+        // Ordina col primario davanti, così l'ordine riflette assignee_id.
+        const ids = [...data]
+          .sort((a, b) => Number(b.is_primary_owner) - Number(a.is_primary_owner))
+          .map(r => r.profile_id as string)
+        setAssigneeIds(ids)
+      })
+    return () => { alive = false }
+  }, [task.id])
 
   const save = async () => {
     setSaving(true)
@@ -122,10 +143,13 @@ function TaskDetailModal({ task, profiles, isAdmin, onSave, onDelete, onClose, a
       priority:    form.priority as Task['priority'],
       status:      form.status as Task['status'],
       due_date:    form.due_date || null,
-      assignee_id: form.assignee_id || null,
+      assignee_id: assigneeIds[0] ?? null,
     }
     await createClient().from('tasks').update(patch as Record<string, unknown>).eq('id', task.id)
+    // Sincronizza il bridge (e riallinea assignee_id al primario) via service role.
+    const res = await setTaskAssignees(task.id, assigneeIds)
     setSaving(false)
+    if ('error' in res) { toast.error(res.error); return }
     onSave(patch)
     onClose()
   }
@@ -174,10 +198,7 @@ function TaskDetailModal({ task, profiles, isAdmin, onSave, onDelete, onClose, a
             </div>
             <div>
               <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Assegnato a</label>
-              <select value={form.assignee_id} onChange={e => setForm(p => ({ ...p, assignee_id: e.target.value }))} disabled={!isAdmin} className={inp}>
-                <option value="">—</option>
-                {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-              </select>
+              <AssigneePicker profiles={profiles} value={assigneeIds} onChange={setAssigneeIds} disabled={!isAdmin} />
             </div>
           </div>
         </div>
