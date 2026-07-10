@@ -27,14 +27,14 @@ interface Props {
 
 type Tab = 'team' | 'ferie' | 'performance' | 'organigramma' | 'risorse'
 
-const ic = 'w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold/50'
+const ic = 'w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/50'
 
 const LEAVE_LABELS: Record<LeaveType, { label: string; color: string; bg: string }> = {
-  ferie:        { label: 'Ferie',        color: 'text-blue-400',  bg: 'bg-blue-400/10' },
+  ferie:        { label: 'Ferie',        color: 'text-info',  bg: 'bg-info/10' },
   permesso:     { label: 'Permesso',     color: 'text-warning',   bg: 'bg-warning/10' },
   malattia:     { label: 'Malattia',     color: 'text-error',     bg: 'bg-error/10' },
-  straordinario:{ label: 'Straord.',     color: 'text-purple-400',bg: 'bg-purple-400/10' },
-  altro:        { label: 'Altro',        color: 'text-text-secondary', bg: 'bg-[#2A2A2A]' },
+  straordinario:{ label: 'Straord.',     color: 'text-accent',bg: 'bg-accent/10' },
+  altro:        { label: 'Altro',        color: 'text-text-secondary', bg: 'bg-surface-active' },
 }
 const STATUS_LABELS: Record<LeaveStatus, { label: string; color: string }> = {
   in_attesa: { label: 'In attesa', color: 'text-warning' },
@@ -46,30 +46,30 @@ const CONTRACT_LABELS: Record<LegacyContractType, string> = {
   partita_iva: 'P.IVA', stage: 'Stage',
 }
 const ROLE_COLORS: Record<string, string> = {
-  super_admin: 'text-gold', admin: 'text-purple-400', manager: 'text-blue-400',
-  senior: 'text-white', junior: 'text-text-secondary', viewer: 'text-[#444]', client: 'text-[#444]',
+  super_admin: 'text-gold-text', admin: 'text-accent', manager: 'text-info',
+  senior: 'text-text-primary', junior: 'text-text-secondary', viewer: 'text-text-tertiary', client: 'text-text-tertiary',
 }
 const AREA_COLORS: Record<string, string> = {
-  Growth: '#F5C800', Digital: '#3B82F6', Strategy: '#A855F7', Operations: '#10B981', Design: '#EC4899',
+  Growth: 'var(--color-gold-text)', Digital: 'var(--color-info)', Strategy: 'var(--color-accent)', Operations: 'var(--color-success)', Design: 'var(--color-accent)',
 }
 
 function avatar(p: Profile) {
   if (p.avatar_url) return <img src={p.avatar_url} className="w-full h-full object-cover rounded-full" alt="" />
   const initials = p.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-  return <span className="text-sm font-black text-gold">{initials}</span>
+  return <span className="text-sm font-black text-gold-text">{initials}</span>
 }
 
 function ScoreBar({ label, value }: { label: string; value: number | null }) {
   if (!value) return null
   const pct = (value / 5) * 100
-  const color = value >= 4 ? '#22C55E' : value >= 3 ? '#F5C800' : '#EF4444'
+  const color = value >= 4 ? 'var(--color-success)' : value >= 3 ? 'var(--color-gold-text)' : 'var(--color-error)'
   return (
     <div className="flex items-center gap-2">
       <span className="text-xs text-text-secondary w-24 shrink-0">{label}</span>
-      <div className="flex-1 h-1.5 bg-[#2A2A2A] rounded-full overflow-hidden">
+      <div className="flex-1 h-1.5 bg-surface-active rounded-full overflow-hidden">
         <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
       </div>
-      <span className="text-xs font-bold text-white w-4">{value}</span>
+      <span className="text-xs font-bold text-text-primary w-4">{value}</span>
     </div>
   )
 }
@@ -106,11 +106,11 @@ function LeaveModal({ profiles, currentUserId, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-[#161616] border border-[#2A2A2A] rounded-2xl w-full max-w-md">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A]">
-          <h2 className="text-base font-bold text-white">Nuova richiesta</h2>
+      <div className="bg-surface border border-border rounded-2xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 className="text-base font-bold text-text-primary">Nuova richiesta</h2>
           <button onClick={onClose}><X className="w-5 h-5 text-text-secondary" /></button>
         </div>
         <form onSubmit={save} className="p-6 space-y-3">
@@ -138,15 +138,15 @@ function LeaveModal({ profiles, currentUserId, onClose, onSaved }: {
               <input type="date" value={form.end_date} onChange={e => setForm(p => ({ ...p, end_date: e.target.value }))} className={ic} />
             </div>
           </div>
-          {days > 0 && <p className="text-xs text-gold font-bold">{days} giorno{days !== 1 ? 'i' : ''}</p>}
+          {days > 0 && <p className="text-xs text-gold-text font-bold">{days} giorno{days !== 1 ? 'i' : ''}</p>}
           <div>
             <label className="block text-xs text-text-secondary mb-1">Note</label>
             <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
               rows={2} className={`${ic} resize-none`} placeholder="Motivo opzionale..." />
           </div>
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary">Annulla</button>
-            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary">Annulla</button>
+            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />} Invia richiesta
             </button>
           </div>
@@ -191,7 +191,7 @@ function ReviewModal({ reviewee, currentUserId, quarter, existing, onClose, onSa
     <div className="space-y-1">
       <div className="flex justify-between">
         <label className="text-xs text-text-secondary">{label}</label>
-        <span className="text-xs font-bold text-gold">{form[key]}/5</span>
+        <span className="text-xs font-bold text-gold-text">{form[key]}/5</span>
       </div>
       <input type="range" min={1} max={5} value={form[key]}
         onChange={e => setForm(p => ({ ...p, [key]: parseInt(e.target.value) }))}
@@ -200,12 +200,12 @@ function ReviewModal({ reviewee, currentUserId, quarter, existing, onClose, onSa
   )
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-[#161616] border border-[#2A2A2A] rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A] sticky top-0 bg-[#161616]">
+      <div className="bg-surface border border-border rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-surface">
           <div>
-            <h2 className="text-base font-bold text-white">Performance Review</h2>
+            <h2 className="text-base font-bold text-text-primary">Performance Review</h2>
             <p className="text-xs text-text-secondary">{reviewee.full_name} · {quarter}</p>
           </div>
           <button onClick={onClose}><X className="w-5 h-5 text-text-secondary" /></button>
@@ -225,8 +225,8 @@ function ReviewModal({ reviewee, currentUserId, quarter, existing, onClose, onSa
             </div>
           ))}
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary">Annulla</button>
-            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary">Annulla</button>
+            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />} Salva review
             </button>
           </div>
@@ -273,12 +273,12 @@ export function HRClient({ profiles, leaves: initialLeaves, reviews: initialRevi
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-white">HR & Team</h1>
+          <h1 className="text-2xl font-black text-text-primary">HR & Team</h1>
           <p className="text-text-secondary text-sm mt-0.5">{teamProfiles.length} membri del team</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => setShowLeaveModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gold text-black text-sm font-bold rounded-lg hover:bg-yellow-400">
+            className="flex items-center gap-2 px-4 py-2 bg-gold text-on-gold text-sm font-bold rounded-lg hover:bg-gold/90">
             <Plus className="w-4 h-4" /> Richiesta assenza
           </button>
         </div>
@@ -287,12 +287,12 @@ export function HRClient({ profiles, leaves: initialLeaves, reviews: initialRevi
       {/* KPI */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { l: 'Membri attivi', v: teamProfiles.filter(p => p.is_active).length, c: 'text-white', icon: <Users className="w-4 h-4 text-gold" /> },
+          { l: 'Membri attivi', v: teamProfiles.filter(p => p.is_active).length, c: 'text-text-primary', icon: <Users className="w-4 h-4 text-gold-text" /> },
           { l: 'Assenze in attesa', v: pending.length, c: pending.length > 0 ? 'text-warning' : 'text-success', icon: <Clock className="w-4 h-4 text-warning" /> },
-          { l: 'Giorni ferie approvati', v: `${totalLeaveDays}gg`, c: 'text-blue-400', icon: <Calendar className="w-4 h-4 text-blue-400" /> },
-          { l: `Score medio ${currentQuarter}`, v: avgScore ?? '—', c: avgScore ? (parseFloat(avgScore) >= 4 ? 'text-success' : parseFloat(avgScore) >= 3 ? 'text-warning' : 'text-error') : 'text-text-secondary', icon: <Star className="w-4 h-4 text-gold" /> },
+          { l: 'Giorni ferie approvati', v: `${totalLeaveDays}gg`, c: 'text-info', icon: <Calendar className="w-4 h-4 text-info" /> },
+          { l: `Score medio ${currentQuarter}`, v: avgScore ?? '—', c: avgScore ? (parseFloat(avgScore) >= 4 ? 'text-success' : parseFloat(avgScore) >= 3 ? 'text-warning' : 'text-error') : 'text-text-secondary', icon: <Star className="w-4 h-4 text-gold-text" /> },
         ].map(k => (
-          <div key={k.l} className="bg-surface border border-[#2A2A2A] rounded-xl p-4">
+          <div key={k.l} className="bg-surface border border-border rounded-xl p-4">
             <div className="flex items-center gap-2 mb-1">{k.icon}<p className="text-xs text-text-secondary">{k.l}</p></div>
             <p className={`text-2xl font-black ${k.c}`}>{k.v}</p>
           </div>
@@ -300,7 +300,7 @@ export function HRClient({ profiles, leaves: initialLeaves, reviews: initialRevi
       </div>
 
       {/* Tabs */}
-      <div className="flex bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl p-1 gap-1 w-fit">
+      <div className="flex bg-surface border border-border rounded-xl p-1 gap-1 w-fit">
         {([
           { key: 'team', label: 'Team', icon: <Users className="w-3.5 h-3.5" /> },
           { key: 'ferie', label: `Assenze${pending.length > 0 ? ` (${pending.length})` : ''}`, icon: <Calendar className="w-3.5 h-3.5" /> },
@@ -309,7 +309,7 @@ export function HRClient({ profiles, leaves: initialLeaves, reviews: initialRevi
           { key: 'risorse', label: 'Risorse', icon: <Contact className="w-3.5 h-3.5" /> },
         ] as { key: Tab; label: string; icon: React.ReactNode }[]).map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
-            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${tab === t.key ? 'bg-gold text-black' : 'text-text-secondary hover:text-white'}`}>
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${tab === t.key ? 'bg-gold text-on-gold' : 'text-text-secondary hover:text-text-primary'}`}>
             {t.icon}{t.label}
           </button>
         ))}
@@ -328,7 +328,7 @@ export function HRClient({ profiles, leaves: initialLeaves, reviews: initialRevi
             const totalDays = myLeaves.reduce((s, l) => s + l.days_count, 0)
 
             return (
-              <div key={p.id} className={`bg-surface border rounded-xl overflow-hidden transition-colors ${isExpanded ? 'border-gold/30' : 'border-[#2A2A2A]'}`}>
+              <div key={p.id} className={`bg-surface border rounded-xl overflow-hidden transition-colors ${isExpanded ? 'border-gold/30' : 'border-border'}`}>
                 <div className="p-5 cursor-pointer" onClick={() => setExpandedProfile(isExpanded ? null : p.id)}>
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
@@ -336,12 +336,12 @@ export function HRClient({ profiles, leaves: initialLeaves, reviews: initialRevi
                         {avatar(p)}
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-white">{p.full_name}</p>
+                        <p className="text-sm font-bold text-text-primary">{p.full_name}</p>
                         <p className={`text-xs font-semibold capitalize ${ROLE_COLORS[p.app_role] ?? 'text-text-secondary'}`}>{p.app_role.replace('_', ' ')}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {!p.is_active && <span className="text-[10px] text-error bg-error/10 px-2 py-0.5 rounded-full font-bold">Inattivo</span>}
+                      {!p.is_active && <span className="text-2xs text-error bg-error/10 px-2 py-0.5 rounded-full font-bold">Inattivo</span>}
                       <ChevronDown className={`w-4 h-4 text-text-secondary transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                     </div>
                   </div>
@@ -356,27 +356,27 @@ export function HRClient({ profiles, leaves: initialLeaves, reviews: initialRevi
                   </div>
                   {avgMy && (
                     <div className="mt-3 flex items-center gap-2">
-                      <div className="flex-1 h-1 bg-[#2A2A2A] rounded-full overflow-hidden">
+                      <div className="flex-1 h-1 bg-surface-active rounded-full overflow-hidden">
                         <div className="h-full bg-gold rounded-full" style={{ width: `${(parseFloat(avgMy) / 5) * 100}%` }} />
                       </div>
-                      <span className="text-xs font-bold text-gold">{avgMy}/5</span>
+                      <span className="text-xs font-bold text-gold-text">{avgMy}/5</span>
                     </div>
                   )}
                 </div>
 
                 {isExpanded && (
-                  <div className="border-t border-[#2A2A2A] p-5 space-y-4">
+                  <div className="border-t border-border p-5 space-y-4">
                     {p.email && <div className="flex items-center gap-2 text-xs text-text-secondary"><Mail className="w-3.5 h-3.5" />{p.email}</div>}
                     {p.phone && <div className="flex items-center gap-2 text-xs text-text-secondary"><Phone className="w-3.5 h-3.5" />{p.phone}</div>}
                     {p.competencies?.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
                         {p.competencies.map(c => (
-                          <span key={c} className="text-[10px] px-2 py-0.5 bg-[#2A2A2A] text-text-secondary rounded-full">{c}</span>
+                          <span key={c} className="text-2xs px-2 py-0.5 bg-surface-active text-text-secondary rounded-full">{c}</span>
                         ))}
                       </div>
                     )}
                     <div className="flex gap-3 text-xs text-text-secondary">
-                      <span>Ferie {new Date().getFullYear()}: <strong className="text-white">{totalDays}gg</strong></span>
+                      <span>Ferie {new Date().getFullYear()}: <strong className="text-text-primary">{totalDays}gg</strong></span>
                     </div>
                     {myReview && (
                       <div className="space-y-2">
@@ -389,7 +389,7 @@ export function HRClient({ profiles, leaves: initialLeaves, reviews: initialRevi
                     )}
                     {isAdmin && (
                       <button onClick={() => setReviewTarget(p)}
-                        className="w-full py-2 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg text-xs text-text-secondary hover:text-white hover:border-gold/30 transition-colors flex items-center justify-center gap-1">
+                        className="w-full py-2 bg-surface border border-border rounded-lg text-xs text-text-secondary hover:text-text-primary hover:border-gold/30 transition-colors flex items-center justify-center gap-1">
                         <Edit2 className="w-3 h-3" /> {myReview ? 'Aggiorna review' : 'Scrivi review'}
                       </button>
                     )}
@@ -412,20 +412,20 @@ export function HRClient({ profiles, leaves: initialLeaves, reviews: initialRevi
             const lc = LEAVE_LABELS[leave.type]
             const sc = STATUS_LABELS[leave.status]
             return (
-              <div key={leave.id} className="bg-surface border border-[#2A2A2A] rounded-xl px-5 py-4">
+              <div key={leave.id} className="bg-surface border border-border rounded-xl px-5 py-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gold/10 flex items-center justify-center text-xs font-black text-gold overflow-hidden">
+                    <div className="w-8 h-8 rounded-full bg-gold/10 flex items-center justify-center text-xs font-black text-gold-text overflow-hidden">
                       {member ? avatar(member) : '?'}
                     </div>
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold text-white">{member?.full_name ?? 'Sconosciuto'}</p>
+                        <p className="text-sm font-semibold text-text-primary">{member?.full_name ?? 'Sconosciuto'}</p>
                         <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${lc.color} ${lc.bg}`}>{lc.label}</span>
                         <span className={`text-xs font-bold ${sc.color}`}>{sc.label}</span>
                       </div>
                       <p className="text-xs text-text-secondary mt-0.5">
-                        {new Date(leave.start_date).toLocaleDateString('it-IT')} → {new Date(leave.end_date).toLocaleDateString('it-IT')} · <strong className="text-white">{leave.days_count}gg</strong>
+                        {new Date(leave.start_date).toLocaleDateString('it-IT')} → {new Date(leave.end_date).toLocaleDateString('it-IT')} · <strong className="text-text-primary">{leave.days_count}gg</strong>
                         {leave.notes && <span> · {leave.notes}</span>}
                       </p>
                     </div>
@@ -453,7 +453,7 @@ export function HRClient({ profiles, leaves: initialLeaves, reviews: initialRevi
       {tab === 'performance' && (
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <p className="text-sm text-text-secondary">Trimestre corrente: <span className="text-gold font-bold">{currentQuarter}</span></p>
+            <p className="text-sm text-text-secondary">Trimestre corrente: <span className="text-gold-text font-bold">{currentQuarter}</span></p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {teamProfiles.map(p => {
@@ -462,24 +462,24 @@ export function HRClient({ profiles, leaves: initialLeaves, reviews: initialRevi
                 ? (((review.score_quality ?? 0) + (review.score_speed ?? 0) + (review.score_communication ?? 0) + (review.score_initiative ?? 0)) / 4).toFixed(1)
                 : null
               return (
-                <div key={p.id} className="bg-surface border border-[#2A2A2A] rounded-xl p-5 space-y-3">
+                <div key={p.id} className="bg-surface border border-border rounded-xl p-5 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gold/10 flex items-center justify-center text-xs font-black text-gold overflow-hidden">
+                      <div className="w-8 h-8 rounded-full bg-gold/10 flex items-center justify-center text-xs font-black text-gold-text overflow-hidden">
                         {avatar(p)}
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-white">{p.full_name}</p>
+                        <p className="text-sm font-bold text-text-primary">{p.full_name}</p>
                         <p className="text-xs text-text-secondary capitalize">{p.app_role}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       {avg
                         ? <span className={`text-lg font-black ${parseFloat(avg) >= 4 ? 'text-success' : parseFloat(avg) >= 3 ? 'text-warning' : 'text-error'}`}>{avg}<span className="text-xs text-text-secondary">/5</span></span>
-                        : <span className="text-xs text-[#444]">Non valutato</span>
+                        : <span className="text-xs text-text-tertiary">Non valutato</span>
                       }
                       {isAdmin && (
-                        <button onClick={() => setReviewTarget(p)} className="p-1.5 text-text-secondary hover:text-gold">
+                        <button onClick={() => setReviewTarget(p)} className="p-1.5 text-text-secondary hover:text-gold-text">
                           <Edit2 className="w-4 h-4" />
                         </button>
                       )}
@@ -491,11 +491,11 @@ export function HRClient({ profiles, leaves: initialLeaves, reviews: initialRevi
                       <ScoreBar label="Velocità" value={review.score_speed} />
                       <ScoreBar label="Comunicazione" value={review.score_communication} />
                       <ScoreBar label="Iniziativa" value={review.score_initiative} />
-                      {review.strengths && <p className="text-xs text-text-secondary border-t border-[#2A2A2A] pt-2">💪 {review.strengths}</p>}
+                      {review.strengths && <p className="text-xs text-text-secondary border-t border-border pt-2">💪 {review.strengths}</p>}
                       {review.improvements && <p className="text-xs text-text-secondary">📈 {review.improvements}</p>}
                     </div>
                   ) : (
-                    <p className="text-xs text-[#444]">Nessuna review per {currentQuarter}</p>
+                    <p className="text-xs text-text-tertiary">Nessuna review per {currentQuarter}</p>
                   )}
                 </div>
               )

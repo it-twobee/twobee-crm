@@ -50,10 +50,10 @@ function channelDisplayName(ch: ChatChannel): string {
 }
 
 const KIND_BADGE: Record<string, { label: string; cls: string }> = {
-  growth:    { label: 'G', cls: 'bg-gold/15 text-gold border-gold/25' },
-  digital:   { label: 'D', cls: 'bg-blue-500/15 text-blue-400 border-blue-400/25' },
-  marketing: { label: 'M', cls: 'bg-amber-400/15 text-amber-400 border-amber-400/25' },
-  ai:        { label: 'AI', cls: 'bg-purple-400/15 text-purple-400 border-purple-400/25' },
+  growth:    { label: 'G', cls: 'bg-gold/15 text-gold-text border-gold/25' },
+  digital:   { label: 'D', cls: 'bg-info/15 text-info border-info/25' },
+  marketing: { label: 'M', cls: 'bg-warning/15 text-warning border-warning/25' },
+  ai:        { label: 'AI', cls: 'bg-accent/15 text-accent border-accent/25' },
 }
 
 // ─── Modal: nuovo canale team ────────────────────────────────────────────────
@@ -103,13 +103,13 @@ function NewTeamChannelModal({ onClose, onCreate, currentProfileId, allProfiles 
               className="flex-1 bg-transparent text-sm text-text-primary focus:outline-none placeholder:text-text-secondary" />
             <span className="text-xs text-text-secondary shrink-0">{80 - name.length}</span>
           </InputRow>
-          {name && slug !== name.trim() && <p className="text-[10px] text-text-secondary mt-1">Slug: {slug}</p>}
-          {name && !slug && <p className="text-[10px] text-error mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />Nome non valido</p>}
+          {name && slug !== name.trim() && <p className="text-2xs text-text-secondary mt-1">Slug: {slug}</p>}
+          {name && !slug && <p className="text-2xs text-error mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />Nome non valido</p>}
         </div>
         <div className="flex items-center justify-between pt-1">
-          <span className="text-[10px] text-text-secondary">Passaggio 1 di 2</span>
+          <span className="text-2xs text-text-secondary">Passaggio 1 di 2</span>
           <button disabled={!slug} onClick={() => setStep(2)}
-            className="px-5 py-2 bg-gold text-black font-bold rounded-xl text-sm hover:bg-yellow-400 disabled:opacity-30 transition-colors">
+            className="px-5 py-2 bg-gold text-on-gold font-bold rounded-xl text-sm hover:bg-gold/90 disabled:opacity-30 transition-colors">
             Avanti
           </button>
         </div>
@@ -131,11 +131,11 @@ function NewTeamChannelModal({ onClose, onCreate, currentProfileId, allProfiles 
             return (
               <button key={p.id} onClick={() => toggle(p.id)}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-colors text-left ${sel ? 'bg-gold/10 border border-gold/30' : 'hover:bg-surface-hover'}`}>
-                <div className="w-7 h-7 rounded-full bg-gold/20 flex items-center justify-center text-gold text-[10px] font-bold overflow-hidden shrink-0">
+                <div className="w-7 h-7 rounded-full bg-gold/20 flex items-center justify-center text-gold-text text-2xs font-bold overflow-hidden shrink-0">
                   {p.avatar_url ? <img src={p.avatar_url} className="w-full h-full object-cover" alt="" /> : (p.full_name || '?')[0].toUpperCase()}
                 </div>
                 <span className="text-sm text-text-primary flex-1 truncate">{p.full_name}</span>
-                {sel && <Check className="w-4 h-4 text-gold shrink-0" />}
+                {sel && <Check className="w-4 h-4 text-gold-text shrink-0" />}
               </button>
             )
           })}
@@ -144,10 +144,10 @@ function NewTeamChannelModal({ onClose, onCreate, currentProfileId, allProfiles 
         <div className="flex items-center justify-between pt-1">
           <div className="flex items-center gap-2">
             <button onClick={() => setStep(1)} className="text-xs text-text-secondary hover:text-text-primary transition-colors">← Indietro</button>
-            <span className="text-[10px] text-text-secondary">Passaggio 2 di 2</span>
+            <span className="text-2xs text-text-secondary">Passaggio 2 di 2</span>
           </div>
           <button onClick={createChannel} disabled={loading}
-            className="px-5 py-2 bg-gold text-black font-bold rounded-xl text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center gap-1.5 transition-colors">
+            className="px-5 py-2 bg-gold text-on-gold font-bold rounded-xl text-sm hover:bg-gold/90 disabled:opacity-50 flex items-center gap-1.5 transition-colors">
             {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
             {selectedIds.length > 0 ? `Crea con ${selectedIds.length + 1}` : 'Crea canale'}
           </button>
@@ -198,7 +198,7 @@ function InviteExternalModal({ channelId, onClose }: { channelId: string; onClos
             placeholder="nome@azienda.it" required
             className="flex-1 bg-transparent text-sm text-text-primary focus:outline-none placeholder:text-text-secondary" />
         </InputRow>
-        <p className="text-[10px] text-text-secondary">Max 10 esterni per progetto. L'utente deve avere un profilo registrato.</p>
+        <p className="text-2xs text-text-secondary">Max 10 esterni per progetto. L'utente deve avere un profilo registrato.</p>
         <ModalButtons onClose={onClose} loading={loading} label="Invita" />
       </form>
     </Modal>
@@ -242,7 +242,7 @@ function RenameModal({ channel, onClose, onRename }: {
 
 function Modal({ title, icon, onClose, children }: { title: string; icon: React.ReactNode; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-surface border border-border rounded-2xl w-full max-w-sm">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">{icon}<h2 className="text-sm font-bold text-text-primary">{title}</h2></div>
@@ -266,7 +266,7 @@ function ModalButtons({ onClose, loading, label = 'Crea' }: { onClose: () => voi
   return (
     <div className="flex gap-3 mt-2">
       <button type="button" onClick={onClose} className="flex-1 py-2 border border-border rounded-xl text-sm text-text-secondary hover:text-text-primary transition-colors">Annulla</button>
-      <button type="submit" disabled={loading} className="flex-1 py-2 bg-gold text-black font-bold rounded-xl text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-1.5">
+      <button type="submit" disabled={loading} className="flex-1 py-2 bg-gold text-on-gold font-bold rounded-xl text-sm hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-1.5">
         {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} {label}
       </button>
     </div>
@@ -305,15 +305,15 @@ function ChannelMenu({ channel, onClose, onRename, onArchive, onDelete }: {
   return (
     <div ref={ref} className="absolute right-0 top-6 w-48 bg-surface border border-border rounded-xl shadow-2xl z-50 py-1 overflow-hidden">
       <div className="px-3 py-1.5 border-b border-border mb-1">
-        <p className="text-[9px] text-text-secondary uppercase tracking-wider font-bold flex items-center gap-1">
-          <Shield className="w-2.5 h-2.5 text-gold" /> Admin · #{channel.name}
+        <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold flex items-center gap-1">
+          <Shield className="w-2.5 h-2.5 text-gold-text" /> Admin · #{channel.name}
         </p>
       </div>
       <MenuItem icon={<Pencil className="w-3 h-3" />} label="Rinomina" onClick={() => { onRename(); onClose() }} />
       <MenuItem icon={busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Archive className="w-3 h-3" />}
         label={channel.is_archived ? 'Riattiva' : 'Archivia'}
         onClick={archive}
-        className={channel.is_archived ? 'text-blue-400' : ''} />
+        className={channel.is_archived ? 'text-info' : ''} />
       <div className="h-px bg-border my-1" />
       <MenuItem icon={<Trash2 className="w-3 h-3" />} label="Elimina" onClick={del} className="text-error hover:bg-error/10" />
     </div>
@@ -352,16 +352,16 @@ function ChannelRow({ channel, active, onClick, isAdmin, onRename, onArchive, on
           ${indent ? 'pl-6 pr-2' : 'px-3'}
           ${active ? 'text-text-primary font-semibold' : hasUnread ? 'text-text-primary font-bold' : 'text-text-secondary hover:text-text-primary'}`}>
         {isCC
-          ? <Headphones className={`w-3 h-3 shrink-0 ${hasUnread ? 'text-gold' : 'text-text-secondary'}`} />
+          ? <Headphones className={`w-3 h-3 shrink-0 ${hasUnread ? 'text-gold-text' : 'text-text-secondary'}`} />
           : isInternal
-            ? <Lock className={`w-3 h-3 shrink-0 ${hasUnread ? 'text-gold' : 'text-text-secondary'}`} />
+            ? <Lock className={`w-3 h-3 shrink-0 ${hasUnread ? 'text-gold-text' : 'text-text-secondary'}`} />
             : <span className="text-text-secondary text-xs shrink-0">#</span>}
         <span className="truncate">{label}</span>
-        {channel.is_archived && <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />}
+        {channel.is_archived && <span className="w-1.5 h-1.5 rounded-full bg-info shrink-0" />}
       </button>
 
       {hasUnread && !showMenu && (
-        <span className={`text-[9px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full mr-1 shrink-0 min-w-[18px] text-center leading-none
+        <span className={`text-2xs font-bold bg-error text-text-primary px-1.5 py-0.5 rounded-full mr-1 shrink-0 min-w-[18px] text-center leading-none
           ${isAdmin ? 'group-hover:hidden' : ''}`}>
           {unread! > 99 ? '99+' : unread}
         </span>
@@ -370,7 +370,7 @@ function ChannelRow({ channel, active, onClick, isAdmin, onRename, onArchive, on
       {isAdmin && (
         <div className="flex items-center pr-1 shrink-0">
           <button onClick={e => { e.stopPropagation(); setShowMenu(v => !v) }}
-            className={`p-1 rounded transition-colors opacity-0 group-hover:opacity-100 ${showMenu ? 'text-gold bg-gold/10' : 'text-text-tertiary hover:text-text-primary hover:bg-overlay/5'}`}>
+            className={`p-1 rounded transition-colors opacity-0 group-hover:opacity-100 ${showMenu ? 'text-gold-text bg-gold/10' : 'text-text-tertiary hover:text-text-primary hover:bg-overlay/5'}`}>
             <MoreHorizontal className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -416,16 +416,16 @@ function ProjectGroup({ project, channels, activeId, onSelect, isAdmin, onRename
             {title}
           </span>
           {project.client && (
-            <span className="block text-[9px] text-text-secondary truncate leading-none mt-0.5">{project.client.company_name}</span>
+            <span className="block text-2xs text-text-secondary truncate leading-none mt-0.5">{project.client.company_name}</span>
           )}
         </div>
         {totalUnread > 0 && collapsed && (
-          <span className="text-[9px] font-bold bg-gold text-black px-1.5 py-0.5 rounded-full shrink-0 min-w-[18px] text-center leading-none">
+          <span className="text-2xs font-bold bg-gold text-on-gold px-1.5 py-0.5 rounded-full shrink-0 min-w-[18px] text-center leading-none">
             {totalUnread > 99 ? '99+' : totalUnread}
           </span>
         )}
         <Link href={`/clienti/${project.client_id}/progetto/${project.id}`} onClick={e => e.stopPropagation()}
-          className="opacity-0 group-hover/pg:opacity-100 p-0.5 text-text-secondary hover:text-gold transition-all shrink-0">
+          className="opacity-0 group-hover/pg:opacity-100 p-0.5 text-text-secondary hover:text-gold-text transition-all shrink-0">
           <ExternalLink className="w-2.5 h-2.5" />
         </Link>
       </div>
@@ -445,7 +445,7 @@ function ProjectGroup({ project, channels, activeId, onSelect, isAdmin, onRename
               if (ccChannel) onInviteExternal(ccChannel.id)
               else toast.info('Nessun canale Customer Care trovato per questo progetto')
             }}
-              className="flex items-center gap-1.5 pl-6 pr-2 py-1 text-[10px] text-text-secondary hover:text-gold transition-colors w-full text-left">
+              className="flex items-center gap-1.5 pl-6 pr-2 py-1 text-2xs text-text-secondary hover:text-gold-text transition-colors w-full text-left">
               <UserPlus className="w-2.5 h-2.5" /> Invita esterno
             </button>
           )}
@@ -466,7 +466,7 @@ function SidebarSection({ label, icon, onAdd, defaultCollapsed = false, children
     <div className="mb-3">
       <div className="flex items-center gap-1 px-2 py-1 cursor-pointer group/sec" onClick={() => setCollapsed(v => !v)}>
         {collapsed ? <ChevronRight className="w-2.5 h-2.5 text-text-secondary" /> : <ChevronDown className="w-2.5 h-2.5 text-text-secondary" />}
-        <span className="flex items-center gap-1 text-[10px] font-bold text-text-secondary uppercase tracking-widest flex-1">{icon}{label}</span>
+        <span className="flex items-center gap-1 text-2xs font-bold text-text-secondary uppercase tracking-widest flex-1">{icon}{label}</span>
         {onAdd && (
           <button onClick={e => { e.stopPropagation(); onAdd() }}
             className="opacity-0 group-hover/sec:opacity-100 transition-opacity text-text-secondary hover:text-text-primary p-0.5">
@@ -585,8 +585,8 @@ export function ChatLayout({ channels: initialChannels, currentProfile, allProfi
         <div className="px-4 py-3 border-b border-border">
           <div className="flex items-center justify-between mb-2">
             <div>
-              <p className="text-sm font-black text-text-primary leading-none">two bee<span className="text-gold">.</span></p>
-              <p className="text-[10px] text-text-secondary mt-0.5">Chat</p>
+              <p className="text-sm font-black text-text-primary leading-none">two bee<span className="text-gold-text">.</span></p>
+              <p className="text-2xs text-text-secondary mt-0.5">Chat</p>
             </div>
             {isAdmin && (
               <button onClick={() => setShowNewTeam(true)}
@@ -611,7 +611,7 @@ export function ChatLayout({ channels: initialChannels, currentProfile, allProfi
           <SidebarSection label="Team" icon={<Users className="w-2.5 h-2.5" />}
             onAdd={isAdmin ? () => setShowNewTeam(true) : undefined}>
             {filteredTeam.length === 0
-              ? <p className="text-[10px] text-text-secondary px-3 py-1 italic">Nessun canale</p>
+              ? <p className="text-2xs text-text-secondary px-3 py-1 italic">Nessun canale</p>
               : filteredTeam.map(ch => (
                 <ChannelRow key={ch.id} channel={ch} active={activeChannel?.id === ch.id}
                   onClick={() => selectChannel(ch)} isAdmin={isAdmin}
@@ -624,7 +624,7 @@ export function ChatLayout({ channels: initialChannels, currentProfile, allProfi
           {/* Progetti attivi */}
           <SidebarSection label="Progetti attivi" icon={<FolderKanban className="w-2.5 h-2.5" />}>
             {filteredProjectIds.length === 0
-              ? <p className="text-[10px] text-text-secondary px-3 py-1 italic">Nessun progetto attivo</p>
+              ? <p className="text-2xs text-text-secondary px-3 py-1 italic">Nessun progetto attivo</p>
               : filteredProjectIds
                   .sort((a, b) => {
                     const aU = (projectChannels[a] ?? []).reduce((s, c) => s + (unreadCounts[c.id] ?? 0), 0)
@@ -667,16 +667,16 @@ export function ChatLayout({ channels: initialChannels, currentProfile, allProfi
 
         {/* User footer */}
         <div className="border-t border-border px-3 py-2.5 flex items-center gap-2">
-          <div className="w-7 h-7 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold text-[10px] font-bold overflow-hidden shrink-0">
+          <div className="w-7 h-7 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold-text text-2xs font-bold overflow-hidden shrink-0">
             {currentProfile.avatar_url
               ? <img src={currentProfile.avatar_url} className="w-full h-full object-cover" alt="" />
               : (currentProfile.full_name || '?')[0].toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-text-primary truncate">{currentProfile.full_name}</p>
-            <p className="text-[10px] text-text-secondary flex items-center gap-1">
+            <p className="text-2xs text-text-secondary flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-success inline-block" /> Attivo
-              {isAdmin && <span className="ml-1 text-gold font-semibold">· Super Admin</span>}
+              {isAdmin && <span className="ml-1 text-gold-text font-semibold">· Super Admin</span>}
             </p>
           </div>
         </div>
@@ -710,12 +710,12 @@ export function ChatLayout({ channels: initialChannels, currentProfile, allProfi
             headerExtra={
               activeProject ? (
                 <Link href={`/clienti/${activeProject.client_id}/progetto/${activeProject.id}`}
-                  className="text-[10px] text-text-secondary hover:text-gold transition-colors flex items-center gap-1 ml-1">
+                  className="text-2xs text-text-secondary hover:text-gold-text transition-colors flex items-center gap-1 ml-1">
                   <ExternalLink className="w-3 h-3" /> vai al progetto
                 </Link>
               ) : activeChannel.client_id ? (
                 <Link href={`/clienti/${activeChannel.client_id}`}
-                  className="text-[10px] text-text-secondary hover:text-gold transition-colors flex items-center gap-1 ml-1">
+                  className="text-2xs text-text-secondary hover:text-gold-text transition-colors flex items-center gap-1 ml-1">
                   <ExternalLink className="w-3 h-3" /> vai al cliente
                 </Link>
               ) : undefined

@@ -80,9 +80,9 @@ export function AIDashboardChat({ context }: { context: AIContext }) {
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <div className="flex items-center gap-2">
               <div className="w-5 h-5 rounded-full bg-gold-dim border border-gold/20 flex items-center justify-center">
-                <Sparkles className="w-2.5 h-2.5 text-gold" />
+                <Sparkles className="w-2.5 h-2.5 text-gold-text" />
               </div>
-              <span className="text-xs font-bold text-gold tracking-wide">TWO BEE AI</span>
+              <span className="text-xs font-bold text-gold-text tracking-wide">TWO BEE AI</span>
             </div>
             <button onClick={() => setMessages([])}
               className="text-text-tertiary hover:text-text-secondary transition-colors p-1 rounded-lg hover:bg-surface-hover">
@@ -103,7 +103,7 @@ export function AIDashboardChat({ context }: { context: AIContext }) {
                 ) : (
                   <div className="flex gap-3 items-start">
                     <div className="w-6 h-6 rounded-full bg-gold-dim border border-gold/20 flex items-center justify-center shrink-0 mt-0.5">
-                      <Sparkles className="w-3 h-3 text-gold" />
+                      <Sparkles className="w-3 h-3 text-gold-text" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-text-secondary leading-relaxed">{msg.text}</p>
@@ -113,7 +113,7 @@ export function AIDashboardChat({ context }: { context: AIContext }) {
                             <Link key={j} href={a.href}
                               className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-border bg-surface text-text-secondary hover:text-text-primary hover:border-gold/30 transition-all group">
                               {a.icon && ICON_MAP[a.icon] && (
-                                <span className="text-text-tertiary group-hover:text-gold transition-colors">
+                                <span className="text-text-tertiary group-hover:text-gold-text transition-colors">
                                   {ICON_MAP[a.icon]}
                                 </span>
                               )}
@@ -132,7 +132,7 @@ export function AIDashboardChat({ context }: { context: AIContext }) {
             {loading && (
               <div className="flex gap-3 items-start">
                 <div className="w-6 h-6 rounded-full bg-gold-dim border border-gold/20 flex items-center justify-center shrink-0">
-                  <Sparkles className="w-3 h-3 text-gold" />
+                  <Sparkles className="w-3 h-3 text-gold-text" />
                 </div>
                 <div className="flex items-center gap-2 py-1">
                   <div className="flex gap-1">

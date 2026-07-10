@@ -130,22 +130,22 @@ export function ChatBridgeWidget({ internalChannelId, customerCareChannelId }: {
             {events.map(ev => (
               <div key={ev.id} className="bg-surface border border-border rounded-lg p-3 space-y-2">
                 <div className="flex items-start gap-2">
-                  <div className="w-6 h-6 rounded-full bg-info/20 flex items-center justify-center text-[9px] font-bold text-info shrink-0 mt-0.5">
+                  <div className="w-6 h-6 rounded-full bg-info/20 flex items-center justify-center text-2xs font-bold text-info shrink-0 mt-0.5">
                     {(ev.message?.sender?.full_name ?? 'C')[0]}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] text-info font-semibold">{ev.message?.sender?.full_name ?? 'Cliente'}</p>
+                    <p className="text-2xs text-info font-semibold">{ev.message?.sender?.full_name ?? 'Cliente'}</p>
                     <p className="text-xs text-text-primary mt-0.5 line-clamp-3">{ev.message?.content ?? '(messaggio)'}</p>
                   </div>
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => handleAction(ev.id, 'accepted')} disabled={acting === ev.id}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-success/10 text-success text-[10px] font-bold rounded-lg hover:bg-success/20 transition-colors disabled:opacity-50">
+                    className="flex items-center gap-1 px-3 py-1.5 bg-success/10 text-success text-2xs font-bold rounded-lg hover:bg-success/20 transition-colors disabled:opacity-50">
                     {acting === ev.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
                     Condividi <Sparkles className="w-2.5 h-2.5" />
                   </button>
                   <button onClick={() => handleAction(ev.id, 'declined')} disabled={acting === ev.id}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-error/10 text-error text-[10px] font-bold rounded-lg hover:bg-error/20 transition-colors disabled:opacity-50">
+                    className="flex items-center gap-1 px-3 py-1.5 bg-error/10 text-error text-2xs font-bold rounded-lg hover:bg-error/20 transition-colors disabled:opacity-50">
                     <X className="w-3 h-3" /> Ignora
                   </button>
                 </div>

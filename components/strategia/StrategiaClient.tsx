@@ -28,22 +28,22 @@ interface Props {
 
 type Tab = 'okr' | 'roadmap' | 'note'
 
-const ic = 'w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold/50'
+const ic = 'w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/50'
 
 const OKR_STATUS: Record<OkrStatus, { label: string; color: string; bg: string }> = {
-  attivo:      { label: 'Attivo',      color: 'text-gold',    bg: 'bg-gold/10' },
+  attivo:      { label: 'Attivo',      color: 'text-gold-text',    bg: 'bg-gold/10' },
   completato:  { label: 'Completato',  color: 'text-success', bg: 'bg-success/10' },
-  abbandonato: { label: 'Abbandonato', color: 'text-[#444]',  bg: 'bg-[#1A1A1A]' },
+  abbandonato: { label: 'Abbandonato', color: 'text-text-tertiary',  bg: 'bg-surface' },
 }
 const KR_STATUS: Record<KrStatus, { label: string; color: string }> = {
-  in_corso:    { label: 'In corso',    color: 'text-white' },
+  in_corso:    { label: 'In corso',    color: 'text-text-primary' },
   completato:  { label: 'Completato',  color: 'text-success' },
   a_rischio:   { label: 'A rischio',   color: 'text-error' },
-  abbandonato: { label: 'Abbandonato', color: 'text-[#444]' },
+  abbandonato: { label: 'Abbandonato', color: 'text-text-tertiary' },
 }
 const ROAD_STATUS: Record<RoadmapStatus, { label: string; color: string; bg: string }> = {
-  pianificato: { label: 'Pianificato', color: 'text-text-secondary', bg: 'bg-[#2A2A2A]' },
-  in_corso:    { label: 'In corso',    color: 'text-gold',    bg: 'bg-gold/10' },
+  pianificato: { label: 'Pianificato', color: 'text-text-secondary', bg: 'bg-surface-active' },
+  in_corso:    { label: 'In corso',    color: 'text-gold-text',    bg: 'bg-gold/10' },
   completato:  { label: 'Completato',  color: 'text-success', bg: 'bg-success/10' },
   bloccato:    { label: 'Bloccato',    color: 'text-error',   bg: 'bg-error/10' },
   rinviato:    { label: 'Rinviato',    color: 'text-warning', bg: 'bg-warning/10' },
@@ -51,19 +51,19 @@ const ROAD_STATUS: Record<RoadmapStatus, { label: string; color: string; bg: str
 const ROAD_PRIORITY: Record<RoadmapPriority, { label: string; color: string }> = {
   critica: { label: 'Critica', color: 'text-error' },
   alta:    { label: 'Alta',    color: 'text-warning' },
-  media:   { label: 'Media',   color: 'text-white' },
+  media:   { label: 'Media',   color: 'text-text-primary' },
   bassa:   { label: 'Bassa',   color: 'text-text-secondary' },
 }
 const NOTE_TYPE: Record<StrategicNoteType, { label: string; icon: React.ReactNode; color: string }> = {
   nota:           { label: 'Nota',            icon: <FileText className="w-3.5 h-3.5" />,   color: 'text-text-secondary' },
-  verbale:        { label: 'Verbale',         icon: <BookOpen className="w-3.5 h-3.5" />,   color: 'text-blue-400' },
-  decisione:      { label: 'Decisione',       icon: <Zap className="w-3.5 h-3.5" />,        color: 'text-gold' },
-  retrospettiva:  { label: 'Retrospettiva',   icon: <TrendingUp className="w-3.5 h-3.5" />, color: 'text-purple-400' },
+  verbale:        { label: 'Verbale',         icon: <BookOpen className="w-3.5 h-3.5" />,   color: 'text-info' },
+  decisione:      { label: 'Decisione',       icon: <Zap className="w-3.5 h-3.5" />,        color: 'text-gold-text' },
+  retrospettiva:  { label: 'Retrospettiva',   icon: <TrendingUp className="w-3.5 h-3.5" />, color: 'text-accent' },
 }
 const AREAS = ['commerciale', 'operativa', 'brand', 'hr', 'tech', 'prodotto']
 const AREA_COLOR: Record<string, string> = {
-  commerciale: '#F5C800', operativa: '#10B981', brand: '#EC4899',
-  hr: '#A855F7', tech: '#3B82F6', prodotto: '#F97316',
+  commerciale: 'var(--color-gold-text)', operativa: 'var(--color-success)', brand: 'var(--color-accent)',
+  hr: 'var(--color-accent)', tech: 'var(--color-info)', prodotto: 'var(--color-orange)',
 }
 
 function calcOkrProgress(krs: KeyResult[]) {
@@ -79,7 +79,7 @@ function ProgressRing({ pct, size = 44 }: { pct: number; size?: number }) {
   const r = (size / 2) - 4
   const circ = 2 * Math.PI * r
   const offset = circ - (pct / 100) * circ
-  const color = pct >= 80 ? '#22C55E' : pct >= 50 ? '#F5C800' : '#EF4444'
+  const color = pct >= 80 ? 'var(--color-success)' : pct >= 50 ? 'var(--color-gold-text)' : 'var(--color-error)'
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
       <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#2A2A2A" strokeWidth="3.5" />
@@ -139,11 +139,11 @@ function OkrModal({ obj, profiles, currentUserId, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-[#161616] border border-[#2A2A2A] rounded-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A] sticky top-0 bg-[#161616]">
-          <h2 className="text-base font-bold text-white">{obj ? 'Modifica obiettivo' : 'Nuovo obiettivo (OKR)'}</h2>
+      <div className="bg-surface border border-border rounded-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-surface">
+          <h2 className="text-base font-bold text-text-primary">{obj ? 'Modifica obiettivo' : 'Nuovo obiettivo (OKR)'}</h2>
           <button onClick={onClose}><X className="w-5 h-5 text-text-secondary" /></button>
         </div>
         <form onSubmit={save} className="p-6 space-y-4">
@@ -180,20 +180,20 @@ function OkrModal({ obj, profiles, currentUserId, onClose, onSaved }: {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs text-text-secondary">Key Results</label>
-              <button type="button" onClick={addKr} className="text-xs text-gold hover:underline flex items-center gap-1"><Plus className="w-3 h-3" /> Aggiungi KR</button>
+              <button type="button" onClick={addKr} className="text-xs text-gold-text hover:underline flex items-center gap-1"><Plus className="w-3 h-3" /> Aggiungi KR</button>
             </div>
             {krs.map((kr, i) => (
-              <div key={i} className="bg-[#111] border border-[#2A2A2A] rounded-lg p-3 space-y-2">
+              <div key={i} className="bg-background border border-border rounded-lg p-3 space-y-2">
                 <div className="flex gap-2">
                   <input value={kr.title ?? ''} onChange={e => updateKr(i, 'title', e.target.value)}
-                    placeholder={`KR ${i + 1}: es. Churn rate < 5%`} className="flex-1 bg-transparent text-xs text-white outline-none border-b border-[#2A2A2A] pb-1" />
+                    placeholder={`KR ${i + 1}: es. Churn rate < 5%`} className="flex-1 bg-transparent text-xs text-text-primary outline-none border-b border-border pb-1" />
                   <button type="button" onClick={() => removeKr(i)}><X className="w-3.5 h-3.5 text-text-secondary" /></button>
                 </div>
                 <div className="flex gap-2">
                   <input type="number" value={kr.target_value ?? ''} onChange={e => updateKr(i, 'target_value', parseFloat(e.target.value))}
-                    placeholder="Target" className="w-20 bg-transparent text-xs text-white outline-none border-b border-[#2A2A2A] pb-1" />
+                    placeholder="Target" className="w-20 bg-transparent text-xs text-text-primary outline-none border-b border-border pb-1" />
                   <select value={kr.unit ?? '%'} onChange={e => updateKr(i, 'unit', e.target.value)}
-                    className="bg-transparent text-xs text-text-secondary outline-none border-b border-[#2A2A2A] pb-1">
+                    className="bg-transparent text-xs text-text-secondary outline-none border-b border-border pb-1">
                     {['%', '€', 'n', 'ore', 'clienti', 'ticket'].map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </div>
@@ -202,8 +202,8 @@ function OkrModal({ obj, profiles, currentUserId, onClose, onSaved }: {
           </div>
 
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary">Annulla</button>
-            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary">Annulla</button>
+            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}{obj ? 'Aggiorna' : 'Crea OKR'}
             </button>
           </div>
@@ -248,11 +248,11 @@ function NoteModal({ note, currentUserId, profiles, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-[#161616] border border-[#2A2A2A] rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A] sticky top-0 bg-[#161616]">
-          <h2 className="text-base font-bold text-white">{note ? 'Modifica nota' : 'Nuova nota strategica'}</h2>
+      <div className="bg-surface border border-border rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-surface">
+          <h2 className="text-base font-bold text-text-primary">{note ? 'Modifica nota' : 'Nuova nota strategica'}</h2>
           <button onClick={onClose}><X className="w-5 h-5 text-text-secondary" /></button>
         </div>
         <form onSubmit={save} className="p-6 space-y-3">
@@ -288,8 +288,8 @@ function NoteModal({ note, currentUserId, profiles, onClose, onSaved }: {
             <Pin className="w-3.5 h-3.5" /> Fissa in cima
           </label>
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary">Annulla</button>
-            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary">Annulla</button>
+            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}{note ? 'Aggiorna' : 'Salva nota'}
             </button>
           </div>
@@ -352,19 +352,19 @@ export function StrategiaClient({ objectives: initialObjs, roadmap: initialRoadm
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-white">Strategia</h1>
+          <h1 className="text-2xl font-black text-text-primary">Strategia</h1>
           <p className="text-text-secondary text-sm mt-0.5">OKR, roadmap e decisioni dell'azienda</p>
         </div>
         <div className="flex gap-2">
           {tab === 'okr' && (
             <button onClick={() => { setEditingOkr(null); setShowOkrModal(true) }}
-              className="flex items-center gap-2 px-4 py-2 bg-gold text-black text-sm font-bold rounded-lg hover:bg-yellow-400">
+              className="flex items-center gap-2 px-4 py-2 bg-gold text-on-gold text-sm font-bold rounded-lg hover:bg-gold/90">
               <Plus className="w-4 h-4" /> Nuovo OKR
             </button>
           )}
           {tab === 'note' && (
             <button onClick={() => { setEditingNote(null); setShowNoteModal(true) }}
-              className="flex items-center gap-2 px-4 py-2 bg-gold text-black text-sm font-bold rounded-lg hover:bg-yellow-400">
+              className="flex items-center gap-2 px-4 py-2 bg-gold text-on-gold text-sm font-bold rounded-lg hover:bg-gold/90">
               <Plus className="w-4 h-4" /> Nuova nota
             </button>
           )}
@@ -377,7 +377,7 @@ export function StrategiaClient({ objectives: initialObjs, roadmap: initialRoadm
                 title, area: 'prodotto', status: 'pianificato', priority: 'media', created_by: currentUserId,
               }).select().single()
               if (data) setRoadmap(p => [...p, data as RoadmapItem])
-            }} className="flex items-center gap-2 px-4 py-2 bg-gold text-black text-sm font-bold rounded-lg hover:bg-yellow-400">
+            }} className="flex items-center gap-2 px-4 py-2 bg-gold text-on-gold text-sm font-bold rounded-lg hover:bg-gold/90">
               <Plus className="w-4 h-4" /> Aggiungi milestone
             </button>
           )}
@@ -387,15 +387,15 @@ export function StrategiaClient({ objectives: initialObjs, roadmap: initialRoadm
       {/* KPI OKR */}
       {tab === 'okr' && (
         <div className="grid grid-cols-3 gap-3">
-          <div className="bg-surface border border-[#2A2A2A] rounded-xl p-4">
+          <div className="bg-surface border border-border rounded-xl p-4">
             <p className="text-xs text-text-secondary mb-1">Obiettivi {filterQuarter === 'current' ? currentQ : filterQuarter}</p>
-            <p className="text-2xl font-black text-white">{totalObjs}</p>
+            <p className="text-2xl font-black text-text-primary">{totalObjs}</p>
           </div>
-          <div className="bg-surface border border-[#2A2A2A] rounded-xl p-4">
+          <div className="bg-surface border border-border rounded-xl p-4">
             <p className="text-xs text-text-secondary mb-1">Completati</p>
             <p className="text-2xl font-black text-success">{completedObjs}/{totalObjs}</p>
           </div>
-          <div className="bg-surface border border-[#2A2A2A] rounded-xl p-4">
+          <div className="bg-surface border border-border rounded-xl p-4">
             <p className="text-xs text-text-secondary mb-1">Progresso medio</p>
             <p className={`text-2xl font-black ${avgProgress >= 70 ? 'text-success' : avgProgress >= 40 ? 'text-warning' : 'text-error'}`}>{avgProgress}%</p>
           </div>
@@ -404,14 +404,14 @@ export function StrategiaClient({ objectives: initialObjs, roadmap: initialRoadm
 
       {/* Tabs */}
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl p-1 gap-1">
+        <div className="flex bg-surface border border-border rounded-xl p-1 gap-1">
           {([
             { key: 'okr', label: 'OKR', icon: <Target className="w-3.5 h-3.5" /> },
             { key: 'roadmap', label: 'Roadmap', icon: <Map className="w-3.5 h-3.5" /> },
             { key: 'note', label: 'Note strategiche', icon: <FileText className="w-3.5 h-3.5" /> },
           ] as { key: Tab; label: string; icon: React.ReactNode }[]).map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${tab === t.key ? 'bg-gold text-black' : 'text-text-secondary hover:text-white'}`}>
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${tab === t.key ? 'bg-gold text-on-gold' : 'text-text-secondary hover:text-text-primary'}`}>
               {t.icon}{t.label}
             </button>
           ))}
@@ -419,13 +419,13 @@ export function StrategiaClient({ objectives: initialObjs, roadmap: initialRoadm
         {tab === 'okr' && (
           <>
             <select value={filterQuarter} onChange={e => setFilterQuarter(e.target.value)}
-              className="bg-surface border border-[#2A2A2A] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none">
+              className="bg-surface border border-border rounded-lg px-3 py-1.5 text-xs text-text-primary focus:outline-none">
               <option value="current">{currentQ} (corrente)</option>
               <option value="tutti">Tutti i trimestri</option>
               {quarters.filter(q => q !== currentQ).map(q => <option key={q} value={q}>{q}</option>)}
             </select>
             <select value={filterArea} onChange={e => setFilterArea(e.target.value)}
-              className="bg-surface border border-[#2A2A2A] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none">
+              className="bg-surface border border-border rounded-lg px-3 py-1.5 text-xs text-text-primary focus:outline-none">
               <option value="tutti">Tutte le aree</option>
               {AREAS.map(a => <option key={a} value={a} className="capitalize">{a}</option>)}
             </select>
@@ -438,9 +438,9 @@ export function StrategiaClient({ objectives: initialObjs, roadmap: initialRoadm
         <div className="space-y-3">
           {filteredObjs.length === 0 && (
             <div className="text-center py-12">
-              <Target className="w-10 h-10 text-[#2A2A2A] mx-auto mb-2" />
+              <Target className="w-10 h-10 text-text-tertiary mx-auto mb-2" />
               <p className="text-sm text-text-secondary">Nessun obiettivo per {filterQuarter === 'current' ? currentQ : 'questo filtro'}</p>
-              <button onClick={() => setShowOkrModal(true)} className="mt-3 text-xs text-gold hover:underline">Crea il primo OKR →</button>
+              <button onClick={() => setShowOkrModal(true)} className="mt-3 text-xs text-gold-text hover:underline">Crea il primo OKR →</button>
             </div>
           )}
           {filteredObjs.map(obj => {
@@ -449,57 +449,57 @@ export function StrategiaClient({ objectives: initialObjs, roadmap: initialRoadm
             const isExp = expandedOkr === obj.id
             const owner = profiles.find(p => p.id === obj.owner_id)
             return (
-              <div key={obj.id} className={`bg-surface border rounded-xl overflow-hidden transition-colors ${isExp ? 'border-gold/30' : 'border-[#2A2A2A]'}`}>
+              <div key={obj.id} className={`bg-surface border rounded-xl overflow-hidden transition-colors ${isExp ? 'border-gold/30' : 'border-border'}`}>
                 <div className="px-5 py-4 flex items-center gap-4 cursor-pointer" onClick={() => setExpandedOkr(isExp ? null : obj.id)}>
                   <ProgressRing pct={progress} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-0.5">
                       {obj.area && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full capitalize"
+                        <span className="text-2xs font-bold px-2 py-0.5 rounded-full capitalize"
                           style={{ color: AREA_COLOR[obj.area] ?? '#888', background: (AREA_COLOR[obj.area] ?? '#888') + '20' }}>
                           {obj.area}
                         </span>
                       )}
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sc.color} ${sc.bg}`}>{sc.label}</span>
-                      <span className="text-[10px] text-text-secondary">{obj.quarter}</span>
-                      {owner && <span className="text-[10px] text-text-secondary">→ {owner.full_name.split(' ')[0]}</span>}
+                      <span className={`text-2xs font-bold px-2 py-0.5 rounded-full ${sc.color} ${sc.bg}`}>{sc.label}</span>
+                      <span className="text-2xs text-text-secondary">{obj.quarter}</span>
+                      {owner && <span className="text-2xs text-text-secondary">→ {owner.full_name.split(' ')[0]}</span>}
                     </div>
-                    <p className="text-sm font-bold text-white">{obj.title}</p>
+                    <p className="text-sm font-bold text-text-primary">{obj.title}</p>
                     {obj.description && !isExp && <p className="text-xs text-text-secondary mt-0.5 truncate">{obj.description}</p>}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-xs text-text-secondary">{obj.key_results.length} KR</span>
                     {isAdmin && (
                       <button onClick={e => { e.stopPropagation(); setEditingOkr(obj); setShowOkrModal(true) }}
-                        className="p-1 text-text-secondary hover:text-gold"><Edit2 className="w-3.5 h-3.5" /></button>
+                        className="p-1 text-text-secondary hover:text-gold-text"><Edit2 className="w-3.5 h-3.5" /></button>
                     )}
                     <ChevronDown className={`w-4 h-4 text-text-secondary transition-transform ${isExp ? 'rotate-180' : ''}`} />
                   </div>
                 </div>
 
                 {isExp && (
-                  <div className="border-t border-[#2A2A2A] px-5 py-4 space-y-3">
+                  <div className="border-t border-border px-5 py-4 space-y-3">
                     {obj.description && <p className="text-xs text-text-secondary">{obj.description}</p>}
-                    {obj.key_results.length === 0 && <p className="text-xs text-[#444]">Nessun Key Result definito</p>}
+                    {obj.key_results.length === 0 && <p className="text-xs text-text-tertiary">Nessun Key Result definito</p>}
                     {obj.key_results.map(kr => {
                       const krPct = kr.target_value ? Math.min(100, Math.round((kr.current_value / kr.target_value) * 100)) : (kr.status === 'completato' ? 100 : 0)
                       const krc = KR_STATUS[kr.status]
                       return (
                         <div key={kr.id} className="space-y-1.5">
                           <div className="flex items-center justify-between gap-2">
-                            <p className="text-xs text-white font-medium flex-1">{kr.title}</p>
-                            <span className={`text-[10px] font-bold ${krc.color}`}>{krc.label}</span>
+                            <p className="text-xs text-text-primary font-medium flex-1">{kr.title}</p>
+                            <span className={`text-2xs font-bold ${krc.color}`}>{krc.label}</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <div className="flex-1 h-1.5 bg-[#2A2A2A] rounded-full overflow-hidden">
+                            <div className="flex-1 h-1.5 bg-surface-active rounded-full overflow-hidden">
                               <div className="h-full rounded-full transition-all"
-                                style={{ width: `${krPct}%`, background: krPct >= 80 ? '#22C55E' : krPct >= 50 ? '#F5C800' : '#EF4444' }} />
+                                style={{ width: `${krPct}%`, background: krPct >= 80 ? 'var(--color-success)' : krPct >= 50 ? 'var(--color-gold-text)' : 'var(--color-error)' }} />
                             </div>
                             {kr.target_value ? (
                               <div className="flex items-center gap-1 shrink-0">
                                 <input type="number" defaultValue={kr.current_value}
                                   onBlur={e => updateKrValue(kr.id, obj.id, parseFloat(e.target.value))}
-                                  className="w-14 bg-transparent text-xs text-gold text-right outline-none border-b border-[#2A2A2A]" />
+                                  className="w-14 bg-transparent text-xs text-gold-text text-right outline-none border-b border-border" />
                                 <span className="text-xs text-text-secondary">/ {kr.target_value}{kr.unit}</span>
                               </div>
                             ) : (
@@ -536,15 +536,15 @@ export function StrategiaClient({ objectives: initialObjs, roadmap: initialRoadm
                   const owner = profiles.find(p => p.id === item.owner_id)
                   const overdue = item.due_date && new Date(item.due_date) < new Date() && item.status !== 'completato'
                   return (
-                    <div key={item.id} className="bg-surface border border-[#2A2A2A] rounded-xl px-4 py-3 flex items-center gap-3">
+                    <div key={item.id} className="bg-surface border border-border rounded-xl px-4 py-3 flex items-center gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sc.color} ${sc.bg}`}>{sc.label}</span>
-                          <span className={`text-[10px] font-bold ${pc.color}`}>{pc.label}</span>
-                          {overdue && <span className="text-[10px] text-error font-bold">⚠ Scaduta</span>}
+                          <span className={`text-2xs font-bold px-2 py-0.5 rounded-full ${sc.color} ${sc.bg}`}>{sc.label}</span>
+                          <span className={`text-2xs font-bold ${pc.color}`}>{pc.label}</span>
+                          {overdue && <span className="text-2xs text-error font-bold">⚠ Scaduta</span>}
                         </div>
-                        <p className={`text-sm font-semibold mt-0.5 ${item.status === 'completato' ? 'line-through text-text-secondary' : 'text-white'}`}>{item.title}</p>
-                        <div className="flex items-center gap-3 mt-0.5 text-[10px] text-text-secondary">
+                        <p className={`text-sm font-semibold mt-0.5 ${item.status === 'completato' ? 'line-through text-text-secondary' : 'text-text-primary'}`}>{item.title}</p>
+                        <div className="flex items-center gap-3 mt-0.5 text-2xs text-text-secondary">
                           {item.due_date && <span className={overdue ? 'text-error' : ''}>{new Date(item.due_date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
                           {owner && <span>→ {owner.full_name.split(' ')[0]}</span>}
                         </div>
@@ -552,7 +552,7 @@ export function StrategiaClient({ objectives: initialObjs, roadmap: initialRoadm
                       <div className="flex gap-1 shrink-0">
                         {(Object.keys(ROAD_STATUS) as RoadmapStatus[]).filter(s => s !== item.status).slice(0, 2).map(s => (
                           <button key={s} onClick={() => updateRoadmapStatus(item.id, s)}
-                            className={`text-[10px] font-bold px-2 py-1 rounded-lg transition-colors ${ROAD_STATUS[s].color} ${ROAD_STATUS[s].bg} opacity-60 hover:opacity-100`}>
+                            className={`text-2xs font-bold px-2 py-1 rounded-lg transition-colors ${ROAD_STATUS[s].color} ${ROAD_STATUS[s].bg} opacity-60 hover:opacity-100`}>
                             {ROAD_STATUS[s].label}
                           </button>
                         ))}
@@ -565,7 +565,7 @@ export function StrategiaClient({ objectives: initialObjs, roadmap: initialRoadm
           })}
           {roadmap.length === 0 && (
             <div className="text-center py-12 text-text-secondary text-sm">
-              <Map className="w-10 h-10 text-[#2A2A2A] mx-auto mb-2" />
+              <Map className="w-10 h-10 text-text-tertiary mx-auto mb-2" />
               Nessuna milestone in roadmap
             </div>
           )}
@@ -578,32 +578,32 @@ export function StrategiaClient({ objectives: initialObjs, roadmap: initialRoadm
           {[...notes].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || new Date(b.date).getTime() - new Date(a.date).getTime()).map(note => {
             const nt = NOTE_TYPE[note.type]
             return (
-              <div key={note.id} className={`bg-surface border rounded-xl p-5 ${note.pinned ? 'border-gold/30' : 'border-[#2A2A2A]'}`}>
+              <div key={note.id} className={`bg-surface border rounded-xl p-5 ${note.pinned ? 'border-gold/30' : 'border-border'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className={nt.color}>{nt.icon}</span>
                       <span className={`text-xs font-bold ${nt.color}`}>{nt.label}</span>
                       <span className="text-xs text-text-secondary">{new Date(note.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                      {note.pinned && <Pin className="w-3 h-3 text-gold" />}
+                      {note.pinned && <Pin className="w-3 h-3 text-gold-text" />}
                     </div>
-                    <p className="text-sm font-bold text-white">{note.title}</p>
+                    <p className="text-sm font-bold text-text-primary">{note.title}</p>
                     {note.content && (
                       <p className="text-xs text-text-secondary mt-2 whitespace-pre-line line-clamp-4">{note.content}</p>
                     )}
                     {note.tags?.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-2">
                         {note.tags.map(t => (
-                          <span key={t} className="text-[10px] px-2 py-0.5 bg-[#2A2A2A] text-text-secondary rounded-full">#{t}</span>
+                          <span key={t} className="text-2xs px-2 py-0.5 bg-surface-active text-text-secondary rounded-full">#{t}</span>
                         ))}
                       </div>
                     )}
                   </div>
                   <div className="flex gap-1 shrink-0">
-                    <button onClick={() => togglePin(note)} className={`p-1.5 rounded-lg hover:bg-[#2A2A2A] ${note.pinned ? 'text-gold' : 'text-text-secondary'}`}>
+                    <button onClick={() => togglePin(note)} className={`p-1.5 rounded-lg hover:bg-surface-active ${note.pinned ? 'text-gold-text' : 'text-text-secondary'}`}>
                       <Pin className="w-3.5 h-3.5" />
                     </button>
-                    <button onClick={() => { setEditingNote(note); setShowNoteModal(true) }} className="p-1.5 text-text-secondary hover:text-gold">
+                    <button onClick={() => { setEditingNote(note); setShowNoteModal(true) }} className="p-1.5 text-text-secondary hover:text-gold-text">
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -613,7 +613,7 @@ export function StrategiaClient({ objectives: initialObjs, roadmap: initialRoadm
           })}
           {notes.length === 0 && (
             <div className="text-center py-12 text-text-secondary text-sm">
-              <FileText className="w-10 h-10 text-[#2A2A2A] mx-auto mb-2" />
+              <FileText className="w-10 h-10 text-text-tertiary mx-auto mb-2" />
               Nessuna nota strategica ancora
             </div>
           )}

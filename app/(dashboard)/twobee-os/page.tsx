@@ -32,7 +32,7 @@ export default async function TwoBeeOSPage() {
           </p>
         </div>
         <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gold-dim border border-gold/15">
-          <span className="text-xs font-black text-gold">👑 GOD MODE</span>
+          <span className="text-xs font-black text-gold-text">👑 GOD MODE</span>
         </div>
       </div>
 

@@ -453,8 +453,8 @@ export default async function DashboardPage() {
         </div>
         {isGod && (
           <div className="flex items-center gap-1.5 bg-gold/[0.08] border border-gold/[0.15] rounded-xl px-3 py-1.5">
-            <Crown className="w-3.5 h-3.5 text-gold" />
-            <span className="text-xs font-black text-gold">GOD MODE</span>
+            <Crown className="w-3.5 h-3.5 text-gold-text" />
+            <span className="text-xs font-black text-gold-text">GOD MODE</span>
           </div>
         )}
       </div>

@@ -15,7 +15,7 @@ export type ExtTask   = Task & { milestone_id?: string | null; parent_id?: strin
 export type ExtSprint = Sprint & { order?: number }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
-const PRIORITY_COLORS: Record<string, string> = { alta: '#EF4444', media: '#F59E0B', bassa: '#6B7280' }
+const PRIORITY_COLORS: Record<string, string> = { alta: 'var(--color-error)', media: 'var(--color-warning)', bassa: 'var(--color-text-tertiary)' }
 const STATUS_TASK_OPTS   = ['da_fare', 'in_corso', 'in_revisione', 'completato']
 const STATUS_TASK_LABEL: Record<string, string>   = { da_fare: 'Da fare', in_corso: 'In corso', in_revisione: 'In revisione', completato: 'Fatto' }
 const STATUS_SPRINT_OPTS: Sprint['status'][]      = ['pianificato', 'in_corso', 'completato']
@@ -23,24 +23,24 @@ const STATUS_SPRINT_LABEL: Record<string, string> = { pianificato: 'Pianificato'
 const PRIORITY_LABELS: Record<string, string>     = { alta: 'Alta', media: 'Media', bassa: 'Bassa' }
 
 // ─── Atoms ───────────────────────────────────────────────────────────────────
-function Avatar({ name, size = 18, color = '#F5C800' }: { name: string; size?: number; color?: string }) {
+function Avatar({ name, size = 18, color = 'var(--color-gold-text)' }: { name: string; size?: number; color?: string }) {
   const ini = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
   return (
     <div className="rounded-full flex items-center justify-center shrink-0 font-bold"
-      style={{ width: size, height: size, fontSize: size * 0.38, background: `${color}18`, color, border: `1.5px solid ${color}30` }}>
+      style={{ width: size, height: size, fontSize: size * 0.38, background: `color-mix(in srgb, ${color} 9%, transparent)`, color, border: `1.5px solid color-mix(in srgb, ${color} 19%, transparent)` }}>
       {ini}
     </div>
   )
 }
 
 function ProgressBar({ pct, accent }: { pct: number; accent: string }) {
-  const color = pct >= 80 ? '#22C55E' : pct >= 40 ? accent : pct > 0 ? '#F59E0B' : '#1A1A1A'
+  const color = pct >= 80 ? 'var(--color-success)' : pct >= 40 ? accent : pct > 0 ? 'var(--color-warning)' : 'var(--color-surface)'
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-1 bg-[#111] rounded-full overflow-hidden" style={{ minWidth: 40 }}>
+      <div className="flex-1 h-1 bg-background rounded-full overflow-hidden" style={{ minWidth: 40 }}>
         <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: color }} />
       </div>
-      <span className="text-[10px] font-bold shrink-0" style={{ color: pct === 0 ? '#333' : color }}>{pct}%</span>
+      <span className="text-2xs font-bold shrink-0" style={{ color: pct === 0 ? '#333' : color }}>{pct}%</span>
     </div>
   )
 }
@@ -61,7 +61,7 @@ function InlineEdit({ value, onSave, disabled, className }: {
 
   if (!editing) return (
     <span
-      className={`${className} ${!disabled ? 'cursor-text hover:text-white' : ''} transition-colors`}
+      className={`${className} ${!disabled ? 'cursor-text hover:text-text-primary' : ''} transition-colors`}
       onDoubleClick={() => { if (!disabled) { setDraft(value); setEditing(true); setTimeout(() => ref.current?.focus(), 10) } }}
       title={!disabled ? 'Doppio clic per modificare' : undefined}>
       {value}
@@ -72,12 +72,12 @@ function InlineEdit({ value, onSave, disabled, className }: {
     <input ref={ref} value={draft} onChange={e => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setEditing(false); setDraft(value) } }}
-      className="bg-transparent border-b focus:outline-none text-white w-full"
-      style={{ borderColor: '#F5C800' }} autoFocus />
+      className="bg-transparent border-b focus:outline-none text-text-primary w-full"
+      style={{ borderColor: 'var(--color-gold-text)' }} autoFocus />
   )
 }
 
-function DatePicker({ value, onChange, disabled, placeholder = 'Nessuna data', accent = '#F5C800', showIcon = true }: {
+function DatePicker({ value, onChange, disabled, placeholder = 'Nessuna data', accent = 'var(--color-gold-text)', showIcon = true }: {
   value: string | null; onChange: (v: string | null) => void
   disabled?: boolean; placeholder?: string; accent?: string; showIcon?: boolean
 }) {
@@ -88,8 +88,8 @@ function DatePicker({ value, onChange, disabled, placeholder = 'Nessuna data', a
   const open = () => { if (!disabled) ref.current?.showPicker?.() ?? ref.current?.click() }
   return (
     <div className={`relative inline-flex items-center gap-1.5 ${disabled ? '' : 'cursor-pointer group/dp'}`} onClick={open}>
-      {showIcon && <Calendar className="w-3 h-3 shrink-0 transition-colors" style={{ color: value ? accent : '#2A2A2A' }} />}
-      <span className={`text-xs transition-colors ${value ? 'text-[#888] group-hover/dp:text-white' : 'text-[#2A2A2A] group-hover/dp:text-[#444]'}`}>
+      {showIcon && <Calendar className="w-3 h-3 shrink-0 transition-colors" style={{ color: value ? accent : 'var(--color-border)' }} />}
+      <span className={`text-xs transition-colors ${value ? 'text-text-secondary group-hover/dp:text-text-primary' : 'text-text-tertiary group-hover/dp:text-text-tertiary'}`}>
         {formatted ?? placeholder}
       </span>
       <input ref={ref} type="date" value={value ?? ''}
@@ -130,38 +130,38 @@ function TaskDetailModal({ task, profiles, isAdmin, onSave, onDelete, onClose, a
     onClose()
   }
 
-  const inp = 'w-full bg-[#111] border border-[#2A2A2A] rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C800]'
+  const inp = 'w-full bg-background border border-border rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold'
 
   return (
-    <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
-      <div className="bg-[#0E0E0E] border border-[#2A2A2A] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md shadow-2xl"
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+      <div className="bg-background border border-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md shadow-2xl"
         onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1A1A1A]">
-          <h3 className="text-sm font-bold text-white">Dettaglio task</h3>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h3 className="text-sm font-bold text-text-primary">Dettaglio task</h3>
           <div className="flex items-center gap-2">
             {isAdmin && (
               <button onClick={() => { if (confirm('Eliminare?')) { onDelete(); onClose() } }}
-                className="p-1.5 text-[#444] hover:text-[#EF4444] hover:bg-[#EF4444]/10 rounded-lg transition-all">
+                className="p-1.5 text-text-tertiary hover:text-error hover:bg-error/10 rounded-lg transition-all">
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             )}
-            <button onClick={onClose} className="p-1.5 text-[#444] hover:text-white"><X className="w-4 h-4" /></button>
+            <button onClick={onClose} className="p-1.5 text-text-tertiary hover:text-text-primary"><X className="w-4 h-4" /></button>
           </div>
         </div>
         <div className="p-5 space-y-3">
           <div>
-            <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Titolo</label>
+            <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Titolo</label>
             <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} disabled={!isAdmin} className={inp} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Priorità</label>
+              <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Priorità</label>
               <select value={form.priority} onChange={e => setForm(p => ({ ...p, priority: e.target.value }))} disabled={!isAdmin} className={inp}>
                 {['alta', 'media', 'bassa'].map(v => <option key={v} value={v}>{PRIORITY_LABELS[v]}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Stato</label>
+              <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Stato</label>
               <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))} disabled={!isAdmin} className={inp}>
                 {STATUS_TASK_OPTS.map(v => <option key={v} value={v}>{STATUS_TASK_LABEL[v]}</option>)}
               </select>
@@ -169,11 +169,11 @@ function TaskDetailModal({ task, profiles, isAdmin, onSave, onDelete, onClose, a
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Scadenza</label>
+              <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Scadenza</label>
               <input type="date" value={form.due_date} onChange={e => setForm(p => ({ ...p, due_date: e.target.value }))} disabled={!isAdmin} className={inp} />
             </div>
             <div>
-              <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Assegnato a</label>
+              <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Assegnato a</label>
               <select value={form.assignee_id} onChange={e => setForm(p => ({ ...p, assignee_id: e.target.value }))} disabled={!isAdmin} className={inp}>
                 <option value="">—</option>
                 {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
@@ -183,9 +183,9 @@ function TaskDetailModal({ task, profiles, isAdmin, onSave, onDelete, onClose, a
         </div>
         {isAdmin && (
           <div className="flex gap-3 px-5 pb-5">
-            <button onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-xl text-sm text-[#555] hover:text-white">Annulla</button>
+            <button onClick={onClose} className="flex-1 py-2.5 border border-border rounded-xl text-sm text-text-tertiary hover:text-text-primary">Annulla</button>
             <button onClick={save} disabled={saving}
-              className="flex-1 py-2.5 rounded-xl text-sm font-bold text-black flex items-center justify-center gap-2 disabled:opacity-50"
+              className="flex-1 py-2.5 rounded-xl text-sm font-bold text-on-gold flex items-center justify-center gap-2 disabled:opacity-50"
               style={{ background: accent }}>
               {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}Salva
             </button>
@@ -258,40 +258,40 @@ function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, mileston
 
   return (
     <div>
-      <div className={`group flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[#0D0D0D] transition-colors ${selectedIds?.has(task.id) ? 'bg-[#F5C800]/[0.06] ring-1 ring-[#F5C800]/20' : ''}`}
+      <div className={`group flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-background transition-colors ${selectedIds?.has(task.id) ? 'bg-gold/[0.06] ring-1 ring-gold/20' : ''}`}
         style={{ paddingLeft: pl + 12 }}>
         {toggleSelect && (
           <button onClick={() => toggleSelect(task.id)}
-            className={`shrink-0 transition-colors ${selectedIds?.has(task.id) ? 'text-[#F5C800]' : 'text-transparent group-hover:text-[#2A2A2A] hover:!text-[#F5C800]'}`}>
+            className={`shrink-0 transition-colors ${selectedIds?.has(task.id) ? 'text-gold-text' : 'text-transparent group-hover:text-text-tertiary hover:!text-gold-text'}`}>
             {selectedIds?.has(task.id) ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
           </button>
         )}
-        {isAdmin && <GripVertical className="w-3 h-3 text-[#222] group-hover:text-[#444] shrink-0 cursor-grab" />}
+        {isAdmin && <GripVertical className="w-3 h-3 text-text-tertiary group-hover:text-text-tertiary shrink-0 cursor-grab" />}
 
-        <button onClick={() => setExpanded(e => !e)} className="w-4 shrink-0 flex items-center justify-center text-[#333] hover:text-[#666]">
+        <button onClick={() => setExpanded(e => !e)} className="w-4 shrink-0 flex items-center justify-center text-text-tertiary hover:text-text-tertiary">
           {children.length > 0
             ? (expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />)
-            : canAdd ? <div className="w-1 h-1 rounded-full bg-[#2A2A2A]" /> : null}
+            : canAdd ? <div className="w-1 h-1 rounded-full bg-surface-active" /> : null}
         </button>
 
         <button onClick={toggleDone}
           className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-all ${
-            isDone    ? 'bg-[#22C55E] border-[#22C55E]' :
-            isBlocked ? 'border-[#EF4444]' : 'border-[#2A2A2A] hover:border-[#555]'
+            isDone    ? 'bg-success border-success' :
+            isBlocked ? 'border-error' : 'border-border hover:border-border-strong'
           }`}>
-          {isDone && <Check className="w-2.5 h-2.5 text-black" />}
-          {isBlocked && <X className="w-2.5 h-2.5 text-[#EF4444]" />}
+          {isDone && <Check className="w-2.5 h-2.5 text-on-gold" />}
+          {isBlocked && <X className="w-2.5 h-2.5 text-error" />}
         </button>
 
         <div className="w-1.5 h-1.5 rounded-full shrink-0"
-          style={{ background: PRIORITY_COLORS[task.priority] ?? '#2A2A2A' }} />
+          style={{ background: PRIORITY_COLORS[task.priority] ?? 'var(--color-border)' }} />
 
         <div className="flex-1 min-w-0">
           <InlineEdit
             value={task.title}
             onSave={v => saveField({ title: v })}
             disabled={!isAdmin}
-            className={`text-sm block w-full ${isDone ? 'line-through text-[#3A3A3A]' : 'text-white'}`}
+            className={`text-sm block w-full ${isDone ? 'line-through text-text-tertiary' : 'text-text-primary'}`}
           />
         </div>
 
@@ -302,25 +302,25 @@ function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, mileston
               onChange={v => saveField({ due_date: v })}
               disabled={!isAdmin}
               placeholder=""
-              accent={isOver ? '#EF4444' : '#888'}
+              accent={isOver ? 'var(--color-error)' : '#888'}
             />
           </div>
           {assignee && <Avatar name={assignee.full_name} size={18} color="#60A5FA" />}
 
           <div className="hidden group-hover:flex items-center gap-0.5">
             <button onClick={() => setShowDetail(true)}
-              className="p-1 rounded text-[#333] hover:text-white hover:bg-white/5 transition-colors">
+              className="p-1 rounded text-text-tertiary hover:text-text-primary hover:bg-surface transition-colors">
               <MoreHorizontal className="w-3 h-3" />
             </button>
             {canAdd && (
               <button onClick={() => { setAdding(true); setExpanded(true); setTimeout(() => addRef.current?.focus(), 30) }}
-                className="p-1 rounded text-[#333] hover:text-white hover:bg-white/5 transition-colors" title="Aggiungi sub-task">
+                className="p-1 rounded text-text-tertiary hover:text-text-primary hover:bg-surface transition-colors" title="Aggiungi sub-task">
                 <Plus className="w-3 h-3" />
               </button>
             )}
             {isAdmin && (
               <button onClick={() => { if (confirm('Eliminare task e sub-task?')) deleteTask() }}
-                className="p-1 rounded text-[#333] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors">
+                className="p-1 rounded text-text-tertiary hover:text-error hover:bg-error/10 transition-colors">
                 <Trash2 className="w-3 h-3" />
               </button>
             )}
@@ -337,16 +337,16 @@ function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, mileston
       {expanded && addingChild && (
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl" style={{ paddingLeft: (depth + 1) * 18 + 12 }}>
           <div className="w-3 shrink-0" />
-          <div className="w-4 h-4 rounded border border-[#2A2A2A] shrink-0" />
-          <div className="w-1.5 h-1.5 rounded-full bg-[#2A2A2A] shrink-0" />
+          <div className="w-4 h-4 rounded border border-border shrink-0" />
+          <div className="w-1.5 h-1.5 rounded-full bg-surface-active shrink-0" />
           <input ref={addRef} value={addDraft} onChange={e => setAddDraft(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') addChild(); if (e.key === 'Escape') { setAdding(false); setAddDraft('') } }}
             placeholder="Sub-task… (Invio)"
-            className="flex-1 bg-transparent text-sm text-white focus:outline-none placeholder:text-[#2A2A2A]" />
-          <button onClick={addChild} disabled={addSaving || !addDraft.trim()} className="p-1 text-[#22C55E] disabled:opacity-40">
+            className="flex-1 bg-transparent text-sm text-text-primary focus:outline-none placeholder:text-text-tertiary" />
+          <button onClick={addChild} disabled={addSaving || !addDraft.trim()} className="p-1 text-success disabled:opacity-40">
             {addSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
           </button>
-          <button onClick={() => { setAdding(false); setAddDraft('') }} className="p-1 text-[#444] hover:text-white"><X className="w-3 h-3" /></button>
+          <button onClick={() => { setAdding(false); setAddDraft('') }} className="p-1 text-text-tertiary hover:text-text-primary"><X className="w-3 h-3" /></button>
         </div>
       )}
 
@@ -380,7 +380,7 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
   const done   = tasks.filter(t => t.status === 'completato').length
   const isDone = milestone.status === 'completato'
   const isOver = !isDone && milestone.due_date && milestone.due_date < new Date().toISOString().slice(0, 10)
-  const milColor = isDone ? '#22C55E' : isOver ? '#EF4444' : accent
+  const milColor = isDone ? 'var(--color-success)' : isOver ? 'var(--color-error)' : accent
   const assignee = profiles.find(p => p.id === milestone.assignee_id)
 
   const saveField = async (patch: Partial<ExtTask>) => {
@@ -413,11 +413,11 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
 
   return (
     <div className="rounded-xl border transition-all mb-1.5"
-      style={{ borderColor: open ? `${milColor}20` : '#1A1A1A' }}>
-      <div className={`group flex items-center gap-2 px-3 py-2.5 rounded-xl transition-colors ${open ? 'bg-[#0C0C0C]' : 'bg-[#090909] hover:bg-[#0C0C0C]'}`}>
-        {isAdmin && <GripVertical className="w-3 h-3 text-[#1A1A1A] group-hover:text-[#333] shrink-0 cursor-grab transition-colors" />}
+      style={{ borderColor: open ? `color-mix(in srgb, ${milColor} 13%, transparent)` : 'var(--color-surface)' }}>
+      <div className={`group flex items-center gap-2 px-3 py-2.5 rounded-xl transition-colors ${open ? 'bg-background' : 'bg-background hover:bg-background'}`}>
+        {isAdmin && <GripVertical className="w-3 h-3 text-text-tertiary group-hover:text-text-tertiary shrink-0 cursor-grab transition-colors" />}
 
-        <button onClick={() => setOpen(o => !o)} className="shrink-0 transition-colors" style={{ color: isDone ? '#22C55E30' : '#2A2A2A' }}>
+        <button onClick={() => setOpen(o => !o)} className="shrink-0 transition-colors" style={{ color: isDone ? '#22C55E30' : 'var(--color-border)' }}>
           {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
         </button>
 
@@ -431,16 +431,16 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
             value={milestone.title}
             onSave={v => saveField({ title: v })}
             disabled={!isAdmin}
-            className={`text-sm font-semibold block w-full ${isDone ? 'line-through text-[#333]' : 'text-[#ddd]'}`}
+            className={`text-sm font-semibold block w-full ${isDone ? 'line-through text-text-tertiary' : 'text-text-secondary'}`}
           />
         </div>
 
         <div className="flex items-center gap-2 ml-1 shrink-0">
           {tasks.length > 0 && (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+            <span className="text-2xs font-bold px-1.5 py-0.5 rounded-full"
               style={{
-                background: done === tasks.length ? '#22C55E18' : '#1A1A1A',
-                color: done === tasks.length ? '#22C55E' : '#444',
+                background: done === tasks.length ? '#22C55E18' : 'var(--color-surface)',
+                color: done === tasks.length ? 'var(--color-success)' : '#444',
               }}>
               {done}/{tasks.length}
             </span>
@@ -451,13 +451,13 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
               onChange={v => isAdmin && saveField({ due_date: v })}
               disabled={!isAdmin}
               placeholder="Scadenza"
-              accent={isOver ? '#EF4444' : accent}
+              accent={isOver ? 'var(--color-error)' : accent}
             />
           </div>
           {assignee && <Avatar name={assignee.full_name} size={18} color={accent} />}
           {isAdmin && (
             <button onClick={deleteMilestone}
-              className="p-1 rounded opacity-0 group-hover:opacity-100 transition-all text-[#222] hover:text-[#EF4444] hover:bg-[#EF4444]/10">
+              className="p-1 rounded opacity-0 group-hover:opacity-100 transition-all text-text-tertiary hover:text-error hover:bg-error/10">
               <Trash2 className="w-3 h-3" />
             </button>
           )}
@@ -474,21 +474,21 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
 
           {addingTask ? (
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl">
-              <div className="w-4 h-4 rounded border border-[#2A2A2A] shrink-0" />
-              <div className="w-1.5 h-1.5 rounded-full bg-[#2A2A2A] shrink-0" />
+              <div className="w-4 h-4 rounded border border-border shrink-0" />
+              <div className="w-1.5 h-1.5 rounded-full bg-surface-active shrink-0" />
               <input ref={addRef} value={taskDraft} onChange={e => setDraft(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') addTask(); if (e.key === 'Escape') { setAdding(false); setDraft('') } }}
                 placeholder="Nuova task… (Invio)"
-                className="flex-1 bg-transparent text-sm text-white focus:outline-none placeholder:text-[#2A2A2A]"
+                className="flex-1 bg-transparent text-sm text-text-primary focus:outline-none placeholder:text-text-tertiary"
                 autoFocus />
-              <button onClick={addTask} disabled={saving || !taskDraft.trim()} className="p-1 text-[#22C55E] disabled:opacity-40">
+              <button onClick={addTask} disabled={saving || !taskDraft.trim()} className="p-1 text-success disabled:opacity-40">
                 {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
               </button>
-              <button onClick={() => { setAdding(false); setDraft('') }} className="p-1 text-[#444] hover:text-white"><X className="w-3 h-3" /></button>
+              <button onClick={() => { setAdding(false); setDraft('') }} className="p-1 text-text-tertiary hover:text-text-primary"><X className="w-3 h-3" /></button>
             </div>
           ) : isAdmin && (
             <button onClick={() => { setAdding(true); setTimeout(() => addRef.current?.focus(), 30) }}
-              className="flex items-center gap-1.5 w-full px-3 py-1.5 text-[10px] text-[#2A2A2A] hover:text-[#555] transition-colors">
+              className="flex items-center gap-1.5 w-full px-3 py-1.5 text-2xs text-text-tertiary hover:text-text-tertiary transition-colors">
               <Plus className="w-3 h-3" /> Aggiungi task
             </button>
           )}
@@ -547,23 +547,23 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, s
     setMDraft(''); setAddM(false)
   }
 
-  const borderColor  = isDone ? '#22C55E25' : isActive ? `${accent}35` : '#1A1A1A'
-  const accentColor  = isDone ? '#22C55E' : isActive ? accent : '#3A3A3A'
+  const borderColor  = isDone ? '#22C55E25' : isActive ? `color-mix(in srgb, ${accent} 21%, transparent)` : 'var(--color-surface)'
+  const accentColor  = isDone ? 'var(--color-success)' : isActive ? accent : 'var(--color-border-strong)'
 
   return (
     <div className="rounded-2xl overflow-hidden mb-3" style={{ border: `1px solid ${borderColor}` }}>
       {/* Sprint header */}
-      <div className="group" style={{ background: isDone ? '#22C55E06' : isActive ? `${accent}06` : '#0A0A0A', borderBottom: open ? `1px solid ${borderColor}` : 'none' }}>
-        <div className="h-0.5 w-full" style={{ background: `linear-gradient(90deg, ${accentColor}60, transparent)` }} />
+      <div className="group" style={{ background: isDone ? '#22C55E06' : isActive ? `color-mix(in srgb, ${accent} 2%, transparent)` : 'var(--color-background)', borderBottom: open ? `1px solid ${borderColor}` : 'none' }}>
+        <div className="h-0.5 w-full" style={{ background: `linear-gradient(90deg, color-mix(in srgb, ${accentColor} 38%, transparent), transparent)` }} />
         <div className="flex items-center gap-2.5 px-4 py-3">
-          {isAdmin && <GripVertical className="w-3.5 h-3.5 text-[#1A1A1A] group-hover:text-[#333] shrink-0 cursor-grab transition-colors" />}
+          {isAdmin && <GripVertical className="w-3.5 h-3.5 text-text-tertiary group-hover:text-text-tertiary shrink-0 cursor-grab transition-colors" />}
 
-          <button onClick={() => setOpen(o => !o)} className="shrink-0 transition-colors" style={{ color: isDone ? '#22C55E' : '#444' }}>
+          <button onClick={() => setOpen(o => !o)} className="shrink-0 transition-colors" style={{ color: isDone ? 'var(--color-success)' : '#444' }}>
             {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           </button>
 
-          <div className="w-6 h-6 rounded-md flex items-center justify-center text-[9px] font-black shrink-0"
-            style={{ background: `${accentColor}15`, color: accentColor }}>
+          <div className="w-6 h-6 rounded-md flex items-center justify-center text-2xs font-black shrink-0"
+            style={{ background: `color-mix(in srgb, ${accentColor} 8%, transparent)`, color: accentColor }}>
             {sprintIndex + 1}
           </div>
 
@@ -572,7 +572,7 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, s
               value={sprint.name}
               onSave={v => saveField({ name: v })}
               disabled={!isAdmin}
-              className={`text-sm font-bold block w-full ${isDone ? 'text-[#22C55E]' : isActive ? 'text-white' : 'text-[#555]'}`}
+              className={`text-sm font-bold block w-full ${isDone ? 'text-success' : isActive ? 'text-text-primary' : 'text-text-tertiary'}`}
             />
           </div>
 
@@ -580,20 +580,20 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, s
             <select value={sprint.status}
               onChange={e => saveField({ status: e.target.value as Sprint['status'] })}
               onClick={e => e.stopPropagation()}
-              className="text-[10px] font-bold px-2 py-1 rounded-lg border focus:outline-none bg-transparent cursor-pointer shrink-0"
-              style={{ borderColor: `${accentColor}30`, color: accentColor }}>
-              {STATUS_SPRINT_OPTS.map(v => <option key={v} value={v} className="bg-[#111] text-white">{STATUS_SPRINT_LABEL[v]}</option>)}
+              className="text-2xs font-bold px-2 py-1 rounded-lg border focus:outline-none bg-transparent cursor-pointer shrink-0"
+              style={{ borderColor: `color-mix(in srgb, ${accentColor} 19%, transparent)`, color: accentColor }}>
+              {STATUS_SPRINT_OPTS.map(v => <option key={v} value={v} className="bg-background text-text-primary">{STATUS_SPRINT_LABEL[v]}</option>)}
             </select>
           ) : (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0"
-              style={{ background: `${accentColor}12`, color: accentColor }}>
+            <span className="text-2xs font-bold px-2 py-0.5 rounded-full shrink-0"
+              style={{ background: `color-mix(in srgb, ${accentColor} 7%, transparent)`, color: accentColor }}>
               {STATUS_SPRINT_LABEL[sprint.status]}
             </span>
           )}
 
           <div className="hidden lg:flex items-center gap-1.5 shrink-0">
             <DatePicker value={sprint.start_date.slice(0, 10)} onChange={v => v && saveField({ start_date: v })} disabled={!isAdmin} placeholder="Inizio" accent={accentColor} showIcon={false} />
-            <span className="text-[#2A2A2A] text-xs">→</span>
+            <span className="text-text-tertiary text-xs">→</span>
             <DatePicker value={sprint.end_date.slice(0, 10)} onChange={v => v && saveField({ end_date: v })} disabled={!isAdmin} placeholder="Fine" accent={accentColor} showIcon={false} />
           </div>
 
@@ -605,7 +605,7 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, s
 
           {isAdmin && (
             <button onClick={e => { e.stopPropagation(); if (confirm('Eliminare sprint e tutto il contenuto?')) onDeleteSprint(sprint.id) }}
-              className="p-1.5 rounded-lg text-[#1A1A1A] hover:text-[#EF4444] hover:bg-[#EF4444]/10 opacity-0 group-hover:opacity-100 transition-all">
+              className="p-1.5 rounded-lg text-text-tertiary hover:text-error hover:bg-error/10 opacity-0 group-hover:opacity-100 transition-all">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
@@ -613,11 +613,11 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, s
       </div>
 
       {open && (
-        <div className="p-3 space-y-1.5 bg-[#050505]">
+        <div className="p-3 space-y-1.5 bg-background">
           {milestones.length === 0 && !addingM && (
             <div className="flex flex-col items-center gap-1.5 py-6 text-center">
-              <Flag className="w-5 h-5 text-[#1A1A1A]" />
-              <p className="text-xs text-[#2A2A2A]">Nessuna milestone in questo sprint</p>
+              <Flag className="w-5 h-5 text-text-tertiary" />
+              <p className="text-xs text-text-tertiary">Nessuna milestone in questo sprint</p>
             </div>
           )}
 
@@ -629,21 +629,21 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, s
 
           {addingM ? (
             <div className="flex items-center gap-2 px-3 py-2.5 border border-dashed rounded-xl"
-              style={{ borderColor: `${accent}30`, background: `${accent}05` }}>
+              style={{ borderColor: `color-mix(in srgb, ${accent} 19%, transparent)`, background: `color-mix(in srgb, ${accent} 2%, transparent)` }}>
               <Flag className="w-3.5 h-3.5 shrink-0" style={{ color: accent }} />
               <input ref={addRef} value={mDraft} onChange={e => setMDraft(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') addMilestone(); if (e.key === 'Escape') { setAddM(false); setMDraft('') } }}
                 placeholder="Nome milestone… premi Invio"
-                className="flex-1 bg-transparent text-sm text-white focus:outline-none placeholder:text-[#2A2A2A]"
+                className="flex-1 bg-transparent text-sm text-text-primary focus:outline-none placeholder:text-text-tertiary"
                 autoFocus />
-              <button onClick={addMilestone} disabled={saving || !mDraft.trim()} className="p-1 text-[#22C55E] disabled:opacity-40">
+              <button onClick={addMilestone} disabled={saving || !mDraft.trim()} className="p-1 text-success disabled:opacity-40">
                 {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
               </button>
-              <button onClick={() => { setAddM(false); setMDraft('') }} className="p-1 text-[#444] hover:text-white"><X className="w-3 h-3" /></button>
+              <button onClick={() => { setAddM(false); setMDraft('') }} className="p-1 text-text-tertiary hover:text-text-primary"><X className="w-3 h-3" /></button>
             </div>
           ) : isAdmin && (
             <button onClick={() => { setAddM(true); setTimeout(() => addRef.current?.focus(), 30) }}
-              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-[#2A2A2A] hover:text-[#666] border border-dashed border-[#111] hover:border-[#2A2A2A] rounded-xl transition-all">
+              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-text-tertiary hover:text-text-tertiary border border-dashed border-border hover:border-border rounded-xl transition-all">
               <Flag className="w-3 h-3" /> Aggiungi milestone
             </button>
           )}
@@ -663,32 +663,32 @@ function AssignModal({ profiles, assigning, onConfirm, onClose }: {
   const filtered = profiles.filter(p => p.full_name?.toLowerCase().includes(search.toLowerCase()))
 
   return (
-    <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
-      <div className="bg-[#0E0E0E] border border-[#2A2A2A] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1A1A1A]">
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <Users className="w-4 h-4 text-[#F5C800]" /> Assegna task
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+      <div className="bg-background border border-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h3 className="text-sm font-bold text-text-primary flex items-center gap-2">
+            <Users className="w-4 h-4 text-gold-text" /> Assegna task
           </h3>
-          <button onClick={onClose} className="p-1.5 text-[#444] hover:text-white"><X className="w-4 h-4" /></button>
+          <button onClick={onClose} className="p-1.5 text-text-tertiary hover:text-text-primary"><X className="w-4 h-4" /></button>
         </div>
         <div className="p-4 space-y-3">
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Cerca risorsa…"
-            className="w-full bg-[#111] border border-[#2A2A2A] rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C800] placeholder:text-[#333]" />
+            className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold placeholder:text-text-tertiary" />
           <div className="max-h-48 overflow-y-auto space-y-1">
             {filtered.map(p => {
               const on = selected.has(p.id)
               return (
                 <button key={p.id}
                   onClick={() => { const n = new Set(selected); if (on) n.delete(p.id); else n.add(p.id); setSelected(n) }}
-                  className={`flex items-center gap-3 w-full px-3 py-2 rounded-xl text-left transition-colors ${on ? 'bg-[#F5C800]/10 ring-1 ring-[#F5C800]/20' : 'hover:bg-white/5'}`}>
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-                    style={{ background: on ? '#F5C800' : '#1A1A1A', color: on ? '#000' : '#555' }}>
+                  className={`flex items-center gap-3 w-full px-3 py-2 rounded-xl text-left transition-colors ${on ? 'bg-gold/10 ring-1 ring-gold/20' : 'hover:bg-surface'}`}>
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-2xs font-bold shrink-0"
+                    style={{ background: on ? 'var(--color-gold-text)' : 'var(--color-surface)', color: on ? '#000' : '#555' }}>
                     {getInitials(p.full_name || '')}
                   </div>
-                  <span className={`text-sm ${on ? 'text-[#F5C800] font-semibold' : 'text-[#999]'}`}>{p.full_name}</span>
+                  <span className={`text-sm ${on ? 'text-gold-text font-semibold' : 'text-text-secondary'}`}>{p.full_name}</span>
                   <div className="flex-1" />
-                  {on ? <CheckSquare className="w-4 h-4 text-[#F5C800]" /> : <Square className="w-4 h-4 text-[#2A2A2A]" />}
+                  {on ? <CheckSquare className="w-4 h-4 text-gold-text" /> : <Square className="w-4 h-4 text-text-tertiary" />}
                 </button>
               )
             })}
@@ -696,7 +696,7 @@ function AssignModal({ profiles, assigning, onConfirm, onClose }: {
           <button
             onClick={() => onConfirm(Array.from(selected))}
             disabled={selected.size === 0 || assigning}
-            className="w-full py-2.5 rounded-xl text-sm font-bold text-black bg-[#F5C800] disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
+            className="w-full py-2.5 rounded-xl text-sm font-bold text-on-gold bg-gold disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
             {assigning ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
             Assegna a {selected.size || '…'}
           </button>
@@ -707,7 +707,7 @@ function AssignModal({ profiles, assigning, onConfirm, onClose }: {
 }
 
 // ─── Main export ──────────────────────────────────────────────────────────────
-export function SprintMilestoneBoardSection({ tasks: initialTasks, sprints: initialSprints, profiles, projectId, isAdmin = true, accent = '#F5C800' }: {
+export function SprintMilestoneBoardSection({ tasks: initialTasks, sprints: initialSprints, profiles, projectId, isAdmin = true, accent = 'var(--color-gold-text)' }: {
   tasks: ExtTask[]; sprints: ExtSprint[]
   profiles: Profile[]; projectId: string
   isAdmin?: boolean; accent?: string
@@ -778,14 +778,14 @@ export function SprintMilestoneBoardSection({ tasks: initialTasks, sprints: init
   if (allSprints.length === 0 && allTasks.filter(t => !t.is_milestone).length === 0) {
     return (
       <div className="flex flex-col items-center gap-3 py-10 text-center">
-        <Flag className="w-8 h-8 text-[#1A1A1A]" />
+        <Flag className="w-8 h-8 text-text-tertiary" />
         <div>
-          <p className="text-sm text-[#444] font-semibold">Nessuno sprint creato</p>
-          <p className="text-xs text-[#2A2A2A] mt-0.5">Crea il primo sprint per organizzare il lavoro</p>
+          <p className="text-sm text-text-tertiary font-semibold">Nessuno sprint creato</p>
+          <p className="text-xs text-text-tertiary mt-0.5">Crea il primo sprint per organizzare il lavoro</p>
         </div>
         {isAdmin && (
           <button onClick={() => { setAddingSprint(true); setTimeout(() => addRef.current?.focus(), 30) }}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl text-black"
+            className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl text-on-gold"
             style={{ background: accent }}>
             <Plus className="w-3.5 h-3.5" /> Nuovo Sprint
           </button>
@@ -797,13 +797,13 @@ export function SprintMilestoneBoardSection({ tasks: initialTasks, sprints: init
   return (
     <div>
       {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 px-4 py-2.5 mb-3 rounded-xl bg-[#F5C800]/10 border border-[#F5C800]/20">
-          <span className="text-sm font-bold text-[#F5C800]">{selectedIds.size} selezionate</span>
+        <div className="flex items-center gap-3 px-4 py-2.5 mb-3 rounded-xl bg-gold/10 border border-gold/20">
+          <span className="text-sm font-bold text-gold-text">{selectedIds.size} selezionate</span>
           <button onClick={() => setSelectedIds(new Set())}
-            className="text-xs text-[#888] hover:text-white transition-colors">Deseleziona</button>
+            className="text-xs text-text-secondary hover:text-text-primary transition-colors">Deseleziona</button>
           <div className="flex-1" />
           <button onClick={() => setShowAssignModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-black bg-[#F5C800] hover:bg-[#F5C800]/90 transition-colors">
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-on-gold bg-gold hover:bg-gold/90 transition-colors">
             <UserPlus className="w-3.5 h-3.5" /> Assegna a…
           </button>
         </div>
@@ -823,33 +823,33 @@ export function SprintMilestoneBoardSection({ tasks: initialTasks, sprints: init
 
       {isAdmin && (
         addingSprint ? (
-          <div className="border border-dashed rounded-2xl p-4 space-y-3" style={{ borderColor: `${accent}30` }}>
+          <div className="border border-dashed rounded-2xl p-4 space-y-3" style={{ borderColor: `color-mix(in srgb, ${accent} 19%, transparent)` }}>
             <input ref={addRef} value={sprintDraft.name} onChange={e => setSprintDraft(p => ({ ...p, name: e.target.value }))}
               placeholder="Nome sprint…"
-              className="w-full bg-transparent border-b text-sm text-white focus:outline-none placeholder:text-[#2A2A2A]"
+              className="w-full bg-transparent border-b text-sm text-text-primary focus:outline-none placeholder:text-text-tertiary"
               style={{ borderColor: accent }} />
             <div className="flex items-center gap-3">
               <input type="date" value={sprintDraft.start} onChange={e => setSprintDraft(p => ({ ...p, start: e.target.value }))}
-                className="flex-1 bg-[#111] border border-[#2A2A2A] rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none" />
-              <span className="text-[#333] text-xs">→</span>
+                className="flex-1 bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none" />
+              <span className="text-text-tertiary text-xs">→</span>
               <input type="date" value={sprintDraft.end} onChange={e => setSprintDraft(p => ({ ...p, end: e.target.value }))}
-                className="flex-1 bg-[#111] border border-[#2A2A2A] rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none" />
+                className="flex-1 bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none" />
             </div>
             <div className="flex gap-2">
               <button onClick={addSprint} disabled={saving || !sprintDraft.name.trim() || !sprintDraft.start || !sprintDraft.end}
-                className="flex-1 py-2 rounded-xl text-xs font-bold text-black disabled:opacity-50 flex items-center justify-center gap-1.5"
+                className="flex-1 py-2 rounded-xl text-xs font-bold text-on-gold disabled:opacity-50 flex items-center justify-center gap-1.5"
                 style={{ background: accent }}>
                 {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Crea Sprint
               </button>
               <button onClick={() => { setAddingSprint(false); setSprintDraft({ name: '', start: '', end: '' }) }}
-                className="px-4 py-2 rounded-xl text-xs text-[#444] hover:text-white border border-[#2A2A2A]">
+                className="px-4 py-2 rounded-xl text-xs text-text-tertiary hover:text-text-primary border border-border">
                 Annulla
               </button>
             </div>
           </div>
         ) : (
           <button onClick={() => { setAddingSprint(true); setTimeout(() => addRef.current?.focus(), 30) }}
-            className="flex items-center gap-2 w-full px-4 py-3 text-xs text-[#2A2A2A] hover:text-[#666] border border-dashed border-[#111] hover:border-[#2A2A2A] rounded-2xl transition-all">
+            className="flex items-center gap-2 w-full px-4 py-3 text-xs text-text-tertiary hover:text-text-tertiary border border-dashed border-border hover:border-border rounded-2xl transition-all">
             <Plus className="w-3.5 h-3.5" /> Aggiungi sprint
           </button>
         )

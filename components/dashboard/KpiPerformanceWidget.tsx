@@ -26,7 +26,7 @@ function Delta({ curr, prev, lowerBetter = false }: {
   curr?: number | null; prev?: number | null; lowerBetter?: boolean
 }) {
   if (curr == null || prev == null || prev === 0) {
-    return <span className="text-text-tertiary text-[9px]">—</span>
+    return <span className="text-text-tertiary text-2xs">—</span>
   }
   const pct = ((curr - prev) / Math.abs(prev)) * 100
   const flat = Math.abs(pct) < 0.5
@@ -34,7 +34,7 @@ function Delta({ curr, prev, lowerBetter = false }: {
   const color = flat ? 'var(--color-text-tertiary)' : isGood ? 'var(--color-success)' : 'var(--color-error)'
   const Icon = flat ? Minus : isGood ? TrendingUp : TrendingDown
   return (
-    <span className="flex items-center gap-0.5 text-[9px] font-bold" style={{ color }}>
+    <span className="flex items-center gap-0.5 text-2xs font-bold" style={{ color }}>
       <Icon className="w-2.5 h-2.5" />
       {flat ? '—' : `${Math.abs(pct).toFixed(0)}%`}
     </span>
@@ -44,7 +44,7 @@ function Delta({ curr, prev, lowerBetter = false }: {
 function KpiCell({ label, value, delta }: { label: string; value: string; delta: React.ReactNode }) {
   return (
     <div className="text-right min-w-[52px]">
-      <div className="text-[9px] text-text-secondary leading-none mb-0.5">{label}</div>
+      <div className="text-2xs text-text-secondary leading-none mb-0.5">{label}</div>
       <div className="text-xs font-bold text-text-primary leading-none">{value}</div>
       <div className="mt-0.5">{delta}</div>
     </div>
@@ -84,9 +84,9 @@ export function KpiPerformanceWidget({ kpiSnapshot, clientsById }: {
   return (
     <div className="p-3 h-full flex flex-col overflow-hidden">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] font-black text-text-secondary uppercase tracking-wider">KPI Performance</span>
+        <span className="text-2xs font-black text-text-secondary uppercase tracking-wider">KPI Performance</span>
         {latestMonth && (
-          <span className="text-[9px] text-text-tertiary bg-surface border border-border rounded px-1.5 py-0.5">
+          <span className="text-2xs text-text-tertiary bg-surface border border-border rounded px-1.5 py-0.5">
             {new Date(latestMonth + '-01').toLocaleDateString('it-IT', { month: 'short', year: '2-digit' })}
           </span>
         )}
@@ -104,7 +104,7 @@ export function KpiPerformanceWidget({ kpiSnapshot, clientsById }: {
               className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-hover transition-colors cursor-pointer"
             >
               <span className={`shrink-0 text-[8px] font-black px-1 py-0.5 rounded leading-none ${
-                isGrowth ? 'bg-[#F5C800]/10 text-[#F5C800]' : 'bg-[#3B82F6]/10 text-[#60A5FA]'
+                isGrowth ? 'bg-gold/10 text-gold-text' : 'bg-info/10 text-info'
               }`}>
                 {isGrowth ? 'G' : 'D'}
               </span>

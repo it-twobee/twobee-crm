@@ -16,26 +16,26 @@ import {
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const CATEGORY: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  costruire:   { label: 'Costruire',   color: '#22C55E', icon: <Hammer  className="w-3 h-3" /> },
-  modificare:  { label: 'Modificare',  color: '#3B82F6', icon: <Pencil  className="w-3 h-3" /> },
-  ottimizzare: { label: 'Ottimizzare', color: '#F59E0B', icon: <Zap     className="w-3 h-3" /> },
-  eliminare:   { label: 'Eliminare',   color: '#EF4444', icon: <Trash2  className="w-3 h-3" /> },
+  costruire:   { label: 'Costruire',   color: 'var(--color-success)', icon: <Hammer  className="w-3 h-3" /> },
+  modificare:  { label: 'Modificare',  color: 'var(--color-info)', icon: <Pencil  className="w-3 h-3" /> },
+  ottimizzare: { label: 'Ottimizzare', color: 'var(--color-warning)', icon: <Zap     className="w-3 h-3" /> },
+  eliminare:   { label: 'Eliminare',   color: 'var(--color-error)', icon: <Trash2  className="w-3 h-3" /> },
 }
 
 const PRIORITY: Record<string, { label: string; color: string }> = {
-  critica: { label: 'CRITICA', color: '#EF4444' },
-  alta:    { label: 'ALTA',    color: '#F5C800' },
-  media:   { label: 'MEDIA',   color: '#F59E0B' },
+  critica: { label: 'CRITICA', color: 'var(--color-error)' },
+  alta:    { label: 'ALTA',    color: 'var(--color-gold-text)' },
+  media:   { label: 'MEDIA',   color: 'var(--color-warning)' },
   bassa:   { label: 'BASSA',   color: '#555' },
 }
 
 const SECTION: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  db:          { label: 'DB / Migration', color: '#A855F7', icon: <Database        className="w-3 h-3" /> },
-  dashboard:   { label: 'Dashboard',      color: '#F5C800', icon: <LayoutDashboard className="w-3 h-3" /> },
-  clienti:     { label: 'Clienti',        color: '#3B82F6', icon: <Users           className="w-3 h-3" /> },
-  progetti:    { label: 'Progetti',       color: '#F59E0B', icon: <FolderKanban    className="w-3 h-3" /> },
-  chat:        { label: 'Chat',           color: '#22C55E', icon: <MessageSquare   className="w-3 h-3" /> },
-  commerciale: { label: 'Commerciale',    color: '#EC4899', icon: <ShoppingCart    className="w-3 h-3" /> },
+  db:          { label: 'DB / Migration', color: 'var(--color-accent)', icon: <Database        className="w-3 h-3" /> },
+  dashboard:   { label: 'Dashboard',      color: 'var(--color-gold-text)', icon: <LayoutDashboard className="w-3 h-3" /> },
+  clienti:     { label: 'Clienti',        color: 'var(--color-info)', icon: <Users           className="w-3 h-3" /> },
+  progetti:    { label: 'Progetti',       color: 'var(--color-warning)', icon: <FolderKanban    className="w-3 h-3" /> },
+  chat:        { label: 'Chat',           color: 'var(--color-success)', icon: <MessageSquare   className="w-3 h-3" /> },
+  commerciale: { label: 'Commerciale',    color: 'var(--color-accent)', icon: <ShoppingCart    className="w-3 h-3" /> },
   dev:         { label: 'Dev / OS',       color: '#888',    icon: <Cpu             className="w-3 h-3" /> },
 }
 
@@ -70,20 +70,20 @@ function PromptModal({ task, onClose }: { task: OsTask; onClose: () => void }) {
       style={{ background: 'rgba(0,0,0,0.85)' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-2xl overflow-hidden"
-        style={{ background: '#0D0D0D', border: '1px solid #1A1A1A' }}>
+        style={{ background: 'var(--color-background)', border: '1px solid #1A1A1A' }}>
 
-        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: '#1A1A1A' }}>
+        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--color-surface)' }}>
           <div className="flex items-center gap-2">
-            <FlaskConical className="w-4 h-4" style={{ color: '#F5C800' }} />
-            <span className="text-sm font-black text-white">Prompt per Claude Code</span>
+            <FlaskConical className="w-4 h-4" style={{ color: 'var(--color-gold-text)' }} />
+            <span className="text-sm font-black text-text-primary">Prompt per Claude Code</span>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={handleCopy} disabled={loading}
               className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl transition-all"
               style={{
-                background: copied ? 'rgba(34,197,94,0.1)' : 'rgba(245,200,0,0.08)',
-                border: `1px solid ${copied ? 'rgba(34,197,94,0.3)' : 'rgba(245,200,0,0.2)'}`,
-                color: copied ? '#22C55E' : '#F5C800',
+                background: copied ? 'rgba(34,197,94,0.1)' : 'var(--color-gold-dim)',
+                border: `1px solid ${copied ? 'rgba(34,197,94,0.3)' : 'var(--color-gold-dim)'}`,
+                color: copied ? 'var(--color-success)' : 'var(--color-gold-text)',
               }}>
               {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
               {copied ? 'Copiato!' : 'Copia'}
@@ -103,20 +103,20 @@ function PromptModal({ task, onClose }: { task: OsTask; onClose: () => void }) {
             const sec = SECTION[task.section]
             const cat = CATEGORY[task.category]
             return sec ? (
-              <span className="flex items-center gap-1 text-[9px] font-black px-1.5 py-0.5 rounded"
-                style={{ background: sec.color + '15', color: sec.color }}>
+              <span className="flex items-center gap-1 text-2xs font-black px-1.5 py-0.5 rounded"
+                style={{ background: `color-mix(in srgb, ${sec.color} 8%, transparent)`, color: sec.color }}>
                 {sec.icon} {sec.label}
               </span>
             ) : null
           })()}
-          <span className="text-[9px] font-black px-1.5 py-0.5 rounded"
+          <span className="text-2xs font-black px-1.5 py-0.5 rounded"
             style={{ background: (CATEGORY[task.category]?.color ?? '#555') + '15', color: CATEGORY[task.category]?.color }}>
             {CATEGORY[task.category]?.label ?? task.category}
           </span>
-          <span className="text-[9px] font-black" style={{ color: PRIORITY[task.priority]?.color ?? '#555' }}>
+          <span className="text-2xs font-black" style={{ color: PRIORITY[task.priority]?.color ?? '#555' }}>
             {PRIORITY[task.priority]?.label ?? task.priority}
           </span>
-          <span className="text-[10px] font-semibold text-white truncate">{task.title}</span>
+          <span className="text-2xs font-semibold text-text-primary truncate">{task.title}</span>
         </div>
 
         <div className="flex-1 overflow-hidden">
@@ -133,7 +133,7 @@ function PromptModal({ task, onClose }: { task: OsTask; onClose: () => void }) {
           )}
         </div>
 
-        <div className="px-5 py-2 border-t text-[9px]" style={{ borderColor: '#111', color: '#222' }}>
+        <div className="px-5 py-2 border-t text-2xs" style={{ borderColor: '#111', color: '#222' }}>
           Modifica il prompt prima di copiarlo · I file vengono letti dal progetto in tempo reale
         </div>
       </div>
@@ -189,31 +189,31 @@ function AddTaskModal({ onAdd, onClose, defaultSection }: {
       style={{ background: 'rgba(0,0,0,0.85)' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-xl rounded-2xl overflow-hidden"
-        style={{ background: '#0D0D0D', border: '1px solid rgba(245,200,0,0.15)' }}>
-        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: '#1A1A1A' }}>
-          <span className="text-sm font-black text-white">Nuovo task</span>
+        style={{ background: 'var(--color-background)', border: '1px solid var(--color-gold-dim)' }}>
+        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--color-surface)' }}>
+          <span className="text-sm font-black text-text-primary">Nuovo task</span>
           <button onClick={onClose} style={{ color: '#444' }}><X className="w-4 h-4" /></button>
         </div>
 
         <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
           <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
             placeholder="Titolo *"
-            className="w-full text-sm bg-transparent outline-none text-white placeholder-[#222] pb-2"
+            className="w-full text-sm bg-transparent outline-none text-text-primary placeholder-text-tertiary pb-2"
             style={{ borderBottom: '1px solid #1A1A1A' }}
           />
 
           {/* Section */}
           <div>
-            <p className="text-[9px] font-bold uppercase mb-1.5" style={{ color: '#333' }}>Sezione</p>
+            <p className="text-2xs font-bold uppercase mb-1.5" style={{ color: '#333' }}>Sezione</p>
             <div className="flex gap-1 flex-wrap">
               {SECTION_ORDER.map(k => {
                 const v = SECTION[k]
                 return (
                   <button key={k} onClick={() => setForm(f => ({ ...f, section: k }))}
-                    className="flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded-lg transition-all"
+                    className="flex items-center gap-1 text-2xs font-bold px-2 py-1 rounded-lg transition-all"
                     style={{
-                      background: form.section === k ? v.color + '15' : '#111',
-                      border: `1px solid ${form.section === k ? v.color + '40' : '#1A1A1A'}`,
+                      background: form.section === k ? `color-mix(in srgb, ${v.color} 8%, transparent)` : '#111',
+                      border: `1px solid ${form.section === k ? `color-mix(in srgb, ${v.color} 25%, transparent)` : 'var(--color-surface)'}`,
                       color: form.section === k ? v.color : '#333',
                     }}>
                     {v.icon} {v.label}
@@ -225,28 +225,28 @@ function AddTaskModal({ onAdd, onClose, defaultSection }: {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <p className="text-[9px] font-bold uppercase mb-1.5" style={{ color: '#333' }}>Categoria</p>
+              <p className="text-2xs font-bold uppercase mb-1.5" style={{ color: '#333' }}>Categoria</p>
               <div className="flex gap-1 flex-wrap">
                 {Object.entries(CATEGORY).map(([k, v]) => (
                   <button key={k} onClick={() => setForm(f => ({ ...f, category: k as OsTask['category'] }))}
-                    className="text-[9px] font-bold px-2 py-1 rounded-lg transition-all"
+                    className="text-2xs font-bold px-2 py-1 rounded-lg transition-all"
                     style={{
-                      background: form.category === k ? v.color + '15' : '#111',
-                      border: `1px solid ${form.category === k ? v.color + '40' : '#1A1A1A'}`,
+                      background: form.category === k ? `color-mix(in srgb, ${v.color} 8%, transparent)` : '#111',
+                      border: `1px solid ${form.category === k ? `color-mix(in srgb, ${v.color} 25%, transparent)` : 'var(--color-surface)'}`,
                       color: form.category === k ? v.color : '#333',
                     }}>{v.label}</button>
                 ))}
               </div>
             </div>
             <div>
-              <p className="text-[9px] font-bold uppercase mb-1.5" style={{ color: '#333' }}>Priorità</p>
+              <p className="text-2xs font-bold uppercase mb-1.5" style={{ color: '#333' }}>Priorità</p>
               <div className="flex gap-1 flex-wrap">
                 {Object.entries(PRIORITY).map(([k, v]) => (
                   <button key={k} onClick={() => setForm(f => ({ ...f, priority: k as OsTask['priority'] }))}
-                    className="text-[9px] font-bold px-2 py-1 rounded-lg transition-all"
+                    className="text-2xs font-bold px-2 py-1 rounded-lg transition-all"
                     style={{
-                      background: form.priority === k ? v.color + '15' : '#111',
-                      border: `1px solid ${form.priority === k ? v.color + '40' : '#1A1A1A'}`,
+                      background: form.priority === k ? `color-mix(in srgb, ${v.color} 8%, transparent)` : '#111',
+                      border: `1px solid ${form.priority === k ? `color-mix(in srgb, ${v.color} 25%, transparent)` : 'var(--color-surface)'}`,
                       color: form.priority === k ? v.color : '#333',
                     }}>{v.label}</button>
                 ))}
@@ -256,29 +256,29 @@ function AddTaskModal({ onAdd, onClose, defaultSection }: {
 
           <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
             placeholder="Descrizione tecnica…" rows={3}
-            className="w-full text-xs bg-transparent outline-none resize-none placeholder-[#222]"
+            className="w-full text-xs bg-transparent outline-none resize-none placeholder-text-tertiary"
             style={{ color: '#666', border: '1px solid #1A1A1A', borderRadius: 8, padding: '8px 10px' }}
           />
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <p className="text-[9px] font-bold uppercase mb-1" style={{ color: '#333' }}>File da modificare (uno per riga)</p>
+              <p className="text-2xs font-bold uppercase mb-1" style={{ color: '#333' }}>File da modificare (uno per riga)</p>
               <textarea value={form.file_paths} onChange={e => setForm(f => ({ ...f, file_paths: e.target.value }))}
                 placeholder={'components/dashboard/Widget.tsx\napp/actions/foo.ts'} rows={3}
-                className="w-full text-[10px] font-mono bg-transparent outline-none resize-none placeholder-[#222]"
+                className="w-full text-2xs font-mono bg-transparent outline-none resize-none placeholder-text-tertiary"
                 style={{ color: '#555', border: '1px solid #1A1A1A', borderRadius: 8, padding: '6px 10px' }}
               />
             </div>
             <div>
-              <p className="text-[9px] font-bold uppercase mb-1" style={{ color: '#333' }}>Dipendenze (uno per riga)</p>
+              <p className="text-2xs font-bold uppercase mb-1" style={{ color: '#333' }}>Dipendenze (uno per riga)</p>
               <textarea value={form.related_files} onChange={e => setForm(f => ({ ...f, related_files: e.target.value }))}
                 placeholder={'lib/types/database.ts\ncomponents/shared/X.tsx'} rows={3}
-                className="w-full text-[10px] font-mono bg-transparent outline-none resize-none placeholder-[#222]"
+                className="w-full text-2xs font-mono bg-transparent outline-none resize-none placeholder-text-tertiary"
                 style={{ color: '#555', border: '1px solid #1A1A1A', borderRadius: 8, padding: '6px 10px' }}
               />
             </div>
             <div>
-              <p className="text-[9px] font-bold uppercase mb-1" style={{ color: '#333' }}>Effort (giorni)</p>
+              <p className="text-2xs font-bold uppercase mb-1" style={{ color: '#333' }}>Effort (giorni)</p>
               <input type="number" value={form.effort_days}
                 onChange={e => setForm(f => ({ ...f, effort_days: e.target.value }))}
                 placeholder="1.5" className="w-full text-xs bg-transparent outline-none"
@@ -286,7 +286,7 @@ function AddTaskModal({ onAdd, onClose, defaultSection }: {
               />
             </div>
             <div>
-              <p className="text-[9px] font-bold uppercase mb-1" style={{ color: '#333' }}>Note</p>
+              <p className="text-2xs font-bold uppercase mb-1" style={{ color: '#333' }}>Note</p>
               <input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                 placeholder="Contesto…" className="w-full text-xs bg-transparent outline-none"
                 style={{ color: '#666', border: '1px solid #1A1A1A', borderRadius: 8, padding: '6px 10px' }}
@@ -300,8 +300,8 @@ function AddTaskModal({ onAdd, onClose, defaultSection }: {
             style={{ background: '#111', color: '#444', border: '1px solid #1A1A1A' }}>Annulla</button>
           <button onClick={handleSubmit} disabled={isPending || !form.title.trim()}
             className="text-xs font-bold px-4 py-1.5 rounded-xl transition-all"
-            style={{ background: 'rgba(245,200,0,0.1)', border: '1px solid rgba(245,200,0,0.2)',
-              color: '#F5C800', opacity: !form.title.trim() ? 0.5 : 1 }}>
+            style={{ background: 'var(--color-gold-dim)', border: '1px solid var(--color-gold-dim)',
+              color: 'var(--color-gold-text)', opacity: !form.title.trim() ? 0.5 : 1 }}>
             {isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Aggiungi'}
           </button>
         </div>
@@ -325,18 +325,18 @@ function TaskRow({ task, isExpanded, isNext, onToggle, onPrompt, onComplete, onD
   return (
     <div className="rounded-xl overflow-hidden transition-all"
       style={{
-        border: `1px solid ${isNext ? 'rgba(245,200,0,0.3)' : done ? '#0A0A0A' : '#111'}`,
-        background: isNext ? 'rgba(245,200,0,0.03)' : done ? '#080808' : '#0D0D0D',
+        border: `1px solid ${isNext ? 'var(--color-gold-dim)' : done ? 'var(--color-background)' : '#111'}`,
+        background: isNext ? 'var(--color-gold-dim)' : done ? '#080808' : 'var(--color-background)',
       }}>
       {/* Row header */}
       <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer" onClick={onToggle}>
-        <span style={{ color: '#2A2A2A' }} className="shrink-0">
+        <span style={{ color: 'var(--color-border)' }} className="shrink-0">
           {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
         </span>
 
         {/* Category */}
         <span className="flex items-center gap-1 text-[8px] font-black px-1.5 py-0.5 rounded shrink-0"
-          style={{ background: catCfg.color + '10', color: done ? '#333' : catCfg.color }}>
+          style={{ background: `color-mix(in srgb, ${catCfg.color} 6%, transparent)`, color: done ? '#333' : catCfg.color }}>
           {catCfg.icon} {catCfg.label}
         </span>
 
@@ -346,46 +346,46 @@ function TaskRow({ task, isExpanded, isNext, onToggle, onPrompt, onComplete, onD
         </span>
 
         {/* Title */}
-        <span className="flex-1 text-[11px] font-semibold truncate"
+        <span className="flex-1 text-2xs font-semibold truncate"
           style={{ color: done ? '#333' : '#ccc', textDecoration: done ? 'line-through' : 'none' }}>
-          {isNext && <span className="mr-1.5" style={{ color: '#F5C800' }}>⭐</span>}
+          {isNext && <span className="mr-1.5" style={{ color: 'var(--color-gold-text)' }}>⭐</span>}
           {task.title}
         </span>
 
         {/* Effort */}
         {task.effort_days && (
-          <span className="text-[9px] shrink-0" style={{ color: '#2A2A2A' }}>{task.effort_days}d</span>
+          <span className="text-2xs shrink-0" style={{ color: 'var(--color-border)' }}>{task.effort_days}d</span>
         )}
 
         {/* AI badge */}
         {task.ai_suggested && (
           <span className="text-[7px] font-bold px-1.5 py-0.5 rounded shrink-0"
-            style={{ background: 'rgba(168,85,247,0.1)', color: '#A855F7', border: '1px solid rgba(168,85,247,0.2)' }}>
+            style={{ background: 'rgba(168,85,247,0.1)', color: 'var(--color-accent)', border: '1px solid rgba(168,85,247,0.2)' }}>
             AI
           </span>
         )}
 
         {/* Status dot */}
         <div className="w-1.5 h-1.5 rounded-full shrink-0"
-          style={{ background: done ? '#22C55E' : '#1A1A1A' }} />
+          style={{ background: done ? 'var(--color-success)' : 'var(--color-surface)' }} />
       </div>
 
       {/* Expanded */}
       {isExpanded && (
         <div className="border-t px-4 py-3 space-y-3" style={{ borderColor: '#111' }}>
           {task.description && (
-            <p className="text-[11px] leading-relaxed" style={{ color: '#555' }}>{task.description}</p>
+            <p className="text-2xs leading-relaxed" style={{ color: '#555' }}>{task.description}</p>
           )}
 
           {(task.file_paths?.length ?? 0) > 0 && (
             <div>
-              <p className="text-[8px] font-black uppercase tracking-widest mb-1.5" style={{ color: '#2A2A2A' }}>
+              <p className="text-[8px] font-black uppercase tracking-widest mb-1.5" style={{ color: 'var(--color-border)' }}>
                 File da modificare
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {task.file_paths!.map(f => (
-                  <span key={f} className="text-[9px] font-mono px-2 py-0.5 rounded-md"
-                    style={{ background: '#111', color: '#3B82F6', border: '1px solid #1A1A1A' }}>{f}</span>
+                  <span key={f} className="text-2xs font-mono px-2 py-0.5 rounded-md"
+                    style={{ background: '#111', color: 'var(--color-info)', border: '1px solid #1A1A1A' }}>{f}</span>
                 ))}
               </div>
             </div>
@@ -393,12 +393,12 @@ function TaskRow({ task, isExpanded, isNext, onToggle, onPrompt, onComplete, onD
 
           {(task.related_files?.length ?? 0) > 0 && (
             <div>
-              <p className="text-[8px] font-black uppercase tracking-widest mb-1.5" style={{ color: '#2A2A2A' }}>
+              <p className="text-[8px] font-black uppercase tracking-widest mb-1.5" style={{ color: 'var(--color-border)' }}>
                 Dipendenze (non rompere)
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {task.related_files!.map(f => (
-                  <span key={f} className="text-[9px] font-mono px-2 py-0.5 rounded-md"
+                  <span key={f} className="text-2xs font-mono px-2 py-0.5 rounded-md"
                     style={{ background: '#111', color: '#555', border: '1px solid #1A1A1A' }}>{f}</span>
                 ))}
               </div>
@@ -406,36 +406,36 @@ function TaskRow({ task, isExpanded, isNext, onToggle, onPrompt, onComplete, onD
           )}
 
           {task.notes && (
-            <p className="text-[10px] italic" style={{ color: '#333' }}>{task.notes}</p>
+            <p className="text-2xs italic" style={{ color: '#333' }}>{task.notes}</p>
           )}
 
           {/* Actions */}
           <div className="flex items-center gap-2 pt-1">
             {!done && (
               <button onClick={e => { e.stopPropagation(); onPrompt() }}
-                className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1.5 rounded-xl transition-all"
-                style={{ background: 'rgba(245,200,0,0.08)', border: '1px solid rgba(245,200,0,0.2)', color: '#F5C800' }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(245,200,0,0.15)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(245,200,0,0.08)')}>
+                className="flex items-center gap-1.5 text-2xs font-bold px-3 py-1.5 rounded-xl transition-all"
+                style={{ background: 'var(--color-gold-dim)', border: '1px solid var(--color-gold-dim)', color: 'var(--color-gold-text)' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-gold-dim)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'var(--color-gold-dim)')}>
                 <ArrowRight className="w-3 h-3" />
                 Genera Prompt
               </button>
             )}
             <button onClick={e => { e.stopPropagation(); done ? onUncomplete() : onComplete() }}
-              className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1.5 rounded-xl transition-all"
+              className="flex items-center gap-1.5 text-2xs font-bold px-3 py-1.5 rounded-xl transition-all"
               style={{
                 background: done ? 'rgba(85,85,85,0.1)' : 'rgba(34,197,94,0.08)',
-                border: `1px solid ${done ? '#2A2A2A' : 'rgba(34,197,94,0.2)'}`,
-                color: done ? '#444' : '#22C55E',
+                border: `1px solid ${done ? 'var(--color-border)' : 'rgba(34,197,94,0.2)'}`,
+                color: done ? '#444' : 'var(--color-success)',
               }}>
               <Check className="w-3 h-3" />
               {done ? 'Riapri' : 'Segna completato'}
             </button>
             <button onClick={e => { e.stopPropagation(); onDelete() }}
-              className="ml-auto text-[10px] px-2.5 py-1.5 rounded-xl transition-colors"
-              style={{ color: '#2A2A2A', border: '1px solid #111' }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#EF4444'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.2)' }}
-              onMouseLeave={e => { e.currentTarget.style.color = '#2A2A2A'; e.currentTarget.style.borderColor = '#111' }}>
+              className="ml-auto text-2xs px-2.5 py-1.5 rounded-xl transition-colors"
+              style={{ color: 'var(--color-border)', border: '1px solid #111' }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-error)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.2)' }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-border)'; e.currentTarget.style.borderColor = '#111' }}>
               <Trash2 className="w-3 h-3" />
             </button>
           </div>
@@ -455,21 +455,21 @@ function SectionHeader({ section, count, effort, onAddTask }: {
     <div className="flex items-center gap-2 pt-4 pb-1 first:pt-0">
       <div className="flex items-center gap-1.5">
         <span style={{ color: cfg.color }}>{cfg.icon}</span>
-        <span className="text-[9px] font-black uppercase tracking-[0.12em]" style={{ color: cfg.color }}>
+        <span className="text-2xs font-black uppercase tracking-[0.12em]" style={{ color: cfg.color }}>
           {cfg.label}
         </span>
       </div>
       <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
-        style={{ background: cfg.color + '10', color: cfg.color }}>
+        style={{ background: `color-mix(in srgb, ${cfg.color} 6%, transparent)`, color: cfg.color }}>
         {count}
       </span>
       {effort > 0 && (
-        <span className="text-[8px]" style={{ color: '#2A2A2A' }}>{effort}d</span>
+        <span className="text-[8px]" style={{ color: 'var(--color-border)' }}>{effort}d</span>
       )}
-      <div className="flex-1 h-px" style={{ background: cfg.color + '15' }} />
+      <div className="flex-1 h-px" style={{ background: `color-mix(in srgb, ${cfg.color} 8%, transparent)` }} />
       <button onClick={onAddTask}
         className="flex items-center gap-1 text-[8px] px-2 py-0.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-        style={{ color: cfg.color, border: `1px solid ${cfg.color}20` }}
+        style={{ color: cfg.color, border: `1px solid color-mix(in srgb, ${cfg.color} 13%, transparent)` }}
         onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
         onMouseLeave={e => (e.currentTarget.style.opacity = '0.5')}>
         <Plus className="w-2.5 h-2.5" /> Task
@@ -491,10 +491,10 @@ function ProposedPanel({ items, onAccept, onDismiss, onClose }: {
       style={{ background: 'rgba(168,85,247,0.04)', border: '1px solid rgba(168,85,247,0.15)' }}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <ScanSearch className="w-3.5 h-3.5" style={{ color: '#A855F7' }} />
-          <span className="text-xs font-black text-white">Suggerimenti AI dal codebase</span>
+          <ScanSearch className="w-3.5 h-3.5" style={{ color: 'var(--color-accent)' }} />
+          <span className="text-xs font-black text-text-primary">Suggerimenti AI dal codebase</span>
           <span className="text-[8px] font-bold px-1.5 py-0.5 rounded"
-            style={{ background: 'rgba(168,85,247,0.1)', color: '#A855F7' }}>
+            style={{ background: 'rgba(168,85,247,0.1)', color: 'var(--color-accent)' }}>
             {items.length}
           </span>
         </div>
@@ -507,32 +507,32 @@ function ProposedPanel({ items, onAccept, onDismiss, onClose }: {
           const priCfg = PRIORITY[item.priority ?? 'media']
           return (
             <div key={i} className="flex items-start gap-3 rounded-lg p-3"
-              style={{ background: '#0D0D0D', border: '1px solid #111' }}>
+              style={{ background: 'var(--color-background)', border: '1px solid #111' }}>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                   {secCfg && (
                     <span className="flex items-center gap-1 text-[8px] font-black px-1.5 py-0.5 rounded"
-                      style={{ background: secCfg.color + '12', color: secCfg.color }}>
+                      style={{ background: `color-mix(in srgb, ${secCfg.color} 7%, transparent)`, color: secCfg.color }}>
                       {secCfg.icon} {secCfg.label}
                     </span>
                   )}
                   <span className="text-[8px] font-black px-1.5 py-0.5 rounded"
-                    style={{ background: catCfg.color + '12', color: catCfg.color }}>{catCfg.label}</span>
+                    style={{ background: `color-mix(in srgb, ${catCfg.color} 7%, transparent)`, color: catCfg.color }}>{catCfg.label}</span>
                   <span className="text-[8px] font-black" style={{ color: priCfg.color }}>{priCfg.label}</span>
                 </div>
-                <p className="text-[11px] font-semibold text-white mb-0.5">{item.title}</p>
+                <p className="text-2xs font-semibold text-text-primary mb-0.5">{item.title}</p>
                 {item.description && (
-                  <p className="text-[9px] leading-relaxed" style={{ color: '#444' }}>{item.description}</p>
+                  <p className="text-2xs leading-relaxed" style={{ color: '#444' }}>{item.description}</p>
                 )}
               </div>
               <div className="flex flex-col gap-1 shrink-0">
                 <button onClick={() => onAccept(item)}
-                  className="text-[9px] font-bold px-2.5 py-1 rounded-lg"
-                  style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', color: '#22C55E' }}>
+                  className="text-2xs font-bold px-2.5 py-1 rounded-lg"
+                  style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', color: 'var(--color-success)' }}>
                   + Aggiungi
                 </button>
                 <button onClick={() => onDismiss(i)}
-                  className="text-[9px] px-2.5 py-1 rounded-lg"
+                  className="text-2xs px-2.5 py-1 rounded-lg"
                   style={{ background: '#111', border: '1px solid #1A1A1A', color: '#333' }}>
                   Ignora
                 </button>
@@ -746,15 +746,15 @@ export function TwoBeeOSClient({ tasks: initial }: { tasks: OsTask[] }) {
       {migrationNeeded && (
         <div className="rounded-xl p-4 flex items-start gap-3"
           style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)' }}>
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#EF4444' }} />
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: 'var(--color-error)' }} />
           <div className="min-w-0">
-            <p className="text-xs font-black text-white mb-1">Migration necessaria</p>
-            <p className="text-[10px] leading-relaxed" style={{ color: '#666' }}>
-              La tabella <code className="text-[10px] px-1 rounded" style={{ background: '#1A1A1A', color: '#EF4444' }}>os_tasks</code> non esiste ancora in produzione.
-              Esegui <strong className="text-white">046_os_tasks.sql</strong> via Supabase Dashboard → SQL Editor, poi ricarica la pagina.
+            <p className="text-xs font-black text-text-primary mb-1">Migration necessaria</p>
+            <p className="text-2xs leading-relaxed" style={{ color: '#666' }}>
+              La tabella <code className="text-2xs px-1 rounded" style={{ background: 'var(--color-surface)', color: 'var(--color-error)' }}>os_tasks</code> non esiste ancora in produzione.
+              Esegui <strong className="text-text-primary">046_os_tasks.sql</strong> via Supabase Dashboard → SQL Editor, poi ricarica la pagina.
             </p>
-            <div className="mt-2 rounded-lg px-3 py-1.5 font-mono text-[10px] select-all"
-              style={{ background: '#0A0A0A', color: '#A855F7', border: '1px solid #1A1A1A' }}>
+            <div className="mt-2 rounded-lg px-3 py-1.5 font-mono text-2xs select-all"
+              style={{ background: 'var(--color-background)', color: 'var(--color-accent)', border: '1px solid #1A1A1A' }}>
               supabase/migrations/046_os_tasks.sql
             </div>
           </div>
@@ -765,15 +765,15 @@ export function TwoBeeOSClient({ tasks: initial }: { tasks: OsTask[] }) {
       <div className="flex items-center gap-2 flex-wrap">
         <button onClick={handleSuggestNext} disabled={suggesting || counts.total === 0}
           className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl transition-all"
-          style={{ background: 'rgba(245,200,0,0.06)', border: '1px solid rgba(245,200,0,0.15)',
-            color: suggesting ? '#444' : '#F5C800' }}>
+          style={{ background: 'var(--color-gold-dim)', border: '1px solid var(--color-gold-dim)',
+            color: suggesting ? '#444' : 'var(--color-gold-text)' }}>
           {suggesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
           {suggesting ? 'Analisi…' : 'Cosa faccio adesso?'}
         </button>
 
         <button onClick={handleAnalyze} disabled={analyzing}
           className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl transition-all"
-          style={{ background: '#0D0D0D', border: '1px solid #1A1A1A', color: analyzing ? '#444' : '#A855F7' }}>
+          style={{ background: 'var(--color-background)', border: '1px solid #1A1A1A', color: analyzing ? '#444' : 'var(--color-accent)' }}>
           {analyzing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ScanSearch className="w-3.5 h-3.5" />}
           {analyzing ? 'Scan…' : 'Analizza codebase'}
         </button>
@@ -781,9 +781,9 @@ export function TwoBeeOSClient({ tasks: initial }: { tasks: OsTask[] }) {
         <button onClick={() => { setShowIdeaInput(v => !v); setIdeaPrompt('') }}
           className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl ml-auto transition-all"
           style={{
-            background: showIdeaInput ? 'rgba(245,200,0,0.08)' : '#0D0D0D',
-            border: `1px solid ${showIdeaInput ? 'rgba(245,200,0,0.3)' : '#1A1A1A'}`,
-            color: showIdeaInput ? '#F5C800' : '#555',
+            background: showIdeaInput ? 'var(--color-gold-dim)' : 'var(--color-background)',
+            border: `1px solid ${showIdeaInput ? 'var(--color-gold-dim)' : 'var(--color-surface)'}`,
+            color: showIdeaInput ? 'var(--color-gold-text)' : '#555',
           }}>
           <FlaskConical className="w-3.5 h-3.5" /> Proponi idee
         </button>
@@ -792,10 +792,10 @@ export function TwoBeeOSClient({ tasks: initial }: { tasks: OsTask[] }) {
       {/* Idea input panel */}
       {showIdeaInput && (
         <div className="rounded-xl p-4 space-y-3"
-          style={{ background: 'rgba(245,200,0,0.02)', border: '1px solid rgba(245,200,0,0.12)' }}>
+          style={{ background: 'var(--color-gold-dim)', border: '1px solid var(--color-gold-dim)' }}>
           <div className="flex items-center gap-2">
-            <Sparkles className="w-3.5 h-3.5" style={{ color: '#F5C800' }} />
-            <p className="text-xs font-bold" style={{ color: '#F5C800' }}>Cosa vuoi costruire o implementare?</p>
+            <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-gold-text)' }} />
+            <p className="text-xs font-bold" style={{ color: 'var(--color-gold-text)' }}>Cosa vuoi costruire o implementare?</p>
           </div>
           <textarea
             value={ideaPrompt}
@@ -805,27 +805,27 @@ export function TwoBeeOSClient({ tasks: initial }: { tasks: OsTask[] }) {
             rows={3}
             autoFocus
             className="w-full text-xs rounded-lg px-3 py-2.5 outline-none resize-none"
-            style={{ background: '#0A0A0A', border: '1px solid #1A1A1A', color: '#CCC', lineHeight: 1.6 }}
+            style={{ background: 'var(--color-background)', border: '1px solid #1A1A1A', color: '#CCC', lineHeight: 1.6 }}
           />
           <div className="flex items-center gap-2">
             <button onClick={handleProposeIdeas} disabled={proposing || !ideaPrompt.trim()}
               className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
               style={{
-                background: proposing || !ideaPrompt.trim() ? '#0A0A0A' : 'rgba(245,200,0,0.1)',
-                border: `1px solid ${proposing || !ideaPrompt.trim() ? '#111' : 'rgba(245,200,0,0.25)'}`,
-                color: proposing || !ideaPrompt.trim() ? '#333' : '#F5C800',
+                background: proposing || !ideaPrompt.trim() ? 'var(--color-background)' : 'var(--color-gold-dim)',
+                border: `1px solid ${proposing || !ideaPrompt.trim() ? '#111' : 'var(--color-gold-dim)'}`,
+                color: proposing || !ideaPrompt.trim() ? '#333' : 'var(--color-gold-text)',
               }}>
               {proposing ? <Loader2 className="w-3 h-3 animate-spin" /> : <ArrowRight className="w-3 h-3" />}
               {proposing ? 'Generazione…' : 'Genera 5 proposte'}
             </button>
-            <span className="text-[9px]" style={{ color: '#2A2A2A' }}>⌘↵</span>
+            <span className="text-2xs" style={{ color: 'var(--color-border)' }}>⌘↵</span>
             <button onClick={() => openAdd()}
-              className="ml-auto text-[9px] underline-offset-2 underline"
-              style={{ color: '#2A2A2A' }}>
+              className="ml-auto text-2xs underline-offset-2 underline"
+              style={{ color: 'var(--color-border)' }}>
               aggiungi manuale
             </button>
             <button onClick={() => { setShowIdeaInput(false); setIdeaPrompt('') }}>
-              <X className="w-3.5 h-3.5" style={{ color: '#2A2A2A' }} />
+              <X className="w-3.5 h-3.5" style={{ color: 'var(--color-border)' }} />
             </button>
           </div>
         </div>
@@ -840,12 +840,12 @@ export function TwoBeeOSClient({ tasks: initial }: { tasks: OsTask[] }) {
             <button key={cat} onClick={() => setFilterCat(filterCat === cat ? '' : cat)}
               className="rounded-xl p-3 text-left transition-all"
               style={{
-                background: filterCat === cat ? cfg.color + '10' : '#0D0D0D',
-                border: `1px solid ${filterCat === cat ? cfg.color + '30' : '#111'}`,
+                background: filterCat === cat ? `color-mix(in srgb, ${cfg.color} 6%, transparent)` : 'var(--color-background)',
+                border: `1px solid ${filterCat === cat ? `color-mix(in srgb, ${cfg.color} 19%, transparent)` : '#111'}`,
               }}>
               <div className="flex items-center gap-1.5 mb-1">
                 <span style={{ color: cfg.color }}>{cfg.icon}</span>
-                <span className="text-[9px] font-black uppercase tracking-widest"
+                <span className="text-2xs font-black uppercase tracking-widest"
                   style={{ color: filterCat === cat ? cfg.color : '#333' }}>{cfg.label}</span>
               </div>
               <p className="text-2xl font-black" style={{ color: filterCat === cat ? cfg.color : '#888' }}>{count}</p>
@@ -856,35 +856,35 @@ export function TwoBeeOSClient({ tasks: initial }: { tasks: OsTask[] }) {
 
       {/* Next step */}
       {nextTask && (
-        <div className="rounded-xl p-4" style={{ background: 'rgba(245,200,0,0.03)', border: '1px solid rgba(245,200,0,0.2)' }}>
+        <div className="rounded-xl p-4" style={{ background: 'var(--color-gold-dim)', border: '1px solid var(--color-gold-dim)' }}>
           <div className="flex items-start gap-3">
-            <Sparkles className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#F5C800' }} />
+            <Sparkles className="w-4 h-4 shrink-0 mt-0.5" style={{ color: 'var(--color-gold-text)' }} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#F5C800' }}>
+                <p className="text-2xs font-black uppercase tracking-widest" style={{ color: 'var(--color-gold-text)' }}>
                   Prossimo step
                 </p>
                 {SECTION[nextTask.section] && (
                   <span className="flex items-center gap-1 text-[8px] font-bold px-1.5 py-0.5 rounded"
-                    style={{ background: SECTION[nextTask.section].color + '12', color: SECTION[nextTask.section].color }}>
+                    style={{ background: `color-mix(in srgb, ${SECTION[nextTask.section].color} 7%, transparent)`, color: SECTION[nextTask.section].color }}>
                     {SECTION[nextTask.section].icon} {SECTION[nextTask.section].label}
                   </span>
                 )}
               </div>
-              <p className="text-sm font-black text-white mb-1">{nextTask.title}</p>
-              {nextReason && <p className="text-[10px]" style={{ color: '#555' }}>{nextReason}</p>}
+              <p className="text-sm font-black text-text-primary mb-1">{nextTask.title}</p>
+              {nextReason && <p className="text-2xs" style={{ color: '#555' }}>{nextReason}</p>}
               {!nextReason && nextTask.description && (
-                <p className="text-[10px] line-clamp-2" style={{ color: '#444' }}>{nextTask.description}</p>
+                <p className="text-2xs line-clamp-2" style={{ color: '#444' }}>{nextTask.description}</p>
               )}
             </div>
             <div className="flex flex-col gap-1.5 shrink-0">
               <button onClick={() => setPromptTask(nextTask)}
                 className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl whitespace-nowrap"
-                style={{ background: 'rgba(245,200,0,0.1)', border: '1px solid rgba(245,200,0,0.25)', color: '#F5C800' }}>
+                style={{ background: 'var(--color-gold-dim)', border: '1px solid var(--color-gold-dim)', color: 'var(--color-gold-text)' }}>
                 <ArrowRight className="w-3 h-3" /> Genera Prompt
               </button>
               <button onClick={handleClearNext}
-                className="text-[9px] text-center px-3 py-1 rounded-xl"
+                className="text-2xs text-center px-3 py-1 rounded-xl"
                 style={{ background: '#111', border: '1px solid #1A1A1A', color: '#333' }}>
                 Rimuovi
               </button>
@@ -908,10 +908,10 @@ export function TwoBeeOSClient({ tasks: initial }: { tasks: OsTask[] }) {
         {/* Section pills */}
         <div className="flex gap-1 flex-wrap">
           <button onClick={() => setFilterSec('')}
-            className="flex items-center gap-1 text-[9px] font-bold px-2.5 py-1 rounded-lg transition-all"
+            className="flex items-center gap-1 text-2xs font-bold px-2.5 py-1 rounded-lg transition-all"
             style={{
-              background: !filterSec ? '#1A1A1A' : '#0A0A0A',
-              border: `1px solid ${!filterSec ? '#2A2A2A' : '#111'}`,
+              background: !filterSec ? 'var(--color-surface)' : 'var(--color-background)',
+              border: `1px solid ${!filterSec ? 'var(--color-border)' : '#111'}`,
               color: !filterSec ? '#888' : '#333',
             }}>
             Tutte le sezioni
@@ -922,10 +922,10 @@ export function TwoBeeOSClient({ tasks: initial }: { tasks: OsTask[] }) {
             if (c === 0 && !filterSec && !showDone) return null
             return (
               <button key={sec} onClick={() => setFilterSec(filterSec === sec ? '' : sec)}
-                className="flex items-center gap-1.5 text-[9px] font-bold px-2.5 py-1 rounded-lg transition-all"
+                className="flex items-center gap-1.5 text-2xs font-bold px-2.5 py-1 rounded-lg transition-all"
                 style={{
-                  background: filterSec === sec ? cfg.color + '12' : '#0A0A0A',
-                  border: `1px solid ${filterSec === sec ? cfg.color + '35' : '#111'}`,
+                  background: filterSec === sec ? `color-mix(in srgb, ${cfg.color} 7%, transparent)` : 'var(--color-background)',
+                  border: `1px solid ${filterSec === sec ? `color-mix(in srgb, ${cfg.color} 21%, transparent)` : '#111'}`,
                   color: filterSec === sec ? cfg.color : '#333',
                 }}>
                 <span style={{ color: filterSec === sec ? cfg.color : '#333' }}>{cfg.icon}</span>
@@ -938,12 +938,12 @@ export function TwoBeeOSClient({ tasks: initial }: { tasks: OsTask[] }) {
 
         {/* Category + Priority + Done toggle */}
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex gap-0.5 rounded-lg p-0.5" style={{ background: '#0A0A0A', border: '1px solid #111' }}>
+          <div className="flex gap-0.5 rounded-lg p-0.5" style={{ background: 'var(--color-background)', border: '1px solid #111' }}>
             {['', ...Object.keys(CATEGORY)].map(cat => (
               <button key={cat} onClick={() => setFilterCat(cat)}
-                className="text-[9px] font-bold px-2 py-1 rounded-md transition-all"
+                className="text-2xs font-bold px-2 py-1 rounded-md transition-all"
                 style={{
-                  background: filterCat === cat ? '#1A1A1A' : 'transparent',
+                  background: filterCat === cat ? 'var(--color-surface)' : 'transparent',
                   color: filterCat === cat ? (cat ? CATEGORY[cat]?.color : '#888') : '#333',
                   border: filterCat === cat ? '1px solid #2A2A2A' : '1px solid transparent',
                 }}>
@@ -953,27 +953,27 @@ export function TwoBeeOSClient({ tasks: initial }: { tasks: OsTask[] }) {
           </div>
 
           <select value={filterPri} onChange={e => setFilterPri(e.target.value)}
-            className="text-[9px] font-bold px-2 py-1.5 rounded-lg outline-none"
-            style={{ background: '#0A0A0A', color: filterPri ? PRIORITY[filterPri]?.color : '#333', border: '1px solid #111' }}>
+            className="text-2xs font-bold px-2 py-1.5 rounded-lg outline-none"
+            style={{ background: 'var(--color-background)', color: filterPri ? PRIORITY[filterPri]?.color : '#333', border: '1px solid #111' }}>
             <option value="">Priorità</option>
             {Object.entries(PRIORITY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
 
           {anyFilter && (
             <button onClick={() => { setFilterCat(''); setFilterPri(''); setFilterSec('') }}
-              className="text-[9px] px-2 py-1 rounded-lg flex items-center gap-1"
+              className="text-2xs px-2 py-1 rounded-lg flex items-center gap-1"
               style={{ background: '#111', color: '#555', border: '1px solid #1A1A1A' }}>
               <X className="w-2.5 h-2.5" /> Reset
             </button>
           )}
 
           {/* Group by toggle */}
-          <div className="flex gap-0.5 rounded-lg p-0.5" style={{ background: '#0A0A0A', border: '1px solid #111' }}>
+          <div className="flex gap-0.5 rounded-lg p-0.5" style={{ background: 'var(--color-background)', border: '1px solid #111' }}>
             {(['section', 'category'] as const).map(v => (
               <button key={v} onClick={() => setGroupBy(v)}
-                className="text-[9px] font-bold px-2 py-1 rounded-md transition-all"
+                className="text-2xs font-bold px-2 py-1 rounded-md transition-all"
                 style={{
-                  background: groupBy === v ? '#1A1A1A' : 'transparent',
+                  background: groupBy === v ? 'var(--color-surface)' : 'transparent',
                   color: groupBy === v ? '#888' : '#333',
                   border: groupBy === v ? '1px solid #2A2A2A' : '1px solid transparent',
                 }}>
@@ -984,11 +984,11 @@ export function TwoBeeOSClient({ tasks: initial }: { tasks: OsTask[] }) {
 
           <div className="flex items-center gap-1.5 ml-auto cursor-pointer" onClick={() => setShowDone(v => !v)}>
             <div className="w-7 h-4 rounded-full relative transition-colors"
-              style={{ background: showDone ? 'rgba(34,197,94,0.3)' : '#111', border: '1px solid ' + (showDone ? 'rgba(34,197,94,0.4)' : '#1A1A1A') }}>
+              style={{ background: showDone ? 'rgba(34,197,94,0.3)' : '#111', border: '1px solid ' + (showDone ? 'rgba(34,197,94,0.4)' : 'var(--color-surface)') }}>
               <div className="absolute top-0.5 w-3 h-3 rounded-full transition-all"
-                style={{ background: showDone ? '#22C55E' : '#2A2A2A', left: showDone ? 14 : 2 }} />
+                style={{ background: showDone ? 'var(--color-success)' : 'var(--color-border)', left: showDone ? 14 : 2 }} />
             </div>
-            <span className="text-[9px]" style={{ color: '#333' }}>
+            <span className="text-2xs" style={{ color: '#333' }}>
               Completati {counts.done > 0 && `(${counts.done})`}
             </span>
           </div>
@@ -1020,17 +1020,17 @@ export function TwoBeeOSClient({ tasks: initial }: { tasks: OsTask[] }) {
                 ) : (
                   <div className="flex items-center gap-2 px-1 py-2 mt-2">
                     <span style={{ color: CATEGORY[key].color }}>{CATEGORY[key].icon}</span>
-                    <span className="text-[9px] font-black uppercase tracking-widest"
+                    <span className="text-2xs font-black uppercase tracking-widest"
                       style={{ color: CATEGORY[key].color }}>{CATEGORY[key].label}</span>
-                    <span className="text-[9px] font-bold" style={{ color: '#333' }}>
+                    <span className="text-2xs font-bold" style={{ color: '#333' }}>
                       {grouped[key].filter(t => t.status === 'aperto').length}
                     </span>
-                    <span className="text-[9px]" style={{ color: '#222' }}>
+                    <span className="text-2xs" style={{ color: '#222' }}>
                       {totalEffort(grouped[key])}d
                     </span>
-                    <div className="flex-1 h-px" style={{ background: CATEGORY[key].color + '15' }} />
+                    <div className="flex-1 h-px" style={{ background: `color-mix(in srgb, ${CATEGORY[key].color} 8%, transparent)` }} />
                     <button onClick={() => openAdd()}
-                      className="text-[9px] font-bold flex items-center gap-0.5 transition-opacity opacity-30 hover:opacity-70"
+                      className="text-2xs font-bold flex items-center gap-0.5 transition-opacity opacity-30 hover:opacity-70"
                       style={{ color: CATEGORY[key].color }}>
                       <Plus className="w-2.5 h-2.5" />
                     </button>
@@ -1061,7 +1061,7 @@ export function TwoBeeOSClient({ tasks: initial }: { tasks: OsTask[] }) {
 
       {/* Footer */}
       {filtered.length > 0 && (
-        <p className="text-[9px] text-center pb-2" style={{ color: '#1A1A1A' }}>
+        <p className="text-2xs text-center pb-2" style={{ color: 'var(--color-surface)' }}>
           {counts.total} aperti · {counts.done} completati ·{' '}
           {totalEffort(tasks.filter(t => t.status === 'aperto'))}d di effort stimato
         </p>

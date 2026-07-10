@@ -32,13 +32,13 @@ const labelBadge: Record<string, string> = {
   stabile: 'bg-success/20 text-success',
   in_bilico: 'bg-warning/20 text-warning',
   perso: 'bg-error/20 text-error',
-  partner: 'bg-gold/20 text-gold',
+  partner: 'bg-gold/20 text-gold-text',
 }
 const labelIcon: Record<string, string> = { stabile: '✅', in_bilico: '⚠️', perso: '❌', partner: '🤝' }
 const typeBadge: Record<string, string> = {
-  growth: 'bg-gold/15 text-gold',
-  digital: 'bg-blue-500/15 text-blue-400',
-  growth_digital: 'bg-purple-500/15 text-purple-400',
+  growth: 'bg-gold/15 text-gold-text',
+  digital: 'bg-info/15 text-info',
+  growth_digital: 'bg-accent/15 text-accent',
 }
 
 type PortfolioTab = 'tutti' | 'growth' | 'digital' | 'growth_digital' | 'interni'
@@ -64,10 +64,10 @@ const SORT_LABELS: Record<SortKey, string> = {
 function RiskInfoTooltip() {
   return (
     <div className="relative group/tip inline-flex items-center" onClick={e => e.stopPropagation()}>
-      <div className="w-3.5 h-3.5 rounded-full border border-border-strong text-text-secondary text-[9px] font-bold flex items-center justify-center cursor-default select-none hover:border-gold/50 hover:text-gold transition-colors">i</div>
+      <div className="w-3.5 h-3.5 rounded-full border border-border-strong text-text-secondary text-2xs font-bold flex items-center justify-center cursor-default select-none hover:border-gold/50 hover:text-gold-text transition-colors">i</div>
       <div className="pointer-events-none absolute left-0 top-full mt-2 w-60 bg-surface border border-border rounded-xl shadow-2xl opacity-0 group-hover/tip:opacity-100 transition-opacity z-[999] p-3.5 normal-case tracking-normal font-normal overflow-hidden">
-        <div className="text-[11px] font-bold text-text-primary mb-1">Come funziona il punteggio?</div>
-        <div className="text-[10px] text-text-secondary mb-3 leading-snug break-words">Score 0–100 per cliente. Più è alto, più è a rischio. Si aggiorna automaticamente.</div>
+        <div className="text-2xs font-bold text-text-primary mb-1">Come funziona il punteggio?</div>
+        <div className="text-2xs text-text-secondary mb-3 leading-snug break-words">Score 0–100 per cliente. Più è alto, più è a rischio. Si aggiorna automaticamente.</div>
         <div className="space-y-1.5 mb-3">
           {([
             ['💳', 'Pagamenti in ritardo', '+10–30'],
@@ -78,16 +78,16 @@ function RiskInfoTooltip() {
             ['🏷️', 'Label manuale', '±5–10'],
           ] as [string, string, string][]).map(([icon, label, pts]) => (
             <div key={label} className="flex items-center gap-2">
-              <span className="shrink-0 text-[11px]">{icon}</span>
-              <span className="flex-1 text-[10px] text-text-secondary">{label}</span>
-              <span className="shrink-0 text-[9px] text-text-tertiary tabular-nums">{pts}</span>
+              <span className="shrink-0 text-2xs">{icon}</span>
+              <span className="flex-1 text-2xs text-text-secondary">{label}</span>
+              <span className="shrink-0 text-2xs text-text-tertiary tabular-nums">{pts}</span>
             </div>
           ))}
         </div>
         <div className="border-t border-border pt-2 grid grid-cols-3 gap-1 text-center">
-          <div className="text-[9px] font-bold text-success bg-success/10 rounded px-1 py-0.5">0–34 Basso</div>
-          <div className="text-[9px] font-bold text-warning bg-warning/10 rounded px-1 py-0.5">35–59 Medio</div>
-          <div className="text-[9px] font-bold text-error bg-error/10 rounded px-1 py-0.5">60+ Alto</div>
+          <div className="text-2xs font-bold text-success bg-success/10 rounded px-1 py-0.5">0–34 Basso</div>
+          <div className="text-2xs font-bold text-warning bg-warning/10 rounded px-1 py-0.5">35–59 Medio</div>
+          <div className="text-2xs font-bold text-error bg-error/10 rounded px-1 py-0.5">60+ Alto</div>
         </div>
       </div>
     </div>
@@ -111,33 +111,33 @@ function RiskBadge({ score, trend, factors }: {
 
   return (
     <span className="relative group/risk inline-flex items-center">
-      <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border cursor-default ${color}`}>
+      <span className={`inline-flex items-center gap-1 text-2xs font-bold px-1.5 py-0.5 rounded border cursor-default ${color}`}>
         {score}
         <TrendIcon className={`w-2.5 h-2.5 ${trendColor}`} />
       </span>
       {/* Tooltip per riga */}
       <span className="pointer-events-none absolute left-0 bottom-full mb-2 w-56 bg-surface border border-border rounded-xl p-3 shadow-2xl opacity-0 group-hover/risk:opacity-100 transition-opacity z-[999] text-left">
         <div className="flex items-center justify-between mb-2">
-          <span className={`text-[11px] font-bold ${score >= 60 ? 'text-error' : score >= 35 ? 'text-warning' : 'text-success'}`}>{levelLabel}</span>
-          <span className={`text-[9px] ${trendColor}`}>{trendLabel}</span>
+          <span className={`text-2xs font-bold ${score >= 60 ? 'text-error' : score >= 35 ? 'text-warning' : 'text-success'}`}>{levelLabel}</span>
+          <span className={`text-2xs ${trendColor}`}>{trendLabel}</span>
         </div>
         {factorEntries.length > 0 ? (
           <div className="space-y-1.5">
             {factorEntries.map(([key, f]) => (
               <div key={key} className="flex items-center justify-between gap-2">
-                <span className="text-[10px] text-text-secondary truncate">{f.msg}</span>
-                <span className={`text-[9px] font-bold shrink-0 ${f.score > 0 ? 'text-error' : 'text-success'}`}>
+                <span className="text-2xs text-text-secondary truncate">{f.msg}</span>
+                <span className={`text-2xs font-bold shrink-0 ${f.score > 0 ? 'text-error' : 'text-success'}`}>
                   {f.score > 0 ? `+${f.score}` : f.score}
                 </span>
               </div>
             ))}
             <div className="border-t border-border pt-1.5 flex items-center justify-between">
-              <span className="text-[9px] text-text-secondary">Score totale</span>
-              <span className="text-[10px] font-black text-text-primary">{score}/100</span>
+              <span className="text-2xs text-text-secondary">Score totale</span>
+              <span className="text-2xs font-black text-text-primary">{score}/100</span>
             </div>
           </div>
         ) : (
-          <p className="text-[10px] text-text-secondary">Nessun fattore di rischio rilevato.</p>
+          <p className="text-2xs text-text-secondary">Nessun fattore di rischio rilevato.</p>
         )}
       </span>
     </span>
@@ -147,8 +147,8 @@ function RiskBadge({ score, trend, factors }: {
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
   if (col !== sortKey) return <ChevronsUpDown className="w-3 h-3 text-text-tertiary" />
   return sortDir === 'asc'
-    ? <ChevronUp className="w-3 h-3 text-gold" />
-    : <ChevronDown className="w-3 h-3 text-gold" />
+    ? <ChevronUp className="w-3 h-3 text-gold-text" />
+    : <ChevronDown className="w-3 h-3 text-gold-text" />
 }
 
 function SortValue(c: Client, key: SortKey): string | number {
@@ -359,26 +359,26 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
       <div className="bg-surface border border-border rounded-xl p-4 hover:border-gold/20 transition-colors group flex flex-col gap-3">
         {/* Top: avatar + nome + pin */}
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gold/20 to-gold/5 border border-gold/20 flex items-center justify-center text-base font-black text-gold shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gold/20 to-gold/5 border border-gold/20 flex items-center justify-center text-base font-black text-gold-text shrink-0">
             {client.company_name[0].toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <Link href={hideEconomics ? `/workspace/clienti/${client.id}` : `/clienti/${client.id}`} className="font-bold text-text-primary hover:text-gold transition-colors text-sm leading-tight block truncate">
+            <Link href={hideEconomics ? `/workspace/clienti/${client.id}` : `/clienti/${client.id}`} className="font-bold text-text-primary hover:text-gold-text transition-colors text-sm leading-tight block truncate">
               {client.company_name}
             </Link>
             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-              <span className={`inline-flex items-center whitespace-nowrap text-[10px] font-semibold px-1.5 py-0.5 rounded ${typeBadge[client.client_type ?? 'growth']}`}>
+              <span className={`inline-flex items-center whitespace-nowrap text-2xs font-semibold px-1.5 py-0.5 rounded ${typeBadge[client.client_type ?? 'growth']}`}>
                 {client.client_type === 'growth_digital' ? 'G+D' : (client.client_type ?? 'growth')}
               </span>
-              <span className={`inline-flex items-center gap-1 whitespace-nowrap text-[10px] font-semibold px-1.5 py-0.5 rounded ${labelBadge[client.client_label ?? 'stabile']}`}>
+              <span className={`inline-flex items-center gap-1 whitespace-nowrap text-2xs font-semibold px-1.5 py-0.5 rounded ${labelBadge[client.client_label ?? 'stabile']}`}>
                 {labelIcon[client.client_label ?? 'stabile']} {(client.client_label ?? 'stabile').replace('_', ' ')}
               </span>
               {client.is_internal && (
-                <span className="inline-flex items-center whitespace-nowrap text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400">interno</span>
+                <span className="inline-flex items-center whitespace-nowrap text-2xs font-semibold px-1.5 py-0.5 rounded bg-info/15 text-info">interno</span>
               )}
             </div>
           </div>
-          <button onClick={onPin} className={`shrink-0 transition-colors ${pinned ? 'text-gold' : 'text-text-tertiary hover:text-gold opacity-0 group-hover:opacity-100'}`}>
+          <button onClick={onPin} className={`shrink-0 transition-colors ${pinned ? 'text-gold-text' : 'text-text-tertiary hover:text-gold-text opacity-0 group-hover:opacity-100'}`}>
             <Pin className={`w-3.5 h-3.5 ${pinned ? 'fill-gold' : ''}`} />
           </button>
         </div>
@@ -387,17 +387,17 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
         <div className="grid grid-cols-2 gap-2">
           {canSeeMrr && (
             <div className="bg-surface rounded-lg p-2.5">
-              <p className="text-[9px] text-text-secondary uppercase tracking-wider mb-0.5">MRR</p>
-              <p className="text-sm font-black text-gold">{formatCurrency(client.mrr)}</p>
+              <p className="text-2xs text-text-secondary uppercase tracking-wider mb-0.5">MRR</p>
+              <p className="text-sm font-black text-gold-text">{formatCurrency(client.mrr)}</p>
             </div>
           )}
         </div>
 
         {/* Pacchetto + pagamento + risk */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] bg-gold/10 text-gold border border-gold/20 px-2 py-0.5 rounded font-semibold">{client.package}</span>
+          <span className="text-2xs bg-gold/10 text-gold-text border border-gold/20 px-2 py-0.5 rounded font-semibold">{client.package}</span>
           {showPayments && (
-            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${getPaymentBadge(client.payment_status)}`}>
+            <span className={`text-2xs font-semibold px-2 py-0.5 rounded ${getPaymentBadge(client.payment_status)}`}>
               {client.payment_status === 'in_attesa' ? 'Attesa pagamento' : client.payment_status === 'pagato' ? 'Pagato' : 'Scaduto'}
             </span>
           )}
@@ -406,7 +406,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
 
         {/* Contratto */}
         {daysLeft !== null && (
-          <div className="flex items-center gap-1.5 text-[10px]">
+          <div className="flex items-center gap-1.5 text-2xs">
             <Calendar className={`w-3 h-3 ${expiringSoon ? 'text-warning' : 'text-text-secondary'}`} />
             <span className={expiringSoon ? 'text-warning font-bold' : 'text-text-secondary'}>
               {daysLeft === 0 ? 'Contratto scaduto' : `${daysLeft}gg al rinnovo`}
@@ -418,16 +418,16 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
         {client.active_channels.length > 0 && (
           <div className="flex gap-1 flex-wrap">
             {client.active_channels.slice(0, 3).map(ch => (
-              <span key={ch} className="text-[10px] bg-background border border-border px-1.5 py-0.5 rounded text-text-secondary">{ch}</span>
+              <span key={ch} className="text-2xs bg-background border border-border px-1.5 py-0.5 rounded text-text-secondary">{ch}</span>
             ))}
-            {client.active_channels.length > 3 && <span className="text-[10px] text-text-secondary">+{client.active_channels.length - 3}</span>}
+            {client.active_channels.length > 3 && <span className="text-2xs text-text-secondary">+{client.active_channels.length - 3}</span>}
           </div>
         )}
 
         {/* Footer azioni */}
         <div className="flex items-center justify-between pt-1 border-t border-border mt-auto">
           <Link href={hideEconomics ? `/workspace/clienti/${client.id}` : `/clienti/${client.id}`}
-            className="flex items-center gap-1 text-[11px] text-text-secondary hover:text-gold transition-colors">
+            className="flex items-center gap-1 text-2xs text-text-secondary hover:text-gold-text transition-colors">
             <ExternalLink className="w-3 h-3" /> Apri scheda
           </Link>
           {!hideEconomics && (
@@ -457,7 +457,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
           <button
             onClick={() => togglePin(client.id)}
             title={pinned ? 'Rimuovi dai fissati' : 'Fissa in cima'}
-            className={`transition-colors ${pinned ? 'text-gold hover:text-gold/60' : 'text-text-tertiary hover:text-gold opacity-0 group-hover:opacity-100'}`}
+            className={`transition-colors ${pinned ? 'text-gold-text hover:text-gold-text/60' : 'text-text-tertiary hover:text-gold-text opacity-0 group-hover:opacity-100'}`}
           >
             {pinned ? <Pin className="w-3.5 h-3.5 fill-gold" /> : <Pin className="w-3.5 h-3.5" />}
           </button>
@@ -465,8 +465,8 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
       </td>
       <td className="px-4 py-3.5">
         <div className="flex items-center gap-2">
-          {pinned && <span className="text-[10px] text-gold bg-gold/10 border border-gold/20 px-1.5 py-0.5 rounded font-semibold">FISSATO</span>}
-          <Link href={hideEconomics ? `/workspace/clienti/${client.id}` : `/clienti/${client.id}`} className="font-semibold text-text-primary hover:text-gold transition-colors text-sm">
+          {pinned && <span className="text-2xs text-gold-text bg-gold/10 border border-gold/20 px-1.5 py-0.5 rounded font-semibold">FISSATO</span>}
+          <Link href={hideEconomics ? `/workspace/clienti/${client.id}` : `/clienti/${client.id}`} className="font-semibold text-text-primary hover:text-gold-text transition-colors text-sm">
             {client.company_name}
           </Link>
         </div>
@@ -487,7 +487,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
       <td className="px-4 py-3.5">
         <span className="inline-flex whitespace-nowrap text-xs text-text-secondary bg-background px-2 py-1 rounded">{client.package}</span>
       </td>
-      {canSeeMrr && <td className="px-4 py-3.5 text-sm font-bold text-gold">{formatCurrency(client.mrr)}</td>}
+      {canSeeMrr && <td className="px-4 py-3.5 text-sm font-bold text-gold-text">{formatCurrency(client.mrr)}</td>}
       {showPayments && (
         <td className="px-4 py-3.5">
           <span className={`inline-flex items-center whitespace-nowrap text-xs font-semibold px-2 py-0.5 rounded ${getPaymentBadge(client.payment_status)}`}>
@@ -502,7 +502,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
       </td>
       <td className="px-4 py-3.5">
         <div className="flex items-center gap-3">
-          <Link href={hideEconomics ? `/workspace/clienti/${client.id}` : `/clienti/${client.id}`} className="flex items-center gap-1 text-xs text-text-secondary hover:text-gold transition-colors">
+          <Link href={hideEconomics ? `/workspace/clienti/${client.id}` : `/clienti/${client.id}`} className="flex items-center gap-1 text-xs text-text-secondary hover:text-gold-text transition-colors">
             <ExternalLink className="w-3.5 h-3.5" /> Apri
           </Link>
           {!hideEconomics && (
@@ -529,19 +529,19 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
         <div>
           <h1 className="text-2xl font-black text-text-primary">Clienti</h1>
           <p className="text-text-secondary text-sm mt-0.5">
-            {allFiltered.length} clienti{canSeeMrr && <> · MRR totale <span className="text-gold font-semibold">{formatCurrency(totalMrr)}</span></>}
+            {allFiltered.length} clienti{canSeeMrr && <> · MRR totale <span className="text-gold-text font-semibold">{formatCurrency(totalMrr)}</span></>}
           </p>
         </div>
         <div className="flex gap-2">
           {/* Vista toggle */}
           <div className="flex border border-border rounded-lg overflow-hidden">
             <button onClick={() => setViewMode('table')}
-              className={`px-2.5 py-2 transition-colors ${viewMode === 'table' ? 'bg-gold/10 text-gold' : 'text-text-secondary hover:text-text-primary'}`}
+              className={`px-2.5 py-2 transition-colors ${viewMode === 'table' ? 'bg-gold/10 text-gold-text' : 'text-text-secondary hover:text-text-primary'}`}
               title="Vista tabella">
               <List className="w-4 h-4" />
             </button>
             <button onClick={() => setViewMode('grid')}
-              className={`px-2.5 py-2 transition-colors ${viewMode === 'grid' ? 'bg-gold/10 text-gold' : 'text-text-secondary hover:text-text-primary'}`}
+              className={`px-2.5 py-2 transition-colors ${viewMode === 'grid' ? 'bg-gold/10 text-gold-text' : 'text-text-secondary hover:text-text-primary'}`}
               title="Vista card">
               <LayoutGrid className="w-4 h-4" />
             </button>
@@ -552,7 +552,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
             </button>
           )}
           {canCreateClient && (
-            <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-gold text-black rounded-lg hover:bg-yellow-400 transition-colors">
+            <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-gold text-on-gold rounded-lg hover:bg-gold/90 transition-colors">
               <Plus className="w-4 h-4" /> Nuovo Cliente
             </button>
           )}
@@ -570,15 +570,15 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
             <button key={tab.key} onClick={() => setPortfolioTab(tab.key)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
                 portfolioTab === tab.key
-                  ? tab.key === 'growth'         ? 'bg-gold/10 text-gold border-gold/30'
-                  : tab.key === 'digital'        ? 'bg-blue-500/10 text-blue-400 border-blue-400/30'
-                  : tab.key === 'growth_digital' ? 'bg-purple-500/10 text-purple-400 border-purple-400/30'
+                  ? tab.key === 'growth'         ? 'bg-gold/10 text-gold-text border-gold/30'
+                  : tab.key === 'digital'        ? 'bg-info/10 text-info border-info/30'
+                  : tab.key === 'growth_digital' ? 'bg-accent/10 text-accent border-accent/30'
                   : 'bg-overlay/5 text-text-primary border-overlay/10'
                   : 'bg-transparent text-text-secondary border-border hover:border-border-strong hover:text-text-primary'
               }`}>
               <span>{tab.emoji}</span>
               <span>{tab.label}</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${portfolioTab === tab.key ? 'bg-overlay/10' : 'bg-surface-hover text-text-secondary'}`}>{count}</span>
+              <span className={`text-2xs px-1.5 py-0.5 rounded-full font-bold ${portfolioTab === tab.key ? 'bg-overlay/10' : 'bg-surface-hover text-text-secondary'}`}>{count}</span>
             </button>
           )
         })}
@@ -631,11 +631,11 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
         {/* Toggle filtri avanzati */}
         <button
           onClick={() => setShowAdvanced((v) => !v)}
-          className={`flex items-center gap-2 px-3 py-2 text-sm border rounded-lg transition-colors ${showAdvanced || activeFilters > 0 ? 'border-gold/40 text-gold bg-gold/5' : 'border-border text-text-secondary hover:text-text-primary hover:border-border-strong'}`}
+          className={`flex items-center gap-2 px-3 py-2 text-sm border rounded-lg transition-colors ${showAdvanced || activeFilters > 0 ? 'border-gold/40 text-gold-text bg-gold/5' : 'border-border text-text-secondary hover:text-text-primary hover:border-border-strong'}`}
         >
           <SlidersHorizontal className="w-4 h-4" />
           Avanzati
-          {activeFilters > 0 && <span className="bg-gold text-black text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{activeFilters}</span>}
+          {activeFilters > 0 && <span className="bg-gold text-on-gold text-2xs font-bold w-4 h-4 rounded-full flex items-center justify-center">{activeFilters}</span>}
         </button>
 
         {activeFilters > 0 && (
@@ -682,7 +682,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
           )}
           <div className="flex items-end">
             <div className="text-xs text-text-secondary bg-background border border-border rounded-lg px-3 py-2">
-              <span className="text-text-primary font-semibold">{allFiltered.length}</span> risultati{canSeeMrr && <> · MRR medio <span className="text-gold font-semibold">{formatCurrency(allFiltered.length ? totalMrr / allFiltered.length : 0)}</span></>}
+              <span className="text-text-primary font-semibold">{allFiltered.length}</span> risultati{canSeeMrr && <> · MRR medio <span className="text-gold-text font-semibold">{formatCurrency(allFiltered.length ? totalMrr / allFiltered.length : 0)}</span></>}
             </div>
           </div>
         </div>
@@ -691,7 +691,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
       {/* Ordinamento personalizzato info */}
       {pinnedClients.length > 0 && (
         <p className="text-xs text-text-secondary flex items-center gap-1.5">
-          <Pin className="w-3 h-3 text-gold" />
+          <Pin className="w-3 h-3 text-gold-text" />
           {pinnedClients.length} cliente{pinnedClients.length > 1 ? 'i' : ''} fissato{pinnedClients.length > 1 ? 'i' : ''} in cima · trascina per riordinare
         </p>
       )}
@@ -735,7 +735,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
                   <td colSpan={10} className="px-4 py-1.5 bg-surface">
                     <div className="flex items-center gap-2">
                       <div className="flex-1 h-px bg-surface-hover" />
-                      <span className="text-[10px] text-text-secondary uppercase tracking-widest">Altri clienti</span>
+                      <span className="text-2xs text-text-secondary uppercase tracking-widest">Altri clienti</span>
                       <div className="flex-1 h-px bg-surface-hover" />
                     </div>
                   </td>
@@ -755,7 +755,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
           )}
           {pinnedClients.length > 0 && (
             <div className="space-y-2 mb-4">
-              <p className="text-[10px] text-gold uppercase tracking-widest font-bold flex items-center gap-1.5">
+              <p className="text-2xs text-gold-text uppercase tracking-widest font-bold flex items-center gap-1.5">
                 <Pin className="w-3 h-3 fill-gold" /> Fissati
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -766,7 +766,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
           {pinnedClients.length > 0 && unpinnedClients.length > 0 && (
             <div className="flex items-center gap-3 my-4">
               <div className="flex-1 h-px bg-surface-hover" />
-              <span className="text-[10px] text-text-secondary uppercase tracking-widest">Altri clienti</span>
+              <span className="text-2xs text-text-secondary uppercase tracking-widest">Altri clienti</span>
               <div className="flex-1 h-px bg-surface-hover" />
             </div>
           )}
@@ -827,7 +827,7 @@ function LostSection({ clients, canSeeMrr, onDelete, deletingId }: {
             {clients.map((c) => (
               <tr key={c.id} className="border-b border-border hover:bg-overlay/2 transition-colors group opacity-60 hover:opacity-100">
                 <td className="px-5 py-3">
-                  <Link href={`/clienti/${c.id}`} className="flex items-center gap-2.5 hover:text-gold transition-colors">
+                  <Link href={`/clienti/${c.id}`} className="flex items-center gap-2.5 hover:text-gold-text transition-colors">
                     <div className="w-7 h-7 rounded-lg bg-surface border border-border flex items-center justify-center text-xs font-black text-text-secondary shrink-0">
                       {c.company_name[0].toUpperCase()}
                     </div>
@@ -835,7 +835,7 @@ function LostSection({ clients, canSeeMrr, onDelete, deletingId }: {
                   </Link>
                 </td>
                 <td className="px-4 py-3">
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded ${c.client_type === 'growth' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400'}`}>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded ${c.client_type === 'growth' ? 'bg-info/10 text-info' : 'bg-accent/10 text-accent'}`}>
                     {c.client_type}
                   </span>
                 </td>
@@ -846,7 +846,7 @@ function LostSection({ clients, canSeeMrr, onDelete, deletingId }: {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Link href={`/clienti/${c.id}`} className="text-xs text-text-secondary hover:text-gold transition-colors">
+                    <Link href={`/clienti/${c.id}`} className="text-xs text-text-secondary hover:text-gold-text transition-colors">
                       <ExternalLink className="w-3.5 h-3.5" />
                     </Link>
                     {canSeeMrr && (

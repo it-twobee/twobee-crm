@@ -18,9 +18,9 @@ const PRIORITY_ORDER = { alta: 0, media: 1, bassa: 2 }
 const STATUS_ORDER = { da_fare: 0, in_corso: 1, in_revisione: 2, completato: 3 }
 
 const STATUS_BADGE: Record<string, string> = {
-  da_fare: 'bg-[#2A2A2A] text-text-secondary',
+  da_fare: 'bg-surface-active text-text-secondary',
   in_corso: 'bg-warning/20 text-warning',
-  in_revisione: 'bg-gold/20 text-gold',
+  in_revisione: 'bg-gold/20 text-gold-text',
   completato: 'bg-success/20 text-success',
 }
 
@@ -63,10 +63,10 @@ function QuickAssign({
       <button
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
         title={task.assignee ? task.assignee.full_name : 'Assegna'}
-        className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-colors ${
+        className={`w-5 h-5 rounded-full flex items-center justify-center text-2xs font-bold transition-colors ${
           task.assignee
-            ? 'bg-gold/20 border border-gold/30 text-gold hover:bg-gold/30'
-            : 'bg-[#2A2A2A] border border-dashed border-[#444] text-text-secondary hover:border-gold/40 hover:text-gold'
+            ? 'bg-gold/20 border border-gold/30 text-gold-text hover:bg-gold/30'
+            : 'bg-surface-active border border-dashed border-border-strong text-text-secondary hover:border-gold/40 hover:text-gold-text'
         }`}
       >
         {task.assignee ? getInitials(task.assignee.full_name) : <UserPlus className="w-3 h-3" />}
@@ -76,14 +76,14 @@ function QuickAssign({
       )}
 
       {open && (
-        <div className="absolute bottom-7 left-0 z-50 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg shadow-xl p-1 min-w-[160px]">
-          <p className="text-[10px] text-text-secondary px-2 py-1 uppercase tracking-wider">Assegna a</p>
+        <div className="absolute bottom-7 left-0 z-50 bg-surface border border-border rounded-lg shadow-xl p-1 min-w-[160px]">
+          <p className="text-2xs text-text-secondary px-2 py-1 uppercase tracking-wider">Assegna a</p>
           {task.assignee && (
             <button
               onClick={(e) => { e.stopPropagation(); onAssign(task.id, null); setOpen(false) }}
-              className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#2A2A2A] text-xs text-text-secondary"
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-surface-active text-xs text-text-secondary"
             >
-              <div className="w-5 h-5 rounded-full bg-[#2A2A2A] flex items-center justify-center">
+              <div className="w-5 h-5 rounded-full bg-surface-active flex items-center justify-center">
                 <X className="w-3 h-3" />
               </div>
               Rimuovi
@@ -93,13 +93,13 @@ function QuickAssign({
             <button
               key={p.id}
               onClick={(e) => { e.stopPropagation(); onAssign(task.id, p.id); setOpen(false) }}
-              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#2A2A2A] text-xs ${task.assignee?.id === p.id ? 'text-gold' : 'text-white'}`}
+              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-surface-active text-xs ${task.assignee?.id === p.id ? 'text-gold-text' : 'text-text-primary'}`}
             >
-              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${task.assignee?.id === p.id ? 'bg-gold/20 text-gold' : 'bg-[#333] text-white'}`}>
+              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-2xs font-bold ${task.assignee?.id === p.id ? 'bg-gold/20 text-gold-text' : 'bg-surface-active text-text-primary'}`}>
                 {getInitials(p.full_name)}
               </div>
               {p.full_name}
-              {task.assignee?.id === p.id && <span className="ml-auto text-gold">✓</span>}
+              {task.assignee?.id === p.id && <span className="ml-auto text-gold-text">✓</span>}
             </button>
           ))}
         </div>
@@ -179,7 +179,7 @@ export function ListView({
           <button
             key={g}
             onClick={() => setGroupBy(g)}
-            className={`text-xs px-2.5 py-1 rounded transition-colors ${groupBy === g ? 'bg-gold text-black font-bold' : 'bg-surface border border-[#2A2A2A] text-text-secondary hover:text-white'}`}
+            className={`text-xs px-2.5 py-1 rounded transition-colors ${groupBy === g ? 'bg-gold text-on-gold font-bold' : 'bg-surface border border-border text-text-secondary hover:text-text-primary'}`}
           >
             {g === 'none' ? 'Nessuno' : g === 'status' ? 'Stato' : g === 'priority' ? 'Priorità' : 'Assegnatario'}
           </button>
@@ -187,14 +187,14 @@ export function ListView({
       </div>
 
       {/* Tabella */}
-      <div className="rounded-card border border-[#2A2A2A] overflow-hidden">
+      <div className="rounded-card border border-border overflow-hidden">
         {/* Header */}
-        <div className="grid grid-cols-[1fr_140px_100px_110px_120px_80px] bg-surface border-b border-[#2A2A2A] px-4 py-2.5">
+        <div className="grid grid-cols-[1fr_140px_100px_110px_120px_80px] bg-surface border-b border-border px-4 py-2.5">
           {([['title', 'Task'], ['status', 'Stato'], ['priority', 'Priorità'], ['due_date', 'Scadenza'], ['assignee', 'Assegnatario']] as [SortKey, string][]).map(([k, label]) => (
             <button
               key={k}
               onClick={() => toggleSort(k)}
-              className="flex items-center gap-1 text-xs font-semibold text-text-secondary uppercase tracking-wide hover:text-white transition-colors"
+              className="flex items-center gap-1 text-xs font-semibold text-text-secondary uppercase tracking-wide hover:text-text-primary transition-colors"
             >
               {label} <SortIcon k={k} />
             </button>
@@ -206,8 +206,8 @@ export function ListView({
         {Object.entries(grouped).map(([group, groupTasks]) => (
           <div key={group}>
             {groupBy !== 'none' && (
-              <div className="px-4 py-2 bg-background/60 border-b border-[#2A2A2A] flex items-center gap-2">
-                <span className="text-xs font-bold text-white">{group}</span>
+              <div className="px-4 py-2 bg-background/60 border-b border-border flex items-center gap-2">
+                <span className="text-xs font-bold text-text-primary">{group}</span>
                 <span className="text-xs text-text-secondary">({groupTasks.length})</span>
               </div>
             )}
@@ -217,17 +217,17 @@ export function ListView({
                 <div
                   key={task.id}
                   onClick={() => onSelect(task)}
-                  className="grid grid-cols-[1fr_140px_100px_110px_120px_80px] px-4 py-2.5 border-b border-[#2A2A2A] hover:bg-white/[0.03] cursor-pointer group transition-colors"
+                  className="grid grid-cols-[1fr_140px_100px_110px_120px_80px] px-4 py-2.5 border-b border-border hover:bg-surface-hover cursor-pointer group transition-colors"
                 >
                   {/* Titolo */}
                   <div className="flex items-center gap-2 min-w-0">
-                    {task.is_milestone && <Flag className="w-3 h-3 text-gold shrink-0" />}
+                    {task.is_milestone && <Flag className="w-3 h-3 text-gold-text shrink-0" />}
                     <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${PRIORITY_DOT[task.priority]}`} />
-                    <span className="text-sm text-white truncate group-hover:text-gold transition-colors">{task.title}</span>
+                    <span className="text-sm text-text-primary truncate group-hover:text-gold-text transition-colors">{task.title}</span>
                     {task.tags.length > 0 && (
                       <div className="flex gap-1 shrink-0">
                         {task.tags.slice(0, 2).map((tag) => (
-                          <span key={tag} className="text-[10px] bg-gold/10 text-gold px-1.5 py-0.5 rounded">{tag}</span>
+                          <span key={tag} className="text-2xs bg-gold/10 text-gold-text px-1.5 py-0.5 rounded">{tag}</span>
                         ))}
                       </div>
                     )}
@@ -265,7 +265,7 @@ export function ListView({
                       <>
                         <Clock className="w-3 h-3" />
                         {task.logged_hours}h
-                        {task.estimated_hours && <span className="text-[#3A3A3A]">/{task.estimated_hours}h</span>}
+                        {task.estimated_hours && <span className="text-text-tertiary">/{task.estimated_hours}h</span>}
                       </>
                     )}
                   </div>

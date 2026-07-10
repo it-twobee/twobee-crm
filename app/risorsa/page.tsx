@@ -37,11 +37,11 @@ export default async function RisorsaHome() {
   const Stat = ({ icon, label, value, color, href }: { icon: React.ReactNode; label: string; value: string; color: string; href: string }) => (
     <Link href={href} className="bg-surface border border-border rounded-2xl p-4 hover:border-border transition-colors group">
       <div className="flex items-center justify-between mb-2">
-        <span className="p-2 rounded-xl" style={{ background: `${color}15`, color }}>{icon}</span>
+        <span className="p-2 rounded-xl" style={{ background: `color-mix(in srgb, ${color} 8%, transparent)`, color }}>{icon}</span>
         <ArrowRight className="w-3.5 h-3.5 text-text-tertiary group-hover:text-text-secondary" />
       </div>
       <p className="text-2xl font-black" style={{ color }}>{value}</p>
-      <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold mt-0.5">{label}</p>
+      <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold mt-0.5">{label}</p>
     </Link>
   )
 
@@ -53,7 +53,7 @@ export default async function RisorsaHome() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Stat icon={<AlertTriangle className="w-4 h-4" />} label="Task scaduti" value={String(overdue.length)} color={overdue.length ? '#EF4444' : '#22C55E'} href="/risorsa/attivita" />
+        <Stat icon={<AlertTriangle className="w-4 h-4" />} label="Task scaduti" value={String(overdue.length)} color={overdue.length ? 'var(--color-error)' : 'var(--color-success)'} href="/risorsa/attivita" />
         <Stat icon={<CalendarClock className="w-4 h-4" />} label="In scadenza oggi" value={String(dueToday.length)} color="#F5C800" href="/risorsa/attivita" />
         <Stat icon={<Clock className="w-4 h-4" />} label="Ore oggi" value={`${hoursToday}h`} color="#3B82F6" href="/risorsa/timesheet" />
         <Stat icon={<Clock className="w-4 h-4" />} label="Ore settimana" value={`${hoursWeek}h`} color="#A855F7" href="/risorsa/timesheet" />
@@ -63,10 +63,10 @@ export default async function RisorsaHome() {
       <div className="bg-surface border border-border rounded-2xl p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <CheckSquare className="w-4 h-4 text-gold" />
+            <CheckSquare className="w-4 h-4 text-gold-text" />
             <span className="text-sm font-bold text-text-primary">Le mie prossime attività</span>
           </div>
-          <Link href="/risorsa/attivita" className="text-[10px] text-text-secondary hover:text-text-primary flex items-center gap-1">Tutte <ArrowRight className="w-3 h-3" /></Link>
+          <Link href="/risorsa/attivita" className="text-2xs text-text-secondary hover:text-text-primary flex items-center gap-1">Tutte <ArrowRight className="w-3 h-3" /></Link>
         </div>
         {tasks.length === 0 ? (
           <div className="text-center py-10">
@@ -81,10 +81,10 @@ export default async function RisorsaHome() {
               return (
                 <Link key={t.id} href={proj?.client_id ? `/clienti/${proj.client_id}/progetto/${proj.id}` : '/risorsa/attivita'}
                   className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-overlay/[0.03] transition-colors">
-                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: isOver ? '#EF4444' : t.due_date === today ? '#F5C800' : '#3B82F6' }} />
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: isOver ? 'var(--color-error)' : t.due_date === today ? 'var(--color-gold-text)' : 'var(--color-info)' }} />
                   <span className="flex-1 text-sm text-text-primary truncate">{t.title}</span>
-                  <span className="text-[10px] text-text-tertiary truncate hidden sm:block">{proj?.clients?.company_name ?? proj?.name ?? ''}</span>
-                  {t.due_date && <span className={`text-[10px] shrink-0 ${isOver ? 'text-red-400' : 'text-text-secondary'}`}>{new Date(t.due_date).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}</span>}
+                  <span className="text-2xs text-text-tertiary truncate hidden sm:block">{proj?.clients?.company_name ?? proj?.name ?? ''}</span>
+                  {t.due_date && <span className={`text-2xs shrink-0 ${isOver ? 'text-error' : 'text-text-secondary'}`}>{new Date(t.due_date).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}</span>}
                 </Link>
               )
             })}

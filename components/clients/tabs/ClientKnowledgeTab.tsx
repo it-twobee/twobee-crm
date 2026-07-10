@@ -110,7 +110,7 @@ export function ClientKnowledgeTab({ clientId }: { clientId: string }) {
   const pct = Math.round((filled / ALL_KEYS.length) * 100)
 
   if (loading) {
-    return <div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 text-gold animate-spin" /></div>
+    return <div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 text-gold-text animate-spin" /></div>
   }
 
   return (
@@ -119,11 +119,11 @@ export function ClientKnowledgeTab({ clientId }: { clientId: string }) {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-gold/10 border border-gold/20 flex items-center justify-center">
-            <Brain className="w-4 h-4 text-gold" />
+            <Brain className="w-4 h-4 text-gold-text" />
           </div>
           <div>
             <p className="text-sm font-bold text-text-primary">Knowledge base cliente</p>
-            <p className="text-[11px] text-text-secondary">Alimenta proposte commerciali, AI, report e onboarding — solo staff, mai visibile al cliente</p>
+            <p className="text-2xs text-text-secondary">Alimenta proposte commerciali, AI, report e onboarding — solo staff, mai visibile al cliente</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -140,10 +140,10 @@ export function ClientKnowledgeTab({ clientId }: { clientId: string }) {
             <div className="w-24 h-1.5 bg-surface rounded-full overflow-hidden">
               <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: pct >= 70 ? 'var(--color-success)' : pct >= 40 ? 'var(--color-gold)' : 'var(--color-error)' }} />
             </div>
-            <span className="text-[10px] text-text-tertiary font-bold">{filled}/{ALL_KEYS.length}</span>
+            <span className="text-2xs text-text-tertiary font-bold">{filled}/{ALL_KEYS.length}</span>
           </div>
           <button onClick={save} disabled={saving || !dirty}
-            className="flex items-center gap-2 px-4 py-2 bg-gold text-black text-xs font-bold rounded-lg disabled:opacity-40 hover:bg-yellow-400 transition-colors">
+            className="flex items-center gap-2 px-4 py-2 bg-gold text-on-gold text-xs font-bold rounded-lg disabled:opacity-40 hover:bg-gold/90 transition-colors">
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
             {dirty ? 'Salva modifiche' : 'Salvato'}
           </button>
@@ -152,17 +152,17 @@ export function ClientKnowledgeTab({ clientId }: { clientId: string }) {
 
       {filled === 0 && (
         <div className="flex items-start gap-2.5 bg-gold/5 border border-gold/20 rounded-2xl px-4 py-3">
-          <ShieldAlert className="w-4 h-4 text-gold shrink-0 mt-0.5" />
+          <ShieldAlert className="w-4 h-4 text-gold-text shrink-0 mt-0.5" />
           <p className="text-xs text-text-secondary leading-relaxed">
             Knowledge base vuota: compilarla migliora la qualità delle proposte AI e velocizza l'onboarding di chi entra sul cliente.
-            Le note libere restano nella tab <span className="text-gold">Relazione</span> — qui vanno i dati strutturati.
+            Le note libere restano nella tab <span className="text-gold-text">Relazione</span> — qui vanno i dati strutturati.
           </p>
         </div>
       )}
 
       {GROUPS.map(g => {
         const GroupIcon = g.icon === 'briefcase' ? Briefcase : g.icon === 'target' ? Target : g.icon === 'palette' ? Palette : Lightbulb
-        const iconColor = g.icon === 'briefcase' ? 'text-gold' : g.icon === 'target' ? 'text-blue-400' : g.icon === 'palette' ? 'text-purple-400' : 'text-green-400'
+        const iconColor = g.icon === 'briefcase' ? 'text-gold-text' : g.icon === 'target' ? 'text-info' : g.icon === 'palette' ? 'text-accent' : 'text-success'
         return (
         <div key={g.title} className="bg-surface border border-border rounded-2xl p-5 space-y-4">
           <div className="flex items-start gap-3 pb-3 border-b border-border">
@@ -171,7 +171,7 @@ export function ClientKnowledgeTab({ clientId }: { clientId: string }) {
             </div>
             <div>
               <p className="text-sm font-bold text-text-primary">{g.title}</p>
-              <p className="text-[11px] text-text-secondary mt-0.5">{g.description}</p>
+              <p className="text-2xs text-text-secondary mt-0.5">{g.description}</p>
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -67,7 +67,7 @@ export default function LoginPage() {
         <div className="text-center mb-10">
           <h1 className="text-5xl font-black tracking-tight mb-2 font-heading">
             <span className="text-text-primary">two bee</span>
-            <span className="text-gold">.</span>
+            <span className="text-gold-text">.</span>
           </h1>
           <p className="text-overlay/30 text-sm tracking-[0.2em] uppercase">
             Gestionale Interno
@@ -111,7 +111,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full gold-gradient text-black font-bold py-3 rounded-xl hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full gold-gradient text-on-gold font-bold py-3 rounded-xl hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                   Accedi
@@ -120,7 +120,7 @@ export default function LoginPage() {
 
               <button
                 onClick={() => setResetMode(true)}
-                className="w-full text-center text-sm text-overlay/30 hover:text-gold mt-4 transition-colors"
+                className="w-full text-center text-sm text-overlay/30 hover:text-gold-text mt-4 transition-colors"
               >
                 Password dimenticata?
               </button>
@@ -149,7 +149,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full gold-gradient text-black font-bold py-3 rounded-xl hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="w-full gold-gradient text-on-gold font-bold py-3 rounded-xl hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                   Invia Link Reset
@@ -158,7 +158,7 @@ export default function LoginPage() {
 
               <button
                 onClick={() => setResetMode(false)}
-                className="w-full text-center text-sm text-overlay/30 hover:text-gold mt-4 transition-colors"
+                className="w-full text-center text-sm text-overlay/30 hover:text-gold-text mt-4 transition-colors"
               >
                 ← Torna al login
               </button>

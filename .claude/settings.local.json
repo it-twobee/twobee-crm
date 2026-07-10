@@ -113,7 +113,11 @@
       "Bash(grep -rlE \"\\(bg|text|border|from|to|via|ring|fill|stroke\\)-\\\\[#[0-9A-Fa-f]{3,6}\\\\]|\\\\b\\(bg|text|border\\)-white\\(/[0-9]+\\)?\\\\b|\\\\b\\(bg|text|border\\)-black\\(/[0-9]+\\)?\\\\b\" --include=\"*.tsx\" app components)",
       "Bash(sort -t: -k2 -rn)",
       "Bash(grep -v ':0$')",
-      "Bash(grep -rhoE '\\\\[#[0-9A-Fa-f]{3,8}\\\\]' app components)"
+      "Bash(grep -rhoE '\\\\[#[0-9A-Fa-f]{3,8}\\\\]' app components)",
+      "Bash(echo \"--- exit: $? ---\")",
+      "Bash(grep -rhoE '\\\\b\\(text|bg|border\\)-\\(red|green|blue|yellow|orange|purple|emerald|amber|rose|sky|violet|indigo|gray|slate|zinc|neutral\\)-[0-9]{2,3}\\(/[0-9]+\\)?\\\\b' app components)",
+      "Bash(grep -rhoE '\\\\b\\(text|bg|border\\)-\\(gray|slate|zinc|neutral\\)-[0-9]{2,3}' app components)",
+      "Bash(grep -rhoE '\\\\b\\(text|bg|border\\)-\\(red|green|blue|yellow|purple|orange|amber|emerald\\)-[0-9]{2,3}' app components)"
     ]
   }
 }

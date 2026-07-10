@@ -113,7 +113,7 @@ function generateInsights(clients: Client[], totalMrr: number): Insight[] {
 const insightConfig = {
   risk:        { icon: AlertTriangle,  color: 'text-error',   bg: 'bg-error/5 border-error/15' },
   warning:     { icon: TrendingDown,   color: 'text-warning',  bg: 'bg-warning/5 border-warning/15' },
-  opportunity: { icon: TrendingUp,     color: 'text-blue-400', bg: 'bg-blue-500/5 border-blue-500/15' },
+  opportunity: { icon: TrendingUp,     color: 'text-info', bg: 'bg-info/5 border-info/15' },
   positive:    { icon: CheckCircle2,   color: 'text-success',  bg: 'bg-success/5 border-success/15' },
 }
 
@@ -139,10 +139,10 @@ export function SmartInsights({ clients, totalMrr }: Props) {
     <div className="bg-surface border border-border rounded-xl overflow-hidden h-full flex flex-col">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
         <div className="w-5 h-5 rounded bg-gold-dim flex items-center justify-center">
-          <Sparkles className="w-3 h-3 text-gold" />
+          <Sparkles className="w-3 h-3 text-gold-text" />
         </div>
         <span className="text-xs font-bold text-text-primary uppercase tracking-wider">AI Insights</span>
-        <span className="text-[10px] text-text-secondary ml-auto">aggiornati in tempo reale</span>
+        <span className="text-2xs text-text-secondary ml-auto">aggiornati in tempo reale</span>
       </div>
 
       <div className="divide-y divide-border flex-1 overflow-auto">
@@ -156,25 +156,25 @@ export function SmartInsights({ clients, totalMrr }: Props) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-bold text-text-primary">{insight.title}</p>
-                <p className="text-[10px] text-text-secondary mt-0.5 leading-relaxed">{insight.detail}</p>
+                <p className="text-2xs text-text-secondary mt-0.5 leading-relaxed">{insight.detail}</p>
                 <div className="flex items-center gap-3 mt-2">
                   {/* Confidence bar */}
                   <div className="flex items-center gap-1.5">
                     <div className="w-16 h-1 bg-border rounded-full overflow-hidden">
                       <div className="h-full bg-gold/60 rounded-full" style={{ width: `${insight.confidence}%` }} />
                     </div>
-                    <span className="text-[9px] text-text-secondary">{insight.confidence}% conf.</span>
+                    <span className="text-2xs text-text-secondary">{insight.confidence}% conf.</span>
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 {insight.href && (
-                  <Link href={insight.href} className="p-1 text-text-secondary hover:text-gold transition-colors">
+                  <Link href={insight.href} className="p-1 text-text-secondary hover:text-gold-text transition-colors">
                     <ChevronRight className="w-3.5 h-3.5" />
                   </Link>
                 )}
                 <button onClick={() => setDismissed(p => { const n = new Set(p); n.add(insight.id); return n })}
-                  className="p-1 text-text-tertiary hover:text-text-secondary transition-colors text-[10px]">✕</button>
+                  className="p-1 text-text-tertiary hover:text-text-secondary transition-colors text-2xs">✕</button>
               </div>
             </div>
           )

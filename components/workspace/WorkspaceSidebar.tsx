@@ -66,7 +66,7 @@ export function WorkspaceSidebar({ sections, profile }: Props) {
         collapsed ? 'justify-center' : 'gap-2',
       )}>
         {collapsed ? (
-          <span className="text-gold font-black text-lg leading-none">2B</span>
+          <span className="text-gold-text font-black text-lg leading-none">2B</span>
         ) : (
           <img src="/logo.svg" alt="TWO BEE" className="h-8 w-auto" />
         )}
@@ -87,7 +87,7 @@ export function WorkspaceSidebar({ sections, profile }: Props) {
               className={cn(
                 'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
                 isActive
-                  ? 'bg-gold-dim text-gold font-semibold'
+                  ? 'bg-gold-dim text-gold-text font-semibold'
                   : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover',
                 collapsed && 'justify-center px-2',
               )}
@@ -107,13 +107,13 @@ export function WorkspaceSidebar({ sections, profile }: Props) {
             {profile.avatar_url ? (
               <img src={profile.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
             ) : (
-              <div className="w-7 h-7 rounded-full bg-gold/20 flex items-center justify-center text-gold text-xs font-bold shrink-0">
+              <div className="w-7 h-7 rounded-full bg-gold/20 flex items-center justify-center text-gold-text text-xs font-bold shrink-0">
                 {initials}
               </div>
             )}
             <div className="min-w-0">
               <p className="text-text-primary text-xs font-medium truncate leading-tight">{profile.full_name ?? 'Utente'}</p>
-              <p className="text-text-tertiary text-[10px] truncate leading-tight">{roleLabel}</p>
+              <p className="text-text-tertiary text-2xs truncate leading-tight">{roleLabel}</p>
             </div>
           </div>
         )}

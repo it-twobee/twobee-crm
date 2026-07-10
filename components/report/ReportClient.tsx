@@ -40,14 +40,14 @@ function healthScore(kpi: ClientKpi | undefined, c: Client): number {
 
 function ScorePill({ score }: { score: number }) {
   const [cls, label] =
-    score === 0 ? ['text-[#444] bg-[#1A1A1A] border-[#2A2A2A]', 'N/D'] :
+    score === 0 ? ['text-text-tertiary bg-surface border-border', 'N/D'] :
     score >= 75 ? ['text-success bg-success/10 border-success/20', 'Ottimo'] :
     score >= 50 ? ['text-warning bg-warning/10 border-warning/20', 'Normale'] :
-    score >= 25 ? ['text-orange-400 bg-orange-400/10 border-orange-400/20', 'Attenzione'] :
+    score >= 25 ? ['text-orange bg-orange/10 border-orange/20', 'Attenzione'] :
     ['text-error bg-error/10 border-error/20', 'Critico']
   return (
     <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2 py-0.5 rounded-full border ${cls}`}>
-      <span className="text-[10px] font-black">{score || '—'}</span>
+      <span className="text-2xs font-black">{score || '—'}</span>
       {label}
     </span>
   )
@@ -58,12 +58,12 @@ function KpiVsTarget({ actual, target, lower = false, fmt = (v: number) => v.toS
 }) {
   if (!actual) return <span className="text-text-secondary">—</span>
   const pct = delta(actual, target, lower)
-  const color = pct === null ? 'text-white' : pct >= 0 ? 'text-success' : pct >= -20 ? 'text-warning' : 'text-error'
+  const color = pct === null ? 'text-text-primary' : pct >= 0 ? 'text-success' : pct >= -20 ? 'text-warning' : 'text-error'
   return (
     <div>
       <span className={`text-sm font-semibold ${color}`}>{fmt(actual)}</span>
       {target && pct !== null && (
-        <span className={`ml-1 text-[10px] ${color}`}>
+        <span className={`ml-1 text-2xs ${color}`}>
           {pct >= 0 ? <TrendingUp className="w-2.5 h-2.5 inline" /> : <TrendingDown className="w-2.5 h-2.5 inline" />}
           {' '}{Math.abs(pct).toFixed(0)}%
         </span>
@@ -238,17 +238,17 @@ export function ReportClient({ clients, kpis }: Props) {
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-black text-white">Report KPI</h1>
+          <h1 className="text-2xl font-black text-text-primary">Report KPI</h1>
           <p className="text-text-secondary text-sm mt-0.5">Panoramica performance tutti i clienti</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}
-            className="bg-surface border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold">
+            className="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold">
             {months.length === 0 && <option value={currentMonth}>{ml(currentMonth)}</option>}
             {months.map((m) => <option key={m} value={m}>{ml(m)}</option>)}
           </select>
           <button onClick={exportCsv}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary border border-[#2A2A2A] rounded-lg hover:text-white hover:border-white/20 transition-colors">
+            className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary border border-border rounded-lg hover:text-text-primary hover:border-border-strong transition-colors">
             <Download className="w-4 h-4" /> Export CSV
           </button>
         </div>
@@ -257,16 +257,16 @@ export function ReportClient({ clients, kpis }: Props) {
       {/* KPI aggregati */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         {[
-          { l: 'MRR totale', v: formatCurrency(agg.totalMrr), c: 'text-gold' },
+          { l: 'MRR totale', v: formatCurrency(agg.totalMrr), c: 'text-gold-text' },
           { l: 'ROAS medio', v: agg.avgRoas ? `${agg.avgRoas.toFixed(2)}×` : '—', c: 'text-success' },
-          { l: 'Lead totali', v: agg.totalLeads.toString(), c: 'text-blue-400' },
-          { l: 'Revenue', v: formatCurrency(agg.totalRevenue), c: 'text-gold' },
+          { l: 'Lead totali', v: agg.totalLeads.toString(), c: 'text-info' },
+          { l: 'Revenue', v: formatCurrency(agg.totalRevenue), c: 'text-gold-text' },
           { l: 'Ad spend', v: formatCurrency(agg.totalSpend), c: 'text-text-primary' },
           { l: 'Health medio', v: agg.avgScore ? `${agg.avgScore}/100` : '—', c: agg.avgScore >= 75 ? 'text-success' : agg.avgScore >= 50 ? 'text-warning' : 'text-error' },
           { l: 'A rischio', v: agg.atRisk.toString(), c: agg.atRisk > 0 ? 'text-error' : 'text-success' },
         ].map((card) => (
-          <div key={card.l} className="bg-surface border border-[#2A2A2A] rounded-xl p-3">
-            <p className="text-[10px] text-text-secondary uppercase tracking-wider mb-1">{card.l}</p>
+          <div key={card.l} className="bg-surface border border-border rounded-xl p-3">
+            <p className="text-2xs text-text-secondary uppercase tracking-wider mb-1">{card.l}</p>
             <p className={`text-lg font-black ${card.c}`}>{card.v}</p>
           </div>
         ))}
@@ -277,15 +277,15 @@ export function ReportClient({ clients, kpis }: Props) {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-secondary" />
           <input value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cerca cliente..." className="pl-8 pr-3 py-2 bg-surface border border-[#2A2A2A] rounded-lg text-sm text-white placeholder:text-text-secondary focus:outline-none focus:border-gold/50 w-48" />
+            placeholder="Cerca cliente..." className="pl-8 pr-3 py-2 bg-surface border border-border rounded-lg text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-gold/50 w-48" />
         </div>
         {(['all', 'growth', 'digital'] as const).map((t) => (
           <button key={t} onClick={() => setFilterType(t)}
-            className={`px-3 py-1.5 text-xs rounded-lg border transition-colors capitalize ${filterType === t ? 'bg-gold/10 border-gold/40 text-gold font-bold' : 'border-[#2A2A2A] text-text-secondary hover:text-white'}`}>
+            className={`px-3 py-1.5 text-xs rounded-lg border transition-colors capitalize ${filterType === t ? 'bg-gold/10 border-gold/40 text-gold-text font-bold' : 'border-border text-text-secondary hover:text-text-primary'}`}>
             {t === 'all' ? 'Tutti' : t}
           </button>
         ))}
-        <div className="w-px h-4 bg-[#2A2A2A]" />
+        <div className="w-px h-4 bg-surface-active" />
         {[
           { k: 'all', l: 'Tutti' },
           { k: 'good', l: '🟢 OK' },
@@ -293,7 +293,7 @@ export function ReportClient({ clients, kpis }: Props) {
           { k: 'bad', l: '🔴 Critici' },
         ].map(({ k, l }) => (
           <button key={k} onClick={() => setFilterStatus(k as typeof filterStatus)}
-            className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${filterStatus === k ? 'bg-gold/10 border-gold/40 text-gold font-bold' : 'border-[#2A2A2A] text-text-secondary hover:text-white'}`}>
+            className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${filterStatus === k ? 'bg-gold/10 border-gold/40 text-gold-text font-bold' : 'border-border text-text-secondary hover:text-text-primary'}`}>
             {l}
           </button>
         ))}
@@ -301,13 +301,13 @@ export function ReportClient({ clients, kpis }: Props) {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-0 border-b border-[#2A2A2A]">
+      <div className="flex gap-0 border-b border-border">
         {TABS.map((t, i) => (
           <button key={t} onClick={() => setActiveTab(i)}
-            className={`px-4 py-2.5 text-sm font-semibold transition-colors border-b-2 -mb-px ${activeTab === i ? 'text-gold border-gold' : 'text-text-secondary border-transparent hover:text-white'}`}>
+            className={`px-4 py-2.5 text-sm font-semibold transition-colors border-b-2 -mb-px ${activeTab === i ? 'text-gold-text border-gold' : 'text-text-secondary border-transparent hover:text-text-primary'}`}>
             {t}
             {t === 'Alert' && alerts.length > 0 && (
-              <span className="ml-1.5 text-[10px] bg-error text-white font-black px-1.5 py-0.5 rounded-full">{alerts.length}</span>
+              <span className="ml-1.5 text-2xs bg-error text-text-primary font-black px-1.5 py-0.5 rounded-full">{alerts.length}</span>
             )}
           </button>
         ))}
@@ -318,15 +318,15 @@ export function ReportClient({ clients, kpis }: Props) {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {filtered.map(({ c, kpi, score }) => (
             <a key={c.id} href={`/clienti/${c.id}?tab=kpi`}
-              className="bg-surface border border-[#2A2A2A] rounded-xl p-4 hover:border-gold/30 transition-colors block">
+              className="bg-surface border border-border rounded-xl p-4 hover:border-gold/30 transition-colors block">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-xs font-black text-gold">
+                  <div className="w-8 h-8 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-xs font-black text-gold-text">
                     {c.company_name[0]}
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-white truncate max-w-[140px]">{c.company_name}</p>
-                    <p className="text-[10px] text-text-secondary capitalize">{c.client_type} · {formatCurrency(c.mrr)}/mese</p>
+                    <p className="text-sm font-bold text-text-primary truncate max-w-[140px]">{c.company_name}</p>
+                    <p className="text-2xs text-text-secondary capitalize">{c.client_type} · {formatCurrency(c.mrr)}/mese</p>
                   </div>
                 </div>
                 <ScorePill score={score} />
@@ -338,15 +338,15 @@ export function ReportClient({ clients, kpis }: Props) {
                     { l: 'Lead', v: kpi.leads_generated?.toString() ?? '—', t: c.target_leads_monthly ? `t: ${c.target_leads_monthly}` : null, good: kpi.leads_generated && c.target_leads_monthly ? kpi.leads_generated >= c.target_leads_monthly : null },
                     { l: 'Revenue', v: kpi.revenue_attributed ? `€${Math.round(kpi.revenue_attributed / 1000)}k` : '—', t: null, good: null },
                   ].map((m) => (
-                    <div key={m.l} className="bg-[#111] rounded-lg p-2">
-                      <p className="text-[10px] text-text-secondary">{m.l}</p>
-                      <p className={`text-sm font-bold ${m.good === true ? 'text-success' : m.good === false ? 'text-error' : 'text-white'}`}>{m.v}</p>
-                      {m.t && <p className="text-[10px] text-text-secondary">{m.t}</p>}
+                    <div key={m.l} className="bg-background rounded-lg p-2">
+                      <p className="text-2xs text-text-secondary">{m.l}</p>
+                      <p className={`text-sm font-bold ${m.good === true ? 'text-success' : m.good === false ? 'text-error' : 'text-text-primary'}`}>{m.v}</p>
+                      {m.t && <p className="text-2xs text-text-secondary">{m.t}</p>}
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-text-secondary text-center py-3 bg-[#111] rounded-lg">
+                <p className="text-xs text-text-secondary text-center py-3 bg-background rounded-lg">
                   Nessun dato per {ml(selectedMonth)}
                 </p>
               )}
@@ -360,11 +360,11 @@ export function ReportClient({ clients, kpis }: Props) {
 
       {/* TAB 1: Tabella KPI */}
       {activeTab === 1 && (
-        <div className="bg-surface border border-[#2A2A2A] rounded-xl overflow-hidden">
+        <div className="bg-surface border border-border rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-[#2A2A2A] bg-[#111]">
+                <tr className="border-b border-border bg-background">
                   {th('Cliente', 'company_name')}
                   {th('MRR', 'mrr')}
                   {th('Health', 'score')}
@@ -377,16 +377,16 @@ export function ReportClient({ clients, kpis }: Props) {
                   {th('Ad Spend')}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#2A2A2A]">
+              <tbody className="divide-y divide-border">
                 {filtered.map(({ c, kpi, score }) => (
-                  <tr key={c.id} className="hover:bg-white/3 transition-colors">
+                  <tr key={c.id} className="hover:bg-surface transition-colors">
                     <td className="px-4 py-3">
-                      <a href={`/clienti/${c.id}?tab=kpi`} className="flex items-center gap-2 hover:text-gold transition-colors">
-                        <div className="w-6 h-6 rounded-full bg-gold/20 flex items-center justify-center text-[10px] font-bold text-gold">{c.company_name[0]}</div>
-                        <span className="text-sm font-semibold text-white">{c.company_name}</span>
+                      <a href={`/clienti/${c.id}?tab=kpi`} className="flex items-center gap-2 hover:text-gold-text transition-colors">
+                        <div className="w-6 h-6 rounded-full bg-gold/20 flex items-center justify-center text-2xs font-bold text-gold-text">{c.company_name[0]}</div>
+                        <span className="text-sm font-semibold text-text-primary">{c.company_name}</span>
                       </a>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gold font-semibold">{formatCurrency(c.mrr)}</td>
+                    <td className="px-4 py-3 text-sm text-gold-text font-semibold">{formatCurrency(c.mrr)}</td>
                     <td className="px-4 py-3"><ScorePill score={score} /></td>
                     <td className="px-4 py-3">
                       <KpiVsTarget actual={kpi?.roas ?? null} target={c.target_roas} fmt={(v) => `${v.toFixed(2)}×`} />
@@ -406,25 +406,25 @@ export function ReportClient({ clients, kpis }: Props) {
                     <td className="px-4 py-3">
                       <KpiVsTarget actual={kpi?.revenue_attributed ?? null} target={c.target_revenue_monthly} fmt={(v) => formatCurrency(v)} />
                     </td>
-                    <td className="px-4 py-3 text-sm text-white">
-                      {kpi?.ad_spend ? formatCurrency(kpi.ad_spend) : <span className="text-[#444]">—</span>}
+                    <td className="px-4 py-3 text-sm text-text-primary">
+                      {kpi?.ad_spend ? formatCurrency(kpi.ad_spend) : <span className="text-text-tertiary">—</span>}
                     </td>
                   </tr>
                 ))}
               </tbody>
               {filtered.length > 0 && (
                 <tfoot>
-                  <tr className="border-t border-[#2A2A2A] bg-[#111]">
+                  <tr className="border-t border-border bg-background">
                     <td className="px-4 py-3 text-xs font-bold text-text-secondary">TOTALI / MEDI</td>
-                    <td className="px-4 py-3 text-sm font-black text-gold">{formatCurrency(agg.totalMrr)}</td>
+                    <td className="px-4 py-3 text-sm font-black text-gold-text">{formatCurrency(agg.totalMrr)}</td>
                     <td className="px-4 py-3 text-xs font-bold text-text-secondary">avg {agg.avgScore}</td>
-                    <td className="px-4 py-3 text-sm font-bold text-white">{agg.avgRoas ? `${agg.avgRoas.toFixed(2)}×` : '—'}</td>
+                    <td className="px-4 py-3 text-sm font-bold text-text-primary">{agg.avgRoas ? `${agg.avgRoas.toFixed(2)}×` : '—'}</td>
                     <td className="px-4 py-3 text-text-secondary">—</td>
                     <td className="px-4 py-3 text-text-secondary">—</td>
-                    <td className="px-4 py-3 text-sm font-bold text-white">{agg.totalLeads}</td>
+                    <td className="px-4 py-3 text-sm font-bold text-text-primary">{agg.totalLeads}</td>
                     <td className="px-4 py-3 text-text-secondary">—</td>
-                    <td className="px-4 py-3 text-sm font-bold text-gold">{formatCurrency(agg.totalRevenue)}</td>
-                    <td className="px-4 py-3 text-sm font-bold text-white">{formatCurrency(agg.totalSpend)}</td>
+                    <td className="px-4 py-3 text-sm font-bold text-gold-text">{formatCurrency(agg.totalRevenue)}</td>
+                    <td className="px-4 py-3 text-sm font-bold text-text-primary">{formatCurrency(agg.totalSpend)}</td>
                   </tr>
                 </tfoot>
               )}
@@ -437,42 +437,42 @@ export function ReportClient({ clients, kpis }: Props) {
       {activeTab === 2 && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
-              <h3 className="text-sm font-semibold text-white mb-4">ROAS per cliente — {ml(selectedMonth)}</h3>
+            <div className="bg-surface border border-border rounded-xl p-5">
+              <h3 className="text-sm font-semibold text-text-primary mb-4">ROAS per cliente — {ml(selectedMonth)}</h3>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={chartData} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#2A2A2A" horizontal={false} />
-                  <XAxis type="number" tick={{ fill: '#A0A0A0', fontSize: 11 }} />
-                  <YAxis dataKey="name" type="category" tick={{ fill: '#A0A0A0', fontSize: 11 }} width={72} />
-                  <Tooltip contentStyle={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8 }} formatter={(v: number) => [`${v}×`, 'ROAS']} />
+                  <XAxis type="number" tick={{ fill: 'var(--color-text-tertiary)', fontSize: 11 }} />
+                  <YAxis dataKey="name" type="category" tick={{ fill: 'var(--color-text-tertiary)', fontSize: 11 }} width={72} />
+                  <Tooltip contentStyle={{ background: 'var(--color-surface)', border: '1px solid #2A2A2A', borderRadius: 8 }} formatter={(v: number) => [`${v}×`, 'ROAS']} />
                   <Bar dataKey="ROAS" fill="#F5C800" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
-              <h3 className="text-sm font-semibold text-white mb-4">Lead per cliente — {ml(selectedMonth)}</h3>
+            <div className="bg-surface border border-border rounded-xl p-5">
+              <h3 className="text-sm font-semibold text-text-primary mb-4">Lead per cliente — {ml(selectedMonth)}</h3>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={chartData} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#2A2A2A" horizontal={false} />
-                  <XAxis type="number" tick={{ fill: '#A0A0A0', fontSize: 11 }} />
-                  <YAxis dataKey="name" type="category" tick={{ fill: '#A0A0A0', fontSize: 11 }} width={72} />
-                  <Tooltip contentStyle={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8 }} />
+                  <XAxis type="number" tick={{ fill: 'var(--color-text-tertiary)', fontSize: 11 }} />
+                  <YAxis dataKey="name" type="category" tick={{ fill: 'var(--color-text-tertiary)', fontSize: 11 }} width={72} />
+                  <Tooltip contentStyle={{ background: 'var(--color-surface)', border: '1px solid #2A2A2A', borderRadius: 8 }} />
                   <Bar dataKey="Lead" fill="#22C55E" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5 lg:col-span-2">
-              <h3 className="text-sm font-semibold text-white mb-4">Trend revenue + lead — ultimi 6 mesi (tutti i clienti)</h3>
+            <div className="bg-surface border border-border rounded-xl p-5 lg:col-span-2">
+              <h3 className="text-sm font-semibold text-text-primary mb-4">Trend revenue + lead — ultimi 6 mesi (tutti i clienti)</h3>
               <ResponsiveContainer width="100%" height={220}>
                 <LineChart data={mrrTrend}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#2A2A2A" />
-                  <XAxis dataKey="month" tick={{ fill: '#A0A0A0', fontSize: 11 }} />
-                  <YAxis yAxisId="l" tick={{ fill: '#A0A0A0', fontSize: 11 }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} />
-                  <YAxis yAxisId="r" orientation="right" tick={{ fill: '#A0A0A0', fontSize: 11 }} />
-                  <Tooltip contentStyle={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8 }} />
-                  <Legend wrapperStyle={{ color: '#A0A0A0', fontSize: 12 }} />
-                  <Line yAxisId="l" type="monotone" dataKey="Revenue" stroke="#F5C800" strokeWidth={2} dot={{ r: 3, fill: '#F5C800' }} />
-                  <Line yAxisId="r" type="monotone" dataKey="Lead" stroke="#22C55E" strokeWidth={2} dot={{ r: 3, fill: '#22C55E' }} />
+                  <XAxis dataKey="month" tick={{ fill: 'var(--color-text-tertiary)', fontSize: 11 }} />
+                  <YAxis yAxisId="l" tick={{ fill: 'var(--color-text-tertiary)', fontSize: 11 }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} />
+                  <YAxis yAxisId="r" orientation="right" tick={{ fill: 'var(--color-text-tertiary)', fontSize: 11 }} />
+                  <Tooltip contentStyle={{ background: 'var(--color-surface)', border: '1px solid #2A2A2A', borderRadius: 8 }} />
+                  <Legend wrapperStyle={{ color: 'var(--color-text-tertiary)', fontSize: 12 }} />
+                  <Line yAxisId="l" type="monotone" dataKey="Revenue" stroke="#F5C800" strokeWidth={2} dot={{ r: 3, fill: 'var(--color-gold-text)' }} />
+                  <Line yAxisId="r" type="monotone" dataKey="Lead" stroke="#22C55E" strokeWidth={2} dot={{ r: 3, fill: 'var(--color-success)' }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -502,31 +502,31 @@ export function ReportClient({ clients, kpis }: Props) {
               </div>
             ))}
           </div>
-          <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
-            <h3 className="text-sm font-semibold text-white mb-4">Situazione clienti</h3>
+          <div className="bg-surface border border-border rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-text-primary mb-4">Situazione clienti</h3>
             <div className="space-y-3">
               {clients.map((c) => {
                 const labelColor = c.client_label === 'stabile' ? 'text-success bg-success/10 border-success/20'
                   : c.client_label === 'in_bilico' ? 'text-warning bg-warning/10 border-warning/20'
                   : c.client_label === 'perso' ? 'text-error bg-error/10 border-error/20'
-                  : 'text-text-secondary bg-[#1A1A1A] border-[#2A2A2A]'
+                  : 'text-text-secondary bg-surface border-border'
                 const weight = c.client_label === 'stabile' ? 1 : c.client_label === 'in_bilico' ? 0.5 : 0
                 return (
                   <div key={c.id} className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-full bg-gold/20 flex items-center justify-center text-[10px] font-bold text-gold">{c.company_name[0]}</div>
-                    <span className="text-sm text-white flex-1 truncate">{c.company_name}</span>
-                    <span className="text-sm font-semibold text-gold">{formatCurrency(c.mrr)}</span>
-                    <div className="w-24 h-1.5 bg-[#2A2A2A] rounded-full overflow-hidden">
+                    <div className="w-6 h-6 rounded-full bg-gold/20 flex items-center justify-center text-2xs font-bold text-gold-text">{c.company_name[0]}</div>
+                    <span className="text-sm text-text-primary flex-1 truncate">{c.company_name}</span>
+                    <span className="text-sm font-semibold text-gold-text">{formatCurrency(c.mrr)}</span>
+                    <div className="w-24 h-1.5 bg-surface-active rounded-full overflow-hidden">
                       <div className="h-full rounded-full bg-gold" style={{ width: `${weight * 100}%` }} />
                     </div>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border capitalize ${labelColor}`}>
+                    <span className={`text-2xs font-bold px-1.5 py-0.5 rounded border capitalize ${labelColor}`}>
                       {c.client_label?.replace('_', ' ')}
                     </span>
                   </div>
                 )
               })}
             </div>
-            <div className="mt-4 pt-3 border-t border-[#2A2A2A] flex items-center gap-6 text-xs text-text-secondary">
+            <div className="mt-4 pt-3 border-t border-border flex items-center gap-6 text-xs text-text-secondary">
               <span>{forecast.stableCount} stabili</span>
               <span className="text-warning">{forecast.bilicoCount} in bilico</span>
               <span className="text-error ml-auto">{formatCurrency(forecast.atRiskMrr)} a rischio</span>
@@ -541,7 +541,7 @@ export function ReportClient({ clients, kpis }: Props) {
           {alerts.length === 0 ? (
             <div className="text-center py-12">
               <CheckCircle2 className="w-10 h-10 text-success mx-auto mb-3" />
-              <p className="text-white font-bold">Nessun alert attivo</p>
+              <p className="text-text-primary font-bold">Nessun alert attivo</p>
               <p className="text-text-secondary text-sm mt-1">Tutti i clienti hanno dati e KPI nella norma</p>
             </div>
           ) : alerts.map((a, i) => {
@@ -554,15 +554,15 @@ export function ReportClient({ clients, kpis }: Props) {
               <div key={i} className={`flex items-start gap-3 border rounded-xl px-5 py-4 ${styles}`}>
                 <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${iconColor}`} />
                 <div>
-                  <p className="text-sm font-semibold text-white">{a.msg}</p>
+                  <p className="text-sm font-semibold text-text-primary">{a.msg}</p>
                   <p className="text-xs text-text-secondary mt-0.5">{a.sub}</p>
                 </div>
               </div>
             )
           })}
           {agg.noData > 0 && (
-            <div className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl px-5 py-4 text-sm text-text-secondary">
-              <strong className="text-white">{agg.noData} clienti</strong> senza KPI inseriti per {ml(selectedMonth)} — inseriscili dalla pagina di ogni cliente.
+            <div className="bg-surface border border-border rounded-xl px-5 py-4 text-sm text-text-secondary">
+              <strong className="text-text-primary">{agg.noData} clienti</strong> senza KPI inseriti per {ml(selectedMonth)} — inseriscili dalla pagina di ogni cliente.
             </div>
           )}
         </div>

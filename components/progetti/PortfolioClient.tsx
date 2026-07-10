@@ -42,26 +42,31 @@ interface ProfileMin { id: string; full_name: string; avatar_url: string | null 
 
 const STATUS_DOT: Record<string, string> = { verde: 'bg-success', giallo: 'bg-warning', rosso: 'bg-error' }
 const PRIORITY_BADGE: Record<string, string> = {
-  alta:  'bg-red-500/20 text-red-400 border border-red-500/30',
-  media: 'bg-orange-500/20 text-orange-400 border border-orange-500/30',
-  bassa: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30',
+  alta:  'bg-error/20 text-error border border-error/30',
+  media: 'bg-orange/20 text-orange border border-orange/30',
+  bassa: 'bg-warning/20 text-gold-text border border-warning/30',
 }
 const PROJECT_STATUS_BADGE: Record<string, string> = {
   attivo:     'bg-success/20 text-success',
   in_pausa:   'bg-warning/20 text-warning',
-  completato: 'bg-blue-500/20 text-blue-400',
-  archiviato: 'bg-[#2A2A2A] text-text-secondary',
+  completato: 'bg-info/20 text-info',
+  archiviato: 'bg-surface-active text-text-secondary',
 }
-const PALETTE = ['#F5C800', '#22C55E', '#3B82F6', '#8B5CF6', '#EF4444', '#F59E0B', '#06B6D4', '#EC4899']
+const PALETTE = [
+  'var(--color-gold-text)',
+  'var(--color-success)',
+  'var(--color-info)',
+  'var(--color-accent)',
+  'var(--color-error)',
+  'var(--color-orange)',
+]
 const FOLDER_STYLES: Record<string, { bg: string; border: string }> = {
-  '#F5C800': { bg: 'bg-yellow-500/15', border: 'border-yellow-500/30' },
-  '#22C55E': { bg: 'bg-green-500/15',  border: 'border-green-500/30'  },
-  '#3B82F6': { bg: 'bg-blue-500/15',   border: 'border-blue-500/30'   },
-  '#8B5CF6': { bg: 'bg-purple-500/15', border: 'border-purple-500/30' },
-  '#EF4444': { bg: 'bg-red-500/15',    border: 'border-red-500/30'    },
-  '#F59E0B': { bg: 'bg-amber-500/15',  border: 'border-amber-500/30'  },
-  '#06B6D4': { bg: 'bg-cyan-500/15',   border: 'border-cyan-500/30'   },
-  '#EC4899': { bg: 'bg-pink-500/15',   border: 'border-pink-500/30'   },
+  'var(--color-gold-text)': { bg: 'bg-gold-dim',    border: 'border-gold/30'    },
+  'var(--color-success)':   { bg: 'bg-success/15',  border: 'border-success/30' },
+  'var(--color-info)':      { bg: 'bg-info/15',     border: 'border-info/30'    },
+  'var(--color-accent)':    { bg: 'bg-accent/15',   border: 'border-accent/30'  },
+  'var(--color-error)':     { bg: 'bg-error/15',    border: 'border-error/30'   },
+  'var(--color-orange)':    { bg: 'bg-orange/15',   border: 'border-orange/30'  },
 }
 
 function clientHealth(client: ClientData) {
@@ -88,7 +93,7 @@ function NewPortfolioModal({ clients, onClose, onCreated }: {
 }) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [color, setColor] = useState('#F5C800')
+  const [color, setColor] = useState('var(--color-gold-text)')
   const [mode, setMode] = useState<'manual' | 'smart'>('manual')
   const [smartClientType, setSmartClientType] = useState('')
   const [smartProjectKind, setSmartProjectKind] = useState('')
@@ -154,30 +159,30 @@ function NewPortfolioModal({ clients, onClose, onCreated }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-[#2A2A2A] rounded-card w-full max-w-lg max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A] shrink-0">
-          <h2 className="text-base font-bold text-white">Nuovo Portfolio</h2>
-          <button onClick={onClose}><X className="w-5 h-5 text-text-secondary hover:text-white" /></button>
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-surface border border-border rounded-card w-full max-w-lg max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
+          <h2 className="text-base font-bold text-text-primary">Nuovo Portfolio</h2>
+          <button onClick={onClose}><X className="w-5 h-5 text-text-secondary hover:text-text-primary" /></button>
         </div>
         <form onSubmit={submit} className="flex-1 overflow-y-auto p-6 space-y-4">
           <div>
             <label className="block text-xs text-text-secondary mb-1">Nome *</label>
             <input required value={name} onChange={e => setName(e.target.value)}
               placeholder="es. Clienti Premium, Q3 Growth..."
-              className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold" />
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" />
           </div>
           <div>
             <label className="block text-xs text-text-secondary mb-1">Descrizione</label>
             <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Opzionale..."
-              className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold" />
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" />
           </div>
           <div>
             <label className="block text-xs text-text-secondary mb-2">Colore</label>
             <div className="flex gap-2 flex-wrap">
               {PALETTE.map(c => (
                 <button key={c} type="button" onClick={() => setColor(c)}
-                  className={`w-7 h-7 rounded-full border-2 transition-all ${color === c ? 'border-white scale-110' : 'border-transparent'}`}
+                  className={`w-7 h-7 rounded-full border-2 transition-all ${color === c ? 'border-border-strong scale-110' : 'border-transparent'}`}
                   style={{ backgroundColor: c }} />
               ))}
             </div>
@@ -188,19 +193,19 @@ function NewPortfolioModal({ clients, onClose, onCreated }: {
             <div className="flex gap-2">
               {([['manual', 'Manuale'], ['smart', 'Smart (dinamico)']] as const).map(([k, v]) => (
                 <button key={k} type="button" onClick={() => setMode(k)}
-                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-colors ${mode === k ? 'bg-gold text-black' : 'bg-[#1A1A1A] border border-[#2A2A2A] text-text-secondary hover:text-white'}`}>{v}</button>
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-colors ${mode === k ? 'bg-gold text-on-gold' : 'bg-surface border border-border text-text-secondary hover:text-text-primary'}`}>{v}</button>
               ))}
             </div>
           </div>
 
           {mode === 'smart' && (
-            <div className="space-y-3 bg-[#0C0C0C] border border-[#2A2A2A] rounded-xl p-4">
-              <p className="text-[10px] text-[#555] uppercase font-bold tracking-wider">Filtri dinamici — il portfolio si aggiorna automaticamente</p>
+            <div className="space-y-3 bg-background border border-border rounded-xl p-4">
+              <p className="text-2xs text-text-tertiary uppercase font-bold tracking-wider">Filtri dinamici — il portfolio si aggiorna automaticamente</p>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-[10px] text-text-secondary mb-1">Tipo cliente</label>
+                  <label className="block text-2xs text-text-secondary mb-1">Tipo cliente</label>
                   <select value={smartClientType} onChange={e => setSmartClientType(e.target.value)}
-                    className="w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-2 py-1.5 text-xs text-white">
+                    className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-text-primary">
                     <option value="">Tutti</option>
                     <option value="growth">Growth</option>
                     <option value="digital">Digital</option>
@@ -208,18 +213,18 @@ function NewPortfolioModal({ clients, onClose, onCreated }: {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] text-text-secondary mb-1">Tipo progetto</label>
+                  <label className="block text-2xs text-text-secondary mb-1">Tipo progetto</label>
                   <select value={smartProjectKind} onChange={e => setSmartProjectKind(e.target.value)}
-                    className="w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-2 py-1.5 text-xs text-white">
+                    className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-text-primary">
                     <option value="">Tutti</option>
                     <option value="growth">Growth</option>
                     <option value="digital">Digital</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] text-text-secondary mb-1">Stato progetto</label>
+                  <label className="block text-2xs text-text-secondary mb-1">Stato progetto</label>
                   <select value={smartProjectStatus} onChange={e => setSmartProjectStatus(e.target.value)}
-                    className="w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-2 py-1.5 text-xs text-white">
+                    className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-text-primary">
                     <option value="">Tutti</option>
                     <option value="attivo">Attivo</option>
                     <option value="pianificato">Pianificato</option>
@@ -233,9 +238,9 @@ function NewPortfolioModal({ clients, onClose, onCreated }: {
           {mode === 'manual' && <div>
             <label className="block text-xs text-text-secondary mb-2">
               Progetti da includere
-              {selectedProjects.length > 0 && <span className="text-gold ml-2">{selectedProjects.length} selezionati</span>}
+              {selectedProjects.length > 0 && <span className="text-gold-text ml-2">{selectedProjects.length} selezionati</span>}
             </label>
-            <div className="max-h-56 overflow-y-auto border border-[#2A2A2A] rounded-lg divide-y divide-[#2A2A2A]">
+            <div className="max-h-56 overflow-y-auto border border-border rounded-lg divide-y divide-border">
               {clients.map(client => {
                 const expanded = expandedClients.has(client.id)
                 const allSel = client.projects.length > 0 && client.projects.every(p => selectedProjects.includes(p.id))
@@ -243,25 +248,25 @@ function NewPortfolioModal({ clients, onClose, onCreated }: {
                 return (
                   <div key={client.id}>
                     {/* Client header row */}
-                    <div className="flex items-center gap-2 px-3 py-2 hover:bg-white/5 cursor-pointer"
+                    <div className="flex items-center gap-2 px-3 py-2 hover:bg-surface cursor-pointer"
                       onClick={() => toggleClient(client.id)}>
                       {expanded ? <ChevronDown className="w-3.5 h-3.5 text-text-secondary shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-text-secondary shrink-0" />}
                       <input type="checkbox" checked={allSel} ref={el => { if (el) el.indeterminate = someSel && !allSel }}
                         onChange={e => { e.stopPropagation(); toggleAllClientProjects(client) }}
                         onClick={e => e.stopPropagation()}
                         className="accent-gold w-3.5 h-3.5 shrink-0" />
-                      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[client.status] ?? 'bg-[#444]'}`} />
-                      <span className="text-sm font-semibold text-white flex-1">{client.company_name}</span>
+                      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[client.status] ?? 'bg-text-tertiary'}`} />
+                      <span className="text-sm font-semibold text-text-primary flex-1">{client.company_name}</span>
                       <span className="text-xs text-text-secondary">{client.projects.length} progetti</span>
                     </div>
                     {/* Projects */}
                     {expanded && client.projects.map(proj => (
-                      <label key={proj.id} className="flex items-center gap-3 px-3 py-1.5 pl-9 hover:bg-white/5 cursor-pointer">
+                      <label key={proj.id} className="flex items-center gap-3 px-3 py-1.5 pl-9 hover:bg-surface cursor-pointer">
                         <input type="checkbox" checked={selectedProjects.includes(proj.id)} onChange={() => toggleProject(proj.id)}
                           className="accent-gold w-3.5 h-3.5 shrink-0" />
                         <FolderKanban className="w-3.5 h-3.5 text-text-secondary shrink-0" />
-                        <span className="text-sm text-white flex-1">{proj.name}</span>
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded capitalize ${PROJECT_STATUS_BADGE[proj.status] ?? ''}`}>
+                        <span className="text-sm text-text-primary flex-1">{proj.name}</span>
+                        <span className={`text-2xs font-semibold px-1.5 py-0.5 rounded capitalize ${PROJECT_STATUS_BADGE[proj.status] ?? ''}`}>
                           {proj.status.replace('_', ' ')}
                         </span>
                       </label>
@@ -273,9 +278,9 @@ function NewPortfolioModal({ clients, onClose, onCreated }: {
           </div>}
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose}
-              className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary hover:text-white">Annulla</button>
+              className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
             <button type="submit" disabled={loading}
-              className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
+              className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg text-sm hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />} Crea Portfolio
             </button>
           </div>
@@ -326,32 +331,32 @@ function AddProjectsModal({ portfolioId, clients, existingProjectIds, onClose, o
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-[#2A2A2A] rounded-card w-full max-w-md max-h-[80vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#2A2A2A] shrink-0">
-          <h2 className="text-sm font-bold text-white">Aggiungi progetti</h2>
-          <button onClick={onClose}><X className="w-4 h-4 text-text-secondary hover:text-white" /></button>
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-surface border border-border rounded-card w-full max-w-md max-h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <h2 className="text-sm font-bold text-text-primary">Aggiungi progetti</h2>
+          <button onClick={onClose}><X className="w-4 h-4 text-text-secondary hover:text-text-primary" /></button>
         </div>
-        <div className="flex-1 overflow-y-auto divide-y divide-[#2A2A2A]">
+        <div className="flex-1 overflow-y-auto divide-y divide-border">
           {available.length === 0 && <p className="text-sm text-text-secondary text-center py-8">Tutti i progetti sono già nel portfolio</p>}
           {available.map(client => {
             const expanded = expandedClients.has(client.id)
             return (
               <div key={client.id}>
-                <div className="flex items-center gap-2 px-4 py-2.5 hover:bg-white/5 cursor-pointer"
+                <div className="flex items-center gap-2 px-4 py-2.5 hover:bg-surface cursor-pointer"
                   onClick={() => toggleExpand(client.id)}>
                   {expanded ? <ChevronDown className="w-3.5 h-3.5 text-text-secondary" /> : <ChevronRight className="w-3.5 h-3.5 text-text-secondary" />}
-                  <div className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[client.status] ?? 'bg-[#444]'}`} />
-                  <span className="text-sm font-semibold text-white flex-1">{client.company_name}</span>
+                  <div className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[client.status] ?? 'bg-text-tertiary'}`} />
+                  <span className="text-sm font-semibold text-text-primary flex-1">{client.company_name}</span>
                   <span className="text-xs text-text-secondary">{client.projects.length}</span>
                 </div>
                 {expanded && client.projects.map(proj => (
-                  <label key={proj.id} className="flex items-center gap-3 px-4 py-2 pl-10 hover:bg-white/5 cursor-pointer">
+                  <label key={proj.id} className="flex items-center gap-3 px-4 py-2 pl-10 hover:bg-surface cursor-pointer">
                     <input type="checkbox" checked={selected.includes(proj.id)} onChange={() => setSelected(prev => prev.includes(proj.id) ? prev.filter(x => x !== proj.id) : [...prev, proj.id])}
                       className="accent-gold w-3.5 h-3.5" />
                     <FolderKanban className="w-3.5 h-3.5 text-text-secondary" />
-                    <span className="text-sm text-white flex-1">{proj.name}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded capitalize ${PROJECT_STATUS_BADGE[proj.status] ?? ''}`}>
+                    <span className="text-sm text-text-primary flex-1">{proj.name}</span>
+                    <span className={`text-2xs px-1.5 py-0.5 rounded capitalize ${PROJECT_STATUS_BADGE[proj.status] ?? ''}`}>
                       {proj.status.replace('_', ' ')}
                     </span>
                   </label>
@@ -360,10 +365,10 @@ function AddProjectsModal({ portfolioId, clients, existingProjectIds, onClose, o
             )
           })}
         </div>
-        <div className="px-5 py-4 border-t border-[#2A2A2A] flex gap-3 shrink-0">
-          <button onClick={onClose} className="flex-1 py-2 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary hover:text-white">Annulla</button>
+        <div className="px-5 py-4 border-t border-border flex gap-3 shrink-0">
+          <button onClick={onClose} className="flex-1 py-2 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
           <button onClick={submit} disabled={loading || !selected.length}
-            className="flex-1 py-2 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
+            className="flex-1 py-2 bg-gold text-on-gold font-bold rounded-lg text-sm hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-2">
             {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             Aggiungi {selected.length > 0 ? `(${selected.length})` : ''}
           </button>
@@ -390,7 +395,7 @@ function PortfolioCard({ portfolio, clients, onClick, onDelete }: {
 
   return (
     <div onClick={onClick}
-      className="group relative bg-surface border border-[#2A2A2A] rounded-2xl p-5 cursor-pointer hover:border-[#3A3A3A] hover:bg-[#1C1C1C] transition-all duration-150">
+      className="group relative bg-surface border border-border rounded-2xl p-5 cursor-pointer hover:border-border hover:bg-surface-hover transition-all duration-150">
       <button onClick={e => { e.stopPropagation(); onDelete(portfolio.id) }}
         className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity text-text-secondary hover:text-error">
         <Trash2 className="w-3.5 h-3.5" />
@@ -399,25 +404,25 @@ function PortfolioCard({ portfolio, clients, onClick, onDelete }: {
         <Briefcase className="w-7 h-7" style={{ color: portfolio.color }} />
       </div>
       <div className="flex items-center gap-1.5 mb-0.5">
-        <p className="text-sm font-bold text-white truncate pr-6">{portfolio.name}</p>
+        <p className="text-sm font-bold text-text-primary truncate pr-6">{portfolio.name}</p>
         {portfolio.smart_filter && Object.keys(portfolio.smart_filter).length > 0 && (
-          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 shrink-0">Smart</span>
+          <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-accent/10 text-accent border border-accent/20 shrink-0">Smart</span>
         )}
       </div>
       {portfolio.description && <p className="text-xs text-text-secondary mb-2 truncate">{portfolio.description}</p>}
       <div className="flex items-center gap-3 mt-3">
         <div className="flex -space-x-1.5">
           {memberClients.slice(0, 4).map((c, i) => (
-            <div key={c.id} className="w-6 h-6 rounded-full bg-gold/20 border border-[#2A2A2A] flex items-center justify-center text-[9px] font-black text-gold"
+            <div key={c.id} className="w-6 h-6 rounded-full bg-gold/20 border border-border flex items-center justify-center text-2xs font-black text-gold-text"
               style={{ zIndex: 10 - i }}>{c.company_name[0].toUpperCase()}</div>
           ))}
           {memberClients.length > 4 && (
-            <div className="w-6 h-6 rounded-full bg-[#2A2A2A] border border-[#2A2A2A] flex items-center justify-center text-[9px] text-text-secondary">+{memberClients.length - 4}</div>
+            <div className="w-6 h-6 rounded-full bg-surface-active border border-border flex items-center justify-center text-2xs text-text-secondary">+{memberClients.length - 4}</div>
           )}
         </div>
         <div className="ml-auto text-right">
           <p className="text-xs text-text-secondary">{projectCount} progetti</p>
-          {clientCount > 0 && <p className="text-[10px] text-text-secondary">{clientCount} clienti</p>}
+          {clientCount > 0 && <p className="text-2xs text-text-secondary">{clientCount} clienti</p>}
         </div>
       </div>
     </div>
@@ -453,10 +458,10 @@ function PriorityCell({ portfolioId, projectId, value, onChange }: {
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute top-full left-0 mt-1 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg shadow-xl z-20 min-w-[100px] overflow-hidden">
+          <div className="absolute top-full left-0 mt-1 bg-surface border border-border rounded-lg shadow-xl z-20 min-w-[100px] overflow-hidden">
             {(['alta', 'media', 'bassa'] as const).map(p => (
               <button key={p} onClick={() => select(p)}
-                className={`w-full text-left px-3 py-1.5 text-xs capitalize hover:bg-[#2A2A2A] transition-colors ${p === value ? 'font-bold text-gold' : 'text-white'}`}>{p}</button>
+                className={`w-full text-left px-3 py-1.5 text-xs capitalize hover:bg-surface-active transition-colors ${p === value ? 'font-bold text-gold-text' : 'text-text-primary'}`}>{p}</button>
             ))}
           </div>
         </>
@@ -503,11 +508,11 @@ function ElencoTab({ portfolio, clients, allClients, onPriorityChange, onAddProj
   return (
     <div>
       {/* Toolbar */}
-      <div className="flex items-center gap-3 px-6 py-3 border-b border-[#2A2A2A] flex-wrap">
+      <div className="flex items-center gap-3 px-6 py-3 border-b border-border flex-wrap">
         <span className="text-xs text-text-secondary">{totalProjects} progetti · {clients.length} clienti</span>
         {portfolio && onAddProjects && (
           <button onClick={onAddProjects}
-            className="flex items-center gap-1.5 text-xs text-gold border border-gold/30 rounded-lg px-3 py-1.5 hover:bg-gold/10 transition-colors">
+            className="flex items-center gap-1.5 text-xs text-gold-text border border-gold/30 rounded-lg px-3 py-1.5 hover:bg-gold/10 transition-colors">
             <Plus className="w-3.5 h-3.5" /> Aggiungi progetto
           </button>
         )}
@@ -515,15 +520,15 @@ function ElencoTab({ portfolio, clients, allClients, onPriorityChange, onAddProj
           <ListFilter className="w-3.5 h-3.5" />
           {([['priority', 'Priorità'], ['name', 'Nome'], ['status', 'Stato']] as [typeof sortBy, string][]).map(([k, v]) => (
             <button key={k} onClick={() => setSortBy(k)}
-              className={`px-2 py-0.5 rounded transition-colors ${sortBy === k ? 'text-gold font-semibold' : 'hover:text-white'}`}>{v}</button>
+              className={`px-2 py-0.5 rounded transition-colors ${sortBy === k ? 'text-gold-text font-semibold' : 'hover:text-text-primary'}`}>{v}</button>
           ))}
         </div>
       </div>
 
       {/* Table header */}
-      <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-0 border-b border-[#2A2A2A] px-6 py-2.5">
+      <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-0 border-b border-border px-6 py-2.5">
         {['Progetto / Cliente', 'Priorità', 'Stato', 'Task', 'Scadute', ''].map(h => (
-          <span key={h} className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">{h}</span>
+          <span key={h} className="text-2xs font-bold text-text-secondary uppercase tracking-wider">{h}</span>
         ))}
       </div>
 
@@ -531,7 +536,7 @@ function ElencoTab({ portfolio, clients, allClients, onPriorityChange, onAddProj
       {sortedClients.length === 0 ? (
         <div className="text-center py-16 text-text-secondary text-sm">
           Nessun progetto in questo portfolio.{' '}
-          {onAddProjects && <button onClick={onAddProjects} className="text-gold hover:underline">Aggiungine uno →</button>}
+          {onAddProjects && <button onClick={onAddProjects} className="text-gold-text hover:underline">Aggiungine uno →</button>}
         </div>
       ) : sortedClients.map(client => {
         const expanded = expandedClients.has(client.id)
@@ -547,17 +552,17 @@ function ElencoTab({ portfolio, clients, allClients, onPriorityChange, onAddProj
         })
 
         return (
-          <div key={client.id} className="border-b border-[#2A2A2A] last:border-0">
+          <div key={client.id} className="border-b border-border last:border-0">
             {/* Client header */}
             <div
               onClick={() => toggleExpand(client.id)}
-              className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-0 px-6 py-2.5 bg-[#111] hover:bg-[#161616] cursor-pointer transition-colors items-center"
+              className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-0 px-6 py-2.5 bg-background hover:bg-surface cursor-pointer transition-colors items-center"
             >
               <div className="flex items-center gap-2">
                 {expanded ? <ChevronDown className="w-3.5 h-3.5 text-text-secondary" /> : <ChevronRight className="w-3.5 h-3.5 text-text-secondary" />}
-                <div className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[client.status] ?? 'bg-[#444]'}`} />
+                <div className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[client.status] ?? 'bg-text-tertiary'}`} />
                 <Link href={`/clienti/${client.id}`} onClick={e => e.stopPropagation()}
-                  className="text-sm font-bold text-white hover:text-gold transition-colors">{client.company_name}</Link>
+                  className="text-sm font-bold text-text-primary hover:text-gold-text transition-colors">{client.company_name}</Link>
                 <span className="text-xs text-text-secondary ml-1">{formatCurrency(client.mrr)}/m</span>
               </div>
               <div />
@@ -577,12 +582,12 @@ function ElencoTab({ portfolio, clients, allClients, onPriorityChange, onAddProj
 
               return (
                 <div key={proj.id}
-                  className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-0 px-6 py-3 pl-12 hover:bg-white/[0.02] transition-colors items-center group/proj">
+                  className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-0 px-6 py-3 pl-12 hover:bg-surface-hover transition-colors items-center group/proj">
                   {/* Progetto */}
                   <div className="flex items-center gap-2">
                     <FolderKanban className="w-3.5 h-3.5 text-text-secondary shrink-0" />
                     <Link href={`/clienti/${client.id}?tab=1`}
-                      className="text-sm text-white hover:text-gold transition-colors">{proj.name}</Link>
+                      className="text-sm text-text-primary hover:text-gold-text transition-colors">{proj.name}</Link>
                   </div>
                   {/* Priorità */}
                   <div>
@@ -599,10 +604,10 @@ function ElencoTab({ portfolio, clients, allClients, onPriorityChange, onAddProj
                   {/* Task */}
                   <div>
                     <div className="flex items-center gap-1.5 mb-1">
-                      <span className="text-xs text-white">{done}/{total}</span>
+                      <span className="text-xs text-text-primary">{done}/{total}</span>
                     </div>
                     {total > 0 && (
-                      <div className="w-16 h-1 bg-[#2A2A2A] rounded-full overflow-hidden">
+                      <div className="w-16 h-1 bg-surface-active rounded-full overflow-hidden">
                         <div className="h-full bg-success rounded-full" style={{ width: `${pct}%` }} />
                       </div>
                     )}
@@ -615,7 +620,7 @@ function ElencoTab({ portfolio, clients, allClients, onPriorityChange, onAddProj
                   {/* Actions */}
                   <div className="flex items-center gap-1.5 opacity-0 group-hover/proj:opacity-100 transition-opacity">
                     <Link href={`/clienti/${client.id}?tab=1`}
-                      className="text-text-secondary hover:text-gold transition-colors" title="Apri progetto">
+                      className="text-text-secondary hover:text-gold-text transition-colors" title="Apri progetto">
                       <ArrowUpRight className="w-3.5 h-3.5" />
                     </Link>
                     {portfolio && onRemoveProject && (
@@ -650,40 +655,40 @@ function DashboardTab({ clients }: { clients: ClientData[] }) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: 'MRR Totale', value: formatCurrency(totalMRR), icon: <TrendingUp className="w-4 h-4 text-success" />, color: 'text-success' },
-          { label: 'Progetti', value: allProjects.length, icon: <FolderKanban className="w-4 h-4 text-gold" />, color: 'text-white' },
-          { label: 'Task completate', value: `${done}/${allTasks.length}`, icon: <CheckCircle2 className="w-4 h-4 text-blue-400" />, color: 'text-white' },
+          { label: 'Progetti', value: allProjects.length, icon: <FolderKanban className="w-4 h-4 text-gold-text" />, color: 'text-text-primary' },
+          { label: 'Task completate', value: `${done}/${allTasks.length}`, icon: <CheckCircle2 className="w-4 h-4 text-info" />, color: 'text-text-primary' },
           { label: 'Task scadute', value: overdue, icon: <Clock className="w-4 h-4 text-warning" />, color: overdue > 0 ? 'text-warning' : 'text-success' },
         ].map(({ label, value, icon, color }) => (
-          <div key={label} className="bg-[#111] border border-[#2A2A2A] rounded-xl p-4 flex items-center gap-3">
+          <div key={label} className="bg-background border border-border rounded-xl p-4 flex items-center gap-3">
             {icon}
             <div>
-              <p className="text-[10px] text-text-secondary uppercase tracking-wide">{label}</p>
+              <p className="text-2xs text-text-secondary uppercase tracking-wide">{label}</p>
               <p className={`text-xl font-black ${color}`}>{value}</p>
             </div>
           </div>
         ))}
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-[#111] border border-[#2A2A2A] rounded-xl p-4">
+        <div className="bg-background border border-border rounded-xl p-4">
           <p className="text-xs font-bold text-text-secondary uppercase tracking-wide mb-4">Stato Progetti</p>
           {(['attivo', 'in_pausa', 'completato', 'archiviato'] as const).map(s => {
             const count = allProjects.filter(p => p.status === s).length
             return (
               <div key={s} className="flex items-center gap-3 mb-2.5">
                 <span className="text-xs text-text-secondary w-24 capitalize">{s.replace('_', ' ')}</span>
-                <div className="flex-1 h-1.5 bg-[#2A2A2A] rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${PROJECT_STATUS_BADGE[s]?.includes('success') ? 'bg-success' : PROJECT_STATUS_BADGE[s]?.includes('warning') ? 'bg-warning' : PROJECT_STATUS_BADGE[s]?.includes('blue') ? 'bg-blue-500' : 'bg-[#3A3A3A]'}`}
+                <div className="flex-1 h-1.5 bg-surface-active rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${PROJECT_STATUS_BADGE[s]?.includes('success') ? 'bg-success' : PROJECT_STATUS_BADGE[s]?.includes('warning') ? 'bg-warning' : PROJECT_STATUS_BADGE[s]?.includes('blue') ? 'bg-info' : 'bg-surface-active'}`}
                     style={{ width: allProjects.length ? `${(count / allProjects.length) * 100}%` : '0%' }} />
                 </div>
-                <span className="text-xs font-bold text-white w-5 text-right">{count}</span>
+                <span className="text-xs font-bold text-text-primary w-5 text-right">{count}</span>
               </div>
             )
           })}
         </div>
-        <div className="bg-[#111] border border-[#2A2A2A] rounded-xl p-4">
+        <div className="bg-background border border-border rounded-xl p-4">
           <p className="text-xs font-bold text-text-secondary uppercase tracking-wide mb-4">Clienti</p>
           {[
-            { label: 'Totali', value: clients.length, color: 'text-white' },
+            { label: 'Totali', value: clients.length, color: 'text-text-primary' },
             { label: 'A rischio', value: atRisk, color: atRisk > 0 ? 'text-error' : 'text-success' },
             { label: 'Task scadute', value: overdue, color: overdue > 0 ? 'text-warning' : 'text-success' },
           ].map(({ label, value, color }) => (
@@ -704,10 +709,10 @@ function AvanzamentoTab({ clients }: { clients: ClientData[] }) {
   return (
     <div className="p-6 space-y-3">
       {clients.map(client => (
-        <div key={client.id} className="bg-[#111] border border-[#2A2A2A] rounded-xl p-4">
+        <div key={client.id} className="bg-background border border-border rounded-xl p-4">
           <div className="flex items-center gap-2 mb-3">
-            <div className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[client.status] ?? 'bg-[#444]'}`} />
-            <Link href={`/clienti/${client.id}`} className="text-sm font-bold text-white hover:text-gold transition-colors flex-1">{client.company_name}</Link>
+            <div className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[client.status] ?? 'bg-text-tertiary'}`} />
+            <Link href={`/clienti/${client.id}`} className="text-sm font-bold text-text-primary hover:text-gold-text transition-colors flex-1">{client.company_name}</Link>
             <span className="text-xs text-text-secondary">{formatCurrency(client.mrr)}/m</span>
           </div>
           <div className="space-y-2">
@@ -721,9 +726,9 @@ function AvanzamentoTab({ clients }: { clients: ClientData[] }) {
                     <FolderKanban className="w-3 h-3 text-text-secondary shrink-0" />
                     <span className="text-xs text-text-secondary flex-1">{proj.name}</span>
                     <span className={`text-xs font-semibold ${pct === 100 ? 'text-success' : pct > 50 ? 'text-warning' : 'text-text-secondary'}`}>{pct}%</span>
-                    <Link href={`/clienti/${client.id}?tab=1`}><ArrowUpRight className="w-3 h-3 text-text-secondary hover:text-gold" /></Link>
+                    <Link href={`/clienti/${client.id}?tab=1`}><ArrowUpRight className="w-3 h-3 text-text-secondary hover:text-gold-text" /></Link>
                   </div>
-                  <div className="h-1.5 bg-[#2A2A2A] rounded-full overflow-hidden ml-5">
+                  <div className="h-1.5 bg-surface-active rounded-full overflow-hidden ml-5">
                     <div className={`h-full rounded-full transition-all ${pct === 100 ? 'bg-success' : 'bg-gold'}`} style={{ width: `${pct}%` }} />
                   </div>
                 </div>
@@ -833,18 +838,18 @@ export function PortfolioClient({ clients, portfolios: initialPortfolios, profil
       {/* ── HOME ─────────────────────────────────────────────────────────── */}
       {!inDetail && (
         <div className="flex flex-col h-full">
-          <div className="px-8 pt-6 pb-0 border-b border-[#2A2A2A]">
+          <div className="px-8 pt-6 pb-0 border-b border-border">
             <div className="flex items-center justify-between mb-1">
-              <h1 className="text-2xl font-black text-white">Portfolio</h1>
+              <h1 className="text-2xl font-black text-text-primary">Portfolio</h1>
               <button onClick={() => setShowNewPortfolio(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-gold text-black font-bold text-sm rounded-xl hover:bg-yellow-400 transition-colors">
+                className="flex items-center gap-2 px-4 py-2 bg-gold text-on-gold font-bold text-sm rounded-xl hover:bg-gold/90 transition-colors">
                 <Plus className="w-4 h-4" /> Nuovo portfolio
               </button>
             </div>
             <div className="flex gap-1 mt-4">
               {([['recenti', 'Recenti e preferiti'], ['tutti', 'Sfoglia tutto']] as const).map(([k, v]) => (
                 <button key={k} onClick={() => setHomeTab(k)}
-                  className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${homeTab === k ? 'border-gold text-gold' : 'border-transparent text-text-secondary hover:text-white'}`}>{v}</button>
+                  className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${homeTab === k ? 'border-gold text-gold-text' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>{v}</button>
               ))}
             </div>
           </div>
@@ -858,25 +863,25 @@ export function PortfolioClient({ clients, portfolios: initialPortfolios, profil
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {/* New */}
               <div onClick={() => setShowNewPortfolio(true)}
-                className="group bg-[#111] border-2 border-dashed border-[#2A2A2A] rounded-2xl p-5 cursor-pointer hover:border-gold/40 transition-all flex flex-col items-center justify-center min-h-[160px] gap-2">
-                <div className="w-10 h-10 rounded-xl bg-[#1A1A1A] border border-[#2A2A2A] flex items-center justify-center group-hover:border-gold/30 transition-colors">
-                  <Plus className="w-5 h-5 text-text-secondary group-hover:text-gold transition-colors" />
+                className="group bg-background border-2 border-dashed border-border rounded-2xl p-5 cursor-pointer hover:border-gold/40 transition-all flex flex-col items-center justify-center min-h-[160px] gap-2">
+                <div className="w-10 h-10 rounded-xl bg-surface border border-border flex items-center justify-center group-hover:border-gold/30 transition-colors">
+                  <Plus className="w-5 h-5 text-text-secondary group-hover:text-gold-text transition-colors" />
                 </div>
-                <p className="text-xs text-text-secondary group-hover:text-white transition-colors font-semibold">Nuovo portfolio</p>
+                <p className="text-xs text-text-secondary group-hover:text-text-primary transition-colors font-semibold">Nuovo portfolio</p>
               </div>
 
               {/* All clients card */}
               <div onClick={() => { setShowAllClients(true); setActivePortfolio(null); setActiveTab('elenco') }}
-                className="group bg-surface border border-[#2A2A2A] rounded-2xl p-5 cursor-pointer hover:border-[#3A3A3A] hover:bg-[#1C1C1C] transition-all">
-                <div className="w-14 h-14 rounded-xl bg-[#2A2A2A] border border-[#3A3A3A] flex items-center justify-center mb-4">
+                className="group bg-surface border border-border rounded-2xl p-5 cursor-pointer hover:border-border hover:bg-surface-hover transition-all">
+                <div className="w-14 h-14 rounded-xl bg-surface-active border border-border flex items-center justify-center mb-4">
                   <Users className="w-7 h-7 text-text-secondary" />
                 </div>
-                <p className="text-sm font-bold text-white mb-0.5">Tutti i clienti</p>
+                <p className="text-sm font-bold text-text-primary mb-0.5">Tutti i clienti</p>
                 <p className="text-xs text-text-secondary mb-3">Vista completa</p>
                 <div className="flex items-center justify-between mt-3">
                   <div className="flex -space-x-1.5">
                     {clients.slice(0, 4).map((c, i) => (
-                      <div key={c.id} className="w-6 h-6 rounded-full bg-[#3A3A3A] border border-[#2A2A2A] flex items-center justify-center text-[9px] font-bold text-white"
+                      <div key={c.id} className="w-6 h-6 rounded-full bg-surface-active border border-border flex items-center justify-center text-2xs font-bold text-text-primary"
                         style={{ zIndex: 10 - i }}>{c.company_name[0]}</div>
                     ))}
                   </div>
@@ -896,7 +901,7 @@ export function PortfolioClient({ clients, portfolios: initialPortfolios, profil
               <div className="text-center py-12">
                 <Briefcase className="w-12 h-12 text-text-secondary mx-auto mb-4" />
                 <p className="text-text-secondary mb-1">Nessun portfolio ancora.</p>
-                <button onClick={() => setShowNewPortfolio(true)} className="text-gold hover:underline text-sm">Crea il primo portfolio →</button>
+                <button onClick={() => setShowNewPortfolio(true)} className="text-gold-text hover:underline text-sm">Crea il primo portfolio →</button>
               </div>
             )}
           </div>
@@ -906,36 +911,36 @@ export function PortfolioClient({ clients, portfolios: initialPortfolios, profil
       {/* ── DETAIL ───────────────────────────────────────────────────────── */}
       {inDetail && (
         <div className="flex flex-col h-full">
-          <div className="px-6 pt-5 pb-0 border-b border-[#2A2A2A]">
+          <div className="px-6 pt-5 pb-0 border-b border-border">
             <button onClick={() => { setActivePortfolio(null); setShowAllClients(false) }}
-              className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-white transition-colors mb-4">
+              className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors mb-4">
               <ArrowLeft className="w-4 h-4" /> Portfolio
             </button>
             <div className="flex items-center gap-3 mb-3 flex-wrap">
               {activePortfolio ? (
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ backgroundColor: activePortfolio.color + '25', border: `1px solid ${activePortfolio.color}50` }}>
+                  style={{ backgroundColor: `color-mix(in srgb, ${activePortfolio.color} 15%, transparent)`, border: `1px solid color-mix(in srgb, ${activePortfolio.color} 31%, transparent)` }}>
                   <Briefcase className="w-5 h-5" style={{ color: activePortfolio.color }} />
                 </div>
               ) : (
-                <div className="w-9 h-9 rounded-xl bg-[#2A2A2A] border border-[#3A3A3A] flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-xl bg-surface-active border border-border flex items-center justify-center shrink-0">
                   <Users className="w-5 h-5 text-text-secondary" />
                 </div>
               )}
               <div className="flex-1">
-                <h1 className="text-xl font-black text-white">{activePortfolio?.name ?? 'Tutti i clienti'}</h1>
+                <h1 className="text-xl font-black text-text-primary">{activePortfolio?.name ?? 'Tutti i clienti'}</h1>
                 {activePortfolio?.description && <p className="text-xs text-text-secondary mt-0.5">{activePortfolio.description}</p>}
               </div>
               <button onClick={() => setShowNewPortfolio(true)}
-                className="flex items-center gap-1.5 text-xs text-gold border border-gold/30 rounded-lg px-3 py-1.5 hover:bg-gold/10 transition-colors">
+                className="flex items-center gap-1.5 text-xs text-gold-text border border-gold/30 rounded-lg px-3 py-1.5 hover:bg-gold/10 transition-colors">
                 <Plus className="w-3.5 h-3.5" /> Nuovo portfolio
               </button>
             </div>
             <div className="flex gap-5 pb-3 text-sm">
               {[
                 { label: 'MRR', value: formatCurrency(totalMRR), color: 'text-success' },
-                { label: 'Progetti', value: totalProjects, color: 'text-white' },
-                { label: 'Clienti', value: visibleClients.length, color: 'text-white' },
+                { label: 'Progetti', value: totalProjects, color: 'text-text-primary' },
+                { label: 'Clienti', value: visibleClients.length, color: 'text-text-primary' },
                 { label: 'Task scadute', value: overdueTasks, color: overdueTasks > 0 ? 'text-warning' : 'text-text-secondary' },
               ].map(({ label, value, color }) => (
                 <div key={label} className="flex items-center gap-1.5">
@@ -947,7 +952,7 @@ export function PortfolioClient({ clients, portfolios: initialPortfolios, profil
             <div className="flex gap-0 -mb-px">
               {([['elenco', 'Elenco'], ['dashboard', 'Dashboard'], ['avanzamento', 'Avanzamento']] as const).map(([k, v]) => (
                 <button key={k} onClick={() => setActiveTab(k)}
-                  className={`px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${activeTab === k ? 'border-gold text-gold' : 'border-transparent text-text-secondary hover:text-white'}`}>{v}</button>
+                  className={`px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${activeTab === k ? 'border-gold text-gold-text' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>{v}</button>
               ))}
             </div>
           </div>

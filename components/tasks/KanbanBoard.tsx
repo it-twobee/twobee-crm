@@ -67,11 +67,11 @@ function KanbanCard({
       draggable
       onDragStart={onDragStart}
       onClick={onClick}
-      className="bg-surface border border-[#2A2A2A] rounded-card p-4 cursor-grab active:cursor-grabbing hover:border-gold/30 transition-colors"
+      className="bg-surface border border-border rounded-card p-4 cursor-grab active:cursor-grabbing hover:border-gold/30 transition-colors"
     >
       <div className="flex items-start gap-2 mb-2">
         <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${priorityDot[task.priority]}`} />
-        <p className="text-sm font-semibold text-white leading-snug">{task.title}</p>
+        <p className="text-sm font-semibold text-text-primary leading-snug">{task.title}</p>
       </div>
 
       {task.project?.clients?.company_name && (
@@ -96,24 +96,24 @@ function KanbanCard({
               setShowAssign((v) => !v)
             }}
             title={task.assignee ? task.assignee.full_name : 'Assegna'}
-            className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors ${
+            className={`w-6 h-6 rounded-full flex items-center justify-center text-2xs font-bold transition-colors ${
               task.assignee
-                ? 'bg-gold/20 border border-gold/30 text-gold hover:bg-gold/30'
-                : 'bg-[#2A2A2A] border border-dashed border-[#444] text-text-secondary hover:border-gold/40 hover:text-gold'
+                ? 'bg-gold/20 border border-gold/30 text-gold-text hover:bg-gold/30'
+                : 'bg-surface-active border border-dashed border-border-strong text-text-secondary hover:border-gold/40 hover:text-gold-text'
             }`}
           >
             {task.assignee ? getInitials(task.assignee.full_name) : <UserPlus className="w-3 h-3" />}
           </button>
 
           {showAssign && (
-            <div className="absolute bottom-8 right-0 z-50 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg shadow-xl p-1 min-w-[160px]">
-              <p className="text-[10px] text-text-secondary px-2 py-1 uppercase tracking-wider">Assegna a</p>
+            <div className="absolute bottom-8 right-0 z-50 bg-surface border border-border rounded-lg shadow-xl p-1 min-w-[160px]">
+              <p className="text-2xs text-text-secondary px-2 py-1 uppercase tracking-wider">Assegna a</p>
               {task.assignee && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onAssign(null); setShowAssign(false) }}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#2A2A2A] text-xs text-text-secondary"
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-surface-active text-xs text-text-secondary"
                 >
-                  <div className="w-5 h-5 rounded-full bg-[#2A2A2A] flex items-center justify-center">
+                  <div className="w-5 h-5 rounded-full bg-surface-active flex items-center justify-center">
                     <X className="w-3 h-3" />
                   </div>
                   Rimuovi assegnatario
@@ -123,17 +123,17 @@ function KanbanCard({
                 <button
                   key={p.id}
                   onClick={(e) => { e.stopPropagation(); onAssign(p.id); setShowAssign(false) }}
-                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#2A2A2A] text-xs ${
-                    task.assignee?.id === p.id ? 'text-gold' : 'text-white'
+                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-surface-active text-xs ${
+                    task.assignee?.id === p.id ? 'text-gold-text' : 'text-text-primary'
                   }`}
                 >
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${
-                    task.assignee?.id === p.id ? 'bg-gold/20 text-gold' : 'bg-[#333] text-white'
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-2xs font-bold ${
+                    task.assignee?.id === p.id ? 'bg-gold/20 text-gold-text' : 'bg-surface-active text-text-primary'
                   }`}>
                     {getInitials(p.full_name)}
                   </div>
                   {p.full_name}
-                  {task.assignee?.id === p.id && <span className="ml-auto text-gold">✓</span>}
+                  {task.assignee?.id === p.id && <span className="ml-auto text-gold-text">✓</span>}
                 </button>
               ))}
             </div>
@@ -194,7 +194,7 @@ function DependenciesTab({ taskId, projectId }: { taskId: string; projectId: str
   }
 
   const statusColor: Record<string, string> = {
-    completato: 'text-success', in_corso: 'text-warning', in_revisione: 'text-gold', da_fare: 'text-text-secondary',
+    completato: 'text-success', in_corso: 'text-warning', in_revisione: 'text-gold-text', da_fare: 'text-text-secondary',
   }
 
   if (loading) return <div className="flex items-center gap-2 text-text-secondary text-sm py-4"><div className="w-4 h-4 border-2 border-gold border-t-transparent rounded-full animate-spin" /> Caricamento...</div>
@@ -205,11 +205,11 @@ function DependenciesTab({ taskId, projectId }: { taskId: string; projectId: str
         <p className="text-sm text-text-secondary">Nessuna dipendenza impostata.</p>
       )}
       {deps.map((dep) => (
-        <div key={dep.id} className="flex items-center gap-3 p-3 bg-background border border-[#2A2A2A] rounded-lg">
+        <div key={dep.id} className="flex items-center gap-3 p-3 bg-background border border-border rounded-lg">
           <Link2 className="w-3.5 h-3.5 text-text-secondary shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-xs text-text-secondary mb-0.5">{dep.type === 'blocking' ? 'Blocca' : 'Aspetta'}</p>
-            <p className="text-sm text-white truncate">{dep.related.title}</p>
+            <p className="text-sm text-text-primary truncate">{dep.related.title}</p>
             <p className={`text-xs ${statusColor[dep.related.status] ?? 'text-text-secondary'}`}>{dep.related.status.replace('_', ' ')}</p>
           </div>
           {dep.related.status !== 'completato' && dep.type === 'waiting_on' && (
@@ -221,24 +221,24 @@ function DependenciesTab({ taskId, projectId }: { taskId: string; projectId: str
         </div>
       ))}
       {adding ? (
-        <div className="space-y-2 p-3 bg-background border border-[#2A2A2A] rounded-lg">
+        <div className="space-y-2 p-3 bg-background border border-border rounded-lg">
           <select value={depType} onChange={(e) => setDepType(e.target.value as 'blocking' | 'waiting_on')}
-            className="w-full bg-surface border border-[#2A2A2A] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-gold">
+            className="w-full bg-surface border border-border rounded-lg px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:border-gold">
             <option value="blocking">Questo task blocca...</option>
             <option value="waiting_on">Questo task aspetta...</option>
           </select>
           <select value={selectedTask} onChange={(e) => setSelectedTask(e.target.value)}
-            className="w-full bg-surface border border-[#2A2A2A] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-gold">
+            className="w-full bg-surface border border-border rounded-lg px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:border-gold">
             <option value="">Seleziona task...</option>
             {projectTasks.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
           </select>
           <div className="flex gap-2">
-            <button onClick={() => setAdding(false)} className="flex-1 py-1.5 border border-[#2A2A2A] rounded-lg text-xs text-text-secondary hover:text-white">Annulla</button>
-            <button onClick={addDep} disabled={!selectedTask} className="flex-1 py-1.5 bg-gold text-black font-bold rounded-lg text-xs hover:bg-yellow-400 disabled:opacity-50">Aggiungi</button>
+            <button onClick={() => setAdding(false)} className="flex-1 py-1.5 border border-border rounded-lg text-xs text-text-secondary hover:text-text-primary">Annulla</button>
+            <button onClick={addDep} disabled={!selectedTask} className="flex-1 py-1.5 bg-gold text-on-gold font-bold rounded-lg text-xs hover:bg-gold/90 disabled:opacity-50">Aggiungi</button>
           </div>
         </div>
       ) : (
-        <button onClick={() => setAdding(true)} className="flex items-center gap-2 text-sm text-gold hover:underline">
+        <button onClick={() => setAdding(true)} className="flex items-center gap-2 text-sm text-gold-text hover:underline">
           <Plus className="w-4 h-4" /> Aggiungi dipendenza
         </button>
       )}
@@ -285,11 +285,11 @@ function QuickAddBar({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center pt-24 px-4"
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-start justify-center pt-24 px-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div className="w-full max-w-xl bg-surface border border-gold/30 rounded-xl shadow-2xl p-4 space-y-3">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs text-gold font-bold uppercase tracking-wider">Quick Add</span>
+          <span className="text-xs text-gold-text font-bold uppercase tracking-wider">Quick Add</span>
           <span className="text-xs text-text-secondary">— Esc per chiudere</span>
         </div>
         <input
@@ -298,22 +298,22 @@ function QuickAddBar({
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') onClose() }}
           placeholder="Nome del task..."
-          className="w-full bg-background border border-[#2A2A2A] rounded-lg px-4 py-2.5 text-base text-white focus:outline-none focus:border-gold"
+          className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-base text-text-primary focus:outline-none focus:border-gold"
         />
         <div className="flex gap-2">
           <select value={clientId} onChange={(e) => loadProjects(e.target.value)}
-            className="flex-1 bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold">
+            className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold">
             <option value="">Cliente...</option>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
           </select>
           <select value={projectId} onChange={(e) => setProjectId(e.target.value)} disabled={!clientId}
-            className="flex-1 bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold disabled:opacity-40">
+            className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold disabled:opacity-40">
             <option value="">Progetto...</option>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </div>
         <button onClick={submit} disabled={!title.trim() || !projectId || saving}
-          className="w-full py-2 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-40 transition-colors">
+          className="w-full py-2 bg-gold text-on-gold font-bold rounded-lg text-sm hover:bg-gold/90 disabled:opacity-40 transition-colors">
           {saving ? 'Creazione...' : 'Crea Task → Da Fare'}
         </button>
       </div>
@@ -387,16 +387,16 @@ export function KanbanBoard({ tasks: initialTasks, profiles, clients }: KanbanBo
       <div className="px-6 pt-6 pb-4">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-black text-white">Task Board</h1>
+            <h1 className="text-2xl font-black text-text-primary">Task Board</h1>
             <p className="text-text-secondary text-sm mt-0.5">{filtered.length} task totali</p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="hidden sm:flex items-center gap-1 text-xs text-text-secondary border border-[#2A2A2A] rounded px-2 py-1">
+            <span className="hidden sm:flex items-center gap-1 text-xs text-text-secondary border border-border rounded px-2 py-1">
               <kbd className="font-mono">/</kbd> Quick Add
             </span>
             <button
               onClick={() => setShowNewTask(true)}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-gold text-black rounded-lg hover:bg-yellow-400 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-gold text-on-gold rounded-lg hover:bg-gold/90 transition-colors"
             >
               <Plus className="w-4 h-4" />
               Nuova Task
@@ -409,7 +409,7 @@ export function KanbanBoard({ tasks: initialTasks, profiles, clients }: KanbanBo
           <select
             value={filterClient}
             onChange={(e) => setFilterClient(e.target.value)}
-            className="bg-surface border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold"
+            className="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold"
           >
             <option value="tutti">Tutti i clienti</option>
             {clients.map((c) => (
@@ -420,7 +420,7 @@ export function KanbanBoard({ tasks: initialTasks, profiles, clients }: KanbanBo
           <select
             value={filterAssignee}
             onChange={(e) => setFilterAssignee(e.target.value)}
-            className="bg-surface border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold"
+            className="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold"
           >
             <option value="tutti">Tutti i membri</option>
             {profiles.map((p) => (
@@ -431,7 +431,7 @@ export function KanbanBoard({ tasks: initialTasks, profiles, clients }: KanbanBo
           <select
             value={filterPriority}
             onChange={(e) => setFilterPriority(e.target.value)}
-            className="bg-surface border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold"
+            className="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold"
           >
             <option value="tutti">Tutte le priorità</option>
             <option value="alta">Alta</option>
@@ -452,8 +452,8 @@ export function KanbanBoard({ tasks: initialTasks, profiles, clients }: KanbanBo
               onDrop={() => handleDrop(col.key)}
             >
               {/* Column header */}
-              <div className={`bg-surface border border-[#2A2A2A] border-t-2 ${col.color} rounded-card px-4 py-3 mb-3 flex items-center justify-between`}>
-                <span className="text-sm font-bold text-white">{col.label}</span>
+              <div className={`bg-surface border border-border border-t-2 ${col.color} rounded-card px-4 py-3 mb-3 flex items-center justify-between`}>
+                <span className="text-sm font-bold text-text-primary">{col.label}</span>
                 <span className="text-xs bg-background text-text-secondary px-2 py-0.5 rounded-full">
                   {byStatus(col.key).length}
                 </span>
@@ -480,7 +480,7 @@ export function KanbanBoard({ tasks: initialTasks, profiles, clients }: KanbanBo
                 ))}
 
                 {byStatus(col.key).length === 0 && (
-                  <div className="h-20 border-2 border-dashed border-[#2A2A2A] rounded-card flex items-center justify-center text-xs text-text-secondary">
+                  <div className="h-20 border-2 border-dashed border-border rounded-card flex items-center justify-center text-xs text-text-secondary">
                     Trascina qui
                   </div>
                 )}
@@ -583,27 +583,27 @@ function TaskDetailPanel({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-end">
-      <div className="w-full max-w-lg h-full bg-surface border-l border-[#2A2A2A] flex flex-col">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-end">
+      <div className="w-full max-w-lg h-full bg-surface border-l border-border flex flex-col">
         {/* Header */}
-        <div className="flex items-start justify-between px-6 py-4 border-b border-[#2A2A2A] shrink-0">
+        <div className="flex items-start justify-between px-6 py-4 border-b border-border shrink-0">
           <div className="flex-1 min-w-0 pr-3">
             <div className="flex items-center gap-2 mb-1">
-              {form.is_milestone && <Flag className="w-4 h-4 text-gold shrink-0" />}
+              {form.is_milestone && <Flag className="w-4 h-4 text-gold-text shrink-0" />}
               <span className="text-xs text-text-secondary">{task.project?.clients?.company_name} · {task.project?.name}</span>
             </div>
-            <h2 className="text-base font-bold text-white leading-snug">{form.title}</h2>
+            <h2 className="text-base font-bold text-text-primary leading-snug">{form.title}</h2>
           </div>
-          <button onClick={onClose} className="text-text-secondary hover:text-white shrink-0 mt-1">✕</button>
+          <button onClick={onClose} className="text-text-secondary hover:text-text-primary shrink-0 mt-1">✕</button>
         </div>
 
         {/* Tab nav */}
-        <div className="flex border-b border-[#2A2A2A] px-6 shrink-0">
+        <div className="flex border-b border-border px-6 shrink-0">
           {DETAIL_TABS.map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-3 py-2.5 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap ${activeTab === tab ? 'border-gold text-gold' : 'border-transparent text-text-secondary hover:text-white'}`}
+              className={`px-3 py-2.5 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap ${activeTab === tab ? 'border-gold text-gold-text' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
             >
               {tab}
             </button>
@@ -619,18 +619,18 @@ function TaskDetailPanel({
               <div>
                 <label className="block text-xs text-text-secondary mb-1">Titolo</label>
                 <input value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-                  className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold" />
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" />
               </div>
               <div>
                 <label className="block text-xs text-text-secondary mb-1">Descrizione</label>
                 <textarea value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-                  rows={3} className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold resize-none" />
+                  rows={3} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold resize-none" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-text-secondary mb-1">Priorità</label>
                   <select value={form.priority} onChange={(e) => setForm((p) => ({ ...p, priority: e.target.value as typeof p.priority }))}
-                    className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold">
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold">
                     <option value="alta">🔴 Alta</option>
                     <option value="media">🟡 Media</option>
                     <option value="bassa">🟢 Bassa</option>
@@ -639,7 +639,7 @@ function TaskDetailPanel({
                 <div>
                   <label className="block text-xs text-text-secondary mb-1">Stato</label>
                   <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value as typeof p.status }))}
-                    className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold">
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold">
                     <option value="da_fare">Da fare</option>
                     <option value="in_corso">In corso</option>
                     <option value="in_revisione">In revisione</option>
@@ -651,20 +651,20 @@ function TaskDetailPanel({
                 <div>
                   <label className="block text-xs text-text-secondary mb-1">Deadline</label>
                   <input type="date" value={form.due_date} onChange={(e) => setForm((p) => ({ ...p, due_date: e.target.value }))}
-                    className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold" />
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" />
                 </div>
                 <div>
                   <label className="block text-xs text-text-secondary mb-1">Ore stimate</label>
                   <input type="number" min="0" step="0.5" value={form.estimated_hours}
                     onChange={(e) => setForm((p) => ({ ...p, estimated_hours: e.target.value }))}
                     placeholder="es. 8"
-                    className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold" />
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" />
                 </div>
               </div>
               <div>
                 <label className="block text-xs text-text-secondary mb-1">Assegnatario</label>
                 <select value={form.assignee_id} onChange={(e) => setForm((p) => ({ ...p, assignee_id: e.target.value }))}
-                  className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold">
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold">
                   <option value="">— Nessuno —</option>
                   {profiles.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
                 </select>
@@ -674,12 +674,12 @@ function TaskDetailPanel({
               <label className="flex items-center gap-2 cursor-pointer">
                 <div
                   onClick={() => setForm((p) => ({ ...p, is_milestone: !p.is_milestone }))}
-                  className={`w-9 h-5 rounded-full transition-colors ${form.is_milestone ? 'bg-gold' : 'bg-[#2A2A2A]'} relative`}
+                  className={`w-9 h-5 rounded-full transition-colors ${form.is_milestone ? 'bg-gold' : 'bg-surface-active'} relative`}
                 >
-                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${form.is_milestone ? 'left-4' : 'left-0.5'}`} />
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-surface transition-all ${form.is_milestone ? 'left-4' : 'left-0.5'}`} />
                 </div>
-                <Flag className="w-3.5 h-3.5 text-gold" />
-                <span className="text-sm text-white">Milestone</span>
+                <Flag className="w-3.5 h-3.5 text-gold-text" />
+                <span className="text-sm text-text-primary">Milestone</span>
               </label>
 
               {/* Tags */}
@@ -687,7 +687,7 @@ function TaskDetailPanel({
                 <label className="block text-xs text-text-secondary mb-1.5">Tag</label>
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {tags.map((tag) => (
-                    <span key={tag} className="flex items-center gap-1 text-xs bg-gold/10 text-gold border border-gold/30 px-2 py-0.5 rounded-full">
+                    <span key={tag} className="flex items-center gap-1 text-xs bg-gold/10 text-gold-text border border-gold/30 px-2 py-0.5 rounded-full">
                       {tag}
                       <button onClick={() => setTags((prev) => prev.filter((t) => t !== tag))}><X className="w-2.5 h-2.5" /></button>
                     </span>
@@ -699,9 +699,9 @@ function TaskDetailPanel({
                     onChange={(e) => setNewTag(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
                     placeholder="Aggiungi tag..."
-                    className="flex-1 bg-background border border-[#2A2A2A] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-gold"
+                    className="flex-1 bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:border-gold"
                   />
-                  <button onClick={addTag} className="px-3 py-1.5 text-xs bg-surface border border-[#2A2A2A] rounded-lg text-gold hover:border-gold transition-colors">
+                  <button onClick={addTag} className="px-3 py-1.5 text-xs bg-surface border border-border rounded-lg text-gold-text hover:border-gold transition-colors">
                     <Tag className="w-3 h-3" />
                   </button>
                 </div>
@@ -735,11 +735,11 @@ function TaskDetailPanel({
 
         {/* Footer save (solo tab Dettagli) */}
         {activeTab === 'Dettagli' && (
-          <div className="px-6 py-4 border-t border-[#2A2A2A] flex gap-3 shrink-0">
-            <button onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary hover:text-white transition-colors">
+          <div className="px-6 py-4 border-t border-border flex gap-3 shrink-0">
+            <button onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary transition-colors">
               Annulla
             </button>
-            <button onClick={save} disabled={saving} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg hover:bg-yellow-400 transition-colors disabled:opacity-50">
+            <button onClick={save} disabled={saving} className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg hover:bg-gold/90 transition-colors disabled:opacity-50">
               {saving ? 'Salvataggio...' : 'Salva'}
             </button>
           </div>
@@ -790,24 +790,24 @@ function NewTaskModal({ clients, profiles, onClose, onCreated }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-[#2A2A2A] rounded-card w-full max-w-lg">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A]">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-surface border border-border rounded-card w-full max-w-lg">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-lg font-bold">Nuova Task</h2>
-          <button onClick={onClose} className="text-text-secondary hover:text-white">✕</button>
+          <button onClick={onClose} className="text-text-secondary hover:text-text-primary">✕</button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label className="block text-xs text-text-secondary mb-1">Titolo *</label>
             <input value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} required
-              className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold"
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold"
               placeholder="Titolo della task..." />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-text-secondary mb-1">Cliente *</label>
               <select value={form.client_id} onChange={(e) => { setForm((p) => ({ ...p, client_id: e.target.value, project_id: '' })); loadProjects(e.target.value) }}
-                className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold">
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold">
                 <option value="">Seleziona cliente</option>
                 {clients.map((c) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
               </select>
@@ -815,7 +815,7 @@ function NewTaskModal({ clients, profiles, onClose, onCreated }: {
             <div>
               <label className="block text-xs text-text-secondary mb-1">Progetto *</label>
               <select value={form.project_id} onChange={(e) => setForm((p) => ({ ...p, project_id: e.target.value }))}
-                className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold">
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold">
                 <option value="">Seleziona progetto</option>
                 {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
@@ -825,7 +825,7 @@ function NewTaskModal({ clients, profiles, onClose, onCreated }: {
             <div>
               <label className="block text-xs text-text-secondary mb-1">Priorità</label>
               <select value={form.priority} onChange={(e) => setForm((p) => ({ ...p, priority: e.target.value }))}
-                className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold">
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold">
                 <option value="alta">Alta</option>
                 <option value="media">Media</option>
                 <option value="bassa">Bassa</option>
@@ -834,20 +834,20 @@ function NewTaskModal({ clients, profiles, onClose, onCreated }: {
             <div>
               <label className="block text-xs text-text-secondary mb-1">Deadline</label>
               <input type="date" value={form.due_date} onChange={(e) => setForm((p) => ({ ...p, due_date: e.target.value }))}
-                className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold" />
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" />
             </div>
           </div>
           <div>
             <label className="block text-xs text-text-secondary mb-1">Assegna a</label>
             <select value={form.assignee_id} onChange={(e) => setForm((p) => ({ ...p, assignee_id: e.target.value }))}
-              className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold">
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold">
               <option value="">— Nessuno —</option>
               {profiles.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
             </select>
           </div>
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary hover:text-white transition-colors">Annulla</button>
-            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg hover:bg-yellow-400 transition-colors disabled:opacity-50">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary transition-colors">Annulla</button>
+            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg hover:bg-gold/90 transition-colors disabled:opacity-50">
               {loading ? 'Creazione...' : 'Crea Task'}
             </button>
           </div>

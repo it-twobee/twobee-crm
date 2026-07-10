@@ -21,9 +21,9 @@ interface Props {
 }
 
 const SEVERITY: Record<AlertSeverity, { color: string; bg: string; border: string }> = {
-  critico:    { color: '#EF4444', bg: 'rgba(239,68,68,0.06)', border: 'rgba(239,68,68,0.12)' },
-  attenzione: { color: '#FFC501', bg: 'rgba(255,197,1,0.06)', border: 'rgba(255,197,1,0.12)' },
-  info:       { color: '#53BDEB', bg: 'rgba(83,189,235,0.06)', border: 'rgba(83,189,235,0.12)' },
+  critico:    { color: 'var(--color-error)', bg: 'rgba(239,68,68,0.06)', border: 'rgba(239,68,68,0.12)' },
+  attenzione: { color: 'var(--color-gold-text)', bg: 'var(--color-gold-dim)', border: 'var(--color-gold-dim)' },
+  info:       { color: 'var(--color-info)', bg: 'rgba(83,189,235,0.06)', border: 'rgba(83,189,235,0.12)' },
 }
 
 const ICONS = {
@@ -47,14 +47,14 @@ export function AlertCenter({ alerts: initial }: Props) {
         <div className="flex items-center gap-2">
           <p className="text-xs font-semibold text-overlay/30 uppercase tracking-widest">Alert</p>
           {visible.length > 0 && (
-            <span className="text-[10px] font-black bg-error/10 text-error px-2 py-0.5 rounded-full">
+            <span className="text-2xs font-black bg-error/10 text-error px-2 py-0.5 rounded-full">
               {visible.length}
             </span>
           )}
         </div>
         {visible.length > 0 && (
           <button onClick={() => setDismissed(new Set(alerts.map(a => a.id)))}
-            className="text-[10px] text-overlay/30 hover:text-overlay/60 transition-colors">
+            className="text-2xs text-overlay/30 hover:text-overlay/60 transition-colors">
             Ignora tutti
           </button>
         )}
@@ -76,13 +76,13 @@ export function AlertCenter({ alerts: initial }: Props) {
               <div key={alert.id} className="flex items-start gap-3 rounded-xl px-3 py-2.5 transition-colors group"
                 style={{ background: s.bg, border: `1px solid ${s.border}` }}>
                 <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
-                  style={{ background: s.color + '15', color: s.color }}>
+                  style={{ background: `color-mix(in srgb, ${s.color} 8%, transparent)`, color: s.color }}>
                   {ICONS[alert.icon]}
                 </div>
                 <Link href={alert.href} className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-overlay/90 leading-snug">{alert.title}</p>
-                  <p className="text-[10px] text-overlay/30 mt-0.5 leading-snug">{alert.detail}</p>
-                  {alert.time && <p className="text-[9px] text-overlay/20 mt-1">{alert.time}</p>}
+                  <p className="text-2xs text-overlay/30 mt-0.5 leading-snug">{alert.detail}</p>
+                  {alert.time && <p className="text-2xs text-overlay/20 mt-1">{alert.time}</p>}
                 </Link>
                 <button onClick={() => dismiss(alert.id)}
                   className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-overlay/15 hover:text-overlay/40 mt-0.5">

@@ -12,11 +12,11 @@ interface Props {
 }
 
 const STATUS_CONFIG: Record<LeadStatus, { label: string; color: string; bg: string }> = {
-  nuovo:       { label: 'Nuovo',       color: 'text-blue-400',   bg: 'bg-blue-400/10' },
-  contattato:  { label: 'Contattato',  color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
-  qualificato: { label: 'Qualificato', color: 'text-gold',  bg: 'bg-gold-dim' },
-  convertito:  { label: 'Convertito',  color: 'text-green-400',  bg: 'bg-green-400/10' },
-  perso:       { label: 'Perso',       color: 'text-red-400',    bg: 'bg-red-400/10' },
+  nuovo:       { label: 'Nuovo',       color: 'text-info',   bg: 'bg-info/10' },
+  contattato:  { label: 'Contattato',  color: 'text-gold-text', bg: 'bg-gold/10' },
+  qualificato: { label: 'Qualificato', color: 'text-gold-text',  bg: 'bg-gold-dim' },
+  convertito:  { label: 'Convertito',  color: 'text-success',  bg: 'bg-success/10' },
+  perso:       { label: 'Perso',       color: 'text-error',    bg: 'bg-error/10' },
 }
 
 const SOURCE_LABELS: Record<LeadSource, string> = {
@@ -80,7 +80,7 @@ function LeadModal({ lead, clients, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-surface border border-border rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-surface">
@@ -150,7 +150,7 @@ function LeadModal({ lead, clients, onClose, onSaved }: {
               Annulla
             </button>
             <button type="submit" disabled={loading}
-              className="flex-1 px-4 py-2 bg-gold text-black text-sm font-bold rounded-lg hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
+              className="flex-1 px-4 py-2 bg-gold text-on-gold text-sm font-bold rounded-lg hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}
               {lead ? 'Salva modifiche' : 'Crea lead'}
             </button>
@@ -229,7 +229,7 @@ export function LeadGenModule({ clients }: Props) {
           <p className="text-text-secondary text-sm mt-0.5">Lead raccolti dalle campagne growth dei clienti</p>
         </div>
         <button onClick={() => { setEditingLead(null); setShowModal(true) }}
-          className="flex items-center gap-2 px-4 py-2 bg-gold text-black text-sm font-bold rounded-lg hover:bg-yellow-400">
+          className="flex items-center gap-2 px-4 py-2 bg-gold text-on-gold text-sm font-bold rounded-lg hover:bg-gold/90">
           <Plus className="w-4 h-4" /> Nuovo lead
         </button>
       </div>
@@ -238,9 +238,9 @@ export function LeadGenModule({ clients }: Props) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { l: 'Lead totali',   v: stats.totali,      c: 'text-text-primary',        Icon: UserCheck },
-          { l: 'Nuovi',         v: stats.nuovi,       c: 'text-blue-400',     Icon: TrendingDown },
-          { l: 'Qualificati',   v: stats.qualificati, c: 'text-gold',    Icon: AlertTriangle },
-          { l: 'Conv. rate',    v: `${stats.convRate}%`, c: stats.convRate >= 20 ? 'text-green-400' : 'text-text-secondary', Icon: CheckCircle2 },
+          { l: 'Nuovi',         v: stats.nuovi,       c: 'text-info',     Icon: TrendingDown },
+          { l: 'Qualificati',   v: stats.qualificati, c: 'text-gold-text',    Icon: AlertTriangle },
+          { l: 'Conv. rate',    v: `${stats.convRate}%`, c: stats.convRate >= 20 ? 'text-success' : 'text-text-secondary', Icon: CheckCircle2 },
         ].map(k => (
           <div key={k.l} className="bg-surface border border-border rounded-xl p-4 flex items-center gap-3">
             <k.Icon className="w-5 h-5 text-text-tertiary shrink-0" />
@@ -263,7 +263,7 @@ export function LeadGenModule({ clients }: Props) {
         <div className="flex bg-surface border border-border rounded-lg overflow-hidden">
           {(['tutti', ...Object.keys(STATUS_CONFIG)] as (LeadStatus | 'tutti')[]).map(s => (
             <button key={s} onClick={() => setFilterStatus(s)}
-              className={`px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${filterStatus === s ? 'bg-gold text-black' : 'text-text-secondary hover:text-text-primary'}`}>
+              className={`px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${filterStatus === s ? 'bg-gold text-on-gold' : 'text-text-secondary hover:text-text-primary'}`}>
               {s === 'tutti' ? 'Tutti' : STATUS_CONFIG[s as LeadStatus].label}
             </button>
           ))}
@@ -293,7 +293,7 @@ export function LeadGenModule({ clients }: Props) {
             <thead>
               <tr className="border-b border-border">
                 {['Nome', 'Contatti', 'Fonte', 'Cliente', 'Valore', 'Status', ''].map(h => (
-                  <th key={h} className="text-left text-[10px] font-bold text-text-tertiary uppercase tracking-wider px-4 py-3">{h}</th>
+                  <th key={h} className="text-left text-2xs font-bold text-text-tertiary uppercase tracking-wider px-4 py-3">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -309,12 +309,12 @@ export function LeadGenModule({ clients }: Props) {
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-0.5">
                         {lead.email && (
-                          <a href={`mailto:${lead.email}`} className="flex items-center gap-1 text-xs text-text-secondary hover:text-gold">
+                          <a href={`mailto:${lead.email}`} className="flex items-center gap-1 text-xs text-text-secondary hover:text-gold-text">
                             <Mail className="w-3 h-3" />{lead.email}
                           </a>
                         )}
                         {lead.phone && (
-                          <a href={`tel:${lead.phone}`} className="flex items-center gap-1 text-xs text-text-secondary hover:text-gold">
+                          <a href={`tel:${lead.phone}`} className="flex items-center gap-1 text-xs text-text-secondary hover:text-gold-text">
                             <Phone className="w-3 h-3" />{lead.phone}
                           </a>
                         )}
@@ -341,9 +341,9 @@ export function LeadGenModule({ clients }: Props) {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={() => { setEditingLead(lead); setShowModal(true) }}
-                          className="text-text-tertiary hover:text-gold text-xs">Modifica</button>
+                          className="text-text-tertiary hover:text-gold-text text-xs">Modifica</button>
                         <button onClick={() => deleteLead(lead.id)}
-                          className="text-text-tertiary hover:text-red-400 text-xs">Elimina</button>
+                          className="text-text-tertiary hover:text-error text-xs">Elimina</button>
                       </div>
                     </td>
                   </tr>

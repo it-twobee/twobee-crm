@@ -67,7 +67,7 @@ export function SubtaskList({ parentTaskId, depth = 1 }: SubtaskListProps) {
   return (
     <div className={`mt-2 ${depth === 1 ? 'ml-4' : 'ml-6'}`}>
       {/* Linea verticale */}
-      <div className="border-l border-[#2A2A2A] pl-3 space-y-1">
+      <div className="border-l border-border pl-3 space-y-1">
         {subtasks.map((sub) => (
           <div key={sub.id}>
             <div className="flex items-center gap-2 py-1 group">
@@ -75,7 +75,7 @@ export function SubtaskList({ parentTaskId, depth = 1 }: SubtaskListProps) {
               {depth === 1 && (
                 <button
                   onClick={() => setExpanded((p) => ({ ...p, [sub.id]: !p[sub.id] }))}
-                  className="text-text-secondary hover:text-white transition-colors w-4"
+                  className="text-text-secondary hover:text-text-primary transition-colors w-4"
                 >
                   {expanded[sub.id]
                     ? <ChevronDown className="w-3 h-3" />
@@ -90,13 +90,13 @@ export function SubtaskList({ parentTaskId, depth = 1 }: SubtaskListProps) {
                 className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
                   sub.status === 'completato'
                     ? 'bg-success border-success'
-                    : 'border-[#2A2A2A] hover:border-gold'
+                    : 'border-border hover:border-gold'
                 }`}
               >
-                {sub.status === 'completato' && <Check className="w-2.5 h-2.5 text-black" />}
+                {sub.status === 'completato' && <Check className="w-2.5 h-2.5 text-on-gold" />}
               </button>
 
-              <span className={`text-sm flex-1 ${sub.status === 'completato' ? 'line-through text-text-secondary' : 'text-white'}`}>
+              <span className={`text-sm flex-1 ${sub.status === 'completato' ? 'line-through text-text-secondary' : 'text-text-primary'}`}>
                 {sub.title}
               </span>
 
@@ -126,15 +126,15 @@ export function SubtaskList({ parentTaskId, depth = 1 }: SubtaskListProps) {
                   if (e.key === 'Escape') { setAdding(false); setNewTitle('') }
                 }}
                 placeholder={depth === 1 ? 'Titolo subtask...' : 'Titolo sub-subtask...'}
-                className="flex-1 bg-background border border-gold rounded px-2 py-1 text-xs text-white focus:outline-none"
+                className="flex-1 bg-background border border-gold rounded px-2 py-1 text-xs text-text-primary focus:outline-none"
               />
-              <button onClick={addSubtask} className="text-xs text-gold hover:underline">Aggiungi</button>
-              <button onClick={() => { setAdding(false); setNewTitle('') }} className="text-xs text-text-secondary hover:text-white">✕</button>
+              <button onClick={addSubtask} className="text-xs text-gold-text hover:underline">Aggiungi</button>
+              <button onClick={() => { setAdding(false); setNewTitle('') }} className="text-xs text-text-secondary hover:text-text-primary">✕</button>
             </div>
           ) : (
             <button
               onClick={() => setAdding(true)}
-              className="flex items-center gap-1 text-xs text-text-secondary hover:text-gold transition-colors py-1"
+              className="flex items-center gap-1 text-xs text-text-secondary hover:text-gold-text transition-colors py-1"
             >
               <Plus className="w-3 h-3" />
               {depth === 1 ? 'Aggiungi subtask' : 'Aggiungi sub-subtask'}

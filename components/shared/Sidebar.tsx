@@ -141,11 +141,11 @@ export function Sidebar() {
         {!sidebarCollapsed ? (
           <Link href="/dashboard" className="text-lg font-black font-heading tracking-tight">
             <span className="text-text-primary">two bee</span>
-            <span className="text-gold">.</span>
+            <span className="text-gold-text">.</span>
           </Link>
         ) : (
           <Link href="/dashboard" className="text-lg font-black mx-auto">
-            <span className="text-gold">.</span>
+            <span className="text-gold-text">.</span>
           </Link>
         )}
       </div>
@@ -167,9 +167,9 @@ export function Sidebar() {
                 <button
                   onClick={() => toggleSection(section.label)}
                   className={cn(
-                    'w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors',
+                    'w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-2xs font-semibold uppercase tracking-[0.12em] transition-colors',
                     hasActiveChild && isSectionCollapsed
-                      ? 'text-gold'
+                      ? 'text-gold-text'
                       : 'text-text-tertiary hover:text-text-secondary'
                   )}
                 >
@@ -193,17 +193,17 @@ export function Sidebar() {
                         key={item.href}
                         href={item.href}
                         className={cn(
-                          'flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] transition-all duration-150 group',
+                          'flex items-center gap-3 px-3 py-2 rounded-xl text-xs transition-all duration-150 group',
                           isActive
-                            ? 'bg-gold-dim text-gold font-medium'
+                            ? 'bg-gold-dim text-gold-text font-medium'
                             : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
                         )}
                       >
-                        <item.icon className={cn('w-[18px] h-[18px] shrink-0', isActive ? 'text-gold' : 'text-text-tertiary group-hover:text-text-secondary')} />
+                        <item.icon className={cn('w-[18px] h-[18px] shrink-0', isActive ? 'text-gold-text' : 'text-text-tertiary group-hover:text-text-secondary')} />
                         {!sidebarCollapsed && (
                           <span className="truncate flex-1">{item.label}</span>
                         )}
-                        {!sidebarCollapsed && isGod && <Crown className="w-3 h-3 text-gold shrink-0" />}
+                        {!sidebarCollapsed && isGod && <Crown className="w-3 h-3 text-gold-text shrink-0" />}
                       </Link>
                     )
                   })}
@@ -218,15 +218,15 @@ export function Sidebar() {
       {profile && !sidebarCollapsed && (
         <div className="border-t border-border px-3 py-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center text-xs font-bold text-gold shrink-0">
+            <div className="w-7 h-7 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center text-xs font-bold text-gold-text shrink-0">
               {profile.avatar_url ? <img src={profile.avatar_url} className="w-full h-full rounded-full object-cover" alt="" /> : (profile.full_name || profile.email)[0].toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1">
                 <p className="text-xs font-medium text-text-secondary truncate">{profile.full_name}</p>
-                {SUPER_ADMIN_EMAILS.includes(profile.email) && <Crown className="w-3 h-3 text-gold shrink-0" />}
+                {SUPER_ADMIN_EMAILS.includes(profile.email) && <Crown className="w-3 h-3 text-gold-text shrink-0" />}
               </div>
-              <p className="text-[10px] text-text-tertiary capitalize">{SUPER_ADMIN_EMAILS.includes(profile.email) ? 'super admin' : (profile.app_role?.replace('_', ' ') ?? profile.role)}</p>
+              <p className="text-2xs text-text-tertiary capitalize">{SUPER_ADMIN_EMAILS.includes(profile.email) ? 'super admin' : (profile.app_role?.replace('_', ' ') ?? profile.role)}</p>
             </div>
           </div>
         </div>

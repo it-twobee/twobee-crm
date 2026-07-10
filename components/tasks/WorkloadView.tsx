@@ -10,7 +10,7 @@ interface TaskWithMeta extends Task {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  da_fare: 'bg-[#3A3A3A]',
+  da_fare: 'bg-surface-active',
   in_corso: 'bg-warning/70',
   in_revisione: 'bg-gold/70',
   completato: 'bg-success/70',
@@ -55,7 +55,7 @@ export function WorkloadView({ tasks, profiles }: { tasks: TaskWithMeta[]; profi
     <div className="space-y-4 overflow-x-auto">
       <div style={{ minWidth: 700 }}>
         {/* Header settimane */}
-        <div className="grid border-b border-[#2A2A2A] pb-2 mb-2" style={{ gridTemplateColumns: '180px repeat(4, 1fr)' }}>
+        <div className="grid border-b border-border pb-2 mb-2" style={{ gridTemplateColumns: '180px repeat(4, 1fr)' }}>
           <div />
           {weeks.map((w) => (
             <div key={w.label} className="text-xs font-semibold text-text-secondary text-center px-2">{w.label}</div>
@@ -64,14 +64,14 @@ export function WorkloadView({ tasks, profiles }: { tasks: TaskWithMeta[]; profi
 
         {/* Righe team */}
         {assignedProfiles.map((profile) => (
-          <div key={profile.id} className="grid border-b border-[#2A2A2A] py-2" style={{ gridTemplateColumns: '180px repeat(4, 1fr)' }}>
+          <div key={profile.id} className="grid border-b border-border py-2" style={{ gridTemplateColumns: '180px repeat(4, 1fr)' }}>
             {/* Profilo */}
             <div className="flex items-center gap-2 px-2">
-              <div className="w-8 h-8 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold text-xs font-bold shrink-0">
+              <div className="w-8 h-8 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold-text text-xs font-bold shrink-0">
                 {getInitials(profile.full_name)}
               </div>
               <div>
-                <p className="text-sm font-medium text-white">{profile.full_name}</p>
+                <p className="text-sm font-medium text-text-primary">{profile.full_name}</p>
                 <p className="text-xs text-text-secondary capitalize">{profile.role}</p>
               </div>
             </div>
@@ -86,19 +86,19 @@ export function WorkloadView({ tasks, profiles }: { tasks: TaskWithMeta[]; profi
                   {weekTasks.length > 0 ? (
                     <div className="space-y-1">
                       {weekTasks.slice(0, 3).map((t) => (
-                        <div key={t.id} className={`text-[10px] px-1.5 py-0.5 rounded truncate font-medium ${STATUS_COLOR[t.status]} text-white`} title={t.title}>
+                        <div key={t.id} className={`text-2xs px-1.5 py-0.5 rounded truncate font-medium ${STATUS_COLOR[t.status]} text-text-primary`} title={t.title}>
                           {t.title}
                         </div>
                       ))}
                       {weekTasks.length > 3 && (
-                        <div className="text-[10px] text-text-secondary pl-1">+{weekTasks.length - 3} altri</div>
+                        <div className="text-2xs text-text-secondary pl-1">+{weekTasks.length - 3} altri</div>
                       )}
-                      <div className={`text-[10px] font-semibold mt-0.5 ${overloaded ? 'text-error' : 'text-text-secondary'}`}>
+                      <div className={`text-2xs font-semibold mt-0.5 ${overloaded ? 'text-error' : 'text-text-secondary'}`}>
                         ~{totalHours}h {overloaded && '⚠ overload'}
                       </div>
                     </div>
                   ) : (
-                    <div className="text-[10px] text-text-secondary/40 text-center py-1">–</div>
+                    <div className="text-2xs text-text-secondary/40 text-center py-1">–</div>
                   )}
                 </div>
               )
@@ -108,14 +108,14 @@ export function WorkloadView({ tasks, profiles }: { tasks: TaskWithMeta[]; profi
 
         {/* Non assegnati */}
         {unassigned.length > 0 && (
-          <div className="grid border-b border-[#2A2A2A] py-2" style={{ gridTemplateColumns: '180px repeat(4, 1fr)' }}>
+          <div className="grid border-b border-border py-2" style={{ gridTemplateColumns: '180px repeat(4, 1fr)' }}>
             <div className="flex items-center gap-2 px-2">
-              <div className="w-8 h-8 rounded-full bg-[#2A2A2A] flex items-center justify-center text-text-secondary text-xs font-bold shrink-0">?</div>
+              <div className="w-8 h-8 rounded-full bg-surface-active flex items-center justify-center text-text-secondary text-xs font-bold shrink-0">?</div>
               <p className="text-sm text-text-secondary">Non assegnati</p>
             </div>
             <div className="col-span-4 flex flex-wrap gap-1 items-center px-2">
               {unassigned.slice(0, 6).map((t) => (
-                <span key={t.id} className={`text-[10px] px-1.5 py-0.5 rounded ${STATUS_COLOR[t.status]} text-white`}>{t.title}</span>
+                <span key={t.id} className={`text-2xs px-1.5 py-0.5 rounded ${STATUS_COLOR[t.status]} text-text-primary`}>{t.title}</span>
               ))}
               {unassigned.length > 6 && <span className="text-xs text-text-secondary">+{unassigned.length - 6}</span>}
             </div>

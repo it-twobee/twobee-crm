@@ -75,9 +75,9 @@ export default async function WorkspaceDashboardPage() {
   const name = profile?.full_name?.split(' ')[0] ?? 'ciao'
 
   const STATUS_COLOR: Record<string, string> = {
-    da_fare: 'text-white/40',
-    in_corso: 'text-blue-400',
-    in_revisione: 'text-purple-400',
+    da_fare: 'text-text-tertiary',
+    in_corso: 'text-info',
+    in_revisione: 'text-accent',
   }
 
   return (
@@ -101,7 +101,7 @@ export default async function WorkspaceDashboardPage() {
         <div className="p-5 rounded-2xl bg-surface border border-gold/20">
           <div className="flex items-center justify-between mb-2">
             <span className="text-overlay/50 text-xs">Oggi</span>
-            <Clock className="w-4 h-4 text-gold" />
+            <Clock className="w-4 h-4 text-gold-text" />
           </div>
           <p className="text-2xl font-bold text-text-primary">{dueToday.length}</p>
         </div>
@@ -124,11 +124,11 @@ export default async function WorkspaceDashboardPage() {
       {/* HR alert */}
       {(hrRes.data?.length ?? 0) > 0 && (
         <div className="mb-6 flex items-center gap-3 p-4 rounded-xl bg-gold-dim border border-gold/20">
-          <Clock className="w-4 h-4 text-gold shrink-0" />
-          <span className="text-gold text-sm">
+          <Clock className="w-4 h-4 text-gold-text shrink-0" />
+          <span className="text-gold-text text-sm">
             {hrRes.data!.length} richiesta HR in attesa
           </span>
-          <Link href="/workspace/hr" className="ml-auto text-gold/60 hover:text-gold text-xs flex items-center gap-1">
+          <Link href="/workspace/hr" className="ml-auto text-gold-text/60 hover:text-gold-text text-xs flex items-center gap-1">
             Vedi <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
@@ -147,7 +147,7 @@ export default async function WorkspaceDashboardPage() {
 
         {dueToday.length > 0 && (
           <section>
-            <h2 className="text-xs font-semibold text-gold uppercase tracking-wider mb-2">
+            <h2 className="text-xs font-semibold text-gold-text uppercase tracking-wider mb-2">
               Oggi ({dueToday.length})
             </h2>
             <TaskList tasks={dueToday} statusColorMap={STATUS_COLOR} />
@@ -200,7 +200,7 @@ function TaskList({
     <div className="flex flex-col gap-1">
       {tasks.map(t => (
         <div key={t.id} className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-surface border border-border hover:border-border/80">
-          <span className={cn('text-xs w-16 shrink-0', statusColorMap[t.status] ?? 'text-white/40')}>
+          <span className={cn('text-xs w-16 shrink-0', statusColorMap[t.status] ?? 'text-text-tertiary')}>
             {t.status === 'da_fare' ? 'Da fare' : t.status === 'in_corso' ? 'In corso' : 'Revisione'}
           </span>
           <span className="text-text-primary text-sm truncate flex-1">{t.title}</span>

@@ -12,13 +12,13 @@ interface Props {
 const PRIORITY_COLORS: Record<string, string> = {
   urgente: 'text-error bg-error/10 border-error/20',
   alta: 'text-warning bg-warning/10 border-warning/20',
-  media: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
-  bassa: 'text-text-secondary bg-[#2A2A2A] border-[#333]',
+  media: 'text-info bg-info/10 border-info/20',
+  bassa: 'text-text-secondary bg-surface-active border-border',
 }
 
 const STATUS_ICONS: Record<string, JSX.Element> = {
   completato: <CheckCircle2 className="w-4 h-4 text-success" />,
-  in_corso: <Clock className="w-4 h-4 text-gold" />,
+  in_corso: <Clock className="w-4 h-4 text-gold-text" />,
   in_attesa: <AlertCircle className="w-4 h-4 text-text-secondary" />,
   da_fare: <AlertCircle className="w-4 h-4 text-text-secondary" />,
 }
@@ -63,13 +63,13 @@ export function MyTasksPanel({ tasks }: Props) {
                     <p className="text-xs text-text-secondary truncate mt-0.5">{project.name}</p>
                   )}
                   {task.due_date && (
-                    <p className={`text-[10px] mt-0.5 font-semibold ${overdue ? 'text-error' : 'text-text-secondary'}`}>
+                    <p className={`text-2xs mt-0.5 font-semibold ${overdue ? 'text-error' : 'text-text-secondary'}`}>
                       {overdue ? '⚠ Scaduto · ' : 'Scade '}{new Date(task.due_date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}
                     </p>
                   )}
                 </div>
                 {task.priority && (
-                  <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border capitalize ${PRIORITY_COLORS[task.priority] ?? PRIORITY_COLORS.bassa}`}>
+                  <span className={`shrink-0 text-2xs font-bold px-1.5 py-0.5 rounded border capitalize ${PRIORITY_COLORS[task.priority] ?? PRIORITY_COLORS.bassa}`}>
                     {task.priority}
                   </span>
                 )}
@@ -81,7 +81,7 @@ export function MyTasksPanel({ tasks }: Props) {
 
       {tasks.length > 5 && (
         <div className="mt-3 pt-3 border-t border-border text-center">
-          <Link href="/clienti" className="text-xs text-gold hover:underline">
+          <Link href="/clienti" className="text-xs text-gold-text hover:underline">
             Vedi tutti i clienti →
           </Link>
         </div>

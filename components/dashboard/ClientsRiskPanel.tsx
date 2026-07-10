@@ -50,13 +50,13 @@ export function ClientsRiskPanel({ clients, totalMrr }: Props) {
           <button
             onClick={() => setTab('rischio')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
-              tab === 'rischio' ? 'bg-warning text-black' : 'text-text-secondary hover:text-text-primary'
+              tab === 'rischio' ? 'bg-gold text-on-gold' : 'text-text-secondary hover:text-text-primary'
             }`}
           >
             <AlertTriangle className="w-3 h-3" />
             In bilico
             {atRisk.length > 0 && (
-              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${tab === 'rischio' ? 'bg-black/20 text-black' : 'bg-warning/20 text-warning'}`}>
+              <span className={`text-2xs font-black px-1.5 py-0.5 rounded-full ${tab === 'rischio' ? 'bg-overlay/10 text-text-primary' : 'bg-warning/20 text-warning'}`}>
                 {atRisk.length}
               </span>
             )}
@@ -64,13 +64,13 @@ export function ClientsRiskPanel({ clients, totalMrr }: Props) {
           <button
             onClick={() => setTab('persi')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
-              tab === 'persi' ? 'bg-error text-white' : 'text-text-secondary hover:text-text-primary'
+              tab === 'persi' ? 'bg-error text-text-primary' : 'text-text-secondary hover:text-text-primary'
             }`}
           >
             <TrendingDown className="w-3 h-3" />
             Persi
             {lost.length > 0 && (
-              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${tab === 'persi' ? 'bg-white/20 text-white' : 'bg-error/20 text-error'}`}>
+              <span className={`text-2xs font-black px-1.5 py-0.5 rounded-full ${tab === 'persi' ? 'bg-surface-active text-text-primary' : 'bg-error/20 text-error'}`}>
                 {lost.length}
               </span>
             )}
@@ -81,15 +81,15 @@ export function ClientsRiskPanel({ clients, totalMrr }: Props) {
         {tab === 'persi' && lost.length > 0 && (
           <div className="flex items-center gap-4 text-right">
             <div>
-              <p className="text-[10px] text-text-secondary">Churn clienti</p>
+              <p className="text-2xs text-text-secondary">Churn clienti</p>
               <p className="text-sm font-black text-error">{churnRateCount}%</p>
             </div>
             <div>
-              <p className="text-[10px] text-text-secondary">Churn MRR</p>
+              <p className="text-2xs text-text-secondary">Churn MRR</p>
               <p className="text-sm font-black text-error">{churnRateMrr}%</p>
             </div>
             <div>
-              <p className="text-[10px] text-text-secondary">MRR perso</p>
+              <p className="text-2xs text-text-secondary">MRR perso</p>
               <p className="text-sm font-black text-error">
                 -€{lostMrr.toLocaleString('it-IT')}
               </p>
@@ -100,7 +100,7 @@ export function ClientsRiskPanel({ clients, totalMrr }: Props) {
         {tab === 'rischio' && atRisk.length > 0 && (
           <div className="flex items-center gap-4 text-right">
             <div>
-              <p className="text-[10px] text-text-secondary">MRR a rischio</p>
+              <p className="text-2xs text-text-secondary">MRR a rischio</p>
               <p className="text-sm font-black text-warning">
                 €{atRisk.reduce((s, c) => s + (c.mrr ?? 0), 0).toLocaleString('it-IT')}
               </p>
@@ -141,7 +141,7 @@ export function ClientsRiskPanel({ clients, totalMrr }: Props) {
                   }`}
                 >
                   {/* Initials */}
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0 ${
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-2xs font-black shrink-0 ${
                     tab === 'rischio' ? 'bg-warning/20 text-warning' : 'bg-error/20 text-error'
                   }`}>
                     {c.company_name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
@@ -151,11 +151,11 @@ export function ClientsRiskPanel({ clients, totalMrr }: Props) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-bold text-text-primary truncate">{c.company_name}</p>
-                      <span className="text-[10px] text-text-secondary shrink-0">
+                      <span className="text-2xs text-text-secondary shrink-0">
                         {packageShort[c.package] ?? c.package}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 mt-0.5 text-[10px] text-text-secondary">
+                    <div className="flex items-center gap-3 mt-0.5 text-2xs text-text-secondary">
                       <span className="capitalize">{c.client_type}</span>
                       {tab === 'persi' && (
                         <span>LTV stimato: <strong className="text-text-primary">€{ltv.toLocaleString('it-IT')}</strong></span>
@@ -171,7 +171,7 @@ export function ClientsRiskPanel({ clients, totalMrr }: Props) {
                     <p className={`text-sm font-black ${tab === 'rischio' ? 'text-warning' : 'text-error line-through opacity-60'}`}>
                       €{(c.mrr ?? 0).toLocaleString('it-IT')}
                     </p>
-                    <p className="text-[9px] text-text-secondary">/mese</p>
+                    <p className="text-2xs text-text-secondary">/mese</p>
                   </div>
 
                   <ExternalLink className="w-3.5 h-3.5 text-text-tertiary group-hover:text-text-secondary shrink-0" />
@@ -184,7 +184,7 @@ export function ClientsRiskPanel({ clients, totalMrr }: Props) {
         {/* Footer churn bar — solo tab persi */}
         {tab === 'persi' && lost.length > 0 && (
           <div className="mt-4 pt-4 border-t border-border">
-            <div className="flex items-center justify-between text-[10px] text-text-secondary mb-1.5">
+            <div className="flex items-center justify-between text-2xs text-text-secondary mb-1.5">
               <span>Distribuzione clienti</span>
               <span>{clients.filter(c => c.client_label === 'stabile').length} stabili · {atRisk.length} in bilico · {lost.length} persi</span>
             </div>

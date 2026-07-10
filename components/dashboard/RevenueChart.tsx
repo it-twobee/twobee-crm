@@ -48,7 +48,7 @@ function MonthPicker({ label, value, onChange, min, max }: {
     <div className="relative" ref={ref}>
       <button
         onClick={() => { setOpen(v => !v); setViewYear(selYear) }}
-        className="flex items-center gap-2 h-8 px-3 rounded-lg bg-surface border border-border text-[11px] hover:border-border-strong transition-colors"
+        className="flex items-center gap-2 h-8 px-3 rounded-lg bg-surface border border-border text-2xs hover:border-border-strong transition-colors"
       >
         <Calendar className="w-3 h-3 text-text-secondary shrink-0" />
         <span className="text-text-secondary">{label}</span>
@@ -81,8 +81,8 @@ function MonthPicker({ label, value, onChange, min, max }: {
               return (
                 <button key={m} disabled={dis}
                   onClick={() => { onChange(`${viewYear}-${String(i + 1).padStart(2, '0')}`); setOpen(false) }}
-                  className={`py-1.5 rounded-lg text-[11px] font-medium transition-all ${
-                    sel ? 'bg-gold text-black font-bold'
+                  className={`py-1.5 rounded-lg text-2xs font-medium transition-all ${
+                    sel ? 'bg-gold text-on-gold font-bold'
                     : dis ? 'text-text-tertiary cursor-not-allowed'
                     : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
                   }`}
@@ -119,14 +119,14 @@ function ChartTooltip({ active, payload, label, vis, currentMrr }: {
 
   return (
     <div className="bg-surface border border-border rounded-xl px-4 py-3 shadow-2xl min-w-[180px]">
-      <p className="text-[10px] font-bold text-text-secondary uppercase tracking-widest mb-2.5">{label}</p>
+      <p className="text-2xs font-bold text-text-secondary uppercase tracking-widest mb-2.5">{label}</p>
       {items.map(p => (
         <div key={p.dataKey} className="flex items-center justify-between gap-6 mb-1.5 last:mb-0">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.dataKey === 'incassato' ? '#F5C800' : p.dataKey === 'proiezione' ? '#555' : '#F5C800' }} />
-            <span className="text-[11px] text-text-secondary">{NAMES[p.dataKey]}</span>
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.dataKey === 'incassato' ? 'var(--color-gold-text)' : p.dataKey === 'proiezione' ? '#555' : 'var(--color-gold-text)' }} />
+            <span className="text-2xs text-text-secondary">{NAMES[p.dataKey]}</span>
           </div>
-          <span className="text-[12px] font-bold text-text-primary tabular-nums">{fmt(p.value)}</span>
+          <span className="text-xs font-bold text-text-primary tabular-nums">{fmt(p.value)}</span>
         </div>
       ))}
     </div>
@@ -207,8 +207,8 @@ export function RevenueChart({ months, currentMrr }: Props) {
       <CartesianGrid vertical={false} stroke="#1A1A1A" />
       <XAxis dataKey="mese" tick={{ fill: '#555', fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} dy={6} interval="preserveStartEnd" />
       <YAxis domain={[0, yMax]} tick={{ fill: '#333', fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={fmt} width={44} />
-      <Tooltip content={<ChartTooltip vis={vis} currentMrr={currentMrr} />} cursor={{ stroke: '#F5C800', strokeWidth: 1, strokeOpacity: 0.15 }} />
-      {vis.mrr && <ReferenceLine y={currentMrr} stroke="#F5C800" strokeDasharray="5 4" strokeOpacity={0.28} label={{ value: 'MRR', position: 'insideTopRight', fill: '#F5C800', fontSize: 9, opacity: 0.5 }} />}
+      <Tooltip content={<ChartTooltip vis={vis} currentMrr={currentMrr} />} cursor={{ stroke: 'var(--color-gold-text)', strokeWidth: 1, strokeOpacity: 0.15 }} />
+      {vis.mrr && <ReferenceLine y={currentMrr} stroke="#F5C800" strokeDasharray="5 4" strokeOpacity={0.28} label={{ value: 'MRR', position: 'insideTopRight', fill: 'var(--color-gold-text)', fontSize: 9, opacity: 0.5 }} />}
     </>
   )
 
@@ -236,8 +236,8 @@ export function RevenueChart({ months, currentMrr }: Props) {
         {vis.proiezione && <Area dataKey="proiezione" stroke="#555" strokeWidth={1.5} strokeDasharray="5 3" fill="url(#fillP)" dot={false} activeDot={{ r: 4, fill: '#666', stroke: '#111', strokeWidth: 2 }} connectNulls={false} />}
         {vis.incassato  && <Area dataKey="incassato"  stroke="#F5C800" strokeWidth={2.5} strokeDasharray="" strokeLinecap="round" fill="url(#fillI)"
           dot={(p: { cx: number; cy: number }) => <circle key={`d-${p.cx}`} cx={p.cx} cy={p.cy} r={4} fill="#F5C800" stroke="#111" strokeWidth={2} />}
-          activeDot={{ r: 6, fill: '#F5C800', stroke: '#111', strokeWidth: 2.5 }} connectNulls={false}
-          style={{ filter: 'drop-shadow(0 0 7px rgba(245,200,0,0.3))' }} />}
+          activeDot={{ r: 6, fill: 'var(--color-gold-text)', stroke: '#111', strokeWidth: 2.5 }} connectNulls={false}
+          style={{ filter: 'drop-shadow(0 0 7px var(--color-gold-dim))' }} />}
       </AreaChart>
     )
 
@@ -247,8 +247,8 @@ export function RevenueChart({ months, currentMrr }: Props) {
         {vis.proiezione && <Line dataKey="proiezione" stroke="#555" strokeWidth={1.5} strokeDasharray="5 3" dot={false} activeDot={{ r: 4, fill: '#666', stroke: '#111', strokeWidth: 2 }} connectNulls={false} />}
         {vis.incassato  && <Line dataKey="incassato"  stroke="#F5C800" strokeWidth={3} strokeLinecap="round"
           dot={(p: { cx: number; cy: number }) => <circle key={`d-${p.cx}`} cx={p.cx} cy={p.cy} r={4} fill="#F5C800" stroke="#111" strokeWidth={2} />}
-          activeDot={{ r: 6, fill: '#F5C800', stroke: '#111', strokeWidth: 2.5 }} connectNulls={false}
-          style={{ filter: 'drop-shadow(0 0 7px rgba(245,200,0,0.3))' }} />}
+          activeDot={{ r: 6, fill: 'var(--color-gold-text)', stroke: '#111', strokeWidth: 2.5 }} connectNulls={false}
+          style={{ filter: 'drop-shadow(0 0 7px var(--color-gold-dim))' }} />}
       </LineChart>
     )
 
@@ -258,7 +258,7 @@ export function RevenueChart({ months, currentMrr }: Props) {
         {vis.incassato && (
           <Bar dataKey="incassato" radius={[3, 3, 0, 0]} maxBarSize={32}>
             {data.map((entry, i) => (
-              <Cell key={i} fill={entry.isProjected ? '#2A2A2A' : '#F5C800'} fillOpacity={entry.isProjected ? 0.5 : 0.85} />
+              <Cell key={i} fill={entry.isProjected ? 'var(--color-border)' : 'var(--color-gold-text)'} fillOpacity={entry.isProjected ? 0.5 : 0.85} />
             ))}
           </Bar>
         )}
@@ -281,7 +281,7 @@ export function RevenueChart({ months, currentMrr }: Props) {
         {vis.incassato && (
           <Line dataKey="incassato" stroke="#F5C800" strokeWidth={2} strokeLinecap="round"
             dot={(p: { cx: number; cy: number }) => <circle key={`d-${p.cx}`} cx={p.cx} cy={p.cy} r={3} fill="#F5C800" stroke="#111" strokeWidth={1.5} />}
-            activeDot={{ r: 5, fill: '#F5C800', stroke: '#111', strokeWidth: 2 }} connectNulls={false} />
+            activeDot={{ r: 5, fill: 'var(--color-gold-text)', stroke: '#111', strokeWidth: 2 }} connectNulls={false} />
         )}
       </ComposedChart>
     )
@@ -293,8 +293,8 @@ export function RevenueChart({ months, currentMrr }: Props) {
       {/* ── HEADER KPI ── */}
       <div className="flex items-start justify-between gap-4 px-5 pt-5 pb-4">
         <div>
-          <p className="text-[10px] font-bold text-text-secondary uppercase tracking-widest mb-1">Revenue</p>
-          <p className="text-2xl font-black text-gold leading-none">
+          <p className="text-2xs font-bold text-text-secondary uppercase tracking-widest mb-1">Revenue</p>
+          <p className="text-2xl font-black text-gold-text leading-none">
             {fmt(currentMrr)}
             <span className="text-sm text-text-secondary font-normal ml-2">/mese MRR</span>
           </p>
@@ -302,19 +302,19 @@ export function RevenueChart({ months, currentMrr }: Props) {
         <div className="flex items-start gap-6 shrink-0">
           {lastMonth && (
             <div className="text-right">
-              <p className="text-[10px] text-text-secondary mb-0.5">Incassato {MESI[parseInt(lastMonth.month.slice(5,7))-1]}</p>
+              <p className="text-2xs text-text-secondary mb-0.5">Incassato {MESI[parseInt(lastMonth.month.slice(5,7))-1]}</p>
               <p className="text-xl font-black text-text-primary">{fmt(lastMonth.amount)}</p>
             </div>
           )}
           {realInRange.length > 1 && (
             <div className="text-right">
-              <p className="text-[10px] text-text-secondary mb-0.5">Tot. periodo</p>
+              <p className="text-2xs text-text-secondary mb-0.5">Tot. periodo</p>
               <p className="text-xl font-black text-text-primary">{fmt(total)}</p>
             </div>
           )}
           {growth !== null && (
             <div className={`text-right ${growth > 0 ? 'text-success' : growth < 0 ? 'text-error' : 'text-text-secondary'}`}>
-              <p className="text-[10px] text-text-secondary mb-0.5">MoM</p>
+              <p className="text-2xs text-text-secondary mb-0.5">MoM</p>
               <p className="text-xl font-black flex items-center gap-1 justify-end">
                 {growth > 0 ? <TrendingUp className="w-4 h-4" /> : growth < 0 ? <TrendingDown className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
                 {growth > 0 ? '+' : ''}{growth}%
@@ -331,8 +331,8 @@ export function RevenueChart({ months, currentMrr }: Props) {
           <div className="flex items-center rounded-lg border border-border overflow-hidden bg-surface">
             {PRESETS.map(p => (
               <button key={p.label} onClick={() => applyPreset(p.label, p.n)}
-                className={`h-8 px-3.5 text-[11px] font-bold transition-all border-r border-border last:border-r-0 ${
-                  activePreset === p.label ? 'bg-gold text-black' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
+                className={`h-8 px-3.5 text-2xs font-bold transition-all border-r border-border last:border-r-0 ${
+                  activePreset === p.label ? 'bg-gold text-on-gold' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
                 }`}
               >
                 {p.label}
@@ -357,7 +357,7 @@ export function RevenueChart({ months, currentMrr }: Props) {
             <button key={ct.type} onClick={() => setChartType(ct.type)}
               title={ct.label}
               className={`h-8 px-3 flex items-center justify-center transition-all border-r border-border last:border-r-0 ${
-                chartType === ct.type ? 'bg-surface-active text-gold' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
+                chartType === ct.type ? 'bg-surface-active text-gold-text' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
               }`}
             >
               {ct.icon}
@@ -376,23 +376,23 @@ export function RevenueChart({ months, currentMrr }: Props) {
       {/* ── LEGENDA TOGGLE ── */}
       <div className="flex items-center gap-1 px-5 py-3 border-t border-border flex-wrap">
         <button onClick={() => toggle('incassato')}
-          className={`flex items-center gap-2 h-8 px-3 rounded-lg text-[11px] font-medium border transition-all ${
-            vis.incassato ? 'border-gold/20 bg-gold/10 text-gold' : 'border-transparent text-text-tertiary hover:text-text-secondary'
+          className={`flex items-center gap-2 h-8 px-3 rounded-lg text-2xs font-medium border transition-all ${
+            vis.incassato ? 'border-gold/20 bg-gold/10 text-gold-text' : 'border-transparent text-text-tertiary hover:text-text-secondary'
           }`}
         >
-          <span className="w-4 h-[2.5px] rounded-full block" style={{ background: vis.incassato ? '#F5C800' : '#333' }} />
+          <span className="w-4 h-[2.5px] rounded-full block" style={{ background: vis.incassato ? 'var(--color-gold-text)' : '#333' }} />
           Incassato
         </button>
         <button onClick={() => toggle('mrr')}
-          className={`flex items-center gap-2 h-8 px-3 rounded-lg text-[11px] font-medium border transition-all ${
+          className={`flex items-center gap-2 h-8 px-3 rounded-lg text-2xs font-medium border transition-all ${
             vis.mrr ? 'border-border bg-surface-active text-text-secondary' : 'border-transparent text-text-tertiary hover:text-text-secondary'
           }`}
         >
-          <span className="w-4 shrink-0 inline-block" style={{ borderTop: `2px dashed ${vis.mrr ? '#F5C800' : '#333'}` }} />
+          <span className="w-4 shrink-0 inline-block" style={{ borderTop: `2px dashed ${vis.mrr ? 'var(--color-gold-text)' : '#333'}` }} />
           MRR contratti
         </button>
         <button onClick={() => toggle('proiezione')}
-          className={`flex items-center gap-2 h-8 px-3 rounded-lg text-[11px] font-medium border transition-all ${
+          className={`flex items-center gap-2 h-8 px-3 rounded-lg text-2xs font-medium border transition-all ${
             vis.proiezione ? 'border-border bg-surface-active text-text-secondary' : 'border-transparent text-text-tertiary hover:text-text-secondary'
           }`}
         >

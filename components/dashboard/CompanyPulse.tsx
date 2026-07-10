@@ -21,13 +21,13 @@ export function CompanyPulse({ areas }: Props) {
     <div className="bg-surface border border-border rounded-xl p-5 h-full overflow-auto">
       <div className="flex items-center justify-between mb-4">
         <p className="text-xs font-bold text-text-secondary uppercase tracking-widest">Company Pulse</p>
-        <span className="text-[10px] text-text-tertiary">Stato aree in tempo reale</span>
+        <span className="text-2xs text-text-tertiary">Stato aree in tempo reale</span>
       </div>
       <div className="space-y-3">
         {areas.map(area => (
           <Link key={area.label} href={area.href} className="flex items-center gap-3 group">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-              style={{ background: area.color + '15' }}>
+              style={{ background: `color-mix(in srgb, ${area.color} 8%, transparent)` }}>
               <span style={{ color: area.color }}>{area.icon}</span>
             </div>
             <span className="text-xs text-text-secondary w-28 shrink-0 group-hover:text-text-primary transition-colors">{area.label}</span>
@@ -39,7 +39,7 @@ export function CompanyPulse({ areas }: Props) {
               style={{ color: area.value >= 70 ? 'var(--color-success)' : area.value >= 40 ? 'var(--color-gold)' : 'var(--color-error)' }}>
               {area.value}%
             </span>
-            <span className="text-[10px] text-text-tertiary w-32 text-right shrink-0 hidden xl:block">{area.detail}</span>
+            <span className="text-2xs text-text-tertiary w-32 text-right shrink-0 hidden xl:block">{area.detail}</span>
           </Link>
         ))}
       </div>

@@ -20,10 +20,10 @@ type ViewMode = 'grid' | 'list'
 type GroupBy = 'none' | 'client' | 'project' | 'type'
 
 const FILE_ICONS: Record<string, { icon: typeof FileText; color: string }> = {
-  pdf: { icon: FileText, color: 'text-red-400' },
-  image: { icon: Image, color: 'text-blue-400' },
-  video: { icon: Film, color: 'text-purple-400' },
-  default: { icon: File, color: 'text-[#888]' },
+  pdf: { icon: FileText, color: 'text-error' },
+  image: { icon: Image, color: 'text-info' },
+  video: { icon: Film, color: 'text-accent' },
+  default: { icon: File, color: 'text-text-secondary' },
 }
 
 function fileCategory(type: string | null): string {
@@ -84,30 +84,30 @@ export function DocumentiClient({ documents, clients, projects }: {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-[#2A2A2A] shrink-0">
+      <div className="px-6 py-4 border-b border-border shrink-0">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h1 className="text-xl font-black text-white">Documenti</h1>
+            <h1 className="text-xl font-black text-text-primary">Documenti</h1>
             <p className="text-xs text-text-secondary mt-0.5">{documents.length} file totali · {clients.length} clienti</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-lg ${viewMode === 'list' ? 'bg-gold/10 text-gold' : 'text-text-secondary hover:text-white'}`}><List className="w-4 h-4" /></button>
-            <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-lg ${viewMode === 'grid' ? 'bg-gold/10 text-gold' : 'text-text-secondary hover:text-white'}`}><Grid className="w-4 h-4" /></button>
+            <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-lg ${viewMode === 'list' ? 'bg-gold/10 text-gold-text' : 'text-text-secondary hover:text-text-primary'}`}><List className="w-4 h-4" /></button>
+            <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-lg ${viewMode === 'grid' ? 'bg-gold/10 text-gold-text' : 'text-text-secondary hover:text-text-primary'}`}><Grid className="w-4 h-4" /></button>
           </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca per nome, cliente o progetto..."
-              className="w-full bg-[#111] border border-[#2A2A2A] rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-[#555] focus:outline-none focus:border-gold" />
+              className="w-full bg-background border border-border rounded-lg pl-9 pr-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-gold" />
           </div>
           <select value={filterClient ?? ''} onChange={e => setFilterClient(e.target.value || null)}
-            className="bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-xs text-white">
+            className="bg-background border border-border rounded-lg px-3 py-2 text-xs text-text-primary">
             <option value="">Tutti i clienti</option>
             {clients.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
           </select>
           <select value={filterType ?? ''} onChange={e => setFilterType(e.target.value || null)}
-            className="bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-xs text-white">
+            className="bg-background border border-border rounded-lg px-3 py-2 text-xs text-text-primary">
             <option value="">Tutti i tipi</option>
             {fileTypes.map(t => <option key={t} value={t}>{t === 'pdf' ? 'PDF' : t === 'image' ? 'Immagini' : t === 'video' ? 'Video' : 'Altri'}</option>)}
           </select>
@@ -115,7 +115,7 @@ export function DocumentiClient({ documents, clients, projects }: {
             <Filter className="w-3.5 h-3.5" />
             {(['client', 'project', 'type', 'none'] as GroupBy[]).map(g => (
               <button key={g} onClick={() => setGroupBy(g)}
-                className={`px-2 py-0.5 rounded ${groupBy === g ? 'text-gold font-semibold' : 'hover:text-white'}`}>
+                className={`px-2 py-0.5 rounded ${groupBy === g ? 'text-gold-text font-semibold' : 'hover:text-text-primary'}`}>
                 {g === 'client' ? 'Cliente' : g === 'project' ? 'Progetto' : g === 'type' ? 'Tipo' : 'Nessuno'}
               </button>
             ))}
@@ -134,36 +134,36 @@ export function DocumentiClient({ documents, clients, projects }: {
           <div key={group.key}>
             {groupBy !== 'none' && (
               <div className="flex items-center gap-2 mb-3">
-                {groupBy === 'client' && <Users className="w-4 h-4 text-gold" />}
-                {groupBy === 'project' && <FolderKanban className="w-4 h-4 text-blue-400" />}
-                {groupBy === 'type' && <File className="w-4 h-4 text-purple-400" />}
-                <span className="text-sm font-bold text-white">{group.label}</span>
+                {groupBy === 'client' && <Users className="w-4 h-4 text-gold-text" />}
+                {groupBy === 'project' && <FolderKanban className="w-4 h-4 text-info" />}
+                {groupBy === 'type' && <File className="w-4 h-4 text-accent" />}
+                <span className="text-sm font-bold text-text-primary">{group.label}</span>
               </div>
             )}
             {viewMode === 'list' ? (
-              <div className="bg-surface border border-[#2A2A2A] rounded-xl overflow-hidden divide-y divide-[#2A2A2A]">
+              <div className="bg-surface border border-border rounded-xl overflow-hidden divide-y divide-border">
                 {group.docs.map(doc => {
                   const cat = fileCategory(doc.file_type)
                   const fi = FILE_ICONS[cat] ?? FILE_ICONS.default
                   return (
-                    <div key={doc.id} className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.03] transition-colors">
+                    <div key={doc.id} className="flex items-center gap-3 px-4 py-3 hover:bg-surface-hover transition-colors">
                       <fi.icon className={`w-5 h-5 shrink-0 ${fi.color}`} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-white truncate">{doc.name}</p>
+                        <p className="text-sm text-text-primary truncate">{doc.name}</p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          {doc.client && <span className="text-[10px] text-[#888]">{doc.client.company_name}</span>}
-                          {doc.project && <span className="text-[10px] text-[#555]">/ {doc.project.name}</span>}
+                          {doc.client && <span className="text-2xs text-text-secondary">{doc.client.company_name}</span>}
+                          {doc.project && <span className="text-2xs text-text-tertiary">/ {doc.project.name}</span>}
                         </div>
                       </div>
                       {doc.uploader && (
-                        <div className="w-6 h-6 rounded-full bg-gold/20 flex items-center justify-center text-[9px] font-bold text-gold shrink-0"
+                        <div className="w-6 h-6 rounded-full bg-gold/20 flex items-center justify-center text-2xs font-bold text-gold-text shrink-0"
                           title={doc.uploader.full_name ?? ''}>
                           {getInitials(doc.uploader.full_name ?? '')}
                         </div>
                       )}
-                      <span className="text-[10px] text-[#555] shrink-0">{formatDate(doc.created_at)}</span>
+                      <span className="text-2xs text-text-tertiary shrink-0">{formatDate(doc.created_at)}</span>
                       <a href={doc.file_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                        className="text-text-secondary hover:text-gold transition-colors shrink-0">
+                        className="text-text-secondary hover:text-gold-text transition-colors shrink-0">
                         <Download className="w-4 h-4" />
                       </a>
                     </div>
@@ -177,11 +177,11 @@ export function DocumentiClient({ documents, clients, projects }: {
                   const fi = FILE_ICONS[cat] ?? FILE_ICONS.default
                   return (
                     <a key={doc.id} href={doc.file_url} target="_blank" rel="noopener noreferrer"
-                      className="bg-surface border border-[#2A2A2A] rounded-xl p-4 hover:border-gold/30 transition-colors group">
+                      className="bg-surface border border-border rounded-xl p-4 hover:border-gold/30 transition-colors group">
                       <fi.icon className={`w-8 h-8 ${fi.color} mb-3`} />
-                      <p className="text-sm text-white font-medium truncate mb-1">{doc.name}</p>
-                      <p className="text-[10px] text-[#555] truncate">{doc.client?.company_name ?? 'Senza cliente'}</p>
-                      <p className="text-[10px] text-[#444] mt-1">{formatDate(doc.created_at)}</p>
+                      <p className="text-sm text-text-primary font-medium truncate mb-1">{doc.name}</p>
+                      <p className="text-2xs text-text-tertiary truncate">{doc.client?.company_name ?? 'Senza cliente'}</p>
+                      <p className="text-2xs text-text-tertiary mt-1">{formatDate(doc.created_at)}</p>
                     </a>
                   )
                 })}

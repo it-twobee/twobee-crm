@@ -28,19 +28,19 @@ interface Props {
   isSuperAdmin?: boolean
 }
 
-const ic = 'w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold/50'
+const ic = 'w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/50'
 
 const STATUS_CONFIG: Record<TicketStatus, { label: string; color: string; bg: string }> = {
-  aperto:          { label: 'Aperto',        color: 'text-blue-400',  bg: 'bg-blue-400/10' },
-  in_lavorazione:  { label: 'In lavorazione',color: 'text-gold',      bg: 'bg-gold/10' },
+  aperto:          { label: 'Aperto',        color: 'text-info',  bg: 'bg-info/10' },
+  in_lavorazione:  { label: 'In lavorazione',color: 'text-gold-text',      bg: 'bg-gold/10' },
   in_attesa:       { label: 'In attesa',     color: 'text-warning',   bg: 'bg-warning/10' },
   risolto:         { label: 'Risolto',       color: 'text-success',   bg: 'bg-success/10' },
-  chiuso:          { label: 'Chiuso',        color: 'text-[#444]',    bg: 'bg-[#1A1A1A]' },
+  chiuso:          { label: 'Chiuso',        color: 'text-text-tertiary',    bg: 'bg-surface' },
 }
 
 const PRIORITY_CONFIG: Record<TicketPriority, { label: string; color: string }> = {
   bassa:   { label: 'Bassa',   color: 'text-text-secondary' },
-  normale: { label: 'Normale', color: 'text-white' },
+  normale: { label: 'Normale', color: 'text-text-primary' },
   alta:    { label: 'Alta',    color: 'text-warning' },
   urgente: { label: 'Urgente', color: 'text-error' },
 }
@@ -94,11 +94,11 @@ function TicketModal({ ticket, onClose, onSaved, profiles, clients, currentUserI
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-[#161616] border border-[#2A2A2A] rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A] sticky top-0 bg-[#161616]">
-          <h2 className="text-base font-bold text-white">{ticket ? 'Modifica ticket' : 'Nuovo ticket'}</h2>
+      <div className="bg-surface border border-border rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-surface">
+          <h2 className="text-base font-bold text-text-primary">{ticket ? 'Modifica ticket' : 'Nuovo ticket'}</h2>
           <button onClick={onClose}><X className="w-5 h-5 text-text-secondary" /></button>
         </div>
         <form onSubmit={save} className="p-6 space-y-3">
@@ -155,8 +155,8 @@ function TicketModal({ ticket, onClose, onSaved, profiles, clients, currentUserI
             </div>
           </div>
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary">Annulla</button>
-            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary">Annulla</button>
+            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}{ticket ? 'Aggiorna' : 'Crea ticket'}
             </button>
           </div>
@@ -220,18 +220,18 @@ function TicketDetail({ ticket, profiles, currentUserId, isSuperAdmin, onClose, 
   const assignee = profiles.find(p => p.id === ticket.assigned_to)
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-end p-4"
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-end p-4"
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-[#161616] border border-[#2A2A2A] rounded-2xl w-full max-w-lg h-full max-h-[95vh] flex flex-col">
+      <div className="bg-surface border border-border rounded-2xl w-full max-w-lg h-full max-h-[95vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-start justify-between px-5 py-4 border-b border-[#2A2A2A]">
+        <div className="flex items-start justify-between px-5 py-4 border-b border-border">
           <div className="flex-1 min-w-0 mr-3">
             <div className="flex items-center gap-1.5 mb-1">
               {ticket.submitted_by_guest && (
-                <span className="text-[9px] font-bold px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded-full">DAL CLIENTE</span>
+                <span className="text-2xs font-bold px-1.5 py-0.5 bg-accent/20 text-accent rounded-full">DAL CLIENTE</span>
               )}
             </div>
-            <p className="text-sm font-bold text-white">{ticket.title}</p>
+            <p className="text-sm font-bold text-text-primary">{ticket.title}</p>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${sc.color} ${sc.bg}`}>{sc.label}</span>
               <span className={`text-xs font-bold ${pc.color}`}>{pc.label}</span>
@@ -239,7 +239,7 @@ function TicketDetail({ ticket, profiles, currentUserId, isSuperAdmin, onClose, 
               {sla && <span className={`text-xs font-bold ${sla.color}`}>{sla.label}</span>}
             </div>
             {ticket.submitted_by_guest && ticket.guest_name && (
-              <p className="text-[10px] text-text-secondary mt-1">Da: {ticket.guest_name}{ticket.guest_email ? ` (${ticket.guest_email})` : ''}</p>
+              <p className="text-2xs text-text-secondary mt-1">Da: {ticket.guest_name}{ticket.guest_email ? ` (${ticket.guest_email})` : ''}</p>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -248,7 +248,7 @@ function TicketDetail({ ticket, profiles, currentUserId, isSuperAdmin, onClose, 
                 onClick={handleDelete}
                 disabled={deleting}
                 onBlur={() => setConfirmDelete(false)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${confirmDelete ? 'bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse' : 'text-[#555] hover:text-red-400 hover:bg-red-500/10 border border-transparent'}`}>
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${confirmDelete ? 'bg-error/20 text-error border border-error/40 animate-pulse' : 'text-text-tertiary hover:text-error hover:bg-error/10 border border-transparent'}`}>
                 {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
                 {confirmDelete ? 'Conferma?' : 'Elimina'}
               </button>
@@ -258,7 +258,7 @@ function TicketDetail({ ticket, profiles, currentUserId, isSuperAdmin, onClose, 
         </div>
 
         {/* Sposta status */}
-        <div className="px-5 py-3 border-b border-[#2A2A2A] flex items-center gap-2 flex-wrap">
+        <div className="px-5 py-3 border-b border-border flex items-center gap-2 flex-wrap">
           <span className="text-xs text-text-secondary">Sposta:</span>
           {(Object.entries(STATUS_CONFIG) as [TicketStatus, { label: string; color: string; bg: string }][])
             .filter(([k]) => k !== ticket.status)
@@ -273,10 +273,10 @@ function TicketDetail({ ticket, profiles, currentUserId, isSuperAdmin, onClose, 
 
         {/* Messaggi */}
         <div className="flex-1 overflow-y-auto p-5 space-y-3" onClick={loadMessages}>
-          {!loaded && <button onClick={loadMessages} className="text-xs text-gold hover:underline">Carica conversazione</button>}
+          {!loaded && <button onClick={loadMessages} className="text-xs text-gold-text hover:underline">Carica conversazione</button>}
           {ticket.description && (
-            <div className="bg-[#111] rounded-xl p-3 text-xs text-text-secondary border border-[#2A2A2A]">
-              <p className="text-[10px] text-[#444] mb-1">Descrizione originale</p>
+            <div className="bg-background rounded-xl p-3 text-xs text-text-secondary border border-border">
+              <p className="text-2xs text-text-tertiary mb-1">Descrizione originale</p>
               {ticket.description}
             </div>
           )}
@@ -285,23 +285,23 @@ function TicketDetail({ ticket, profiles, currentUserId, isSuperAdmin, onClose, 
             const isGuest = !m.sender_id
             return (
               <div key={m.id} className={`flex gap-2 ${m.sender_id === currentUserId ? 'flex-row-reverse' : ''}`}>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${isGuest ? 'bg-purple-500/20 text-purple-400' : 'bg-gold/20 text-gold'}`}>
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-2xs font-bold flex-shrink-0 ${isGuest ? 'bg-accent/20 text-accent' : 'bg-gold/20 text-gold-text'}`}>
                   {isGuest ? (m.guest_name?.[0] ?? '?') : (sender ? sender.full_name[0] : '?')}
                 </div>
-                <div className={`max-w-[80%] rounded-xl px-3 py-2 ${m.is_internal ? 'bg-warning/10 border border-warning/20' : isGuest ? 'bg-purple-500/10 border border-purple-500/20' : m.sender_id === currentUserId ? 'bg-gold/10 border border-gold/20' : 'bg-[#1A1A1A] border border-[#2A2A2A]'}`}>
-                  {m.is_internal && <p className="text-[9px] text-warning font-bold mb-1 flex items-center gap-1"><Lock className="w-2.5 h-2.5" /> NOTA INTERNA</p>}
-                  {isGuest && <p className="text-[9px] text-purple-400 font-bold mb-1">CLIENTE: {m.guest_name ?? 'Guest'}</p>}
-                  <p className="text-xs text-white">{m.content}</p>
-                  <p className="text-[10px] text-[#444] mt-1">{new Date(m.created_at).toLocaleDateString('it-IT', { hour: '2-digit', minute: '2-digit' })}</p>
+                <div className={`max-w-[80%] rounded-xl px-3 py-2 ${m.is_internal ? 'bg-warning/10 border border-warning/20' : isGuest ? 'bg-accent/10 border border-accent/20' : m.sender_id === currentUserId ? 'bg-gold/10 border border-gold/20' : 'bg-surface border border-border'}`}>
+                  {m.is_internal && <p className="text-2xs text-warning font-bold mb-1 flex items-center gap-1"><Lock className="w-2.5 h-2.5" /> NOTA INTERNA</p>}
+                  {isGuest && <p className="text-2xs text-accent font-bold mb-1">CLIENTE: {m.guest_name ?? 'Guest'}</p>}
+                  <p className="text-xs text-text-primary">{m.content}</p>
+                  <p className="text-2xs text-text-tertiary mt-1">{new Date(m.created_at).toLocaleDateString('it-IT', { hour: '2-digit', minute: '2-digit' })}</p>
                 </div>
               </div>
             )
           })}
-          {loaded && messages.length === 0 && <p className="text-xs text-[#444] text-center py-4">Nessun messaggio ancora</p>}
+          {loaded && messages.length === 0 && <p className="text-xs text-text-tertiary text-center py-4">Nessun messaggio ancora</p>}
         </div>
 
         {/* Input */}
-        <div className="p-4 border-t border-[#2A2A2A]">
+        <div className="p-4 border-t border-border">
           <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer mb-2">
             <input type="checkbox" checked={isInternal} onChange={e => setIsInternal(e.target.checked)} className="accent-warning" />
             <Lock className="w-3 h-3" /> Nota interna (non visibile al cliente)
@@ -311,7 +311,7 @@ function TicketDetail({ ticket, profiles, currentUserId, isSuperAdmin, onClose, 
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
               rows={2} placeholder="Scrivi risposta..." className={`flex-1 ${ic} resize-none text-xs`} />
             <button onClick={sendMessage} disabled={sending || !text.trim()}
-              className="px-4 py-2 bg-gold text-black text-xs font-bold rounded-lg disabled:opacity-50 self-end">
+              className="px-4 py-2 bg-gold text-on-gold text-xs font-bold rounded-lg disabled:opacity-50 self-end">
               {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Invia'}
             </button>
           </div>
@@ -380,15 +380,15 @@ function AnalyticsView({ tickets, clients }: { tickets: TicketWithClient[]; clie
   })
 
   const statCard = (label: string, value: string | number, sub: string, color: string) => (
-    <div className="bg-surface border border-[#2A2A2A] rounded-xl p-4">
+    <div className="bg-surface border border-border rounded-xl p-4">
       <p className="text-xs text-text-secondary mb-1">{label}</p>
       <p className={`text-2xl font-black ${color}`}>{value}</p>
-      <p className="text-[10px] text-[#444] mt-0.5">{sub}</p>
+      <p className="text-2xs text-text-tertiary mt-0.5">{sub}</p>
     </div>
   )
 
   const bar = (pct: number, color: string) => (
-    <div className="flex-1 h-2 bg-[#1A1A1A] rounded-full overflow-hidden">
+    <div className="flex-1 h-2 bg-surface rounded-full overflow-hidden">
       <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
     </div>
   )
@@ -397,18 +397,18 @@ function AnalyticsView({ tickets, clients }: { tickets: TicketWithClient[]; clie
     <div className="space-y-6">
       {/* KPI summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {statCard('Totale ticket', total, 'storico completo', 'text-white')}
+        {statCard('Totale ticket', total, 'storico completo', 'text-text-primary')}
         {statCard('Risolti', resolved, `${total > 0 ? Math.round((resolved / total) * 100) : 0}% del totale`, 'text-success')}
-        {statCard('Tempo medio', avgResolutionHours != null ? `${avgResolutionHours}h` : '—', 'dalla richiesta alla risoluzione', 'text-gold')}
+        {statCard('Tempo medio', avgResolutionHours != null ? `${avgResolutionHours}h` : '—', 'dalla richiesta alla risoluzione', 'text-gold-text')}
         {statCard('SLA compliance', `${slaCompliance}%`, `${slaViolations} violazioni attive`, slaCompliance >= 90 ? 'text-success' : slaCompliance >= 70 ? 'text-warning' : 'text-error')}
       </div>
 
       <div className="grid md:grid-cols-2 gap-5">
         {/* Trend mensile */}
-        <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
+        <div className="bg-surface border border-border rounded-xl p-5">
           <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="w-4 h-4 text-gold" />
-            <p className="text-sm font-bold text-white">Trend ultimi 6 mesi</p>
+            <TrendingUp className="w-4 h-4 text-gold-text" />
+            <p className="text-sm font-bold text-text-primary">Trend ultimi 6 mesi</p>
           </div>
           <div className="flex items-end gap-2 h-24">
             {months.map(m => (
@@ -419,30 +419,30 @@ function AnalyticsView({ tickets, clients }: { tickets: TicketWithClient[]; clie
                     style={{ height: `${(m.count / maxMonth) * 80}px`, minHeight: m.count > 0 ? '4px' : '0' }}
                   />
                 </div>
-                <p className="text-[9px] text-[#555] capitalize">{m.label}</p>
-                <p className="text-[10px] text-white font-bold">{m.count}</p>
+                <p className="text-2xs text-text-tertiary capitalize">{m.label}</p>
+                <p className="text-2xs text-text-primary font-bold">{m.count}</p>
               </div>
             ))}
           </div>
         </div>
 
         {/* Top clienti */}
-        <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
+        <div className="bg-surface border border-border rounded-xl p-5">
           <div className="flex items-center gap-2 mb-4">
-            <Users className="w-4 h-4 text-gold" />
-            <p className="text-sm font-bold text-white">Top clienti</p>
+            <Users className="w-4 h-4 text-gold-text" />
+            <p className="text-sm font-bold text-text-primary">Top clienti</p>
           </div>
           {topClients.length === 0 ? (
-            <p className="text-xs text-[#555]">Nessun dato</p>
+            <p className="text-xs text-text-tertiary">Nessun dato</p>
           ) : (
             <div className="space-y-3">
               {topClients.map(c => (
                 <div key={c.name} className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs text-white font-medium truncate max-w-[60%]">{c.name}</p>
+                    <p className="text-xs text-text-primary font-medium truncate max-w-[60%]">{c.name}</p>
                     <div className="flex items-center gap-2">
-                      {c.open > 0 && <span className="text-[10px] text-blue-400 font-bold">{c.open} aperti</span>}
-                      <span className="text-[10px] text-[#555]">{c.count} tot</span>
+                      {c.open > 0 && <span className="text-2xs text-info font-bold">{c.open} aperti</span>}
+                      <span className="text-2xs text-text-tertiary">{c.count} tot</span>
                     </div>
                   </div>
                   {bar(Math.round((c.count / maxClientCount) * 100), 'bg-gold/40')}
@@ -455,22 +455,22 @@ function AnalyticsView({ tickets, clients }: { tickets: TicketWithClient[]; clie
 
       <div className="grid md:grid-cols-2 gap-5">
         {/* Distribuzione priorità */}
-        <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
+        <div className="bg-surface border border-border rounded-xl p-5">
           <div className="flex items-center gap-2 mb-4">
-            <BarChart2 className="w-4 h-4 text-gold" />
-            <p className="text-sm font-bold text-white">Per urgenza</p>
+            <BarChart2 className="w-4 h-4 text-gold-text" />
+            <p className="text-sm font-bold text-text-primary">Per urgenza</p>
           </div>
           <div className="space-y-3">
             {[
-              { k: 'urgente', l: '🔴 Urgente',  color: 'bg-red-500/60' },
-              { k: 'alta',    l: '🟠 Alta',     color: 'bg-orange-500/60' },
-              { k: 'normale', l: '🔵 Normale',  color: 'bg-blue-500/60' },
-              { k: 'bassa',   l: '🟢 Bassa',    color: 'bg-green-500/60' },
+              { k: 'urgente', l: '🔴 Urgente',  color: 'bg-error/60' },
+              { k: 'alta',    l: '🟠 Alta',     color: 'bg-orange/60' },
+              { k: 'normale', l: '🔵 Normale',  color: 'bg-info/60' },
+              { k: 'bassa',   l: '🟢 Bassa',    color: 'bg-success/60' },
             ].map(({ k, l, color }) => (
               <div key={k} className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs text-white">{l}</p>
-                  <p className="text-xs text-[#555]">{byPriority[k] ?? 0}</p>
+                  <p className="text-xs text-text-primary">{l}</p>
+                  <p className="text-xs text-text-tertiary">{byPriority[k] ?? 0}</p>
                 </div>
                 {bar(Math.round(((byPriority[k] ?? 0) / maxPriority) * 100), color)}
               </div>
@@ -479,22 +479,22 @@ function AnalyticsView({ tickets, clients }: { tickets: TicketWithClient[]; clie
         </div>
 
         {/* Distribuzione categoria */}
-        <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
+        <div className="bg-surface border border-border rounded-xl p-5">
           <div className="flex items-center gap-2 mb-4">
-            <Shield className="w-4 h-4 text-gold" />
-            <p className="text-sm font-bold text-white">Per categoria</p>
+            <Shield className="w-4 h-4 text-gold-text" />
+            <p className="text-sm font-bold text-text-primary">Per categoria</p>
           </div>
           <div className="space-y-3">
             {[
-              { k: 'tecnico',   l: '⚙️ Tecnico',   color: 'bg-purple-500/60' },
+              { k: 'tecnico',   l: '⚙️ Tecnico',   color: 'bg-accent/60' },
               { k: 'billing',   l: '💳 Billing',   color: 'bg-gold/60' },
-              { k: 'strategia', l: '📈 Strategia', color: 'bg-blue-400/60' },
-              { k: 'altro',     l: '💬 Altro',     color: 'bg-[#555]' },
+              { k: 'strategia', l: '📈 Strategia', color: 'bg-info/60' },
+              { k: 'altro',     l: '💬 Altro',     color: 'bg-text-tertiary' },
             ].map(({ k, l, color }) => (
               <div key={k} className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs text-white">{l}</p>
-                  <p className="text-xs text-[#555]">{byCategory[k] ?? 0}</p>
+                  <p className="text-xs text-text-primary">{l}</p>
+                  <p className="text-xs text-text-tertiary">{byCategory[k] ?? 0}</p>
                 </div>
                 {bar(Math.round(((byCategory[k] ?? 0) / maxCat) * 100), color)}
               </div>
@@ -504,10 +504,10 @@ function AnalyticsView({ tickets, clients }: { tickets: TicketWithClient[]; clie
       </div>
 
       {/* Status snapshot */}
-      <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
+      <div className="bg-surface border border-border rounded-xl p-5">
         <div className="flex items-center gap-2 mb-4">
-          <Clock className="w-4 h-4 text-gold" />
-          <p className="text-sm font-bold text-white">Snapshot status attuale</p>
+          <Clock className="w-4 h-4 text-gold-text" />
+          <p className="text-sm font-bold text-text-primary">Snapshot status attuale</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           {Object.entries(STATUS_CONFIG).map(([k, v]) => (
@@ -545,10 +545,10 @@ function PortaliView({ clients, tickets }: { clients: Pick<Client, 'id' | 'compa
 
   return (
     <div className="space-y-4">
-      <div className="bg-[#111] border border-[#2A2A2A] rounded-xl p-4 flex items-start gap-3">
-        <Link2 className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" />
+      <div className="bg-background border border-border rounded-xl p-4 flex items-start gap-3">
+        <Link2 className="w-4 h-4 text-gold-text mt-0.5 flex-shrink-0" />
         <div>
-          <p className="text-sm font-bold text-white mb-0.5">Portale Clienti</p>
+          <p className="text-sm font-bold text-text-primary mb-0.5">Portale Clienti</p>
           <p className="text-xs text-text-secondary">Ogni cliente ha un link univoco. Il cliente accede senza registrarsi, crea ticket con urgenza e dettagli, e segue lo stato in tempo reale.</p>
         </div>
       </div>
@@ -558,31 +558,31 @@ function PortaliView({ clients, tickets }: { clients: Pick<Client, 'id' | 'compa
           const clientTickets = tickets.filter(t => t.client_id === c.id)
           const openCount = clientTickets.filter(t => !['risolto', 'chiuso'].includes(t.status)).length
           return (
-            <div key={c.id} className="bg-surface border border-[#2A2A2A] rounded-xl px-5 py-4 flex items-center justify-between gap-4">
+            <div key={c.id} className="bg-surface border border-border rounded-xl px-5 py-4 flex items-center justify-between gap-4">
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white">{c.company_name}</p>
+                <p className="text-sm font-semibold text-text-primary">{c.company_name}</p>
                 <p className="text-xs text-text-secondary mt-0.5">
                   {openCount > 0
-                    ? <span className="text-gold font-bold">{openCount} aperti</span>
+                    ? <span className="text-gold-text font-bold">{openCount} aperti</span>
                     : <span>Nessun ticket aperto</span>}
-                  {clientTickets.length > 0 && <span className="text-[#444]"> · {clientTickets.length} totali</span>}
+                  {clientTickets.length > 0 && <span className="text-text-tertiary"> · {clientTickets.length} totali</span>}
                 </p>
                 {links[c.id] && (
-                  <p className="text-[10px] text-[#555] mt-1 truncate font-mono">{links[c.id]}</p>
+                  <p className="text-2xs text-text-tertiary mt-1 truncate font-mono">{links[c.id]}</p>
                 )}
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button
                   onClick={() => getLink(c.id)}
                   disabled={loading === c.id}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg text-xs text-white hover:border-gold/30 transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-border rounded-lg text-xs text-text-primary hover:border-gold/30 transition-colors disabled:opacity-50"
                 >
                   {loading === c.id ? <Loader2 className="w-3 h-3 animate-spin" /> : links[c.id] ? <Copy className="w-3 h-3" /> : <Link2 className="w-3 h-3" />}
                   {links[c.id] ? 'Copia' : 'Genera link'}
                 </button>
                 {links[c.id] && (
                   <a href={links[c.id]} target="_blank" rel="noopener noreferrer"
-                    className="p-1.5 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg text-text-secondary hover:text-white transition-colors">
+                    className="p-1.5 bg-surface border border-border rounded-lg text-text-secondary hover:text-text-primary transition-colors">
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 )}
@@ -641,12 +641,12 @@ export function TicketSystem({ tickets: initialTickets, profiles, clients, curre
       {/* KPI */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { l: 'Aperti', v: open, c: 'text-blue-400' },
-          { l: 'In lavorazione', v: inProgress, c: 'text-gold' },
+          { l: 'Aperti', v: open, c: 'text-info' },
+          { l: 'In lavorazione', v: inProgress, c: 'text-gold-text' },
           { l: 'SLA superato', v: withSlaAlert, c: withSlaAlert > 0 ? 'text-error' : 'text-success' },
-          { l: 'Dal cliente', v: fromGuest, c: 'text-purple-400' },
+          { l: 'Dal cliente', v: fromGuest, c: 'text-accent' },
         ].map(k => (
-          <div key={k.l} className="bg-surface border border-[#2A2A2A] rounded-xl p-4">
+          <div key={k.l} className="bg-surface border border-border rounded-xl p-4">
             <p className="text-xs text-text-secondary mb-1">{k.l}</p>
             <p className={`text-2xl font-black ${k.c}`}>{k.v}</p>
           </div>
@@ -654,17 +654,17 @@ export function TicketSystem({ tickets: initialTickets, profiles, clients, curre
       </div>
 
       {/* View toggle */}
-      <div className="flex items-center gap-1 p-1 bg-[#111] border border-[#2A2A2A] rounded-xl w-fit">
+      <div className="flex items-center gap-1 p-1 bg-background border border-border rounded-xl w-fit">
         <button onClick={() => setView('interno')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${view === 'interno' ? 'bg-surface text-white' : 'text-text-secondary hover:text-white'}`}>
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${view === 'interno' ? 'bg-surface text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}>
           <Filter className="w-3.5 h-3.5" /> Vista Interna
         </button>
         <button onClick={() => setView('analytics')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${view === 'analytics' ? 'bg-surface text-white' : 'text-text-secondary hover:text-white'}`}>
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${view === 'analytics' ? 'bg-surface text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}>
           <BarChart2 className="w-3.5 h-3.5" /> Analitiche
         </button>
         <button onClick={() => setView('portali')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${view === 'portali' ? 'bg-surface text-white' : 'text-text-secondary hover:text-white'}`}>
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${view === 'portali' ? 'bg-surface text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}>
           <Users className="w-3.5 h-3.5" /> Portali Cliente
         </button>
       </div>
@@ -678,27 +678,27 @@ export function TicketSystem({ tickets: initialTickets, profiles, clients, curre
           {/* Filtri + nuovo */}
           <div className="flex items-center gap-2 flex-wrap">
             <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as typeof filterStatus)}
-              className="bg-surface border border-[#2A2A2A] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none">
+              className="bg-surface border border-border rounded-lg px-3 py-1.5 text-xs text-text-primary focus:outline-none">
               <option value="tutti">Tutti gli status</option>
               {(Object.entries(STATUS_CONFIG) as [TicketStatus, { label: string }][]).map(([k, v]) => (
                 <option key={k} value={k}>{v.label}</option>
               ))}
             </select>
             <select value={filterPriority} onChange={e => setFilterPriority(e.target.value as typeof filterPriority)}
-              className="bg-surface border border-[#2A2A2A] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none">
+              className="bg-surface border border-border rounded-lg px-3 py-1.5 text-xs text-text-primary focus:outline-none">
               <option value="tutti">Tutte le priorità</option>
               {(Object.entries(PRIORITY_CONFIG) as [TicketPriority, { label: string }][]).map(([k, v]) => (
                 <option key={k} value={k}>{v.label}</option>
               ))}
             </select>
             <select value={filterClient} onChange={e => setFilterClient(e.target.value)}
-              className="bg-surface border border-[#2A2A2A] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none">
+              className="bg-surface border border-border rounded-lg px-3 py-1.5 text-xs text-text-primary focus:outline-none">
               <option value="">Tutti i clienti</option>
               {clients.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
             </select>
             <span className="text-xs text-text-secondary ml-1">{filtered.length} ticket</span>
             <button onClick={() => { setEditingTicket(null); setShowModal(true) }}
-              className="ml-auto flex items-center gap-2 px-4 py-2 bg-gold text-black text-sm font-bold rounded-lg hover:bg-yellow-400">
+              className="ml-auto flex items-center gap-2 px-4 py-2 bg-gold text-on-gold text-sm font-bold rounded-lg hover:bg-gold/90">
               <Plus className="w-4 h-4" /> Nuovo ticket
             </button>
           </div>
@@ -708,7 +708,7 @@ export function TicketSystem({ tickets: initialTickets, profiles, clients, curre
             {filtered.length === 0 && (
               <div className="text-center py-12">
                 <CheckCircle2 className="w-10 h-10 text-success mx-auto mb-2" />
-                <p className="text-sm text-white font-bold">Nessun ticket</p>
+                <p className="text-sm text-text-primary font-bold">Nessun ticket</p>
               </div>
             )}
             {filtered.map(t => {
@@ -718,18 +718,18 @@ export function TicketSystem({ tickets: initialTickets, profiles, clients, curre
               const assignee = profiles.find(p => p.id === t.assigned_to)
               return (
                 <div key={t.id} onClick={() => setSelectedTicket(t)}
-                  className="bg-surface border border-[#2A2A2A] rounded-xl px-5 py-4 cursor-pointer hover:border-gold/20 transition-colors">
+                  className="bg-surface border border-border rounded-xl px-5 py-4 cursor-pointer hover:border-gold/20 transition-colors">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${sc.color} ${sc.bg}`}>{sc.label}</span>
                         <span className={`text-xs font-bold ${pc.color}`}>{pc.label}</span>
-                        {t.category && <span className="text-[10px] text-text-secondary capitalize">{t.category}</span>}
-                        {t.submitted_by_guest && <span className="text-[9px] font-bold px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded-full">CLIENTE</span>}
-                        {sla && <span className={`text-[10px] font-bold ${sla.color}`}>{sla.label}</span>}
+                        {t.category && <span className="text-2xs text-text-secondary capitalize">{t.category}</span>}
+                        {t.submitted_by_guest && <span className="text-2xs font-bold px-1.5 py-0.5 bg-accent/20 text-accent rounded-full">CLIENTE</span>}
+                        {sla && <span className={`text-2xs font-bold ${sla.color}`}>{sla.label}</span>}
                       </div>
-                      <p className="text-sm font-semibold text-white">{t.title}</p>
-                      <div className="flex items-center gap-3 mt-1 text-[10px] text-text-secondary">
+                      <p className="text-sm font-semibold text-text-primary">{t.title}</p>
+                      <div className="flex items-center gap-3 mt-1 text-2xs text-text-secondary">
                         {t.client && <span>{t.client.company_name}</span>}
                         {assignee && <span>→ {assignee.full_name.split(' ')[0]}</span>}
                         <span>{new Date(t.created_at).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>

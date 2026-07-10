@@ -111,7 +111,7 @@ export function Header({ profile }: HeaderProps) {
             className="relative p-2 text-text-tertiary hover:text-text-secondary transition-colors rounded-xl hover:bg-surface-hover">
             <Bell className="w-5 h-5" />
             {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 bg-gold text-black text-[10px] font-black rounded-full w-4 h-4 flex items-center justify-center">
+              <span className="absolute -top-0.5 -right-0.5 bg-gold text-on-gold text-2xs font-black rounded-full w-4 h-4 flex items-center justify-center">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}
@@ -122,7 +122,7 @@ export function Header({ profile }: HeaderProps) {
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <span className="text-sm font-bold text-text-primary font-heading">Notifiche</span>
                 {unreadCount > 0 && (
-                  <button onClick={markAllRead} className="flex items-center gap-1 text-xs text-text-tertiary hover:text-gold">
+                  <button onClick={markAllRead} className="flex items-center gap-1 text-xs text-text-tertiary hover:text-gold-text">
                     <CheckCheck className="w-3.5 h-3.5" /> Segna tutte lette
                   </button>
                 )}
@@ -137,8 +137,8 @@ export function Header({ profile }: HeaderProps) {
                       <span className="text-base shrink-0 mt-0.5">{NOTIF_ICONS[n.type] ?? '🔔'}</span>
                       <div className="flex-1 min-w-0">
                         <p className={`text-xs ${!n.read ? 'font-semibold text-text-primary' : 'text-text-secondary'}`}>{n.title}</p>
-                        {n.body && <p className="text-[11px] text-text-tertiary mt-0.5 truncate">{n.body}</p>}
-                        <p className="text-[10px] text-text-tertiary mt-1">{timeAgo(n.created_at)}</p>
+                        {n.body && <p className="text-2xs text-text-tertiary mt-0.5 truncate">{n.body}</p>}
+                        <p className="text-2xs text-text-tertiary mt-1">{timeAgo(n.created_at)}</p>
                       </div>
                       {!n.read && <div className="w-2 h-2 rounded-full bg-gold shrink-0 mt-1.5" />}
                     </button>
@@ -153,7 +153,7 @@ export function Header({ profile }: HeaderProps) {
         <div className="relative">
           <button onClick={() => setDropdownOpen(!dropdownOpen)}
             className="flex items-center gap-2 p-1 rounded-xl hover:bg-surface-hover transition-colors">
-            <div className="w-8 h-8 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center text-gold text-xs font-bold">
+            <div className="w-8 h-8 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center text-gold-text text-xs font-bold">
               {profile?.avatar_url
                 ? <img src={profile.avatar_url} className="w-full h-full rounded-full object-cover" alt="" />
                 : profile ? getInitials(profile.full_name) : 'U'}
@@ -162,9 +162,9 @@ export function Header({ profile }: HeaderProps) {
               <div className="hidden sm:block text-left">
                 <div className="flex items-center gap-1">
                   <span className="text-sm font-medium text-text-secondary leading-tight">{profile.full_name.split(' ')[0]}</span>
-                  {isGod && <Crown className="w-3 h-3 text-gold" />}
+                  {isGod && <Crown className="w-3 h-3 text-gold-text" />}
                 </div>
-                <p className="text-[10px] text-text-tertiary leading-tight capitalize">{SUPER_ADMIN_EMAILS.includes(profile.email) ? 'super admin' : (profile.app_role?.replace('_', ' ') ?? profile.role)}</p>
+                <p className="text-2xs text-text-tertiary leading-tight capitalize">{SUPER_ADMIN_EMAILS.includes(profile.email) ? 'super admin' : (profile.app_role?.replace('_', ' ') ?? profile.role)}</p>
               </div>
             )}
             <ChevronDown className="w-4 h-4 text-text-tertiary hidden sm:block" />
@@ -177,11 +177,11 @@ export function Header({ profile }: HeaderProps) {
                 <div className="px-4 py-3 border-b border-border">
                   <div className="flex items-center gap-1.5 mb-0.5">
                     <p className="text-sm font-semibold text-text-primary truncate">{profile?.full_name}</p>
-                    {isGod && <Crown className="w-3.5 h-3.5 text-gold shrink-0" />}
+                    {isGod && <Crown className="w-3.5 h-3.5 text-gold-text shrink-0" />}
                   </div>
                   <p className="text-xs text-text-tertiary truncate">{profile?.email}</p>
                   {profile && (
-                    <span className="inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-gold-dim text-gold">
+                    <span className="inline-block mt-1.5 text-2xs font-bold px-2 py-0.5 rounded-full bg-gold-dim text-gold-text">
                       {SUPER_ADMIN_EMAILS.includes(profile.email) ? '👑 Super Admin' : (ROLE_LABELS[profile.app_role] ?? profile.role)}
                     </span>
                   )}
@@ -198,7 +198,7 @@ export function Header({ profile }: HeaderProps) {
                     </Link>
                   )}
                   <button onClick={handleLogout}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-xl transition-colors">
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-error hover:bg-error/10 rounded-xl transition-colors">
                     <LogOut className="w-4 h-4" /> Esci
                   </button>
                 </div>

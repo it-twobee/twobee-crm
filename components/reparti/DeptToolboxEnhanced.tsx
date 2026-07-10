@@ -16,7 +16,7 @@ function CopyBtn({ text, label = 'Copia' }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false)
   return (
     <button onClick={() => { copy(text); setCopied(true); setTimeout(() => setCopied(false), 1500) }}
-      className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold border border-[#2A2A2A] rounded-lg text-[#888] hover:text-white hover:border-[#444] transition-all">
+      className="flex items-center gap-1.5 px-2.5 py-1.5 text-2xs font-bold border border-border rounded-lg text-text-secondary hover:text-text-primary hover:border-border-strong transition-all">
       <Copy className="w-3 h-3" />
       {copied ? '✓ Copiato' : label}
     </button>
@@ -28,23 +28,23 @@ function ToolCard({ icon, title, color, children }: {
 }) {
   const [open, setOpen] = useState(false)
   return (
-    <div className="bg-[#0D0D0D] border border-[#1A1A1A] rounded-2xl overflow-hidden">
+    <div className="bg-background border border-border rounded-2xl overflow-hidden">
       <button onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-[#0A0A0A] transition-colors text-left">
-        <span className="p-2 rounded-xl shrink-0" style={{ background: `${color}15`, color }}>
+        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-background transition-colors text-left">
+        <span className="p-2 rounded-xl shrink-0" style={{ background: `color-mix(in srgb, ${color} 8%, transparent)`, color }}>
           {icon}
         </span>
-        <span className="text-sm font-bold text-white flex-1">{title}</span>
-        <span className="text-[10px] text-[#444]">{open ? '▲' : '▼'}</span>
+        <span className="text-sm font-bold text-text-primary flex-1">{title}</span>
+        <span className="text-2xs text-text-tertiary">{open ? '▲' : '▼'}</span>
       </button>
-      {open && <div className="px-4 pb-4 pt-1 border-t border-[#111] space-y-3">{children}</div>}
+      {open && <div className="px-4 pb-4 pt-1 border-t border-border space-y-3">{children}</div>}
     </div>
   )
 }
 
-const inp = 'w-full bg-[#111] border border-[#1A1A1A] rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#2A2A2A] placeholder:text-[#2A2A2A]'
-const lbl = 'block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider'
-const result = 'mt-2 p-3 bg-[#111] border border-[#1A1A1A] rounded-xl text-xs text-white font-mono break-all'
+const inp = 'w-full bg-background border border-border rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-border placeholder:text-text-tertiary'
+const lbl = 'block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider'
+const result = 'mt-2 p-3 bg-background border border-border rounded-xl text-xs text-text-primary font-mono break-all'
 
 // ══════════════════════════════════════════════════════════════════════════════
 // CORE TOOLS (all depts)
@@ -118,17 +118,17 @@ function TimeEstimator() {
       <div className="space-y-2">
         {rows.map((r, i) => (
           <div key={r.role} className="flex items-center gap-3">
-            <span className="text-xs text-[#666] w-24 shrink-0">{r.role}</span>
+            <span className="text-xs text-text-tertiary w-24 shrink-0">{r.role}</span>
             <input type="number" min={0} value={r.hours || ''} onChange={e => setRows(p => p.map((x, j) => j === i ? {...x, hours: +e.target.value} : x))}
-              className="w-20 bg-[#111] border border-[#1A1A1A] rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none text-right" placeholder="0" />
-            <span className="text-[10px] text-[#444]">h</span>
-            <span className="text-[10px] text-[#555] ml-auto">€{(r.hours * (RATES[r.role] ?? 0)).toLocaleString('it-IT')}</span>
+              className="w-20 bg-background border border-border rounded-lg px-2 py-1.5 text-sm text-text-primary focus:outline-none text-right" placeholder="0" />
+            <span className="text-2xs text-text-tertiary">h</span>
+            <span className="text-2xs text-text-tertiary ml-auto">€{(r.hours * (RATES[r.role] ?? 0)).toLocaleString('it-IT')}</span>
           </div>
         ))}
       </div>
-      <div className="mt-3 pt-3 border-t border-[#1A1A1A] flex justify-between items-center">
-        <span className="text-sm font-bold text-white">{total}h totali</span>
-        <span className="text-sm font-black text-[#F5C800]">€{cost.toLocaleString('it-IT')}</span>
+      <div className="mt-3 pt-3 border-t border-border flex justify-between items-center">
+        <span className="text-sm font-bold text-text-primary">{total}h totali</span>
+        <span className="text-sm font-black text-gold-text">€{cost.toLocaleString('it-IT')}</span>
       </div>
     </ToolCard>
   )
@@ -141,28 +141,28 @@ function ChecklistTool({ items, title, color }: { items: string[]; title: string
   return (
     <ToolCard icon={<CheckSquare className="w-4 h-4" />} title={title} color={color}>
       <div className="flex items-center gap-2 mb-3">
-        <div className="flex-1 h-1.5 bg-[#1A1A1A] rounded-full overflow-hidden">
-          <div className="h-full rounded-full bg-[#22C55E] transition-all" style={{ width: `${pct}%` }} />
+        <div className="flex-1 h-1.5 bg-surface rounded-full overflow-hidden">
+          <div className="h-full rounded-full bg-success transition-all" style={{ width: `${pct}%` }} />
         </div>
-        <span className="text-[10px] font-bold text-[#444]">{checked.size}/{items.length}</span>
+        <span className="text-2xs font-bold text-text-tertiary">{checked.size}/{items.length}</span>
       </div>
       <div className="space-y-1.5">
         {items.map((item, i) => (
           <label key={i} className="flex items-start gap-2.5 cursor-pointer group">
             <div onClick={() => toggle(i)}
               className={`w-4 h-4 rounded border shrink-0 mt-0.5 flex items-center justify-center transition-all ${
-                checked.has(i) ? 'bg-[#22C55E] border-[#22C55E]' : 'border-[#2A2A2A] group-hover:border-[#444]'
+                checked.has(i) ? 'bg-success border-success' : 'border-border group-hover:border-border-strong'
               }`}>
-              {checked.has(i) && <span className="text-[8px] text-black font-black">✓</span>}
+              {checked.has(i) && <span className="text-[8px] text-on-gold font-black">✓</span>}
             </div>
-            <span className={`text-xs transition-colors ${checked.has(i) ? 'line-through text-[#333]' : 'text-[#888]'}`}>{item}</span>
+            <span className={`text-xs transition-colors ${checked.has(i) ? 'line-through text-text-tertiary' : 'text-text-secondary'}`}>{item}</span>
           </label>
         ))}
       </div>
       {checked.size === items.length && (
-        <p className="mt-3 text-center text-xs font-bold text-green-400">✓ Tutto completato!</p>
+        <p className="mt-3 text-center text-xs font-bold text-success">✓ Tutto completato!</p>
       )}
-      <button onClick={() => setChecked(new Set())} className="mt-2 text-[10px] text-[#333] hover:text-[#555] flex items-center gap-1">
+      <button onClick={() => setChecked(new Set())} className="mt-2 text-2xs text-text-tertiary hover:text-text-tertiary flex items-center gap-1">
         <RefreshCw className="w-3 h-3" /> Reset
       </button>
     </ToolCard>
@@ -185,10 +185,10 @@ function MERCalc() {
         <div><label className={lbl}>Ad Spend totale (€)</label><input type="number" value={spend} onChange={e => setSpend(e.target.value)} className={inp} placeholder="10000" /></div>
       </div>
       {mer && (
-        <div className="mt-3 p-4 bg-[#111] border border-[#1A1A1A] rounded-xl text-center">
-          <p className="text-3xl font-black text-[#22C55E]">MER {mer}x</p>
-          <p className="text-xs text-[#444] mt-1">{recs}</p>
-          <p className="text-[10px] text-[#2A2A2A] mt-2">Breakeven MER: {spend && rev ? ((parseFloat(spend) / parseFloat(rev)) * 100).toFixed(1) : '—'}% of revenue</p>
+        <div className="mt-3 p-4 bg-background border border-border rounded-xl text-center">
+          <p className="text-3xl font-black text-success">MER {mer}x</p>
+          <p className="text-xs text-text-tertiary mt-1">{recs}</p>
+          <p className="text-2xs text-text-tertiary mt-2">Breakeven MER: {spend && rev ? ((parseFloat(spend) / parseFloat(rev)) * 100).toFixed(1) : '—'}% of revenue</p>
         </div>
       )}
     </ToolCard>
@@ -212,14 +212,14 @@ function LTVCalc() {
       </div>
       {ltv && (
         <div className="mt-3 grid grid-cols-2 gap-2">
-          <div className="p-3 bg-[#111] border border-[#1A1A1A] rounded-xl text-center">
-            <p className="text-xl font-black text-[#F5C800]">€{ltv.toLocaleString('it-IT')}</p>
-            <p className="text-[9px] text-[#444]">LTV grezzo</p>
+          <div className="p-3 bg-background border border-border rounded-xl text-center">
+            <p className="text-xl font-black text-gold-text">€{ltv.toLocaleString('it-IT')}</p>
+            <p className="text-2xs text-text-tertiary">LTV grezzo</p>
           </div>
           {cltv && (
-            <div className="p-3 bg-[#111] border border-[#1A1A1A] rounded-xl text-center">
-              <p className="text-xl font-black text-green-400">€{cltv.toLocaleString('it-IT')}</p>
-              <p className="text-[9px] text-[#444]">CLTV (con margine)</p>
+            <div className="p-3 bg-background border border-border rounded-xl text-center">
+              <p className="text-xl font-black text-success">€{cltv.toLocaleString('it-IT')}</p>
+              <p className="text-2xs text-text-tertiary">CLTV (con margine)</p>
             </div>
           )}
         </div>
@@ -237,16 +237,16 @@ function FunnelCalc() {
       <div className="space-y-2">
         {STAGES.map((s, i) => (
           <div key={s} className="flex items-center gap-3">
-            <span className="text-xs text-[#666] w-20 shrink-0">{s}</span>
+            <span className="text-xs text-text-tertiary w-20 shrink-0">{s}</span>
             <input type="number" min={0} value={vals[i] || ''} onChange={e => setVals(p => p.map((x, j) => j === i ? +e.target.value : x))}
-              className="w-24 bg-[#111] border border-[#1A1A1A] rounded-lg px-2 py-1.5 text-sm text-white text-right focus:outline-none" />
-            {i > 0 && <span className="text-[10px] text-[#555]">→ {rates[i]}%</span>}
+              className="w-24 bg-background border border-border rounded-lg px-2 py-1.5 text-sm text-text-primary text-right focus:outline-none" />
+            {i > 0 && <span className="text-2xs text-text-tertiary">→ {rates[i]}%</span>}
           </div>
         ))}
       </div>
       <div className="mt-3 flex items-center justify-between text-xs">
-        <span className="text-[#444]">CPL (stima):</span>
-        <span className="font-bold text-white">
+        <span className="text-text-tertiary">CPL (stima):</span>
+        <span className="font-bold text-text-primary">
           {vals[1] > 0 && vals[0] > 0 ? `${((vals[0] * 0.5) / vals[1]).toFixed(2)} €/lead` : '—'}
         </span>
       </div>
@@ -269,27 +269,27 @@ function ABTestCalc() {
     <ToolCard icon={<Scissors className="w-4 h-4" />} title="A/B Test Significance" color="#F59E0B">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <p className="text-[10px] font-bold text-[#555] mb-2">Variante A</p>
+          <p className="text-2xs font-bold text-text-tertiary mb-2">Variante A</p>
           <div className="space-y-2">
             <div><label className={lbl}>Visitatori</label><input type="number" value={n1} onChange={e => setN1(e.target.value)} className={inp} placeholder="1000" /></div>
             <div><label className={lbl}>Conversioni</label><input type="number" value={c1} onChange={e => setC1(e.target.value)} className={inp} placeholder="45" /></div>
           </div>
-          {cr1 && <p className="text-xs text-[#888] mt-2">CR: <strong className="text-white">{(cr1 * 100).toFixed(2)}%</strong></p>}
+          {cr1 && <p className="text-xs text-text-secondary mt-2">CR: <strong className="text-text-primary">{(cr1 * 100).toFixed(2)}%</strong></p>}
         </div>
         <div>
-          <p className="text-[10px] font-bold text-[#F5C800] mb-2">Variante B</p>
+          <p className="text-2xs font-bold text-gold-text mb-2">Variante B</p>
           <div className="space-y-2">
             <div><label className={lbl}>Visitatori</label><input type="number" value={n2} onChange={e => setN2(e.target.value)} className={inp} placeholder="1000" /></div>
             <div><label className={lbl}>Conversioni</label><input type="number" value={c2} onChange={e => setC2(e.target.value)} className={inp} placeholder="58" /></div>
           </div>
-          {cr2 && <p className="text-xs text-[#888] mt-2">CR: <strong className="text-white">{(cr2 * 100).toFixed(2)}%</strong></p>}
+          {cr2 && <p className="text-xs text-text-secondary mt-2">CR: <strong className="text-text-primary">{(cr2 * 100).toFixed(2)}%</strong></p>}
         </div>
       </div>
       {lift && (
-        <div className={`mt-3 p-3 rounded-xl text-center border ${parseFloat(lift) > 0 ? 'border-green-400/20 bg-green-400/5' : 'border-red-400/20 bg-red-400/5'}`}>
-          <p className="text-sm font-black text-white">Variante {winner} vince</p>
-          <p className={`text-lg font-black ${parseFloat(lift) > 0 ? 'text-green-400' : 'text-red-400'}`}>{lift}% lift</p>
-          <p className="text-[10px] text-[#444] mt-1">
+        <div className={`mt-3 p-3 rounded-xl text-center border ${parseFloat(lift) > 0 ? 'border-success/20 bg-success/5' : 'border-error/20 bg-error/5'}`}>
+          <p className="text-sm font-black text-text-primary">Variante {winner} vince</p>
+          <p className={`text-lg font-black ${parseFloat(lift) > 0 ? 'text-success' : 'text-error'}`}>{lift}% lift</p>
+          <p className="text-2xs text-text-tertiary mt-1">
             {Math.abs(parseFloat(lift)) < 5 ? 'Differenza non significativa' : Math.abs(parseFloat(lift)) < 15 ? 'Risultato moderato' : 'Differenza significativa'}
           </p>
         </div>
@@ -316,7 +316,7 @@ function HashtagResearch() {
       <div className="grid grid-cols-3 gap-2 mb-3">
         {Object.keys(SUGGESTIONS).map(c => (
           <button key={c} onClick={() => setCategory(c as any)}
-            className={`px-2 py-1.5 rounded-lg text-[10px] font-bold capitalize border transition-all ${category === c ? 'border-[#F5C800] text-[#F5C800] bg-[#F5C800]/10' : 'border-[#1A1A1A] text-[#444] hover:border-[#2A2A2A]'}`}>
+            className={`px-2 py-1.5 rounded-lg text-2xs font-bold capitalize border transition-all ${category === c ? 'border-gold text-gold-text bg-gold/10' : 'border-border text-text-tertiary hover:border-border'}`}>
             {c}
           </button>
         ))}
@@ -327,7 +327,7 @@ function HashtagResearch() {
       <div className="mt-2 flex flex-wrap gap-1.5">
         {(SUGGESTIONS[category] ?? []).concat(custom ? [`#${custom.replace('#','')}`] : []).map(h => (
           <span key={h} onClick={() => copy(h)}
-            className="text-[10px] text-[#888] bg-[#111] border border-[#1A1A1A] px-2 py-1 rounded-full cursor-pointer hover:border-[#F5C800] hover:text-white transition-all">
+            className="text-2xs text-text-secondary bg-background border border-border px-2 py-1 rounded-full cursor-pointer hover:border-gold hover:text-text-primary transition-all">
             {h}
           </span>
         ))}
@@ -353,7 +353,7 @@ function MetaChecker() {
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className={lbl + ' mb-0'}>Title tag</label>
-            <span className={`text-[10px] font-bold ${tOk ? 'text-green-400' : tLen > 60 ? 'text-red-400' : 'text-yellow-400'}`}>
+            <span className={`text-2xs font-bold ${tOk ? 'text-success' : tLen > 60 ? 'text-error' : 'text-gold-text'}`}>
               {tLen}/60 {tOk ? '✓' : tLen > 60 ? '⚠ troppo lungo' : '⚠ troppo corto'}
             </span>
           </div>
@@ -362,18 +362,18 @@ function MetaChecker() {
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className={lbl + ' mb-0'}>Meta description</label>
-            <span className={`text-[10px] font-bold ${dOk ? 'text-green-400' : dLen > 160 ? 'text-red-400' : 'text-yellow-400'}`}>
+            <span className={`text-2xs font-bold ${dOk ? 'text-success' : dLen > 160 ? 'text-error' : 'text-gold-text'}`}>
               {dLen}/160 {dOk ? '✓' : dLen > 160 ? '⚠ troppo lunga' : '⚠ troppo corta'}
             </span>
           </div>
           <textarea value={desc} onChange={e => setDesc(e.target.value)} className={inp} rows={3} placeholder="Descrizione che appare nei risultati di ricerca…" maxLength={200} />
         </div>
         {title && (
-          <div className="p-3 bg-[#111] border border-[#1A1A1A] rounded-xl">
-            <p className="text-[10px] text-[#444] mb-2">Preview SERP</p>
+          <div className="p-3 bg-background border border-border rounded-xl">
+            <p className="text-2xs text-text-tertiary mb-2">Preview SERP</p>
             <p className="text-sm text-[#4285F4] font-medium truncate">{title || 'Titolo pagina'}</p>
-            <p className="text-[10px] text-[#34A853]">twobee.it › pagina</p>
-            <p className="text-xs text-[#888] mt-0.5 line-clamp-2">{desc || 'Nessuna meta description.'}</p>
+            <p className="text-2xs text-[#34A853]">twobee.it › pagina</p>
+            <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">{desc || 'Nessuna meta description.'}</p>
           </div>
         )}
       </div>
@@ -384,12 +384,12 @@ function MetaChecker() {
 function PageSpeedBudget() {
   const [total, setTotal] = useState('3000')
   const ASSETS = [
-    { name: 'HTML', rec: 30, color: '#F5C800' },
-    { name: 'CSS',  rec: 100, color: '#3B82F6' },
-    { name: 'JS',   rec: 500, color: '#EF4444' },
-    { name: 'Immagini', rec: 1000, color: '#22C55E' },
-    { name: 'Font', rec: 100, color: '#A855F7' },
-    { name: 'Altri', rec: 200, color: '#F59E0B' },
+    { name: 'HTML', rec: 30, color: 'var(--color-gold-text)' },
+    { name: 'CSS',  rec: 100, color: 'var(--color-info)' },
+    { name: 'JS',   rec: 500, color: 'var(--color-error)' },
+    { name: 'Immagini', rec: 1000, color: 'var(--color-success)' },
+    { name: 'Font', rec: 100, color: 'var(--color-accent)' },
+    { name: 'Altri', rec: 200, color: 'var(--color-warning)' },
   ]
   const used = ASSETS.reduce((s, a) => s + a.rec, 0)
   const budget = parseFloat(total) || 3000
@@ -398,20 +398,20 @@ function PageSpeedBudget() {
     <ToolCard icon={<Zap className="w-4 h-4" />} title="Performance Budget" color="#22C55E">
       <div className="flex items-center gap-3 mb-3">
         <label className={lbl + ' mb-0 shrink-0'}>Budget totale (KB)</label>
-        <input type="number" value={total} onChange={e => setTotal(e.target.value)} className="w-24 bg-[#111] border border-[#1A1A1A] rounded-lg px-2 py-1.5 text-sm text-white text-right focus:outline-none" />
+        <input type="number" value={total} onChange={e => setTotal(e.target.value)} className="w-24 bg-background border border-border rounded-lg px-2 py-1.5 text-sm text-text-primary text-right focus:outline-none" />
       </div>
       <div className="space-y-2">
         {ASSETS.map(a => (
           <div key={a.name} className="flex items-center gap-3">
-            <span className="text-xs text-[#666] w-20 shrink-0">{a.name}</span>
-            <div className="flex-1 h-1.5 bg-[#111] rounded-full overflow-hidden">
+            <span className="text-xs text-text-tertiary w-20 shrink-0">{a.name}</span>
+            <div className="flex-1 h-1.5 bg-background rounded-full overflow-hidden">
               <div className="h-full rounded-full" style={{ width: `${Math.min((a.rec / budget) * 100, 100)}%`, background: a.color }} />
             </div>
-            <span className="text-[10px] text-[#444] w-14 text-right">{a.rec} KB</span>
+            <span className="text-2xs text-text-tertiary w-14 text-right">{a.rec} KB</span>
           </div>
         ))}
       </div>
-      <div className={`mt-3 pt-3 border-t border-[#1A1A1A] flex justify-between ${ratio > 1 ? 'text-red-400' : 'text-green-400'}`}>
+      <div className={`mt-3 pt-3 border-t border-border flex justify-between ${ratio > 1 ? 'text-error' : 'text-success'}`}>
         <span className="text-xs font-bold">Totale usato</span>
         <span className="text-xs font-black">{used} KB / {budget} KB {ratio > 1 ? '⚠ OVER BUDGET' : '✓ OK'}</span>
       </div>
@@ -421,7 +421,7 @@ function PageSpeedBudget() {
 
 function ColorContrastCheck() {
   const [fg, setFg] = useState('#FFFFFF')
-  const [bg, setBg] = useState('#111111')
+  const [bg, setBg] = useState('var(--color-background)')
 
   const hex2rgb = (h: string) => {
     const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h)
@@ -459,10 +459,10 @@ function ColorContrastCheck() {
         <p className="text-xs" style={{ color: fg }}>Come appare il tuo testo</p>
       </div>
       <div className="flex items-center justify-between mt-3">
-        <span className="text-2xl font-black text-white">{ratio.toFixed(2)}:1</span>
+        <span className="text-2xl font-black text-text-primary">{ratio.toFixed(2)}:1</span>
         <div className="flex gap-2">
-          <span className={`text-[10px] font-black px-2 py-1 rounded-full ${aa ? 'bg-green-400/15 text-green-400' : 'bg-red-400/15 text-red-400'}`}>AA {aa ? '✓' : '✗'}</span>
-          <span className={`text-[10px] font-black px-2 py-1 rounded-full ${aaa ? 'bg-green-400/15 text-green-400' : 'bg-[#1A1A1A] text-[#444]'}`}>AAA {aaa ? '✓' : '✗'}</span>
+          <span className={`text-2xs font-black px-2 py-1 rounded-full ${aa ? 'bg-success/15 text-success' : 'bg-error/15 text-error'}`}>AA {aa ? '✓' : '✗'}</span>
+          <span className={`text-2xs font-black px-2 py-1 rounded-full ${aaa ? 'bg-success/15 text-success' : 'bg-surface text-text-tertiary'}`}>AAA {aaa ? '✓' : '✗'}</span>
         </div>
       </div>
     </ToolCard>
@@ -499,11 +499,11 @@ function TokenEstimator() {
           const cost = ((parseFloat(inTok)*m.in + parseFloat(outTok)*m.out) / 1000) * n
           return (
             <div key={m.name} className="flex items-center gap-3">
-              <span className="text-xs text-[#666] flex-1 truncate">{m.name}</span>
-              <div className="flex-1 h-1.5 bg-[#111] rounded-full overflow-hidden">
-                <div className="h-full bg-[#A855F7] rounded-full" style={{ width: `${Math.min((cost / ((parseFloat(inTok)*MODELS[0].in + parseFloat(outTok)*MODELS[0].out) / 1000 * n)) * 100, 100)}%` }} />
+              <span className="text-xs text-text-tertiary flex-1 truncate">{m.name}</span>
+              <div className="flex-1 h-1.5 bg-background rounded-full overflow-hidden">
+                <div className="h-full bg-accent rounded-full" style={{ width: `${Math.min((cost / ((parseFloat(inTok)*MODELS[0].in + parseFloat(outTok)*MODELS[0].out) / 1000 * n)) * 100, 100)}%` }} />
               </div>
-              <span className="text-xs font-bold text-white w-16 text-right">${cost.toFixed(2)}</span>
+              <span className="text-xs font-bold text-text-primary w-16 text-right">${cost.toFixed(2)}</span>
             </div>
           )
         })}
@@ -544,22 +544,22 @@ function PromptLibrary() {
       <div className="flex gap-2 mb-3">
         {Object.keys(PROMPTS).map(d => (
           <button key={d} onClick={() => { setDept(d as any); setSelected(null) }}
-            className={`px-2 py-1 rounded-lg text-[10px] font-bold capitalize border transition-all ${dept === d ? 'border-[#F5C800] text-[#F5C800] bg-[#F5C800]/10' : 'border-[#1A1A1A] text-[#444] hover:border-[#2A2A2A]'}`}>
+            className={`px-2 py-1 rounded-lg text-2xs font-bold capitalize border transition-all ${dept === d ? 'border-gold text-gold-text bg-gold/10' : 'border-border text-text-tertiary hover:border-border'}`}>
             {d}
           </button>
         ))}
       </div>
       <div className="space-y-2">
         {(PROMPTS[dept] ?? []).map(p => (
-          <div key={p.label} className="border border-[#1A1A1A] rounded-xl overflow-hidden">
+          <div key={p.label} className="border border-border rounded-xl overflow-hidden">
             <button onClick={() => setSelected(selected === p.label ? null : p.label)}
-              className="w-full flex items-center justify-between px-3 py-2 hover:bg-[#0A0A0A] transition-colors text-left">
-              <span className="text-xs text-[#888] font-semibold">{p.label}</span>
-              <span className="text-[#333] text-xs">{selected === p.label ? '▲' : '▼'}</span>
+              className="w-full flex items-center justify-between px-3 py-2 hover:bg-background transition-colors text-left">
+              <span className="text-xs text-text-secondary font-semibold">{p.label}</span>
+              <span className="text-text-tertiary text-xs">{selected === p.label ? '▲' : '▼'}</span>
             </button>
             {selected === p.label && (
-              <div className="px-3 pb-3 border-t border-[#111]">
-                <p className="text-xs text-[#666] mt-2 leading-relaxed">{p.text}</p>
+              <div className="px-3 pb-3 border-t border-border">
+                <p className="text-xs text-text-tertiary mt-2 leading-relaxed">{p.text}</p>
                 <div className="flex justify-end mt-2"><CopyBtn text={p.text} /></div>
               </div>
             )}
@@ -596,10 +596,10 @@ export function DeptToolboxEnhanced({ dept }: { dept: ProjectKind }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl p-1 gap-1 w-fit">
+      <div className="flex bg-surface border border-border rounded-xl p-1 gap-1 w-fit">
         {(['core', 'specializzati'] as const).map(s => (
           <button key={s} onClick={() => setSection(s)}
-            className={`px-4 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${section === s ? 'text-black bg-[#F5C800]' : 'text-[#666] hover:text-white'}`}>
+            className={`px-4 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${section === s ? 'text-on-gold bg-gold' : 'text-text-tertiary hover:text-text-primary'}`}>
             {s === 'core' ? '🔧 Tool Core' : `⚡ Tool ${dept.charAt(0).toUpperCase() + dept.slice(1)}`}
           </button>
         ))}

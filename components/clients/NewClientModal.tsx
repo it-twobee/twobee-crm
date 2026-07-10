@@ -101,7 +101,7 @@ export function NewClientModal({ onClose, onCreated }: NewClientModalProps) {
   const ic = "w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-gold/50"
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-surface border border-border rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
@@ -121,7 +121,7 @@ export function NewClientModal({ onClose, onCreated }: NewClientModalProps) {
         <div className="flex items-center justify-center gap-2 py-3 border-b border-border">
           {STEPS.map((s, i) => (
             <div key={s} className="flex items-center gap-2">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${i < step ? 'bg-gold text-black' : i === step ? 'bg-gold/20 border border-gold text-gold' : 'bg-surface text-text-secondary'}`}>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${i < step ? 'bg-gold text-on-gold' : i === step ? 'bg-gold/20 border border-gold text-gold-text' : 'bg-surface text-text-secondary'}`}>
                 {i < step ? '✓' : i + 1}
               </div>
               <span className={`text-xs hidden sm:block ${i === step ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>{s}</span>
@@ -164,7 +164,7 @@ export function NewClientModal({ onClose, onCreated }: NewClientModalProps) {
                   className="w-4 h-4 rounded accent-gold" />
                 <div>
                   <span className="text-sm text-text-primary font-medium">Cliente interno</span>
-                  <p className="text-[10px] text-text-secondary mt-0.5">Escluso da statistiche commerciali e finanziarie (es. TwoBee, scambi merce)</p>
+                  <p className="text-2xs text-text-secondary mt-0.5">Escluso da statistiche commerciali e finanziarie (es. TwoBee, scambi merce)</p>
                 </div>
               </label>
               <div className="grid grid-cols-2 gap-3">
@@ -185,7 +185,7 @@ export function NewClientModal({ onClose, onCreated }: NewClientModalProps) {
                 <div className="flex flex-wrap gap-2">
                   {CHANNELS.map((ch) => (
                     <button key={ch} type="button" onClick={() => toggleChannel(ch)}
-                      className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${form.active_channels.includes(ch) ? 'bg-gold/20 border-gold text-gold font-semibold' : 'bg-background border-border text-text-secondary hover:border-border-strong'}`}>
+                      className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${form.active_channels.includes(ch) ? 'bg-gold/20 border-gold text-gold-text font-semibold' : 'bg-background border-border text-text-secondary hover:border-border-strong'}`}>
                       {ch}
                     </button>
                   ))}
@@ -244,13 +244,13 @@ export function NewClientModal({ onClose, onCreated }: NewClientModalProps) {
               {form.industry && INDUSTRY_BENCHMARKS[form.industry] && (
                 <div className="bg-gold/5 border border-gold/20 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <Target className="w-4 h-4 text-gold" />
-                    <p className="text-sm font-semibold text-gold">Benchmark: {form.industry}</p>
+                    <Target className="w-4 h-4 text-gold-text" />
+                    <p className="text-sm font-semibold text-gold-text">Benchmark: {form.industry}</p>
                   </div>
                   <p className="text-xs text-text-secondary mb-3">
                     ROAS {INDUSTRY_BENCHMARKS[form.industry].roas}× · CTR {INDUSTRY_BENCHMARKS[form.industry].ctr}% · CPA €{INDUSTRY_BENCHMARKS[form.industry].cpa} · Conv. {INDUSTRY_BENCHMARKS[form.industry].conv_rate}%
                   </p>
-                  <button onClick={applyBenchmark} className="text-xs bg-gold/20 border border-gold/30 text-gold px-3 py-1.5 rounded-lg hover:bg-gold/30 transition-colors">
+                  <button onClick={applyBenchmark} className="text-xs bg-gold/20 border border-gold/30 text-gold-text px-3 py-1.5 rounded-lg hover:bg-gold/30 transition-colors">
                     Applica benchmark di settore
                   </button>
                 </div>
@@ -259,7 +259,7 @@ export function NewClientModal({ onClose, onCreated }: NewClientModalProps) {
               {form.client_type === 'growth' && (
                 <>
                   <div>
-                    <div className="flex items-center gap-2 mb-3"><TrendingUp className="w-4 h-4 text-gold" /><h3 className="text-sm font-bold text-text-primary">Performance ADV</h3></div>
+                    <div className="flex items-center gap-2 mb-3"><TrendingUp className="w-4 h-4 text-gold-text" /><h3 className="text-sm font-bold text-text-primary">Performance ADV</h3></div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs text-text-secondary mb-1">ROAS Target</label>
@@ -280,7 +280,7 @@ export function NewClientModal({ onClose, onCreated }: NewClientModalProps) {
                     </div>
                   </div>
                   <div>
-                    <div className="flex items-center gap-2 mb-3"><ShoppingCart className="w-4 h-4 text-blue-400" /><h3 className="text-sm font-bold text-text-primary">Obiettivi Business</h3></div>
+                    <div className="flex items-center gap-2 mb-3"><ShoppingCart className="w-4 h-4 text-info" /><h3 className="text-sm font-bold text-text-primary">Obiettivi Business</h3></div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs text-text-secondary mb-1">Lead/mese target</label>
@@ -293,7 +293,7 @@ export function NewClientModal({ onClose, onCreated }: NewClientModalProps) {
                     </div>
                   </div>
                   <div>
-                    <div className="flex items-center gap-2 mb-3"><Users className="w-4 h-4 text-purple-400" /><h3 className="text-sm font-bold text-text-primary">Social Growth</h3></div>
+                    <div className="flex items-center gap-2 mb-3"><Users className="w-4 h-4 text-accent" /><h3 className="text-sm font-bold text-text-primary">Social Growth</h3></div>
                     <div>
                       <label className="block text-xs text-text-secondary mb-1">Nuovi follower/mese target</label>
                       <input type="number" value={form.target_followers_monthly} onChange={(e) => f('target_followers_monthly', e.target.value)} placeholder="500" className={ic} />
@@ -304,7 +304,7 @@ export function NewClientModal({ onClose, onCreated }: NewClientModalProps) {
 
               {form.client_type === 'digital' && (
                 <div>
-                  <div className="flex items-center gap-2 mb-3"><Target className="w-4 h-4 text-gold" /><h3 className="text-sm font-bold text-text-primary">Obiettivi Digital</h3></div>
+                  <div className="flex items-center gap-2 mb-3"><Target className="w-4 h-4 text-gold-text" /><h3 className="text-sm font-bold text-text-primary">Obiettivi Digital</h3></div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs text-text-secondary mb-1">Revenue/mese target (€)</label>
@@ -333,7 +333,7 @@ export function NewClientModal({ onClose, onCreated }: NewClientModalProps) {
               <div className="flex items-center justify-between">
                 <p className="text-sm text-text-secondary">Referenti del cliente (opzionale)</p>
                 <button type="button" onClick={() => setContacts((p) => [...p, { full_name: '', email: '', phone: '', role: '', is_primary: false }])}
-                  className="flex items-center gap-1 text-xs text-gold hover:underline">
+                  className="flex items-center gap-1 text-xs text-gold-text hover:underline">
                   <Plus className="w-3.5 h-3.5" /> Aggiungi
                 </button>
               </div>
@@ -374,12 +374,12 @@ export function NewClientModal({ onClose, onCreated }: NewClientModalProps) {
           <div className="flex-1" />
           {step < STEPS.length - 1 ? (
             <button onClick={() => setStep((s) => s + 1)} disabled={!canNext()}
-              className="flex items-center gap-1 px-6 py-2.5 bg-gold text-black font-bold rounded-lg hover:bg-gold/90 disabled:opacity-40 transition-colors">
+              className="flex items-center gap-1 px-6 py-2.5 bg-gold text-on-gold font-bold rounded-lg hover:bg-gold/90 disabled:opacity-40 transition-colors">
               Avanti <ChevronRight className="w-4 h-4" />
             </button>
           ) : (
             <button onClick={handleSubmit} disabled={loading}
-              className="flex items-center gap-2 px-6 py-2.5 bg-gold text-black font-bold rounded-lg hover:bg-gold/90 disabled:opacity-50 transition-colors">
+              className="flex items-center gap-2 px-6 py-2.5 bg-gold text-on-gold font-bold rounded-lg hover:bg-gold/90 disabled:opacity-50 transition-colors">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />} Crea Cliente
             </button>
           )}

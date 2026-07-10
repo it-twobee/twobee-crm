@@ -32,16 +32,16 @@ const roleLabel: Record<StakeholderRole, string> = {
   agenzia_supporto: 'Agenzia di Supporto',
 }
 const roleBadge: Record<StakeholderRole, string> = {
-  owner: 'bg-gold/20 text-gold',
-  stakeholder: 'bg-blue-500/20 text-blue-400',
-  collaboratore_esterno: 'bg-purple-500/20 text-purple-400',
+  owner: 'bg-gold/20 text-gold-text',
+  stakeholder: 'bg-info/20 text-info',
+  collaboratore_esterno: 'bg-accent/20 text-accent',
   agenzia_supporto: 'bg-success/20 text-success',
 }
 
 function Field({ label, value, editMode, children }: { label: string; value: React.ReactNode; editMode: boolean; children: React.ReactNode }) {
   return (
     <div className={editMode ? '' : 'bg-surface rounded-lg px-3 py-2.5'}>
-      <p className="text-text-secondary text-[10px] uppercase tracking-wider font-semibold mb-1">{label}</p>
+      <p className="text-text-secondary text-2xs uppercase tracking-wider font-semibold mb-1">{label}</p>
       {editMode ? children : <p className="text-text-primary text-sm font-medium">{value || <span className="text-text-secondary italic text-xs">Non compilato</span>}</p>}
     </div>
   )
@@ -119,9 +119,9 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
   }
 
   const sectionIcons: Record<string, React.ReactNode> = {
-    azienda: <Building2 className="w-4 h-4 text-gold" />,
-    fiscale: <Receipt className="w-4 h-4 text-blue-400" />,
-    contratto: <FileText className="w-4 h-4 text-purple-400" />,
+    azienda: <Building2 className="w-4 h-4 text-gold-text" />,
+    fiscale: <Receipt className="w-4 h-4 text-info" />,
+    contratto: <FileText className="w-4 h-4 text-accent" />,
   }
 
   const SectionHeader = ({ title, section, editing }: { title: string; section: string; editing: boolean }) => (
@@ -135,14 +135,14 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
           <button onClick={cancel} className="flex items-center gap-1 text-xs text-text-secondary hover:text-text-primary transition-colors">
             <X className="w-3.5 h-3.5" /> Annulla
           </button>
-          <button onClick={() => save(section)} disabled={saving} className="flex items-center gap-1.5 text-xs bg-gold text-black px-3 py-1 rounded-lg font-semibold hover:bg-gold/90 transition-colors disabled:opacity-50">
+          <button onClick={() => save(section)} disabled={saving} className="flex items-center gap-1.5 text-xs bg-gold text-on-gold px-3 py-1 rounded-lg font-semibold hover:bg-gold/90 transition-colors disabled:opacity-50">
             {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Salva
           </button>
         </div>
       ) : (
         <button
           onClick={() => { setForm(client); if (section === 'azienda') setEditAzienda(true); if (section === 'fiscale') setEditFiscale(true); if (section === 'contratto') setEditContratto(true) }}
-          className="flex items-center gap-1 text-xs text-text-secondary hover:text-gold transition-colors"
+          className="flex items-center gap-1 text-xs text-text-secondary hover:text-gold-text transition-colors"
         >
           <Pencil className="w-3.5 h-3.5" /> Modifica
         </button>
@@ -199,7 +199,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
             <div className="flex gap-2 flex-wrap">
               {CHANNELS.map((ch) => (
                 <button key={ch} onClick={() => toggleChannel(ch)}
-                  className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${form.active_channels?.includes(ch) ? 'bg-gold/20 border-gold/40 text-gold' : 'bg-background border-border text-text-secondary hover:border-border-strong'}`}>
+                  className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${form.active_channels?.includes(ch) ? 'bg-gold/20 border-gold/40 text-gold-text' : 'bg-background border-border text-text-secondary hover:border-border-strong'}`}>
                   {form.active_channels?.includes(ch) && <Check className="w-3 h-3 inline mr-1" />}{ch}
                 </button>
               ))}
@@ -276,7 +276,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
       {/* Referenti Cliente */}
       <section className="bg-surface border border-border rounded-2xl p-5">
         <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
-          <Users2 className="w-4 h-4 text-green-400" />
+          <Users2 className="w-4 h-4 text-success" />
           <h3 className="text-sm font-bold text-text-primary">Referenti Cliente</h3>
         </div>
         {contacts.length === 0 ? (
@@ -285,17 +285,17 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
           <div className="space-y-3">
             {contacts.map((c) => (
               <div key={c.id} className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold text-xs font-bold shrink-0">
+                <div className="w-9 h-9 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold-text text-xs font-bold shrink-0">
                   {getInitials(c.full_name)}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold text-text-primary">{c.full_name}</p>
-                    {c.is_primary && <span className="text-xs bg-gold/20 text-gold px-1.5 py-0.5 rounded">Principale</span>}
+                    {c.is_primary && <span className="text-xs bg-gold/20 text-gold-text px-1.5 py-0.5 rounded">Principale</span>}
                   </div>
                   {c.role && <p className="text-xs text-text-secondary">{c.role}</p>}
                   <div className="flex gap-3 mt-0.5 text-xs text-text-secondary">
-                    <a href={`mailto:${c.email}`} className="hover:text-gold transition-colors">{c.email}</a>
+                    <a href={`mailto:${c.email}`} className="hover:text-gold-text transition-colors">{c.email}</a>
                     {c.phone && <span>{c.phone}</span>}
                   </div>
                 </div>
@@ -309,10 +309,10 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
       <section className="bg-surface border border-border rounded-2xl p-5">
         <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
           <div className="flex items-center gap-2.5">
-            <Crown className="w-4 h-4 text-amber-400" />
+            <Crown className="w-4 h-4 text-warning" />
             <h3 className="text-sm font-bold text-text-primary">Owner, Stakeholder & Collaboratori</h3>
           </div>
-          <button onClick={() => setShowStakeholderModal(true)} className="flex items-center gap-1 text-xs text-gold hover:underline">
+          <button onClick={() => setShowStakeholderModal(true)} className="flex items-center gap-1 text-xs text-gold-text hover:underline">
             <Plus className="w-3.5 h-3.5" /> Aggiungi
           </button>
         </div>
@@ -323,7 +323,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
             {stakeholders.map((s) => (
               <div key={s.id} className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400 text-xs font-bold shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-accent/20 border border-accent/30 flex items-center justify-center text-accent text-xs font-bold shrink-0">
                     {getInitials(s.full_name)}
                   </div>
                   <div>
@@ -333,7 +333,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
                     </div>
                     {s.company && <p className="text-xs text-text-secondary">{s.company}{s.piva ? ` · P.IVA ${s.piva}` : ''}</p>}
                     <div className="flex gap-3 mt-0.5 text-xs text-text-secondary">
-                      <a href={`mailto:${s.email}`} className="hover:text-gold transition-colors">{s.email}</a>
+                      <a href={`mailto:${s.email}`} className="hover:text-gold-text transition-colors">{s.email}</a>
                       {s.phone && <span>{s.phone}</span>}
                     </div>
                     {s.notes && <p className="text-xs text-text-secondary mt-0.5 italic">{s.notes}</p>}
@@ -351,7 +351,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
       {/* Team TWO BEE */}
       <section className="bg-surface border border-border rounded-2xl p-5">
         <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
-          <Users2 className="w-4 h-4 text-gold" />
+          <Users2 className="w-4 h-4 text-gold-text" />
           <h3 className="text-sm font-bold text-text-primary">Team TWO BEE Assegnato</h3>
         </div>
         {teamMembers.length === 0 ? (
@@ -360,7 +360,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
           <div className="flex gap-3 flex-wrap">
             {teamMembers.map((m) => (
               <div key={m.id} className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold text-xs font-bold">
+                <div className="w-8 h-8 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold-text text-xs font-bold">
                   {getInitials(m.full_name)}
                 </div>
                 <div>
@@ -400,7 +400,7 @@ function StakeholderModal({ clientId, onClose, onCreated }: { clientId: string; 
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-surface border border-border rounded-card w-full max-w-md">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-lg font-bold">Aggiungi Stakeholder</h2>
@@ -429,7 +429,7 @@ function StakeholderModal({ clientId, onClose, onCreated }: { clientId: string; 
           <div><label className="block text-xs text-text-secondary mb-1">Note</label><textarea value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} rows={2} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold resize-none" /></div>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary transition-colors">Annulla</button>
-            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
+            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />} Aggiungi
             </button>
           </div>

@@ -101,7 +101,7 @@ export function OnboardingClient() {
 
   if (step === 'loading') return (
     <div className="min-h-screen bg-background flex items-center justify-center">
-      <Loader2 className="w-8 h-8 text-gold animate-spin" />
+      <Loader2 className="w-8 h-8 text-gold-text animate-spin" />
     </div>
   )
 
@@ -128,7 +128,7 @@ export function OnboardingClient() {
     <div className="min-h-screen bg-background flex items-center justify-center px-6">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <p className="text-3xl font-black text-text-primary">two bee<span className="text-gold">.</span></p>
+          <p className="text-3xl font-black text-text-primary">two bee<span className="text-gold-text">.</span></p>
           <p className="text-text-secondary mt-2 text-sm">Completa il tuo profilo per accedere alla chat</p>
         </div>
 
@@ -157,7 +157,7 @@ export function OnboardingClient() {
           <button
             type="submit"
             disabled={saving || !fullName.trim() || !role.trim()}
-            className="w-full bg-gold text-black font-black py-3 rounded-xl text-sm hover:bg-yellow-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
+            className="w-full bg-gold text-on-gold font-black py-3 rounded-xl text-sm hover:bg-gold/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
             Entra nella chat

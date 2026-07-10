@@ -80,7 +80,7 @@ export function ClientChatTab({ client, currentProfile, allProfiles }: Props) {
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
-      <Loader2 className="w-6 h-6 text-gold animate-spin" />
+      <Loader2 className="w-6 h-6 text-gold-text animate-spin" />
     </div>
   )
 
@@ -105,12 +105,12 @@ export function ClientChatTab({ client, currentProfile, allProfiles }: Props) {
           onClick={() => setActiveChat('cc')}
           className={`flex items-center gap-2 px-4 py-2 rounded-t-xl text-sm font-semibold border-b-2 transition-colors
             ${activeChat === 'cc'
-              ? 'text-gold border-gold bg-gold/5'
+              ? 'text-gold-text border-gold bg-gold/5'
               : 'text-text-secondary border-transparent hover:text-text-primary hover:bg-overlay/[0.03]'}`}
         >
           <Headphones className="w-3.5 h-3.5" />
           Customer Care
-          <span className="text-[10px] font-normal opacity-60">team + cliente</span>
+          <span className="text-2xs font-normal opacity-60">team + cliente</span>
         </button>
         <button
           onClick={() => setActiveChat('internal')}
@@ -121,7 +121,7 @@ export function ClientChatTab({ client, currentProfile, allProfiles }: Props) {
         >
           <Lock className="w-3.5 h-3.5" />
           Interno team
-          <span className="text-[10px] font-normal opacity-60">solo team + sub</span>
+          <span className="text-2xs font-normal opacity-60">solo team + sub</span>
         </button>
       </div>
 

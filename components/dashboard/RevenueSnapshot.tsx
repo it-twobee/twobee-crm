@@ -59,7 +59,7 @@ export function RevenueSnapshot({ months, currentMrr }: Props) {
               <div className="w-full rounded-t-sm transition-all duration-500 cursor-pointer"
                 style={{
                   height: `${h}%`,
-                  background: m.projected ? 'transparent' : isLast ? '#F5C800' : '#2A2A2A',
+                  background: m.projected ? 'transparent' : isLast ? 'var(--color-gold-text)' : 'var(--color-border)',
                   border: m.projected ? '1.5px dashed #333' : 'none',
                   borderBottom: 'none',
                   minHeight: 4,
@@ -67,8 +67,8 @@ export function RevenueSnapshot({ months, currentMrr }: Props) {
               {/* Tooltip al hover */}
               <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col items-center z-10 pointer-events-none">
                 <div className="bg-surface border border-border rounded-md px-2 py-1 text-center whitespace-nowrap">
-                  <p className="text-[9px] text-text-secondary">{MESI[parseInt(m.month.slice(5,7)) - 1]}</p>
-                  <p className="text-[10px] font-bold text-text-primary">{fmt(m.amount)}</p>
+                  <p className="text-2xs text-text-secondary">{MESI[parseInt(m.month.slice(5,7)) - 1]}</p>
+                  <p className="text-2xs font-bold text-text-primary">{fmt(m.amount)}</p>
                   {m.projected && <p className="text-[8px] text-text-tertiary">proiezione</p>}
                 </div>
               </div>
@@ -81,7 +81,7 @@ export function RevenueSnapshot({ months, currentMrr }: Props) {
       <div className="flex gap-1.5 mb-4">
         {months.map((m, i) => (
           <div key={m.month} className="flex-1 text-center">
-            <span className={`text-[8px] ${!m.projected && i === real.length - 1 ? 'text-gold font-bold' : m.projected ? 'text-text-tertiary' : 'text-text-tertiary'}`}>
+            <span className={`text-[8px] ${!m.projected && i === real.length - 1 ? 'text-gold-text font-bold' : m.projected ? 'text-text-tertiary' : 'text-text-tertiary'}`}>
               {MESI[parseInt(m.month.slice(5,7)) - 1]}
             </span>
           </div>
@@ -91,18 +91,18 @@ export function RevenueSnapshot({ months, currentMrr }: Props) {
       {/* Metriche */}
       <div className="flex items-center gap-0 divide-x divide-border">
         <div className="flex-1 pr-4">
-          <p className="text-[10px] text-text-secondary mb-0.5">MRR contratti</p>
-          <p className="text-base font-black text-gold">{fmt(currentMrr)}</p>
+          <p className="text-2xs text-text-secondary mb-0.5">MRR contratti</p>
+          <p className="text-base font-black text-gold-text">{fmt(currentMrr)}</p>
         </div>
         {real.length > 0 && (
           <div className="flex-1 px-4">
-            <p className="text-[10px] text-text-secondary mb-0.5">Incassato ({MESI[parseInt(real[real.length-1].month.slice(5,7))-1]})</p>
+            <p className="text-2xs text-text-secondary mb-0.5">Incassato ({MESI[parseInt(real[real.length-1].month.slice(5,7))-1]})</p>
             <p className="text-base font-black text-text-primary">{fmt(real[real.length-1].amount)}</p>
           </div>
         )}
         {projectionAvg && (
           <div className="flex-1 pl-4">
-            <p className="text-[10px] text-text-secondary mb-0.5">Proiezione trimestre</p>
+            <p className="text-2xs text-text-secondary mb-0.5">Proiezione trimestre</p>
             <p className="text-base font-black text-text-secondary">{fmt(projectionAvg)}</p>
           </div>
         )}
@@ -110,7 +110,7 @@ export function RevenueSnapshot({ months, currentMrr }: Props) {
 
       {/* Legenda proiezione */}
       {projected.length > 0 && (
-        <p className="text-[9px] text-text-tertiary mt-3 flex items-center gap-1">
+        <p className="text-2xs text-text-tertiary mt-3 flex items-center gap-1">
           <span className="inline-block w-3 border-t border-dashed border-border" />
           proiezione basata sui contratti attivi
         </p>

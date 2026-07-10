@@ -50,28 +50,28 @@ export function AIPrefillPanel({ entityType, entityId, fields, context, onApply,
   return (
     <>
       <button type="button" onClick={generate} disabled={loading}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-[#F5C800] bg-[#F5C800]/10 hover:bg-[#F5C800]/20 disabled:opacity-50 transition-colors">
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-gold-text bg-gold/10 hover:bg-gold/20 disabled:opacity-50 transition-colors">
         {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
         {label}
       </button>
 
       {open && draft && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && setOpen(false)}>
-          <div className="bg-[#141414] border border-[#2A2A2A] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#2A2A2A] sticky top-0 bg-[#141414]">
+        <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && setOpen(false)}>
+          <div className="bg-surface border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-border sticky top-0 bg-surface">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#F5C800]" />
-                <span className="text-sm font-bold text-white">Suggerimenti AI</span>
-                {sources.length > 0 && <span className="text-[10px] text-[#555]">da {sources.join(', ')}</span>}
+                <Sparkles className="w-4 h-4 text-gold-text" />
+                <span className="text-sm font-bold text-text-primary">Suggerimenti AI</span>
+                {sources.length > 0 && <span className="text-2xs text-text-tertiary">da {sources.join(', ')}</span>}
               </div>
-              <button onClick={() => setOpen(false)}><X className="w-4 h-4 text-[#888]" /></button>
+              <button onClick={() => setOpen(false)}><X className="w-4 h-4 text-text-secondary" /></button>
             </div>
 
             <div className="p-5 space-y-3">
-              <p className="text-[11px] text-[#666]">Rivedi e modifica prima di applicare. Nulla viene salvato finché non confermi il form.</p>
+              <p className="text-2xs text-text-tertiary">Rivedi e modifica prima di applicare. Nulla viene salvato finché non confermi il form.</p>
 
               {missing.length > 0 && (
-                <div className="flex items-start gap-2 bg-[#F59E0B]/10 border border-[#F59E0B]/25 rounded-lg px-3 py-2 text-[10px] text-[#FCD34D]">
+                <div className="flex items-start gap-2 bg-warning/10 border border-warning/25 rounded-lg px-3 py-2 text-2xs text-warning">
                   <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                   <span>Dati non trovati: {missing.join(', ')}</span>
                 </div>
@@ -79,15 +79,15 @@ export function AIPrefillPanel({ entityType, entityId, fields, context, onApply,
 
               {fields.filter(f => draft[f.key] !== undefined).map(f => (
                 <div key={f.key}>
-                  <label className="block text-xs text-[#888] mb-1">{f.label}</label>
+                  <label className="block text-xs text-text-secondary mb-1">{f.label}</label>
                   <textarea value={draft[f.key]} onChange={e => setDraft(d => ({ ...(d ?? {}), [f.key]: e.target.value }))}
-                    rows={2} className="w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold resize-none" />
+                    rows={2} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold resize-none" />
                 </div>
               ))}
 
               <div className="flex gap-3 pt-1">
-                <button onClick={() => setOpen(false)} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-[#888]">Annulla</button>
-                <button onClick={apply} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-gold text-black font-bold rounded-lg text-sm">
+                <button onClick={() => setOpen(false)} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary">Annulla</button>
+                <button onClick={apply} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-gold text-on-gold font-bold rounded-lg text-sm">
                   <Check className="w-4 h-4" /> Applica al form
                 </button>
               </div>

@@ -16,10 +16,10 @@ import type { DeptProject } from '@/app/(dashboard)/reparti/[dept]/page'
 
 // ─── Phase badge ──────────────────────────────────────────────────────────────
 function PhaseBadge({ phase }: { phase: string }) {
-  const color = PHASE_COLOR[phase] ?? '#6B7280'
+  const color = PHASE_COLOR[phase] ?? 'var(--color-text-tertiary)'
   return (
     <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full"
-      style={{ background: `${color}18`, color }}>
+      style={{ background: `color-mix(in srgb, ${color} 9%, transparent)`, color }}>
       {PHASE_LABEL[phase] ?? phase}
     </span>
   )
@@ -47,26 +47,26 @@ function ClientTaskRow({ task, onUpdate, onDelete }: {
   const phase = (task.tags ?? []).find(t => ['onboarding', 'build', 'lancio'].includes(t))
 
   return (
-    <div className="group flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-[#0A0A0A] transition-colors">
+    <div className="group flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-background transition-colors">
       <button onClick={toggle}
-        className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-all ${isDone ? 'bg-[#22C55E] border-[#22C55E]' : 'border-[#2A2A2A] hover:border-[#555]'}`}>
-        {isDone && <Check className="w-2.5 h-2.5 text-black" />}
+        className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-all ${isDone ? 'bg-success border-success' : 'border-border hover:border-border-strong'}`}>
+        {isDone && <Check className="w-2.5 h-2.5 text-on-gold" />}
       </button>
 
-      <span className={`flex-1 text-sm ${isDone ? 'line-through text-[#333]' : 'text-white'}`}>
+      <span className={`flex-1 text-sm ${isDone ? 'line-through text-text-tertiary' : 'text-text-primary'}`}>
         {task.title}
       </span>
 
       <div className="flex items-center gap-2 shrink-0">
         {phase && <PhaseBadge phase={phase} />}
-        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-          task.priority === 'alta' ? 'text-red-400 bg-red-400/10' :
-          task.priority === 'media' ? 'text-yellow-400 bg-yellow-400/10' :
-          'text-[#444] bg-[#1A1A1A]'
+        <span className={`text-2xs font-bold px-1.5 py-0.5 rounded-full ${
+          task.priority === 'alta' ? 'text-error bg-error/10' :
+          task.priority === 'media' ? 'text-gold-text bg-gold/10' :
+          'text-text-tertiary bg-surface'
         }`}>{task.priority}</span>
-        {isOver && <span className="text-[9px] text-red-400 font-bold">scaduta</span>}
+        {isOver && <span className="text-2xs text-error font-bold">scaduta</span>}
         <button onClick={del}
-          className="opacity-0 group-hover:opacity-100 p-1 text-[#222] hover:text-red-400 transition-all">
+          className="opacity-0 group-hover:opacity-100 p-1 text-text-tertiary hover:text-error transition-all">
           <Trash2 className="w-3 h-3" />
         </button>
       </div>
@@ -127,23 +127,23 @@ function AITemplateChat({ project, onApply, onClose }: {
   ]
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#0E0E0E] border border-[#2A2A2A] rounded-2xl w-full max-w-lg shadow-2xl flex flex-col" style={{ height: 560 }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-[#1A1A1A] shrink-0">
-          <Bot className="w-4 h-4 text-[#F5C800]" />
-          <span className="text-sm font-bold text-white flex-1">AI — Template task cliente</span>
-          <span className="text-[10px] text-[#444]">{project.name}</span>
-          <button onClick={onClose} className="text-[#444] hover:text-white"><X className="w-4 h-4" /></button>
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-background border border-border rounded-2xl w-full max-w-lg shadow-2xl flex flex-col" style={{ height: 560 }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-border shrink-0">
+          <Bot className="w-4 h-4 text-gold-text" />
+          <span className="text-sm font-bold text-text-primary flex-1">AI — Template task cliente</span>
+          <span className="text-2xs text-text-tertiary">{project.name}</span>
+          <button onClick={onClose} className="text-text-tertiary hover:text-text-primary"><X className="w-4 h-4" /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
           {messages.length === 0 ? (
             <div className="flex flex-col gap-3 py-4">
-              <p className="text-xs text-[#444] text-center">Chiedi all'AI di generare o modificare le task cliente</p>
+              <p className="text-xs text-text-tertiary text-center">Chiedi all'AI di generare o modificare le task cliente</p>
               <div className="grid grid-cols-2 gap-2">
                 {QUICK.map(q => (
                   <button key={q} onClick={() => send(q)}
-                    className="text-left text-[10px] text-[#555] bg-[#111] border border-[#1A1A1A] hover:border-[#2A2A2A] hover:text-white rounded-xl px-2.5 py-2 transition-all">
+                    className="text-left text-2xs text-text-tertiary bg-background border border-border hover:border-border hover:text-text-primary rounded-xl px-2.5 py-2 transition-all">
                     {q}
                   </button>
                 ))}
@@ -151,27 +151,27 @@ function AITemplateChat({ project, onApply, onClose }: {
             </div>
           ) : messages.map((m, i) => (
             <div key={i} className={`flex gap-3 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[9px] font-black ${m.role === 'user' ? 'bg-[#F5C800] text-black' : 'bg-[#1A1A1A] border border-[#2A2A2A] text-[#F5C800]'}`}>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-2xs font-black ${m.role === 'user' ? 'bg-gold text-on-gold' : 'bg-surface border border-border text-gold-text'}`}>
                 {m.role === 'user' ? 'U' : <Bot className="w-3.5 h-3.5" />}
               </div>
               <div className={`flex flex-col gap-2 max-w-[85%] ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
                 {m.tasks && m.tasks.length > 0 && (
-                  <div className="w-full bg-[#0A0A0A] border border-[#1A1A1A] rounded-xl p-3 space-y-1.5">
-                    <p className="text-[9px] text-[#444] font-bold uppercase tracking-wider mb-2">Task generate ({m.tasks.length})</p>
+                  <div className="w-full bg-background border border-border rounded-xl p-3 space-y-1.5">
+                    <p className="text-2xs text-text-tertiary font-bold uppercase tracking-wider mb-2">Task generate ({m.tasks.length})</p>
                     {m.tasks.map((t, j) => (
                       <div key={j} className="flex items-center gap-2">
                         <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: PHASE_COLOR[t.phase] ?? '#444' }} />
-                        <span className="text-xs text-[#888] flex-1">{t.title}</span>
+                        <span className="text-xs text-text-secondary flex-1">{t.title}</span>
                         <PhaseBadge phase={t.phase} />
                       </div>
                     ))}
                     <button onClick={() => { onApply(m.tasks!); onClose() }}
-                      className="w-full mt-2 py-1.5 bg-[#F5C800] text-black text-xs font-black rounded-lg hover:bg-yellow-400">
+                      className="w-full mt-2 py-1.5 bg-gold text-on-gold text-xs font-black rounded-lg hover:bg-gold/90">
                       Applica queste task
                     </button>
                   </div>
                 )}
-                <div className={`px-3 py-2 rounded-xl text-xs leading-relaxed ${m.role === 'user' ? 'bg-[#F5C800] text-black' : 'bg-[#111] border border-[#1A1A1A] text-[#888]'}`}>
+                <div className={`px-3 py-2 rounded-xl text-xs leading-relaxed ${m.role === 'user' ? 'bg-gold text-on-gold' : 'bg-background border border-border text-text-secondary'}`}>
                   {m.content.replace(/\{[\s\S]*\}/, '').trim() || (m.tasks?.length ? '' : m.content)}
                 </div>
               </div>
@@ -179,12 +179,12 @@ function AITemplateChat({ project, onApply, onClose }: {
           ))}
           {loading && (
             <div className="flex gap-3">
-              <div className="w-6 h-6 rounded-full bg-[#1A1A1A] border border-[#2A2A2A] flex items-center justify-center">
-                <Bot className="w-3.5 h-3.5 text-[#F5C800]" />
+              <div className="w-6 h-6 rounded-full bg-surface border border-border flex items-center justify-center">
+                <Bot className="w-3.5 h-3.5 text-gold-text" />
               </div>
-              <div className="bg-[#111] border border-[#1A1A1A] rounded-xl px-4 py-3">
+              <div className="bg-background border border-border rounded-xl px-4 py-3">
                 <div className="flex gap-1">
-                  {[0,1,2].map(i => <div key={i} className="w-1.5 h-1.5 rounded-full bg-[#F5C800] animate-bounce" style={{ animationDelay: `${i*150}ms` }} />)}
+                  {[0,1,2].map(i => <div key={i} className="w-1.5 h-1.5 rounded-full bg-gold animate-bounce" style={{ animationDelay: `${i*150}ms` }} />)}
                 </div>
               </div>
             </div>
@@ -193,14 +193,14 @@ function AITemplateChat({ project, onApply, onClose }: {
         </div>
 
         <div className="px-4 pb-4 shrink-0">
-          <div className="flex gap-2 bg-[#111] border border-[#1A1A1A] rounded-xl px-3 py-2">
+          <div className="flex gap-2 bg-background border border-border rounded-xl px-3 py-2">
             <input value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') send() }}
               placeholder="Es: aggiungi task per social media, rimuovi tecnico…"
-              className="flex-1 bg-transparent text-xs text-white placeholder-[#2A2A2A] focus:outline-none" />
+              className="flex-1 bg-transparent text-xs text-text-primary placeholder-text-tertiary focus:outline-none" />
             <button onClick={() => send()} disabled={!input.trim() || loading}
-              className="w-7 h-7 rounded-lg bg-[#F5C800] flex items-center justify-center disabled:opacity-40">
-              <Send className="w-3.5 h-3.5 text-black" />
+              className="w-7 h-7 rounded-lg bg-gold flex items-center justify-center disabled:opacity-40">
+              <Send className="w-3.5 h-3.5 text-on-gold" />
             </button>
           </div>
         </div>
@@ -268,46 +268,46 @@ function ProjectClientCard({ project }: { project: DeptProject }) {
     setTasks(prev => prev.filter(t => t.id !== id))
 
   return (
-    <div className="bg-[#0D0D0D] border border-[#1A1A1A] rounded-2xl overflow-hidden">
+    <div className="bg-background border border-border rounded-2xl overflow-hidden">
       <div className="flex items-center gap-3 px-4 py-3.5">
-        <button onClick={() => setOpen(o => !o)} className="shrink-0 text-[#333] hover:text-white transition-colors">
+        <button onClick={() => setOpen(o => !o)} className="shrink-0 text-text-tertiary hover:text-text-primary transition-colors">
           {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
         </button>
         <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setOpen(o => !o)}>
-          <p className="text-sm font-bold text-white truncate">{project.name}</p>
-          <p className="text-[10px] text-[#444] mt-0.5">{project.client_name ?? '—'} · {project.project_type}</p>
+          <p className="text-sm font-bold text-text-primary truncate">{project.name}</p>
+          <p className="text-2xs text-text-tertiary mt-0.5">{project.client_name ?? '—'} · {project.project_type}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {total > 0 ? (
             <>
-              <div className="w-16 h-1.5 bg-[#1A1A1A] rounded-full overflow-hidden">
-                <div className="h-full rounded-full bg-[#F5C800] transition-all" style={{ width: `${total > 0 ? (done/total*100) : 0}%` }} />
+              <div className="w-16 h-1.5 bg-surface rounded-full overflow-hidden">
+                <div className="h-full rounded-full bg-gold transition-all" style={{ width: `${total > 0 ? (done/total*100) : 0}%` }} />
               </div>
-              <span className="text-[10px] text-[#444]">{done}/{total}</span>
+              <span className="text-2xs text-text-tertiary">{done}/{total}</span>
             </>
           ) : (
-            <span className="text-[10px] text-[#333]">nessuna task</span>
+            <span className="text-2xs text-text-tertiary">nessuna task</span>
           )}
         </div>
       </div>
 
       {open && (
-        <div className="border-t border-[#111] px-4 py-3">
+        <div className="border-t border-border px-4 py-3">
           {/* Toolbar */}
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <button onClick={() => setShowAI(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold bg-[#F5C800]/10 border border-[#F5C800]/20 text-[#F5C800] rounded-lg hover:bg-[#F5C800]/20 transition-all">
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-2xs font-bold bg-gold/10 border border-gold/20 text-gold-text rounded-lg hover:bg-gold/20 transition-all">
               <Sparkles className="w-3 h-3" /> AI Genera & Ottimizza
             </button>
             {total === 0 && (
               <button onClick={applyDefaultTemplate} disabled={applying}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold border border-[#2A2A2A] text-[#666] rounded-lg hover:text-white hover:border-[#444] transition-all">
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-2xs font-bold border border-border text-text-tertiary rounded-lg hover:text-text-primary hover:border-border-strong transition-all">
                 {applying ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                 Template {project.project_type}
               </button>
             )}
             <button onClick={() => { setAdding(true); setTimeout(() => addRef.current?.focus(), 30) }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold border border-[#2A2A2A] text-[#666] rounded-lg hover:text-white hover:border-[#444] transition-all">
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-2xs font-bold border border-border text-text-tertiary rounded-lg hover:text-text-primary hover:border-border-strong transition-all">
               <Plus className="w-3 h-3" /> Aggiungi manuale
             </button>
           </div>
@@ -315,8 +315,8 @@ function ProjectClientCard({ project }: { project: DeptProject }) {
           {/* Tasks by phase */}
           {total === 0 && !adding ? (
             <div className="py-8 text-center">
-              <p className="text-xs text-[#333]">Nessuna task cliente per questo progetto</p>
-              <p className="text-[10px] text-[#222] mt-1">Usa AI o il template predefinito per iniziare</p>
+              <p className="text-xs text-text-tertiary">Nessuna task cliente per questo progetto</p>
+              <p className="text-2xs text-text-tertiary mt-1">Usa AI o il template predefinito per iniziare</p>
             </div>
           ) : (
             <>
@@ -327,10 +327,10 @@ function ProjectClientCard({ project }: { project: DeptProject }) {
                   <div key={phase} className="mb-3">
                     <div className="flex items-center gap-2 mb-1.5">
                       <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: PHASE_COLOR[phase] }} />
-                      <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: PHASE_COLOR[phase] }}>
+                      <span className="text-2xs font-bold uppercase tracking-wider" style={{ color: PHASE_COLOR[phase] }}>
                         {PHASE_LABEL[phase]}
                       </span>
-                      <span className="text-[9px] text-[#333]">
+                      <span className="text-2xs text-text-tertiary">
                         {phaseTasks.filter(t => t.status === 'completato').length}/{phaseTasks.length}
                       </span>
                     </div>
@@ -348,16 +348,16 @@ function ProjectClientCard({ project }: { project: DeptProject }) {
           )}
 
           {adding && (
-            <div className="flex items-center gap-2 px-2 py-2 border border-dashed border-[#2A2A2A] rounded-xl mt-2">
-              <div className="w-4 h-4 rounded border border-[#2A2A2A] shrink-0" />
+            <div className="flex items-center gap-2 px-2 py-2 border border-dashed border-border rounded-xl mt-2">
+              <div className="w-4 h-4 rounded border border-border shrink-0" />
               <input ref={addRef} value={draft} onChange={e => setDraft(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') addTask(); if (e.key === 'Escape') { setAdding(false); setDraft('') } }}
                 placeholder="Descrivi cosa deve fare il cliente…"
-                className="flex-1 bg-transparent text-sm text-white focus:outline-none placeholder:text-[#2A2A2A]" />
-              <button onClick={addTask} disabled={saving || !draft.trim()} className="p-1 text-[#22C55E] disabled:opacity-40">
+                className="flex-1 bg-transparent text-sm text-text-primary focus:outline-none placeholder:text-text-tertiary" />
+              <button onClick={addTask} disabled={saving || !draft.trim()} className="p-1 text-success disabled:opacity-40">
                 {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
               </button>
-              <button onClick={() => { setAdding(false); setDraft('') }} className="p-1 text-[#444] hover:text-white">
+              <button onClick={() => { setAdding(false); setDraft('') }} className="p-1 text-text-tertiary hover:text-text-primary">
                 <X className="w-3 h-3" />
               </button>
             </div>
@@ -383,21 +383,21 @@ function AggregatedClientView({ projects }: { projects: DeptProject[] }) {
   if (allClientTasks.length === 0) return null
 
   return (
-    <div className="bg-[#0D0D0D] border border-[#1A1A1A] rounded-2xl p-4">
+    <div className="bg-background border border-border rounded-2xl p-4">
       <div className="flex items-center gap-2 mb-4">
-        <Users className="w-4 h-4 text-[#F5C800]" />
-        <span className="text-sm font-bold text-white">Vista aggregata clienti</span>
-        <span className="text-[10px] text-[#444] ml-auto">{completed.length}/{allClientTasks.length} completate</span>
+        <Users className="w-4 h-4 text-gold-text" />
+        <span className="text-sm font-bold text-text-primary">Vista aggregata clienti</span>
+        <span className="text-2xs text-text-tertiary ml-auto">{completed.length}/{allClientTasks.length} completate</span>
       </div>
 
       {pending.length > 0 && (
         <div className="mb-4">
-          <p className="text-[9px] font-bold text-red-400 uppercase tracking-wider mb-2">In attesa ({pending.length})</p>
+          <p className="text-2xs font-bold text-error uppercase tracking-wider mb-2">In attesa ({pending.length})</p>
           {pending.map(t => (
-            <div key={t.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[#0A0A0A]">
-              <div className="w-3 h-3 rounded border border-[#2A2A2A] shrink-0" />
-              <span className="flex-1 text-xs text-[#888] truncate">{t.title}</span>
-              <span className="text-[9px] text-[#444] shrink-0">{(t as any)._clientName ?? (t as any)._projectName}</span>
+            <div key={t.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-background">
+              <div className="w-3 h-3 rounded border border-border shrink-0" />
+              <span className="flex-1 text-xs text-text-secondary truncate">{t.title}</span>
+              <span className="text-2xs text-text-tertiary shrink-0">{(t as any)._clientName ?? (t as any)._projectName}</span>
             </div>
           ))}
         </div>
@@ -405,14 +405,14 @@ function AggregatedClientView({ projects }: { projects: DeptProject[] }) {
 
       {completed.length > 0 && (
         <div>
-          <p className="text-[9px] font-bold text-green-400 uppercase tracking-wider mb-2">Ricevute ({completed.length})</p>
+          <p className="text-2xs font-bold text-success uppercase tracking-wider mb-2">Ricevute ({completed.length})</p>
           {completed.map(t => (
             <div key={t.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg opacity-50">
-              <div className="w-3 h-3 rounded bg-[#22C55E] flex items-center justify-center shrink-0">
-                <Check className="w-2 h-2 text-black" />
+              <div className="w-3 h-3 rounded bg-success flex items-center justify-center shrink-0">
+                <Check className="w-2 h-2 text-on-gold" />
               </div>
-              <span className="flex-1 text-xs text-[#444] line-through truncate">{t.title}</span>
-              <span className="text-[9px] text-[#333] shrink-0">{(t as any)._clientName ?? (t as any)._projectName}</span>
+              <span className="flex-1 text-xs text-text-tertiary line-through truncate">{t.title}</span>
+              <span className="text-2xs text-text-tertiary shrink-0">{(t as any)._clientName ?? (t as any)._projectName}</span>
             </div>
           ))}
         </div>
@@ -433,8 +433,8 @@ export function TaskClienteSection({ projects }: { projects: DeptProject[] }) {
       </div>
       {activeProjects.length === 0 && (
         <div className="flex flex-col items-center py-16 gap-3 text-center">
-          <Users className="w-8 h-8 text-[#1A1A1A]" />
-          <p className="text-[#444] text-sm">Nessun progetto attivo</p>
+          <Users className="w-8 h-8 text-text-tertiary" />
+          <p className="text-text-tertiary text-sm">Nessun progetto attivo</p>
         </div>
       )}
     </div>

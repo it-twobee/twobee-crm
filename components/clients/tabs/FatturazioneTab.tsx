@@ -16,10 +16,10 @@ const MONTHS = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', '
 
 const statusConfig: Record<InvoiceStatus, { label: string; cls: string; icon: React.ReactNode }> = {
   da_inviare: { label: 'Da inviare', cls: 'bg-surface-active text-text-secondary', icon: <Clock className="w-3 h-3" /> },
-  inviata: { label: 'Inviata', cls: 'bg-blue-500/20 text-blue-400', icon: <Send className="w-3 h-3" /> },
+  inviata: { label: 'Inviata', cls: 'bg-info/20 text-info', icon: <Send className="w-3 h-3" /> },
   pagata: { label: 'Pagata', cls: 'bg-success/20 text-success', icon: <Check className="w-3 h-3" /> },
   in_ritardo: { label: 'In ritardo', cls: 'bg-error/20 text-error', icon: <AlertTriangle className="w-3 h-3" /> },
-  accettata: { label: 'Accettata', cls: 'bg-purple-500/20 text-purple-400', icon: <FileCheck className="w-3 h-3" /> },
+  accettata: { label: 'Accettata', cls: 'bg-accent/20 text-accent', icon: <FileCheck className="w-3 h-3" /> },
 }
 
 type Tab = 'da_inviare' | 'inviate' | 'da_saldare' | 'note_credito'
@@ -99,7 +99,7 @@ export function FatturazioneTab({ client, invoices: initialInvoices }: Props) {
       <div className="grid grid-cols-4 gap-4">
         <div className="bg-surface border border-border rounded-card p-4">
           <p className="text-xs text-text-secondary mb-1">Fatturato (pagato)</p>
-          <p className="text-xl font-black text-gold">{formatCurrency(totalPagato)}</p>
+          <p className="text-xl font-black text-gold-text">{formatCurrency(totalPagato)}</p>
         </div>
         <div className="bg-surface border border-border rounded-card p-4">
           <p className="text-xs text-text-secondary mb-1">Da Riscuotere</p>
@@ -111,22 +111,22 @@ export function FatturazioneTab({ client, invoices: initialInvoices }: Props) {
         </div>
         <div className="bg-surface border border-border rounded-card p-4">
           <p className="text-xs text-text-secondary mb-1">Note di Credito</p>
-          <p className="text-xl font-black text-purple-400">-{formatCurrency(totalNoteCredito)}</p>
+          <p className="text-xl font-black text-accent">-{formatCurrency(totalNoteCredito)}</p>
         </div>
       </div>
 
       {/* Aruba banner */}
       <div className="flex items-center justify-between bg-surface border border-border rounded-xl px-4 py-3">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center">
-            <FileText className="w-4 h-4 text-orange-400" />
+          <div className="w-8 h-8 rounded-lg bg-orange/10 border border-orange/20 flex items-center justify-center">
+            <FileText className="w-4 h-4 text-orange" />
           </div>
           <div>
             <p className="text-sm font-semibold text-text-primary">Fatturazione Elettronica Aruba</p>
             <p className="text-xs text-text-secondary">Collegamento non configurato — aggiungi P.IVA e dati fiscali nell'anagrafica</p>
           </div>
         </div>
-        <button className="flex items-center gap-1.5 text-xs text-text-secondary border border-border px-3 py-1.5 rounded-lg hover:border-orange-400/40 hover:text-orange-400 transition-colors">
+        <button className="flex items-center gap-1.5 text-xs text-text-secondary border border-border px-3 py-1.5 rounded-lg hover:border-orange/40 hover:text-orange transition-colors">
           <ExternalLink className="w-3.5 h-3.5" /> Configura
         </button>
       </div>
@@ -138,11 +138,11 @@ export function FatturazioneTab({ client, invoices: initialInvoices }: Props) {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors relative ${activeTab === tab.key ? 'bg-gold text-black' : 'text-text-secondary hover:text-text-primary'}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors relative ${activeTab === tab.key ? 'bg-gold text-on-gold' : 'text-text-secondary hover:text-text-primary'}`}
             >
               {tab.icon}{tab.label}
               {badgeCount(tab.key) > 0 && (
-                <span className={`ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === tab.key ? 'bg-black/20 text-black' : 'bg-surface-active text-text-secondary'}`}>
+                <span className={`ml-1 text-2xs font-bold px-1.5 py-0.5 rounded-full ${activeTab === tab.key ? 'bg-overlay/10 text-text-primary' : 'bg-surface-active text-text-secondary'}`}>
                   {badgeCount(tab.key)}
                 </span>
               )}
@@ -150,10 +150,10 @@ export function FatturazioneTab({ client, invoices: initialInvoices }: Props) {
           ))}
         </div>
         <div className="flex gap-2">
-          <button onClick={() => openNew('nota_credito')} className="flex items-center gap-1.5 px-3 py-2 text-xs border border-border text-text-secondary rounded-lg hover:border-purple-400/40 hover:text-purple-400 transition-colors">
+          <button onClick={() => openNew('nota_credito')} className="flex items-center gap-1.5 px-3 py-2 text-xs border border-border text-text-secondary rounded-lg hover:border-accent/40 hover:text-accent transition-colors">
             <CreditCard className="w-3.5 h-3.5" /> Nota di Credito
           </button>
-          <button onClick={() => openNew('fattura')} className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-gold text-black rounded-lg hover:bg-yellow-400 transition-colors">
+          <button onClick={() => openNew('fattura')} className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-gold text-on-gold rounded-lg hover:bg-gold/90 transition-colors">
             <Plus className="w-4 h-4" /> Nuova Fattura
           </button>
         </div>
@@ -186,7 +186,7 @@ export function FatturazioneTab({ client, invoices: initialInvoices }: Props) {
                   <tr key={inv.id} className={`hover:bg-overlay/3 transition-colors ${!isLast ? 'border-b border-border' : ''}`}>
                     <td className="px-4 py-3 text-sm font-semibold text-text-primary">{formatMonth(inv.month)}</td>
                     <td className="px-4 py-3 text-sm text-text-secondary">{inv.invoice_number ?? '—'}</td>
-                    <td className="px-4 py-3 text-sm font-bold text-gold">{formatCurrency(inv.amount)}</td>
+                    <td className="px-4 py-3 text-sm font-bold text-gold-text">{formatCurrency(inv.amount)}</td>
                     <td className={`px-4 py-3 text-xs ${overdue ? 'text-error font-semibold' : 'text-text-secondary'}`}>
                       {inv.due_date ? new Date(inv.due_date).toLocaleDateString('it-IT') : '—'}
                       {overdue && ' ⚠'}
@@ -205,7 +205,7 @@ export function FatturazioneTab({ client, invoices: initialInvoices }: Props) {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         {inv.status === 'da_inviare' && inv.invoice_type === 'fattura' && (
-                          <button onClick={() => markAs(inv.id, 'inviata')} className="text-xs text-blue-400 hover:underline flex items-center gap-1">
+                          <button onClick={() => markAs(inv.id, 'inviata')} className="text-xs text-info hover:underline flex items-center gap-1">
                             <Send className="w-3 h-3" /> Invia
                           </button>
                         )}
@@ -220,11 +220,11 @@ export function FatturazioneTab({ client, invoices: initialInvoices }: Props) {
                           </button>
                         )}
                         {inv.invoice_type === 'nota_credito' && inv.status === 'da_inviare' && (
-                          <button onClick={() => markAs(inv.id, 'accettata')} className="text-xs text-purple-400 hover:underline flex items-center gap-1">
+                          <button onClick={() => markAs(inv.id, 'accettata')} className="text-xs text-accent hover:underline flex items-center gap-1">
                             <FileCheck className="w-3 h-3" /> Accettata
                           </button>
                         )}
-                        <button onClick={() => openEdit(inv)} className="text-text-secondary hover:text-gold transition-colors">
+                        <button onClick={() => openEdit(inv)} className="text-text-secondary hover:text-gold-text transition-colors">
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
                         <button onClick={() => deleteInvoice(inv.id)} className="text-text-secondary hover:text-error transition-colors">
@@ -307,11 +307,11 @@ function InvoiceModal({ client, invoice, type, onClose, onSaved }: {
   const title = isEdit ? 'Modifica ' + (type === 'nota_credito' ? 'Nota di Credito' : 'Fattura') : 'Nuova ' + (type === 'nota_credito' ? 'Nota di Credito' : 'Fattura')
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-surface border border-border rounded-card w-full max-w-lg">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-lg font-bold flex items-center gap-2">
-            {type === 'nota_credito' ? <CreditCard className="w-5 h-5 text-purple-400" /> : <FileText className="w-5 h-5 text-gold" />}
+            {type === 'nota_credito' ? <CreditCard className="w-5 h-5 text-accent" /> : <FileText className="w-5 h-5 text-gold-text" />}
             {title}
           </h2>
           <button onClick={onClose} className="text-text-secondary hover:text-text-primary"><X className="w-5 h-5" /></button>
@@ -373,7 +373,7 @@ function InvoiceModal({ client, invoice, type, onClose, onSaved }: {
           </div>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary transition-colors">Annulla</button>
-            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg hover:bg-yellow-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg hover:bg-gold/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}{isEdit ? 'Salva modifiche' : 'Registra'}
             </button>
           </div>

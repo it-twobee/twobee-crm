@@ -18,7 +18,7 @@ interface MeetingExtract {
 export function printMeeting(m: MeetingNote, extract: MeetingExtract | null) {
   const win = window.open('', '_blank')
   if (!win) return
-  const mc = extract?.mood === 'positivo' ? '#22C55E' : extract?.mood === 'critico' ? '#EF4444' : '#888'
+  const mc = extract?.mood === 'positivo' ? 'var(--color-success)' : extract?.mood === 'critico' ? 'var(--color-error)' : '#888'
   const dateStr = new Date(m.date).toLocaleDateString('it-IT', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
   let topicsHtml = ''
   if (extract?.key_topics?.length) {
@@ -180,33 +180,33 @@ export function MeetingRecapsSection({ meetings: initial, project, client, curre
   }
 
   const moodStyle: Record<string, string> = {
-    positivo: 'bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20',
-    neutro:   'bg-[#888]/10 text-[#888] border-[#888]/20',
-    critico:  'bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20',
+    positivo: 'bg-success/10 text-success border-success/20',
+    neutro:   'bg-text-tertiary/10 text-text-secondary border-border-strong/20',
+    critico:  'bg-error/10 text-error border-error/20',
   }
   const moodEmoji: Record<string, string> = { positivo: '✅', neutro: '⚪', critico: '🔴' }
 
-  const inp = 'w-full bg-[#111] border border-[#2A2A2A] rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C800] placeholder:text-[#333]'
+  const inp = 'w-full bg-background border border-border rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold placeholder:text-text-tertiary'
 
   return (
     <>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-[#444]">{items.length} riunioni registrate</p>
+        <p className="text-xs text-text-tertiary">{items.length} riunioni registrate</p>
         {isAdmin && (
           <button onClick={openNew}
             className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
-            style={{ background: `${accent}15`, color: accent, border: `1px solid ${accent}30` }}>
+            style={{ background: `color-mix(in srgb, ${accent} 8%, transparent)`, color: accent, border: `1px solid color-mix(in srgb, ${accent} 19%, transparent)` }}>
             <Plus className="w-3 h-3" /> Nuovo recap
           </button>
         )}
       </div>
 
       {sorted.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 py-14 text-center border border-dashed border-[#1A1A1A] rounded-2xl">
-          <BookOpen className="w-8 h-8 text-[#1A1A1A]" />
+        <div className="flex flex-col items-center gap-3 py-14 text-center border border-dashed border-border rounded-2xl">
+          <BookOpen className="w-8 h-8 text-text-tertiary" />
           <div>
-            <p className="text-sm font-semibold text-[#333]">Nessun recap ancora</p>
-            <p className="text-xs text-[#222] mt-0.5 max-w-xs mx-auto">
+            <p className="text-sm font-semibold text-text-tertiary">Nessun recap ancora</p>
+            <p className="text-xs text-text-tertiary mt-0.5 max-w-xs mx-auto">
               Carica una trascrizione (TXT, Word, PDF) oppure scrivi un recap manuale.
             </p>
           </div>
@@ -219,33 +219,33 @@ export function MeetingRecapsSection({ meetings: initial, project, client, curre
             const ext = extracts[m.id]
             const mood = ext?.mood
             return (
-              <div key={m.id} className="group border border-[#1A1A1A] rounded-2xl overflow-hidden hover:border-[#222] transition-all">
-                <div className="flex items-center gap-3 px-4 py-3 cursor-pointer bg-[#090909]"
+              <div key={m.id} className="group border border-border rounded-2xl overflow-hidden hover:border-border transition-all">
+                <div className="flex items-center gap-3 px-4 py-3 cursor-pointer bg-background"
                   onClick={() => toggleCollapse(m.id)}>
                   <div className="shrink-0 w-9 text-center">
                     <p className="text-[8px] font-bold uppercase tracking-wider" style={{ color: accent }}>
                       {new Date(m.date).toLocaleDateString('it-IT', { month: 'short' }).toUpperCase()}
                     </p>
-                    <p className="text-lg font-black text-white leading-tight">
+                    <p className="text-lg font-black text-text-primary leading-tight">
                       {new Date(m.date).toLocaleDateString('it-IT', { day: '2-digit' })}
                     </p>
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-bold text-white leading-tight">{m.title}</p>
+                      <p className="text-sm font-bold text-text-primary leading-tight">{m.title}</p>
                       {mood && (
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${moodStyle[mood]}`}>
+                        <span className={`text-2xs font-bold px-1.5 py-0.5 rounded-full border ${moodStyle[mood]}`}>
                           {moodEmoji[mood]} {mood}
                         </span>
                       )}
                     </div>
-                    {isCollapsed && <p className="text-[10px] text-[#333] mt-0.5 truncate">{m.summary}</p>}
+                    {isCollapsed && <p className="text-2xs text-text-tertiary mt-0.5 truncate">{m.summary}</p>}
                     {ext?.key_topics?.length && !isCollapsed && (
                       <div className="flex flex-wrap gap-1 mt-1">
                         {ext.key_topics.slice(0, 4).map((t, i) => (
-                          <span key={i} className="text-[9px] px-1.5 py-0.5 rounded-md"
-                            style={{ background: `${accent}10`, color: `${accent}99` }}>{t}</span>
+                          <span key={i} className="text-2xs px-1.5 py-0.5 rounded-md"
+                            style={{ background: `color-mix(in srgb, ${accent} 6%, transparent)`, color: `color-mix(in srgb, ${accent} 60%, transparent)` }}>{t}</span>
                         ))}
                       </div>
                     )}
@@ -255,40 +255,40 @@ export function MeetingRecapsSection({ meetings: initial, project, client, curre
                     {isAdmin && (
                       <div className="hidden group-hover:flex gap-0.5">
                         <button onClick={e => { e.stopPropagation(); openEdit(m) }}
-                          className="p-1.5 rounded-lg text-[#333] hover:text-white hover:bg-white/5 transition-all">
+                          className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-surface transition-all">
                           <Edit2 className="w-3 h-3" />
                         </button>
                         <button onClick={e => { e.stopPropagation(); printMeeting(m, ext ?? null) }}
-                          className="p-1.5 rounded-lg text-[#333] hover:text-white hover:bg-white/5 transition-all">
+                          className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-surface transition-all">
                           <Printer className="w-3 h-3" />
                         </button>
                         <button onClick={e => { e.stopPropagation(); remove(m.id) }}
-                          className="p-1.5 rounded-lg text-[#333] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all">
+                          className="p-1.5 rounded-lg text-text-tertiary hover:text-error hover:bg-error/10 transition-all">
                           <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
                     )}
                     {isCollapsed
-                      ? <ChevronDown className="w-3.5 h-3.5 text-[#2A2A2A]" />
-                      : <ChevronUp className="w-3.5 h-3.5 text-[#333]" />}
+                      ? <ChevronDown className="w-3.5 h-3.5 text-text-tertiary" />
+                      : <ChevronUp className="w-3.5 h-3.5 text-text-tertiary" />}
                   </div>
                 </div>
 
                 {!isCollapsed && (
-                  <div className="px-4 pb-4 pt-1 border-t border-[#0E0E0E] bg-[#060606] space-y-4">
+                  <div className="px-4 pb-4 pt-1 border-t border-border bg-background space-y-4">
                     <div className="pt-3">
-                      <p className="text-[9px] uppercase tracking-widest font-bold text-[#2A2A2A] mb-2">Sintesi</p>
-                      <p className="text-sm text-[#aaa] leading-relaxed">{m.summary}</p>
+                      <p className="text-2xs uppercase tracking-widest font-bold text-text-tertiary mb-2">Sintesi</p>
+                      <p className="text-sm text-text-secondary leading-relaxed">{m.summary}</p>
                     </div>
 
                     {(ext?.participants?.length || ext?.key_topics?.length) && (
                       <div className="flex flex-wrap gap-4">
                         {ext?.participants?.length && (
                           <div>
-                            <p className="text-[9px] uppercase tracking-widest font-bold text-[#2A2A2A] mb-1.5">Partecipanti</p>
+                            <p className="text-2xs uppercase tracking-widest font-bold text-text-tertiary mb-1.5">Partecipanti</p>
                             <div className="flex flex-wrap gap-1">
                               {ext.participants.map((p, i) => (
-                                <span key={i} className="flex items-center gap-1 text-[10px] text-[#555] bg-[#111] border border-[#1A1A1A] px-2 py-0.5 rounded-full">
+                                <span key={i} className="flex items-center gap-1 text-2xs text-text-tertiary bg-background border border-border px-2 py-0.5 rounded-full">
                                   <Users className="w-2.5 h-2.5" /> {p}
                                 </span>
                               ))}
@@ -300,11 +300,11 @@ export function MeetingRecapsSection({ meetings: initial, project, client, curre
 
                     {m.decisions && (
                       <div>
-                        <p className="text-[9px] uppercase tracking-widest font-bold text-[#2A2A2A] mb-2">Decisioni prese</p>
+                        <p className="text-2xs uppercase tracking-widest font-bold text-text-tertiary mb-2">Decisioni prese</p>
                         <ul className="space-y-1">
                           {m.decisions.split('\n').filter(Boolean).map((d, i) => (
-                            <li key={i} className="flex items-start gap-2 text-sm text-[#888]">
-                              <Check className="w-3 h-3 mt-0.5 shrink-0 text-[#22C55E]" />
+                            <li key={i} className="flex items-start gap-2 text-sm text-text-secondary">
+                              <Check className="w-3 h-3 mt-0.5 shrink-0 text-success" />
                               {d}
                             </li>
                           ))}
@@ -314,17 +314,17 @@ export function MeetingRecapsSection({ meetings: initial, project, client, curre
 
                     {ext?.actions?.length && !m.next_actions && (
                       <div>
-                        <p className="text-[9px] uppercase tracking-widest font-bold text-[#2A2A2A] mb-2">Prossime azioni</p>
+                        <p className="text-2xs uppercase tracking-widest font-bold text-text-tertiary mb-2">Prossime azioni</p>
                         <div className="space-y-1.5">
                           {ext.actions.map((a, i) => (
-                            <div key={i} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-[#0C0C0C] border border-[#111]">
+                            <div key={i} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-background border border-border">
                               <div className="w-4 h-4 rounded-md flex items-center justify-center shrink-0 mt-0.5"
-                                style={{ background: `${accent}15` }}>
+                                style={{ background: `color-mix(in srgb, ${accent} 8%, transparent)` }}>
                                 <span className="text-[8px] font-black" style={{ color: accent }}>{i + 1}</span>
                               </div>
                               <div>
-                                <p className="text-sm text-white font-medium">{a.what}</p>
-                                <p className="text-[10px] text-[#444] mt-0.5">
+                                <p className="text-sm text-text-primary font-medium">{a.what}</p>
+                                <p className="text-2xs text-text-tertiary mt-0.5">
                                   {a.who && `👤 ${a.who}`}{a.who && a.by && ' · '}{a.by && `📅 ${a.by}`}
                                 </p>
                               </div>
@@ -336,12 +336,12 @@ export function MeetingRecapsSection({ meetings: initial, project, client, curre
 
                     {m.next_actions && (
                       <div>
-                        <p className="text-[9px] uppercase tracking-widest font-bold text-[#2A2A2A] mb-2">Prossime azioni</p>
+                        <p className="text-2xs uppercase tracking-widest font-bold text-text-tertiary mb-2">Prossime azioni</p>
                         <ul className="space-y-1">
                           {m.next_actions.split('\n').filter(Boolean).map((a, i) => (
-                            <li key={i} className="flex items-start gap-2 text-sm text-[#888]">
+                            <li key={i} className="flex items-start gap-2 text-sm text-text-secondary">
                               <span className="w-4 h-4 rounded-md flex items-center justify-center shrink-0 mt-0.5 text-[8px] font-black"
-                                style={{ background: `${accent}15`, color: accent }}>{i + 1}</span>
+                                style={{ background: `color-mix(in srgb, ${accent} 8%, transparent)`, color: accent }}>{i + 1}</span>
                               {a}
                             </li>
                           ))}
@@ -349,14 +349,14 @@ export function MeetingRecapsSection({ meetings: initial, project, client, curre
                       </div>
                     )}
 
-                    <div className="flex items-center gap-2 pt-2 border-t border-[#0E0E0E]">
+                    <div className="flex items-center gap-2 pt-2 border-t border-border">
                       <button onClick={() => printMeeting(m, ext ?? null)}
-                        className="flex items-center gap-1.5 text-xs text-[#333] hover:text-white px-3 py-1.5 border border-[#1A1A1A] hover:border-[#2A2A2A] rounded-lg transition-all">
+                        className="flex items-center gap-1.5 text-xs text-text-tertiary hover:text-text-primary px-3 py-1.5 border border-border hover:border-border rounded-lg transition-all">
                         <Printer className="w-3 h-3" /> Stampa PDF
                       </button>
                       {isAdmin && (
                         <button onClick={() => openEdit(m)}
-                          className="flex items-center gap-1.5 text-xs text-[#333] hover:text-white px-3 py-1.5 border border-[#1A1A1A] hover:border-[#2A2A2A] rounded-lg transition-all">
+                          className="flex items-center gap-1.5 text-xs text-text-tertiary hover:text-text-primary px-3 py-1.5 border border-border hover:border-border rounded-lg transition-all">
                           <Edit2 className="w-3 h-3" /> Modifica
                         </button>
                       )}
@@ -370,25 +370,25 @@ export function MeetingRecapsSection({ meetings: initial, project, client, curre
       )}
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setForm(false)}>
-          <div className="bg-[#0C0C0C] border border-[#2A2A2A] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg shadow-2xl flex flex-col max-h-[92vh]"
+        <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setForm(false)}>
+          <div className="bg-background border border-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg shadow-2xl flex flex-col max-h-[92vh]"
             onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#1A1A1A] shrink-0">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
               <div>
-                <h3 className="text-sm font-bold text-white">{editId ? 'Modifica recap' : 'Nuovo recap riunione'}</h3>
-                <p className="text-[10px] text-[#444] mt-0.5">
+                <h3 className="text-sm font-bold text-text-primary">{editId ? 'Modifica recap' : 'Nuovo recap riunione'}</h3>
+                <p className="text-2xs text-text-tertiary mt-0.5">
                   {editId ? 'Aggiorna i dati del recap' : 'Carica trascrizione AI o scrivi manualmente'}
                 </p>
               </div>
-              <button onClick={() => setForm(false)} className="p-1.5 text-[#444] hover:text-white"><X className="w-4 h-4" /></button>
+              <button onClick={() => setForm(false)} className="p-1.5 text-text-tertiary hover:text-text-primary"><X className="w-4 h-4" /></button>
             </div>
 
             {!editId && (
               <div className="flex gap-1 px-5 pt-4 shrink-0">
                 {(['manual', 'file'] as const).map(t => (
                   <button key={t} onClick={() => setTab2(t)}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${tab === t ? 'text-white' : 'text-[#444] hover:text-[#777]'}`}
-                    style={tab === t ? { background: `${accent}15`, border: `1px solid ${accent}30`, color: accent } : { border: '1px solid transparent' }}>
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${tab === t ? 'text-text-primary' : 'text-text-tertiary hover:text-text-tertiary'}`}
+                    style={tab === t ? { background: `color-mix(in srgb, ${accent} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${accent} 19%, transparent)`, color: accent } : { border: '1px solid transparent' }}>
                     {t === 'file' ? <><Upload className="w-3 h-3" /> Carica file</> : <><Edit2 className="w-3 h-3" /> Scrivi manualmente</>}
                   </button>
                 ))}
@@ -399,20 +399,20 @@ export function MeetingRecapsSection({ meetings: initial, project, client, curre
               {tab === 'file' && !editId && (
                 <div className="space-y-3">
                   <div
-                    className="border-2 border-dashed border-[#2A2A2A] rounded-xl p-6 text-center hover:border-[#444] transition-colors cursor-pointer"
+                    className="border-2 border-dashed border-border rounded-xl p-6 text-center hover:border-border-strong transition-colors cursor-pointer"
                     onClick={() => fileRef.current?.click()}>
-                    <Upload className="w-6 h-6 text-[#333] mx-auto mb-2" />
-                    <p className="text-sm font-semibold text-[#555]">Carica trascrizione</p>
-                    <p className="text-[10px] text-[#333] mt-1">TXT, Word (.docx) o PDF — da Plaud, Gemini, Otter, Fireflies…</p>
-                    {fileLoading && <p className="text-[10px] mt-2 font-bold" style={{ color: accent }}><Loader2 className="w-3 h-3 animate-spin inline mr-1" />Analisi file in corso…</p>}
-                    {uploadText && !fileLoading && <p className="text-[10px] mt-2 font-bold" style={{ color: accent }}>✓ File caricato ({uploadText.length.toLocaleString()} caratteri)</p>}
+                    <Upload className="w-6 h-6 text-text-tertiary mx-auto mb-2" />
+                    <p className="text-sm font-semibold text-text-tertiary">Carica trascrizione</p>
+                    <p className="text-2xs text-text-tertiary mt-1">TXT, Word (.docx) o PDF — da Plaud, Gemini, Otter, Fireflies…</p>
+                    {fileLoading && <p className="text-2xs mt-2 font-bold" style={{ color: accent }}><Loader2 className="w-3 h-3 animate-spin inline mr-1" />Analisi file in corso…</p>}
+                    {uploadText && !fileLoading && <p className="text-2xs mt-2 font-bold" style={{ color: accent }}>✓ File caricato ({uploadText.length.toLocaleString()} caratteri)</p>}
                     <input ref={fileRef} type="file" accept=".txt,.md,.text,.doc,.docx,.pdf" className="hidden" onChange={handleFile} />
                   </div>
 
                   {uploadText && (
                     <button onClick={extractFromFile} disabled={aiLoading === 'form'}
                       className="w-full py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
-                      style={{ background: `${accent}15`, color: accent, border: `1px solid ${accent}30` }}>
+                      style={{ background: `color-mix(in srgb, ${accent} 8%, transparent)`, color: accent, border: `1px solid color-mix(in srgb, ${accent} 19%, transparent)` }}>
                       {aiLoading === 'form'
                         ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> AI sta analizzando…</>
                         : <><Sparkles className="w-3.5 h-3.5" /> Estrai punti salienti con AI</>}
@@ -423,35 +423,35 @@ export function MeetingRecapsSection({ meetings: initial, project, client, curre
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2 sm:col-span-1">
-                  <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Titolo *</label>
+                  <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Titolo *</label>
                   <input value={form.title} onChange={e => setForm2(p => ({ ...p, title: e.target.value }))} className={inp} placeholder="Es. Sprint review Q2" />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Data *</label>
+                  <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Data *</label>
                   <input type="date" value={form.date} onChange={e => setForm2(p => ({ ...p, date: e.target.value }))} className={inp} />
                 </div>
               </div>
               <div>
-                <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Sintesi *</label>
+                <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Sintesi *</label>
                 <textarea value={form.summary} onChange={e => setForm2(p => ({ ...p, summary: e.target.value }))} rows={3}
                   className={`${inp} resize-none`} placeholder="Cosa è stato discusso, obiettivi della riunione, contesto…" />
               </div>
               <div>
-                <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Decisioni prese</label>
+                <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Decisioni prese</label>
                 <textarea value={form.decisions} onChange={e => setForm2(p => ({ ...p, decisions: e.target.value }))} rows={3}
                   className={`${inp} resize-none`} placeholder="Una decisione per riga…" />
               </div>
               <div>
-                <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Prossime azioni</label>
+                <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Prossime azioni</label>
                 <textarea value={form.next_actions} onChange={e => setForm2(p => ({ ...p, next_actions: e.target.value }))} rows={3}
                   className={`${inp} resize-none`} placeholder="Una azione per riga — chi fa cosa entro quando…" />
               </div>
             </div>
 
-            <div className="flex gap-3 px-5 pb-5 shrink-0 border-t border-[#111] pt-4">
-              <button onClick={() => setForm(false)} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-xl text-sm text-[#555] hover:text-white">Annulla</button>
+            <div className="flex gap-3 px-5 pb-5 shrink-0 border-t border-border pt-4">
+              <button onClick={() => setForm(false)} className="flex-1 py-2.5 border border-border rounded-xl text-sm text-text-tertiary hover:text-text-primary">Annulla</button>
               <button onClick={save} disabled={saving || !form.title.trim() || !form.summary.trim()}
-                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-black disabled:opacity-40 flex items-center justify-center gap-2"
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-on-gold disabled:opacity-40 flex items-center justify-center gap-2"
                 style={{ background: accent }}>
                 {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Salva recap
               </button>

@@ -11,7 +11,7 @@ interface TaskWithMeta extends Task {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  da_fare: 'bg-[#3A3A3A]',
+  da_fare: 'bg-surface-active',
   in_corso: 'bg-warning',
   in_revisione: 'bg-gold',
   completato: 'bg-success',
@@ -90,18 +90,18 @@ export function GanttView({ tasks }: { tasks: TaskWithMeta[] }) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-card border border-[#2A2A2A]">
+    <div className="overflow-x-auto rounded-card border border-border">
       <div style={{ minWidth: totalDays * DAY_WIDTH + 220 }}>
         {/* Header mesi */}
-        <div className="flex border-b border-[#2A2A2A] bg-surface sticky top-0 z-10">
-          <div className="w-[220px] shrink-0 px-4 py-2.5 border-r border-[#2A2A2A]">
+        <div className="flex border-b border-border bg-surface sticky top-0 z-10">
+          <div className="w-[220px] shrink-0 px-4 py-2.5 border-r border-border">
             <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">Task</span>
           </div>
           <div className="relative flex" style={{ width: totalDays * DAY_WIDTH }}>
             {months.map((m) => (
               <div
                 key={m.label}
-                className="border-r border-[#2A2A2A] py-2.5 px-2 text-xs font-semibold text-text-secondary shrink-0"
+                className="border-r border-border py-2.5 px-2 text-xs font-semibold text-text-secondary shrink-0"
                 style={{ width: m.days * DAY_WIDTH }}
               >
                 {m.label.toUpperCase()}
@@ -131,16 +131,16 @@ export function GanttView({ tasks }: { tasks: TaskWithMeta[] }) {
           const isMilestone = task.is_milestone
 
           return (
-            <div key={task.id} className="flex border-b border-[#2A2A2A] hover:bg-white/[0.02] group">
+            <div key={task.id} className="flex border-b border-border hover:bg-surface-hover group">
               {/* Task info */}
-              <div className={`w-[220px] shrink-0 flex items-center gap-2 px-3 py-2 border-r border-[#2A2A2A] border-l-2 ${PRIORITY_COLOR[task.priority]}`}>
-                {isMilestone && <Flag className="w-3 h-3 text-gold shrink-0" />}
+              <div className={`w-[220px] shrink-0 flex items-center gap-2 px-3 py-2 border-r border-border border-l-2 ${PRIORITY_COLOR[task.priority]}`}>
+                {isMilestone && <Flag className="w-3 h-3 text-gold-text shrink-0" />}
                 <div className="min-w-0">
-                  <p className="text-xs font-medium text-white truncate">{task.title}</p>
+                  <p className="text-xs font-medium text-text-primary truncate">{task.title}</p>
                   <p className="text-xs text-text-secondary truncate">{task.project?.clients?.company_name ?? task.project?.name ?? ''}</p>
                 </div>
                 {task.assignee && (
-                  <div className="w-5 h-5 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold text-[9px] font-bold shrink-0 ml-auto">
+                  <div className="w-5 h-5 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold-text text-2xs font-bold shrink-0 ml-auto">
                     {getInitials(task.assignee.full_name)}
                   </div>
                 )}
@@ -171,7 +171,7 @@ export function GanttView({ tasks }: { tasks: TaskWithMeta[] }) {
                     title={`${task.title} — scadenza: ${new Date(task.due_date!).toLocaleDateString('it-IT')}`}
                   >
                     {barWidth > 60 && (
-                      <span className="text-[10px] font-semibold text-white truncate">{task.title}</span>
+                      <span className="text-2xs font-semibold text-text-primary truncate">{task.title}</span>
                     )}
                   </div>
                 )}

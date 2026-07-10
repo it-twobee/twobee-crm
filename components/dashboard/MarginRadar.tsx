@@ -38,12 +38,12 @@ export function MarginRadar({ clients }: { clients: Client[] }) {
       {/* KPIs */}
       <div className="grid grid-cols-3 gap-2 shrink-0">
         {[
-          { label: 'MRR Totale',   value: formatCurrency(totalMrr),    color: '#F5C800' },
-          { label: 'Margine est.', value: formatCurrency(totalMargin),  color: '#22C55E' },
-          { label: '% media',      value: `${avgMarginPct}%`,           color: '#3B82F6' },
+          { label: 'MRR Totale',   value: formatCurrency(totalMrr),    color: 'var(--color-gold-text)' },
+          { label: 'Margine est.', value: formatCurrency(totalMargin),  color: 'var(--color-success)' },
+          { label: '% media',      value: `${avgMarginPct}%`,           color: 'var(--color-info)' },
         ].map(k => (
           <div key={k.label} className="rounded-lg p-2.5" style={{ background: '#111', border: '1px solid #1A1A1A' }}>
-            <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: '#333' }}>{k.label}</p>
+            <p className="text-2xs font-bold uppercase tracking-widest mb-1" style={{ color: '#333' }}>{k.label}</p>
             <p className="text-sm font-black leading-none" style={{ color: k.color }}>{k.value}</p>
           </div>
         ))}
@@ -52,13 +52,13 @@ export function MarginRadar({ clients }: { clients: Client[] }) {
       {/* Mix per tipo */}
       <div className="grid grid-cols-3 gap-2 shrink-0">
         {[
-          { label: 'Growth', value: formatCurrency(growthMrr), color: '#F5C800' },
-          { label: 'Digital', value: formatCurrency(digitalMrr), color: '#3B82F6' },
-          { label: 'G+D', value: formatCurrency(bothMrr), color: '#A855F7' },
+          { label: 'Growth', value: formatCurrency(growthMrr), color: 'var(--color-gold-text)' },
+          { label: 'Digital', value: formatCurrency(digitalMrr), color: 'var(--color-info)' },
+          { label: 'G+D', value: formatCurrency(bothMrr), color: 'var(--color-accent)' },
         ].map(k => (
-          <div key={k.label} className="rounded-lg px-2 py-1.5 text-center" style={{ background: '#0D0D0D', border: '1px solid #141414' }}>
+          <div key={k.label} className="rounded-lg px-2 py-1.5 text-center" style={{ background: 'var(--color-background)', border: '1px solid #141414' }}>
             <p className="text-[8px] font-bold uppercase" style={{ color: '#333' }}>{k.label}</p>
-            <p className="text-[10px] font-bold" style={{ color: k.color }}>{k.value}</p>
+            <p className="text-2xs font-bold" style={{ color: k.color }}>{k.value}</p>
           </div>
         ))}
       </div>
@@ -69,29 +69,29 @@ export function MarginRadar({ clients }: { clients: Client[] }) {
           const pct        = MARGIN_BY_PACKAGE[c.package] ?? 60
           const mrr        = c.mrr ?? 0
           const barW       = maxMrr > 0 ? (mrr / maxMrr) * 100 : 0
-          const typeColor  = c.client_type === 'growth' ? '#F5C800'
-            : c.client_type === 'digital' ? '#3B82F6' : '#A855F7'
+          const typeColor  = c.client_type === 'growth' ? 'var(--color-gold-text)'
+            : c.client_type === 'digital' ? 'var(--color-info)' : 'var(--color-accent)'
           return (
             <div key={c.id} className="flex items-center gap-2">
-              <p className="w-[90px] text-[10px] font-semibold truncate shrink-0" style={{ color: '#666' }}>
+              <p className="w-[90px] text-2xs font-semibold truncate shrink-0" style={{ color: '#666' }}>
                 {c.company_name}
               </p>
-              <div className="flex-1 relative h-5 rounded-sm overflow-hidden" style={{ background: '#0D0D0D' }}>
+              <div className="flex-1 relative h-5 rounded-sm overflow-hidden" style={{ background: 'var(--color-background)' }}>
                 {/* full MRR bar */}
-                <div className="absolute inset-y-0 left-0" style={{ width: `${barW}%`, background: typeColor + '18', borderRight: `2px solid ${typeColor}55` }} />
+                <div className="absolute inset-y-0 left-0" style={{ width: `${barW}%`, background: `color-mix(in srgb, ${typeColor} 9%, transparent)`, borderRight: `2px solid color-mix(in srgb, ${typeColor} 33%, transparent)` }} />
                 {/* margin overlay */}
-                <div className="absolute inset-y-0 left-0" style={{ width: `${barW * pct / 100}%`, background: typeColor + '35' }} />
+                <div className="absolute inset-y-0 left-0" style={{ width: `${barW * pct / 100}%`, background: `color-mix(in srgb, ${typeColor} 21%, transparent)` }} />
               </div>
               <div className="w-[72px] shrink-0 text-right">
-                <p className="text-[10px] font-bold" style={{ color: '#555' }}>{formatCurrency(mrr)}</p>
-                <p className="text-[9px]" style={{ color: typeColor }}>{pct}%</p>
+                <p className="text-2xs font-bold" style={{ color: '#555' }}>{formatCurrency(mrr)}</p>
+                <p className="text-2xs" style={{ color: typeColor }}>{pct}%</p>
               </div>
             </div>
           )
         })}
       </div>
 
-      <p className="text-[9px] text-center shrink-0" style={{ color: '#1E1E1E' }}>
+      <p className="text-2xs text-center shrink-0" style={{ color: '#1E1E1E' }}>
         % margine stimato per package · costi reali non ancora tracciati
       </p>
     </div>

@@ -27,13 +27,13 @@ const TABS: { key: ActiveTab; label: string; icon: React.ReactNode }[] = [
 ]
 
 const COST_CATEGORIES: { key: ProjectCostCategory; label: string; color: string }[] = [
-  { key: 'risorsa', label: 'Risorsa', color: 'text-blue-400' },
-  { key: 'software', label: 'Software', color: 'text-purple-400' },
-  { key: 'provvigione', label: 'Provvigione', color: 'text-amber-400' },
-  { key: 'cac', label: 'CAC', color: 'text-orange-400' },
-  { key: 'produzione', label: 'Produzione', color: 'text-emerald-400' },
-  { key: 'indiretto', label: 'Indiretto', color: 'text-gray-400' },
-  { key: 'altro', label: 'Altro', color: 'text-white/50' },
+  { key: 'risorsa', label: 'Risorsa', color: 'text-info' },
+  { key: 'software', label: 'Software', color: 'text-accent' },
+  { key: 'provvigione', label: 'Provvigione', color: 'text-warning' },
+  { key: 'cac', label: 'CAC', color: 'text-orange' },
+  { key: 'produzione', label: 'Produzione', color: 'text-success' },
+  { key: 'indiretto', label: 'Indiretto', color: 'text-text-tertiary' },
+  { key: 'altro', label: 'Altro', color: 'text-text-secondary' },
 ]
 
 const BIZ_CATEGORIES: { key: BusinessCostCategory; label: string }[] = [
@@ -418,7 +418,7 @@ Rispondi SOLO con JSON valido:
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="w-11 h-11 rounded-2xl bg-gold/10 border border-gold/20 flex items-center justify-center">
-            <Calculator className="w-5 h-5 text-gold" />
+            <Calculator className="w-5 h-5 text-gold-text" />
           </div>
           <div>
             <h1 className="text-xl font-black text-text-primary font-heading">Controllo di Gestione</h1>
@@ -428,7 +428,7 @@ Rispondi SOLO con JSON valido:
         <button
           onClick={runAI}
           disabled={aiLoading}
-          className="flex items-center gap-2 px-5 py-2.5 bg-gold text-black rounded-xl text-sm font-bold hover:bg-yellow-400 transition-colors disabled:opacity-50"
+          className="flex items-center gap-2 px-5 py-2.5 bg-gold text-on-gold rounded-xl text-sm font-bold hover:bg-gold/90 transition-colors disabled:opacity-50"
         >
           {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Brain className="w-4 h-4" />}
           Analisi AI Completa
@@ -437,33 +437,33 @@ Rispondi SOLO con JSON valido:
 
       {/* KPI Cards */}
       <div className="grid grid-cols-6 gap-3">
-        <KpiCard label="Fatturato pagato" value={formatCurrency(totalRevenue)} icon={<DollarSign className="w-4 h-4" />} color="text-gold" />
-        <KpiCard label="MRR Contrattuale" value={formatCurrency(totalMRR) + '/m'} icon={<TrendingUp className="w-4 h-4" />} color="text-emerald-400" />
-        <KpiCard label="Costi diretti" value={formatCurrency(totalDirectCosts)} icon={<BarChart3 className="w-4 h-4" />} color="text-red-400" />
-        <KpiCard label="Costi fissi/mese" value={formatCurrency(monthlyOverhead)} icon={<Building2 className="w-4 h-4" />} color="text-orange-400" />
+        <KpiCard label="Fatturato pagato" value={formatCurrency(totalRevenue)} icon={<DollarSign className="w-4 h-4" />} color="text-gold-text" />
+        <KpiCard label="MRR Contrattuale" value={formatCurrency(totalMRR) + '/m'} icon={<TrendingUp className="w-4 h-4" />} color="text-success" />
+        <KpiCard label="Costi diretti" value={formatCurrency(totalDirectCosts)} icon={<BarChart3 className="w-4 h-4" />} color="text-error" />
+        <KpiCard label="Costi fissi/mese" value={formatCurrency(monthlyOverhead)} icon={<Building2 className="w-4 h-4" />} color="text-orange" />
         <KpiCard
           label="Margine lordo"
           value={`${marginPct}%`}
           icon={<Target className="w-4 h-4" />}
-          color={marginPct >= 60 ? 'text-emerald-400' : marginPct >= 40 ? 'text-amber-400' : 'text-red-400'}
+          color={marginPct >= 60 ? 'text-success' : marginPct >= 40 ? 'text-warning' : 'text-error'}
           subtitle={formatCurrency(grossMargin)}
         />
-        <KpiCard label="Risorse attive" value={String(resources.filter(r => r.is_active).length)} icon={<Users className="w-4 h-4" />} color="text-blue-400"
+        <KpiCard label="Risorse attive" value={String(resources.filter(r => r.is_active).length)} icon={<Users className="w-4 h-4" />} color="text-info"
           subtitle={formatCurrency(totalResourceCostMonthly) + '/m'} />
       </div>
 
       {/* Break-even */}
       <div className="bg-surface border border-border rounded-xl p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+          <AlertTriangle className="w-5 h-5 text-warning shrink-0" />
           <div>
             <p className="text-sm font-bold text-text-primary">Break-Even Floor mensile</p>
-            <p className="text-[10px] text-text-secondary mt-0.5">
+            <p className="text-2xs text-text-secondary mt-0.5">
               Costi risorse ({formatCurrency(totalResourceCostMonthly)}) + costi fissi ({formatCurrency(monthlyOverhead)}) = soglia minima fatturato/mese
             </p>
           </div>
         </div>
-        <p className="text-2xl font-black text-amber-400">{formatCurrency(totalResourceCostMonthly + monthlyOverhead)}</p>
+        <p className="text-2xl font-black text-warning">{formatCurrency(totalResourceCostMonthly + monthlyOverhead)}</p>
       </div>
 
       {/* Tabs */}
@@ -473,7 +473,7 @@ Rispondi SOLO con JSON valido:
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-colors ${
-              activeTab === tab.key ? 'bg-gold text-black' : 'text-text-secondary hover:text-text-primary'
+              activeTab === tab.key ? 'bg-gold text-on-gold' : 'text-text-secondary hover:text-text-primary'
             }`}
           >
             {tab.icon}{tab.label}
@@ -494,11 +494,11 @@ Rispondi SOLO con JSON valido:
                 return (
                   <div key={cat.key} className="text-center">
                     <p className={`text-lg font-black ${cat.color}`}>{formatCurrency(total)}</p>
-                    <p className="text-[10px] text-text-secondary mt-1">{cat.label}</p>
+                    <p className="text-2xs text-text-secondary mt-1">{cat.label}</p>
                     <div className="w-full h-1.5 bg-surface rounded-full mt-2 overflow-hidden">
                       <div className="h-full rounded-full bg-gold/60 transition-all" style={{ width: `${pct}%` }} />
                     </div>
-                    <p className="text-[9px] text-text-secondary mt-1">{pct}%</p>
+                    <p className="text-2xs text-text-secondary mt-1">{pct}%</p>
                   </div>
                 )
               })}
@@ -524,8 +524,8 @@ Rispondi SOLO con JSON valido:
                     className="flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-overlay/[0.03] transition-colors group">
                     <span className="text-sm text-text-primary font-medium flex-1">{c.company_name}</span>
                     <span className="text-xs text-text-secondary w-28 text-right">{formatCurrency(c.rev)}</span>
-                    <span className="text-xs text-red-400 w-28 text-right">-{formatCurrency(c.cost)}</span>
-                    <span className={`text-xs font-bold w-20 text-right ${c.pct >= 60 ? 'text-emerald-400' : c.pct >= 40 ? 'text-amber-400' : 'text-red-400'}`}>
+                    <span className="text-xs text-error w-28 text-right">-{formatCurrency(c.cost)}</span>
+                    <span className={`text-xs font-bold w-20 text-right ${c.pct >= 60 ? 'text-success' : c.pct >= 40 ? 'text-warning' : 'text-error'}`}>
                       {c.pct}%
                     </span>
                     <ArrowRight className="w-3.5 h-3.5 text-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -543,15 +543,15 @@ Rispondi SOLO con JSON valido:
             <p className="text-sm font-bold text-text-primary">Costo Uomo — Risorse Aziendali</p>
             <div className="flex items-center gap-2">
               <button onClick={() => fetchSuggestions('resource')} disabled={suggesting}
-                className="flex items-center gap-1.5 px-3 py-2 bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded-lg text-xs font-semibold hover:bg-purple-500/20 transition-colors disabled:opacity-50">
+                className="flex items-center gap-1.5 px-3 py-2 bg-accent/10 border border-accent/20 text-accent rounded-lg text-xs font-semibold hover:bg-accent/20 transition-colors disabled:opacity-50">
                 {suggesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} Suggerisci AI
               </button>
               <button onClick={() => { setUploadTarget('resource_costs'); fileInputRef.current?.click() }} disabled={uploading}
-                className="flex items-center gap-1.5 px-3 py-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-lg text-xs font-semibold hover:bg-blue-500/20 transition-colors disabled:opacity-50">
+                className="flex items-center gap-1.5 px-3 py-2 bg-info/10 border border-info/20 text-info rounded-lg text-xs font-semibold hover:bg-info/20 transition-colors disabled:opacity-50">
                 {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} Carica file
               </button>
               <button onClick={() => setShowAddResource(true)}
-                className="flex items-center gap-1.5 px-4 py-2 bg-gold text-black rounded-lg text-xs font-bold hover:bg-yellow-400 transition-colors">
+                className="flex items-center gap-1.5 px-4 py-2 bg-gold text-on-gold rounded-lg text-xs font-bold hover:bg-gold/90 transition-colors">
                 <Plus className="w-3.5 h-3.5" /> Aggiungi risorsa
               </button>
             </div>
@@ -567,7 +567,7 @@ Rispondi SOLO con JSON valido:
                 <thead>
                   <tr className="border-b border-border text-text-secondary text-left">
                     {['Risorsa', 'Tipo', 'Costo/mese', '€/ora costo', 'Ore fatt.', 'Saturaz.', 'Markup', '€/ora vendita', ''].map(h => (
-                      <th key={h} className="px-4 py-3 font-semibold uppercase tracking-wider text-[10px]">{h}</th>
+                      <th key={h} className="px-4 py-3 font-semibold uppercase tracking-wider text-2xs">{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -587,7 +587,7 @@ Rispondi SOLO con JSON valido:
                         <td className="px-4 py-3">
                           <div>
                             <p className="text-sm font-medium text-text-primary">{r.name}</p>
-                            {r.role_title && <p className="text-[10px] text-text-secondary">{r.role_title}</p>}
+                            {r.role_title && <p className="text-2xs text-text-secondary">{r.role_title}</p>}
                           </div>
                         </td>
                         <td className="px-4 py-3 text-text-secondary capitalize">{r.resource_type.replace(/_/g, ' ')}</td>
@@ -595,16 +595,16 @@ Rispondi SOLO con JSON valido:
                         <td className="px-4 py-3 text-text-primary font-bold">{formatCurrency(hourly)}</td>
                         <td className="px-4 py-3 text-text-primary">{r.billable_target_hours_month}h/{r.availability_hours_month}h</td>
                         <td className="px-4 py-3">
-                          <span className={`font-bold ${satPct >= 70 ? 'text-emerald-400' : satPct >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                          <span className={`font-bold ${satPct >= 70 ? 'text-success' : satPct >= 50 ? 'text-warning' : 'text-error'}`}>
                             {satPct}%
                           </span>
                         </td>
                         <td className="px-4 py-3 text-text-secondary">{r.markup_default}x</td>
-                        <td className="px-4 py-3 text-gold font-bold">{formatCurrency(sellRate)}</td>
+                        <td className="px-4 py-3 text-gold-text font-bold">{formatCurrency(sellRate)}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1">
-                            <button onClick={() => setEditingResource(r.id)} className="p-1 text-text-secondary hover:text-gold"><Pencil className="w-3.5 h-3.5" /></button>
-                            <button onClick={() => deleteResource(r.id)} className="p-1 text-text-secondary hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => setEditingResource(r.id)} className="p-1 text-text-secondary hover:text-gold-text"><Pencil className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => deleteResource(r.id)} className="p-1 text-text-secondary hover:text-error"><Trash2 className="w-3.5 h-3.5" /></button>
                           </div>
                         </td>
                       </tr>
@@ -620,22 +620,22 @@ Rispondi SOLO con JSON valido:
 
           {/* Formule reference */}
           <div className="bg-surface border border-border rounded-xl p-4 space-y-3">
-            <p className="text-[10px] font-bold text-gold uppercase tracking-wider">Formule di riferimento</p>
-            <div className="grid grid-cols-3 gap-4 text-[11px] text-text-secondary">
+            <p className="text-2xs font-bold text-gold-text uppercase tracking-wider">Formule di riferimento</p>
+            <div className="grid grid-cols-3 gap-4 text-2xs text-text-secondary">
               <div>
                 <p className="text-text-primary font-semibold mb-1">Costo Uomo Orario</p>
                 <p>CAA ÷ Ore Fatturabili Reali</p>
-                <p className="text-[10px] mt-1">Dipendente: RAL × 1.35 ÷ ore billable</p>
+                <p className="text-2xs mt-1">Dipendente: RAL × 1.35 ÷ ore billable</p>
               </div>
               <div>
                 <p className="text-text-primary font-semibold mb-1">Saturation Rate</p>
                 <p>Ore su clienti ÷ Ore totali × 100</p>
-                <p className="text-[10px] mt-1">Target: 70-80% (specialist)</p>
+                <p className="text-2xs mt-1">Target: 70-80% (specialist)</p>
               </div>
               <div>
                 <p className="text-text-primary font-semibold mb-1">ROI Risorsa</p>
                 <p>Fatturato generato ÷ Costo aziendale</p>
-                <p className="text-[10px] mt-1">Target: ≥ 2.5x — 3x</p>
+                <p className="text-2xs mt-1">Target: ≥ 2.5x — 3x</p>
               </div>
             </div>
           </div>
@@ -648,21 +648,21 @@ Rispondi SOLO con JSON valido:
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-bold text-text-primary">Costi Fissi Aziendali</p>
-              <p className="text-[10px] text-text-secondary mt-0.5">
-                Totale attivo: <strong className="text-orange-400">{formatCurrency(monthlyOverhead)}/mese</strong> — {formatCurrency(monthlyOverhead * 12)}/anno
+              <p className="text-2xs text-text-secondary mt-0.5">
+                Totale attivo: <strong className="text-orange">{formatCurrency(monthlyOverhead)}/mese</strong> — {formatCurrency(monthlyOverhead * 12)}/anno
               </p>
             </div>
             <div className="flex items-center gap-2">
               <button onClick={() => fetchSuggestions('business')} disabled={suggesting}
-                className="flex items-center gap-1.5 px-3 py-2 bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded-lg text-xs font-semibold hover:bg-purple-500/20 transition-colors disabled:opacity-50">
+                className="flex items-center gap-1.5 px-3 py-2 bg-accent/10 border border-accent/20 text-accent rounded-lg text-xs font-semibold hover:bg-accent/20 transition-colors disabled:opacity-50">
                 {suggesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} Suggerisci AI
               </button>
               <button onClick={() => { setUploadTarget('business_costs'); fileInputRef.current?.click() }} disabled={uploading}
-                className="flex items-center gap-1.5 px-3 py-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-lg text-xs font-semibold hover:bg-blue-500/20 transition-colors disabled:opacity-50">
+                className="flex items-center gap-1.5 px-3 py-2 bg-info/10 border border-info/20 text-info rounded-lg text-xs font-semibold hover:bg-info/20 transition-colors disabled:opacity-50">
                 {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} Carica file
               </button>
               <button onClick={() => setShowAddBiz(true)}
-                className="flex items-center gap-1.5 px-4 py-2 bg-gold text-black rounded-lg text-xs font-bold hover:bg-yellow-400 transition-colors">
+                className="flex items-center gap-1.5 px-4 py-2 bg-gold text-on-gold rounded-lg text-xs font-bold hover:bg-gold/90 transition-colors">
                 <Plus className="w-3.5 h-3.5" /> Aggiungi costo fisso
               </button>
             </div>
@@ -677,7 +677,7 @@ Rispondi SOLO con JSON valido:
               <thead>
                 <tr className="border-b border-border text-text-secondary text-left">
                   {['Categoria', 'Descrizione', 'Importo/mese', 'Importo/anno', 'Stato', ''].map(h => (
-                    <th key={h} className="px-4 py-3 font-semibold uppercase tracking-wider text-[10px]">{h}</th>
+                    <th key={h} className="px-4 py-3 font-semibold uppercase tracking-wider text-2xs">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -691,12 +691,12 @@ Rispondi SOLO con JSON valido:
                       <td className="px-4 py-3 text-text-primary font-bold">{formatCurrency(b.monthly_amount)}</td>
                       <td className="px-4 py-3 text-text-secondary">{formatCurrency(b.monthly_amount * 12)}</td>
                       <td className="px-4 py-3">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${b.is_active ? 'bg-emerald-500/15 text-emerald-400' : 'bg-surface-hover text-text-secondary'}`}>
+                        <span className={`text-2xs font-bold px-2 py-0.5 rounded ${b.is_active ? 'bg-success/15 text-success' : 'bg-surface-hover text-text-secondary'}`}>
                           {b.is_active ? 'Attivo' : 'Inattivo'}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <button onClick={() => deleteBizCost(b.id)} className="p-1 text-text-secondary hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => deleteBizCost(b.id)} className="p-1 text-text-secondary hover:text-error"><Trash2 className="w-3.5 h-3.5" /></button>
                       </td>
                     </tr>
                   )
@@ -714,9 +714,9 @@ Rispondi SOLO con JSON valido:
               const total = bizCosts.filter(b => b.category === cat.key && b.is_active).reduce((s, b) => s + b.monthly_amount, 0)
               return (
                 <div key={cat.key} className="bg-surface border border-border rounded-xl p-3 text-center">
-                  <p className="text-[10px] text-text-secondary">{cat.label}</p>
+                  <p className="text-2xs text-text-secondary">{cat.label}</p>
                   <p className="text-sm font-bold text-text-primary mt-1">{formatCurrency(total)}</p>
-                  <p className="text-[9px] text-text-secondary">/mese</p>
+                  <p className="text-2xs text-text-secondary">/mese</p>
                 </div>
               )
             })}
@@ -741,13 +741,13 @@ Rispondi SOLO con JSON valido:
                     {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-text-secondary" /> : <ChevronRight className="w-3.5 h-3.5 text-text-secondary" />}
                     <div className="text-left">
                       <span className="text-sm font-semibold text-text-primary">{p.name}</span>
-                      {p.client && <span className="text-[10px] text-text-secondary ml-2">{p.client.company_name}</span>}
+                      {p.client && <span className="text-2xs text-text-secondary ml-2">{p.client.company_name}</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-xs text-text-secondary">Rev: {formatCurrency(p.revenue)}</span>
-                    <span className="text-xs text-red-400">Costi: {formatCurrency(p.totalCost)}</span>
-                    <span className={`text-xs font-bold ${marginPct >= 60 ? 'text-emerald-400' : marginPct >= 40 ? 'text-amber-400' : 'text-red-400'}`}>
+                    <span className="text-xs text-error">Costi: {formatCurrency(p.totalCost)}</span>
+                    <span className={`text-xs font-bold ${marginPct >= 60 ? 'text-success' : marginPct >= 40 ? 'text-warning' : 'text-error'}`}>
                       Margine: {marginPct}%
                     </span>
                   </div>
@@ -760,14 +760,14 @@ Rispondi SOLO con JSON valido:
                       const catInfo = COST_CATEGORIES.find(cc => cc.key === c.category)
                       return (
                         <div key={c.id} className="group flex items-center gap-3 py-1.5">
-                          <span className={`text-[10px] font-bold uppercase w-20 shrink-0 ${catInfo?.color ?? 'text-white/40'}`}>
+                          <span className={`text-2xs font-bold uppercase w-20 shrink-0 ${catInfo?.color ?? 'text-text-tertiary'}`}>
                             {catInfo?.label ?? c.category}
                           </span>
                           <span className="text-sm text-text-primary flex-1 truncate">{c.description}</span>
-                          {c.hours && <span className="text-[10px] text-text-secondary shrink-0">{c.hours}h × €{c.hourly_rate}</span>}
+                          {c.hours && <span className="text-2xs text-text-secondary shrink-0">{c.hours}h × €{c.hourly_rate}</span>}
                           <span className="text-sm font-bold text-text-primary shrink-0 w-24 text-right">{formatCurrency(c.amount)}</span>
                           <button onClick={() => deleteProjectCost(c.id)}
-                            className="p-1 text-text-secondary hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">
+                            className="p-1 text-text-secondary hover:text-error opacity-0 group-hover:opacity-100 transition-all">
                             <Trash2 className="w-3 h-3" />
                           </button>
                         </div>
@@ -778,11 +778,11 @@ Rispondi SOLO con JSON valido:
                       <AddProjectCostForm resources={resources} onAdd={form => addProjectCost(p.id, p.client_id, form)} onCancel={() => setShowAddCost(null)} />
                     ) : (
                       <div className="flex items-center justify-between pt-2 border-t border-border">
-                        <button onClick={() => setShowAddCost(p.id)} className="flex items-center gap-1.5 text-xs text-gold hover:text-yellow-400">
+                        <button onClick={() => setShowAddCost(p.id)} className="flex items-center gap-1.5 text-xs text-gold-text hover:text-gold-text">
                           <Plus className="w-3 h-3" /> Aggiungi costo
                         </button>
                         <Link href={`/clienti/${p.client_id}/progetto/${p.id}`}
-                          className="flex items-center gap-1 text-[10px] text-text-secondary hover:text-gold transition-colors">
+                          className="flex items-center gap-1 text-2xs text-text-secondary hover:text-gold-text transition-colors">
                           Vai al progetto <ArrowRight className="w-3 h-3" />
                         </Link>
                       </div>
@@ -800,7 +800,7 @@ Rispondi SOLO con JSON valido:
         <div className="space-y-4">
           {aiLoading && (
             <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-6 h-6 animate-spin text-gold mr-3" />
+              <Loader2 className="w-6 h-6 animate-spin text-gold-text mr-3" />
               <span className="text-sm text-text-secondary">Analisi AI in corso...</span>
             </div>
           )}
@@ -810,7 +810,7 @@ Rispondi SOLO con JSON valido:
               <Brain className="w-12 h-12 text-text-tertiary mx-auto mb-4" />
               <p className="text-text-primary font-bold mb-1">Analisi AI non ancora eseguita</p>
               <p className="text-xs text-text-secondary mb-4">Clicca "Analisi AI Completa" per generare un report finanziario dettagliato</p>
-              <button onClick={runAI} className="inline-flex items-center gap-2 px-5 py-2.5 bg-gold text-black rounded-xl text-sm font-bold">
+              <button onClick={runAI} className="inline-flex items-center gap-2 px-5 py-2.5 bg-gold text-on-gold rounded-xl text-sm font-bold">
                 <Brain className="w-4 h-4" /> Genera analisi
               </button>
             </div>
@@ -820,24 +820,24 @@ Rispondi SOLO con JSON valido:
             <div className="space-y-4">
               <div className="grid grid-cols-4 gap-3">
                 <div className="bg-surface border border-border rounded-xl p-4 text-center">
-                  <p className="text-[10px] text-text-secondary">Margine Netto</p>
-                  <p className={`text-2xl font-black ${(aiResult.margine_netto_pct ?? 0) >= 30 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <p className="text-2xs text-text-secondary">Margine Netto</p>
+                  <p className={`text-2xl font-black ${(aiResult.margine_netto_pct ?? 0) >= 30 ? 'text-success' : 'text-error'}`}>
                     {aiResult.margine_netto_pct}%
                   </p>
                 </div>
                 <div className="bg-surface border border-border rounded-xl p-4 text-center">
-                  <p className="text-[10px] text-text-secondary">Break-Even/mese</p>
-                  <p className="text-2xl font-black text-amber-400">{formatCurrency(aiResult.break_even_mensile)}</p>
+                  <p className="text-2xs text-text-secondary">Break-Even/mese</p>
+                  <p className="text-2xl font-black text-warning">{formatCurrency(aiResult.break_even_mensile)}</p>
                 </div>
                 <div className="bg-surface border border-border rounded-xl p-4 text-center">
-                  <p className="text-[10px] text-text-secondary">Saturazione Media</p>
-                  <p className={`text-2xl font-black ${(aiResult.saturazione_media_pct ?? 0) >= 70 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  <p className="text-2xs text-text-secondary">Saturazione Media</p>
+                  <p className={`text-2xl font-black ${(aiResult.saturazione_media_pct ?? 0) >= 70 ? 'text-success' : 'text-warning'}`}>
                     {aiResult.saturazione_media_pct}%
                   </p>
                 </div>
                 <div className="bg-surface border border-border rounded-xl p-4 text-center">
-                  <p className="text-[10px] text-text-secondary">ROI Risorse</p>
-                  <p className={`text-2xl font-black ${(aiResult.roi_medio_risorse ?? 0) >= 2.5 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <p className="text-2xs text-text-secondary">ROI Risorse</p>
+                  <p className={`text-2xl font-black ${(aiResult.roi_medio_risorse ?? 0) >= 2.5 ? 'text-success' : 'text-error'}`}>
                     {aiResult.roi_medio_risorse}x
                   </p>
                 </div>
@@ -845,12 +845,12 @@ Rispondi SOLO con JSON valido:
 
               {aiResult.alerts?.length > 0 && (
                 <div className="space-y-1.5">
-                  <p className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Alert</p>
+                  <p className="text-2xs font-bold text-text-secondary uppercase tracking-wider">Alert</p>
                   {aiResult.alerts.map((a, i) => (
                     <div key={i} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium ${
-                      a.level === 'red' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
-                      a.level === 'amber' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-                      'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      a.level === 'red' ? 'bg-error/10 text-error border border-error/20' :
+                      a.level === 'amber' ? 'bg-warning/10 text-warning border border-warning/20' :
+                      'bg-success/10 text-success border border-success/20'
                     }`}>
                       <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                       {a.message}
@@ -867,7 +867,7 @@ Rispondi SOLO con JSON valido:
                       <span className="text-xs text-text-secondary w-6">{i + 1}.</span>
                       <span className="text-sm text-text-primary flex-1">{c.name}</span>
                       <span className="text-xs text-text-secondary">{formatCurrency(c.revenue)}</span>
-                      <span className={`text-xs font-bold w-16 text-right ${c.margin_pct >= 60 ? 'text-emerald-400' : c.margin_pct >= 40 ? 'text-amber-400' : 'text-red-400'}`}>
+                      <span className={`text-xs font-bold w-16 text-right ${c.margin_pct >= 60 ? 'text-success' : c.margin_pct >= 40 ? 'text-warning' : 'text-error'}`}>
                         {c.margin_pct}%
                       </span>
                     </div>
@@ -877,11 +877,11 @@ Rispondi SOLO con JSON valido:
 
               {aiResult.raccomandazioni?.length > 0 && (
                 <div className="bg-surface border border-gold/20 rounded-xl p-5">
-                  <p className="text-[10px] font-bold text-gold uppercase tracking-wider mb-3">Raccomandazioni</p>
+                  <p className="text-2xs font-bold text-gold-text uppercase tracking-wider mb-3">Raccomandazioni</p>
                   <div className="space-y-2">
                     {aiResult.raccomandazioni.map((r, i) => (
                       <div key={i} className="flex items-start gap-2 text-sm text-overlay/80">
-                        <span className="text-gold font-bold shrink-0 mt-0.5">{i + 1}.</span>
+                        <span className="text-gold-text font-bold shrink-0 mt-0.5">{i + 1}.</span>
                         <span>{r}</span>
                       </div>
                     ))}
@@ -891,7 +891,7 @@ Rispondi SOLO con JSON valido:
 
               {aiResult.analisi_narrativa && (
                 <div className="bg-surface border border-border rounded-xl p-5">
-                  <p className="text-[10px] font-bold text-text-secondary uppercase tracking-wider mb-3">Analisi dettagliata</p>
+                  <p className="text-2xs font-bold text-text-secondary uppercase tracking-wider mb-3">Analisi dettagliata</p>
                   <p className="text-sm text-overlay/80 leading-relaxed whitespace-pre-line">{aiResult.analisi_narrativa}</p>
                 </div>
               )}
@@ -905,16 +905,16 @@ Rispondi SOLO con JSON valido:
 
       {/* Upload/Suggest preview modal */}
       {uploadPreview && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-8" onClick={() => setUploadPreview(null)}>
+        <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-8" onClick={() => setUploadPreview(null)}>
           <div className="bg-surface border border-border rounded-2xl w-full max-w-4xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <div className="flex items-center gap-3">
-                <FileSpreadsheet className="w-5 h-5 text-gold" />
+                <FileSpreadsheet className="w-5 h-5 text-gold-text" />
                 <div>
                   <p className="text-sm font-bold text-text-primary">
                     Anteprima dati — {uploadPreview.target === 'resource_costs' ? 'Risorse' : uploadPreview.target === 'business_costs' ? 'Costi Fissi' : 'Costi Progetto'}
                   </p>
-                  <p className="text-[10px] text-text-secondary">{uploadPreview.rows.length} righe pronte per l&apos;importazione</p>
+                  <p className="text-2xs text-text-secondary">{uploadPreview.rows.length} righe pronte per l&apos;importazione</p>
                 </div>
               </div>
               <button onClick={() => setUploadPreview(null)} className="text-text-secondary hover:text-text-primary"><X className="w-4 h-4" /></button>
@@ -926,7 +926,7 @@ Rispondi SOLO con JSON valido:
                   <thead>
                     <tr className="border-b border-border text-text-secondary text-left">
                       {['Nome', 'Tipo', 'Ruolo', 'Costo/mese', '€/ora', 'Ore fatt.', 'Markup', 'Note'].map(h => (
-                        <th key={h} className="px-3 py-2 font-semibold text-[10px] uppercase">{h}</th>
+                        <th key={h} className="px-3 py-2 font-semibold text-2xs uppercase">{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -952,7 +952,7 @@ Rispondi SOLO con JSON valido:
                   <thead>
                     <tr className="border-b border-border text-text-secondary text-left">
                       {['Categoria', 'Descrizione', 'Importo/mese', 'Note'].map(h => (
-                        <th key={h} className="px-3 py-2 font-semibold text-[10px] uppercase">{h}</th>
+                        <th key={h} className="px-3 py-2 font-semibold text-2xs uppercase">{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -974,7 +974,7 @@ Rispondi SOLO con JSON valido:
                   <thead>
                     <tr className="border-b border-border text-text-secondary text-left">
                       {['Categoria', 'Descrizione', 'Ore', 'Tariffa', 'Importo', 'Note'].map(h => (
-                        <th key={h} className="px-3 py-2 font-semibold text-[10px] uppercase">{h}</th>
+                        <th key={h} className="px-3 py-2 font-semibold text-2xs uppercase">{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -995,11 +995,11 @@ Rispondi SOLO con JSON valido:
             </div>
 
             <div className="flex items-center justify-between px-6 py-4 border-t border-border">
-              <p className="text-[10px] text-text-secondary">Controlla i dati prima di importare. I valori verranno inseriti nel database.</p>
+              <p className="text-2xs text-text-secondary">Controlla i dati prima di importare. I valori verranno inseriti nel database.</p>
               <div className="flex items-center gap-2">
                 <button onClick={() => setUploadPreview(null)} className="px-4 py-2 text-xs text-text-secondary hover:text-text-primary">Annulla</button>
                 <button onClick={confirmUpload} disabled={uploading}
-                  className="flex items-center gap-1.5 px-5 py-2 bg-gold text-black rounded-lg text-xs font-bold hover:bg-yellow-400 transition-colors disabled:opacity-50">
+                  className="flex items-center gap-1.5 px-5 py-2 bg-gold text-on-gold rounded-lg text-xs font-bold hover:bg-gold/90 transition-colors disabled:opacity-50">
                   {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                   Conferma importazione ({uploadPreview.rows.length})
                 </button>
@@ -1021,10 +1021,10 @@ function KpiCard({ label, value, icon, color, subtitle }: {
     <div className="bg-surface border border-border rounded-xl p-3">
       <div className="flex items-center gap-2 mb-1.5">
         <span className={color}>{icon}</span>
-        <span className="text-[10px] text-text-secondary">{label}</span>
+        <span className="text-2xs text-text-secondary">{label}</span>
       </div>
       <p className={`text-lg font-black ${color}`}>{value}</p>
-      {subtitle && <p className="text-[10px] text-text-secondary mt-0.5">{subtitle}</p>}
+      {subtitle && <p className="text-2xs text-text-secondary mt-0.5">{subtitle}</p>}
     </div>
   )
 }
@@ -1071,55 +1071,55 @@ function AddResourceForm({ profiles, onAdd, onCancel }: {
     <div className="bg-surface border border-gold/20 rounded-xl p-4 space-y-3">
       <div className="grid grid-cols-4 gap-3">
         <div>
-          <label className="text-[10px] text-text-secondary mb-1 block">Profilo (opzionale)</label>
+          <label className="text-2xs text-text-secondary mb-1 block">Profilo (opzionale)</label>
           <select value={form.profile_id} onChange={e => handleProfileSelect(e.target.value)} className={inp}>
             <option value="">— Nessun profilo —</option>
             {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
           </select>
         </div>
         <div>
-          <label className="text-[10px] text-text-secondary mb-1 block">Nome *</label>
+          <label className="text-2xs text-text-secondary mb-1 block">Nome *</label>
           <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Nome risorsa" className={inp} />
         </div>
         <div>
-          <label className="text-[10px] text-text-secondary mb-1 block">Tipo</label>
+          <label className="text-2xs text-text-secondary mb-1 block">Tipo</label>
           <select value={form.resource_type} onChange={e => setForm(f => ({ ...f, resource_type: e.target.value as ResourceType }))} className={inp}>
             {RESOURCE_TYPES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
           </select>
         </div>
         <div>
-          <label className="text-[10px] text-text-secondary mb-1 block">Ruolo</label>
+          <label className="text-2xs text-text-secondary mb-1 block">Ruolo</label>
           <input value={form.role_title} onChange={e => setForm(f => ({ ...f, role_title: e.target.value }))} placeholder="es. Strategist" className={inp} />
         </div>
       </div>
       <div className="grid grid-cols-5 gap-3">
         <div>
-          <label className="text-[10px] text-text-secondary mb-1 block">Tipo costo</label>
+          <label className="text-2xs text-text-secondary mb-1 block">Tipo costo</label>
           <select value={form.cost_type} onChange={e => setForm(f => ({ ...f, cost_type: e.target.value as ResourceCostType }))} className={inp}>
             {COST_TYPES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
           </select>
         </div>
         <div>
-          <label className="text-[10px] text-text-secondary mb-1 block">Costo/mese €</label>
+          <label className="text-2xs text-text-secondary mb-1 block">Costo/mese €</label>
           <input type="number" value={form.monthly_cost} onChange={e => setForm(f => ({ ...f, monthly_cost: e.target.value }))} placeholder="3000" className={inp} />
         </div>
         <div>
-          <label className="text-[10px] text-text-secondary mb-1 block">Ore disponibili/m</label>
+          <label className="text-2xs text-text-secondary mb-1 block">Ore disponibili/m</label>
           <input type="number" value={form.availability_hours_month} onChange={e => setForm(f => ({ ...f, availability_hours_month: e.target.value }))} className={inp} />
         </div>
         <div>
-          <label className="text-[10px] text-text-secondary mb-1 block">Ore fatturabili/m</label>
+          <label className="text-2xs text-text-secondary mb-1 block">Ore fatturabili/m</label>
           <input type="number" value={form.billable_target_hours_month} onChange={e => setForm(f => ({ ...f, billable_target_hours_month: e.target.value }))} className={inp} />
         </div>
         <div>
-          <label className="text-[10px] text-text-secondary mb-1 block">Markup</label>
+          <label className="text-2xs text-text-secondary mb-1 block">Markup</label>
           <input type="number" step="0.1" value={form.markup_default} onChange={e => setForm(f => ({ ...f, markup_default: e.target.value }))} className={inp} />
         </div>
       </div>
       <div className="flex items-center justify-end gap-2 pt-1">
         <button onClick={onCancel} className="px-3 py-2 text-xs text-text-secondary hover:text-text-primary">Annulla</button>
         <button onClick={handleSubmit} disabled={saving || !form.name.trim()}
-          className="flex items-center gap-1.5 px-4 py-2 bg-gold text-black rounded-lg text-xs font-bold disabled:opacity-40">
+          className="flex items-center gap-1.5 px-4 py-2 bg-gold text-on-gold rounded-lg text-xs font-bold disabled:opacity-40">
           {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />} Aggiungi
         </button>
       </div>
@@ -1161,7 +1161,7 @@ function EditResourceRow({ resource: r, onSave, onCancel }: {
       <td className="px-4 py-2 text-xs text-text-secondary">auto</td>
       <td className="px-4 py-2">
         <div className="flex items-center gap-1">
-          <button onClick={handleSave} disabled={saving} className="p-1 text-gold hover:text-yellow-400">
+          <button onClick={handleSave} disabled={saving} className="p-1 text-gold-text hover:text-gold-text">
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
           </button>
           <button onClick={onCancel} className="p-1 text-text-secondary hover:text-text-primary"><X className="w-3.5 h-3.5" /></button>
@@ -1182,23 +1182,23 @@ function AddBizCostForm({ onAdd, onCancel }: {
   return (
     <div className="flex items-end gap-3 bg-surface border border-gold/20 rounded-xl p-4">
       <div className="flex-none w-40">
-        <label className="text-[10px] text-text-secondary mb-1 block">Categoria</label>
+        <label className="text-2xs text-text-secondary mb-1 block">Categoria</label>
         <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as BusinessCostCategory }))} className={inp}>
           {BIZ_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
         </select>
       </div>
       <div className="flex-1">
-        <label className="text-[10px] text-text-secondary mb-1 block">Descrizione</label>
+        <label className="text-2xs text-text-secondary mb-1 block">Descrizione</label>
         <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="es. Google Workspace" className={inp} />
       </div>
       <div className="flex-none w-32">
-        <label className="text-[10px] text-text-secondary mb-1 block">€/mese</label>
+        <label className="text-2xs text-text-secondary mb-1 block">€/mese</label>
         <input type="number" value={form.monthly_amount} onChange={e => setForm(f => ({ ...f, monthly_amount: e.target.value }))} placeholder="100" className={inp} />
       </div>
       <button onClick={onCancel} className="px-3 py-2 text-xs text-text-secondary hover:text-text-primary">Annulla</button>
       <button onClick={async () => { setSaving(true); await onAdd(form); setSaving(false) }}
         disabled={saving || !form.description.trim()}
-        className="flex items-center gap-1.5 px-4 py-2 bg-gold text-black rounded-lg text-xs font-bold disabled:opacity-40">
+        className="flex items-center gap-1.5 px-4 py-2 bg-gold text-on-gold rounded-lg text-xs font-bold disabled:opacity-40">
         {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />} Aggiungi
       </button>
     </div>
@@ -1240,7 +1240,7 @@ function AddProjectCostForm({ resources, onAdd, onCancel }: {
         {form.category === 'risorsa' ? (
           <>
             <input type="number" value={form.hours} onChange={e => setForm(f => ({ ...f, hours: e.target.value }))} placeholder="Ore" className={`${inp} w-20`} />
-            <span className="text-[10px] text-text-secondary">×</span>
+            <span className="text-2xs text-text-secondary">×</span>
             <input type="number" value={form.hourly_rate} onChange={e => setForm(f => ({ ...f, hourly_rate: e.target.value }))} placeholder="€/h" className={`${inp} w-24`} />
             {form.hours && form.hourly_rate && (
               <span className="text-xs text-text-secondary">= <strong className="text-text-primary">{formatCurrency(parseFloat(form.hours) * parseFloat(form.hourly_rate))}</strong></span>
@@ -1253,7 +1253,7 @@ function AddProjectCostForm({ resources, onAdd, onCancel }: {
         <button onClick={onCancel} className="text-xs text-text-secondary hover:text-text-primary px-2">Annulla</button>
         <button onClick={async () => { setSaving(true); await onAdd(form); setSaving(false) }}
           disabled={saving || !form.description.trim()}
-          className="flex items-center gap-1 px-3 py-2 bg-gold text-black rounded-lg text-xs font-bold disabled:opacity-40">
+          className="flex items-center gap-1 px-3 py-2 bg-gold text-on-gold rounded-lg text-xs font-bold disabled:opacity-40">
           {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />} Aggiungi
         </button>
       </div>

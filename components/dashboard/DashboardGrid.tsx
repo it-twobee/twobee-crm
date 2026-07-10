@@ -119,7 +119,7 @@ const TEMPLATES: Template[] = [
     name: 'Essenziale',
     emoji: '⚡',
     desc: 'Le 6 card fondamentali: metriche, focus, alert, task, progetti e brief AI.',
-    color: '#FFC501',
+    color: 'var(--color-gold-text)',
     widgets: ['metrics', 'focus', 'alerts', 'tasks', 'projects', 'aibrief'],
   },
   {
@@ -127,7 +127,7 @@ const TEMPLATES: Template[] = [
     name: 'Operations',
     emoji: '🔧',
     desc: 'Focus operativo: task, alert, carico team e clienti a rischio.',
-    color: '#3B82F6',
+    color: 'var(--color-info)',
     widgets: ['metrics', 'focus', 'alerts', 'tasks', 'projects', 'workload', 'risk', 'pulse'],
   },
   {
@@ -135,7 +135,7 @@ const TEMPLATES: Template[] = [
     name: 'Business',
     emoji: '📊',
     desc: 'Visione finanziaria: revenue, pipeline, margini e fatturazione.',
-    color: '#22C55E',
+    color: 'var(--color-success)',
     widgets: ['metrics', 'revenue', 'financial', 'pipeline', 'margin', 'aibrief', 'risk', 'kpiperf'],
   },
   {
@@ -143,7 +143,7 @@ const TEMPLATES: Template[] = [
     name: 'Completa',
     emoji: '🏢',
     desc: 'Tutti i widget disponibili in un\'unica vista.',
-    color: '#A855F7',
+    color: 'var(--color-accent)',
     widgets: WIDGET_DEFS.map(w => w.id),
   },
 ]
@@ -156,8 +156,8 @@ function MetricCards({ mrr, clientsCount, clientsAtRisk, tasksDueSoon, invoicesP
   tasksDueSoon: number; invoicesPending: number
 }) {
   const cards = [
-    { href: '/fatturazione', icon: <TrendingUp className="w-4 h-4" />, iconColor: 'var(--color-gold)', label: 'MRR', value: formatCurrency(mrr), sub: '/mese contratti', accent: 'var(--color-gold)' },
-    { href: '/clienti',      icon: <Users       className="w-4 h-4" />, iconColor: '#3B82F6', label: 'Clienti', value: String(clientsCount), sub: clientsAtRisk > 0 ? `${clientsAtRisk} in bilico` : 'tutti stabili', accent: '#3B82F6', subWarning: clientsAtRisk > 0 },
+    { href: '/fatturazione', icon: <TrendingUp className="w-4 h-4" />, iconColor: 'var(--color-gold-text)', label: 'MRR', value: formatCurrency(mrr), sub: '/mese contratti', accent: 'var(--color-gold-text)' },
+    { href: '/clienti',      icon: <Users       className="w-4 h-4" />, iconColor: 'var(--color-info)', label: 'Clienti', value: String(clientsCount), sub: clientsAtRisk > 0 ? `${clientsAtRisk} in bilico` : 'tutti stabili', accent: 'var(--color-info)', subWarning: clientsAtRisk > 0 },
     { href: '/le-mie-attivita', icon: <CheckSquare className="w-4 h-4" />, iconColor: tasksDueSoon > 0 ? 'var(--color-warning)' : 'var(--color-text-tertiary)', label: 'Task', value: String(tasksDueSoon), sub: 'in scadenza 7gg', accent: tasksDueSoon > 0 ? 'var(--color-warning)' : 'var(--color-text-secondary)' },
     { href: '/fatturazione', icon: <Receipt     className="w-4 h-4" />, iconColor: invoicesPending > 0 ? 'var(--color-error)' : 'var(--color-text-tertiary)', label: 'Fatture', value: String(invoicesPending), sub: 'in attesa', accent: invoicesPending > 0 ? 'var(--color-error)' : 'var(--color-text-secondary)' },
   ]
@@ -167,14 +167,14 @@ function MetricCards({ mrr, clientsCount, clientsAtRisk, tasksDueSoon, invoicesP
         <Link key={c.label} href={c.href}
           className="flex flex-col rounded-xl p-3.5 transition-all"
           style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = c.accent + '33'; (e.currentTarget as HTMLElement).style.background = 'var(--color-surface-hover)' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = `color-mix(in srgb, ${c.accent} 20%, transparent)`; (e.currentTarget as HTMLElement).style.background = 'var(--color-surface-hover)' }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-border)'; (e.currentTarget as HTMLElement).style.background = 'var(--color-surface)' }}>
           <div className="flex items-center gap-1.5 mb-2">
             <span style={{ color: c.iconColor }}>{c.icon}</span>
-            <span className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: 'var(--color-text-tertiary)' }}>{c.label}</span>
+            <span className="text-2xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-text-tertiary)' }}>{c.label}</span>
           </div>
           <p className="text-xl font-black leading-none font-heading" style={{ color: c.accent }}>{c.value}</p>
-          <p className="text-[9px] mt-1.5" style={{ color: (c as { subWarning?: boolean }).subWarning ? 'var(--color-gold)' : 'var(--color-text-tertiary)' }}>{c.sub}</p>
+          <p className="text-2xs mt-1.5" style={{ color: (c as { subWarning?: boolean }).subWarning ? 'var(--color-gold-text)' : 'var(--color-text-tertiary)' }}>{c.sub}</p>
         </Link>
       ))}
     </div>
@@ -198,7 +198,7 @@ function WidgetCard({ def, children }: { def: WidgetDef; children: React.ReactNo
         className="flex items-center gap-2 px-4 py-2.5 shrink-0 group transition-colors hover:bg-overlay/[0.02]"
         style={{ borderBottom: '1px solid var(--color-border)' }}>
         <span className="text-sm shrink-0">{def.emoji}</span>
-        <span className="text-[10px] font-semibold flex-1 truncate uppercase tracking-[0.1em]"
+        <span className="text-2xs font-semibold flex-1 truncate uppercase tracking-[0.1em]"
           style={{ color: 'var(--color-text-tertiary)' }}>{def.label}</span>
         <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity"
           style={{ color: 'var(--color-text-tertiary)' }} />
@@ -241,11 +241,11 @@ function TemplatePicker({
           boxShadow: open ? '-24px 0 80px rgba(0,0,0,0.6)' : 'none',
         }}>
         <div className="flex items-center gap-3 px-5 py-4 border-b border-overlay/[0.06] shrink-0">
-          <Crown className="w-4 h-4 text-gold" />
+          <Crown className="w-4 h-4 text-gold-text" />
           <span className="text-sm font-black text-text-primary flex-1">Template Dashboard</span>
           <button onClick={async () => { await onSave(); onClose() }} disabled={saving}
             className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl"
-            style={{ background: 'var(--color-gold-dim)', border: '1px solid rgba(255,197,1,0.25)', color: 'var(--color-gold)' }}>
+            style={{ background: 'var(--color-gold-dim)', border: '1px solid var(--color-gold-dim)', color: 'var(--color-gold-text)' }}>
             <Check className="w-3 h-3" /> {saving ? 'Salvo…' : 'Salva'}
           </button>
           <button onClick={onClose} className="p-1.5 rounded-lg text-overlay/20 hover:text-overlay/50">
@@ -260,8 +260,8 @@ function TemplatePicker({
               <button key={t.id} onClick={() => onSelect(t.id)}
                 className="w-full text-left p-4 rounded-2xl transition-all"
                 style={{
-                  background: isActive ? t.color + '10' : 'var(--color-surface)',
-                  border: `1px solid ${isActive ? t.color + '40' : 'var(--color-border)'}`,
+                  background: isActive ? `color-mix(in srgb, ${t.color} 6%, transparent)` : 'var(--color-surface)',
+                  border: `1px solid ${isActive ? `color-mix(in srgb, ${t.color} 25%, transparent)` : 'var(--color-border)'}`,
                 }}>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-lg">{t.emoji}</span>
@@ -273,14 +273,14 @@ function TemplatePicker({
                   {t.widgets.slice(0, 8).map(wid => {
                     const wd = WIDGET_DEFS.find(w => w.id === wid)
                     return wd ? (
-                      <span key={wid} className="text-[9px] px-2 py-0.5 rounded-full"
+                      <span key={wid} className="text-2xs px-2 py-0.5 rounded-full"
                         style={{ background: 'var(--color-surface)', color: 'var(--color-text-tertiary)' }}>
                         {wd.emoji} {wd.label}
                       </span>
                     ) : null
                   })}
                   {t.widgets.length > 8 && (
-                    <span className="text-[9px] px-2 py-0.5 rounded-full text-overlay/20">
+                    <span className="text-2xs px-2 py-0.5 rounded-full text-overlay/20">
                       +{t.widgets.length - 8} altri
                     </span>
                   )}
@@ -291,7 +291,7 @@ function TemplatePicker({
         </div>
 
         <div className="px-5 py-3 border-t border-overlay/[0.06] shrink-0">
-          <p className="text-[9px] text-overlay/10 text-center">
+          <p className="text-2xs text-overlay/10 text-center">
             Solo i Super Admin possono cambiare template
           </p>
         </div>
@@ -334,11 +334,11 @@ export function DashboardGrid({ data, initialConfig }: { data: DashboardData; in
 
   const { pulseRaw } = data
   const pulseAreas = [
-    { label: 'Commerciale',   value: pulseRaw.dealsTotal > 0 ? Math.round((pulseRaw.dealsWon / pulseRaw.dealsTotal) * 100) : 0, detail: `${pulseRaw.dealsActive} deal attivi`, color: '#FFC501', href: '/commerciale',         icon: <ShoppingCart className="w-3.5 h-3.5" /> },
-    { label: 'Fatturazione',  value: data.invoicesPending === 0 ? 100 : Math.max(0, 100 - data.invoicesPending * 10),             detail: `${data.invoicesPending} in attesa`,   color: '#22C55E', href: '/fatturazione',        icon: <Receipt      className="w-3.5 h-3.5" /> },
-    { label: 'Operativa',     value: pulseRaw.tasksTotal > 0 ? Math.round((pulseRaw.tasksDone / pulseRaw.tasksTotal) * 100) : 0, detail: `${pulseRaw.tasksTotal - pulseRaw.tasksDone} aperte`, color: '#3B82F6', href: '/le-mie-attivita', icon: <Wrench className="w-3.5 h-3.5" /> },
-    { label: 'Customer Care', value: (pulseRaw.ticketsOpen + pulseRaw.ticketsResolved) > 0 ? Math.round((pulseRaw.ticketsResolved / (pulseRaw.ticketsOpen + pulseRaw.ticketsResolved)) * 100) : 100, detail: `${pulseRaw.ticketsOpen} ticket aperti`, color: pulseRaw.ticketsOpen > 5 ? '#EF4444' : '#10B981', href: '/customer-care/tickets', icon: <Headphones className="w-3.5 h-3.5" /> },
-    { label: 'OKR Strategia', value: pulseRaw.okrProgress, detail: 'progresso medio', color: '#A855F7', href: '/strategia', icon: <Target className="w-3.5 h-3.5" /> },
+    { label: 'Commerciale',   value: pulseRaw.dealsTotal > 0 ? Math.round((pulseRaw.dealsWon / pulseRaw.dealsTotal) * 100) : 0, detail: `${pulseRaw.dealsActive} deal attivi`, color: 'var(--color-gold-text)', href: '/commerciale',         icon: <ShoppingCart className="w-3.5 h-3.5" /> },
+    { label: 'Fatturazione',  value: data.invoicesPending === 0 ? 100 : Math.max(0, 100 - data.invoicesPending * 10),             detail: `${data.invoicesPending} in attesa`,   color: 'var(--color-success)', href: '/fatturazione',        icon: <Receipt      className="w-3.5 h-3.5" /> },
+    { label: 'Operativa',     value: pulseRaw.tasksTotal > 0 ? Math.round((pulseRaw.tasksDone / pulseRaw.tasksTotal) * 100) : 0, detail: `${pulseRaw.tasksTotal - pulseRaw.tasksDone} aperte`, color: 'var(--color-info)', href: '/le-mie-attivita', icon: <Wrench className="w-3.5 h-3.5" /> },
+    { label: 'Customer Care', value: (pulseRaw.ticketsOpen + pulseRaw.ticketsResolved) > 0 ? Math.round((pulseRaw.ticketsResolved / (pulseRaw.ticketsOpen + pulseRaw.ticketsResolved)) * 100) : 100, detail: `${pulseRaw.ticketsOpen} ticket aperti`, color: pulseRaw.ticketsOpen > 5 ? 'var(--color-error)' : 'var(--color-success)', href: '/customer-care/tickets', icon: <Headphones className="w-3.5 h-3.5" /> },
+    { label: 'OKR Strategia', value: pulseRaw.okrProgress, detail: 'progresso medio', color: 'var(--color-accent)', href: '/strategia', icon: <Target className="w-3.5 h-3.5" /> },
   ]
 
   const WIDGET_CONTENT: Record<string, React.ReactNode> = {
@@ -381,8 +381,8 @@ export function DashboardGrid({ data, initialConfig }: { data: DashboardData; in
             style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text-tertiary)' }}
             onMouseEnter={e => {
               (e.currentTarget as HTMLElement).style.background = 'var(--color-gold-dim)';
-              (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,197,1,0.15)';
-              (e.currentTarget as HTMLElement).style.color = 'var(--color-gold)'
+              (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-gold-dim)';
+              (e.currentTarget as HTMLElement).style.color = 'var(--color-gold-text)'
             }}
             onMouseLeave={e => {
               (e.currentTarget as HTMLElement).style.background = 'var(--color-surface)';

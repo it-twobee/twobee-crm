@@ -50,22 +50,22 @@ type ViewMode = 'grid' | 'list'
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_BADGE: Record<string, string> = {
-  attivo:     'bg-[#22C55E]/15 text-[#22C55E] border border-[#22C55E]/20',
-  in_pausa:   'bg-[#F59E0B]/15 text-[#F59E0B] border border-[#F59E0B]/20',
-  completato: 'bg-[#2A2A2A] text-text-secondary border border-[#3A3A3A]',
-  archiviato: 'bg-[#2A2A2A] text-text-secondary border border-[#3A3A3A]',
+  attivo:     'bg-success/15 text-success border border-success/20',
+  in_pausa:   'bg-warning/15 text-warning border border-warning/20',
+  completato: 'bg-surface-active text-text-secondary border border-border',
+  archiviato: 'bg-surface-active text-text-secondary border border-border',
 }
 const STATUS_LABEL: Record<string, string> = {
   attivo: 'Attivo', in_pausa: 'In pausa', completato: 'Completato', archiviato: 'Archiviato',
 }
 
 const TYPE_META: Record<string, { icon: string; label: string; color: string }> = {
-  ecommerce: { icon: '🛒', label: 'E-commerce',   color: 'text-orange-400' },
-  lead_gen:  { icon: '🎯', label: 'Lead Gen',      color: 'text-yellow-400' },
-  sito_web:  { icon: '🌐', label: 'Sito Web',      color: 'text-blue-400' },
-  app_ai:    { icon: '🤖', label: 'App AI',        color: 'text-purple-400' },
-  campagna:  { icon: '📣', label: 'Campagna',      color: 'text-green-400' },
-  custom:    { icon: '📁', label: 'Custom',        color: 'text-[#888]' },
+  ecommerce: { icon: '🛒', label: 'E-commerce',   color: 'text-orange' },
+  lead_gen:  { icon: '🎯', label: 'Lead Gen',      color: 'text-gold-text' },
+  sito_web:  { icon: '🌐', label: 'Sito Web',      color: 'text-info' },
+  app_ai:    { icon: '🤖', label: 'App AI',        color: 'text-accent' },
+  campagna:  { icon: '📣', label: 'Campagna',      color: 'text-success' },
+  custom:    { icon: '📁', label: 'Custom',        color: 'text-text-secondary' },
 }
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
@@ -84,7 +84,7 @@ function projectProgress(tasks: TaskMin[]) {
 }
 
 function projectHealthScore(tasks: TaskMin[]) {
-  if (!tasks.length) return { score: 50, color: 'text-text-secondary', bg: 'bg-[#2A2A2A]', border: 'border-[#3A3A3A]', label: '—' }
+  if (!tasks.length) return { score: 50, color: 'text-text-secondary', bg: 'bg-surface-active', border: 'border-border', label: '—' }
   const total   = tasks.length
   const overdue = tasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && t.status !== 'completato').length
   const noAsgn  = tasks.filter(t => !t.assignee_id && t.status !== 'completato').length
@@ -94,9 +94,9 @@ function projectHealthScore(tasks: TaskMin[]) {
   score -= Math.min(20, Math.round(noAsgn  / total * 40))
   if (done / total > 0.5) score += Math.round((done / total - 0.5) * 40)
   score = Math.max(0, Math.min(100, score))
-  if (score >= 70) return { score, color: 'text-[#22C55E]', bg: 'bg-[#22C55E]/10', border: 'border-[#22C55E]/20', label: 'Sano' }
-  if (score >= 40) return { score, color: 'text-[#F59E0B]', bg: 'bg-[#F59E0B]/10', border: 'border-[#F59E0B]/20', label: 'A rischio' }
-  return { score, color: 'text-[#EF4444]', bg: 'bg-[#EF4444]/10', border: 'border-[#EF4444]/20', label: 'Critico' }
+  if (score >= 70) return { score, color: 'text-success', bg: 'bg-success/10', border: 'border-success/20', label: 'Sano' }
+  if (score >= 40) return { score, color: 'text-warning', bg: 'bg-warning/10', border: 'border-warning/20', label: 'A rischio' }
+  return { score, color: 'text-error', bg: 'bg-error/10', border: 'border-error/20', label: 'Critico' }
 }
 
 function activeSprint(sprints: SprintMin[]) {
@@ -104,10 +104,10 @@ function activeSprint(sprints: SprintMin[]) {
 }
 
 function kindBadge(kind: string | null) {
-  if (kind === 'growth')    return { label: '🌱 Growth',    style: 'bg-gold/10 text-gold border-gold/25' }
-  if (kind === 'marketing') return { label: '📣 Marketing', style: 'bg-amber-400/10 text-amber-400 border-amber-400/25' }
-  if (kind === 'digital')   return { label: '💻 Digital',   style: 'bg-blue-400/10 text-blue-400 border-blue-400/25' }
-  if (kind === 'ai')        return { label: '🤖 AI',        style: 'bg-purple-400/10 text-purple-400 border-purple-400/25' }
+  if (kind === 'growth')    return { label: '🌱 Growth',    style: 'bg-gold/10 text-gold-text border-gold/25' }
+  if (kind === 'marketing') return { label: '📣 Marketing', style: 'bg-warning/10 text-warning border-warning/25' }
+  if (kind === 'digital')   return { label: '💻 Digital',   style: 'bg-info/10 text-info border-info/25' }
+  if (kind === 'ai')        return { label: '🤖 AI',        style: 'bg-accent/10 text-accent border-accent/25' }
   return null
 }
 
@@ -118,10 +118,10 @@ function SprintBadge({ sprint }: { sprint: SprintMin | null }) {
   const isActive = sprint.status === 'in_corso'
   const overdue  = sprint.end_date && new Date(sprint.end_date) < new Date()
   return (
-    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-      isActive && overdue ? 'bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20' :
-      isActive            ? 'bg-gold/10 text-gold border-gold/20' :
-                            'bg-[#1A1A1A] text-[#666] border-[#2A2A2A]'
+    <span className={`inline-flex items-center gap-1 text-2xs font-semibold px-2 py-0.5 rounded-full border ${
+      isActive && overdue ? 'bg-error/10 text-error border-error/20' :
+      isActive            ? 'bg-gold/10 text-gold-text border-gold/20' :
+                            'bg-surface text-text-tertiary border-border'
     }`}>
       {isActive ? '⚡' : '○'} {sprint.name}
       {sprint.end_date && isActive && (
@@ -153,42 +153,42 @@ function ProjectCard({ proj, onSprint, onSync, onEdit, onDelete }: {
   const typeMeta = TYPE_META[proj.project_type] ?? TYPE_META.custom
 
   return (
-    <div className="bg-surface border border-[#2A2A2A] rounded-card p-5 hover:border-[#3A3A3A] transition-all group flex flex-col">
+    <div className="bg-surface border border-border rounded-card p-5 hover:border-border transition-all group flex flex-col">
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${STATUS_BADGE[proj.status]}`}>
+            <span className={`text-2xs font-bold px-1.5 py-0.5 rounded ${STATUS_BADGE[proj.status]}`}>
               {STATUS_LABEL[proj.status]}
             </span>
             {total > 0 && (
-              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${health.bg} ${health.color} ${health.border}`}>
+              <span className={`text-2xs font-bold px-1.5 py-0.5 rounded border ${health.bg} ${health.color} ${health.border}`}>
                 {health.label}
               </span>
             )}
             {kind && (
-              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${kind.style}`}>
+              <span className={`text-2xs font-bold px-1.5 py-0.5 rounded border ${kind.style}`}>
                 {kind.label}
               </span>
             )}
           </div>
           <div className="flex items-center gap-1.5 mb-0.5">
             <span className="text-base">{typeMeta.icon}</span>
-            <h3 className="text-sm font-bold text-white truncate">{proj.name}</h3>
+            <h3 className="text-sm font-bold text-text-primary truncate">{proj.name}</h3>
           </div>
           <p className="text-xs text-text-secondary truncate">{proj.clients?.company_name ?? '—'}</p>
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
-          <button onClick={onEdit} className="p-1.5 text-text-secondary hover:text-white border border-[#2A2A2A] rounded-lg" title="Modifica progetto">
+          <button onClick={onEdit} className="p-1.5 text-text-secondary hover:text-text-primary border border-border rounded-lg" title="Modifica progetto">
             <Pencil className="w-3.5 h-3.5" />
           </button>
-          <button onClick={onDelete} className="p-1.5 text-text-secondary hover:text-red-400 border border-[#2A2A2A] rounded-lg" title="Elimina progetto">
+          <button onClick={onDelete} className="p-1.5 text-text-secondary hover:text-error border border-border rounded-lg" title="Elimina progetto">
             <Trash2 className="w-3.5 h-3.5" />
           </button>
-          <button onClick={onSprint} className="p-1.5 text-text-secondary hover:text-gold border border-[#2A2A2A] rounded-lg" title="AI Sprint Planner">
+          <button onClick={onSprint} className="p-1.5 text-text-secondary hover:text-gold-text border border-border rounded-lg" title="AI Sprint Planner">
             <Brain className="w-3.5 h-3.5" />
           </button>
-          <button onClick={onSync} className="p-1.5 text-text-secondary hover:text-[#F06A35] border border-[#2A2A2A] rounded-lg" title="Sync da Asana">
+          <button onClick={onSync} className="p-1.5 text-text-secondary hover:text-[#F06A35] border border-border rounded-lg" title="Sync da Asana">
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -196,12 +196,12 @@ function ProjectCard({ proj, onSprint, onSync, onEdit, onDelete }: {
 
       {/* Progress */}
       <div className="mb-3">
-        <div className="flex items-center justify-between text-[10px] mb-1">
+        <div className="flex items-center justify-between text-2xs mb-1">
           <span className="text-text-secondary">{done}/{total} task</span>
-          <span className={`font-bold ${pct === 100 ? 'text-[#22C55E]' : 'text-white'}`}>{pct}%</span>
+          <span className={`font-bold ${pct === 100 ? 'text-success' : 'text-text-primary'}`}>{pct}%</span>
         </div>
         <div className="w-full h-1.5 bg-background rounded-full overflow-hidden">
-          <div className={`h-full rounded-full transition-all ${pct === 100 ? 'bg-[#22C55E]' : pct > 50 ? 'bg-gold' : 'bg-[#F59E0B]'}`}
+          <div className={`h-full rounded-full transition-all ${pct === 100 ? 'bg-success' : pct > 50 ? 'bg-gold' : 'bg-warning'}`}
             style={{ width: `${pct}%` }} />
         </div>
       </div>
@@ -209,17 +209,17 @@ function ProjectCard({ proj, onSprint, onSync, onEdit, onDelete }: {
       {/* Stats */}
       <div className="flex items-center gap-3 mb-3 min-h-[18px]">
         {inProg > 0 && (
-          <span className="flex items-center gap-1 text-[10px] text-[#F59E0B]">
+          <span className="flex items-center gap-1 text-2xs text-warning">
             <Clock className="w-3 h-3" />{inProg} in corso
           </span>
         )}
         {overdue > 0 && (
-          <span className="flex items-center gap-1 text-[10px] text-[#EF4444]">
+          <span className="flex items-center gap-1 text-2xs text-error">
             <AlertCircle className="w-3 h-3" />{overdue} scadute
           </span>
         )}
         {done === total && total > 0 && (
-          <span className="flex items-center gap-1 text-[10px] text-[#22C55E]">
+          <span className="flex items-center gap-1 text-2xs text-success">
             <CheckCircle2 className="w-3 h-3" />Completato
           </span>
         )}
@@ -231,13 +231,13 @@ function ProjectCard({ proj, onSprint, onSync, onEdit, onDelete }: {
       </div>
 
       {/* Footer — CTA progetto */}
-      <div className="mt-auto pt-3 border-t border-[#2A2A2A] flex items-center justify-between">
+      <div className="mt-auto pt-3 border-t border-border flex items-center justify-between">
         <Link href={`/clienti/${proj.client_id}`}
-          className="flex items-center gap-1 text-[10px] text-text-secondary hover:text-white transition-colors">
+          className="flex items-center gap-1 text-2xs text-text-secondary hover:text-text-primary transition-colors">
           <ExternalLink className="w-3 h-3" /> Cliente
         </Link>
         <Link href={`/clienti/${proj.client_id}/progetto/${proj.id}`}
-          className="flex items-center gap-1.5 text-xs font-bold text-gold hover:text-yellow-400 transition-colors">
+          className="flex items-center gap-1.5 text-xs font-bold text-gold-text hover:text-gold-text transition-colors">
           Apri progetto →
         </Link>
       </div>
@@ -264,45 +264,45 @@ function ProjectRow({ proj, onSprint, onSync, onEdit, onDelete }: {
   const typeMeta = TYPE_META[proj.project_type] ?? TYPE_META.custom
 
   return (
-    <div className="group flex items-center gap-4 px-4 py-3 bg-surface border border-[#2A2A2A] rounded-xl hover:border-[#3A3A3A] transition-all">
+    <div className="group flex items-center gap-4 px-4 py-3 bg-surface border border-border rounded-xl hover:border-border transition-all">
       {/* Type icon */}
       <span className="text-lg shrink-0">{typeMeta.icon}</span>
 
       {/* Name + client */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-bold text-white truncate">{proj.name}</span>
+          <span className="text-sm font-bold text-text-primary truncate">{proj.name}</span>
           {kind && (
-            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${kind.style}`}>{kind.label}</span>
+            <span className={`text-2xs font-bold px-1.5 py-0.5 rounded border ${kind.style}`}>{kind.label}</span>
           )}
-          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${STATUS_BADGE[proj.status]}`}>
+          <span className={`text-2xs font-bold px-1.5 py-0.5 rounded ${STATUS_BADGE[proj.status]}`}>
             {STATUS_LABEL[proj.status]}
           </span>
         </div>
-        <p className="text-[10px] text-text-secondary">{proj.clients?.company_name ?? '—'}</p>
+        <p className="text-2xs text-text-secondary">{proj.clients?.company_name ?? '—'}</p>
       </div>
 
       {/* Health */}
       {total > 0 && (
-        <span className={`shrink-0 text-[10px] font-bold px-2 py-1 rounded border hidden sm:inline ${health.bg} ${health.color} ${health.border}`}>
+        <span className={`shrink-0 text-2xs font-bold px-2 py-1 rounded border hidden sm:inline ${health.bg} ${health.color} ${health.border}`}>
           {health.label} {health.score}
         </span>
       )}
 
       {/* Progress */}
       <div className="w-28 shrink-0 hidden md:block">
-        <div className="flex items-center justify-between text-[10px] mb-1">
+        <div className="flex items-center justify-between text-2xs mb-1">
           <span className="text-text-secondary">{done}/{total}</span>
-          <span className="font-bold text-white">{pct}%</span>
+          <span className="font-bold text-text-primary">{pct}%</span>
         </div>
         <div className="w-full h-1 bg-background rounded-full overflow-hidden">
-          <div className={`h-full rounded-full ${pct === 100 ? 'bg-[#22C55E]' : 'bg-gold'}`} style={{ width: `${pct}%` }} />
+          <div className={`h-full rounded-full ${pct === 100 ? 'bg-success' : 'bg-gold'}`} style={{ width: `${pct}%` }} />
         </div>
       </div>
 
       {/* Overdue */}
       {overdue > 0 && (
-        <span className="shrink-0 text-[10px] text-[#EF4444] flex items-center gap-0.5 hidden lg:flex">
+        <span className="shrink-0 text-2xs text-error flex items-center gap-0.5 hidden lg:flex">
           <AlertCircle className="w-3 h-3" />{overdue}
         </span>
       )}
@@ -315,21 +315,21 @@ function ProjectRow({ proj, onSprint, onSync, onEdit, onDelete }: {
       {/* Actions */}
       <div className="flex items-center gap-1 shrink-0">
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={onEdit} className="p-1.5 text-text-secondary hover:text-white border border-[#2A2A2A] rounded-lg" title="Modifica">
+          <button onClick={onEdit} className="p-1.5 text-text-secondary hover:text-text-primary border border-border rounded-lg" title="Modifica">
             <Pencil className="w-3 h-3" />
           </button>
-          <button onClick={onDelete} className="p-1.5 text-text-secondary hover:text-red-400 border border-[#2A2A2A] rounded-lg" title="Elimina">
+          <button onClick={onDelete} className="p-1.5 text-text-secondary hover:text-error border border-border rounded-lg" title="Elimina">
             <Trash2 className="w-3 h-3" />
           </button>
-          <button onClick={onSprint} className="p-1.5 text-text-secondary hover:text-gold border border-[#2A2A2A] rounded-lg" title="AI Sprint Planner">
+          <button onClick={onSprint} className="p-1.5 text-text-secondary hover:text-gold-text border border-border rounded-lg" title="AI Sprint Planner">
             <Brain className="w-3 h-3" />
           </button>
-          <button onClick={onSync} className="p-1.5 text-text-secondary hover:text-[#F06A35] border border-[#2A2A2A] rounded-lg" title="Sync Asana">
+          <button onClick={onSync} className="p-1.5 text-text-secondary hover:text-[#F06A35] border border-border rounded-lg" title="Sync Asana">
             <RefreshCw className="w-3 h-3" />
           </button>
         </div>
         <Link href={`/clienti/${proj.client_id}/progetto/${proj.id}`}
-          className="ml-1 flex items-center gap-1 text-xs font-bold text-gold hover:text-yellow-400 px-3 py-1.5 bg-gold/5 border border-gold/20 hover:border-gold/40 rounded-lg transition-all">
+          className="ml-1 flex items-center gap-1 text-xs font-bold text-gold-text hover:text-gold-text px-3 py-1.5 bg-gold/5 border border-gold/20 hover:border-gold/40 rounded-lg transition-all">
           Apri →
         </Link>
       </div>
@@ -380,21 +380,21 @@ export function ProgettiClient({ projects: initialProjects }: { projects: Projec
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-6 py-5 border-b border-[#2A2A2A]">
+      <div className="px-6 py-5 border-b border-border">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-xl font-black text-white">Progetti</h1>
+            <h1 className="text-xl font-black text-text-primary">Progetti</h1>
             <div className="flex items-center gap-3 mt-0.5">
               <p className="text-xs text-text-secondary">{activeCount} attivi · {projects.length} totali</p>
               {criticalCount > 0 && (
-                <span className="flex items-center gap-1 text-[10px] font-bold text-[#EF4444]">
+                <span className="flex items-center gap-1 text-2xs font-bold text-error">
                   <TrendingDown className="w-3 h-3" />{criticalCount} critici
                 </span>
               )}
             </div>
           </div>
           <button onClick={() => setShowNewProject(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 transition-colors">
+            className="flex items-center gap-2 px-4 py-2 bg-gold text-on-gold font-bold rounded-lg text-sm hover:bg-gold/90 transition-colors">
             <Plus className="w-4 h-4" /> Nuovo Progetto
           </button>
         </div>
@@ -406,24 +406,24 @@ export function ProgettiClient({ projects: initialProjects }: { projects: Projec
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
             <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Cerca progetto o cliente..."
-              className="w-full bg-background border border-[#2A2A2A] rounded-lg pl-9 pr-3 py-2 text-sm text-white focus:outline-none focus:border-gold" />
+              className="w-full bg-background border border-border rounded-lg pl-9 pr-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" />
           </div>
 
           {/* Status filter */}
-          <div className="flex bg-surface border border-[#2A2A2A] rounded-lg p-0.5">
+          <div className="flex bg-surface border border-border rounded-lg p-0.5">
             {statuses.map(s => (
               <button key={s} onClick={() => setFilterStatus(s)}
-                className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors capitalize ${filterStatus === s ? 'bg-gold text-black font-bold' : 'text-text-secondary hover:text-white'}`}>
+                className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors capitalize ${filterStatus === s ? 'bg-gold text-on-gold font-bold' : 'text-text-secondary hover:text-text-primary'}`}>
                 {s === 'tutti' ? 'Tutti' : STATUS_LABEL[s]}
               </button>
             ))}
           </div>
 
           {/* Kind filter */}
-          <div className="flex bg-surface border border-[#2A2A2A] rounded-lg p-0.5">
+          <div className="flex bg-surface border border-border rounded-lg p-0.5">
             {['tutti', 'growth', 'digital', 'marketing', 'ai'].map(k => (
               <button key={k} onClick={() => setFilterKind(k)}
-                className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${filterKind === k ? 'bg-gold text-black font-bold' : 'text-text-secondary hover:text-white'}`}>
+                className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${filterKind === k ? 'bg-gold text-on-gold font-bold' : 'text-text-secondary hover:text-text-primary'}`}>
                 {k === 'tutti' ? 'Tutti' : k === 'growth' ? '🌱 Growth' : k === 'digital' ? '💻 Digital' : k === 'marketing' ? '📣 Marketing' : '🤖 AI'}
               </button>
             ))}
@@ -431,23 +431,23 @@ export function ProgettiClient({ projects: initialProjects }: { projects: Projec
 
           {/* Sort */}
           <div className="relative">
-            <div className="flex items-center gap-1.5 px-3 py-2 bg-surface border border-[#2A2A2A] rounded-lg">
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-surface border border-border rounded-lg">
               <ArrowUpDown className="w-3.5 h-3.5 text-text-secondary" />
               <select value={sortKey} onChange={e => setSortKey(e.target.value as SortKey)}
-                className="bg-transparent text-xs text-white focus:outline-none cursor-pointer pr-1">
+                className="bg-transparent text-xs text-text-primary focus:outline-none cursor-pointer pr-1">
                 {SORT_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
               </select>
             </div>
           </div>
 
           {/* View toggle */}
-          <div className="flex bg-surface border border-[#2A2A2A] rounded-lg p-0.5">
+          <div className="flex bg-surface border border-border rounded-lg p-0.5">
             <button onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-gold text-black' : 'text-text-secondary hover:text-white'}`}>
+              className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-gold text-on-gold' : 'text-text-secondary hover:text-text-primary'}`}>
               <LayoutGrid className="w-3.5 h-3.5" />
             </button>
             <button onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-gold text-black' : 'text-text-secondary hover:text-white'}`}>
+              className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-gold text-on-gold' : 'text-text-secondary hover:text-text-primary'}`}>
               <List className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -530,7 +530,7 @@ function EditProgettoModal({ project, onClose, onSaved }: {
     createClient().from('clients').select('id, company_name').order('company_name').then(({ data }) => setClients(data ?? []))
   }, [])
 
-  const inp = 'w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold'
+  const inp = 'w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold'
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -552,11 +552,11 @@ function EditProgettoModal({ project, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-[#2A2A2A] rounded-card w-full max-w-md">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A]">
-          <h2 className="text-base font-bold text-white">Modifica progetto</h2>
-          <button onClick={onClose}><X className="w-5 h-5 text-text-secondary hover:text-white" /></button>
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-surface border border-border rounded-card w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 className="text-base font-bold text-text-primary">Modifica progetto</h2>
+          <button onClick={onClose}><X className="w-5 h-5 text-text-secondary hover:text-text-primary" /></button>
         </div>
         <form onSubmit={save} className="p-6 space-y-4">
           <div>
@@ -601,15 +601,15 @@ function EditProgettoModal({ project, onClose, onSaved }: {
             <label className="block text-xs text-text-secondary mb-1">Kind</label>
             <div className="grid grid-cols-5 gap-1.5">
               {([
-                { v: 'growth',    label: '🌱 Growth',    active: 'bg-[#F5C800]/15 text-[#F5C800] border-[#F5C800]/40' },
-                { v: 'marketing', label: '📣 Marketing',  active: 'bg-amber-500/15 text-amber-400 border-amber-400/40' },
-                { v: 'digital',   label: '💻 Digital',   active: 'bg-blue-500/15 text-blue-400 border-blue-400/40' },
-                { v: 'ai',        label: '🤖 AI',        active: 'bg-purple-500/15 text-purple-400 border-purple-400/40' },
-                { v: '',          label: '— Nessuno',    active: 'bg-[#2A2A2A] text-white border-[#3A3A3A]' },
+                { v: 'growth',    label: '🌱 Growth',    active: 'bg-gold/15 text-gold-text border-gold/40' },
+                { v: 'marketing', label: '📣 Marketing',  active: 'bg-warning/15 text-warning border-warning/40' },
+                { v: 'digital',   label: '💻 Digital',   active: 'bg-info/15 text-info border-info/40' },
+                { v: 'ai',        label: '🤖 AI',        active: 'bg-accent/15 text-accent border-accent/40' },
+                { v: '',          label: '— Nessuno',    active: 'bg-surface-active text-text-primary border-border' },
               ] as const).map(({ v, label, active }) => (
                 <button key={v} type="button" onClick={() => setForm(p => ({ ...p, project_kind: v }))}
-                  className={`py-2 rounded-lg border text-[10px] font-bold transition-all ${
-                    form.project_kind === v ? active : 'border-[#2A2A2A] text-text-secondary hover:border-[#3A3A3A]'
+                  className={`py-2 rounded-lg border text-2xs font-bold transition-all ${
+                    form.project_kind === v ? active : 'border-border text-text-secondary hover:border-border'
                   }`}>
                   {label}
                 </button>
@@ -617,9 +617,9 @@ function EditProgettoModal({ project, onClose, onSaved }: {
             </div>
           </div>
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary hover:text-white">Annulla</button>
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
             <button type="submit" disabled={loading}
-              className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
+              className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg text-sm hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />} Salva
             </button>
           </div>
@@ -650,24 +650,24 @@ function DeleteConfirmModal({ project, onClose, onDeleted }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-[#2A2A2A] rounded-card w-full max-w-sm p-6">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-surface border border-border rounded-card w-full max-w-sm p-6">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center shrink-0">
-            <Trash2 className="w-5 h-5 text-red-400" />
+          <div className="w-10 h-10 rounded-xl bg-error/10 flex items-center justify-center shrink-0">
+            <Trash2 className="w-5 h-5 text-error" />
           </div>
           <div>
-            <p className="text-sm font-bold text-white">Elimina progetto</p>
+            <p className="text-sm font-bold text-text-primary">Elimina progetto</p>
             <p className="text-xs text-text-secondary mt-0.5">Questa azione è irreversibile</p>
           </div>
         </div>
         <p className="text-sm text-text-secondary mb-5">
-          Stai per eliminare <span className="font-bold text-white">{project.name}</span> e tutte le sue task. Continuare?
+          Stai per eliminare <span className="font-bold text-text-primary">{project.name}</span> e tutte le sue task. Continuare?
         </p>
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary hover:text-white">Annulla</button>
+          <button onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
           <button onClick={doDelete} disabled={loading}
-            className="flex-1 py-2.5 bg-red-500 text-white font-bold rounded-lg text-sm hover:bg-red-400 disabled:opacity-50 flex items-center justify-center gap-2">
+            className="flex-1 py-2.5 bg-error text-text-primary font-bold rounded-lg text-sm hover:bg-error disabled:opacity-50 flex items-center justify-center gap-2">
             {loading && <Loader2 className="w-4 h-4 animate-spin" />} Elimina
           </button>
         </div>
@@ -696,49 +696,49 @@ function SprintPlannerModal({ project, onClose }: { project: Project; onClose: (
   const taskMap = Object.fromEntries(project.tasks.map(t => [t.id, t]))
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-[#2A2A2A] rounded-card w-full max-w-md">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A]">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-surface border border-border rounded-card w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div>
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <Brain className="w-4 h-4 text-gold" /> AI Sprint Planner
+            <h2 className="text-base font-bold text-text-primary flex items-center gap-2">
+              <Brain className="w-4 h-4 text-gold-text" /> AI Sprint Planner
             </h2>
-            <p className="text-xs text-text-secondary mt-0.5">Sprint {project.sprint_current + 1} · <span className="text-gold">{project.name}</span></p>
+            <p className="text-xs text-text-secondary mt-0.5">Sprint {project.sprint_current + 1} · <span className="text-gold-text">{project.name}</span></p>
           </div>
-          <button onClick={onClose} className="text-text-secondary hover:text-white">✕</button>
+          <button onClick={onClose} className="text-text-secondary hover:text-text-primary">✕</button>
         </div>
         <div className="p-6">
           {loading && (
             <div className="flex flex-col items-center gap-3 py-8">
-              <Loader2 className="w-8 h-8 text-gold animate-spin" />
+              <Loader2 className="w-8 h-8 text-gold-text animate-spin" />
               <p className="text-sm text-text-secondary">L&apos;AI sta analizzando i task...</p>
             </div>
           )}
-          {error && <p className="text-sm text-[#EF4444]">{error}</p>}
+          {error && <p className="text-sm text-error">{error}</p>}
           {result && (
             <div className="space-y-4">
               <div className="bg-gold/5 border border-gold/20 rounded-xl p-3">
-                <p className="text-xs text-gold font-semibold mb-1">Sintesi sprint suggerito</p>
-                <p className="text-sm text-white">{result.summary}</p>
+                <p className="text-xs text-gold-text font-semibold mb-1">Sintesi sprint suggerito</p>
+                <p className="text-sm text-text-primary">{result.summary}</p>
               </div>
               <div className="space-y-2">
                 <p className="text-xs text-text-secondary uppercase tracking-wider font-semibold">Task selezionati ({result.selected.length})</p>
                 {result.selected.map(item => {
                   const task = taskMap[item.id]
                   if (!task) return null
-                  const pc: Record<string, string> = { alta: 'bg-[#EF4444]', media: 'bg-[#F59E0B]', bassa: 'bg-[#22C55E]' }
+                  const pc: Record<string, string> = { alta: 'bg-error', media: 'bg-warning', bassa: 'bg-success' }
                   return (
-                    <div key={item.id} className="flex items-start gap-3 p-3 bg-background border border-[#2A2A2A] rounded-lg">
-                      <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${pc[task.priority] ?? 'bg-[#3A3A3A]'}`} />
+                    <div key={item.id} className="flex items-start gap-3 p-3 bg-background border border-border rounded-lg">
+                      <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${pc[task.priority] ?? 'bg-surface-active'}`} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-white font-medium truncate">{task.title}</p>
+                        <p className="text-sm text-text-primary font-medium truncate">{task.title}</p>
                         <p className="text-xs text-text-secondary">{item.reason}</p>
                       </div>
                     </div>
                   )
                 })}
               </div>
-              <button onClick={onClose} className="w-full py-2.5 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400">
+              <button onClick={onClose} className="w-full py-2.5 bg-gold text-on-gold font-bold rounded-lg text-sm hover:bg-gold/90">
                 Capito, grazie!
               </button>
             </div>
@@ -790,14 +790,14 @@ function AsanaSyncModal({ project, onClose }: { project: Project; onClose: () =>
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-[#2A2A2A] rounded-card w-full max-w-md">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A]">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-surface border border-border rounded-card w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div>
-            <h2 className="text-base font-bold text-white">Sync da Asana</h2>
-            <p className="text-xs text-text-secondary mt-0.5">Importa task in <span className="text-gold">{project.name}</span></p>
+            <h2 className="text-base font-bold text-text-primary">Sync da Asana</h2>
+            <p className="text-xs text-text-secondary mt-0.5">Importa task in <span className="text-gold-text">{project.name}</span></p>
           </div>
-          <button onClick={onClose} className="text-text-secondary hover:text-white">✕</button>
+          <button onClick={onClose} className="text-text-secondary hover:text-text-primary">✕</button>
         </div>
         <div className="p-6 space-y-4">
           {loadingWs ? (
@@ -809,7 +809,7 @@ function AsanaSyncModal({ project, onClose }: { project: Project; onClose: () =>
               <div>
                 <label className="block text-xs text-text-secondary mb-1.5">Workspace Asana</label>
                 <select value={selectedWorkspace} onChange={e => loadProjects(e.target.value)}
-                  className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold">
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold">
                   <option value="">Seleziona...</option>
                   {workspaces.map(w => <option key={w.gid} value={w.gid}>{w.name}</option>)}
                 </select>
@@ -818,22 +818,22 @@ function AsanaSyncModal({ project, onClose }: { project: Project; onClose: () =>
                 <div>
                   <label className="block text-xs text-text-secondary mb-1.5">Progetto Asana</label>
                   <select value={selectedAsanaProject} onChange={e => setSelectedAsanaProject(e.target.value)}
-                    className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold">
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold">
                     <option value="">Seleziona...</option>
                     {asanaProjects.map(p => <option key={p.gid} value={p.gid}>{p.name}</option>)}
                   </select>
                 </div>
               )}
               {result && (
-                <div className="bg-[#22C55E]/10 border border-[#22C55E]/30 rounded-lg p-3 text-xs">
-                  <p className="text-white font-semibold">✓ Sync completata</p>
+                <div className="bg-success/10 border border-success/30 rounded-lg p-3 text-xs">
+                  <p className="text-text-primary font-semibold">✓ Sync completata</p>
                   <p className="text-text-secondary mt-0.5">{result.total} task · {result.created} nuove · {result.updated} aggiornate</p>
                 </div>
               )}
               <div className="flex gap-3 pt-1">
-                <button onClick={onClose} className="flex-1 py-2 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary hover:text-white">Chiudi</button>
+                <button onClick={onClose} className="flex-1 py-2 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Chiudi</button>
                 <button onClick={sync} disabled={!selectedAsanaProject || loading}
-                  className="flex-1 py-2 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-1">
+                  className="flex-1 py-2 bg-gold text-on-gold font-bold rounded-lg text-sm hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-1">
                   {loading && <Loader2 className="w-4 h-4 animate-spin" />} Sincronizza
                 </button>
               </div>
@@ -864,37 +864,37 @@ interface ProjectTemplate {
 const TEMPLATES: ProjectTemplate[] = [
   {
     type: 'campagna', kind: 'growth', icon: '📣', label: 'Campagna Performance',
-    color: 'border-yellow-500/40 bg-yellow-500/5',
+    color: 'border-warning/40 bg-warning/5',
     desc: 'Meta, Google Ads, marketing automation',
     milestones: ['Analisi & strategia', 'Setup account & tracking', 'Creatività & copy', 'Lancio campagne', 'Ottimizzazione settimanale', 'Report mensile'],
   },
   {
     type: 'ecommerce', kind: 'growth', icon: '🛒', label: 'E-commerce',
-    color: 'border-orange-500/40 bg-orange-500/5',
+    color: 'border-orange/40 bg-orange/5',
     desc: 'Shop online, marketplace, integrazione pagamenti',
     milestones: ['Brief & strategia', 'Architettura & tech stack', 'Design UI/UX', 'Sviluppo frontend', 'Backend & integrazioni', 'SEO & performance', 'Go-Live', 'Post-launch & analytics'],
   },
   {
     type: 'lead_gen', kind: 'growth', icon: '🎯', label: 'Lead Generation',
-    color: 'border-green-500/40 bg-green-500/5',
+    color: 'border-success/40 bg-success/5',
     desc: 'Funnel, landing page, CRM automation',
     milestones: ['Analisi target & buyer persona', 'Strategia funnel', 'Design landing page', 'Setup tracking & CRM', 'Attivazione campagne', 'Ottimizzazione CRO', 'Reporting'],
   },
   {
     type: 'app_ai', kind: 'digital', icon: '🤖', label: 'App AI / Custom',
-    color: 'border-purple-500/40 bg-purple-500/5',
+    color: 'border-accent/40 bg-accent/5',
     desc: 'Applicativi AI, CRM custom, automazioni',
     milestones: ['Discovery & specifiche', 'Architettura & setup', 'Sviluppo core', 'Integrazioni AI/API', 'Testing & QA', 'Deploy & documentazione', 'Formazione'],
   },
   {
     type: 'sito_web', kind: 'digital', icon: '🌐', label: 'Sito Web / Landing',
-    color: 'border-blue-500/40 bg-blue-500/5',
+    color: 'border-info/40 bg-info/5',
     desc: 'Siti corporate, landing page, portfolio',
     milestones: ['Brief & contenuti', 'Wireframe & design', 'Sviluppo', 'SEO tecnico', 'Revisioni cliente', 'Go-Live'],
   },
   {
     type: 'custom', kind: 'growth', icon: '📁', label: 'Personalizzato',
-    color: 'border-[#2A2A2A] bg-transparent',
+    color: 'border-border bg-transparent',
     desc: 'Progetto libero senza milestone predefinite',
     milestones: [],
   },
@@ -947,30 +947,30 @@ function NewProgettoModal({ onClose, onCreated }: { onClose: () => void; onCreat
     onCreated(data as Project)
   }
 
-  const inputCls = 'w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold'
+  const inputCls = 'w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold'
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-[#2A2A2A] rounded-card w-full max-w-lg">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A]">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-surface border border-border rounded-card w-full max-w-lg">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div className="flex items-center gap-2">
             {step === 2 && (
-              <button onClick={() => setStep(1)} className="text-text-secondary hover:text-white transition-colors mr-1">←</button>
+              <button onClick={() => setStep(1)} className="text-text-secondary hover:text-text-primary transition-colors mr-1">←</button>
             )}
-            <h2 className="text-base font-bold text-white">
+            <h2 className="text-base font-bold text-text-primary">
               {step === 1 ? 'Tipo di progetto' : `${selectedTemplate?.icon} ${selectedTemplate?.label}`}
             </h2>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-[10px] text-[#555]">Step {step} di 2</span>
-            <button onClick={onClose}><X className="w-5 h-5 text-text-secondary hover:text-white" /></button>
+            <span className="text-2xs text-text-tertiary">Step {step} di 2</span>
+            <button onClick={onClose}><X className="w-5 h-5 text-text-secondary hover:text-text-primary" /></button>
           </div>
         </div>
         {step === 1 && (
           <div className="p-5 space-y-3">
             {(['growth', 'digital'] as ProjectKind[]).map(kind => (
               <div key={kind}>
-                <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${kind === 'growth' ? 'text-[#F5C800]' : 'text-blue-400'}`}>
+                <p className={`text-2xs font-black uppercase tracking-widest mb-2 ${kind === 'growth' ? 'text-gold-text' : 'text-info'}`}>
                   {kind === 'growth' ? '📈 Growth' : '💻 Digital'}
                 </p>
                 <div className="grid grid-cols-2 gap-2">
@@ -979,10 +979,10 @@ function NewProgettoModal({ onClose, onCreated }: { onClose: () => void; onCreat
                       className={`flex items-start gap-3 p-3.5 rounded-xl border text-left transition-all hover:border-gold/40 hover:bg-gold/5 group ${tpl.color}`}>
                       <span className="text-xl leading-none mt-0.5 shrink-0">{tpl.icon}</span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-white group-hover:text-gold transition-colors">{tpl.label}</p>
-                        <p className="text-[10px] text-text-secondary mt-0.5 leading-snug">{tpl.desc}</p>
+                        <p className="text-sm font-bold text-text-primary group-hover:text-gold-text transition-colors">{tpl.label}</p>
+                        <p className="text-2xs text-text-secondary mt-0.5 leading-snug">{tpl.desc}</p>
                         {tpl.milestones.length > 0 && (
-                          <p className="text-[10px] text-[#444] mt-1">{tpl.milestones.length} milestone</p>
+                          <p className="text-2xs text-text-tertiary mt-1">{tpl.milestones.length} milestone</p>
                         )}
                       </div>
                     </button>
@@ -995,11 +995,11 @@ function NewProgettoModal({ onClose, onCreated }: { onClose: () => void; onCreat
         {step === 2 && selectedTemplate && (
           <form onSubmit={submit} className="p-6 space-y-4">
             {selectedTemplate.milestones.length > 0 && (
-              <div className="bg-[#111] border border-[#2A2A2A] rounded-xl px-4 py-3">
-                <p className="text-[10px] text-[#555] font-bold uppercase tracking-wider mb-2">Milestone che verranno create</p>
+              <div className="bg-background border border-border rounded-xl px-4 py-3">
+                <p className="text-2xs text-text-tertiary font-bold uppercase tracking-wider mb-2">Milestone che verranno create</p>
                 <div className="flex flex-wrap gap-1.5">
                   {selectedTemplate.milestones.map((m, i) => (
-                    <span key={i} className="text-[10px] bg-gold/10 text-gold border border-gold/20 px-2 py-0.5 rounded-full">{m}</span>
+                    <span key={i} className="text-2xs bg-gold/10 text-gold-text border border-gold/20 px-2 py-0.5 rounded-full">{m}</span>
                   ))}
                 </div>
               </div>
@@ -1023,9 +1023,9 @@ function NewProgettoModal({ onClose, onCreated }: { onClose: () => void; onCreat
                 rows={2} className={`${inputCls} resize-none`} />
             </div>
             <div className="flex gap-3 pt-1">
-              <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary hover:text-white">Annulla</button>
+              <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
               <button type="submit" disabled={loading}
-                className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
+                className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg text-sm hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-2">
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : selectedTemplate.icon}
                 {loading ? 'Creazione…' : 'Crea Progetto'}
               </button>

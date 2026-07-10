@@ -99,7 +99,7 @@ function RegistratiForm() {
 
   if (step === 'loading') return (
     <div className="min-h-screen bg-background flex items-center justify-center">
-      <Loader2 className="w-8 h-8 text-gold animate-spin" />
+      <Loader2 className="w-8 h-8 text-gold-text animate-spin" />
     </div>
   )
 
@@ -144,7 +144,7 @@ function RegistratiForm() {
         <div className="text-center mb-10">
           <h1 className="text-5xl font-black tracking-tight mb-2">
             <span className="text-text-primary">two bee</span>
-            <span className="text-gold">.</span>
+            <span className="text-gold-text">.</span>
           </h1>
           <p className="text-overlay/30 text-sm tracking-[0.2em] uppercase">Crea il tuo account</p>
         </div>
@@ -152,8 +152,8 @@ function RegistratiForm() {
         <div className="bg-overlay/[0.02] backdrop-blur border border-overlay/[0.08] rounded-3xl p-8">
           {invite && (
             <div className="mb-6 p-3 rounded-xl bg-gold-dim border border-gold/20">
-              <p className="text-xs text-gold/70">Sei stato invitato come</p>
-              <p className="text-sm font-bold text-gold mt-0.5">
+              <p className="text-xs text-gold-text/70">Sei stato invitato come</p>
+              <p className="text-sm font-bold text-gold-text mt-0.5">
                 {ROLE_DISPLAY[invite.app_role] ?? invite.app_role}
                 {invite.job_title ? ` · ${invite.job_title}` : ''}
               </p>
@@ -218,7 +218,7 @@ function RegistratiForm() {
             <button
               type="submit"
               disabled={saving}
-              className="w-full bg-gold text-black font-bold py-3 rounded-xl hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full bg-gold text-on-gold font-bold py-3 rounded-xl hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {saving && <Loader2 className="w-4 h-4 animate-spin" />}
               Crea account

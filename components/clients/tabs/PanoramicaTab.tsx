@@ -115,7 +115,7 @@ function AgendaSection({ meetings }: { meetings: MeetingNote[] }) {
       {/* Prossimi appuntamenti */}
       <div className="bg-surface border border-border rounded-xl overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-          <Calendar className="w-3.5 h-3.5 text-gold" />
+          <Calendar className="w-3.5 h-3.5 text-gold-text" />
           <span className="text-xs font-bold text-text-primary uppercase tracking-wider">Prossimi Appuntamenti</span>
         </div>
         <div className="p-4">
@@ -129,15 +129,15 @@ function AgendaSection({ meetings }: { meetings: MeetingNote[] }) {
                 return (
                   <div key={m.id} className={`flex items-start gap-3 p-3 rounded-xl border ${isNext ? 'bg-gold/5 border-gold/25' : 'bg-background border-border'}`}>
                     <div className={`shrink-0 rounded-xl p-2.5 text-center min-w-[48px] ${isNext ? 'bg-gold/15' : 'bg-surface'}`}>
-                      <p className={`text-[9px] font-bold uppercase tracking-wider ${isNext ? 'text-gold' : 'text-text-secondary'}`}>
+                      <p className={`text-2xs font-bold uppercase tracking-wider ${isNext ? 'text-gold-text' : 'text-text-secondary'}`}>
                         {d.toLocaleDateString('it-IT', { month: 'short' })}
                       </p>
-                      <p className={`text-xl font-black leading-tight ${isNext ? 'text-gold' : 'text-text-primary'}`}>{d.getDate()}</p>
+                      <p className={`text-xl font-black leading-tight ${isNext ? 'text-gold-text' : 'text-text-primary'}`}>{d.getDate()}</p>
                     </div>
                     <div className="flex-1 min-w-0 pt-0.5">
                       <p className="text-sm font-semibold text-text-primary truncate">{m.title}</p>
                       {m.attendees && m.attendees.length > 0 && (
-                        <p className="text-[10px] text-text-secondary mt-0.5 flex items-center gap-1">
+                        <p className="text-2xs text-text-secondary mt-0.5 flex items-center gap-1">
                           <Users2 className="w-3 h-3 shrink-0" />
                           <span className="truncate">{m.attendees.join(', ')}</span>
                         </p>
@@ -173,7 +173,7 @@ function AgendaSection({ meetings }: { meetings: MeetingNote[] }) {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-text-primary truncate">{m.title}</p>
-                        <p className="text-[10px] text-text-secondary">
+                        <p className="text-2xs text-text-secondary">
                           {new Date(m.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
                         </p>
                       </div>
@@ -183,24 +183,24 @@ function AgendaSection({ meetings }: { meetings: MeetingNote[] }) {
                       <div className="px-4 pb-4 space-y-2.5 border-t border-border pt-3">
                         {m.summary && (
                           <div>
-                            <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold mb-1">Sintesi</p>
+                            <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold mb-1">Sintesi</p>
                             <p className="text-xs text-text-primary leading-relaxed">{m.summary}</p>
                           </div>
                         )}
                         {m.decisions && (
                           <div>
-                            <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold mb-1">Decisioni</p>
+                            <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold mb-1">Decisioni</p>
                             <p className="text-xs text-text-primary leading-relaxed">{m.decisions}</p>
                           </div>
                         )}
                         {m.next_actions && (
                           <div>
-                            <p className="text-[10px] text-gold uppercase tracking-wider font-bold mb-1">Prossime azioni</p>
+                            <p className="text-2xs text-gold-text uppercase tracking-wider font-bold mb-1">Prossime azioni</p>
                             <p className="text-xs text-text-primary leading-relaxed">{m.next_actions}</p>
                           </div>
                         )}
                         {m.attendees && m.attendees.length > 0 && (
-                          <p className="text-[10px] text-text-secondary flex items-center gap-1 pt-1">
+                          <p className="text-2xs text-text-secondary flex items-center gap-1 pt-1">
                             <Users2 className="w-3 h-3 shrink-0" /> {m.attendees.join(', ')}
                           </p>
                         )}
@@ -223,7 +223,7 @@ function ProgressRing({ pct, size = 52 }: { pct: number; size?: number }) {
   const cx = size / 2, r = cx - 5
   const circ = 2 * Math.PI * r
   const offset = circ - (pct / 100) * circ
-  const color = pct >= 75 ? '#22C55E' : pct >= 40 ? '#F5C800' : pct > 0 ? '#EF4444' : '#3A3A3A'
+  const color = pct >= 75 ? 'var(--color-success)' : pct >= 40 ? 'var(--color-gold-text)' : pct > 0 ? 'var(--color-error)' : 'var(--color-border-strong)'
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
       <circle cx={cx} cy={cx} r={r} fill="none" stroke="#2A2A2A" strokeWidth="4" />
@@ -277,16 +277,16 @@ function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelet
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <span className="text-sm font-bold text-text-primary">{title}</span>
-              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+              <span className={`text-2xs font-bold px-1.5 py-0.5 rounded border ${
                 project.status === 'attivo' ? 'bg-success/10 text-success border-success/20' : 'bg-surface-active text-text-secondary border-border-strong'
               }`}>{project.status === 'attivo' ? 'Attivo' : project.status}</span>
               {project.project_kind && (
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
-                  isG ? 'bg-gold/10 text-gold border-gold/25' : 'bg-blue-500/10 text-blue-400 border-blue-400/25'
+                <span className={`text-2xs font-bold px-1.5 py-0.5 rounded border ${
+                  isG ? 'bg-gold/10 text-gold-text border-gold/25' : 'bg-info/10 text-info border-info/25'
                 }`}>{isG ? '📈 Growth' : '💻 Digital'}</span>
               )}
               {curSprint && (
-                <span className="text-[10px] text-gold bg-gold/10 border border-gold/20 px-1.5 py-0.5 rounded font-semibold">
+                <span className="text-2xs text-gold-text bg-gold/10 border border-gold/20 px-1.5 py-0.5 rounded font-semibold">
                   Sprint in corso
                 </span>
               )}
@@ -308,11 +308,11 @@ function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelet
               <Pencil className="w-3.5 h-3.5" />
             </button>
             <button onClick={e => { e.stopPropagation(); onDelete() }}
-              className="p-1.5 text-text-secondary hover:text-red-400 border border-border hover:border-red-500/40 rounded-lg transition-colors"
+              className="p-1.5 text-text-secondary hover:text-error border border-border hover:border-error/40 rounded-lg transition-colors"
               title="Elimina">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
-            {expanded ? <ChevronUp className="w-4 h-4 text-gold ml-1" /> : <ChevronDown className="w-4 h-4 text-text-secondary ml-1" />}
+            {expanded ? <ChevronUp className="w-4 h-4 text-gold-text ml-1" /> : <ChevronDown className="w-4 h-4 text-text-secondary ml-1" />}
           </div>
         </div>
       </div>
@@ -324,24 +324,24 @@ function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelet
           {/* Numeri macro */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-background rounded-lg p-3">
-              <p className="text-[10px] text-text-secondary mb-1">Progresso</p>
-              <p className="text-lg font-black text-gold">{pct}%</p>
-              <p className="text-[10px] text-text-secondary">{done}/{projTasks.length} task</p>
+              <p className="text-2xs text-text-secondary mb-1">Progresso</p>
+              <p className="text-lg font-black text-gold-text">{pct}%</p>
+              <p className="text-2xs text-text-secondary">{done}/{projTasks.length} task</p>
             </div>
             <div className="bg-background rounded-lg p-3">
-              <p className="text-[10px] text-text-secondary mb-1">Milestone</p>
+              <p className="text-2xs text-text-secondary mb-1">Milestone</p>
               <p className="text-lg font-black text-text-primary">{doneMilestones}/{milestones.length}</p>
-              <p className={`text-[10px] ${doneMilestones === milestones.length && milestones.length > 0 ? 'text-success' : 'text-text-secondary'}`}>
+              <p className={`text-2xs ${doneMilestones === milestones.length && milestones.length > 0 ? 'text-success' : 'text-text-secondary'}`}>
                 {milestones.length === 0 ? 'Nessuna' : doneMilestones === milestones.length ? 'Tutte ✓' : 'In corso'}
               </p>
             </div>
             <div className="bg-background rounded-lg p-3">
-              <p className="text-[10px] text-text-secondary mb-1">Task scadute</p>
+              <p className="text-2xs text-text-secondary mb-1">Task scadute</p>
               <p className={`text-lg font-black ${overdue > 0 ? 'text-error' : 'text-success'}`}>{overdue}</p>
-              <p className="text-[10px] text-text-secondary">{overdue === 0 ? 'Nessuna ✓' : 'Richiede attenzione'}</p>
+              <p className="text-2xs text-text-secondary">{overdue === 0 ? 'Nessuna ✓' : 'Richiede attenzione'}</p>
             </div>
             <div className="bg-background rounded-lg p-3">
-              <p className="text-[10px] text-text-secondary mb-1">{isG ? 'KPI principale' : 'Uptime'}</p>
+              <p className="text-2xs text-text-secondary mb-1">{isG ? 'KPI principale' : 'Uptime'}</p>
               {lastKpi ? (
                 <>
                   <p className="text-lg font-black text-text-primary">
@@ -349,7 +349,7 @@ function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelet
                       ? (lastKpi.roas != null ? `${lastKpi.roas}×` : lastKpi.leads_generated != null ? String(lastKpi.leads_generated) : '—')
                       : (lastKpi.uptime != null ? `${lastKpi.uptime}%` : lastKpi.organic_sessions != null ? lastKpi.organic_sessions.toLocaleString('it-IT') : '—')}
                   </p>
-                  <p className="text-[10px] text-text-secondary">{isG ? 'ROAS / Lead' : 'Uptime / Sessioni'}</p>
+                  <p className="text-2xs text-text-secondary">{isG ? 'ROAS / Lead' : 'Uptime / Sessioni'}</p>
                 </>
               ) : (
                 <p className="text-lg font-black text-text-tertiary">—</p>
@@ -362,16 +362,16 @@ function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelet
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
               <div className="flex items-center gap-2 text-text-secondary">
                 <Brain className="w-3.5 h-3.5" />
-                <span className="text-[10px] font-bold uppercase tracking-wider">Analisi AI fase progettuale</span>
+                <span className="text-2xs font-bold uppercase tracking-wider">Analisi AI fase progettuale</span>
               </div>
               {!aiSummary && (
                 <button onClick={generateAi} disabled={aiLoading}
-                  className="text-xs text-gold hover:text-yellow-400 font-semibold disabled:opacity-50 flex items-center gap-1.5">
+                  className="text-xs text-gold-text hover:text-gold-text font-semibold disabled:opacity-50 flex items-center gap-1.5">
                   {aiLoading ? <><Loader2 className="w-3 h-3 animate-spin" />Analisi...</> : 'Genera →'}
                 </button>
               )}
               {aiSummary && (
-                <button onClick={() => setAiSummary(null)} className="text-[10px] text-text-secondary hover:text-text-primary">Rigenera</button>
+                <button onClick={() => setAiSummary(null)} className="text-2xs text-text-secondary hover:text-text-primary">Rigenera</button>
               )}
             </div>
             <div className="px-4 py-3">
@@ -391,10 +391,10 @@ function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelet
             className="flex items-center justify-between w-full px-4 py-3 bg-gold/5 hover:bg-gold/10 border border-gold/20 hover:border-gold/40 rounded-xl transition-all group"
           >
             <div className="flex items-center gap-2">
-              <FolderKanban className="w-4 h-4 text-gold" />
-              <span className="text-sm font-bold text-gold">Apri pagina progetto completa</span>
+              <FolderKanban className="w-4 h-4 text-gold-text" />
+              <span className="text-sm font-bold text-gold-text">Apri pagina progetto completa</span>
             </div>
-            <ArrowRight className="w-4 h-4 text-gold group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="w-4 h-4 text-gold-text group-hover:translate-x-1 transition-transform" />
           </Link>
         </div>
       )}
@@ -422,7 +422,7 @@ function ProgettiAttivi({ projects: initialProjects, tasks, sprints, kpis, clien
           {active.length > 0 && <span className="text-text-secondary font-normal">({active.length})</span>}
         </h3>
         <button onClick={() => setShowNew(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gold/10 hover:bg-gold/20 border border-gold/30 hover:border-gold/50 rounded-lg text-xs font-bold text-gold transition-all">
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-gold/10 hover:bg-gold/20 border border-gold/30 hover:border-gold/50 rounded-lg text-xs font-bold text-gold-text transition-all">
           <Plus className="w-3.5 h-3.5" /> Nuovo progetto
         </button>
       </div>
@@ -431,7 +431,7 @@ function ProgettiAttivi({ projects: initialProjects, tasks, sprints, kpis, clien
         <div className="flex flex-col items-center justify-center py-8 border border-dashed border-border rounded-xl text-center">
           <FolderKanban className="w-8 h-8 text-text-tertiary mb-2" />
           <p className="text-sm text-text-secondary">Nessun progetto ancora</p>
-          <button onClick={() => setShowNew(true)} className="mt-3 text-xs text-gold hover:text-yellow-400 font-bold">
+          <button onClick={() => setShowNew(true)} className="mt-3 text-xs text-gold-text hover:text-gold-text font-bold">
             + Crea il primo progetto
           </button>
         </div>
@@ -445,7 +445,7 @@ function ProgettiAttivi({ projects: initialProjects, tasks, sprints, kpis, clien
           </div>
           {other.length > 0 && (
             <details className="group">
-              <summary className="text-[10px] text-text-secondary uppercase tracking-wider font-bold cursor-pointer hover:text-text-primary list-none flex items-center gap-1">
+              <summary className="text-2xs text-text-secondary uppercase tracking-wider font-bold cursor-pointer hover:text-text-primary list-none flex items-center gap-1">
                 <ChevronDown className="w-3 h-3 group-open:rotate-180 transition-transform" />
                 Completati / archiviati ({other.length})
               </summary>
@@ -620,7 +620,7 @@ function NewProjectDetailedModal({ clientId, onClose, onCreated }: {
   }))
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto">
       <div className="bg-surface border border-border rounded-card w-full max-w-2xl my-4">
 
         {/* Header */}
@@ -635,11 +635,11 @@ function NewProjectDetailedModal({ clientId, onClose, onCreated }: {
         {/* Mode switcher */}
         <div className="flex gap-2 p-4 border-b border-border">
           <button onClick={() => setMode('manual')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${mode === 'manual' ? 'bg-gold text-black' : 'border border-border text-text-secondary hover:text-text-primary'}`}>
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${mode === 'manual' ? 'bg-gold text-on-gold' : 'border border-border text-text-secondary hover:text-text-primary'}`}>
             <Pencil className="w-3.5 h-3.5" /> Inserimento manuale
           </button>
           <button onClick={() => setMode('upload')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${mode === 'upload' ? 'bg-gold text-black' : 'border border-border text-text-secondary hover:text-text-primary'}`}>
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${mode === 'upload' ? 'bg-gold text-on-gold' : 'border border-border text-text-secondary hover:text-text-primary'}`}>
             <Sparkles className="w-3.5 h-3.5" /> Carica file riunione (AI)
           </button>
         </div>
@@ -662,14 +662,14 @@ function NewProjectDetailedModal({ clientId, onClose, onCreated }: {
             </div>
             {fileText && (
               <div className="bg-surface border border-border rounded-xl p-4">
-                <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold mb-2">Anteprima testo ({fileText.length} caratteri)</p>
+                <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold mb-2">Anteprima testo ({fileText.length} caratteri)</p>
                 <p className="text-xs text-text-primary font-mono leading-relaxed line-clamp-5">{fileText.slice(0, 500)}…</p>
               </div>
             )}
             <div className="flex gap-3">
               <button onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
               <button onClick={extractFromFile} disabled={!fileText || aiLoading}
-                className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
+                className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg text-sm hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-2">
                 {aiLoading ? <><Loader2 className="w-4 h-4 animate-spin" />Estrazione AI...</> : <><Sparkles className="w-4 h-4" />Estrai con AI</>}
               </button>
             </div>
@@ -685,10 +685,10 @@ function NewProjectDetailedModal({ clientId, onClose, onCreated }: {
               <label className="block text-xs font-bold text-text-secondary mb-2 uppercase tracking-wider">Natura del progetto *</label>
               <div className="grid grid-cols-2 gap-2">
                 {([
-                  { v: 'growth' as const,    label: '🌱 Growth',    active: 'bg-[#F5C800]/15 text-[#F5C800] border-[#F5C800]/50' },
-                  { v: 'marketing' as const, label: '📣 Marketing',  active: 'bg-amber-500/15 text-amber-400 border-amber-400/50' },
-                  { v: 'digital' as const,   label: '💻 Digital',   active: 'bg-blue-500/15 text-blue-400 border-blue-400/50' },
-                  { v: 'ai' as const,        label: '🤖 AI',        active: 'bg-purple-500/15 text-purple-400 border-purple-400/50' },
+                  { v: 'growth' as const,    label: '🌱 Growth',    active: 'bg-gold/15 text-gold-text border-gold/50' },
+                  { v: 'marketing' as const, label: '📣 Marketing',  active: 'bg-warning/15 text-warning border-warning/50' },
+                  { v: 'digital' as const,   label: '💻 Digital',   active: 'bg-info/15 text-info border-info/50' },
+                  { v: 'ai' as const,        label: '🤖 AI',        active: 'bg-accent/15 text-accent border-accent/50' },
                 ]).map(({ v, label, active }) => (
                   <button key={v} type="button" onClick={() => setForm(p => ({ ...p, kind: v }))}
                     className={`py-3 rounded-xl border text-sm font-black transition-all ${
@@ -708,7 +708,7 @@ function NewProjectDetailedModal({ clientId, onClose, onCreated }: {
                   <button key={t.value} type="button" onClick={() => setForm(p => ({ ...p, project_type: t.value }))}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-bold transition-all ${
                       form.project_type === t.value
-                        ? 'bg-gold/10 text-gold border-gold/40'
+                        ? 'bg-gold/10 text-gold-text border-gold/40'
                         : 'border-border text-text-secondary hover:border-border-strong hover:text-text-primary'
                     }`}>
                     <span>{t.icon}</span>{t.label}
@@ -785,18 +785,18 @@ function NewProjectDetailedModal({ clientId, onClose, onCreated }: {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-xs font-bold text-text-secondary uppercase tracking-wider">Milestone</label>
-                <button type="button" onClick={addMilestone} className="text-xs text-gold hover:text-yellow-400 font-bold flex items-center gap-1">
+                <button type="button" onClick={addMilestone} className="text-xs text-gold-text hover:text-gold-text font-bold flex items-center gap-1">
                   <Plus className="w-3 h-3" /> Aggiungi
                 </button>
               </div>
               <div className="space-y-2">
                 {form.milestones.map((m, i) => (
                   <div key={i} className="flex gap-2 items-center">
-                    <span className="text-[10px] text-text-tertiary w-5 text-right shrink-0">{i + 1}.</span>
+                    <span className="text-2xs text-text-tertiary w-5 text-right shrink-0">{i + 1}.</span>
                     <input value={m} onChange={e => setMilestone(i, e.target.value)}
                       placeholder={`Milestone ${i + 1}...`} className={`${inp} flex-1`} />
                     {form.milestones.length > 1 && (
-                      <button type="button" onClick={() => removeMilestone(i)} className="text-text-tertiary hover:text-red-400 shrink-0">
+                      <button type="button" onClick={() => removeMilestone(i)} className="text-text-tertiary hover:text-error shrink-0">
                         <X className="w-3.5 h-3.5" />
                       </button>
                     )}
@@ -808,7 +808,7 @@ function NewProjectDetailedModal({ clientId, onClose, onCreated }: {
             <div className="flex gap-3 pt-2 border-t border-border">
               <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
               <button type="submit" disabled={loading}
-                className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
+                className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg text-sm hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-2">
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                 Crea progetto
               </button>
@@ -853,7 +853,7 @@ function EditProjectModal({ project, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-surface border border-border rounded-card w-full max-w-md">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-base font-bold text-text-primary">Modifica progetto</h2>
@@ -890,14 +890,14 @@ function EditProjectModal({ project, onClose, onSaved }: {
             <label className="block text-xs text-text-secondary mb-2">Kind</label>
             <div className="grid grid-cols-5 gap-1.5">
               {([
-                { v: 'growth' as const,    label: '🌱 Growth',    active: 'bg-[#F5C800]/15 text-[#F5C800] border-[#F5C800]/40' },
-                { v: 'marketing' as const, label: '📣 Mktg',       active: 'bg-amber-500/15 text-amber-400 border-amber-400/40' },
-                { v: 'digital' as const,   label: '💻 Digital',   active: 'bg-blue-500/15 text-blue-400 border-blue-400/40' },
-                { v: 'ai' as const,        label: '🤖 AI',        active: 'bg-purple-500/15 text-purple-400 border-purple-400/40' },
+                { v: 'growth' as const,    label: '🌱 Growth',    active: 'bg-gold/15 text-gold-text border-gold/40' },
+                { v: 'marketing' as const, label: '📣 Mktg',       active: 'bg-warning/15 text-warning border-warning/40' },
+                { v: 'digital' as const,   label: '💻 Digital',   active: 'bg-info/15 text-info border-info/40' },
+                { v: 'ai' as const,        label: '🤖 AI',        active: 'bg-accent/15 text-accent border-accent/40' },
                 { v: '' as const,          label: '—',            active: 'bg-surface-active text-text-primary border-border-strong' },
               ]).map(({ v, label, active }) => (
                 <button key={v} type="button" onClick={() => setForm(p => ({ ...p, project_kind: v }))}
-                  className={`py-2 rounded-lg border text-[10px] font-bold transition-all ${
+                  className={`py-2 rounded-lg border text-2xs font-bold transition-all ${
                     form.project_kind === v ? active : 'border-border text-text-secondary hover:border-border-strong'
                   }`}>
                   {label}
@@ -908,7 +908,7 @@ function EditProjectModal({ project, onClose, onSaved }: {
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
             <button type="submit" disabled={loading}
-              className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
+              className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg text-sm hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />} Salva
             </button>
           </div>
@@ -935,11 +935,11 @@ function DeleteProjectModal({ project, onClose, onDeleted }: {
     onDeleted(project.id)
   }
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-surface border border-border rounded-card w-full max-w-sm p-6">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
-            <Trash2 className="w-5 h-5 text-red-400" />
+          <div className="w-10 h-10 rounded-xl bg-error/10 flex items-center justify-center">
+            <Trash2 className="w-5 h-5 text-error" />
           </div>
           <div>
             <p className="text-sm font-bold text-text-primary">Elimina progetto</p>
@@ -952,7 +952,7 @@ function DeleteProjectModal({ project, onClose, onDeleted }: {
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
           <button onClick={doDelete} disabled={loading}
-            className="flex-1 py-2.5 bg-red-500 text-text-primary font-bold rounded-lg text-sm hover:bg-red-400 disabled:opacity-50 flex items-center justify-center gap-2">
+            className="flex-1 py-2.5 bg-error text-text-primary font-bold rounded-lg text-sm hover:bg-error disabled:opacity-50 flex items-center justify-center gap-2">
             {loading && <Loader2 className="w-4 h-4 animate-spin" />} Elimina
           </button>
         </div>
@@ -975,13 +975,13 @@ function KpiSnapshotPanel({ label, accent, month, items, onTabChange }: {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <BarChart3 className="w-3.5 h-3.5" style={{ color: accent }} />
-          <span className="text-[10px] uppercase tracking-wider font-bold" style={{ color: accent }}>{label}</span>
-          <span className="text-[10px] text-text-secondary">
+          <span className="text-2xs uppercase tracking-wider font-bold" style={{ color: accent }}>{label}</span>
+          <span className="text-2xs text-text-secondary">
             — {new Date(month).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}
           </span>
         </div>
         {onTabChange && (
-          <button onClick={() => onTabChange(2)} className="text-[10px] text-gold hover:text-yellow-400 flex items-center gap-1">
+          <button onClick={() => onTabChange(2)} className="text-2xs text-gold-text hover:text-gold-text flex items-center gap-1">
             Tutti <ChevronRight className="w-3 h-3" />
           </button>
         )}
@@ -992,14 +992,14 @@ function KpiSnapshotPanel({ label, accent, month, items, onTabChange }: {
           const color = pct == null ? (k.raw != null ? 'text-text-primary' : 'text-text-tertiary') : pct >= 100 ? 'text-success' : pct >= 70 ? 'text-warning' : 'text-error'
           return (
             <div key={k.label} className="bg-background rounded-lg p-3">
-              <p className="text-[10px] text-text-secondary mb-1">{k.label}</p>
+              <p className="text-2xs text-text-secondary mb-1">{k.label}</p>
               <p className={`text-base font-black ${color}`}>{k.raw != null ? k.fmt(k.raw) : '—'}</p>
               {pct !== null && (
                 <div className="mt-1.5">
                   <div className="h-1 bg-surface-active rounded-full overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, background: pct >= 100 ? '#22C55E' : pct >= 70 ? accent : '#EF4444' }} />
+                    <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, background: pct >= 100 ? 'var(--color-success)' : pct >= 70 ? accent : 'var(--color-error)' }} />
                   </div>
-                  <p className="text-[10px] text-text-secondary mt-0.5">{pct}% target</p>
+                  <p className="text-2xs text-text-secondary mt-0.5">{pct}% target</p>
                 </div>
               )}
             </div>
@@ -1014,7 +1014,7 @@ function HealthRing({ score }: { score: number }) {
   const r = 36
   const circ = 2 * Math.PI * r
   const offset = circ - (score / 100) * circ
-  const color = score >= 75 ? '#22C55E' : score >= 50 ? '#F5C800' : '#EF4444'
+  const color = score >= 75 ? 'var(--color-success)' : score >= 50 ? 'var(--color-gold-text)' : 'var(--color-error)'
   const label = score >= 75 ? 'Ottimo' : score >= 50 ? 'Normale' : score >= 25 ? 'Attenzione' : 'Critico'
   return (
     <div className="flex flex-col items-center gap-1">
@@ -1026,8 +1026,8 @@ function HealthRing({ score }: { score: number }) {
         <text x="44" y="40" textAnchor="middle" fill={color} fontSize="18" fontWeight="900">{score}</text>
         <text x="44" y="54" textAnchor="middle" fill="#666" fontSize="9">/100</text>
       </svg>
-      <span className="text-[10px] font-bold" style={{ color }}>{label}</span>
-      <span className="text-[9px] text-text-secondary">Health Score</span>
+      <span className="text-2xs font-bold" style={{ color }}>{label}</span>
+      <span className="text-2xs text-text-secondary">Health Score</span>
     </div>
   )
 }
@@ -1126,8 +1126,8 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
           <div className="flex-1 flex flex-col justify-center gap-1 text-center sm:text-left">
             {hideEconomics ? (
               <>
-                <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold">Progetti attivi</p>
-                <p className="text-3xl font-black text-gold">{activeProjects.length}</p>
+                <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold">Progetti attivi</p>
+                <p className="text-3xl font-black text-gold-text">{activeProjects.length}</p>
                 {openTasks.length > 0 && (
                   <p className={`text-xs font-bold ${overdueTasks.length > 0 ? 'text-error' : 'text-text-secondary'}`}>
                     {openTasks.length} task aperte{overdueTasks.length > 0 ? ` · ${overdueTasks.length} scadute` : ''}
@@ -1136,8 +1136,8 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
               </>
             ) : (
               <>
-                <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold">MRR</p>
-                <p className="text-3xl font-black text-gold">{formatCurrency(client.mrr)}</p>
+                <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold">MRR</p>
+                <p className="text-3xl font-black text-gold-text">{formatCurrency(client.mrr)}</p>
                 {mrrTrend !== null && (
                   <p className={`text-xs font-bold ${mrrTrend >= 0 ? 'text-success' : 'text-error'}`}>
                     {mrrTrend > 0 ? '+' : ''}{mrrTrend}% vs mese scorso
@@ -1145,13 +1145,13 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
                 )}
               </>
             )}
-            <p className="text-[10px] text-text-secondary mt-1">
+            <p className="text-2xs text-text-secondary mt-1">
               {isGrowthDigital ? '📈 Growth + 💻 Digital' : isGrowth ? '📈 Cliente Growth' : '💻 Cliente Digital'} · {client.package}
             </p>
           </div>
           <div className="hidden sm:block w-px bg-surface-active" />
           <div className="flex-1 flex flex-col justify-center gap-1 text-center sm:text-left">
-            <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold">Contratto</p>
+            <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold">Contratto</p>
             <div className="flex items-center gap-2 justify-center sm:justify-start">
               <span className={`text-lg font-black ${daysToExpiry <= 0 ? 'text-error' : daysToExpiry <= 30 ? 'text-warning' : 'text-success'}`}>
                 {daysToExpiry <= 0 ? 'Scaduto' : `${daysToExpiry}gg`}
@@ -1163,10 +1163,10 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
                 const s = new Date(client.contract_start).getTime()
                 const e = contractEnd.getTime()
                 const pct = Math.min(100, Math.max(0, Math.round(((now.getTime() - s) / (e - s)) * 100)))
-                return <div className="h-full rounded-full" style={{ width: `${pct}%`, background: daysToExpiry <= 0 ? '#EF4444' : daysToExpiry <= 30 ? '#F5C800' : '#22C55E' }} />
+                return <div className="h-full rounded-full" style={{ width: `${pct}%`, background: daysToExpiry <= 0 ? 'var(--color-error)' : daysToExpiry <= 30 ? 'var(--color-gold-text)' : 'var(--color-success)' }} />
               })()}
             </div>
-            <p className="text-[10px] text-text-secondary">
+            <p className="text-2xs text-text-secondary">
               {new Date(client.contract_start).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })} →{' '}
               {contractEnd.toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}
             </p>
@@ -1179,12 +1179,12 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
         <div className="bg-surface border border-border rounded-xl p-4 text-left">
           <div className="flex items-center gap-2 text-text-secondary mb-2">
             <CheckSquare className="w-3.5 h-3.5" />
-            <span className="text-[10px] uppercase tracking-wider font-bold">Task aperte</span>
+            <span className="text-2xs uppercase tracking-wider font-bold">Task aperte</span>
           </div>
           <p className={`text-2xl font-black ${overdueTasks.length > 0 ? 'text-error' : openTasks.length > 0 ? 'text-warning' : 'text-success'}`}>
             {openTasks.length}
           </p>
-          <p className="text-[10px] mt-0.5">
+          <p className="text-2xs mt-0.5">
             {overdueTasks.length > 0
               ? <span className="text-error font-bold">{overdueTasks.length} scadute</span>
               : urgentTasks.length > 0
@@ -1196,12 +1196,12 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
         <div className="bg-surface border border-border rounded-xl p-4 text-left">
           <div className="flex items-center gap-2 text-text-secondary mb-2">
             <AlertCircle className="w-3.5 h-3.5" />
-            <span className="text-[10px] uppercase tracking-wider font-bold">Ticket aperti</span>
+            <span className="text-2xs uppercase tracking-wider font-bold">Ticket aperti</span>
           </div>
           <p className={`text-2xl font-black ${openTickets > 2 ? 'text-error' : openTickets > 0 ? 'text-warning' : 'text-success'}`}>
             {openTickets}
           </p>
-          <p className="text-[10px] text-text-secondary mt-0.5">
+          <p className="text-2xs text-text-secondary mt-0.5">
             {openTickets === 0 ? 'Tutto risolto ✓' : openTickets > 2 ? 'Richiede attenzione' : 'In gestione'}
           </p>
         </div>
@@ -1211,12 +1211,12 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
             className="bg-surface border border-border rounded-xl p-4 text-left hover:border-gold/20 transition-colors">
             <div className="flex items-center gap-2 text-text-secondary mb-2">
               <FileText className="w-3.5 h-3.5" />
-              <span className="text-[10px] uppercase tracking-wider font-bold">Da incassare</span>
+              <span className="text-2xs uppercase tracking-wider font-bold">Da incassare</span>
             </div>
             <p className={`text-2xl font-black ${unpaidAmount > 0 ? 'text-warning' : 'text-success'}`}>
               {unpaidAmount > 0 ? formatCurrency(unpaidAmount) : '✓'}
             </p>
-            <p className="text-[10px] text-text-secondary mt-0.5">
+            <p className="text-2xs text-text-secondary mt-0.5">
               {lateInvoices.length > 0
                 ? <span className="text-error font-bold">{lateInvoices.length} in ritardo</span>
                 : unpaidAmount > 0 ? 'In attesa di pagamento' : 'Tutto pagato'}
@@ -1228,12 +1228,12 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
           className="bg-surface border border-border rounded-xl p-4 text-left hover:border-gold/20 transition-colors">
           <div className="flex items-center gap-2 text-text-secondary mb-2">
             <MessageSquare className="w-3.5 h-3.5" />
-            <span className="text-[10px] uppercase tracking-wider font-bold">Ultimo contatto</span>
+            <span className="text-2xs uppercase tracking-wider font-bold">Ultimo contatto</span>
           </div>
           <p className={`text-2xl font-black ${daysSinceContact === null ? 'text-text-tertiary' : daysSinceContact > 21 ? 'text-warning' : 'text-success'}`}>
             {daysSinceContact === null ? '—' : `${daysSinceContact}gg`}
           </p>
-          <p className="text-[10px] text-text-secondary mt-0.5">
+          <p className="text-2xs text-text-secondary mt-0.5">
             {daysSinceContact === null
               ? 'Nessuna interazione'
               : daysSinceContact > 21
@@ -1251,9 +1251,9 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 text-text-secondary">
               <FolderKanban className="w-3.5 h-3.5" />
-              <span className="text-[10px] uppercase tracking-wider font-bold">Progetti attivi</span>
+              <span className="text-2xs uppercase tracking-wider font-bold">Progetti attivi</span>
             </div>
-            <span className="text-[10px] text-text-secondary">{activeProjects.length} attivi</span>
+            <span className="text-2xs text-text-secondary">{activeProjects.length} attivi</span>
           </div>
           {activeProjects.length === 0 ? (
             <p className="text-xs text-text-secondary">Nessun progetto attivo</p>
@@ -1270,20 +1270,20 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
                 return (
                   <Link key={proj.id} href={hideEconomics ? `/workspace/progetti/${proj.id}` : `/clienti/${client.id}/progetto/${proj.id}`}
                     className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-overlay/[0.03] transition-colors group">
-                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
-                      isG ? 'bg-gold/10 text-gold border-gold/25' :
-                      isD ? 'bg-blue-500/10 text-blue-400 border-blue-400/25' :
-                      isM ? 'bg-amber-400/10 text-amber-400 border-amber-400/25' :
-                      isAI ? 'bg-purple-400/10 text-purple-400 border-purple-400/25' :
+                    <span className={`text-2xs font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+                      isG ? 'bg-gold/10 text-gold-text border-gold/25' :
+                      isD ? 'bg-info/10 text-info border-info/25' :
+                      isM ? 'bg-warning/10 text-warning border-warning/25' :
+                      isAI ? 'bg-accent/10 text-accent border-accent/25' :
                       'bg-surface text-text-secondary border-border'
                     }`}>{isG ? 'G' : isD ? 'D' : isM ? 'M' : isAI ? 'AI' : '—'}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-text-primary truncate group-hover:text-gold transition-colors">{title}</p>
+                      <p className="text-xs font-semibold text-text-primary truncate group-hover:text-gold-text transition-colors">{title}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <div className="flex-1 h-1 bg-surface-active rounded-full overflow-hidden">
                           <div className="h-full bg-gold/60 rounded-full" style={{ width: `${pct}%` }} />
                         </div>
-                        <span className="text-[9px] text-text-secondary shrink-0">{pct}%</span>
+                        <span className="text-2xs text-text-secondary shrink-0">{pct}%</span>
                       </div>
                     </div>
                     <ChevronRight className="w-3.5 h-3.5 text-text-secondary opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
@@ -1299,9 +1299,9 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 text-text-secondary">
               <MessageSquare className="w-3.5 h-3.5" />
-              <span className="text-[10px] uppercase tracking-wider font-bold">Relazione commerciale</span>
+              <span className="text-2xs uppercase tracking-wider font-bold">Relazione commerciale</span>
             </div>
-            {onTabChange && <button onClick={() => onTabChange(6)} className="text-[10px] text-gold hover:text-yellow-400 flex items-center gap-1">Tutta <ChevronRight className="w-3 h-3" /></button>}
+            {onTabChange && <button onClick={() => onTabChange(6)} className="text-2xs text-gold-text hover:text-gold-text flex items-center gap-1">Tutta <ChevronRight className="w-3 h-3" /></button>}
           </div>
           {interactions.length === 0 ? (
             <p className="text-xs text-text-secondary">Nessuna interazione registrata.</p>
@@ -1309,18 +1309,18 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
             <div className="space-y-3">
               {interactions.slice(0, 4).map(i => (
                 <div key={i.id} className="flex items-start gap-2.5">
-                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${i.is_milestone ? 'bg-gold/20 text-gold' : 'bg-surface text-text-secondary'}`}>
+                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${i.is_milestone ? 'bg-gold/20 text-gold-text' : 'bg-surface text-text-secondary'}`}>
                     {TYPE_ICON[i.type]}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-semibold text-text-primary truncate">{i.title}</span>
-                      <span className={`text-[10px] flex items-center gap-0.5 ${OUTCOME_COLOR[i.outcome]}`}>
+                      <span className={`text-2xs flex items-center gap-0.5 ${OUTCOME_COLOR[i.outcome]}`}>
                         {OUTCOME_ICON[i.outcome]}
                         {i.outcome.replace('_', ' ')}
                       </span>
                     </div>
-                    <span className="text-[10px] text-text-secondary">
+                    <span className="text-2xs text-text-secondary">
                       {TYPE_LABEL[i.type]} · {new Date(i.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </span>
                   </div>
@@ -1420,16 +1420,16 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
           <div className="bg-surface border border-border rounded-xl p-4">
             <div className="flex items-center gap-2 text-text-secondary mb-3">
               <Users className="w-3.5 h-3.5" />
-              <span className="text-[10px] uppercase tracking-wider font-bold">Team assegnato</span>
+              <span className="text-2xs uppercase tracking-wider font-bold">Team assegnato</span>
             </div>
             <div className="flex flex-wrap gap-2">
               {teamMembers.map(m => (
                 <div key={m.id} className="flex items-center gap-2 bg-surface border border-border rounded-lg px-3 py-1.5">
-                  <div className="w-5 h-5 rounded-full bg-gold/20 flex items-center justify-center text-[9px] font-black text-gold overflow-hidden shrink-0">
+                  <div className="w-5 h-5 rounded-full bg-gold/20 flex items-center justify-center text-2xs font-black text-gold-text overflow-hidden shrink-0">
                     {m.avatar_url ? <img src={m.avatar_url} className="w-full h-full object-cover rounded-full" alt="" /> : m.full_name[0]}
                   </div>
                   <span className="text-xs text-text-primary">{m.full_name.split(' ')[0]}</span>
-                  <span className="text-[10px] text-text-secondary capitalize">{m.app_role}</span>
+                  <span className="text-2xs text-text-secondary capitalize">{m.app_role}</span>
                 </div>
               ))}
             </div>
@@ -1441,18 +1441,18 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
           const clientTasks = tasks.filter((t: any) => t.is_client_task && t.status !== 'completato')
           if (clientTasks.length === 0) return null
           return (
-            <div className="bg-surface border border-[#F5C800]/20 rounded-xl p-4">
+            <div className="bg-surface border border-gold/20 rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 text-[#F5C800]">
+                <div className="flex items-center gap-2 text-gold-text">
                   <Star className="w-3.5 h-3.5" />
-                  <span className="text-[10px] uppercase tracking-wider font-bold">Cosa ci serve dal cliente</span>
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-[#F5C800]/15 text-[#F5C800]">{clientTasks.length} pending</span>
+                  <span className="text-2xs uppercase tracking-wider font-bold">Cosa ci serve dal cliente</span>
+                  <span className="text-2xs font-bold px-1.5 py-0.5 rounded-full bg-gold/15 text-gold-text">{clientTasks.length} pending</span>
                 </div>
               </div>
               <div className="space-y-1.5">
                 {clientTasks.slice(0, 6).map((t: any) => {
                   const phase = (t.tags ?? []).find((x: string) => ['onboarding','build','lancio'].includes(x))
-                  const phaseColor: Record<string, string> = { onboarding: '#F59E0B', build: '#3B82F6', lancio: '#22C55E' }
+                  const phaseColor: Record<string, string> = { onboarding: 'var(--color-warning)', build: 'var(--color-info)', lancio: 'var(--color-success)' }
                   const proj = projects.find(p => p.id === t.project_id)
                   return (
                     <div key={t.id} className="flex items-center gap-2.5 py-1">
@@ -1460,17 +1460,17 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
                       <span className="flex-1 text-xs text-text-secondary truncate">{t.title}</span>
                       {proj && (
                         <Link href={hideEconomics ? `/workspace/progetti/${proj.id}` : `/clienti/${client.id}/progetto/${proj.id}`}
-                          className="text-[9px] text-text-secondary hover:text-gold shrink-0 truncate max-w-[100px]">
+                          className="text-2xs text-text-secondary hover:text-gold-text shrink-0 truncate max-w-[100px]">
                           {proj.name}
                         </Link>
                       )}
                       {phase && (
                         <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full shrink-0"
-                          style={{ background: `${phaseColor[phase] ?? '#6B7280'}18`, color: phaseColor[phase] ?? '#6B7280' }}>
+                          style={{ background: `color-mix(in srgb, ${phaseColor[phase] ?? 'var(--color-text-tertiary)'} 9%, transparent)`, color: phaseColor[phase] ?? 'var(--color-text-tertiary)' }}>
                           {phase}
                         </span>
                       )}
-                      <span className={`text-[9px] font-bold shrink-0 ${t.priority === 'alta' ? 'text-red-400' : t.priority === 'media' ? 'text-yellow-400' : 'text-text-tertiary'}`}>
+                      <span className={`text-2xs font-bold shrink-0 ${t.priority === 'alta' ? 'text-error' : t.priority === 'media' ? 'text-gold-text' : 'text-text-tertiary'}`}>
                         {t.priority}
                       </span>
                     </div>
@@ -1478,7 +1478,7 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
                 })}
               </div>
               {clientTasks.length > 6 && (
-                <p className="text-[9px] text-text-tertiary mt-2 text-center">+{clientTasks.length - 6} altre task</p>
+                <p className="text-2xs text-text-tertiary mt-2 text-center">+{clientTasks.length - 6} altre task</p>
               )}
             </div>
           )
@@ -1490,9 +1490,9 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2 text-text-secondary">
                 <FileText className="w-3.5 h-3.5" />
-                <span className="text-[10px] uppercase tracking-wider font-bold">Fatture recenti</span>
+                <span className="text-2xs uppercase tracking-wider font-bold">Fatture recenti</span>
               </div>
-              {onTabChange && <button onClick={() => onTabChange(2)} className="text-[10px] text-gold hover:text-yellow-400 flex items-center gap-1">Tutte <ChevronRight className="w-3 h-3" /></button>}
+              {onTabChange && <button onClick={() => onTabChange(2)} className="text-2xs text-gold-text hover:text-gold-text flex items-center gap-1">Tutte <ChevronRight className="w-3 h-3" /></button>}
             </div>
             <div className="space-y-1.5">
               {invoices.slice(0, 4).map(inv => {
@@ -1502,7 +1502,7 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
                   <div key={inv.id} className="flex items-center justify-between gap-2 py-0.5">
                     <span className="text-xs text-text-secondary">{new Date(inv.month).toLocaleDateString('it-IT', { month: 'short', year: 'numeric' })}</span>
                     <span className="text-xs font-bold text-text-primary">{formatCurrency(inv.amount)}</span>
-                    <span className={`text-[10px] font-bold ${sc}`}>{sl}</span>
+                    <span className={`text-2xs font-bold ${sc}`}>{sl}</span>
                   </div>
                 )
               })}

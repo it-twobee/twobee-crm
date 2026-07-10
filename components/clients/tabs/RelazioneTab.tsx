@@ -14,11 +14,11 @@ import type { ClientInteraction, InteractionType, InteractionOutcome, Profile, C
 
 // ── CONFIG ────────────────────────────────────────────────────────
 const TYPE_CONFIG: Record<InteractionType, { label: string; icon: React.ReactNode; color: string }> = {
-  call:      { label: 'Chiamata',   icon: <Phone className="w-3.5 h-3.5" />,         color: 'bg-blue-500/15 text-blue-400 border-blue-500/20' },
-  meeting:   { label: 'Meeting',    icon: <Users className="w-3.5 h-3.5" />,         color: 'bg-purple-500/15 text-purple-400 border-purple-500/20' },
+  call:      { label: 'Chiamata',   icon: <Phone className="w-3.5 h-3.5" />,         color: 'bg-info/15 text-info border-info/20' },
+  meeting:   { label: 'Meeting',    icon: <Users className="w-3.5 h-3.5" />,         color: 'bg-accent/15 text-accent border-accent/20' },
   email:     { label: 'Email',      icon: <Mail className="w-3.5 h-3.5" />,          color: 'bg-surface text-text-secondary border-border' },
-  demo:      { label: 'Demo',       icon: <Presentation className="w-3.5 h-3.5" />,  color: 'bg-gold/15 text-gold border-gold/20' },
-  visit:     { label: 'Visita',     icon: <MapPin className="w-3.5 h-3.5" />,        color: 'bg-green-500/15 text-green-400 border-green-500/20' },
+  demo:      { label: 'Demo',       icon: <Presentation className="w-3.5 h-3.5" />,  color: 'bg-gold/15 text-gold-text border-gold/20' },
+  visit:     { label: 'Visita',     icon: <MapPin className="w-3.5 h-3.5" />,        color: 'bg-success/15 text-success border-success/20' },
   slack:     { label: 'Slack',      icon: <MessageSquare className="w-3.5 h-3.5" />, color: 'bg-surface text-text-secondary border-border' },
   proposta:  { label: 'Proposta',   icon: <FileText className="w-3.5 h-3.5" />,      color: 'bg-warning/15 text-warning border-warning/20' },
   altro:     { label: 'Altro',      icon: <HelpCircle className="w-3.5 h-3.5" />,    color: 'bg-surface text-text-secondary border-border' },
@@ -41,12 +41,12 @@ function fmtDateShort(d: string) {
 // ── SENTIMENT ─────────────────────────────────────────────────────
 function SentimentBadge({ score }: { score: number }) {
   if (score >= 0.6) return (
-    <span className="flex items-center gap-1.5 text-xs font-bold text-green-400">
+    <span className="flex items-center gap-1.5 text-xs font-bold text-success">
       <Smile className="w-4 h-4" /> Positivo
     </span>
   )
   if (score <= 0.35) return (
-    <span className="flex items-center gap-1.5 text-xs font-bold text-red-400">
+    <span className="flex items-center gap-1.5 text-xs font-bold text-error">
       <Frown className="w-4 h-4" /> Critico
     </span>
   )
@@ -69,30 +69,30 @@ function SentimentPanel({ interactions, client }: { interactions: ClientInteract
   const pct = Math.round(score * 100)
 
   return (
-    <div className="rounded-xl p-4 space-y-3" style={{ background: '#0D0D0D', border: '1px solid #1A1A1A' }}>
+    <div className="rounded-xl p-4 space-y-3" style={{ background: 'var(--color-background)', border: '1px solid #1A1A1A' }}>
       <div className="flex items-center justify-between">
-        <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Sentiment cliente</p>
+        <p className="text-2xs font-black uppercase tracking-widest text-text-tertiary">Sentiment cliente</p>
         <SentimentBadge score={score} />
       </div>
 
       {/* Bar */}
-      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#1A1A1A' }}>
+      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--color-surface)' }}>
         <div className="h-full rounded-full transition-all" style={{
           width: `${pct}%`,
-          background: pct >= 60 ? '#22C55E' : pct <= 35 ? '#EF4444' : '#F59E0B',
+          background: pct >= 60 ? 'var(--color-success)' : pct <= 35 ? 'var(--color-error)' : 'var(--color-warning)',
         }} />
       </div>
 
-      <div className="flex items-center justify-between text-[9px] text-text-tertiary">
+      <div className="flex items-center justify-between text-2xs text-text-tertiary">
         <span>Basato sulle ultime {Math.min(interactions.length, 10)} interazioni</span>
         {riskTrend && (
           <span className="flex items-center gap-1">
-            {riskTrend === 'migliora' && <TrendingUp className="w-3 h-3 text-green-400" />}
-            {riskTrend === 'peggiora' && <TrendingDown className="w-3 h-3 text-red-400" />}
+            {riskTrend === 'migliora' && <TrendingUp className="w-3 h-3 text-success" />}
+            {riskTrend === 'peggiora' && <TrendingDown className="w-3 h-3 text-error" />}
             {riskTrend === 'stabile'  && <Minus className="w-3 h-3 text-text-secondary" />}
             <span className={
-              riskTrend === 'migliora' ? 'text-green-400' :
-              riskTrend === 'peggiora' ? 'text-red-400' : 'text-text-secondary'
+              riskTrend === 'migliora' ? 'text-success' :
+              riskTrend === 'peggiora' ? 'text-error' : 'text-text-secondary'
             }>
               KPI {riskTrend}
             </span>
@@ -119,14 +119,14 @@ function NoteStoriche({ clientId, initialNotes, isAdmin }: { clientId: string; i
   }
 
   return (
-    <div className="rounded-xl p-4 space-y-3" style={{ background: '#0D0D0D', border: '1px solid #1A1A1A' }}>
+    <div className="rounded-xl p-4 space-y-3" style={{ background: 'var(--color-background)', border: '1px solid #1A1A1A' }}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <NotebookPen className="w-3.5 h-3.5 text-text-tertiary" />
-          <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Note storiche</p>
+          <p className="text-2xs font-black uppercase tracking-widest text-text-tertiary">Note storiche</p>
         </div>
         {isAdmin && !editing && (
-          <button onClick={() => setEditing(true)} className="text-[10px] text-text-tertiary hover:text-text-primary transition-colors flex items-center gap-1">
+          <button onClick={() => setEditing(true)} className="text-2xs text-text-tertiary hover:text-text-primary transition-colors flex items-center gap-1">
             <Edit2 className="w-3 h-3" /> Modifica
           </button>
         )}
@@ -145,7 +145,7 @@ function NoteStoriche({ clientId, initialNotes, isAdmin }: { clientId: string; i
             <button onClick={() => setEditing(false)} className="px-3 py-1.5 text-xs text-text-tertiary border border-border rounded-lg hover:text-text-primary transition-colors">
               Annulla
             </button>
-            <button onClick={save} disabled={saving} className="px-3 py-1.5 text-xs font-bold bg-gold text-black rounded-lg hover:bg-yellow-400 transition-colors flex items-center gap-1.5 disabled:opacity-40">
+            <button onClick={save} disabled={saving} className="px-3 py-1.5 text-xs font-bold bg-gold text-on-gold rounded-lg hover:bg-gold/90 transition-colors flex items-center gap-1.5 disabled:opacity-40">
               {saving && <Loader2 className="w-3 h-3 animate-spin" />}
               Salva
             </button>
@@ -177,7 +177,7 @@ function buildSystemEvents(client: Client, hideEconomics: boolean): SystemEvent[
       date: client.contract_start,
       label: 'Inizio contratto',
       icon: <CalendarDays className="w-3.5 h-3.5" />,
-      color: 'bg-gold/20 border-gold/30 text-gold',
+      color: 'bg-gold/20 border-gold/30 text-gold-text',
       description: hideEconomics ? `Package: ${client.package}` : `Package: ${client.package} · MRR: €${client.mrr.toLocaleString('it-IT')}`,
     })
   }
@@ -187,7 +187,7 @@ function buildSystemEvents(client: Client, hideEconomics: boolean): SystemEvent[
       date: client.contract_end,
       label: 'Scadenza contratto',
       icon: <CalendarDays className="w-3.5 h-3.5" />,
-      color: 'bg-red-500/15 border-red-500/20 text-red-400',
+      color: 'bg-error/15 border-error/20 text-error',
       description: 'Data di scadenza prevista',
     })
   }
@@ -204,8 +204,8 @@ function SystemEventItem({ event }: { event: SystemEvent }) {
       </div>
       <div className="bg-surface border border-border rounded-xl p-3.5">
         <p className="text-xs font-bold text-text-primary mb-0.5">{event.label}</p>
-        <p className="text-[10px] text-text-tertiary">{fmtDateShort(event.date)}</p>
-        {event.description && <p className="text-[10px] text-text-secondary mt-1">{event.description}</p>}
+        <p className="text-2xs text-text-tertiary">{fmtDateShort(event.date)}</p>
+        {event.description && <p className="text-2xs text-text-secondary mt-1">{event.description}</p>}
       </div>
     </div>
   )
@@ -272,19 +272,19 @@ function InteractionForm({ clientId, allProfiles, currentProfile, onSaved, onCan
           </button>
         ))}
         <button onClick={() => setIsMilestone(v => !v)}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ml-auto ${isMilestone ? 'border-gold/30 bg-gold/10 text-gold' : 'border-border text-text-tertiary hover:text-text-secondary'}`}>
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ml-auto ${isMilestone ? 'border-gold/30 bg-gold/10 text-gold-text' : 'border-border text-text-tertiary hover:text-text-secondary'}`}>
           <Star className="w-3 h-3" /> Milestone
         </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="text-[10px] text-text-secondary uppercase tracking-wider mb-1 block">Data e ora</label>
+          <label className="text-2xs text-text-secondary uppercase tracking-wider mb-1 block">Data e ora</label>
           <input type="datetime-local" value={date} onChange={e => setDate(e.target.value)}
             className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/40" />
         </div>
         <div>
-          <label className="text-[10px] text-text-secondary uppercase tracking-wider mb-1 block">Referente interno</label>
+          <label className="text-2xs text-text-secondary uppercase tracking-wider mb-1 block">Referente interno</label>
           <select value={conductedBy} onChange={e => setConductedBy(e.target.value)}
             className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/40">
             {allProfiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
@@ -293,21 +293,21 @@ function InteractionForm({ clientId, allProfiles, currentProfile, onSaved, onCan
       </div>
 
       <div>
-        <label className="text-[10px] text-text-secondary uppercase tracking-wider mb-1 block">Titolo / Oggetto</label>
+        <label className="text-2xs text-text-secondary uppercase tracking-wider mb-1 block">Titolo / Oggetto</label>
         <input value={title} onChange={e => setTitle(e.target.value)}
           placeholder="es. Prima call conoscitiva, Presentazione proposta Growth..."
           className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-gold/40" />
       </div>
 
       <div>
-        <label className="text-[10px] text-text-secondary uppercase tracking-wider mb-1 block">Note / Riassunto</label>
+        <label className="text-2xs text-text-secondary uppercase tracking-wider mb-1 block">Note / Riassunto</label>
         <textarea value={summary} onChange={e => setSummary(e.target.value)} rows={3}
           placeholder="Cosa è stato discusso, decisioni prese, prossimi step..."
           className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-gold/40 resize-none" />
       </div>
 
       <div>
-        <label className="text-[10px] text-text-secondary uppercase tracking-wider mb-1.5 block">Esito</label>
+        <label className="text-2xs text-text-secondary uppercase tracking-wider mb-1.5 block">Esito</label>
         <div className="flex gap-2">
           {(Object.keys(OUTCOME_CONFIG) as InteractionOutcome[]).map(o => (
             <button key={o} onClick={() => setOutcome(o)}
@@ -325,7 +325,7 @@ function InteractionForm({ clientId, allProfiles, currentProfile, onSaved, onCan
           Annulla
         </button>
         <button onClick={save} disabled={saving || !title.trim()}
-          className="px-4 py-2 text-sm font-bold bg-gold text-black rounded-lg hover:bg-yellow-400 transition-colors disabled:opacity-40 flex items-center gap-2">
+          className="px-4 py-2 text-sm font-bold bg-gold text-on-gold rounded-lg hover:bg-gold/90 transition-colors disabled:opacity-40 flex items-center gap-2">
           {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
           {editing ? 'Aggiorna' : 'Registra'}
         </button>
@@ -348,7 +348,7 @@ function TimelineItem({ item, isAdmin, onEdit, onDelete }: {
     <div className={`relative pl-8 pb-6 last:pb-0 group ${item.is_milestone ? 'opacity-100' : 'opacity-90 hover:opacity-100'}`}>
       <div className="absolute left-[13px] top-6 bottom-0 w-px bg-surface-active last:hidden group-last:hidden" />
       <div className={`absolute left-0 top-1 w-7 h-7 rounded-full border flex items-center justify-center shrink-0 ${
-        item.is_milestone ? 'bg-gold/20 border-gold/40 text-gold' : tc.color
+        item.is_milestone ? 'bg-gold/20 border-gold/40 text-gold-text' : tc.color
       }`}>
         {item.is_milestone ? <Star className="w-3.5 h-3.5" /> : tc.icon}
       </div>
@@ -358,21 +358,21 @@ function TimelineItem({ item, isAdmin, onEdit, onDelete }: {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               {item.is_milestone && (
-                <span className="text-[9px] font-bold uppercase tracking-wider text-gold bg-gold/10 border border-gold/20 px-1.5 py-0.5 rounded">
+                <span className="text-2xs font-bold uppercase tracking-wider text-gold-text bg-gold/10 border border-gold/20 px-1.5 py-0.5 rounded">
                   Milestone
                 </span>
               )}
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${tc.color}`}>{tc.label}</span>
-              <span className={`flex items-center gap-1 text-[10px] font-medium ${oc.color}`}>
+              <span className={`text-2xs font-bold px-2 py-0.5 rounded border ${tc.color}`}>{tc.label}</span>
+              <span className={`flex items-center gap-1 text-2xs font-medium ${oc.color}`}>
                 {oc.icon} {oc.label}
               </span>
             </div>
             <p className="text-sm font-semibold text-text-primary leading-snug">{item.title}</p>
-            <div className="flex items-center gap-3 mt-1.5 text-[10px] text-text-secondary">
+            <div className="flex items-center gap-3 mt-1.5 text-2xs text-text-secondary">
               <span>{fmtDate(item.date)}</span>
               {item.conductor && (
                 <span className="flex items-center gap-1">
-                  <div className="w-3.5 h-3.5 rounded-full bg-gold/20 flex items-center justify-center text-[7px] font-black text-gold overflow-hidden shrink-0">
+                  <div className="w-3.5 h-3.5 rounded-full bg-gold/20 flex items-center justify-center text-[7px] font-black text-gold-text overflow-hidden shrink-0">
                     {(item.conductor as Profile).avatar_url
                       ? <img src={(item.conductor as Profile).avatar_url!} className="w-full h-full object-cover rounded-full" alt="" />
                       : (item.conductor as Profile).full_name[0]}
@@ -400,7 +400,7 @@ function TimelineItem({ item, isAdmin, onEdit, onDelete }: {
             {!expanded && item.summary.length > 120 ? (
               <button onClick={() => setExpanded(true)} className="mt-2 text-xs text-text-secondary hover:text-text-secondary text-left transition-colors line-clamp-2">
                 {item.summary}
-                <span className="text-gold ml-1">Leggi tutto</span>
+                <span className="text-gold-text ml-1">Leggi tutto</span>
               </button>
             ) : (
               <p className="mt-2 text-xs text-text-secondary leading-relaxed whitespace-pre-wrap">{item.summary}</p>
@@ -484,7 +484,7 @@ export function RelazioneTab({ clientId, client, interactions: initial, allProfi
         </div>
         {isAdmin && activeSection === 'timeline' && !showForm && !editing && (
           <button onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 px-3.5 py-2 bg-gold text-black text-sm font-bold rounded-lg hover:bg-yellow-400 transition-colors shrink-0">
+            className="flex items-center gap-2 px-3.5 py-2 bg-gold text-on-gold text-sm font-bold rounded-lg hover:bg-gold/90 transition-colors shrink-0">
             <Plus className="w-4 h-4" /> Registra
           </button>
         )}
@@ -521,18 +521,18 @@ export function RelazioneTab({ clientId, client, interactions: initial, allProfi
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center rounded-lg border border-border overflow-hidden bg-surface">
                 <button onClick={() => setFilterType('tutti')}
-                  className={`h-7 px-3 text-[11px] font-bold border-r border-border transition-all ${filterType === 'tutti' ? 'bg-surface text-text-primary' : 'text-text-secondary hover:text-text-secondary'}`}>
+                  className={`h-7 px-3 text-2xs font-bold border-r border-border transition-all ${filterType === 'tutti' ? 'bg-surface text-text-primary' : 'text-text-secondary hover:text-text-secondary'}`}>
                   Tutti
                 </button>
                 {(Object.keys(TYPE_CONFIG) as InteractionType[]).filter(t => items.some(i => i.type === t)).map(t => (
                   <button key={t} onClick={() => setFilterType(t === filterType ? 'tutti' : t)}
-                    className={`h-7 px-3 text-[11px] font-bold border-r border-border last:border-r-0 transition-all ${filterType === t ? 'bg-surface text-text-primary' : 'text-text-secondary hover:text-text-secondary'}`}>
+                    className={`h-7 px-3 text-2xs font-bold border-r border-border last:border-r-0 transition-all ${filterType === t ? 'bg-surface text-text-primary' : 'text-text-secondary hover:text-text-secondary'}`}>
                     {TYPE_CONFIG[t].label}
                   </button>
                 ))}
               </div>
               <button onClick={() => setOnlyMilestones(v => !v)}
-                className={`flex items-center gap-1.5 h-7 px-3 rounded-lg text-[11px] font-bold border transition-all ${onlyMilestones ? 'border-gold/30 bg-gold/10 text-gold' : 'border-border text-text-secondary hover:text-text-secondary'}`}>
+                className={`flex items-center gap-1.5 h-7 px-3 rounded-lg text-2xs font-bold border transition-all ${onlyMilestones ? 'border-gold/30 bg-gold/10 text-gold-text' : 'border-border text-text-secondary hover:text-text-secondary'}`}>
                 <Star className="w-3 h-3" /> Solo milestone
               </button>
             </div>
@@ -543,7 +543,7 @@ export function RelazioneTab({ clientId, client, interactions: initial, allProfi
               <MessageSquare className="w-10 h-10 mx-auto mb-3 opacity-20" />
               <p className="text-sm">{items.length === 0 ? 'Nessuna interazione registrata' : 'Nessun risultato per i filtri selezionati'}</p>
               {items.length === 0 && isAdmin && (
-                <button onClick={() => setShowForm(true)} className="mt-3 text-xs text-gold hover:text-yellow-400 transition-colors">
+                <button onClick={() => setShowForm(true)} className="mt-3 text-xs text-gold-text hover:text-gold-text transition-colors">
                   Registra la prima interazione →
                 </button>
               )}
@@ -571,10 +571,10 @@ export function RelazioneTab({ clientId, client, interactions: initial, allProfi
               { label: 'Inizio contratto', value: client.contract_start ? fmtDateShort(client.contract_start) : '—', icon: <CalendarDays className="w-3.5 h-3.5" /> },
               { label: 'Scadenza', value: client.contract_end ? fmtDateShort(client.contract_end) : '—', icon: <CalendarDays className="w-3.5 h-3.5" /> },
             ].map(({ label, value, icon }) => (
-              <div key={label} className="rounded-xl p-3.5" style={{ background: '#0D0D0D', border: '1px solid #1A1A1A' }}>
+              <div key={label} className="rounded-xl p-3.5" style={{ background: 'var(--color-background)', border: '1px solid #1A1A1A' }}>
                 <div className="flex items-center gap-1.5 mb-1.5" style={{ color: '#444' }}>
                   {icon}
-                  <span className="text-[9px] font-black uppercase tracking-widest">{label}</span>
+                  <span className="text-2xs font-black uppercase tracking-widest">{label}</span>
                 </div>
                 <p className="text-sm font-bold text-text-primary">{value}</p>
               </div>
@@ -584,7 +584,7 @@ export function RelazioneTab({ clientId, client, interactions: initial, allProfi
           {/* Timeline eventi di sistema */}
           {systemEvents.length > 0 && (
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-3">Eventi chiave</p>
+              <p className="text-2xs font-black uppercase tracking-widest text-text-tertiary mb-3">Eventi chiave</p>
               <div className="pt-1">
                 {systemEvents.map((e, i) => <SystemEventItem key={i} event={e} />)}
               </div>

@@ -9,10 +9,10 @@ interface Props {
 }
 
 const LABEL_COLOR: Record<string, string> = {
-  stabile:  '#22C55E',
-  in_bilico:'#F5C800',
-  perso:    '#EF4444',
-  partner:  '#A855F7',
+  stabile:  'var(--color-success)',
+  in_bilico:'var(--color-gold-text)',
+  perso:    'var(--color-error)',
+  partner:  'var(--color-accent)',
 }
 const LABEL_TEXT: Record<string, string> = {
   stabile: 'Stabile', in_bilico: 'In bilico', perso: 'Perso', partner: 'Partner',
@@ -29,10 +29,10 @@ export function ClientHealthMap({ clients }: Props) {
     <div className="bg-surface border border-border rounded-xl p-5">
       <div className="flex items-center justify-between mb-4">
         <p className="text-xs font-bold text-text-secondary uppercase tracking-widest">Client Health Map</p>
-        <div className="flex items-center gap-3 text-[10px] text-text-secondary">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block" style={{ background: '#22C55E' }} /> {stable} stabili</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block" style={{ background: '#F5C800' }} /> {bilico} in bilico</span>
-          {perso > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block" style={{ background: '#EF4444' }} /> {perso} persi</span>}
+        <div className="flex items-center gap-3 text-2xs text-text-secondary">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block" style={{ background: 'var(--color-success)' }} /> {stable} stabili</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block" style={{ background: 'var(--color-gold-text)' }} /> {bilico} in bilico</span>
+          {perso > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block" style={{ background: 'var(--color-error)' }} /> {perso} persi</span>}
         </div>
       </div>
 
@@ -47,9 +47,9 @@ export function ClientHealthMap({ clients }: Props) {
               onMouseLeave={() => setHovered(null)}
               className="relative group"
               title={`${c.company_name} · ${LABEL_TEXT[c.client_label ?? ''] ?? c.client_label}`}>
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center text-[10px] font-black transition-all duration-150 cursor-pointer"
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center text-2xs font-black transition-all duration-150 cursor-pointer"
                 style={{
-                  background: color + '20',
+                  background: `color-mix(in srgb, ${color} 13%, transparent)`,
                   border: `1.5px solid ${color}${isH ? 'FF' : '60'}`,
                   color: color,
                   transform: isH ? 'scale(1.15)' : 'scale(1)',
@@ -60,9 +60,9 @@ export function ClientHealthMap({ clients }: Props) {
               {isH && (
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-20 pointer-events-none">
                   <div className="bg-surface border border-border rounded-lg px-2.5 py-1.5 text-center whitespace-nowrap shadow-xl">
-                    <p className="text-[10px] font-bold text-text-primary">{c.company_name}</p>
-                    <p className="text-[9px] mt-0.5" style={{ color }}>{LABEL_TEXT[c.client_label ?? ''] ?? c.client_label}</p>
-                    {c.mrr && <p className="text-[9px] text-text-secondary">€{c.mrr?.toLocaleString('it-IT')}/mese</p>}
+                    <p className="text-2xs font-bold text-text-primary">{c.company_name}</p>
+                    <p className="text-2xs mt-0.5" style={{ color }}>{LABEL_TEXT[c.client_label ?? ''] ?? c.client_label}</p>
+                    {c.mrr && <p className="text-2xs text-text-secondary">€{c.mrr?.toLocaleString('it-IT')}/mese</p>}
                   </div>
                 </div>
               )}

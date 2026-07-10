@@ -21,7 +21,7 @@ function UtmBuilder() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const inp = 'w-full bg-[#0D0D0D] border border-[#2A2A2A] rounded-lg px-3 py-1.5 text-xs text-white placeholder-[#333] focus:outline-none focus:border-[#F5C800]'
+  const inp = 'w-full bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-text-primary placeholder-text-tertiary focus:outline-none focus:border-gold'
   return (
     <div className="space-y-2">
       <input value={f.url} onChange={e => setF(p => ({ ...p, url: e.target.value }))} placeholder="URL destinazione" className={inp} />
@@ -32,10 +32,10 @@ function UtmBuilder() {
         <input value={f.content} onChange={e => setF(p => ({ ...p, content: e.target.value }))} placeholder="Content (opzionale)" className={inp} />
       </div>
       {result && (
-        <div className="flex items-center gap-2 bg-[#0D0D0D] border border-[#2A2A2A] rounded-lg px-3 py-2">
-          <p className="flex-1 text-[10px] text-[#666] truncate font-mono">{result}</p>
-          <button onClick={copy} className="shrink-0 text-[#444] hover:text-[#F5C800] transition-colors">
-            {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+        <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 py-2">
+          <p className="flex-1 text-2xs text-text-tertiary truncate font-mono">{result}</p>
+          <button onClick={copy} className="shrink-0 text-text-tertiary hover:text-gold-text transition-colors">
+            {copied ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
           </button>
         </div>
       )}
@@ -49,28 +49,28 @@ function RoiCalc() {
   const [revenue, setRevenue] = useState('')
   const roi = spend && revenue ? (((+revenue - +spend) / +spend) * 100).toFixed(1) : null
   const roas = spend && revenue ? (+revenue / +spend).toFixed(2) : null
-  const inp = 'w-full bg-[#0D0D0D] border border-[#2A2A2A] rounded-lg px-3 py-1.5 text-xs text-white placeholder-[#333] focus:outline-none focus:border-[#F5C800]'
+  const inp = 'w-full bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-text-primary placeholder-text-tertiary focus:outline-none focus:border-gold'
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-[10px] text-[#555] mb-1">Spesa (€)</label>
+          <label className="block text-2xs text-text-tertiary mb-1">Spesa (€)</label>
           <input type="number" value={spend} onChange={e => setSpend(e.target.value)} placeholder="1000" className={inp} />
         </div>
         <div>
-          <label className="block text-[10px] text-[#555] mb-1">Revenue (€)</label>
+          <label className="block text-2xs text-text-tertiary mb-1">Revenue (€)</label>
           <input type="number" value={revenue} onChange={e => setRevenue(e.target.value)} placeholder="3500" className={inp} />
         </div>
       </div>
       {roi && (
         <div className="grid grid-cols-2 gap-2">
-          <div className="bg-[#0D0D0D] border border-[#2A2A2A] rounded-lg p-3 text-center">
-            <p className="text-[10px] text-[#444] mb-1">ROI</p>
-            <p className={`text-xl font-black ${+roi >= 0 ? 'text-green-400' : 'text-red-400'}`}>{roi}%</p>
+          <div className="bg-background border border-border rounded-lg p-3 text-center">
+            <p className="text-2xs text-text-tertiary mb-1">ROI</p>
+            <p className={`text-xl font-black ${+roi >= 0 ? 'text-success' : 'text-error'}`}>{roi}%</p>
           </div>
-          <div className="bg-[#0D0D0D] border border-[#2A2A2A] rounded-lg p-3 text-center">
-            <p className="text-[10px] text-[#444] mb-1">ROAS</p>
-            <p className="text-xl font-black text-[#F5C800]">{roas}x</p>
+          <div className="bg-background border border-border rounded-lg p-3 text-center">
+            <p className="text-2xs text-text-tertiary mb-1">ROAS</p>
+            <p className="text-xl font-black text-gold-text">{roas}x</p>
           </div>
         </div>
       )}
@@ -101,17 +101,17 @@ function DeployChecklist() {
     <div className="space-y-1.5">
       {DEPLOY_ITEMS.map((item, i) => (
         <div key={i} onClick={() => toggle(i)}
-          className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-[#111] cursor-pointer transition-colors">
+          className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-background cursor-pointer transition-colors">
           <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
-            checked.has(i) ? 'bg-green-400 border-green-400' : 'border-[#2A2A2A]'
+            checked.has(i) ? 'bg-success border-success' : 'border-border'
           }`}>
-            {checked.has(i) && <Check className="w-2.5 h-2.5 text-black" />}
+            {checked.has(i) && <Check className="w-2.5 h-2.5 text-on-gold" />}
           </div>
-          <span className={`text-xs ${checked.has(i) ? 'line-through text-[#444]' : 'text-white'}`}>{item}</span>
+          <span className={`text-xs ${checked.has(i) ? 'line-through text-text-tertiary' : 'text-text-primary'}`}>{item}</span>
         </div>
       ))}
-      <div className="pt-1 border-t border-[#1A1A1A]">
-        <p className="text-[10px] text-[#444] text-center">{checked.size}/{DEPLOY_ITEMS.length} completati</p>
+      <div className="pt-1 border-t border-border">
+        <p className="text-2xs text-text-tertiary text-center">{checked.size}/{DEPLOY_ITEMS.length} completati</p>
       </div>
     </div>
   )
@@ -136,13 +136,13 @@ function PromptLibrary() {
   return (
     <div className="space-y-2">
       {PROMPTS.map((p, i) => (
-        <div key={i} className="flex items-start gap-2 bg-[#0D0D0D] border border-[#1A1A1A] rounded-lg p-3">
+        <div key={i} className="flex items-start gap-2 bg-background border border-border rounded-lg p-3">
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-bold text-[#F5C800] mb-1">{p.label}</p>
-            <p className="text-[10px] text-[#555] line-clamp-2">{p.text}</p>
+            <p className="text-2xs font-bold text-gold-text mb-1">{p.label}</p>
+            <p className="text-2xs text-text-tertiary line-clamp-2">{p.text}</p>
           </div>
-          <button onClick={() => copy(i, p.text)} className="shrink-0 text-[#444] hover:text-white transition-colors mt-0.5">
-            {copied === i ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+          <button onClick={() => copy(i, p.text)} className="shrink-0 text-text-tertiary hover:text-text-primary transition-colors mt-0.5">
+            {copied === i ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
           </button>
         </div>
       ))}
@@ -154,7 +154,7 @@ function PromptLibrary() {
 function ContentBrief() {
   const [f, setF] = useState({ topic: '', audience: '', goal: '', format: 'articolo' })
   const [result, setResult] = useState('')
-  const inp = 'w-full bg-[#0D0D0D] border border-[#2A2A2A] rounded-lg px-3 py-1.5 text-xs text-white placeholder-[#333] focus:outline-none focus:border-[#F5C800]'
+  const inp = 'w-full bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-text-primary placeholder-text-tertiary focus:outline-none focus:border-gold'
   const generate = () => {
     if (!f.topic) return
     setResult(
@@ -181,11 +181,11 @@ function ContentBrief() {
         </select>
         <input value={f.goal} onChange={e => setF(p => ({ ...p, goal: e.target.value }))} placeholder="Obiettivo" className={inp} />
       </div>
-      <button onClick={generate} className="w-full py-2 bg-[#F5C800] text-black text-xs font-bold rounded-lg hover:bg-yellow-400 transition-colors">
+      <button onClick={generate} className="w-full py-2 bg-gold text-on-gold text-xs font-bold rounded-lg hover:bg-gold/90 transition-colors">
         Genera Brief
       </button>
       {result && (
-        <pre className="text-[10px] text-[#888] bg-[#0D0D0D] border border-[#1A1A1A] rounded-lg p-3 whitespace-pre-wrap font-mono">
+        <pre className="text-2xs text-text-secondary bg-background border border-border rounded-lg p-3 whitespace-pre-wrap font-mono">
           {result}
         </pre>
       )}
@@ -205,7 +205,7 @@ function TokenEstimator() {
   }
   const cost = tokens ? (((+tokens / 1000) * COSTS[model].in) + ((+tokens * 0.3 / 1000) * COSTS[model].out)).toFixed(4) : null
   const monthly = cost ? (+cost * 1000).toFixed(2) : null
-  const inp = 'w-full bg-[#0D0D0D] border border-[#2A2A2A] rounded-lg px-3 py-1.5 text-xs text-white placeholder-[#333] focus:outline-none focus:border-[#F5C800]'
+  const inp = 'w-full bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-text-primary placeholder-text-tertiary focus:outline-none focus:border-gold'
   return (
     <div className="space-y-2">
       <select value={model} onChange={e => setModel(e.target.value)} className={inp}>
@@ -214,17 +214,17 @@ function TokenEstimator() {
       <input type="number" value={tokens} onChange={e => setTokens(e.target.value)} placeholder="Token per chiamata (es. 2000)" className={inp} />
       {cost && (
         <div className="grid grid-cols-2 gap-2">
-          <div className="bg-[#0D0D0D] border border-[#1A1A1A] rounded-lg p-3 text-center">
-            <p className="text-[10px] text-[#444] mb-1">Per chiamata</p>
-            <p className="text-sm font-black text-white">${cost}</p>
+          <div className="bg-background border border-border rounded-lg p-3 text-center">
+            <p className="text-2xs text-text-tertiary mb-1">Per chiamata</p>
+            <p className="text-sm font-black text-text-primary">${cost}</p>
           </div>
-          <div className="bg-[#0D0D0D] border border-[#1A1A1A] rounded-lg p-3 text-center">
-            <p className="text-[10px] text-[#444] mb-1">×1000 chiamate</p>
-            <p className="text-sm font-black text-[#F5C800]">${monthly}</p>
+          <div className="bg-background border border-border rounded-lg p-3 text-center">
+            <p className="text-2xs text-text-tertiary mb-1">×1000 chiamate</p>
+            <p className="text-sm font-black text-gold-text">${monthly}</p>
           </div>
         </div>
       )}
-      <p className="text-[10px] text-[#333]">Stima approssimativa. Output stimato al 30% dell'input.</p>
+      <p className="text-2xs text-text-tertiary">Stima approssimativa. Output stimato al 30% dell'input.</p>
     </div>
   )
 }
@@ -263,8 +263,8 @@ export function DeptToolbox({ dept }: { dept: ProjectKind }) {
   return (
     <div className="p-6 space-y-5">
       <div>
-        <h2 className="text-xl font-black text-white">Toolbox</h2>
-        <p className="text-[#444] text-sm mt-0.5">Strumenti operativi per il reparto</p>
+        <h2 className="text-xl font-black text-text-primary">Toolbox</h2>
+        <p className="text-text-tertiary text-sm mt-0.5">Strumenti operativi per il reparto</p>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
@@ -272,20 +272,20 @@ export function DeptToolbox({ dept }: { dept: ProjectKind }) {
           <button key={t.id} onClick={() => setActive(t.id)}
             className={`p-4 rounded-2xl border text-left transition-all ${
               active === t.id
-                ? 'bg-[#F5C800]/10 border-[#F5C800]/30 text-white'
-                : 'bg-[#0D0D0D] border-[#1A1A1A] text-[#666] hover:border-[#2A2A2A] hover:text-white'
+                ? 'bg-gold/10 border-gold/30 text-text-primary'
+                : 'bg-background border-border text-text-tertiary hover:border-border hover:text-text-primary'
             }`}>
-            <div className={`mb-2 ${active === t.id ? 'text-[#F5C800]' : 'text-[#444]'}`}>{t.icon}</div>
+            <div className={`mb-2 ${active === t.id ? 'text-gold-text' : 'text-text-tertiary'}`}>{t.icon}</div>
             <p className="text-sm font-bold truncate">{t.label}</p>
-            <p className="text-[10px] mt-0.5 text-[#444] leading-tight">{t.desc}</p>
+            <p className="text-2xs mt-0.5 text-text-tertiary leading-tight">{t.desc}</p>
           </button>
         ))}
       </div>
 
-      <div className="bg-[#0D0D0D] border border-[#1A1A1A] rounded-2xl p-5">
+      <div className="bg-background border border-border rounded-2xl p-5">
         <div className="flex items-center gap-2 mb-4">
-          <span className="text-[#F5C800]">{current.icon}</span>
-          <h3 className="text-sm font-bold text-white">{current.label}</h3>
+          <span className="text-gold-text">{current.icon}</span>
+          <h3 className="text-sm font-bold text-text-primary">{current.label}</h3>
         </div>
         {current.component}
       </div>

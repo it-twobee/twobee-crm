@@ -18,16 +18,16 @@ interface Suggestion {
 }
 
 const CATEGORY_CONFIG: Record<string, { icon: React.ReactNode; color: string; bg: string }> = {
-  trend:          { icon: <TrendingUp className="w-3.5 h-3.5" />, color: '#3B82F6', bg: '#3B82F618' },
-  ottimizzazione: { icon: <Zap className="w-3.5 h-3.5" />,        color: '#F59E0B', bg: '#F59E0B18' },
-  opportunità:    { icon: <Target className="w-3.5 h-3.5" />,     color: '#22C55E', bg: '#22C55E18' },
-  idea:           { icon: <Lightbulb className="w-3.5 h-3.5" />,  color: '#A855F7', bg: '#A855F718' },
+  trend:          { icon: <TrendingUp className="w-3.5 h-3.5" />, color: 'var(--color-info)', bg: '#3B82F618' },
+  ottimizzazione: { icon: <Zap className="w-3.5 h-3.5" />,        color: 'var(--color-warning)', bg: '#F59E0B18' },
+  opportunità:    { icon: <Target className="w-3.5 h-3.5" />,     color: 'var(--color-success)', bg: '#22C55E18' },
+  idea:           { icon: <Lightbulb className="w-3.5 h-3.5" />,  color: 'var(--color-accent)', bg: '#A855F718' },
 }
 
 const IMPACT_COLOR: Record<string, string> = {
-  alto:  'text-red-400 bg-red-400/10',
-  medio: 'text-yellow-400 bg-yellow-400/10',
-  basso: 'text-[#444] bg-[#1A1A1A]',
+  alto:  'text-error bg-error/10',
+  medio: 'text-gold-text bg-gold/10',
+  basso: 'text-text-tertiary bg-surface',
 }
 
 const DEPT_EMOJI: Record<ProjectKind, string> = {
@@ -75,18 +75,18 @@ export function DeptAI({ dept, projects }: { dept: ProjectKind; projects: Projec
     <div className="p-6 space-y-5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-black text-white flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-[#F5C800]" />
+          <h2 className="text-xl font-black text-text-primary flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-gold-text" />
             AI Advisor
           </h2>
-          <p className="text-[#444] text-sm mt-0.5">
+          <p className="text-text-tertiary text-sm mt-0.5">
             Analisi intelligente del reparto — trend, ottimizzazioni e nuove opportunità
           </p>
         </div>
         <button
           onClick={analyze}
           disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-[#F5C800] text-black text-xs font-black rounded-xl hover:bg-yellow-400 disabled:opacity-50 transition-all shrink-0">
+          className="flex items-center gap-2 px-4 py-2 bg-gold text-on-gold text-xs font-black rounded-xl hover:bg-gold/90 disabled:opacity-50 transition-all shrink-0">
           {loading
             ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Analisi in corso…</>
             : ran
@@ -97,11 +97,11 @@ export function DeptAI({ dept, projects }: { dept: ProjectKind; projects: Projec
       </div>
 
       {!ran && !loading && (
-        <div className="bg-[#0D0D0D] border border-[#1A1A1A] rounded-2xl p-10 flex flex-col items-center gap-4 text-center">
+        <div className="bg-background border border-border rounded-2xl p-10 flex flex-col items-center gap-4 text-center">
           <div className="text-5xl">{DEPT_EMOJI[dept]}</div>
           <div>
-            <p className="text-white font-bold mb-1">Pronto per l'analisi</p>
-            <p className="text-[#444] text-sm max-w-sm">
+            <p className="text-text-primary font-bold mb-1">Pronto per l'analisi</p>
+            <p className="text-text-tertiary text-sm max-w-sm">
               L'AI analizzerà i {projects.length} progetti del reparto e suggerirà
               ottimizzazioni, trend di settore e nuove opportunità.
             </p>
@@ -113,9 +113,9 @@ export function DeptAI({ dept, projects }: { dept: ProjectKind; projects: Projec
               { label: 'Opportunità', desc: 'Servizi e upsell potenziali' },
               { label: 'Idee brillanti', desc: 'Spunti creativi e innovativi' },
             ].map(item => (
-              <div key={item.label} className="bg-[#111] border border-[#1A1A1A] rounded-xl p-3 text-left">
-                <p className="text-xs font-bold text-white">{item.label}</p>
-                <p className="text-[10px] text-[#333] mt-0.5">{item.desc}</p>
+              <div key={item.label} className="bg-background border border-border rounded-xl p-3 text-left">
+                <p className="text-xs font-bold text-text-primary">{item.label}</p>
+                <p className="text-2xs text-text-tertiary mt-0.5">{item.desc}</p>
               </div>
             ))}
           </div>
@@ -123,16 +123,16 @@ export function DeptAI({ dept, projects }: { dept: ProjectKind; projects: Projec
       )}
 
       {loading && (
-        <div className="bg-[#0D0D0D] border border-[#1A1A1A] rounded-2xl p-10 flex flex-col items-center gap-3 text-center">
-          <Loader2 className="w-8 h-8 text-[#F5C800] animate-spin" />
-          <p className="text-white font-bold">Analisi in corso…</p>
-          <p className="text-[#444] text-sm">Sto analizzando i progetti e i trend del settore</p>
+        <div className="bg-background border border-border rounded-2xl p-10 flex flex-col items-center gap-3 text-center">
+          <Loader2 className="w-8 h-8 text-gold-text animate-spin" />
+          <p className="text-text-primary font-bold">Analisi in corso…</p>
+          <p className="text-text-tertiary text-sm">Sto analizzando i progetti e i trend del settore</p>
         </div>
       )}
 
       {error && (
-        <div className="bg-red-400/10 border border-red-400/20 rounded-2xl p-4 text-center">
-          <p className="text-red-400 text-sm">{error}</p>
+        <div className="bg-error/10 border border-error/20 rounded-2xl p-4 text-center">
+          <p className="text-error text-sm">{error}</p>
         </div>
       )}
 
@@ -141,29 +141,29 @@ export function DeptAI({ dept, projects }: { dept: ProjectKind; projects: Projec
           {suggestions.map((s, i) => {
             const cfg = CATEGORY_CONFIG[s.category] ?? CATEGORY_CONFIG['idea']
             return (
-              <div key={i} className="bg-[#0D0D0D] border border-[#1A1A1A] rounded-2xl p-5 space-y-3">
+              <div key={i} className="bg-background border border-border rounded-2xl p-5 space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <span className="p-1.5 rounded-lg" style={{ background: cfg.bg, color: cfg.color }}>
                       {cfg.icon}
                     </span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: cfg.color }}>
+                    <span className="text-2xs font-bold uppercase tracking-wider" style={{ color: cfg.color }}>
                       {s.category}
                     </span>
                   </div>
-                  <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${IMPACT_COLOR[s.impact] ?? IMPACT_COLOR['basso']}`}>
+                  <span className={`text-2xs font-black px-2 py-0.5 rounded-full ${IMPACT_COLOR[s.impact] ?? IMPACT_COLOR['basso']}`}>
                     impatto {s.impact}
                   </span>
                 </div>
 
                 <div>
-                  <h3 className="text-sm font-black text-white mb-1">{s.title}</h3>
-                  <p className="text-xs text-[#888] leading-relaxed">{s.insight}</p>
+                  <h3 className="text-sm font-black text-text-primary mb-1">{s.title}</h3>
+                  <p className="text-xs text-text-secondary leading-relaxed">{s.insight}</p>
                 </div>
 
-                <div className="bg-[#111] border border-[#1A1A1A] rounded-xl p-3">
-                  <p className="text-[10px] font-bold text-[#F5C800] mb-1">↗ Azione consigliata</p>
-                  <p className="text-xs text-[#666]">{s.action}</p>
+                <div className="bg-background border border-border rounded-xl p-3">
+                  <p className="text-2xs font-bold text-gold-text mb-1">↗ Azione consigliata</p>
+                  <p className="text-xs text-text-tertiary">{s.action}</p>
                 </div>
               </div>
             )
@@ -172,8 +172,8 @@ export function DeptAI({ dept, projects }: { dept: ProjectKind; projects: Projec
       )}
 
       {ran && !loading && suggestions.length === 0 && (
-        <div className="bg-[#0D0D0D] border border-[#1A1A1A] rounded-2xl p-8 text-center">
-          <p className="text-[#444] text-sm">Nessun suggerimento generato. Riprova.</p>
+        <div className="bg-background border border-border rounded-2xl p-8 text-center">
+          <p className="text-text-tertiary text-sm">Nessun suggerimento generato. Riprova.</p>
         </div>
       )}
     </div>

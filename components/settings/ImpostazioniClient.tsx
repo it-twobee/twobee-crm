@@ -25,10 +25,10 @@ const roleLabel: Record<string, string> = {
 }
 
 const roleBadge: Record<string, string> = {
-  admin: 'bg-gold/20 text-gold',
-  team: 'bg-blue-500/20 text-blue-400',
+  admin: 'bg-gold/20 text-gold-text',
+  team: 'bg-info/20 text-info',
   client: 'bg-success/20 text-success',
-  guest: 'bg-surface text-text-secondary border border-[#2A2A2A]',
+  guest: 'bg-surface text-text-secondary border border-border',
 }
 
 const PACKAGES = [
@@ -47,16 +47,16 @@ export function ImpostazioniClient({ currentProfile, profiles, clients, assignme
 
   return (
     <div className="p-6 max-w-4xl">
-      <h1 className="text-2xl font-black text-white mb-6">Impostazioni</h1>
+      <h1 className="text-2xl font-black text-text-primary mb-6">Impostazioni</h1>
 
       {/* Tab nav */}
-      <div className="flex border-b border-[#2A2A2A] mb-6">
+      <div className="flex border-b border-border mb-6">
         {TABS.map((tab, i) => (
           <button
             key={tab}
             onClick={() => setActiveTab(i)}
             className={`px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${
-              activeTab === i ? 'border-gold text-gold' : 'border-transparent text-text-secondary hover:text-white'
+              activeTab === i ? 'border-gold text-gold-text' : 'border-transparent text-text-secondary hover:text-text-primary'
             }`}
           >
             {tab}
@@ -69,7 +69,7 @@ export function ImpostazioniClient({ currentProfile, profiles, clients, assignme
       {activeTab === 2 && <PacchettiTab />}
       {activeTab === 3 && (
         <div className="max-w-lg">
-          <div className="bg-surface border border-[#2A2A2A] rounded-card p-6">
+          <div className="bg-surface border border-border rounded-card p-6">
             <AsanaSync />
           </div>
         </div>
@@ -118,9 +118,9 @@ function TeamTab({ profiles, clients, assignments, isAdmin }: {
     <div className="space-y-6">
       {/* Invita membro */}
       {isAdmin && (
-        <div className="bg-surface border border-[#2A2A2A] rounded-card p-5">
-          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-            <UserPlus className="w-4 h-4 text-gold" />
+        <div className="bg-surface border border-border rounded-card p-5">
+          <h3 className="text-sm font-bold text-text-primary mb-4 flex items-center gap-2">
+            <UserPlus className="w-4 h-4 text-gold-text" />
             Invita Nuovo Membro
           </h3>
           <form onSubmit={handleInvite} className="flex gap-3 flex-wrap">
@@ -130,12 +130,12 @@ function TeamTab({ profiles, clients, assignments, isAdmin }: {
               onChange={(e) => setInviteEmail(e.target.value)}
               placeholder="email@twobee.it"
               required
-              className="flex-1 min-w-48 bg-background border border-[#2A2A2A] rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-gold"
+              className="flex-1 min-w-48 bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-gold"
             />
             <select
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value)}
-              className="bg-background border border-[#2A2A2A] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-gold"
+              className="bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-text-primary focus:outline-none focus:border-gold"
             >
               <option value="team">Team</option>
               <option value="admin">Admin</option>
@@ -144,7 +144,7 @@ function TeamTab({ profiles, clients, assignments, isAdmin }: {
             <button
               type="submit"
               disabled={inviting}
-              className="flex items-center gap-2 px-4 py-2.5 bg-gold text-black font-bold rounded-lg hover:bg-yellow-400 transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2.5 bg-gold text-on-gold font-bold rounded-lg hover:bg-gold/90 transition-colors disabled:opacity-50"
             >
               {inviting && <Loader2 className="w-4 h-4 animate-spin" />}
               Invita
@@ -157,23 +157,23 @@ function TeamTab({ profiles, clients, assignments, isAdmin }: {
       )}
 
       {/* Lista team */}
-      <div className="bg-surface border border-[#2A2A2A] rounded-card overflow-hidden">
-        <div className="px-5 py-4 border-b border-[#2A2A2A] flex items-center gap-2">
-          <Users className="w-4 h-4 text-gold" />
-          <h3 className="text-sm font-bold text-white">Membri del Team ({profiles.length})</h3>
+      <div className="bg-surface border border-border rounded-card overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+          <Users className="w-4 h-4 text-gold-text" />
+          <h3 className="text-sm font-bold text-text-primary">Membri del Team ({profiles.length})</h3>
         </div>
-        <div className="divide-y divide-[#2A2A2A]">
+        <div className="divide-y divide-border">
           {profiles.map((p) => {
             const assigned = getAssignedClients(p.id)
             return (
               <div key={p.id} className="px-5 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold text-sm font-bold">
+                  <div className="w-9 h-9 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold-text text-sm font-bold">
                     {getInitials(p.full_name)}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-white">{p.full_name}</p>
+                      <p className="text-sm font-semibold text-text-primary">{p.full_name}</p>
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded ${roleBadge[p.role]}`}>
                         {roleLabel[p.role]}
                       </span>
@@ -233,14 +233,14 @@ function ProfiloTab({ profile }: { profile: Profile }) {
     <div className="space-y-6 max-w-lg">
       {/* Avatar */}
       <div className="flex items-center gap-4">
-        <div className="w-16 h-16 rounded-full bg-gold/20 border-2 border-gold/30 flex items-center justify-center text-gold text-xl font-black">
+        <div className="w-16 h-16 rounded-full bg-gold/20 border-2 border-gold/30 flex items-center justify-center text-gold-text text-xl font-black">
           {getInitials(profile.full_name)}
         </div>
         <div>
-          <p className="text-sm font-semibold text-white">{profile.full_name}</p>
+          <p className="text-sm font-semibold text-text-primary">{profile.full_name}</p>
           <p className="text-xs text-text-secondary">{profile.email}</p>
           <span className={`text-xs font-semibold px-2 py-0.5 rounded mt-1 inline-block ${
-            profile.role === 'admin' ? 'bg-gold/20 text-gold' : 'bg-blue-500/20 text-blue-400'
+            profile.role === 'admin' ? 'bg-gold/20 text-gold-text' : 'bg-info/20 text-info'
           }`}>
             {roleLabel[profile.role]}
           </span>
@@ -248,15 +248,15 @@ function ProfiloTab({ profile }: { profile: Profile }) {
       </div>
 
       {/* Dati profilo */}
-      <div className="bg-surface border border-[#2A2A2A] rounded-card p-5">
-        <h3 className="text-sm font-bold text-white mb-4">Dati Personali</h3>
+      <div className="bg-surface border border-border rounded-card p-5">
+        <h3 className="text-sm font-bold text-text-primary mb-4">Dati Personali</h3>
         <form onSubmit={saveProfile} className="space-y-4">
           <div>
             <label className="block text-xs text-text-secondary mb-1">Nome completo</label>
             <input
               value={form.full_name}
               onChange={(e) => setForm((p) => ({ ...p, full_name: e.target.value }))}
-              className="w-full bg-background border border-[#2A2A2A] rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-gold"
+              className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-gold"
             />
           </div>
           <div>
@@ -264,7 +264,7 @@ function ProfiloTab({ profile }: { profile: Profile }) {
             <input
               value={profile.email}
               disabled
-              className="w-full bg-background border border-[#2A2A2A] rounded-lg px-4 py-2.5 text-sm text-text-secondary cursor-not-allowed"
+              className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-text-secondary cursor-not-allowed"
             />
           </div>
           <div>
@@ -273,13 +273,13 @@ function ProfiloTab({ profile }: { profile: Profile }) {
               value={form.phone}
               onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
               placeholder="+39 333 000 0000"
-              className="w-full bg-background border border-[#2A2A2A] rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-gold"
+              className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-gold"
             />
           </div>
           <button
             type="submit"
             disabled={saving}
-            className="flex items-center gap-2 px-4 py-2.5 bg-gold text-black font-bold rounded-lg hover:bg-yellow-400 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2.5 bg-gold text-on-gold font-bold rounded-lg hover:bg-gold/90 transition-colors disabled:opacity-50"
           >
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
             Salva Modifiche
@@ -288,8 +288,8 @@ function ProfiloTab({ profile }: { profile: Profile }) {
       </div>
 
       {/* Cambio password */}
-      <div className="bg-surface border border-[#2A2A2A] rounded-card p-5">
-        <h3 className="text-sm font-bold text-white mb-4">Cambia Password</h3>
+      <div className="bg-surface border border-border rounded-card p-5">
+        <h3 className="text-sm font-bold text-text-primary mb-4">Cambia Password</h3>
         <form onSubmit={changePassword} className="space-y-4">
           <div>
             <label className="block text-xs text-text-secondary mb-1">Nuova password</label>
@@ -298,13 +298,13 @@ function ProfiloTab({ profile }: { profile: Profile }) {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="Min. 6 caratteri"
-              className="w-full bg-background border border-[#2A2A2A] rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-gold"
+              className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-gold"
             />
           </div>
           <button
             type="submit"
             disabled={changingPwd}
-            className="flex items-center gap-2 px-4 py-2.5 bg-surface border border-[#2A2A2A] text-white font-semibold rounded-lg hover:border-gold transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2.5 bg-surface border border-border text-text-primary font-semibold rounded-lg hover:border-gold transition-colors disabled:opacity-50"
           >
             {changingPwd && <Loader2 className="w-4 h-4 animate-spin" />}
             Aggiorna Password
@@ -322,12 +322,12 @@ function PacchettiTab() {
         Pacchetti servizio TWO BEE — prezzi di riferimento interni.
       </p>
       {PACKAGES.map((pkg) => (
-        <div key={pkg.name} className="bg-surface border border-[#2A2A2A] rounded-card px-5 py-4 flex items-center justify-between">
+        <div key={pkg.name} className="bg-surface border border-border rounded-card px-5 py-4 flex items-center justify-between">
           <div>
-            <p className="text-sm font-bold text-white">{pkg.name}</p>
+            <p className="text-sm font-bold text-text-primary">{pkg.name}</p>
             <p className="text-xs text-text-secondary mt-0.5">{pkg.desc}</p>
           </div>
-          <span className="text-gold font-bold text-sm">{pkg.price}</span>
+          <span className="text-gold-text font-bold text-sm">{pkg.price}</span>
         </div>
       ))}
     </div>

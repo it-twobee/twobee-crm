@@ -150,7 +150,7 @@ function calcHealthScore(kpi: ClientKpi | undefined, client: Client, stdDefs: St
 function HealthRing({ score }: { score: number }) {
   const cfg = score >= 75 ? { label: 'Ottimo', cls: 'text-success' }
     : score >= 50 ? { label: 'Nella norma', cls: 'text-warning' }
-    : score >= 25 ? { label: 'Attenzione', cls: 'text-orange-400' }
+    : score >= 25 ? { label: 'Attenzione', cls: 'text-orange' }
     : { label: 'Critico', cls: 'text-error' }
   return (
     <div className="flex items-center gap-3">
@@ -161,11 +161,11 @@ function HealthRing({ score }: { score: number }) {
             strokeDasharray={`${(score / 100) * 87.96} 87.96`} strokeLinecap="round"
             className={`${cfg.cls} stroke-current`} />
         </svg>
-        <span className={`absolute inset-0 flex items-center justify-center text-[9px] font-black ${cfg.cls}`}>{score}</span>
+        <span className={`absolute inset-0 flex items-center justify-center text-2xs font-black ${cfg.cls}`}>{score}</span>
       </div>
       <div>
         <p className={`text-sm font-black ${cfg.cls}`}>{cfg.label}</p>
-        <p className="text-[10px] text-text-secondary">health score</p>
+        <p className="text-2xs text-text-secondary">health score</p>
       </div>
     </div>
   )
@@ -192,11 +192,11 @@ function KpiCard({ def, actual, target }: { def: StdKpiDef | CustomKpiDef; actua
       {target != null && (
         <div className="mt-2 space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-text-secondary flex items-center gap-1">
+            <span className="text-2xs text-text-secondary flex items-center gap-1">
               <Target className="w-2.5 h-2.5" /> target: {fmt(target)}
             </span>
             {actual != null && (
-              <span className={`flex items-center gap-0.5 text-[10px] font-bold ${statusColor}`}>
+              <span className={`flex items-center gap-0.5 text-2xs font-bold ${statusColor}`}>
                 <TrendIcon className="w-2.5 h-2.5" />
                 {Math.abs(pct).toFixed(0)}%
               </span>
@@ -298,16 +298,16 @@ function KpiSetupChat({
       <div className="bg-surface border border-border rounded-xl overflow-hidden">
         <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-surface">
           <div className="w-8 h-8 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-gold" />
+            <Sparkles className="w-4 h-4 text-gold-text" />
           </div>
           <div>
             <p className="text-sm font-semibold text-text-primary">Imposta gli obiettivi con l&apos;AI</p>
-            <p className="text-[11px] text-text-secondary">
+            <p className="text-2xs text-text-secondary">
               Nessun KPI configurato — l&apos;AI ti guida a definire target realistici per un cliente {isGrowth ? 'Growth' : 'Digital'}
             </p>
           </div>
-          <span className="ml-auto text-[10px] font-bold px-2 py-1 rounded-full border"
-            style={{ color: isGrowth ? '#F5C800' : '#60A5FA', borderColor: isGrowth ? '#F5C800' : '#60A5FA', background: isGrowth ? '#F5C80012' : '#60A5FA12' }}>
+          <span className="ml-auto text-2xs font-bold px-2 py-1 rounded-full border"
+            style={{ color: isGrowth ? 'var(--color-gold-text)' : 'var(--color-info)', borderColor: isGrowth ? 'var(--color-gold-text)' : 'var(--color-info)', background: isGrowth ? '#F5C80012' : '#60A5FA12' }}>
             {isGrowth ? 'GROWTH' : 'DIGITAL'}
           </span>
         </div>
@@ -331,13 +331,13 @@ function KpiSetupChat({
               className="flex-1 bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-secondary focus:outline-none focus:border-gold/50"
             />
             <button onClick={() => input.trim() && startChat(input)}
-              className="px-3 py-2 bg-gold text-black rounded-lg hover:bg-gold/90 transition-colors">
+              className="px-3 py-2 bg-gold text-on-gold rounded-lg hover:bg-gold/90 transition-colors">
               <Send className="w-4 h-4" />
             </button>
           </div>
           <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
-            <p className="text-[11px] text-text-tertiary">Oppure inserisci i KPI manualmente</p>
-            <button onClick={onInsertKpi} className="text-xs text-text-secondary hover:text-gold transition-colors">
+            <p className="text-2xs text-text-tertiary">Oppure inserisci i KPI manualmente</p>
+            <button onClick={onInsertKpi} className="text-xs text-text-secondary hover:text-gold-text transition-colors">
               Inserisci primo mese →
             </button>
           </div>
@@ -350,15 +350,15 @@ function KpiSetupChat({
     <div className="bg-surface border border-border rounded-xl overflow-hidden">
       <div className="flex items-center gap-3 px-5 py-3.5 border-b border-border bg-surface">
         <div className="w-7 h-7 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center">
-          <Bot className="w-3.5 h-3.5 text-gold" />
+          <Bot className="w-3.5 h-3.5 text-gold-text" />
         </div>
         <p className="text-sm font-semibold text-text-primary flex-1">AI KPI Advisor</p>
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
-          style={{ color: isGrowth ? '#F5C800' : '#60A5FA', borderColor: isGrowth ? '#F5C800' : '#60A5FA', background: isGrowth ? '#F5C80012' : '#60A5FA12' }}>
+        <span className="text-2xs font-bold px-2 py-0.5 rounded-full border"
+          style={{ color: isGrowth ? 'var(--color-gold-text)' : 'var(--color-info)', borderColor: isGrowth ? 'var(--color-gold-text)' : 'var(--color-info)', background: isGrowth ? '#F5C80012' : '#60A5FA12' }}>
           {isGrowth ? 'GROWTH' : 'DIGITAL'}
         </span>
         <button onClick={onInsertKpi}
-          className="ml-2 text-xs text-text-secondary hover:text-gold transition-colors border border-border rounded-lg px-2.5 py-1">
+          className="ml-2 text-xs text-text-secondary hover:text-gold-text transition-colors border border-border rounded-lg px-2.5 py-1">
           + Inserisci KPI
         </button>
       </div>
@@ -368,13 +368,13 @@ function KpiSetupChat({
           <div key={i} className={`flex gap-2 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
             {m.role === 'ai' && (
               <div className="w-6 h-6 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <Sparkles className="w-3 h-3 text-gold" />
+                <Sparkles className="w-3 h-3 text-gold-text" />
               </div>
             )}
             <div className={`max-w-[80%] px-3 py-2 rounded-xl text-sm leading-relaxed ${
               m.role === 'ai'
                 ? 'bg-surface border border-border text-text-primary'
-                : 'bg-gold text-black font-medium'
+                : 'bg-gold text-on-gold font-medium'
             }`}>
               {m.text}
             </div>
@@ -383,13 +383,13 @@ function KpiSetupChat({
         {loading && (
           <div className="flex gap-2">
             <div className="w-6 h-6 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center flex-shrink-0">
-              <Loader2 className="w-3 h-3 text-gold animate-spin" />
+              <Loader2 className="w-3 h-3 text-gold-text animate-spin" />
             </div>
             <div className="bg-surface border border-border rounded-xl px-3 py-2">
               <div className="flex gap-1 items-center h-4">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#555] animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-1.5 h-1.5 rounded-full bg-[#555] animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-1.5 h-1.5 rounded-full bg-[#555] animate-bounce" style={{ animationDelay: '300ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
             </div>
           </div>
@@ -407,7 +407,7 @@ function KpiSetupChat({
           className="flex-1 bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-secondary focus:outline-none focus:border-gold/50 disabled:opacity-50"
         />
         <button onClick={sendMessage} disabled={loading || !input.trim()}
-          className="px-3 py-2 bg-gold text-black rounded-lg hover:bg-gold/90 transition-colors disabled:opacity-40">
+          className="px-3 py-2 bg-gold text-on-gold rounded-lg hover:bg-gold/90 transition-colors disabled:opacity-40">
           <Send className="w-4 h-4" />
         </button>
       </div>
@@ -418,9 +418,9 @@ function KpiSetupChat({
 // ─── KPI Target Precompile Modal ─────────────────────────────────────────────
 
 const KPI_LEVEL_CFG = [
-  { key: 'low',    label: 'Conservativo', desc: '35° percentile', color: '#6B7280' },
-  { key: 'med',    label: 'Realistico',   desc: '65° percentile', color: '#F5C800' },
-  { key: 'strong', label: 'Ambizioso',    desc: '90° percentile', color: '#22C55E' },
+  { key: 'low',    label: 'Conservativo', desc: '35° percentile', color: 'var(--color-text-tertiary)' },
+  { key: 'med',    label: 'Realistico',   desc: '65° percentile', color: 'var(--color-gold-text)' },
+  { key: 'strong', label: 'Ambizioso',    desc: '90° percentile', color: 'var(--color-success)' },
 ]
 
 const KPI_LABELS_MAP: Record<string, string> = {
@@ -446,7 +446,7 @@ function KpiTargetPrecompileModal({ client, isGrowth, selectedProject, onClose, 
   const [levels, setLevels]    = useState<Record<string, Record<string, number>> | null>(null)
   const [kpiKeys, setKpiKeys]  = useState<string[]>([])
   const [targetKeyMap, setTargetKeyMap] = useState<Record<string, string>>({})
-  const accentColor = isGrowth ? '#F5C800' : '#60A5FA'
+  const accentColor = isGrowth ? 'var(--color-gold-text)' : 'var(--color-info)'
 
   const generate = async () => {
     setLoading(true); setLevels(null)
@@ -490,7 +490,7 @@ function KpiTargetPrecompileModal({ client, isGrowth, selectedProject, onClose, 
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-surface border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-start justify-between px-6 py-4 border-b border-border sticky top-0 bg-surface z-10">
           <div>
@@ -498,13 +498,13 @@ function KpiTargetPrecompileModal({ client, isGrowth, selectedProject, onClose, 
               <Sparkles className="w-4 h-4" style={{ color: accentColor }} />
               <h2 className="text-sm font-bold text-text-primary">Precompila obiettivi KPI</h2>
             </div>
-            <p className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
+            <p className="text-2xs" style={{ color: 'var(--color-text-secondary)' }}>
               {client.company_name} · benchmark {isGrowth ? 'Growth' : 'Digital'} mercato italiano
             </p>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={generate} disabled={loading}
-              className="flex items-center gap-1 text-[10px] px-2.5 py-1.5 rounded-lg"
+              className="flex items-center gap-1 text-2xs px-2.5 py-1.5 rounded-lg"
               style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: loading ? 'var(--color-text-tertiary)' : 'var(--color-text-secondary)' }}>
               {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
               {loading ? 'Analisi…' : 'Rigenera'}
@@ -523,16 +523,16 @@ function KpiTargetPrecompileModal({ client, isGrowth, selectedProject, onClose, 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {KPI_LEVEL_CFG.map(lvl => (
                 <div key={lvl.key} className="rounded-xl overflow-hidden"
-                  style={{ border: `1px solid ${lvl.color}22`, background: lvl.color + '08' }}>
-                  <div className="px-4 py-3 border-b" style={{ borderColor: lvl.color + '20' }}>
-                    <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: lvl.color }}>{lvl.label}</p>
-                    <p className="text-[9px] mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>{lvl.desc}</p>
+                  style={{ border: `1px solid color-mix(in srgb, ${lvl.color} 13%, transparent)`, background: `color-mix(in srgb, ${lvl.color} 3%, transparent)` }}>
+                  <div className="px-4 py-3 border-b" style={{ borderColor: `color-mix(in srgb, ${lvl.color} 13%, transparent)` }}>
+                    <p className="text-2xs font-black uppercase tracking-widest" style={{ color: lvl.color }}>{lvl.label}</p>
+                    <p className="text-2xs mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>{lvl.desc}</p>
                   </div>
                   <div className="p-3 space-y-2">
                     {kpiKeys.map(k => (
                       <div key={k} className="flex items-center justify-between">
-                        <span className="text-[10px]" style={{ color: 'var(--color-text-secondary)' }}>{KPI_LABELS_MAP[k] ?? k}</span>
-                        <span className="text-[11px] font-bold" style={{ color: lvl.color }}>
+                        <span className="text-2xs" style={{ color: 'var(--color-text-secondary)' }}>{KPI_LABELS_MAP[k] ?? k}</span>
+                        <span className="text-2xs font-bold" style={{ color: lvl.color }}>
                           {levels[lvl.key]?.[k] != null ? fmtTarget(k, levels[lvl.key][k]) : '—'}
                         </span>
                       </div>
@@ -540,8 +540,8 @@ function KpiTargetPrecompileModal({ client, isGrowth, selectedProject, onClose, 
                   </div>
                   <div className="px-3 pb-3">
                     <button onClick={() => apply(lvl.key)} disabled={!!saving}
-                      className="w-full py-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1.5"
-                      style={{ background: lvl.color + '15', border: `1px solid ${lvl.color}30`, color: saving ? 'var(--color-text-tertiary)' : lvl.color }}>
+                      className="w-full py-2 rounded-lg text-2xs font-bold transition-all flex items-center justify-center gap-1.5"
+                      style={{ background: `color-mix(in srgb, ${lvl.color} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${lvl.color} 19%, transparent)`, color: saving ? 'var(--color-text-tertiary)' : lvl.color }}>
                       {saving === lvl.key
                         ? <><Loader2 className="w-3 h-3 animate-spin" /> Salvo…</>
                         : 'Usa questi obiettivi'}
@@ -661,7 +661,7 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
     toast.success('KPI eliminati')
   }
 
-  const chartTheme = { grid: '#2A2A2A', text: '#A0A0A0', gold: '#F5C800', green: '#22C55E', blue: '#60A5FA' }
+  const chartTheme = { grid: 'var(--color-border)', text: 'var(--color-text-tertiary)', gold: 'var(--color-gold-text)', green: 'var(--color-success)', blue: 'var(--color-info)' }
 
   // Nessun progetto con project_kind definito
   if (kpiProjects.length === 0) {
@@ -696,13 +696,13 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
               className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-semibold transition-all ${
                 isSelected
                   ? isG
-                    ? 'bg-gold/10 border-gold text-gold'
-                    : 'bg-blue-500/10 border-blue-400 text-blue-400'
+                    ? 'bg-gold/10 border-gold text-gold-text'
+                    : 'bg-info/10 border-info text-info'
                   : 'bg-surface border-border text-text-secondary hover:border-border-strong hover:text-text-primary'
               }`}>
               <span>{isG ? '📈' : '💻'}</span>
               <span className="truncate max-w-[180px]">{projectTitle}</span>
-              {isSelected && <span className="text-[10px] font-bold opacity-70">{isG ? 'Growth' : 'Digital'}</span>}
+              {isSelected && <span className="text-2xs font-bold opacity-70">{isG ? 'Growth' : 'Digital'}</span>}
             </button>
           )
         })}
@@ -714,7 +714,7 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
           <h2 className="text-lg font-bold text-text-primary">KPI & Performance</h2>
           {latest && <HealthRing score={healthScore} />}
           <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
-            isGrowth ? 'bg-gold/10 text-gold border-gold/30' : 'bg-blue-500/10 text-blue-400 border-blue-400/30'
+            isGrowth ? 'bg-gold/10 text-gold-text border-gold/30' : 'bg-info/10 text-info border-info/30'
           }`}>
             {isGrowth ? '📈 Growth' : '💻 Digital'}
           </span>
@@ -733,7 +733,7 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
             <FileText className="w-4 h-4" /> Report PDF
           </button>
           <button onClick={() => { setEditingKpi(null); setShowModal(true) }} disabled={!selectedProject}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-gold text-black rounded-lg hover:bg-yellow-400 transition-colors disabled:opacity-40">
+            className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-gold text-on-gold rounded-lg hover:bg-gold/90 transition-colors disabled:opacity-40">
             <Plus className="w-4 h-4" /> Inserisci mese
           </button>
         </div>
@@ -745,11 +745,11 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
           <p className="text-xs font-bold text-text-secondary uppercase tracking-wider">Obiettivi configurati</p>
           <div className="flex items-center gap-2">
             <button onClick={() => setShowTargetPrecompile(true)} disabled={!selectedProject}
-              className="flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-all disabled:opacity-40"
-              style={{ background: 'var(--color-gold-dim)', border: '1px solid var(--color-gold)', color: 'var(--color-gold)' }}>
+              className="flex items-center gap-1.5 text-2xs font-bold px-2.5 py-1.5 rounded-lg transition-all disabled:opacity-40"
+              style={{ background: 'var(--color-gold-dim)', border: '1px solid var(--color-gold)', color: 'var(--color-gold-text)' }}>
               <Sparkles className="w-3 h-3" /> Precompila con AI
             </button>
-            <span className="text-[10px] text-text-secondary bg-surface border border-border px-2 py-0.5 rounded-full">
+            <span className="text-2xs text-text-secondary bg-surface border border-border px-2 py-0.5 rounded-full">
               {isGrowth ? 'Growth' : 'Digital'} · {enabledStd.length + customKpis.length} KPI attivi
             </span>
           </div>
@@ -762,7 +762,7 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
             const fmt = (v: number) => prefix + v.toFixed(d.decimals ?? 0) + unit
             return (
               <div key={d.key} className="bg-surface border border-border rounded-lg px-3 py-2.5">
-                <p className="text-[10px] text-text-secondary mb-0.5">{d.label}</p>
+                <p className="text-2xs text-text-secondary mb-0.5">{d.label}</p>
                 <p className={`text-sm font-bold ${target ? 'text-text-primary' : 'text-text-tertiary'}`}>
                   {target ? fmt(target) + '/mese' : <span className="text-text-tertiary italic text-xs">non impostato</span>}
                 </p>
@@ -771,7 +771,7 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
           })}
           {customKpis.map(c => (
             <div key={c.id} className="bg-surface border border-gold/20 rounded-lg px-3 py-2.5">
-              <p className="text-[10px] text-text-secondary mb-0.5 flex items-center gap-1">
+              <p className="text-2xs text-text-secondary mb-0.5 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-gold inline-block" /> {c.name}
               </p>
               <p className={`text-sm font-bold ${c.target ? 'text-text-primary' : 'text-text-tertiary'}`}>
@@ -782,7 +782,7 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
           {enabledStd.filter(d => d.targetKey).length === 0 && customKpis.length === 0 && (
             <div className="col-span-full text-center py-4 text-text-secondary text-xs">
               Nessun obiettivo configurato —{' '}
-              <button onClick={() => setShowConfig(true)} className="text-gold hover:underline">configura i KPI</button>
+              <button onClick={() => setShowConfig(true)} className="text-gold-text hover:underline">configura i KPI</button>
             </div>
           )}
         </div>
@@ -813,7 +813,7 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
                   {new Date(latest.month).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })} — confronto vs obiettivi
                 </p>
                 <button onClick={() => { setEditingKpi(latest); setShowModal(true) }}
-                  className="flex items-center gap-1 text-xs text-text-secondary hover:text-gold transition-colors">
+                  className="flex items-center gap-1 text-xs text-text-secondary hover:text-gold-text transition-colors">
                   <Pencil className="w-3 h-3" /> Modifica
                 </button>
               </div>
@@ -890,7 +890,7 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
                       <XAxis dataKey="month" tick={{ fill: chartTheme.text, fontSize: 11 }} />
                       <YAxis tick={{ fill: chartTheme.text, fontSize: 11 }} tickFormatter={v => `€${(v / 1000).toFixed(0)}k`} />
                       <Tooltip contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8 }} labelStyle={{ color: 'var(--color-text-primary)' }} formatter={(v: number) => formatCurrency(v)} />
-                      <Legend wrapperStyle={{ color: '#A0A0A0', fontSize: 12 }} />
+                      <Legend wrapperStyle={{ color: 'var(--color-text-tertiary)', fontSize: 12 }} />
                       {client.target_revenue_monthly && <ReferenceLine y={client.target_revenue_monthly} stroke={chartTheme.gold} strokeDasharray="4 4" label={{ value: 'target', fill: chartTheme.gold, fontSize: 10 }} />}
                       <Bar dataKey="Revenue" fill={chartTheme.gold} radius={[4, 4, 0, 0]} />
                       <Bar dataKey="Spesa" fill={chartTheme.blue} radius={[4, 4, 0, 0]} />
@@ -973,7 +973,7 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
               {sorted.map(k => {
                 const score = calcHealthScore(k, client, stdDefs, enabledKeys)
                 const isOpen = expandedMonth === k.id
-                const scoreColor = score >= 75 ? 'text-success' : score >= 50 ? 'text-warning' : score >= 25 ? 'text-orange-400' : 'text-error'
+                const scoreColor = score >= 75 ? 'text-success' : score >= 50 ? 'text-warning' : score >= 25 ? 'text-orange' : 'text-error'
                 return (
                   <div key={k.id}>
                     <button onClick={() => setExpandedMonth(isOpen ? null : k.id)}
@@ -998,11 +998,11 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
                       </div>
                       <span className={`text-xs font-black ${scoreColor}`}>{score}</span>
                       <button onClick={e => { e.stopPropagation(); setEditingKpi(k); setShowModal(true) }}
-                        className="p-1 text-text-secondary hover:text-gold transition-colors">
+                        className="p-1 text-text-secondary hover:text-gold-text transition-colors">
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
                       <button onClick={e => deleteKpi(k.id, e)}
-                        className="p-1 text-text-secondary hover:text-red-400 transition-colors">
+                        className="p-1 text-text-secondary hover:text-error transition-colors">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                       {isOpen ? <ChevronUp className="w-4 h-4 text-text-secondary" /> : <ChevronDown className="w-4 h-4 text-text-secondary" />}
@@ -1016,7 +1016,7 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
                           const unit = d.unit ?? ''
                           return (
                             <div key={d.key} className="py-2">
-                              <p className="text-[10px] text-text-secondary">{d.label}</p>
+                              <p className="text-2xs text-text-secondary">{d.label}</p>
                               <p className="text-sm font-bold text-text-primary">{prefix}{v.toFixed(d.decimals ?? 0)}{unit}</p>
                             </div>
                           )
@@ -1026,14 +1026,14 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
                           if (!v) return null
                           return (
                             <div key={c.id} className="py-2">
-                              <p className="text-[10px] text-text-secondary">{c.name}</p>
+                              <p className="text-2xs text-text-secondary">{c.name}</p>
                               <p className="text-sm font-bold text-text-primary">{v} {c.unit}</p>
                             </div>
                           )
                         })}
                         {k.notes && (
                           <div className="col-span-full py-2 border-t border-border mt-1">
-                            <p className="text-[10px] text-text-secondary mb-0.5">Note</p>
+                            <p className="text-2xs text-text-secondary mb-0.5">Note</p>
                             <p className="text-xs text-text-primary">{k.notes}</p>
                           </div>
                         )}
@@ -1150,17 +1150,17 @@ function ReportModal({ client, kpis, isGrowth, stdDefs, enabledKeys, onClose }: 
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-surface border border-border rounded-2xl w-full max-w-md">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-gold/10 border border-gold/30 flex items-center justify-center">
-              <FileText className="w-4 h-4 text-gold" />
+              <FileText className="w-4 h-4 text-gold-text" />
             </div>
             <div>
               <h2 className="text-base font-bold text-text-primary">Genera Report PDF</h2>
-              <p className="text-[11px] text-text-secondary">{client.company_name} · {isGrowth ? 'Growth' : 'Digital'}</p>
+              <p className="text-2xs text-text-secondary">{client.company_name} · {isGrowth ? 'Growth' : 'Digital'}</p>
             </div>
           </div>
           <button onClick={onClose} className="text-text-secondary hover:text-text-primary transition-colors">
@@ -1205,7 +1205,7 @@ function ReportModal({ client, kpis, isGrowth, stdDefs, enabledKeys, onClose }: 
             <p className="text-xs text-text-secondary mb-2">Il report includerà:</p>
             <div className="flex flex-wrap gap-1.5">
               {availableMonths.length > 0 ? availableMonths.map(m => (
-                <span key={m} className="text-[11px] px-2 py-0.5 rounded-full bg-gold/10 border border-gold/20 text-gold">
+                <span key={m} className="text-2xs px-2 py-0.5 rounded-full bg-gold/10 border border-gold/20 text-gold-text">
                   {fmtLabel(m)}
                 </span>
               )) : (
@@ -1213,7 +1213,7 @@ function ReportModal({ client, kpis, isGrowth, stdDefs, enabledKeys, onClose }: 
               )}
             </div>
             {availableMonths.length > 0 && (
-              <p className="text-[10px] text-text-secondary mt-2">
+              <p className="text-2xs text-text-secondary mt-2">
                 {availableMonths.length} {availableMonths.length === 1 ? 'mese' : 'mesi'} · {enabledKeys.length} KPI monitorati
               </p>
             )}
@@ -1223,7 +1223,7 @@ function ReportModal({ client, kpis, isGrowth, stdDefs, enabledKeys, onClose }: 
           <div className="space-y-1.5">
             {['Copertina con branding TWO BEE', 'Andamento KPI mese per mese', 'Confronto con obiettivi', 'Grafici trend principali', 'Note mensili'].map(item => (
               <div key={item} className="flex items-center gap-2 text-xs text-text-secondary">
-                <CheckCircle2 className="w-3.5 h-3.5 text-gold flex-shrink-0" />
+                <CheckCircle2 className="w-3.5 h-3.5 text-gold-text flex-shrink-0" />
                 {item}
               </div>
             ))}
@@ -1236,7 +1236,7 @@ function ReportModal({ client, kpis, isGrowth, stdDefs, enabledKeys, onClose }: 
             Annulla
           </button>
           <button onClick={generate} disabled={loading || !from || !to}
-            className="flex-1 py-2.5 bg-gold text-black font-bold rounded-xl hover:bg-yellow-400 transition-colors disabled:opacity-40 flex items-center justify-center gap-2 text-sm">
+            className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-xl hover:bg-gold/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2 text-sm">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             {loading ? 'Generazione…' : 'Genera & Scarica'}
           </button>
@@ -1249,9 +1249,9 @@ function ReportModal({ client, kpis, isGrowth, stdDefs, enabledKeys, onClose }: 
 // ─── Modal inserimento / modifica KPI ───────────────────────────────────────
 
 const AI_LEVEL_CFG = [
-  { key: 'low',    label: 'Conservativo', desc: '35° percentile', color: '#6B7280' },
-  { key: 'med',    label: 'Realistico',   desc: '65° percentile', color: '#F5C800' },
-  { key: 'strong', label: 'Ambizioso',    desc: '90° percentile', color: '#22C55E' },
+  { key: 'low',    label: 'Conservativo', desc: '35° percentile', color: 'var(--color-text-tertiary)' },
+  { key: 'med',    label: 'Realistico',   desc: '65° percentile', color: 'var(--color-gold-text)' },
+  { key: 'strong', label: 'Ambizioso',    desc: '90° percentile', color: 'var(--color-success)' },
 ]
 
 const CONNECTORS = [
@@ -1294,7 +1294,7 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
   const [month, setMonth] = useState(initialData?.month?.slice(0, 7) ?? new Date().toISOString().slice(0, 7))
   const [notes, setNotes]   = useState(initialData?.notes ?? '')
 
-  const accentColor = isGrowth ? '#F5C800' : '#60A5FA'
+  const accentColor = isGrowth ? 'var(--color-gold-text)' : 'var(--color-info)'
   const inputCls    = 'w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/50 placeholder-text-tertiary'
 
   const fetchAiLevels = async () => {
@@ -1363,14 +1363,14 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
   ]
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-surface border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-surface z-10">
           <div>
             <h2 className="text-base font-bold text-text-primary">{initialData ? 'Modifica KPI' : 'Inserisci KPI mensile'}</h2>
-            <p className="text-[11px] text-text-secondary">
+            <p className="text-2xs text-text-secondary">
               <span style={{ color: accentColor }}>{isGrowth ? 'Growth' : 'Digital'}</span>
               {' · '}{enabledStd.length} KPI attivi
             </p>
@@ -1385,8 +1385,8 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
               <button key={tab.key} onClick={() => setInputMode(tab.key)}
                 className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg transition-all"
                 style={{
-                  background: inputMode === tab.key ? accentColor + '15' : 'var(--color-surface)',
-                  border: `1px solid ${inputMode === tab.key ? accentColor + '40' : 'var(--color-border)'}`,
+                  background: inputMode === tab.key ? `color-mix(in srgb, ${accentColor} 8%, transparent)` : 'var(--color-surface)',
+                  border: `1px solid ${inputMode === tab.key ? `color-mix(in srgb, ${accentColor} 25%, transparent)` : 'var(--color-border)'}`,
                   color: inputMode === tab.key ? accentColor : '#555',
                 }}>
                 {tab.icon} {tab.label}
@@ -1402,7 +1402,7 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
               <Zap className="w-4 h-4" style={{ color: accentColor }} />
               <p className="text-sm font-bold text-text-primary">Importa da strumenti esterni</p>
             </div>
-            <p className="text-[11px] text-text-secondary -mt-2">
+            <p className="text-2xs text-text-secondary -mt-2">
               Connetti le tue piattaforme per importare i KPI automaticamente ogni mese.
             </p>
             <div className="grid grid-cols-2 gap-3">
@@ -1416,12 +1416,12 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
                       <span className="text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider"
                         style={{ background: 'var(--color-surface)', color: 'var(--color-text-tertiary)', border: '1px solid var(--color-border)' }}>presto</span>
                     </div>
-                    <p className="text-[10px] leading-relaxed" style={{ color: 'var(--color-text-tertiary)' }}>{c.desc}</p>
+                    <p className="text-2xs leading-relaxed" style={{ color: 'var(--color-text-tertiary)' }}>{c.desc}</p>
                   </div>
                 </div>
               ))}
             </div>
-            <p className="text-[10px] text-center" style={{ color: 'var(--color-text-tertiary)' }}>
+            <p className="text-2xs text-center" style={{ color: 'var(--color-text-tertiary)' }}>
               Le integrazioni saranno disponibili nella prossima versione del gestionale.
             </p>
           </div>
@@ -1436,7 +1436,7 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
                 <p className="text-sm font-bold text-text-primary">Benchmark di settore</p>
               </div>
               <button onClick={fetchAiLevels} disabled={aiLoading}
-                className="flex items-center gap-1 text-[10px] px-2.5 py-1.5 rounded-lg"
+                className="flex items-center gap-1 text-2xs px-2.5 py-1.5 rounded-lg"
                 style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: aiLoading ? 'var(--color-text-tertiary)' : 'var(--color-text-secondary)' }}>
                 {aiLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                 Rigenera
@@ -1449,22 +1449,22 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
               </div>
             ) : aiLevels ? (
               <>
-                <p className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
+                <p className="text-2xs" style={{ color: 'var(--color-text-secondary)' }}>
                   Seleziona un livello come base — potrai modificare ogni valore nel form.
                 </p>
                 <div className="grid grid-cols-3 gap-3">
                   {AI_LEVEL_CFG.map(lvl => (
                     <div key={lvl.key} className="rounded-xl overflow-hidden"
-                      style={{ border: `1px solid ${lvl.color}22`, background: lvl.color + '08' }}>
-                      <div className="px-3 py-2.5 border-b" style={{ borderColor: lvl.color + '20' }}>
-                        <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: lvl.color }}>{lvl.label}</p>
-                        <p className="text-[9px]" style={{ color: 'var(--color-text-tertiary)' }}>{lvl.desc}</p>
+                      style={{ border: `1px solid color-mix(in srgb, ${lvl.color} 13%, transparent)`, background: `color-mix(in srgb, ${lvl.color} 3%, transparent)` }}>
+                      <div className="px-3 py-2.5 border-b" style={{ borderColor: `color-mix(in srgb, ${lvl.color} 13%, transparent)` }}>
+                        <p className="text-2xs font-black uppercase tracking-widest" style={{ color: lvl.color }}>{lvl.label}</p>
+                        <p className="text-2xs" style={{ color: 'var(--color-text-tertiary)' }}>{lvl.desc}</p>
                       </div>
                       <div className="p-2.5 space-y-1.5">
                         {aiKpiKeys.map(k => (
                           <div key={k} className="flex items-center justify-between">
-                            <span className="text-[9px]" style={{ color: 'var(--color-text-secondary)' }}>{KPI_LABELS_MAP[k] ?? k}</span>
-                            <span className="text-[10px] font-bold" style={{ color: lvl.color }}>
+                            <span className="text-2xs" style={{ color: 'var(--color-text-secondary)' }}>{KPI_LABELS_MAP[k] ?? k}</span>
+                            <span className="text-2xs font-bold" style={{ color: lvl.color }}>
                               {aiLevels[lvl.key]?.[k] != null ? fmtTarget(k, aiLevels[lvl.key][k]) : '—'}
                             </span>
                           </div>
@@ -1472,8 +1472,8 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
                       </div>
                       <div className="px-2.5 pb-2.5">
                         <button onClick={() => applyAiLevel(lvl.key, lvl.label)}
-                          className="w-full py-1.5 rounded-lg text-[10px] font-bold transition-all"
-                          style={{ background: lvl.color + '15', border: `1px solid ${lvl.color}30`, color: lvl.color }}>
+                          className="w-full py-1.5 rounded-lg text-2xs font-bold transition-all"
+                          style={{ background: `color-mix(in srgb, ${lvl.color} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${lvl.color} 19%, transparent)`, color: lvl.color }}>
                           Usa come base →
                         </button>
                       </div>
@@ -1494,9 +1494,9 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
             {aiSource && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg"
                 style={{ background: 'var(--color-gold-dim)', border: '1px solid var(--color-gold)' }}>
-                <Sparkles className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--color-gold)' }} />
-                <p className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
-                  Precompilato da AI · livello <strong style={{ color: 'var(--color-gold)' }}>{aiSource}</strong> — modifica i valori se necessario
+                <Sparkles className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--color-gold-text)' }} />
+                <p className="text-2xs" style={{ color: 'var(--color-text-secondary)' }}>
+                  Precompilato da AI · livello <strong style={{ color: 'var(--color-gold-text)' }}>{aiSource}</strong> — modifica i valori se necessario
                 </p>
                 <button type="button" onClick={() => setAiSource(null)} className="ml-auto">
                   <X className="w-3 h-3" style={{ color: 'var(--color-text-secondary)' }} />
@@ -1549,7 +1549,7 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
               <div className="border border-gold/20 rounded-xl overflow-hidden">
                 <div className="flex items-center gap-2 px-4 py-2.5 bg-gold/5 border-b border-gold/20">
                   <span className="w-1.5 h-1.5 rounded-full bg-gold inline-block" />
-                  <span className="text-xs font-bold text-gold/70 uppercase tracking-wider">KPI Personalizzati</span>
+                  <span className="text-xs font-bold text-gold-text/70 uppercase tracking-wider">KPI Personalizzati</span>
                 </div>
                 <div className="p-4 grid grid-cols-2 gap-3">
                   {customKpis.map(c => (
@@ -1578,7 +1578,7 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
                 Annulla
               </button>
               <button type="submit" disabled={loading}
-                className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg hover:bg-yellow-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg hover:bg-gold/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                 {initialData ? 'Aggiorna KPI' : 'Salva KPI'}
               </button>
@@ -1643,10 +1643,10 @@ function KpiConfigModal({ client, projectId, config, stdDefs, categories, isGrow
   }
 
   const inputCls = 'bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/50 placeholder-text-tertiary'
-  const accent = isGrowth ? { color: '#F5C800', bg: '#F5C80018', border: '#F5C80044' } : { color: '#60A5FA', bg: '#60A5FA18', border: '#60A5FA44' }
+  const accent = isGrowth ? { color: 'var(--color-gold-text)', bg: '#F5C80018', border: '#F5C80044' } : { color: 'var(--color-info)', bg: '#60A5FA18', border: '#60A5FA44' }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-surface border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
 
         {/* Header fisso */}
@@ -1658,7 +1658,7 @@ function KpiConfigModal({ client, projectId, config, stdDefs, categories, isGrow
             </div>
             <div>
               <h2 className="text-base font-bold text-text-primary">Configura KPI</h2>
-              <p className="text-[11px] text-text-secondary">
+              <p className="text-2xs text-text-secondary">
                 <span style={{ color: accent.color }}>{isGrowth ? 'Growth' : 'Digital'}</span>
                 {' · '}{enabled.length} di {stdDefs.length} KPI attivi
               </p>
@@ -1693,14 +1693,14 @@ function KpiConfigModal({ client, projectId, config, stdDefs, categories, isGrow
                 <div className="flex items-center gap-3 px-4 py-3 bg-surface">
                   <span className="text-lg leading-none">{cat.emoji}</span>
                   <span className="text-sm font-semibold text-text-primary flex-1">{cat.label}</span>
-                  <span className="text-[10px] text-text-secondary mr-3">
+                  <span className="text-2xs text-text-secondary mr-3">
                     {onCount}/{catDefs.length} attivi
                   </span>
                   {/* Toggle gruppo */}
                   <button onClick={() => toggleCategory(cat.keys)}
                     className="relative w-10 h-5 rounded-full transition-colors flex-shrink-0"
                     style={{ background: allOn ? accent.color : 'var(--color-surface-active)' }}>
-                    <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${allOn ? 'left-[22px]' : 'left-0.5'}`} />
+                    <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-surface shadow transition-all ${allOn ? 'left-[22px]' : 'left-0.5'}`} />
                   </button>
                 </div>
 
@@ -1715,11 +1715,11 @@ function KpiConfigModal({ client, projectId, config, stdDefs, categories, isGrow
                         <div onClick={() => toggleKey(d.key)}
                           className="relative w-8 h-4 rounded-full transition-colors flex-shrink-0"
                           style={{ background: on ? accent.color : 'var(--color-surface-active)' }}>
-                          <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${on ? 'left-[18px]' : 'left-0.5'}`} />
+                          <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-surface shadow transition-all ${on ? 'left-[18px]' : 'left-0.5'}`} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className={`text-xs font-medium leading-tight ${on ? 'text-text-primary' : 'text-text-secondary'}`}>{d.label}</p>
-                          <p className="text-[10px] text-text-tertiary mt-0.5">
+                          <p className="text-2xs text-text-tertiary mt-0.5">
                             {d.prefix ?? ''}{d.unit ?? (d.isInt ? 'n°' : 'val')}
                             {d.lower_is_better ? ' · ↓ meglio' : ''}
                             {d.targetKey ? ' · target' : ''}
@@ -1745,12 +1745,12 @@ function KpiConfigModal({ client, projectId, config, stdDefs, categories, isGrow
                   <div key={c.id} className="flex items-center gap-3 px-4 py-3 bg-surface">
                     <div className="flex-1">
                       <p className="text-sm font-medium text-text-primary">{c.name}</p>
-                      <p className="text-[10px] text-text-secondary">
+                      <p className="text-2xs text-text-secondary">
                         {c.unit}{c.target ? ` · target: ${c.target}` : ''}{c.lower_is_better ? ' · ↓ meglio' : ''}
                       </p>
                     </div>
                     <button onClick={() => setCustomKpis(p => p.filter(x => x.id !== c.id))}
-                      className="p-1.5 text-text-tertiary hover:text-red-400 transition-colors rounded-lg hover:bg-red-400/10">
+                      className="p-1.5 text-text-tertiary hover:text-error transition-colors rounded-lg hover:bg-error/10">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -1775,12 +1775,12 @@ function KpiConfigModal({ client, projectId, config, stdDefs, categories, isGrow
                 <div onClick={() => setNewKpi(p => ({ ...p, lower_is_better: !p.lower_is_better }))}
                   className="relative w-8 h-4 rounded-full transition-colors"
                   style={{ background: newKpi.lower_is_better ? 'var(--color-gold)' : 'var(--color-surface-active)' }}>
-                  <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${newKpi.lower_is_better ? 'left-[18px]' : 'left-0.5'}`} />
+                  <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-surface shadow transition-all ${newKpi.lower_is_better ? 'left-[18px]' : 'left-0.5'}`} />
                 </div>
                 <span className="text-xs text-text-secondary">Valore più basso = meglio</span>
               </label>
               <button type="button" onClick={addCustom} disabled={!newKpi.name.trim() || !newKpi.unit.trim()}
-                className="flex items-center gap-1.5 text-xs font-semibold text-black bg-gold px-3 py-1.5 rounded-lg hover:bg-yellow-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                className="flex items-center gap-1.5 text-xs font-semibold text-on-gold bg-gold px-3 py-1.5 rounded-lg hover:bg-gold/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
                 <Plus className="w-3.5 h-3.5" /> Aggiungi
               </button>
             </div>

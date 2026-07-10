@@ -31,10 +31,10 @@ const VIEWS: { key: View; label: string; icon: React.ReactNode }[] = [
 ]
 
 const STATUS_META: Record<TaskStatus, { label: string; color: string }> = {
-  da_fare:       { label: 'Da fare',       color: 'text-[#888]' },
-  in_corso:      { label: 'In corso',      color: 'text-blue-400' },
-  in_revisione:  { label: 'In revisione',  color: 'text-purple-400' },
-  completato:    { label: 'Completato',    color: 'text-green-400' },
+  da_fare:       { label: 'Da fare',       color: 'text-text-secondary' },
+  in_corso:      { label: 'In corso',      color: 'text-info' },
+  in_revisione:  { label: 'In revisione',  color: 'text-accent' },
+  completato:    { label: 'Completato',    color: 'text-success' },
 }
 
 const SECTION_META: Record<Section, { label: string; color: string; emptyMsg: string }> = {
@@ -64,11 +64,11 @@ function deadlineColor(due: string | null): string {
   const d = new Date(due); d.setHours(0, 0, 0, 0)
   const now = new Date(); now.setHours(0, 0, 0, 0)
   const diff = Math.ceil((d.getTime() - now.getTime()) / 86400000)
-  if (diff < 0) return 'text-red-500 font-bold'
-  if (diff <= 3) return 'text-red-400'
-  if (diff <= 7) return 'text-orange-400'
-  if (diff <= 15) return 'text-yellow-400'
-  return 'text-green-400'
+  if (diff < 0) return 'text-error font-bold'
+  if (diff <= 3) return 'text-error'
+  if (diff <= 7) return 'text-orange'
+  if (diff <= 15) return 'text-gold-text'
+  return 'text-success'
 }
 
 export function MieAttivitaClient({ tasks: initialTasks, profile, profiles }: {
@@ -182,22 +182,22 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles }: {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-8 py-5 border-b border-[#2A2A2A] shrink-0">
+      <div className="px-8 py-5 border-b border-border shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold font-bold">
+            <div className="w-10 h-10 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold-text font-bold">
               {getInitials(profile.full_name)}
             </div>
             <div>
-              <h1 className="text-xl font-black text-white">Le mie attività</h1>
+              <h1 className="text-xl font-black text-text-primary">Le mie attività</h1>
               <p className="text-xs text-text-secondary">{active.length} attive · {done.length} completate</p>
             </div>
           </div>
-          <div className="flex bg-surface border border-[#2A2A2A] rounded-lg p-0.5">
+          <div className="flex bg-surface border border-border rounded-lg p-0.5">
             {VIEWS.map(v => (
               <button key={v.key} onClick={() => setView(v.key)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
-                  view === v.key ? 'bg-gold text-black' : 'text-text-secondary hover:text-white'
+                  view === v.key ? 'bg-gold text-on-gold' : 'text-text-secondary hover:text-text-primary'
                 }`}>
                 {v.icon} {v.label}
               </button>
@@ -205,7 +205,7 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles }: {
           </div>
         </div>
         {(active.length + done.length) > 0 && (
-          <div className="w-full h-1.5 bg-[#2A2A2A] rounded-full overflow-hidden mt-3">
+          <div className="w-full h-1.5 bg-surface-active rounded-full overflow-hidden mt-3">
             <div className="h-full bg-success rounded-full transition-all"
               style={{ width: `${Math.round((done.length / (active.length + done.length)) * 100)}%` }} />
           </div>
@@ -214,14 +214,14 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles }: {
         {/* Selection toolbar */}
         {selectedIds.size > 0 && (
           <div className="flex items-center gap-3 mt-3 px-4 py-2.5 bg-gold/10 border border-gold/20 rounded-xl">
-            <button onClick={() => setSelectedIds(new Set())} className="p-1 text-white/40 hover:text-white"><X className="w-4 h-4" /></button>
-            <span className="text-sm font-bold text-gold">{selectedIds.size} task selezionate</span>
+            <button onClick={() => setSelectedIds(new Set())} className="p-1 text-text-tertiary hover:text-text-primary"><X className="w-4 h-4" /></button>
+            <span className="text-sm font-bold text-gold-text">{selectedIds.size} task selezionate</span>
             <div className="flex-1" />
-            <button onClick={selectAll} className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-text-secondary hover:text-white transition-colors">
+            <button onClick={selectAll} className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors">
               <CheckSquare className="w-3.5 h-3.5" /> {selectedIds.size === active.length ? 'Deseleziona tutto' : 'Seleziona tutto'}
             </button>
             <button onClick={() => setShowAssignModal(true)}
-              className="flex items-center gap-1.5 px-4 py-1.5 bg-gold text-black rounded-lg text-xs font-bold hover:bg-yellow-400 transition-colors">
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-gold text-on-gold rounded-lg text-xs font-bold hover:bg-gold/90 transition-colors">
               <UserPlus className="w-3.5 h-3.5" /> Assegna a...
             </button>
           </div>
@@ -286,7 +286,7 @@ function ElencoView({ tasks, sections, collapsed, setCollapsed, addingIn, setAdd
             <button onClick={() => setCollapsed(p => ({ ...p, [key]: !p[key] }))} className="flex items-center gap-2 mb-3 group">
               {collapsed[key] ? <ChevronRight className="w-4 h-4 text-text-secondary" /> : <ChevronDown className="w-4 h-4 text-text-secondary" />}
               <span className={`text-sm font-bold ${meta.color}`}>{meta.label}</span>
-              <span className="text-xs text-text-secondary bg-[#2A2A2A] px-1.5 py-0.5 rounded">{list.length}</span>
+              <span className="text-xs text-text-secondary bg-surface-active px-1.5 py-0.5 rounded">{list.length}</span>
             </button>
             {!collapsed[key] && (
               <div className="space-y-px">
@@ -301,19 +301,19 @@ function ElencoView({ tasks, sections, collapsed, setCollapsed, addingIn, setAdd
                     <Circle className="w-5 h-5 text-text-secondary shrink-0" />
                     <input autoFocus value={newTitle} onChange={e => setNewTitle(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') addTask(key); if (e.key === 'Escape') { setAddingIn(null); setNewTitle('') } }}
-                      placeholder="Titolo task..." className="flex-1 bg-background border border-gold rounded px-2 py-1 text-sm text-white focus:outline-none" />
+                      placeholder="Titolo task..." className="flex-1 bg-background border border-gold rounded px-2 py-1 text-sm text-text-primary focus:outline-none" />
                     {key !== 'oggi' && (
                       <input type="date" value={newDue} onChange={e => setNewDue(e.target.value)}
-                        className="bg-background border border-[#2A2A2A] rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-gold" />
+                        className="bg-background border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-gold" />
                     )}
                     <button onClick={() => addTask(key)} disabled={adding}
-                      className="px-3 py-1 bg-gold text-black text-xs font-bold rounded hover:bg-yellow-400 disabled:opacity-50 flex items-center gap-1">
+                      className="px-3 py-1 bg-gold text-on-gold text-xs font-bold rounded hover:bg-gold/90 disabled:opacity-50 flex items-center gap-1">
                       {adding && <Loader2 className="w-3 h-3 animate-spin" />} Aggiungi
                     </button>
-                    <button onClick={() => { setAddingIn(null); setNewTitle('') }} className="text-text-secondary hover:text-white text-xs">✕</button>
+                    <button onClick={() => { setAddingIn(null); setNewTitle('') }} className="text-text-secondary hover:text-text-primary text-xs">✕</button>
                   </div>
                 ) : (
-                  <button onClick={() => setAddingIn(key)} className="flex items-center gap-2 px-3 py-2 text-text-secondary hover:text-gold text-xs transition-colors w-full">
+                  <button onClick={() => setAddingIn(key)} className="flex items-center gap-2 px-3 py-2 text-text-secondary hover:text-gold-text text-xs transition-colors w-full">
                     <Plus className="w-4 h-4" /> Aggiungi task
                   </button>
                 )}
@@ -334,29 +334,29 @@ function TaskRow({ task, toggleStatus, requestDelete, deleting, onSelect, isSele
 }) {
   const completed = task.status === 'completato'
   return (
-    <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/[0.03] group transition-colors cursor-pointer ${isSelected ? 'bg-gold/[0.06] border border-gold/20' : ''}`}
+    <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-hover group transition-colors cursor-pointer ${isSelected ? 'bg-gold/[0.06] border border-gold/20' : ''}`}
       onClick={() => onSelect(task)}>
       <button onClick={e => { e.stopPropagation(); toggleSelect(task.id) }}
-        className={`shrink-0 transition-colors ${isSelected ? 'text-gold' : 'text-transparent group-hover:text-white/20 hover:!text-gold'}`}>
+        className={`shrink-0 transition-colors ${isSelected ? 'text-gold-text' : 'text-transparent group-hover:text-text-tertiary hover:!text-gold-text'}`}>
         {isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
       </button>
-      <button onClick={e => { e.stopPropagation(); toggleStatus(task) }} className={`shrink-0 transition-colors ${completed ? 'text-success' : 'text-text-secondary hover:text-gold'}`}>
+      <button onClick={e => { e.stopPropagation(); toggleStatus(task) }} className={`shrink-0 transition-colors ${completed ? 'text-success' : 'text-text-secondary hover:text-gold-text'}`}>
         {completed ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
       </button>
       <div className="flex-1 min-w-0">
-        <span className={`text-sm ${completed ? 'line-through text-text-secondary' : 'text-white hover:text-gold transition-colors'}`}>{task.title}</span>
+        <span className={`text-sm ${completed ? 'line-through text-text-secondary' : 'text-text-primary hover:text-gold-text transition-colors'}`}>{task.title}</span>
         {task.project && (
           <div className="flex items-center gap-1.5 mt-0.5">
             <FolderKanban className="w-3 h-3 text-text-secondary shrink-0" />
-            <span className="text-[10px] text-text-secondary truncate">{task.project.name}</span>
-            {task.project.clients && <span className="text-[10px] text-white/20">·</span>}
-            {task.project.clients && <span className="text-[10px] text-text-secondary truncate">{task.project.clients.company_name}</span>}
+            <span className="text-2xs text-text-secondary truncate">{task.project.name}</span>
+            {task.project.clients && <span className="text-2xs text-text-tertiary">·</span>}
+            {task.project.clients && <span className="text-2xs text-text-secondary truncate">{task.project.clients.company_name}</span>}
           </div>
         )}
       </div>
-      {task.is_milestone && <Flag className="w-3.5 h-3.5 text-gold shrink-0" />}
-      {task.description && <FileText className="w-3 h-3 text-white/20 shrink-0" />}
-      {(task.links?.length ?? 0) > 0 && <Link2 className="w-3 h-3 text-blue-400/50 shrink-0" />}
+      {task.is_milestone && <Flag className="w-3.5 h-3.5 text-gold-text shrink-0" />}
+      {task.description && <FileText className="w-3 h-3 text-text-tertiary shrink-0" />}
+      {(task.links?.length ?? 0) > 0 && <Link2 className="w-3 h-3 text-info/50 shrink-0" />}
       {task.due_date && (
         <div className={`flex items-center gap-1 text-xs shrink-0 ${deadlineColor(task.due_date)}`}>
           <Calendar className="w-3 h-3" />{formatDate(task.due_date)}
@@ -364,7 +364,7 @@ function TaskRow({ task, toggleStatus, requestDelete, deleting, onSelect, isSele
       )}
       <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${task.priority === 'alta' ? 'bg-error' : task.priority === 'media' ? 'bg-warning' : 'bg-success'}`} />
       <button onClick={e => { e.stopPropagation(); requestDelete(task) }} disabled={deleting === task.id}
-        className="opacity-0 group-hover:opacity-100 text-text-secondary hover:text-red-400 transition-all shrink-0">
+        className="opacity-0 group-hover:opacity-100 text-text-secondary hover:text-error transition-all shrink-0">
         {deleting === task.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
       </button>
     </div>
@@ -387,7 +387,7 @@ function TaskDetailPanel({ task, onClose, toggleStatus, updateTask, updateStatus
   const [newLinkLabel, setNewLinkLabel] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const inp = 'w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-gold/40 placeholder:text-[#444]'
+  const inp = 'w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-gold/40 placeholder:text-text-tertiary'
 
   const saveTitle = async () => {
     if (!title.trim() || title === task.title) { setEditingTitle(false); return }
@@ -410,10 +410,10 @@ function TaskDetailPanel({ task, onClose, toggleStatus, updateTask, updateStatus
   }
 
   return (
-    <div className="w-80 lg:w-96 border-l border-white/[0.06] flex flex-col bg-[rgba(255,255,255,0.02)] shrink-0">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-        <h3 className="text-sm font-bold text-white truncate flex-1">Dettaglio Task</h3>
-        <button onClick={onClose} className="p-1 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/[0.04]">
+    <div className="w-80 lg:w-96 border-l border-border flex flex-col bg-[rgba(255,255,255,0.02)] shrink-0">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+        <h3 className="text-sm font-bold text-text-primary truncate flex-1">Dettaglio Task</h3>
+        <button onClick={onClose} className="p-1 rounded-lg text-text-tertiary hover:text-text-secondary hover:bg-surface-hover">
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -422,11 +422,11 @@ function TaskDetailPanel({ task, onClose, toggleStatus, updateTask, updateStatus
         {/* Project badge (first!) */}
         {task.project && (
           <Link href={`/clienti/${task.project.client_id}/progetto/${task.project.id}`}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:border-gold/30 transition-colors">
-            <FolderKanban className="w-4 h-4 text-gold shrink-0" />
+            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-hover border border-border hover:border-gold/30 transition-colors">
+            <FolderKanban className="w-4 h-4 text-gold-text shrink-0" />
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-white truncate">{task.project.name}</p>
-              {task.project.clients && <p className="text-[10px] text-text-secondary truncate">{task.project.clients.company_name}</p>}
+              <p className="text-xs font-bold text-text-primary truncate">{task.project.name}</p>
+              {task.project.clients && <p className="text-2xs text-text-secondary truncate">{task.project.clients.company_name}</p>}
             </div>
             <ExternalLink className="w-3 h-3 text-text-secondary shrink-0" />
           </Link>
@@ -439,13 +439,13 @@ function TaskDetailPanel({ task, onClose, toggleStatus, updateTask, updateStatus
               <input autoFocus value={title} onChange={e => setTitle(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') saveTitle(); if (e.key === 'Escape') { setEditingTitle(false); setTitle(task.title) } }}
                 className={inp + ' !text-base !font-bold'} />
-              <button onClick={saveTitle} disabled={saving} className="text-gold hover:text-yellow-400 shrink-0">
+              <button onClick={saveTitle} disabled={saving} className="text-gold-text hover:text-gold-text shrink-0">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               </button>
             </div>
           ) : (
             <div className="flex items-center gap-2 group cursor-pointer" onClick={() => setEditingTitle(true)}>
-              <h2 className="text-base font-bold text-white flex-1">{task.title}</h2>
+              <h2 className="text-base font-bold text-text-primary flex-1">{task.title}</h2>
               <Pencil className="w-3.5 h-3.5 text-text-secondary opacity-0 group-hover:opacity-100 shrink-0" />
             </div>
           )}
@@ -453,12 +453,12 @@ function TaskDetailPanel({ task, onClose, toggleStatus, updateTask, updateStatus
 
         {/* Status + complete toggle */}
         <div className="space-y-2">
-          <p className="text-[10px] text-white/30 uppercase tracking-wider">Stato</p>
+          <p className="text-2xs text-text-tertiary uppercase tracking-wider">Stato</p>
           <div className="flex gap-1.5 flex-wrap">
             {(Object.keys(STATUS_META) as TaskStatus[]).map(s => (
               <button key={s} onClick={() => updateStatus(task.id, s)}
-                className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${
-                  task.status === s ? 'bg-gold text-black' : 'bg-white/[0.04] text-text-secondary hover:text-white hover:bg-white/[0.06]'
+                className={`px-3 py-1.5 rounded-lg text-2xs font-semibold transition-colors ${
+                  task.status === s ? 'bg-gold text-on-gold' : 'bg-surface-hover text-text-secondary hover:text-text-primary hover:bg-surface-hover'
                 }`}>
                 {STATUS_META[s].label}
               </button>
@@ -468,14 +468,14 @@ function TaskDetailPanel({ task, onClose, toggleStatus, updateTask, updateStatus
 
         {/* Priority */}
         <div className="space-y-2">
-          <p className="text-[10px] text-white/30 uppercase tracking-wider">Priorità</p>
+          <p className="text-2xs text-text-tertiary uppercase tracking-wider">Priorità</p>
           <div className="flex gap-1.5">
             {(['alta', 'media', 'bassa'] as const).map(p => {
-              const colors = { alta: 'bg-red-400/10 text-red-400 border-red-400/20', media: 'bg-yellow-400/10 text-yellow-400 border-yellow-400/20', bassa: 'bg-green-400/10 text-green-400 border-green-400/20' }
+              const colors = { alta: 'bg-error/10 text-error border-error/20', media: 'bg-gold/10 text-gold-text border-warning/20', bassa: 'bg-success/10 text-success border-success/20' }
               return (
                 <button key={p} onClick={() => updateTask(task.id, { priority: p })}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold capitalize border transition-colors ${
-                    task.priority === p ? colors[p] : 'bg-white/[0.02] text-text-secondary border-transparent hover:bg-white/[0.04]'
+                  className={`px-3 py-1.5 rounded-lg text-2xs font-semibold capitalize border transition-colors ${
+                    task.priority === p ? colors[p] : 'bg-surface-hover text-text-secondary border-transparent hover:bg-surface-hover'
                   }`}>
                   {p}
                 </button>
@@ -486,14 +486,14 @@ function TaskDetailPanel({ task, onClose, toggleStatus, updateTask, updateStatus
 
         {/* Due date */}
         <div className="space-y-2">
-          <p className="text-[10px] text-white/30 uppercase tracking-wider">Scadenza</p>
+          <p className="text-2xs text-text-tertiary uppercase tracking-wider">Scadenza</p>
           <input type="date" value={task.due_date ?? ''} onChange={e => updateTask(task.id, { due_date: e.target.value || null })}
             className={inp} />
         </div>
 
         {/* Assignee */}
         <div className="space-y-2">
-          <p className="text-[10px] text-white/30 uppercase tracking-wider">Assegnata a</p>
+          <p className="text-2xs text-text-tertiary uppercase tracking-wider">Assegnata a</p>
           <select value={task.assignee_id ?? ''} onChange={e => updateTask(task.id, { assignee_id: e.target.value || null })}
             className={inp}>
             <option value="">— Nessuno —</option>
@@ -504,9 +504,9 @@ function TaskDetailPanel({ task, onClose, toggleStatus, updateTask, updateStatus
         {/* Description (editable) */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-[10px] text-white/30 uppercase tracking-wider">Descrizione</p>
+            <p className="text-2xs text-text-tertiary uppercase tracking-wider">Descrizione</p>
             {!editingDesc && (
-              <button onClick={() => setEditingDesc(true)} className="text-text-secondary hover:text-gold">
+              <button onClick={() => setEditingDesc(true)} className="text-text-secondary hover:text-gold-text">
                 <Pencil className="w-3 h-3" />
               </button>
             )}
@@ -517,9 +517,9 @@ function TaskDetailPanel({ task, onClose, toggleStatus, updateTask, updateStatus
                 placeholder="Aggiungi una descrizione..."
                 className={inp + ' resize-none'} />
               <div className="flex justify-end gap-2">
-                <button onClick={() => { setEditingDesc(false); setDesc(task.description ?? '') }} className="text-xs text-text-secondary hover:text-white">Annulla</button>
+                <button onClick={() => { setEditingDesc(false); setDesc(task.description ?? '') }} className="text-xs text-text-secondary hover:text-text-primary">Annulla</button>
                 <button onClick={saveDesc} disabled={saving}
-                  className="flex items-center gap-1 px-3 py-1 bg-gold text-black rounded-lg text-xs font-bold hover:bg-yellow-400 disabled:opacity-50">
+                  className="flex items-center gap-1 px-3 py-1 bg-gold text-on-gold rounded-lg text-xs font-bold hover:bg-gold/90 disabled:opacity-50">
                   {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Salva
                 </button>
               </div>
@@ -527,7 +527,7 @@ function TaskDetailPanel({ task, onClose, toggleStatus, updateTask, updateStatus
           ) : (
             <div onClick={() => setEditingDesc(true)} className="cursor-pointer">
               {task.description ? (
-                <p className="text-xs text-white/60 leading-relaxed whitespace-pre-line">{task.description}</p>
+                <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-line">{task.description}</p>
               ) : (
                 <p className="text-xs text-text-secondary italic">Nessuna descrizione — clicca per aggiungere</p>
               )}
@@ -537,15 +537,15 @@ function TaskDetailPanel({ task, onClose, toggleStatus, updateTask, updateStatus
 
         {/* Links */}
         <div className="space-y-2">
-          <p className="text-[10px] text-white/30 uppercase tracking-wider">Link</p>
+          <p className="text-2xs text-text-tertiary uppercase tracking-wider">Link</p>
           {(task.links ?? []).length > 0 && (
             <div className="space-y-1">
               {(task.links ?? []).map((lnk, i) => (
                 <div key={i} className="flex items-center gap-2 group">
-                  <Link2 className="w-3 h-3 text-blue-400 shrink-0" />
+                  <Link2 className="w-3 h-3 text-info shrink-0" />
                   <a href={lnk.url} target="_blank" rel="noopener noreferrer"
-                    className="text-xs text-blue-400 hover:text-blue-300 truncate flex-1">{lnk.label}</a>
-                  <button onClick={() => removeLink(i)} className="text-text-secondary hover:text-red-400 opacity-0 group-hover:opacity-100 shrink-0">
+                    className="text-xs text-info hover:text-info truncate flex-1">{lnk.label}</a>
+                  <button onClick={() => removeLink(i)} className="text-text-secondary hover:text-error opacity-0 group-hover:opacity-100 shrink-0">
                     <X className="w-3 h-3" />
                   </button>
                 </div>
@@ -559,7 +559,7 @@ function TaskDetailPanel({ task, onClose, toggleStatus, updateTask, updateStatus
             <input value={newLinkLabel} onChange={e => setNewLinkLabel(e.target.value)} placeholder="Etichetta"
               onKeyDown={e => { if (e.key === 'Enter') addLink() }}
               className={inp + ' w-24'} />
-            <button onClick={addLink} disabled={!newLinkUrl.trim() || saving} className="text-gold hover:text-yellow-400 disabled:opacity-30 shrink-0">
+            <button onClick={addLink} disabled={!newLinkUrl.trim() || saving} className="text-gold-text hover:text-gold-text disabled:opacity-30 shrink-0">
               <Plus className="w-4 h-4" />
             </button>
           </div>
@@ -567,10 +567,10 @@ function TaskDetailPanel({ task, onClose, toggleStatus, updateTask, updateStatus
 
         {/* Milestone toggle */}
         <div className="flex items-center justify-between">
-          <span className="text-xs text-white/30">Milestone</span>
+          <span className="text-xs text-text-tertiary">Milestone</span>
           <button onClick={() => updateTask(task.id, { is_milestone: !task.is_milestone })}
             className={`flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
-              task.is_milestone ? 'bg-gold/10 text-gold border border-gold/20' : 'bg-white/[0.04] text-text-secondary hover:text-white'
+              task.is_milestone ? 'bg-gold/10 text-gold-text border border-gold/20' : 'bg-surface-hover text-text-secondary hover:text-text-primary'
             }`}>
             <Flag className="w-3 h-3" /> {task.is_milestone ? 'Sì' : 'No'}
           </button>
@@ -599,36 +599,36 @@ function BachecaView({ tasks, updateStatus, onSelect }: {
           const meta = STATUS_META[status]
           const list = grouped[status]
           return (
-            <div key={status} className="w-72 flex flex-col bg-[#141414] border border-[#2A2A2A] rounded-xl">
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-[#2A2A2A]">
+            <div key={status} className="w-72 flex flex-col bg-surface border border-border rounded-xl">
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
                 <span className={`text-sm font-bold ${meta.color}`}>{meta.label}</span>
-                <span className="text-xs text-[#555] bg-[#2A2A2A] px-1.5 py-0.5 rounded">{list.length}</span>
+                <span className="text-xs text-text-tertiary bg-surface-active px-1.5 py-0.5 rounded">{list.length}</span>
               </div>
               <div className="flex-1 overflow-y-auto p-2 space-y-2">
                 {list.map(task => (
                   <div key={task.id} onClick={() => onSelect(task)}
-                    className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg p-3 space-y-2 hover:border-gold/30 transition-colors cursor-pointer">
-                    <p className="text-sm text-white font-medium">{task.title}</p>
+                    className="bg-surface border border-border rounded-lg p-3 space-y-2 hover:border-gold/30 transition-colors cursor-pointer">
+                    <p className="text-sm text-text-primary font-medium">{task.title}</p>
                     {task.project && (
                       <div className="flex items-center gap-1.5">
                         <FolderKanban className="w-3 h-3 text-text-secondary shrink-0" />
-                        <span className="text-[10px] text-text-secondary truncate">{task.project.name}</span>
-                        {task.project.clients && <span className="text-[10px] text-white/20">·</span>}
-                        {task.project.clients && <span className="text-[10px] text-text-secondary truncate">{task.project.clients.company_name}</span>}
+                        <span className="text-2xs text-text-secondary truncate">{task.project.name}</span>
+                        {task.project.clients && <span className="text-2xs text-text-tertiary">·</span>}
+                        {task.project.clients && <span className="text-2xs text-text-secondary truncate">{task.project.clients.company_name}</span>}
                       </div>
                     )}
                     <div className="flex items-center gap-2 flex-wrap">
                       {task.due_date && (
-                        <span className={`text-[10px] ${deadlineColor(task.due_date)}`}>{formatDate(task.due_date)}</span>
+                        <span className={`text-2xs ${deadlineColor(task.due_date)}`}>{formatDate(task.due_date)}</span>
                       )}
-                      {task.is_milestone && <Flag className="w-3 h-3 text-gold" />}
-                      {task.description && <FileText className="w-3 h-3 text-white/20" />}
-                      {(task.links?.length ?? 0) > 0 && <Link2 className="w-3 h-3 text-blue-400/50" />}
+                      {task.is_milestone && <Flag className="w-3 h-3 text-gold-text" />}
+                      {task.description && <FileText className="w-3 h-3 text-text-tertiary" />}
+                      {(task.links?.length ?? 0) > 0 && <Link2 className="w-3 h-3 text-info/50" />}
                     </div>
                     <div className="flex gap-1 flex-wrap">
                       {cols.filter(s => s !== status).map(ns => (
                         <button key={ns} onClick={e => { e.stopPropagation(); updateStatus(task.id, ns) }}
-                          className={`text-[9px] px-1.5 py-0.5 rounded ${STATUS_META[ns].color} bg-white/5 hover:bg-white/10 transition-colors`}>
+                          className={`text-2xs px-1.5 py-0.5 rounded ${STATUS_META[ns].color} bg-surface hover:bg-surface-hover transition-colors`}>
                           → {STATUS_META[ns].label}
                         </button>
                       ))}
@@ -673,7 +673,7 @@ function TimelineView({ tasks }: { tasks: TaskWithMeta[] }) {
         {/* Month headers */}
         <div className="flex h-8 mb-2 relative">
           {months.map((m, i) => (
-            <div key={i} className="absolute text-[10px] font-bold text-[#555] uppercase border-l border-[#2A2A2A] pl-2"
+            <div key={i} className="absolute text-2xs font-bold text-text-tertiary uppercase border-l border-border pl-2"
               style={{ left: `${m.left}%`, width: `${m.width}%` }}>{m.label}</div>
           ))}
         </div>
@@ -689,11 +689,11 @@ function TimelineView({ tasks }: { tasks: TaskWithMeta[] }) {
             const barW = Math.max(8, Math.min(20, pct * 0.15))
             return (
               <div key={task.id} className="relative h-8 flex items-center">
-                <div className="absolute rounded-md h-6 flex items-center px-2 gap-1 border text-[10px] font-medium truncate max-w-[200px]"
+                <div className="absolute rounded-md h-6 flex items-center px-2 gap-1 border text-2xs font-medium truncate max-w-[200px]"
                   style={{ left: `${Math.max(0, pct - barW)}%`, width: `${barW}%`,
-                    background: task.status === 'completato' ? 'rgba(34,197,94,0.15)' : due < now ? 'rgba(239,68,68,0.15)' : 'rgba(245,200,0,0.1)',
-                    borderColor: task.status === 'completato' ? 'rgba(34,197,94,0.3)' : due < now ? 'rgba(239,68,68,0.3)' : 'rgba(245,200,0,0.2)',
-                    color: task.status === 'completato' ? '#22C55E' : due < now ? '#EF4444' : '#F5C800',
+                    background: task.status === 'completato' ? 'rgba(34,197,94,0.15)' : due < now ? 'rgba(239,68,68,0.15)' : 'var(--color-gold-dim)',
+                    borderColor: task.status === 'completato' ? 'rgba(34,197,94,0.3)' : due < now ? 'rgba(239,68,68,0.3)' : 'var(--color-gold-dim)',
+                    color: task.status === 'completato' ? 'var(--color-success)' : due < now ? 'var(--color-error)' : 'var(--color-gold-text)',
                   }}>
                   {task.is_milestone && <Flag className="w-2.5 h-2.5 shrink-0" />}
                   <span className="truncate">{task.title}</span>
@@ -738,32 +738,32 @@ function CalendarioView({ tasks }: { tasks: TaskWithMeta[] }) {
   return (
     <div className="h-full overflow-auto p-6">
       <div className="flex items-center gap-4 mb-4">
-        <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-[#2A2A2A] text-text-secondary hover:text-white"><ChevronRight className="w-4 h-4 rotate-180" /></button>
-        <h2 className="text-lg font-bold text-white capitalize">{month.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}</h2>
-        <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-[#2A2A2A] text-text-secondary hover:text-white"><ChevronRight className="w-4 h-4" /></button>
-        <button onClick={() => setMonth(new Date())} className="px-3 py-1 text-xs bg-[#2A2A2A] rounded-lg text-text-secondary hover:text-white">Oggi</button>
+        <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-surface-active text-text-secondary hover:text-text-primary"><ChevronRight className="w-4 h-4 rotate-180" /></button>
+        <h2 className="text-lg font-bold text-text-primary capitalize">{month.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}</h2>
+        <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-surface-active text-text-secondary hover:text-text-primary"><ChevronRight className="w-4 h-4" /></button>
+        <button onClick={() => setMonth(new Date())} className="px-3 py-1 text-xs bg-surface-active rounded-lg text-text-secondary hover:text-text-primary">Oggi</button>
       </div>
-      <div className="grid grid-cols-7 gap-px bg-[#2A2A2A] rounded-xl overflow-hidden">
+      <div className="grid grid-cols-7 gap-px bg-surface-active rounded-xl overflow-hidden">
         {dayNames.map(d => (
-          <div key={d} className="bg-[#1A1A1A] px-2 py-2 text-xs font-semibold text-text-secondary text-center">{d}</div>
+          <div key={d} className="bg-surface px-2 py-2 text-xs font-semibold text-text-secondary text-center">{d}</div>
         ))}
         {cells.map((day, i) => {
-          if (day === null) return <div key={`e${i}`} className="bg-[#111] min-h-[90px]" />
+          if (day === null) return <div key={`e${i}`} className="bg-background min-h-[90px]" />
           const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
           const dayTasks = tasksByDay[dateStr] ?? []
           const isToday = new Date(y, m, day).getTime() === today.getTime()
           return (
-            <div key={dateStr} className="bg-[#111] p-2 min-h-[90px]">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium mb-1 ${isToday ? 'bg-gold text-black' : 'text-white'}`}>{day}</div>
+            <div key={dateStr} className="bg-background p-2 min-h-[90px]">
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium mb-1 ${isToday ? 'bg-gold text-on-gold' : 'text-text-primary'}`}>{day}</div>
               <div className="space-y-0.5">
                 {dayTasks.slice(0, 3).map(t => (
-                  <div key={t.id} className={`text-[10px] px-1.5 py-0.5 rounded truncate border ${
-                    t.status === 'completato' ? 'bg-green-500/10 text-green-400 border-green-500/20'
-                    : new Date(t.due_date!) < today ? 'bg-red-500/10 text-red-400 border-red-500/20'
-                    : 'bg-gold/10 text-gold border-gold/20'
+                  <div key={t.id} className={`text-2xs px-1.5 py-0.5 rounded truncate border ${
+                    t.status === 'completato' ? 'bg-success/10 text-success border-success/20'
+                    : new Date(t.due_date!) < today ? 'bg-error/10 text-error border-error/20'
+                    : 'bg-gold/10 text-gold-text border-gold/20'
                   }`} title={t.project ? `${t.title} — ${t.project.name}` : t.title}>{t.title}</div>
                 ))}
-                {dayTasks.length > 3 && <div className="text-[10px] text-[#555] px-1">+{dayTasks.length - 3}</div>}
+                {dayTasks.length > 3 && <div className="text-2xs text-text-tertiary px-1">+{dayTasks.length - 3}</div>}
               </div>
             </div>
           )
@@ -791,8 +791,8 @@ function AnaliticaView({ tasks }: { tasks: TaskWithMeta[] }) {
     if (t.status === 'completato') bp.done++
   }
 
-  const statusColors: Record<string, string> = { da_fare: '#888', in_corso: '#3B82F6', in_revisione: '#A855F7', completato: '#22C55E' }
-  const prioColors: Record<string, string> = { alta: '#EF4444', media: '#F59E0B', bassa: '#22C55E' }
+  const statusColors: Record<string, string> = { da_fare: '#888', in_corso: 'var(--color-info)', in_revisione: 'var(--color-accent)', completato: 'var(--color-success)' }
+  const prioColors: Record<string, string> = { alta: 'var(--color-error)', media: 'var(--color-warning)', bassa: 'var(--color-success)' }
   const projectList = Object.values(byProject).sort((a, b) => b.count - a.count).slice(0, 10)
 
   return (
@@ -800,13 +800,13 @@ function AnaliticaView({ tasks }: { tasks: TaskWithMeta[] }) {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Totali', value: tasks.length, color: 'text-white' },
-          { label: 'Attive', value: active.length, color: 'text-blue-400' },
-          { label: 'Completate', value: completed.length, color: 'text-green-400' },
-          { label: 'Scadute', value: overdue.length, color: overdue.length > 0 ? 'text-red-400' : 'text-green-400' },
+          { label: 'Totali', value: tasks.length, color: 'text-text-primary' },
+          { label: 'Attive', value: active.length, color: 'text-info' },
+          { label: 'Completate', value: completed.length, color: 'text-success' },
+          { label: 'Scadute', value: overdue.length, color: overdue.length > 0 ? 'text-error' : 'text-success' },
         ].map(k => (
-          <div key={k.label} className="bg-surface border border-[#2A2A2A] rounded-xl p-4">
-            <p className="text-[10px] text-[#555] uppercase font-bold tracking-wider">{k.label}</p>
+          <div key={k.label} className="bg-surface border border-border rounded-xl p-4">
+            <p className="text-2xs text-text-tertiary uppercase font-bold tracking-wider">{k.label}</p>
             <p className={`text-2xl font-black mt-1 ${k.color}`}>{k.value}</p>
           </div>
         ))}
@@ -814,8 +814,8 @@ function AnaliticaView({ tasks }: { tasks: TaskWithMeta[] }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* By Status */}
-        <div className="bg-surface border border-[#2A2A2A] rounded-xl p-4">
-          <p className="text-[10px] text-[#555] uppercase font-bold tracking-wider mb-3">Per stato</p>
+        <div className="bg-surface border border-border rounded-xl p-4">
+          <p className="text-2xs text-text-tertiary uppercase font-bold tracking-wider mb-3">Per stato</p>
           <div className="space-y-2">
             {Object.entries(STATUS_META).map(([s, meta]) => {
               const cnt = byStatus[s] ?? 0
@@ -823,9 +823,9 @@ function AnaliticaView({ tasks }: { tasks: TaskWithMeta[] }) {
               return (
                 <div key={s} className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full" style={{ background: statusColors[s] }} />
-                  <span className="text-xs text-[#888] flex-1">{meta.label}</span>
-                  <span className="text-xs text-white font-bold">{cnt}</span>
-                  <div className="w-16 h-1.5 bg-[#2A2A2A] rounded-full overflow-hidden">
+                  <span className="text-xs text-text-secondary flex-1">{meta.label}</span>
+                  <span className="text-xs text-text-primary font-bold">{cnt}</span>
+                  <div className="w-16 h-1.5 bg-surface-active rounded-full overflow-hidden">
                     <div className="h-full rounded-full" style={{ width: `${pct}%`, background: statusColors[s] }} />
                   </div>
                 </div>
@@ -835,8 +835,8 @@ function AnaliticaView({ tasks }: { tasks: TaskWithMeta[] }) {
         </div>
 
         {/* By Priority */}
-        <div className="bg-surface border border-[#2A2A2A] rounded-xl p-4">
-          <p className="text-[10px] text-[#555] uppercase font-bold tracking-wider mb-3">Per priorità</p>
+        <div className="bg-surface border border-border rounded-xl p-4">
+          <p className="text-2xs text-text-tertiary uppercase font-bold tracking-wider mb-3">Per priorità</p>
           <div className="space-y-2">
             {(['alta', 'media', 'bassa'] as const).map(p => {
               const cnt = byPriority[p] ?? 0
@@ -844,9 +844,9 @@ function AnaliticaView({ tasks }: { tasks: TaskWithMeta[] }) {
               return (
                 <div key={p} className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full" style={{ background: prioColors[p] }} />
-                  <span className="text-xs text-[#888] flex-1 capitalize">{p}</span>
-                  <span className="text-xs text-white font-bold">{cnt}</span>
-                  <div className="w-16 h-1.5 bg-[#2A2A2A] rounded-full overflow-hidden">
+                  <span className="text-xs text-text-secondary flex-1 capitalize">{p}</span>
+                  <span className="text-xs text-text-primary font-bold">{cnt}</span>
+                  <div className="w-16 h-1.5 bg-surface-active rounded-full overflow-hidden">
                     <div className="h-full rounded-full" style={{ width: `${pct}%`, background: prioColors[p] }} />
                   </div>
                 </div>
@@ -856,16 +856,16 @@ function AnaliticaView({ tasks }: { tasks: TaskWithMeta[] }) {
         </div>
 
         {/* By Project */}
-        <div className="bg-surface border border-[#2A2A2A] rounded-xl p-4">
-          <p className="text-[10px] text-[#555] uppercase font-bold tracking-wider mb-3">Per progetto</p>
+        <div className="bg-surface border border-border rounded-xl p-4">
+          <p className="text-2xs text-text-tertiary uppercase font-bold tracking-wider mb-3">Per progetto</p>
           <div className="space-y-2">
             {projectList.map(p => {
               const pct = p.count ? Math.round((p.done / p.count) * 100) : 0
               return (
                 <div key={p.name} className="flex items-center gap-2">
-                  <span className="text-xs text-[#888] flex-1 truncate">{p.name}</span>
-                  <span className="text-xs text-white font-bold">{p.done}/{p.count}</span>
-                  <div className="w-16 h-1.5 bg-[#2A2A2A] rounded-full overflow-hidden">
+                  <span className="text-xs text-text-secondary flex-1 truncate">{p.name}</span>
+                  <span className="text-xs text-text-primary font-bold">{p.done}/{p.count}</span>
+                  <div className="w-16 h-1.5 bg-surface-active rounded-full overflow-hidden">
                     <div className="h-full rounded-full bg-gold" style={{ width: `${pct}%` }} />
                   </div>
                 </div>
@@ -877,20 +877,20 @@ function AnaliticaView({ tasks }: { tasks: TaskWithMeta[] }) {
 
       {/* Overdue alert */}
       {overdue.length > 0 && (
-        <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
+        <div className="bg-error/5 border border-error/20 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-4 h-4 text-red-400" />
-            <span className="text-sm font-bold text-red-400">{overdue.length} task scadute</span>
+            <AlertTriangle className="w-4 h-4 text-error" />
+            <span className="text-sm font-bold text-error">{overdue.length} task scadute</span>
           </div>
           <div className="space-y-1">
             {overdue.slice(0, 5).map(t => (
               <div key={t.id} className="flex items-center gap-2 text-xs">
-                <span className="text-red-400 font-medium">{formatDate(t.due_date!)}</span>
-                <span className="text-white flex-1 truncate">{t.title}</span>
-                <span className="text-[#555]">{t.project?.clients?.company_name ?? t.project?.name ?? ''}</span>
+                <span className="text-error font-medium">{formatDate(t.due_date!)}</span>
+                <span className="text-text-primary flex-1 truncate">{t.title}</span>
+                <span className="text-text-tertiary">{t.project?.clients?.company_name ?? t.project?.name ?? ''}</span>
               </div>
             ))}
-            {overdue.length > 5 && <p className="text-[10px] text-red-400/60">e altre {overdue.length - 5}…</p>}
+            {overdue.length > 5 && <p className="text-2xs text-error/60">e altre {overdue.length - 5}…</p>}
           </div>
         </div>
       )}
@@ -921,17 +921,17 @@ function AssignModal({ profiles, taskCount, assigning, onAssign, onClose }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-8" onClick={onClose}>
-      <div className="bg-[#111] border border-[#2A2A2A] rounded-2xl w-full max-w-md flex flex-col max-h-[70vh]" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#2A2A2A]">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-8" onClick={onClose}>
+      <div className="bg-background border border-border rounded-2xl w-full max-w-md flex flex-col max-h-[70vh]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-3">
-            <Users className="w-5 h-5 text-gold" />
+            <Users className="w-5 h-5 text-gold-text" />
             <div>
-              <p className="text-sm font-bold text-white">Assegna {taskCount} task</p>
-              <p className="text-[10px] text-text-secondary">Seleziona una o più risorse</p>
+              <p className="text-sm font-bold text-text-primary">Assegna {taskCount} task</p>
+              <p className="text-2xs text-text-secondary">Seleziona una o più risorse</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-text-secondary hover:text-white"><X className="w-4 h-4" /></button>
+          <button onClick={onClose} className="text-text-secondary hover:text-text-primary"><X className="w-4 h-4" /></button>
         </div>
 
         <div className="px-5 pt-3">
@@ -940,7 +940,7 @@ function AssignModal({ profiles, taskCount, assigning, onAssign, onClose }: {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Cerca risorsa..."
-            className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold/40 placeholder:text-[#444]"
+            className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/40 placeholder:text-text-tertiary"
           />
         </div>
 
@@ -949,16 +949,16 @@ function AssignModal({ profiles, taskCount, assigning, onAssign, onClose }: {
             const isOn = selected.has(p.id)
             return (
               <button key={p.id} onClick={() => toggle(p.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${isOn ? 'bg-gold/10 border border-gold/20' : 'hover:bg-white/[0.03] border border-transparent'}`}>
-                <span className={`shrink-0 transition-colors ${isOn ? 'text-gold' : 'text-white/20'}`}>
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${isOn ? 'bg-gold/10 border border-gold/20' : 'hover:bg-surface-hover border border-transparent'}`}>
+                <span className={`shrink-0 transition-colors ${isOn ? 'text-gold-text' : 'text-text-tertiary'}`}>
                   {isOn ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                 </span>
-                <div className="w-8 h-8 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-xs font-bold text-gold shrink-0">
+                <div className="w-8 h-8 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-xs font-bold text-gold-text shrink-0">
                   {p.avatar_url
                     ? <img src={p.avatar_url} className="w-full h-full rounded-full object-cover" alt="" />
                     : getInitials(p.full_name)}
                 </div>
-                <span className="text-sm text-white font-medium flex-1 text-left">{p.full_name}</span>
+                <span className="text-sm text-text-primary font-medium flex-1 text-left">{p.full_name}</span>
               </button>
             )
           })}
@@ -967,12 +967,12 @@ function AssignModal({ profiles, taskCount, assigning, onAssign, onClose }: {
           )}
         </div>
 
-        <div className="flex items-center justify-between px-5 py-4 border-t border-[#2A2A2A]">
-          <p className="text-[10px] text-text-secondary">{selected.size} risorse selezionate</p>
+        <div className="flex items-center justify-between px-5 py-4 border-t border-border">
+          <p className="text-2xs text-text-secondary">{selected.size} risorse selezionate</p>
           <div className="flex items-center gap-2">
-            <button onClick={onClose} className="px-4 py-2 text-xs text-text-secondary hover:text-white">Annulla</button>
+            <button onClick={onClose} className="px-4 py-2 text-xs text-text-secondary hover:text-text-primary">Annulla</button>
             <button onClick={() => onAssign(Array.from(selected))} disabled={assigning || selected.size === 0}
-              className="flex items-center gap-1.5 px-5 py-2 bg-gold text-black rounded-lg text-xs font-bold hover:bg-yellow-400 transition-colors disabled:opacity-50">
+              className="flex items-center gap-1.5 px-5 py-2 bg-gold text-on-gold rounded-lg text-xs font-bold hover:bg-gold/90 transition-colors disabled:opacity-50">
               {assigning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
               Assegna
             </button>

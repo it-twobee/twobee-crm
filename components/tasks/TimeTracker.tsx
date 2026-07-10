@@ -75,11 +75,11 @@ export function TimeTracker({ taskId, estimatedHours }: { taskId: string; estima
       <div className="flex items-center justify-between text-xs mb-1">
         <div className="flex items-center gap-1.5 text-text-secondary">
           <Clock className="w-3.5 h-3.5" />
-          <span><span className="text-white font-semibold">{totalLogged}h</span> registrate
+          <span><span className="text-text-primary font-semibold">{totalLogged}h</span> registrate
           {estimatedHours && <span className="text-text-secondary"> / {estimatedHours}h stimate</span>}
           </span>
         </div>
-        <button onClick={() => setAdding(!adding)} className="flex items-center gap-1 text-gold hover:underline">
+        <button onClick={() => setAdding(!adding)} className="flex items-center gap-1 text-gold-text hover:underline">
           <Plus className="w-3 h-3" /> Aggiungi
         </button>
       </div>
@@ -95,7 +95,7 @@ export function TimeTracker({ taskId, estimatedHours }: { taskId: string; estima
 
       {/* Form aggiungi */}
       {adding && (
-        <div className="bg-background border border-[#2A2A2A] rounded-lg p-3 space-y-2">
+        <div className="bg-background border border-border rounded-lg p-3 space-y-2">
           <div className="flex gap-2">
             <div className="flex-1">
               <label className="block text-xs text-text-secondary mb-1">Ore *</label>
@@ -106,7 +106,7 @@ export function TimeTracker({ taskId, estimatedHours }: { taskId: string; estima
                 value={form.hours}
                 onChange={(e) => setForm((p) => ({ ...p, hours: e.target.value }))}
                 placeholder="es. 1.5"
-                className="w-full bg-surface border border-[#2A2A2A] rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-gold"
+                className="w-full bg-surface border border-border rounded px-2 py-1.5 text-sm text-text-primary focus:outline-none focus:border-gold"
               />
             </div>
             <div className="flex-1">
@@ -115,7 +115,7 @@ export function TimeTracker({ taskId, estimatedHours }: { taskId: string; estima
                 type="date"
                 value={form.logged_date}
                 onChange={(e) => setForm((p) => ({ ...p, logged_date: e.target.value }))}
-                className="w-full bg-surface border border-[#2A2A2A] rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-gold"
+                className="w-full bg-surface border border-border rounded px-2 py-1.5 text-sm text-text-primary focus:outline-none focus:border-gold"
               />
             </div>
           </div>
@@ -123,11 +123,11 @@ export function TimeTracker({ taskId, estimatedHours }: { taskId: string; estima
             value={form.note}
             onChange={(e) => setForm((p) => ({ ...p, note: e.target.value }))}
             placeholder="Nota opzionale..."
-            className="w-full bg-surface border border-[#2A2A2A] rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-gold"
+            className="w-full bg-surface border border-border rounded px-2 py-1.5 text-sm text-text-primary focus:outline-none focus:border-gold"
           />
           <div className="flex gap-2">
-            <button onClick={() => setAdding(false)} className="flex-1 py-1.5 text-xs border border-[#2A2A2A] rounded text-text-secondary hover:text-white transition-colors">Annulla</button>
-            <button onClick={addLog} disabled={saving} className="flex-1 py-1.5 text-xs bg-gold text-black font-bold rounded hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-1">
+            <button onClick={() => setAdding(false)} className="flex-1 py-1.5 text-xs border border-border rounded text-text-secondary hover:text-text-primary transition-colors">Annulla</button>
+            <button onClick={addLog} disabled={saving} className="flex-1 py-1.5 text-xs bg-gold text-on-gold font-bold rounded hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-1">
               {saving && <Loader2 className="w-3 h-3 animate-spin" />} Salva
             </button>
           </div>
@@ -140,7 +140,7 @@ export function TimeTracker({ taskId, estimatedHours }: { taskId: string; estima
           {logs.map((l) => (
             <div key={l.id} className="flex items-center justify-between text-xs group">
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-white">{l.hours}h</span>
+                <span className="font-semibold text-text-primary">{l.hours}h</span>
                 <span className="text-text-secondary">{l.profile?.full_name ?? 'Utente'}</span>
                 <span className="text-text-secondary">{new Date(l.logged_date).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}</span>
                 {l.note && <span className="text-text-secondary italic truncate max-w-[120px]">{l.note}</span>}

@@ -43,13 +43,13 @@ export default function ResetPasswordPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
           <h1 className="text-4xl font-black tracking-tight mb-2">
-            <span className="text-text-primary">two bee</span><span className="text-gold">.</span>
+            <span className="text-text-primary">two bee</span><span className="text-gold-text">.</span>
           </h1>
         </div>
         <div className="bg-surface border border-border rounded-2xl p-8">
           {done ? (
             <div className="text-center py-4">
-              <CheckCircle2 className="w-12 h-12 text-gold mx-auto mb-3" />
+              <CheckCircle2 className="w-12 h-12 text-gold-text mx-auto mb-3" />
               <h2 className="text-lg font-bold text-text-primary mb-1">Password aggiornata!</h2>
               <p className="text-text-secondary text-sm">Reindirizzamento in corso...</p>
             </div>
@@ -72,7 +72,7 @@ export default function ResetPasswordPage() {
                   <input type={showPw ? 'text' : 'password'} value={confirm} onChange={(e) => setConfirm(e.target.value)} required className={`${ic} ${confirm && confirm !== password ? 'border-error/50' : ''}`} placeholder="••••••••" />
                   {confirm && confirm !== password && <p className="text-xs text-error mt-1">Le password non coincidono</p>}
                 </div>
-                <button type="submit" disabled={loading || !ready} className="w-full bg-gold text-black font-bold py-3 rounded-lg hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
+                <button type="submit" disabled={loading || !ready} className="w-full bg-gold text-on-gold font-bold py-3 rounded-lg hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-2">
                   {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                   {!ready ? 'Verifica link in corso...' : 'Aggiorna Password'}
                 </button>

@@ -17,9 +17,9 @@ interface Props {
 
 const STAGES: { key: DealStage; label: string; color: string; bg: string }[] = [
   { key: 'lead',          label: 'Lead',          color: 'text-text-secondary', bg: 'bg-surface' },
-  { key: 'contatto',      label: 'Contatto',      color: 'text-blue-400',       bg: 'bg-blue-400/10' },
+  { key: 'contatto',      label: 'Contatto',      color: 'text-info',       bg: 'bg-info/10' },
   { key: 'proposta',      label: 'Proposta',      color: 'text-warning',        bg: 'bg-warning/10' },
-  { key: 'trattativa',    label: 'Trattativa',    color: 'text-gold',           bg: 'bg-gold/10' },
+  { key: 'trattativa',    label: 'Trattativa',    color: 'text-gold-text',           bg: 'bg-gold/10' },
   { key: 'chiuso_vinto',  label: 'Vinto',         color: 'text-success',        bg: 'bg-success/10' },
   { key: 'chiuso_perso',  label: 'Perso',         color: 'text-error',          bg: 'bg-error/10' },
 ]
@@ -94,7 +94,7 @@ function DealModal({ deal, profiles, clients, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-surface border border-border rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-surface">
@@ -147,7 +147,7 @@ function DealModal({ deal, profiles, clients, onClose, onSaved }: {
           </div>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
-            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
+            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}{deal ? 'Aggiorna' : 'Crea deal'}
             </button>
           </div>
@@ -230,10 +230,10 @@ export function CommercialeClient({ deals: initialDeals, profiles, clients, curr
             <>
               <div className="flex bg-surface border border-border rounded-lg overflow-hidden">
                 {(['kanban', 'lista'] as const).map(v => (
-                  <button key={v} onClick={() => setView(v)} className={`px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${view === v ? 'bg-gold text-black' : 'text-text-secondary hover:text-text-primary'}`}>{v}</button>
+                  <button key={v} onClick={() => setView(v)} className={`px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${view === v ? 'bg-gold text-on-gold' : 'text-text-secondary hover:text-text-primary'}`}>{v}</button>
                 ))}
               </div>
-              <button onClick={() => { setEditingDeal(null); setShowModal(true) }} className="flex items-center gap-2 px-4 py-2 bg-gold text-black text-sm font-bold rounded-lg hover:bg-yellow-400">
+              <button onClick={() => { setEditingDeal(null); setShowModal(true) }} className="flex items-center gap-2 px-4 py-2 bg-gold text-on-gold text-sm font-bold rounded-lg hover:bg-gold/90">
                 <Plus className="w-4 h-4" /> Nuovo deal
               </button>
             </>
@@ -245,7 +245,7 @@ export function CommercialeClient({ deals: initialDeals, profiles, clients, curr
       <div className="flex bg-surface border border-border rounded-lg overflow-hidden w-fit">
         {([['pipeline', 'Pipeline'], ['leadgen', 'Lead Gen'], ['preventivi', 'Preventivi']] as const).map(([key, label]) => (
           <button key={key} onClick={() => setSection(key)}
-            className={`px-4 py-2 text-sm font-semibold transition-colors ${section === key ? 'bg-gold text-black' : 'text-text-secondary hover:text-text-primary'}`}>
+            className={`px-4 py-2 text-sm font-semibold transition-colors ${section === key ? 'bg-gold text-on-gold' : 'text-text-secondary hover:text-text-primary'}`}>
             {label}
           </button>
         ))}
@@ -258,7 +258,7 @@ export function CommercialeClient({ deals: initialDeals, profiles, clients, curr
       {/* KPI */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { l: 'Pipeline ponderata', v: fmt(Math.round(pipeline)), c: 'text-gold' },
+          { l: 'Pipeline ponderata', v: fmt(Math.round(pipeline)), c: 'text-gold-text' },
           { l: 'Deal attivi', v: activeDeals.length.toString(), c: 'text-text-primary' },
           { l: 'Valore chiuso', v: fmt(Math.round(wonValue)), c: 'text-success' },
           { l: 'Conv. rate', v: `${convRate}%`, c: convRate >= 30 ? 'text-success' : 'text-warning' },
@@ -282,9 +282,9 @@ export function CommercialeClient({ deals: initialDeals, profiles, clients, curr
                   <div className="flex items-center justify-between mb-2 px-1">
                     <div className="flex items-center gap-2">
                       <span className={`text-xs font-bold ${stage.color}`}>{stage.label}</span>
-                      <span className="text-[10px] text-text-secondary bg-surface-hover rounded-full px-1.5 py-0.5">{stageDeals.length}</span>
+                      <span className="text-2xs text-text-secondary bg-surface-hover rounded-full px-1.5 py-0.5">{stageDeals.length}</span>
                     </div>
-                    {stageValue > 0 && <span className="text-[10px] text-text-secondary">{fmt(stageValue)}</span>}
+                    {stageValue > 0 && <span className="text-2xs text-text-secondary">{fmt(stageValue)}</span>}
                   </div>
                   <div className="space-y-2">
                     {stageDeals.map(d => (
@@ -292,11 +292,11 @@ export function CommercialeClient({ deals: initialDeals, profiles, clients, curr
                         className="bg-surface border border-border rounded-xl p-3 cursor-pointer hover:border-gold/30 transition-colors">
                         <p className="text-sm font-semibold text-text-primary mb-0.5">{d.title}</p>
                         <p className="text-xs text-text-secondary mb-2">{d.company_name}</p>
-                        {d.value && <p className="text-xs font-bold text-gold">{fmt(d.value)}</p>}
+                        {d.value && <p className="text-xs font-bold text-gold-text">{fmt(d.value)}</p>}
                         <div className="flex items-center justify-between mt-2">
-                          <span className="text-[10px] text-text-secondary">{d.probability}%</span>
+                          <span className="text-2xs text-text-secondary">{d.probability}%</span>
                           {d.expected_close && (
-                            <span className={`text-[10px] ${new Date(d.expected_close) < new Date() ? 'text-error' : 'text-text-secondary'}`}>
+                            <span className={`text-2xs ${new Date(d.expected_close) < new Date() ? 'text-error' : 'text-text-secondary'}`}>
                               {new Date(d.expected_close).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}
                             </span>
                           )}
@@ -309,7 +309,7 @@ export function CommercialeClient({ deals: initialDeals, profiles, clients, curr
                       </div>
                     ))}
                     <button onClick={() => { setEditingDeal(null); setShowModal(true) }}
-                      className="w-full py-2 border border-dashed border-border rounded-xl text-xs text-text-secondary hover:text-gold hover:border-gold/30 transition-colors">
+                      className="w-full py-2 border border-dashed border-border rounded-xl text-xs text-text-secondary hover:text-gold-text hover:border-gold/30 transition-colors">
                       + Aggiungi
                     </button>
                   </div>
@@ -320,14 +320,14 @@ export function CommercialeClient({ deals: initialDeals, profiles, clients, curr
             <div className="w-64 flex-shrink-0 opacity-60">
               <div className="flex items-center gap-2 mb-2 px-1">
                 <span className="text-xs font-bold text-error">Perso</span>
-                <span className="text-[10px] text-text-secondary bg-surface-hover rounded-full px-1.5 py-0.5">{deals.filter(d => d.stage === 'chiuso_perso').length}</span>
+                <span className="text-2xs text-text-secondary bg-surface-hover rounded-full px-1.5 py-0.5">{deals.filter(d => d.stage === 'chiuso_perso').length}</span>
               </div>
               <div className="space-y-2">
                 {deals.filter(d => d.stage === 'chiuso_perso').map(d => (
                   <div key={d.id} onClick={() => openDeal(d)}
                     className="bg-surface border border-border rounded-xl p-3 cursor-pointer hover:border-overlay/10 transition-colors">
                     <p className="text-xs font-semibold text-text-secondary">{d.title}</p>
-                    <p className="text-[10px] text-text-tertiary">{d.company_name}</p>
+                    <p className="text-2xs text-text-tertiary">{d.company_name}</p>
                   </div>
                 ))}
               </div>
@@ -352,12 +352,12 @@ export function CommercialeClient({ deals: initialDeals, profiles, clients, curr
                 <tr key={d.id} className="hover:bg-overlay/3 cursor-pointer" onClick={() => openDeal(d)}>
                   <td className="px-4 py-3 text-sm font-semibold text-text-primary">{d.title}</td>
                   <td className="px-4 py-3 text-sm text-text-secondary">{d.company_name}</td>
-                  <td className="px-4 py-3 text-sm font-bold text-gold">{d.value ? fmt(d.value) : '—'}</td>
+                  <td className="px-4 py-3 text-sm font-bold text-gold-text">{d.value ? fmt(d.value) : '—'}</td>
                   <td className="px-4 py-3"><StageBadge stage={d.stage} /></td>
                   <td className="px-4 py-3 text-sm text-text-primary">{d.probability}%</td>
                   <td className="px-4 py-3 text-sm text-text-secondary">{d.expected_close ? new Date(d.expected_close).toLocaleDateString('it-IT') : '—'}</td>
                   <td className="px-4 py-3">
-                    <button onClick={e => { e.stopPropagation(); setEditingDeal(d); setShowModal(true) }} className="p-1 text-text-secondary hover:text-gold"><Pencil className="w-3.5 h-3.5" /></button>
+                    <button onClick={e => { e.stopPropagation(); setEditingDeal(d); setShowModal(true) }} className="p-1 text-text-secondary hover:text-gold-text"><Pencil className="w-3.5 h-3.5" /></button>
                   </td>
                 </tr>
               ))}
@@ -369,7 +369,7 @@ export function CommercialeClient({ deals: initialDeals, profiles, clients, curr
 
       {/* Pannello deal selezionato */}
       {selectedDeal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-end p-4"
+        <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-end p-4"
           onClick={e => e.target === e.currentTarget && setSelectedDeal(null)}>
           <div className="bg-surface border border-border rounded-2xl w-full max-w-md h-full max-h-[95vh] flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-border">
@@ -378,7 +378,7 @@ export function CommercialeClient({ deals: initialDeals, profiles, clients, curr
                 <p className="text-xs text-text-secondary">{selectedDeal.company_name}</p>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => { setEditingDeal(selectedDeal); setShowModal(true) }} className="p-1.5 text-text-secondary hover:text-gold"><Pencil className="w-4 h-4" /></button>
+                <button onClick={() => { setEditingDeal(selectedDeal); setShowModal(true) }} className="p-1.5 text-text-secondary hover:text-gold-text"><Pencil className="w-4 h-4" /></button>
                 <button onClick={() => deleteDeal(selectedDeal.id)} className="p-1.5 text-text-secondary hover:text-error"><Trash2 className="w-4 h-4" /></button>
                 <button onClick={() => setSelectedDeal(null)}><X className="w-5 h-5 text-text-secondary" /></button>
               </div>
@@ -387,21 +387,21 @@ export function CommercialeClient({ deals: initialDeals, profiles, clients, curr
               {/* Info */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-surface rounded-lg p-3">
-                  <p className="text-[10px] text-text-secondary">Valore</p>
-                  <p className="text-base font-black text-gold">{selectedDeal.value ? fmt(selectedDeal.value) : '—'}</p>
+                  <p className="text-2xs text-text-secondary">Valore</p>
+                  <p className="text-base font-black text-gold-text">{selectedDeal.value ? fmt(selectedDeal.value) : '—'}</p>
                 </div>
                 <div className="bg-surface rounded-lg p-3">
-                  <p className="text-[10px] text-text-secondary">Stage</p>
+                  <p className="text-2xs text-text-secondary">Stage</p>
                   <StageBadge stage={selectedDeal.stage} />
                 </div>
               </div>
               {selectedDeal.contact_email && (
-                <a href={`mailto:${selectedDeal.contact_email}`} className="flex items-center gap-2 text-xs text-text-secondary hover:text-gold">
+                <a href={`mailto:${selectedDeal.contact_email}`} className="flex items-center gap-2 text-xs text-text-secondary hover:text-gold-text">
                   <Mail className="w-3.5 h-3.5" /> {selectedDeal.contact_email}
                 </a>
               )}
               {selectedDeal.contact_phone && (
-                <a href={`tel:${selectedDeal.contact_phone}`} className="flex items-center gap-2 text-xs text-text-secondary hover:text-gold">
+                <a href={`tel:${selectedDeal.contact_phone}`} className="flex items-center gap-2 text-xs text-text-secondary hover:text-gold-text">
                   <Phone className="w-3.5 h-3.5" /> {selectedDeal.contact_phone}
                 </a>
               )}
@@ -436,7 +436,7 @@ export function CommercialeClient({ deals: initialDeals, profiles, clients, curr
                     onKeyDown={e => e.key === 'Enter' && !e.shiftKey && addActivity()}
                     placeholder="Aggiungi nota..." className="flex-1 bg-surface border border-border rounded-lg px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:border-gold/50" />
                   <button onClick={addActivity} disabled={loadingActivity || !activityText.trim()}
-                    className="px-3 py-1.5 bg-gold text-black text-xs font-bold rounded-lg disabled:opacity-50">
+                    className="px-3 py-1.5 bg-gold text-on-gold text-xs font-bold rounded-lg disabled:opacity-50">
                     {loadingActivity ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
                   </button>
                 </div>
@@ -450,7 +450,7 @@ export function CommercialeClient({ deals: initialDeals, profiles, clients, curr
                         </div>
                         <div>
                           <p className="text-xs text-text-primary">{a.content}</p>
-                          <p className="text-[10px] text-text-secondary">{new Date(a.created_at).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                          <p className="text-2xs text-text-secondary">{new Date(a.created_at).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
                         </div>
                       </div>
                     )

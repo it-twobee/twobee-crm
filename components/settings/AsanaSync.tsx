@@ -95,7 +95,7 @@ export function AsanaSync() {
           <Link2 className="w-5 h-5 text-[#F06A35]" />
         </div>
         <div>
-          <h3 className="text-sm font-bold text-white">Asana Sync</h3>
+          <h3 className="text-sm font-bold text-text-primary">Asana Sync</h3>
           <p className="text-xs text-text-secondary">Importa e sincronizza task da Asana nel gestionale</p>
         </div>
         <span className="ml-auto text-xs bg-success/20 text-success px-2 py-0.5 rounded font-semibold">Connesso</span>
@@ -117,7 +117,7 @@ export function AsanaSync() {
             <select
               value={selectedWorkspace}
               onChange={(e) => { setSelectedWorkspace(e.target.value); setProjects([]); setSelectedAsanaProject('') }}
-              className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold"
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold"
             >
               <option value="">Seleziona workspace...</option>
               {workspaces.map((w) => <option key={w.gid} value={w.gid}>{w.name}</option>)}
@@ -131,7 +131,7 @@ export function AsanaSync() {
               <select
                 value={selectedAsanaProject}
                 onChange={(e) => setSelectedAsanaProject(e.target.value)}
-                className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold"
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold"
               >
                 <option value="">Seleziona progetto Asana...</option>
                 {projects.map((p) => <option key={p.gid} value={p.gid}>{p.name}</option>)}
@@ -146,7 +146,7 @@ export function AsanaSync() {
               <select
                 value={selectedLocalProject}
                 onChange={(e) => setSelectedLocalProject(e.target.value)}
-                className="w-full bg-background border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold"
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold"
               >
                 <option value="">Seleziona progetto locale...</option>
                 {localProjects.map((p) => (
@@ -163,7 +163,7 @@ export function AsanaSync() {
             <button
               onClick={runSync}
               disabled={loading}
-              className="flex items-center gap-2 px-5 py-2.5 bg-gold text-black font-bold rounded-lg hover:bg-yellow-400 transition-colors disabled:opacity-50 text-sm"
+              className="flex items-center gap-2 px-5 py-2.5 bg-gold text-on-gold font-bold rounded-lg hover:bg-gold/90 transition-colors disabled:opacity-50 text-sm"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
               {loading ? 'Sincronizzazione...' : 'Sincronizza Task'}
@@ -175,7 +175,7 @@ export function AsanaSync() {
             <div className="bg-success/10 border border-success/30 rounded-lg p-4 flex items-start gap-3">
               <Check className="w-5 h-5 text-success shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-white">Sync completata con successo</p>
+                <p className="text-sm font-semibold text-text-primary">Sync completata con successo</p>
                 <p className="text-xs text-text-secondary mt-0.5">
                   {syncResult.total} task totali · {syncResult.created} nuove importate · {syncResult.updated} aggiornate
                 </p>
@@ -184,8 +184,8 @@ export function AsanaSync() {
           )}
 
           {/* Info */}
-          <div className="bg-background border border-[#2A2A2A] rounded-lg p-3 text-xs text-text-secondary space-y-1">
-            <p className="font-semibold text-white mb-1">Come funziona la sync:</p>
+          <div className="bg-background border border-border rounded-lg p-3 text-xs text-text-secondary space-y-1">
+            <p className="font-semibold text-text-primary mb-1">Come funziona la sync:</p>
             <p>• I task Asana vengono importati nel progetto locale selezionato</p>
             <p>• Le sync successive aggiornano i task esistenti (non duplicano)</p>
             <p>• Il collegamento avviene tramite ID Asana (asana_gid)</p>

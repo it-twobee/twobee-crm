@@ -32,7 +32,7 @@ export function KpiCards({
       value: isAdmin ? formatCurrency(mrr) : '—',
       sub: isAdmin ? `${activeClients} clienti attivi` : null,
       icon: TrendingUp,
-      color: 'text-gold',
+      color: 'text-gold-text',
       bg: 'bg-gold/10',
       border: 'border-gold/20',
       href: '/clienti',

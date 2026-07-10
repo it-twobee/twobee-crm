@@ -83,7 +83,7 @@ function PendingAtt({ att, onRemove }: { att: { file: File; preview?: string }; 
         : <div className="w-10 h-10 rounded bg-surface-hover flex items-center justify-center shrink-0"><FileText className="w-5 h-5 text-text-secondary" /></div>}
       <div className="min-w-0">
         <p className="text-xs text-text-primary truncate font-medium">{att.file.name}</p>
-        <p className="text-[10px] text-text-secondary">{fmtBytes(att.file.size)}</p>
+        <p className="text-2xs text-text-secondary">{fmtBytes(att.file.size)}</p>
       </div>
       <button onClick={onRemove}
         className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-error rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -102,7 +102,7 @@ function AttachmentDisplay({ att }: { att: Attachment }) {
       <a href={att.url} target="_blank" rel="noopener noreferrer" className="block mt-2 max-w-sm">
         <img src={att.url} alt={att.name} onError={() => setImgErr(true)}
           className="rounded-xl max-h-72 object-cover border border-border hover:opacity-90 transition-opacity cursor-pointer" />
-        <p className="text-[10px] text-text-secondary mt-1">{att.name}{att.size ? ` · ${fmtBytes(att.size)}` : ''}</p>
+        <p className="text-2xs text-text-secondary mt-1">{att.name}{att.size ? ` · ${fmtBytes(att.size)}` : ''}</p>
       </a>
     )
   }
@@ -110,7 +110,7 @@ function AttachmentDisplay({ att }: { att: Attachment }) {
     return (
       <div className="mt-2 max-w-sm">
         <video src={att.url} controls className="rounded-xl max-h-64 border border-border w-full" />
-        <p className="text-[10px] text-text-secondary mt-1">{att.name}</p>
+        <p className="text-2xs text-text-secondary mt-1">{att.name}</p>
       </div>
     )
   }
@@ -120,13 +120,13 @@ function AttachmentDisplay({ att }: { att: Attachment }) {
     <a href={att.url} target="_blank" rel="noopener noreferrer" download={att.name}
       className="flex items-center gap-3 mt-2 bg-surface border border-border rounded-xl p-3 hover:border-gold/30 transition-colors max-w-xs group/att">
       <div className="w-10 h-10 rounded-lg bg-gold/10 border border-gold/20 flex items-center justify-center shrink-0">
-        <Icon className="w-5 h-5 text-gold" />
+        <Icon className="w-5 h-5 text-gold-text" />
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-text-primary truncate">{att.name}</p>
         {att.size && <p className="text-xs text-text-secondary">{fmtBytes(att.size)}</p>}
       </div>
-      <Download className="w-4 h-4 text-text-secondary group-hover/att:text-gold transition-colors shrink-0" />
+      <Download className="w-4 h-4 text-text-secondary group-hover/att:text-gold-text transition-colors shrink-0" />
     </a>
   )
 }
@@ -229,12 +229,12 @@ function MessageRow({ msg, isOwn, compact, isAdmin, currentUserId, onEdit, onDel
     >
       {compact ? (
         <div className="w-9 shrink-0 flex items-start justify-center pt-1">
-          <span className="text-[10px] text-text-secondary opacity-0 group-hover/msg:opacity-100 transition-opacity leading-none">
+          <span className="text-2xs text-text-secondary opacity-0 group-hover/msg:opacity-100 transition-opacity leading-none">
             {new Date(msg.created_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>
       ) : (
-        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 overflow-hidden border ${isOwn ? 'bg-gold/30 border-gold/40 text-gold' : 'bg-surface-hover text-text-primary border-border-strong'}`}>
+        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 overflow-hidden border ${isOwn ? 'bg-gold/30 border-gold/40 text-gold-text' : 'bg-surface-hover text-text-primary border-border-strong'}`}>
           {msg.sender?.avatar_url
             ? <img src={msg.sender.avatar_url} className="w-full h-full object-cover" alt="" />
             : getInitials(msg.sender?.full_name ?? '?')}
@@ -245,12 +245,12 @@ function MessageRow({ msg, isOwn, compact, isAdmin, currentUserId, onEdit, onDel
         {!compact && (
           <div className="flex items-baseline gap-2 mb-0.5 flex-wrap">
             <span className="text-sm font-bold text-text-primary leading-none">{msg.sender?.full_name ?? 'Utente'}</span>
-            <span className="text-[10px] text-text-secondary">
+            <span className="text-2xs text-text-secondary">
               {new Date(msg.created_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
             </span>
-            {msg.edited_at && <span className="text-[10px] text-text-secondary italic">(modificato)</span>}
-            {msg.is_pinned && <span className="text-[10px] text-gold font-semibold flex items-center gap-0.5"><Pin className="w-2.5 h-2.5" />Pinnato</span>}
-            {isAdmin && !isOwn && <span className="text-[10px] text-text-tertiary">· {msg.sender?.full_name?.split(' ')[0]}</span>}
+            {msg.edited_at && <span className="text-2xs text-text-secondary italic">(modificato)</span>}
+            {msg.is_pinned && <span className="text-2xs text-gold-text font-semibold flex items-center gap-0.5"><Pin className="w-2.5 h-2.5" />Pinnato</span>}
+            {isAdmin && !isOwn && <span className="text-2xs text-text-tertiary">· {msg.sender?.full_name?.split(' ')[0]}</span>}
           </div>
         )}
 
@@ -262,11 +262,11 @@ function MessageRow({ msg, isOwn, compact, isAdmin, currentUserId, onEdit, onDel
               className="w-full bg-surface border border-gold/40 rounded-lg px-3 py-2 text-sm text-text-primary resize-none focus:outline-none" />
             <div className="flex items-center gap-2 mt-1.5">
               <button onClick={saveEdit} disabled={saving}
-                className="flex items-center gap-1 text-xs text-black bg-gold px-2.5 py-1 rounded-lg font-bold hover:bg-yellow-400 disabled:opacity-50">
+                className="flex items-center gap-1 text-xs text-on-gold bg-gold px-2.5 py-1 rounded-lg font-bold hover:bg-gold/90 disabled:opacity-50">
                 {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Salva
               </button>
               <button onClick={() => setEditMode(false)} className="text-xs text-text-secondary hover:text-text-primary px-2 py-1">Annulla</button>
-              <span className="text-[10px] text-text-secondary">Invio salva · Esc annulla</span>
+              <span className="text-2xs text-text-secondary">Invio salva · Esc annulla</span>
             </div>
           </div>
         ) : (
@@ -274,7 +274,7 @@ function MessageRow({ msg, isOwn, compact, isAdmin, currentUserId, onEdit, onDel
             {msg.content.startsWith('__TICKET__') ? (() => {
               try {
                 const data = JSON.parse(msg.content.slice(10))
-                const priorityColors: Record<string, string> = { urgente: 'text-red-400 bg-red-400/10 border-red-400/20', alta: 'text-orange-400 bg-orange-400/10 border-orange-400/20', normale: 'text-blue-400 bg-blue-400/10 border-blue-400/20', bassa: 'text-green-400 bg-green-400/10 border-green-400/20' }
+                const priorityColors: Record<string, string> = { urgente: 'text-error bg-error/10 border-error/20', alta: 'text-orange bg-orange/10 border-orange/20', normale: 'text-info bg-info/10 border-info/20', bassa: 'text-success bg-success/10 border-success/20' }
                 const pc = priorityColors[data.priority] ?? priorityColors.normale
                 const canOpen = isAdmin && onOpenTicket && data.ticketId
                 return (
@@ -284,10 +284,10 @@ function MessageRow({ msg, isOwn, compact, isAdmin, currentUserId, onEdit, onDel
                   >
                     <span className="text-xl">{data.emoji}</span>
                     <div className="min-w-0">
-                      <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-0.5">Ticket · {data.priorityLabel}</p>
+                      <p className="text-2xs font-black uppercase tracking-widest opacity-70 mb-0.5">Ticket · {data.priorityLabel}</p>
                       <p className="text-sm font-bold text-text-primary truncate">{data.title}</p>
-                      {data.category && <p className="text-[10px] opacity-60 capitalize mt-0.5">{data.category}</p>}
-                      {canOpen && <p className="text-[10px] opacity-50 mt-1">Clicca per gestire →</p>}
+                      {data.category && <p className="text-2xs opacity-60 capitalize mt-0.5">{data.category}</p>}
+                      {canOpen && <p className="text-2xs opacity-50 mt-1">Clicca per gestire →</p>}
                     </div>
                   </div>
                 )
@@ -308,7 +308,7 @@ function MessageRow({ msg, isOwn, compact, isAdmin, currentUserId, onEdit, onDel
                   onClick={() => toggleReaction(r.emoji)}
                   className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs transition-all hover:scale-105 active:scale-95
                     ${r.byMe
-                      ? 'bg-gold/20 border-gold/40 text-gold'
+                      ? 'bg-gold/20 border-gold/40 text-gold-text'
                       : 'bg-surface border-border text-text-secondary hover:border-border-strong hover:text-text-primary'}`}
                 >
                   <span className="text-sm leading-none">{r.emoji}</span>
@@ -317,11 +317,11 @@ function MessageRow({ msg, isOwn, compact, isAdmin, currentUserId, onEdit, onDel
                 {r.profiles.length > 0 && (
                   <div className="absolute bottom-full left-0 mb-1.5 hidden group-hover/reaction:flex flex-col z-30 pointer-events-none">
                     <div className="bg-surface border border-border rounded-xl px-3 py-2 shadow-2xl whitespace-nowrap">
-                      <p className="text-[10px] text-text-secondary font-bold uppercase tracking-wider mb-1">{r.emoji} {r.count} {r.count === 1 ? 'reazione' : 'reazioni'}</p>
+                      <p className="text-2xs text-text-secondary font-bold uppercase tracking-wider mb-1">{r.emoji} {r.count} {r.count === 1 ? 'reazione' : 'reazioni'}</p>
                       {r.profiles.map(name => (
                         <p key={name} className="text-xs text-text-primary leading-snug">{name}</p>
                       ))}
-                      {r.byMe && <p className="text-xs text-gold leading-snug">Tu</p>}
+                      {r.byMe && <p className="text-xs text-gold-text leading-snug">Tu</p>}
                     </div>
                     <div className="w-2 h-2 bg-surface border-r border-b border-border rotate-45 self-start ml-3 -mt-1" />
                   </div>
@@ -373,7 +373,7 @@ function MessageRow({ msg, isOwn, compact, isAdmin, currentUserId, onEdit, onDel
           {/* Pin (admin only) */}
           {isAdmin && (
             <button onClick={handlePin}
-              className={`p-1.5 hover:bg-surface-hover rounded-lg transition-colors ${msg.is_pinned ? 'text-gold' : 'text-text-secondary hover:text-text-primary'}`}
+              className={`p-1.5 hover:bg-surface-hover rounded-lg transition-colors ${msg.is_pinned ? 'text-gold-text' : 'text-text-secondary hover:text-text-primary'}`}
               title={msg.is_pinned ? 'Rimuovi pin' : 'Pinna messaggio'}>
               <Pin className="w-3.5 h-3.5" />
             </button>
@@ -414,7 +414,7 @@ function MembersPanel({ members, nonMembers, onAdd, onRemove, onClose, currentPr
         <h3 className="text-sm font-bold text-text-primary">Membri ({members.length})</h3>
         <div className="flex items-center gap-1.5">
           {isAdmin && (
-            <button onClick={() => setShowAdd(v => !v)} className="p-1 text-text-secondary hover:text-gold transition-colors" title="Aggiungi membro">
+            <button onClick={() => setShowAdd(v => !v)} className="p-1 text-text-secondary hover:text-gold-text transition-colors" title="Aggiungi membro">
               <UserPlus className="w-4 h-4" />
             </button>
           )}
@@ -423,7 +423,7 @@ function MembersPanel({ members, nonMembers, onAdd, onRemove, onClose, currentPr
       </div>
       {showAdd && nonMembers.length > 0 && (
         <div className="border-b border-border p-2 max-h-48 overflow-y-auto">
-          <p className="text-[10px] text-text-secondary px-2 mb-1 uppercase tracking-wider">Aggiungi</p>
+          <p className="text-2xs text-text-secondary px-2 mb-1 uppercase tracking-wider">Aggiungi</p>
           {nonMembers.map(p => (
             <button key={p.id} onClick={() => { onAdd(p.id); setShowAdd(false) }}
               className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-hover transition-colors text-left">
@@ -431,24 +431,24 @@ function MembersPanel({ members, nonMembers, onAdd, onRemove, onClose, currentPr
                 {p.avatar_url ? <img src={p.avatar_url} className="w-full h-full object-cover" alt="" /> : getInitials(p.full_name)}
               </div>
               <span className="text-xs text-text-primary truncate">{p.full_name}</span>
-              <span className="text-[10px] text-text-secondary capitalize ml-auto">{p.app_role?.replace('_',' ')}</span>
+              <span className="text-2xs text-text-secondary capitalize ml-auto">{p.app_role?.replace('_',' ')}</span>
             </button>
           ))}
         </div>
       )}
       <div className="flex-1 overflow-y-auto p-2">
-        <p className="text-[10px] text-text-secondary px-2 mb-2 uppercase tracking-wider">Nel canale</p>
+        <p className="text-2xs text-text-secondary px-2 mb-2 uppercase tracking-wider">Nel canale</p>
         {members.map(m => (
           <div key={m.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-hover group transition-colors">
             <div className="relative shrink-0">
-              <div className="w-7 h-7 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold text-[10px] font-bold overflow-hidden">
+              <div className="w-7 h-7 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold-text text-2xs font-bold overflow-hidden">
                 {m.avatar_url ? <img src={m.avatar_url} className="w-full h-full object-cover" alt="" /> : getInitials(m.full_name)}
               </div>
               <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-success rounded-full border-2 border-surface" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-text-primary truncate">{m.full_name}</p>
-              <p className="text-[10px] text-text-secondary capitalize">{m.app_role?.replace('_',' ')}</p>
+              <p className="text-2xs text-text-secondary capitalize">{m.app_role?.replace('_',' ')}</p>
             </div>
             {isAdmin && m.id !== currentProfileId && (
               <button onClick={() => onRemove(m.id)}
@@ -537,7 +537,7 @@ function AccessPanel({ channelId, channelType, members, allProfiles, isAdmin, cu
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
-          <Users className="w-4 h-4 text-gold" />
+          <Users className="w-4 h-4 text-gold-text" />
           <h3 className="text-sm font-bold text-text-primary">Gestisci Accessi</h3>
         </div>
         <button onClick={onClose}><X className="w-4 h-4 text-text-secondary hover:text-text-primary" /></button>
@@ -547,9 +547,9 @@ function AccessPanel({ channelId, channelType, members, allProfiles, isAdmin, cu
       <div className="flex border-b border-border">
         {tabs.map(t => (
           <button key={t.id} onClick={() => { setTab(t.id); setShowInviteForm(false) }}
-            className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider transition-colors border-b-2 ${tab === t.id ? 'text-gold border-gold' : 'text-text-secondary border-transparent hover:text-text-primary'}`}>
+            className={`flex-1 py-2 text-2xs font-bold uppercase tracking-wider transition-colors border-b-2 ${tab === t.id ? 'text-gold-text border-gold' : 'text-text-secondary border-transparent hover:text-text-primary'}`}>
             {t.label}
-            <span className={`ml-1 ${tab === t.id ? 'text-gold' : 'text-text-secondary'}`}>
+            <span className={`ml-1 ${tab === t.id ? 'text-gold-text' : 'text-text-secondary'}`}>
               {t.count}{'max' in t ? `/${t.max}` : ''}
             </span>
           </button>
@@ -561,15 +561,15 @@ function AccessPanel({ channelId, channelType, members, allProfiles, isAdmin, cu
         {/* ── TAB: Team TwoBee ── */}
         {tab === 'team' && (
           <div className="p-3 space-y-1">
-            <p className="text-[10px] text-text-secondary px-1 mb-2">Membri del team TwoBee con accesso a questo canale</p>
+            <p className="text-2xs text-text-secondary px-1 mb-2">Membri del team TwoBee con accesso a questo canale</p>
             {members.map(m => (
               <div key={m.id} className="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-surface group transition-colors">
-                <div className="w-7 h-7 rounded-full bg-gold/20 flex items-center justify-center text-gold text-[10px] font-bold overflow-hidden shrink-0">
+                <div className="w-7 h-7 rounded-full bg-gold/20 flex items-center justify-center text-gold-text text-2xs font-bold overflow-hidden shrink-0">
                   {m.avatar_url ? <img src={m.avatar_url} className="w-full h-full object-cover" alt="" /> : getInitials(m.full_name)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-text-primary truncate">{m.full_name}</p>
-                  <p className="text-[10px] text-text-secondary truncate">{m.email}</p>
+                  <p className="text-2xs text-text-secondary truncate">{m.email}</p>
                 </div>
                 {isAdmin && m.id !== currentProfileId && (
                   <button onClick={() => onRemoveMember(m.id)}
@@ -581,7 +581,7 @@ function AccessPanel({ channelId, channelType, members, allProfiles, isAdmin, cu
             ))}
             {isAdmin && nonMembers.length > 0 && (
               <div className="mt-3 pt-3 border-t border-border">
-                <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold px-1 mb-2">Aggiungi membro team</p>
+                <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold px-1 mb-2">Aggiungi membro team</p>
                 <div className="flex items-center gap-2 bg-surface border border-border rounded-xl px-2.5 py-1.5 mb-2 focus-within:border-gold/40">
                   <Search className="w-3 h-3 text-text-secondary shrink-0" />
                   <input value={memberSearch} onChange={e => setMemberSearch(e.target.value)} placeholder="Cerca..."
@@ -591,7 +591,7 @@ function AccessPanel({ channelId, channelType, members, allProfiles, isAdmin, cu
                   {nonMembers.map(p => (
                     <button key={p.id} onClick={() => onAddMember(p.id)}
                       className="w-full flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-surface transition-colors text-left group/a">
-                      <div className="w-6 h-6 rounded-full bg-surface-hover flex items-center justify-center text-[10px] font-bold text-text-primary overflow-hidden shrink-0">
+                      <div className="w-6 h-6 rounded-full bg-surface-hover flex items-center justify-center text-2xs font-bold text-text-primary overflow-hidden shrink-0">
                         {p.avatar_url ? <img src={p.avatar_url} className="w-full h-full object-cover" alt="" /> : getInitials(p.full_name)}
                       </div>
                       <span className="text-xs text-text-secondary group-hover/a:text-text-primary flex-1 truncate">{p.full_name}</span>
@@ -608,10 +608,10 @@ function AccessPanel({ channelId, channelType, members, allProfiles, isAdmin, cu
         {tab === 'cliente' && (
           <div className="p-3">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] text-text-secondary">Max 5 contatti del cliente · accesso solo Customer Care</p>
+              <p className="text-2xs text-text-secondary">Max 5 contatti del cliente · accesso solo Customer Care</p>
               {isAdmin && clientGuests.length < 5 && (
                 <button onClick={() => setShowInviteForm(v => !v)}
-                  className={`p-1.5 rounded-lg transition-colors ${showInviteForm ? 'text-gold bg-gold/10' : 'text-text-secondary hover:text-gold'}`}>
+                  className={`p-1.5 rounded-lg transition-colors ${showInviteForm ? 'text-gold-text bg-gold/10' : 'text-text-secondary hover:text-gold-text'}`}>
                   <UserPlus className="w-3.5 h-3.5" />
                 </button>
               )}
@@ -625,10 +625,10 @@ function AccessPanel({ channelId, channelType, members, allProfiles, isAdmin, cu
         {tab === 'esterni' && (
           <div className="p-3">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] text-text-secondary">Max 5 professionisti/partner · accesso CC e Chat Interna</p>
+              <p className="text-2xs text-text-secondary">Max 5 professionisti/partner · accesso CC e Chat Interna</p>
               {isAdmin && partnerGuests.length < 5 && (
                 <button onClick={() => setShowInviteForm(v => !v)}
-                  className={`p-1.5 rounded-lg transition-colors ${showInviteForm ? 'text-gold bg-gold/10' : 'text-text-secondary hover:text-gold'}`}>
+                  className={`p-1.5 rounded-lg transition-colors ${showInviteForm ? 'text-gold-text bg-gold/10' : 'text-text-secondary hover:text-gold-text'}`}>
                   <UserPlus className="w-3.5 h-3.5" />
                 </button>
               )}
@@ -652,7 +652,7 @@ function InviteForm({ type, onSubmit, email, setEmail, name, setName, role, setR
 }) {
   return (
     <form onSubmit={onSubmit} className="bg-surface border border-border rounded-xl p-3 space-y-2 mb-3">
-      <p className="text-[10px] text-text-secondary font-bold uppercase tracking-wider">
+      <p className="text-2xs text-text-secondary font-bold uppercase tracking-wider">
         {type === 'cliente' ? '🏢 Invita membro cliente' : '🤝 Invita professionista/partner'}
       </p>
       <input required value={name} onChange={e => setName(e.target.value)} placeholder="Nome e Cognome *" autoFocus
@@ -663,7 +663,7 @@ function InviteForm({ type, onSubmit, email, setEmail, name, setName, role, setR
         className="w-full bg-surface border border-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-gold/40" />
       <div className="flex gap-2 pt-1">
         <button type="button" onClick={onCancel} className="flex-1 py-1.5 border border-border rounded-lg text-xs text-text-secondary hover:text-text-primary">Annulla</button>
-        <button type="submit" disabled={sending} className="flex-1 py-1.5 bg-gold text-black font-bold rounded-lg text-xs hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-1">
+        <button type="submit" disabled={sending} className="flex-1 py-1.5 bg-gold text-on-gold font-bold rounded-lg text-xs hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-1">
           {sending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />} Invia invito
         </button>
       </div>
@@ -677,27 +677,27 @@ function GuestList({ guests, loading, statusDot, statusLabel, onRevoke, emptyLab
   onRevoke?: (id: string, email: string) => void
   emptyLabel: string; onAdd?: () => void
 }) {
-  if (loading) return <div className="flex justify-center py-6"><Loader2 className="w-4 h-4 text-gold animate-spin" /></div>
+  if (loading) return <div className="flex justify-center py-6"><Loader2 className="w-4 h-4 text-gold-text animate-spin" /></div>
   if (!guests.length) return (
     <div className="text-center py-8">
       <UserPlus className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
       <p className="text-xs text-text-secondary mb-2">{emptyLabel}</p>
-      {onAdd && <button onClick={onAdd} className="text-xs text-gold hover:underline">+ Invia primo invito</button>}
+      {onAdd && <button onClick={onAdd} className="text-xs text-gold-text hover:underline">+ Invia primo invito</button>}
     </div>
   )
   return (
     <div className="space-y-1">
       {guests.map(g => (
         <div key={g.id} className="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-surface group transition-colors">
-          <div className="w-7 h-7 rounded-full bg-surface-hover border border-border-strong flex items-center justify-center text-[10px] font-bold text-text-primary shrink-0">
+          <div className="w-7 h-7 rounded-full bg-surface-hover border border-border-strong flex items-center justify-center text-2xs font-bold text-text-primary shrink-0">
             {getInitials(g.full_name ?? g.email)}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-text-primary truncate">{g.full_name ?? g.email}</p>
             <div className="flex items-center gap-1.5 mt-0.5">
               <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDot[g.status] ?? 'bg-border-strong'}`} />
-              <span className="text-[10px] text-text-secondary">{statusLabel[g.status] ?? g.status}</span>
-              {g.role && <span className="text-[10px] text-text-secondary truncate">· {g.role}</span>}
+              <span className="text-2xs text-text-secondary">{statusLabel[g.status] ?? g.status}</span>
+              {g.role && <span className="text-2xs text-text-secondary truncate">· {g.role}</span>}
             </div>
           </div>
           {onRevoke && (
@@ -763,11 +763,11 @@ function GuestPanel({ channelId, onClose }: { channelId: string; onClose: () => 
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div>
           <h3 className="text-sm font-bold text-text-primary">Ospiti esterni</h3>
-          <p className="text-[10px] text-text-secondary">{clientCount}/5 clienti · {partnerCount}/5 partner</p>
+          <p className="text-2xs text-text-secondary">{clientCount}/5 clienti · {partnerCount}/5 partner</p>
         </div>
         <div className="flex items-center gap-1.5">
           <button onClick={() => setShowForm(v => !v)}
-            className={`p-1.5 rounded-lg transition-colors ${showForm ? 'text-gold bg-gold/10' : 'text-text-secondary hover:text-gold'}`}
+            className={`p-1.5 rounded-lg transition-colors ${showForm ? 'text-gold-text bg-gold/10' : 'text-text-secondary hover:text-gold-text'}`}
             title="Invita ospite">
             <UserPlus className="w-4 h-4" />
           </button>
@@ -777,15 +777,15 @@ function GuestPanel({ channelId, onClose }: { channelId: string; onClose: () => 
 
       {showForm && (
         <form onSubmit={sendInvite} className="border-b border-border p-3 space-y-2.5">
-          <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold">Nuovo invito</p>
+          <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold">Nuovo invito</p>
 
           {/* Tipo */}
           <div className="grid grid-cols-2 gap-1.5">
             {(['cliente', 'partner'] as const).map(t => (
               <button key={t} type="button" onClick={() => setGuestType(t)}
-                className={`py-1.5 rounded-lg text-xs font-bold border transition-colors capitalize ${guestType === t ? 'border-gold/50 bg-gold/10 text-gold' : 'border-border text-text-secondary hover:border-border-strong'}`}>
+                className={`py-1.5 rounded-lg text-xs font-bold border transition-colors capitalize ${guestType === t ? 'border-gold/50 bg-gold/10 text-gold-text' : 'border-border text-text-secondary hover:border-border-strong'}`}>
                 {t === 'cliente' ? '🏢 Cliente' : '🤝 Partner'}
-                <span className="block text-[9px] font-normal opacity-60">
+                <span className="block text-2xs font-normal opacity-60">
                   {t === 'cliente' ? `${clientCount}/5` : `${partnerCount}/5`} usati
                 </span>
               </button>
@@ -803,7 +803,7 @@ function GuestPanel({ channelId, onClose }: { channelId: string; onClose: () => 
             <button type="button" onClick={() => setShowForm(false)}
               className="flex-1 py-1.5 border border-border rounded-lg text-xs text-text-secondary hover:text-text-primary">Annulla</button>
             <button type="submit" disabled={sending}
-              className="flex-1 py-1.5 bg-gold text-black font-bold rounded-lg text-xs hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-1">
+              className="flex-1 py-1.5 bg-gold text-on-gold font-bold rounded-lg text-xs hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-1">
               {sending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />} Invita
             </button>
           </div>
@@ -812,12 +812,12 @@ function GuestPanel({ channelId, onClose }: { channelId: string; onClose: () => 
 
       <div className="flex-1 overflow-y-auto p-2">
         {loading ? (
-          <div className="flex justify-center pt-6"><Loader2 className="w-4 h-4 text-gold animate-spin" /></div>
+          <div className="flex justify-center pt-6"><Loader2 className="w-4 h-4 text-gold-text animate-spin" /></div>
         ) : guests.length === 0 ? (
           <div className="text-center px-4 pt-8">
             <Users className="w-8 h-8 text-text-secondary mx-auto mb-2 opacity-50" />
             <p className="text-xs text-text-secondary">Nessun ospite invitato</p>
-            <button onClick={() => setShowForm(true)} className="text-xs text-gold hover:underline mt-1">Invita il primo ospite</button>
+            <button onClick={() => setShowForm(true)} className="text-xs text-gold-text hover:underline mt-1">Invita il primo ospite</button>
           </div>
         ) : (
           <>
@@ -826,20 +826,20 @@ function GuestPanel({ channelId, onClose }: { channelId: string; onClose: () => 
               if (!group.length) return null
               return (
                 <div key={type} className="mb-3">
-                  <p className="text-[10px] text-text-secondary px-2 mb-1 uppercase tracking-wider">
+                  <p className="text-2xs text-text-secondary px-2 mb-1 uppercase tracking-wider">
                     {type === 'cliente' ? '🏢 Clienti' : '🤝 Partner'} ({group.length}/5)
                   </p>
                   {group.map(g => (
                     <div key={g.id} className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-surface group transition-colors">
-                      <div className="w-7 h-7 rounded-full bg-surface-hover border border-border-strong flex items-center justify-center text-[10px] font-bold text-text-primary shrink-0">
+                      <div className="w-7 h-7 rounded-full bg-surface-hover border border-border-strong flex items-center justify-center text-2xs font-bold text-text-primary shrink-0">
                         {getInitials(g.full_name ?? g.email)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-text-primary truncate">{g.full_name ?? g.email}</p>
                         <div className="flex items-center gap-1.5 mt-0.5">
                           <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDot[g.status]}`} />
-                          <span className="text-[10px] text-text-secondary">{statusLabel[g.status]}</span>
-                          {g.role && <span className="text-[10px] text-text-secondary truncate">· {g.role}</span>}
+                          <span className="text-2xs text-text-secondary">{statusLabel[g.status]}</span>
+                          {g.role && <span className="text-2xs text-text-secondary truncate">· {g.role}</span>}
                         </div>
                       </div>
                       <button onClick={() => revoke(g.id, g.email)}
@@ -937,7 +937,7 @@ function ChannelDetailsPanel({ channelId, channelName, channelType, members, pin
             <span className="text-xl">{icon}</span>
             <span className="font-bold text-text-primary text-base">{channelName}</span>
           </div>
-          <span className="text-[10px] text-text-secondary uppercase tracking-wider font-semibold">
+          <span className="text-2xs text-text-secondary uppercase tracking-wider font-semibold">
             {channelType === 'customer_care' ? 'Customer Care'
               : channelType === 'cliente_interno' ? 'Interno team'
               : channelType === 'interno' ? 'Team'
@@ -948,10 +948,10 @@ function ChannelDetailsPanel({ channelId, channelName, channelType, members, pin
         {/* Topic */}
         <div className="px-4 py-3 border-b border-border">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold">Descrizione / Topic</p>
+            <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold">Descrizione / Topic</p>
             {isAdmin && !editingTopic && (
               <button onClick={() => { setEditingTopic(true); setTopicDraft(topic) }}
-                className="text-[10px] text-gold hover:underline">Modifica</button>
+                className="text-2xs text-gold-text hover:underline">Modifica</button>
             )}
           </div>
           {editingTopic ? (
@@ -963,7 +963,7 @@ function ChannelDetailsPanel({ channelId, channelName, channelType, members, pin
                 <button onClick={() => setEditingTopic(false)}
                   className="flex-1 py-1.5 text-xs border border-border rounded-lg text-text-secondary hover:text-text-primary">Annulla</button>
                 <button onClick={saveTopic} disabled={saving}
-                  className="flex-1 py-1.5 text-xs bg-gold text-black font-bold rounded-lg hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-1">
+                  className="flex-1 py-1.5 text-xs bg-gold text-on-gold font-bold rounded-lg hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-1">
                   {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Salva
                 </button>
               </div>
@@ -976,18 +976,18 @@ function ChannelDetailsPanel({ channelId, channelName, channelType, members, pin
         {/* Pinned */}
         {pinnedCount > 0 && (
           <div className="px-4 py-3 border-b border-border flex items-center gap-2">
-            <Pin className="w-3.5 h-3.5 text-gold shrink-0" />
+            <Pin className="w-3.5 h-3.5 text-gold-text shrink-0" />
             <span className="text-sm text-text-secondary">{pinnedCount} messaggio{pinnedCount !== 1 ? 'i' : ''} pinnato{pinnedCount !== 1 ? 'i' : ''}</span>
           </div>
         )}
 
         {/* Members */}
         <div className="px-4 py-3">
-          <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold mb-2">{members.length} Membri</p>
+          <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold mb-2">{members.length} Membri</p>
           <div className="space-y-1 mb-3">
             {members.map(m => (
               <div key={m.id} className="flex items-center gap-2.5 py-1 group/m">
-                <div className="w-7 h-7 rounded-full bg-gold/20 flex items-center justify-center text-gold text-[10px] font-bold overflow-hidden shrink-0">
+                <div className="w-7 h-7 rounded-full bg-gold/20 flex items-center justify-center text-gold-text text-2xs font-bold overflow-hidden shrink-0">
                   {m.avatar_url ? <img src={m.avatar_url} className="w-full h-full object-cover" alt="" /> : getInitials(m.full_name)}
                 </div>
                 <span className="text-sm text-text-primary flex-1 truncate">{m.full_name}</span>
@@ -1002,12 +1002,12 @@ function ChannelDetailsPanel({ channelId, channelName, channelType, members, pin
           </div>
           {isAdmin && nonMembers.length > 0 && (
             <div>
-              <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold mb-1.5">Aggiungi persone</p>
+              <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold mb-1.5">Aggiungi persone</p>
               <div className="space-y-1 max-h-40 overflow-y-auto">
                 {nonMembers.map(p => (
                   <button key={p.id} onClick={() => onAddMember(p.id)}
                     className="w-full flex items-center gap-2.5 py-1.5 px-2 rounded-xl hover:bg-surface transition-colors text-left group/a">
-                    <div className="w-6 h-6 rounded-full bg-surface-hover flex items-center justify-center text-text-secondary text-[9px] font-bold overflow-hidden shrink-0">
+                    <div className="w-6 h-6 rounded-full bg-surface-hover flex items-center justify-center text-text-secondary text-2xs font-bold overflow-hidden shrink-0">
                       {p.avatar_url ? <img src={p.avatar_url} className="w-full h-full object-cover" alt="" /> : getInitials(p.full_name)}
                     </div>
                     <span className="text-sm text-text-secondary group-hover/a:text-text-primary flex-1 truncate">{p.full_name}</span>
@@ -1066,7 +1066,7 @@ function AdminPanel({ channelId, channelName, isArchived, isReadOnly, pinnedCoun
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
-          <Shield className="w-4 h-4 text-gold" />
+          <Shield className="w-4 h-4 text-gold-text" />
           <span className="text-sm font-bold text-text-primary">Admin · #{channelName}</span>
         </div>
         <button onClick={onClose}><X className="w-4 h-4 text-text-secondary hover:text-text-primary" /></button>
@@ -1079,20 +1079,20 @@ function AdminPanel({ channelId, channelName, isArchived, isReadOnly, pinnedCoun
           {isReadOnly ? <VolumeX className="w-4 h-4 shrink-0" /> : <Volume2 className="w-4 h-4 shrink-0" />}
           <div>
             <p className="text-sm font-semibold">{isReadOnly ? 'Sola lettura attiva' : 'Imposta sola lettura'}</p>
-            <p className="text-[10px] text-text-secondary">{isReadOnly ? 'Clicca per riabilitare scrittura' : 'Blocca messaggi nuovi'}</p>
+            <p className="text-2xs text-text-secondary">{isReadOnly ? 'Clicca per riabilitare scrittura' : 'Blocca messaggi nuovi'}</p>
           </div>
           {isReadOnly && <div className="ml-auto w-2 h-2 rounded-full bg-warning shrink-0" />}
         </button>
 
         {/* Archive toggle */}
         <button onClick={toggleArchive}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors ${isArchived ? 'bg-blue-500/10 text-blue-400' : 'hover:bg-surface-hover text-text-secondary hover:text-text-primary'}`}>
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors ${isArchived ? 'bg-info/10 text-info' : 'hover:bg-surface-hover text-text-secondary hover:text-text-primary'}`}>
           <Archive className="w-4 h-4 shrink-0" />
           <div>
             <p className="text-sm font-semibold">{isArchived ? 'Canale archiviato' : 'Archivia canale'}</p>
-            <p className="text-[10px] text-text-secondary">{isArchived ? 'Clicca per riattivare' : 'Sposta nell\'archivio'}</p>
+            <p className="text-2xs text-text-secondary">{isArchived ? 'Clicca per riattivare' : 'Sposta nell\'archivio'}</p>
           </div>
-          {isArchived && <div className="ml-auto w-2 h-2 rounded-full bg-blue-400 shrink-0" />}
+          {isArchived && <div className="ml-auto w-2 h-2 rounded-full bg-info shrink-0" />}
         </button>
 
         {/* Info row */}
@@ -1111,7 +1111,7 @@ function AdminPanel({ channelId, channelName, isArchived, isReadOnly, pinnedCoun
           {clearing ? <Loader2 className="w-4 h-4 shrink-0 animate-spin" /> : <Trash2 className="w-4 h-4 shrink-0" />}
           <div>
             <p className="text-sm font-semibold">Svuota canale</p>
-            <p className="text-[10px] text-error/50">Elimina tutti i messaggi · irreversibile</p>
+            <p className="text-2xs text-error/50">Elimina tutti i messaggi · irreversibile</p>
           </div>
         </button>
       </div>
@@ -1128,11 +1128,11 @@ function PinnedBar({ messages, onUnpin }: { messages: MessageExtended[]; onUnpin
   return (
     <div className="border-b border-border bg-surface px-4 py-2">
       <div className="flex items-center gap-2 cursor-pointer" onClick={() => setExpanded(v => !v)}>
-        <Pin className="w-3.5 h-3.5 text-gold shrink-0" />
+        <Pin className="w-3.5 h-3.5 text-gold-text shrink-0" />
         <span className="text-xs text-text-secondary flex-1 truncate">
-          <span className="text-gold font-semibold">Pinnato</span> · {latest.sender?.full_name}: <span className="text-text-primary">{latest.content.slice(0, 60)}{latest.content.length > 60 ? '…' : ''}</span>
+          <span className="text-gold-text font-semibold">Pinnato</span> · {latest.sender?.full_name}: <span className="text-text-primary">{latest.content.slice(0, 60)}{latest.content.length > 60 ? '…' : ''}</span>
         </span>
-        <span className="text-[10px] text-text-secondary">{messages.length}</span>
+        <span className="text-2xs text-text-secondary">{messages.length}</span>
         <ChevronDown className={`w-3 h-3 text-text-secondary transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </div>
       {expanded && (
@@ -1158,10 +1158,10 @@ function PinnedBar({ messages, onUnpin }: { messages: MessageExtended[]; onUnpin
 
 function ArchivedBanner({ isAdmin, isPerso, onUnarchive }: { isAdmin: boolean; isPerso: boolean; onUnarchive?: () => void }) {
   return (
-    <div className={`flex items-center gap-3 px-5 py-3 text-sm ${isPerso ? 'bg-error/10 border-b border-error/20' : 'bg-blue-500/10 border-b border-blue-500/20'}`}>
-      <Archive className={`w-4 h-4 shrink-0 ${isPerso ? 'text-error' : 'text-blue-400'}`} />
+    <div className={`flex items-center gap-3 px-5 py-3 text-sm ${isPerso ? 'bg-error/10 border-b border-error/20' : 'bg-info/10 border-b border-info/20'}`}>
+      <Archive className={`w-4 h-4 shrink-0 ${isPerso ? 'text-error' : 'text-info'}`} />
       <div className="flex-1">
-        <span className={`font-semibold ${isPerso ? 'text-error' : 'text-blue-400'}`}>
+        <span className={`font-semibold ${isPerso ? 'text-error' : 'text-info'}`}>
           {isPerso ? 'Cliente perso — canale archiviato' : 'Canale archiviato'}
         </span>
         <span className="text-text-secondary ml-2 text-xs">
@@ -1172,7 +1172,7 @@ function ArchivedBanner({ isAdmin, isPerso, onUnarchive }: { isAdmin: boolean; i
       </div>
       {isAdmin && onUnarchive && (
         <button onClick={onUnarchive}
-          className="text-xs text-gold border border-gold/30 px-2.5 py-1 rounded-lg hover:bg-gold/10 transition-colors shrink-0">
+          className="text-xs text-gold-text border border-gold/30 px-2.5 py-1 rounded-lg hover:bg-gold/10 transition-colors shrink-0">
           Riattiva
         </button>
       )}
@@ -1436,7 +1436,7 @@ export function SlackChat({
   const isPerso = isArchivedProp // passed when client_label === 'perso'
   const canWrite = !isReadOnly || (isAdmin && !isPerso)
 
-  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-6 h-6 text-gold animate-spin" /></div>
+  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-6 h-6 text-gold-text animate-spin" /></div>
 
   return (
     <div className="flex h-full bg-surface rounded-xl border border-border overflow-hidden relative">
@@ -1448,7 +1448,7 @@ export function SlackChat({
             <span className="text-text-secondary font-bold text-sm shrink-0">{(channelType === 'interno' || channelType === 'cliente_interno') ? '🔒' : channelType === 'customer_care' ? '🎧' : '#'}</span>
             <span className="font-bold text-text-primary text-sm truncate">{channelName}</span>
             {channelLabel && <span className="text-xs text-text-secondary bg-surface border border-border px-2 py-0.5 rounded-full shrink-0">{channelLabel}</span>}
-            {isArchived && <span className="text-xs text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1"><Archive className="w-3 h-3" />Archiviato</span>}
+            {isArchived && <span className="text-xs text-info bg-info/10 border border-info/20 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1"><Archive className="w-3 h-3" />Archiviato</span>}
             {isReadOnly && !isArchived && <span className="text-xs text-warning bg-warning/10 border border-warning/20 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1"><Lock className="w-3 h-3" />Sola lettura</span>}
             {headerExtra}
           </div>
@@ -1459,7 +1459,7 @@ export function SlackChat({
                 onClick={() => { setShowTicketPanel(v => !v); setShowDetailsPanel(false) }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all ${
                   showTicketPanel
-                    ? 'bg-gold/15 border-gold/40 text-gold'
+                    ? 'bg-gold/15 border-gold/40 text-gold-text'
                     : 'bg-surface border-border text-text-secondary hover:text-text-primary hover:border-border-strong'
                 }`}
               >
@@ -1474,7 +1474,7 @@ export function SlackChat({
                 title="Ticket cliente"
                 className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-colors ${
                   showTicketPanel
-                    ? 'border-gold/40 bg-gold/10 text-gold'
+                    ? 'border-gold/40 bg-gold/10 text-gold-text'
                     : 'border-border text-text-secondary hover:text-text-primary hover:border-border-strong'
                 }`}
               >
@@ -1486,7 +1486,7 @@ export function SlackChat({
               className="flex -space-x-2 hover:opacity-80 transition-opacity">
               {members.slice(0, 4).map((m, i) => (
                 <div key={m.id} title={m.full_name}
-                  className="w-7 h-7 rounded-full bg-gold/20 border-2 border-surface flex items-center justify-center text-gold text-[10px] font-bold overflow-hidden"
+                  className="w-7 h-7 rounded-full bg-gold/20 border-2 border-surface flex items-center justify-center text-gold-text text-2xs font-bold overflow-hidden"
                   style={{ zIndex: 10 - i }}>
                   {m.avatar_url ? <img src={m.avatar_url} className="w-full h-full object-cover" alt="" /> : getInitials(m.full_name)}
                 </div>
@@ -1497,7 +1497,7 @@ export function SlackChat({
 
             {/* ··· menu */}
             <button onClick={() => { setShowChannelMenu(v => !v); setShowDetailsPanel(false); setShowAdminPanel(false) }}
-              className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-colors ${showChannelMenu ? 'border-gold/40 bg-gold/10 text-gold' : 'border-border text-text-secondary hover:text-text-primary hover:border-border-strong'}`}>
+              className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-colors ${showChannelMenu ? 'border-gold/40 bg-gold/10 text-gold-text' : 'border-border text-text-secondary hover:text-text-primary hover:border-border-strong'}`}>
               <MoreHorizontal className="w-4 h-4" />
             </button>
           </div>
@@ -1592,14 +1592,14 @@ export function SlackChat({
                 ))}
                 <div className="w-px h-4 bg-surface-hover mx-1" />
                 <button onClick={() => fileInputRef.current?.click()} title="Allega file"
-                  className="p-1.5 rounded hover:bg-surface-hover text-text-secondary hover:text-gold transition-colors">
+                  className="p-1.5 rounded hover:bg-surface-hover text-text-secondary hover:text-gold-text transition-colors">
                   <Paperclip className="w-3.5 h-3.5" />
                 </button>
                 <button title="Emoji" className="p-1.5 rounded hover:bg-surface-hover text-text-secondary hover:text-text-primary transition-colors">
                   <Smile className="w-3.5 h-3.5" />
                 </button>
                 {isAdmin && isArchived && (
-                  <span className="ml-2 text-[10px] text-gold flex items-center gap-1"><Shield className="w-3 h-3" />Scrittura admin abilitata</span>
+                  <span className="ml-2 text-2xs text-gold-text flex items-center gap-1"><Shield className="w-3 h-3" />Scrittura admin abilitata</span>
                 )}
               </div>
               {pendingFiles.length > 0 && (
@@ -1617,7 +1617,7 @@ export function SlackChat({
                   style={{ maxHeight: '120px' }} />
                 <button onClick={sendMessage}
                   disabled={(!text.trim() && !pendingFiles.length) || sending || uploading}
-                  className={`p-1.5 rounded-lg transition-colors shrink-0 mb-0.5 ${(!text.trim() && !pendingFiles.length) || sending || uploading ? 'text-text-tertiary' : 'text-gold hover:bg-gold/10'}`}>
+                  className={`p-1.5 rounded-lg transition-colors shrink-0 mb-0.5 ${(!text.trim() && !pendingFiles.length) || sending || uploading ? 'text-text-tertiary' : 'text-gold-text hover:bg-gold/10'}`}>
                   {sending || uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 </button>
               </div>

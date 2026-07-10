@@ -15,10 +15,10 @@ interface Props {
 }
 
 const DEPT_CONFIG: Record<ProjectKind, { label: string; color: string; bg: string; emoji: string }> = {
-  growth:    { label: 'Growth',    color: '#22C55E', bg: '#22C55E18', emoji: '🌱' },
-  marketing: { label: 'Marketing', color: '#F59E0B', bg: '#F59E0B18', emoji: '📣' },
-  digital:   { label: 'Digital',   color: '#3B82F6', bg: '#3B82F618', emoji: '💻' },
-  ai:        { label: 'AI',        color: '#A855F7', bg: '#A855F718', emoji: '🤖' },
+  growth:    { label: 'Growth',    color: 'var(--color-success)', bg: '#22C55E18', emoji: '🌱' },
+  marketing: { label: 'Marketing', color: 'var(--color-warning)', bg: '#F59E0B18', emoji: '📣' },
+  digital:   { label: 'Digital',   color: 'var(--color-info)', bg: '#3B82F618', emoji: '💻' },
+  ai:        { label: 'AI',        color: 'var(--color-accent)', bg: '#A855F718', emoji: '🤖' },
 }
 
 type Tab = 'operativita' | 'toolbox' | 'ai'
@@ -43,12 +43,12 @@ export function DepartmentBoard({ dept, projects, profiles, clients, stats, save
               {cfg.emoji} {cfg.label}
             </span>
           </div>
-          <h1 className="text-2xl font-black text-white">Reparto {cfg.label}</h1>
+          <h1 className="text-2xl font-black text-text-primary">Reparto {cfg.label}</h1>
         </div>
-        <div className="flex bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl overflow-hidden p-1 gap-1">
+        <div className="flex bg-surface border border-border rounded-xl overflow-hidden p-1 gap-1">
           {TABS.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${tab === t.id ? 'text-black' : 'text-[#666] hover:text-white'}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${tab === t.id ? 'text-on-gold' : 'text-text-tertiary hover:text-text-primary'}`}
               style={tab === t.id ? { background: cfg.color } : {}}>
               {t.icon} {t.label}
             </button>

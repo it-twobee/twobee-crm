@@ -14,10 +14,10 @@ function statusFromProgress(progress: number, status: string) {
 }
 
 const STATUS_CONFIG = {
-  on_track:    { label: 'On track',    color: '#22C55E', Icon: TrendingUp   },
-  at_risk:     { label: 'At risk',     color: '#F59E0B', Icon: AlertTriangle },
-  off_track:   { label: 'Off track',   color: '#EF4444', Icon: XCircle      },
-  completato:  { label: 'Completato',  color: '#3B82F6', Icon: TrendingUp   },
+  on_track:    { label: 'On track',    color: 'var(--color-success)', Icon: TrendingUp   },
+  at_risk:     { label: 'At risk',     color: 'var(--color-warning)', Icon: AlertTriangle },
+  off_track:   { label: 'Off track',   color: 'var(--color-error)', Icon: XCircle      },
+  completato:  { label: 'Completato',  color: 'var(--color-info)', Icon: TrendingUp   },
   abbandonato: { label: 'Abbandonato', color: '#555',    Icon: XCircle      },
 } as const
 
@@ -34,24 +34,24 @@ export function StrategicObjectives({ objectives }: Props) {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-border">
-        <Target className="w-4 h-4 text-gold" />
+        <Target className="w-4 h-4 text-gold-text" />
         <span className="text-xs font-black text-text-primary uppercase tracking-widest">OKR Aziendali</span>
-        <span className="ml-auto text-[10px] text-text-tertiary font-mono">{avgProgress}% avg</span>
+        <span className="ml-auto text-2xs text-text-tertiary font-mono">{avgProgress}% avg</span>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {/* Summary pills */}
         <div className="flex gap-2 px-3 pt-3 pb-2">
           {[
-            { label: 'On track',  count: onTrack,  color: '#22C55E' },
-            { label: 'At risk',   count: atRisk,   color: '#F59E0B' },
-            { label: 'Off track', count: offTrack, color: '#EF4444' },
+            { label: 'On track',  count: onTrack,  color: 'var(--color-success)' },
+            { label: 'At risk',   count: atRisk,   color: 'var(--color-warning)' },
+            { label: 'Off track', count: offTrack, color: 'var(--color-error)' },
           ].map(s => (
             <div key={s.label}
-              className="flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[10px] font-bold"
-              style={{ borderColor: s.color + '30', background: s.color + '10', color: s.color }}>
+              className="flex items-center gap-1.5 px-2 py-1 rounded-lg border text-2xs font-bold"
+              style={{ borderColor: `color-mix(in srgb, ${s.color} 19%, transparent)`, background: `color-mix(in srgb, ${s.color} 6%, transparent)`, color: s.color }}>
               <span className="text-base leading-none font-black">{s.count}</span>
-              <span className="text-[9px] font-medium opacity-80">{s.label}</span>
+              <span className="text-2xs font-medium opacity-80">{s.label}</span>
             </div>
           ))}
         </div>
@@ -61,7 +61,7 @@ export function StrategicObjectives({ objectives }: Props) {
           {objectives.length === 0 ? (
             <div className="flex flex-col items-center py-8 gap-2 bg-surface rounded-xl border border-border">
               <Target className="w-6 h-6 text-text-tertiary" />
-              <p className="text-[11px] text-text-tertiary">Nessun obiettivo trovato</p>
+              <p className="text-2xs text-text-tertiary">Nessun obiettivo trovato</p>
             </div>
           ) : objectives.map(obj => {
             const key = statusFromProgress(obj.progress, obj.status)
@@ -71,13 +71,13 @@ export function StrategicObjectives({ objectives }: Props) {
                 className="bg-surface rounded-xl p-3 border border-border">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-[11px] font-bold text-text-primary leading-snug truncate">{obj.title}</p>
+                    <p className="text-2xs font-bold text-text-primary leading-snug truncate">{obj.title}</p>
                     {obj.area && (
-                      <p className="text-[9px] text-text-tertiary mt-0.5">{obj.area} · {obj.quarter}</p>
+                      <p className="text-2xs text-text-tertiary mt-0.5">{obj.area} · {obj.quarter}</p>
                     )}
                   </div>
-                  <span className="flex items-center gap-1 shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded"
-                    style={{ background: cfg.color + '15', color: cfg.color }}>
+                  <span className="flex items-center gap-1 shrink-0 text-2xs font-bold px-1.5 py-0.5 rounded"
+                    style={{ background: `color-mix(in srgb, ${cfg.color} 8%, transparent)`, color: cfg.color }}>
                     <cfg.Icon className="w-2.5 h-2.5" />
                     {cfg.label}
                   </span>
@@ -89,7 +89,7 @@ export function StrategicObjectives({ objectives }: Props) {
                     <div className="h-full rounded-full transition-all"
                       style={{ width: `${Math.min(obj.progress, 100)}%`, background: cfg.color }} />
                   </div>
-                  <span className="text-[10px] font-black shrink-0" style={{ color: cfg.color }}>
+                  <span className="text-2xs font-black shrink-0" style={{ color: cfg.color }}>
                     {obj.progress}%
                   </span>
                 </div>

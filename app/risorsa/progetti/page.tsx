@@ -49,28 +49,28 @@ export default async function RisorsaProgettiPage() {
           {projects.map(p => (
             <div key={p.id} className="bg-surface border border-border rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-2">
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.status === 'attivo' ? '#22C55E' : '#555' }} />
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.status === 'attivo' ? 'var(--color-success)' : '#555' }} />
                 <p className="text-sm font-bold text-text-primary flex-1">{p.name}</p>
-                {p.client && <span className="text-[10px] text-text-secondary">{p.client}</span>}
-                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-surface text-text-secondary capitalize">{p.status}</span>
+                {p.client && <span className="text-2xs text-text-secondary">{p.client}</span>}
+                <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-surface text-text-secondary capitalize">{p.status}</span>
               </div>
               {p.tasks.length === 0 ? (
-                <p className="text-[10px] text-text-tertiary px-1">Nessuna attività aperta</p>
+                <p className="text-2xs text-text-tertiary px-1">Nessuna attività aperta</p>
               ) : (
                 <div className="space-y-1">
                   {p.tasks.slice(0, 5).map(t => (
                     <Link key={t.id} href="/risorsa/attivita" className="flex items-center gap-2 px-1 py-1 rounded hover:bg-overlay/[0.03]">
-                      <span className="w-1 h-1 rounded-full bg-[#3B82F6] shrink-0" />
+                      <span className="w-1 h-1 rounded-full bg-info shrink-0" />
                       <span className="flex-1 text-xs text-text-secondary truncate">{t.title}</span>
-                      {t.due_date && <span className="text-[9px] text-text-tertiary">{new Date(t.due_date).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}</span>}
+                      {t.due_date && <span className="text-2xs text-text-tertiary">{new Date(t.due_date).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}</span>}
                     </Link>
                   ))}
-                  {p.tasks.length > 5 && <p className="text-[9px] text-text-tertiary px-1">+{p.tasks.length - 5} altre</p>}
+                  {p.tasks.length > 5 && <p className="text-2xs text-text-tertiary px-1">+{p.tasks.length - 5} altre</p>}
                 </div>
               )}
               {!isExternal && p.client && (
                 <Link href={`/clienti/${(myTasks as any[]).find(t => t.project?.id === p.id)?.project?.client_id}/progetto/${p.id}`}
-                  className="mt-2 inline-flex items-center gap-1 text-[10px] text-text-secondary hover:text-gold">
+                  className="mt-2 inline-flex items-center gap-1 text-2xs text-text-secondary hover:text-gold-text">
                   Apri progetto completo <ExternalLink className="w-3 h-3" />
                 </Link>
               )}

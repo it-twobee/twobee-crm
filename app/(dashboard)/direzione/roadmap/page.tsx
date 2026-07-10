@@ -8,11 +8,11 @@ import type { RoadmapItem, RoadmapStatus, Objective } from '@/lib/types/database
 export const revalidate = 0
 
 const STATUS_STYLE: Record<RoadmapStatus, { color: string; label: string }> = {
-  pianificato: { color: '#3B82F6', label: 'Pianificato' },
-  in_corso: { color: '#F5C800', label: 'In corso' },
-  completato: { color: '#22C55E', label: 'Completato' },
-  bloccato: { color: '#EF4444', label: 'Bloccato' },
-  rinviato: { color: '#6B7280', label: 'Rinviato' },
+  pianificato: { color: 'var(--color-info)', label: 'Pianificato' },
+  in_corso: { color: 'var(--color-gold-text)', label: 'In corso' },
+  completato: { color: 'var(--color-success)', label: 'Completato' },
+  bloccato: { color: 'var(--color-error)', label: 'Bloccato' },
+  rinviato: { color: 'var(--color-text-tertiary)', label: 'Rinviato' },
 }
 
 function quarterOf(dateStr: string): string {
@@ -61,19 +61,19 @@ export default async function RoadmapPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-text-primary flex items-center gap-2">
-            <MapIcon className="w-5 h-5 text-gold" />
+            <MapIcon className="w-5 h-5 text-gold-text" />
             Roadmap
           </h1>
           <p className="text-overlay/40 text-sm mt-0.5">{items.length} iniziative su {quarters.length} trimestri</p>
         </div>
-        <Link href="/strategia" className="flex items-center gap-1.5 text-xs text-overlay/40 hover:text-gold transition-colors">
+        <Link href="/strategia" className="flex items-center gap-1.5 text-xs text-overlay/40 hover:text-gold-text transition-colors">
           <Target className="w-3.5 h-3.5" /> OKR & Strategia <ArrowUpRight className="w-3 h-3" />
         </Link>
       </div>
 
       {items.length === 0 && (
         <div className="text-center py-20 text-overlay/30 text-sm">
-          Nessuna iniziativa in roadmap. Aggiungile da <Link href="/strategia" className="text-gold/70 hover:text-gold">Strategia & OKR</Link>.
+          Nessuna iniziativa in roadmap. Aggiungile da <Link href="/strategia" className="text-gold-text/70 hover:text-gold-text">Strategia & OKR</Link>.
         </div>
       )}
 
@@ -84,9 +84,9 @@ export default async function RoadmapPage() {
           return (
             <section key={q} className="relative">
               <div className="flex items-center gap-3 mb-3">
-                <h2 className={`text-sm font-bold ${isCurrent ? 'text-gold' : 'text-overlay/60'}`}>{q}</h2>
+                <h2 className={`text-sm font-bold ${isCurrent ? 'text-gold-text' : 'text-overlay/60'}`}>{q}</h2>
                 {isCurrent && (
-                  <span className="text-[10px] font-bold uppercase tracking-wider bg-gold-dim text-gold px-2 py-0.5 rounded-full">
+                  <span className="text-2xs font-bold uppercase tracking-wider bg-gold-dim text-gold-text px-2 py-0.5 rounded-full">
                     In corso
                   </span>
                 )}
@@ -101,28 +101,28 @@ export default async function RoadmapPage() {
                     <div key={item.id} className="bg-surface border border-border rounded-xl p-4 flex flex-col gap-2">
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-text-primary text-sm font-medium leading-snug">{item.title}</p>
-                        <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                          style={{ color: st.color, background: `${st.color}18` }}>
+                        <span className="shrink-0 text-2xs font-semibold px-2 py-0.5 rounded-full"
+                          style={{ color: st.color, background: `color-mix(in srgb, ${st.color} 9%, transparent)` }}>
                           {st.label}
                         </span>
                       </div>
                       {item.description && (
                         <p className="text-overlay/40 text-xs leading-relaxed line-clamp-2">{item.description}</p>
                       )}
-                      <div className="flex items-center gap-2 mt-auto pt-1 text-[11px] text-overlay/30">
+                      <div className="flex items-center gap-2 mt-auto pt-1 text-2xs text-overlay/30">
                         <span className="uppercase tracking-wide">{item.area}</span>
                         {item.due_date && (
                           <span>· {new Date(item.due_date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}</span>
                         )}
-                        <span className={`ml-auto font-semibold ${item.priority === 'critica' ? 'text-red-400' : item.priority === 'alta' ? 'text-gold/70' : ''}`}>
+                        <span className={`ml-auto font-semibold ${item.priority === 'critica' ? 'text-error' : item.priority === 'alta' ? 'text-gold-text/70' : ''}`}>
                           {item.priority}
                         </span>
                       </div>
                       {obj && (
                         <div className="border-t border-border pt-2 flex items-center gap-2">
-                          <Target className="w-3 h-3 text-gold/50 shrink-0" />
-                          <span className="text-[11px] text-overlay/40 truncate flex-1">{obj.title}</span>
-                          <span className="text-[11px] text-gold/70 font-semibold">{obj.progress}%</span>
+                          <Target className="w-3 h-3 text-gold-text/50 shrink-0" />
+                          <span className="text-2xs text-overlay/40 truncate flex-1">{obj.title}</span>
+                          <span className="text-2xs text-gold-text/70 font-semibold">{obj.progress}%</span>
                         </div>
                       )}
                     </div>
@@ -147,12 +147,12 @@ export default async function RoadmapPage() {
                   <div key={item.id} className="bg-surface border border-border rounded-xl p-4">
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-text-primary text-sm font-medium leading-snug">{item.title}</p>
-                      <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                        style={{ color: st.color, background: `${st.color}18` }}>
+                      <span className="shrink-0 text-2xs font-semibold px-2 py-0.5 rounded-full"
+                        style={{ color: st.color, background: `color-mix(in srgb, ${st.color} 9%, transparent)` }}>
                         {st.label}
                       </span>
                     </div>
-                    <p className="text-[11px] text-overlay/30 uppercase tracking-wide mt-2">{item.area}</p>
+                    <p className="text-2xs text-overlay/30 uppercase tracking-wide mt-2">{item.area}</p>
                   </div>
                 )
               })}

@@ -41,6 +41,10 @@
   --color-error-dim: rgba(252,165,165,0.14);
   --color-info: #7DD3FC;
   --color-info-dim: rgba(125,211,252,0.14);
+  --color-accent: #C4A0FF;
+  --color-accent-dim: rgba(196,160,255,0.14);
+  --color-orange: #FDBA74;
+  --color-orange-dim: rgba(253,186,116,0.14);
 
   --overlay-tint: 255,255,255;
   --shadow-color: rgba(0,0,0,0.45);
@@ -74,6 +78,10 @@
   --color-error-dim: rgba(192,38,27,0.09);
   --color-info: #0369A1;
   --color-info-dim: rgba(3,105,161,0.09);
+  --color-accent: #6D28D9;
+  --color-accent-dim: rgba(109,40,217,0.09);
+  --color-orange: #9A3412;
+  --color-orange-dim: rgba(154,52,18,0.09);
 
   --overlay-tint: 11,11,12;
   --shadow-color: rgba(20,20,20,0.10);

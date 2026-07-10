@@ -14,10 +14,10 @@ interface Props {
   currentUserId: string
 }
 
-const ic = 'w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold/50'
+const ic = 'w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/50'
 
 const PRIORITY_COLORS: Record<string, string> = {
-  urgente: 'text-error', alta: 'text-warning', media: 'text-blue-400', bassa: 'text-text-secondary',
+  urgente: 'text-error', alta: 'text-warning', media: 'text-info', bassa: 'text-text-secondary',
 }
 
 const DEFAULT_TEMPLATES = [
@@ -57,11 +57,11 @@ const DEFAULT_TEMPLATES = [
 ]
 
 function WorkloadBar({ count }: { count: number }) {
-  const color = count === 0 ? 'bg-[#2A2A2A]' : count <= 3 ? 'bg-success' : count <= 6 ? 'bg-warning' : 'bg-error'
-  const textColor = count === 0 ? 'text-[#444]' : count <= 3 ? 'text-success' : count <= 6 ? 'text-warning' : 'text-error'
+  const color = count === 0 ? 'bg-surface-active' : count <= 3 ? 'bg-success' : count <= 6 ? 'bg-warning' : 'bg-error'
+  const textColor = count === 0 ? 'text-text-tertiary' : count <= 3 ? 'text-success' : count <= 6 ? 'text-warning' : 'text-error'
   return (
     <div className="flex items-center gap-2 flex-1">
-      <div className="flex-1 h-1.5 bg-[#2A2A2A] rounded-full overflow-hidden">
+      <div className="flex-1 h-1.5 bg-surface-active rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min((count / 10) * 100, 100)}%` }} />
       </div>
       <span className={`text-xs font-bold w-5 text-right ${textColor}`}>{count}</span>
@@ -115,11 +115,11 @@ function TemplateModal({ onClose, onSaved, clients }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-[#161616] border border-[#2A2A2A] rounded-2xl w-full max-w-lg">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A]">
-          <h2 className="text-base font-bold text-white">Template onboarding</h2>
+      <div className="bg-surface border border-border rounded-2xl w-full max-w-lg">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 className="text-base font-bold text-text-primary">Template onboarding</h2>
           <button onClick={onClose}><X className="w-5 h-5 text-text-secondary" /></button>
         </div>
         <div className="p-6 space-y-4">
@@ -129,10 +129,10 @@ function TemplateModal({ onClose, onSaved, clients }: {
               <div className="space-y-2">
                 {DEFAULT_TEMPLATES.map(t => (
                   <button key={t.name} onClick={() => setSelectedTemplate(t)}
-                    className={`w-full text-left px-4 py-3 rounded-xl border transition-colors ${selectedTemplate?.name === t.name ? 'border-gold/40 bg-gold/5' : 'border-[#2A2A2A] hover:border-[#3A3A3A]'}`}>
+                    className={`w-full text-left px-4 py-3 rounded-xl border transition-colors ${selectedTemplate?.name === t.name ? 'border-gold/40 bg-gold/5' : 'border-border hover:border-border'}`}>
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-white">{t.name}</p>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${t.service_type === 'growth' ? 'text-gold bg-gold/10' : t.service_type === 'digital' ? 'text-blue-400 bg-blue-400/10' : 'text-success bg-success/10'}`}>
+                      <p className="text-sm font-semibold text-text-primary">{t.name}</p>
+                      <span className={`text-2xs font-bold px-2 py-0.5 rounded-full ${t.service_type === 'growth' ? 'text-gold-text bg-gold/10' : t.service_type === 'digital' ? 'text-info bg-info/10' : 'text-success bg-success/10'}`}>
                         {t.service_type}
                       </span>
                     </div>
@@ -141,7 +141,7 @@ function TemplateModal({ onClose, onSaved, clients }: {
                 ))}
               </div>
               <button onClick={() => selectedTemplate && setStep('apply')} disabled={!selectedTemplate}
-                className="w-full py-2.5 bg-gold text-black font-bold rounded-lg disabled:opacity-50">
+                className="w-full py-2.5 bg-gold text-on-gold font-bold rounded-lg disabled:opacity-50">
                 Continua →
               </button>
             </>
@@ -149,7 +149,7 @@ function TemplateModal({ onClose, onSaved, clients }: {
           {step === 'apply' && selectedTemplate && (
             <>
               <div className="bg-gold/5 border border-gold/20 rounded-lg p-3 mb-2">
-                <p className="text-xs font-bold text-gold">{selectedTemplate.name}</p>
+                <p className="text-xs font-bold text-gold-text">{selectedTemplate.name}</p>
                 <p className="text-xs text-text-secondary">{selectedTemplate.tasks.length} task da creare</p>
               </div>
               <div>
@@ -166,14 +166,14 @@ function TemplateModal({ onClose, onSaved, clients }: {
                   <div key={i} className="flex items-center gap-2 text-xs text-text-secondary py-1">
                     <div className="w-1.5 h-1.5 rounded-full bg-gold flex-shrink-0" />
                     <span className="flex-1">{t.title}</span>
-                    <span className="text-[10px] text-[#444]">+{t.days_offset}gg</span>
+                    <span className="text-2xs text-text-tertiary">+{t.days_offset}gg</span>
                   </div>
                 ))}
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setStep('template')} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-text-secondary">← Indietro</button>
+                <button onClick={() => setStep('template')} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary">← Indietro</button>
                 <button onClick={applyTemplate} disabled={loading || !selectedClient}
-                  className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
+                  className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
                   {loading && <Loader2 className="w-4 h-4 animate-spin" />} Crea task
                 </button>
               </div>
@@ -217,11 +217,11 @@ export function OperativaClient({ profiles, tasks, clients, templates, currentUs
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-black text-white">Area Operativa</h1>
+          <h1 className="text-2xl font-black text-text-primary">Area Operativa</h1>
           <p className="text-text-secondary text-sm mt-0.5">Workload team, task e processi interni</p>
         </div>
         <button onClick={() => setShowTemplateModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-gold text-black text-sm font-bold rounded-lg hover:bg-yellow-400">
+          className="flex items-center gap-2 px-4 py-2 bg-gold text-on-gold text-sm font-bold rounded-lg hover:bg-gold/90">
           <LayoutTemplate className="w-4 h-4" /> Applica template
         </button>
       </div>
@@ -229,12 +229,12 @@ export function OperativaClient({ profiles, tasks, clients, templates, currentUs
       {/* KPI veloci */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { l: 'Task attive', v: tasks.length, c: 'text-white' },
+          { l: 'Task attive', v: tasks.length, c: 'text-text-primary' },
           { l: 'Scadute', v: overdue.length, c: overdue.length > 0 ? 'text-error' : 'text-success' },
-          { l: 'Scadono oggi', v: dueToday.length, c: dueToday.length > 0 ? 'text-warning' : 'text-white' },
+          { l: 'Scadono oggi', v: dueToday.length, c: dueToday.length > 0 ? 'text-warning' : 'text-text-primary' },
           { l: 'Non assegnate', v: unassigned.length, c: unassigned.length > 0 ? 'text-warning' : 'text-success' },
         ].map(k => (
-          <div key={k.l} className="bg-surface border border-[#2A2A2A] rounded-xl p-4">
+          <div key={k.l} className="bg-surface border border-border rounded-xl p-4">
             <p className="text-xs text-text-secondary mb-1">{k.l}</p>
             <p className={`text-2xl font-black ${k.c}`}>{k.v}</p>
           </div>
@@ -242,10 +242,10 @@ export function OperativaClient({ profiles, tasks, clients, templates, currentUs
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-[#2A2A2A]">
+      <div className="flex border-b border-border">
         {TABS.map((t, i) => (
           <button key={t} onClick={() => setActiveTab(i)}
-            className={`px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${activeTab === i ? 'text-gold border-gold' : 'text-text-secondary border-transparent hover:text-white'}`}>
+            className={`px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${activeTab === i ? 'text-gold-text border-gold' : 'text-text-secondary border-transparent hover:text-text-primary'}`}>
             {t}
           </button>
         ))}
@@ -254,22 +254,22 @@ export function OperativaClient({ profiles, tasks, clients, templates, currentUs
       {/* Tab 0: Workload */}
       {activeTab === 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
-            <p className="text-sm font-bold text-white mb-4">Carico per membro team</p>
+          <div className="bg-surface border border-border rounded-xl p-5">
+            <p className="text-sm font-bold text-text-primary mb-4">Carico per membro team</p>
             <div className="space-y-3">
               {profiles.filter(p => !['client', 'viewer'].includes(p.app_role ?? '')).map(p => {
                 const count = workload[p.id] ?? 0
                 return (
                   <div key={p.id} className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-[10px] font-bold text-gold flex-shrink-0">
+                    <div className="w-7 h-7 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-2xs font-bold text-gold-text flex-shrink-0">
                       {(p.full_name || p.email)[0].toUpperCase()}
                     </div>
                     <div className="w-24 min-w-0">
-                      <p className="text-xs font-semibold text-white truncate">{p.full_name.split(' ')[0]}</p>
-                      <p className="text-[10px] text-text-secondary capitalize">{p.app_role}</p>
+                      <p className="text-xs font-semibold text-text-primary truncate">{p.full_name.split(' ')[0]}</p>
+                      <p className="text-2xs text-text-secondary capitalize">{p.app_role}</p>
                     </div>
                     <WorkloadBar count={count} />
-                    <span className={`text-[10px] font-bold w-16 text-right flex-shrink-0 ${count > 6 ? 'text-error' : count > 3 ? 'text-warning' : 'text-text-secondary'}`}>
+                    <span className={`text-2xs font-bold w-16 text-right flex-shrink-0 ${count > 6 ? 'text-error' : count > 3 ? 'text-warning' : 'text-text-secondary'}`}>
                       {count === 0 ? 'libero' : count > 6 ? 'sovraccarico' : count > 3 ? 'occupato' : 'ok'}
                     </span>
                   </div>
@@ -277,32 +277,32 @@ export function OperativaClient({ profiles, tasks, clients, templates, currentUs
               })}
             </div>
           </div>
-          <div className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
-            <p className="text-sm font-bold text-white mb-4">Stato task</p>
+          <div className="bg-surface border border-border rounded-xl p-5">
+            <p className="text-sm font-bold text-text-primary mb-4">Stato task</p>
             <div className="space-y-3">
               {[
-                { l: 'Da fare', v: tasksByStatus.da_fare, c: 'bg-[#2A2A2A]' },
+                { l: 'Da fare', v: tasksByStatus.da_fare, c: 'bg-surface-active' },
                 { l: 'In corso', v: tasksByStatus.in_corso, c: 'bg-gold' },
-                { l: 'In revisione', v: tasksByStatus.in_revisione, c: 'bg-blue-400' },
+                { l: 'In revisione', v: tasksByStatus.in_revisione, c: 'bg-info' },
                 { l: 'Scadute', v: overdue.length, c: 'bg-error' },
               ].map(s => (
                 <div key={s.l} className="flex items-center gap-3">
                   <span className="text-xs text-text-secondary w-24">{s.l}</span>
-                  <div className="flex-1 h-2 bg-[#1A1A1A] rounded-full overflow-hidden">
+                  <div className="flex-1 h-2 bg-surface rounded-full overflow-hidden">
                     <div className={`h-full rounded-full ${s.c}`} style={{ width: `${Math.min((s.v / Math.max(tasks.length, 1)) * 100, 100)}%` }} />
                   </div>
-                  <span className="text-xs font-bold text-white w-6 text-right">{s.v}</span>
+                  <span className="text-xs font-bold text-text-primary w-6 text-right">{s.v}</span>
                 </div>
               ))}
             </div>
             {overdue.length > 0 && (
-              <div className="mt-4 pt-3 border-t border-[#2A2A2A]">
+              <div className="mt-4 pt-3 border-t border-border">
                 <p className="text-xs font-bold text-error mb-2">Task scadute</p>
                 <div className="space-y-1">
                   {overdue.slice(0, 4).map(t => (
                     <div key={t.id} className="flex items-center gap-2 text-xs">
                       <AlertTriangle className="w-3 h-3 text-error flex-shrink-0" />
-                      <span className="text-white truncate flex-1">{t.title}</span>
+                      <span className="text-text-primary truncate flex-1">{t.title}</span>
                       <span className="text-error flex-shrink-0">{t.due_date ? new Date(t.due_date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) : ''}</span>
                     </div>
                   ))}
@@ -315,23 +315,23 @@ export function OperativaClient({ profiles, tasks, clients, templates, currentUs
 
       {/* Tab 1: Task overview */}
       {activeTab === 1 && (
-        <div className="bg-surface border border-[#2A2A2A] rounded-xl overflow-hidden">
+        <div className="bg-surface border border-border rounded-xl overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-[#2A2A2A] bg-[#111]">
+              <tr className="border-b border-border bg-background">
                 {['Task', 'Priorità', 'Status', 'Assegnato a', 'Scadenza'].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#2A2A2A]">
+            <tbody className="divide-y divide-border">
               {tasks.slice(0, 50).map(t => {
                 const assigneeId = t.assigned_to ?? t.assignee_id
                 const assignee = profiles.find(p => p.id === assigneeId)
                 const isOverdue = t.due_date && t.due_date < today
                 return (
-                  <tr key={t.id} className="hover:bg-white/3">
-                    <td className="px-4 py-3 text-sm text-white max-w-xs truncate">{t.title}</td>
+                  <tr key={t.id} className="hover:bg-surface">
+                    <td className="px-4 py-3 text-sm text-text-primary max-w-xs truncate">{t.title}</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-bold capitalize ${PRIORITY_COLORS[t.priority] ?? 'text-text-secondary'}`}>{t.priority}</span>
                     </td>
@@ -340,7 +340,7 @@ export function OperativaClient({ profiles, tasks, clients, templates, currentUs
                     </td>
                     <td className="px-4 py-3">
                       {assignee
-                        ? <span className="text-xs text-white">{assignee.full_name.split(' ')[0]}</span>
+                        ? <span className="text-xs text-text-primary">{assignee.full_name.split(' ')[0]}</span>
                         : <span className="text-xs text-warning">⚠ Non assegnata</span>}
                     </td>
                     <td className="px-4 py-3">
@@ -361,11 +361,11 @@ export function OperativaClient({ profiles, tasks, clients, templates, currentUs
       {activeTab === 2 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {DEFAULT_TEMPLATES.map(t => (
-            <div key={t.name} className="bg-surface border border-[#2A2A2A] rounded-xl p-5">
+            <div key={t.name} className="bg-surface border border-border rounded-xl p-5">
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <p className="text-sm font-bold text-white">{t.name}</p>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block ${t.service_type === 'growth' ? 'text-gold bg-gold/10' : t.service_type === 'digital' ? 'text-blue-400 bg-blue-400/10' : 'text-success bg-success/10'}`}>
+                  <p className="text-sm font-bold text-text-primary">{t.name}</p>
+                  <span className={`text-2xs font-bold px-2 py-0.5 rounded-full mt-1 inline-block ${t.service_type === 'growth' ? 'text-gold-text bg-gold/10' : t.service_type === 'digital' ? 'text-info bg-info/10' : 'text-success bg-success/10'}`}>
                     {t.service_type}
                   </span>
                 </div>
@@ -376,12 +376,12 @@ export function OperativaClient({ profiles, tasks, clients, templates, currentUs
                   <div key={i} className="flex items-center gap-2 text-xs text-text-secondary">
                     <div className="w-1 h-1 rounded-full bg-gold flex-shrink-0" />
                     <span className="flex-1 truncate">{task.title}</span>
-                    <span className="text-[10px] text-[#444] flex-shrink-0">+{task.days_offset}gg</span>
+                    <span className="text-2xs text-text-tertiary flex-shrink-0">+{task.days_offset}gg</span>
                   </div>
                 ))}
               </div>
               <button onClick={() => setShowTemplateModal(true)}
-                className="w-full py-2 text-xs font-bold text-black bg-gold rounded-lg hover:bg-yellow-400">
+                className="w-full py-2 text-xs font-bold text-on-gold bg-gold rounded-lg hover:bg-gold/90">
                 Applica a cliente
               </button>
             </div>

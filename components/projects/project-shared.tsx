@@ -30,22 +30,22 @@ export function Section({ title, icon, count, accent, defaultOpen = true, childr
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="border border-[#1A1A1A] rounded-2xl overflow-hidden mb-3">
-      <div className="flex items-center gap-2.5 px-4 py-3 bg-[#0C0C0C] hover:bg-[#0F0F0F] transition-colors">
+    <div className="border border-border rounded-2xl overflow-hidden mb-3">
+      <div className="flex items-center gap-2.5 px-4 py-3 bg-background hover:bg-surface transition-colors">
         <button onClick={() => setOpen(o => !o)} className="flex items-center gap-2.5 flex-1 min-w-0 text-left">
           <span style={{ color: accent }} className="shrink-0">{icon}</span>
-          <span className="text-xs font-bold text-[#888] uppercase tracking-wider flex-1 min-w-0 truncate">{title}</span>
+          <span className="text-xs font-bold text-text-secondary uppercase tracking-wider flex-1 min-w-0 truncate">{title}</span>
           {count !== undefined && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full mr-1 shrink-0"
-              style={{ background: `${accent}15`, color: accent }}>{count}</span>
+            <span className="text-2xs font-bold px-2 py-0.5 rounded-full mr-1 shrink-0"
+              style={{ background: `color-mix(in srgb, ${accent} 8%, transparent)`, color: accent }}>{count}</span>
           )}
         </button>
         {right && <div className="shrink-0">{right}</div>}
-        <button onClick={() => setOpen(o => !o)} className="shrink-0 text-[#333] hover:text-[#555] transition-colors">
+        <button onClick={() => setOpen(o => !o)} className="shrink-0 text-text-tertiary hover:text-text-tertiary transition-colors">
           {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
         </button>
       </div>
-      {open && <div className="bg-[#080808]">{children}</div>}
+      {open && <div className="bg-background">{children}</div>}
     </div>
   )
 }

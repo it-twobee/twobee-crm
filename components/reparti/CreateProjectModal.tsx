@@ -40,7 +40,7 @@ export function CreateProjectModal({ dept, clients, onClose, onCreated }: Props)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const inp = 'w-full bg-[#111] border border-[#2A2A2A] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C800] transition-colors'
+  const inp = 'w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold transition-colors'
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -70,18 +70,18 @@ export function CreateProjectModal({ dept, clients, onClose, onCreated }: Props)
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[#111] border border-[#2A2A2A] rounded-2xl w-full max-w-md shadow-2xl">
-        <div className="flex items-center justify-between p-5 border-b border-[#1A1A1A]">
-          <h2 className="text-base font-black text-white">Nuovo Progetto</h2>
-          <button onClick={onClose} className="text-[#444] hover:text-white transition-colors">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-background border border-border rounded-2xl w-full max-w-md shadow-2xl">
+        <div className="flex items-center justify-between p-5 border-b border-border">
+          <h2 className="text-base font-black text-text-primary">Nuovo Progetto</h2>
+          <button onClick={onClose} className="text-text-tertiary hover:text-text-primary transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={submit} className="p-5 space-y-4">
           <div>
-            <label className="block text-xs text-[#666] mb-1.5">Nome progetto *</label>
+            <label className="block text-xs text-text-tertiary mb-1.5">Nome progetto *</label>
             <input
               value={form.name}
               onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
@@ -92,7 +92,7 @@ export function CreateProjectModal({ dept, clients, onClose, onCreated }: Props)
           </div>
 
           <div>
-            <label className="block text-xs text-[#666] mb-1.5">Cliente</label>
+            <label className="block text-xs text-text-tertiary mb-1.5">Cliente</label>
             <select
               value={form.client_id}
               onChange={e => setForm(p => ({ ...p, client_id: e.target.value }))}
@@ -105,7 +105,7 @@ export function CreateProjectModal({ dept, clients, onClose, onCreated }: Props)
           </div>
 
           <div>
-            <label className="block text-xs text-[#666] mb-1.5">Tipo progetto</label>
+            <label className="block text-xs text-text-tertiary mb-1.5">Tipo progetto</label>
             <select
               value={form.project_type}
               onChange={e => setForm(p => ({ ...p, project_type: e.target.value }))}
@@ -117,7 +117,7 @@ export function CreateProjectModal({ dept, clients, onClose, onCreated }: Props)
           </div>
 
           <div>
-            <label className="block text-xs text-[#666] mb-1.5">Descrizione</label>
+            <label className="block text-xs text-text-tertiary mb-1.5">Descrizione</label>
             <textarea
               value={form.description}
               onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
@@ -127,15 +127,15 @@ export function CreateProjectModal({ dept, clients, onClose, onCreated }: Props)
             />
           </div>
 
-          {error && <p className="text-xs text-red-400">{error}</p>}
+          {error && <p className="text-xs text-error">{error}</p>}
 
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose}
-              className="flex-1 py-2.5 border border-[#2A2A2A] rounded-lg text-sm text-[#666] hover:text-white transition-colors">
+              className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-tertiary hover:text-text-primary transition-colors">
               Annulla
             </button>
             <button type="submit" disabled={loading || !form.name.trim()}
-              className="flex-1 py-2.5 bg-[#F5C800] text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
+              className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg text-sm hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}
               Crea Progetto
             </button>

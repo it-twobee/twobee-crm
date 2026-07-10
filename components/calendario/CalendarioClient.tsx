@@ -39,17 +39,17 @@ function getViewRange(vm: ViewMode, date: Date, rs: string, re: string): { from:
   return { from: startOfMonth(date), to: endOfMonth(date) }
 }
 
-const EVENT_STYLE = 'bg-blue-500/15 text-blue-400 border-blue-500/25'
-const MEETING_STYLE = 'bg-purple-500/15 text-purple-400 border-purple-500/25'
+const EVENT_STYLE = 'bg-info/15 text-info border-info/25'
+const MEETING_STYLE = 'bg-accent/15 text-accent border-accent/25'
 
 function taskStyle(due: string): string {
   const d = new Date(due); d.setHours(0, 0, 0, 0)
   const now = new Date(); now.setHours(0, 0, 0, 0)
   const diff = Math.ceil((d.getTime() - now.getTime()) / 86400000)
-  if (diff < 0) return 'bg-red-500/15 text-red-400 border-red-500/25 ring-1 ring-red-500/30'
-  if (diff <= 3) return 'bg-orange-500/15 text-orange-400 border-orange-500/25'
-  if (diff <= 7) return 'bg-amber-500/15 text-amber-400 border-amber-500/25'
-  return 'bg-gold/10 text-gold border-gold/20'
+  if (diff < 0) return 'bg-error/15 text-error border-error/25 ring-1 ring-error/30'
+  if (diff <= 3) return 'bg-orange/15 text-orange border-orange/25'
+  if (diff <= 7) return 'bg-warning/15 text-warning border-warning/25'
+  return 'bg-gold/10 text-gold-text border-gold/20'
 }
 
 export function CalendarioClient({
@@ -191,7 +191,7 @@ export function CalendarioClient({
                   className="bg-overlay/[0.03] border border-overlay/[0.08] rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-gold/40" />
               </div>
             )}
-            {loadingEvents && <Loader2 className="w-4 h-4 text-gold animate-spin" />}
+            {loadingEvents && <Loader2 className="w-4 h-4 text-gold-text animate-spin" />}
           </div>
           <div className="flex items-center gap-2">
             {/* Search */}
@@ -211,7 +211,7 @@ export function CalendarioClient({
             <div className="flex bg-overlay/[0.03] border border-overlay/[0.06] rounded-lg p-0.5">
               {(['giorno', 'settimana', 'mese', 'anno', 'personalizzato'] as ViewMode[]).map(v => (
                 <button key={v} onClick={() => setViewMode(v)}
-                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${viewMode === v ? 'bg-gold text-black font-bold' : 'text-overlay/40 hover:text-text-primary'}`}>
+                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${viewMode === v ? 'bg-gold text-on-gold font-bold' : 'text-overlay/40 hover:text-text-primary'}`}>
                   {v === 'giorno' ? 'Giorno' : v === 'settimana' ? 'Sett.' : v === 'mese' ? 'Mese' : v === 'anno' ? 'Anno' : 'Periodo'}
                 </button>
               ))}
@@ -220,7 +220,7 @@ export function CalendarioClient({
             {/* Task toggle */}
             <button onClick={() => setShowTasks(!showTasks)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                showTasks ? 'bg-gold/10 text-gold' : 'text-overlay/30 hover:text-text-primary'
+                showTasks ? 'bg-gold/10 text-gold-text' : 'text-overlay/30 hover:text-text-primary'
               }`}>
               <CheckSquare className="w-3.5 h-3.5" /> Task
             </button>
@@ -229,7 +229,7 @@ export function CalendarioClient({
             <div className="relative">
               <button onClick={() => setShowFilter(!showFilter)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                  filterUser ? 'bg-gold/10 text-gold' : 'text-overlay/30 hover:text-text-primary'
+                  filterUser ? 'bg-gold/10 text-gold-text' : 'text-overlay/30 hover:text-text-primary'
                 }`}>
                 <Filter className="w-3.5 h-3.5" />
                 {filterUser ? profiles.find(p => p.id === filterUser)?.full_name?.split(' ')[0] ?? 'Filtro' : 'Colleghi'}
@@ -237,13 +237,13 @@ export function CalendarioClient({
               {showFilter && (
                 <div className="absolute right-0 top-full mt-1 glass rounded-xl p-2 w-52 z-20 shadow-xl">
                   <button onClick={() => { setFilterUser(null); setShowFilter(false) }}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-xs ${!filterUser ? 'bg-gold/10 text-gold' : 'text-overlay/40 hover:text-text-primary hover:bg-overlay/[0.04]'}`}>
+                    className={`w-full text-left px-3 py-2 rounded-lg text-xs ${!filterUser ? 'bg-gold/10 text-gold-text' : 'text-overlay/40 hover:text-text-primary hover:bg-overlay/[0.04]'}`}>
                     Tutti
                   </button>
                   {profiles.map(p => (
                     <button key={p.id} onClick={() => { setFilterUser(p.id); setShowFilter(false) }}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center gap-2 ${filterUser === p.id ? 'bg-gold/10 text-gold' : 'text-overlay/40 hover:text-text-primary hover:bg-overlay/[0.04]'}`}>
-                      <div className="w-5 h-5 rounded-full bg-gold/20 flex items-center justify-center text-[9px] font-bold text-gold shrink-0">
+                      className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center gap-2 ${filterUser === p.id ? 'bg-gold/10 text-gold-text' : 'text-overlay/40 hover:text-text-primary hover:bg-overlay/[0.04]'}`}>
+                      <div className="w-5 h-5 rounded-full bg-gold/20 flex items-center justify-center text-2xs font-bold text-gold-text shrink-0">
                         {(p.full_name ?? '?')[0]}
                       </div>
                       <span className="truncate">{p.full_name}</span>
@@ -256,10 +256,10 @@ export function CalendarioClient({
             {/* Google Connect / New event */}
             {!isGoogleConnected ? (
               <a href="/api/google/auth" className="flex items-center gap-2 px-3 py-1.5 glass rounded-lg text-xs text-text-primary hover:border-gold/40 transition-colors">
-                <Link2 className="w-3.5 h-3.5 text-gold" /> Connetti Google
+                <Link2 className="w-3.5 h-3.5 text-gold-text" /> Connetti Google
               </a>
             ) : (
-              <button onClick={() => setShowNewEvent(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-gold text-black rounded-lg text-xs font-bold hover:bg-gold/90 transition-colors">
+              <button onClick={() => setShowNewEvent(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-gold text-on-gold rounded-lg text-xs font-bold hover:bg-gold/90 transition-colors">
                 <Plus className="w-3.5 h-3.5" /> Evento
               </button>
             )}
@@ -267,12 +267,12 @@ export function CalendarioClient({
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-4 mb-3 text-[10px]">
+        <div className="flex items-center gap-4 mb-3 text-2xs">
           <span className="flex items-center gap-1.5 text-overlay/30">
-            <span className="w-2.5 h-2.5 rounded-sm bg-blue-500/40" /> Eventi
+            <span className="w-2.5 h-2.5 rounded-sm bg-info/40" /> Eventi
           </span>
           <span className="flex items-center gap-1.5 text-overlay/30">
-            <span className="w-2.5 h-2.5 rounded-sm bg-purple-500/40" /> Riunioni
+            <span className="w-2.5 h-2.5 rounded-sm bg-accent/40" /> Riunioni
           </span>
           {showTasks && (
             <span className="flex items-center gap-1.5 text-overlay/30">
@@ -341,7 +341,7 @@ export function CalendarioClient({
 
           <div className="space-y-2 flex-1 overflow-y-auto">
             {selectedDayEvents.length > 0 && (
-              <p className="text-[9px] font-bold text-blue-400/60 uppercase tracking-wider">Eventi</p>
+              <p className="text-2xs font-bold text-info/60 uppercase tracking-wider">Eventi</p>
             )}
             {selectedDayEvents.map(e => (
               <div key={e.id} className={`p-3 rounded-xl border ${EVENT_STYLE}`}>
@@ -354,7 +354,7 @@ export function CalendarioClient({
             ))}
 
             {selectedDayMeetings.length > 0 && (
-              <p className="text-[9px] font-bold text-purple-400/60 uppercase tracking-wider mt-2">Riunioni</p>
+              <p className="text-2xs font-bold text-accent/60 uppercase tracking-wider mt-2">Riunioni</p>
             )}
             {selectedDayMeetings.map(m => (
               <div key={m.id} className={`p-3 rounded-xl border ${MEETING_STYLE}`}>
@@ -364,7 +364,7 @@ export function CalendarioClient({
             ))}
 
             {selectedDayTasks.length > 0 && (
-              <p className="text-[9px] font-bold text-gold/60 uppercase tracking-wider mt-2">Task</p>
+              <p className="text-2xs font-bold text-gold-text/60 uppercase tracking-wider mt-2">Task</p>
             )}
             {selectedDayTasks.map(t => (
               <div key={t.id} className={`p-3 rounded-xl border ${taskStyle(t.due_date!)}`}>
@@ -374,14 +374,14 @@ export function CalendarioClient({
                 </div>
                 <div className="flex items-center gap-2 mt-1.5">
                   {t.assignee && (
-                    <span className="text-[10px] opacity-70 flex items-center gap-1">
-                      <span className="w-4 h-4 rounded-full bg-gold/20 flex items-center justify-center text-[8px] font-bold text-gold">
+                    <span className="text-2xs opacity-70 flex items-center gap-1">
+                      <span className="w-4 h-4 rounded-full bg-gold/20 flex items-center justify-center text-[8px] font-bold text-gold-text">
                         {(t.assignee.full_name ?? '?')[0]}
                       </span>
                       {t.assignee.full_name}
                     </span>
                   )}
-                  {t.project && <span className="text-[10px] opacity-60">{t.project.clients?.company_name ?? t.project.name}</span>}
+                  {t.project && <span className="text-2xs opacity-60">{t.project.clients?.company_name ?? t.project.name}</span>}
                 </div>
               </div>
             ))}
@@ -393,7 +393,7 @@ export function CalendarioClient({
           {isGoogleConnected && (
             <button onClick={() => { setNewEvent({ ...newEvent, date: format(selectedDay, 'yyyy-MM-dd') }); setShowNewEvent(true) }}
               className="flex items-center gap-2 justify-center px-3 py-2 glass rounded-xl text-sm text-text-primary hover:border-gold/40 transition-colors">
-              <Plus className="w-4 h-4 text-gold" /> Aggiungi evento
+              <Plus className="w-4 h-4 text-gold-text" /> Aggiungi evento
             </button>
           )}
         </div>
@@ -401,7 +401,7 @@ export function CalendarioClient({
 
       {/* New event modal */}
       {showNewEvent && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center">
           <div className="glass-strong rounded-2xl p-6 w-[420px] space-y-4">
             <h3 className="text-lg font-bold text-text-primary font-heading">Nuovo evento</h3>
             <input value={newEvent.title} onChange={e => setNewEvent({ ...newEvent, title: e.target.value })} placeholder="Titolo evento"
@@ -419,7 +419,7 @@ export function CalendarioClient({
             <div className="flex gap-3">
               <button onClick={() => setShowNewEvent(false)} className="flex-1 py-2 border border-overlay/[0.08] rounded-xl text-sm text-overlay/40 hover:text-text-primary transition-colors">Annulla</button>
               <button onClick={saveEvent} disabled={saving || !newEvent.title || !newEvent.date}
-                className="flex-1 py-2 bg-gold text-black rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-gold/90 transition-colors">
+                className="flex-1 py-2 bg-gold text-on-gold rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-gold/90 transition-colors">
                 {saving ? 'Salvataggio...' : 'Crea evento'}
               </button>
             </div>
@@ -463,21 +463,21 @@ function MonthView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, sel
               !isSameMonth(day, currentDate) ? 'opacity-40' : ''
             } ${isSelected ? 'ring-1 ring-inset ring-gold/50 bg-gold/[0.03]' : 'hover:bg-overlay/[0.02]'}`}>
             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium mb-1 ${
-              isToday(day) ? 'bg-gold text-black' : 'text-text-primary'
+              isToday(day) ? 'bg-gold text-on-gold' : 'text-text-primary'
             }`}>{format(day, 'd')}</div>
             <div className="space-y-0.5">
               {events.slice(0, 2).map(e => (
-                <div key={e.id} className={`text-[10px] px-1.5 py-0.5 rounded truncate border ${EVENT_STYLE}`}>{e.summary}</div>
+                <div key={e.id} className={`text-2xs px-1.5 py-0.5 rounded truncate border ${EVENT_STYLE}`}>{e.summary}</div>
               ))}
               {meetings.slice(0, Math.max(0, 2 - events.length)).map(m => (
-                <div key={m.id} className={`text-[10px] px-1.5 py-0.5 rounded truncate border ${MEETING_STYLE}`}>{m.title}</div>
+                <div key={m.id} className={`text-2xs px-1.5 py-0.5 rounded truncate border ${MEETING_STYLE}`}>{m.title}</div>
               ))}
               {dayTasks.slice(0, Math.max(0, 3 - events.length - meetings.length)).map(t => (
-                <div key={t.id} className={`text-[10px] px-1.5 py-0.5 rounded truncate border ${taskStyle(t.due_date!)}`}>
+                <div key={t.id} className={`text-2xs px-1.5 py-0.5 rounded truncate border ${taskStyle(t.due_date!)}`}>
                   {t.title}
                 </div>
               ))}
-              {total > 3 && <div className="text-[10px] text-overlay/20 px-1">+{total - 3} altri</div>}
+              {total > 3 && <div className="text-2xs text-overlay/20 px-1">+{total - 3} altri</div>}
             </div>
           </div>
         )
@@ -562,14 +562,14 @@ function WeekView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, sele
               isSelected ? 'ring-1 ring-inset ring-gold/50 bg-gold/[0.03]' : 'hover:bg-overlay/[0.02]'
             }`}>
             <div className="text-center mb-3">
-              <p className="text-[10px] text-overlay/30 uppercase">{format(day, 'EEE', { locale: it })}</p>
+              <p className="text-2xs text-overlay/30 uppercase">{format(day, 'EEE', { locale: it })}</p>
               <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold mx-auto mt-1 ${
-                isToday(day) ? 'bg-gold text-black' : 'text-text-primary'
+                isToday(day) ? 'bg-gold text-on-gold' : 'text-text-primary'
               }`}>{format(day, 'd')}</div>
             </div>
             <div className="space-y-1.5 flex-1 overflow-y-auto">
               {events.map(e => (
-                <div key={e.id} className={`text-[10px] px-2 py-1.5 rounded-lg border ${EVENT_STYLE}`}>
+                <div key={e.id} className={`text-2xs px-2 py-1.5 rounded-lg border ${EVENT_STYLE}`}>
                   <p className="font-medium truncate">{e.summary}</p>
                   {e.start.dateTime && (
                     <p className="opacity-60 mt-0.5">{format(new Date(e.start.dateTime), 'HH:mm')}</p>
@@ -577,13 +577,13 @@ function WeekView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, sele
                 </div>
               ))}
               {meetings.map(m => (
-                <div key={m.id} className={`text-[10px] px-2 py-1.5 rounded-lg border ${MEETING_STYLE}`}>
+                <div key={m.id} className={`text-2xs px-2 py-1.5 rounded-lg border ${MEETING_STYLE}`}>
                   <p className="font-medium truncate">{m.title}</p>
                   {m.duration_minutes && <p className="opacity-60 mt-0.5">{m.duration_minutes}min</p>}
                 </div>
               ))}
               {dayTasks.map(t => (
-                <div key={t.id} className={`text-[10px] px-2 py-1.5 rounded-lg border ${taskStyle(t.due_date!)}`}>
+                <div key={t.id} className={`text-2xs px-2 py-1.5 rounded-lg border ${taskStyle(t.due_date!)}`}>
                   <div className="flex items-center gap-1">
                     <CheckSquare className="w-2.5 h-2.5 shrink-0 opacity-50" />
                     <p className="font-medium truncate">{t.title}</p>
@@ -634,15 +634,15 @@ function YearView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, sele
                   const isSel   = selectedDay && isSameDay(day, selectedDay)
                   return (
                     <button key={i} onClick={() => inMonth && onSelectDay(day)}
-                      className={`relative text-[10px] text-center w-5 h-5 rounded-full flex items-center justify-center mx-auto transition-colors ${
+                      className={`relative text-2xs text-center w-5 h-5 rounded-full flex items-center justify-center mx-auto transition-colors ${
                         !inMonth ? 'invisible' :
-                        isSel ? 'bg-gold text-black font-bold' :
-                        isToday(day) ? 'text-gold font-bold' :
+                        isSel ? 'bg-gold text-on-gold font-bold' :
+                        isToday(day) ? 'text-gold-text font-bold' :
                         'text-overlay/50 hover:text-text-primary hover:bg-overlay/[0.06]'
                       }`}>
                       {inMonth ? format(day, 'd') : ''}
                       {total > 0 && inMonth && !isSel && (
-                        <span className="absolute bottom-0 right-0 w-1 h-1 rounded-full bg-blue-400 translate-x-px -translate-y-px" />
+                        <span className="absolute bottom-0 right-0 w-1 h-1 rounded-full bg-info translate-x-px -translate-y-px" />
                       )}
                     </button>
                   )
@@ -706,7 +706,7 @@ function ListView({ events, meetings, tasks, rangeStart, rangeEnd, onSelectDay }
         return (
           <div key={day}>
             <button onClick={() => onSelectDay(new Date(day + 'T12:00:00'))}
-              className="text-[10px] font-bold text-overlay/40 uppercase tracking-wider mb-2 hover:text-overlay/60 transition-colors capitalize block">
+              className="text-2xs font-bold text-overlay/40 uppercase tracking-wider mb-2 hover:text-overlay/60 transition-colors capitalize block">
               {format(new Date(day + 'T12:00:00'), 'EEEE d MMMM', { locale: it })}
             </button>
             <div className="space-y-1.5">

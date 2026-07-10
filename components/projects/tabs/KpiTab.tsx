@@ -16,9 +16,9 @@ const KPI_LABELS: Record<string, string> = {
 }
 
 const KPI_LEVEL_CONFIG = [
-  { key: 'low',    label: 'Conservativo', desc: '35° percentile',  color: '#6B7280' },
-  { key: 'med',    label: 'Realistico',   desc: '65° percentile',  color: '#F5C800' },
-  { key: 'strong', label: 'Ambizioso',    desc: '90° percentile',  color: '#22C55E' },
+  { key: 'low',    label: 'Conservativo', desc: '35° percentile',  color: 'var(--color-text-tertiary)' },
+  { key: 'med',    label: 'Realistico',   desc: '65° percentile',  color: 'var(--color-gold-text)' },
+  { key: 'strong', label: 'Ambizioso',    desc: '90° percentile',  color: 'var(--color-success)' },
 ]
 
 function fmtKpi(key: string, v: number): string {
@@ -81,26 +81,26 @@ function KpiPrecompileModal({ project, client, accent, onClose, onApplied }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[#111] border border-[#2A2A2A] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-start justify-between px-6 py-4 border-b border-[#2A2A2A] sticky top-0 bg-[#111] z-10">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-background border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-start justify-between px-6 py-4 border-b border-border sticky top-0 bg-background z-10">
           <div>
             <div className="flex items-center gap-2 mb-0.5">
               <Sparkles className="w-4 h-4" style={{ color: accent }} />
-              <h2 className="text-sm font-bold text-white">Precompila obiettivi KPI</h2>
+              <h2 className="text-sm font-bold text-text-primary">Precompila obiettivi KPI</h2>
             </div>
-            <p className="text-[11px]" style={{ color: '#555' }}>
+            <p className="text-2xs" style={{ color: '#555' }}>
               {project.name} · benchmark {project.project_kind === 'growth' ? 'Growth' : 'Digital'} mercato italiano
             </p>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={generate} disabled={loading}
-              className="flex items-center gap-1 text-[10px] px-2.5 py-1.5 rounded-lg"
-              style={{ background: '#0A0A0A', border: '1px solid #1A1A1A', color: loading ? '#333' : '#555' }}>
+              className="flex items-center gap-1 text-2xs px-2.5 py-1.5 rounded-lg"
+              style={{ background: 'var(--color-background)', border: '1px solid #1A1A1A', color: loading ? '#333' : '#555' }}>
               {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
               {loading ? 'Analisi…' : 'Rigenera'}
             </button>
-            <button onClick={onClose}><X className="w-4 h-4 text-[#555] hover:text-white" /></button>
+            <button onClick={onClose}><X className="w-4 h-4 text-text-tertiary hover:text-text-primary" /></button>
           </div>
         </div>
 
@@ -114,16 +114,16 @@ function KpiPrecompileModal({ project, client, accent, onClose, onApplied }: {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {KPI_LEVEL_CONFIG.map(lvl => (
                 <div key={lvl.key} className="rounded-xl overflow-hidden"
-                  style={{ border: `1px solid ${lvl.color}22`, background: lvl.color + '08' }}>
-                  <div className="px-4 py-3 border-b" style={{ borderColor: lvl.color + '20' }}>
-                    <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: lvl.color }}>{lvl.label}</p>
-                    <p className="text-[9px] mt-0.5" style={{ color: '#444' }}>{lvl.desc}</p>
+                  style={{ border: `1px solid color-mix(in srgb, ${lvl.color} 13%, transparent)`, background: `color-mix(in srgb, ${lvl.color} 3%, transparent)` }}>
+                  <div className="px-4 py-3 border-b" style={{ borderColor: `color-mix(in srgb, ${lvl.color} 13%, transparent)` }}>
+                    <p className="text-2xs font-black uppercase tracking-widest" style={{ color: lvl.color }}>{lvl.label}</p>
+                    <p className="text-2xs mt-0.5" style={{ color: '#444' }}>{lvl.desc}</p>
                   </div>
                   <div className="p-3 space-y-2">
                     {kpiKeys.map(k => (
                       <div key={k} className="flex items-center justify-between">
-                        <span className="text-[10px]" style={{ color: '#555' }}>{KPI_LABELS[k] ?? k}</span>
-                        <span className="text-[11px] font-bold" style={{ color: lvl.color }}>
+                        <span className="text-2xs" style={{ color: '#555' }}>{KPI_LABELS[k] ?? k}</span>
+                        <span className="text-2xs font-bold" style={{ color: lvl.color }}>
                           {levels[lvl.key]?.[k] != null ? fmtKpi(k, levels[lvl.key][k]) : '—'}
                         </span>
                       </div>
@@ -131,9 +131,9 @@ function KpiPrecompileModal({ project, client, accent, onClose, onApplied }: {
                   </div>
                   <div className="px-3 pb-3">
                     <button onClick={() => apply(lvl.key)} disabled={!!saving}
-                      className="w-full py-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1.5"
+                      className="w-full py-2 rounded-lg text-2xs font-bold transition-all flex items-center justify-center gap-1.5"
                       style={{
-                        background: lvl.color + '15', border: `1px solid ${lvl.color}30`,
+                        background: `color-mix(in srgb, ${lvl.color} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${lvl.color} 19%, transparent)`,
                         color: saving ? '#444' : lvl.color,
                       }}>
                       {saving === lvl.key ? <><Loader2 className="w-3 h-3 animate-spin" /> Salvo…</> : 'Usa questi obiettivi'}
@@ -214,15 +214,15 @@ export function KpiSection({ kpis: initialKpis, project, client, accent, isAdmin
 
   const precompileBtn = isAdmin && (
     <button onClick={() => setPrecompile(true)}
-      className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1.5 rounded-lg mr-1 transition-all"
-      style={{ background: 'rgba(245,200,0,0.06)', border: '1px solid rgba(245,200,0,0.2)', color: '#F5C800' }}>
+      className="flex items-center gap-1 text-2xs font-bold px-2.5 py-1.5 rounded-lg mr-1 transition-all"
+      style={{ background: 'var(--color-gold-dim)', border: '1px solid var(--color-gold-dim)', color: 'var(--color-gold-text)' }}>
       <Sparkles className="w-3 h-3" /> Precompila obiettivi
     </button>
   )
 
   const editBtn = isAdmin && !editing && last && (
     <button onClick={startEdit}
-      className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-all text-[#555] hover:text-white border border-[#1A1A1A] hover:border-[#2A2A2A]">
+      className="flex items-center gap-1 text-2xs font-bold px-2.5 py-1.5 rounded-lg transition-all text-text-tertiary hover:text-text-primary border border-border hover:border-border">
       <Pencil className="w-3 h-3" /> Modifica valori
     </button>
   )
@@ -241,19 +241,19 @@ export function KpiSection({ kpis: initialKpis, project, client, accent, isAdmin
 
       {!last && !editing ? (
         <div className="flex flex-col items-center py-16 gap-4">
-          <BarChart3 className="w-10 h-10 text-[#1A1A1A]" />
-          <p className="text-sm text-[#444]">Nessun dato KPI per questo progetto.</p>
+          <BarChart3 className="w-10 h-10 text-text-tertiary" />
+          <p className="text-sm text-text-tertiary">Nessun dato KPI per questo progetto.</p>
           <div className="flex items-center gap-3">
             {isAdmin && (
               <button onClick={() => setPrecompile(true)}
                 className="flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl transition-all"
-                style={{ background: 'rgba(245,200,0,0.08)', border: '1px solid rgba(245,200,0,0.25)', color: '#F5C800' }}>
+                style={{ background: 'var(--color-gold-dim)', border: '1px solid var(--color-gold-dim)', color: 'var(--color-gold-text)' }}>
                 <Sparkles className="w-3.5 h-3.5" /> Precompila con AI
               </button>
             )}
             {isAdmin && (
               <button onClick={() => { startEdit() }}
-                className="flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl transition-all border border-[#2A2A2A] text-[#555] hover:text-white hover:border-[#3A3A3A]">
+                className="flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl transition-all border border-border text-text-tertiary hover:text-text-primary hover:border-border">
                 <Pencil className="w-3.5 h-3.5" /> Inserisci manualmente
               </button>
             )}
@@ -264,16 +264,16 @@ export function KpiSection({ kpis: initialKpis, project, client, accent, isAdmin
           right={<div className="flex items-center gap-2">
             {editing ? (
               <>
-                <button onClick={() => setEditing(false)} className="text-[10px] text-[#555] hover:text-white px-2.5 py-1.5 rounded-lg border border-[#1A1A1A]">
+                <button onClick={() => setEditing(false)} className="text-2xs text-text-tertiary hover:text-text-primary px-2.5 py-1.5 rounded-lg border border-border">
                   Annulla
                 </button>
                 <button onClick={saveEdit} disabled={savingEdit}
-                  className="flex items-center gap-1 text-[10px] font-bold px-3 py-1.5 rounded-lg bg-gold text-black disabled:opacity-50">
+                  className="flex items-center gap-1 text-2xs font-bold px-3 py-1.5 rounded-lg bg-gold text-on-gold disabled:opacity-50">
                   {savingEdit ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Salva
                 </button>
               </>
             ) : (
-              <>{editBtn}{precompileBtn}<span className="text-[10px] text-[#444]">{last && new Date(last.month).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}</span></>
+              <>{editBtn}{precompileBtn}<span className="text-2xs text-text-tertiary">{last && new Date(last.month).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}</span></>
             )}
           </div>}>
           <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -281,22 +281,22 @@ export function KpiSection({ kpis: initialKpis, project, client, accent, isAdmin
               const display = it.v != null ? it.f(it.v as number) : null
               const td = trendDir(it.v as number, it.prev as number)
               return (
-                <div key={it.key} className={`bg-[#0C0C0C] border rounded-2xl p-4 transition-all ${editing ? 'border-gold/20' : 'border-[#1A1A1A]'}`}>
-                  <p className="text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">{it.label}</p>
+                <div key={it.key} className={`bg-background border rounded-2xl p-4 transition-all ${editing ? 'border-gold/20' : 'border-border'}`}>
+                  <p className="text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">{it.label}</p>
                   {editing ? (
                     <input
                       type="number"
                       step="any"
                       value={editValues[it.key] ?? ''}
                       onChange={e => setEditValues(p => ({ ...p, [it.key]: e.target.value }))}
-                      className="w-full bg-transparent text-xl font-black text-white border-b border-gold/30 focus:border-gold focus:outline-none pb-0.5 placeholder:text-[#222]"
+                      className="w-full bg-transparent text-xl font-black text-text-primary border-b border-gold/30 focus:border-gold focus:outline-none pb-0.5 placeholder:text-text-tertiary"
                       placeholder="—"
                     />
                   ) : (
                     <div className="flex items-end gap-2">
                       <p className="text-xl font-black" style={{ color: display ? accent : '#222' }}>{display ?? '—'}</p>
-                      {td === 'up'   && <TrendingUp   className="w-3.5 h-3.5 text-[#22C55E] mb-0.5" />}
-                      {td === 'down' && <TrendingDown  className="w-3.5 h-3.5 text-[#EF4444] mb-0.5" />}
+                      {td === 'up'   && <TrendingUp   className="w-3.5 h-3.5 text-success mb-0.5" />}
+                      {td === 'down' && <TrendingDown  className="w-3.5 h-3.5 text-error mb-0.5" />}
                     </div>
                   )}
                 </div>

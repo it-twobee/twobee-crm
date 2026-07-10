@@ -18,7 +18,7 @@ interface Props {
 }
 
 const PRIORITY_COLOR: Record<string, string> = {
-  alta: '#EF4444', media: '#FFC501', bassa: '#53BDEB',
+  alta: 'var(--color-error)', media: 'var(--color-gold-text)', bassa: 'var(--color-info)',
 }
 
 export function DailyFocus({ items, name }: Props) {
@@ -32,12 +32,12 @@ export function DailyFocus({ items, name }: Props) {
     <div className="p-5 h-full overflow-auto">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <Sun className="w-4 h-4 text-gold" />
+          <Sun className="w-4 h-4 text-gold-text" />
           <p className="text-xs font-semibold text-overlay/30 uppercase tracking-widest">Focus di oggi</p>
         </div>
         {total > 0 && (
-          <span className="text-[10px] text-overlay/30">
-            <span className="text-gold font-bold">{doneCount}</span>/{total}
+          <span className="text-2xs text-overlay/30">
+            <span className="text-gold-text font-bold">{doneCount}</span>/{total}
           </span>
         )}
       </div>
@@ -62,11 +62,11 @@ export function DailyFocus({ items, name }: Props) {
                   </button>
                   <div className="flex-1 min-w-0">
                     <Link href={item.href}>
-                      <p className={`text-xs leading-snug transition-colors ${isDone ? 'line-through text-overlay/20' : 'text-overlay/80 hover:text-gold'}`}>
+                      <p className={`text-xs leading-snug transition-colors ${isDone ? 'line-through text-overlay/20' : 'text-overlay/80 hover:text-gold-text'}`}>
                         {item.text}
                       </p>
                     </Link>
-                    <p className="text-[9px] text-overlay/20 mt-0.5">{item.source}</p>
+                    <p className="text-2xs text-overlay/20 mt-0.5">{item.source}</p>
                   </div>
                   <span className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0"
                     style={{ background: PRIORITY_COLOR[item.priority] }} />

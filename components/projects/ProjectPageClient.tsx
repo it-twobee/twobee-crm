@@ -41,7 +41,7 @@ interface Props {
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
-const PRIORITY_COLORS: Record<string, string>  = { alta: '#EF4444', media: '#F59E0B', bassa: '#6B7280' }
+const PRIORITY_COLORS: Record<string, string>  = { alta: 'var(--color-error)', media: 'var(--color-warning)', bassa: 'var(--color-text-tertiary)' }
 const PRIORITY_LABELS: Record<string, string>  = { alta: 'Alta', media: 'Media', bassa: 'Bassa' }
 const STATUS_TASK_OPTS  = ['da_fare', 'in_corso', 'in_revisione', 'completato']
 const STATUS_TASK_LABEL: Record<string, string> = { da_fare: 'Da fare', in_corso: 'In corso', in_revisione: 'In revisione', completato: 'Fatto' }
@@ -54,31 +54,31 @@ const STATUS_PROJECT: { v: Project['status']; l: string }[] = [
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
 // ─── Atoms ─────────────────────────────────────────────────────────────────────
-function Avatar({ name, size = 24, color = '#F5C800' }: { name: string; size?: number; color?: string }) {
+function Avatar({ name, size = 24, color = 'var(--color-gold-text)' }: { name: string; size?: number; color?: string }) {
   const ini = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
   return (
     <div className="rounded-full flex items-center justify-center shrink-0 font-bold"
-      style={{ width: size, height: size, fontSize: size * 0.38, background: `${color}18`, color, border: `1.5px solid ${color}30` }}>
+      style={{ width: size, height: size, fontSize: size * 0.38, background: `color-mix(in srgb, ${color} 9%, transparent)`, color, border: `1.5px solid color-mix(in srgb, ${color} 19%, transparent)` }}>
       {ini}
     </div>
   )
 }
 
 function ProgressBar({ pct, accent }: { pct: number; accent: string }) {
-  const color = pct >= 80 ? '#22C55E' : pct >= 40 ? accent : pct > 0 ? '#F59E0B' : '#1A1A1A'
+  const color = pct >= 80 ? 'var(--color-success)' : pct >= 40 ? accent : pct > 0 ? 'var(--color-warning)' : 'var(--color-surface)'
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-1 bg-[#111] rounded-full overflow-hidden" style={{ minWidth: 40 }}>
+      <div className="flex-1 h-1 bg-background rounded-full overflow-hidden" style={{ minWidth: 40 }}>
         <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: color }} />
       </div>
-      <span className="text-[10px] font-bold shrink-0" style={{ color: pct === 0 ? '#333' : color }}>{pct}%</span>
+      <span className="text-2xs font-bold shrink-0" style={{ color: pct === 0 ? '#333' : color }}>{pct}%</span>
     </div>
   )
 }
 
-function ProgressRing({ pct, size = 48, accent = '#F5C800' }: { pct: number; size?: number; accent?: string }) {
+function ProgressRing({ pct, size = 48, accent = 'var(--color-gold-text)' }: { pct: number; size?: number; accent?: string }) {
   const cx = size / 2, r = cx - 4, circ = 2 * Math.PI * r
-  const color = pct >= 80 ? '#22C55E' : pct >= 40 ? accent : pct > 0 ? '#F59E0B' : '#2A2A2A'
+  const color = pct >= 80 ? 'var(--color-success)' : pct >= 40 ? accent : pct > 0 ? 'var(--color-warning)' : 'var(--color-border)'
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
       <circle cx={cx} cy={cx} r={r} fill="none" stroke="#1A1A1A" strokeWidth="3.5" />
@@ -110,15 +110,15 @@ function InlineEdit({ value, onSave, disabled, className, multiline }: {
   if (!editing) {
     return (
       <span
-        className={`${className} ${!disabled ? 'cursor-text hover:text-white' : ''} transition-colors`}
+        className={`${className} ${!disabled ? 'cursor-text hover:text-text-primary' : ''} transition-colors`}
         onDoubleClick={() => { if (!disabled) { setDraft(value); setEditing(true); setTimeout(() => ref.current?.focus(), 10) } }}
         title={!disabled ? 'Doppio clic per modificare' : undefined}
       >{value}</span>
     )
   }
 
-  const base = 'bg-transparent border-b focus:outline-none text-white w-full'
-  const style = { borderColor: '#F5C800' }
+  const base = 'bg-transparent border-b focus:outline-none text-text-primary w-full'
+  const style = { borderColor: 'var(--color-gold-text)' }
 
   if (multiline) {
     return (
@@ -137,7 +137,7 @@ function InlineEdit({ value, onSave, disabled, className, multiline }: {
 }
 
 // ─── DatePicker (clickable date → native picker) ──────────────────────────────
-function DatePicker({ value, onChange, disabled, placeholder = 'Nessuna data', accent = '#F5C800', showIcon = true }: {
+function DatePicker({ value, onChange, disabled, placeholder = 'Nessuna data', accent = 'var(--color-gold-text)', showIcon = true }: {
   value: string | null; onChange: (v: string | null) => void
   disabled?: boolean; placeholder?: string; accent?: string; showIcon?: boolean
 }) {
@@ -153,9 +153,9 @@ function DatePicker({ value, onChange, disabled, placeholder = 'Nessuna data', a
       onClick={open}>
       {showIcon && (
         <Calendar className="w-3 h-3 shrink-0 transition-colors"
-          style={{ color: value ? accent : '#2A2A2A' }} />
+          style={{ color: value ? accent : 'var(--color-border)' }} />
       )}
-      <span className={`text-xs transition-colors ${value ? 'text-[#888] group-hover/dp:text-white' : 'text-[#2A2A2A] group-hover/dp:text-[#444]'}`}>
+      <span className={`text-xs transition-colors ${value ? 'text-text-secondary group-hover/dp:text-text-primary' : 'text-text-tertiary group-hover/dp:text-text-tertiary'}`}>
         {formatted ?? placeholder}
       </span>
       <input
@@ -201,38 +201,38 @@ function TaskDetailModal({ task, profiles, isAdmin, onSave, onDelete, onClose, a
     onClose()
   }
 
-  const inp = 'w-full bg-[#111] border border-[#2A2A2A] rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C800]'
+  const inp = 'w-full bg-background border border-border rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold'
 
   return (
-    <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
-      <div className="bg-[#0E0E0E] border border-[#2A2A2A] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md shadow-2xl"
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+      <div className="bg-background border border-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md shadow-2xl"
         onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1A1A1A]">
-          <h3 className="text-sm font-bold text-white">Dettaglio task</h3>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h3 className="text-sm font-bold text-text-primary">Dettaglio task</h3>
           <div className="flex items-center gap-2">
             {isAdmin && (
               <button onClick={() => { if (confirm('Eliminare?')) { onDelete(); onClose() } }}
-                className="p-1.5 text-[#444] hover:text-[#EF4444] hover:bg-[#EF4444]/10 rounded-lg transition-all">
+                className="p-1.5 text-text-tertiary hover:text-error hover:bg-error/10 rounded-lg transition-all">
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             )}
-            <button onClick={onClose} className="p-1.5 text-[#444] hover:text-white"><X className="w-4 h-4" /></button>
+            <button onClick={onClose} className="p-1.5 text-text-tertiary hover:text-text-primary"><X className="w-4 h-4" /></button>
           </div>
         </div>
         <div className="p-5 space-y-3">
           <div>
-            <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Titolo</label>
+            <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Titolo</label>
             <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} disabled={!isAdmin} className={inp} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Priorità</label>
+              <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Priorità</label>
               <select value={form.priority} onChange={e => setForm(p => ({ ...p, priority: e.target.value }))} disabled={!isAdmin} className={inp}>
                 {['alta', 'media', 'bassa'].map(v => <option key={v} value={v}>{PRIORITY_LABELS[v]}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Stato</label>
+              <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Stato</label>
               <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))} disabled={!isAdmin} className={inp}>
                 {STATUS_TASK_OPTS.map(v => <option key={v} value={v}>{STATUS_TASK_LABEL[v]}</option>)}
               </select>
@@ -240,11 +240,11 @@ function TaskDetailModal({ task, profiles, isAdmin, onSave, onDelete, onClose, a
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Scadenza</label>
+              <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Scadenza</label>
               <input type="date" value={form.due_date} onChange={e => setForm(p => ({ ...p, due_date: e.target.value }))} disabled={!isAdmin} className={inp} />
             </div>
             <div>
-              <label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Assegnato a</label>
+              <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Assegnato a</label>
               <select value={form.assignee_id} onChange={e => setForm(p => ({ ...p, assignee_id: e.target.value }))} disabled={!isAdmin} className={inp}>
                 <option value="">—</option>
                 {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
@@ -254,9 +254,9 @@ function TaskDetailModal({ task, profiles, isAdmin, onSave, onDelete, onClose, a
         </div>
         {isAdmin && (
           <div className="flex gap-3 px-5 pb-5">
-            <button onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-xl text-sm text-[#555] hover:text-white">Annulla</button>
+            <button onClick={onClose} className="flex-1 py-2.5 border border-border rounded-xl text-sm text-text-tertiary hover:text-text-primary">Annulla</button>
             <button onClick={save} disabled={saving}
-              className="flex-1 py-2.5 rounded-xl text-sm font-bold text-black flex items-center justify-center gap-2 disabled:opacity-50"
+              className="flex-1 py-2.5 rounded-xl text-sm font-bold text-on-gold flex items-center justify-center gap-2 disabled:opacity-50"
               style={{ background: accent }}>
               {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}Salva
             </button>
@@ -328,30 +328,30 @@ function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, mileston
 
   return (
     <div>
-      <div className="group flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[#0D0D0D] transition-colors"
+      <div className="group flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-background transition-colors"
         style={{ paddingLeft: pl + 12 }}>
         {/* Grip */}
-        {isAdmin && <GripVertical className="w-3 h-3 text-[#222] group-hover:text-[#444] shrink-0 cursor-grab" />}
+        {isAdmin && <GripVertical className="w-3 h-3 text-text-tertiary group-hover:text-text-tertiary shrink-0 cursor-grab" />}
 
         {/* Expand toggle */}
-        <button onClick={() => setExpanded(e => !e)} className="w-4 shrink-0 flex items-center justify-center text-[#333] hover:text-[#666]">
+        <button onClick={() => setExpanded(e => !e)} className="w-4 shrink-0 flex items-center justify-center text-text-tertiary hover:text-text-tertiary">
           {children.length > 0 ? (expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />) :
-           canAdd ? <div className="w-1 h-1 rounded-full bg-[#2A2A2A]" /> : null}
+           canAdd ? <div className="w-1 h-1 rounded-full bg-surface-active" /> : null}
         </button>
 
         {/* Checkbox */}
         <button onClick={toggleDone}
           className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-all ${
-            isDone    ? 'bg-[#22C55E] border-[#22C55E]' :
-            isBlocked ? 'border-[#EF4444]' : 'border-[#2A2A2A] hover:border-[#555]'
+            isDone    ? 'bg-success border-success' :
+            isBlocked ? 'border-error' : 'border-border hover:border-border-strong'
           }`}>
-          {isDone && <Check className="w-2.5 h-2.5 text-black" />}
-          {isBlocked && <X className="w-2.5 h-2.5 text-[#EF4444]" />}
+          {isDone && <Check className="w-2.5 h-2.5 text-on-gold" />}
+          {isBlocked && <X className="w-2.5 h-2.5 text-error" />}
         </button>
 
         {/* Priority dot */}
         <div className="w-1.5 h-1.5 rounded-full shrink-0"
-          style={{ background: PRIORITY_COLORS[task.priority] ?? '#2A2A2A' }} />
+          style={{ background: PRIORITY_COLORS[task.priority] ?? 'var(--color-border)' }} />
 
         {/* Title — inline edit */}
         <div className="flex-1 min-w-0">
@@ -359,7 +359,7 @@ function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, mileston
             value={task.title}
             onSave={v => saveField({ title: v })}
             disabled={!isAdmin}
-            className={`text-sm block w-full ${isDone ? 'line-through text-[#3A3A3A]' : 'text-white'}`}
+            className={`text-sm block w-full ${isDone ? 'line-through text-text-tertiary' : 'text-text-primary'}`}
           />
         </div>
 
@@ -371,7 +371,7 @@ function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, mileston
               onChange={v => saveField({ due_date: v })}
               disabled={!isAdmin}
               placeholder=""
-              accent={isOver ? '#EF4444' : '#888'}
+              accent={isOver ? 'var(--color-error)' : '#888'}
             />
           </div>
           {assignee && <Avatar name={assignee.full_name} size={18} color="#60A5FA" />}
@@ -379,18 +379,18 @@ function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, mileston
           {/* Actions */}
           <div className="hidden group-hover:flex items-center gap-0.5">
             <button onClick={() => setShowDetail(true)}
-              className="p-1 rounded text-[#333] hover:text-white hover:bg-white/5 transition-colors">
+              className="p-1 rounded text-text-tertiary hover:text-text-primary hover:bg-surface transition-colors">
               <MoreHorizontal className="w-3 h-3" />
             </button>
             {canAdd && (
               <button onClick={() => { setAdding(true); setExpanded(true); setTimeout(() => addRef.current?.focus(), 30) }}
-                className="p-1 rounded text-[#333] hover:text-white hover:bg-white/5 transition-colors" title="Aggiungi sub-task">
+                className="p-1 rounded text-text-tertiary hover:text-text-primary hover:bg-surface transition-colors" title="Aggiungi sub-task">
                 <Plus className="w-3 h-3" />
               </button>
             )}
             {isAdmin && (
               <button onClick={() => { if (confirm('Eliminare task e sub-task?')) deleteTask() }}
-                className="p-1 rounded text-[#333] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors">
+                className="p-1 rounded text-text-tertiary hover:text-error hover:bg-error/10 transition-colors">
                 <Trash2 className="w-3 h-3" />
               </button>
             )}
@@ -409,16 +409,16 @@ function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, mileston
       {expanded && addingChild && (
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl" style={{ paddingLeft: (depth + 1) * 18 + 12 }}>
           <div className="w-3 shrink-0" />
-          <div className="w-4 h-4 rounded border border-[#2A2A2A] shrink-0" />
-          <div className="w-1.5 h-1.5 rounded-full bg-[#2A2A2A] shrink-0" />
+          <div className="w-4 h-4 rounded border border-border shrink-0" />
+          <div className="w-1.5 h-1.5 rounded-full bg-surface-active shrink-0" />
           <input ref={addRef} value={addDraft} onChange={e => setAddDraft(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') addChild(); if (e.key === 'Escape') { setAdding(false); setAddDraft('') } }}
             placeholder="Sub-task… (Invio)"
-            className="flex-1 bg-transparent text-sm text-white focus:outline-none placeholder:text-[#2A2A2A]" />
-          <button onClick={addChild} disabled={addSaving || !addDraft.trim()} className="p-1 text-[#22C55E] disabled:opacity-40">
+            className="flex-1 bg-transparent text-sm text-text-primary focus:outline-none placeholder:text-text-tertiary" />
+          <button onClick={addChild} disabled={addSaving || !addDraft.trim()} className="p-1 text-success disabled:opacity-40">
             {addSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
           </button>
-          <button onClick={() => { setAdding(false); setAddDraft('') }} className="p-1 text-[#444] hover:text-white"><X className="w-3 h-3" /></button>
+          <button onClick={() => { setAdding(false); setAddDraft('') }} className="p-1 text-text-tertiary hover:text-text-primary"><X className="w-3 h-3" /></button>
         </div>
       )}
 
@@ -453,7 +453,7 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
   const done  = tasks.filter(t => t.status === 'completato').length
   const isDone = milestone.status === 'completato'
   const isOver = !isDone && milestone.due_date && milestone.due_date < new Date().toISOString().slice(0, 10)
-  const milColor = isDone ? '#22C55E' : isOver ? '#EF4444' : accent
+  const milColor = isDone ? 'var(--color-success)' : isOver ? 'var(--color-error)' : accent
   const isD    = dragHandlers.dragging === milestone.id
   const isOver2 = dragHandlers.dragOver === milestone.id
   const assignee = profiles.find(p => p.id === milestone.assignee_id)
@@ -488,8 +488,8 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
 
   return (
     <div id={`milestone-${milestone.id}`}
-      className={`rounded-xl border transition-all mb-1.5 ${isD ? 'opacity-30' : ''} ${isOver2 ? 'ring-1 ring-yellow-400/30' : ''}`}
-      style={{ borderColor: open ? `${milColor}20` : '#1A1A1A' }}
+      className={`rounded-xl border transition-all mb-1.5 ${isD ? 'opacity-30' : ''} ${isOver2 ? 'ring-1 ring-warning/30' : ''}`}
+      style={{ borderColor: open ? `color-mix(in srgb, ${milColor} 13%, transparent)` : 'var(--color-surface)' }}
       draggable={isAdmin}
       onDragStart={e => dragHandlers.onDragStart(e, milestone.id)}
       onDragOver={e  => dragHandlers.onDragOver(e, milestone.id)}
@@ -497,10 +497,10 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
       onDragEnd={dragHandlers.onDragEnd}
     >
       {/* Milestone header */}
-      <div className={`group flex items-center gap-2 px-3 py-2.5 rounded-xl transition-colors ${open ? 'bg-[#0C0C0C]' : 'bg-[#090909] hover:bg-[#0C0C0C]'}`}>
-        {isAdmin && <GripVertical className="w-3 h-3 text-[#1A1A1A] group-hover:text-[#333] shrink-0 cursor-grab transition-colors" />}
+      <div className={`group flex items-center gap-2 px-3 py-2.5 rounded-xl transition-colors ${open ? 'bg-background' : 'bg-background hover:bg-background'}`}>
+        {isAdmin && <GripVertical className="w-3 h-3 text-text-tertiary group-hover:text-text-tertiary shrink-0 cursor-grab transition-colors" />}
 
-        <button onClick={() => setOpen(o => !o)} className="shrink-0 transition-colors" style={{ color: isDone ? '#22C55E30' : '#2A2A2A' }}>
+        <button onClick={() => setOpen(o => !o)} className="shrink-0 transition-colors" style={{ color: isDone ? '#22C55E30' : 'var(--color-border)' }}>
           {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
         </button>
 
@@ -516,7 +516,7 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
             value={milestone.title}
             onSave={v => saveField({ title: v })}
             disabled={!isAdmin}
-            className={`text-sm font-semibold block w-full ${isDone ? 'line-through text-[#333]' : 'text-[#ddd]'}`}
+            className={`text-sm font-semibold block w-full ${isDone ? 'line-through text-text-tertiary' : 'text-text-secondary'}`}
           />
         </div>
 
@@ -524,10 +524,10 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
         <div className="flex items-center gap-2 ml-1 shrink-0">
           {/* Task progress pill */}
           {tasks.length > 0 && (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+            <span className="text-2xs font-bold px-1.5 py-0.5 rounded-full"
               style={{
-                background: done === tasks.length ? '#22C55E18' : '#1A1A1A',
-                color: done === tasks.length ? '#22C55E' : '#444',
+                background: done === tasks.length ? '#22C55E18' : 'var(--color-surface)',
+                color: done === tasks.length ? 'var(--color-success)' : '#444',
               }}>
               {done}/{tasks.length}
             </span>
@@ -540,7 +540,7 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
               onChange={v => isAdmin && saveField({ due_date: v })}
               disabled={!isAdmin}
               placeholder="Scadenza"
-              accent={isOver ? '#EF4444' : accent}
+              accent={isOver ? 'var(--color-error)' : accent}
             />
           </div>
 
@@ -548,7 +548,7 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
 
           {isAdmin && (
             <button onClick={deleteMilestone}
-              className="p-1 rounded opacity-0 group-hover:opacity-100 transition-all text-[#222] hover:text-[#EF4444] hover:bg-[#EF4444]/10">
+              className="p-1 rounded opacity-0 group-hover:opacity-100 transition-all text-text-tertiary hover:text-error hover:bg-error/10">
               <Trash2 className="w-3 h-3" />
             </button>
           )}
@@ -567,21 +567,21 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
           {/* Inline add task */}
           {addingTask ? (
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl">
-              <div className="w-4 h-4 rounded border border-[#2A2A2A] shrink-0" />
-              <div className="w-1.5 h-1.5 rounded-full bg-[#2A2A2A] shrink-0" />
+              <div className="w-4 h-4 rounded border border-border shrink-0" />
+              <div className="w-1.5 h-1.5 rounded-full bg-surface-active shrink-0" />
               <input ref={addRef} value={taskDraft} onChange={e => setDraft(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') addTask(); if (e.key === 'Escape') { setAdding(false); setDraft('') } }}
                 placeholder="Nuova task… (Invio)"
-                className="flex-1 bg-transparent text-sm text-white focus:outline-none placeholder:text-[#2A2A2A]"
+                className="flex-1 bg-transparent text-sm text-text-primary focus:outline-none placeholder:text-text-tertiary"
                 autoFocus />
-              <button onClick={addTask} disabled={saving || !taskDraft.trim()} className="p-1 text-[#22C55E] disabled:opacity-40">
+              <button onClick={addTask} disabled={saving || !taskDraft.trim()} className="p-1 text-success disabled:opacity-40">
                 {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
               </button>
-              <button onClick={() => { setAdding(false); setDraft('') }} className="p-1 text-[#444] hover:text-white"><X className="w-3 h-3" /></button>
+              <button onClick={() => { setAdding(false); setDraft('') }} className="p-1 text-text-tertiary hover:text-text-primary"><X className="w-3 h-3" /></button>
             </div>
           ) : isAdmin && (
             <button onClick={() => { setAdding(true); setTimeout(() => addRef.current?.focus(), 30) }}
-              className="flex items-center gap-1.5 w-full px-3 py-1.5 text-[10px] text-[#2A2A2A] hover:text-[#555] transition-colors">
+              className="flex items-center gap-1.5 w-full px-3 py-1.5 text-2xs text-text-tertiary hover:text-text-tertiary transition-colors">
               <Plus className="w-3 h-3" /> Aggiungi task
             </button>
           )}
@@ -686,12 +686,12 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, a
     updated => Promise.all(updated.map(m => createClient().from('tasks').update({ order: (m as ExtTask).order } as never).eq('id', m.id)))
   )
 
-  const borderColor = isDone ? '#22C55E25' : isActive ? `${accent}35` : '#1A1A1A'
-  const accentColor = isDone ? '#22C55E' : isActive ? accent : '#3A3A3A'
+  const borderColor = isDone ? '#22C55E25' : isActive ? `color-mix(in srgb, ${accent} 21%, transparent)` : 'var(--color-surface)'
+  const accentColor = isDone ? 'var(--color-success)' : isActive ? accent : 'var(--color-border-strong)'
 
   return (
     <div id={`sprint-${sprint.id}`}
-      className={`rounded-2xl overflow-hidden mb-3 transition-all ${isD ? 'opacity-30 scale-[0.99]' : ''} ${isOver ? 'ring-1 ring-yellow-400/20' : ''}`}
+      className={`rounded-2xl overflow-hidden mb-3 transition-all ${isD ? 'opacity-30 scale-[0.99]' : ''} ${isOver ? 'ring-1 ring-warning/20' : ''}`}
       style={{ border: `1px solid ${borderColor}` }}
       draggable={isAdmin}
       onDragStart={e => dragHandlers.onDragStart(e, sprint.id)}
@@ -701,20 +701,20 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, a
     >
       {/* Sprint header */}
       <div className="group"
-        style={{ background: isDone ? '#22C55E06' : isActive ? `${accent}06` : '#0A0A0A', borderBottom: open ? `1px solid ${borderColor}` : 'none' }}>
+        style={{ background: isDone ? '#22C55E06' : isActive ? `color-mix(in srgb, ${accent} 2%, transparent)` : 'var(--color-background)', borderBottom: open ? `1px solid ${borderColor}` : 'none' }}>
         {/* Color accent bar */}
-        <div className="h-0.5 w-full" style={{ background: `linear-gradient(90deg, ${accentColor}60, transparent)` }} />
+        <div className="h-0.5 w-full" style={{ background: `linear-gradient(90deg, color-mix(in srgb, ${accentColor} 38%, transparent), transparent)` }} />
 
         <div className="flex items-center gap-2.5 px-4 py-3">
-          {isAdmin && <GripVertical className="w-3.5 h-3.5 text-[#1A1A1A] group-hover:text-[#333] shrink-0 cursor-grab transition-colors" />}
+          {isAdmin && <GripVertical className="w-3.5 h-3.5 text-text-tertiary group-hover:text-text-tertiary shrink-0 cursor-grab transition-colors" />}
 
-          <button onClick={() => setOpen(o => !o)} className="shrink-0 transition-colors" style={{ color: isDone ? '#22C55E' : '#444' }}>
+          <button onClick={() => setOpen(o => !o)} className="shrink-0 transition-colors" style={{ color: isDone ? 'var(--color-success)' : '#444' }}>
             {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           </button>
 
           {/* Sprint number badge */}
-          <div className="w-6 h-6 rounded-md flex items-center justify-center text-[9px] font-black shrink-0"
-            style={{ background: `${accentColor}15`, color: accentColor }}>
+          <div className="w-6 h-6 rounded-md flex items-center justify-center text-2xs font-black shrink-0"
+            style={{ background: `color-mix(in srgb, ${accentColor} 8%, transparent)`, color: accentColor }}>
             {(allSprints.indexOf(sprint) + 1) || '·'}
           </div>
 
@@ -724,7 +724,7 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, a
               value={sprint.name}
               onSave={v => saveField({ name: v })}
               disabled={!isAdmin}
-              className={`text-sm font-bold block w-full ${isDone ? 'text-[#22C55E]' : isActive ? 'text-white' : 'text-[#555]'}`}
+              className={`text-sm font-bold block w-full ${isDone ? 'text-success' : isActive ? 'text-text-primary' : 'text-text-tertiary'}`}
             />
           </div>
 
@@ -733,13 +733,13 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, a
             <select value={sprint.status}
               onChange={e => saveField({ status: e.target.value as Sprint['status'] })}
               onClick={e => e.stopPropagation()}
-              className="text-[10px] font-bold px-2 py-1 rounded-lg border focus:outline-none bg-transparent cursor-pointer shrink-0"
-              style={{ borderColor: `${accentColor}30`, color: accentColor }}>
-              {STATUS_SPRINT_OPTS.map(v => <option key={v} value={v} className="bg-[#111] text-white">{STATUS_SPRINT_LABEL[v]}</option>)}
+              className="text-2xs font-bold px-2 py-1 rounded-lg border focus:outline-none bg-transparent cursor-pointer shrink-0"
+              style={{ borderColor: `color-mix(in srgb, ${accentColor} 19%, transparent)`, color: accentColor }}>
+              {STATUS_SPRINT_OPTS.map(v => <option key={v} value={v} className="bg-background text-text-primary">{STATUS_SPRINT_LABEL[v]}</option>)}
             </select>
           ) : (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0"
-              style={{ background: `${accentColor}12`, color: accentColor }}>
+            <span className="text-2xs font-bold px-2 py-0.5 rounded-full shrink-0"
+              style={{ background: `color-mix(in srgb, ${accentColor} 7%, transparent)`, color: accentColor }}>
               {STATUS_SPRINT_LABEL[sprint.status]}
             </span>
           )}
@@ -754,7 +754,7 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, a
               accent={accentColor}
               showIcon={false}
             />
-            <span className="text-[#2A2A2A] text-xs">→</span>
+            <span className="text-text-tertiary text-xs">→</span>
             <DatePicker
               value={sprint.end_date.slice(0, 10)}
               onChange={v => v && saveField({ end_date: v })}
@@ -775,7 +775,7 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, a
           {/* Delete */}
           {isAdmin && (
             <button onClick={e => { e.stopPropagation(); if (confirm('Eliminare sprint e tutto il contenuto?')) onDeleteSprint(sprint.id) }}
-              className="p-1.5 rounded-lg text-[#1A1A1A] hover:text-[#EF4444] hover:bg-[#EF4444]/10 opacity-0 group-hover:opacity-100 transition-all">
+              className="p-1.5 rounded-lg text-text-tertiary hover:text-error hover:bg-error/10 opacity-0 group-hover:opacity-100 transition-all">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
@@ -784,11 +784,11 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, a
 
       {/* Milestones */}
       {open && (
-        <div className="p-3 space-y-1.5 bg-[#050505]">
+        <div className="p-3 space-y-1.5 bg-background">
           {milestones.length === 0 && !addingM && (
             <div className="flex flex-col items-center gap-1.5 py-6 text-center">
-              <Flag className="w-5 h-5 text-[#1A1A1A]" />
-              <p className="text-xs text-[#2A2A2A]">Nessuna milestone in questo sprint</p>
+              <Flag className="w-5 h-5 text-text-tertiary" />
+              <p className="text-xs text-text-tertiary">Nessuna milestone in questo sprint</p>
             </div>
           )}
 
@@ -801,21 +801,21 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, a
           {/* Add milestone */}
           {addingM ? (
             <div className="flex items-center gap-2 px-3 py-2.5 border border-dashed rounded-xl"
-              style={{ borderColor: `${accent}30`, background: `${accent}05` }}>
+              style={{ borderColor: `color-mix(in srgb, ${accent} 19%, transparent)`, background: `color-mix(in srgb, ${accent} 2%, transparent)` }}>
               <Flag className="w-3.5 h-3.5 shrink-0" style={{ color: accent }} />
               <input ref={addRef} value={mDraft} onChange={e => setMDraft(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') addMilestone(); if (e.key === 'Escape') { setAddM(false); setMDraft('') } }}
                 placeholder="Nome milestone… premi Invio"
-                className="flex-1 bg-transparent text-sm text-white focus:outline-none placeholder:text-[#2A2A2A]"
+                className="flex-1 bg-transparent text-sm text-text-primary focus:outline-none placeholder:text-text-tertiary"
                 autoFocus />
-              <button onClick={addMilestone} disabled={saving || !mDraft.trim()} className="p-1 text-[#22C55E] disabled:opacity-40">
+              <button onClick={addMilestone} disabled={saving || !mDraft.trim()} className="p-1 text-success disabled:opacity-40">
                 {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
               </button>
-              <button onClick={() => { setAddM(false); setMDraft('') }} className="p-1 text-[#444] hover:text-white"><X className="w-3 h-3" /></button>
+              <button onClick={() => { setAddM(false); setMDraft('') }} className="p-1 text-text-tertiary hover:text-text-primary"><X className="w-3 h-3" /></button>
             </div>
           ) : isAdmin && (
             <button onClick={() => { setAddM(true); setTimeout(() => addRef.current?.focus(), 30) }}
-              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-[#2A2A2A] hover:text-[#666] border border-dashed border-[#111] hover:border-[#2A2A2A] rounded-xl transition-all">
+              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-text-tertiary hover:text-text-tertiary border border-dashed border-border hover:border-border rounded-xl transition-all">
               <Flag className="w-3 h-3" /> Aggiungi milestone
             </button>
           )}
@@ -942,39 +942,39 @@ function TemplatePickerModal({ onClose, onSelect, projectType, accent }: {
   const tot  = tmpl.plan.reduce((a, s) => a + s.milestones.reduce((b, m) => b + m.tasks.length + 1, 0) + 1, 0)
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
-      <div className="bg-[#0C0C0C] border border-[#2A2A2A] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl shadow-2xl flex flex-col max-h-[92vh]"
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+      <div className="bg-background border border-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl shadow-2xl flex flex-col max-h-[92vh]"
         onClick={e => e.stopPropagation()}>
-        <div className="flex items-center gap-2.5 px-5 py-4 border-b border-[#1A1A1A] shrink-0">
+        <div className="flex items-center gap-2.5 px-5 py-4 border-b border-border shrink-0">
           <Zap className="w-4 h-4 shrink-0" style={{ color: accent }} />
           <div className="flex-1">
-            <h2 className="text-sm font-bold text-white">Scegli un template</h2>
-            <p className="text-[10px] text-[#444] mt-0.5">Piano predefinito + brief AI generato automaticamente</p>
+            <h2 className="text-sm font-bold text-text-primary">Scegli un template</h2>
+            <p className="text-2xs text-text-tertiary mt-0.5">Piano predefinito + brief AI generato automaticamente</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-[#333] hover:text-white hover:bg-white/5 transition-colors"><X className="w-4 h-4" /></button>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-surface transition-colors"><X className="w-4 h-4" /></button>
         </div>
 
         <div className="flex flex-col sm:flex-row flex-1 overflow-hidden min-h-0">
           {/* Template list */}
-          <div className="sm:w-60 shrink-0 border-b sm:border-b-0 sm:border-r border-[#111] overflow-y-auto bg-[#060606]">
+          <div className="sm:w-60 shrink-0 border-b sm:border-b-0 sm:border-r border-border overflow-y-auto bg-background">
             <div className="p-2 space-y-0.5">
               {Object.entries(PLAN_TEMPLATES).map(([key, t]) => (
                 <button key={key} onClick={() => setSel(key)}
                   className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all ${
                     sel === key
-                      ? 'bg-[#111] border border-[#252525] shadow-sm'
-                      : 'hover:bg-[#0C0C0C] border border-transparent'
+                      ? 'bg-background border border-border shadow-sm'
+                      : 'hover:bg-background border border-transparent'
                   }`}>
                   <span className="text-2xl shrink-0">{t.emoji}</span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <p className={`text-xs font-bold ${sel === key ? 'text-white' : 'text-[#555]'}`}>{t.label}</p>
+                      <p className={`text-xs font-bold ${sel === key ? 'text-text-primary' : 'text-text-tertiary'}`}>{t.label}</p>
                       {key === suggested && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
-                          style={{ background: `${accent}20`, color: accent }}>✓ suggerito</span>
+                        <span className="text-2xs font-bold px-1.5 py-0.5 rounded-full shrink-0"
+                          style={{ background: `color-mix(in srgb, ${accent} 13%, transparent)`, color: accent }}>✓ suggerito</span>
                       )}
                     </div>
-                    <p className="text-[10px] text-[#333] mt-0.5 leading-tight">{t.desc}</p>
+                    <p className="text-2xs text-text-tertiary mt-0.5 leading-tight">{t.desc}</p>
                   </div>
                 </button>
               ))}
@@ -986,33 +986,33 @@ function TemplatePickerModal({ onClose, onSelect, projectType, accent }: {
             <div className="flex items-center gap-2 mb-3">
               <span className="text-2xl">{tmpl.emoji}</span>
               <div>
-                <p className="text-sm font-bold text-white">{tmpl.label}</p>
-                <p className="text-[10px] text-[#444]">{tmpl.plan.length} sprint · {tot - tmpl.plan.length} elementi</p>
+                <p className="text-sm font-bold text-text-primary">{tmpl.label}</p>
+                <p className="text-2xs text-text-tertiary">{tmpl.plan.length} sprint · {tot - tmpl.plan.length} elementi</p>
               </div>
             </div>
             <div className="space-y-2">
               {tmpl.plan.map((s, si) => (
-                <div key={si} className="border border-[#1A1A1A] rounded-xl overflow-hidden">
-                  <div className="flex items-center gap-2 px-3 py-2.5 bg-[#0E0E0E]">
-                    <div className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-black shrink-0"
-                      style={{ background: `${accent}20`, color: accent }}>{si + 1}</div>
-                    <span className="text-xs font-bold text-white flex-1">{s.name}</span>
-                    <span className="text-[10px] text-[#333] font-medium">{s.duration_weeks} sett.</span>
+                <div key={si} className="border border-border rounded-xl overflow-hidden">
+                  <div className="flex items-center gap-2 px-3 py-2.5 bg-background">
+                    <div className="w-5 h-5 rounded-md flex items-center justify-center text-2xs font-black shrink-0"
+                      style={{ background: `color-mix(in srgb, ${accent} 13%, transparent)`, color: accent }}>{si + 1}</div>
+                    <span className="text-xs font-bold text-text-primary flex-1">{s.name}</span>
+                    <span className="text-2xs text-text-tertiary font-medium">{s.duration_weeks} sett.</span>
                   </div>
-                  <div className="divide-y divide-[#0A0A0A]">
+                  <div className="divide-y divide-border">
                     {s.milestones.map((m, mi) => (
                       <div key={mi} className="px-3 py-2">
                         <div className="flex items-center gap-1.5 mb-1.5">
                           <Flag className="w-3 h-3 shrink-0" style={{ color: accent, opacity: 0.6 }} />
-                          <span className="text-xs font-semibold text-[#777]">{m.title}</span>
-                          <span className="text-[9px] px-1.5 py-0.5 rounded-full ml-auto"
-                            style={{ background: `${accent}10`, color: accent }}>{m.tasks.length}</span>
+                          <span className="text-xs font-semibold text-text-tertiary">{m.title}</span>
+                          <span className="text-2xs px-1.5 py-0.5 rounded-full ml-auto"
+                            style={{ background: `color-mix(in srgb, ${accent} 6%, transparent)`, color: accent }}>{m.tasks.length}</span>
                         </div>
                         <div className="pl-4 space-y-1">
                           {m.tasks.map((t, ti) => (
                             <div key={ti} className="flex items-center gap-2">
-                              <div className="w-1 h-1 rounded-full shrink-0" style={{ background: PRIORITY_COLORS[t.priority] ?? '#2A2A2A' }} />
-                              <span className="text-[10px] text-[#3A3A3A]">{t.title}</span>
+                              <div className="w-1 h-1 rounded-full shrink-0" style={{ background: PRIORITY_COLORS[t.priority] ?? 'var(--color-border)' }} />
+                              <span className="text-2xs text-text-tertiary">{t.title}</span>
                             </div>
                           ))}
                         </div>
@@ -1025,13 +1025,13 @@ function TemplatePickerModal({ onClose, onSelect, projectType, accent }: {
           </div>
         </div>
 
-        <div className="flex gap-3 px-5 py-4 border-t border-[#1A1A1A] shrink-0">
+        <div className="flex gap-3 px-5 py-4 border-t border-border shrink-0">
           <button onClick={onClose}
-            className="px-5 py-2.5 border border-[#2A2A2A] rounded-xl text-sm text-[#555] hover:text-white transition-colors">
+            className="px-5 py-2.5 border border-border rounded-xl text-sm text-text-tertiary hover:text-text-primary transition-colors">
             Annulla
           </button>
           <button onClick={() => onSelect(tmpl.plan, tmpl.label)}
-            className="flex-1 py-2.5 rounded-xl text-sm font-bold text-black transition-all hover:opacity-90 flex items-center justify-center gap-2"
+            className="flex-1 py-2.5 rounded-xl text-sm font-bold text-on-gold transition-all hover:opacity-90 flex items-center justify-center gap-2"
             style={{ background: accent }}>
             <Sparkles className="w-3.5 h-3.5" />
             Usa {tmpl.label} · {tot} elementi
@@ -1148,23 +1148,23 @@ function BriefPanel({ project, client, isAdmin, accent, onPlanGenerated, sprints
           {/* Brief AI badge */}
           {briefAiGenerated && (
             <div className="flex items-center gap-1.5 mb-3 px-2.5 py-1.5 rounded-lg w-fit"
-              style={{ background: `${accent}12`, border: `1px solid ${accent}25` }}>
+              style={{ background: `color-mix(in srgb, ${accent} 7%, transparent)`, border: `1px solid color-mix(in srgb, ${accent} 15%, transparent)` }}>
               <Sparkles className="w-3 h-3" style={{ color: accent }} />
-              <span className="text-[10px] font-bold" style={{ color: accent }}>Brief generato dall&apos;AI — modificalo liberamente</span>
+              <span className="text-2xs font-bold" style={{ color: accent }}>Brief generato dall&apos;AI — modificalo liberamente</span>
             </div>
           )}
 
           {/* Empty state with AI generate button when project already has sprints */}
           {isAdmin && !brief && !briefLoading && sprintsCount > 0 && (
-            <div className="flex items-center gap-3 mb-3 p-3 rounded-xl border border-dashed border-[#2A2A2A]">
+            <div className="flex items-center gap-3 mb-3 p-3 rounded-xl border border-dashed border-border">
               <Sparkles className="w-4 h-4 shrink-0" style={{ color: accent }} />
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-white">Piano già configurato</p>
-                <p className="text-[10px] text-[#444]">{sprintsCount} sprint · {tasksCount} task</p>
+                <p className="text-xs font-semibold text-text-primary">Piano già configurato</p>
+                <p className="text-2xs text-text-tertiary">{sprintsCount} sprint · {tasksCount} task</p>
               </div>
               <button onClick={generateBriefFromExisting}
                 className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
-                style={{ background: `${accent}15`, color: accent, border: `1px solid ${accent}30` }}>
+                style={{ background: `color-mix(in srgb, ${accent} 8%, transparent)`, color: accent, border: `1px solid color-mix(in srgb, ${accent} 19%, transparent)` }}>
                 Genera brief AI
               </button>
             </div>
@@ -1174,7 +1174,7 @@ function BriefPanel({ project, client, isAdmin, accent, onPlanGenerated, sprints
           {briefLoading ? (
             <div className="flex flex-col items-center gap-2.5 py-10">
               <Loader2 className="w-6 h-6 animate-spin" style={{ color: accent }} />
-              <p className="text-xs text-[#444]">L&apos;AI sta scrivendo il brief del progetto…</p>
+              <p className="text-xs text-text-tertiary">L&apos;AI sta scrivendo il brief del progetto…</p>
             </div>
           ) : (
             <textarea value={brief} onChange={e => { setBrief(e.target.value); setBriefAiGenerated(false) }}
@@ -1188,31 +1188,31 @@ function BriefPanel({ project, client, isAdmin, accent, onPlanGenerated, sprints
           )}
 
           {isAdmin && !briefLoading && (
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#111]">
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
               <div className="flex items-center gap-3">
-                <span className="text-[10px] text-[#2A2A2A]">{wordCount} parole</span>
+                <span className="text-2xs text-text-tertiary">{wordCount} parole</span>
                 {brief && (
                   <button onClick={clearBrief}
-                    className="text-[10px] text-[#2A2A2A] hover:text-[#EF4444] transition-colors flex items-center gap-1">
+                    className="text-2xs text-text-tertiary hover:text-error transition-colors flex items-center gap-1">
                     <Trash2 className="w-2.5 h-2.5" /> Elimina
                   </button>
                 )}
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={() => setShowTmpl(true)}
-                  className="flex items-center gap-1.5 text-xs text-[#444] hover:text-white px-3 py-1.5 border border-[#2A2A2A] hover:border-[#444] rounded-lg transition-colors">
+                  className="flex items-center gap-1.5 text-xs text-text-tertiary hover:text-text-primary px-3 py-1.5 border border-border hover:border-border-strong rounded-lg transition-colors">
                   <Zap className="w-3 h-3" /> Template + AI
                 </button>
                 {brief.trim() && (
                   <button onClick={generatePlan}
                     className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 border rounded-lg transition-colors"
-                    style={{ color: accent, borderColor: `${accent}30` }}>
+                    style={{ color: accent, borderColor: `color-mix(in srgb, ${accent} 19%, transparent)` }}>
                     <Sparkles className="w-3.5 h-3.5" /> Genera piano
                   </button>
                 )}
                 <button onClick={saveBrief} disabled={saving || !isDirty}
                   className="text-xs px-4 py-1.5 rounded-lg font-bold disabled:opacity-30 transition-colors"
-                  style={{ background: isDirty ? accent : '#1A1A1A', color: isDirty ? 'black' : '#333' }}>
+                  style={{ background: isDirty ? accent : 'var(--color-surface)', color: isDirty ? 'black' : '#333' }}>
                   {saving ? 'Salvo…' : 'Salva'}
                 </button>
               </div>
@@ -1271,56 +1271,56 @@ function AiPlanModal({ plan, loading, error, onClose, onRegenerate, onAccept, ac
   const total = filtered.reduce((a, s) => a + s.milestones.reduce((b, m) => b + m.tasks.length + 1, 0) + 1, 0)
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
-      <div className="bg-[#0C0C0C] border border-[#2A2A2A] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-xl shadow-2xl flex flex-col max-h-[90vh]"
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+      <div className="bg-background border border-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-xl shadow-2xl flex flex-col max-h-[90vh]"
         onClick={e => e.stopPropagation()}>
-        <div className="flex items-center gap-2 px-5 py-4 border-b border-[#1A1A1A] shrink-0">
-          <Sparkles className="w-4 h-4 text-gold" />
-          <h2 className="text-sm font-bold text-white flex-1">Piano AI generato</h2>
-          <button onClick={onClose}><X className="w-4 h-4 text-[#555] hover:text-white" /></button>
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-border shrink-0">
+          <Sparkles className="w-4 h-4 text-gold-text" />
+          <h2 className="text-sm font-bold text-text-primary flex-1">Piano AI generato</h2>
+          <button onClick={onClose}><X className="w-4 h-4 text-text-tertiary hover:text-text-primary" /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
           {loading && (
             <div className="flex flex-col items-center gap-3 py-16">
-              <Loader2 className="w-10 h-10 text-gold animate-spin" />
-              <p className="text-sm text-[#444]">L&apos;AI sta analizzando il brief…</p>
+              <Loader2 className="w-10 h-10 text-gold-text animate-spin" />
+              <p className="text-sm text-text-tertiary">L&apos;AI sta analizzando il brief…</p>
             </div>
           )}
-          {error && !loading && <p className="text-sm text-[#EF4444] p-4 bg-[#EF4444]/10 rounded-xl">{error}</p>}
+          {error && !loading && <p className="text-sm text-error p-4 bg-error/10 rounded-xl">{error}</p>}
           {plan && !loading && (
             <div className="space-y-3">
               {plan.map((s, si) => (
-                <div key={si} className={`border rounded-xl overflow-hidden ${sel[`s${si}`] ? 'border-gold/20 bg-[#0E0E0E]' : 'border-[#111] opacity-40'}`}>
-                  <div className="flex items-center gap-2 px-4 py-3 border-b border-[#111]">
+                <div key={si} className={`border rounded-xl overflow-hidden ${sel[`s${si}`] ? 'border-gold/20 bg-background' : 'border-border opacity-40'}`}>
+                  <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
                     <button onClick={() => setSel(p => ({ ...p, [`s${si}`]: !p[`s${si}`] }))}
-                      className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center ${sel[`s${si}`] ? 'bg-gold border-gold' : 'border-[#333]'}`}>
-                      {sel[`s${si}`] && <Check className="w-2.5 h-2.5 text-black" />}
+                      className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center ${sel[`s${si}`] ? 'bg-gold border-gold' : 'border-border'}`}>
+                      {sel[`s${si}`] && <Check className="w-2.5 h-2.5 text-on-gold" />}
                     </button>
-                    <Zap className="w-3.5 h-3.5 text-gold shrink-0" />
-                    <span className="text-sm font-bold text-white flex-1">{s.name}</span>
-                    <span className="text-[10px] text-[#444]">{s.duration_weeks} sett.</span>
+                    <Zap className="w-3.5 h-3.5 text-gold-text shrink-0" />
+                    <span className="text-sm font-bold text-text-primary flex-1">{s.name}</span>
+                    <span className="text-2xs text-text-tertiary">{s.duration_weeks} sett.</span>
                   </div>
                   {s.milestones.map((m, mi) => (
-                    <div key={mi} className="px-4 py-2.5 border-b border-[#0A0A0A] last:border-0">
+                    <div key={mi} className="px-4 py-2.5 border-b border-border last:border-0">
                       <div className="flex items-center gap-2 mb-1.5">
                         <button onClick={() => setSel(p => ({ ...p, [`m${si}_${mi}`]: !p[`m${si}_${mi}`] }))}
-                          className={`w-3.5 h-3.5 rounded border shrink-0 flex items-center justify-center ${sel[`m${si}_${mi}`] ? 'bg-gold/80 border-gold/80' : 'border-[#333]'}`}>
-                          {sel[`m${si}_${mi}`] && <Check className="w-2 h-2 text-black" />}
+                          className={`w-3.5 h-3.5 rounded border shrink-0 flex items-center justify-center ${sel[`m${si}_${mi}`] ? 'bg-gold/80 border-gold/80' : 'border-border'}`}>
+                          {sel[`m${si}_${mi}`] && <Check className="w-2 h-2 text-on-gold" />}
                         </button>
-                        <Flag className="w-3 h-3 text-gold shrink-0" />
-                        <span className="text-xs font-bold text-white">{m.title}</span>
+                        <Flag className="w-3 h-3 text-gold-text shrink-0" />
+                        <span className="text-xs font-bold text-text-primary">{m.title}</span>
                       </div>
                       <div className="pl-7 space-y-0.5">
                         {m.tasks.map((t, ti) => (
                           <div key={ti} className="flex items-center gap-2">
                             <button onClick={() => setSel(p => ({ ...p, [`t${si}_${mi}_${ti}`]: !p[`t${si}_${mi}_${ti}`] }))}
-                              className={`w-3 h-3 rounded border shrink-0 flex items-center justify-center ${sel[`t${si}_${mi}_${ti}`] ? 'bg-[#22C55E] border-[#22C55E]' : 'border-[#333]'}`}>
-                              {sel[`t${si}_${mi}_${ti}`] && <Check className="w-2 h-2 text-black" />}
+                              className={`w-3 h-3 rounded border shrink-0 flex items-center justify-center ${sel[`t${si}_${mi}_${ti}`] ? 'bg-success border-success' : 'border-border'}`}>
+                              {sel[`t${si}_${mi}_${ti}`] && <Check className="w-2 h-2 text-on-gold" />}
                             </button>
                             <div className="w-1 h-1 rounded-full shrink-0"
-                              style={{ background: PRIORITY_COLORS[t.priority] ?? '#2A2A2A' }} />
-                            <span className="text-[11px] text-[#666]">{t.title}</span>
+                              style={{ background: PRIORITY_COLORS[t.priority] ?? 'var(--color-border)' }} />
+                            <span className="text-2xs text-text-tertiary">{t.title}</span>
                           </div>
                         ))}
                       </div>
@@ -1333,13 +1333,13 @@ function AiPlanModal({ plan, loading, error, onClose, onRegenerate, onAccept, ac
         </div>
 
         {plan && !loading && (
-          <div className="flex gap-3 px-5 py-4 border-t border-[#1A1A1A] shrink-0">
+          <div className="flex gap-3 px-5 py-4 border-t border-border shrink-0">
             <button onClick={onRegenerate}
-              className="flex items-center gap-1.5 text-sm text-[#555] hover:text-white border border-[#2A2A2A] px-4 py-2.5 rounded-xl transition-colors">
+              className="flex items-center gap-1.5 text-sm text-text-tertiary hover:text-text-primary border border-border px-4 py-2.5 rounded-xl transition-colors">
               <Sparkles className="w-3.5 h-3.5" /> Rigenera
             </button>
             <button onClick={() => onAccept(filtered)} disabled={!total}
-              className="flex-1 py-2.5 font-bold rounded-xl text-sm text-black disabled:opacity-40 transition-colors"
+              className="flex-1 py-2.5 font-bold rounded-xl text-sm text-on-gold disabled:opacity-40 transition-colors"
               style={{ background: accent }}>
               Crea piano ({total} elementi)
             </button>
@@ -1363,17 +1363,17 @@ function SprintTimeline({ sprints, milestones }: { sprints: ExtSprint[]; milesto
 
   return (
     <div className="pb-4 pt-1">
-      <p className="text-[9px] text-[#2A2A2A] uppercase tracking-widest font-bold mb-2">Timeline</p>
+      <p className="text-2xs text-text-tertiary uppercase tracking-widest font-bold mb-2">Timeline</p>
       <div className="overflow-x-auto">
         <div style={{ minWidth: Math.max(240, sorted.length * 80) }}>
           <div className="flex gap-px h-5 mb-1">
             {sorted.map((s, i) => {
               const a = s.status === 'in_corso', d = s.status === 'completato'
               return (
-                <div key={s.id} className={`h-full flex items-center px-1.5 text-[9px] font-bold overflow-hidden shrink-0 ${
-                  d ? 'bg-[#22C55E]/12 border border-[#22C55E]/20 text-[#22C55E]' :
-                  a ? 'bg-gold/12 border border-gold/30 text-gold' :
-                      'bg-[#111] border border-[#1A1A1A] text-[#333]'
+                <div key={s.id} className={`h-full flex items-center px-1.5 text-2xs font-bold overflow-hidden shrink-0 ${
+                  d ? 'bg-success/12 border border-success/20 text-success' :
+                  a ? 'bg-gold/12 border border-gold/30 text-gold-text' :
+                      'bg-background border border-border text-text-tertiary'
                 }`} style={{ width: `${spW(s)}%`, borderRadius: i === 0 ? '4px 0 0 4px' : i === sorted.length - 1 ? '0 4px 4px 0' : 0 }}>
                   <span className="truncate">{d ? '✓ ' : a ? '⚡ ' : ''}{s.name}</span>
                 </div>
@@ -1382,21 +1382,21 @@ function SprintTimeline({ sprints, milestones }: { sprints: ExtSprint[]; milesto
           </div>
           {milestones.length > 0 && (
             <div className="relative mt-2" style={{ height: 22 }}>
-              <div className="absolute top-2.5 left-0 right-0 h-px bg-[#151515]" />
+              <div className="absolute top-2.5 left-0 right-0 h-px bg-surface-hover" />
               {milestones.map(m => {
                 const pos = flagP(m); if (pos === null) return null
                 const d  = m.status === 'completato'
                 const ov = !d && m.due_date && m.due_date < new Date().toISOString().slice(0, 10)
-                const c  = d ? '#22C55E' : ov ? '#EF4444' : '#F5C800'
+                const c  = d ? 'var(--color-success)' : ov ? 'var(--color-error)' : 'var(--color-gold-text)'
                 return (
                   <div key={m.id} className="absolute flex flex-col items-center cursor-pointer"
                     style={{ left: `${pos}%`, transform: 'translateX(-50%)', top: 0 }}
                     onMouseEnter={() => setHov(m.id)} onMouseLeave={() => setHov(null)}>
                     {hov === m.id && (
-                      <div className="absolute bottom-full mb-1 whitespace-nowrap bg-[#111] border border-[#2A2A2A] rounded-lg px-2 py-1 shadow-xl z-20"
+                      <div className="absolute bottom-full mb-1 whitespace-nowrap bg-background border border-border rounded-lg px-2 py-1 shadow-xl z-20"
                         style={{ left: '50%', transform: 'translateX(-50%)' }}>
-                        <p className="text-[10px] font-bold text-white">{m.title}</p>
-                        {m.due_date && <p className="text-[9px] mt-0.5" style={{ color: c }}>{formatDate(m.due_date)}</p>}
+                        <p className="text-2xs font-bold text-text-primary">{m.title}</p>
+                        {m.due_date && <p className="text-2xs mt-0.5" style={{ color: c }}>{formatDate(m.due_date)}</p>}
                       </div>
                     )}
                     <Flag className="w-2.5 h-2.5" style={{ color: c }} fill={d ? c : 'none'} />
@@ -1438,12 +1438,12 @@ function GanttChart({ sprints, milestones, accent }: {
   const totalRows = sorted.length + milestones.filter(m => m.due_date).length
 
   return (
-    <div className="mb-4 rounded-2xl border border-[#1A1A1A] bg-[#080808] overflow-hidden">
+    <div className="mb-4 rounded-2xl border border-border bg-background overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#111]">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
         <BarChart3 className="w-3.5 h-3.5 shrink-0" style={{ color: accent }} />
-        <span className="text-[10px] font-bold text-[#555] uppercase tracking-wider flex-1">Gantt progettuale</span>
-        <span className="text-[9px] text-[#2A2A2A]">
+        <span className="text-2xs font-bold text-text-tertiary uppercase tracking-wider flex-1">Gantt progettuale</span>
+        <span className="text-2xs text-text-tertiary">
           {new Date(rangeS).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })} →{' '}
           {new Date(rangeE).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: '2-digit' })}
         </span>
@@ -1460,19 +1460,19 @@ function GanttChart({ sprints, milestones, accent }: {
             const leftPct  = pct(new Date(s.start_date).getTime())
             const rightPct = pct(new Date(s.end_date).getTime())
             const widthPct = Math.max(1, rightPct - leftPct)
-            const barColor = isDone ? '#22C55E' : isActive ? accent : '#2A2A2A'
+            const barColor = isDone ? 'var(--color-success)' : isActive ? accent : 'var(--color-border)'
             const isHov    = hov === s.id
 
             return (
-              <div key={s.id} className="flex items-center hover:bg-[#0C0C0C] transition-colors group"
+              <div key={s.id} className="flex items-center hover:bg-background transition-colors group"
                 style={{ height: ROW_H }}>
                 {/* Label */}
                 <div style={{ width: LABEL_W, minWidth: LABEL_W }}
                   className="flex items-center gap-1.5 px-3 shrink-0 overflow-hidden cursor-pointer"
                   onClick={() => scrollTo(`sprint-${s.id}`)}>
-                  <Zap className="w-2.5 h-2.5 shrink-0" style={{ color: isDone ? '#22C55E' : isActive ? accent : '#2A2A2A' }} />
-                  <span className="text-[10px] truncate font-semibold"
-                    style={{ color: isDone ? '#22C55E' : isActive ? 'white' : '#555' }}>
+                  <Zap className="w-2.5 h-2.5 shrink-0" style={{ color: isDone ? 'var(--color-success)' : isActive ? accent : 'var(--color-border)' }} />
+                  <span className="text-2xs truncate font-semibold"
+                    style={{ color: isDone ? 'var(--color-success)' : isActive ? 'white' : '#555' }}>
                     {s.name.replace(/^Sprint \d+ — /, '')}
                   </span>
                 </div>
@@ -1482,7 +1482,7 @@ function GanttChart({ sprints, milestones, accent }: {
                   {/* Grid lines */}
                   <div className="absolute inset-0 pointer-events-none">
                     {[0, 25, 50, 75, 100].map(v => (
-                      <div key={v} className="absolute top-0 bottom-0 w-px bg-[#0F0F0F]"
+                      <div key={v} className="absolute top-0 bottom-0 w-px bg-surface"
                         style={{ left: `${v}%` }} />
                     ))}
                   </div>
@@ -1492,21 +1492,21 @@ function GanttChart({ sprints, milestones, accent }: {
                     className="absolute h-5 rounded-full flex items-center px-2 cursor-pointer transition-all"
                     style={{
                       left: `${leftPct}%`, width: `${widthPct}%`,
-                      background: isDone ? '#22C55E18' : isActive ? `${accent}22` : '#111',
+                      background: isDone ? '#22C55E18' : isActive ? `color-mix(in srgb, ${accent} 13%, transparent)` : '#111',
                       border: `1px solid ${barColor}${isDone || isActive ? '60' : '30'}`,
                       opacity: isHov ? 1 : 0.85,
-                      boxShadow: isHov ? `0 0 12px ${barColor}20` : 'none',
+                      boxShadow: isHov ? `0 0 12px color-mix(in srgb, ${barColor} 13%, transparent)` : 'none',
                     }}
                     onClick={() => scrollTo(`sprint-${s.id}`)}
                     onMouseEnter={() => setHov(s.id)} onMouseLeave={() => setHov(null)}
                   >
-                    <span className="text-[9px] font-bold truncate" style={{ color: barColor }}>{s.name}</span>
+                    <span className="text-2xs font-bold truncate" style={{ color: barColor }}>{s.name}</span>
                   </div>
 
                   {/* Today marker */}
                   {today >= rangeS && today <= rangeE && (
                     <div className="absolute top-0 bottom-0 w-px pointer-events-none z-10"
-                      style={{ left: `${pct(today)}%`, background: '#EF4444', opacity: 0.6 }} />
+                      style={{ left: `${pct(today)}%`, background: 'var(--color-error)', opacity: 0.6 }} />
                   )}
                 </div>
               </div>
@@ -1517,19 +1517,19 @@ function GanttChart({ sprints, milestones, accent }: {
           {milestones.filter(m => m.due_date).map(m => {
             const isDone = m.status === 'completato'
             const isOver = !isDone && m.due_date! < new Date().toISOString().slice(0, 10)
-            const mColor = isDone ? '#22C55E' : isOver ? '#EF4444' : accent
+            const mColor = isDone ? 'var(--color-success)' : isOver ? 'var(--color-error)' : accent
             const mPct   = pct(new Date(m.due_date!).getTime())
             const isHov  = hov === m.id
 
             return (
-              <div key={m.id} className="flex items-center hover:bg-[#0C0C0C] transition-colors"
+              <div key={m.id} className="flex items-center hover:bg-background transition-colors"
                 style={{ height: ROW_H }}>
                 {/* Label */}
                 <div style={{ width: LABEL_W, minWidth: LABEL_W }}
                   className="flex items-center gap-1.5 px-3 pl-6 shrink-0 overflow-hidden cursor-pointer"
                   onClick={() => scrollTo(`milestone-${m.id}`)}>
                   <Flag className="w-2.5 h-2.5 shrink-0" style={{ color: mColor }} />
-                  <span className="text-[9px] truncate" style={{ color: isDone ? '#22C55E' : isOver ? '#EF4444' : '#444' }}>
+                  <span className="text-2xs truncate" style={{ color: isDone ? 'var(--color-success)' : isOver ? 'var(--color-error)' : '#444' }}>
                     {m.title}
                   </span>
                 </div>
@@ -1539,7 +1539,7 @@ function GanttChart({ sprints, milestones, accent }: {
                   {/* Grid lines */}
                   <div className="absolute inset-0 pointer-events-none">
                     {[0, 25, 50, 75, 100].map(v => (
-                      <div key={v} className="absolute top-0 bottom-0 w-px bg-[#0F0F0F]"
+                      <div key={v} className="absolute top-0 bottom-0 w-px bg-surface"
                         style={{ left: `${v}%` }} />
                     ))}
                   </div>
@@ -1548,9 +1548,9 @@ function GanttChart({ sprints, milestones, accent }: {
                   {isHov && (
                     <div className="absolute z-20 pointer-events-none"
                       style={{ left: `calc(${mPct}% + 10px)`, top: '50%', transform: 'translateY(-50%)' }}>
-                      <div className="bg-[#111] border border-[#2A2A2A] rounded-lg px-2 py-1 shadow-xl whitespace-nowrap">
-                        <p className="text-[10px] font-bold text-white">{m.title}</p>
-                        <p className="text-[9px] mt-0.5" style={{ color: mColor }}>
+                      <div className="bg-background border border-border rounded-lg px-2 py-1 shadow-xl whitespace-nowrap">
+                        <p className="text-2xs font-bold text-text-primary">{m.title}</p>
+                        <p className="text-2xs mt-0.5" style={{ color: mColor }}>
                           {new Date(m.due_date!).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
                         </p>
                       </div>
@@ -1565,7 +1565,7 @@ function GanttChart({ sprints, milestones, accent }: {
                     <svg width="14" height="14" viewBox="0 0 14 14"
                       style={{ filter: isHov ? `drop-shadow(0 0 4px ${mColor})` : 'none', transition: 'filter 0.15s' }}>
                       <rect x="3" y="3" width="8" height="8" rx="1" transform="rotate(45 7 7)"
-                        fill={isDone ? mColor : `${mColor}30`}
+                        fill={isDone ? mColor : `color-mix(in srgb, ${mColor} 19%, transparent)`}
                         stroke={mColor} strokeWidth="1.5" />
                     </svg>
                   </div>
@@ -1573,7 +1573,7 @@ function GanttChart({ sprints, milestones, accent }: {
                   {/* Today marker */}
                   {today >= rangeS && today <= rangeE && (
                     <div className="absolute top-0 bottom-0 w-px pointer-events-none z-10"
-                      style={{ left: `${pct(today)}%`, background: '#EF4444', opacity: 0.6 }} />
+                      style={{ left: `${pct(today)}%`, background: 'var(--color-error)', opacity: 0.6 }} />
                   )}
                 </div>
               </div>
@@ -1587,7 +1587,7 @@ function GanttChart({ sprints, milestones, accent }: {
               <div className="relative flex-1">
                 <div className="absolute flex items-center pointer-events-none"
                   style={{ left: `${pct(today)}%`, transform: 'translateX(-50%)', top: 2 }}>
-                  <span className="text-[8px] font-bold text-[#EF4444] bg-[#080808] px-1 rounded">oggi</span>
+                  <span className="text-[8px] font-bold text-error bg-background px-1 rounded">oggi</span>
                 </div>
               </div>
             </div>
@@ -1746,7 +1746,7 @@ function ProgettoView({ project, client, allSprints, allTasks, profiles, isAdmin
         right={
           <button
             onClick={() => setShowReassign(true)}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white/30 hover:text-white/70 hover:bg-white/5 border border-transparent hover:border-white/10 transition-colors"
+            className="flex items-center gap-1 px-2 py-1 rounded-lg text-2xs text-text-tertiary hover:text-text-secondary hover:bg-surface border border-transparent hover:border-border transition-colors"
           >
             <UserCheck className="w-3 h-3" />
             Riassegna
@@ -1756,12 +1756,12 @@ function ProgettoView({ project, client, allSprints, allTasks, profiles, isAdmin
         <div className="p-3">
           {sorted.length === 0 && (
             <div className="flex flex-col items-center py-12 text-center gap-3">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: `${accent}10` }}>
-                <Zap className="w-6 h-6" style={{ color: `${accent}50` }} />
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: `color-mix(in srgb, ${accent} 6%, transparent)` }}>
+                <Zap className="w-6 h-6" style={{ color: `color-mix(in srgb, ${accent} 31%, transparent)` }} />
               </div>
               <div>
-                <p className="text-sm font-semibold text-[#333]">Nessuno sprint ancora</p>
-                <p className="text-xs text-[#222] mt-0.5">
+                <p className="text-sm font-semibold text-text-tertiary">Nessuno sprint ancora</p>
+                <p className="text-xs text-text-tertiary mt-0.5">
                   {isAdmin ? 'Usa "Template + AI" nel brief per generare un piano, oppure aggiungi sprint manualmente' : 'Il piano di progetto non è ancora stato definito'}
                 </p>
               </div>
@@ -1780,11 +1780,11 @@ function ProgettoView({ project, client, allSprints, allTasks, profiles, isAdmin
 
           {/* Unassigned milestones — fully editable */}
           {(unassigned.length > 0 || isAdmin) && unassigned.length > 0 && (
-            <div className="border border-dashed border-[#1E1E1E] rounded-2xl px-2 pb-2 pt-1 mb-3">
+            <div className="border border-dashed border-border rounded-2xl px-2 pb-2 pt-1 mb-3">
               <div className="flex items-center gap-2 px-2 py-1.5 mb-1">
-                <Flag className="w-3 h-3 text-[#2A2A2A] shrink-0" />
-                <span className="text-[9px] text-[#2A2A2A] uppercase tracking-wider font-bold flex-1">Non assegnate a sprint</span>
-                <span className="text-[10px] text-[#2A2A2A]">{unassigned.length}</span>
+                <Flag className="w-3 h-3 text-text-tertiary shrink-0" />
+                <span className="text-2xs text-text-tertiary uppercase tracking-wider font-bold flex-1">Non assegnate a sprint</span>
+                <span className="text-2xs text-text-tertiary">{unassigned.length}</span>
               </div>
               {unassigned.map(m => (
                 <MilestoneBlock key={m.id} milestone={m} allTasks={allTasks} profiles={profiles}
@@ -1798,20 +1798,20 @@ function ProgettoView({ project, client, allSprints, allTasks, profiles, isAdmin
 
           {/* Add sprint */}
           {isAdmin && (addingSprint ? (
-            <div className="flex items-center gap-2 px-4 py-3 border border-dashed border-[#2A2A2A] rounded-2xl">
-              <Zap className="w-3.5 h-3.5 text-[#444] shrink-0" />
+            <div className="flex items-center gap-2 px-4 py-3 border border-dashed border-border rounded-2xl">
+              <Zap className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
               <input ref={spAddRef} value={sprintDraft} onChange={e => setSprintDraft(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') addSprint(); if (e.key === 'Escape') { setAddSprint(false); setSprintDraft('') } }}
                 placeholder="Nome sprint… es. Sprint 1 — Discovery"
-                className="flex-1 bg-transparent text-sm text-white focus:outline-none placeholder:text-[#2A2A2A]" autoFocus />
-              <button onClick={addSprint} disabled={savingSprint || !sprintDraft.trim()} className="p-1 text-[#22C55E] disabled:opacity-40">
+                className="flex-1 bg-transparent text-sm text-text-primary focus:outline-none placeholder:text-text-tertiary" autoFocus />
+              <button onClick={addSprint} disabled={savingSprint || !sprintDraft.trim()} className="p-1 text-success disabled:opacity-40">
                 {savingSprint ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
               </button>
-              <button onClick={() => { setAddSprint(false); setSprintDraft('') }} className="p-1 text-[#444] hover:text-white"><X className="w-3.5 h-3.5" /></button>
+              <button onClick={() => { setAddSprint(false); setSprintDraft('') }} className="p-1 text-text-tertiary hover:text-text-primary"><X className="w-3.5 h-3.5" /></button>
             </div>
           ) : (
             <button onClick={() => { setAddSprint(true); setTimeout(() => spAddRef.current?.focus(), 30) }}
-              className="flex items-center gap-2 w-full px-4 py-3 text-sm text-[#2A2A2A] hover:text-[#555] border border-dashed border-[#111] hover:border-[#2A2A2A] rounded-2xl transition-colors">
+              className="flex items-center gap-2 w-full px-4 py-3 text-sm text-text-tertiary hover:text-text-tertiary border border-dashed border-border hover:border-border rounded-2xl transition-colors">
               <Plus className="w-4 h-4" /> Nuovo sprint
             </button>
           ))}
@@ -1844,30 +1844,30 @@ function BulkReassignModal({ tasks, profiles, onClose, onDone }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
       onClick={onClose}>
-      <div className="bg-[#0E0E0E] border border-[#2A2A2A] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[80vh] flex flex-col shadow-2xl"
+      <div className="bg-background border border-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[80vh] flex flex-col shadow-2xl"
         onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1A1A1A] shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
           <div>
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <UserCheck className="w-4 h-4 text-[#F5C800]" />
+            <h2 className="text-sm font-bold text-text-primary flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-gold-text" />
               Riassegna task
             </h2>
-            <p className="text-white/30 text-xs mt-0.5">{selected.length} di {tasks.length} selezionate</p>
+            <p className="text-text-tertiary text-xs mt-0.5">{selected.length} di {tasks.length} selezionate</p>
           </div>
-          <button onClick={onClose} className="text-white/30 hover:text-white transition-colors">
+          <button onClick={onClose} className="text-text-tertiary hover:text-text-primary transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Assignee picker */}
-        <div className="px-5 py-3 border-b border-[#1A1A1A] shrink-0">
-          <label className="text-white/40 text-xs mb-1.5 block">Assegna a</label>
+        <div className="px-5 py-3 border-b border-border shrink-0">
+          <label className="text-text-tertiary text-xs mb-1.5 block">Assegna a</label>
           <select
             value={assigneeId}
             onChange={e => setAssigneeId(e.target.value)}
-            className="w-full bg-[#111] border border-[#2A2A2A] rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5C800]/40"
+            className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/40"
           >
             <option value="">Seleziona risorsa…</option>
             {profiles.map(p => (
@@ -1879,10 +1879,10 @@ function BulkReassignModal({ tasks, profiles, onClose, onDone }: {
         {/* Task list */}
         <div className="flex-1 overflow-y-auto px-5 py-3 flex flex-col gap-1">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-white/30 text-xs">Task disponibili</span>
+            <span className="text-text-tertiary text-xs">Task disponibili</span>
             <button
               onClick={() => setSelected(selected.length === tasks.length ? [] : tasks.map(t => t.id))}
-              className="text-xs text-[#F5C800]/60 hover:text-[#F5C800] transition-colors"
+              className="text-xs text-gold-text/60 hover:text-gold-text transition-colors"
             >
               {selected.length === tasks.length ? 'Deseleziona tutte' : 'Seleziona tutte'}
             </button>
@@ -1895,32 +1895,32 @@ function BulkReassignModal({ tasks, profiles, onClose, onDone }: {
                 key={t.id}
                 onClick={() => toggle(t.id)}
                 className={`flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-colors ${
-                  isSelected ? 'bg-[#F5C800]/5 border border-[#F5C800]/20' : 'bg-[#1A1A1A] border border-[#2A2A2A] hover:border-[#2A2A2A]/80'
+                  isSelected ? 'bg-gold/5 border border-gold/20' : 'bg-surface border border-border hover:border-border/80'
                 }`}
               >
                 <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                  isSelected ? 'bg-[#F5C800] border-[#F5C800]' : 'border-[#3A3A3A]'
+                  isSelected ? 'bg-gold border-gold' : 'border-border'
                 }`}>
-                  {isSelected && <Check className="w-2.5 h-2.5 text-black" />}
+                  {isSelected && <Check className="w-2.5 h-2.5 text-on-gold" />}
                 </div>
-                <span className="text-white text-sm flex-1 truncate">{t.title}</span>
+                <span className="text-text-primary text-sm flex-1 truncate">{t.title}</span>
                 {assignee && (
-                  <span className="text-white/30 text-xs shrink-0">{assignee.full_name.split(' ')[0]}</span>
+                  <span className="text-text-tertiary text-xs shrink-0">{assignee.full_name.split(' ')[0]}</span>
                 )}
               </button>
             )
           })}
         </div>
 
-        <div className="px-5 py-4 border-t border-[#1A1A1A] flex gap-2 shrink-0">
+        <div className="px-5 py-4 border-t border-border flex gap-2 shrink-0">
           <button
             onClick={confirm}
             disabled={!assigneeId || selected.length === 0 || saving}
-            className="flex-1 py-2.5 bg-[#F5C800] text-black text-sm font-semibold rounded-xl hover:bg-[#F5C800]/90 disabled:opacity-40 transition-colors"
+            className="flex-1 py-2.5 bg-gold text-on-gold text-sm font-semibold rounded-xl hover:bg-gold/90 disabled:opacity-40 transition-colors"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : `Riassegna ${selected.length} task`}
           </button>
-          <button onClick={onClose} className="px-4 py-2.5 text-white/40 text-sm rounded-xl hover:text-white transition-colors">
+          <button onClick={onClose} className="px-4 py-2.5 text-text-tertiary text-sm rounded-xl hover:text-text-primary transition-colors">
             Annulla
           </button>
         </div>
@@ -1938,7 +1938,7 @@ function EditProjectModal({ project, onClose, onSaved }: {
     project_kind: project.project_kind ?? '',
   })
   const [loading, setLoading] = useState(false)
-  const inp = 'w-full bg-[#111] border border-[#2A2A2A] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-gold'
+  const inp = 'w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-text-primary focus:outline-none focus:border-gold'
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true)
@@ -1956,31 +1956,31 @@ function EditProjectModal({ project, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
-      <div className="bg-[#0E0E0E] border border-[#2A2A2A] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md shadow-2xl"
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+      <div className="bg-background border border-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md shadow-2xl"
         onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1A1A1A]">
-          <h2 className="text-sm font-bold text-white">Modifica progetto</h2>
-          <button onClick={onClose}><X className="w-4 h-4 text-[#555] hover:text-white" /></button>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-bold text-text-primary">Modifica progetto</h2>
+          <button onClick={onClose}><X className="w-4 h-4 text-text-tertiary hover:text-text-primary" /></button>
         </div>
         <form onSubmit={submit} className="p-5 space-y-3">
-          <div><label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Nome *</label>
+          <div><label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Nome *</label>
             <input required value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} className={inp} /></div>
-          <div><label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Descrizione</label>
+          <div><label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Descrizione</label>
             <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} rows={2} className={`${inp} resize-none`} /></div>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Stato</label>
+            <div><label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Stato</label>
               <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value as Project['status'] }))} className={inp}>
                 {STATUS_PROJECT.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
               </select></div>
-            <div><label className="block text-[10px] text-[#444] mb-1.5 uppercase tracking-wider">Kind</label>
+            <div><label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Kind</label>
               <select value={form.project_kind} onChange={e => setForm(p => ({ ...p, project_kind: e.target.value }))} className={inp}>
                 <option value="">—</option><option value="growth">📈 Growth</option><option value="digital">💻 Digital</option>
               </select></div>
           </div>
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[#2A2A2A] rounded-xl text-sm text-[#555] hover:text-white">Annulla</button>
-            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-xl text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-xl text-sm text-text-tertiary hover:text-text-primary">Annulla</button>
+            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-xl text-sm hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}Salva
             </button>
           </div>
@@ -1991,7 +1991,7 @@ function EditProjectModal({ project, onClose, onSaved }: {
 }
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
-let accent = '#F5C800'
+let accent = 'var(--color-gold-text)'
 
 export function ProjectPageClient({
   client, project: initialProject, tasks: initialTasks, sprints: initialSprints,
@@ -2011,7 +2011,7 @@ export function ProjectPageClient({
     || currentProfile?.app_role === 'manager'
 
   const isG = localProject.project_kind === 'growth'
-  accent = isG ? '#F5C800' : '#60A5FA'
+  accent = isG ? 'var(--color-gold-text)' : 'var(--color-info)'
 
   const allMilestones = localTasks.filter(t => t.is_milestone)
   const leafTasks     = localTasks.filter(t => !t.is_milestone && !(t as ExtTask).parent_id)
@@ -2022,10 +2022,10 @@ export function ProjectPageClient({
   const newUpdates    = localComments.filter(c => !c.parent_id && Date.now() - new Date(c.created_at).getTime() < 7 * 86400000).length
 
   const statusBadgeStyle: Record<string, string> = {
-    attivo:      'bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20',
-    in_pausa:    'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/20',
-    completato:  'bg-[#1A1A1A] text-[#555] border-[#2A2A2A]',
-    archiviato:  'bg-[#1A1A1A] text-[#333] border-[#1A1A1A]',
+    attivo:      'bg-success/10 text-success border-success/20',
+    in_pausa:    'bg-warning/10 text-warning border-warning/20',
+    completato:  'bg-surface text-text-tertiary border-border',
+    archiviato:  'bg-surface text-text-tertiary border-border',
   }
 
   const TABS: { key: PageTab; label: string; badge?: number }[] = [
@@ -2041,13 +2041,13 @@ export function ProjectPageClient({
   const activeSprint = localSprints.find(s => s.status === 'in_corso')
 
   return (
-    <div className="flex flex-col min-h-full bg-[#111]">
+    <div className="flex flex-col min-h-full bg-background">
       {/* ── Header ── */}
-      <div className="border-b border-[#111] bg-[#0C0C0C]">
+      <div className="border-b border-border bg-background">
         {/* Breadcrumb */}
         <div className="px-4 sm:px-6 pt-4 pb-0">
           <Link href={backHref ?? `/clienti/${client.id}`}
-            className="inline-flex items-center gap-1.5 text-xs text-[#333] hover:text-white transition-colors mb-3">
+            className="inline-flex items-center gap-1.5 text-xs text-text-tertiary hover:text-text-primary transition-colors mb-3">
             <ArrowLeft className="w-3.5 h-3.5" /> {client.company_name}
           </Link>
 
@@ -2058,10 +2058,10 @@ export function ProjectPageClient({
             <div className="flex-1 min-w-0">
               {/* Title + edit */}
               <div className="flex items-center gap-2 flex-wrap mb-1">
-                <h1 className="text-lg sm:text-xl font-black text-white leading-tight">{localProject.name}</h1>
+                <h1 className="text-lg sm:text-xl font-black text-text-primary leading-tight">{localProject.name}</h1>
                 {isAdmin && (
                   <button onClick={() => setEditOpen(true)}
-                    className="p-1.5 rounded-lg text-[#2A2A2A] hover:text-white hover:bg-white/5 transition-colors shrink-0">
+                    className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-surface transition-colors shrink-0">
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
                 )}
@@ -2069,27 +2069,27 @@ export function ProjectPageClient({
 
               {/* Badges row */}
               <div className="flex items-center gap-2 flex-wrap">
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusBadgeStyle[localProject.status] ?? ''}`}>
+                <span className={`text-2xs font-bold px-2 py-0.5 rounded-full border ${statusBadgeStyle[localProject.status] ?? ''}`}>
                   {STATUS_PROJECT.find(o => o.v === localProject.status)?.l}
                 </span>
                 {localProject.project_kind && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
-                    style={{ background: `${accent}12`, color: accent, borderColor: `${accent}25` }}>
+                  <span className="text-2xs font-bold px-2 py-0.5 rounded-full border"
+                    style={{ background: `color-mix(in srgb, ${accent} 7%, transparent)`, color: accent, borderColor: `color-mix(in srgb, ${accent} 15%, transparent)` }}>
                     {isG ? '📈 Growth' : '💻 Digital'}
                   </span>
                 )}
                 {activeSprint && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
-                    style={{ background: `${accent}12`, color: accent, borderColor: `${accent}25` }}>
+                  <span className="text-2xs font-bold px-2 py-0.5 rounded-full border"
+                    style={{ background: `color-mix(in srgb, ${accent} 7%, transparent)`, color: accent, borderColor: `color-mix(in srgb, ${accent} 15%, transparent)` }}>
                     ⚡ {activeSprint.name}
                   </span>
                 )}
               </div>
 
               {/* Stats row */}
-              <div className="flex items-center gap-3 mt-1.5 text-[10px] text-[#444] flex-wrap">
+              <div className="flex items-center gap-3 mt-1.5 text-2xs text-text-tertiary flex-wrap">
                 <span>{done}/{total} task</span>
-                {overdue > 0 && <span className="text-[#EF4444] font-bold">⚠ {overdue} scadute</span>}
+                {overdue > 0 && <span className="text-error font-bold">⚠ {overdue} scadute</span>}
                 {allMilestones.length > 0 && (
                   <span>{allMilestones.filter(m => m.status === 'completato').length}/{allMilestones.length} milestone</span>
                 )}
@@ -2103,7 +2103,7 @@ export function ProjectPageClient({
           {localSprints.length > 0 && (
             <div>
               <button onClick={() => setShowTimeline(o => !o)}
-                className="flex items-center gap-1.5 text-[9px] text-[#2A2A2A] hover:text-[#555] transition-colors mb-1">
+                className="flex items-center gap-1.5 text-2xs text-text-tertiary hover:text-text-tertiary transition-colors mb-1">
                 {showTimeline ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                 {showTimeline ? 'Nascondi timeline' : 'Mostra timeline'}
               </button>
@@ -2113,16 +2113,16 @@ export function ProjectPageClient({
         </div>
 
         {/* Tabs */}
-        <div className="flex overflow-x-auto border-t border-[#0E0E0E] px-4 sm:px-6">
+        <div className="flex overflow-x-auto border-t border-border px-4 sm:px-6">
           {TABS.map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
               className={`relative flex items-center gap-1.5 px-4 py-3.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
-                activeTab === tab.key ? '' : 'border-transparent text-[#444] hover:text-white'
+                activeTab === tab.key ? '' : 'border-transparent text-text-tertiary hover:text-text-primary'
               }`}
               style={activeTab === tab.key ? { borderBottomColor: accent, color: accent } : {}}>
               {tab.label}
               {tab.badge && tab.badge > 0 && (
-                <span className="absolute -top-0.5 right-0 w-4 h-4 bg-[#EF4444] text-white text-[8px] font-black rounded-full flex items-center justify-center">{tab.badge}</span>
+                <span className="absolute -top-0.5 right-0 w-4 h-4 bg-error text-text-primary text-[8px] font-black rounded-full flex items-center justify-center">{tab.badge}</span>
               )}
             </button>
           ))}

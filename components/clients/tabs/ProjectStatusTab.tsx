@@ -37,12 +37,12 @@ const PROJECT_TYPE_META: Record<string, { icon: string; label: string }> = {
 const STATUS_CFG: Record<string, { label: string; badge: string; dot: string }> = {
   attivo:     { label: 'Attivo',     badge: 'bg-success/10 text-success border-success/20',         dot: 'bg-success' },
   in_pausa:   { label: 'In pausa',   badge: 'bg-warning/10 text-warning border-warning/20',         dot: 'bg-warning' },
-  completato: { label: 'Completato', badge: 'bg-surface-active text-text-secondary border-border-strong',   dot: 'bg-[#555]' },
-  archiviato: { label: 'Archiviato', badge: 'bg-surface-active text-text-secondary border-border-strong',   dot: 'bg-[#555]' },
+  completato: { label: 'Completato', badge: 'bg-surface-active text-text-secondary border-border-strong',   dot: 'bg-text-tertiary' },
+  archiviato: { label: 'Archiviato', badge: 'bg-surface-active text-text-secondary border-border-strong',   dot: 'bg-text-tertiary' },
 }
 
 const TASK_COLS: { key: Task['status']; label: string; top: string }[] = [
-  { key: 'da_fare',      label: 'Da fare',      top: 'border-t-[#555]' },
+  { key: 'da_fare',      label: 'Da fare',      top: 'border-t-border-strong' },
   { key: 'in_corso',     label: 'In corso',     top: 'border-t-warning' },
   { key: 'in_revisione', label: 'In revisione', top: 'border-t-gold' },
   { key: 'completato',   label: 'Completato',   top: 'border-t-success' },
@@ -66,7 +66,7 @@ function ProgressRing({ pct, size = 56 }: { pct: number; size?: number }) {
   const r  = cx - 5
   const circ   = 2 * Math.PI * r
   const offset = circ - (pct / 100) * circ
-  const color  = pct >= 75 ? '#22C55E' : pct >= 40 ? '#F5C800' : pct > 0 ? '#EF4444' : '#3A3A3A'
+  const color  = pct >= 75 ? 'var(--color-success)' : pct >= 40 ? 'var(--color-gold-text)' : pct > 0 ? 'var(--color-error)' : 'var(--color-border-strong)'
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
       <circle cx={cx} cy={cx} r={r} fill="none" stroke="#2A2A2A" strokeWidth="4.5" />
@@ -102,15 +102,15 @@ function ProjectCard({ project, tasks, sprints, isSelected, onSelect, onEdit }: 
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-base leading-none">{meta.icon}</span>
             <span className="text-sm font-bold text-text-primary">{project.name}</span>
-            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${status.badge}`}>{status.label}</span>
+            <span className={`text-2xs font-semibold px-1.5 py-0.5 rounded border ${status.badge}`}>{status.label}</span>
             {project.project_kind === 'growth' && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-gold/10 text-gold border-gold/25">📈 Growth</span>
+              <span className="text-2xs font-bold px-1.5 py-0.5 rounded border bg-gold/10 text-gold-text border-gold/25">📈 Growth</span>
             )}
             {project.project_kind === 'digital' && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-blue-500/10 text-blue-400 border-blue-400/25">💻 Digital</span>
+              <span className="text-2xs font-bold px-1.5 py-0.5 rounded border bg-info/10 text-info border-info/25">💻 Digital</span>
             )}
             {curSprint && (
-              <span className="text-[10px] text-gold font-semibold bg-gold/10 border border-gold/20 px-1.5 py-0.5 rounded">
+              <span className="text-2xs text-gold-text font-semibold bg-gold/10 border border-gold/20 px-1.5 py-0.5 rounded">
                 Sprint {project.sprint_current} in corso
               </span>
             )}
@@ -132,7 +132,7 @@ function ProjectCard({ project, tasks, sprints, isSelected, onSelect, onEdit }: 
             title="Modifica progetto">
             <Pencil className="w-3.5 h-3.5" />
           </span>
-          <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isSelected ? 'rotate-180 text-gold' : 'text-text-secondary'}`} />
+          <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isSelected ? 'rotate-180 text-gold-text' : 'text-text-secondary'}`} />
         </div>
       </div>
     </button>
@@ -159,11 +159,11 @@ function MilestoneTracker({ tasks, onAdd, onEdit, onDelete }: {
               <div className="h-full bg-gold rounded-full transition-all duration-700"
                 style={{ width: `${Math.round(completedCount / milestones.length * 100)}%` }} />
             </div>
-            <span className="text-xs font-bold text-gold shrink-0">{completedCount}/{milestones.length}</span>
+            <span className="text-xs font-bold text-gold-text shrink-0">{completedCount}/{milestones.length}</span>
           </div>
         )}
         <button onClick={onAdd}
-          className="flex items-center gap-1 text-xs font-semibold text-gold hover:text-yellow-400 transition-colors ml-auto">
+          className="flex items-center gap-1 text-xs font-semibold text-gold-text hover:text-gold-text transition-colors ml-auto">
           <Plus className="w-3.5 h-3.5" /> Aggiungi milestone
         </button>
       </div>
@@ -172,7 +172,7 @@ function MilestoneTracker({ tasks, onAdd, onEdit, onDelete }: {
         <div className="text-center py-8">
           <Flag className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
           <p className="text-sm text-text-secondary mb-3">Nessuna milestone definita per questo progetto.</p>
-          <button onClick={onAdd} className="text-xs text-gold hover:underline">Aggiungi la prima milestone</button>
+          <button onClick={onAdd} className="text-xs text-gold-text hover:underline">Aggiungi la prima milestone</button>
         </div>
       ) : (
         <div>
@@ -188,16 +188,16 @@ function MilestoneTracker({ tasks, onAdd, onEdit, onDelete }: {
                 <div className="flex flex-col items-center w-7 shrink-0">
                   <div className={`w-7 h-7 rounded-full flex items-center justify-center z-10 border-2 transition-all shrink-0 ${
                     isDone    ? 'bg-success border-success' :
-                    isCurrent ? 'bg-gold border-gold shadow-[0_0_12px_rgba(245,200,0,0.4)]' :
+                    isCurrent ? 'bg-gold border-gold shadow-[0_0_12px_var(--color-gold-dim)]' :
                     isOverdue ? 'bg-error/10 border-error' :
                     'bg-surface border-border'
                   }`}>
                     {isDone ? (
-                      <svg className="w-3.5 h-3.5 text-black" viewBox="0 0 14 14" fill="none">
+                      <svg className="w-3.5 h-3.5 text-on-gold" viewBox="0 0 14 14" fill="none">
                         <path d="M2.5 7L5.5 10L11.5 4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     ) : (
-                      <div className={`w-2 h-2 rounded-full ${isCurrent ? 'bg-black' : isOverdue ? 'bg-error' : 'bg-[#444]'}`} />
+                      <div className={`w-2 h-2 rounded-full ${isCurrent ? 'bg-on-gold' : isOverdue ? 'bg-error' : 'bg-text-tertiary'}`} />
                     )}
                   </div>
                   {!isLast && <div className={`w-px flex-1 my-1.5 ${isDone ? 'bg-success/30' : 'bg-surface-active'}`} />}
@@ -208,7 +208,7 @@ function MilestoneTracker({ tasks, onAdd, onEdit, onDelete }: {
                   <div className="flex items-start justify-between gap-2 pt-0.5">
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-semibold leading-snug ${
-                        isDone ? 'text-text-secondary line-through decoration-[#444]' :
+                        isDone ? 'text-text-secondary line-through decoration-text-tertiary' :
                         isCurrent ? 'text-text-primary' : 'text-text-secondary'
                       }`}>{m.title}</p>
                       {m.description && !isDone && (
@@ -216,9 +216,9 @@ function MilestoneTracker({ tasks, onAdd, onEdit, onDelete }: {
                       )}
                     </div>
                     <div className="shrink-0 flex items-center gap-1">
-                      {isCurrent && <span className="text-[10px] bg-gold/10 text-gold border border-gold/30 px-2 py-0.5 rounded-full font-bold whitespace-nowrap">In corso</span>}
-                      {isOverdue && <span className="text-[10px] bg-error/10 text-error border border-error/30 px-2 py-0.5 rounded-full font-bold whitespace-nowrap">Scaduta</span>}
-                      {m.due_date && <span className="text-[10px] text-text-secondary whitespace-nowrap">{formatDate(m.due_date)}</span>}
+                      {isCurrent && <span className="text-2xs bg-gold/10 text-gold-text border border-gold/30 px-2 py-0.5 rounded-full font-bold whitespace-nowrap">In corso</span>}
+                      {isOverdue && <span className="text-2xs bg-error/10 text-error border border-error/30 px-2 py-0.5 rounded-full font-bold whitespace-nowrap">Scaduta</span>}
+                      {m.due_date && <span className="text-2xs text-text-secondary whitespace-nowrap">{formatDate(m.due_date)}</span>}
                       <button onClick={() => onEdit(m)} className="p-1 rounded hover:bg-overlay/5 text-text-secondary hover:text-text-primary opacity-0 group-hover:opacity-100 transition-opacity">
                         <Pencil className="w-3 h-3" />
                       </button>
@@ -252,14 +252,14 @@ function MiniTaskBoard({ tasks, profiles, onStatusChange, onAdd, onEdit, onDelet
   return (
     <div>
       <div className="flex justify-end mb-3">
-        <button onClick={onAdd} className="flex items-center gap-1 text-xs font-semibold text-gold hover:text-yellow-400 transition-colors">
+        <button onClick={onAdd} className="flex items-center gap-1 text-xs font-semibold text-gold-text hover:text-gold-text transition-colors">
           <Plus className="w-3.5 h-3.5" /> Aggiungi task
         </button>
       </div>
       {nonMilestone.length === 0 ? (
         <div className="text-center py-8">
           <p className="text-sm text-text-secondary mb-3">Nessuna task in questo progetto.</p>
-          <button onClick={onAdd} className="text-xs text-gold hover:underline">Aggiungi la prima task</button>
+          <button onClick={onAdd} className="text-xs text-gold-text hover:underline">Aggiungi la prima task</button>
         </div>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -269,7 +269,7 @@ function MiniTaskBoard({ tasks, profiles, onStatusChange, onAdd, onEdit, onDelet
               <div key={col.key}>
                 <div className={`bg-surface border border-border border-t-2 ${col.top} rounded-xl px-3 py-2 mb-2 flex items-center justify-between`}>
                   <span className="text-xs font-bold text-text-primary">{col.label}</span>
-                  <span className="text-[10px] bg-background text-text-secondary px-1.5 py-0.5 rounded-full font-semibold">{colTasks.length}</span>
+                  <span className="text-2xs bg-background text-text-secondary px-1.5 py-0.5 rounded-full font-semibold">{colTasks.length}</span>
                 </div>
                 <div className="space-y-1.5">
                   {colTasks.slice(0, 8).map(t => {
@@ -279,18 +279,18 @@ function MiniTaskBoard({ tasks, profiles, onStatusChange, onAdd, onEdit, onDelet
                       <div key={t.id} className="group bg-surface border border-border rounded-lg p-2.5 hover:border-border-strong transition-colors">
                         <div className="flex items-start gap-1.5 mb-1">
                           <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${
-                            t.priority === 'alta' ? 'bg-error' : t.priority === 'media' ? 'bg-warning' : 'bg-[#3A3A3A]'
+                            t.priority === 'alta' ? 'bg-error' : t.priority === 'media' ? 'bg-warning' : 'bg-surface-active'
                           }`} />
                           <p className="text-xs text-text-primary leading-snug flex-1">{t.title}</p>
                         </div>
                         <div className="flex items-center gap-1 pl-3">
                           {t.due_date && (
-                            <span className={`text-[10px] ${isOverdue ? 'text-error font-bold' : 'text-text-secondary'}`}>
+                            <span className={`text-2xs ${isOverdue ? 'text-error font-bold' : 'text-text-secondary'}`}>
                               {formatDate(t.due_date)}
                             </span>
                           )}
                           {assignee && (
-                            <span className="text-[10px] text-text-secondary truncate max-w-[48px]">
+                            <span className="text-2xs text-text-secondary truncate max-w-[48px]">
                               {assignee.full_name.split(' ')[0]}
                             </span>
                           )}
@@ -298,7 +298,7 @@ function MiniTaskBoard({ tasks, profiles, onStatusChange, onAdd, onEdit, onDelet
                             <select value={t.status}
                               onChange={e => onStatusChange(t.id, e.target.value as Task['status'])}
                               onClick={e => e.stopPropagation()}
-                              className="text-[9px] bg-surface border border-border rounded px-1 py-0.5 text-text-secondary focus:outline-none focus:border-gold cursor-pointer">
+                              className="text-2xs bg-surface border border-border rounded px-1 py-0.5 text-text-secondary focus:outline-none focus:border-gold cursor-pointer">
                               <option value="da_fare">Da fare</option>
                               <option value="in_corso">In corso</option>
                               <option value="in_revisione">In rev.</option>
@@ -317,11 +317,11 @@ function MiniTaskBoard({ tasks, profiles, onStatusChange, onAdd, onEdit, onDelet
                     )
                   })}
                   {colTasks.length > 8 && (
-                    <p className="text-[10px] text-text-secondary px-1 pt-0.5">+{colTasks.length - 8} altre</p>
+                    <p className="text-2xs text-text-secondary px-1 pt-0.5">+{colTasks.length - 8} altre</p>
                   )}
                   {colTasks.length === 0 && (
                     <div className="h-14 border border-dashed border-border rounded-lg flex items-center justify-center">
-                      <span className="text-[10px] text-text-tertiary">Nessuna</span>
+                      <span className="text-2xs text-text-tertiary">Nessuna</span>
                     </div>
                   )}
                 </div>
@@ -367,7 +367,7 @@ function SprintPanel({ project, sprints, tasks, onAdd, onEdit, onDelete }: {
     <div className="space-y-4">
       {/* Header con bottone nuovo sprint */}
       <div className="flex justify-end">
-        <button onClick={onAdd} className="flex items-center gap-1 text-xs font-semibold text-gold hover:text-yellow-400 transition-colors">
+        <button onClick={onAdd} className="flex items-center gap-1 text-xs font-semibold text-gold-text hover:text-gold-text transition-colors">
           <Plus className="w-3.5 h-3.5" /> Nuovo sprint
         </button>
       </div>
@@ -375,7 +375,7 @@ function SprintPanel({ project, sprints, tasks, onAdd, onEdit, onDelete }: {
       {!current ? (
         <div className="text-center py-8">
           <p className="text-sm text-text-secondary mb-3">Nessuno sprint creato.</p>
-          <button onClick={onAdd} className="text-xs text-gold hover:underline">Crea il primo sprint</button>
+          <button onClick={onAdd} className="text-xs text-gold-text hover:underline">Crea il primo sprint</button>
         </div>
       ) : (() => {
         const sprintTasks = tasks.filter(t => t.sprint_id === current.id)
@@ -388,8 +388,8 @@ function SprintPanel({ project, sprints, tasks, onAdd, onEdit, onDelete }: {
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                      current.status === 'in_corso'   ? 'bg-gold/10 text-gold border-gold/30' :
+                    <span className={`text-2xs font-bold px-2 py-0.5 rounded border ${
+                      current.status === 'in_corso'   ? 'bg-gold/10 text-gold-text border-gold/30' :
                       current.status === 'completato' ? 'bg-success/10 text-success border-success/30' :
                       'bg-surface text-text-secondary border-border'
                     }`}>
@@ -412,8 +412,8 @@ function SprintPanel({ project, sprints, tasks, onAdd, onEdit, onDelete }: {
                   </p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-2xl font-black text-gold">{pct}%</p>
-                  <p className="text-[10px] text-text-secondary">{done}/{sprintTasks.length} task</p>
+                  <p className="text-2xl font-black text-gold-text">{pct}%</p>
+                  <p className="text-2xs text-text-secondary">{done}/{sprintTasks.length} task</p>
                 </div>
               </div>
               <div className="h-2 bg-surface-active rounded-full overflow-hidden mt-3">
@@ -430,11 +430,11 @@ function SprintPanel({ project, sprints, tasks, onAdd, onEdit, onDelete }: {
                 </div>
                 {!report ? (
                   <button onClick={generateReport} disabled={loading}
-                    className="text-xs text-gold hover:text-yellow-400 font-semibold disabled:opacity-50 flex items-center gap-1.5">
+                    className="text-xs text-gold-text hover:text-gold-text font-semibold disabled:opacity-50 flex items-center gap-1.5">
                     {loading ? <><Loader2 className="w-3 h-3 animate-spin" />Generando...</> : 'Genera →'}
                   </button>
                 ) : (
-                  <button onClick={() => setReport(null)} className="text-[10px] text-text-secondary hover:text-text-primary">Rigenera</button>
+                  <button onClick={() => setReport(null)} className="text-2xs text-text-secondary hover:text-text-primary">Rigenera</button>
                 )}
               </div>
               <div className="px-4 py-3 bg-background">
@@ -451,7 +451,7 @@ function SprintPanel({ project, sprints, tasks, onAdd, onEdit, onDelete }: {
             {/* Sprint precedenti / pianificati */}
             {projectSprints.filter(s => s.id !== current.id).length > 0 && (
               <div>
-                <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold mb-2">Altri sprint</p>
+                <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold mb-2">Altri sprint</p>
                 <div className="space-y-1.5">
                   {projectSprints.filter(s => s.id !== current.id).map(s => {
                     const st = tasks.filter(t => t.sprint_id === s.id)
@@ -459,7 +459,7 @@ function SprintPanel({ project, sprints, tasks, onAdd, onEdit, onDelete }: {
                     return (
                       <div key={s.id} className="group flex items-center gap-3 py-2 border-b border-border last:border-0">
                         <span className="text-xs text-text-secondary flex-1 truncate">{s.name}</span>
-                        <span className="text-[10px] text-text-secondary hidden sm:block">{formatDate(s.start_date)} → {formatDate(s.end_date)}</span>
+                        <span className="text-2xs text-text-secondary hidden sm:block">{formatDate(s.start_date)} → {formatDate(s.end_date)}</span>
                         <span className={`text-xs font-bold ${sp === 100 ? 'text-success' : 'text-text-secondary'}`}>{sp}%</span>
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => onEdit(s)} className="p-1 rounded hover:bg-overlay/5 text-text-secondary hover:text-text-primary">
@@ -498,10 +498,10 @@ function AgendaSection({ meetings, onAdd }: { meetings: MeetingNote[]; onAdd: ()
       <div className="bg-surface border border-border rounded-xl overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <div className="flex items-center gap-2">
-            <Calendar className="w-3.5 h-3.5 text-gold" />
+            <Calendar className="w-3.5 h-3.5 text-gold-text" />
             <span className="text-xs font-bold text-text-primary uppercase tracking-wider">Prossimi Appuntamenti</span>
           </div>
-          <button onClick={onAdd} className="text-[10px] text-gold hover:text-yellow-400 font-semibold flex items-center gap-1">
+          <button onClick={onAdd} className="text-2xs text-gold-text hover:text-gold-text font-semibold flex items-center gap-1">
             <Plus className="w-3 h-3" /> Aggiungi
           </button>
         </div>
@@ -510,7 +510,7 @@ function AgendaSection({ meetings, onAdd }: { meetings: MeetingNote[]; onAdd: ()
             <div className="flex flex-col items-center justify-center py-8 gap-2">
               <Calendar className="w-8 h-8 text-text-tertiary" />
               <p className="text-sm text-text-secondary">Nessun appuntamento schedulato</p>
-              <button onClick={onAdd} className="text-xs text-gold hover:text-yellow-400 underline underline-offset-2">Aggiungi il primo</button>
+              <button onClick={onAdd} className="text-xs text-gold-text hover:text-gold-text underline underline-offset-2">Aggiungi il primo</button>
             </div>
           ) : (
             <div className="space-y-2">
@@ -520,21 +520,21 @@ function AgendaSection({ meetings, onAdd }: { meetings: MeetingNote[]; onAdd: ()
                 return (
                   <div key={m.id} className={`flex items-start gap-3 p-3 rounded-xl border ${isNext ? 'bg-gold/5 border-gold/25' : 'bg-background border-border'}`}>
                     <div className={`shrink-0 rounded-xl p-2.5 text-center min-w-[48px] ${isNext ? 'bg-gold/15' : 'bg-surface'}`}>
-                      <p className={`text-[9px] font-bold uppercase tracking-wider ${isNext ? 'text-gold' : 'text-text-secondary'}`}>
+                      <p className={`text-2xs font-bold uppercase tracking-wider ${isNext ? 'text-gold-text' : 'text-text-secondary'}`}>
                         {d.toLocaleDateString('it-IT', { month: 'short' })}
                       </p>
-                      <p className={`text-xl font-black leading-tight ${isNext ? 'text-gold' : 'text-text-primary'}`}>{d.getDate()}</p>
+                      <p className={`text-xl font-black leading-tight ${isNext ? 'text-gold-text' : 'text-text-primary'}`}>{d.getDate()}</p>
                     </div>
                     <div className="flex-1 min-w-0 pt-0.5">
                       <p className="text-sm font-semibold text-text-primary truncate">{m.title}</p>
                       {m.attendees && m.attendees.length > 0 && (
-                        <p className="text-[10px] text-text-secondary mt-0.5 flex items-center gap-1">
+                        <p className="text-2xs text-text-secondary mt-0.5 flex items-center gap-1">
                           <Users2 className="w-3 h-3 shrink-0" />
                           <span className="truncate">{m.attendees.join(', ')}</span>
                         </p>
                       )}
                       {m.next_actions && isNext && (
-                        <p className="text-[10px] text-gold mt-1 line-clamp-1">→ {m.next_actions}</p>
+                        <p className="text-2xs text-gold-text mt-1 line-clamp-1">→ {m.next_actions}</p>
                       )}
                     </div>
                   </div>
@@ -572,7 +572,7 @@ function AgendaSection({ meetings, onAdd }: { meetings: MeetingNote[]; onAdd: ()
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-text-primary truncate">{m.title}</p>
-                        <p className="text-[10px] text-text-secondary">
+                        <p className="text-2xs text-text-secondary">
                           {new Date(m.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
                         </p>
                       </div>
@@ -585,24 +585,24 @@ function AgendaSection({ meetings, onAdd }: { meetings: MeetingNote[]; onAdd: ()
                       <div className="px-4 pb-4 space-y-2.5 border-t border-border pt-3">
                         {m.summary && (
                           <div>
-                            <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold mb-1">Sintesi</p>
+                            <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold mb-1">Sintesi</p>
                             <p className="text-xs text-text-primary leading-relaxed">{m.summary}</p>
                           </div>
                         )}
                         {m.decisions && (
                           <div>
-                            <p className="text-[10px] text-text-secondary uppercase tracking-wider font-bold mb-1">Decisioni</p>
+                            <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold mb-1">Decisioni</p>
                             <p className="text-xs text-text-primary leading-relaxed">{m.decisions}</p>
                           </div>
                         )}
                         {m.next_actions && (
                           <div>
-                            <p className="text-[10px] text-gold uppercase tracking-wider font-bold mb-1">Prossime azioni</p>
+                            <p className="text-2xs text-gold-text uppercase tracking-wider font-bold mb-1">Prossime azioni</p>
                             <p className="text-xs text-text-primary leading-relaxed">{m.next_actions}</p>
                           </div>
                         )}
                         {m.attendees && m.attendees.length > 0 && (
-                          <p className="text-[10px] text-text-secondary flex items-center gap-1 pt-1">
+                          <p className="text-2xs text-text-secondary flex items-center gap-1 pt-1">
                             <Users2 className="w-3 h-3 shrink-0" /> {m.attendees.join(', ')}
                           </p>
                         )}
@@ -650,7 +650,7 @@ function ProjectDetail({ project, tasks, sprints, profiles, activeTab, onTabChan
         {DETAIL_TABS.map(tab => (
           <button key={tab.key} onClick={() => onTabChange(tab.key)}
             className={`px-4 py-3 text-xs font-semibold whitespace-nowrap border-b-2 transition-colors ${
-              activeTab === tab.key ? 'border-gold text-gold' : 'border-transparent text-text-secondary hover:text-text-primary'
+              activeTab === tab.key ? 'border-gold text-gold-text' : 'border-transparent text-text-secondary hover:text-text-primary'
             }`}>
             {tab.label}
           </button>
@@ -676,7 +676,7 @@ function ProjectDetail({ project, tasks, sprints, profiles, activeTab, onTabChan
             <div className="flex justify-end mt-3 pt-3 border-t border-border">
               <button onClick={onSaveBrief}
                 disabled={briefSaving || briefText === (project.brief ?? '')}
-                className="text-xs px-4 py-2 bg-gold text-black font-bold rounded-lg disabled:opacity-40 hover:bg-yellow-400 transition-colors flex items-center gap-1.5">
+                className="text-xs px-4 py-2 bg-gold text-on-gold font-bold rounded-lg disabled:opacity-40 hover:bg-gold/90 transition-colors flex items-center gap-1.5">
                 {briefSaving ? <><Loader2 className="w-3 h-3 animate-spin" />Salvataggio...</> : 'Salva brief'}
               </button>
             </div>
@@ -711,7 +711,7 @@ function KindSelector({ value, onChange }: { value: ProjectKind | ''; onChange: 
             onClick={() => onChange(value === k ? '' : k)}
             className={`py-3 rounded-xl border text-sm font-bold transition-all ${
               value === k
-                ? k === 'growth' ? 'bg-gold/10 border-gold text-gold' : 'bg-blue-500/10 border-blue-400 text-blue-400'
+                ? k === 'growth' ? 'bg-gold/10 border-gold text-gold-text' : 'bg-info/10 border-info text-info'
                 : 'bg-background border-border text-text-secondary hover:border-border-strong'
             }`}>
             {k === 'growth' ? '📈 Growth' : '💻 Digital'}
@@ -739,7 +739,7 @@ function ProjectNameField({ prefix, value, onChange, required = false }: {
         />
       </div>
       {value && (
-        <p className="text-[10px] text-text-secondary mt-1">
+        <p className="text-2xs text-text-secondary mt-1">
           Nome completo: <span className="text-text-primary">{prefix} – {value}</span>
         </p>
       )}
@@ -774,7 +774,7 @@ function NewProjectModal({ clientId, clientName, onClose, onCreated }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-surface border border-border rounded-card w-full max-w-md">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-base font-bold text-text-primary">Nuovo Progetto</h2>
@@ -800,7 +800,7 @@ function NewProjectModal({ clientId, clientName, onClose, onCreated }: {
           </div>
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
-            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
+            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg text-sm hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />} Crea Progetto
             </button>
           </div>
@@ -849,7 +849,7 @@ function EditProjectModal({ project, clientId, clientName, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-surface border border-border rounded-card w-full max-w-lg">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-base font-bold text-text-primary">Modifica Progetto</h2>
@@ -897,7 +897,7 @@ function EditProjectModal({ project, clientId, clientName, onClose, onSaved }: {
 
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
-            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
+            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg text-sm hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />} Salva modifiche
             </button>
           </div>
@@ -928,7 +928,7 @@ function NewMeetingModal({ clientId, onClose, onCreated }: { clientId: string; o
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-surface border border-border rounded-card w-full max-w-lg">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-base font-bold text-text-primary">Nuovo Incontro / Appuntamento</h2>
@@ -972,7 +972,7 @@ function NewMeetingModal({ clientId, onClose, onCreated }: { clientId: string; o
           </div>
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
-            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
+            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg text-sm hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />} Salva
             </button>
           </div>
@@ -1027,11 +1027,11 @@ function TaskModal({ projectId, sprints, profiles, task, isMilestone, onClose, o
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-surface border border-border rounded-card w-full max-w-lg">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-base font-bold text-text-primary flex items-center gap-2">
-            {isMilestone ? <Flag className="w-4 h-4 text-gold" /> : null}
+            {isMilestone ? <Flag className="w-4 h-4 text-gold-text" /> : null}
             {task ? 'Modifica' : 'Nuova'} {isMilestone ? 'Milestone' : 'Task'}
           </h2>
           <button onClick={onClose}><X className="w-5 h-5 text-text-secondary hover:text-text-primary" /></button>
@@ -1100,7 +1100,7 @@ function TaskModal({ projectId, sprints, profiles, task, isMilestone, onClose, o
           )}
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
-            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
+            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg text-sm hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />} {task ? 'Salva' : 'Aggiungi'}
             </button>
           </div>
@@ -1143,7 +1143,7 @@ function SprintModal({ projectId, sprint, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-surface border border-border rounded-card w-full max-w-md">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-base font-bold text-text-primary">{sprint ? 'Modifica Sprint' : 'Nuovo Sprint'}</h2>
@@ -1179,7 +1179,7 @@ function SprintModal({ projectId, sprint, onClose, onSaved }: {
           </div>
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary">Annulla</button>
-            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-black font-bold rounded-lg text-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
+            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg text-sm hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />} {sprint ? 'Salva' : 'Crea Sprint'}
             </button>
           </div>
@@ -1330,17 +1330,17 @@ export function ProjectStatusTab({ client, projects: initialProjects, sprints: i
             </h2>
             {/* Portfolio badge dinamico */}
             {clientType === 'growth' && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gold/10 text-gold border border-gold/30">📈 Growth</span>
+              <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-gold/10 text-gold-text border border-gold/30">📈 Growth</span>
             )}
             {clientType === 'digital' && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-400/30">💻 Digital</span>
+              <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-info/10 text-info border border-info/30">💻 Digital</span>
             )}
             {clientType === 'growth_digital' && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-400/30">⚡ Growth + Digital</span>
+              <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/30">⚡ Growth + Digital</span>
             )}
           </div>
           <button onClick={() => setShowNewProject(true)}
-            className="flex items-center gap-1.5 text-xs font-semibold text-gold hover:text-yellow-400 transition-colors">
+            className="flex items-center gap-1.5 text-xs font-semibold text-gold-text hover:text-gold-text transition-colors">
             <Plus className="w-3.5 h-3.5" /> Nuovo progetto
           </button>
         </div>
@@ -1349,7 +1349,7 @@ export function ProjectStatusTab({ client, projects: initialProjects, sprints: i
           <div className="bg-surface border border-dashed border-border rounded-xl py-12 flex flex-col items-center gap-3">
             <FolderKanban className="w-10 h-10 text-text-tertiary" />
             <p className="text-sm text-text-secondary">Nessun progetto attivo</p>
-            <button onClick={() => setShowNewProject(true)} className="text-sm text-gold hover:underline">Crea il primo progetto</button>
+            <button onClick={() => setShowNewProject(true)} className="text-sm text-gold-text hover:underline">Crea il primo progetto</button>
           </div>
         ) : (
           <div className="space-y-2">{renderProjects(activeProjects)}</div>

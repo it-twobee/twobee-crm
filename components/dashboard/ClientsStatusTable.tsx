@@ -55,7 +55,7 @@ export function ClientsStatusTable({ clients }: ClientsStatusTableProps) {
                 <td className="px-5 py-3.5">
                   <Link
                     href={`/clienti/${client.id}`}
-                    className="font-semibold text-text-primary hover:text-gold transition-colors text-sm"
+                    className="font-semibold text-text-primary hover:text-gold-text transition-colors text-sm"
                   >
                     {client.company_name}
                   </Link>
@@ -65,7 +65,7 @@ export function ClientsStatusTable({ clients }: ClientsStatusTableProps) {
                     {packageShort[client.package] ?? client.package}
                   </span>
                 </td>
-                <td className="px-5 py-3.5 text-sm font-semibold text-gold">
+                <td className="px-5 py-3.5 text-sm font-semibold text-gold-text">
                   {formatCurrency(client.mrr)}
                 </td>
                 <td className="px-5 py-3.5 text-sm">

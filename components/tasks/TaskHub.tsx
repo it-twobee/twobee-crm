@@ -33,18 +33,18 @@ export function TaskHub({ tasks, profiles, clients }: {
   return (
     <div className="flex flex-col h-full">
       {/* Header con view switcher */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A] shrink-0">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
         <div>
-          <h1 className="text-xl font-black text-white">Task</h1>
+          <h1 className="text-xl font-black text-text-primary">Task</h1>
           <p className="text-xs text-text-secondary mt-0.5">{tasks.length} task totali</p>
         </div>
-        <div className="flex bg-surface border border-[#2A2A2A] rounded-lg p-0.5">
+        <div className="flex bg-surface border border-border rounded-lg p-0.5">
           {VIEWS.map(({ key, label, icon }) => (
             <button
               key={key}
               onClick={() => setView(key)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
-                view === key ? 'bg-gold text-black' : 'text-text-secondary hover:text-white'
+                view === key ? 'bg-gold text-on-gold' : 'text-text-secondary hover:text-text-primary'
               }`}
             >
               {icon} {label}

@@ -45,7 +45,7 @@ const labelBadge: Record<string, string> = {
   stabile: 'border-success/30 text-success bg-success/10',
   in_bilico: 'border-warning/30 text-warning bg-warning/10',
   perso: 'border-error/30 text-error bg-error/10',
-  partner: 'border-gold/30 text-gold bg-gold/10',
+  partner: 'border-gold/30 text-gold-text bg-gold/10',
 }
 const labelOptions = ['stabile', 'in_bilico', 'perso', 'partner']
 const packageOptions = ['Start', 'Growth', 'Pro', 'Enterprise', 'Custom'] as const
@@ -79,7 +79,7 @@ function InlineTextField({ value, field, clientId, canEdit, className = '' }: {
         className={`bg-surface border border-gold/40 rounded px-2 py-0.5 outline-none text-text-primary ${className}`}
         style={{ minWidth: '120px', width: `${Math.max(val.length + 2, 10)}ch` }} />
       {saving
-        ? <Loader2 className="w-3 h-3 text-gold animate-spin" />
+        ? <Loader2 className="w-3 h-3 text-gold-text animate-spin" />
         : <>
           <button onClick={save}><Check className="w-3 h-3 text-success" /></button>
           <button onClick={() => { setVal(value); setEditing(false) }}><X className="w-3 h-3 text-error" /></button>
@@ -144,7 +144,7 @@ function InlineBadgeSelect({ value, options, field, clientId, canEdit, badgeClas
           <div className="absolute top-full left-0 mt-1 bg-surface border border-border rounded-lg shadow-xl z-20 min-w-[120px] overflow-hidden">
             {options.map(opt => (
               <button key={opt} onClick={() => select(opt)}
-                className={`w-full text-left px-3 py-2 text-xs capitalize hover:bg-surface-hover transition-colors ${opt === current ? 'text-gold font-bold' : 'text-text-primary'}`}>
+                className={`w-full text-left px-3 py-2 text-xs capitalize hover:bg-surface-hover transition-colors ${opt === current ? 'text-gold-text font-bold' : 'text-text-primary'}`}>
                 {labelFn ? labelFn(opt) : opt.replace('_', ' ')}
               </button>
             ))}
@@ -175,16 +175,16 @@ function InlineNumberField({ value, field, clientId, canEdit, prefix = '', suffi
     setEditing(false)
   }
 
-  if (!canEdit) return <span className="text-gold font-black">{prefix}{formatCurrency(value)}{suffix}</span>
+  if (!canEdit) return <span className="text-gold-text font-black">{prefix}{formatCurrency(value)}{suffix}</span>
 
   if (editing) return (
     <span className="inline-flex items-center gap-1">
-      <span className="text-gold font-black">{prefix}€</span>
+      <span className="text-gold-text font-black">{prefix}€</span>
       <input autoFocus value={val} onChange={e => setVal(e.target.value)} type="number"
         onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setVal(String(value)); setEditing(false) } }}
-        className="bg-surface border border-gold/40 rounded px-2 py-0.5 outline-none text-gold font-black w-24" />
+        className="bg-surface border border-gold/40 rounded px-2 py-0.5 outline-none text-gold-text font-black w-24" />
       {saving
-        ? <Loader2 className="w-3 h-3 text-gold animate-spin" />
+        ? <Loader2 className="w-3 h-3 text-gold-text animate-spin" />
         : <>
           <button onClick={save}><Check className="w-3 h-3 text-success" /></button>
           <button onClick={() => { setVal(String(value)); setEditing(false) }}><X className="w-3 h-3 text-error" /></button>
@@ -194,8 +194,8 @@ function InlineNumberField({ value, field, clientId, canEdit, prefix = '', suffi
 
   return (
     <span className="group/inline cursor-pointer inline-flex items-center gap-1" onClick={() => setEditing(true)}>
-      <span className="text-gold font-black hover:text-yellow-400 transition-colors">{prefix}{formatCurrency(value)}{suffix}</span>
-      <Edit3 className="w-2.5 h-2.5 text-gold opacity-0 group-hover/inline:opacity-60 shrink-0" />
+      <span className="text-gold-text font-black hover:text-gold-text transition-colors">{prefix}{formatCurrency(value)}{suffix}</span>
+      <Edit3 className="w-2.5 h-2.5 text-gold-text opacity-0 group-hover/inline:opacity-60 shrink-0" />
     </span>
   )
 }
@@ -239,7 +239,7 @@ export function ClientPageClient({
       <div className="px-6 pb-5 border-b border-border">
         <div className="flex items-start gap-4 flex-wrap">
           {/* Avatar azienda */}
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gold/20 to-gold/5 border border-gold/20 flex items-center justify-center text-xl font-black text-gold shrink-0">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gold/20 to-gold/5 border border-gold/20 flex items-center justify-center text-xl font-black text-gold-text shrink-0">
             {client.company_name[0].toUpperCase()}
           </div>
 
@@ -254,9 +254,9 @@ export function ClientPageClient({
                 clientId={client.id} canEdit={isAdmin}
                 labelFn={v => v === 'growth_digital' ? 'Growth + Digital' : v}
                 badgeClass={v =>
-                  v === 'growth'         ? 'bg-gold/15 text-gold border-gold/30' :
-                  v === 'growth_digital' ? 'bg-purple-500/15 text-purple-400 border-purple-400/30' :
-                                           'bg-blue-500/15 text-blue-400 border-blue-400/30'
+                  v === 'growth'         ? 'bg-gold/15 text-gold-text border-gold/30' :
+                  v === 'growth_digital' ? 'bg-accent/15 text-accent border-accent/30' :
+                                           'bg-info/15 text-info border-info/30'
                 } />
               <InlineBadgeSelect value={client.client_label ?? 'stabile'} options={labelOptions} field="client_label"
                 clientId={client.id} canEdit={isAdmin}
@@ -268,7 +268,7 @@ export function ClientPageClient({
               {/* Pacchetto */}
               <InlineBadgeSelect value={client.package} options={[...packageOptions]} field="package"
                 clientId={client.id} canEdit={isAdmin}
-                badgeClass={() => 'bg-gold/20 text-gold border-gold/30'} />
+                badgeClass={() => 'bg-gold/20 text-gold-text border-gold/30'} />
 
               {/* MRR */}
               {canSeeMrr && (
@@ -305,7 +305,7 @@ export function ClientPageClient({
         {visibleTabs.map(({ label, index }) => (
           <button key={label} onClick={() => setActiveTab(index)}
             className={`px-4 py-3.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === index ? 'border-gold text-gold' : 'border-transparent text-text-secondary hover:text-text-primary'
+              activeTab === index ? 'border-gold text-gold-text' : 'border-transparent text-text-secondary hover:text-text-primary'
             }`}>
             {label}
           </button>

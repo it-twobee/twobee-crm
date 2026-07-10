@@ -76,32 +76,32 @@ export function TimelineClient({ tasks, projects }: {
   }
 
   const statusColor = (s: string) => {
-    if (s === 'completato') return { bg: 'rgba(34,197,94,0.15)', border: 'rgba(34,197,94,0.3)', text: '#22C55E' }
+    if (s === 'completato') return { bg: 'rgba(34,197,94,0.15)', border: 'rgba(34,197,94,0.3)', text: 'var(--color-success)' }
     const d = new Date()
-    return { bg: 'rgba(245,200,0,0.1)', border: 'rgba(245,200,0,0.2)', text: '#F5C800' }
+    return { bg: 'var(--color-gold-dim)', border: 'var(--color-gold-dim)', text: 'var(--color-gold-text)' }
   }
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A2A2A] shrink-0">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
         <div>
-          <h1 className="text-xl font-black text-white">Timeline Cross-Progetto</h1>
+          <h1 className="text-xl font-black text-text-primary">Timeline Cross-Progetto</h1>
           <p className="text-xs text-text-secondary mt-0.5">{filteredProjects.length} progetti · {filteredTasks.length} task con scadenza</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1">
-            <button onClick={() => setMonthOffset(o => o - 1)} className="p-1.5 rounded-lg hover:bg-[#2A2A2A] text-text-secondary hover:text-white"><ChevronLeft className="w-4 h-4" /></button>
-            <button onClick={() => setMonthOffset(0)} className="px-3 py-1 text-xs bg-[#2A2A2A] rounded-lg text-text-secondary hover:text-white">Oggi</button>
-            <button onClick={() => setMonthOffset(o => o + 1)} className="p-1.5 rounded-lg hover:bg-[#2A2A2A] text-text-secondary hover:text-white"><ChevronRight className="w-4 h-4" /></button>
+            <button onClick={() => setMonthOffset(o => o - 1)} className="p-1.5 rounded-lg hover:bg-surface-active text-text-secondary hover:text-text-primary"><ChevronLeft className="w-4 h-4" /></button>
+            <button onClick={() => setMonthOffset(0)} className="px-3 py-1 text-xs bg-surface-active rounded-lg text-text-secondary hover:text-text-primary">Oggi</button>
+            <button onClick={() => setMonthOffset(o => o + 1)} className="p-1.5 rounded-lg hover:bg-surface-active text-text-secondary hover:text-text-primary"><ChevronRight className="w-4 h-4" /></button>
           </div>
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as FilterStatus)}
-            className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-3 py-1.5 text-xs text-white">
+            className="bg-surface border border-border rounded-lg px-3 py-1.5 text-xs text-text-primary">
             <option value="all">Tutti gli stati</option>
             <option value="attivo">Attivi</option>
             <option value="pianificato">Pianificati</option>
           </select>
           <select value={projectFilter ?? ''} onChange={e => setProjectFilter(e.target.value || null)}
-            className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-3 py-1.5 text-xs text-white max-w-[200px]">
+            className="bg-surface border border-border rounded-lg px-3 py-1.5 text-xs text-text-primary max-w-[200px]">
             <option value="">Tutti i progetti</option>
             {projects.map(p => (
               <option key={p.id} value={p.id}>{p.clients?.company_name ?? p.name} — {p.name}</option>
@@ -113,9 +113,9 @@ export function TimelineClient({ tasks, projects }: {
       <div className="flex-1 overflow-auto p-6">
         <div className="relative min-w-[900px]">
           {/* Month headers */}
-          <div className="flex h-10 mb-2 relative border-b border-[#2A2A2A]">
+          <div className="flex h-10 mb-2 relative border-b border-border">
             {months.map((m, i) => (
-              <div key={i} className="absolute text-[11px] font-bold text-[#555] uppercase border-l border-[#2A2A2A] pl-3 flex items-center h-full"
+              <div key={i} className="absolute text-2xs font-bold text-text-tertiary uppercase border-l border-border pl-3 flex items-center h-full"
                 style={{ left: `${m.left}%`, width: `${m.width}%` }}>{m.label}</div>
             ))}
           </div>
@@ -136,8 +136,8 @@ export function TimelineClient({ tasks, projects }: {
                 <div key={proj.id} className="space-y-1">
                   {/* Project bar */}
                   <div className="relative h-8 flex items-center">
-                    <div className="absolute left-0 text-xs font-bold text-white truncate" style={{ maxWidth: '180px' }}>
-                      <span className="text-[#555]">{proj.clients?.company_name ?? ''}</span>{' '}
+                    <div className="absolute left-0 text-xs font-bold text-text-primary truncate" style={{ maxWidth: '180px' }}>
+                      <span className="text-text-tertiary">{proj.clients?.company_name ?? ''}</span>{' '}
                       {proj.name}
                     </div>
                     {hasRange && (
@@ -152,12 +152,12 @@ export function TimelineClient({ tasks, projects }: {
                     const isDone = task.status === 'completato'
                     return (
                       <div key={task.id} className="relative h-6 flex items-center" style={{ marginLeft: '190px' }}>
-                        <div className="absolute h-5 rounded-md flex items-center px-2 gap-1 text-[10px] font-medium truncate max-w-[220px] border"
+                        <div className="absolute h-5 rounded-md flex items-center px-2 gap-1 text-2xs font-medium truncate max-w-[220px] border"
                           style={{
                             left: `${Math.max(0, pct - 12)}%`, width: '12%',
                             background: isDone ? 'rgba(34,197,94,0.12)' : isOverdue ? 'rgba(239,68,68,0.12)' : 'rgba(59,130,246,0.12)',
                             borderColor: isDone ? 'rgba(34,197,94,0.25)' : isOverdue ? 'rgba(239,68,68,0.25)' : 'rgba(59,130,246,0.25)',
-                            color: isDone ? '#22C55E' : isOverdue ? '#EF4444' : '#60A5FA',
+                            color: isDone ? 'var(--color-success)' : isOverdue ? 'var(--color-error)' : 'var(--color-info)',
                           }}>
                           {task.is_milestone && <Flag className="w-2.5 h-2.5 shrink-0" />}
                           <span className="truncate">{task.title}</span>
