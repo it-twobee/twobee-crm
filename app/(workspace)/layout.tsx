@@ -47,6 +47,10 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     visibleSections = (sectionsRes.data ?? []).filter((s: { id: string }) => permMap.get(s.id) === true)
   }
 
+  // La chat è disattivata: resta solo il Customer Care. Nascondo la voce a monte,
+  // in entrambi i livelli (la rotta /workspace/chat reindirizza comunque).
+  visibleSections = (visibleSections ?? []).filter((s: { key: string }) => s.key !== 'chat')
+
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <WorkspaceSidebar

@@ -132,7 +132,20 @@
       "Bash(curl -s --max-time 60 http://localhost:3000/login)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 30 http://localhost:3000/_next/static/css/app/layout.css)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 90 http://localhost:3000/dashboard)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 90 http://localhost:3000/calendario)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 90 http://localhost:3000/calendario)",
+      "Bash(git commit -q -m ' *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 90 http://localhost:3000/workspace/attivita)",
+      "Bash(sed -n '/<MieAttivitaClient/,/\\\\/>/p' \"app/\\(workspace\\)/workspace/attivita/page.tsx\")",
+      "Bash(sed -n '/<MieAttivitaClient/,/\\\\/>/p' \"app/\\(dashboard\\)/le-mie-attivita/page.tsx\")",
+      "Bash(perl -0pi -e \"s/  revalidatePath\\\\\\('\\\\/workspace\\\\/attivita'\\\\\\)\\\\n  revalidatePath\\\\\\('\\\\/le-mie-attivita'\\\\\\)/  revalidateConnected\\(\\)/g\" app/actions/workspace-create.ts)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 90 http://localhost:3000/workspace)",
+      "Skill(code-review)",
+      "Bash(echo \"avviato PID $!\")",
+      "Bash(curl -s -o /dev/null -w \"login: %{http_code}\\\\n\" --max-time 60 http://localhost:3000/login)",
+      "Bash(grep -nE 'text-gold\\([^-]|$\\)' components/tasks/MieAttivitaClient.tsx components/workspace/WorkspaceQuickCreate.tsx)",
+      "Bash(grep -nE '#[0-9a-fA-F]{3,6}|text-white|text-black|bg-\\\\[#|text-red-|text-\\\\[[0-9]' components/tasks/MieAttivitaClient.tsx components/workspace/WorkspaceQuickCreate.tsx app/actions/workspace-create.ts)",
+      "Bash(grep -rn \"from\\('tasks'\\)\\\\s*$\\\\|\\\\.insert\\(\" /Users/marcolucci/Claude_TwoBee_HQ_Room/app/actions)",
+      "Bash(echo \"dev PID $!\")"
     ]
   }
 }

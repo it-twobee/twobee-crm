@@ -33,7 +33,7 @@ export default async function WorkspaceDashboardPage() {
     project:projects(id, name, client_id, clients(company_name))
   `
 
-  const [ownedRes, assignedIdsRes, hrRes, { data: profile }, clientsRes, activeProjectsRes] = await Promise.all([
+  const [ownedRes, assignedIdsRes, hrRes, { data: profile }, clientsRes, activeProjectsRes, wsProfilesRes] = await Promise.all([
     supabase.from('tasks')
       .select(taskSelect)
       .eq('assignee_id', user.id)
@@ -45,15 +45,19 @@ export default async function WorkspaceDashboardPage() {
       .select('id, status')
       .eq('profile_id', user.id)
       .eq('status', 'pending'),
-    supabase.from('profiles').select('full_name, app_role, email').eq('id', user.id).single(),
+    supabase.from('profiles').select('full_name, app_role, email, google_connected').eq('id', user.id).single(),
     supabase.from('clients').select('id, company_name').neq('client_label', 'perso').order('company_name'),
-    supabase.from('projects').select('id, name').eq('status', 'attivo').order('name'),
+    supabase.from('projects').select('id, name, client_id').eq('status', 'attivo').order('name'),
+    supabase.from('profiles').select('id, full_name').eq('is_active', true).in('role', ['admin', 'team']).order('full_name'),
   ])
 
   // Solo manager/senior (e admin+) creano progetti/sprint/task dalla dashboard.
   const canCreate =
     profile?.app_role === 'manager' || profile?.app_role === 'senior'
     || isAdminRole(profile?.app_role) || isSuperAdminRaw(profile?.email, profile?.app_role)
+
+  // Collegamento Google Calendar: disponibile a TUTTI i membri dalla home.
+  const googleConnected = Boolean((profile as { google_connected?: boolean } | null)?.google_connected)
 
   const assignedIds = (assignedIdsRes.data ?? []).map((a: { task_id: string }) => a.task_id)
   let extraTasks: typeof ownedRes.data = []
@@ -101,10 +105,26 @@ export default async function WorkspaceDashboardPage() {
         {canCreate && (
           <WorkspaceQuickCreate
             clients={(clientsRes.data ?? []) as { id: string; company_name: string }[]}
-            projects={(activeProjectsRes.data ?? []) as { id: string; name: string }[]}
+            projects={(activeProjectsRes.data ?? []) as { id: string; name: string; client_id: string | null }[]}
+            profiles={(wsProfilesRes.data ?? []) as { id: string; full_name: string | null }[]}
           />
         )}
       </div>
+
+      {/* Collega Google Calendar — per tutti i membri, finché non connesso */}
+      {!googleConnected && (
+        <div className="mb-6 flex items-center gap-3 p-4 rounded-xl border border-gold/30 bg-gold-dim">
+          <Calendar className="w-5 h-5 text-gold-text shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-text-primary">Collega il tuo Google Calendar aziendale</p>
+            <p className="text-xs text-text-secondary mt-0.5">Sincronizza appuntamenti e scadenze, e crea eventi direttamente dal calendario.</p>
+          </div>
+          <a href="/api/google/auth"
+            className="px-4 py-2 bg-gold text-on-gold rounded-lg text-sm font-bold hover:bg-gold/90 transition-colors shrink-0">
+            Collega ora
+          </a>
+        </div>
+      )}
 
       {/* KPI */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">

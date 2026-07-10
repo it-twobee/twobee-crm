@@ -1,15 +1,15 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   CheckCircle2, Circle, Calendar, Flag, Plus, Loader2, ChevronDown, ChevronRight,
   List, LayoutGrid, GanttChartSquare, CalendarDays, BarChart3, Trash2, AlertTriangle,
   X, ExternalLink, Clock, UserPlus, CheckSquare, Square, Users,
-  Pencil, Save, Link2, FileText, FolderKanban,
+  Pencil, Save, Link2, FileText, FolderKanban, Lock,
 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { createMyTask } from '@/app/actions/workspace-create'
+import { createMyTask, deleteMyTask } from '@/app/actions/workspace-create'
 import { toast } from 'sonner'
 import { formatDate, getInitials } from '@/lib/utils'
 import type { Task, Profile } from '@/lib/types/database'
@@ -87,6 +87,27 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles, proj
   const [newTitle, setNewTitle] = useState('')
   const [newDue, setNewDue] = useState('')
   const [newProjectId, setNewProjectId] = useState('')
+  const [newSprintId, setNewSprintId] = useState('')
+  const [newMilestoneId, setNewMilestoneId] = useState('')
+  const [projectSprints, setProjectSprints] = useState<{ id: string; name: string }[]>([])
+  const [projectMilestones, setProjectMilestones] = useState<{ id: string; title: string }[]>([])
+
+  // Quando scelgo un progetto, carico le sue sprint e milestone per collegarle.
+  useEffect(() => {
+    setNewSprintId(''); setNewMilestoneId('')
+    if (!newProjectId) { setProjectSprints([]); setProjectMilestones([]); return }
+    const sb = createClient()
+    let alive = true
+    Promise.all([
+      sb.from('sprints').select('id, name').eq('project_id', newProjectId).order('start_date'),
+      sb.from('tasks').select('id, title').eq('project_id', newProjectId).eq('is_milestone', true).order('position'),
+    ]).then(([s, m]) => {
+      if (!alive) return
+      setProjectSprints((s.data ?? []) as { id: string; name: string }[])
+      setProjectMilestones((m.data ?? []) as { id: string; title: string }[])
+    })
+    return () => { alive = false }
+  }, [newProjectId])
   const [adding, setAdding] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [selectedTask, setSelectedTask] = useState<TaskWithMeta | null>(null)
@@ -164,17 +185,31 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles, proj
     const r = await createMyTask({
       title: newTitle.trim(),
       projectId: newProjectId || null,
+      sprintId: newSprintId || null,
+      milestoneId: newMilestoneId || null,
       dueDate: dueDate ?? undefined,
     })
     setAdding(false)
     if (!r.ok) { toast.error('Errore: ' + (r.error ?? '')); return }
     setTasks(p => [r.task as TaskWithMeta, ...p])
-    setNewTitle(''); setNewDue(''); setNewProjectId(''); setAddingIn(null)
+    setNewTitle(''); setNewDue(''); setNewProjectId(''); setNewSprintId(''); setNewMilestoneId(''); setAddingIn(null)
     toast.success(newProjectId ? 'Task creata sul progetto!' : 'Task privata creata!')
   }
 
   const requestDelete = async (task: TaskWithMeta) => {
     setDeleting(task.id)
+    // Task personale (senza progetto): eliminazione diretta dal proprietario.
+    // Ci si basa su project_id, non sul join `project` (che la RLS può azzerare).
+    if (!task.project_id) {
+      const r = await deleteMyTask(task.id)
+      setDeleting(null)
+      if (!r.ok) { toast.error('Errore: ' + (r.error ?? '')); return }
+      setTasks(p => p.filter(t => t.id !== task.id))
+      if (selectedTask?.id === task.id) setSelectedTask(null)
+      toast.success('Task eliminata')
+      return
+    }
+    // Task di progetto: resta soggetta ad approvazione del supervisore.
     const sb = createClient()
     const { error } = await sb.from('approvals').insert({
       type: 'task_delete', title: `Eliminare task: ${task.title}`,
@@ -244,7 +279,10 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles, proj
             newDue={newDue} setNewDue={setNewDue} adding={adding} addTask={addTask} toggleStatus={toggleStatus}
             requestDelete={requestDelete} deleting={deleting} onSelect={setSelectedTask}
             selectedIds={selectedIds} toggleSelect={toggleSelect}
-            projects={projects} newProjectId={newProjectId} setNewProjectId={setNewProjectId} />}
+            projects={projects} newProjectId={newProjectId} setNewProjectId={setNewProjectId}
+            sprints={projectSprints} milestones={projectMilestones}
+            newSprintId={newSprintId} setNewSprintId={setNewSprintId}
+            newMilestoneId={newMilestoneId} setNewMilestoneId={setNewMilestoneId} />}
           {view === 'bacheca' && <BachecaView tasks={tasks} updateStatus={updateStatus} onSelect={setSelectedTask} />}
           {view === 'timeline' && <TimelineView tasks={active} />}
           {view === 'calendario' && <CalendarioView tasks={tasks} />}
@@ -273,7 +311,7 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles, proj
 }
 
 /* ── ELENCO (enhanced original) ────────────────────── */
-function ElencoView({ tasks, sections, collapsed, setCollapsed, addingIn, setAddingIn, newTitle, setNewTitle, newDue, setNewDue, adding, addTask, toggleStatus, requestDelete, deleting, onSelect, selectedIds, toggleSelect, projects, newProjectId, setNewProjectId }: {
+function ElencoView({ tasks, sections, collapsed, setCollapsed, addingIn, setAddingIn, newTitle, setNewTitle, newDue, setNewDue, adding, addTask, toggleStatus, requestDelete, deleting, onSelect, selectedIds, toggleSelect, projects, newProjectId, setNewProjectId, sprints, milestones, newSprintId, setNewSprintId, newMilestoneId, setNewMilestoneId }: {
   tasks: TaskWithMeta[]; sections: Record<Section, TaskWithMeta[]>
   collapsed: Record<Section, boolean>; setCollapsed: (fn: (p: Record<Section, boolean>) => Record<Section, boolean>) => void
   addingIn: Section | null; setAddingIn: (s: Section | null) => void
@@ -284,12 +322,28 @@ function ElencoView({ tasks, sections, collapsed, setCollapsed, addingIn, setAdd
   selectedIds: Set<string>; toggleSelect: (id: string) => void
   projects: { id: string; name: string; company_name: string | null }[]
   newProjectId: string; setNewProjectId: (s: string) => void
+  sprints: { id: string; name: string }[]; milestones: { id: string; title: string }[]
+  newSprintId: string; setNewSprintId: (s: string) => void
+  newMilestoneId: string; setNewMilestoneId: (s: string) => void
 }) {
   const sectionEntries: [Section, TaskWithMeta[]][] = [
     ['oggi', sections.oggi], ['prossimi', sections.prossimi], ['dopo', sections.dopo], ['completati', sections.completati],
   ]
+  const privateCount = tasks.filter(t => !t.project).length
+  const operativeCount = tasks.length - privateCount
   return (
     <div className="h-full overflow-y-auto px-8 py-6 space-y-6">
+      {/* Legenda: come distinguere le due nature delle task */}
+      <div className="flex items-center gap-4 text-2xs text-text-tertiary">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-2.5 h-3 rounded-sm border-l-2 border-l-accent bg-accent-dim" aria-hidden="true" />
+          <Lock className="w-3 h-3 text-accent" /> Private <span className="text-text-secondary font-semibold">{privateCount}</span>
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-2.5 h-3 rounded-sm border-l-2 border-l-gold bg-gold-dim" aria-hidden="true" />
+          <FolderKanban className="w-3 h-3 text-gold-text" /> Operative <span className="text-text-secondary font-semibold">{operativeCount}</span>
+        </span>
+      </div>
       {sectionEntries.map(([key, list]) => {
         const meta = SECTION_META[key]
         return (
@@ -300,39 +354,67 @@ function ElencoView({ tasks, sections, collapsed, setCollapsed, addingIn, setAdd
               <span className="text-xs text-text-secondary bg-surface-active px-1.5 py-0.5 rounded">{list.length}</span>
             </button>
             {!collapsed[key] && (
-              <div className="space-y-px">
+              <div className="space-y-1.5">
                 {list.length === 0 ? (
-                  <p className="text-xs text-text-secondary pl-6 py-2 italic">{meta.emptyMsg}</p>
+                  <p className="text-xs text-text-tertiary pl-3 py-2 italic">{meta.emptyMsg}</p>
                 ) : list.map(task => (
                   <TaskRow key={task.id} task={task} toggleStatus={toggleStatus} requestDelete={requestDelete} deleting={deleting} onSelect={onSelect}
                     isSelected={selectedIds.has(task.id)} toggleSelect={toggleSelect} />
                 ))}
                 {addingIn === key ? (
-                  <div className="flex items-center gap-2 px-3 py-2">
-                    <Circle className="w-5 h-5 text-text-secondary shrink-0" />
-                    <input autoFocus value={newTitle} onChange={e => setNewTitle(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') addTask(key); if (e.key === 'Escape') { setAddingIn(null); setNewTitle('') } }}
-                      placeholder="Titolo task..." className="flex-1 bg-background border border-gold rounded px-2 py-1 text-sm text-text-primary focus:outline-none" />
-                    <select value={newProjectId} onChange={e => setNewProjectId(e.target.value)}
-                      title="Collega a un progetto cliente, oppure lascia privata"
-                      className="bg-background border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-gold max-w-[180px]">
-                      <option value="">🔒 Privata (nessun progetto)</option>
-                      {projects.map(p => (
-                        <option key={p.id} value={p.id}>{p.company_name ? `${p.company_name} — ${p.name}` : p.name}</option>
-                      ))}
-                    </select>
-                    {key !== 'oggi' && (
-                      <input type="date" value={newDue} onChange={e => setNewDue(e.target.value)}
-                        className="bg-background border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-gold" />
-                    )}
-                    <button onClick={() => addTask(key)} disabled={adding}
-                      className="px-3 py-1 bg-gold text-on-gold text-xs font-bold rounded hover:bg-gold/90 disabled:opacity-50 flex items-center gap-1">
-                      {adding && <Loader2 className="w-3 h-3 animate-spin" />} Aggiungi
-                    </button>
-                    <button onClick={() => { setAddingIn(null); setNewTitle(''); setNewProjectId('') }} className="text-text-secondary hover:text-text-primary text-xs">✕</button>
+                  <div className={`rounded-lg border-l-2 bg-surface p-3 space-y-2.5 ${newProjectId ? 'border-l-gold' : 'border-l-accent'} shadow-sm ring-1 ring-inset ring-border`}>
+                    {/* Riga 1 — titolo + azioni */}
+                    <div className="flex items-center gap-2">
+                      <Circle className="w-5 h-5 text-text-tertiary shrink-0" />
+                      <input autoFocus value={newTitle} onChange={e => setNewTitle(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') addTask(key); if (e.key === 'Escape') { setAddingIn(null); setNewTitle('') } }}
+                        placeholder="Cosa c'è da fare?" className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none" />
+                      <button onClick={() => addTask(key)} disabled={adding || !newTitle.trim()}
+                        className="px-3 py-1.5 bg-gold text-on-gold text-xs font-bold rounded-lg hover:bg-gold/90 disabled:opacity-40 flex items-center gap-1.5 transition-colors">
+                        {adding && <Loader2 className="w-3 h-3 animate-spin" />} Aggiungi
+                      </button>
+                      <button onClick={() => { setAddingIn(null); setNewTitle(''); setNewProjectId('') }} aria-label="Annulla"
+                        className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-surface-hover transition-colors"><X className="w-4 h-4" /></button>
+                    </div>
+                    {/* Riga 2 — collegamenti e scadenza */}
+                    <div className="flex flex-wrap items-center gap-2 pl-7">
+                      <div className={`flex items-center gap-1.5 pr-1 rounded-lg ${newProjectId ? '' : 'text-accent'}`}>
+                        {newProjectId ? <FolderKanban className="w-3.5 h-3.5 text-gold-text" /> : <Lock className="w-3.5 h-3.5 text-accent" />}
+                        <select value={newProjectId} onChange={e => setNewProjectId(e.target.value)}
+                          title="Collega a un progetto cliente, oppure lascia privata"
+                          className="bg-background border border-border-interactive rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-gold max-w-[220px]">
+                          <option value="">Privata · solo per te</option>
+                          {projects.map(p => (
+                            <option key={p.id} value={p.id}>{p.company_name ? `${p.company_name} — ${p.name}` : p.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {newProjectId && (
+                        <select value={newSprintId} onChange={e => setNewSprintId(e.target.value)} title="Sprint"
+                          className="bg-background border border-border-interactive rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-gold max-w-[150px]">
+                          <option value="">Sprint —</option>
+                          {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                      )}
+                      {newProjectId && (
+                        <select value={newMilestoneId} onChange={e => setNewMilestoneId(e.target.value)} title="Milestone"
+                          className="bg-background border border-border-interactive rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-gold max-w-[150px]">
+                          <option value="">Milestone —</option>
+                          {milestones.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
+                        </select>
+                      )}
+                      {key !== 'oggi' && (
+                        <div className="flex items-center gap-1.5 text-text-tertiary">
+                          <Calendar className="w-3.5 h-3.5" />
+                          <input type="date" value={newDue} onChange={e => setNewDue(e.target.value)}
+                            className="bg-background border border-border-interactive rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-gold" />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ) : (
-                  <button onClick={() => setAddingIn(key)} className="flex items-center gap-2 px-3 py-2 text-text-secondary hover:text-gold-text text-xs transition-colors w-full">
+                  <button onClick={() => setAddingIn(key)}
+                    className="flex items-center gap-2 px-3 py-2 text-text-tertiary hover:text-gold-text text-xs font-medium transition-colors w-full rounded-lg hover:bg-surface-hover">
                     <Plus className="w-4 h-4" /> Aggiungi task
                   </button>
                 )}
@@ -352,37 +434,57 @@ function TaskRow({ task, toggleStatus, requestDelete, deleting, onSelect, isSele
   isSelected: boolean; toggleSelect: (id: string) => void
 }) {
   const completed = task.status === 'completato'
+  const isPrivate = !task.project_id
+  // Rail sinistro: viola per le task private, oro per quelle operative (di progetto).
+  // Il colore non è l'unico segnale: c'è anche l'icona/badge, per l'accessibilità.
+  const rail = isPrivate ? 'border-l-accent' : 'border-l-gold'
   return (
-    <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-hover group transition-colors cursor-pointer ${isSelected ? 'bg-gold/[0.06] border border-gold/20' : ''}`}
+    <div className={`flex items-center gap-3 pl-3 pr-3 py-2.5 rounded-lg border-l-2 ${rail} hover:bg-surface-hover group transition-colors cursor-pointer ${
+        isSelected ? 'bg-gold/[0.06] ring-1 ring-inset ring-gold/25' : 'bg-surface'}`}
       onClick={() => onSelect(task)}>
-      <button onClick={e => { e.stopPropagation(); toggleSelect(task.id) }}
+      <button onClick={e => { e.stopPropagation(); toggleSelect(task.id) }} aria-label="Seleziona"
         className={`shrink-0 transition-colors ${isSelected ? 'text-gold-text' : 'text-transparent group-hover:text-text-tertiary hover:!text-gold-text'}`}>
         {isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
       </button>
-      <button onClick={e => { e.stopPropagation(); toggleStatus(task) }} className={`shrink-0 transition-colors ${completed ? 'text-success' : 'text-text-secondary hover:text-gold-text'}`}>
+      <button onClick={e => { e.stopPropagation(); toggleStatus(task) }} aria-label="Completa"
+        className={`shrink-0 transition-colors ${completed ? 'text-success' : 'text-text-secondary hover:text-gold-text'}`}>
         {completed ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
       </button>
       <div className="flex-1 min-w-0">
-        <span className={`text-sm ${completed ? 'line-through text-text-secondary' : 'text-text-primary hover:text-gold-text transition-colors'}`}>{task.title}</span>
-        {task.project && (
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <FolderKanban className="w-3 h-3 text-text-secondary shrink-0" />
-            <span className="text-2xs text-text-secondary truncate">{task.project.name}</span>
-            {task.project.clients && <span className="text-2xs text-text-tertiary">·</span>}
-            {task.project.clients && <span className="text-2xs text-text-secondary truncate">{task.project.clients.company_name}</span>}
-          </div>
-        )}
+        <span className={`text-sm ${completed ? 'line-through text-text-secondary' : 'text-text-primary group-hover:text-gold-text transition-colors'}`}>{task.title}</span>
+        <div className="flex items-center gap-1.5 mt-1">
+          {isPrivate ? (
+            <span className="inline-flex items-center gap-1 text-2xs font-medium text-accent bg-accent-dim px-1.5 py-0.5 rounded-full">
+              <Lock className="w-2.5 h-2.5" /> Privata
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-2xs font-medium text-gold-text bg-gold-dim px-1.5 py-0.5 rounded-full max-w-[220px]">
+              <FolderKanban className="w-2.5 h-2.5 shrink-0" />
+              <span className="truncate">
+                {task.project
+                  ? (task.project.clients ? `${task.project.clients.company_name} · ${task.project.name}` : task.project.name)
+                  : 'Progetto'}
+              </span>
+            </span>
+          )}
+          {task.is_milestone && (
+            <span className="inline-flex items-center gap-1 text-2xs font-medium text-warning bg-warning-dim px-1.5 py-0.5 rounded-full">
+              <Flag className="w-2.5 h-2.5" /> Milestone
+            </span>
+          )}
+        </div>
       </div>
-      {task.is_milestone && <Flag className="w-3.5 h-3.5 text-gold-text shrink-0" />}
-      {task.description && <FileText className="w-3 h-3 text-text-tertiary shrink-0" />}
-      {(task.links?.length ?? 0) > 0 && <Link2 className="w-3 h-3 text-info/50 shrink-0" />}
+      {task.description && <FileText className="w-3.5 h-3.5 text-text-tertiary shrink-0" aria-label="Ha una descrizione" />}
+      {(task.links?.length ?? 0) > 0 && <Link2 className="w-3.5 h-3.5 text-info shrink-0" aria-label="Ha dei link" />}
       {task.due_date && (
         <div className={`flex items-center gap-1 text-xs shrink-0 ${deadlineColor(task.due_date)}`}>
           <Calendar className="w-3 h-3" />{formatDate(task.due_date)}
         </div>
       )}
-      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${task.priority === 'alta' ? 'bg-error' : task.priority === 'media' ? 'bg-warning' : 'bg-success'}`} />
+      <span title={`Priorità ${task.priority ?? 'media'}`}
+        className={`w-1.5 h-1.5 rounded-full shrink-0 ${task.priority === 'alta' ? 'bg-error' : task.priority === 'media' ? 'bg-warning' : 'bg-success'}`} />
       <button onClick={e => { e.stopPropagation(); requestDelete(task) }} disabled={deleting === task.id}
+        aria-label={isPrivate ? 'Elimina task' : 'Richiedi eliminazione'}
         className="opacity-0 group-hover:opacity-100 text-text-secondary hover:text-error transition-all shrink-0">
         {deleting === task.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
       </button>

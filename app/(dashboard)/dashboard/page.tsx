@@ -105,7 +105,8 @@ export default async function DashboardPage() {
     isAdminLevel
       ? safe(supabase.from('tasks')
           .select(`*, assignee:profiles!tasks_assignee_id_fkey(id,full_name,avatar_url,email), project:projects(id,name)`)
-          .neq('status', 'completato').not('assigned_to', 'is', null), 'allActiveTasks')
+          .neq('status', 'completato').not('assigned_to', 'is', null)
+          .not('project_id', 'is', null), 'allActiveTasks')
       : noop,
 
     isAdminLevel
@@ -139,7 +140,7 @@ export default async function DashboardPage() {
       : noopArr,
 
     isAdminLevel
-      ? safeData(supabase.from('tasks').select('status'), 'allTasksStatus')
+      ? safeData(supabase.from('tasks').select('status').not('project_id', 'is', null), 'allTasksStatus')
       : noopArr,
 
     isAdminLevel

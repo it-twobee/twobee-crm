@@ -19,7 +19,7 @@ export default async function TaskPage() {
       *,
       assignee:profiles!tasks_assignee_id_fkey(id, full_name, avatar_url),
       project:projects(id, name, client_id, clients(company_name))
-    `).is('parent_task_id', null).order('created_at', { ascending: false }),
+    `).is('parent_task_id', null).not('project_id', 'is', null).order('created_at', { ascending: false }),
     supabase.from('profiles').select('*').in('role', ['admin', 'team']).order('full_name'),
     supabase.from('clients').select('*').order('company_name'),
   ])

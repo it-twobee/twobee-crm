@@ -9,7 +9,7 @@ type PortalKey = 'admin' | 'workspace' | 'cliente'
 
 const PORTALS: { key: PortalKey; label: string; hint: string; route: string; icon: typeof LayoutDashboard }[] = [
   { key: 'admin',     label: 'Admin',            hint: 'Tool completo',      route: '/dashboard', icon: LayoutDashboard },
-  { key: 'workspace', label: 'Portale Operativo', hint: 'Vista risorsa',      route: '/workspace', icon: MonitorSmartphone },
+  { key: 'workspace', label: 'Portale Workspace', hint: 'Vista risorsa',      route: '/workspace', icon: MonitorSmartphone },
   { key: 'cliente',   label: 'Portale Cliente',   hint: 'Vista cliente',      route: '/portale',   icon: Eye },
 ]
 

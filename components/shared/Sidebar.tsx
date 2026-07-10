@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import {
-  LayoutDashboard, Users, MessageSquare,
+  LayoutDashboard, Users,
   BarChart3, FolderOpen, Settings, ChevronRight, ChevronLeft, ChevronDown,
   CheckCircle2, FolderKanban, Briefcase, CalendarDays, Receipt, Headphones, Crown,
   ShoppingCart, Ticket, UserCircle2, Target, History, FlaskConical,
@@ -42,7 +42,6 @@ const sections: NavSection[] = [
     items: [
       { href: '/le-mie-attivita', icon: CheckCircle2, label: 'Le mie attività' },
       { href: '/calendario', icon: CalendarDays, label: 'Calendario' },
-      { href: '/chat', icon: MessageSquare, label: 'Chat' },
       { href: '/progetti', icon: FolderKanban, label: 'Progetti' },
       { href: '/portfolio', icon: Briefcase, label: 'Portfolio' },
       { href: '/documenti', icon: FolderOpen, label: 'Documenti' },
