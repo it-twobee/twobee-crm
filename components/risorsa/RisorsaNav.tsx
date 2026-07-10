@@ -6,6 +6,7 @@ import { LayoutGrid, CheckSquare, Clock, FolderKanban, FolderOpen, MessageSquare
 import { createClient } from '@/lib/supabase/client'
 import { getInitials } from '@/lib/utils'
 import type { Profile } from '@/lib/types/database'
+import { Logo } from '@/components/shared/Logo'
 
 // Rotte sempre dentro /risorsa (sicure anche per risorse esterne)
 const NAV = [
@@ -34,8 +35,8 @@ export function RisorsaNav({ profile, isExternal }: { profile: Profile | null; i
 
   return (
     <header className="h-14 bg-background border-b border-border flex items-center px-4 gap-1 sticky top-0 z-40">
-      <span className="text-sm font-black text-text-primary mr-3">
-        two bee<span className="text-gold-text">.</span>
+      <span className="flex items-center mr-3">
+        <Logo className="h-4" priority />
         <span className="text-2xs text-text-tertiary font-bold ml-1.5 uppercase tracking-wider">Portale Risorsa</span>
       </span>
 

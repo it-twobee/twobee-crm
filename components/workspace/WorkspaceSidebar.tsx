@@ -13,6 +13,7 @@ import { useState } from 'react'
 import { ROLE_LABELS } from '@/lib/permissions'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { PortalSwitcher } from '@/components/shared/PortalSwitcher'
+import { Logo } from '@/components/shared/Logo'
 import type { AppRole } from '@/lib/types/database'
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -67,11 +68,11 @@ export function WorkspaceSidebar({ sections, profile, isSuperAdmin = false }: Pr
         'flex items-center h-14 px-4 border-b border-border shrink-0',
         collapsed ? 'justify-center' : 'gap-2',
       )}>
-        {collapsed ? (
-          <span className="text-gold-text font-black text-lg leading-none">2B</span>
-        ) : (
-          <img src="/logo.svg" alt="TWO BEE" className="h-8 w-auto" />
-        )}
+        <Link href="/workspace" aria-label="TwoBee — vai alla dashboard" className="flex items-center">
+          {collapsed
+            ? <Logo variant="mark" className="w-5 h-5" priority />
+            : <Logo className="h-6" priority />}
+        </Link>
       </div>
 
       {/* Nav */}

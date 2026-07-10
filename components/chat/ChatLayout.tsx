@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import { SlackChat } from '@/components/chat/SlackChat'
 import { isSuperAdmin } from '@/lib/permissions'
 import type { ChatChannel, Profile, Client } from '@/lib/types/database'
+import { Logo } from '@/components/shared/Logo'
 
 interface ProjectInfo {
   id: string
@@ -585,7 +586,7 @@ export function ChatLayout({ channels: initialChannels, currentProfile, allProfi
         <div className="px-4 py-3 border-b border-border">
           <div className="flex items-center justify-between mb-2">
             <div>
-              <p className="text-sm font-black text-text-primary leading-none">two bee<span className="text-gold-text">.</span></p>
+              <Logo className="h-4" />
               <p className="text-2xs text-text-secondary mt-0.5">Chat</p>
             </div>
             {isAdmin && (

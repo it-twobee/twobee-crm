@@ -21,6 +21,11 @@ const leagueSpartan = League_Spartan({
 export const metadata: Metadata = {
   title: 'TWO BEE Gestionale',
   description: 'Piattaforma operativa interna TWO BEE S.R.L.',
+  icons: {
+    icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
+    shortcut: '/favicon.svg',
+    apple: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({

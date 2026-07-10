@@ -267,4 +267,11 @@
   .tabular {
     font-variant-numeric: tabular-nums;
   }
+
+  /* Logo: due incisioni fisse (webp con alpha, non colorabili). Scegliamo in CSS
+     così la variante giusta è già lì al primo paint, senza attendere il JS. */
+  .logo-on-dark { display: block; }
+  .logo-on-light { display: none; }
+  [data-theme="light"] .logo-on-dark { display: none; }
+  [data-theme="light"] .logo-on-light { display: block; }
 }

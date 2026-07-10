@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2, CheckCircle2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { Logo } from '@/components/shared/Logo'
 
 export function OnboardingClient() {
   const router = useRouter()
@@ -128,7 +129,7 @@ export function OnboardingClient() {
     <div className="min-h-screen bg-background flex items-center justify-center px-6">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <p className="text-3xl font-black text-text-primary">two bee<span className="text-gold-text">.</span></p>
+          <div className="flex justify-center"><Logo className="h-9" priority /></div>
           <p className="text-text-secondary mt-2 text-sm">Completa il tuo profilo per accedere alla chat</p>
         </div>
 

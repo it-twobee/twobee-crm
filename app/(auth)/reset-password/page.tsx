@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Loader2, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
+import { Logo } from '@/components/shared/Logo'
 
 export default function ResetPasswordPage() {
   const router = useRouter()
@@ -42,8 +43,9 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
-          <h1 className="text-4xl font-black tracking-tight mb-2">
-            <span className="text-text-primary">two bee</span><span className="text-gold-text">.</span>
+          <h1 className="mb-2 flex justify-center">
+            <Logo className="h-10" priority />
+            <span className="sr-only">TwoBee</span>
           </h1>
         </div>
         <div className="bg-surface border border-border rounded-2xl p-8">

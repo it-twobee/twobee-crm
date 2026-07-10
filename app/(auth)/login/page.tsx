@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
+import { Logo } from '@/components/shared/Logo'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -65,9 +66,9 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-10">
-          <h1 className="text-5xl font-black tracking-tight mb-2 font-heading">
-            <span className="text-text-primary">two bee</span>
-            <span className="text-gold-text">.</span>
+          <h1 className="mb-2 flex justify-center">
+            <Logo className="h-12" priority />
+            <span className="sr-only">TwoBee</span>
           </h1>
           <p className="text-overlay/30 text-sm tracking-[0.2em] uppercase">
             Gestionale Interno
