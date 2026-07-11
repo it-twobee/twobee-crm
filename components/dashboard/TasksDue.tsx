@@ -15,7 +15,7 @@ export function TasksDue({ tasks }: TasksDueProps) {
     <div className="bg-surface border border-border rounded-card h-full flex flex-col overflow-hidden">
       <div className="px-5 py-4 border-b border-border flex items-center justify-between">
         <h2 className="font-bold text-text-primary">Task della Settimana</h2>
-        <Link href="/task" className="text-xs text-gold-text hover:underline">
+        <Link href="/le-mie-attivita" className="text-xs text-gold-text hover:underline">
           Vedi tutti →
         </Link>
       </div>
