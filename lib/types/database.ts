@@ -254,7 +254,12 @@ export interface Approval {
 
 export interface Client {
   id: string
+  /** Colonna storica. Per mostrare il nome usa `clientName()` (display_name con fallback). */
   company_name: string
+  /** §24: nome con cui il cliente è chiamato nell'app (backfill da company_name). */
+  display_name?: string | null
+  /** §24: ragione sociale legale — fatture, preventivi, documenti fiscali. */
+  legal_name?: string | null
   package: ClientPackage
   mrr: number
   contract_start: string

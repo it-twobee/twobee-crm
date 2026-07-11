@@ -81,3 +81,13 @@ export function getInitials(name: string): string {
     .join('')
     .toUpperCase()
 }
+
+/**
+ * Nome del cliente da mostrare nella UI (§24). `display_name` è il nome con cui lo
+ * chiamiamo; `company_name` resta la colonna storica ed è il fallback sicuro.
+ * La ragione sociale (`legal_name`) NON si usa qui: va solo su fatture/preventivi/
+ * documenti fiscali.
+ */
+export function clientName(c: { display_name?: string | null; company_name: string }): string {
+  return c.display_name?.trim() || c.company_name
+}

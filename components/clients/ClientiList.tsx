@@ -8,7 +8,7 @@ import {
   Pin, GripVertical, X, SlidersHorizontal,
   LayoutGrid, List, Calendar, TrendingUp, TrendingDown, Minus,
 } from 'lucide-react'
-import { formatCurrency, getPaymentBadge } from '@/lib/utils'
+import { formatCurrency, getPaymentBadge, clientName } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Client, ClientPackage, PaymentStatus, ClientType, ClientLabel, Profile } from '@/lib/types/database'
@@ -364,7 +364,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
           </div>
           <div className="flex-1 min-w-0">
             <Link href={hideEconomics ? `/workspace/clienti/${client.id}` : `/clienti/${client.id}`} className="font-bold text-text-primary hover:text-gold-text transition-colors text-sm leading-tight block truncate">
-              {client.company_name}
+              {clientName(client)}
             </Link>
             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
               <span className={`inline-flex items-center whitespace-nowrap text-2xs font-semibold px-1.5 py-0.5 rounded ${typeBadge[client.client_type ?? 'growth']}`}>
@@ -467,7 +467,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
         <div className="flex items-center gap-2">
           {pinned && <span className="text-2xs text-gold-text bg-gold/10 border border-gold/20 px-1.5 py-0.5 rounded font-semibold">FISSATO</span>}
           <Link href={hideEconomics ? `/workspace/clienti/${client.id}` : `/clienti/${client.id}`} className="font-semibold text-text-primary hover:text-gold-text transition-colors text-sm">
-            {client.company_name}
+            {clientName(client)}
           </Link>
         </div>
       </td>
@@ -831,7 +831,7 @@ function LostSection({ clients, canSeeMrr, onDelete, deletingId }: {
                     <div className="w-7 h-7 rounded-lg bg-surface border border-border flex items-center justify-center text-xs font-black text-text-secondary shrink-0">
                       {c.company_name[0].toUpperCase()}
                     </div>
-                    <span className="text-sm text-text-primary font-medium">{c.company_name}</span>
+                    <span className="text-sm text-text-primary font-medium">{clientName(c)}</span>
                   </Link>
                 </td>
                 <td className="px-4 py-3">

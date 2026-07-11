@@ -248,7 +248,8 @@ export function ClientPageClient({
             {/* Nome azienda + badges status */}
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               <h1 className="text-2xl font-black text-text-primary">
-                <InlineTextField value={client.company_name} field="company_name" clientId={client.id}
+                {/* §24: si edita il nome VISUALIZZATO; la ragione sociale sta in Anagrafica */}
+                <InlineTextField value={client.display_name ?? client.company_name} field="display_name" clientId={client.id}
                   canEdit={isAdmin} className="text-2xl font-black text-text-primary" />
               </h1>
               <InlineBadgeSelect value={client.client_type ?? 'growth'} options={['growth','digital','growth_digital']} field="client_type"

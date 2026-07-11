@@ -157,8 +157,12 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
       <section className="bg-surface border border-border rounded-2xl p-5">
         <SectionHeader title="Dati Aziendali" section="azienda" editing={editAzienda} />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <Field label="Ragione Sociale" value={client.company_name} editMode={editAzienda}>
-            <Input value={form.company_name} onChange={(v) => setForm((p) => ({ ...p, company_name: v }))} />
+          {/* §24: nome visualizzato ≠ ragione sociale */}
+          <Field label="Nome visualizzato" value={client.display_name ?? client.company_name} editMode={editAzienda}>
+            <Input value={form.display_name ?? form.company_name ?? ''} onChange={(v) => setForm((p) => ({ ...p, display_name: v }))} />
+          </Field>
+          <Field label="Ragione Sociale" value={client.legal_name} editMode={editAzienda}>
+            <Input value={form.legal_name ?? ''} onChange={(v) => setForm((p) => ({ ...p, legal_name: v }))} placeholder="es. Seven Holding S.r.l." />
           </Field>
           <Field label="Telefono" value={client.phone} editMode={editAzienda}>
             <Input value={form.phone ?? ''} onChange={(v) => setForm((p) => ({ ...p, phone: v }))} placeholder="+39 ..." />
