@@ -19,3 +19,14 @@
 **Rollback**: migration additiva; script inverso nel commento della 100; codice su Git.
 
 **Rimandato a Fase 5**: privacy storage / URL pubblici documenti+HR (D10 li cancella comunque).
+
+## Fase 1 — Task domain condiviso (COMPLETA)
+**Migration**: `101_task_requests.sql` (stato `richiesta_supporto` + `origin_task_id`/`requested_by`).
+- **1a** `lib/task-status.ts` (TERMINAL/ACTIVE/PENDING, isTaskDone/Active/PendingRequest, estendibile) + fix conteggi §7.1 in MieAttivitaClient.
+- **1b** `<TaskDrawer>` condiviso (tab Dettaglio/Subtask/Commenti/Ore) + server action `updateTaskFields` (authz+service role); wire in MieAttività, ProjectPageClient, SprintMilestoneBoardSection (3 modali duplicati rimossi).
+- **1c** task cliccabili → drawer in Timeline e Calendario.
+- **1d** richieste dirette + supporto: `app/actions/task-requests.ts` (create/respond), `RequestInbox` (inbox in Le mie attività + dashboard workspace), `SupportRequestButton` (CTA nel drawer).
+- **1e** unificate le due page "Le mie attività" in `MieAttivitaPageView`.
+
+**Verifica**: tsc + build verdi su ogni step. Test end-to-end (drawer, richieste) da fare in-app dopo migration 100+101 (eseguite).
+**Migration eseguite dall'utente**: 100 ✅, 101 ✅.
