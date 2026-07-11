@@ -420,6 +420,7 @@ export interface TaskDependency {
   created_at: string
 }
 
+/** @deprecated TIME-01: sostituita da time_entries (TimeEntryRow). Tabella non più alimentata. */
 export interface TaskTimeLog {
   id: string
   task_id: string

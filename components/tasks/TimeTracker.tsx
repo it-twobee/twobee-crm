@@ -4,15 +4,15 @@ import { useState, useEffect } from 'react'
 import { Clock, Plus, Loader2, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import type { TaskTimeLog } from '@/lib/types/database'
 
+// Fonte canonica: time_entries (TIME-01). Il campo data si chiama `date`.
 interface TimeLogWithProfile {
   id: string
-  task_id: string
+  task_id: string | null
   profile_id: string | null
   hours: number
   note: string | null
-  logged_date: string
+  date: string
   created_at: string
   profile: { id: string; full_name: string } | null
 }
@@ -21,18 +21,18 @@ export function TimeTracker({ taskId, estimatedHours }: { taskId: string; estima
   const [logs, setLogs] = useState<TimeLogWithProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
-  const [form, setForm] = useState({ hours: '', note: '', logged_date: new Date().toISOString().slice(0, 10) })
+  const [form, setForm] = useState({ hours: '', note: '', date: new Date().toISOString().slice(0, 10) })
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     const load = async () => {
       const supabase = createClient()
       const { data } = await supabase
-        .from('task_time_logs')
-        .select('*, profile:profiles!task_time_logs_profile_id_fkey(id, full_name)')
+        .from('time_entries')
+        .select('id, task_id, profile_id, hours, note, date, created_at, profile:profiles!time_entries_profile_id_fkey(id, full_name)')
         .eq('task_id', taskId)
-        .order('logged_date', { ascending: false })
-      setLogs((data ?? []) as TimeLogWithProfile[])
+        .order('date', { ascending: false })
+      setLogs((data ?? []) as unknown as TimeLogWithProfile[])
       setLoading(false)
     }
     load()
@@ -46,24 +46,25 @@ export function TimeTracker({ taskId, estimatedHours }: { taskId: string; estima
     setSaving(true)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    const { data, error } = await supabase.from('task_time_logs').insert({
+    // project_id/client_id vengono riempiti dal trigger a partire da task_id.
+    const { data, error } = await supabase.from('time_entries').insert({
       task_id: taskId,
       profile_id: user?.id,
       hours,
       note: form.note || null,
-      logged_date: form.logged_date,
-    }).select('*, profile:profiles!task_time_logs_profile_id_fkey(id, full_name)').single()
+      date: form.date,
+    }).select('id, task_id, profile_id, hours, note, date, created_at, profile:profiles!time_entries_profile_id_fkey(id, full_name)').single()
     setSaving(false)
     if (error) { toast.error('Errore salvataggio'); return }
-    setLogs((prev) => [data as TimeLogWithProfile, ...prev])
-    setForm({ hours: '', note: '', logged_date: new Date().toISOString().slice(0, 10) })
+    setLogs((prev) => [data as unknown as TimeLogWithProfile, ...prev])
+    setForm({ hours: '', note: '', date: new Date().toISOString().slice(0, 10) })
     setAdding(false)
     toast.success('Ore registrate!')
   }
 
   const deleteLog = async (id: string) => {
     const supabase = createClient()
-    await supabase.from('task_time_logs').delete().eq('id', id)
+    await supabase.from('time_entries').delete().eq('id', id)
     setLogs((prev) => prev.filter((l) => l.id !== id))
   }
 
@@ -113,8 +114,8 @@ export function TimeTracker({ taskId, estimatedHours }: { taskId: string; estima
               <label className="block text-xs text-text-secondary mb-1">Data</label>
               <input
                 type="date"
-                value={form.logged_date}
-                onChange={(e) => setForm((p) => ({ ...p, logged_date: e.target.value }))}
+                value={form.date}
+                onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
                 className="w-full bg-surface border border-border rounded px-2 py-1.5 text-sm text-text-primary focus:outline-none focus:border-gold"
               />
             </div>
@@ -142,7 +143,7 @@ export function TimeTracker({ taskId, estimatedHours }: { taskId: string; estima
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-text-primary">{l.hours}h</span>
                 <span className="text-text-secondary">{l.profile?.full_name ?? 'Utente'}</span>
-                <span className="text-text-secondary">{new Date(l.logged_date).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}</span>
+                <span className="text-text-secondary">{new Date(l.date).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}</span>
                 {l.note && <span className="text-text-secondary italic truncate max-w-[120px]">{l.note}</span>}
               </div>
               <button onClick={() => deleteLog(l.id)} className="opacity-0 group-hover:opacity-100 text-text-secondary hover:text-error transition-all">
