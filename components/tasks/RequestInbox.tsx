@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { Check, X, Loader2, Inbox } from 'lucide-react'
 import { toast } from 'sonner'
 import { respondToTaskRequest } from '@/app/actions/task-requests'
@@ -17,8 +18,9 @@ export interface RequestItem {
 
 export function RequestInbox({ requests, onResolved }: {
   requests: RequestItem[]
-  onResolved: (taskId: string, accepted: boolean) => void
+  onResolved?: (taskId: string, accepted: boolean) => void
 }) {
+  const router = useRouter()
   const [pending, start] = useTransition()
   const [rejecting, setRejecting] = useState<string | null>(null)
   const [note, setNote] = useState('')
@@ -29,7 +31,8 @@ export function RequestInbox({ requests, onResolved }: {
     const res = await respondToTaskRequest(id, accept, n)
     if ('error' in res) { toast.error(res.error); return }
     toast.success(accept ? 'Richiesta accettata' : 'Richiesta rifiutata')
-    onResolved(id, accept)
+    if (onResolved) onResolved(id, accept)
+    else router.refresh()
     setRejecting(null); setNote('')
   })
 

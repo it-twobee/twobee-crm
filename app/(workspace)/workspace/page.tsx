@@ -5,6 +5,7 @@ import { AlertCircle, Clock, Calendar, FolderKanban, CheckCircle2, ArrowRight } 
 import { cn } from '@/lib/utils'
 import { isAdminRole, isSuperAdminRaw } from '@/lib/permissions'
 import { WorkspaceQuickCreate } from '@/components/workspace/WorkspaceQuickCreate'
+import { RequestInbox } from '@/components/tasks/RequestInbox'
 
 export const revalidate = 0
 
@@ -80,11 +81,15 @@ export default async function WorkspaceDashboardPage() {
     project: { id: string; name: string; client_id: string; clients: { company_name: string } | null } | null
   }>
 
-  const overdue = allTasks.filter(t => t.due_date && t.due_date < today)
-  const dueToday = allTasks.filter(t => t.due_date === today)
-  const dueWeek = allTasks.filter(t => t.due_date && t.due_date > today && t.due_date <= nextWeek)
+  // Fase 1d: le richieste in arrivo non contano come lavoro attivo.
+  const pendingRequests = allTasks.filter(t => t.status === 'richiesta_supporto')
+  const workTasks = allTasks.filter(t => t.status !== 'richiesta_supporto')
 
-  const projectIds = Array.from(new Set(allTasks.map(t => t.project?.id).filter(Boolean) as string[]))
+  const overdue = workTasks.filter(t => t.due_date && t.due_date < today)
+  const dueToday = workTasks.filter(t => t.due_date === today)
+  const dueWeek = workTasks.filter(t => t.due_date && t.due_date > today && t.due_date <= nextWeek)
+
+  const projectIds = Array.from(new Set(workTasks.map(t => t.project?.id).filter(Boolean) as string[]))
   const name = profile?.full_name?.split(' ')[0] ?? 'ciao'
 
   const STATUS_COLOR: Record<string, string> = {
@@ -110,6 +115,9 @@ export default async function WorkspaceDashboardPage() {
           />
         )}
       </div>
+
+      {/* Richieste dirette in arrivo (Fase 1d) */}
+      <RequestInbox requests={pendingRequests.map(t => ({ id: t.id, title: t.title, due_date: t.due_date, project: t.project ? { name: t.project.name } : null }))} />
 
       {/* Collega Google Calendar — per tutti i membri, finché non connesso */}
       {!googleConnected && (
