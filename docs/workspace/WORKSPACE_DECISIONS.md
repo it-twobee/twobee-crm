@@ -71,6 +71,11 @@ pronto per `richiesta_supporto` e futuri `annullato/archiviato`).
 - **D15**: l'utente non sa se le migration sono applicate → **verificato via DB service role**
   (vedi WORKSPACE_AUDIT / risposta). La migration di Fase 0 sarà comunque **idempotente**
   (DROP POLICY IF EXISTS + CREATE) → funziona a prescindere dallo stato.
-- **D4-bis**: "gate dedicato" freelance/partner ancora da precisare (B1 no-Google / B2
-  whitelist / B3 altro). NON blocca la Fase 0: il core è il blocco server-side @twobee.it;
-  il percorso freelance è additivo e si definisce in Fase 2.
+- **D4-bis**: "gate dedicato" freelance/partner = **B1** (non collegano Google, solo calendario
+  interno del tool). Il blocco server-side @twobee.it (Fase 0) è già coerente.
+
+## Calendario (Fase 2)
+- **Cal-Q1 (infra)**: dominio HTTPS pubblico **già disponibile** → il **webhook (2c)** si può fare in questa fase.
+- **Cal-Q2 (conflitti)**: **last-write-timestamp** (vince l'ultima modifica per timestamp).
+- **Cal-Q3 (form)**: includere **ricorrenza + promemoria** nel form v1 (persistiti + passthrough Google).
+- **Cal-Q4 (calendari)**: solo **`primary`** (niente multi-calendario per ora).
