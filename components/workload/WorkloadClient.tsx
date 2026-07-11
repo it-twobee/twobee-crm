@@ -10,8 +10,8 @@ import {
 } from 'lucide-react'
 import {
   filterTasks, computeResourceLoads, computeProjectLoads, computeIntensity, workloadSignals, taskHoverText,
-  computeEffortBuckets, teamWeeklyCapacity, detectPeaks, taskSpan, EMPTY_FILTERS,
-  type WLTask, type WLProject, type WLResource, type WLFilters, type IntensityWindow,
+  computeEffortBuckets, teamWeeklyCapacity, detectPeaks, EMPTY_FILTERS,
+  type WLTask, type WLProject, type WLResource, type WLSprint, type WLFilters, type IntensityWindow,
   type EffortBucket, type EffortPeak,
 } from '@/lib/workload'
 import { AssigneePicker } from '@/components/tasks/AssigneePicker'
@@ -50,10 +50,11 @@ function periodWindow(key: string): { from: string | null; to: string | null } {
 }
 
 export function WorkloadClient({
-  projects, tasks, resources, clients, multiAssignees, canEditAll, managedProjectIds, title, subtitle,
+  projects, tasks, sprints = [], resources, clients, multiAssignees, canEditAll, managedProjectIds, title, subtitle,
 }: {
   projects: WLProject[]
   tasks: WLTask[]
+  sprints?: WLSprint[]
   resources: WLResource[]
   clients: { id: string; name: string }[]
   multiAssignees: Record<string, string[]>
@@ -171,7 +172,8 @@ export function WorkloadClient({
       </div>
 
       {/* Previsione cross-progetto: dove le task di progetti diversi si accavallano */}
-      <EffortForecast buckets={effortBuckets} capacity={capacity} peaks={peaks} onOpenAI={() => setView('intensita')} />
+      <EffortForecast buckets={effortBuckets} capacity={capacity} peaks={peaks}
+        windows={intensity.windows} signals={signals} needsAttention={aiNeeds} />
 
       {/* Filtri */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface p-2.5">
@@ -195,6 +197,7 @@ export function WorkloadClient({
         <ProjectsView
           loads={projectLoads}
           tasksByProject={filtered}
+          sprints={sprints}
           resources={resources}
           multiMap={multiMap}
           canEditProject={canEditProject}
@@ -371,12 +374,40 @@ function IntensityView({ windows, estimateCoverage, signals, needsAttention, pea
 }
 
 /* ── Previsione effort cross-progetto: accavallamenti e periodi critici ───────── */
-function EffortForecast({ buckets, capacity, peaks, onOpenAI }: {
+function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAttention }: {
   buckets: EffortBucket[]
   capacity: number
   peaks: EffortPeak[]
-  onOpenAI: () => void
+  windows: IntensityWindow[]
+  signals: { noEstimate: number; noDue: number; noOwner: number; projectsNoPm: number }
+  needsAttention: { title: string; project: string; due_date: string | null; estimated_hours: number | null; owner: string | null; issue: string }[]
 }) {
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[] | null>(null)
+  const [aiSummary, setAiSummary] = useState('')
+
+  const askAI = async () => {
+    setAiLoading(true)
+    try {
+      const res = await fetch('/api/ai/workload-plan', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          windows: windows.map(w => ({ days: w.days, overloaded: w.overloaded, top: w.cells.slice(0, 4).map(c => ({ name: c.resourceName, hours: c.hours, capacity: c.capacity })) })),
+          signals,
+          needsAttention,
+          peaks: peaks.slice(0, 6).map(p => ({
+            from: p.bucket.start, to: p.bucket.end, hours: p.bucket.hours,
+            capacity: Math.round(capacity), ratio: Math.round(p.ratio * 100),
+            projects: p.bucket.byProject.slice(0, 4).map(x => ({ name: x.projectName, hours: x.hours })),
+          })),
+        }),
+      })
+      const data = await res.json()
+      if (data.error) { toast.error(data.error); return }
+      setAiSuggestions(data.suggestions ?? []); setAiSummary(data.summary ?? '')
+    } catch { toast.error('Errore analisi AI') } finally { setAiLoading(false) }
+  }
+
   if (buckets.length === 0) return null
   const maxH = Math.max(capacity, ...buckets.map(b => b.hours))
   const fmt = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })
@@ -395,9 +426,10 @@ function EffortForecast({ buckets, capacity, peaks, onOpenAI }: {
             Ore/settimana su tutti i progetti · capacità team {Math.round(capacity)}h
           </p>
         </div>
-        <button onClick={onOpenAI}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gold text-on-gold text-2xs font-bold rounded-lg hover:bg-gold/90 shrink-0">
-          <Sparkles className="w-3.5 h-3.5" aria-hidden="true" /> Pianifica con l&apos;AI
+        <button onClick={askAI} disabled={aiLoading}
+          className="flex items-center gap-1.5 px-3 py-2 bg-gold text-on-gold text-xs font-bold rounded-lg hover:bg-gold/90 disabled:opacity-50 shrink-0">
+          {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Sparkles className="w-4 h-4" aria-hidden="true" />}
+          {aiLoading ? 'Analizzo…' : aiSuggestions ? 'Rianalizza' : "Pianifica con l'AI"}
         </button>
       </div>
 
@@ -461,6 +493,27 @@ function EffortForecast({ buckets, capacity, peaks, onOpenAI }: {
           </p>
         </div>
       )}
+
+      {/* Suggerimenti AI in-place (propone, non applica) */}
+      {aiSuggestions && (
+        <div className="rounded-xl border border-gold/25 bg-gold-dim/40 p-3 space-y-2">
+          <p className="text-2xs font-bold text-text-primary flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-gold-text" aria-hidden="true" /> Piano suggerito dall&apos;AI
+          </p>
+          {aiSummary && <p className="text-2xs text-text-secondary italic">{aiSummary}</p>}
+          {aiSuggestions.length === 0 ? (
+            <p className="text-2xs text-text-tertiary">Nessun suggerimento: il carico è bilanciato.</p>
+          ) : aiSuggestions.map((s, i) => (
+            <div key={i} className="rounded-lg border border-border bg-surface px-3 py-2">
+              <p className="text-2xs font-semibold text-text-primary">
+                <span className="font-bold uppercase tracking-wider text-gold-text mr-1.5">{s.type}</span>{s.title}
+              </p>
+              <p className="text-2xs text-text-secondary mt-0.5">{s.detail}</p>
+            </div>
+          ))}
+          <p className="text-2xs text-text-tertiary">L&apos;AI propone: nessuna modifica è stata applicata. Decidi tu.</p>
+        </div>
+      )}
     </div>
   )
 }
@@ -490,9 +543,10 @@ function Select({ value, onChange, options, ...aria }: {
 }
 
 /* ── Vista Progetti ─────────────────────────────────────────────────────────── */
-function ProjectsView({ loads, tasksByProject, resources, multiMap, canEditProject, resourceById }: {
+function ProjectsView({ loads, tasksByProject, sprints, resources, multiMap, canEditProject, resourceById }: {
   loads: ReturnType<typeof computeProjectLoads>
   tasksByProject: WLTask[]
+  sprints: WLSprint[]
   resources: WLResource[]
   multiMap: Map<string, string[]>
   canEditProject: (pid: string) => boolean
@@ -505,6 +559,7 @@ function ProjectsView({ loads, tasksByProject, resources, multiMap, canEditProje
     <div className="space-y-2">
       {loads.map(l => (
         <ProjectRow key={l.project.id}
+          sprints={sprints.filter(s => s.project_id === l.project.id)}
           load={l}
           tasks={tasksByProject.filter(t => t.project_id === l.project.id)}
           resources={resources}
@@ -518,9 +573,10 @@ function ProjectsView({ loads, tasksByProject, resources, multiMap, canEditProje
   )
 }
 
-function ProjectRow({ load, tasks, resources, multiMap, resourceById, editable, manager }: {
+function ProjectRow({ load, tasks, sprints, resources, multiMap, resourceById, editable, manager }: {
   load: ReturnType<typeof computeProjectLoads>[number]
   tasks: WLTask[]
+  sprints: WLSprint[]
   resources: WLResource[]
   multiMap: Map<string, string[]>
   resourceById: Map<string, WLResource>
@@ -603,28 +659,15 @@ function ProjectRow({ load, tasks, resources, multiMap, resourceById, editable, 
       </div>
 
       {open && (
-        <div className="border-t border-border divide-y divide-border">
-          {/* Gantt del progetto su timeline, con aree ad alto effort */}
-          <ProjectGantt project={p} tasks={tasks} milestones={milestones} resourceById={resourceById} multiMap={multiMap} />
+        <div className="border-t border-border">
+          {/* Gantt su calendario: SOLO sprint e milestone, cliccabili → popup → progetto */}
+          <ProjectGantt project={p} sprints={sprints} milestones={milestones} tasks={tasks} />
 
-          {tasks.filter(t => !t.is_milestone).length === 0 && (
-            <p className="px-4 py-3 text-2xs text-text-tertiary">Nessuna task.</p>
-          )}
-          {tasks.filter(t => !t.is_milestone).map(t => (
-            <TaskLine key={t.id} task={t} resources={resources}
-              assignees={multiMap.get(t.id) ?? (t.assignee_id ? [t.assignee_id] : [])}
-              resourceById={resourceById} editable={editable} />
-          ))}
-          {!editable && !p.manager_id && (
+          {!p.manager_id && (
             <Link href={projectHref(p.client_id, p.id)}
-              className="px-4 py-2 text-2xs text-warning hover:underline flex items-center gap-1.5">
+              className="px-4 py-2 text-2xs text-warning hover:underline flex items-center gap-1.5 border-t border-border">
               <AlertTriangle className="w-3 h-3" aria-hidden="true" /> Nessun responsabile — assegna un PM
             </Link>
-          )}
-          {!editable && (
-            <p className="px-4 py-2 text-2xs text-text-tertiary flex items-center gap-1.5">
-              <Crown className="w-3 h-3" aria-hidden="true" /> Solo il PM del progetto o un admin può modificare queste task.
-            </p>
           )}
         </div>
       )}
@@ -632,99 +675,171 @@ function ProjectRow({ load, tasks, resources, multiMap, resourceById, editable, 
   )
 }
 
-/* ── Gantt del progetto (nel collapse): barre task + milestone + heat effort ──── */
-function ProjectGantt({ project, tasks, milestones, resourceById, multiMap }: {
+/* ── Gantt di progetto su calendario: SOLO sprint + milestone ─────────────────── */
+type GanttItem =
+  | { kind: 'sprint'; id: string; title: string; start: string; end: string; status: string; tasks: number; done: number }
+  | { kind: 'milestone'; id: string; title: string; start: string; end: string; status: string }
+
+function ProjectGantt({ project, sprints, milestones, tasks }: {
   project: WLProject
-  tasks: WLTask[]
+  sprints: WLSprint[]
   milestones: WLTask[]
-  resourceById: Map<string, WLResource>
-  multiMap: Map<string, string[]>
+  tasks: WLTask[]
 }) {
+  const { projectHref } = usePortalRoutes()
+  const [detail, setDetail] = useState<GanttItem | null>(null)
   const todayStr = new Date().toISOString().slice(0, 10)
-  const bars = useMemo(() => tasks
-    .filter(t => !t.is_milestone && t.due_date)
-    .map(t => ({ t, span: taskSpan(t)! }))
-    .sort((a, b) => a.span.start.localeCompare(b.span.start)), [tasks])
 
-  // Heat settimanale dell'effort DENTRO questo progetto: individua le aree calde.
-  const buckets = useMemo(
-    () => computeEffortBuckets(tasks, new Map([[project.id, project]])),
-    [tasks, project],
-  )
+  const items: GanttItem[] = useMemo(() => {
+    const s: GanttItem[] = sprints.map(sp => {
+      const inSprint = tasks.filter(t => !t.is_milestone && t.due_date && t.due_date >= sp.start_date && t.due_date <= sp.end_date)
+      return {
+        kind: 'sprint', id: sp.id, title: sp.name, start: sp.start_date, end: sp.end_date, status: sp.status,
+        tasks: inSprint.length, done: inSprint.filter(t => t.status === 'completato').length,
+      }
+    })
+    const m: GanttItem[] = milestones.filter(x => x.due_date)
+      .map(x => ({ kind: 'milestone', id: x.id, title: x.title, start: x.due_date!, end: x.due_date!, status: x.status }))
+    return [...s, ...m].sort((a, b) => a.start.localeCompare(b.start))
+  }, [sprints, milestones, tasks])
 
-  if (bars.length === 0 && milestones.length === 0) {
-    return <p className="px-4 py-3 text-2xs text-text-tertiary">Nessuna task con date: il Gantt non è tracciabile.</p>
+  if (items.length === 0) {
+    return (
+      <div className="px-4 py-5 text-center">
+        <p className="text-2xs text-text-tertiary">Nessuno sprint o milestone con date: il Gantt non è tracciabile.</p>
+        <Link href={projectHref(project.client_id, project.id)} className="text-2xs text-gold-text hover:underline mt-1 inline-block">
+          Apri il progetto per pianificarli →
+        </Link>
+      </div>
+    )
   }
 
-  // Scala temporale: dal primo inizio all'ultima scadenza (task + milestone).
-  const allDates = [
-    ...bars.flatMap(b => [b.span.start, b.span.end]),
-    ...milestones.map(m => m.due_date).filter(Boolean) as string[],
-  ].sort()
-  const t0 = new Date(allDates[0] + 'T00:00:00').getTime()
-  const t1 = new Date(allDates[allDates.length - 1] + 'T00:00:00').getTime()
-  const span = Math.max(1, t1 - t0)
-  const pctOf = (iso: string) => ((new Date(iso + 'T00:00:00').getTime() - t0) / span) * 100
-  const maxHours = Math.max(1, ...buckets.map(b => b.hours))
-  const fmt = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })
+  // Scala mensile leggibile: dal primo inizio all'ultima fine, in mesi.
+  const min = items.map(i => i.start).sort()[0]
+  const max = items.map(i => i.end).sort().slice(-1)[0]
+  const t0 = new Date(min.slice(0, 8) + '01T00:00:00')
+  const lastEnd = new Date(max + 'T00:00:00')
+  const months: Date[] = []
+  const cur = new Date(t0)
+  while (cur <= lastEnd && months.length < 18) { months.push(new Date(cur)); cur.setMonth(cur.getMonth() + 1) }
+  if (months.length === 0) months.push(new Date(t0))
+  const gStart = months[0].getTime()
+  const gEnd = new Date(months[months.length - 1].getFullYear(), months[months.length - 1].getMonth() + 1, 0).getTime()
+  const total = Math.max(1, gEnd - gStart)
+  const pct = (iso: string) => ((new Date(iso + 'T00:00:00').getTime() - gStart) / total) * 100
+  const MW = 90 // larghezza mese
+
+  const sprintCls = (s: GanttItem) => {
+    if (s.status === 'completato') return 'bg-success/70 border-success'
+    if (s.end < todayStr) return 'bg-error/60 border-error'
+    if (s.status === 'in_corso') return 'bg-gold/70 border-gold'
+    return 'bg-info/50 border-info'
+  }
 
   return (
-    <div className="px-4 py-3 bg-surface-hover/40 space-y-2.5">
-      <div className="flex items-center justify-between">
-        <p className="text-2xs uppercase tracking-wider text-text-tertiary">Gantt · {fmt(allDates[0])} → {fmt(allDates[allDates.length - 1])}</p>
-        {buckets.length > 0 && <p className="text-2xs text-text-tertiary">picco {Math.round(maxHours)}h/sett.</p>}
-      </div>
-
-      {/* Heat: aree temporali ad alto effort dentro il progetto */}
-      {buckets.length > 0 && (
-        <div className="flex gap-px h-6 rounded overflow-hidden" role="img" aria-label="Intensità effort per settimana">
-          {buckets.map(b => {
-            const r = b.hours / maxHours
-            const cls = r >= 0.75 ? 'bg-error/70' : r >= 0.45 ? 'bg-warning/70' : r > 0 ? 'bg-success/50' : 'bg-surface-active'
-            return (
-              <div key={b.start} className={`flex-1 ${cls}`}
-                title={`Settimana ${fmt(b.start)} – ${fmt(b.end)}\nEffort: ${b.hours}h · ${b.taskCount} task`} />
-            )
-          })}
-        </div>
-      )}
-
-      {/* Barre task */}
-      <div className="space-y-1">
-        {bars.slice(0, 12).map(({ t, span: s }) => {
-          const left = pctOf(s.start)
-          const width = Math.max(2, pctOf(s.end) - left)
-          const late = t.status !== 'completato' && t.due_date! < todayStr
-          const cls = t.status === 'completato' ? 'bg-success/60' : late ? 'bg-error/60' : 'bg-gold/60'
-          const owners = (multiMap.get(t.id) ?? (t.assignee_id ? [t.assignee_id] : [])).map(id => resourceById.get(id)?.full_name ?? '—')
-          return (
-            <div key={t.id} className="relative h-5" title={taskHoverText(t, project.name, owners)}>
-              <div className="absolute inset-0 rounded bg-surface-active/40" />
-              <div className={`absolute h-5 rounded ${cls} flex items-center px-1.5`}
-                style={{ left: `${left}%`, width: `${width}%` }}>
-                <span className="text-2xs text-text-primary truncate">{t.title}</span>
+    <div className="px-4 py-3 bg-surface-hover/40">
+      <div className="overflow-x-auto">
+        <div style={{ minWidth: months.length * MW }}>
+          {/* Asse mesi */}
+          <div className="flex border-b border-border pb-1 mb-2">
+            {months.map((m, i) => (
+              <div key={i} style={{ width: MW }} className="shrink-0 text-2xs text-text-tertiary capitalize border-l border-border first:border-l-0 pl-1.5">
+                {m.toLocaleDateString('it-IT', { month: 'short', year: '2-digit' })}
               </div>
+            ))}
+          </div>
+
+          {/* Righe: sprint come barre */}
+          <div className="space-y-1.5 relative">
+            {/* linea oggi */}
+            {todayStr >= min && todayStr <= max && (
+              <div className="absolute top-0 bottom-0 w-px bg-error/60 z-10 pointer-events-none" style={{ left: `${pct(todayStr)}%` }} />
+            )}
+            {items.filter(i => i.kind === 'sprint').map(sp => {
+              const left = pct(sp.start)
+              const width = Math.max(3, pct(sp.end) - left)
+              const progress = sp.kind === 'sprint' && sp.tasks > 0 ? Math.round((sp.done / sp.tasks) * 100) : 0
+              return (
+                <div key={sp.id} className="relative h-8">
+                  <button onClick={() => setDetail(sp)}
+                    title={`Sprint: ${sp.title}\n${new Date(sp.start + 'T00:00:00').toLocaleDateString('it-IT')} → ${new Date(sp.end + 'T00:00:00').toLocaleDateString('it-IT')}\nStato: ${sp.status}${sp.kind === 'sprint' ? `\nTask: ${sp.done}/${sp.tasks} completate` : ''}`}
+                    className={`absolute h-8 rounded-lg border flex items-center px-2 gap-1.5 hover:brightness-110 hover:ring-1 hover:ring-gold transition-all ${sprintCls(sp)}`}
+                    style={{ left: `${left}%`, width: `${width}%`, minWidth: 60 }}>
+                    <span className="text-2xs font-semibold text-text-primary truncate">{sp.title}</span>
+                    {sp.kind === 'sprint' && sp.tasks > 0 && (
+                      <span className="text-2xs text-text-primary/80 tabular shrink-0">{progress}%</span>
+                    )}
+                  </button>
+                </div>
+              )
+            })}
+            {items.filter(i => i.kind === 'sprint').length === 0 && (
+              <p className="text-2xs text-text-tertiary py-1">Nessuno sprint pianificato.</p>
+            )}
+          </div>
+
+          {/* Milestone: marker cliccabili sotto l'asse */}
+          {items.some(i => i.kind === 'milestone') && (
+            <div className="relative h-10 mt-3 border-t border-border pt-2">
+              {items.filter(i => i.kind === 'milestone').map(m => {
+                const done = m.status === 'completato'
+                const late = !done && m.start < todayStr
+                return (
+                  <button key={m.id} onClick={() => setDetail(m)}
+                    title={`Milestone: ${m.title}\nData: ${new Date(m.start + 'T00:00:00').toLocaleDateString('it-IT')}\nStato: ${done ? 'Completata' : late ? 'In ritardo' : 'Da fare'}`}
+                    className="absolute -translate-x-1/2 flex flex-col items-center gap-0.5 hover:scale-110 transition-transform"
+                    style={{ left: `${pct(m.start)}%` }}>
+                    <Flag className={`w-3.5 h-3.5 ${done ? 'text-success' : late ? 'text-error' : 'text-gold-text'}`} aria-hidden="true" />
+                    <span className="text-2xs text-text-tertiary whitespace-nowrap max-w-[7rem] truncate">{m.title}</span>
+                  </button>
+                )
+              })}
             </div>
-          )
-        })}
-        {bars.length > 12 && <p className="text-2xs text-text-tertiary">+ {bars.length - 12} altre task</p>}
+          )}
+        </div>
       </div>
 
-      {/* Milestone sulla stessa scala */}
-      {milestones.filter(m => m.due_date).length > 0 && (
-        <div className="relative h-6 border-t border-border pt-1">
-          {milestones.filter(m => m.due_date).map(m => {
-            const done = m.status === 'completato'
-            const late = !done && m.due_date! < todayStr
-            return (
-              <div key={m.id} className="absolute -translate-x-1/2 flex flex-col items-center"
-                style={{ left: `${pctOf(m.due_date!)}%` }}
-                title={`Milestone: ${m.title}\nData: ${new Date(m.due_date!).toLocaleDateString('it-IT')}`}>
-                <Flag className={`w-3 h-3 ${done ? 'text-success' : late ? 'text-error' : 'text-gold-text'}`} aria-hidden="true" />
-                <span className="text-2xs text-text-tertiary whitespace-nowrap">{fmt(m.due_date!)}</span>
+      {/* Popup dettaglio: sprint o milestone → CTA alla sezione dedicata */}
+      {detail && (
+        <div className="fixed inset-0 z-50 bg-scrim backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setDetail(null)}>
+          <div className="bg-surface border border-border rounded-2xl w-full max-w-sm p-5 space-y-3" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-2xs uppercase tracking-wider text-text-tertiary">
+                  {detail.kind === 'sprint' ? 'Sprint' : 'Milestone'} · {project.name}
+                </p>
+                <h3 className="text-base font-bold text-text-primary mt-0.5">{detail.title}</h3>
               </div>
-            )
-          })}
+              <button onClick={() => setDetail(null)} aria-label="Chiudi" className="p-1 text-text-tertiary hover:text-text-primary">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <dl className="space-y-1.5 text-xs">
+              <div className="flex justify-between">
+                <dt className="text-text-tertiary">{detail.kind === 'sprint' ? 'Periodo' : 'Data'}</dt>
+                <dd className="text-text-primary font-medium">
+                  {detail.kind === 'sprint'
+                    ? `${new Date(detail.start + 'T00:00:00').toLocaleDateString('it-IT')} → ${new Date(detail.end + 'T00:00:00').toLocaleDateString('it-IT')}`
+                    : new Date(detail.start + 'T00:00:00').toLocaleDateString('it-IT')}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-text-tertiary">Stato</dt>
+                <dd className="text-text-primary font-medium">{STATUS_LABEL[detail.status] ?? detail.status}</dd>
+              </div>
+              {detail.kind === 'sprint' && (
+                <div className="flex justify-between">
+                  <dt className="text-text-tertiary">Task</dt>
+                  <dd className="text-text-primary font-medium">{detail.done}/{detail.tasks} completate</dd>
+                </div>
+              )}
+            </dl>
+            <Link href={projectHref(project.client_id, project.id)}
+              className="flex items-center justify-center gap-2 w-full py-2.5 bg-gold text-on-gold text-sm font-bold rounded-xl hover:bg-gold/90 transition-colors">
+              <ExternalLink className="w-4 h-4" aria-hidden="true" />
+              Apri nel progetto
+            </Link>
+          </div>
         </div>
       )}
     </div>

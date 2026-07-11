@@ -1,10 +1,11 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { WLTask, WLProject, WLResource } from '@/lib/workload'
+import type { WLTask, WLProject, WLResource, WLSprint } from '@/lib/workload'
 
 export interface WorkloadData {
   projects: WLProject[]
   tasks: WLTask[]
+  sprints: WLSprint[]
   resources: WLResource[]
   clients: { id: string; name: string }[]
   multiAssignees: Record<string, string[]>
@@ -47,14 +48,21 @@ export async function fetchWorkloadData(
   // Task dei progetti visibili (non completate le teniamo comunque, servono al progress).
   const projectIds = allProjects.map(p => p.id)
   let tasks: WLTask[] = []
+  let sprints: WLSprint[] = []
   const multiAssignees: Record<string, string[]> = {}
 
   if (projectIds.length > 0) {
-    const { data: taskRows } = await sb
-      .from('tasks')
-      .select('id, title, status, priority, due_date, start_date, estimated_hours, logged_hours, assignee_id, project_id, is_milestone')
-      .in('project_id', projectIds)
+    const [{ data: taskRows }, { data: sprintRows }] = await Promise.all([
+      sb.from('tasks')
+        .select('id, title, status, priority, due_date, start_date, estimated_hours, logged_hours, assignee_id, project_id, is_milestone')
+        .in('project_id', projectIds),
+      // Sprint: servono al Gantt di progetto (barre temporali).
+      sb.from('sprints')
+        .select('id, project_id, name, start_date, end_date, status')
+        .in('project_id', projectIds).order('start_date'),
+    ])
     tasks = (taskRows ?? []) as WLTask[]
+    sprints = (sprintRows ?? []) as WLSprint[]
 
     const taskIds = tasks.map(t => t.id)
     if (taskIds.length > 0) {
@@ -83,6 +91,7 @@ export async function fetchWorkloadData(
     projects = allProjects.filter(p => involved.has(p.id))
     const keep = new Set(projects.map(p => p.id))
     tasks = tasks.filter(t => keep.has(t.project_id))
+    sprints = sprints.filter(s => keep.has(s.project_id))
   }
 
   const resources: WLResource[] = (resRes.data ?? []) as WLResource[]
@@ -92,5 +101,5 @@ export async function fetchWorkloadData(
     .map(([id, name]) => ({ id, name }))
     .sort((a, b) => a.name.localeCompare(b.name))
 
-  return { projects, tasks, resources, clients, multiAssignees, managedProjectIds }
+  return { projects, tasks, sprints, resources, clients, multiAssignees, managedProjectIds }
 }

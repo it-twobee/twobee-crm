@@ -39,6 +39,15 @@ export interface WLResource {
   weekly_capacity_hours?: number | null
 }
 
+export interface WLSprint {
+  id: string
+  project_id: string
+  name: string
+  start_date: string
+  end_date: string
+  status: string
+}
+
 export interface WLFilters {
   kind: string | null        // 'growth' | 'digital' | null
   clientId: string | null
