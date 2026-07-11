@@ -110,7 +110,7 @@ export function computeResourceLoads(
   multiAssignees?: Map<string, string[]>,
   today = new Date(),
 ): ResourceLoad[] {
-  const todayStr = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString().slice(0, 10)
+  const todayStr = isoLocal(today)
   const byRes = new Map<string, ResourceLoad>()
   for (const r of resources) {
     byRes.set(r.id, { resource: r, totalHours: 0, activeTasks: 0, overdue: 0, byProject: [] })
@@ -167,7 +167,7 @@ export function computeProjectLoads(
   projects: WLProject[],
   today = new Date(),
 ): ProjectLoad[] {
-  const todayStr = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString().slice(0, 10)
+  const todayStr = isoLocal(today)
   const byProj = new Map<string, WLTask[]>()
   for (const t of tasks) {
     if (t.is_milestone) continue
@@ -207,12 +207,20 @@ export interface EffortBucket {
   byProject: { projectId: string; projectName: string; hours: number }[]
 }
 
+/**
+ * Data locale in ISO (YYYY-MM-DD). NON usare toISOString(): converte in UTC e in
+ * Europe/Rome fa slittare la data al giorno prima → confini dei periodi sballati.
+ */
+export function isoLocal(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
 const mondayISO = (d: Date) => {
   const x = new Date(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); x.setHours(0, 0, 0, 0)
-  return x.toISOString().slice(0, 10)
+  return isoLocal(x)
 }
 const addDaysISO = (iso: string, n: number) =>
-  new Date(new Date(iso + 'T00:00:00').getTime() + n * 86400000).toISOString().slice(0, 10)
+  isoLocal(new Date(new Date(iso + 'T00:00:00').getTime() + n * 86400000))
 
 /** Intervallo effettivo di una task: start_date→due_date (se manca start, è puntuale sulla scadenza). */
 export function taskSpan(t: WLTask): { start: string; end: string } | null {
@@ -230,20 +238,20 @@ function bucketBounds(d: Date, grain: Grain): { start: string; end: string } {
   }
   if (grain === 'mese') {
     return {
-      start: new Date(y, m, 1).toISOString().slice(0, 10),
-      end: new Date(y, m + 1, 0).toISOString().slice(0, 10),
+      start: isoLocal(new Date(y, m, 1)),
+      end: isoLocal(new Date(y, m + 1, 0)),
     }
   }
   if (grain === 'trimestre') {
     const q = Math.floor(m / 3)
     return {
-      start: new Date(y, q * 3, 1).toISOString().slice(0, 10),
-      end: new Date(y, q * 3 + 3, 0).toISOString().slice(0, 10),
+      start: isoLocal(new Date(y, q * 3, 1)),
+      end: isoLocal(new Date(y, q * 3 + 3, 0)),
     }
   }
   return {
-    start: new Date(y, 0, 1).toISOString().slice(0, 10),
-    end: new Date(y, 11, 31).toISOString().slice(0, 10),
+    start: isoLocal(new Date(y, 0, 1)),
+    end: isoLocal(new Date(y, 11, 31)),
   }
 }
 const nextBucket = (endISO: string) => new Date(new Date(endISO + 'T00:00:00').getTime() + 86400000)
@@ -353,12 +361,32 @@ export function computeSprintDensity(
   return { lanes, density }
 }
 
-/** Severità di un periodo: combina sprint concorrenti ed effort sulla capacità. */
-export function periodSeverity(sprintCount: number, effortRatio: number): 'ok' | 'warn' | 'high' | 'critical' {
-  if (sprintCount >= 4 || effortRatio >= 1.25) return 'critical'
-  if (sprintCount === 3 || effortRatio >= 1) return 'high'
-  if (sprintCount === 2 || effortRatio >= 0.85) return 'warn'
+/**
+ * Limite operativo attuale: oltre 5 sprint in parallelo nella stessa settimana il
+ * team non regge (dato dal numero di risorse). È la soglia che porta l'intensità al 100%.
+ */
+export const MAX_PARALLEL_SPRINTS = 5
+
+export type Severity = 'ok' | 'warn' | 'high' | 'critical'
+
+/**
+ * Intensità di un periodo: 0 = scarico, 1 = al limite. Prende il peggiore fra
+ * (sprint in parallelo / limite) e (ore pianificate / capacità del team).
+ */
+export function periodIntensity(sprintCount: number, effortRatio: number): number {
+  return Math.max(sprintCount / MAX_PARALLEL_SPRINTS, effortRatio)
+}
+
+export function severityOf(intensity: number): Severity {
+  if (intensity >= 1) return 'critical'   // 5 sprint in parallelo, o oltre capacità
+  if (intensity >= 0.75) return 'high'
+  if (intensity >= 0.5) return 'warn'
   return 'ok'
+}
+
+/** Severità di un periodo: combina sprint concorrenti ed effort sulla capacità. */
+export function periodSeverity(sprintCount: number, effortRatio: number): Severity {
+  return severityOf(periodIntensity(sprintCount, effortRatio))
 }
 
 /** Capacità settimanale del team (somma delle capacità delle risorse). */
@@ -417,7 +445,7 @@ export interface IntensityWindow {
   overloaded: number        // quante risorse con ratio > 1
 }
 
-const dayStr = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10)
+const dayStr = (d: Date) => isoLocal(d)
 const daysInclusive = (a: string, b: string) => Math.max(1, Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000) + 1)
 function overlapDays(s1: string, e1: string, s2: string, e2: string): number {
   const start = s1 > s2 ? s1 : s2

@@ -10,7 +10,8 @@ import {
 } from 'lucide-react'
 import {
   filterTasks, computeResourceLoads, computeProjectLoads, computeIntensity, workloadSignals,
-  computeEffortBuckets, teamWeeklyCapacity, computeSprintDensity, periodSeverity, bucketCapacity, EMPTY_FILTERS,
+  computeEffortBuckets, teamWeeklyCapacity, computeSprintDensity, periodSeverity, periodIntensity,
+  MAX_PARALLEL_SPRINTS, bucketCapacity, EMPTY_FILTERS,
   type WLTask, type WLProject, type WLResource, type WLSprint, type WLFilters, type IntensityWindow,
   type EffortBucket, type Grain,
 } from '@/lib/workload'
@@ -264,7 +265,7 @@ function EffortForecast({ buckets, capacity, windows, signals, needsAttention, t
   const [pending, startT] = useTransition()
   const [newTaskFor, setNewTaskFor] = useState<AISuggestion | null>(null)
 
-  const { lanes: sprintLanes, density } = useMemo(
+  const { density } = useMemo(
     () => computeSprintDensity(sprints, buckets, projectById),
     [sprints, buckets, projectById],
   )
@@ -275,7 +276,8 @@ function EffortForecast({ buckets, capacity, windows, signals, needsAttention, t
     const nSprint = densityByWeek.get(b.start)?.count ?? 0
     const cap = bucketCapacity(capacity, b.days)
     const ratio = cap > 0 ? b.hours / cap : 0
-    return { bucket: b, nSprint, cap, ratio, sev: periodSeverity(nSprint, ratio) }
+    const intensity = periodIntensity(nSprint, ratio)   // 0 = scarico, 1 = al limite
+    return { bucket: b, nSprint, cap, ratio, intensity, sev: periodSeverity(nSprint, ratio) }
   }), [buckets, densityByWeek, capacity])
 
   const hot = useMemo(() => periods.filter(p => p.sev === 'high' || p.sev === 'critical'), [periods])
@@ -323,11 +325,6 @@ function EffortForecast({ buckets, capacity, windows, signals, needsAttention, t
 
   if (buckets.length === 0) return null
 
-  // Scala temporale continua: serve a posizionare gli sprint sopra la barra.
-  const t0 = dISO(buckets[0].start).getTime()
-  const t1 = dISO(buckets[buckets.length - 1].end).getTime()
-  const span = Math.max(1, t1 - t0)
-  const posOf = (iso: string) => Math.min(100, Math.max(0, ((dISO(iso).getTime() - t0) / span) * 100))
   const showLabels = buckets.length <= 12
 
   return (
@@ -340,7 +337,7 @@ function EffortForecast({ buckets, capacity, windows, signals, needsAttention, t
             Previsione carico
           </p>
           <p className="text-2xs text-text-tertiary mt-0.5">
-            Prossimi {buckets.length} {grain === 'settimana' ? 'settimane' : grain === 'mese' ? 'mesi' : grain === 'trimestre' ? 'trimestri' : 'anni'} · capacità team {Math.round(capacity)}h/sett.
+            Prossimi {buckets.length} {grain === 'settimana' ? 'settimane' : grain === 'mese' ? 'mesi' : grain === 'trimestre' ? 'trimestri' : 'anni'} · limite sostenibile {MAX_PARALLEL_SPRINTS} sprint in parallelo
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -369,13 +366,14 @@ function EffortForecast({ buckets, capacity, windows, signals, needsAttention, t
           : <AlertTriangle className={`w-4 h-4 shrink-0 mt-px ${hot.some(p => p.sev === 'critical') ? 'text-error' : 'text-warning'}`} aria-hidden="true" />}
         <p className="text-2xs text-text-secondary">
           {hot.length === 0 ? (
-            <>Carico sostenibile su tutto l&apos;orizzonte: nessun periodo va oltre la capacità del team.</>
+            <>Periodo tranquillo: nessuna fase supera il limite sostenibile ({MAX_PARALLEL_SPRINTS} sprint in parallelo).</>
           ) : (
             <>
-              <span className="font-bold text-text-primary">{hot.length} {hot.length === 1 ? 'periodo critico' : 'periodi critici'}</span>
-              {' — '}{fmtRange(hot[0].bucket.start, hot[0].bucket.end)}
-              {hot[0].nSprint > 1 && <> con <span className="font-semibold text-text-primary">{hot[0].nSprint} sprint in parallelo</span></>}
-              {' '}({Math.round(hot[0].bucket.hours)}h su {Math.round(hot[0].cap)}h). Clicca il tratto rosso per riprogrammare.
+              <span className="font-bold text-text-primary">{hot.length} {hot.length === 1 ? 'fase intensa' : 'fasi intense'}</span>
+              {' — la peggiore è '}{fmtRange(hot[0].bucket.start, hot[0].bucket.end)}
+              {': '}<span className="font-semibold text-text-primary">{hot[0].nSprint} sprint in parallelo</span>
+              {' su ' + MAX_PARALLEL_SPRINTS + ' sostenibili'}
+              {' '}({Math.round(hot[0].bucket.hours)}h di lavoro). Clicca quel tratto per riprogrammare.
             </>
           )}
         </p>
@@ -383,23 +381,6 @@ function EffortForecast({ buckets, capacity, windows, signals, needsAttention, t
 
       {/* ── Barra continua ─────────────────────────────────────────────────────── */}
       <div className="px-4">
-        {/* Sprint sopra la barra: dove sono, quanti si sovrappongono */}
-        {sprintLanes.length > 0 && (
-          <div className="relative h-6 mb-1.5">
-            {sprintLanes.slice(0, 4).map(({ sprint: sp, projectName }, i) => {
-              const l = posOf(sp.start_date)
-              const w = Math.max(2, posOf(sp.end_date) - l)
-              const late = sp.end_date < new Date().toISOString().slice(0, 10)
-              return (
-                <div key={sp.id}
-                  className={`absolute h-1.5 rounded-full ${late ? 'bg-error/70' : sp.status === 'in_corso' ? 'bg-gold' : 'bg-info/70'}`}
-                  style={{ left: `${l}%`, width: `${w}%`, top: i * 6 }}
-                  title={`${sp.name} · ${projectName}\n${fmtRange(sp.start_date, sp.end_date)}`} />
-              )
-            })}
-          </div>
-        )}
-
         <div className="flex h-10 rounded-lg overflow-hidden border border-border" role="group" aria-label="Carico per periodo">
           {periods.map(p => {
             const sel = openWeek === p.bucket.start
@@ -408,10 +389,10 @@ function EffortForecast({ buckets, capacity, windows, signals, needsAttention, t
                 aria-label={`${fmtRange(p.bucket.start, p.bucket.end)}: ${Math.round(p.bucket.hours)} ore, ${p.nSprint} sprint`}
                 style={{ flexGrow: p.bucket.days, flexBasis: 0 }}
                 className={`relative ${SEV_BAR[p.sev]} border-r border-background/50 last:border-r-0 transition-all hover:brightness-125 ${sel ? 'ring-2 ring-gold ring-inset z-10' : ''}`}
-                title={`${fmtRange(p.bucket.start, p.bucket.end)}\nCarico: ${Math.round(p.bucket.hours)}h su ${Math.round(p.cap)}h (${Math.round(p.ratio * 100)}%)\nSprint attivi: ${p.nSprint}\nProgetti: ${p.bucket.byProject.length}\n\nClicca per riprogrammare`}>
-                {showLabels && p.bucket.hours > 0 && (
+                title={`${fmtRange(p.bucket.start, p.bucket.end)}\n\nIntensità: ${Math.round(p.intensity * 100)}%  (${p.sev === 'ok' ? 'soft' : p.sev === 'warn' ? 'in tensione' : p.sev === 'high' ? 'intenso' : 'al limite'})\nSprint in parallelo: ${p.nSprint} su ${MAX_PARALLEL_SPRINTS} sostenibili\nOre pianificate: ${Math.round(p.bucket.hours)}h su ${Math.round(p.cap)}h\nProgetti: ${p.bucket.byProject.length}\n\nClicca per riprogrammare`}>
+                {showLabels && (
                   <span className="absolute inset-0 flex items-center justify-center text-2xs font-bold text-on-gold/90 tabular">
-                    {Math.round(p.bucket.hours)}
+                    {p.nSprint > 0 ? `${p.nSprint}` : ''}
                   </span>
                 )}
               </button>
@@ -432,13 +413,12 @@ function EffortForecast({ buckets, capacity, windows, signals, needsAttention, t
 
         {/* Legenda */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-2xs text-text-tertiary">
-          <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-success/70" /> sostenibile</span>
+          <span className="font-semibold">Intensità:</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-success/70" /> soft</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-warning/80" /> in tensione</span>
-          <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-orange" /> oltre capacità</span>
-          <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-error" /> critico</span>
-          {sprintLanes.length > 0 && (
-            <span className="flex items-center gap-1.5 ml-auto"><span className="w-3 h-1 rounded-full bg-gold" /> sprint in corso</span>
-          )}
+          <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-orange" /> intenso</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-error" /> al limite ({MAX_PARALLEL_SPRINTS} sprint)</span>
+          <span className="ml-auto">Il numero nella barra sono gli sprint in parallelo</span>
         </div>
       </div>
 
@@ -449,8 +429,9 @@ function EffortForecast({ buckets, capacity, windows, signals, needsAttention, t
             <div>
               <p className="text-sm font-bold text-text-primary">{fmtRange(selected.bucket.start, selected.bucket.end)}</p>
               <p className="text-2xs text-text-tertiary mt-0.5">
-                {Math.round(selected.bucket.hours)}h su {Math.round(selected.cap)}h di capacità ({Math.round(selected.ratio * 100)}%)
-                {selected.nSprint > 0 && ` · ${selected.nSprint} sprint attivi`}
+                Intensità <span className="font-semibold text-text-primary">{Math.round(selected.intensity * 100)}%</span>
+                {` · ${selected.nSprint} sprint in parallelo su ${MAX_PARALLEL_SPRINTS}`}
+                {` · ${Math.round(selected.bucket.hours)}h di lavoro`}
                 {selected.bucket.byProject.length > 0 && ` · ${selected.bucket.byProject.length} progetti`}
               </p>
             </div>
