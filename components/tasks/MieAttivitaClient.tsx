@@ -16,8 +16,9 @@ import { formatDate, getInitials } from '@/lib/utils'
 import type { Task, Profile } from '@/lib/types/database'
 import { BachecaView } from './BachecaView'
 import { TimelineView } from './TimelineView'
-import { isTaskDone, isTaskActive } from '@/lib/task-status'
+import { isTaskDone, isTaskActive, isPendingRequest } from '@/lib/task-status'
 import { TaskDrawer } from './TaskDrawer'
+import { RequestInbox } from './RequestInbox'
 
 interface TaskWithMeta extends Task {
   assignee: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
@@ -55,6 +56,7 @@ function categorizeTasks(tasks: TaskWithMeta[]) {
   const in7 = new Date(today); in7.setDate(in7.getDate() + 7)
   const out: Record<Section, TaskWithMeta[]> = { oggi: [], prossimi: [], dopo: [], completati: [] }
   for (const t of tasks) {
+    if (isPendingRequest(t.status)) continue // richieste in arrivo: sezione dedicata, non nelle liste normali
     if (isTaskDone(t.status)) { out.completati.push(t); continue }
     if (!t.due_date) { out.dopo.push(t); continue }
     const d = new Date(t.due_date); d.setHours(0, 0, 0, 0)
@@ -153,6 +155,7 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles, proj
   }
 
   const sections = categorizeTasks(tasks)
+  const pendingRequests = tasks.filter(t => isPendingRequest(t.status))
   const active = tasks.filter(t => isTaskActive(t.status))
   const done = tasks.filter(t => isTaskDone(t.status))
 
@@ -266,6 +269,18 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles, proj
           </div>
         )}
       </div>
+
+      {/* Richieste in arrivo (Fase 1d) */}
+      {pendingRequests.length > 0 && (
+        <div className="px-6 pt-4">
+          <RequestInbox
+            requests={pendingRequests.map(t => ({ id: t.id, title: t.title, description: t.description, due_date: t.due_date, project: t.project ? { name: t.project.name } : null }))}
+            onResolved={(id, accepted) => setTasks(prev => accepted
+              ? prev.map(t => t.id === id ? { ...t, status: 'da_fare' as TaskStatus } : t)
+              : prev.filter(t => t.id !== id))}
+          />
+        </div>
+      )}
 
       {/* Body */}
       <div className="flex-1 overflow-hidden flex">

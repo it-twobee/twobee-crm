@@ -13,6 +13,7 @@ import { TaskComments } from './TaskComments'
 import { TimeTracker } from './TimeTracker'
 import { updateTaskFields } from '@/app/actions/tasks'
 import { setTaskAssignees } from '@/app/actions/task-assignees'
+import { SupportRequestButton } from './SupportRequestButton'
 
 // Drawer task condiviso (Fase 1b): stesso editor su Le mie attività, progetto,
 // sprint/milestone, workload. Scritture centralizzate via updateTaskFields
@@ -228,6 +229,13 @@ export function TaskDrawer({ task, profiles, canEdit = true, initialAssignees, o
 
             {isTaskDone(task.status) && (
               <p className="text-2xs text-success flex items-center gap-1"><Link2 className="w-3 h-3" /> Task completata</p>
+            )}
+
+            {/* Richiedi supporto (§6.3) */}
+            {canEdit && (
+              <div className="pt-2 border-t border-border">
+                <SupportRequestButton originTaskId={task.id} projectId={task.project_id} defaultTitle={task.title} profiles={profiles} />
+              </div>
             )}
           </>
         )}
