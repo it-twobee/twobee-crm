@@ -20,7 +20,11 @@ export interface CalendarEvent {
   attendeeEmails?: string[]
 }
 
-function oauthFor(accessToken: string | null, refreshToken: string | null) {
+function oauthFor(
+  accessToken: string | null,
+  refreshToken: string | null,
+  persist?: { profileId: string; admin: ReturnType<typeof createAdminClient> },
+) {
   const c = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
@@ -30,6 +34,17 @@ function oauthFor(accessToken: string | null, refreshToken: string | null) {
     access_token: accessToken ?? undefined,
     refresh_token: refreshToken ?? undefined,
   })
+  // Fase 2b: quando googleapis rinnova il token, ripersisti in google_credentials
+  // (prima restava in memoria → expiry stale). Fire-and-forget.
+  if (persist) {
+    c.on('tokens', (t) => {
+      const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+      if (t.access_token) patch.access_token = t.access_token
+      if (t.refresh_token) patch.refresh_token = t.refresh_token
+      if (t.expiry_date) patch.expiry = new Date(t.expiry_date).toISOString()
+      void persist.admin.from('google_credentials').update(patch as never).eq('profile_id', persist.profileId)
+    })
+  }
   return c
 }
 
@@ -89,7 +104,7 @@ export async function GET(req: NextRequest) {
     if (!cred?.refresh_token && !cred?.access_token) { notConnected.push(profileId); return }
 
     try {
-      const calendar = google.calendar({ version: 'v3', auth: oauthFor(cred.access_token, cred.refresh_token) })
+      const calendar = google.calendar({ version: 'v3', auth: oauthFor(cred.access_token, cred.refresh_token, { profileId, admin }) })
       const { data } = await calendar.events.list({
         calendarId: 'primary',
         timeMin, timeMax,
@@ -144,6 +159,12 @@ interface EventBody {
   attendeeIds?: string[]    // profili colleghi: le email si risolvono lato server
   attendeeEmails?: string[] // indirizzi liberi
   eventId?: string          // solo per PATCH/DELETE
+  // Fase 2b
+  timezone?: string
+  recurrence?: string       // RRULE, es. 'RRULE:FREQ=WEEKLY'
+  reminders?: { method: string; minutes: number }[]
+  clientId?: string | null  // link mirror (non inviato a Google)
+  projectId?: string | null // link mirror (non inviato a Google)
 }
 
 /** Le email degli invitati non passano dal client: si risolvono dai profili. */
@@ -159,6 +180,7 @@ async function resolveAttendeeEmails(
 }
 
 function buildRequestBody(body: EventBody, attendeeEmails: string[]) {
+  const tz = body.timezone || 'Europe/Rome'
   const rb: Record<string, unknown> = {
     summary: body.title,
     description: body.description || undefined,
@@ -169,8 +191,8 @@ function buildRequestBody(body: EventBody, attendeeEmails: string[]) {
     rb.start = { date: body.start }
     rb.end = { date: body.end }
   } else {
-    rb.start = { dateTime: body.start, timeZone: 'Europe/Rome' }
-    rb.end = { dateTime: body.end, timeZone: 'Europe/Rome' }
+    rb.start = { dateTime: body.start, timeZone: tz }
+    rb.end = { dateTime: body.end, timeZone: tz }
   }
   if (attendeeEmails.length) rb.attendees = attendeeEmails.map(email => ({ email }))
   if (body.addMeet) {
@@ -178,7 +200,44 @@ function buildRequestBody(body: EventBody, attendeeEmails: string[]) {
       createRequest: { requestId: `twobee-${body.start}`, conferenceSolutionKey: { type: 'hangoutsMeet' } },
     }
   }
+  // Ricorrenza (RRULE) e promemoria (§8.2 / Cal-Q3).
+  if (body.recurrence) rb.recurrence = [body.recurrence]
+  if (body.reminders && body.reminders.length) {
+    rb.reminders = { useDefault: false, overrides: body.reminders }
+  }
   return rb
+}
+
+/** Upsert nel mirror locale dopo una scrittura su Google (write-through, Fase 2b). */
+async function syncMirror(
+  admin: ReturnType<typeof createAdminClient>,
+  profileId: string,
+  body: EventBody,
+  googleEvent: { id?: string | null; hangoutLink?: string | null },
+) {
+  if (!googleEvent.id) return
+  const row = {
+    profile_id: profileId,
+    external_event_id: googleEvent.id,
+    calendar_id: 'primary',
+    client_id: body.clientId ?? null,
+    project_id: body.projectId ?? null,
+    title: body.title ?? '(senza titolo)',
+    description: body.description ?? null,
+    location: body.location ?? null,
+    start_at: body.allDay ? (body.start ? `${body.start}T00:00:00Z` : null) : (body.start ?? null),
+    end_at: body.allDay ? (body.end ? `${body.end}T00:00:00Z` : null) : (body.end ?? null),
+    all_day: !!body.allDay,
+    timezone: body.timezone || 'Europe/Rome',
+    meet_link: googleEvent.hangoutLink ?? null,
+    recurrence: body.recurrence ?? null,
+    reminders: body.reminders ?? null,
+    sync_status: 'synced',
+    last_synced_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }
+  // Non blocchiamo la risposta all'utente se il mirror fallisce: Google resta la fonte.
+  await admin.from('calendar_events').upsert(row as never, { onConflict: 'profile_id,external_event_id' })
 }
 
 /** OAuth del solo utente corrente: si può scrivere unicamente sul proprio calendario. */
@@ -192,7 +251,7 @@ async function myCalendar(userId: string) {
   if (!cred?.access_token && !cred?.refresh_token) return null
   return {
     admin,
-    calendar: google.calendar({ version: 'v3', auth: oauthFor(cred.access_token, cred.refresh_token) }),
+    calendar: google.calendar({ version: 'v3', auth: oauthFor(cred.access_token, cred.refresh_token, { profileId: userId, admin }) }),
   }
 }
 
@@ -214,6 +273,7 @@ export async function POST(req: NextRequest) {
     requestBody: buildRequestBody(body, attendees),
   })
 
+  await syncMirror(ctx.admin, user.id, body, data)
   return NextResponse.json({ event: data })
 }
 
@@ -237,6 +297,7 @@ export async function PATCH(req: NextRequest) {
     requestBody: buildRequestBody(body, attendees),
   })
 
+  await syncMirror(ctx.admin, user.id, body, data)
   return NextResponse.json({ event: data })
 }
 
@@ -252,5 +313,6 @@ export async function DELETE(req: NextRequest) {
   if (!ctx) return NextResponse.json({ error: 'not_connected' }, { status: 403 })
 
   await ctx.calendar.events.delete({ calendarId: 'primary', eventId, sendUpdates: 'all' })
+  await ctx.admin.from('calendar_events').delete().eq('profile_id', user.id).eq('external_event_id', eventId)
   return NextResponse.json({ ok: true })
 }

@@ -22,7 +22,28 @@ export interface EventForm {
   meetLink: string | null
   attendeeIds: string[]
   attendeeEmails: string[]
+  // Fase 2b (opzionali: default gestiti nel form)
+  timezone?: string
+  recurrence?: string          // RRULE, es. 'RRULE:FREQ=WEEKLY'
+  reminderMinutes?: number | null
+  clientId?: string | null
+  projectId?: string | null
 }
+
+const TIMEZONES = ['Europe/Rome', 'Europe/London', 'Europe/Paris', 'UTC', 'America/New_York']
+const RECURRENCE_OPTS: { v: string; label: string }[] = [
+  { v: '', label: 'Non si ripete' },
+  { v: 'RRULE:FREQ=DAILY', label: 'Ogni giorno' },
+  { v: 'RRULE:FREQ=WEEKLY', label: 'Ogni settimana' },
+  { v: 'RRULE:FREQ=MONTHLY', label: 'Ogni mese' },
+]
+const REMINDER_OPTS: { v: string; label: string }[] = [
+  { v: '', label: 'Nessuno' },
+  { v: '10', label: '10 min prima' },
+  { v: '30', label: '30 min prima' },
+  { v: '60', label: '1 ora prima' },
+  { v: '1440', label: '1 giorno prima' },
+]
 
 export function CalendarEventForm({ form: initial, profiles, currentUserId, onClose, onSaved }: {
   form: EventForm
@@ -46,6 +67,11 @@ export function CalendarEventForm({ form: initial, profiles, currentUserId, onCl
         title: form.title, description: form.description, location: form.location,
         allDay: form.allDay, addMeet: form.addMeet,
         attendeeIds: form.attendeeIds, attendeeEmails: form.attendeeEmails,
+        timezone: form.timezone || 'Europe/Rome',
+        recurrence: form.recurrence || undefined,
+        reminders: form.reminderMinutes != null ? [{ method: 'popup', minutes: form.reminderMinutes }] : undefined,
+        clientId: form.clientId ?? undefined,
+        projectId: form.projectId ?? undefined,
       }
       if (form.allDay) {
         const endExclusive = addDays(new Date((form.endDate || form.date) + 'T00:00:00'), 1)
@@ -143,6 +169,29 @@ export function CalendarEventForm({ form: initial, profiles, currentUserId, onCl
 
         <textarea value={form.description} onChange={e => set('description', e.target.value)} placeholder="Aggiungi descrizione"
           rows={3} className={`${inputCls} resize-none`} />
+
+        {/* Fase 2b: fuso, ricorrenza, promemoria */}
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <label className="block text-2xs text-text-tertiary mb-1">Fuso</label>
+            <select value={form.timezone ?? 'Europe/Rome'} onChange={e => set('timezone', e.target.value)} className={inputCls} aria-label="Fuso orario">
+              {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-2xs text-text-tertiary mb-1">Ricorrenza</label>
+            <select value={form.recurrence ?? ''} onChange={e => set('recurrence', e.target.value)} className={inputCls} aria-label="Ricorrenza">
+              {RECURRENCE_OPTS.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-2xs text-text-tertiary mb-1">Promemoria</label>
+            <select value={form.reminderMinutes != null ? String(form.reminderMinutes) : ''}
+              onChange={e => set('reminderMinutes', e.target.value ? Number(e.target.value) : null)} className={inputCls} aria-label="Promemoria">
+              {REMINDER_OPTS.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
+            </select>
+          </div>
+        </div>
 
         <div className="flex gap-3 pt-1">
           {isEdit && (
