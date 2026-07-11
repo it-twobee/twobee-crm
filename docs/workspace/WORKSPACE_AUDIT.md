@@ -157,12 +157,12 @@ Ordinato per dipendenze e rischio. Ogni fase = PR atomiche, tsc+build verdi, tes
 - **Fase 0 — Fondamenta sicurezza (nuova, prima di tutto)**: chiudere le RLS economiche (§3/§3.8), gate @twobee.it server-side (§8.1), policy `storage.objects` + rimuovere URL pubblici (documents/hr). *Senza questa, ogni feature nuova eredita le falle.*
 - **Fase 1 — Task domain condiviso**: `<TaskDrawer>` unico + `TaskEditor`/helper stati terminali; write-path solo via `setTaskAssignees`; task cliccabili ovunque; unificare le page duplicate; richieste Admin→Risorsa e Richiesta supporto (nuovo stato `richiesta_supporto`, ALTER CHECK).
 - **Fase 2 — Calendario**: `CalendarEventForm` unico; sync bidirezionale (tabella + external id + stato); overlay task; form da progetto.
-- **Fase 3 — Workload**: rinomina "Progetti attivi"→Workload; collasso persistito; griglia+timeline multi-scala; intensità reale (finestre, sprints, team_leaves) con warning stime; AI planning (propone, non applica).
-- **Fase 4 — Cliente/Progetto**: CTA "Crea" contestuale; tab "Progetti attivi" autonoma; Brief view/edit; Gantt collassabile + hover condiviso; drawer su sprint/milestone; Appuntamenti 20gg + matching normalizzato; Riunioni→task; anagrafica display/legal.
+- **Fase 3 — Workload + Portfolio + Dashboard strategica**: rinomina "Progetti attivi"→Workload; collasso persistito; griglia+timeline multi-scala; intensità reale (finestre, sprints, team_leaves) con warning stime; AI planning (propone, non applica). **+ §10 Portfolio: filtro per tipologia progetto (campo reale).** **+ §6.4 Dashboard: widget MRR macro aggregato + fatturato totale aggregato (dati consentiti al Workspace, oggi assenti).**
+- **Fase 4 — Cliente/Progetto**: CTA "Crea" contestuale; tab "Progetti attivi" autonoma; Brief view/edit; Gantt collassabile + hover condiviso; drawer su sprint/milestone; Appuntamenti 20gg + matching normalizzato; Riunioni→task; anagrafica display/legal. **+ §6.1: completare "task cliccabili → drawer" nelle liste della dashboard workspace.**
 - **Fase 5 — Documenti & Knowledge**: Drive-only + albero; redesign Knowledge + Marginalità protetta.
 - **Fase 6 — Customer Care & nav**: AI interna; "Aggiungi persone" collassato; fix active-state Ticket; deprecare chat interne v1.0 (a livello DB).
 - **Fase 7 — HR/Cronologia/Profilo**: rimuovere upload HR; bucket; restore + retention; profilo UX + email read-only + rimuovere Competenze UI.
-- **Fase 8 — Stabilizzazione**: RLS per ruolo, build/typecheck, responsive, a11y, regressioni, data quality.
+- **Fase 8 — Stabilizzazione + verifiche**: RLS per ruolo, build/typecheck, responsive, a11y, regressioni, data quality (§35). **+ verifiche-solo (no rebuild): §18 KPI progetto, §19 Aggiornamenti, §22 KPI cliente, §25 Relazione, §30 Feedback, §32 Documenti personali** — controllo dati reali/filtri/permessi/empty/error senza rifarle.
 
 ⚠️ **Requisito trasversale**: ogni sezione Workspace deve funzionare identica nel portale Admin (riuso stesso componente con flag portale, non fork).
 
