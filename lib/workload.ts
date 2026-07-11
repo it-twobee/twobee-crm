@@ -186,6 +186,29 @@ export function computeProjectLoads(
   return out.sort((a, b) => (b.taskCount - b.doneCount) - (a.taskCount - a.doneCount) || b.totalHours - a.totalHours)
 }
 
+// ─── Hover condiviso (§9.2 / §15.2): stesso tooltip in Workload timeline e Gantt ──
+const STATUS_IT: Record<string, string> = {
+  da_fare: 'Da fare', in_corso: 'In corso', in_revisione: 'In revisione',
+  completato: 'Completato', richiesta_supporto: 'Richiesta supporto',
+}
+const fmtIt = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })
+
+/** Testo hover multilinea per una task (data, intervallo, progetto, owner, effort, stato). */
+export function taskHoverText(
+  t: WLTask,
+  projectName: string | null,
+  ownerNames: string[],
+): string {
+  const lines = [t.title]
+  if (projectName) lines.push(`Progetto: ${projectName}`)
+  if (t.start_date && t.due_date && t.start_date !== t.due_date) lines.push(`Periodo: ${fmtIt(t.start_date)} → ${fmtIt(t.due_date)}`)
+  else if (t.due_date) lines.push(`Scadenza: ${fmtIt(t.due_date)}`)
+  if (ownerNames.length) lines.push(`Owner: ${ownerNames.join(', ')}`)
+  lines.push(`Effort: ${t.estimated_hours != null ? `${t.estimated_hours}h` : `${DEFAULT_TASK_HOURS}h (stima mancante)`}`)
+  lines.push(`Stato: ${STATUS_IT[t.status] ?? t.status}`)
+  return lines.join('\n')
+}
+
 // ─── Intensità lavorativa futura (§9.3) ─────────────────────────────────────────
 export const INTENSITY_WINDOWS = [7, 14, 30, 60, 90]
 

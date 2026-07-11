@@ -8,7 +8,7 @@ import {
   AlertTriangle, Clock, Trash2, Loader2, Crown, UserCog, CalendarRange,
 } from 'lucide-react'
 import {
-  filterTasks, computeResourceLoads, computeProjectLoads, computeIntensity, workloadSignals, EMPTY_FILTERS,
+  filterTasks, computeResourceLoads, computeProjectLoads, computeIntensity, workloadSignals, taskHoverText, EMPTY_FILTERS,
   type WLTask, type WLProject, type WLResource, type WLFilters, type IntensityWindow,
 } from '@/lib/workload'
 import { AssigneePicker } from '@/components/tasks/AssigneePicker'
@@ -497,9 +497,20 @@ function TaskLine({ task, resources, assignees, resourceById, editable }: {
   )
 }
 
-/* ── Vista Timeline (task in parallelo per settimana) ────────────────────────── */
+/* ── Vista Timeline (task in parallelo, scala settimana/mese) ─────────────────── */
+type TScale = 'settimana' | 'mese'
 function mondayOf(d: Date) {
   const x = new Date(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); x.setHours(0, 0, 0, 0); return x
+}
+function bucketStart(d: Date, scale: TScale) {
+  if (scale === 'mese') { const x = new Date(d.getFullYear(), d.getMonth(), 1); x.setHours(0, 0, 0, 0); return x }
+  return mondayOf(d)
+}
+function stepNext(d: Date, scale: TScale) {
+  const x = new Date(d)
+  if (scale === 'mese') x.setMonth(x.getMonth() + 1)
+  else x.setDate(x.getDate() + 7)
+  return x
 }
 
 function TimelineView({ tasks, projects, resources, multiMap, canEditProject, resourceById }: {
@@ -511,51 +522,66 @@ function TimelineView({ tasks, projects, resources, multiMap, canEditProject, re
   resourceById: Map<string, WLResource>
 }) {
   const [selected, setSelected] = useState<WLTask | null>(null)
+  const [scale, setScale] = useState<TScale>('settimana')
   const todayStr = new Date().toISOString().slice(0, 10)
   const dated = useMemo(() => tasks.filter(t => !t.is_milestone && t.due_date), [tasks])
   const noDate = tasks.filter(t => !t.is_milestone && !t.due_date).length
+  const cap = scale === 'mese' ? 24 : 16
 
-  const weeks = useMemo(() => {
+  const cols = useMemo(() => {
     if (dated.length === 0) return [] as Date[]
     const ds = dated.map(t => t.due_date!).sort()
-    let start = mondayOf(new Date(ds[0] + 'T00:00:00'))
-    const today = mondayOf(new Date())
-    if (start > today) start = today
-    const last = mondayOf(new Date(ds[ds.length - 1] + 'T00:00:00'))
+    let start = bucketStart(new Date(ds[0] + 'T00:00:00'), scale)
+    const todayBucket = bucketStart(new Date(), scale)
+    if (start > todayBucket) start = todayBucket
+    const last = bucketStart(new Date(ds[ds.length - 1] + 'T00:00:00'), scale)
     const arr: Date[] = []
-    const cur = new Date(start)
-    while (cur <= last && arr.length < 16) { arr.push(new Date(cur)); cur.setDate(cur.getDate() + 7) }
+    let cur = new Date(start)
+    while (cur <= last && arr.length < cap) { arr.push(new Date(cur)); cur = stepNext(cur, scale) }
     if (arr.length === 0) arr.push(new Date(start))
     return arr
-  }, [dated])
+  }, [dated, scale, cap])
 
-  const weekIndexOf = (due: string) => {
-    const d = mondayOf(new Date(due + 'T00:00:00')).getTime()
-    for (let i = weeks.length - 1; i >= 0; i--) if (weeks[i].getTime() <= d) return i
+  const colIndexOf = (due: string) => {
+    const d = bucketStart(new Date(due + 'T00:00:00'), scale).getTime()
+    for (let i = cols.length - 1; i >= 0; i--) if (cols[i].getTime() <= d) return i
     return 0
   }
+  const ownersOf = (t: WLTask) => (multiMap.get(t.id) ?? (t.assignee_id ? [t.assignee_id] : []))
+    .map(id => resourceById.get(id)?.full_name ?? '—')
 
   const rows = projects
     .map(p => ({ project: p, tasks: dated.filter(t => t.project_id === p.id) }))
     .filter(r => r.tasks.length > 0)
 
-  if (weeks.length === 0) {
+  if (cols.length === 0) {
     return <p className="text-center py-16 text-text-tertiary text-sm">Nessuna task con scadenza per questi filtri.</p>
   }
 
   const COL = 120
-  const todayWeek = mondayOf(new Date()).getTime()
+  const todayBucketMs = bucketStart(new Date(), scale).getTime()
+  const colLabel = (c: Date) => scale === 'mese'
+    ? c.toLocaleDateString('it-IT', { month: 'short', year: '2-digit' })
+    : c.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
 
   return (
     <div className="space-y-3">
+      <div className="flex gap-1 rounded-xl bg-surface border border-border p-1 w-fit" role="tablist" aria-label="Scala">
+        {(['settimana', 'mese'] as const).map(s => (
+          <button key={s} role="tab" aria-selected={scale === s} onClick={() => setScale(s)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${
+              scale === s ? 'bg-gold-dim text-gold-text' : 'text-text-tertiary hover:text-text-primary'
+            }`}>{s}</button>
+        ))}
+      </div>
       <div className="rounded-xl border border-border bg-surface overflow-x-auto">
-        <div style={{ minWidth: 180 + weeks.length * COL }}>
+        <div style={{ minWidth: 180 + cols.length * COL }}>
           <div className="flex border-b border-border bg-surface">
             <div className="w-[180px] shrink-0 px-3 py-2 text-2xs font-semibold uppercase tracking-wider text-text-tertiary">Progetto</div>
-            {weeks.map((w, i) => (
+            {cols.map((w, i) => (
               <div key={i} style={{ width: COL }}
-                className={`shrink-0 px-2 py-2 text-2xs text-center border-l border-border ${w.getTime() === todayWeek ? 'text-gold-text font-semibold' : 'text-text-tertiary'}`}>
-                {w.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}
+                className={`shrink-0 px-2 py-2 text-2xs text-center border-l border-border ${w.getTime() === todayBucketMs ? 'text-gold-text font-semibold' : 'text-text-tertiary'}`}>
+                {colLabel(w)}
               </div>
             ))}
           </div>
@@ -565,9 +591,9 @@ function TimelineView({ tasks, projects, resources, multiMap, canEditProject, re
                 <p className="text-xs font-semibold text-text-primary truncate">{row.project.name}</p>
                 <p className="text-2xs text-text-tertiary truncate">{row.project.client_name}</p>
               </div>
-              {weeks.map((w, i) => (
+              {cols.map((w, i) => (
                 <div key={i} style={{ width: COL }} className="shrink-0 border-l border-border p-1 space-y-1 min-h-[3rem]">
-                  {row.tasks.filter(t => weekIndexOf(t.due_date!) === i).map(t => {
+                  {row.tasks.filter(t => colIndexOf(t.due_date!) === i).map(t => {
                     const overdue = t.status !== 'completato' && t.due_date! < todayStr
                     const cls = t.status === 'completato' ? 'bg-success-dim text-success'
                       : overdue ? 'bg-error-dim text-error'
@@ -575,7 +601,8 @@ function TimelineView({ tasks, projects, resources, multiMap, canEditProject, re
                       : t.status === 'in_revisione' ? 'bg-accent-dim text-accent'
                       : 'bg-surface-active text-text-secondary'
                     return (
-                      <button key={t.id} onClick={() => setSelected(t)} title={t.title}
+                      <button key={t.id} onClick={() => setSelected(t)}
+                        title={taskHoverText(t, row.project.name, ownersOf(t))}
                         className={`block w-full text-left rounded px-1.5 py-1 text-2xs truncate transition-shadow ${cls} ${selected?.id === t.id ? 'ring-1 ring-gold' : ''}`}>
                         {t.title}
                       </button>
