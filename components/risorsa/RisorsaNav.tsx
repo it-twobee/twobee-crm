@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { getInitials } from '@/lib/utils'
 import type { Profile } from '@/lib/types/database'
 import { Logo } from '@/components/shared/Logo'
+import { ThemeToggle } from '@/components/theme/ThemeToggle'
 
 // Rotte sempre dentro /risorsa (sicure anche per risorse esterne)
 const NAV = [
@@ -56,6 +57,7 @@ export function RisorsaNav({ profile, isExternal }: { profile: Profile | null; i
       </nav>
 
       <div className="ml-auto flex items-center gap-2">
+        <ThemeToggle collapsed />
         {isStaff && (
           <Link href="/dashboard" className="flex items-center gap-1.5 text-2xs text-text-tertiary hover:text-text-primary px-2 py-1">
             <ArrowLeft className="w-3 h-3" /> Area admin

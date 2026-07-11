@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/client'
 import { SlackChat } from '@/components/chat/SlackChat'
 import { DriveEmbed } from '@/components/shared/DriveEmbed'
 import { PortalSwitcher } from '@/components/shared/PortalSwitcher'
+import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { isDriveUrl, driveKind } from '@/lib/drive'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/utils'
@@ -595,6 +596,7 @@ export function ClientPortalView({ client, projects, sprints, clientTasks, kpis,
                 <span className="text-xs font-bold text-warning">{pendingTasks.length} da fare</span>
               </button>
             )}
+            <ThemeToggle collapsed />
           </div>
         </div>
 
