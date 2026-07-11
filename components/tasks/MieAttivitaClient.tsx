@@ -280,8 +280,8 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles, proj
             newSprintId={newSprintId} setNewSprintId={setNewSprintId}
             newMilestoneId={newMilestoneId} setNewMilestoneId={setNewMilestoneId} />}
           {view === 'bacheca' && <BachecaView tasks={tasks} updateStatus={updateStatus} onSelect={setSelectedTask} />}
-          {view === 'timeline' && <TimelineView tasks={active} />}
-          {view === 'calendario' && <CalendarioView tasks={tasks} />}
+          {view === 'timeline' && <TimelineView tasks={active} onSelect={setSelectedTask} />}
+          {view === 'calendario' && <CalendarioView tasks={tasks} onSelect={setSelectedTask} />}
           {view === 'analitica' && <AnaliticaView tasks={tasks} />}
         </div>
 
@@ -499,7 +499,7 @@ function TaskRow({ task, toggleStatus, requestDelete, deleting, onSelect, isSele
 
 
 /* ── CALENDARIO (mini cal con task) ────────────────────── */
-function CalendarioView({ tasks }: { tasks: TaskWithMeta[] }) {
+function CalendarioView({ tasks, onSelect }: { tasks: TaskWithMeta[]; onSelect: (t: TaskWithMeta) => void }) {
   const [month, setMonth] = useState(new Date())
   const y = month.getFullYear(); const m = month.getMonth()
   const firstDay = new Date(y, m, 1)
@@ -547,7 +547,7 @@ function CalendarioView({ tasks }: { tasks: TaskWithMeta[] }) {
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium mb-1 ${isToday ? 'bg-gold text-on-gold' : 'text-text-primary'}`}>{day}</div>
               <div className="space-y-0.5">
                 {dayTasks.slice(0, 3).map(t => (
-                  <div key={t.id} className={`text-2xs px-1.5 py-0.5 rounded truncate border ${
+                  <div key={t.id} onClick={() => onSelect(t)} className={`text-2xs px-1.5 py-0.5 rounded truncate border cursor-pointer hover:opacity-80 transition-opacity ${
                     isTaskDone(t.status) ? 'bg-success/10 text-success border-success/20'
                     : new Date(t.due_date!) < today ? 'bg-error/10 text-error border-error/20'
                     : 'bg-gold/10 text-gold-text border-gold/20'

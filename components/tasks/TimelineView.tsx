@@ -20,7 +20,7 @@ const addMonths = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth()
 const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString()
 const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6
 
-export function TimelineView({ tasks }: { tasks: TaskWithMeta[] }) {
+export function TimelineView({ tasks, onSelect }: { tasks: TaskWithMeta[]; onSelect?: (t: TaskWithMeta) => void }) {
   const [grain, setGrain] = useState<Grain>('giorno')
   const [offset, setOffset] = useState(0)
 
@@ -213,7 +213,8 @@ export function TimelineView({ tasks }: { tasks: TaskWithMeta[] }) {
                 return (
                   <li key={task.id} className="relative h-9 flex items-center">
                     <div
-                      className={`absolute flex items-center gap-1 px-2 h-7 rounded-lg border text-2xs font-medium max-w-[15rem] ${chip}`}
+                      onClick={() => onSelect?.(task)}
+                      className={`absolute flex items-center gap-1 px-2 h-7 rounded-lg border text-2xs font-medium max-w-[15rem] ${chip} ${onSelect ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
                       style={{ left: Math.max(2, pos - 6) }}
                       title={`${task.title}${task.project ? ` — ${task.project.name}` : ''} · ${due.toLocaleDateString('it-IT')}`}
                     >
