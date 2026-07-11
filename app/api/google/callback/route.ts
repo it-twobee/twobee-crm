@@ -46,6 +46,12 @@ export async function GET(req: NextRequest) {
 
   await admin.from('profiles').update({ google_connected: true } as never).eq('id', user.id)
 
+  // Fase 2c: registra il watch channel per il push real-time (no-op senza dominio pubblico).
+  try {
+    const { ensureCalendarWatch } = await import('@/lib/google-calendar')
+    await ensureCalendarWatch(admin, user.id)
+  } catch { /* non bloccare la connessione se il watch fallisce */ }
+
   // Ripulisci i token lasciati nel metadata dai collegamenti precedenti.
   await supabase.auth.updateUser({
     data: { google_access_token: null, google_refresh_token: null, google_token_expiry: null },

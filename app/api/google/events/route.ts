@@ -3,6 +3,7 @@ import { google } from 'googleapis'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isSuperAdminRaw, isAdminRole, isWorkspaceRole } from '@/lib/permissions'
+import { ensureCalendarWatch } from '@/lib/google-calendar'
 
 export interface CalendarEvent {
   id: string
@@ -144,6 +145,9 @@ export async function GET(req: NextRequest) {
       notConnected.push(profileId)
     }
   }))
+
+  // Fase 2c: rinnovo lazy del watch channel dell'utente (no-op se valido o senza dominio).
+  if (credMap.has(user.id)) { void ensureCalendarWatch(admin, user.id) }
 
   return NextResponse.json({ events, notConnected })
 }
