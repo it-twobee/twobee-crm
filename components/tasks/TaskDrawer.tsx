@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { X, Pencil, Save, Loader2, FolderKanban, ExternalLink, ListTree, MessageSquare, Clock, FileText, Link2 } from 'lucide-react'
+import { X, Pencil, Save, Loader2, FolderKanban, ExternalLink, ListTree, MessageSquare, Clock, FileText, Link2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Task, Profile } from '@/lib/types/database'
 import { usePortalRoutes } from '@/lib/portal-routes'
@@ -34,13 +34,14 @@ export interface DrawerTask extends Task {
 
 type Tab = 'dettaglio' | 'subtask' | 'commenti' | 'ore'
 
-export function TaskDrawer({ task, profiles, canEdit = true, initialAssignees, onClose, onPatched }: {
+export function TaskDrawer({ task, profiles, canEdit = true, initialAssignees, onClose, onPatched, onDelete }: {
   task: DrawerTask
   profiles: Pick<Profile, 'id' | 'full_name' | 'avatar_url'>[]
   canEdit?: boolean
   initialAssignees?: string[]
   onClose: () => void
   onPatched: (patch: Partial<Task>) => void
+  onDelete?: () => void
 }) {
   const { projectHref } = usePortalRoutes()
   const [tab, setTab] = useState<Tab>('dettaglio')
@@ -87,6 +88,12 @@ export function TaskDrawer({ task, profiles, canEdit = true, initialAssignees, o
     <div className="w-80 lg:w-96 border-l border-border flex flex-col bg-surface shrink-0">
       <div className="flex items-center justify-between px-5 py-4 border-b border-border">
         <h3 className="text-sm font-bold text-text-primary truncate flex-1">Dettaglio Task</h3>
+        {canEdit && onDelete && (
+          <button onClick={() => { if (confirm('Eliminare questa task?')) onDelete() }} aria-label="Elimina task"
+            className="p-1 rounded-lg text-text-tertiary hover:text-error hover:bg-error-dim transition-colors">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
         <button onClick={onClose} aria-label="Chiudi" className="p-1 rounded-lg text-text-tertiary hover:text-text-secondary hover:bg-surface-hover">
           <X className="w-4 h-4" />
         </button>
