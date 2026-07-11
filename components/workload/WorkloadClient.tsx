@@ -5,22 +5,21 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import {
   Gauge, Users, FolderKanban, Filter, X, ChevronDown, ChevronRight,
-  AlertTriangle, Clock, Trash2, Loader2, Crown, UserCog, CalendarRange, Sparkles,
-  ExternalLink, Flag, Plus,
+  AlertTriangle, Loader2, Crown, UserCog, CalendarRange, Sparkles,
+  ExternalLink, Flag, Plus, Pencil, Check,
 } from 'lucide-react'
 import {
-  filterTasks, computeResourceLoads, computeProjectLoads, computeIntensity, workloadSignals, taskHoverText,
+  filterTasks, computeResourceLoads, computeProjectLoads, computeIntensity, workloadSignals,
   computeEffortBuckets, teamWeeklyCapacity, detectPeaks, computeSprintDensity, periodSeverity, EMPTY_FILTERS,
   type WLTask, type WLProject, type WLResource, type WLSprint, type WLFilters, type IntensityWindow,
-  type EffortBucket, type EffortPeak, type SprintLane, type SprintDensity,
+  type EffortBucket, type EffortPeak,
 } from '@/lib/workload'
-import { AssigneePicker } from '@/components/tasks/AssigneePicker'
-import { setTaskAssignees } from '@/app/actions/task-assignees'
-import { pmUpdateTask, pmDeleteTask } from '@/app/actions/workload-tasks'
+import { pmUpdateTask } from '@/app/actions/workload-tasks'
 import { createMyTask } from '@/app/actions/workspace-create'
+import { renameSprint, renameMilestone } from '@/app/actions/workload-sprints'
 import { usePortalRoutes } from '@/lib/portal-routes'
 
-type View = 'progetti' | 'timeline' | 'risorse' | 'intensita'
+type View = 'progetti' | 'risorse'
 
 const KIND_UI: Record<string, { label: string; cls: string }> = {
   growth:  { label: 'Growth',  cls: 'text-success bg-success-dim' },
@@ -29,7 +28,6 @@ const KIND_UI: Record<string, { label: string; cls: string }> = {
 const STATUS_LABEL: Record<string, string> = {
   da_fare: 'Da fare', in_corso: 'In corso', in_revisione: 'In revisione', completato: 'Completato',
 }
-const STATUS_OPTS = ['da_fare', 'in_corso', 'in_revisione', 'completato']
 
 // Carico settimanale di riferimento: oltre questo la barra vira sul rosso.
 const WEEKLY_CAPACITY = 40
@@ -160,7 +158,7 @@ export function WorkloadClient({
           <p className="text-text-tertiary text-sm mt-0.5">{subtitle}</p>
         </div>
         <div className="flex gap-1 rounded-xl bg-surface border border-border p-1" role="tablist" aria-label="Vista">
-          {([['progetti', 'Progetti', FolderKanban], ['timeline', 'Timeline', CalendarRange], ['risorse', 'Risorse', Users], ['intensita', 'Intensità', Gauge]] as const).map(([k, lbl, Icon]) => (
+          {([['progetti', 'Progetti', FolderKanban], ['risorse', 'Risorse', Users]] as const).map(([k, lbl, Icon]) => (
             <button key={k} role="tab" aria-selected={view === k} onClick={() => setView(k)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                 view === k ? 'bg-gold-dim text-gold-text' : 'text-text-tertiary hover:text-text-primary'
@@ -215,16 +213,6 @@ export function WorkloadClient({
           resourceById={new Map(resources.map(r => [r.id, r]))}
         />
       )}
-      {view === 'timeline' && (
-        <TimelineView
-          tasks={filtered}
-          projects={visibleProjects}
-          resources={resources}
-          multiMap={multiMap}
-          canEditProject={canEditProject}
-          resourceById={new Map(resources.map(r => [r.id, r]))}
-        />
-      )}
       {view === 'risorse' && (
         <ResourcesView
           loads={resourceLoads}
@@ -233,157 +221,12 @@ export function WorkloadClient({
           multiMap={multiMap}
         />
       )}
-      {view === 'intensita' && (
-        <IntensityView windows={intensity.windows} estimateCoverage={intensity.estimateCoverage} signals={signals}
-          needsAttention={aiNeeds} peaks={peaks} capacity={capacity} />
-      )}
     </div>
   )
 }
 
 /* ── AI Planning Assistant (§9.4): propone, non applica ──────────────────────── */
 type AISuggestion = { type: string; title: string; detail: string }
-function AIPlanningPanel({ windows, signals, needsAttention, peaks, capacity }: {
-  windows: IntensityWindow[]
-  signals: { noEstimate: number; noDue: number; noOwner: number; projectsNoPm: number }
-  needsAttention: { title: string; project: string; due_date: string | null; estimated_hours: number | null; owner: string | null; issue: string }[]
-  peaks: EffortPeak[]
-  capacity: number
-}) {
-  const [loading, setLoading] = useState(false)
-  const [suggestions, setSuggestions] = useState<AISuggestion[] | null>(null)
-  const [summary, setSummary] = useState('')
-
-  const ask = async () => {
-    setLoading(true)
-    try {
-      const payload = {
-        windows: windows.map(w => ({ days: w.days, overloaded: w.overloaded, top: w.cells.slice(0, 4).map(c => ({ name: c.resourceName, hours: c.hours, capacity: c.capacity })) })),
-        signals,
-        needsAttention,
-        // Accavallamenti cross-progetto: settimane in cui più progetti concorrono.
-        peaks: peaks.slice(0, 6).map(p => ({
-          from: p.bucket.start, to: p.bucket.end, hours: p.bucket.hours,
-          capacity: Math.round(capacity), ratio: Math.round(p.ratio * 100),
-          projects: p.bucket.byProject.slice(0, 4).map(x => ({ name: x.projectName, hours: x.hours })),
-        })),
-      }
-      const res = await fetch('/api/ai/workload-plan', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
-      })
-      const data = await res.json()
-      if (data.error) { toast.error(data.error); return }
-      setSuggestions(data.suggestions ?? []); setSummary(data.summary ?? '')
-    } catch { toast.error('Errore analisi AI') } finally { setLoading(false) }
-  }
-
-  return (
-    <div className="rounded-xl border border-gold/25 bg-gold-dim/40 p-4">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-bold text-text-primary flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-gold-text" aria-hidden="true" /> AI Planning
-        </p>
-        <button onClick={ask} disabled={loading}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gold text-on-gold text-2xs font-bold rounded-lg hover:bg-gold/90 disabled:opacity-50">
-          {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />}
-          {suggestions ? 'Rianalizza' : 'Chiedi suggerimenti'}
-        </button>
-      </div>
-      <p className="text-2xs text-text-tertiary mt-1">L&apos;AI analizza carichi e segnali e propone azioni. Non modifica nulla: decidi tu.</p>
-
-      {suggestions && (
-        <div className="mt-3 space-y-2">
-          {summary && <p className="text-xs text-text-secondary italic">{summary}</p>}
-          {suggestions.length === 0 ? (
-            <p className="text-xs text-text-tertiary">Nessun suggerimento: il carico sembra bilanciato.</p>
-          ) : suggestions.map((s, i) => (
-            <div key={i} className="rounded-lg border border-border bg-surface px-3 py-2">
-              <p className="text-xs font-semibold text-text-primary">
-                <span className="text-2xs font-bold uppercase tracking-wider text-gold-text mr-1.5">{s.type}</span>{s.title}
-              </p>
-              <p className="text-2xs text-text-secondary mt-0.5">{s.detail}</p>
-            </div>
-          ))}
-          <p className="text-2xs text-text-tertiary pt-1">Fonte: intensità per finestra, segnali qualità, {needsAttention.length} task in attenzione.</p>
-        </div>
-      )}
-    </div>
-  )
-}
-
-/* ── Vista Intensità futura (§9.3) ───────────────────────────────────────────── */
-function IntensityView({ windows, estimateCoverage, signals, needsAttention, peaks, capacity }: {
-  windows: IntensityWindow[]
-  estimateCoverage: number
-  signals: { noEstimate: number; noDue: number; noOwner: number; projectsNoPm: number }
-  needsAttention: { title: string; project: string; due_date: string | null; estimated_hours: number | null; owner: string | null; issue: string }[]
-  peaks: EffortPeak[]
-  capacity: number
-}) {
-  const [days, setDays] = useState(30)
-  const win = windows.find(w => w.days === days) ?? windows[0]
-
-  return (
-    <div className="space-y-4">
-      <AIPlanningPanel windows={windows} signals={signals} needsAttention={needsAttention} peaks={peaks} capacity={capacity} />
-      {/* Warning qualità previsione */}
-      {estimateCoverage < 100 && (
-        <div className="flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning-dim px-4 py-3">
-          <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" aria-hidden="true" />
-          <p className="text-2xs text-text-secondary">
-            Previsione a bassa affidabilità: solo <span className="font-bold text-warning">{estimateCoverage}%</span> delle
-            ore è basato su stime reali (il resto usa un default di {`4h`}). Compila le ore stimate per un calcolo più accurato.
-          </p>
-        </div>
-      )}
-
-      {/* Segnali operativi */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        <Stat label="Task senza stima" value={signals.noEstimate} tone={signals.noEstimate > 0 ? 'warn' : undefined} />
-        <Stat label="Task senza scadenza" value={signals.noDue} tone={signals.noDue > 0 ? 'warn' : undefined} />
-        <Stat label="Task senza owner" value={signals.noOwner} tone={signals.noOwner > 0 ? 'warn' : undefined} />
-        <Stat label="Progetti senza PM" value={signals.projectsNoPm} tone={signals.projectsNoPm > 0 ? 'warn' : undefined} />
-      </div>
-
-      {/* Selettore finestra */}
-      <div className="flex gap-1 rounded-xl bg-surface border border-border p-1 w-fit" role="tablist" aria-label="Finestra">
-        {windows.map(w => (
-          <button key={w.days} role="tab" aria-selected={w.days === days} onClick={() => setDays(w.days)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              w.days === days ? 'bg-gold-dim text-gold-text' : 'text-text-tertiary hover:text-text-primary'
-            }`}>
-            {w.days}gg{w.overloaded > 0 && <span className="ml-1 text-warning">·{w.overloaded}</span>}
-          </button>
-        ))}
-      </div>
-
-      {/* Carico per risorsa nella finestra */}
-      {!win || win.cells.length === 0 ? (
-        <p className="text-center py-12 text-text-tertiary text-sm">Nessun carico pianificato in questa finestra.</p>
-      ) : (
-        <div className="rounded-xl border border-border bg-surface divide-y divide-border">
-          {win.cells.map(c => {
-            const pct = Math.min(100, Math.round(c.ratio * 100))
-            const over = c.ratio > 1
-            const bar = over ? 'bg-error' : c.ratio > 0.8 ? 'bg-warning' : 'bg-success'
-            return (
-              <div key={c.resourceId} className="flex items-center gap-3 px-4 py-2.5">
-                <span className="flex-1 min-w-0 text-sm text-text-primary truncate">{c.resourceName}</span>
-                <div className="w-40 h-2 rounded-full bg-surface-active overflow-hidden shrink-0">
-                  <div className={`h-full rounded-full ${bar}`} style={{ width: `${pct}%` }} />
-                </div>
-                <span className={`text-2xs tabular shrink-0 w-24 text-right ${over ? 'text-error font-bold' : 'text-text-tertiary'}`}>
-                  {c.hours}h / {c.capacity}h
-                </span>
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
 /* ── Previsione effort cross-progetto: accavallamenti e periodi critici ───────── */
 function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAttention, tasks, projectById, resourceById, multiMap, canEditProject, sprints }: {
   buckets: EffortBucket[]
@@ -482,93 +325,99 @@ function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAtten
         </button>
       </div>
 
-      {/* Istogramma settimanale con linea di capacità */}
-      <div className="relative">
-        <div className="flex items-end gap-1 h-24">
-          {buckets.map(b => {
-            const h = Math.max(2, (b.hours / maxH) * 100)
-            const nSprint = densityByWeek.get(b.start)?.count ?? 0
-            const ratio = capacity > 0 ? b.hours / capacity : 0
-            // Severità = sprint accavallati + effort sulla capacità.
-            const sev = periodSeverity(nSprint, ratio)
-            const cls = SEV_BAR[sev]
-            const sel = openWeek === b.start
-            return (
-              <button key={b.start} onClick={() => setOpenWeek(sel ? null : b.start)}
-                aria-label={`Settimana ${fmt(b.start)}, ${b.hours} ore, ${nSprint} sprint`}
-                className="flex-1 flex flex-col justify-end h-full group"
-                title={`Settimana ${fmt(b.start)} – ${fmt(b.end)}\nEffort: ${b.hours}h (capacità ${Math.round(capacity)}h)\nSprint in lavorazione: ${nSprint}${nSprint > 1 ? ` (accavallati)` : ''}\nProgetti: ${b.byProject.length}\nClicca per vedere e riprogrammare le task`}>
-                <div className={`w-full rounded-t transition-all ${cls} ${sel ? 'ring-2 ring-gold' : 'group-hover:brightness-125'}`}
-                  style={{ height: `${h}%` }} />
-              </button>
-            )
-          })}
-        </div>
-        {capacity > 0 && capacity <= maxH && (
-          <div className="absolute left-0 right-0 border-t border-dashed border-text-tertiary/60 pointer-events-none"
-            style={{ bottom: `${(capacity / maxH) * 100}%` }}>
-            <span className="absolute -top-3.5 right-0 text-2xs text-text-tertiary bg-surface px-1">capacità</span>
-          </div>
-        )}
-      </div>
-
-      {/* Sprint in lavorazione: barre allineate alla stessa griglia settimanale.
-          Più sprint si accavallano nella stessa settimana → periodo più impattante. */}
-      {sprintLanes.length > 0 && (
-        <div className="space-y-1.5">
-          {/* Striscia densità: verde stabile → rosso quando gli sprint si accumulano */}
-          <div className="flex gap-1">
-            {buckets.map(b => {
-              const n = densityByWeek.get(b.start)?.count ?? 0
-              const ratio = capacity > 0 ? b.hours / capacity : 0
-              const sev = periodSeverity(n, ratio)
-              return (
-                <div key={b.start} className={`flex-1 h-1.5 rounded-full ${SEV_BAR[sev]} ${n === 0 ? 'opacity-25' : ''}`}
-                  title={`${fmt(b.start)}: ${n} sprint attivi${n > 1 ? ` — ${densityByWeek.get(b.start)?.names.join(', ')}` : ''}`} />
-              )
-            })}
-          </div>
-          {/* Barre sprint (max 6 righe, poi contatore) */}
-          <div className="space-y-1">
-            {sprintLanes.slice(0, 6).map(({ sprint: sp, projectName }) => {
-              const i0 = buckets.findIndex(b => b.end >= sp.start_date)
-              const i1 = buckets.map(b => b.start <= sp.end_date).lastIndexOf(true)
-              if (i0 < 0 || i1 < i0) return null
-              const left = (i0 / buckets.length) * 100
-              const width = ((i1 - i0 + 1) / buckets.length) * 100
-              const late = sp.end_date < new Date().toISOString().slice(0, 10)
-              const cls = late ? 'bg-error/50 border-error' : sp.status === 'in_corso' ? 'bg-gold/50 border-gold' : 'bg-info/40 border-info'
-              return (
-                <div key={sp.id} className="relative h-5">
-                  <div className={`absolute h-5 rounded border flex items-center px-1.5 overflow-hidden ${cls}`}
-                    style={{ left: `${left}%`, width: `${width}%`, minWidth: '3%' }}
-                    title={`Sprint: ${sp.name}\nProgetto: ${projectName}\n${fmt(sp.start_date)} → ${fmt(sp.end_date)}\nStato: ${sp.status}`}>
-                    <span className="text-2xs text-text-primary truncate">{sp.name} · {projectName}</span>
-                  </div>
-                </div>
-              )
-            })}
-            {sprintLanes.length > 6 && (
-              <p className="text-2xs text-text-tertiary">+ {sprintLanes.length - 6} altri sprint in lavorazione</p>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Alert accavallamento sprint */}
       {maxSprintOverlap >= 2 && (
         <div className={`flex items-start gap-2 rounded-lg border px-3 py-2 ${maxSprintOverlap >= 3 ? 'border-error/30 bg-error-dim' : 'border-warning/30 bg-warning-dim'}`}>
           <AlertTriangle className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${maxSprintOverlap >= 3 ? 'text-error' : 'text-warning'}`} aria-hidden="true" />
           <p className="text-2xs text-text-secondary">
             Fino a <span className="font-bold text-text-primary">{maxSprintOverlap} sprint in parallelo</span> nello stesso periodo:
-            le lavorazioni di progetti diversi si accavallano. Verifica i periodi in rosso e riprogramma, o chiedi un piano all&apos;AI.
+            le lavorazioni di progetti diversi si accavallano. Clicca una settimana in rosso per riprogrammare, o chiedi un piano all&apos;AI.
           </p>
         </div>
       )}
 
-      <div className="flex justify-between text-2xs text-text-tertiary">
-        <span>{fmt(buckets[0].start)}</span>
-        <span>{fmt(buckets[buckets.length - 1].end)}</span>
+      {/* ── Timeline integrata: asse settimane + carico + sprint, tutto allineato ── */}
+      <div className="rounded-xl border border-border bg-background p-3 space-y-2">
+        {/* Asse settimane */}
+        <div className="flex gap-1">
+          {buckets.map((b, i) => (
+            <div key={b.start} className="flex-1 text-center">
+              <span className={`text-2xs ${openWeek === b.start ? 'text-gold-text font-bold' : 'text-text-tertiary'}`}>
+                {i % 2 === 0 || buckets.length <= 10 ? fmt(b.start) : ''}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Carico: barre alte, cliccabili, con ore sopra */}
+        <div className="relative">
+          <div className="flex items-end gap-1 h-28">
+            {buckets.map(b => {
+              const h = Math.max(4, (b.hours / maxH) * 100)
+              const nSprint = densityByWeek.get(b.start)?.count ?? 0
+              const ratio = capacity > 0 ? b.hours / capacity : 0
+              const sev = periodSeverity(nSprint, ratio)     // sprint accavallati + effort
+              const sel = openWeek === b.start
+              return (
+                <button key={b.start} onClick={() => setOpenWeek(sel ? null : b.start)}
+                  aria-label={`Settimana ${fmt(b.start)}: ${b.hours} ore, ${nSprint} sprint`}
+                  className="flex-1 flex flex-col justify-end items-center h-full group gap-0.5"
+                  title={`Settimana ${fmt(b.start)} – ${fmt(b.end)}\nCarico: ${b.hours}h su ${Math.round(capacity)}h di capacità\nSprint in lavorazione: ${nSprint}${nSprint > 1 ? ' (accavallati)' : ''}\nProgetti: ${b.byProject.length}\n\nClicca per vedere e riprogrammare le task`}>
+                  <span className={`text-2xs tabular transition-opacity ${sel ? 'text-text-primary font-bold' : 'text-text-tertiary opacity-0 group-hover:opacity-100'}`}>
+                    {Math.round(b.hours)}
+                  </span>
+                  <div className={`w-full rounded-t transition-all ${SEV_BAR[sev]} ${sel ? 'ring-2 ring-gold' : 'group-hover:brightness-125'}`}
+                    style={{ height: `${h}%` }} />
+                </button>
+              )
+            })}
+          </div>
+          {capacity > 0 && capacity <= maxH && (
+            <div className="absolute left-0 right-0 border-t border-dashed border-text-tertiary/60 pointer-events-none"
+              style={{ bottom: `${(capacity / maxH) * 100}%` }}>
+              <span className="absolute -top-4 right-0 text-2xs text-text-tertiary bg-background px-1">
+                capacità {Math.round(capacity)}h
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Sprint in lavorazione, allineati alle stesse colonne settimanali */}
+        {sprintLanes.length > 0 && (
+          <div className="pt-2 border-t border-border space-y-1">
+            <p className="text-2xs uppercase tracking-wider text-text-tertiary">Sprint in lavorazione</p>
+            {sprintLanes.slice(0, 5).map(({ sprint: sp, projectName }) => {
+              const i0 = buckets.findIndex(b => b.end >= sp.start_date)
+              const i1 = buckets.map(b => b.start <= sp.end_date).lastIndexOf(true)
+              if (i0 < 0 || i1 < i0) return null
+              const left = (i0 / buckets.length) * 100
+              const width = ((i1 - i0 + 1) / buckets.length) * 100
+              const late = sp.end_date < new Date().toISOString().slice(0, 10)
+              const cls = late ? 'bg-error/60 border-error' : sp.status === 'in_corso' ? 'bg-gold/60 border-gold' : 'bg-info/50 border-info'
+              return (
+                <div key={sp.id} className="relative h-6">
+                  <div className={`absolute h-6 rounded-md border flex items-center px-2 overflow-hidden ${cls}`}
+                    style={{ left: `${left}%`, width: `${width}%`, minWidth: '5%' }}
+                    title={`Sprint: ${sp.name}\nProgetto: ${projectName}\n${fmt(sp.start_date)} → ${fmt(sp.end_date)}\nStato: ${sp.status}`}>
+                    <span className="text-2xs font-medium text-text-primary truncate">{sp.name} · {projectName}</span>
+                  </div>
+                </div>
+              )
+            })}
+            {sprintLanes.length > 5 && (
+              <p className="text-2xs text-text-tertiary">+ {sprintLanes.length - 5} altri sprint</p>
+            )}
+          </div>
+        )}
+
+        {/* Legenda */}
+        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-border text-2xs text-text-tertiary">
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-success/70" /> stabile</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-warning/80" /> 2 sprint / carico alto</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-orange" /> 3 sprint / oltre capacità</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-error" /> critico</span>
+          <span className="ml-auto">Clicca una barra per riprogrammare quella settimana</span>
+        </div>
       </div>
 
       {/* Periodi critici: dove più progetti si accavallano */}
@@ -660,12 +509,18 @@ function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAtten
         )
       })()}
 
-      {/* Suggerimenti AI in-place (propone, non applica) */}
+      {/* Suggerimenti AI in-place (propone, non applica). Chiudibili e scartabili. */}
       {aiSuggestions && (
         <div className="rounded-xl border border-gold/25 bg-gold-dim/40 p-3 space-y-2">
-          <p className="text-2xs font-bold text-text-primary flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-gold-text" aria-hidden="true" /> Piano suggerito dall&apos;AI
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-2xs font-bold text-text-primary flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-gold-text" aria-hidden="true" /> Piano suggerito dall&apos;AI
+            </p>
+            <button onClick={() => { setAiSuggestions(null); setAiSummary('') }} aria-label="Chiudi suggerimenti"
+              className="p-1 rounded text-text-tertiary hover:text-text-primary hover:bg-surface-hover transition-colors">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
           {aiSummary && <p className="text-2xs text-text-secondary italic">{aiSummary}</p>}
           {aiSuggestions.length === 0 ? (
             <p className="text-2xs text-text-tertiary">Nessun suggerimento: il carico è bilanciato.</p>
@@ -680,6 +535,11 @@ function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAtten
               <button onClick={() => setNewTaskFor(s)}
                 className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg border border-gold/40 text-2xs font-semibold text-gold-text hover:bg-gold-dim transition-colors">
                 <Plus className="w-3 h-3" aria-hidden="true" /> Crea task
+              </button>
+              <button onClick={() => setAiSuggestions(prev => (prev ?? []).filter((_, j) => j !== i))}
+                aria-label="Scarta questo suggerimento" title="Scarta"
+                className="shrink-0 p-1 rounded text-text-tertiary hover:text-error hover:bg-error-dim transition-colors">
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
           ))}
@@ -903,7 +763,7 @@ function ProjectRow({ load, tasks, sprints, resources, multiMap, resourceById, e
       {open && (
         <div className="border-t border-border">
           {/* Gantt su calendario: SOLO sprint e milestone, cliccabili → popup → progetto */}
-          <ProjectGantt project={p} sprints={sprints} milestones={milestones} tasks={tasks} />
+          <ProjectGantt project={p} sprints={sprints} milestones={milestones} tasks={tasks} editable={editable} />
         </div>
       )}
     </div>
@@ -915,28 +775,47 @@ type GanttItem =
   | { kind: 'sprint'; id: string; title: string; start: string; end: string; status: string; tasks: number; done: number }
   | { kind: 'milestone'; id: string; title: string; start: string; end: string; status: string }
 
-function ProjectGantt({ project, sprints, milestones, tasks }: {
+function ProjectGantt({ project, sprints, milestones, tasks, editable }: {
   project: WLProject
   sprints: WLSprint[]
   milestones: WLTask[]
   tasks: WLTask[]
+  editable: boolean
 }) {
   const { projectHref } = usePortalRoutes()
   const [detail, setDetail] = useState<GanttItem | null>(null)
+  const [renaming, setRenaming] = useState(false)
+  const [draftName, setDraftName] = useState('')
+  const [savingName, startRename] = useTransition()
+  // Rinomine applicate localmente (le date e le task collegate non cambiano mai).
+  const [renamed, setRenamed] = useState<Record<string, string>>({})
   const todayStr = new Date().toISOString().slice(0, 10)
+
+  const saveName = (item: GanttItem) => startRename(async () => {
+    const name = draftName.trim()
+    if (!name || name === item.title) { setRenaming(false); return }
+    const res = item.kind === 'sprint'
+      ? await renameSprint(project.id, item.id, name)
+      : await renameMilestone(project.id, item.id, name)
+    if ('error' in res) { toast.error(res.error); return }
+    setRenamed(prev => ({ ...prev, [item.id]: name }))
+    setDetail({ ...item, title: name })
+    setRenaming(false)
+    toast.success('Nome aggiornato')
+  })
 
   const items: GanttItem[] = useMemo(() => {
     const s: GanttItem[] = sprints.map(sp => {
       const inSprint = tasks.filter(t => !t.is_milestone && t.due_date && t.due_date >= sp.start_date && t.due_date <= sp.end_date)
       return {
-        kind: 'sprint', id: sp.id, title: sp.name, start: sp.start_date, end: sp.end_date, status: sp.status,
+        kind: 'sprint', id: sp.id, title: renamed[sp.id] ?? sp.name, start: sp.start_date, end: sp.end_date, status: sp.status,
         tasks: inSprint.length, done: inSprint.filter(t => t.status === 'completato').length,
       }
     })
     const m: GanttItem[] = milestones.filter(x => x.due_date)
-      .map(x => ({ kind: 'milestone', id: x.id, title: x.title, start: x.due_date!, end: x.due_date!, status: x.status }))
+      .map(x => ({ kind: 'milestone', id: x.id, title: renamed[x.id] ?? x.title, start: x.due_date!, end: x.due_date!, status: x.status }))
     return [...s, ...m].sort((a, b) => a.start.localeCompare(b.start))
-  }, [sprints, milestones, tasks])
+  }, [sprints, milestones, tasks, renamed])
 
   if (items.length === 0) {
     return (
@@ -1070,13 +949,39 @@ function ProjectGantt({ project, sprints, milestones, tasks }: {
         <div className="fixed inset-0 z-50 bg-scrim backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setDetail(null)}>
           <div className="bg-surface border border-border rounded-2xl w-full max-w-sm p-5 space-y-3" onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-2">
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="text-2xs uppercase tracking-wider text-text-tertiary">
                   {detail.kind === 'sprint' ? 'Sprint' : 'Milestone'} · {project.name}
                 </p>
-                <h3 className="text-base font-bold text-text-primary mt-0.5">{detail.title}</h3>
+                {/* Rinomina: cambia SOLO il nome. Date, stato e task collegate restano invariati. */}
+                {renaming && editable ? (
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <input autoFocus value={draftName} onChange={e => setDraftName(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') saveName(detail); if (e.key === 'Escape') setRenaming(false) }}
+                      aria-label="Nome"
+                      className="flex-1 bg-background border border-border-interactive rounded-lg px-2 py-1 text-sm font-bold text-text-primary focus:outline-none focus:border-gold/50" />
+                    <button onClick={() => saveName(detail)} disabled={savingName} aria-label="Salva nome"
+                      className="p-1 text-gold-text hover:bg-surface-hover rounded">
+                      {savingName ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    </button>
+                    <button onClick={() => setRenaming(false)} aria-label="Annulla" className="p-1 text-text-tertiary hover:text-text-primary rounded">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 mt-0.5 group">
+                    <h3 className="text-base font-bold text-text-primary truncate">{detail.title}</h3>
+                    {editable && (
+                      <button onClick={() => { setDraftName(detail.title); setRenaming(true) }}
+                        aria-label="Rinomina" title="Rinomina (non tocca le task collegate)"
+                        className="p-1 text-text-tertiary hover:text-gold-text opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-              <button onClick={() => setDetail(null)} aria-label="Chiudi" className="p-1 text-text-tertiary hover:text-text-primary">
+              <button onClick={() => setDetail(null)} aria-label="Chiudi" className="p-1 text-text-tertiary hover:text-text-primary shrink-0">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -1111,262 +1016,6 @@ function ProjectGantt({ project, sprints, milestones, tasks }: {
     </div>
   )
 }
-
-function TaskLine({ task, resources, assignees, resourceById, editable }: {
-  task: WLTask
-  resources: WLResource[]
-  assignees: string[]
-  resourceById: Map<string, WLResource>
-  editable: boolean
-}) {
-  const [pending, start] = useTransition()
-  const [ids, setIds] = useState(assignees)
-  const [status, setStatus] = useState(task.status)
-  const [editingAssignee, setEditingAssignee] = useState(false)
-  const overdue = task.status !== 'completato' && task.due_date && task.due_date < new Date().toISOString().slice(0, 10)
-
-  const changeStatus = (s: string) => {
-    setStatus(s)
-    start(async () => {
-      const res = await pmUpdateTask(task.project_id, task.id, { status: s })
-      if ('error' in res) { toast.error(res.error); setStatus(task.status) }
-    })
-  }
-  const saveAssignees = (next: string[]) => {
-    setIds(next)
-    start(async () => {
-      const res = await setTaskAssignees(task.id, next)
-      if ('error' in res) toast.error(res.error)
-    })
-  }
-  const del = () => start(async () => {
-    const res = await pmDeleteTask(task.project_id, task.id)
-    if ('error' in res) toast.error(res.error)
-    else toast.success('Task eliminata')
-  })
-
-  return (
-    <div className="px-4 py-2.5 flex flex-wrap items-center gap-2">
-      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-        status === 'completato' ? 'bg-success' : status === 'in_corso' ? 'bg-warning' : status === 'in_revisione' ? 'bg-accent' : 'bg-text-tertiary'
-      }`} aria-hidden="true" />
-      <span className="flex-1 min-w-[8rem] text-sm text-text-primary truncate">{task.title}</span>
-
-      {task.due_date && (
-        <span className={`text-2xs tabular shrink-0 ${overdue ? 'text-error' : 'text-text-tertiary'}`}>
-          {overdue && '⚠ '}{new Date(task.due_date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}
-        </span>
-      )}
-      <span className="text-2xs text-text-tertiary tabular shrink-0 w-8 text-right">
-        {task.estimated_hours ?? 4}h
-      </span>
-
-      {/* Assegnatari */}
-      <div className="shrink-0 min-w-[9rem]">
-        {editable && editingAssignee ? (
-          <AssigneePicker profiles={resources.map(r => ({ id: r.id, full_name: r.full_name, avatar_url: r.avatar_url }))}
-            value={ids} onChange={saveAssignees} />
-        ) : (
-          <button
-            onClick={() => editable && setEditingAssignee(true)}
-            disabled={!editable}
-            className={`flex items-center gap-1 text-2xs ${editable ? 'text-text-secondary hover:text-text-primary' : 'text-text-tertiary cursor-default'}`}
-          >
-            {ids.length === 0 ? 'Non assegnata'
-              : ids.length === 1 ? (resourceById.get(ids[0])?.full_name.split(' ')[0] ?? '—')
-              : `${resourceById.get(ids[0])?.full_name.split(' ')[0] ?? '—'} +${ids.length - 1}`}
-          </button>
-        )}
-      </div>
-
-      {editable ? (
-        <select value={status} onChange={e => changeStatus(e.target.value)} disabled={pending}
-          aria-label={`Stato di ${task.title}`}
-          className="shrink-0 bg-background border border-border-interactive rounded-lg px-2 py-1 text-2xs text-text-primary focus:outline-none">
-          {STATUS_OPTS.map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-        </select>
-      ) : (
-        <span className="shrink-0 text-2xs text-text-tertiary">{STATUS_LABEL[status]}</span>
-      )}
-
-      {editable && (
-        <button onClick={del} disabled={pending} aria-label={`Elimina ${task.title}`}
-          className="shrink-0 p-1 rounded text-text-tertiary hover:text-error hover:bg-error-dim transition-colors">
-          {pending ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />}
-        </button>
-      )}
-    </div>
-  )
-}
-
-/* ── Vista Timeline (task in parallelo, scala settimana/mese) ─────────────────── */
-type TScale = 'settimana' | 'mese'
-function mondayOf(d: Date) {
-  const x = new Date(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); x.setHours(0, 0, 0, 0); return x
-}
-function bucketStart(d: Date, scale: TScale) {
-  if (scale === 'mese') { const x = new Date(d.getFullYear(), d.getMonth(), 1); x.setHours(0, 0, 0, 0); return x }
-  return mondayOf(d)
-}
-function stepNext(d: Date, scale: TScale) {
-  const x = new Date(d)
-  if (scale === 'mese') x.setMonth(x.getMonth() + 1)
-  else x.setDate(x.getDate() + 7)
-  return x
-}
-
-function TimelineView({ tasks, projects, resources, multiMap, canEditProject, resourceById }: {
-  tasks: WLTask[]
-  projects: WLProject[]
-  resources: WLResource[]
-  multiMap: Map<string, string[]>
-  canEditProject: (pid: string) => boolean
-  resourceById: Map<string, WLResource>
-}) {
-  const [selected, setSelected] = useState<WLTask | null>(null)
-  const [scale, setScale] = useState<TScale>('settimana')
-  const { projectHref } = usePortalRoutes()
-  const todayStr = new Date().toISOString().slice(0, 10)
-  const dated = useMemo(() => tasks.filter(t => !t.is_milestone && t.due_date), [tasks])
-  // Milestone: cittadine di prima classe della timeline (marker con data).
-  const datedMilestones = useMemo(() => tasks.filter(t => t.is_milestone && t.due_date), [tasks])
-  const noDate = tasks.filter(t => !t.is_milestone && !t.due_date).length
-  const cap = scale === 'mese' ? 24 : 16
-
-  const cols = useMemo(() => {
-    const all = [...dated, ...datedMilestones]
-    if (all.length === 0) return [] as Date[]
-    const ds = all.map(t => t.due_date!).sort()
-    let start = bucketStart(new Date(ds[0] + 'T00:00:00'), scale)
-    const todayBucket = bucketStart(new Date(), scale)
-    if (start > todayBucket) start = todayBucket
-    const last = bucketStart(new Date(ds[ds.length - 1] + 'T00:00:00'), scale)
-    const arr: Date[] = []
-    let cur = new Date(start)
-    while (cur <= last && arr.length < cap) { arr.push(new Date(cur)); cur = stepNext(cur, scale) }
-    if (arr.length === 0) arr.push(new Date(start))
-    return arr
-  }, [dated, scale, cap])
-
-  const colIndexOf = (due: string) => {
-    const d = bucketStart(new Date(due + 'T00:00:00'), scale).getTime()
-    for (let i = cols.length - 1; i >= 0; i--) if (cols[i].getTime() <= d) return i
-    return 0
-  }
-  const ownersOf = (t: WLTask) => (multiMap.get(t.id) ?? (t.assignee_id ? [t.assignee_id] : []))
-    .map(id => resourceById.get(id)?.full_name ?? '—')
-
-  const rows = projects
-    .map(p => ({
-      project: p,
-      tasks: dated.filter(t => t.project_id === p.id),
-      milestones: datedMilestones.filter(t => t.project_id === p.id),
-    }))
-    .filter(r => r.tasks.length > 0 || r.milestones.length > 0)
-
-  if (cols.length === 0) {
-    return <p className="text-center py-16 text-text-tertiary text-sm">Nessuna task con scadenza per questi filtri.</p>
-  }
-
-  const COL = 120
-  const todayBucketMs = bucketStart(new Date(), scale).getTime()
-  const colLabel = (c: Date) => scale === 'mese'
-    ? c.toLocaleDateString('it-IT', { month: 'short', year: '2-digit' })
-    : c.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
-
-  return (
-    <div className="space-y-3">
-      <div className="flex gap-1 rounded-xl bg-surface border border-border p-1 w-fit" role="tablist" aria-label="Scala">
-        {(['settimana', 'mese'] as const).map(s => (
-          <button key={s} role="tab" aria-selected={scale === s} onClick={() => setScale(s)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${
-              scale === s ? 'bg-gold-dim text-gold-text' : 'text-text-tertiary hover:text-text-primary'
-            }`}>{s}</button>
-        ))}
-      </div>
-      <div className="rounded-xl border border-border bg-surface overflow-x-auto">
-        <div style={{ minWidth: 180 + cols.length * COL }}>
-          <div className="flex border-b border-border bg-surface">
-            <div className="w-[180px] shrink-0 px-3 py-2 text-2xs font-semibold uppercase tracking-wider text-text-tertiary">Progetto</div>
-            {cols.map((w, i) => (
-              <div key={i} style={{ width: COL }}
-                className={`shrink-0 px-2 py-2 text-2xs text-center border-l border-border ${w.getTime() === todayBucketMs ? 'text-gold-text font-semibold' : 'text-text-tertiary'}`}>
-                {colLabel(w)}
-              </div>
-            ))}
-          </div>
-          {rows.map(row => (
-            <div key={row.project.id} className="flex border-b border-border last:border-0">
-              <div className="w-[180px] shrink-0 px-3 py-2">
-                <Link href={projectHref(row.project.client_id, row.project.id)}
-                  className="text-xs font-semibold text-text-primary truncate block hover:text-gold-text hover:underline transition-colors">
-                  {row.project.name}
-                </Link>
-                <p className="text-2xs text-text-tertiary truncate">{row.project.client_name}</p>
-              </div>
-              {cols.map((w, i) => (
-                <div key={i} style={{ width: COL }} className="shrink-0 border-l border-border p-1 space-y-1 min-h-[3rem]">
-                  {/* Milestone: marker in evidenza con data */}
-                  {row.milestones.filter(m => colIndexOf(m.due_date!) === i).map(m => {
-                    const late = m.status !== 'completato' && m.due_date! < todayStr
-                    return (
-                      <div key={m.id}
-                        title={`Milestone: ${m.title}\nData: ${new Date(m.due_date!).toLocaleDateString('it-IT')}\nStato: ${STATUS_LABEL[m.status] ?? m.status}`}
-                        className={`flex items-center gap-1 rounded px-1.5 py-1 text-2xs font-semibold truncate border ${
-                          m.status === 'completato' ? 'bg-success-dim text-success border-success/30'
-                          : late ? 'bg-error-dim text-error border-error/30'
-                          : 'bg-gold-dim text-gold-text border-gold/30'
-                        }`}>
-                        <Flag className="w-2.5 h-2.5 shrink-0" aria-hidden="true" />
-                        <span className="truncate">{m.title}</span>
-                      </div>
-                    )
-                  })}
-                  {row.tasks.filter(t => colIndexOf(t.due_date!) === i).map(t => {
-                    const overdue = t.status !== 'completato' && t.due_date! < todayStr
-                    const cls = t.status === 'completato' ? 'bg-success-dim text-success'
-                      : overdue ? 'bg-error-dim text-error'
-                      : t.status === 'in_corso' ? 'bg-warning-dim text-warning'
-                      : t.status === 'in_revisione' ? 'bg-accent-dim text-accent'
-                      : 'bg-surface-active text-text-secondary'
-                    return (
-                      <button key={t.id} onClick={() => setSelected(t)}
-                        title={taskHoverText(t, row.project.name, ownersOf(t))}
-                        className={`block w-full text-left rounded px-1.5 py-1 text-2xs truncate transition-shadow ${cls} ${selected?.id === t.id ? 'ring-1 ring-gold' : ''}`}>
-                        {t.title}
-                      </button>
-                    )
-                  })}
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {noDate > 0 && (
-        <p className="text-2xs text-text-tertiary">+ {noDate} task senza scadenza (non collocabili in timeline).</p>
-      )}
-
-      {selected && (
-        <div className="rounded-xl border border-gold/30 bg-surface">
-          <div className="flex items-center justify-between px-4 pt-3">
-            <p className="text-2xs text-text-tertiary">
-              {projects.find(p => p.id === selected.project_id)?.name ?? '—'} · dettaglio task
-            </p>
-            <button onClick={() => setSelected(null)} aria-label="Chiudi" className="text-text-tertiary hover:text-text-primary">
-              <X className="w-4 h-4" aria-hidden="true" />
-            </button>
-          </div>
-          <TaskLine task={selected} resources={resources}
-            assignees={multiMap.get(selected.id) ?? (selected.assignee_id ? [selected.assignee_id] : [])}
-            resourceById={resourceById} editable={canEditProject(selected.project_id)} />
-        </div>
-      )}
-    </div>
-  )
-}
-
 /* ── Vista Risorse ──────────────────────────────────────────────────────────── */
 function ResourcesView({ loads, tasks, projectById, multiMap }: {
   loads: ReturnType<typeof computeResourceLoads>
