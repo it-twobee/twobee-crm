@@ -186,6 +186,98 @@ export function computeProjectLoads(
   return out.sort((a, b) => (b.taskCount - b.doneCount) - (a.taskCount - a.doneCount) || b.totalHours - a.totalHours)
 }
 
+// ─── Effort spalmato nel tempo: Gantt di progetto + previsione cross-progetto ────
+export interface EffortBucket {
+  start: string          // lunedì (ISO date)
+  end: string            // domenica (ISO date)
+  hours: number          // effort totale che cade in questa settimana
+  taskCount: number
+  byProject: { projectId: string; projectName: string; hours: number }[]
+}
+
+const mondayISO = (d: Date) => {
+  const x = new Date(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); x.setHours(0, 0, 0, 0)
+  return x.toISOString().slice(0, 10)
+}
+const addDaysISO = (iso: string, n: number) =>
+  new Date(new Date(iso + 'T00:00:00').getTime() + n * 86400000).toISOString().slice(0, 10)
+
+/** Intervallo effettivo di una task: start_date→due_date (se manca start, è puntuale sulla scadenza). */
+export function taskSpan(t: WLTask): { start: string; end: string } | null {
+  if (!t.due_date) return null
+  const start = t.start_date && t.start_date <= t.due_date ? t.start_date : t.due_date
+  return { start, end: t.due_date }
+}
+
+/**
+ * Effort settimanale spalmato sull'intervallo di ogni task. Usato sia per il Gantt
+ * del singolo progetto (aree ad alto effort) sia per la previsione cross-progetto
+ * (accavallamenti fra progetti diversi nello stesso periodo).
+ */
+export function computeEffortBuckets(
+  tasks: WLTask[],
+  projectById: Map<string, WLProject>,
+  today = new Date(),
+  maxWeeks = 26,
+): EffortBucket[] {
+  const spans = tasks.filter(isActive).map(t => {
+    const s = taskSpan(t)
+    if (!s) return null
+    return { t, ...s, days: daysInclusive(s.start, s.end) }
+  }).filter(Boolean) as { t: WLTask; start: string; end: string; days: number }[]
+  if (spans.length === 0) return []
+
+  const first = mondayISO(new Date(Math.min(...spans.map(s => new Date(s.start + 'T00:00:00').getTime()), today.getTime())))
+  const lastEnd = spans.map(s => s.end).sort().slice(-1)[0]
+
+  const out: EffortBucket[] = []
+  let wk = first
+  while (wk <= lastEnd && out.length < maxWeeks) {
+    const wkEnd = addDaysISO(wk, 6)
+    const b: EffortBucket = { start: wk, end: wkEnd, hours: 0, taskCount: 0, byProject: [] }
+    for (const s of spans) {
+      const ov = overlapDays(s.start, s.end, wk, wkEnd)
+      if (ov <= 0) continue
+      const h = (effortOf(s.t) / s.days) * ov
+      b.hours += h
+      b.taskCount += 1
+      const pname = projectById.get(s.t.project_id)?.name ?? '—'
+      const row = b.byProject.find(x => x.projectId === s.t.project_id)
+      if (row) row.hours += h
+      else b.byProject.push({ projectId: s.t.project_id, projectName: pname, hours: h })
+    }
+    b.hours = Math.round(b.hours * 10) / 10
+    b.byProject.forEach(r => { r.hours = Math.round(r.hours * 10) / 10 })
+    b.byProject.sort((a, b2) => b2.hours - a.hours)
+    out.push(b)
+    wk = addDaysISO(wk, 7)
+  }
+  return out
+}
+
+export interface EffortPeak {
+  bucket: EffortBucket
+  ratio: number            // hours / capacità team nella settimana
+  projects: number         // quanti progetti concorrono (accavallamento)
+}
+
+/** Capacità settimanale del team (somma delle capacità delle risorse). */
+export function teamWeeklyCapacity(resources: WLResource[]): number {
+  return resources.reduce((s, r) => s + capacityOf(r), 0)
+}
+
+/**
+ * Periodi di picco: settimane in cui l'effort combinato supera la soglia della
+ * capacità del team. `projects > 1` = task di progetti diversi si accavallano.
+ */
+export function detectPeaks(buckets: EffortBucket[], capacity: number, threshold = 0.85): EffortPeak[] {
+  if (capacity <= 0) return []
+  return buckets
+    .map(b => ({ bucket: b, ratio: b.hours / capacity, projects: b.byProject.length }))
+    .filter(p => p.ratio >= threshold)
+    .sort((a, b) => b.ratio - a.ratio)
+}
+
 // ─── Hover condiviso (§9.2 / §15.2): stesso tooltip in Workload timeline e Gantt ──
 const STATUS_IT: Record<string, string> = {
   da_fare: 'Da fare', in_corso: 'In corso', in_revisione: 'In revisione',

@@ -7,6 +7,7 @@ interface Payload {
   windows: { days: number; overloaded: number; top: { name: string; hours: number; capacity: number }[] }[]
   signals: { noEstimate: number; noDue: number; noOwner: number; projectsNoPm: number }
   needsAttention: { title: string; project: string; due_date: string | null; estimated_hours: number | null; owner: string | null; issue: string }[]
+  peaks?: { from: string; to: string; hours: number; capacity: number; ratio: number; projects: { name: string; hours: number }[] }[]
 }
 
 export async function POST(req: Request) {
@@ -17,7 +18,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'AI non configurata (GROQ_API_KEY mancante)' }, { status: 503 })
     }
 
+    const peaksTxt = (body.peaks ?? []).length
+      ? (body.peaks ?? []).map(p => `- ${p.from} → ${p.to}: ${p.hours}h su ${p.capacity}h (${p.ratio}% capacità), ${p.projects.length} progetti in parallelo: ${p.projects.map(x => `${x.name} ${x.hours}h`).join(', ')}`).join('\n')
+      : 'nessun periodo di sovraccarico previsto'
+
     const prompt = `Sei un assistente di pianificazione operativa. Analizza il carico di lavoro del team e PROPONI azioni concrete. NON devi applicare nulla: solo suggerire, sarà l'utente a decidere.
+
+PERIODI CRITICI (settimane in cui le task di più progetti si accavallano — priorità assoluta nell'analisi):
+${peaksTxt}
 
 Intensità per finestra (ore pianificate vs capacità delle risorse più cariche):
 ${body.windows.map(w => `- ${w.days}gg: ${w.overloaded} risorse sovraccariche. Top: ${w.top.map(c => `${c.name} ${c.hours}/${c.capacity}h`).join(', ') || 'nessuna'}`).join('\n')}
@@ -27,7 +35,7 @@ Segnali qualità: ${body.signals.noEstimate} task senza stima, ${body.signals.no
 Task che richiedono attenzione:
 ${body.needsAttention.slice(0, 25).map((t, i) => `${i + 1}. "${t.title}" (${t.project}) — ${t.issue}${t.due_date ? ` · scad ${t.due_date}` : ''}${t.owner ? ` · ${t.owner}` : ''}`).join('\n') || 'nessuna'}
 
-Proponi 3-6 azioni pragmatiche (anticipare/posticipare task, assegnare owner, riequilibrare carico tra risorse, spezzare task troppo grandi, sistemare stime/scadenze mancanti, segnalare conflitti). Ogni azione deve citare i dati concreti su cui si basa.
+Proponi 3-6 azioni pragmatiche per SPIANARE i periodi critici sopra (anticipare/posticipare task di uno dei progetti che si accavallano, riequilibrare fra risorse, spezzare task troppo grandi, assegnare owner, sistemare stime/scadenze mancanti). Cita SEMPRE il periodo e i progetti coinvolti.
 Rispondi SOLO con questo JSON (nessun testo extra):
 {
   "suggestions": [

@@ -9,8 +9,10 @@ import {
   ExternalLink, Flag,
 } from 'lucide-react'
 import {
-  filterTasks, computeResourceLoads, computeProjectLoads, computeIntensity, workloadSignals, taskHoverText, EMPTY_FILTERS,
+  filterTasks, computeResourceLoads, computeProjectLoads, computeIntensity, workloadSignals, taskHoverText,
+  computeEffortBuckets, teamWeeklyCapacity, detectPeaks, taskSpan, EMPTY_FILTERS,
   type WLTask, type WLProject, type WLResource, type WLFilters, type IntensityWindow,
+  type EffortBucket, type EffortPeak,
 } from '@/lib/workload'
 import { AssigneePicker } from '@/components/tasks/AssigneePicker'
 import { setTaskAssignees } from '@/app/actions/task-assignees'
@@ -100,6 +102,11 @@ export function WorkloadClient({
   const intensity = useMemo(() => computeIntensity(filtered, resources, multiMap), [filtered, resources, multiMap])
   const signals = useMemo(() => workloadSignals(filtered, visibleProjects, multiMap), [filtered, visibleProjects, multiMap])
 
+  // Previsione cross-progetto: effort settimanale combinato e periodi di picco.
+  const effortBuckets = useMemo(() => computeEffortBuckets(filtered, projectById), [filtered, projectById])
+  const capacity = useMemo(() => teamWeeklyCapacity(resources), [resources])
+  const peaks = useMemo(() => detectPeaks(effortBuckets, capacity), [effortBuckets, capacity])
+
   const aiNeeds = useMemo(() => {
     const todayStr = new Date().toISOString().slice(0, 10)
     const resName = new Map(resources.map(r => [r.id, r.full_name]))
@@ -163,31 +170,8 @@ export function WorkloadClient({
           tone={totals.overloaded > 0 ? 'warn' : undefined} />
       </div>
 
-      {/* Alta intensità futura: segnale sempre visibile (§9.3) */}
-      {(() => {
-        const peaks = intensity.windows.filter(w => w.overloaded > 0)
-        if (peaks.length === 0) return null
-        const first = peaks[0]
-        const worst = first.cells[0]
-        return (
-          <button onClick={() => setView('intensita')}
-            className="w-full text-left flex items-start gap-2.5 rounded-xl border border-error/30 bg-error-dim px-4 py-3 hover:bg-error-dim/70 transition-colors">
-            <AlertTriangle className="w-4 h-4 text-error shrink-0 mt-0.5" aria-hidden="true" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-text-primary">
-                Periodo ad alta intensità nei prossimi {first.days} giorni
-              </p>
-              <p className="text-2xs text-text-secondary mt-0.5">
-                {first.overloaded} {first.overloaded === 1 ? 'risorsa sovraccarica' : 'risorse sovraccariche'}
-                {worst && ` — ${worst.resourceName} a ${worst.hours}h su ${worst.capacity}h di capacità`}
-                {peaks.length > 1 && ` · picchi anche a ${peaks.slice(1).map(p => `${p.days}gg`).join(', ')}`}
-                . Apri Intensità per l'analisi e i suggerimenti AI.
-              </p>
-            </div>
-            <ChevronRight className="w-4 h-4 text-error shrink-0 mt-0.5" aria-hidden="true" />
-          </button>
-        )
-      })()}
+      {/* Previsione cross-progetto: dove le task di progetti diversi si accavallano */}
+      <EffortForecast buckets={effortBuckets} capacity={capacity} peaks={peaks} onOpenAI={() => setView('intensita')} />
 
       {/* Filtri */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface p-2.5">
@@ -236,7 +220,8 @@ export function WorkloadClient({
         />
       )}
       {view === 'intensita' && (
-        <IntensityView windows={intensity.windows} estimateCoverage={intensity.estimateCoverage} signals={signals} needsAttention={aiNeeds} />
+        <IntensityView windows={intensity.windows} estimateCoverage={intensity.estimateCoverage} signals={signals}
+          needsAttention={aiNeeds} peaks={peaks} capacity={capacity} />
       )}
     </div>
   )
@@ -244,10 +229,12 @@ export function WorkloadClient({
 
 /* ── AI Planning Assistant (§9.4): propone, non applica ──────────────────────── */
 type AISuggestion = { type: string; title: string; detail: string }
-function AIPlanningPanel({ windows, signals, needsAttention }: {
+function AIPlanningPanel({ windows, signals, needsAttention, peaks, capacity }: {
   windows: IntensityWindow[]
   signals: { noEstimate: number; noDue: number; noOwner: number; projectsNoPm: number }
   needsAttention: { title: string; project: string; due_date: string | null; estimated_hours: number | null; owner: string | null; issue: string }[]
+  peaks: EffortPeak[]
+  capacity: number
 }) {
   const [loading, setLoading] = useState(false)
   const [suggestions, setSuggestions] = useState<AISuggestion[] | null>(null)
@@ -260,6 +247,12 @@ function AIPlanningPanel({ windows, signals, needsAttention }: {
         windows: windows.map(w => ({ days: w.days, overloaded: w.overloaded, top: w.cells.slice(0, 4).map(c => ({ name: c.resourceName, hours: c.hours, capacity: c.capacity })) })),
         signals,
         needsAttention,
+        // Accavallamenti cross-progetto: settimane in cui più progetti concorrono.
+        peaks: peaks.slice(0, 6).map(p => ({
+          from: p.bucket.start, to: p.bucket.end, hours: p.bucket.hours,
+          capacity: Math.round(capacity), ratio: Math.round(p.ratio * 100),
+          projects: p.bucket.byProject.slice(0, 4).map(x => ({ name: x.projectName, hours: x.hours })),
+        })),
       }
       const res = await fetch('/api/ai/workload-plan', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
@@ -305,18 +298,20 @@ function AIPlanningPanel({ windows, signals, needsAttention }: {
 }
 
 /* ── Vista Intensità futura (§9.3) ───────────────────────────────────────────── */
-function IntensityView({ windows, estimateCoverage, signals, needsAttention }: {
+function IntensityView({ windows, estimateCoverage, signals, needsAttention, peaks, capacity }: {
   windows: IntensityWindow[]
   estimateCoverage: number
   signals: { noEstimate: number; noDue: number; noOwner: number; projectsNoPm: number }
   needsAttention: { title: string; project: string; due_date: string | null; estimated_hours: number | null; owner: string | null; issue: string }[]
+  peaks: EffortPeak[]
+  capacity: number
 }) {
   const [days, setDays] = useState(30)
   const win = windows.find(w => w.days === days) ?? windows[0]
 
   return (
     <div className="space-y-4">
-      <AIPlanningPanel windows={windows} signals={signals} needsAttention={needsAttention} />
+      <AIPlanningPanel windows={windows} signals={signals} needsAttention={needsAttention} peaks={peaks} capacity={capacity} />
       {/* Warning qualità previsione */}
       {estimateCoverage < 100 && (
         <div className="flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning-dim px-4 py-3">
@@ -369,6 +364,101 @@ function IntensityView({ windows, estimateCoverage, signals, needsAttention }: {
               </div>
             )
           })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── Previsione effort cross-progetto: accavallamenti e periodi critici ───────── */
+function EffortForecast({ buckets, capacity, peaks, onOpenAI }: {
+  buckets: EffortBucket[]
+  capacity: number
+  peaks: EffortPeak[]
+  onOpenAI: () => void
+}) {
+  if (buckets.length === 0) return null
+  const maxH = Math.max(capacity, ...buckets.map(b => b.hours))
+  const fmt = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })
+  const critical = peaks.filter(p => p.ratio >= 1)
+  const heavy = peaks.filter(p => p.ratio < 1)
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold text-text-primary flex items-center gap-2">
+            <CalendarRange className="w-4 h-4 text-gold-text" aria-hidden="true" />
+            Previsione effort combinato
+          </p>
+          <p className="text-2xs text-text-tertiary mt-0.5">
+            Ore/settimana su tutti i progetti · capacità team {Math.round(capacity)}h
+          </p>
+        </div>
+        <button onClick={onOpenAI}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-gold text-on-gold text-2xs font-bold rounded-lg hover:bg-gold/90 shrink-0">
+          <Sparkles className="w-3.5 h-3.5" aria-hidden="true" /> Pianifica con l&apos;AI
+        </button>
+      </div>
+
+      {/* Istogramma settimanale con linea di capacità */}
+      <div className="relative">
+        <div className="flex items-end gap-1 h-24">
+          {buckets.map(b => {
+            const h = Math.max(2, (b.hours / maxH) * 100)
+            const over = capacity > 0 && b.hours > capacity
+            const near = capacity > 0 && !over && b.hours >= capacity * 0.85
+            const cls = over ? 'bg-error' : near ? 'bg-warning' : 'bg-success/70'
+            return (
+              <div key={b.start} className="flex-1 flex flex-col justify-end h-full"
+                title={`Settimana ${fmt(b.start)} – ${fmt(b.end)}\nEffort: ${b.hours}h (capacità ${Math.round(capacity)}h)\nProgetti: ${b.byProject.length}\n${b.byProject.slice(0, 4).map(p => `· ${p.projectName}: ${p.hours}h`).join('\n')}`}>
+                <div className={`w-full rounded-t ${cls}`} style={{ height: `${h}%` }} />
+              </div>
+            )
+          })}
+        </div>
+        {capacity > 0 && capacity <= maxH && (
+          <div className="absolute left-0 right-0 border-t border-dashed border-text-tertiary/60 pointer-events-none"
+            style={{ bottom: `${(capacity / maxH) * 100}%` }}>
+            <span className="absolute -top-3.5 right-0 text-2xs text-text-tertiary bg-surface px-1">capacità</span>
+          </div>
+        )}
+      </div>
+      <div className="flex justify-between text-2xs text-text-tertiary">
+        <span>{fmt(buckets[0].start)}</span>
+        <span>{fmt(buckets[buckets.length - 1].end)}</span>
+      </div>
+
+      {/* Periodi critici: dove più progetti si accavallano */}
+      {peaks.length === 0 ? (
+        <p className="text-2xs text-success flex items-center gap-1.5">
+          <Gauge className="w-3 h-3" aria-hidden="true" /> Nessun periodo di sovraccarico previsto: il carico resta sotto la capacità del team.
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          <p className="text-2xs uppercase tracking-wider text-text-tertiary flex items-center gap-1.5">
+            <AlertTriangle className="w-3 h-3 text-warning" aria-hidden="true" />
+            {critical.length > 0 ? `${critical.length} settimane oltre capacità` : `${heavy.length} settimane ad alta intensità`}
+          </p>
+          {peaks.slice(0, 4).map(p => (
+            <div key={p.bucket.start}
+              className={`flex items-start gap-2 rounded-lg border px-3 py-2 ${p.ratio >= 1 ? 'border-error/30 bg-error-dim' : 'border-warning/30 bg-warning-dim'}`}>
+              <div className="flex-1 min-w-0">
+                <p className="text-2xs font-bold text-text-primary">
+                  {fmt(p.bucket.start)} – {fmt(p.bucket.end)}: {p.bucket.hours}h su {Math.round(capacity)}h
+                  <span className={`ml-1.5 ${p.ratio >= 1 ? 'text-error' : 'text-warning'}`}>({Math.round(p.ratio * 100)}%)</span>
+                </p>
+                <p className="text-2xs text-text-secondary mt-0.5 truncate">
+                  {p.projects > 1
+                    ? `${p.projects} progetti in parallelo: ${p.bucket.byProject.slice(0, 3).map(x => `${x.projectName} (${x.hours}h)`).join(' · ')}`
+                    : `${p.bucket.byProject[0]?.projectName ?? '—'}: ${p.bucket.byProject[0]?.hours ?? 0}h`}
+                </p>
+              </div>
+            </div>
+          ))}
+          <p className="text-2xs text-text-tertiary pt-0.5">
+            Le task di progetti diversi si accavallano in questi periodi: pianifica in dettaglio o chiedi all&apos;AI di riequilibrare.
+          </p>
         </div>
       )}
     </div>
@@ -514,29 +604,9 @@ function ProjectRow({ load, tasks, resources, multiMap, resourceById, editable, 
 
       {open && (
         <div className="border-t border-border divide-y divide-border">
-          {/* Milestone del progetto con date (Gantt sintetico) */}
-          {milestones.length > 0 && (
-            <div className="px-4 py-2.5 bg-surface-hover/50">
-              <p className="text-2xs uppercase tracking-wider text-text-tertiary mb-1.5 flex items-center gap-1.5">
-                <Flag className="w-3 h-3" aria-hidden="true" /> Milestone
-              </p>
-              <ul className="space-y-1">
-                {milestones.map(m => {
-                  const done = m.status === 'completato'
-                  const late = !done && m.due_date && m.due_date < new Date().toISOString().slice(0, 10)
-                  return (
-                    <li key={m.id} className="flex items-center gap-2 text-2xs">
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${done ? 'bg-success' : late ? 'bg-error' : 'bg-gold'}`} aria-hidden="true" />
-                      <span className={`flex-1 min-w-0 truncate ${done ? 'text-text-tertiary line-through' : 'text-text-primary'}`}>{m.title}</span>
-                      <span className={`tabular shrink-0 ${late ? 'text-error font-semibold' : 'text-text-tertiary'}`}>
-                        {m.due_date ? new Date(m.due_date).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: '2-digit' }) : 'senza data'}
-                      </span>
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-          )}
+          {/* Gantt del progetto su timeline, con aree ad alto effort */}
+          <ProjectGantt project={p} tasks={tasks} milestones={milestones} resourceById={resourceById} multiMap={multiMap} />
+
           {tasks.filter(t => !t.is_milestone).length === 0 && (
             <p className="px-4 py-3 text-2xs text-text-tertiary">Nessuna task.</p>
           )}
@@ -556,6 +626,105 @@ function ProjectRow({ load, tasks, resources, multiMap, resourceById, editable, 
               <Crown className="w-3 h-3" aria-hidden="true" /> Solo il PM del progetto o un admin può modificare queste task.
             </p>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── Gantt del progetto (nel collapse): barre task + milestone + heat effort ──── */
+function ProjectGantt({ project, tasks, milestones, resourceById, multiMap }: {
+  project: WLProject
+  tasks: WLTask[]
+  milestones: WLTask[]
+  resourceById: Map<string, WLResource>
+  multiMap: Map<string, string[]>
+}) {
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const bars = useMemo(() => tasks
+    .filter(t => !t.is_milestone && t.due_date)
+    .map(t => ({ t, span: taskSpan(t)! }))
+    .sort((a, b) => a.span.start.localeCompare(b.span.start)), [tasks])
+
+  // Heat settimanale dell'effort DENTRO questo progetto: individua le aree calde.
+  const buckets = useMemo(
+    () => computeEffortBuckets(tasks, new Map([[project.id, project]])),
+    [tasks, project],
+  )
+
+  if (bars.length === 0 && milestones.length === 0) {
+    return <p className="px-4 py-3 text-2xs text-text-tertiary">Nessuna task con date: il Gantt non è tracciabile.</p>
+  }
+
+  // Scala temporale: dal primo inizio all'ultima scadenza (task + milestone).
+  const allDates = [
+    ...bars.flatMap(b => [b.span.start, b.span.end]),
+    ...milestones.map(m => m.due_date).filter(Boolean) as string[],
+  ].sort()
+  const t0 = new Date(allDates[0] + 'T00:00:00').getTime()
+  const t1 = new Date(allDates[allDates.length - 1] + 'T00:00:00').getTime()
+  const span = Math.max(1, t1 - t0)
+  const pctOf = (iso: string) => ((new Date(iso + 'T00:00:00').getTime() - t0) / span) * 100
+  const maxHours = Math.max(1, ...buckets.map(b => b.hours))
+  const fmt = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })
+
+  return (
+    <div className="px-4 py-3 bg-surface-hover/40 space-y-2.5">
+      <div className="flex items-center justify-between">
+        <p className="text-2xs uppercase tracking-wider text-text-tertiary">Gantt · {fmt(allDates[0])} → {fmt(allDates[allDates.length - 1])}</p>
+        {buckets.length > 0 && <p className="text-2xs text-text-tertiary">picco {Math.round(maxHours)}h/sett.</p>}
+      </div>
+
+      {/* Heat: aree temporali ad alto effort dentro il progetto */}
+      {buckets.length > 0 && (
+        <div className="flex gap-px h-6 rounded overflow-hidden" role="img" aria-label="Intensità effort per settimana">
+          {buckets.map(b => {
+            const r = b.hours / maxHours
+            const cls = r >= 0.75 ? 'bg-error/70' : r >= 0.45 ? 'bg-warning/70' : r > 0 ? 'bg-success/50' : 'bg-surface-active'
+            return (
+              <div key={b.start} className={`flex-1 ${cls}`}
+                title={`Settimana ${fmt(b.start)} – ${fmt(b.end)}\nEffort: ${b.hours}h · ${b.taskCount} task`} />
+            )
+          })}
+        </div>
+      )}
+
+      {/* Barre task */}
+      <div className="space-y-1">
+        {bars.slice(0, 12).map(({ t, span: s }) => {
+          const left = pctOf(s.start)
+          const width = Math.max(2, pctOf(s.end) - left)
+          const late = t.status !== 'completato' && t.due_date! < todayStr
+          const cls = t.status === 'completato' ? 'bg-success/60' : late ? 'bg-error/60' : 'bg-gold/60'
+          const owners = (multiMap.get(t.id) ?? (t.assignee_id ? [t.assignee_id] : [])).map(id => resourceById.get(id)?.full_name ?? '—')
+          return (
+            <div key={t.id} className="relative h-5" title={taskHoverText(t, project.name, owners)}>
+              <div className="absolute inset-0 rounded bg-surface-active/40" />
+              <div className={`absolute h-5 rounded ${cls} flex items-center px-1.5`}
+                style={{ left: `${left}%`, width: `${width}%` }}>
+                <span className="text-2xs text-text-primary truncate">{t.title}</span>
+              </div>
+            </div>
+          )
+        })}
+        {bars.length > 12 && <p className="text-2xs text-text-tertiary">+ {bars.length - 12} altre task</p>}
+      </div>
+
+      {/* Milestone sulla stessa scala */}
+      {milestones.filter(m => m.due_date).length > 0 && (
+        <div className="relative h-6 border-t border-border pt-1">
+          {milestones.filter(m => m.due_date).map(m => {
+            const done = m.status === 'completato'
+            const late = !done && m.due_date! < todayStr
+            return (
+              <div key={m.id} className="absolute -translate-x-1/2 flex flex-col items-center"
+                style={{ left: `${pctOf(m.due_date!)}%` }}
+                title={`Milestone: ${m.title}\nData: ${new Date(m.due_date!).toLocaleDateString('it-IT')}`}>
+                <Flag className={`w-3 h-3 ${done ? 'text-success' : late ? 'text-error' : 'text-gold-text'}`} aria-hidden="true" />
+                <span className="text-2xs text-text-tertiary whitespace-nowrap">{fmt(m.due_date!)}</span>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
