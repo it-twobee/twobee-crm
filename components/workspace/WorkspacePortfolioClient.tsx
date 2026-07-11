@@ -21,18 +21,26 @@ export function WorkspacePortfolioClient({ projects }: { projects: PatternInput[
   const [groupBy, setGroupBy] = useState<GroupBy>('cliente')
   const [query, setQuery] = useState('')
   const [activePattern, setActivePattern] = useState<string | null>(null)
+  const [typeFilter, setTypeFilter] = useState<string>('')
 
   const patterns = useMemo(() => suggestPatterns(projects), [projects])
+
+  // §10: tipologie reali presenti nei dati (nessuna lista hardcoded).
+  const projectTypes = useMemo(
+    () => Array.from(new Set(projects.map(p => p.project_type).filter(Boolean) as string[])).sort(),
+    [projects],
+  )
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     const pattern = patterns.find(p => p.id === activePattern)
     return projects.filter(p => {
       if (pattern && !pattern.match(p)) return false
+      if (typeFilter && p.project_type !== typeFilter) return false
       if (q && !`${p.name} ${p.client_name}`.toLowerCase().includes(q)) return false
       return true
     })
-  }, [projects, query, activePattern, patterns])
+  }, [projects, query, activePattern, patterns, typeFilter])
 
   const groups = useMemo(() => groupProjects(filtered, groupBy), [filtered, groupBy])
 
@@ -89,6 +97,13 @@ export function WorkspacePortfolioClient({ projects }: { projects: PatternInput[
             aria-label="Cerca nel portfolio"
             className="w-full bg-surface border border-border-interactive rounded-xl pl-9 pr-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/40" />
         </div>
+        {projectTypes.length > 0 && (
+          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} aria-label="Filtra per tipologia"
+            className="bg-surface border border-border-interactive rounded-xl px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-gold/40">
+            <option value="">Tutte le tipologie</option>
+            {projectTypes.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        )}
         <div className="flex gap-1" role="group" aria-label="Raggruppa per">
           <span className="self-center text-2xs text-text-tertiary mr-1">Raggruppa</span>
           {GROUPS.map(g => (

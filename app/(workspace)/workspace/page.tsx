@@ -6,6 +6,9 @@ import { cn } from '@/lib/utils'
 import { isAdminRole, isSuperAdminRaw } from '@/lib/permissions'
 import { WorkspaceQuickCreate } from '@/components/workspace/WorkspaceQuickCreate'
 import { RequestInbox } from '@/components/tasks/RequestInbox'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { formatCurrency } from '@/lib/utils'
+import { TrendingUp, Euro } from 'lucide-react'
 
 export const revalidate = 0
 
@@ -92,6 +95,17 @@ export default async function WorkspaceDashboardPage() {
   const projectIds = Array.from(new Set(workTasks.map(t => t.project?.id).filter(Boolean) as string[]))
   const name = profile?.full_name?.split(' ')[0] ?? 'ciao'
 
+  // §6.4: aggregati strategici consentiti al Workspace (MRR macro + fatturato totale).
+  // Calcolati via service role come SOMMA — mai per-cliente (i dettagli restano vietati).
+  const adminSb = createAdminClient()
+  const yearStart = `${new Date().getFullYear()}-01-01`
+  const [mrrAgg, invAgg] = await Promise.all([
+    adminSb.from('clients').select('mrr').neq('client_label', 'perso'),
+    adminSb.from('invoices').select('amount').eq('invoice_type', 'fattura').eq('status', 'pagata').gte('month', yearStart),
+  ])
+  const totalMrr = ((mrrAgg.data ?? []) as { mrr: number | null }[]).reduce((s, r) => s + (Number(r.mrr) || 0), 0)
+  const totalInvoicedYtd = ((invAgg.data ?? []) as { amount: number | null }[]).reduce((s, r) => s + (Number(r.amount) || 0), 0)
+
   const STATUS_COLOR: Record<string, string> = {
     da_fare: 'text-text-tertiary',
     in_corso: 'text-info',
@@ -163,6 +177,26 @@ export default async function WorkspaceDashboardPage() {
             <FolderKanban className="w-4 h-4 text-success" />
           </div>
           <p className="text-2xl font-bold text-text-primary">{projectIds.length}</p>
+        </div>
+      </div>
+
+      {/* §6.4 — Visione strategica operativa: aggregati macro (mai per-cliente) */}
+      <div className="grid grid-cols-2 gap-3 mb-8">
+        <div className="p-5 rounded-2xl bg-surface border border-gold/20">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-overlay/50 text-xs">MRR aggregato</span>
+            <TrendingUp className="w-4 h-4 text-gold-text" />
+          </div>
+          <p className="text-2xl font-bold text-text-primary">{formatCurrency(totalMrr)}</p>
+          <p className="text-2xs text-text-tertiary mt-0.5">Ricorrente mensile, tutti i clienti attivi</p>
+        </div>
+        <div className="p-5 rounded-2xl bg-surface border border-success/20">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-overlay/50 text-xs">Fatturato {new Date().getFullYear()}</span>
+            <Euro className="w-4 h-4 text-success" />
+          </div>
+          <p className="text-2xl font-bold text-text-primary">{formatCurrency(totalInvoicedYtd)}</p>
+          <p className="text-2xs text-text-tertiary mt-0.5">Totale incassato quest'anno</p>
         </div>
       </div>
 

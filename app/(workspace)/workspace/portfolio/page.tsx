@@ -9,6 +9,7 @@ export interface PortfolioProject {
   name: string
   status: string
   project_kind: string | null
+  project_type: string | null
   client_name: string
   client_id: string
   taskTotal: number
@@ -44,7 +45,7 @@ export default async function WorkspacePortfolioPage() {
 
   const { data: projectsData } = await sb
     .from('projects')
-    .select('id, name, status, project_kind, client:clients(id, company_name)')
+    .select('id, name, status, project_kind, project_type, client:clients(id, company_name)')
     .in('id', projectIds)
     .order('name')
 
@@ -58,7 +59,7 @@ export default async function WorkspacePortfolioPage() {
   }
 
   const projects: PortfolioProject[] = (projectsData ?? []).map((p: {
-    id: string; name: string; status: string; project_kind: string | null; client: unknown
+    id: string; name: string; status: string; project_kind: string | null; project_type: string | null; client: unknown
   }) => {
     const client = p.client as { id: string; company_name: string } | null
     const c = counts.get(p.id) ?? { total: 0, done: 0 }
@@ -67,6 +68,7 @@ export default async function WorkspacePortfolioPage() {
       name: p.name,
       status: p.status,
       project_kind: p.project_kind,
+      project_type: p.project_type,
       client_id: client?.id ?? '',
       client_name: client?.company_name ?? 'Senza cliente',
       taskTotal: c.total,

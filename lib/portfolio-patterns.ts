@@ -13,6 +13,7 @@ export interface PatternInput {
   name: string
   status: string
   project_kind: string | null
+  project_type: string | null
   client_id: string
   client_name: string
   taskTotal: number
