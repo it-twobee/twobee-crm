@@ -17,6 +17,7 @@ import type { Task, Profile } from '@/lib/types/database'
 import { BachecaView } from './BachecaView'
 import { TimelineView } from './TimelineView'
 import { isTaskDone, isTaskActive } from '@/lib/task-status'
+import { TaskDrawer } from './TaskDrawer'
 
 interface TaskWithMeta extends Task {
   assignee: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
@@ -170,13 +171,6 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles, proj
     toast.success(`Stato → ${STATUS_META[ns].label}`)
   }
 
-  const updateTask = async (id: string, updates: Partial<Task>) => {
-    const { error } = await createClient().from('tasks').update(updates).eq('id', id)
-    if (error) { toast.error(error.message); return }
-    setTasks(p => p.map(t => t.id === id ? { ...t, ...updates } : t))
-    if (selectedTask?.id === id) setSelectedTask(prev => prev ? { ...prev, ...updates } : null)
-    toast.success('Task aggiornata')
-  }
 
   const addTask = async (section: Section) => {
     if (!newTitle.trim()) return
@@ -291,10 +285,17 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles, proj
           {view === 'analitica' && <AnaliticaView tasks={tasks} />}
         </div>
 
-        {/* Detail panel */}
+        {/* Detail panel — drawer condiviso (Fase 1b) */}
         {selectedTask && (
-          <TaskDetailPanel task={selectedTask} onClose={() => setSelectedTask(null)} toggleStatus={toggleStatus}
-            updateTask={updateTask} updateStatus={updateStatus} profiles={profiles} />
+          <TaskDrawer
+            task={selectedTask}
+            profiles={profiles}
+            onClose={() => setSelectedTask(null)}
+            onPatched={(p) => {
+              setTasks(prev => prev.map(t => t.id === selectedTask.id ? { ...t, ...p } : t))
+              setSelectedTask(prev => prev ? { ...prev, ...p } : null)
+            }}
+          />
         )}
       </div>
 
@@ -496,215 +497,6 @@ function TaskRow({ task, toggleStatus, requestDelete, deleting, onSelect, isSele
   )
 }
 
-/* ── TASK DETAIL PANEL (editable) ─────────────────── */
-function TaskDetailPanel({ task, onClose, toggleStatus, updateTask, updateStatus, profiles }: {
-  task: TaskWithMeta; onClose: () => void; toggleStatus: (t: TaskWithMeta) => Promise<void>
-  updateTask: (id: string, updates: Partial<Task>) => Promise<void>
-  updateStatus: (id: string, ns: TaskStatus) => Promise<void>
-  profiles: Pick<Profile, 'id' | 'full_name' | 'avatar_url'>[]
-}) {
-  const completed = isTaskDone(task.status)
-  const [editingTitle, setEditingTitle] = useState(false)
-  const [title, setTitle] = useState(task.title)
-  const [editingDesc, setEditingDesc] = useState(false)
-  const [desc, setDesc] = useState(task.description ?? '')
-  const [newLinkUrl, setNewLinkUrl] = useState('')
-  const [newLinkLabel, setNewLinkLabel] = useState('')
-  const [saving, setSaving] = useState(false)
-  const { projectHref } = usePortalRoutes()
-
-  const inp = 'w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-gold/40 placeholder:text-text-tertiary'
-
-  const saveTitle = async () => {
-    if (!title.trim() || title === task.title) { setEditingTitle(false); return }
-    setSaving(true); await updateTask(task.id, { title: title.trim() }); setSaving(false); setEditingTitle(false)
-  }
-  const saveDesc = async () => {
-    const val = desc.trim() || null
-    if (val === (task.description ?? null)) { setEditingDesc(false); return }
-    setSaving(true); await updateTask(task.id, { description: val }); setSaving(false); setEditingDesc(false)
-  }
-  const addLink = async () => {
-    if (!newLinkUrl.trim()) return
-    const links = [...(task.links ?? []), { url: newLinkUrl.trim(), label: newLinkLabel.trim() || newLinkUrl.trim() }]
-    setSaving(true); await updateTask(task.id, { links } as Partial<Task>); setSaving(false)
-    setNewLinkUrl(''); setNewLinkLabel('')
-  }
-  const removeLink = async (idx: number) => {
-    const links = (task.links ?? []).filter((_, i) => i !== idx)
-    await updateTask(task.id, { links } as Partial<Task>)
-  }
-
-  return (
-    <div className="w-80 lg:w-96 border-l border-border flex flex-col bg-[rgba(255,255,255,0.02)] shrink-0">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-        <h3 className="text-sm font-bold text-text-primary truncate flex-1">Dettaglio Task</h3>
-        <button onClick={onClose} className="p-1 rounded-lg text-text-tertiary hover:text-text-secondary hover:bg-surface-hover">
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-5 space-y-5">
-        {/* Project badge (first!) */}
-        {task.project && (
-          <Link href={projectHref(task.project.client_id, task.project.id)}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-hover border border-border hover:border-gold/30 transition-colors">
-            <FolderKanban className="w-4 h-4 text-gold-text shrink-0" />
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-text-primary truncate">{task.project.name}</p>
-              {task.project.clients && <p className="text-2xs text-text-secondary truncate">{task.project.clients.company_name}</p>}
-            </div>
-            <ExternalLink className="w-3 h-3 text-text-secondary shrink-0" />
-          </Link>
-        )}
-
-        {/* Title (editable) */}
-        <div>
-          {editingTitle ? (
-            <div className="flex items-center gap-2">
-              <input autoFocus value={title} onChange={e => setTitle(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') saveTitle(); if (e.key === 'Escape') { setEditingTitle(false); setTitle(task.title) } }}
-                className={inp + ' !text-base !font-bold'} />
-              <button onClick={saveTitle} disabled={saving} className="text-gold-text hover:text-gold-text shrink-0">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 group cursor-pointer" onClick={() => setEditingTitle(true)}>
-              <h2 className="text-base font-bold text-text-primary flex-1">{task.title}</h2>
-              <Pencil className="w-3.5 h-3.5 text-text-secondary opacity-0 group-hover:opacity-100 shrink-0" />
-            </div>
-          )}
-        </div>
-
-        {/* Status + complete toggle */}
-        <div className="space-y-2">
-          <p className="text-2xs text-text-tertiary uppercase tracking-wider">Stato</p>
-          <div className="flex gap-1.5 flex-wrap">
-            {(Object.keys(STATUS_META) as TaskStatus[]).map(s => (
-              <button key={s} onClick={() => updateStatus(task.id, s)}
-                className={`px-3 py-1.5 rounded-lg text-2xs font-semibold transition-colors ${
-                  task.status === s ? 'bg-gold text-on-gold' : 'bg-surface-hover text-text-secondary hover:text-text-primary hover:bg-surface-hover'
-                }`}>
-                {STATUS_META[s].label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Priority */}
-        <div className="space-y-2">
-          <p className="text-2xs text-text-tertiary uppercase tracking-wider">Priorità</p>
-          <div className="flex gap-1.5">
-            {(['alta', 'media', 'bassa'] as const).map(p => {
-              const colors = { alta: 'bg-error/10 text-error border-error/20', media: 'bg-gold/10 text-gold-text border-warning/20', bassa: 'bg-success/10 text-success border-success/20' }
-              return (
-                <button key={p} onClick={() => updateTask(task.id, { priority: p })}
-                  className={`px-3 py-1.5 rounded-lg text-2xs font-semibold capitalize border transition-colors ${
-                    task.priority === p ? colors[p] : 'bg-surface-hover text-text-secondary border-transparent hover:bg-surface-hover'
-                  }`}>
-                  {p}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Due date */}
-        <div className="space-y-2">
-          <p className="text-2xs text-text-tertiary uppercase tracking-wider">Scadenza</p>
-          <input type="date" value={task.due_date ?? ''} onChange={e => updateTask(task.id, { due_date: e.target.value || null })}
-            className={inp} />
-        </div>
-
-        {/* Assignee */}
-        <div className="space-y-2">
-          <p className="text-2xs text-text-tertiary uppercase tracking-wider">Assegnata a</p>
-          <select value={task.assignee_id ?? ''} onChange={e => updateTask(task.id, { assignee_id: e.target.value || null })}
-            className={inp}>
-            <option value="">— Nessuno —</option>
-            {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-          </select>
-        </div>
-
-        {/* Description (editable) */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-2xs text-text-tertiary uppercase tracking-wider">Descrizione</p>
-            {!editingDesc && (
-              <button onClick={() => setEditingDesc(true)} className="text-text-secondary hover:text-gold-text">
-                <Pencil className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-          {editingDesc ? (
-            <div className="space-y-2">
-              <textarea autoFocus value={desc} onChange={e => setDesc(e.target.value)} rows={4}
-                placeholder="Aggiungi una descrizione..."
-                className={inp + ' resize-none'} />
-              <div className="flex justify-end gap-2">
-                <button onClick={() => { setEditingDesc(false); setDesc(task.description ?? '') }} className="text-xs text-text-secondary hover:text-text-primary">Annulla</button>
-                <button onClick={saveDesc} disabled={saving}
-                  className="flex items-center gap-1 px-3 py-1 bg-gold text-on-gold rounded-lg text-xs font-bold hover:bg-gold/90 disabled:opacity-50">
-                  {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Salva
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div onClick={() => setEditingDesc(true)} className="cursor-pointer">
-              {task.description ? (
-                <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-line">{task.description}</p>
-              ) : (
-                <p className="text-xs text-text-secondary italic">Nessuna descrizione — clicca per aggiungere</p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Links */}
-        <div className="space-y-2">
-          <p className="text-2xs text-text-tertiary uppercase tracking-wider">Link</p>
-          {(task.links ?? []).length > 0 && (
-            <div className="space-y-1">
-              {(task.links ?? []).map((lnk, i) => (
-                <div key={i} className="flex items-center gap-2 group">
-                  <Link2 className="w-3 h-3 text-info shrink-0" />
-                  <a href={lnk.url} target="_blank" rel="noopener noreferrer"
-                    className="text-xs text-info hover:text-info truncate flex-1">{lnk.label}</a>
-                  <button onClick={() => removeLink(i)} className="text-text-secondary hover:text-error opacity-0 group-hover:opacity-100 shrink-0">
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="flex items-center gap-2">
-            <input value={newLinkUrl} onChange={e => setNewLinkUrl(e.target.value)} placeholder="https://..."
-              onKeyDown={e => { if (e.key === 'Enter') addLink() }}
-              className={inp + ' flex-1'} />
-            <input value={newLinkLabel} onChange={e => setNewLinkLabel(e.target.value)} placeholder="Etichetta"
-              onKeyDown={e => { if (e.key === 'Enter') addLink() }}
-              className={inp + ' w-24'} />
-            <button onClick={addLink} disabled={!newLinkUrl.trim() || saving} className="text-gold-text hover:text-gold-text disabled:opacity-30 shrink-0">
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Milestone toggle */}
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-text-tertiary">Milestone</span>
-          <button onClick={() => updateTask(task.id, { is_milestone: !task.is_milestone })}
-            className={`flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
-              task.is_milestone ? 'bg-gold/10 text-gold-text border border-gold/20' : 'bg-surface-hover text-text-secondary hover:text-text-primary'
-            }`}>
-            <Flag className="w-3 h-3" /> {task.is_milestone ? 'Sì' : 'No'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 /* ── CALENDARIO (mini cal con task) ────────────────────── */
 function CalendarioView({ tasks }: { tasks: TaskWithMeta[] }) {
