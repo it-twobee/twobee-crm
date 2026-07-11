@@ -13,9 +13,10 @@ export default async function WorkspaceClientiPage() {
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
   if (!profile) redirect('/login')
 
-  // Solo clienti attivi (esclusi i persi). Dati economici oscurati via hideEconomics.
+  // Solo clienti attivi (esclusi i persi). Fonte: VIEW clients_workspace (colonne
+  // economiche/fiscali azzerate a livello DB — Fase 0, migration 100).
   const { data } = await supabase
-    .from('clients')
+    .from('clients_workspace')
     .select('*')
     .neq('client_label', 'perso')
     .order('company_name')

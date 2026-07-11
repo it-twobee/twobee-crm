@@ -208,7 +208,8 @@ export function ClientPageClient({
   const isAdmin = SUPER_ADMIN_EMAILS.includes(currentProfile?.email ?? '') || currentProfile?.app_role === 'admin'
   const isAdminLevel = isAdmin || currentProfile?.app_role === 'manager'
   const canSeeFatturazione = isAdminLevel && !hideEconomics
-  const canSeeAnagrafica = isAdminLevel || currentProfile?.app_role === 'senior'
+  // D3 (Fase 0): l'anagrafica (P.IVA/dati fiscali) è visibile SOLO ad admin.
+  const canSeeAnagrafica = isAdmin
   const canSeeMrr = isAdminLevel && !hideEconomics
 
   const visibleTabs = [

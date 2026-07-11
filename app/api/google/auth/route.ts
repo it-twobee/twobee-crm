@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
+import { createClient } from '@/lib/supabase/server'
+
+// D4 (Fase 0): solo gli account @twobee.it possono collegare Google Calendar.
+// Verifica lato server: nascondere la CTA non è una barriera. Freelance/partner
+// con email diversa NON usano il flusso standard (gate dedicato: da progettare).
+const isTwoBeeEmail = (email?: string | null) => !!email && email.toLowerCase().endsWith('@twobee.it')
 
 export async function GET(req: NextRequest) {
   const clientId = process.env.GOOGLE_CLIENT_ID
@@ -24,6 +30,16 @@ export async function GET(req: NextRequest) {
       } catch { /* referer malformato: resta il default */ }
     }
     backUrl.searchParams.set('error', 'google_not_configured')
+    return NextResponse.redirect(backUrl)
+  }
+
+  // Gate dominio: l'utente dev'essere autenticato e con email @twobee.it.
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.redirect(new URL('/login', base))
+  if (!isTwoBeeEmail(user.email)) {
+    const backUrl = new URL('/workspace/calendario', base)
+    backUrl.searchParams.set('error', 'google_domain_not_allowed')
     return NextResponse.redirect(backUrl)
   }
 

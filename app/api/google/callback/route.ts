@@ -14,10 +14,15 @@ export async function GET(req: NextRequest) {
     `${base}/api/google/callback`,
   )
 
-  const { tokens } = await oauth2Client.getToken(code)
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.redirect(`${base}/login`)
+  // D4 (Fase 0): difesa in profondità — non salvare token per email non-@twobee.it.
+  if (!user.email?.toLowerCase().endsWith('@twobee.it')) {
+    return NextResponse.redirect(`${base}/workspace/calendario?error=google_domain_not_allowed`)
+  }
+
+  const { tokens } = await oauth2Client.getToken(code)
 
   // I token NON vanno in user_metadata: il client dell'utente lo legge e lo
   // riscrive. Stanno in google_credentials, tabella deny-all raggiungibile solo

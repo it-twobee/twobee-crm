@@ -26,7 +26,7 @@ export default async function WorkspaceClientePage({ params }: Props) {
     { data: currentProfile },
     { data: allProfiles },
   ] = await Promise.all([
-    supabase.from('clients').select('*').eq('id', id).single(),
+    supabase.from('clients_workspace').select('*').eq('id', id).single(),
     supabase.from('client_contacts').select('*').eq('client_id', id).order('is_primary', { ascending: false }),
     supabase.from('projects').select('*').eq('client_id', id).order('created_at'),
     supabase.from('client_assignments').select('profile_id, profiles(*)').eq('client_id', id),
