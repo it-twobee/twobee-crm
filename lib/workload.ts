@@ -253,12 +253,25 @@ const nextBucket = (endISO: string) => new Date(new Date(endISO + 'T00:00:00').g
  * mese, trimestre o anno). Base della previsione cross-progetto: dove le lavorazioni
  * di progetti diversi si accavallano, le ore si sommano nello stesso periodo.
  */
+/** Quanti periodi mostrare per granularità: orizzonte leggibile, non infinito. */
+export const GRAIN_HORIZON: Record<Grain, number> = {
+  settimana: 12,   // ~3 mesi
+  mese: 12,        // 1 anno
+  trimestre: 8,    // 2 anni
+  anno: 5,
+}
+
+/**
+ * Previsione: parte dal periodo CORRENTE (non dal passato) e copre un orizzonte
+ * leggibile. Il passato non si pianifica: mostrarlo diluiva la barra e la rendeva
+ * illeggibile.
+ */
 export function computeEffortBuckets(
   tasks: WLTask[],
   projectById: Map<string, WLProject>,
   grain: Grain = 'settimana',
   today = new Date(),
-  maxBuckets = 40,
+  maxBuckets = GRAIN_HORIZON[grain],
 ): EffortBucket[] {
   const spans = tasks.filter(isActive).map(t => {
     const s = taskSpan(t)
@@ -267,12 +280,11 @@ export function computeEffortBuckets(
   }).filter(Boolean) as { t: WLTask; start: string; end: string; days: number }[]
   if (spans.length === 0) return []
 
-  const firstDate = new Date(Math.min(...spans.map(s => new Date(s.start + 'T00:00:00').getTime()), today.getTime()))
-  const lastEnd = spans.map(s => s.end).sort().slice(-1)[0]
-
+  // Orizzonte fisso: sempre `maxBuckets` periodi dal corrente. Anche i periodi
+  // scarichi sono informativi (mostrano dove c'è spazio per pianificare).
   const out: EffortBucket[] = []
-  let cur = bucketBounds(firstDate, grain)
-  while (cur.start <= lastEnd && out.length < maxBuckets) {
+  let cur = bucketBounds(today, grain)     // dal periodo corrente in avanti
+  while (out.length < maxBuckets) {
     const b: EffortBucket = {
       start: cur.start, end: cur.end, days: daysInclusive(cur.start, cur.end),
       hours: 0, taskCount: 0, byProject: [],

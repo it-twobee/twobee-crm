@@ -10,9 +10,9 @@ import {
 } from 'lucide-react'
 import {
   filterTasks, computeResourceLoads, computeProjectLoads, computeIntensity, workloadSignals,
-  computeEffortBuckets, teamWeeklyCapacity, detectPeaks, computeSprintDensity, periodSeverity, bucketCapacity, EMPTY_FILTERS,
+  computeEffortBuckets, teamWeeklyCapacity, computeSprintDensity, periodSeverity, bucketCapacity, EMPTY_FILTERS,
   type WLTask, type WLProject, type WLResource, type WLSprint, type WLFilters, type IntensityWindow,
-  type EffortBucket, type EffortPeak, type Grain,
+  type EffortBucket, type Grain,
 } from '@/lib/workload'
 import { pmUpdateTask } from '@/app/actions/workload-tasks'
 import { createMyTask } from '@/app/actions/workspace-create'
@@ -127,7 +127,6 @@ export function WorkloadClient({
   const [grain, setGrain] = useState<Grain>('settimana')
   const effortBuckets = useMemo(() => computeEffortBuckets(filtered, projectById, grain), [filtered, projectById, grain])
   const capacity = useMemo(() => teamWeeklyCapacity(resources), [resources])
-  const peaks = useMemo(() => detectPeaks(effortBuckets, capacity), [effortBuckets, capacity])
 
   const aiNeeds = useMemo(() => {
     const todayStr = new Date().toISOString().slice(0, 10)
@@ -193,7 +192,7 @@ export function WorkloadClient({
       </div>
 
       {/* Previsione cross-progetto: dove le task di progetti diversi si accavallano */}
-      <EffortForecast buckets={effortBuckets} capacity={capacity} peaks={peaks}
+      <EffortForecast buckets={effortBuckets} capacity={capacity}
         windows={intensity.windows} signals={signals} needsAttention={aiNeeds}
         tasks={filtered} projectById={projectById} resourceById={new Map(resources.map(r => [r.id, r]))}
         multiMap={multiMap} canEditProject={canEditProject} sprints={sprints}
@@ -242,14 +241,13 @@ export function WorkloadClient({
 
 /* ── AI Planning Assistant (§9.4): propone, non applica ──────────────────────── */
 type AISuggestion = { type: string; title: string; detail: string }
-/* ── Previsione effort cross-progetto: accavallamenti e periodi critici ───────── */
-function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAttention, tasks, projectById, resourceById, multiMap, canEditProject, sprints, grain, setGrain }: {
+/* ── Previsione effort: barra continua + drill-down + AI ──────────────────────── */
+function EffortForecast({ buckets, capacity, windows, signals, needsAttention, tasks, projectById, resourceById, multiMap, canEditProject, sprints, grain, setGrain }: {
   buckets: EffortBucket[]
   sprints: WLSprint[]
   grain: Grain
   setGrain: (g: Grain) => void
   capacity: number
-  peaks: EffortPeak[]
   windows: IntensityWindow[]
   signals: { noEstimate: number; noDue: number; noOwner: number; projectsNoPm: number }
   needsAttention: { title: string; project: string; due_date: string | null; estimated_hours: number | null; owner: string | null; issue: string }[]
@@ -262,31 +260,37 @@ function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAtten
   const [aiLoading, setAiLoading] = useState(false)
   const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[] | null>(null)
   const [aiSummary, setAiSummary] = useState('')
-  const [openWeek, setOpenWeek] = useState<string | null>(null)   // drill-down settimana
+  const [openWeek, setOpenWeek] = useState<string | null>(null)
   const [pending, startT] = useTransition()
   const [newTaskFor, setNewTaskFor] = useState<AISuggestion | null>(null)
 
-  // Aggregato sprint in lavorazione, allineato alla stessa griglia settimanale.
   const { lanes: sprintLanes, density } = useMemo(
     () => computeSprintDensity(sprints, buckets, projectById),
     [sprints, buckets, projectById],
   )
   const densityByWeek = useMemo(() => new Map(density.map(d => [d.weekStart, d])), [density])
-  const maxSprintOverlap = useMemo(() => Math.max(0, ...density.map(d => d.count)), [density])
 
-  // Task che ricadono nella settimana selezionata (span start→due che la interseca).
+  // Un'unica fonte di verità per lo stato di ogni periodo: usata da barra, elenco e alert.
+  const periods = useMemo(() => buckets.map(b => {
+    const nSprint = densityByWeek.get(b.start)?.count ?? 0
+    const cap = bucketCapacity(capacity, b.days)
+    const ratio = cap > 0 ? b.hours / cap : 0
+    return { bucket: b, nSprint, cap, ratio, sev: periodSeverity(nSprint, ratio) }
+  }), [buckets, densityByWeek, capacity])
+
+  const hot = useMemo(() => periods.filter(p => p.sev === 'high' || p.sev === 'critical'), [periods])
+  const selected = periods.find(p => p.bucket.start === openWeek) ?? null
+
   const weekTasks = useMemo(() => {
-    if (!openWeek) return []
-    const b = buckets.find(x => x.start === openWeek)
-    if (!b) return []
+    if (!selected) return []
+    const b = selected.bucket
     return tasks.filter(t => {
       if (t.is_milestone || t.status === 'completato' || !t.due_date) return false
       const s = t.start_date && t.start_date <= t.due_date ? t.start_date : t.due_date
       return s <= b.end && t.due_date >= b.start
     }).sort((x, y) => (x.due_date ?? '').localeCompare(y.due_date ?? ''))
-  }, [openWeek, buckets, tasks])
+  }, [selected, tasks])
 
-  // Sposta la scadenza di una task (azione concreta per spianare il picco).
   const shift = (t: WLTask, days: number) => startT(async () => {
     if (!t.due_date) return
     const nd = new Date(new Date(t.due_date + 'T00:00:00').getTime() + days * 86400000).toISOString().slice(0, 10)
@@ -304,9 +308,9 @@ function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAtten
           windows: windows.map(w => ({ days: w.days, overloaded: w.overloaded, top: w.cells.slice(0, 4).map(c => ({ name: c.resourceName, hours: c.hours, capacity: c.capacity })) })),
           signals,
           needsAttention,
-          peaks: peaks.slice(0, 6).map(p => ({
+          peaks: hot.slice(0, 6).map(p => ({
             from: p.bucket.start, to: p.bucket.end, hours: p.bucket.hours,
-            capacity: Math.round(capacity), ratio: Math.round(p.ratio * 100),
+            capacity: Math.round(p.cap), ratio: Math.round(p.ratio * 100),
             projects: p.bucket.byProject.slice(0, 4).map(x => ({ name: x.projectName, hours: x.hours })),
           })),
         }),
@@ -318,24 +322,28 @@ function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAtten
   }
 
   if (buckets.length === 0) return null
-  const fmt = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })
-  const critical = peaks.filter(p => p.ratio >= 1)
-  const heavy = peaks.filter(p => p.ratio < 1)
+
+  // Scala temporale continua: serve a posizionare gli sprint sopra la barra.
+  const t0 = dISO(buckets[0].start).getTime()
+  const t1 = dISO(buckets[buckets.length - 1].end).getTime()
+  const span = Math.max(1, t1 - t0)
+  const posOf = (iso: string) => Math.min(100, Math.max(0, ((dISO(iso).getTime() - t0) / span) * 100))
+  const showLabels = buckets.length <= 12
 
   return (
-    <div className="rounded-xl border border-border bg-surface p-4 space-y-3">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
+    <div className="rounded-xl border border-border bg-surface overflow-hidden">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3 flex-wrap p-4 pb-3">
         <div>
           <p className="text-sm font-bold text-text-primary flex items-center gap-2">
             <CalendarRange className="w-4 h-4 text-gold-text" aria-hidden="true" />
-            Previsione effort combinato
+            Previsione carico
           </p>
           <p className="text-2xs text-text-tertiary mt-0.5">
-            Carico di tutti i progetti nel tempo · capacità team {Math.round(capacity)}h/settimana
+            Prossimi {buckets.length} {grain === 'settimana' ? 'settimane' : grain === 'mese' ? 'mesi' : grain === 'trimestre' ? 'trimestri' : 'anni'} · capacità team {Math.round(capacity)}h/sett.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Selettore periodo */}
           <div className="flex gap-0.5 rounded-lg bg-background border border-border p-0.5" role="tablist" aria-label="Periodo">
             {(['settimana', 'mese', 'trimestre', 'anno'] as const).map(g => (
               <button key={g} role="tab" aria-selected={grain === g} onClick={() => { setGrain(g); setOpenWeek(null) }}
@@ -345,198 +353,170 @@ function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAtten
             ))}
           </div>
           <button onClick={askAI} disabled={aiLoading}
-            className="flex items-center gap-1.5 px-3 py-2 bg-gold text-on-gold text-xs font-bold rounded-lg hover:bg-gold/90 disabled:opacity-50 shrink-0">
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gold text-on-gold text-xs font-bold rounded-lg hover:bg-gold/90 disabled:opacity-50 shrink-0">
             {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Sparkles className="w-4 h-4" aria-hidden="true" />}
             {aiLoading ? 'Analizzo…' : aiSuggestions ? 'Rianalizza' : "Pianifica con l'AI"}
           </button>
         </div>
       </div>
 
-      {/* Alert accavallamento */}
-      {maxSprintOverlap >= 2 && (
-        <div className={`flex items-start gap-2 rounded-lg border px-3 py-2 ${maxSprintOverlap >= 3 ? 'border-error/30 bg-error-dim' : 'border-warning/30 bg-warning-dim'}`}>
-          <AlertTriangle className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${maxSprintOverlap >= 3 ? 'text-error' : 'text-warning'}`} aria-hidden="true" />
-          <p className="text-2xs text-text-secondary">
-            Fino a <span className="font-bold text-text-primary">{maxSprintOverlap} sprint in parallelo</span> nello stesso periodo:
-            le lavorazioni di progetti diversi si accavallano. Clicca un tratto rosso della barra per riprogrammare, o chiedi un piano all&apos;AI.
-          </p>
-        </div>
-      )}
+      {/* Verdetto: una riga chiara, coerente con la barra */}
+      <div className={`mx-4 mb-3 flex items-start gap-2 rounded-lg px-3 py-2 border ${
+        hot.length === 0 ? 'border-success/25 bg-success-dim' : hot.some(p => p.sev === 'critical') ? 'border-error/30 bg-error-dim' : 'border-warning/30 bg-warning-dim'
+      }`}>
+        {hot.length === 0
+          ? <Check className="w-4 h-4 text-success shrink-0 mt-px" aria-hidden="true" />
+          : <AlertTriangle className={`w-4 h-4 shrink-0 mt-px ${hot.some(p => p.sev === 'critical') ? 'text-error' : 'text-warning'}`} aria-hidden="true" />}
+        <p className="text-2xs text-text-secondary">
+          {hot.length === 0 ? (
+            <>Carico sostenibile su tutto l&apos;orizzonte: nessun periodo va oltre la capacità del team.</>
+          ) : (
+            <>
+              <span className="font-bold text-text-primary">{hot.length} {hot.length === 1 ? 'periodo critico' : 'periodi critici'}</span>
+              {' — '}{fmtRange(hot[0].bucket.start, hot[0].bucket.end)}
+              {hot[0].nSprint > 1 && <> con <span className="font-semibold text-text-primary">{hot[0].nSprint} sprint in parallelo</span></>}
+              {' '}({Math.round(hot[0].bucket.hours)}h su {Math.round(hot[0].cap)}h). Clicca il tratto rosso per riprogrammare.
+            </>
+          )}
+        </p>
+      </div>
 
-      {/* ── BARRA CONTINUA: verde quando è stabile, rossa dove tutto si accavalla ── */}
-      <div className="rounded-xl border border-border bg-background p-3 space-y-2">
-        <div className="flex h-9 rounded-lg overflow-hidden border border-border">
-          {buckets.map(b => {
-            const nSprint = densityByWeek.get(b.start)?.count ?? 0
-            const cap = bucketCapacity(capacity, b.days)
-            const ratio = cap > 0 ? b.hours / cap : 0
-            const sev = periodSeverity(nSprint, ratio)     // accavallamenti + carico
-            const sel = openWeek === b.start
+      {/* ── Barra continua ─────────────────────────────────────────────────────── */}
+      <div className="px-4">
+        {/* Sprint sopra la barra: dove sono, quanti si sovrappongono */}
+        {sprintLanes.length > 0 && (
+          <div className="relative h-6 mb-1.5">
+            {sprintLanes.slice(0, 4).map(({ sprint: sp, projectName }, i) => {
+              const l = posOf(sp.start_date)
+              const w = Math.max(2, posOf(sp.end_date) - l)
+              const late = sp.end_date < new Date().toISOString().slice(0, 10)
+              return (
+                <div key={sp.id}
+                  className={`absolute h-1.5 rounded-full ${late ? 'bg-error/70' : sp.status === 'in_corso' ? 'bg-gold' : 'bg-info/70'}`}
+                  style={{ left: `${l}%`, width: `${w}%`, top: i * 6 }}
+                  title={`${sp.name} · ${projectName}\n${fmtRange(sp.start_date, sp.end_date)}`} />
+              )
+            })}
+          </div>
+        )}
+
+        <div className="flex h-10 rounded-lg overflow-hidden border border-border" role="group" aria-label="Carico per periodo">
+          {periods.map(p => {
+            const sel = openWeek === p.bucket.start
             return (
-              <button key={b.start} onClick={() => setOpenWeek(sel ? null : b.start)}
-                aria-label={`${fmtRange(b.start, b.end)}: ${b.hours} ore, ${nSprint} sprint`}
-                style={{ flexGrow: b.days, flexBasis: 0 }}
-                className={`relative ${SEV_BAR[sev]} border-r border-background/40 last:border-r-0 transition-all hover:brightness-125 ${sel ? 'ring-2 ring-gold ring-inset z-10' : ''}`}
-                title={`${fmtRange(b.start, b.end)}\nCarico: ${b.hours}h su ${Math.round(cap)}h di capacità (${Math.round(ratio * 100)}%)\nSprint in lavorazione: ${nSprint}${nSprint > 1 ? ' (accavallati)' : ''}\nProgetti in parallelo: ${b.byProject.length}\n\nClicca per vedere e riprogrammare le task`}>
-                {/* Etichetta ore, se c'è spazio */}
-                {b.days >= 25 || buckets.length <= 14 ? (
-                  <span className="absolute inset-0 flex items-center justify-center text-2xs font-bold text-text-primary/90 tabular">
-                    {Math.round(b.hours)}h
+              <button key={p.bucket.start} onClick={() => setOpenWeek(sel ? null : p.bucket.start)}
+                aria-label={`${fmtRange(p.bucket.start, p.bucket.end)}: ${Math.round(p.bucket.hours)} ore, ${p.nSprint} sprint`}
+                style={{ flexGrow: p.bucket.days, flexBasis: 0 }}
+                className={`relative ${SEV_BAR[p.sev]} border-r border-background/50 last:border-r-0 transition-all hover:brightness-125 ${sel ? 'ring-2 ring-gold ring-inset z-10' : ''}`}
+                title={`${fmtRange(p.bucket.start, p.bucket.end)}\nCarico: ${Math.round(p.bucket.hours)}h su ${Math.round(p.cap)}h (${Math.round(p.ratio * 100)}%)\nSprint attivi: ${p.nSprint}\nProgetti: ${p.bucket.byProject.length}\n\nClicca per riprogrammare`}>
+                {showLabels && p.bucket.hours > 0 && (
+                  <span className="absolute inset-0 flex items-center justify-center text-2xs font-bold text-on-gold/90 tabular">
+                    {Math.round(p.bucket.hours)}
                   </span>
-                ) : null}
+                )}
               </button>
             )
           })}
         </div>
 
-        {/* Asse temporale sotto la barra */}
-        <div className="flex">
-          {buckets.map((b, i) => (
-            <div key={b.start} style={{ flexGrow: b.days, flexBasis: 0 }} className="text-center min-w-0">
-              <span className={`text-2xs truncate block ${openWeek === b.start ? 'text-gold-text font-bold' : 'text-text-tertiary'}`}>
-                {buckets.length <= 14 || i % 2 === 0 ? axisLabel(b.start, grain) : ''}
+        {/* Asse: etichette leggibili, mai sovrapposte */}
+        <div className="flex mt-1">
+          {periods.map((p, i) => (
+            <div key={p.bucket.start} style={{ flexGrow: p.bucket.days, flexBasis: 0 }} className="min-w-0 text-center">
+              <span className={`text-2xs block truncate ${openWeek === p.bucket.start ? 'text-gold-text font-bold' : 'text-text-tertiary'}`}>
+                {showLabels || i % 2 === 0 ? axisLabel(p.bucket.start, grain) : ''}
               </span>
             </div>
           ))}
         </div>
 
-        {/* Sprint in lavorazione, allineati alle stesse colonne settimanali */}
-        {sprintLanes.length > 0 && (
-          <div className="pt-2 border-t border-border space-y-1">
-            <p className="text-2xs uppercase tracking-wider text-text-tertiary">Sprint in lavorazione</p>
-            {sprintLanes.slice(0, 5).map(({ sprint: sp, projectName }) => {
-              const i0 = buckets.findIndex(b => b.end >= sp.start_date)
-              const i1 = buckets.map(b => b.start <= sp.end_date).lastIndexOf(true)
-              if (i0 < 0 || i1 < i0) return null
-              const left = (i0 / buckets.length) * 100
-              const width = ((i1 - i0 + 1) / buckets.length) * 100
-              const late = sp.end_date < new Date().toISOString().slice(0, 10)
-              const cls = late ? 'bg-error/60 border-error' : sp.status === 'in_corso' ? 'bg-gold/60 border-gold' : 'bg-info/50 border-info'
-              return (
-                <div key={sp.id} className="relative h-6">
-                  <div className={`absolute h-6 rounded-md border flex items-center px-2 overflow-hidden ${cls}`}
-                    style={{ left: `${left}%`, width: `${width}%`, minWidth: '5%' }}
-                    title={`Sprint: ${sp.name}\nProgetto: ${projectName}\n${fmt(sp.start_date)} → ${fmt(sp.end_date)}\nStato: ${sp.status}`}>
-                    <span className="text-2xs font-medium text-text-primary truncate">{sp.name} · {projectName}</span>
-                  </div>
-                </div>
-              )
-            })}
-            {sprintLanes.length > 5 && (
-              <p className="text-2xs text-text-tertiary">+ {sprintLanes.length - 5} altri sprint</p>
-            )}
-          </div>
-        )}
-
         {/* Legenda */}
-        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-border text-2xs text-text-tertiary">
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-success/70" /> stabile</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-warning/80" /> 2 sprint / carico alto</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-orange" /> 3 sprint / oltre capacità</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-error" /> critico</span>
-          <span className="ml-auto">Clicca un tratto della barra per riprogrammare quel periodo</span>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-2xs text-text-tertiary">
+          <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-success/70" /> sostenibile</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-warning/80" /> in tensione</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-orange" /> oltre capacità</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-error" /> critico</span>
+          {sprintLanes.length > 0 && (
+            <span className="flex items-center gap-1.5 ml-auto"><span className="w-3 h-1 rounded-full bg-gold" /> sprint in corso</span>
+          )}
         </div>
       </div>
 
-      {/* Periodi critici: dove più progetti si accavallano */}
-      {peaks.length === 0 ? (
-        <p className="text-2xs text-success flex items-center gap-1.5">
-          <Gauge className="w-3 h-3" aria-hidden="true" /> Nessun periodo di sovraccarico previsto: il carico resta sotto la capacità del team.
-        </p>
-      ) : (
-        <div className="space-y-1.5">
-          <p className="text-2xs uppercase tracking-wider text-text-tertiary flex items-center gap-1.5">
-            <AlertTriangle className="w-3 h-3 text-warning" aria-hidden="true" />
-            {critical.length > 0 ? `${critical.length} periodi oltre capacità` : `${heavy.length} periodi ad alta intensità`}
-          </p>
-          {peaks.slice(0, 4).map(p => (
-            <button key={p.bucket.start} onClick={() => setOpenWeek(openWeek === p.bucket.start ? null : p.bucket.start)}
-              className={`w-full text-left flex items-center gap-2 rounded-lg border px-3 py-2 hover:brightness-110 transition-all ${
-                p.ratio >= 1 ? 'border-error/30 bg-error-dim' : 'border-warning/30 bg-warning-dim'
-              } ${openWeek === p.bucket.start ? 'ring-1 ring-gold' : ''}`}>
-              <div className="flex-1 min-w-0">
-                <p className="text-2xs font-bold text-text-primary">
-                  {fmtRange(p.bucket.start, p.bucket.end)}: {p.bucket.hours}h su {Math.round(bucketCapacity(capacity, p.bucket.days))}h
-                  <span className={`ml-1.5 ${p.ratio >= 1 ? 'text-error' : 'text-warning'}`}>({Math.round(p.ratio * 100)}%)</span>
-                </p>
-                <p className="text-2xs text-text-secondary mt-0.5 truncate">
-                  {p.projects > 1
-                    ? `${p.projects} progetti in parallelo: ${p.bucket.byProject.slice(0, 3).map(x => `${x.projectName} (${x.hours}h)`).join(' · ')}`
-                    : `${p.bucket.byProject[0]?.projectName ?? '—'}: ${p.bucket.byProject[0]?.hours ?? 0}h`}
-                </p>
-              </div>
-              <ChevronRight className={`w-4 h-4 shrink-0 text-text-tertiary transition-transform ${openWeek === p.bucket.start ? 'rotate-90' : ''}`} aria-hidden="true" />
+      {/* ── Drill-down del periodo selezionato ───────────────────────────────────── */}
+      {selected && (
+        <div className="mt-3 border-t border-border bg-background p-4 space-y-2">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-sm font-bold text-text-primary">{fmtRange(selected.bucket.start, selected.bucket.end)}</p>
+              <p className="text-2xs text-text-tertiary mt-0.5">
+                {Math.round(selected.bucket.hours)}h su {Math.round(selected.cap)}h di capacità ({Math.round(selected.ratio * 100)}%)
+                {selected.nSprint > 0 && ` · ${selected.nSprint} sprint attivi`}
+                {selected.bucket.byProject.length > 0 && ` · ${selected.bucket.byProject.length} progetti`}
+              </p>
+            </div>
+            <button onClick={() => setOpenWeek(null)} aria-label="Chiudi" className="p-1 text-text-tertiary hover:text-text-primary">
+              <X className="w-4 h-4" />
             </button>
-          ))}
+          </div>
+
+          {/* Chi carica questo periodo */}
+          {selected.bucket.byProject.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {selected.bucket.byProject.slice(0, 5).map(pr => (
+                <span key={pr.projectId} className="text-2xs px-2 py-0.5 rounded-full bg-surface border border-border text-text-secondary">
+                  {pr.projectName} · <span className="tabular font-semibold text-text-primary">{Math.round(pr.hours)}h</span>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {weekTasks.length === 0 ? (
+            <p className="text-2xs text-text-tertiary">Nessuna task attiva in questo periodo.</p>
+          ) : (
+            <ul className="space-y-1 max-h-60 overflow-y-auto">
+              {weekTasks.map(t => {
+                const proj = projectById.get(t.project_id)
+                const owners = (multiMap.get(t.id) ?? (t.assignee_id ? [t.assignee_id] : [])).map(id => resourceById.get(id)?.full_name.split(' ')[0] ?? '—')
+                const canEdit = canEditProject(t.project_id)
+                return (
+                  <li key={t.id} className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-text-primary truncate">{t.title}</p>
+                      <p className="text-2xs text-text-tertiary truncate">
+                        {proj?.name ?? '—'} · {t.estimated_hours != null ? `${t.estimated_hours}h` : '4h (stima mancante)'}
+                        {owners.length > 0 && ` · ${owners.join(', ')}`}
+                        {t.due_date && ` · scad. ${dISO(t.due_date).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}`}
+                      </p>
+                    </div>
+                    {canEdit ? (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button onClick={() => shift(t, -7)} disabled={pending} aria-label={`Anticipa ${t.title}`} title="Anticipa di 1 settimana"
+                          className="px-2 py-1 rounded-md border border-border text-2xs text-text-tertiary hover:text-info hover:border-info/40 transition-colors">← 1 sett.</button>
+                        <button onClick={() => shift(t, 7)} disabled={pending} aria-label={`Posticipa ${t.title}`} title="Posticipa di 1 settimana"
+                          className="px-2 py-1 rounded-md border border-border text-2xs text-text-tertiary hover:text-warning hover:border-warning/40 transition-colors">1 sett. →</button>
+                      </div>
+                    ) : (
+                      <span className="text-2xs text-text-tertiary shrink-0">solo PM</span>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          <p className="text-2xs text-text-tertiary">Sposta le task fuori dal picco, o chiedi all&apos;AI un piano di riequilibrio.</p>
         </div>
       )}
 
-      {/* Drill-down: cosa compone la settimana, con azioni per spianarla */}
-      {openWeek && (() => {
-        const b = buckets.find(x => x.start === openWeek)
-        if (!b) return null
-        return (
-          <div className="rounded-xl border border-gold/30 bg-surface p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-2xs font-bold text-text-primary">
-                {fmtRange(b.start, b.end)} · {b.hours}h su {Math.round(bucketCapacity(capacity, b.days))}h · {b.byProject.length} progetti
-              </p>
-              <button onClick={() => setOpenWeek(null)} aria-label="Chiudi" className="text-text-tertiary hover:text-text-primary">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            {weekTasks.length === 0 ? (
-              <p className="text-2xs text-text-tertiary">Nessuna task attiva in questo periodo.</p>
-            ) : (
-              <ul className="space-y-1 max-h-56 overflow-y-auto">
-                {weekTasks.map(t => {
-                  const proj = projectById.get(t.project_id)
-                  const owners = (multiMap.get(t.id) ?? (t.assignee_id ? [t.assignee_id] : [])).map(id => resourceById.get(id)?.full_name.split(' ')[0] ?? '—')
-                  const canEdit = canEditProject(t.project_id)
-                  return (
-                    <li key={t.id} className="flex items-center gap-2 rounded-lg border border-border bg-background px-2.5 py-1.5">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-2xs font-medium text-text-primary truncate">{t.title}</p>
-                        <p className="text-2xs text-text-tertiary truncate">
-                          {proj?.name ?? '—'} · {t.estimated_hours != null ? `${t.estimated_hours}h` : '4h (stima mancante)'}
-                          {owners.length > 0 && ` · ${owners.join(', ')}`}
-                          {t.due_date && ` · scad. ${fmt(t.due_date)}`}
-                        </p>
-                      </div>
-                      {canEdit ? (
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button onClick={() => shift(t, -7)} disabled={pending} title="Anticipa di 1 settimana"
-                            aria-label={`Anticipa ${t.title} di una settimana`}
-                            className="px-1.5 py-1 rounded text-2xs text-text-tertiary hover:text-info hover:bg-info-dim transition-colors">← 1sett</button>
-                          <button onClick={() => shift(t, 7)} disabled={pending} title="Posticipa di 1 settimana"
-                            aria-label={`Posticipa ${t.title} di una settimana`}
-                            className="px-1.5 py-1 rounded text-2xs text-text-tertiary hover:text-warning hover:bg-warning-dim transition-colors">1sett →</button>
-                        </div>
-                      ) : (
-                        <span className="text-2xs text-text-tertiary shrink-0">solo PM</span>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-            <p className="text-2xs text-text-tertiary">
-              Sposta le task fuori dal picco, oppure chiedi all&apos;AI un piano di riequilibrio.
-            </p>
-          </div>
-        )
-      })()}
-
-      {/* Suggerimenti AI in-place (propone, non applica). Chiudibili e scartabili. */}
+      {/* ── Suggerimenti AI ──────────────────────────────────────────────────────── */}
       {aiSuggestions && (
-        <div className="rounded-xl border border-gold/25 bg-gold-dim/40 p-3 space-y-2">
+        <div className="mt-3 border-t border-border bg-gold-dim/30 p-4 space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-2xs font-bold text-text-primary flex items-center gap-1.5">
+            <p className="text-xs font-bold text-text-primary flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-gold-text" aria-hidden="true" /> Piano suggerito dall&apos;AI
             </p>
             <button onClick={() => { setAiSuggestions(null); setAiSummary('') }} aria-label="Chiudi suggerimenti"
               className="p-1 rounded text-text-tertiary hover:text-text-primary hover:bg-surface-hover transition-colors">
-              <X className="w-3.5 h-3.5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
           {aiSummary && <p className="text-2xs text-text-secondary italic">{aiSummary}</p>}
@@ -545,8 +525,8 @@ function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAtten
           ) : aiSuggestions.map((s, i) => (
             <div key={i} className="rounded-lg border border-border bg-surface px-3 py-2 flex items-start gap-2">
               <div className="flex-1 min-w-0">
-                <p className="text-2xs font-semibold text-text-primary">
-                  <span className="font-bold uppercase tracking-wider text-gold-text mr-1.5">{s.type}</span>{s.title}
+                <p className="text-xs font-semibold text-text-primary">
+                  <span className="text-2xs font-bold uppercase tracking-wider text-gold-text mr-1.5">{s.type}</span>{s.title}
                 </p>
                 <p className="text-2xs text-text-secondary mt-0.5">{s.detail}</p>
               </div>
@@ -555,7 +535,7 @@ function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAtten
                 <Plus className="w-3 h-3" aria-hidden="true" /> Crea task
               </button>
               <button onClick={() => setAiSuggestions(prev => (prev ?? []).filter((_, j) => j !== i))}
-                aria-label="Scarta questo suggerimento" title="Scarta"
+                aria-label="Scarta suggerimento" title="Scarta"
                 className="shrink-0 p-1 rounded text-text-tertiary hover:text-error hover:bg-error-dim transition-colors">
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -565,7 +545,6 @@ function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAtten
         </div>
       )}
 
-      {/* Crea una task di pianificazione a partire da un suggerimento AI */}
       {newTaskFor && (
         <SuggestionTaskModal suggestion={newTaskFor} projects={Array.from(projectById.values())} onClose={() => setNewTaskFor(null)} />
       )}
