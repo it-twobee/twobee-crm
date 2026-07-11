@@ -1932,7 +1932,8 @@ export function ProjectPageClient({
           />
         )}
         {activeTab === 'appuntamenti' && (
-          <AppointmentsSection project={localProject} client={client} isAdmin={isAdmin} accent={accent} />
+          <AppointmentsSection project={localProject} client={client} isAdmin={isAdmin} accent={accent}
+            profiles={allProfiles} currentUserId={currentProfile.id} />
         )}
         {activeTab === 'riunioni' && (
           <MeetingRecapsSection meetings={meetings} project={localProject} client={client}

@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Calendar, Loader2, Link as LinkIcon, RefreshCw, Plus, X, MapPin, Users } from 'lucide-react'
+import { Calendar, Loader2, Link as LinkIcon, RefreshCw, Plus, MapPin, Users } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Project, Client } from '@/lib/types/database'
+import type { Project, Client, Profile } from '@/lib/types/database'
+import { CalendarEventForm, type EventForm } from '@/components/calendario/CalendarEventForm'
 
 export interface GCalEvent {
   id: string; summary?: string; start?: { dateTime?: string; date?: string }
@@ -11,15 +12,14 @@ export interface GCalEvent {
   description?: string; htmlLink?: string; attendees?: { email: string; displayName?: string }[]
 }
 
-export function AppointmentsSection({ accent, isAdmin, project, client }: {
+export function AppointmentsSection({ accent, isAdmin, project, client, profiles, currentUserId }: {
   accent: string; isAdmin: boolean; project: Project; client: Client
+  profiles: Pick<Profile, 'id' | 'full_name' | 'avatar_url'>[]; currentUserId: string
 }) {
   const [events, setEvents]       = useState<GCalEvent[]>([])
   const [connected, setConnected] = useState<boolean | null>(null)
   const [loading, setLoading]     = useState(true)
-  const [creating, setCreating]   = useState(false)
-  const [showForm, setShowForm]   = useState(false)
-  const [form, setForm2]          = useState({ title: '', date: '', time: '', endTime: '', location: '', description: '' })
+  const [editorEvent, setEditorEvent] = useState<EventForm | null>(null)
 
   const fetchEvents = async () => {
     setLoading(true)
@@ -36,32 +36,17 @@ export function AppointmentsSection({ accent, isAdmin, project, client }: {
 
   useEffect(() => { fetchEvents() }, [])
 
-  const createEvent = async () => {
-    if (!form.title || !form.date) return
-    setCreating(true)
-    const startTime = form.time || '09:00'
-    const endTime = form.endTime || (() => {
-      const [h, m] = startTime.split(':').map(Number)
-      return `${String(h + 1).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-    })()
-    const startDT = `${form.date}T${startTime}:00`
-    const endDT   = `${form.date}T${endTime}:00`
-    const r = await fetch('/api/google/events', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: form.title, description: form.description || `Progetto: ${project.name} — ${client.company_name}`, start: startDT, end: endDT, location: form.location }),
+  // §16.1: apre il CalendarEventForm condiviso precompilato con cliente/progetto.
+  const openCreate = () => {
+    const d = new Date().toISOString().slice(0, 10)
+    setEditorEvent({
+      id: null, title: `Call con ${project.name}`, allDay: false,
+      date: d, endDate: d, startTime: '09:00', endTime: '10:00',
+      location: '', description: `Progetto: ${project.name} — ${client.company_name}`,
+      addMeet: false, meetLink: null, attendeeIds: [], attendeeEmails: [],
+      timezone: 'Europe/Rome', clientId: client.id, projectId: project.id,
     })
-    const data = await r.json()
-    setCreating(false)
-    if (data.event) {
-      setEvents(prev => [...prev, data.event as GCalEvent].sort((a, b) => (a.start?.dateTime ?? a.start?.date ?? '') < (b.start?.dateTime ?? b.start?.date ?? '') ? -1 : 1))
-      setShowForm(false)
-      toast.success('Evento creato su Google Calendar')
-    } else {
-      toast.error('Errore creazione evento')
-    }
   }
-
-  const inp = 'w-full bg-background border border-border rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold placeholder:text-text-tertiary'
 
   const today = new Date().toISOString().slice(0, 10)
   const projectName = project.name.toLowerCase()
@@ -107,7 +92,7 @@ export function AppointmentsSection({ accent, isAdmin, project, client }: {
           </button>
         </div>
         {isAdmin && (
-          <button onClick={() => setShowForm(true)}
+          <button onClick={openCreate}
             className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
             style={{ background: `color-mix(in srgb, ${accent} 8%, transparent)`, color: accent, border: `1px solid color-mix(in srgb, ${accent} 19%, transparent)` }}>
             <Plus className="w-3 h-3" /> Nuovo evento
@@ -120,7 +105,7 @@ export function AppointmentsSection({ accent, isAdmin, project, client }: {
           <Calendar className="w-8 h-8 text-text-tertiary" />
           <div>
             <p className="text-sm font-semibold text-text-tertiary">Nessun evento nei prossimi 60 giorni</p>
-            {isAdmin && <button onClick={() => setShowForm(true)} className="text-xs mt-1 font-bold" style={{ color: accent }}>+ Crea il primo</button>}
+            {isAdmin && <button onClick={openCreate} className="text-xs mt-1 font-bold" style={{ color: accent }}>+ Crea il primo</button>}
           </div>
         </div>
       ) : (
@@ -137,10 +122,10 @@ export function AppointmentsSection({ accent, isAdmin, project, client }: {
               <div key={e.id} className="group flex items-start gap-3 p-3 border border-border rounded-xl hover:border-border transition-all bg-background">
                 <div className="shrink-0 w-11 flex flex-col items-center text-center pt-0.5">
                   <span className="text-2xs font-bold uppercase tracking-wider"
-                    style={{ color: isToday ? 'var(--color-success)' : isTomorrow ? accent : '#444' }}>
+                    style={{ color: isToday ? 'var(--color-success)' : isTomorrow ? accent : 'var(--color-text-tertiary)' }}>
                     {isToday ? 'OGGI' : isTomorrow ? 'DOM.' : dt?.toLocaleDateString('it-IT', { month: 'short' }).toUpperCase()}
                   </span>
-                  <span className="text-xl font-black leading-tight" style={{ color: isToday ? 'var(--color-success)' : 'white' }}>
+                  <span className="text-xl font-black leading-tight" style={{ color: isToday ? 'var(--color-success)' : 'var(--color-text-primary)' }}>
                     {dt?.getDate().toString().padStart(2, '0')}
                   </span>
                   {timeLabel && <span className="text-2xs text-text-tertiary mt-0.5">{timeLabel}</span>}
@@ -178,54 +163,14 @@ export function AppointmentsSection({ accent, isAdmin, project, client }: {
         </div>
       )}
 
-      {showForm && (
-        <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setShowForm(false)}>
-          <div className="bg-background border border-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-              <div>
-                <h3 className="text-sm font-bold text-text-primary">Nuovo evento Google Calendar</h3>
-                <p className="text-2xs text-text-tertiary mt-0.5">Verrà aggiunto al tuo calendario principale</p>
-              </div>
-              <button onClick={() => setShowForm(false)} className="p-1 text-text-tertiary hover:text-text-primary"><X className="w-4 h-4" /></button>
-            </div>
-            <div className="p-5 space-y-3">
-              <div>
-                <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Titolo *</label>
-                <input value={form.title} onChange={e => setForm2(p => ({ ...p, title: e.target.value }))} className={inp} placeholder={`Call con ${project.name}`} />
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-3 sm:col-span-1">
-                  <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Data *</label>
-                  <input type="date" value={form.date} onChange={e => setForm2(p => ({ ...p, date: e.target.value }))} className={inp} />
-                </div>
-                <div>
-                  <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Inizio</label>
-                  <input type="time" value={form.time} onChange={e => setForm2(p => ({ ...p, time: e.target.value }))} className={inp} />
-                </div>
-                <div>
-                  <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Fine</label>
-                  <input type="time" value={form.endTime} onChange={e => setForm2(p => ({ ...p, endTime: e.target.value }))} className={inp} />
-                </div>
-              </div>
-              <div>
-                <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Luogo / Link</label>
-                <input value={form.location} onChange={e => setForm2(p => ({ ...p, location: e.target.value }))} className={inp} placeholder="Google Meet, Sede cliente…" />
-              </div>
-              <div>
-                <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Descrizione</label>
-                <textarea value={form.description} onChange={e => setForm2(p => ({ ...p, description: e.target.value }))} rows={2} className={`${inp} resize-none`} placeholder="Agenda, argomenti…" />
-              </div>
-            </div>
-            <div className="flex gap-3 px-5 pb-5">
-              <button onClick={() => setShowForm(false)} className="flex-1 py-2.5 border border-border rounded-xl text-sm text-text-tertiary hover:text-text-primary">Annulla</button>
-              <button onClick={createEvent} disabled={creating || !form.title || !form.date}
-                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-on-gold disabled:opacity-40 flex items-center justify-center gap-2"
-                style={{ background: accent }}>
-                {creating && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Crea su Calendar
-              </button>
-            </div>
-          </div>
-        </div>
+      {editorEvent && (
+        <CalendarEventForm
+          form={editorEvent}
+          profiles={profiles}
+          currentUserId={currentUserId}
+          onClose={() => setEditorEvent(null)}
+          onSaved={() => { setEditorEvent(null); fetchEvents(); toast.success('Evento salvato su Google Calendar') }}
+        />
       )}
     </>
   )
