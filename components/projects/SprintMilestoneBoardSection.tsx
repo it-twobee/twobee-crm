@@ -8,8 +8,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { getInitials } from '@/lib/utils'
-import { AssigneePicker } from '@/components/tasks/AssigneePicker'
-import { setTaskAssignees } from '@/app/actions/task-assignees'
+import { TaskDrawer } from '@/components/tasks/TaskDrawer'
 import type { Profile, Task, Sprint } from '@/lib/types/database'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -102,121 +101,6 @@ function DatePicker({ value, onChange, disabled, placeholder = 'Nessuna data', a
     </div>
   )
 }
-
-// ─── Task detail modal ────────────────────────────────────────────────────────
-function TaskDetailModal({ task, profiles, isAdmin, onSave, onDelete, onClose, accent }: {
-  task: ExtTask; profiles: Profile[]; isAdmin: boolean; accent: string
-  onSave: (patch: Partial<ExtTask>) => void; onDelete: () => void; onClose: () => void
-}) {
-  const [form, setForm] = useState({
-    title:       task.title,
-    priority:    task.priority as string,
-    status:      task.status as string,
-    due_date:    task.due_date ?? '',
-  })
-  // Multi-assegnatario: il primo è il primario (= tasks.assignee_id). Partiamo
-  // dal primario finché non arriva l'elenco completo dal bridge.
-  const [assigneeIds, setAssigneeIds] = useState<string[]>(task.assignee_id ? [task.assignee_id] : [])
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    let alive = true
-    createClient()
-      .from('task_assignees')
-      .select('profile_id, is_primary_owner')
-      .eq('task_id', task.id)
-      .then(({ data }) => {
-        if (!alive || !data || data.length === 0) return
-        // Ordina col primario davanti, così l'ordine riflette assignee_id.
-        const ids = [...data]
-          .sort((a, b) => Number(b.is_primary_owner) - Number(a.is_primary_owner))
-          .map(r => r.profile_id as string)
-        setAssigneeIds(ids)
-      })
-    return () => { alive = false }
-  }, [task.id])
-
-  const save = async () => {
-    setSaving(true)
-    const patch: Partial<ExtTask> = {
-      title:       form.title.trim() || task.title,
-      priority:    form.priority as Task['priority'],
-      status:      form.status as Task['status'],
-      due_date:    form.due_date || null,
-      assignee_id: assigneeIds[0] ?? null,
-    }
-    await createClient().from('tasks').update(patch as Record<string, unknown>).eq('id', task.id)
-    // Sincronizza il bridge (e riallinea assignee_id al primario) via service role.
-    const res = await setTaskAssignees(task.id, assigneeIds)
-    setSaving(false)
-    if ('error' in res) { toast.error(res.error); return }
-    onSave(patch)
-    onClose()
-  }
-
-  const inp = 'w-full bg-background border border-border rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold'
-
-  return (
-    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
-      <div className="bg-background border border-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md shadow-2xl"
-        onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h3 className="text-sm font-bold text-text-primary">Dettaglio task</h3>
-          <div className="flex items-center gap-2">
-            {isAdmin && (
-              <button onClick={() => { if (confirm('Eliminare?')) { onDelete(); onClose() } }}
-                className="p-1.5 text-text-tertiary hover:text-error hover:bg-error/10 rounded-lg transition-all">
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            )}
-            <button onClick={onClose} className="p-1.5 text-text-tertiary hover:text-text-primary"><X className="w-4 h-4" /></button>
-          </div>
-        </div>
-        <div className="p-5 space-y-3">
-          <div>
-            <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Titolo</label>
-            <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} disabled={!isAdmin} className={inp} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Priorità</label>
-              <select value={form.priority} onChange={e => setForm(p => ({ ...p, priority: e.target.value }))} disabled={!isAdmin} className={inp}>
-                {['alta', 'media', 'bassa'].map(v => <option key={v} value={v}>{PRIORITY_LABELS[v]}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Stato</label>
-              <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))} disabled={!isAdmin} className={inp}>
-                {STATUS_TASK_OPTS.map(v => <option key={v} value={v}>{STATUS_TASK_LABEL[v]}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Scadenza</label>
-              <input type="date" value={form.due_date} onChange={e => setForm(p => ({ ...p, due_date: e.target.value }))} disabled={!isAdmin} className={inp} />
-            </div>
-            <div>
-              <label className="block text-2xs text-text-tertiary mb-1.5 uppercase tracking-wider">Assegnato a</label>
-              <AssigneePicker profiles={profiles} value={assigneeIds} onChange={setAssigneeIds} disabled={!isAdmin} />
-            </div>
-          </div>
-        </div>
-        {isAdmin && (
-          <div className="flex gap-3 px-5 pb-5">
-            <button onClick={onClose} className="flex-1 py-2.5 border border-border rounded-xl text-sm text-text-tertiary hover:text-text-primary">Annulla</button>
-            <button onClick={save} disabled={saving}
-              className="flex-1 py-2.5 rounded-xl text-sm font-bold text-on-gold flex items-center justify-center gap-2 disabled:opacity-50"
-              style={{ background: accent }}>
-              {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}Salva
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
 // ─── TaskRow ──────────────────────────────────────────────────────────────────
 function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, milestoneId, accent, onUpdate, selectedIds, toggleSelect }: {
   task: ExtTask; allTasks: ExtTask[]; profiles: Profile[]; isAdmin: boolean
@@ -372,10 +256,18 @@ function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, mileston
       )}
 
       {showDetail && (
-        <TaskDetailModal task={task} profiles={profiles} isAdmin={isAdmin} accent={accent}
-          onSave={patch => saveField(patch)}
-          onDelete={deleteTask}
-          onClose={() => setShowDetail(false)} />
+        <div className="fixed inset-0 z-50 bg-scrim backdrop-blur-sm" onClick={() => setShowDetail(false)}>
+          <div className="absolute inset-y-0 right-0 flex" onClick={e => e.stopPropagation()}>
+            <TaskDrawer
+              task={task}
+              profiles={profiles}
+              canEdit={isAdmin}
+              onClose={() => setShowDetail(false)}
+              onDelete={() => { deleteTask(); setShowDetail(false) }}
+              onPatched={p => onUpdate(allTasks.map(t => t.id === task.id ? { ...t, ...p } : t))}
+            />
+          </div>
+        </div>
       )}
     </div>
   )
