@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import {
   Gauge, Users, FolderKanban, Filter, X, ChevronDown, ChevronRight,
-  AlertTriangle, Clock, Trash2, Loader2, Crown, UserCog, CalendarRange,
+  AlertTriangle, Clock, Trash2, Loader2, Crown, UserCog, CalendarRange, Sparkles,
 } from 'lucide-react'
 import {
   filterTasks, computeResourceLoads, computeProjectLoads, computeIntensity, workloadSignals, taskHoverText, EMPTY_FILTERS,
@@ -99,6 +99,27 @@ export function WorkloadClient({
   const intensity = useMemo(() => computeIntensity(filtered, resources, multiMap), [filtered, resources, multiMap])
   const signals = useMemo(() => workloadSignals(filtered, visibleProjects, multiMap), [filtered, visibleProjects, multiMap])
 
+  const aiNeeds = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const resName = new Map(resources.map(r => [r.id, r.full_name]))
+    const out: { title: string; project: string; due_date: string | null; estimated_hours: number | null; owner: string | null; issue: string }[] = []
+    for (const t of filtered) {
+      if (t.is_milestone || t.status === 'completato' || t.status === 'richiesta_supporto') continue
+      const owners = multiMap.get(t.id) ?? (t.assignee_id ? [t.assignee_id] : [])
+      const issues: string[] = []
+      if (owners.length === 0) issues.push('senza owner')
+      if (t.estimated_hours == null) issues.push('senza stima')
+      if (!t.due_date) issues.push('senza scadenza')
+      if (t.due_date && t.due_date < todayStr) issues.push('scaduta')
+      if (issues.length) out.push({
+        title: t.title, project: projectById.get(t.project_id)?.name ?? '—',
+        due_date: t.due_date, estimated_hours: t.estimated_hours,
+        owner: owners[0] ? (resName.get(owners[0]) ?? null) : null, issue: issues.join(', '),
+      })
+    }
+    return out
+  }, [filtered, multiMap, projectById, resources])
+
   const anyFilter = kind || clientId || resourceId || period !== 'all'
   const reset = () => { setKind(null); setClientId(null); setResourceId(null); setPeriod('all') }
 
@@ -188,23 +209,87 @@ export function WorkloadClient({
         />
       )}
       {view === 'intensita' && (
-        <IntensityView windows={intensity.windows} estimateCoverage={intensity.estimateCoverage} signals={signals} />
+        <IntensityView windows={intensity.windows} estimateCoverage={intensity.estimateCoverage} signals={signals} needsAttention={aiNeeds} />
+      )}
+    </div>
+  )
+}
+
+/* ── AI Planning Assistant (§9.4): propone, non applica ──────────────────────── */
+type AISuggestion = { type: string; title: string; detail: string }
+function AIPlanningPanel({ windows, signals, needsAttention }: {
+  windows: IntensityWindow[]
+  signals: { noEstimate: number; noDue: number; noOwner: number; projectsNoPm: number }
+  needsAttention: { title: string; project: string; due_date: string | null; estimated_hours: number | null; owner: string | null; issue: string }[]
+}) {
+  const [loading, setLoading] = useState(false)
+  const [suggestions, setSuggestions] = useState<AISuggestion[] | null>(null)
+  const [summary, setSummary] = useState('')
+
+  const ask = async () => {
+    setLoading(true)
+    try {
+      const payload = {
+        windows: windows.map(w => ({ days: w.days, overloaded: w.overloaded, top: w.cells.slice(0, 4).map(c => ({ name: c.resourceName, hours: c.hours, capacity: c.capacity })) })),
+        signals,
+        needsAttention,
+      }
+      const res = await fetch('/api/ai/workload-plan', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      })
+      const data = await res.json()
+      if (data.error) { toast.error(data.error); return }
+      setSuggestions(data.suggestions ?? []); setSummary(data.summary ?? '')
+    } catch { toast.error('Errore analisi AI') } finally { setLoading(false) }
+  }
+
+  return (
+    <div className="rounded-xl border border-gold/25 bg-gold-dim/40 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-bold text-text-primary flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-gold-text" aria-hidden="true" /> AI Planning
+        </p>
+        <button onClick={ask} disabled={loading}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-gold text-on-gold text-2xs font-bold rounded-lg hover:bg-gold/90 disabled:opacity-50">
+          {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />}
+          {suggestions ? 'Rianalizza' : 'Chiedi suggerimenti'}
+        </button>
+      </div>
+      <p className="text-2xs text-text-tertiary mt-1">L&apos;AI analizza carichi e segnali e propone azioni. Non modifica nulla: decidi tu.</p>
+
+      {suggestions && (
+        <div className="mt-3 space-y-2">
+          {summary && <p className="text-xs text-text-secondary italic">{summary}</p>}
+          {suggestions.length === 0 ? (
+            <p className="text-xs text-text-tertiary">Nessun suggerimento: il carico sembra bilanciato.</p>
+          ) : suggestions.map((s, i) => (
+            <div key={i} className="rounded-lg border border-border bg-surface px-3 py-2">
+              <p className="text-xs font-semibold text-text-primary">
+                <span className="text-2xs font-bold uppercase tracking-wider text-gold-text mr-1.5">{s.type}</span>{s.title}
+              </p>
+              <p className="text-2xs text-text-secondary mt-0.5">{s.detail}</p>
+            </div>
+          ))}
+          <p className="text-2xs text-text-tertiary pt-1">Fonte: intensità per finestra, segnali qualità, {needsAttention.length} task in attenzione.</p>
+        </div>
       )}
     </div>
   )
 }
 
 /* ── Vista Intensità futura (§9.3) ───────────────────────────────────────────── */
-function IntensityView({ windows, estimateCoverage, signals }: {
+function IntensityView({ windows, estimateCoverage, signals, needsAttention }: {
   windows: IntensityWindow[]
   estimateCoverage: number
   signals: { noEstimate: number; noDue: number; noOwner: number; projectsNoPm: number }
+  needsAttention: { title: string; project: string; due_date: string | null; estimated_hours: number | null; owner: string | null; issue: string }[]
 }) {
   const [days, setDays] = useState(30)
   const win = windows.find(w => w.days === days) ?? windows[0]
 
   return (
     <div className="space-y-4">
+      <AIPlanningPanel windows={windows} signals={signals} needsAttention={needsAttention} />
       {/* Warning qualità previsione */}
       {estimateCoverage < 100 && (
         <div className="flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning-dim px-4 py-3">
