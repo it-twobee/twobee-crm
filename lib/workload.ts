@@ -196,10 +196,13 @@ export function computeProjectLoads(
 }
 
 // ─── Effort spalmato nel tempo: Gantt di progetto + previsione cross-progetto ────
+export type Grain = 'settimana' | 'mese' | 'trimestre' | 'anno'
+
 export interface EffortBucket {
-  start: string          // lunedì (ISO date)
-  end: string            // domenica (ISO date)
-  hours: number          // effort totale che cade in questa settimana
+  start: string          // inizio periodo (ISO date)
+  end: string            // fine periodo (ISO date)
+  days: number           // durata del periodo in giorni (la capacità si scala su questa)
+  hours: number          // effort totale che cade nel periodo
   taskCount: number
   byProject: { projectId: string; projectName: string; hours: number }[]
 }
@@ -218,16 +221,44 @@ export function taskSpan(t: WLTask): { start: string; end: string } | null {
   return { start, end: t.due_date }
 }
 
+/** Confini del periodo che contiene `d`, secondo la granularità scelta. */
+function bucketBounds(d: Date, grain: Grain): { start: string; end: string } {
+  const y = d.getFullYear(), m = d.getMonth()
+  if (grain === 'settimana') {
+    const s = mondayISO(d)
+    return { start: s, end: addDaysISO(s, 6) }
+  }
+  if (grain === 'mese') {
+    return {
+      start: new Date(y, m, 1).toISOString().slice(0, 10),
+      end: new Date(y, m + 1, 0).toISOString().slice(0, 10),
+    }
+  }
+  if (grain === 'trimestre') {
+    const q = Math.floor(m / 3)
+    return {
+      start: new Date(y, q * 3, 1).toISOString().slice(0, 10),
+      end: new Date(y, q * 3 + 3, 0).toISOString().slice(0, 10),
+    }
+  }
+  return {
+    start: new Date(y, 0, 1).toISOString().slice(0, 10),
+    end: new Date(y, 11, 31).toISOString().slice(0, 10),
+  }
+}
+const nextBucket = (endISO: string) => new Date(new Date(endISO + 'T00:00:00').getTime() + 86400000)
+
 /**
- * Effort settimanale spalmato sull'intervallo di ogni task. Usato sia per il Gantt
- * del singolo progetto (aree ad alto effort) sia per la previsione cross-progetto
- * (accavallamenti fra progetti diversi nello stesso periodo).
+ * Effort spalmato sull'intervallo di ogni task, aggregato per periodo (settimana,
+ * mese, trimestre o anno). Base della previsione cross-progetto: dove le lavorazioni
+ * di progetti diversi si accavallano, le ore si sommano nello stesso periodo.
  */
 export function computeEffortBuckets(
   tasks: WLTask[],
   projectById: Map<string, WLProject>,
+  grain: Grain = 'settimana',
   today = new Date(),
-  maxWeeks = 26,
+  maxBuckets = 40,
 ): EffortBucket[] {
   const spans = tasks.filter(isActive).map(t => {
     const s = taskSpan(t)
@@ -236,16 +267,18 @@ export function computeEffortBuckets(
   }).filter(Boolean) as { t: WLTask; start: string; end: string; days: number }[]
   if (spans.length === 0) return []
 
-  const first = mondayISO(new Date(Math.min(...spans.map(s => new Date(s.start + 'T00:00:00').getTime()), today.getTime())))
+  const firstDate = new Date(Math.min(...spans.map(s => new Date(s.start + 'T00:00:00').getTime()), today.getTime()))
   const lastEnd = spans.map(s => s.end).sort().slice(-1)[0]
 
   const out: EffortBucket[] = []
-  let wk = first
-  while (wk <= lastEnd && out.length < maxWeeks) {
-    const wkEnd = addDaysISO(wk, 6)
-    const b: EffortBucket = { start: wk, end: wkEnd, hours: 0, taskCount: 0, byProject: [] }
+  let cur = bucketBounds(firstDate, grain)
+  while (cur.start <= lastEnd && out.length < maxBuckets) {
+    const b: EffortBucket = {
+      start: cur.start, end: cur.end, days: daysInclusive(cur.start, cur.end),
+      hours: 0, taskCount: 0, byProject: [],
+    }
     for (const s of spans) {
-      const ov = overlapDays(s.start, s.end, wk, wkEnd)
+      const ov = overlapDays(s.start, s.end, b.start, b.end)
       if (ov <= 0) continue
       const h = (effortOf(s.t) / s.days) * ov
       b.hours += h
@@ -259,9 +292,14 @@ export function computeEffortBuckets(
     b.byProject.forEach(r => { r.hours = Math.round(r.hours * 10) / 10 })
     b.byProject.sort((a, b2) => b2.hours - a.hours)
     out.push(b)
-    wk = addDaysISO(wk, 7)
+    cur = bucketBounds(nextBucket(cur.end), grain)
   }
   return out
+}
+
+/** Capacità del team nel periodo (la settimanale scalata sui giorni del bucket). */
+export function bucketCapacity(weeklyCapacity: number, days: number): number {
+  return (weeklyCapacity * days) / 7
 }
 
 export interface EffortPeak {
@@ -320,10 +358,10 @@ export function teamWeeklyCapacity(resources: WLResource[]): number {
  * Periodi di picco: settimane in cui l'effort combinato supera la soglia della
  * capacità del team. `projects > 1` = task di progetti diversi si accavallano.
  */
-export function detectPeaks(buckets: EffortBucket[], capacity: number, threshold = 0.85): EffortPeak[] {
-  if (capacity <= 0) return []
+export function detectPeaks(buckets: EffortBucket[], weeklyCapacity: number, threshold = 0.85): EffortPeak[] {
+  if (weeklyCapacity <= 0) return []
   return buckets
-    .map(b => ({ bucket: b, ratio: b.hours / capacity, projects: b.byProject.length }))
+    .map(b => ({ bucket: b, ratio: b.hours / bucketCapacity(weeklyCapacity, b.days), projects: b.byProject.length }))
     .filter(p => p.ratio >= threshold)
     .sort((a, b) => b.ratio - a.ratio)
 }
