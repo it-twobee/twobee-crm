@@ -270,6 +270,47 @@ export interface EffortPeak {
   projects: number         // quanti progetti concorrono (accavallamento)
 }
 
+export interface SprintLane {
+  sprint: WLSprint
+  projectName: string
+  clientId: string
+}
+export interface SprintDensity {
+  weekStart: string
+  count: number            // sprint attivi in questa settimana
+  names: string[]
+}
+
+/**
+ * Sprint in lavorazione allineati alla griglia settimanale: per ogni settimana
+ * quanti sprint (di progetti diversi) sono attivi. Più se ne accavallano, più quel
+ * periodo è impattante → colore da verde a rosso.
+ */
+export function computeSprintDensity(
+  sprints: WLSprint[],
+  buckets: EffortBucket[],
+  projectById: Map<string, WLProject>,
+): { lanes: SprintLane[]; density: SprintDensity[] } {
+  const active = sprints.filter(s => s.status !== 'completato' && s.start_date && s.end_date)
+  const lanes: SprintLane[] = active
+    .map(s => ({ sprint: s, projectName: projectById.get(s.project_id)?.name ?? '—', clientId: projectById.get(s.project_id)?.client_id ?? '' }))
+    .sort((a, b) => a.sprint.start_date.localeCompare(b.sprint.start_date))
+
+  const density: SprintDensity[] = buckets.map(b => {
+    const hits = active.filter(s => s.start_date <= b.end && s.end_date >= b.start)
+    return { weekStart: b.start, count: hits.length, names: hits.map(s => s.name) }
+  })
+  return { lanes, density }
+}
+
+/** Severità di un periodo: combina sprint concorrenti ed effort sulla capacità. */
+export function periodSeverity(sprintCount: number, effortRatio: number): 'ok' | 'warn' | 'high' | 'critical' {
+  if (sprintCount >= 4 || effortRatio >= 1.25) return 'critical'
+  if (sprintCount === 3 || effortRatio >= 1) return 'high'
+  if (sprintCount === 2 || effortRatio >= 0.85) return 'warn'
+  return 'ok'
+}
+
 /** Capacità settimanale del team (somma delle capacità delle risorse). */
 export function teamWeeklyCapacity(resources: WLResource[]): number {
   return resources.reduce((s, r) => s + capacityOf(r), 0)

@@ -10,9 +10,9 @@ import {
 } from 'lucide-react'
 import {
   filterTasks, computeResourceLoads, computeProjectLoads, computeIntensity, workloadSignals, taskHoverText,
-  computeEffortBuckets, teamWeeklyCapacity, detectPeaks, EMPTY_FILTERS,
+  computeEffortBuckets, teamWeeklyCapacity, detectPeaks, computeSprintDensity, periodSeverity, EMPTY_FILTERS,
   type WLTask, type WLProject, type WLResource, type WLSprint, type WLFilters, type IntensityWindow,
-  type EffortBucket, type EffortPeak,
+  type EffortBucket, type EffortPeak, type SprintLane, type SprintDensity,
 } from '@/lib/workload'
 import { AssigneePicker } from '@/components/tasks/AssigneePicker'
 import { setTaskAssignees } from '@/app/actions/task-assignees'
@@ -33,6 +33,14 @@ const STATUS_OPTS = ['da_fare', 'in_corso', 'in_revisione', 'completato']
 
 // Carico settimanale di riferimento: oltre questo la barra vira sul rosso.
 const WEEKLY_CAPACITY = 40
+
+// Severità di un periodo (sprint accavallati + effort): verde stabile → rosso critico.
+const SEV_BAR: Record<string, string> = {
+  ok: 'bg-success/70',
+  warn: 'bg-warning/80',
+  high: 'bg-orange',
+  critical: 'bg-error',
+}
 
 function periodWindow(key: string): { from: string | null; to: string | null } {
   const now = new Date()
@@ -176,7 +184,7 @@ export function WorkloadClient({
       <EffortForecast buckets={effortBuckets} capacity={capacity} peaks={peaks}
         windows={intensity.windows} signals={signals} needsAttention={aiNeeds}
         tasks={filtered} projectById={projectById} resourceById={new Map(resources.map(r => [r.id, r]))}
-        multiMap={multiMap} canEditProject={canEditProject} />
+        multiMap={multiMap} canEditProject={canEditProject} sprints={sprints} />
 
       {/* Filtri */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface p-2.5">
@@ -377,8 +385,9 @@ function IntensityView({ windows, estimateCoverage, signals, needsAttention, pea
 }
 
 /* ── Previsione effort cross-progetto: accavallamenti e periodi critici ───────── */
-function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAttention, tasks, projectById, resourceById, multiMap, canEditProject }: {
+function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAttention, tasks, projectById, resourceById, multiMap, canEditProject, sprints }: {
   buckets: EffortBucket[]
+  sprints: WLSprint[]
   capacity: number
   peaks: EffortPeak[]
   windows: IntensityWindow[]
@@ -396,6 +405,14 @@ function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAtten
   const [openWeek, setOpenWeek] = useState<string | null>(null)   // drill-down settimana
   const [pending, startT] = useTransition()
   const [newTaskFor, setNewTaskFor] = useState<AISuggestion | null>(null)
+
+  // Aggregato sprint in lavorazione, allineato alla stessa griglia settimanale.
+  const { lanes: sprintLanes, density } = useMemo(
+    () => computeSprintDensity(sprints, buckets, projectById),
+    [sprints, buckets, projectById],
+  )
+  const densityByWeek = useMemo(() => new Map(density.map(d => [d.weekStart, d])), [density])
+  const maxSprintOverlap = useMemo(() => Math.max(0, ...density.map(d => d.count)), [density])
 
   // Task che ricadono nella settimana selezionata (span start→due che la interseca).
   const weekTasks = useMemo(() => {
@@ -470,15 +487,17 @@ function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAtten
         <div className="flex items-end gap-1 h-24">
           {buckets.map(b => {
             const h = Math.max(2, (b.hours / maxH) * 100)
-            const over = capacity > 0 && b.hours > capacity
-            const near = capacity > 0 && !over && b.hours >= capacity * 0.85
-            const cls = over ? 'bg-error' : near ? 'bg-warning' : 'bg-success/70'
+            const nSprint = densityByWeek.get(b.start)?.count ?? 0
+            const ratio = capacity > 0 ? b.hours / capacity : 0
+            // Severità = sprint accavallati + effort sulla capacità.
+            const sev = periodSeverity(nSprint, ratio)
+            const cls = SEV_BAR[sev]
             const sel = openWeek === b.start
             return (
               <button key={b.start} onClick={() => setOpenWeek(sel ? null : b.start)}
-                aria-label={`Settimana ${fmt(b.start)}, ${b.hours} ore`}
+                aria-label={`Settimana ${fmt(b.start)}, ${b.hours} ore, ${nSprint} sprint`}
                 className="flex-1 flex flex-col justify-end h-full group"
-                title={`Settimana ${fmt(b.start)} – ${fmt(b.end)}\nEffort: ${b.hours}h (capacità ${Math.round(capacity)}h)\nProgetti: ${b.byProject.length}\nClicca per vedere e riprogrammare le task`}>
+                title={`Settimana ${fmt(b.start)} – ${fmt(b.end)}\nEffort: ${b.hours}h (capacità ${Math.round(capacity)}h)\nSprint in lavorazione: ${nSprint}${nSprint > 1 ? ` (accavallati)` : ''}\nProgetti: ${b.byProject.length}\nClicca per vedere e riprogrammare le task`}>
                 <div className={`w-full rounded-t transition-all ${cls} ${sel ? 'ring-2 ring-gold' : 'group-hover:brightness-125'}`}
                   style={{ height: `${h}%` }} />
               </button>
@@ -492,6 +511,61 @@ function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAtten
           </div>
         )}
       </div>
+
+      {/* Sprint in lavorazione: barre allineate alla stessa griglia settimanale.
+          Più sprint si accavallano nella stessa settimana → periodo più impattante. */}
+      {sprintLanes.length > 0 && (
+        <div className="space-y-1.5">
+          {/* Striscia densità: verde stabile → rosso quando gli sprint si accumulano */}
+          <div className="flex gap-1">
+            {buckets.map(b => {
+              const n = densityByWeek.get(b.start)?.count ?? 0
+              const ratio = capacity > 0 ? b.hours / capacity : 0
+              const sev = periodSeverity(n, ratio)
+              return (
+                <div key={b.start} className={`flex-1 h-1.5 rounded-full ${SEV_BAR[sev]} ${n === 0 ? 'opacity-25' : ''}`}
+                  title={`${fmt(b.start)}: ${n} sprint attivi${n > 1 ? ` — ${densityByWeek.get(b.start)?.names.join(', ')}` : ''}`} />
+              )
+            })}
+          </div>
+          {/* Barre sprint (max 6 righe, poi contatore) */}
+          <div className="space-y-1">
+            {sprintLanes.slice(0, 6).map(({ sprint: sp, projectName }) => {
+              const i0 = buckets.findIndex(b => b.end >= sp.start_date)
+              const i1 = buckets.map(b => b.start <= sp.end_date).lastIndexOf(true)
+              if (i0 < 0 || i1 < i0) return null
+              const left = (i0 / buckets.length) * 100
+              const width = ((i1 - i0 + 1) / buckets.length) * 100
+              const late = sp.end_date < new Date().toISOString().slice(0, 10)
+              const cls = late ? 'bg-error/50 border-error' : sp.status === 'in_corso' ? 'bg-gold/50 border-gold' : 'bg-info/40 border-info'
+              return (
+                <div key={sp.id} className="relative h-5">
+                  <div className={`absolute h-5 rounded border flex items-center px-1.5 overflow-hidden ${cls}`}
+                    style={{ left: `${left}%`, width: `${width}%`, minWidth: '3%' }}
+                    title={`Sprint: ${sp.name}\nProgetto: ${projectName}\n${fmt(sp.start_date)} → ${fmt(sp.end_date)}\nStato: ${sp.status}`}>
+                    <span className="text-2xs text-text-primary truncate">{sp.name} · {projectName}</span>
+                  </div>
+                </div>
+              )
+            })}
+            {sprintLanes.length > 6 && (
+              <p className="text-2xs text-text-tertiary">+ {sprintLanes.length - 6} altri sprint in lavorazione</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Alert accavallamento sprint */}
+      {maxSprintOverlap >= 2 && (
+        <div className={`flex items-start gap-2 rounded-lg border px-3 py-2 ${maxSprintOverlap >= 3 ? 'border-error/30 bg-error-dim' : 'border-warning/30 bg-warning-dim'}`}>
+          <AlertTriangle className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${maxSprintOverlap >= 3 ? 'text-error' : 'text-warning'}`} aria-hidden="true" />
+          <p className="text-2xs text-text-secondary">
+            Fino a <span className="font-bold text-text-primary">{maxSprintOverlap} sprint in parallelo</span> nello stesso periodo:
+            le lavorazioni di progetti diversi si accavallano. Verifica i periodi in rosso e riprogramma, o chiedi un piano all&apos;AI.
+          </p>
+        </div>
+      )}
+
       <div className="flex justify-between text-2xs text-text-tertiary">
         <span>{fmt(buckets[0].start)}</span>
         <span>{fmt(buckets[buckets.length - 1].end)}</span>
@@ -875,20 +949,18 @@ function ProjectGantt({ project, sprints, milestones, tasks }: {
     )
   }
 
-  // Calendario coordinato: scala a GIORNI (px/giorno). Le colonne dei mesi sono larghe
-  // quanto i giorni reali del mese, così barre sprint e marker milestone cadono esattamente
-  // sotto la data corrispondente. (Prima: colonne a larghezza fissa + barre in % → disallineate.)
+  // Calendario RESPONSIVE: tutto in % sulla stessa scala temporale, così si adatta alla
+  // larghezza della card. Le colonne dei mesi hanno flex proporzionale ai giorni reali →
+  // barre sprint e marker milestone cadono esattamente sotto la data corrispondente.
   const min = items.map(i => i.start).sort()[0]
   const max = items.map(i => i.end).sort().slice(-1)[0]
   const gStartD = new Date(min.slice(0, 8) + '01T00:00:00')                     // 1° del mese iniziale
   const lastD = new Date(max + 'T00:00:00')
   const gEndD = new Date(lastD.getFullYear(), lastD.getMonth() + 1, 0)          // ultimo giorno del mese finale
-  const DAY = 6                                                                  // px per giorno
-  const dayIndex = (iso: string) =>
+  const dayIdx = (iso: string) =>
     Math.round((new Date(iso + 'T00:00:00').getTime() - gStartD.getTime()) / 86400000)
-  const totalDays = dayIndex(gEndD.toISOString().slice(0, 10)) + 1
-  const xOf = (iso: string) => dayIndex(iso) * DAY
-  const gridW = totalDays * DAY
+  const totalDays = Math.max(1, dayIdx(gEndD.toISOString().slice(0, 10)) + 1)
+  const pctOf = (iso: string) => (dayIdx(iso) / totalDays) * 100                 // 0..100
 
   const months: { label: string; days: number }[] = []
   const cur = new Date(gStartD)
@@ -907,72 +979,90 @@ function ProjectGantt({ project, sprints, milestones, tasks }: {
   const fmtD = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })
   const showToday = todayStr >= gStartD.toISOString().slice(0, 10) && todayStr <= gEndD.toISOString().slice(0, 10)
 
+  // Milestone su più corsie: due marker troppo vicini non si accavallano più.
+  const ms = items.filter(i => i.kind === 'milestone')
+  const LANE_GAP = 14                                     // % minima fra due etichette sulla stessa corsia
+  const laneOf = new Map<string, number>()
+  const laneLastX: number[] = []
+  for (const m of ms) {
+    const x = pctOf(m.start)
+    let lane = laneLastX.findIndex(last => x - last >= LANE_GAP)
+    if (lane === -1) { lane = laneLastX.length; laneLastX.push(x) }
+    else laneLastX[lane] = x
+    laneOf.set(m.id, lane)
+  }
+  const laneCount = Math.max(1, laneLastX.length)
+
   return (
     <div className="px-4 py-3 bg-surface-hover/40">
-      <div className="overflow-x-auto">
-        <div style={{ width: gridW, minWidth: '100%' }} className="relative">
-          {/* Asse mesi: colonne proporzionali ai giorni reali */}
-          <div className="flex border-b border-border pb-1 mb-2">
-            {months.map((m, i) => (
-              <div key={i} style={{ width: m.days * DAY }}
-                className="shrink-0 text-2xs text-text-tertiary capitalize border-l border-border first:border-l-0 pl-1.5 truncate">
-                {m.label}
+      <div className="relative w-full">
+        {/* Asse mesi: colonne con flex proporzionale ai giorni reali (responsive) */}
+        <div className="flex border-b border-border pb-1 mb-2">
+          {months.map((m, i) => (
+            <div key={i} style={{ flexGrow: m.days, flexBasis: 0, minWidth: 0 }}
+              className="text-2xs text-text-tertiary capitalize border-l border-border first:border-l-0 pl-1 truncate">
+              {m.label}
+            </div>
+          ))}
+        </div>
+
+        {/* Linea "oggi" */}
+        {showToday && (
+          <div className="absolute top-5 bottom-0 w-px bg-error z-10 pointer-events-none" style={{ left: `${pctOf(todayStr)}%` }}>
+            <span className="absolute -top-4 -translate-x-1/2 text-2xs text-error font-semibold bg-surface px-1">oggi</span>
+          </div>
+        )}
+
+        {/* Sprint: una riga per sprint → mai sovrapposti fra loro */}
+        <div className="space-y-1.5">
+          {items.filter(i => i.kind === 'sprint').map(sp => {
+            const left = pctOf(sp.start)
+            const width = Math.max(2, pctOf(sp.end) + (100 / totalDays) - left)
+            const progress = sp.kind === 'sprint' && sp.tasks > 0 ? Math.round((sp.done / sp.tasks) * 100) : 0
+            return (
+              <div key={sp.id} className="relative h-8">
+                <button onClick={() => setDetail(sp)}
+                  title={`Sprint: ${sp.title}\n${fmtD(sp.start)} → ${fmtD(sp.end)}\nStato: ${sp.status}${sp.kind === 'sprint' ? `\nTask: ${sp.done}/${sp.tasks} completate` : ''}`}
+                  className={`absolute h-8 rounded-lg border flex items-center px-2 gap-1.5 hover:brightness-110 hover:ring-1 hover:ring-gold transition-all overflow-hidden ${sprintCls(sp)}`}
+                  style={{ left: `${left}%`, width: `${width}%` }}>
+                  <span className="text-2xs font-semibold text-text-primary truncate">{sp.title}</span>
+                  {sp.kind === 'sprint' && sp.tasks > 0 && (
+                    <span className="text-2xs text-text-primary/80 tabular shrink-0">{progress}%</span>
+                  )}
+                </button>
               </div>
-            ))}
-          </div>
-
-          {/* Linea "oggi" su tutta l'altezza */}
-          {showToday && (
-            <div className="absolute top-5 bottom-0 w-px bg-error z-10 pointer-events-none" style={{ left: xOf(todayStr) }}>
-              <span className="absolute -top-4 -translate-x-1/2 text-2xs text-error font-semibold bg-surface px-1">oggi</span>
-            </div>
-          )}
-
-          {/* Sprint: barre allineate alle date reali */}
-          <div className="space-y-1.5">
-            {items.filter(i => i.kind === 'sprint').map(sp => {
-              const left = xOf(sp.start)
-              const width = Math.max(DAY, xOf(sp.end) + DAY - left)
-              const progress = sp.kind === 'sprint' && sp.tasks > 0 ? Math.round((sp.done / sp.tasks) * 100) : 0
-              return (
-                <div key={sp.id} className="relative h-8">
-                  <button onClick={() => setDetail(sp)}
-                    title={`Sprint: ${sp.title}\n${fmtD(sp.start)} → ${fmtD(sp.end)}\nStato: ${sp.status}${sp.kind === 'sprint' ? `\nTask: ${sp.done}/${sp.tasks} completate` : ''}`}
-                    className={`absolute h-8 rounded-lg border flex items-center px-2 gap-1.5 hover:brightness-110 hover:ring-1 hover:ring-gold transition-all overflow-hidden ${sprintCls(sp)}`}
-                    style={{ left, width }}>
-                    <span className="text-2xs font-semibold text-text-primary truncate">{sp.title}</span>
-                    {sp.kind === 'sprint' && sp.tasks > 0 && (
-                      <span className="text-2xs text-text-primary/80 tabular shrink-0">{progress}%</span>
-                    )}
-                  </button>
-                </div>
-              )
-            })}
-            {items.filter(i => i.kind === 'sprint').length === 0 && (
-              <p className="text-2xs text-text-tertiary py-1">Nessuno sprint pianificato.</p>
-            )}
-          </div>
-
-          {/* Milestone: marker sulla stessa scala, sotto le barre */}
-          {items.some(i => i.kind === 'milestone') && (
-            <div className="relative h-12 mt-3 border-t border-border pt-2">
-              {items.filter(i => i.kind === 'milestone').map(m => {
-                const done = m.status === 'completato'
-                const late = !done && m.start < todayStr
-                return (
-                  <button key={m.id} onClick={() => setDetail(m)}
-                    title={`Milestone: ${m.title}\nData: ${fmtD(m.start)}\nStato: ${done ? 'Completata' : late ? 'In ritardo' : 'Da fare'}`}
-                    className="absolute -translate-x-1/2 flex flex-col items-center gap-0.5 hover:scale-110 transition-transform"
-                    style={{ left: xOf(m.start) }}>
-                    <Flag className={`w-3.5 h-3.5 ${done ? 'text-success' : late ? 'text-error' : 'text-gold-text'}`} aria-hidden="true" />
-                    <span className="text-2xs text-text-tertiary whitespace-nowrap">{fmtD(m.start)}</span>
-                    <span className="text-2xs text-text-primary whitespace-nowrap max-w-[7rem] truncate">{m.title}</span>
-                  </button>
-                )
-              })}
-            </div>
+            )
+          })}
+          {items.filter(i => i.kind === 'sprint').length === 0 && (
+            <p className="text-2xs text-text-tertiary py-1">Nessuno sprint pianificato.</p>
           )}
         </div>
+
+        {/* Milestone: corsie multiple per non accavallarsi */}
+        {ms.length > 0 && (
+          <div className="relative mt-3 border-t border-border pt-2" style={{ height: laneCount * 32 + 8 }}>
+            {ms.map(m => {
+              const done = m.status === 'completato'
+              const late = !done && m.start < todayStr
+              const lane = laneOf.get(m.id) ?? 0
+              const x = pctOf(m.start)
+              // I marker ai bordi si ancorano per non uscire dalla card.
+              const anchor = x < 6 ? 'translate-x-0' : x > 94 ? '-translate-x-full' : '-translate-x-1/2'
+              return (
+                <button key={m.id} onClick={() => setDetail(m)}
+                  title={`Milestone: ${m.title}\nData: ${fmtD(m.start)}\nStato: ${done ? 'Completata' : late ? 'In ritardo' : 'Da fare'}`}
+                  className={`absolute ${anchor} flex flex-col items-start gap-0.5 hover:brightness-125 transition-all max-w-[9rem]`}
+                  style={{ left: `${x}%`, top: lane * 32 }}>
+                  <span className="flex items-center gap-1">
+                    <Flag className={`w-3 h-3 shrink-0 ${done ? 'text-success' : late ? 'text-error' : 'text-gold-text'}`} aria-hidden="true" />
+                    <span className="text-2xs text-text-tertiary whitespace-nowrap">{fmtD(m.start)}</span>
+                  </span>
+                  <span className="text-2xs text-text-primary truncate w-full text-left">{m.title}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Popup dettaglio: sprint o milestone → CTA alla sezione dedicata */}
