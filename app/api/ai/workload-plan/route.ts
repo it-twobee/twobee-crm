@@ -7,7 +7,7 @@ interface Payload {
   windows: { days: number; overloaded: number; top: { name: string; hours: number; capacity: number }[] }[]
   signals: { noEstimate: number; noDue: number; noOwner: number; projectsNoPm: number }
   needsAttention: { title: string; project: string; due_date: string | null; estimated_hours: number | null; owner: string | null; issue: string }[]
-  peaks?: { from: string; to: string; hours: number; capacity: number; ratio: number; projects: { name: string; hours: number }[] }[]
+  peaks?: { from: string; to: string; hours: number; capacity: number; ratio: number; sprints?: number; maxSprints?: number; projects: { name: string; hours: number }[] }[]
 }
 
 export async function POST(req: Request) {
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     }
 
     const peaksTxt = (body.peaks ?? []).length
-      ? (body.peaks ?? []).map(p => `- ${p.from} → ${p.to}: ${p.hours}h su ${p.capacity}h (${p.ratio}% capacità), ${p.projects.length} progetti in parallelo: ${p.projects.map(x => `${x.name} ${x.hours}h`).join(', ')}`).join('\n')
+      ? (body.peaks ?? []).map(p => `- ${p.from} → ${p.to}: intensità ${p.ratio}%${p.sprints != null ? `, picco ${p.sprints} sprint contemporanei su ${p.maxSprints ?? 5} sostenibili` : ''}, ${p.hours}h su ${p.capacity}h di capacità. Progetti: ${p.projects.map(x => `${x.name} ${x.hours}h`).join(', ')}`).join('\n')
       : 'nessun periodo di sovraccarico previsto'
 
     const prompt = `Sei un assistente di pianificazione operativa. Analizza il carico di lavoro del team e PROPONI azioni concrete. NON devi applicare nulla: solo suggerire, sarà l'utente a decidere.

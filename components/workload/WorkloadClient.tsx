@@ -273,11 +273,13 @@ function EffortForecast({ buckets, capacity, windows, signals, needsAttention, t
 
   // Un'unica fonte di verità per lo stato di ogni periodo: usata da barra, elenco e alert.
   const periods = useMemo(() => buckets.map(b => {
-    const nSprint = densityByWeek.get(b.start)?.count ?? 0
+    const d = densityByWeek.get(b.start)
+    const avgSprint = d?.avg ?? 0      // sprint contemporanei medi (calibrato sul periodo)
+    const peakSprint = d?.peak ?? 0    // il momento peggiore dentro il periodo
     const cap = bucketCapacity(capacity, b.days)
     const ratio = cap > 0 ? b.hours / cap : 0
-    const intensity = periodIntensity(nSprint, ratio)   // 0 = scarico, 1 = al limite
-    return { bucket: b, nSprint, cap, ratio, intensity, sev: periodSeverity(nSprint, ratio) }
+    const intensity = periodIntensity(avgSprint, ratio)   // 0 = scarico, 1 = al limite
+    return { bucket: b, avgSprint, peakSprint, cap, ratio, intensity, sev: periodSeverity(avgSprint, ratio) }
   }), [buckets, densityByWeek, capacity])
 
   const hot = useMemo(() => periods.filter(p => p.sev === 'high' || p.sev === 'critical'), [periods])
@@ -312,7 +314,8 @@ function EffortForecast({ buckets, capacity, windows, signals, needsAttention, t
           needsAttention,
           peaks: hot.slice(0, 6).map(p => ({
             from: p.bucket.start, to: p.bucket.end, hours: p.bucket.hours,
-            capacity: Math.round(p.cap), ratio: Math.round(p.ratio * 100),
+            capacity: Math.round(p.cap), ratio: Math.round(p.intensity * 100),
+            sprints: p.peakSprint, maxSprints: MAX_PARALLEL_SPRINTS,
             projects: p.bucket.byProject.slice(0, 4).map(x => ({ name: x.projectName, hours: x.hours })),
           })),
         }),
@@ -371,9 +374,9 @@ function EffortForecast({ buckets, capacity, windows, signals, needsAttention, t
             <>
               <span className="font-bold text-text-primary">{hot.length} {hot.length === 1 ? 'fase intensa' : 'fasi intense'}</span>
               {' — la peggiore è '}{fmtRange(hot[0].bucket.start, hot[0].bucket.end)}
-              {': '}<span className="font-semibold text-text-primary">{hot[0].nSprint} sprint in parallelo</span>
-              {' su ' + MAX_PARALLEL_SPRINTS + ' sostenibili'}
-              {' '}({Math.round(hot[0].bucket.hours)}h di lavoro). Clicca quel tratto per riprogrammare.
+              {': fino a '}<span className="font-semibold text-text-primary">{hot[0].peakSprint} sprint contemporanei</span>
+              {' (limite ' + MAX_PARALLEL_SPRINTS + ')'}
+              {', '}{Math.round(hot[0].bucket.hours)}h di lavoro. Clicca quel tratto per riprogrammare.
             </>
           )}
         </p>
@@ -386,13 +389,13 @@ function EffortForecast({ buckets, capacity, windows, signals, needsAttention, t
             const sel = openWeek === p.bucket.start
             return (
               <button key={p.bucket.start} onClick={() => setOpenWeek(sel ? null : p.bucket.start)}
-                aria-label={`${fmtRange(p.bucket.start, p.bucket.end)}: ${Math.round(p.bucket.hours)} ore, ${p.nSprint} sprint`}
+                aria-label={`${fmtRange(p.bucket.start, p.bucket.end)}: intensità ${Math.round(p.intensity * 100)}%, picco ${p.peakSprint} sprint`}
                 style={{ flexGrow: p.bucket.days, flexBasis: 0 }}
                 className={`relative ${SEV_BAR[p.sev]} border-r border-background/50 last:border-r-0 transition-all hover:brightness-125 ${sel ? 'ring-2 ring-gold ring-inset z-10' : ''}`}
-                title={`${fmtRange(p.bucket.start, p.bucket.end)}\n\nIntensità: ${Math.round(p.intensity * 100)}%  (${p.sev === 'ok' ? 'soft' : p.sev === 'warn' ? 'in tensione' : p.sev === 'high' ? 'intenso' : 'al limite'})\nSprint in parallelo: ${p.nSprint} su ${MAX_PARALLEL_SPRINTS} sostenibili\nOre pianificate: ${Math.round(p.bucket.hours)}h su ${Math.round(p.cap)}h\nProgetti: ${p.bucket.byProject.length}\n\nClicca per riprogrammare`}>
+                title={`${fmtRange(p.bucket.start, p.bucket.end)}\n\nIntensità: ${Math.round(p.intensity * 100)}%  (${p.sev === 'ok' ? 'soft' : p.sev === 'warn' ? 'in tensione' : p.sev === 'high' ? 'intenso' : 'al limite'})\nSprint contemporanei: ${p.avgSprint} in media, picco ${p.peakSprint} (limite ${MAX_PARALLEL_SPRINTS})\nOre pianificate: ${Math.round(p.bucket.hours)}h su ${Math.round(p.cap)}h di capacità\nProgetti coinvolti: ${p.bucket.byProject.length}\n\nClicca per riprogrammare`}>
                 {showLabels && (
                   <span className="absolute inset-0 flex items-center justify-center text-2xs font-bold text-on-gold/90 tabular">
-                    {p.nSprint > 0 ? `${p.nSprint}` : ''}
+                    {p.peakSprint > 0 ? `${p.peakSprint}` : ''}
                   </span>
                 )}
               </button>
@@ -418,7 +421,7 @@ function EffortForecast({ buckets, capacity, windows, signals, needsAttention, t
           <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-warning/80" /> in tensione</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-orange" /> intenso</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-error" /> al limite ({MAX_PARALLEL_SPRINTS} sprint)</span>
-          <span className="ml-auto">Il numero nella barra sono gli sprint in parallelo</span>
+          <span className="ml-auto">Il numero nella barra è il picco di sprint contemporanei</span>
         </div>
       </div>
 
@@ -430,7 +433,7 @@ function EffortForecast({ buckets, capacity, windows, signals, needsAttention, t
               <p className="text-sm font-bold text-text-primary">{fmtRange(selected.bucket.start, selected.bucket.end)}</p>
               <p className="text-2xs text-text-tertiary mt-0.5">
                 Intensità <span className="font-semibold text-text-primary">{Math.round(selected.intensity * 100)}%</span>
-                {` · ${selected.nSprint} sprint in parallelo su ${MAX_PARALLEL_SPRINTS}`}
+                {` · picco ${selected.peakSprint} sprint contemporanei (limite ${MAX_PARALLEL_SPRINTS})`}
                 {` · ${Math.round(selected.bucket.hours)}h di lavoro`}
                 {selected.bucket.byProject.length > 0 && ` · ${selected.bucket.byProject.length} progetti`}
               </p>

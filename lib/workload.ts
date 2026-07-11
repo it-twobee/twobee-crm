@@ -335,14 +335,20 @@ export interface SprintLane {
 }
 export interface SprintDensity {
   weekStart: string
-  count: number            // sprint attivi in questa settimana
+  count: number            // sprint attivi nel periodo (distinti) — informativo
+  avg: number              // MEDIA di sprint contemporanei per giorno → confrontabile col limite
+  peak: number             // PICCO di sprint contemporanei in un giorno del periodo
   names: string[]
 }
 
 /**
- * Sprint in lavorazione allineati alla griglia settimanale: per ogni settimana
- * quanti sprint (di progetti diversi) sono attivi. Più se ne accavallano, più quel
- * periodo è impattante → colore da verde a rosso.
+ * Densità di sprint calcolata GIORNO per GIORNO e poi aggregata sul periodo.
+ *
+ * Il limite (MAX_PARALLEL_SPRINTS) è per definizione "contemporanei". Contare gli
+ * sprint distinti che toccano un mese e dividerli per il limite sovrastimerebbe:
+ * 8 sprint sparsi nel mese, mai più di 2 insieme, NON sono un mese al limite.
+ * Perciò: `avg` = media dei contemporanei per giorno (calibra automaticamente
+ * settimana/mese/trimestre/anno), `peak` = il momento peggiore del periodo.
  */
 export function computeSprintDensity(
   sprints: WLSprint[],
@@ -356,14 +362,30 @@ export function computeSprintDensity(
 
   const density: SprintDensity[] = buckets.map(b => {
     const hits = active.filter(s => s.start_date <= b.end && s.end_date >= b.start)
-    return { weekStart: b.start, count: hits.length, names: hits.map(s => s.name) }
+    let sum = 0, peak = 0
+    for (let i = 0; i < b.days; i++) {
+      const day = addDaysISO(b.start, i)
+      const n = hits.filter(s => s.start_date <= day && s.end_date >= day).length
+      sum += n
+      if (n > peak) peak = n
+    }
+    const avg = b.days > 0 ? sum / b.days : 0
+    return {
+      weekStart: b.start,
+      count: hits.length,
+      avg: Math.round(avg * 10) / 10,
+      peak,
+      names: hits.map(s => s.name),
+    }
   })
   return { lanes, density }
 }
 
 /**
- * Limite operativo attuale: oltre 5 sprint in parallelo nella stessa settimana il
- * team non regge (dato dal numero di risorse). È la soglia che porta l'intensità al 100%.
+ * Limite operativo attuale: oltre 5 sprint CONTEMPORANEI il team non regge (dato dal
+ * numero di risorse). È una soglia di simultaneità, non un totale per periodo: vale
+ * identica a ogni granularità, perché la si confronta sempre con la media/picco dei
+ * contemporanei (vedi computeSprintDensity).
  */
 export const MAX_PARALLEL_SPRINTS = 5
 
@@ -371,10 +393,11 @@ export type Severity = 'ok' | 'warn' | 'high' | 'critical'
 
 /**
  * Intensità di un periodo: 0 = scarico, 1 = al limite. Prende il peggiore fra
- * (sprint in parallelo / limite) e (ore pianificate / capacità del team).
+ * (sprint contemporanei medi / limite) e (ore pianificate / capacità del periodo).
+ * Entrambi i termini sono già calibrati sulla durata del periodo.
  */
-export function periodIntensity(sprintCount: number, effortRatio: number): number {
-  return Math.max(sprintCount / MAX_PARALLEL_SPRINTS, effortRatio)
+export function periodIntensity(avgParallelSprints: number, effortRatio: number): number {
+  return Math.max(avgParallelSprints / MAX_PARALLEL_SPRINTS, effortRatio)
 }
 
 export function severityOf(intensity: number): Severity {
