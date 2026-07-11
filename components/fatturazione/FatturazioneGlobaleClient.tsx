@@ -10,6 +10,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/utils'
+import { EmptyState } from '@/components/shared/EmptyState'
 import type { Invoice, InvoiceStatus, InvoiceType, Client } from '@/lib/types/database'
 
 interface InvoiceWithClient extends Invoice {
@@ -339,7 +340,20 @@ export function FatturazioneGlobaleClient({ invoices: initialInvoices }: Props) 
       {/* Tabella */}
       {activeTab !== 'incassi' && <div className="bg-surface border border-border rounded-card overflow-hidden">
         {filtered.length === 0 ? (
-          <div className="py-16 text-center text-text-secondary text-sm">Nessun documento trovato</div>
+          invoices.length === 0 ? (
+            <EmptyState
+              icon={<FileText className="w-5 h-5" />}
+              title="Nessun documento di fatturazione"
+              description="Le fatture arrivano dai contratti cliente o dalla sincronizzazione Aruba. Collega Aruba dall'header per importarle."
+            />
+          ) : (
+            <EmptyState
+              icon={<Filter className="w-5 h-5" />}
+              title="Nessun documento con questi filtri"
+              description="Nessuna fattura corrisponde a ricerca e filtri attivi."
+              action={{ label: 'Azzera filtri', icon: <X className="w-4 h-4" />, onClick: () => { setActiveTab('tutte'); setSearch(''); setFilterYear('tutti'); setFilterMonth('tutti') } }}
+            />
+          )
         ) : (
           <table className="w-full">
             <thead>

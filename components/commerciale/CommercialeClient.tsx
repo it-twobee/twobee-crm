@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Plus, TrendingUp, Target, Clock, CheckCircle2, XCircle, Phone, Mail, Calendar, Pencil, Trash2, X, Loader2, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { EmptyState } from '@/components/shared/EmptyState'
 import type { Deal, DealStage, Profile, Client } from '@/lib/types/database'
 import { LeadGenModule } from './LeadGenModule'
 import { QuotesSection } from '@/components/sales/QuotesSection'
@@ -363,7 +364,14 @@ export function CommercialeClient({ deals: initialDeals, profiles, clients, curr
               ))}
             </tbody>
           </table>
-          {deals.length === 0 && <p className="text-center py-12 text-text-secondary text-sm">Nessun deal ancora — crea il primo</p>}
+          {deals.length === 0 && (
+            <EmptyState
+              icon={<Target className="w-5 h-5" />}
+              title="Nessun deal in pipeline"
+              description="Aggiungi la prima trattativa per iniziare a tracciare la pipeline commerciale."
+              action={{ label: 'Nuovo deal', icon: <Plus className="w-4 h-4" />, onClick: () => { setEditingDeal(null); setShowModal(true) } }}
+            />
+          )}
         </div>
       )}
 

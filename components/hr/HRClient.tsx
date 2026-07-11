@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Organigramma } from '@/components/hr/Organigramma'
 import { ResourceProfilesTab } from '@/components/hr/ResourceProfilesTab'
+import { EmptyState } from '@/components/shared/EmptyState'
 import type {
   Profile, TeamLeave, PerformanceReview, LeaveType, LeaveStatus, LegacyContractType, OrgUnit, OrgMember, ResourceProfile,
 } from '@/lib/types/database'
@@ -405,7 +406,12 @@ export function HRClient({ profiles, leaves: initialLeaves, reviews: initialRevi
       {tab === 'ferie' && (
         <div className="space-y-3">
           {leaves.length === 0 && (
-            <div className="text-center py-12 text-text-secondary text-sm">Nessuna richiesta ancora</div>
+            <EmptyState
+              icon={<Calendar className="w-5 h-5" />}
+              title="Nessuna richiesta di assenza"
+              description="Ferie, permessi e malattie del team appariranno qui. Invia la prima richiesta."
+              action={{ label: 'Richiesta assenza', icon: <Plus className="w-4 h-4" />, onClick: () => setShowLeaveModal(true) }}
+            />
           )}
           {[...leaves].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map(leave => {
             const member = profiles.find(p => p.id === leave.user_id)
