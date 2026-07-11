@@ -14,6 +14,7 @@ import {
 import { AssigneePicker } from '@/components/tasks/AssigneePicker'
 import { setTaskAssignees } from '@/app/actions/task-assignees'
 import { pmUpdateTask, pmDeleteTask } from '@/app/actions/workload-tasks'
+import { usePortalRoutes } from '@/lib/portal-routes'
 
 type View = 'progetti' | 'timeline' | 'risorse'
 
@@ -250,6 +251,7 @@ function ProjectRow({ load, tasks, resources, multiMap, resourceById, editable, 
   manager: WLResource | null | undefined
 }) {
   const [open, setOpen] = useState(false)
+  const { projectHref } = usePortalRoutes()
   const p = load.project
   const kindUi = p.project_kind ? KIND_UI[p.project_kind] : null
   const range = load.start && load.end
@@ -317,7 +319,7 @@ function ProjectRow({ load, tasks, resources, multiMap, resourceById, editable, 
               resourceById={resourceById} editable={editable} />
           ))}
           {!editable && !p.manager_id && (
-            <Link href={`/clienti/${p.client_id}/progetto/${p.id}`}
+            <Link href={projectHref(p.client_id, p.id)}
               className="px-4 py-2 text-2xs text-warning hover:underline flex items-center gap-1.5">
               <AlertTriangle className="w-3 h-3" aria-hidden="true" /> Nessun responsabile — assegna un PM
             </Link>
