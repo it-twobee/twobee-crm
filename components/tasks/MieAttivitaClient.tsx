@@ -16,6 +16,7 @@ import { formatDate, getInitials } from '@/lib/utils'
 import type { Task, Profile } from '@/lib/types/database'
 import { BachecaView } from './BachecaView'
 import { TimelineView } from './TimelineView'
+import { isTaskDone, isTaskActive } from '@/lib/task-status'
 
 interface TaskWithMeta extends Task {
   assignee: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
@@ -53,7 +54,7 @@ function categorizeTasks(tasks: TaskWithMeta[]) {
   const in7 = new Date(today); in7.setDate(in7.getDate() + 7)
   const out: Record<Section, TaskWithMeta[]> = { oggi: [], prossimi: [], dopo: [], completati: [] }
   for (const t of tasks) {
-    if (t.status === 'completato') { out.completati.push(t); continue }
+    if (isTaskDone(t.status)) { out.completati.push(t); continue }
     if (!t.due_date) { out.dopo.push(t); continue }
     const d = new Date(t.due_date); d.setHours(0, 0, 0, 0)
     if (d <= today) out.oggi.push(t)
@@ -125,7 +126,7 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles, proj
   }
 
   const selectAll = () => {
-    const activeTasks = tasks.filter(t => t.status !== 'completato')
+    const activeTasks = tasks.filter(t => isTaskActive(t.status))
     if (selectedIds.size === activeTasks.length) setSelectedIds(new Set())
     else setSelectedIds(new Set(activeTasks.map(t => t.id)))
   }
@@ -151,11 +152,11 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles, proj
   }
 
   const sections = categorizeTasks(tasks)
-  const active = tasks.filter(t => t.status !== 'completato')
-  const done = tasks.filter(t => t.status === 'completato')
+  const active = tasks.filter(t => isTaskActive(t.status))
+  const done = tasks.filter(t => isTaskDone(t.status))
 
   const toggleStatus = async (task: TaskWithMeta) => {
-    const ns = task.status === 'completato' ? 'da_fare' : 'completato'
+    const ns = isTaskDone(task.status) ? 'da_fare' : 'completato'
     await createClient().from('tasks').update({ status: ns }).eq('id', task.id)
     setTasks(p => p.map(t => t.id === task.id ? { ...t, status: ns } : t))
     if (ns === 'completato') toast.success('Task completata!')
@@ -330,8 +331,10 @@ function ElencoView({ tasks, sections, collapsed, setCollapsed, addingIn, setAdd
   const sectionEntries: [Section, TaskWithMeta[]][] = [
     ['oggi', sections.oggi], ['prossimi', sections.prossimi], ['dopo', sections.dopo], ['completati', sections.completati],
   ]
-  const privateCount = tasks.filter(t => !t.project).length
-  const operativeCount = tasks.length - privateCount
+  // §7.1: i conteggi private/operative escludono le completate (solo task attive).
+  const activeForCount = tasks.filter(t => isTaskActive(t.status))
+  const privateCount = activeForCount.filter(t => !t.project).length
+  const operativeCount = activeForCount.length - privateCount
   return (
     <div className="h-full overflow-y-auto px-8 py-6 space-y-6">
       {/* Legenda: come distinguere le due nature delle task */}
@@ -434,7 +437,7 @@ function TaskRow({ task, toggleStatus, requestDelete, deleting, onSelect, isSele
   onSelect: (t: TaskWithMeta) => void
   isSelected: boolean; toggleSelect: (id: string) => void
 }) {
-  const completed = task.status === 'completato'
+  const completed = isTaskDone(task.status)
   const isPrivate = !task.project_id
   // Rail sinistro: viola per le task private, oro per quelle operative (di progetto).
   // Il colore non è l'unico segnale: c'è anche l'icona/badge, per l'accessibilità.
@@ -500,7 +503,7 @@ function TaskDetailPanel({ task, onClose, toggleStatus, updateTask, updateStatus
   updateStatus: (id: string, ns: TaskStatus) => Promise<void>
   profiles: Pick<Profile, 'id' | 'full_name' | 'avatar_url'>[]
 }) {
-  const completed = task.status === 'completato'
+  const completed = isTaskDone(task.status)
   const [editingTitle, setEditingTitle] = useState(false)
   const [title, setTitle] = useState(task.title)
   const [editingDesc, setEditingDesc] = useState(false)
@@ -753,7 +756,7 @@ function CalendarioView({ tasks }: { tasks: TaskWithMeta[] }) {
               <div className="space-y-0.5">
                 {dayTasks.slice(0, 3).map(t => (
                   <div key={t.id} className={`text-2xs px-1.5 py-0.5 rounded truncate border ${
-                    t.status === 'completato' ? 'bg-success/10 text-success border-success/20'
+                    isTaskDone(t.status) ? 'bg-success/10 text-success border-success/20'
                     : new Date(t.due_date!) < today ? 'bg-error/10 text-error border-error/20'
                     : 'bg-gold/10 text-gold-text border-gold/20'
                   }`} title={t.project ? `${t.title} — ${t.project.name}` : t.title}>{t.title}</div>
@@ -770,8 +773,8 @@ function CalendarioView({ tasks }: { tasks: TaskWithMeta[] }) {
 
 /* ── ANALITICA (dashboard stats) ────────────────────── */
 function AnaliticaView({ tasks }: { tasks: TaskWithMeta[] }) {
-  const active = tasks.filter(t => t.status !== 'completato')
-  const completed = tasks.filter(t => t.status === 'completato')
+  const active = tasks.filter(t => isTaskActive(t.status))
+  const completed = tasks.filter(t => isTaskDone(t.status))
   const overdue = active.filter(t => t.due_date && new Date(t.due_date) < new Date())
   const byStatus: Record<string, number> = {}
   const byPriority: Record<string, number> = {}
@@ -783,7 +786,7 @@ function AnaliticaView({ tasks }: { tasks: TaskWithMeta[] }) {
     const pn = t.project?.clients?.company_name ?? t.project?.name ?? 'Senza progetto'
     const bp = byProject[pn] ??= { name: pn, count: 0, done: 0 }
     bp.count++
-    if (t.status === 'completato') bp.done++
+    if (isTaskDone(t.status)) bp.done++
   }
 
   const statusColors: Record<string, string> = { da_fare: '#888', in_corso: 'var(--color-info)', in_revisione: 'var(--color-accent)', completato: 'var(--color-success)' }
