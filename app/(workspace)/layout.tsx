@@ -63,10 +63,11 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
 
   // Workload: visibile a tutti nel workspace. Iniettata come fallback se la
   // migration 095 non è ancora stata applicata, così la voce compare subito.
+  // sort_order 2 → tra "Le mie attività" (1) e "Calendario" (3, migration 104).
   if (!(visibleSections ?? []).some((s: { key: string }) => s.key === 'workload')) {
     visibleSections = [
       ...(visibleSections ?? []),
-      { id: 'synthetic-workload', key: 'workload', label: 'Workload', route: '/workspace/workload', icon: 'Gauge', sort_order: 7, group_key: 'lavori', group_order: 1 },
+      { id: 'synthetic-workload', key: 'workload', label: 'Workload', route: '/workspace/workload', icon: 'Gauge', sort_order: 2, group_key: 'lavori', group_order: 1 },
     ]
   }
 

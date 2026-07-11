@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import {
   Gauge, Users, FolderKanban, Filter, X, ChevronDown, ChevronRight,
   AlertTriangle, Clock, Trash2, Loader2, Crown, UserCog, CalendarRange, Sparkles,
+  ExternalLink, Flag,
 } from 'lucide-react'
 import {
   filterTasks, computeResourceLoads, computeProjectLoads, computeIntensity, workloadSignals, taskHoverText, EMPTY_FILTERS,
@@ -161,6 +162,32 @@ export function WorkloadClient({
         <Stat label="Risorse sovraccariche" value={totals.overloaded}
           tone={totals.overloaded > 0 ? 'warn' : undefined} />
       </div>
+
+      {/* Alta intensità futura: segnale sempre visibile (§9.3) */}
+      {(() => {
+        const peaks = intensity.windows.filter(w => w.overloaded > 0)
+        if (peaks.length === 0) return null
+        const first = peaks[0]
+        const worst = first.cells[0]
+        return (
+          <button onClick={() => setView('intensita')}
+            className="w-full text-left flex items-start gap-2.5 rounded-xl border border-error/30 bg-error-dim px-4 py-3 hover:bg-error-dim/70 transition-colors">
+            <AlertTriangle className="w-4 h-4 text-error shrink-0 mt-0.5" aria-hidden="true" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-text-primary">
+                Periodo ad alta intensità nei prossimi {first.days} giorni
+              </p>
+              <p className="text-2xs text-text-secondary mt-0.5">
+                {first.overloaded} {first.overloaded === 1 ? 'risorsa sovraccarica' : 'risorse sovraccariche'}
+                {worst && ` — ${worst.resourceName} a ${worst.hours}h su ${worst.capacity}h di capacità`}
+                {peaks.length > 1 && ` · picchi anche a ${peaks.slice(1).map(p => `${p.days}gg`).join(', ')}`}
+                . Apri Intensità per l'analisi e i suggerimenti AI.
+              </p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-error shrink-0 mt-0.5" aria-hidden="true" />
+          </button>
+        )
+      })()}
 
       {/* Filtri */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface p-2.5">
@@ -418,16 +445,27 @@ function ProjectRow({ load, tasks, resources, multiMap, resourceById, editable, 
     ? `${new Date(load.start).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })} – ${new Date(load.end).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}`
     : 'senza date'
 
+  // Milestone del progetto (task con is_milestone), ordinate per data.
+  const milestones = tasks
+    .filter(t => t.is_milestone)
+    .sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999'))
+
   return (
     <div className="rounded-xl border border-border bg-surface overflow-hidden">
-      <button onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-hover transition-colors text-left">
+      {/* Header: il wrapper è un div (no button dentro button) — il link apre il progetto */}
+      <div onClick={() => setOpen(o => !o)} role="button" tabIndex={0}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(o => !o) } }}
+        aria-expanded={open}
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-hover transition-colors text-left cursor-pointer">
         {open ? <ChevronDown className="w-4 h-4 text-text-tertiary shrink-0" aria-hidden="true" />
               : <ChevronRight className="w-4 h-4 text-text-tertiary shrink-0" aria-hidden="true" />}
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-text-primary truncate">{p.name}</span>
+            <Link href={projectHref(p.client_id, p.id)} onClick={e => e.stopPropagation()}
+              className="text-sm font-semibold text-text-primary truncate hover:text-gold-text hover:underline transition-colors">
+              {p.name}
+            </Link>
             {kindUi && <span className={`text-2xs font-semibold px-1.5 py-0.5 rounded-full ${kindUi.cls}`}>{kindUi.label}</span>}
             {editable && <UserCog className="w-3 h-3 text-gold-text shrink-0" aria-label="Puoi gestire" />}
           </div>
@@ -466,10 +504,39 @@ function ProjectRow({ load, tasks, resources, multiMap, resourceById, editable, 
             <span className="text-2xs">senza PM</span>
           </span>
         )}
-      </button>
+
+        <Link href={projectHref(p.client_id, p.id)} onClick={e => e.stopPropagation()}
+          aria-label={`Apri progetto ${p.name}`} title="Apri progetto"
+          className="shrink-0 p-1 rounded text-text-tertiary hover:text-gold-text hover:bg-surface-active transition-colors">
+          <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+        </Link>
+      </div>
 
       {open && (
         <div className="border-t border-border divide-y divide-border">
+          {/* Milestone del progetto con date (Gantt sintetico) */}
+          {milestones.length > 0 && (
+            <div className="px-4 py-2.5 bg-surface-hover/50">
+              <p className="text-2xs uppercase tracking-wider text-text-tertiary mb-1.5 flex items-center gap-1.5">
+                <Flag className="w-3 h-3" aria-hidden="true" /> Milestone
+              </p>
+              <ul className="space-y-1">
+                {milestones.map(m => {
+                  const done = m.status === 'completato'
+                  const late = !done && m.due_date && m.due_date < new Date().toISOString().slice(0, 10)
+                  return (
+                    <li key={m.id} className="flex items-center gap-2 text-2xs">
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${done ? 'bg-success' : late ? 'bg-error' : 'bg-gold'}`} aria-hidden="true" />
+                      <span className={`flex-1 min-w-0 truncate ${done ? 'text-text-tertiary line-through' : 'text-text-primary'}`}>{m.title}</span>
+                      <span className={`tabular shrink-0 ${late ? 'text-error font-semibold' : 'text-text-tertiary'}`}>
+                        {m.due_date ? new Date(m.due_date).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: '2-digit' }) : 'senza data'}
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
           {tasks.filter(t => !t.is_milestone).length === 0 && (
             <p className="px-4 py-3 text-2xs text-text-tertiary">Nessuna task.</p>
           )}
@@ -608,14 +675,18 @@ function TimelineView({ tasks, projects, resources, multiMap, canEditProject, re
 }) {
   const [selected, setSelected] = useState<WLTask | null>(null)
   const [scale, setScale] = useState<TScale>('settimana')
+  const { projectHref } = usePortalRoutes()
   const todayStr = new Date().toISOString().slice(0, 10)
   const dated = useMemo(() => tasks.filter(t => !t.is_milestone && t.due_date), [tasks])
+  // Milestone: cittadine di prima classe della timeline (marker con data).
+  const datedMilestones = useMemo(() => tasks.filter(t => t.is_milestone && t.due_date), [tasks])
   const noDate = tasks.filter(t => !t.is_milestone && !t.due_date).length
   const cap = scale === 'mese' ? 24 : 16
 
   const cols = useMemo(() => {
-    if (dated.length === 0) return [] as Date[]
-    const ds = dated.map(t => t.due_date!).sort()
+    const all = [...dated, ...datedMilestones]
+    if (all.length === 0) return [] as Date[]
+    const ds = all.map(t => t.due_date!).sort()
     let start = bucketStart(new Date(ds[0] + 'T00:00:00'), scale)
     const todayBucket = bucketStart(new Date(), scale)
     if (start > todayBucket) start = todayBucket
@@ -636,8 +707,12 @@ function TimelineView({ tasks, projects, resources, multiMap, canEditProject, re
     .map(id => resourceById.get(id)?.full_name ?? '—')
 
   const rows = projects
-    .map(p => ({ project: p, tasks: dated.filter(t => t.project_id === p.id) }))
-    .filter(r => r.tasks.length > 0)
+    .map(p => ({
+      project: p,
+      tasks: dated.filter(t => t.project_id === p.id),
+      milestones: datedMilestones.filter(t => t.project_id === p.id),
+    }))
+    .filter(r => r.tasks.length > 0 || r.milestones.length > 0)
 
   if (cols.length === 0) {
     return <p className="text-center py-16 text-text-tertiary text-sm">Nessuna task con scadenza per questi filtri.</p>
@@ -673,11 +748,30 @@ function TimelineView({ tasks, projects, resources, multiMap, canEditProject, re
           {rows.map(row => (
             <div key={row.project.id} className="flex border-b border-border last:border-0">
               <div className="w-[180px] shrink-0 px-3 py-2">
-                <p className="text-xs font-semibold text-text-primary truncate">{row.project.name}</p>
+                <Link href={projectHref(row.project.client_id, row.project.id)}
+                  className="text-xs font-semibold text-text-primary truncate block hover:text-gold-text hover:underline transition-colors">
+                  {row.project.name}
+                </Link>
                 <p className="text-2xs text-text-tertiary truncate">{row.project.client_name}</p>
               </div>
               {cols.map((w, i) => (
                 <div key={i} style={{ width: COL }} className="shrink-0 border-l border-border p-1 space-y-1 min-h-[3rem]">
+                  {/* Milestone: marker in evidenza con data */}
+                  {row.milestones.filter(m => colIndexOf(m.due_date!) === i).map(m => {
+                    const late = m.status !== 'completato' && m.due_date! < todayStr
+                    return (
+                      <div key={m.id}
+                        title={`Milestone: ${m.title}\nData: ${new Date(m.due_date!).toLocaleDateString('it-IT')}\nStato: ${STATUS_LABEL[m.status] ?? m.status}`}
+                        className={`flex items-center gap-1 rounded px-1.5 py-1 text-2xs font-semibold truncate border ${
+                          m.status === 'completato' ? 'bg-success-dim text-success border-success/30'
+                          : late ? 'bg-error-dim text-error border-error/30'
+                          : 'bg-gold-dim text-gold-text border-gold/30'
+                        }`}>
+                        <Flag className="w-2.5 h-2.5 shrink-0" aria-hidden="true" />
+                        <span className="truncate">{m.title}</span>
+                      </div>
+                    )
+                  })}
                   {row.tasks.filter(t => colIndexOf(t.due_date!) === i).map(t => {
                     const overdue = t.status !== 'completato' && t.due_date! < todayStr
                     const cls = t.status === 'completato' ? 'bg-success-dim text-success'
