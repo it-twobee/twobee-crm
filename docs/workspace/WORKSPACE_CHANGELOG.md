@@ -41,3 +41,15 @@
 **Verifica**: tsc + build verdi. Test end-to-end (crea/modifica/elimina evento, webhook, ricorrenza) da fare in-app dopo migration 102.
 **Da eseguire dall'utente**: migration 102. Webhook attivo solo con dominio pubblico (Cal-Q1: presente).
 **Limite noto**: modifica ricorrenza su serie esistenti (istanza vs serie) non gestita — rifinitura futura.
+
+## Fase 3 — Workload + Portfolio + Dashboard strategica (COMPLETA)
+**Migration**: `103_workload_portfolio.sql` (tasks.start_date, profiles.weekly_capacity_hours, disattiva voce sidebar 'progetti').
+- **3a** §9: `/workspace/progetti` → redirect a `/workspace/workload` (dettaglio progetto resta).
+- **3b** §9.3: `computeIntensity` (finestre 7/14/30/60/90, effort spalmato start→due, capacità per risorsa, estimateCoverage) + `workloadSignals`; vista "Intensità" con barre carico/capacità e warning affidabilità.
+- **3c** §9.2: timeline scala settimana/mese + hover ricco `taskHoverText` (condivisibile col Gantt). *Scale giorno/anno/sprint/milestone = rifinitura.*
+- **3d** §9.4: `/api/ai/workload-plan` (Groq) + AIPlanningPanel — propone, non applica.
+- **3e** §10: Portfolio filtro per tipologia (project_type reale).
+- **3f** §6.4: dashboard workspace con MRR aggregato + fatturato YTD (somme via service role, mai per-cliente).
+
+**Verifica**: tsc + build verdi. **Da eseguire dall'utente**: migration 103 (fatta).
+**Limiti noti**: timeline scale complete (giorno/anno/sprint/milestone) e apply per-suggerimento AI = rifiniture future.
