@@ -30,3 +30,14 @@
 
 **Verifica**: tsc + build verdi su ogni step. Test end-to-end (drawer, richieste) da fare in-app dopo migration 100+101 (eseguite).
 **Migration eseguite dall'utente**: 100 ✅, 101 ✅.
+
+## Fase 2 — Calendario (COMPLETA)
+**Migration**: `102_calendar_events.sql` (mirror eventi + colonne watch channel su google_credentials).
+- **2a** `components/calendario/CalendarEventForm.tsx` — form evento unico (estratto), condiviso.
+- **2b** mirror `calendar_events` + write-through (POST/PATCH/DELETE su `/api/google/events`) + refresh token persistito (fix stale) + campi timezone/ricorrenza/promemoria.
+- **2c** `lib/google-calendar.ts` (syncMirrorFromGoogle + ensureCalendarWatch) + `/api/google/webhook` (push real-time); watch registrato al connect + rinnovo lazy nella GET.
+- **2d** Appuntamenti progetto usa il CalendarEventForm precompilato (cliente/progetto, mirror); colori hardcoded sistemati.
+
+**Verifica**: tsc + build verdi. Test end-to-end (crea/modifica/elimina evento, webhook, ricorrenza) da fare in-app dopo migration 102.
+**Da eseguire dall'utente**: migration 102. Webhook attivo solo con dominio pubblico (Cal-Q1: presente).
+**Limite noto**: modifica ricorrenza su serie esistenti (istanza vs serie) non gestita — rifinitura futura.
