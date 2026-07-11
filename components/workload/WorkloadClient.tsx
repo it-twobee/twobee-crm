@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import {
   Gauge, Users, FolderKanban, Filter, X, ChevronDown, ChevronRight,
   AlertTriangle, Clock, Trash2, Loader2, Crown, UserCog, CalendarRange, Sparkles,
-  ExternalLink, Flag,
+  ExternalLink, Flag, Plus,
 } from 'lucide-react'
 import {
   filterTasks, computeResourceLoads, computeProjectLoads, computeIntensity, workloadSignals, taskHoverText,
@@ -17,6 +17,7 @@ import {
 import { AssigneePicker } from '@/components/tasks/AssigneePicker'
 import { setTaskAssignees } from '@/app/actions/task-assignees'
 import { pmUpdateTask, pmDeleteTask } from '@/app/actions/workload-tasks'
+import { createMyTask } from '@/app/actions/workspace-create'
 import { usePortalRoutes } from '@/lib/portal-routes'
 
 type View = 'progetti' | 'timeline' | 'risorse' | 'intensita'
@@ -173,7 +174,9 @@ export function WorkloadClient({
 
       {/* Previsione cross-progetto: dove le task di progetti diversi si accavallano */}
       <EffortForecast buckets={effortBuckets} capacity={capacity} peaks={peaks}
-        windows={intensity.windows} signals={signals} needsAttention={aiNeeds} />
+        windows={intensity.windows} signals={signals} needsAttention={aiNeeds}
+        tasks={filtered} projectById={projectById} resourceById={new Map(resources.map(r => [r.id, r]))}
+        multiMap={multiMap} canEditProject={canEditProject} />
 
       {/* Filtri */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface p-2.5">
@@ -374,17 +377,46 @@ function IntensityView({ windows, estimateCoverage, signals, needsAttention, pea
 }
 
 /* ── Previsione effort cross-progetto: accavallamenti e periodi critici ───────── */
-function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAttention }: {
+function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAttention, tasks, projectById, resourceById, multiMap, canEditProject }: {
   buckets: EffortBucket[]
   capacity: number
   peaks: EffortPeak[]
   windows: IntensityWindow[]
   signals: { noEstimate: number; noDue: number; noOwner: number; projectsNoPm: number }
   needsAttention: { title: string; project: string; due_date: string | null; estimated_hours: number | null; owner: string | null; issue: string }[]
+  tasks: WLTask[]
+  projectById: Map<string, WLProject>
+  resourceById: Map<string, WLResource>
+  multiMap: Map<string, string[]>
+  canEditProject: (pid: string) => boolean
 }) {
   const [aiLoading, setAiLoading] = useState(false)
   const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[] | null>(null)
   const [aiSummary, setAiSummary] = useState('')
+  const [openWeek, setOpenWeek] = useState<string | null>(null)   // drill-down settimana
+  const [pending, startT] = useTransition()
+  const [newTaskFor, setNewTaskFor] = useState<AISuggestion | null>(null)
+
+  // Task che ricadono nella settimana selezionata (span start→due che la interseca).
+  const weekTasks = useMemo(() => {
+    if (!openWeek) return []
+    const b = buckets.find(x => x.start === openWeek)
+    if (!b) return []
+    return tasks.filter(t => {
+      if (t.is_milestone || t.status === 'completato' || !t.due_date) return false
+      const s = t.start_date && t.start_date <= t.due_date ? t.start_date : t.due_date
+      return s <= b.end && t.due_date >= b.start
+    }).sort((x, y) => (x.due_date ?? '').localeCompare(y.due_date ?? ''))
+  }, [openWeek, buckets, tasks])
+
+  // Sposta la scadenza di una task (azione concreta per spianare il picco).
+  const shift = (t: WLTask, days: number) => startT(async () => {
+    if (!t.due_date) return
+    const nd = new Date(new Date(t.due_date + 'T00:00:00').getTime() + days * 86400000).toISOString().slice(0, 10)
+    const res = await pmUpdateTask(t.project_id, t.id, { due_date: nd })
+    if ('error' in res) toast.error(res.error)
+    else toast.success(`"${t.title}" spostata al ${new Date(nd + 'T00:00:00').toLocaleDateString('it-IT')}`)
+  })
 
   const askAI = async () => {
     setAiLoading(true)
@@ -441,11 +473,15 @@ function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAtten
             const over = capacity > 0 && b.hours > capacity
             const near = capacity > 0 && !over && b.hours >= capacity * 0.85
             const cls = over ? 'bg-error' : near ? 'bg-warning' : 'bg-success/70'
+            const sel = openWeek === b.start
             return (
-              <div key={b.start} className="flex-1 flex flex-col justify-end h-full"
-                title={`Settimana ${fmt(b.start)} – ${fmt(b.end)}\nEffort: ${b.hours}h (capacità ${Math.round(capacity)}h)\nProgetti: ${b.byProject.length}\n${b.byProject.slice(0, 4).map(p => `· ${p.projectName}: ${p.hours}h`).join('\n')}`}>
-                <div className={`w-full rounded-t ${cls}`} style={{ height: `${h}%` }} />
-              </div>
+              <button key={b.start} onClick={() => setOpenWeek(sel ? null : b.start)}
+                aria-label={`Settimana ${fmt(b.start)}, ${b.hours} ore`}
+                className="flex-1 flex flex-col justify-end h-full group"
+                title={`Settimana ${fmt(b.start)} – ${fmt(b.end)}\nEffort: ${b.hours}h (capacità ${Math.round(capacity)}h)\nProgetti: ${b.byProject.length}\nClicca per vedere e riprogrammare le task`}>
+                <div className={`w-full rounded-t transition-all ${cls} ${sel ? 'ring-2 ring-gold' : 'group-hover:brightness-125'}`}
+                  style={{ height: `${h}%` }} />
+              </button>
             )
           })}
         </div>
@@ -473,8 +509,10 @@ function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAtten
             {critical.length > 0 ? `${critical.length} settimane oltre capacità` : `${heavy.length} settimane ad alta intensità`}
           </p>
           {peaks.slice(0, 4).map(p => (
-            <div key={p.bucket.start}
-              className={`flex items-start gap-2 rounded-lg border px-3 py-2 ${p.ratio >= 1 ? 'border-error/30 bg-error-dim' : 'border-warning/30 bg-warning-dim'}`}>
+            <button key={p.bucket.start} onClick={() => setOpenWeek(openWeek === p.bucket.start ? null : p.bucket.start)}
+              className={`w-full text-left flex items-center gap-2 rounded-lg border px-3 py-2 hover:brightness-110 transition-all ${
+                p.ratio >= 1 ? 'border-error/30 bg-error-dim' : 'border-warning/30 bg-warning-dim'
+              } ${openWeek === p.bucket.start ? 'ring-1 ring-gold' : ''}`}>
               <div className="flex-1 min-w-0">
                 <p className="text-2xs font-bold text-text-primary">
                   {fmt(p.bucket.start)} – {fmt(p.bucket.end)}: {p.bucket.hours}h su {Math.round(capacity)}h
@@ -486,13 +524,67 @@ function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAtten
                     : `${p.bucket.byProject[0]?.projectName ?? '—'}: ${p.bucket.byProject[0]?.hours ?? 0}h`}
                 </p>
               </div>
-            </div>
+              <ChevronRight className={`w-4 h-4 shrink-0 text-text-tertiary transition-transform ${openWeek === p.bucket.start ? 'rotate-90' : ''}`} aria-hidden="true" />
+            </button>
           ))}
-          <p className="text-2xs text-text-tertiary pt-0.5">
-            Le task di progetti diversi si accavallano in questi periodi: pianifica in dettaglio o chiedi all&apos;AI di riequilibrare.
-          </p>
         </div>
       )}
+
+      {/* Drill-down: cosa compone la settimana, con azioni per spianarla */}
+      {openWeek && (() => {
+        const b = buckets.find(x => x.start === openWeek)
+        if (!b) return null
+        return (
+          <div className="rounded-xl border border-gold/30 bg-surface p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-2xs font-bold text-text-primary">
+                Settimana {fmt(b.start)} – {fmt(b.end)} · {b.hours}h su {Math.round(capacity)}h · {b.byProject.length} progetti
+              </p>
+              <button onClick={() => setOpenWeek(null)} aria-label="Chiudi" className="text-text-tertiary hover:text-text-primary">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {weekTasks.length === 0 ? (
+              <p className="text-2xs text-text-tertiary">Nessuna task attiva in questa settimana.</p>
+            ) : (
+              <ul className="space-y-1 max-h-56 overflow-y-auto">
+                {weekTasks.map(t => {
+                  const proj = projectById.get(t.project_id)
+                  const owners = (multiMap.get(t.id) ?? (t.assignee_id ? [t.assignee_id] : [])).map(id => resourceById.get(id)?.full_name.split(' ')[0] ?? '—')
+                  const canEdit = canEditProject(t.project_id)
+                  return (
+                    <li key={t.id} className="flex items-center gap-2 rounded-lg border border-border bg-background px-2.5 py-1.5">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-2xs font-medium text-text-primary truncate">{t.title}</p>
+                        <p className="text-2xs text-text-tertiary truncate">
+                          {proj?.name ?? '—'} · {t.estimated_hours != null ? `${t.estimated_hours}h` : '4h (stima mancante)'}
+                          {owners.length > 0 && ` · ${owners.join(', ')}`}
+                          {t.due_date && ` · scad. ${fmt(t.due_date)}`}
+                        </p>
+                      </div>
+                      {canEdit ? (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button onClick={() => shift(t, -7)} disabled={pending} title="Anticipa di 1 settimana"
+                            aria-label={`Anticipa ${t.title} di una settimana`}
+                            className="px-1.5 py-1 rounded text-2xs text-text-tertiary hover:text-info hover:bg-info-dim transition-colors">← 1sett</button>
+                          <button onClick={() => shift(t, 7)} disabled={pending} title="Posticipa di 1 settimana"
+                            aria-label={`Posticipa ${t.title} di una settimana`}
+                            className="px-1.5 py-1 rounded text-2xs text-text-tertiary hover:text-warning hover:bg-warning-dim transition-colors">1sett →</button>
+                        </div>
+                      ) : (
+                        <span className="text-2xs text-text-tertiary shrink-0">solo PM</span>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+            <p className="text-2xs text-text-tertiary">
+              Sposta le task fuori dal picco, oppure chiedi all&apos;AI un piano di riequilibrio.
+            </p>
+          </div>
+        )
+      })()}
 
       {/* Suggerimenti AI in-place (propone, non applica) */}
       {aiSuggestions && (
@@ -504,16 +596,92 @@ function EffortForecast({ buckets, capacity, peaks, windows, signals, needsAtten
           {aiSuggestions.length === 0 ? (
             <p className="text-2xs text-text-tertiary">Nessun suggerimento: il carico è bilanciato.</p>
           ) : aiSuggestions.map((s, i) => (
-            <div key={i} className="rounded-lg border border-border bg-surface px-3 py-2">
-              <p className="text-2xs font-semibold text-text-primary">
-                <span className="font-bold uppercase tracking-wider text-gold-text mr-1.5">{s.type}</span>{s.title}
-              </p>
-              <p className="text-2xs text-text-secondary mt-0.5">{s.detail}</p>
+            <div key={i} className="rounded-lg border border-border bg-surface px-3 py-2 flex items-start gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-2xs font-semibold text-text-primary">
+                  <span className="font-bold uppercase tracking-wider text-gold-text mr-1.5">{s.type}</span>{s.title}
+                </p>
+                <p className="text-2xs text-text-secondary mt-0.5">{s.detail}</p>
+              </div>
+              <button onClick={() => setNewTaskFor(s)}
+                className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg border border-gold/40 text-2xs font-semibold text-gold-text hover:bg-gold-dim transition-colors">
+                <Plus className="w-3 h-3" aria-hidden="true" /> Crea task
+              </button>
             </div>
           ))}
           <p className="text-2xs text-text-tertiary">L&apos;AI propone: nessuna modifica è stata applicata. Decidi tu.</p>
         </div>
       )}
+
+      {/* Crea una task di pianificazione a partire da un suggerimento AI */}
+      {newTaskFor && (
+        <SuggestionTaskModal suggestion={newTaskFor} projects={Array.from(projectById.values())} onClose={() => setNewTaskFor(null)} />
+      )}
+    </div>
+  )
+}
+
+/* ── Crea task da suggerimento AI ─────────────────────────────────────────────── */
+function SuggestionTaskModal({ suggestion, projects, onClose }: {
+  suggestion: AISuggestion
+  projects: WLProject[]
+  onClose: () => void
+}) {
+  const [title, setTitle] = useState(suggestion.title)
+  const [projectId, setProjectId] = useState('')
+  const [dueDate, setDueDate] = useState('')
+  const [priority, setPriority] = useState('media')
+  const [pending, startT] = useTransition()
+
+  const inp = 'w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-gold/40'
+
+  const save = () => startT(async () => {
+    if (!title.trim()) { toast.error('Titolo obbligatorio'); return }
+    const res = await createMyTask({
+      title: title.trim(),
+      projectId: projectId || null,
+      dueDate: dueDate || undefined,
+      priority,
+    })
+    if (!res.ok) { toast.error(res.error ?? 'Errore creazione task'); return }
+    toast.success(projectId ? 'Task creata sul progetto' : 'Task personale creata')
+    onClose()
+  })
+
+  return (
+    <div className="fixed inset-0 z-50 bg-scrim backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-surface border border-border rounded-2xl w-full max-w-sm p-5 space-y-3" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="text-2xs uppercase tracking-wider text-gold-text">Da suggerimento AI</p>
+            <h3 className="text-base font-bold text-text-primary mt-0.5">Crea task di pianificazione</h3>
+          </div>
+          <button onClick={onClose} aria-label="Chiudi" className="p-1 text-text-tertiary hover:text-text-primary"><X className="w-4 h-4" /></button>
+        </div>
+        <p className="text-2xs text-text-secondary rounded-lg bg-surface-hover px-3 py-2">{suggestion.detail}</p>
+
+        <div className="space-y-2">
+          <input value={title} onChange={e => setTitle(e.target.value)} aria-label="Titolo" placeholder="Titolo" className={inp} />
+          <select value={projectId} onChange={e => setProjectId(e.target.value)} aria-label="Progetto" className={inp}>
+            <option value="">Task personale (nessun progetto)</option>
+            {projects.map(p => <option key={p.id} value={p.id}>{p.name} — {p.client_name}</option>)}
+          </select>
+          <div className="grid grid-cols-2 gap-2">
+            <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} aria-label="Scadenza" className={inp} />
+            <select value={priority} onChange={e => setPriority(e.target.value)} aria-label="Priorità" className={inp}>
+              <option value="alta">Alta</option><option value="media">Media</option><option value="bassa">Bassa</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 py-2 border border-border rounded-xl text-xs text-text-secondary hover:text-text-primary">Annulla</button>
+          <button onClick={save} disabled={pending}
+            className="flex-1 py-2 bg-gold text-on-gold rounded-xl text-xs font-bold hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-1.5">
+            {pending ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Plus className="w-3.5 h-3.5" aria-hidden="true" />} Crea task
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -662,13 +830,6 @@ function ProjectRow({ load, tasks, sprints, resources, multiMap, resourceById, e
         <div className="border-t border-border">
           {/* Gantt su calendario: SOLO sprint e milestone, cliccabili → popup → progetto */}
           <ProjectGantt project={p} sprints={sprints} milestones={milestones} tasks={tasks} />
-
-          {!p.manager_id && (
-            <Link href={projectHref(p.client_id, p.id)}
-              className="px-4 py-2 text-2xs text-warning hover:underline flex items-center gap-1.5 border-t border-border">
-              <AlertTriangle className="w-3 h-3" aria-hidden="true" /> Nessun responsabile — assegna un PM
-            </Link>
-          )}
         </div>
       )}
     </div>
@@ -714,20 +875,28 @@ function ProjectGantt({ project, sprints, milestones, tasks }: {
     )
   }
 
-  // Scala mensile leggibile: dal primo inizio all'ultima fine, in mesi.
+  // Calendario coordinato: scala a GIORNI (px/giorno). Le colonne dei mesi sono larghe
+  // quanto i giorni reali del mese, così barre sprint e marker milestone cadono esattamente
+  // sotto la data corrispondente. (Prima: colonne a larghezza fissa + barre in % → disallineate.)
   const min = items.map(i => i.start).sort()[0]
   const max = items.map(i => i.end).sort().slice(-1)[0]
-  const t0 = new Date(min.slice(0, 8) + '01T00:00:00')
-  const lastEnd = new Date(max + 'T00:00:00')
-  const months: Date[] = []
-  const cur = new Date(t0)
-  while (cur <= lastEnd && months.length < 18) { months.push(new Date(cur)); cur.setMonth(cur.getMonth() + 1) }
-  if (months.length === 0) months.push(new Date(t0))
-  const gStart = months[0].getTime()
-  const gEnd = new Date(months[months.length - 1].getFullYear(), months[months.length - 1].getMonth() + 1, 0).getTime()
-  const total = Math.max(1, gEnd - gStart)
-  const pct = (iso: string) => ((new Date(iso + 'T00:00:00').getTime() - gStart) / total) * 100
-  const MW = 90 // larghezza mese
+  const gStartD = new Date(min.slice(0, 8) + '01T00:00:00')                     // 1° del mese iniziale
+  const lastD = new Date(max + 'T00:00:00')
+  const gEndD = new Date(lastD.getFullYear(), lastD.getMonth() + 1, 0)          // ultimo giorno del mese finale
+  const DAY = 6                                                                  // px per giorno
+  const dayIndex = (iso: string) =>
+    Math.round((new Date(iso + 'T00:00:00').getTime() - gStartD.getTime()) / 86400000)
+  const totalDays = dayIndex(gEndD.toISOString().slice(0, 10)) + 1
+  const xOf = (iso: string) => dayIndex(iso) * DAY
+  const gridW = totalDays * DAY
+
+  const months: { label: string; days: number }[] = []
+  const cur = new Date(gStartD)
+  while (cur <= gEndD && months.length < 24) {
+    const dim = new Date(cur.getFullYear(), cur.getMonth() + 1, 0).getDate()
+    months.push({ label: cur.toLocaleDateString('it-IT', { month: 'short', year: '2-digit' }), days: dim })
+    cur.setMonth(cur.getMonth() + 1)
+  }
 
   const sprintCls = (s: GanttItem) => {
     if (s.status === 'completato') return 'bg-success/70 border-success'
@@ -735,36 +904,42 @@ function ProjectGantt({ project, sprints, milestones, tasks }: {
     if (s.status === 'in_corso') return 'bg-gold/70 border-gold'
     return 'bg-info/50 border-info'
   }
+  const fmtD = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })
+  const showToday = todayStr >= gStartD.toISOString().slice(0, 10) && todayStr <= gEndD.toISOString().slice(0, 10)
 
   return (
     <div className="px-4 py-3 bg-surface-hover/40">
       <div className="overflow-x-auto">
-        <div style={{ minWidth: months.length * MW }}>
-          {/* Asse mesi */}
+        <div style={{ width: gridW, minWidth: '100%' }} className="relative">
+          {/* Asse mesi: colonne proporzionali ai giorni reali */}
           <div className="flex border-b border-border pb-1 mb-2">
             {months.map((m, i) => (
-              <div key={i} style={{ width: MW }} className="shrink-0 text-2xs text-text-tertiary capitalize border-l border-border first:border-l-0 pl-1.5">
-                {m.toLocaleDateString('it-IT', { month: 'short', year: '2-digit' })}
+              <div key={i} style={{ width: m.days * DAY }}
+                className="shrink-0 text-2xs text-text-tertiary capitalize border-l border-border first:border-l-0 pl-1.5 truncate">
+                {m.label}
               </div>
             ))}
           </div>
 
-          {/* Righe: sprint come barre */}
-          <div className="space-y-1.5 relative">
-            {/* linea oggi */}
-            {todayStr >= min && todayStr <= max && (
-              <div className="absolute top-0 bottom-0 w-px bg-error/60 z-10 pointer-events-none" style={{ left: `${pct(todayStr)}%` }} />
-            )}
+          {/* Linea "oggi" su tutta l'altezza */}
+          {showToday && (
+            <div className="absolute top-5 bottom-0 w-px bg-error z-10 pointer-events-none" style={{ left: xOf(todayStr) }}>
+              <span className="absolute -top-4 -translate-x-1/2 text-2xs text-error font-semibold bg-surface px-1">oggi</span>
+            </div>
+          )}
+
+          {/* Sprint: barre allineate alle date reali */}
+          <div className="space-y-1.5">
             {items.filter(i => i.kind === 'sprint').map(sp => {
-              const left = pct(sp.start)
-              const width = Math.max(3, pct(sp.end) - left)
+              const left = xOf(sp.start)
+              const width = Math.max(DAY, xOf(sp.end) + DAY - left)
               const progress = sp.kind === 'sprint' && sp.tasks > 0 ? Math.round((sp.done / sp.tasks) * 100) : 0
               return (
                 <div key={sp.id} className="relative h-8">
                   <button onClick={() => setDetail(sp)}
-                    title={`Sprint: ${sp.title}\n${new Date(sp.start + 'T00:00:00').toLocaleDateString('it-IT')} → ${new Date(sp.end + 'T00:00:00').toLocaleDateString('it-IT')}\nStato: ${sp.status}${sp.kind === 'sprint' ? `\nTask: ${sp.done}/${sp.tasks} completate` : ''}`}
-                    className={`absolute h-8 rounded-lg border flex items-center px-2 gap-1.5 hover:brightness-110 hover:ring-1 hover:ring-gold transition-all ${sprintCls(sp)}`}
-                    style={{ left: `${left}%`, width: `${width}%`, minWidth: 60 }}>
+                    title={`Sprint: ${sp.title}\n${fmtD(sp.start)} → ${fmtD(sp.end)}\nStato: ${sp.status}${sp.kind === 'sprint' ? `\nTask: ${sp.done}/${sp.tasks} completate` : ''}`}
+                    className={`absolute h-8 rounded-lg border flex items-center px-2 gap-1.5 hover:brightness-110 hover:ring-1 hover:ring-gold transition-all overflow-hidden ${sprintCls(sp)}`}
+                    style={{ left, width }}>
                     <span className="text-2xs font-semibold text-text-primary truncate">{sp.title}</span>
                     {sp.kind === 'sprint' && sp.tasks > 0 && (
                       <span className="text-2xs text-text-primary/80 tabular shrink-0">{progress}%</span>
@@ -778,19 +953,20 @@ function ProjectGantt({ project, sprints, milestones, tasks }: {
             )}
           </div>
 
-          {/* Milestone: marker cliccabili sotto l'asse */}
+          {/* Milestone: marker sulla stessa scala, sotto le barre */}
           {items.some(i => i.kind === 'milestone') && (
-            <div className="relative h-10 mt-3 border-t border-border pt-2">
+            <div className="relative h-12 mt-3 border-t border-border pt-2">
               {items.filter(i => i.kind === 'milestone').map(m => {
                 const done = m.status === 'completato'
                 const late = !done && m.start < todayStr
                 return (
                   <button key={m.id} onClick={() => setDetail(m)}
-                    title={`Milestone: ${m.title}\nData: ${new Date(m.start + 'T00:00:00').toLocaleDateString('it-IT')}\nStato: ${done ? 'Completata' : late ? 'In ritardo' : 'Da fare'}`}
+                    title={`Milestone: ${m.title}\nData: ${fmtD(m.start)}\nStato: ${done ? 'Completata' : late ? 'In ritardo' : 'Da fare'}`}
                     className="absolute -translate-x-1/2 flex flex-col items-center gap-0.5 hover:scale-110 transition-transform"
-                    style={{ left: `${pct(m.start)}%` }}>
+                    style={{ left: xOf(m.start) }}>
                     <Flag className={`w-3.5 h-3.5 ${done ? 'text-success' : late ? 'text-error' : 'text-gold-text'}`} aria-hidden="true" />
-                    <span className="text-2xs text-text-tertiary whitespace-nowrap max-w-[7rem] truncate">{m.title}</span>
+                    <span className="text-2xs text-text-tertiary whitespace-nowrap">{fmtD(m.start)}</span>
+                    <span className="text-2xs text-text-primary whitespace-nowrap max-w-[7rem] truncate">{m.title}</span>
                   </button>
                 )
               })}
