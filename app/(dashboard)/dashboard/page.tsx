@@ -79,6 +79,7 @@ export default async function DashboardPage() {
     decisionsResult,
     kpiSnapshotResult,
     growthKpisResult,
+    dataQualityResult,
   ] = await Promise.all([
     isAdminLevel
       ? safe(supabase.from('clients').select('*').order('company_name'), 'clients')
@@ -175,6 +176,10 @@ export default async function DashboardPage() {
           .select('client_id, month, revenue_attributed, mer, leads_generated')
           .gte('month', sixMonthsStart).order('month', { ascending: true }), 'growthKpis')
       : noopArr,
+
+    isAdminLevel
+      ? safe(supabase.from('data_quality_report').select('*').maybeSingle().then(r => r.error ? { data: null } : r), 'dataQuality')
+      : noop,
   ])
 
   // ═══════════════════════════════════════════════════════════════
@@ -437,6 +442,7 @@ export default async function DashboardPage() {
     kpiSnapshot,
     objectives: okrAll,
     growthKpis: (growthKpisResult ?? []) as import('@/components/dashboard/GrowthPerformance').GrowthKpiRow[],
+    dataQuality: (dataQualityResult?.data ?? null) as import('@/components/dashboard/DataQualityWidget').DataQualityReport | null,
   }
 
   return (

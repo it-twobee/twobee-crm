@@ -27,8 +27,10 @@ import { KpiPerformanceWidget } from './KpiPerformanceWidget'
 import { AIAutomationCenter }   from './AIAutomationCenter'
 import { StrategicObjectives }  from './StrategicObjectives'
 import { GrowthPerformance }    from './GrowthPerformance'
+import { DataQualityWidget }    from './DataQualityWidget'
 import type { KpiSnapshotRow }  from './KpiPerformanceWidget'
 import type { GrowthKpiRow }    from './GrowthPerformance'
+import type { DataQualityReport } from './DataQualityWidget'
 import type { FocusItem }      from './DailyFocus'
 import type { DashAlert }      from './AlertCenter'
 import type { MonthRevenue }   from './RevenueSnapshot'
@@ -71,6 +73,7 @@ export interface DashboardData {
   kpiSnapshot: KpiSnapshotRow[]
   objectives: Objective[]
   growthKpis: GrowthKpiRow[]
+  dataQuality: DataQualityReport | null
 }
 
 export type DashboardConfig = {
@@ -105,6 +108,7 @@ const WIDGET_DEFS: WidgetDef[] = [
   { id: 'aiautomation', label: 'AI & Automation',    emoji: '🧠', href: '/dashboard', span: 'full' },
   { id: 'objectives',   label: 'OKR Aziendali',      emoji: '🎯', href: '/strategia' },
   { id: 'growthperf',   label: 'Growth Performance', emoji: '📈', href: '/clienti' },
+  { id: 'dataquality',  label: 'Salute Dati',        emoji: '🩺', href: '/dashboard' },
 ]
 
 // ─── Template definitions ─────────────────────────────────────────────────────
@@ -128,7 +132,7 @@ const TEMPLATES: Template[] = [
     emoji: '🔧',
     desc: 'Focus operativo: task, alert, carico team e clienti a rischio.',
     color: 'var(--color-info)',
-    widgets: ['metrics', 'focus', 'alerts', 'tasks', 'projects', 'workload', 'risk', 'pulse'],
+    widgets: ['metrics', 'focus', 'alerts', 'tasks', 'projects', 'workload', 'risk', 'pulse', 'dataquality'],
   },
   {
     id: 'biz',
@@ -362,6 +366,7 @@ export function DashboardGrid({ data, initialConfig }: { data: DashboardData; in
     aiautomation: <AIAutomationCenter />,
     objectives:   <StrategicObjectives objectives={data.objectives} />,
     growthperf:   <GrowthPerformance clients={data.clients} kpis={data.growthKpis} />,
+    dataquality:  <DataQualityWidget report={data.dataQuality} />,
   }
 
   if (!mounted) return null
