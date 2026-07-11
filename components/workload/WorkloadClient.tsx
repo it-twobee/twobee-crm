@@ -293,10 +293,15 @@ function ProjectRow({ load, tasks, resources, multiMap, resourceById, editable, 
           <p className="text-2xs text-text-tertiary">{load.taskCount - load.doneCount} attive</p>
         </div>
 
-        {manager && (
+        {manager ? (
           <span className="hidden md:flex items-center gap-1 shrink-0" title={`PM: ${manager.full_name}`}>
             <Crown className="w-3 h-3 text-gold-text" aria-hidden="true" />
             <span className="text-2xs text-text-tertiary">{manager.full_name.split(' ')[0]}</span>
+          </span>
+        ) : !editable && (
+          <span className="hidden md:flex items-center gap-1 shrink-0 text-warning" title="Nessun responsabile assegnato">
+            <AlertTriangle className="w-3 h-3" aria-hidden="true" />
+            <span className="text-2xs">senza PM</span>
           </span>
         )}
       </button>
@@ -311,6 +316,12 @@ function ProjectRow({ load, tasks, resources, multiMap, resourceById, editable, 
               assignees={multiMap.get(t.id) ?? (t.assignee_id ? [t.assignee_id] : [])}
               resourceById={resourceById} editable={editable} />
           ))}
+          {!editable && !p.manager_id && (
+            <Link href={`/clienti/${p.client_id}/progetto/${p.id}`}
+              className="px-4 py-2 text-2xs text-warning hover:underline flex items-center gap-1.5">
+              <AlertTriangle className="w-3 h-3" aria-hidden="true" /> Nessun responsabile — assegna un PM
+            </Link>
+          )}
           {!editable && (
             <p className="px-4 py-2 text-2xs text-text-tertiary flex items-center gap-1.5">
               <Crown className="w-3 h-3" aria-hidden="true" /> Solo il PM del progetto o un admin può modificare queste task.
