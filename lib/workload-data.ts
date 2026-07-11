@@ -30,7 +30,7 @@ export async function fetchWorkloadData(
       .select('id, name, status, project_kind, client_id, manager_id, client:clients(id, company_name)')
       .neq('status', 'archiviato')
       .order('name'),
-    sb.from('profiles').select('id, full_name, avatar_url').eq('is_active', true).order('full_name'),
+    sb.from('profiles').select('id, full_name, avatar_url, weekly_capacity_hours').eq('is_active', true).order('full_name'),
   ])
 
   const allProjects: WLProject[] = (projRes.data ?? []).map((p: {
@@ -52,7 +52,7 @@ export async function fetchWorkloadData(
   if (projectIds.length > 0) {
     const { data: taskRows } = await sb
       .from('tasks')
-      .select('id, title, status, priority, due_date, estimated_hours, logged_hours, assignee_id, project_id, is_milestone')
+      .select('id, title, status, priority, due_date, start_date, estimated_hours, logged_hours, assignee_id, project_id, is_milestone')
       .in('project_id', projectIds)
     tasks = (taskRows ?? []) as WLTask[]
 

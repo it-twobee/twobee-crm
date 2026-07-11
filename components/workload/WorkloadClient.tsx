@@ -8,15 +8,15 @@ import {
   AlertTriangle, Clock, Trash2, Loader2, Crown, UserCog, CalendarRange,
 } from 'lucide-react'
 import {
-  filterTasks, computeResourceLoads, computeProjectLoads, EMPTY_FILTERS,
-  type WLTask, type WLProject, type WLResource, type WLFilters,
+  filterTasks, computeResourceLoads, computeProjectLoads, computeIntensity, workloadSignals, EMPTY_FILTERS,
+  type WLTask, type WLProject, type WLResource, type WLFilters, type IntensityWindow,
 } from '@/lib/workload'
 import { AssigneePicker } from '@/components/tasks/AssigneePicker'
 import { setTaskAssignees } from '@/app/actions/task-assignees'
 import { pmUpdateTask, pmDeleteTask } from '@/app/actions/workload-tasks'
 import { usePortalRoutes } from '@/lib/portal-routes'
 
-type View = 'progetti' | 'timeline' | 'risorse'
+type View = 'progetti' | 'timeline' | 'risorse' | 'intensita'
 
 const KIND_UI: Record<string, { label: string; cls: string }> = {
   growth:  { label: 'Growth',  cls: 'text-success bg-success-dim' },
@@ -96,6 +96,9 @@ export function WorkloadClient({
     [filtered, visibleProjects],
   )
 
+  const intensity = useMemo(() => computeIntensity(filtered, resources, multiMap), [filtered, resources, multiMap])
+  const signals = useMemo(() => workloadSignals(filtered, visibleProjects, multiMap), [filtered, visibleProjects, multiMap])
+
   const anyFilter = kind || clientId || resourceId || period !== 'all'
   const reset = () => { setKind(null); setClientId(null); setResourceId(null); setPeriod('all') }
 
@@ -118,7 +121,7 @@ export function WorkloadClient({
           <p className="text-text-tertiary text-sm mt-0.5">{subtitle}</p>
         </div>
         <div className="flex gap-1 rounded-xl bg-surface border border-border p-1" role="tablist" aria-label="Vista">
-          {([['progetti', 'Progetti', FolderKanban], ['timeline', 'Timeline', CalendarRange], ['risorse', 'Risorse', Users]] as const).map(([k, lbl, Icon]) => (
+          {([['progetti', 'Progetti', FolderKanban], ['timeline', 'Timeline', CalendarRange], ['risorse', 'Risorse', Users], ['intensita', 'Intensità', Gauge]] as const).map(([k, lbl, Icon]) => (
             <button key={k} role="tab" aria-selected={view === k} onClick={() => setView(k)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                 view === k ? 'bg-gold-dim text-gold-text' : 'text-text-tertiary hover:text-text-primary'
@@ -183,6 +186,78 @@ export function WorkloadClient({
           projectById={projectById}
           multiMap={multiMap}
         />
+      )}
+      {view === 'intensita' && (
+        <IntensityView windows={intensity.windows} estimateCoverage={intensity.estimateCoverage} signals={signals} />
+      )}
+    </div>
+  )
+}
+
+/* ── Vista Intensità futura (§9.3) ───────────────────────────────────────────── */
+function IntensityView({ windows, estimateCoverage, signals }: {
+  windows: IntensityWindow[]
+  estimateCoverage: number
+  signals: { noEstimate: number; noDue: number; noOwner: number; projectsNoPm: number }
+}) {
+  const [days, setDays] = useState(30)
+  const win = windows.find(w => w.days === days) ?? windows[0]
+
+  return (
+    <div className="space-y-4">
+      {/* Warning qualità previsione */}
+      {estimateCoverage < 100 && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning-dim px-4 py-3">
+          <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" aria-hidden="true" />
+          <p className="text-2xs text-text-secondary">
+            Previsione a bassa affidabilità: solo <span className="font-bold text-warning">{estimateCoverage}%</span> delle
+            ore è basato su stime reali (il resto usa un default di {`4h`}). Compila le ore stimate per un calcolo più accurato.
+          </p>
+        </div>
+      )}
+
+      {/* Segnali operativi */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <Stat label="Task senza stima" value={signals.noEstimate} tone={signals.noEstimate > 0 ? 'warn' : undefined} />
+        <Stat label="Task senza scadenza" value={signals.noDue} tone={signals.noDue > 0 ? 'warn' : undefined} />
+        <Stat label="Task senza owner" value={signals.noOwner} tone={signals.noOwner > 0 ? 'warn' : undefined} />
+        <Stat label="Progetti senza PM" value={signals.projectsNoPm} tone={signals.projectsNoPm > 0 ? 'warn' : undefined} />
+      </div>
+
+      {/* Selettore finestra */}
+      <div className="flex gap-1 rounded-xl bg-surface border border-border p-1 w-fit" role="tablist" aria-label="Finestra">
+        {windows.map(w => (
+          <button key={w.days} role="tab" aria-selected={w.days === days} onClick={() => setDays(w.days)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              w.days === days ? 'bg-gold-dim text-gold-text' : 'text-text-tertiary hover:text-text-primary'
+            }`}>
+            {w.days}gg{w.overloaded > 0 && <span className="ml-1 text-warning">·{w.overloaded}</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* Carico per risorsa nella finestra */}
+      {!win || win.cells.length === 0 ? (
+        <p className="text-center py-12 text-text-tertiary text-sm">Nessun carico pianificato in questa finestra.</p>
+      ) : (
+        <div className="rounded-xl border border-border bg-surface divide-y divide-border">
+          {win.cells.map(c => {
+            const pct = Math.min(100, Math.round(c.ratio * 100))
+            const over = c.ratio > 1
+            const bar = over ? 'bg-error' : c.ratio > 0.8 ? 'bg-warning' : 'bg-success'
+            return (
+              <div key={c.resourceId} className="flex items-center gap-3 px-4 py-2.5">
+                <span className="flex-1 min-w-0 text-sm text-text-primary truncate">{c.resourceName}</span>
+                <div className="w-40 h-2 rounded-full bg-surface-active overflow-hidden shrink-0">
+                  <div className={`h-full rounded-full ${bar}`} style={{ width: `${pct}%` }} />
+                </div>
+                <span className={`text-2xs tabular shrink-0 w-24 text-right ${over ? 'text-error font-bold' : 'text-text-tertiary'}`}>
+                  {c.hours}h / {c.capacity}h
+                </span>
+              </div>
+            )
+          })}
+        </div>
       )}
     </div>
   )

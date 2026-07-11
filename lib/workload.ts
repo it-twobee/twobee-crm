@@ -14,6 +14,7 @@ export interface WLTask {
   status: string
   priority: string
   due_date: string | null
+  start_date?: string | null
   estimated_hours: number | null
   logged_hours: number
   assignee_id: string | null
@@ -35,6 +36,7 @@ export interface WLResource {
   id: string
   full_name: string
   avatar_url?: string | null
+  weekly_capacity_hours?: number | null
 }
 
 export interface WLFilters {
@@ -47,7 +49,7 @@ export interface WLFilters {
 
 export const EMPTY_FILTERS: WLFilters = { kind: null, clientId: null, resourceId: null, from: null, to: null }
 
-const isActive = (t: WLTask) => t.status !== 'completato' && !t.is_milestone
+const isActive = (t: WLTask) => t.status !== 'completato' && t.status !== 'richiesta_supporto' && !t.is_milestone
 const effortOf = (t: WLTask) => t.estimated_hours ?? DEFAULT_TASK_HOURS
 
 /** Una task passa i filtri di data se la sua scadenza cade nella finestra (o non ha scadenza e non c'è finestra). */
@@ -182,4 +184,100 @@ export function computeProjectLoads(
   }
   // I progetti con task attive in cima, poi per effort.
   return out.sort((a, b) => (b.taskCount - b.doneCount) - (a.taskCount - a.doneCount) || b.totalHours - a.totalHours)
+}
+
+// ─── Intensità lavorativa futura (§9.3) ─────────────────────────────────────────
+export const INTENSITY_WINDOWS = [7, 14, 30, 60, 90]
+
+export interface IntensityCell {
+  resourceId: string
+  resourceName: string
+  hours: number
+  capacity: number
+  ratio: number             // hours / capacity (>1 = sovraccarico)
+}
+export interface IntensityWindow {
+  days: number
+  cells: IntensityCell[]    // solo risorse con carico > 0, per ratio desc
+  overloaded: number        // quante risorse con ratio > 1
+}
+
+const dayStr = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10)
+const daysInclusive = (a: string, b: string) => Math.max(1, Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000) + 1)
+function overlapDays(s1: string, e1: string, s2: string, e2: string): number {
+  const start = s1 > s2 ? s1 : s2
+  const end = e1 < e2 ? e1 : e2
+  return start > end ? 0 : daysInclusive(start, end)
+}
+const capacityOf = (r: WLResource) => (r.weekly_capacity_hours && r.weekly_capacity_hours > 0 ? r.weekly_capacity_hours : 40)
+
+/**
+ * Intensità futura per risorsa nelle finestre 7/14/30/60/90 giorni. L'effort di
+ * ogni task attiva è **spalmato** sull'intervallo start_date→due_date (D6): la
+ * quota che cade nella finestra conta. La capacità è `weekly_capacity_hours` per la
+ * durata della finestra (D5). `estimateCoverage` = % di ore coperte da stime reali
+ * (il resto è il default 4h: la previsione è meno affidabile — vedi §9.3 warning).
+ */
+export function computeIntensity(
+  tasks: WLTask[],
+  resources: WLResource[],
+  multiAssignees?: Map<string, string[]>,
+  today = new Date(),
+): { windows: IntensityWindow[]; estimateCoverage: number } {
+  const todayStr = dayStr(today)
+  const nameOf = new Map(resources.map(r => [r.id, r.full_name]))
+
+  let estHours = 0, totalHours = 0
+  const spread = tasks.filter(t => isActive(t) && t.due_date).map(t => {
+    const due = t.due_date!
+    const start = t.start_date && t.start_date <= due ? t.start_date : due
+    const eff = effortOf(t)
+    totalHours += eff
+    if (t.estimated_hours != null) estHours += eff
+    const assignees = multiAssignees?.get(t.id) ?? (t.assignee_id ? [t.assignee_id] : [])
+    return { start, due, perDay: eff / daysInclusive(start, due), assignees }
+  })
+
+  const windows: IntensityWindow[] = INTENSITY_WINDOWS.map(days => {
+    const winEnd = dayStr(new Date(today.getTime() + (days - 1) * 86400000))
+    const cells: IntensityCell[] = resources.map(r => {
+      let hours = 0
+      for (const s of spread) {
+        if (!s.assignees.includes(r.id)) continue
+        const from = s.start < todayStr ? todayStr : s.start
+        const ov = overlapDays(from, s.due, todayStr, winEnd)
+        if (ov > 0) hours += (s.perDay * ov) / s.assignees.length
+      }
+      const capacity = Math.round(capacityOf(r) * days / 7)
+      return { resourceId: r.id, resourceName: nameOf.get(r.id) ?? '—', hours: Math.round(hours * 10) / 10, capacity, ratio: capacity > 0 ? hours / capacity : 0 }
+    }).filter(c => c.hours > 0).sort((a, b) => b.ratio - a.ratio)
+    return { days, cells, overloaded: cells.filter(c => c.ratio > 1).length }
+  })
+
+  return { windows, estimateCoverage: totalHours > 0 ? Math.round((estHours / totalHours) * 100) : 100 }
+}
+
+export interface WorkloadSignals {
+  noEstimate: number
+  noDue: number
+  noOwner: number
+  projectsNoPm: number
+}
+
+/** Segnali di qualità/rischio operativo sul set filtrato (§9.3). */
+export function workloadSignals(
+  tasks: WLTask[],
+  projects: WLProject[],
+  multiAssignees?: Map<string, string[]>,
+): WorkloadSignals {
+  const active = tasks.filter(isActive)
+  return {
+    noEstimate: active.filter(t => t.estimated_hours == null).length,
+    noDue: active.filter(t => !t.due_date).length,
+    noOwner: active.filter(t => {
+      const a = multiAssignees?.get(t.id) ?? (t.assignee_id ? [t.assignee_id] : [])
+      return a.length === 0
+    }).length,
+    projectsNoPm: projects.filter(p => !p.manager_id).length,
+  }
 }
