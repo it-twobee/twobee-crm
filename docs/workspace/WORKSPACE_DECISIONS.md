@@ -79,3 +79,13 @@ pronto per `richiesta_supporto` e futuri `annullato/archiviato`).
 - **Cal-Q2 (conflitti)**: **last-write-timestamp** (vince l'ultima modifica per timestamp).
 - **Cal-Q3 (form)**: includere **ricorrenza + promemoria** nel form v1 (persistiti + passthrough Google).
 - **Cal-Q4 (calendari)**: solo **`primary`** (niente multi-calendario per ora).
+
+## Cliente/Progetto (Fase 4)
+- **F4-Q1 (matching appuntamenti)**: **Opzione A** — normalizzazione automatica dei nomi
+  (lowercase, via punteggiatura, spazi normalizzati, token matching su cliente OR progetto).
+  NIENTE campo alias da compilare a mano.
+- **F4-Q2 (nomi cliente)**: **sdoppiare** i campi. `display_name` = nome visualizzato
+  (backfill dall'attuale `company_name`), `legal_name` = ragione sociale (nuovo, opzionale,
+  usato su fatture/preventivi/documenti fiscali). Modifica anagrafica solo admin (D3).
+- **F4-Q3 (riunioni→task)**: le task suggerite dall'AI possono essere create solo da
+  **admin/manager** (e PM del progetto), coerente con le altre scritture di progetto.
