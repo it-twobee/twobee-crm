@@ -8,11 +8,18 @@
 
 export const TERMINAL_TASK_STATUSES = ['completato'] as const
 export const ACTIVE_TASK_STATUSES = ['da_fare', 'in_corso', 'in_revisione'] as const
+// In attesa di accettazione (Fase 1d): non è lavoro reale finché non accettata.
+export const PENDING_REQUEST_STATUS = 'richiesta_supporto'
 
 export function isTaskDone(status: string | null | undefined): boolean {
   return !!status && (TERMINAL_TASK_STATUSES as readonly string[]).includes(status)
 }
 
+export function isPendingRequest(status: string | null | undefined): boolean {
+  return status === PENDING_REQUEST_STATUS
+}
+
+// "Attiva" = né completata né in attesa di accettazione.
 export function isTaskActive(status: string | null | undefined): boolean {
-  return !isTaskDone(status)
+  return !isTaskDone(status) && !isPendingRequest(status)
 }
