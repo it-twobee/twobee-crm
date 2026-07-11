@@ -117,7 +117,7 @@ const parsed = JSON.parse((await res.json()).choices?.[0]?.message?.content?.mat
 
 ## Migration da eseguire (Supabase Dashboard → SQL Editor)
 `chat_channels.project_id` **esiste** in produzione: il vecchio "BUG NOTO" è risolto.
-Numerazione: attenzione, `080_*`, `081_*` e `092_*` compaiono due volte. Il prossimo libero è **099**.
+Numerazione: attenzione, `080_*`, `081_*` e `092_*` compaiono due volte. Il prossimo libero è **100**.
 
 | # | Cosa fa | Serve anche |
 |---|---|---|
@@ -143,6 +143,7 @@ dato economico: è sicuro anche nel workspace.
 | `096_rls_hardening.sql` | SEC-01: chiude le RLS `USING(true)` (policy lasche droppate per nome) | — |
 | `097_data_quality_view.sql` | VIEW read-only `data_quality_report` (widget "Salute Dati") | — |
 | `098_time_tracking_consolidation.sql` | TIME-01: `time_entries` = fonte unica; trigger alimenta `tasks.logged_hours`; deprecata `task_time_logs`. **Supera la 050** (esegui solo la 098) | — |
+| `099_activity_log_uniform.sql` | LOG-01: trigger audit esteso a `decisions`; RLS `activity_log` ristretta a `is_staff()` (era aperta a tutti) | — |
 
 **Scorciatoia**: `supabase/APPLY_PENDING.sql` è il concatenato (081, 086–093) in
 transazione, da incollare una volta sola nel SQL Editor. Bucket privati da creare
