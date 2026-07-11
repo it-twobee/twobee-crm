@@ -19,6 +19,7 @@ import type { Client, Project, Sprint, Task, ClientKpi, ClientKpiConfig, Profile
 import { Section, timeAgo, trendDir, type ProjectComment } from './project-shared'
 import { Avatar, ProgressBar, ProgressRing, InlineEdit, DatePicker } from './ProjectPrimitives'
 import { TaskDrawer } from '@/components/tasks/TaskDrawer'
+import { ContextualCreate } from '@/components/shared/ContextualCreate'
 import { AppointmentsSection } from './tabs/AppuntamentiTab'
 import { MeetingRecapsSection } from './tabs/RiunioniTab'
 import { KpiSection } from './tabs/KpiTab'
@@ -855,6 +856,9 @@ function BriefPanel({ project, client, isAdmin, accent, onPlanGenerated, sprints
   const [showAi, setShowAi]         = useState(false)
   const [showTmpl, setShowTmpl]     = useState(false)
   const [briefAiGenerated, setBriefAiGenerated] = useState(false)
+  // §15.1: dopo il salvataggio il brief resta in LETTURA. Template/AI/genera-piano
+  // compaiono solo in edit mode. Un brief vuoto parte già in edit (non c'è nulla da leggere).
+  const [editMode, setEditMode] = useState(!project.brief)
 
   const isDirty = brief !== (project.brief ?? '')
 
@@ -863,7 +867,15 @@ function BriefPanel({ project, client, isAdmin, accent, onPlanGenerated, sprints
     await createClient().from('projects').update({ brief: brief.trim() || null }).eq('id', project.id)
     setSaving(false)
     setBriefAiGenerated(false)
+    setEditMode(false)                       // torna in lettura
     toast.success('Brief salvato')
+  }
+
+  // Annulla: ripristina il testo salvato — le modifiche non confermate si perdono, il brief no.
+  const cancelEdit = () => {
+    setBrief(project.brief ?? '')
+    setBriefAiGenerated(false)
+    setEditMode(false)
   }
 
   const clearBrief = async () => {
@@ -902,6 +914,7 @@ function BriefPanel({ project, client, isAdmin, accent, onPlanGenerated, sprints
       if (data.brief) {
         setBrief(data.brief)
         setBriefAiGenerated(true)
+        setEditMode(true)          // il brief AI si rivede prima di confermare
         await createClient().from('projects').update({ brief: data.brief }).eq('id', project.id)
         toast.success('Brief generato!')
       }
@@ -929,6 +942,7 @@ function BriefPanel({ project, client, isAdmin, accent, onPlanGenerated, sprints
       if (data.brief) {
         setBrief(data.brief)
         setBriefAiGenerated(true)
+        setEditMode(true)          // il brief da template si rivede prima di confermare
         await createClient().from('projects').update({ brief: data.brief }).eq('id', project.id)
       }
     } catch {
@@ -968,52 +982,67 @@ function BriefPanel({ project, client, isAdmin, accent, onPlanGenerated, sprints
             </div>
           )}
 
-          {/* Textarea or loading */}
+          {/* Corpo: LETTURA (default) o EDIT */}
           {briefLoading ? (
             <div className="flex flex-col items-center gap-2.5 py-10">
               <Loader2 className="w-6 h-6 animate-spin" style={{ color: accent }} />
               <p className="text-xs text-text-tertiary">L&apos;AI sta scrivendo il brief del progetto…</p>
             </div>
-          ) : (
+          ) : editMode && isAdmin ? (
             <textarea value={brief} onChange={e => { setBrief(e.target.value); setBriefAiGenerated(false) }}
-              disabled={!isAdmin}
+              autoFocus
               rows={brief ? Math.min(12, Math.max(5, brief.split('\n').length + 2)) : 5}
-              placeholder={isAdmin
-                ? 'Descrivi il progetto: obiettivi, target, vincoli, aspettative del cliente…\n\nUsa un template per generare il brief automaticamente con AI.'
-                : 'Nessun brief disponibile.'}
-              className="w-full bg-transparent text-sm leading-relaxed resize-none focus:outline-none placeholder:text-[#1E1E1E]"
-              style={{ color: brief ? '#ccc' : undefined }} />
+              placeholder="Descrivi il progetto: obiettivi, target, vincoli, aspettative del cliente…&#10;&#10;Usa un template per generare il brief automaticamente con AI."
+              className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm leading-relaxed text-text-primary resize-none focus:outline-none focus:border-gold/40 placeholder:text-text-tertiary" />
+          ) : brief ? (
+            <p className="text-sm leading-relaxed text-text-secondary whitespace-pre-line">{brief}</p>
+          ) : (
+            <p className="text-sm text-text-tertiary italic">Nessun brief disponibile.</p>
           )}
 
+          {/* Azioni */}
           {isAdmin && !briefLoading && (
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
               <div className="flex items-center gap-3">
                 <span className="text-2xs text-text-tertiary">{wordCount} parole</span>
-                {brief && (
+                {editMode && brief && (
                   <button onClick={clearBrief}
                     className="text-2xs text-text-tertiary hover:text-error transition-colors flex items-center gap-1">
                     <Trash2 className="w-2.5 h-2.5" /> Elimina
                   </button>
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setShowTmpl(true)}
-                  className="flex items-center gap-1.5 text-xs text-text-tertiary hover:text-text-primary px-3 py-1.5 border border-border hover:border-border-strong rounded-lg transition-colors">
-                  <Zap className="w-3 h-3" /> Template + AI
-                </button>
-                {brief.trim() && (
-                  <button onClick={generatePlan}
-                    className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 border rounded-lg transition-colors"
-                    style={{ color: accent, borderColor: `color-mix(in srgb, ${accent} 19%, transparent)` }}>
-                    <Sparkles className="w-3.5 h-3.5" /> Genera piano
+
+              {editMode ? (
+                /* EDIT MODE: template, AI, genera piano, annulla, salva */
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setShowTmpl(true)}
+                    className="flex items-center gap-1.5 text-xs text-text-tertiary hover:text-text-primary px-3 py-1.5 border border-border hover:border-border-strong rounded-lg transition-colors">
+                    <Zap className="w-3 h-3" /> Template + AI
                   </button>
-                )}
-                <button onClick={saveBrief} disabled={saving || !isDirty}
-                  className="text-xs px-4 py-1.5 rounded-lg font-bold disabled:opacity-30 transition-colors"
-                  style={{ background: isDirty ? accent : 'var(--color-surface)', color: isDirty ? 'black' : '#333' }}>
-                  {saving ? 'Salvo…' : 'Salva'}
+                  {brief.trim() && (
+                    <button onClick={generatePlan}
+                      className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 border rounded-lg transition-colors"
+                      style={{ color: accent, borderColor: `color-mix(in srgb, ${accent} 19%, transparent)` }}>
+                      <Sparkles className="w-3.5 h-3.5" /> Genera piano
+                    </button>
+                  )}
+                  <button onClick={cancelEdit}
+                    className="text-xs px-3 py-1.5 rounded-lg text-text-tertiary hover:text-text-primary border border-border transition-colors">
+                    Annulla
+                  </button>
+                  <button onClick={saveBrief} disabled={saving || !isDirty}
+                    className="text-xs px-4 py-1.5 rounded-lg font-bold bg-gold text-on-gold disabled:opacity-30 transition-colors">
+                    {saving ? 'Salvo…' : 'Salva'}
+                  </button>
+                </div>
+              ) : (
+                /* VIEW MODE: solo la CTA per entrare in modifica */
+                <button onClick={() => setEditMode(true)}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 border border-border rounded-lg text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors">
+                  <Edit2 className="w-3 h-3" /> Modifica brief
                 </button>
-              </div>
+              )}
             </div>
           )}
         </div>
@@ -1887,7 +1916,14 @@ export function ProjectPageClient({
               </div>
             </div>
 
-            {/* Progress ring replaces text pct on mobile */}
+            {/* §15: CTA "Crea" contestuale — cliente e progetto già precompilati */}
+            <ContextualCreate canCreate={isAdmin} ctx={{
+              clientId: client.id,
+              clientName: client.display_name ?? client.company_name,
+              projectId: localProject.id,
+              projectName: localProject.name,
+              sprints: localSprints.map(s => ({ id: s.id, name: s.name })),
+            }} />
           </div>
 
           {/* Timeline toggle + bar */}

@@ -1252,14 +1252,19 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
             <div className="flex items-center gap-2 text-text-secondary">
               <FolderKanban className="w-3.5 h-3.5" />
               <span className="text-2xs uppercase tracking-wider font-bold">Progetti attivi</span>
+              <span className="text-2xs text-text-secondary">({activeProjects.length})</span>
             </div>
-            <span className="text-2xs text-text-secondary">{activeProjects.length} attivi</span>
+            {onTabChange && (
+              <button onClick={() => onTabChange(7)} className="text-2xs text-gold-text hover:underline flex items-center gap-1">
+                Vedi tutti <ChevronRight className="w-3 h-3" />
+              </button>
+            )}
           </div>
           {activeProjects.length === 0 ? (
             <p className="text-xs text-text-secondary">Nessun progetto attivo</p>
           ) : (
             <div className="space-y-2">
-              {activeProjects.map(proj => {
+              {activeProjects.slice(0, 3).map(proj => {
                 const isG = proj.project_kind === 'growth'
                 const isD = proj.project_kind === 'digital'
                 const isM = proj.project_kind === 'marketing'
@@ -1290,6 +1295,12 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
                   </Link>
                 )
               })}
+              {activeProjects.length > 3 && onTabChange && (
+                <button onClick={() => onTabChange(7)}
+                  className="w-full text-left px-2.5 py-1.5 text-2xs text-text-tertiary hover:text-gold-text transition-colors">
+                  + {activeProjects.length - 3} altri progetti →
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -1301,7 +1312,7 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
               <MessageSquare className="w-3.5 h-3.5" />
               <span className="text-2xs uppercase tracking-wider font-bold">Relazione commerciale</span>
             </div>
-            {onTabChange && <button onClick={() => onTabChange(6)} className="text-2xs text-gold-text hover:text-gold-text flex items-center gap-1">Tutta <ChevronRight className="w-3 h-3" /></button>}
+
           </div>
           {interactions.length === 0 ? (
             <p className="text-xs text-text-secondary">Nessuna interazione registrata.</p>

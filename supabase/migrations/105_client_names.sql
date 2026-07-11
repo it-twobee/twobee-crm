@@ -20,7 +20,10 @@ CREATE INDEX IF NOT EXISTS idx_clients_display_name ON public.clients(display_na
 
 -- La VIEW del workspace (mig. 100) deve esporre il nome visualizzato, altrimenti nel
 -- Workspace il nome cliente sparirebbe. `legal_name` NON è esposto: è dato fiscale (D3).
-CREATE OR REPLACE VIEW public.clients_workspace WITH (security_invoker = false) AS
+-- DROP + CREATE: CREATE OR REPLACE non consente di inserire colonne nuove in mezzo
+-- (rinominerebbe le colonne posizionali → errore 42P16). La VIEW non contiene dati.
+DROP VIEW IF EXISTS public.clients_workspace;
+CREATE VIEW public.clients_workspace WITH (security_invoker = false) AS
 SELECT
   id, company_name, display_name,
   package, contract_start, contract_end, payment_status,

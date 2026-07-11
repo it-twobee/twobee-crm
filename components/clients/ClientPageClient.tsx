@@ -7,6 +7,8 @@ import { formatCurrency, formatDate, getPaymentBadge } from '@/lib/utils'
 import type { Client, ClientContact, Project, Sprint, Task, MeetingNote, ClientKpi, Profile, Invoice, ClientStakeholder, Document, ClientInteraction } from '@/lib/types/database'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { ProjectStatusTab } from './tabs/ProjectStatusTab'
+import { ContextualCreate } from '@/components/shared/ContextualCreate'
+import { clientName } from '@/lib/utils'
 import { KpiTab } from './tabs/KpiTab'
 import { AnagraficaTab } from './tabs/AnagraficaTab'
 import { FatturazioneTab } from './tabs/FatturazioneTab'
@@ -214,6 +216,8 @@ export function ClientPageClient({
 
   const visibleTabs = [
     { label: 'Panoramica', index: 0 },
+    // §14: sezione autonoma fra Panoramica e KPI (indice 7: gli altri non si spostano)
+    { label: 'Progetti attivi', index: 7 },
     { label: 'KPI & Performance', index: 1 },
     ...(canSeeFatturazione ? [{ label: 'Fatturazione', index: 2 }] : []),
     { label: 'Documenti', index: 3 },
@@ -241,7 +245,7 @@ export function ClientPageClient({
         <div className="flex items-start gap-4 flex-wrap">
           {/* Avatar azienda */}
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gold/20 to-gold/5 border border-gold/20 flex items-center justify-center text-xl font-black text-gold-text shrink-0">
-            {client.company_name[0].toUpperCase()}
+            {clientName(client)[0].toUpperCase()}
           </div>
 
           <div className="flex-1 min-w-0">
@@ -299,6 +303,13 @@ export function ClientPageClient({
               </div>
             )}
           </div>
+
+          {/* §12: CTA "Crea" contestuale — dal cliente, client_id è già precompilato */}
+          <ContextualCreate canCreate={isAdminLevel} ctx={{
+            clientId: client.id,
+            clientName: clientName(client),
+            projects: projects.filter(p => p.status === 'attivo').map(p => ({ id: p.id, name: p.name })),
+          }} />
         </div>
       </div>
 
@@ -321,6 +332,11 @@ export function ClientPageClient({
             sprints={sprints} meetings={meetings} allProfiles={allProfiles}
             teamMembers={teamMembers} interactions={interactions} isAdmin={isAdmin} openTickets={openTickets}
             onTabChange={setActiveTab} hideEconomics={hideEconomics} />
+        )}
+        {/* §14: Progetti attivi — sezione autonoma (PM, sprint, milestone, avanzamento) */}
+        {activeTab === 7 && (
+          <ProjectStatusTab client={client} projects={projects} sprints={sprints} tasks={tasks}
+            meetings={meetings} profiles={allProfiles} />
         )}
         {activeTab === 1 && <KpiTab client={client} kpis={kpis} kpiConfigs={kpiConfigs} projects={projects} />}
         {activeTab === 2 && <FatturazioneTab client={client} invoices={invoices} />}
