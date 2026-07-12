@@ -42,7 +42,7 @@
 **Da eseguire dall'utente**: migration 102. Webhook attivo solo con dominio pubblico (Cal-Q1: presente).
 **Limite noto**: modifica ricorrenza su serie esistenti (istanza vs serie) non gestita — rifinitura futura.
 
-## Fase 5 — Documenti e Knowledge (IN CORSO)
+## Fase 5 — Documenti e Knowledge (COMPLETA)
 **Migration**: `107_knowledge_redesign.sql` (additiva).
 - **5a** §23/D9/D10: `DocumentsTab` cliente **Drive-only** — rimosso upload su bucket pubblico e
   dropzone; restano link Drive (cartella + file) con anteprima embed folder view (nessuna Drive API).
@@ -54,8 +54,15 @@
   **Marginalità riservata agli admin** (`client_economics`, RLS `role='admin'`, NON `is_staff()`:
   le risorse workspace non la vedono nemmeno a livello DB). AI Prefill mantenuto, non salva senza conferma.
 
-**Verifica**: tsc verde. **Da eseguire dall'utente**: migration 107.
-**Residuo Fase 5**: anteprima alberatura Drive più ricca in Documenti workspace (§11.1); report+pulizia legacy storage (D10).
+- **5c** §11/§11.1: Documenti workspace ridisegnati come **alberatura Drive** Cliente → Progetto → documenti,
+  espandi/collassa, ricerca (che espande i rami), filtro cliente, toggle "Solo Drive", anteprima embed e
+  "Apri in Drive". Nessun upload, nessuna Drive API (D9). I file storici non-Drive restano visibili solo
+  togliendo il filtro, marcati come tali.
+- **5d** D10: `scripts/audit-legacy-documents.ts` (read-only). **Eseguito su produzione: 0 documenti legacy**
+  (1 sola riga `documents`, già un link Drive; nessun URL pubblico esposto) → **niente da cancellare**,
+  D10 si chiude senza operazioni distruttive.
+
+**Verifica**: tsc verde; audit legacy eseguito su DB reale. **Da eseguire dall'utente**: migration 107.
 
 ## Fase 4 — Dominio Cliente / Progetto (COMPLETA)
 **Migration**: `105_client_names.sql` (display_name/legal_name).

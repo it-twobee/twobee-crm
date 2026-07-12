@@ -2,11 +2,19 @@
 
 import { useState, useMemo } from 'react'
 import {
-  FileText, Image, Film, File, Download, Search, Filter,
-  FolderOpen, Users, FolderKanban, Calendar, Grid, List,
+  FileText, Search, FolderOpen, FolderKanban, Users, ExternalLink,
+  ChevronDown, ChevronRight, Eye, X, AlertTriangle, Folder,
 } from 'lucide-react'
-import { formatDate, getInitials } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { isDriveUrl, driveKind, DRIVE_KIND_LABEL } from '@/lib/drive'
+import { DriveEmbed } from '@/components/shared/DriveEmbed'
 import type { Profile } from '@/lib/types/database'
+
+// §11 / §11.1 (D9): i Documenti workspace sono la raccolta dei riferimenti Drive di
+// clienti e progetti — nessun upload, nessuna Drive API. L'alberatura è
+// Cliente → Progetto → documenti, espandibile/collassabile, con embed folder view
+// e "Apri in Drive". I file storici su storage (non Drive) restano visibili in
+// sola apertura, marcati, finché non vengono ripuliti (D10).
 
 interface DocItem {
   id: string; name: string; file_url: string; file_type: string | null
@@ -16,70 +24,70 @@ interface DocItem {
   project: { id: string; name: string } | null
 }
 
-type ViewMode = 'grid' | 'list'
-type GroupBy = 'none' | 'client' | 'project' | 'type'
-
-const FILE_ICONS: Record<string, { icon: typeof FileText; color: string }> = {
-  pdf: { icon: FileText, color: 'text-error' },
-  image: { icon: Image, color: 'text-info' },
-  video: { icon: Film, color: 'text-accent' },
-  default: { icon: File, color: 'text-text-secondary' },
-}
-
-function fileCategory(type: string | null): string {
-  if (!type) return 'default'
-  if (type.includes('pdf')) return 'pdf'
-  if (type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(type)) return 'image'
-  if (type.startsWith('video/') || ['mp4', 'mov', 'avi'].includes(type)) return 'video'
-  return 'default'
-}
-
-export function DocumentiClient({ documents, clients, projects }: {
+export function DocumentiClient({ documents, clients }: {
   documents: DocItem[]
   clients: { id: string; company_name: string }[]
   projects: { id: string; name: string; client_id: string }[]
 }) {
   const [search, setSearch] = useState('')
   const [filterClient, setFilterClient] = useState<string | null>(null)
-  const [filterType, setFilterType] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<ViewMode>('list')
-  const [groupBy, setGroupBy] = useState<GroupBy>('client')
+  const [onlyDrive, setOnlyDrive] = useState(true)
+  const [openClients, setOpenClients] = useState<Set<string>>(new Set())
+  const [openProjects, setOpenProjects] = useState<Set<string>>(new Set())
+  const [preview, setPreview] = useState<DocItem | null>(null)
+
+  const legacyCount = useMemo(() => documents.filter(d => !isDriveUrl(d.file_url)).length, [documents])
 
   const filtered = useMemo(() => {
     let d = documents
+    if (onlyDrive) d = d.filter(doc => isDriveUrl(doc.file_url))
+    if (filterClient) d = d.filter(doc => doc.client_id === filterClient)
     if (search) {
       const q = search.toLowerCase()
-      d = d.filter(doc => doc.name.toLowerCase().includes(q) || doc.client?.company_name.toLowerCase().includes(q) || doc.project?.name.toLowerCase().includes(q))
+      d = d.filter(doc =>
+        doc.name.toLowerCase().includes(q)
+        || doc.client?.company_name.toLowerCase().includes(q)
+        || doc.project?.name.toLowerCase().includes(q))
     }
-    if (filterClient) d = d.filter(doc => doc.client_id === filterClient)
-    if (filterType) d = d.filter(doc => fileCategory(doc.file_type) === filterType)
     return d
-  }, [documents, search, filterClient, filterType])
+  }, [documents, search, filterClient, onlyDrive])
 
-  const grouped = useMemo(() => {
-    if (groupBy === 'none') return [{ key: 'all', label: `Tutti (${filtered.length})`, docs: filtered }]
-    const map: Record<string, { label: string; docs: DocItem[] }> = {}
+  // Albero: cliente → { progetti → docs, docs senza progetto }
+  const tree = useMemo(() => {
+    type ProjNode = { id: string; label: string; docs: DocItem[] }
+    type ClientNode = { id: string; label: string; projects: Map<string, ProjNode>; loose: DocItem[] }
+    const byClient = new Map<string, ClientNode>()
     for (const doc of filtered) {
-      let key: string, label: string
-      if (groupBy === 'client') {
-        key = doc.client_id ?? 'no-client'
-        label = doc.client?.company_name ?? 'Senza cliente'
-      } else if (groupBy === 'project') {
-        key = doc.project_id ?? 'no-project'
-        label = doc.project ? `${doc.client?.company_name ?? ''} — ${doc.project.name}` : 'Senza progetto'
+      const cid = doc.client_id ?? 'no-client'
+      const clabel = doc.client?.company_name ?? 'Senza cliente'
+      const entry: ClientNode = byClient.get(cid) ?? { id: cid, label: clabel, projects: new Map(), loose: [] }
+      if (doc.project_id && doc.project) {
+        const p: ProjNode = entry.projects.get(doc.project_id) ?? { id: doc.project_id, label: doc.project.name, docs: [] }
+        p.docs.push(doc)
+        entry.projects.set(doc.project_id, p)
       } else {
-        key = fileCategory(doc.file_type)
-        label = key === 'pdf' ? 'PDF' : key === 'image' ? 'Immagini' : key === 'video' ? 'Video' : 'Altri file'
+        entry.loose.push(doc)
       }
-      ;(map[key] ??= { label, docs: [] }).docs.push(doc)
+      byClient.set(cid, entry)
     }
-    return Object.entries(map).map(([key, v]) => ({ key, label: `${v.label} (${v.docs.length})`, docs: v.docs })).sort((a, b) => a.label.localeCompare(b.label))
-  }, [filtered, groupBy])
+    return Array.from(byClient.values())
+      .map(c => ({ ...c, projects: Array.from(c.projects.values()).sort((a, b) => a.label.localeCompare(b.label)) }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [filtered])
 
-  const fileTypes = useMemo(() => {
-    const s = new Set(documents.map(d => fileCategory(d.file_type)))
-    return Array.from(s).sort()
-  }, [documents])
+  // Una ricerca attiva espande tutto: altrimenti i match restano nascosti nei rami chiusi.
+  const searching = search.trim().length > 0
+  const isClientOpen = (id: string) => searching || openClients.has(id)
+  const isProjectOpen = (id: string) => searching || openProjects.has(id)
+
+  const toggleClient = (id: string) => setOpenClients(p => {
+    const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n
+  })
+  const toggleProject = (id: string) => setOpenProjects(p => {
+    const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n
+  })
+
+  const docCount = filtered.length
 
   return (
     <div className="flex flex-col h-full">
@@ -88,108 +96,157 @@ export function DocumentiClient({ documents, clients, projects }: {
         <div className="flex items-center justify-between mb-3">
           <div>
             <h1 className="text-xl font-black text-text-primary">Documenti</h1>
-            <p className="text-xs text-text-secondary mt-0.5">{documents.length} file totali · {clients.length} clienti</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-lg ${viewMode === 'list' ? 'bg-gold/10 text-gold-text' : 'text-text-secondary hover:text-text-primary'}`}><List className="w-4 h-4" /></button>
-            <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-lg ${viewMode === 'grid' ? 'bg-gold/10 text-gold-text' : 'text-text-secondary hover:text-text-primary'}`}><Grid className="w-4 h-4" /></button>
+            <p className="text-xs text-text-secondary mt-0.5">
+              {docCount} riferimenti Drive · {clients.length} clienti
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca per nome, cliente o progetto..."
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Cerca per nome, cliente o progetto…"
               className="w-full bg-background border border-border rounded-lg pl-9 pr-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-gold" />
           </div>
           <select value={filterClient ?? ''} onChange={e => setFilterClient(e.target.value || null)}
+            aria-label="Filtra per cliente"
             className="bg-background border border-border rounded-lg px-3 py-2 text-xs text-text-primary">
             <option value="">Tutti i clienti</option>
             {clients.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
           </select>
-          <select value={filterType ?? ''} onChange={e => setFilterType(e.target.value || null)}
-            className="bg-background border border-border rounded-lg px-3 py-2 text-xs text-text-primary">
-            <option value="">Tutti i tipi</option>
-            {fileTypes.map(t => <option key={t} value={t}>{t === 'pdf' ? 'PDF' : t === 'image' ? 'Immagini' : t === 'video' ? 'Video' : 'Altri'}</option>)}
-          </select>
-          <div className="flex items-center gap-1 text-xs text-text-secondary">
-            <Filter className="w-3.5 h-3.5" />
-            {(['client', 'project', 'type', 'none'] as GroupBy[]).map(g => (
-              <button key={g} onClick={() => setGroupBy(g)}
-                className={`px-2 py-0.5 rounded ${groupBy === g ? 'text-gold-text font-semibold' : 'hover:text-text-primary'}`}>
-                {g === 'client' ? 'Cliente' : g === 'project' ? 'Progetto' : g === 'type' ? 'Tipo' : 'Nessuno'}
-              </button>
-            ))}
-          </div>
+          <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer">
+            <input type="checkbox" checked={onlyDrive} onChange={e => setOnlyDrive(e.target.checked)} className="accent-gold" />
+            Solo Drive
+          </label>
         </div>
       </div>
 
-      {/* Body */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        {filtered.length === 0 ? (
+      {/* Body: alberatura */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-2">
+        {legacyCount > 0 && onlyDrive && (
+          <div className="flex items-start gap-2.5 bg-warning-dim border border-warning/20 rounded-xl px-4 py-2.5 mb-4">
+            <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+            <p className="text-xs text-text-secondary">
+              {legacyCount} file storici non sono su Drive (caricati prima del passaggio a Drive-only).
+              Togli il filtro <span className="font-semibold">Solo Drive</span> per vederli.
+            </p>
+          </div>
+        )}
+
+        {tree.length === 0 ? (
           <div className="text-center py-16">
             <FolderOpen className="w-12 h-12 text-text-secondary mx-auto mb-4" />
             <p className="text-text-secondary">Nessun documento trovato.</p>
+            <p className="text-xs text-text-tertiary mt-1">
+              I documenti si aggiungono come link Drive dalla scheda cliente.
+            </p>
           </div>
-        ) : grouped.map(group => (
-          <div key={group.key}>
-            {groupBy !== 'none' && (
-              <div className="flex items-center gap-2 mb-3">
-                {groupBy === 'client' && <Users className="w-4 h-4 text-gold-text" />}
-                {groupBy === 'project' && <FolderKanban className="w-4 h-4 text-info" />}
-                {groupBy === 'type' && <File className="w-4 h-4 text-accent" />}
-                <span className="text-sm font-bold text-text-primary">{group.label}</span>
-              </div>
-            )}
-            {viewMode === 'list' ? (
-              <div className="bg-surface border border-border rounded-xl overflow-hidden divide-y divide-border">
-                {group.docs.map(doc => {
-                  const cat = fileCategory(doc.file_type)
-                  const fi = FILE_ICONS[cat] ?? FILE_ICONS.default
-                  return (
-                    <div key={doc.id} className="flex items-center gap-3 px-4 py-3 hover:bg-surface-hover transition-colors">
-                      <fi.icon className={`w-5 h-5 shrink-0 ${fi.color}`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-text-primary truncate">{doc.name}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          {doc.client && <span className="text-2xs text-text-secondary">{doc.client.company_name}</span>}
-                          {doc.project && <span className="text-2xs text-text-tertiary">/ {doc.project.name}</span>}
-                        </div>
+        ) : tree.map(client => (
+          <div key={client.id} className="border border-border rounded-xl overflow-hidden bg-surface">
+            {/* Cliente */}
+            <button onClick={() => toggleClient(client.id)}
+              className="w-full flex items-center gap-2.5 px-4 py-3 hover:bg-surface-hover transition-colors text-left">
+              {isClientOpen(client.id)
+                ? <ChevronDown className="w-4 h-4 text-text-tertiary shrink-0" />
+                : <ChevronRight className="w-4 h-4 text-text-tertiary shrink-0" />}
+              <Users className="w-4 h-4 text-gold-text shrink-0" />
+              <span className="text-sm font-bold text-text-primary flex-1 truncate">{client.label}</span>
+              <span className="text-2xs text-text-tertiary shrink-0">
+                {client.projects.reduce((s, p) => s + p.docs.length, 0) + client.loose.length}
+              </span>
+            </button>
+
+            {isClientOpen(client.id) && (
+              <div className="border-t border-border">
+                {/* Documenti del cliente senza progetto */}
+                {client.loose.length > 0 && (
+                  <div className="pl-6 pr-3 py-2 space-y-1">
+                    {client.loose.map(doc => (
+                      <DocRow key={doc.id} doc={doc} onPreview={() => setPreview(doc)} />
+                    ))}
+                  </div>
+                )}
+
+                {/* Progetti */}
+                {client.projects.map(project => (
+                  <div key={project.id} className="border-t border-border">
+                    <button onClick={() => toggleProject(project.id)}
+                      className="w-full flex items-center gap-2.5 pl-6 pr-4 py-2.5 hover:bg-surface-hover transition-colors text-left">
+                      {isProjectOpen(project.id)
+                        ? <ChevronDown className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
+                        : <ChevronRight className="w-3.5 h-3.5 text-text-tertiary shrink-0" />}
+                      <FolderKanban className="w-3.5 h-3.5 text-info shrink-0" />
+                      <span className="text-xs font-semibold text-text-primary flex-1 truncate">{project.label}</span>
+                      <span className="text-2xs text-text-tertiary shrink-0">{project.docs.length}</span>
+                    </button>
+                    {isProjectOpen(project.id) && (
+                      <div className="pl-12 pr-3 pb-2 space-y-1">
+                        {project.docs.map(doc => (
+                          <DocRow key={doc.id} doc={doc} onPreview={() => setPreview(doc)} />
+                        ))}
                       </div>
-                      {doc.uploader && (
-                        <div className="w-6 h-6 rounded-full bg-gold/20 flex items-center justify-center text-2xs font-bold text-gold-text shrink-0"
-                          title={doc.uploader.full_name ?? ''}>
-                          {getInitials(doc.uploader.full_name ?? '')}
-                        </div>
-                      )}
-                      <span className="text-2xs text-text-tertiary shrink-0">{formatDate(doc.created_at)}</span>
-                      <a href={doc.file_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                        className="text-text-secondary hover:text-gold-text transition-colors shrink-0">
-                        <Download className="w-4 h-4" />
-                      </a>
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                {group.docs.map(doc => {
-                  const cat = fileCategory(doc.file_type)
-                  const fi = FILE_ICONS[cat] ?? FILE_ICONS.default
-                  return (
-                    <a key={doc.id} href={doc.file_url} target="_blank" rel="noopener noreferrer"
-                      className="bg-surface border border-border rounded-xl p-4 hover:border-gold/30 transition-colors group">
-                      <fi.icon className={`w-8 h-8 ${fi.color} mb-3`} />
-                      <p className="text-sm text-text-primary font-medium truncate mb-1">{doc.name}</p>
-                      <p className="text-2xs text-text-tertiary truncate">{doc.client?.company_name ?? 'Senza cliente'}</p>
-                      <p className="text-2xs text-text-tertiary mt-1">{formatDate(doc.created_at)}</p>
-                    </a>
-                  )
-                })}
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>
         ))}
       </div>
+
+      {/* Anteprima Drive */}
+      {preview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim p-4"
+          onClick={e => { if (e.target === e.currentTarget) setPreview(null) }}>
+          <div className="w-full max-w-4xl">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-bold text-text-primary truncate">
+                {preview.client?.company_name}
+                {preview.project && <span className="text-text-tertiary"> / {preview.project.name}</span>}
+                <span className="text-text-tertiary"> / </span>{preview.name}
+              </p>
+              <button onClick={() => setPreview(null)} aria-label="Chiudi anteprima"
+                className="text-text-secondary hover:text-text-primary"><X className="w-5 h-5" /></button>
+            </div>
+            <DriveEmbed url={preview.file_url} title={preview.name} height={600} />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DocRow({ doc, onPreview }: { doc: DocItem; onPreview: () => void }) {
+  const drive = isDriveUrl(doc.file_url)
+  const kind = drive ? driveKind(doc.file_url) : null
+
+  return (
+    <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-surface-hover transition-colors group">
+      {drive
+        ? (kind === 'folder'
+            ? <Folder className="w-4 h-4 text-gold-text shrink-0" />
+            : <FileText className="w-4 h-4 text-info shrink-0" />)
+        : <FileText className="w-4 h-4 text-text-tertiary shrink-0" />}
+
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-text-primary truncate">{doc.name}</p>
+        <p className="text-2xs text-text-tertiary">
+          {drive && kind ? DRIVE_KIND_LABEL[kind] : 'File storico (non Drive)'} · {formatDate(doc.created_at)}
+        </p>
+      </div>
+
+      {drive ? (
+        <button onClick={onPreview}
+          className="flex items-center gap-1 text-2xs text-text-secondary hover:text-gold-text transition-colors shrink-0 opacity-0 group-hover:opacity-100">
+          <Eye className="w-3.5 h-3.5" /> Anteprima
+        </button>
+      ) : null}
+
+      <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
+        className="flex items-center gap-1 text-2xs text-text-secondary hover:text-gold-text transition-colors shrink-0">
+        <ExternalLink className="w-3.5 h-3.5" />
+        {drive ? 'Apri in Drive' : 'Apri'}
+      </a>
     </div>
   )
 }
