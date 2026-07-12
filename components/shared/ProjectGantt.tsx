@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { X, Flag, ExternalLink, Pencil, Check, Loader2 } from 'lucide-react'
-import type { WLTask, WLProject, WLSprint } from '@/lib/workload'
+import { isoLocal, type WLTask, type WLProject, type WLSprint } from '@/lib/workload'
 import { usePortalRoutes } from '@/lib/portal-routes'
 import { renameSprint, renameMilestone } from '@/app/actions/workload-sprints'
 
@@ -18,12 +18,15 @@ type GanttItem =
   | { kind: 'sprint'; id: string; title: string; start: string; end: string; status: string; tasks: number; done: number }
   | { kind: 'milestone'; id: string; title: string; start: string; end: string; status: string }
 
-export function ProjectGantt({ project, sprints, milestones, tasks, editable }: {
+export function ProjectGantt({ project, sprints, milestones, tasks, editable, onItemClick }: {
   project: WLProject
   sprints: WLSprint[]
   milestones: WLTask[]
   tasks: WLTask[]
   editable: boolean
+  /** Se presente (dominio progetto), il click porta all'elemento nella pagina invece
+   *  di aprire il popup: siamo già nel progetto, un popup che rimanda qui è inutile. */
+  onItemClick?: (item: { kind: 'sprint' | 'milestone'; id: string }) => void
 }) {
   const { projectHref } = usePortalRoutes()
   const [detail, setDetail] = useState<GanttItem | null>(null)
@@ -32,7 +35,7 @@ export function ProjectGantt({ project, sprints, milestones, tasks, editable }: 
   const [savingName, startRename] = useTransition()
   // Rinomine applicate localmente (le date e le task collegate non cambiano mai).
   const [renamed, setRenamed] = useState<Record<string, string>>({})
-  const todayStr = new Date().toISOString().slice(0, 10)
+  const todayStr = isoLocal(new Date())   // NON toISOString: in Europe/Rome sfaserebbe di un giorno
 
   const saveName = (item: GanttItem) => startRename(async () => {
     const name = draftName.trim()
@@ -81,7 +84,7 @@ export function ProjectGantt({ project, sprints, milestones, tasks, editable }: 
   const gEndD = new Date(lastD.getFullYear(), lastD.getMonth() + 1, 0)          // ultimo giorno del mese finale
   const dayIdx = (iso: string) =>
     Math.round((new Date(iso + 'T00:00:00').getTime() - gStartD.getTime()) / 86400000)
-  const totalDays = Math.max(1, dayIdx(gEndD.toISOString().slice(0, 10)) + 1)
+  const totalDays = Math.max(1, dayIdx(isoLocal(gEndD)) + 1)
   const pctOf = (iso: string) => (dayIdx(iso) / totalDays) * 100                 // 0..100
 
   const months: { label: string; days: number }[] = []
@@ -99,11 +102,12 @@ export function ProjectGantt({ project, sprints, milestones, tasks, editable }: 
     return 'bg-info/50 border-info'
   }
   const fmtD = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })
-  const showToday = todayStr >= gStartD.toISOString().slice(0, 10) && todayStr <= gEndD.toISOString().slice(0, 10)
+  const showToday = todayStr >= isoLocal(gStartD) && todayStr <= isoLocal(gEndD)
 
-  // Milestone su più corsie: due marker troppo vicini non si accavallano più.
-  const ms = items.filter(i => i.kind === 'milestone')
-  const LANE_GAP = 14                                     // % minima fra due etichette sulla stessa corsia
+  // Milestone su corsie: due marker vicini non si accavallano. La bandierina resta
+  // SEMPRE sulla data esatta; è l'etichetta che si sposta (a destra, o a sinistra sul bordo).
+  const ms = items.filter(i => i.kind === 'milestone').sort((a, b) => a.start.localeCompare(b.start))
+  const LANE_GAP = 16                                     // % minima fra due etichette sulla stessa corsia
   const laneOf = new Map<string, number>()
   const laneLastX: number[] = []
   for (const m of ms) {
@@ -114,73 +118,94 @@ export function ProjectGantt({ project, sprints, milestones, tasks, editable }: 
     laneOf.set(m.id, lane)
   }
   const laneCount = Math.max(1, laneLastX.length)
+  const sprintItems = items.filter(i => i.kind === 'sprint')
+    .sort((a, b) => a.start.localeCompare(b.start))
 
   return (
-    <div className="px-4 py-3 bg-surface-hover/40">
+    <div className="px-4 py-3">
       <div className="relative w-full">
-        {/* Asse mesi: colonne con flex proporzionale ai giorni reali (responsive) */}
-        <div className="flex border-b border-border pb-1 mb-2">
+        {/* Griglia mensile su tutta l'altezza: guida di lettura */}
+        <div className="absolute inset-0 flex pointer-events-none" aria-hidden="true">
+          {months.map((m, i) => (
+            <div key={i} style={{ flexGrow: m.days, flexBasis: 0 }}
+              className={`border-l border-border/60 first:border-l-0 ${i % 2 === 1 ? 'bg-surface-hover/30' : ''}`} />
+          ))}
+        </div>
+
+        {/* Asse mesi */}
+        <div className="relative flex border-b border-border pb-1 mb-2.5">
           {months.map((m, i) => (
             <div key={i} style={{ flexGrow: m.days, flexBasis: 0, minWidth: 0 }}
-              className="text-2xs text-text-tertiary capitalize border-l border-border first:border-l-0 pl-1 truncate">
+              className="text-2xs font-semibold text-text-tertiary capitalize pl-1.5 truncate">
               {m.label}
             </div>
           ))}
         </div>
 
-        {/* Linea "oggi" */}
+        {/* Linea "oggi" — cade esattamente sulla data odierna */}
         {showToday && (
-          <div className="absolute top-5 bottom-0 w-px bg-error z-10 pointer-events-none" style={{ left: `${pctOf(todayStr)}%` }}>
-            <span className="absolute -top-4 -translate-x-1/2 text-2xs text-error font-semibold bg-surface px-1">oggi</span>
+          <div className="absolute top-4 bottom-0 w-px bg-error/70 z-20 pointer-events-none" style={{ left: `${pctOf(todayStr)}%` }}>
+            <span className="absolute -top-4 left-1 text-2xs text-error font-bold whitespace-nowrap">oggi</span>
           </div>
         )}
 
-        {/* Sprint: una riga per sprint → mai sovrapposti fra loro */}
-        <div className="space-y-1.5">
-          {items.filter(i => i.kind === 'sprint').map(sp => {
+        {/* Sprint: una riga ciascuno, con avanzamento riempito nella barra */}
+        <div className="relative space-y-1.5">
+          {sprintItems.map(sp => {
             const left = pctOf(sp.start)
-            const width = Math.max(2, pctOf(sp.end) + (100 / totalDays) - left)
+            const width = Math.max(3, pctOf(sp.end) + (100 / totalDays) - left)
             const progress = sp.kind === 'sprint' && sp.tasks > 0 ? Math.round((sp.done / sp.tasks) * 100) : 0
             return (
-              <div key={sp.id} className="relative h-8">
-                <button onClick={() => setDetail(sp)}
-                  title={`Sprint: ${sp.title}\n${fmtD(sp.start)} → ${fmtD(sp.end)}\nStato: ${sp.status}${sp.kind === 'sprint' ? `\nTask: ${sp.done}/${sp.tasks} completate` : ''}`}
-                  className={`absolute h-8 rounded-lg border flex items-center px-2 gap-1.5 hover:brightness-110 hover:ring-1 hover:ring-gold transition-all overflow-hidden ${sprintCls(sp)}`}
+              <div key={sp.id} className="relative h-7">
+                <button onClick={() => onItemClick ? onItemClick({ kind: 'sprint', id: sp.id }) : setDetail(sp)}
+                  title={`Sprint: ${sp.title}\n${fmtD(sp.start)} → ${fmtD(sp.end)}\nStato: ${STATUS_LABEL[sp.status] ?? sp.status}${sp.kind === 'sprint' ? `\nTask: ${sp.done}/${sp.tasks} completate (${progress}%)` : ''}`}
+                  className={`absolute h-7 rounded-md border flex items-center overflow-hidden hover:brightness-110 hover:ring-1 hover:ring-gold transition-all ${sprintCls(sp)}`}
                   style={{ left: `${left}%`, width: `${width}%` }}>
-                  <span className="text-2xs font-semibold text-text-primary truncate">{sp.title}</span>
-                  {sp.kind === 'sprint' && sp.tasks > 0 && (
-                    <span className="text-2xs text-text-primary/80 tabular shrink-0">{progress}%</span>
+                  {/* Riempimento = avanzamento reale */}
+                  {progress > 0 && (
+                    <span className="absolute inset-y-0 left-0 bg-overlay/20 pointer-events-none" style={{ width: `${progress}%` }} aria-hidden="true" />
                   )}
+                  <span className="relative flex items-center gap-1.5 px-2 w-full">
+                    <span className="text-2xs font-semibold text-text-primary truncate">{sp.title}</span>
+                    {sp.kind === 'sprint' && sp.tasks > 0 && (
+                      <span className="text-2xs text-text-primary/70 tabular ml-auto shrink-0">{progress}%</span>
+                    )}
+                  </span>
                 </button>
               </div>
             )
           })}
-          {items.filter(i => i.kind === 'sprint').length === 0 && (
+          {sprintItems.length === 0 && (
             <p className="text-2xs text-text-tertiary py-1">Nessuno sprint pianificato.</p>
           )}
         </div>
 
-        {/* Milestone: corsie multiple per non accavallarsi */}
+        {/* Milestone: bandierina ANCORATA alla data, etichetta accanto */}
         {ms.length > 0 && (
-          <div className="relative mt-3 border-t border-border pt-2" style={{ height: laneCount * 32 + 8 }}>
+          <div className="relative mt-2.5 border-t border-border pt-2" style={{ height: laneCount * 30 + 6 }}>
             {ms.map(m => {
               const done = m.status === 'completato'
               const late = !done && m.start < todayStr
               const lane = laneOf.get(m.id) ?? 0
               const x = pctOf(m.start)
-              // I marker ai bordi si ancorano per non uscire dalla card.
-              const anchor = x < 6 ? 'translate-x-0' : x > 94 ? '-translate-x-full' : '-translate-x-1/2'
+              const flip = x > 72                       // vicino al bordo destro: etichetta a sinistra
               return (
-                <button key={m.id} onClick={() => setDetail(m)}
-                  title={`Milestone: ${m.title}\nData: ${fmtD(m.start)}\nStato: ${done ? 'Completata' : late ? 'In ritardo' : 'Da fare'}`}
-                  className={`absolute ${anchor} flex flex-col items-start gap-0.5 hover:brightness-125 transition-all max-w-[9rem]`}
-                  style={{ left: `${x}%`, top: lane * 32 }}>
-                  <span className="flex items-center gap-1">
+                // Punto largo 0 sulla data esatta: nulla lo sposta.
+                <div key={m.id} className="absolute" style={{ left: `${x}%`, top: lane * 30, width: 0 }}>
+                  <button onClick={() => onItemClick ? onItemClick({ kind: 'milestone', id: m.id }) : setDetail(m)}
+                    title={`Milestone: ${m.title}\nData: ${fmtD(m.start)}\nStato: ${done ? 'Completata' : late ? 'In ritardo' : 'Da fare'}`}
+                    className={`absolute flex items-center gap-1 hover:brightness-125 transition-all whitespace-nowrap ${
+                      flip ? 'right-0 flex-row-reverse pr-1' : 'left-0 pl-1'
+                    }`}>
                     <Flag className={`w-3 h-3 shrink-0 ${done ? 'text-success' : late ? 'text-error' : 'text-gold-text'}`} aria-hidden="true" />
-                    <span className="text-2xs text-text-tertiary whitespace-nowrap">{fmtD(m.start)}</span>
-                  </span>
-                  <span className="text-2xs text-text-primary truncate w-full text-left">{m.title}</span>
-                </button>
+                    <span className="flex flex-col leading-tight text-left">
+                      <span className={`text-2xs font-semibold ${late ? 'text-error' : 'text-text-primary'}`}>{fmtD(m.start)}</span>
+                      <span className="text-2xs text-text-tertiary max-w-[8rem] truncate">{m.title}</span>
+                    </span>
+                  </button>
+                  {/* Tacca verticale che àncora la bandierina alla data */}
+                  <span className={`absolute top-0 w-px h-3 ${done ? 'bg-success/50' : late ? 'bg-error/50' : 'bg-gold/50'}`} aria-hidden="true" />
+                </div>
               )
             })}
           </div>

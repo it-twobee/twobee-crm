@@ -234,13 +234,16 @@ function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, mileston
 }
 
 // ─── MilestoneBlock ────────────────────────────────────────────────────────────
-function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, accent, onUpdate, dragHandlers }: {
+function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, accent, onUpdate, dragHandlers, focusId }: {
   milestone: ExtTask; allTasks: ExtTask[]; profiles: Profile[]
   isAdmin: boolean; projectId: string; accent: string
   onUpdate: (t: ExtTask[]) => void
   dragHandlers: DragHandlers<ExtTask>
+  focusId?: string | null
 }) {
   const [open, setOpen]         = useState(false)
+  // Arrivo dal Gantt: la milestone si apre da sola.
+  useEffect(() => { if (focusId === milestone.id) setOpen(true) }, [focusId, milestone.id])
   const [addingTask, setAdding] = useState(false)
   const [taskDraft, setDraft]   = useState('')
   const [saving, setSaving]     = useState(false)
@@ -430,15 +433,18 @@ function useDragReorder<T extends { id: string }>(
 
 // ─── Sprint block ──────────────────────────────────────────────────────────────
 function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, allSprints,
-  onUpdateTasks, onUpdateSprint, onDeleteSprint, dragHandlers }: {
+  onUpdateTasks, onUpdateSprint, onDeleteSprint, dragHandlers, focusId }: {
   sprint: ExtSprint; allTasks: ExtTask[]; profiles: Profile[]
   isAdmin: boolean; projectId: string; accent: string; allSprints: ExtSprint[]
   onUpdateTasks: (t: ExtTask[]) => void
   onUpdateSprint: (s: ExtSprint) => void
   onDeleteSprint: (id: string) => void
   dragHandlers: DragHandlers<ExtSprint>
+  focusId?: string | null
 }) {
   const [open, setOpen]     = useState(false)
+  // Arrivo dal Gantt: lo sprint si apre da solo.
+  useEffect(() => { if (focusId === sprint.id) setOpen(true) }, [focusId, sprint.id])
   const [addingM, setAddM]  = useState(false)
   const [mDraft, setMDraft] = useState('')
   const [saving, setSaving] = useState(false)
@@ -595,6 +601,7 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, a
           {milestones.map(m => (
             <MilestoneBlock key={m.id} milestone={m} allTasks={allTasks} profiles={profiles}
               isAdmin={isAdmin} projectId={projectId} accent={accent}
+              focusId={focusId}
               onUpdate={onUpdateTasks} dragHandlers={milDrag as DragHandlers<ExtTask>} />
           ))}
 
@@ -1434,6 +1441,15 @@ function ProgettoView({ project, client, allSprints, allTasks, profiles, isAdmin
 
   const allMilestonesInSprints = allTasks.filter(t => t.is_milestone)
 
+  // Dal Gantt: porta all'elemento nella pagina (lo apre e ci scrolla), niente popup.
+  const [focusId, setFocusId] = useState<string | null>(null)
+  const goToItem = (item: { kind: 'sprint' | 'milestone'; id: string }) => {
+    setFocusId(item.id)
+    setTimeout(() => {
+      document.getElementById(`${item.kind}-${item.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 60)
+  }
+
   return (
     <div>
       {showReassign && (
@@ -1469,6 +1485,7 @@ function ProgettoView({ project, client, allSprints, allTasks, profiles, isAdmin
           milestones={allTasks.filter(t => t.is_milestone) as unknown as Parameters<typeof ProjectGantt>[0]['milestones']}
           tasks={allTasks as unknown as Parameters<typeof ProjectGantt>[0]['tasks']}
           editable={isAdmin}
+          onItemClick={goToItem}
         />
       </Section>
 
@@ -1503,6 +1520,7 @@ function ProgettoView({ project, client, allSprints, allTasks, profiles, isAdmin
           {sorted.map(s => (
             <SprintBlock key={s.id} sprint={s} allTasks={allTasks} profiles={profiles}
               isAdmin={isAdmin} projectId={project.id} accent={accent} allSprints={allSprints}
+              focusId={focusId}
               onUpdateTasks={onUpdateTasks}
               onUpdateSprint={updated => onUpdateSprints(allSprints.map(x => x.id === updated.id ? updated : x))}
               onDeleteSprint={deleteSprint}
