@@ -13,7 +13,7 @@ import { toast } from 'sonner'
 import { getInitials } from '@/lib/utils'
 import { inviteChannelGuest, revokeChannelGuest } from '@/app/actions/invite-guest'
 import { suggestCCReplies, summarizeClientThread } from '@/app/actions/cc-ai'
-import { isSuperAdmin, isAdminOrAbove } from '@/lib/permissions'
+import { isSuperAdmin, isAdminOrAbove, ROLE_LABELS } from '@/lib/permissions'
 import type { ChatChannel, ChatMessageWithSender, Profile, ClientAccount, ChannelGuest, ClientNote } from '@/lib/types/database'
 
 interface ProjectWithCC {
@@ -324,7 +324,11 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
   )
 
   // Panel
-  const [showPanel, setShowPanel] = useState(true)
+  // Il pannello accessi è uno strumento di gestione: si apre su richiesta, non
+  // all'ingresso — la chat deve avere tutto lo spazio.
+  const [showPanel, setShowPanel] = useState(false)
+  const [showParticipants, setShowParticipants] = useState(false)
+  const [showAddMember, setShowAddMember] = useState(false)  // §27.1: collassata di base
   const [showTicketPanel, setShowTicketPanel] = useState(false)
   const [panelTab, setPanelTab] = useState<PanelTab>('cliente')
   const [channelMembers, setChannelMembers] = useState<Profile[]>([])
@@ -452,10 +456,14 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
   }, [Object.entries(channels).filter(([, ch]) => ch).map(([id, ch]) => `${id}:${ch?.id}`).join(',')])
   const clientAccounts = selectedProjectId ? (accounts[selectedProjectId] ?? []) : []
   const partnerGuests = guests.filter(g => g.guest_type === 'partner')
-  const nonMembers = allProfiles.filter(p =>
-    !channelMembers.find(m => m.id === p.id) &&
+  // La lista non filtrata regge l'intestazione collassabile (contatore + visibilità):
+  // con quella filtrata, una ricerca senza match farebbe sparire l'intera sezione.
+  const nonMembersAll = allProfiles.filter(p => !channelMembers.find(m => m.id === p.id))
+  const nonMembers = nonMembersAll.filter(p =>
     (p.full_name ?? '').toLowerCase().includes(memberSearch.toLowerCase())
   )
+  const clientGuests = guests.filter(g => g.guest_type === 'cliente')
+  const participantCount = channelMembers.length + guests.length
   const clientStatus = getClientStatus(lastMsgAt[selectedProjectId] ?? null)
 
   // ─── Carica canale + messaggi al cambio cliente ─────────────────────────────
@@ -976,11 +984,21 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
                     Supporto
                   </button>
                 )}
-                <button onClick={() => { setShowPanel(v => !v); setShowTicketPanel(false) }}
-                  className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 border rounded-lg transition-colors ${showPanel ? 'border-gold/40 text-gold-text bg-gold/5' : 'border-border text-text-secondary hover:text-text-primary'}`}>
+                {/* Partecipanti: chi c'è in chat (interni + esterni) — consultazione, non gestione */}
+                <button onClick={() => { setShowParticipants(v => !v); setShowPanel(false); setShowTicketPanel(false) }}
+                  title="Partecipanti alla chat"
+                  aria-label={`Partecipanti: ${participantCount}`}
+                  className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 border rounded-lg transition-colors ${showParticipants ? 'border-gold/40 text-gold-text bg-gold/5' : 'border-border text-text-secondary hover:text-text-primary'}`}>
                   <Users className="w-3.5 h-3.5" />
-                  Accessi
+                  <span className="font-bold">{participantCount}</span>
                 </button>
+                {isAdmin && (
+                  <button onClick={() => { setShowPanel(v => !v); setShowTicketPanel(false); setShowParticipants(false) }}
+                    className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 border rounded-lg transition-colors ${showPanel ? 'border-gold/40 text-gold-text bg-gold/5' : 'border-border text-text-secondary hover:text-text-primary'}`}>
+                    <UserPlus className="w-3.5 h-3.5" />
+                    Accessi
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1146,6 +1164,95 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
             </div>
           )}
 
+          {/* ── Panel Partecipanti (sola lettura, per tutti) ───────────────── */}
+          {showParticipants && (
+            <div className="w-80 border-l border-border bg-surface flex flex-col shrink-0 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-gold-text" />
+                  <h3 className="text-sm font-bold text-text-primary">Partecipanti ({participantCount})</h3>
+                </div>
+                <button onClick={() => setShowParticipants(false)} aria-label="Chiudi">
+                  <X className="w-4 h-4 text-text-tertiary hover:text-text-primary" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-3 space-y-4">
+                <div>
+                  <p className="text-2xs text-text-tertiary uppercase tracking-wider font-bold px-1 mb-1.5">
+                    Team TwoBee ({channelMembers.length})
+                  </p>
+                  {channelMembers.length === 0 ? (
+                    <p className="text-2xs text-text-tertiary px-1">Nessun membro interno.</p>
+                  ) : channelMembers.map(m => (
+                    <div key={m.id} className="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-surface transition-colors">
+                      <div className="w-7 h-7 rounded-full bg-gold/20 flex items-center justify-center text-gold-text text-2xs font-bold shrink-0 overflow-hidden">
+                        {m.avatar_url ? <img src={m.avatar_url} className="w-full h-full object-cover" alt="" /> : getInitials(m.full_name)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-text-primary truncate">
+                          {m.full_name}
+                          {m.id === currentProfile.id && <span className="text-text-tertiary font-normal"> (tu)</span>}
+                        </p>
+                        <p className="text-2xs text-text-secondary truncate">
+                          {m.app_role ? (ROLE_LABELS[m.app_role] ?? m.app_role) : 'Team'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {clientGuests.length > 0 && (
+                  <div>
+                    <p className="text-2xs text-text-tertiary uppercase tracking-wider font-bold px-1 mb-1.5">
+                      Cliente ({clientGuests.length})
+                    </p>
+                    {clientGuests.map(g => (
+                      <div key={g.id} className="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-surface transition-colors">
+                        <div className="w-7 h-7 rounded-full bg-info/15 flex items-center justify-center text-info text-2xs font-bold shrink-0">
+                          {getInitials(g.full_name ?? g.email)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-text-primary truncate">{g.full_name ?? g.email}</p>
+                          <p className="text-2xs text-text-secondary truncate">{g.role ?? 'Cliente'}</p>
+                        </div>
+                        {g.status === 'pending' && (
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-warning bg-warning-dim px-1.5 py-0.5 rounded-full shrink-0">Invitato</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {partnerGuests.length > 0 && (
+                  <div>
+                    <p className="text-2xs text-text-tertiary uppercase tracking-wider font-bold px-1 mb-1.5">
+                      Esterni ({partnerGuests.length})
+                    </p>
+                    {partnerGuests.map(g => (
+                      <div key={g.id} className="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-surface transition-colors">
+                        <div className="w-7 h-7 rounded-full bg-accent/15 flex items-center justify-center text-accent text-2xs font-bold shrink-0">
+                          {getInitials(g.full_name ?? g.email)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-text-primary truncate">{g.full_name ?? g.email}</p>
+                          <p className="text-2xs text-text-secondary truncate">{g.role ?? 'Partner'}</p>
+                        </div>
+                        {g.status === 'pending' && (
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-warning bg-warning-dim px-1.5 py-0.5 rounded-full shrink-0">Invitato</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {guests.length === 0 && (
+                  <p className="text-2xs text-text-tertiary px-1">Nessun partecipante esterno.</p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* ── Panel Accessi ─────────────────────────────────────────────── */}
           {showPanel && (
             <div className="w-80 border-l border-border bg-surface flex flex-col shrink-0 overflow-hidden">
@@ -1193,24 +1300,34 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
                         }
                       </div>
                     ))}
-                    {isAdmin && nonMembers.length > 0 && (
+                    {/* §27.1: collassata di base, si espande su richiesta. */}
+                    {isAdmin && nonMembersAll.length > 0 && (
                       <div className="mt-3 pt-3 border-t border-border">
-                        <p className="text-2xs text-text-tertiary uppercase tracking-wider font-bold px-1 mb-2">Aggiungi</p>
-                        <div className="flex items-center gap-2 bg-surface border border-border rounded-xl px-2.5 py-1.5 mb-2">
-                          <Search className="w-3 h-3 text-text-tertiary shrink-0" />
-                          <input value={memberSearch} onChange={e => setMemberSearch(e.target.value)} placeholder="Cerca..."
-                            className="flex-1 bg-transparent text-xs text-text-primary focus:outline-none placeholder:text-text-tertiary" />
-                        </div>
-                        {nonMembers.map(p => (
-                          <button key={p.id} onClick={() => addMember(p.id)}
-                            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-surface transition-colors group/a">
-                            <div className="w-6 h-6 rounded-full bg-surface-hover flex items-center justify-center text-2xs font-bold text-text-primary shrink-0">
-                              {getInitials(p.full_name)}
+                        <button onClick={() => setShowAddMember(v => !v)}
+                          className="w-full flex items-center gap-1.5 px-1 mb-2 text-2xs text-text-tertiary uppercase tracking-wider font-bold hover:text-text-primary transition-colors">
+                          {showAddMember ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                          Aggiungi
+                          <span className="ml-auto normal-case tracking-normal font-normal">{nonMembersAll.length}</span>
+                        </button>
+                        {showAddMember && (
+                          <>
+                            <div className="flex items-center gap-2 bg-surface border border-border rounded-xl px-2.5 py-1.5 mb-2">
+                              <Search className="w-3 h-3 text-text-tertiary shrink-0" />
+                              <input value={memberSearch} onChange={e => setMemberSearch(e.target.value)} placeholder="Cerca..."
+                                className="flex-1 bg-transparent text-xs text-text-primary focus:outline-none placeholder:text-text-tertiary" />
                             </div>
-                            <span className="text-xs text-text-tertiary group-hover/a:text-text-primary flex-1 truncate">{p.full_name}</span>
-                            <Plus className="w-3 h-3 text-text-tertiary opacity-0 group-hover/a:opacity-100 shrink-0" />
-                          </button>
-                        ))}
+                            {nonMembers.map(p => (
+                              <button key={p.id} onClick={() => addMember(p.id)}
+                                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-surface transition-colors group/a">
+                                <div className="w-6 h-6 rounded-full bg-surface-hover flex items-center justify-center text-2xs font-bold text-text-primary shrink-0">
+                                  {getInitials(p.full_name)}
+                                </div>
+                                <span className="text-xs text-text-tertiary group-hover/a:text-text-primary flex-1 truncate">{p.full_name}</span>
+                                <Plus className="w-3 h-3 text-text-tertiary opacity-0 group-hover/a:opacity-100 shrink-0" />
+                              </button>
+                            ))}
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
