@@ -13,6 +13,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { CalendarAgenda } from '@/components/shared/CalendarAgenda'
 import type { Client, Task, Invoice, ClientKpi, Project, Sprint, MeetingNote, Profile, ClientInteraction, InteractionType, InteractionOutcome } from '@/lib/types/database'
 
 const TYPE_ICON: Record<InteractionType, React.ReactNode> = {
@@ -99,122 +100,6 @@ function calcDigitalHealth(kpi: ClientKpi | undefined): number {
   if (pct >= 0.6) return 65
   if (pct >= 0.4) return 45
   return 25
-}
-
-// ─── AgendaSection ────────────────────────────────────────────────────────────
-
-function AgendaSection({ meetings }: { meetings: MeetingNote[] }) {
-  const now      = new Date()
-  const upcoming = meetings.filter(m => new Date(m.date) >= now).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-  const past     = meetings.filter(m => new Date(m.date) < now).sort((a, b)  => new Date(b.date).getTime() - new Date(a.date).getTime())
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-      {/* Prossimi appuntamenti */}
-      <div className="bg-surface border border-border rounded-xl overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-          <Calendar className="w-3.5 h-3.5 text-gold-text" />
-          <span className="text-xs font-bold text-text-primary uppercase tracking-wider">Prossimi Appuntamenti</span>
-        </div>
-        <div className="p-4">
-          {upcoming.length === 0 ? (
-            <p className="text-sm text-text-secondary py-4 text-center">Nessun appuntamento schedulato</p>
-          ) : (
-            <div className="space-y-2">
-              {upcoming.slice(0, 3).map((m, i) => {
-                const d = new Date(m.date)
-                const isNext = i === 0
-                return (
-                  <div key={m.id} className={`flex items-start gap-3 p-3 rounded-xl border ${isNext ? 'bg-gold/5 border-gold/25' : 'bg-background border-border'}`}>
-                    <div className={`shrink-0 rounded-xl p-2.5 text-center min-w-[48px] ${isNext ? 'bg-gold/15' : 'bg-surface'}`}>
-                      <p className={`text-2xs font-bold uppercase tracking-wider ${isNext ? 'text-gold-text' : 'text-text-secondary'}`}>
-                        {d.toLocaleDateString('it-IT', { month: 'short' })}
-                      </p>
-                      <p className={`text-xl font-black leading-tight ${isNext ? 'text-gold-text' : 'text-text-primary'}`}>{d.getDate()}</p>
-                    </div>
-                    <div className="flex-1 min-w-0 pt-0.5">
-                      <p className="text-sm font-semibold text-text-primary truncate">{m.title}</p>
-                      {m.attendees && m.attendees.length > 0 && (
-                        <p className="text-2xs text-text-secondary mt-0.5 flex items-center gap-1">
-                          <Users2 className="w-3 h-3 shrink-0" />
-                          <span className="truncate">{m.attendees.join(', ')}</span>
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Ultimi incontri */}
-      <div className="bg-surface border border-border rounded-xl overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-          <MessageSquare className="w-3.5 h-3.5 text-text-secondary" />
-          <span className="text-xs font-bold text-text-primary uppercase tracking-wider">Ultimi Incontri</span>
-        </div>
-        <div className="p-4">
-          {past.length === 0 ? (
-            <p className="text-sm text-text-secondary py-4 text-center">Nessun incontro registrato</p>
-          ) : (
-            <div className="space-y-1.5">
-              {past.slice(0, 5).map(m => {
-                const isOpen = expandedId === m.id
-                return (
-                  <div key={m.id} className="border border-border rounded-xl overflow-hidden">
-                    <button onClick={() => setExpandedId(isOpen ? null : m.id)}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-overlay/[0.02] transition-colors text-left">
-                      <div className="w-7 h-7 rounded-lg bg-surface border border-border flex items-center justify-center text-text-secondary shrink-0">
-                        <MessageSquare className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-text-primary truncate">{m.title}</p>
-                        <p className="text-2xs text-text-secondary">
-                          {new Date(m.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
-                        </p>
-                      </div>
-                      {isOpen ? <ChevronUp className="w-3.5 h-3.5 text-text-secondary shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 text-text-secondary shrink-0" />}
-                    </button>
-                    {isOpen && (
-                      <div className="px-4 pb-4 space-y-2.5 border-t border-border pt-3">
-                        {m.summary && (
-                          <div>
-                            <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold mb-1">Sintesi</p>
-                            <p className="text-xs text-text-primary leading-relaxed">{m.summary}</p>
-                          </div>
-                        )}
-                        {m.decisions && (
-                          <div>
-                            <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold mb-1">Decisioni</p>
-                            <p className="text-xs text-text-primary leading-relaxed">{m.decisions}</p>
-                          </div>
-                        )}
-                        {m.next_actions && (
-                          <div>
-                            <p className="text-2xs text-gold-text uppercase tracking-wider font-bold mb-1">Prossime azioni</p>
-                            <p className="text-xs text-text-primary leading-relaxed">{m.next_actions}</p>
-                          </div>
-                        )}
-                        {m.attendees && m.attendees.length > 0 && (
-                          <p className="text-2xs text-text-secondary flex items-center gap-1 pt-1">
-                            <Users2 className="w-3 h-3 shrink-0" /> {m.attendees.join(', ')}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
 }
 
 // ─── ProgettiAttivi ────────────────────────────────────────────────────────────
@@ -1352,7 +1237,11 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
       )}
 
       {/* 6 ── Agenda: prossimi appuntamenti + ultimi incontri ────────────── */}
-      <AgendaSection meetings={meetings} />
+      <CalendarAgenda
+        clientName={client.display_name ?? client.company_name}
+        projectNames={projects.map(p => p.name)}
+        notes={meetings.map(m => ({ id: m.id, title: m.title, date: m.date }))}
+      />
 
 
       {/* 8 ── Footer info: Team · Fatture recenti ──────────────────────── */}
