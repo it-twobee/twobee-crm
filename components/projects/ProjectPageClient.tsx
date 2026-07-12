@@ -1827,7 +1827,7 @@ export function ProjectPageClient({
     { key: 'kpi',           label: '📊 KPI' },
     { key: 'aggiornamenti', label: '💬 Aggiornamenti', badge: newUpdates || undefined },
     { key: 'piano_cliente', label: '⭐ Task al cliente' },
-    { key: 'chat',          label: '🗨️ Chat' },
+    { key: 'chat',          label: '🗨️ Customer Care' },
   ]
 
   const activeSprint = localSprints.find(s => s.status === 'in_corso')

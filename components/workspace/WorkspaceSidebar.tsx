@@ -131,8 +131,20 @@ export function WorkspaceSidebar({ sections, profile, isSuperAdmin = false }: Pr
     .sort((a, b) => a[1].order - b[1].order)
     .map(([key, g]) => ({ key, order: g.order, items: [...g.items].sort((x, y) => x.sort_order - y.sort_order) }))
 
-  const isRouteActive = (route: string) =>
-    route === '/workspace' ? pathname === '/workspace' : pathname.startsWith(route)
+  // §28: con `startsWith` puro, /workspace/customer-care/tickets accendeva ANCHE
+  // "Customer Care" (prefisso di "Ticket"). Vince la rotta più specifica: si
+  // raccolgono i match (esatto o come segmento di path) e si tiene il più lungo.
+  const matchesRoute = (route: string) =>
+    route === '/workspace'
+      ? pathname === '/workspace'
+      : pathname === route || pathname.startsWith(route + '/')
+
+  const activeRoute = sections
+    .map(s => s.route)
+    .filter(matchesRoute)
+    .sort((a, b) => b.length - a.length)[0] ?? null
+
+  const isRouteActive = (route: string) => route === activeRoute
 
   return (
     <aside

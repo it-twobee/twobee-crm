@@ -6,7 +6,7 @@ import {
   Smile, Bold, Italic, Code, FileText, Download,
   Film, Archive, Check, Edit3, Trash2, Pin, MoreHorizontal,
   Lock, Volume2, VolumeX, Shield, AlertTriangle, ChevronDown,
-  Info, LogOut, Settings, Plus, Search, Headphones,
+  Info, LogOut, Settings, Plus, Search, Headphones, ChevronRight, Sparkles, Loader2 as Spinner,
 } from 'lucide-react'
 import { TicketChatPanel } from '@/components/ticket/TicketChatPanel'
 import { createClient } from '@/lib/supabase/client'
@@ -905,6 +905,7 @@ function ChannelDetailsPanel({ channelId, channelName, channelType, members, pin
   const [editingTopic, setEditingTopic] = useState(false)
   const [topicDraft, setTopicDraft] = useState('')
   const [saving, setSaving] = useState(false)
+  const [showAddPeople, setShowAddPeople] = useState(false)  // §27.1: collassata di base
   const nonMembers = allProfiles.filter(p => !members.find(m => m.id === p.id))
 
   useEffect(() => {
@@ -1000,21 +1001,29 @@ function ChannelDetailsPanel({ channelId, channelName, channelType, members, pin
               </div>
             ))}
           </div>
+          {/* §27.1: collassata di base — non deve dominare il pannello. */}
           {isAdmin && nonMembers.length > 0 && (
             <div>
-              <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold mb-1.5">Aggiungi persone</p>
-              <div className="space-y-1 max-h-40 overflow-y-auto">
-                {nonMembers.map(p => (
-                  <button key={p.id} onClick={() => onAddMember(p.id)}
-                    className="w-full flex items-center gap-2.5 py-1.5 px-2 rounded-xl hover:bg-surface transition-colors text-left group/a">
-                    <div className="w-6 h-6 rounded-full bg-surface-hover flex items-center justify-center text-text-secondary text-2xs font-bold overflow-hidden shrink-0">
-                      {p.avatar_url ? <img src={p.avatar_url} className="w-full h-full object-cover" alt="" /> : getInitials(p.full_name)}
-                    </div>
-                    <span className="text-sm text-text-secondary group-hover/a:text-text-primary flex-1 truncate">{p.full_name}</span>
-                    <Plus className="w-3.5 h-3.5 text-text-secondary opacity-0 group-hover/a:opacity-100 shrink-0" />
-                  </button>
-                ))}
-              </div>
+              <button onClick={() => setShowAddPeople(v => !v)}
+                className="w-full flex items-center gap-1.5 mb-1.5 text-2xs text-text-secondary uppercase tracking-wider font-bold hover:text-text-primary transition-colors">
+                {showAddPeople ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                Aggiungi persone
+                <span className="ml-auto normal-case tracking-normal font-normal text-text-tertiary">{nonMembers.length}</span>
+              </button>
+              {showAddPeople && (
+                <div className="space-y-1 max-h-40 overflow-y-auto">
+                  {nonMembers.map(p => (
+                    <button key={p.id} onClick={() => onAddMember(p.id)}
+                      className="w-full flex items-center gap-2.5 py-1.5 px-2 rounded-xl hover:bg-surface transition-colors text-left group/a">
+                      <div className="w-6 h-6 rounded-full bg-surface-hover flex items-center justify-center text-text-secondary text-2xs font-bold overflow-hidden shrink-0">
+                        {p.avatar_url ? <img src={p.avatar_url} className="w-full h-full object-cover" alt="" /> : getInitials(p.full_name)}
+                      </div>
+                      <span className="text-sm text-text-secondary group-hover/a:text-text-primary flex-1 truncate">{p.full_name}</span>
+                      <Plus className="w-3.5 h-3.5 text-text-secondary opacity-0 group-hover/a:opacity-100 shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1204,6 +1213,31 @@ export function SlackChat({
 
   const isGuest = currentProfile.app_role === 'guest'
   const isClientChannel = channelType === 'customer_care' || channelType === 'cliente_interno' || channelType === 'cliente'
+
+  // §27.2 — L'assistente AI è uno strumento del TEAM: il cliente (role client/guest)
+  // non lo vede nemmeno. La barriera vera è nell'API (403 per i non-staff): questo
+  // flag serve solo a non mostrare una CTA che fallirebbe.
+  const isStaff = currentProfile.role === 'admin' || currentProfile.role === 'team'
+  const [aiOpen, setAiOpen] = useState(false)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiSuggestions, setAiSuggestions] = useState<{ type: string; title: string; detail: string }[]>([])
+
+  const askAi = async () => {
+    setAiOpen(true); setAiLoading(true); setAiSuggestions([])
+    try {
+      const res = await fetch('/api/ai/customer-care-suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Errore AI'); setAiOpen(false); return }
+      setAiSuggestions(data.suggestions ?? [])
+    } catch {
+      toast.error('Errore nella generazione dei suggerimenti')
+      setAiOpen(false)
+    } finally { setAiLoading(false) }
+  }
 
   const handleOpenTicket = (ticketId: string) => {
     setOpenTicketId(ticketId)
@@ -1601,7 +1635,59 @@ export function SlackChat({
                 {isAdmin && isArchived && (
                   <span className="ml-2 text-2xs text-gold-text flex items-center gap-1"><Shield className="w-3 h-3" />Scrittura admin abilitata</span>
                 )}
+                {/* §27.2 — assistente AI interno: suggerisce al team, invisibile al cliente.
+                    Non invia messaggi e non crea task: propone, il team decide. */}
+                {isStaff && (
+                  <button onClick={askAi} disabled={aiLoading}
+                    title="Suggerimenti AI — visibili solo al team"
+                    className="ml-auto flex items-center gap-1 px-2 py-1 rounded-lg text-2xs font-bold text-text-secondary hover:text-gold-text hover:bg-gold/10 transition-colors disabled:opacity-50">
+                    {aiLoading ? <Spinner className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                    Suggerisci azioni
+                  </button>
+                )}
               </div>
+
+              {isStaff && aiOpen && (
+                <div className="mx-3 mb-2 rounded-xl border border-gold/25 bg-gold-dim p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wider text-gold-text">
+                      <Sparkles className="w-3 h-3" /> Suggerimenti AI — solo team
+                    </span>
+                    <button onClick={() => setAiOpen(false)} aria-label="Chiudi suggerimenti"
+                      className="text-text-tertiary hover:text-text-primary"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                  {aiLoading ? (
+                    <p className="text-xs text-text-secondary flex items-center gap-1.5">
+                      <Spinner className="w-3 h-3 animate-spin" /> Analisi della conversazione…
+                    </p>
+                  ) : aiSuggestions.length === 0 ? (
+                    <p className="text-xs text-text-secondary">Nessun suggerimento: la conversazione non richiede azioni.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {aiSuggestions.map((s, i) => (
+                        <div key={i} className="rounded-lg bg-surface border border-border p-2.5">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-surface-hover text-text-secondary">
+                              {s.type.replace('_', ' ')}
+                            </span>
+                            <p className="text-xs font-bold text-text-primary flex-1 min-w-0 truncate">{s.title}</p>
+                          </div>
+                          <p className="text-2xs text-text-secondary leading-relaxed">{s.detail}</p>
+                          {s.type === 'risposta' && (
+                            <button onClick={() => { setText(s.detail); setAiOpen(false) }}
+                              className="mt-1.5 text-2xs font-bold text-gold-text hover:underline">
+                              Usa come bozza →
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <p className="text-[10px] text-text-tertiary pt-0.5">
+                        Suggerimenti, non azioni: niente viene inviato al cliente finché non lo fai tu.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
               {pendingFiles.length > 0 && (
                 <div className="flex gap-2 flex-wrap px-3 pt-2">
                   {pendingFiles.map((f, i) => (

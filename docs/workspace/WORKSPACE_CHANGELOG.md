@@ -42,6 +42,27 @@
 **Da eseguire dall'utente**: migration 102. Webhook attivo solo con dominio pubblico (Cal-Q1: presente).
 **Limite noto**: modifica ricorrenza su serie esistenti (istanza vs serie) non gestita — rifinitura futura.
 
+## Fase 6 — Customer Care e navigazione (COMPLETA)
+**Migration**: nessuna.
+- **6a** §28: fix active-state sidebar. `pathname.startsWith(route)` accendeva **anche** "Customer Care"
+  quando eri su `/workspace/customer-care/tickets` (prefisso di "Ticket"). Ora vince la rotta **più
+  specifica**: match esatto o per segmento (`route + '/'`), si tiene il più lungo. Nessuna altra voce
+  cambia comportamento.
+- **6b** §21: v1.0 = **solo chat Customer Care**. La tab progetto mostra ora il solo canale
+  `customer_care` (via `ChatTab`), sparisce il "Team interno" (`cliente_interno`) e il `ChatBridgeWidget`;
+  tab rinominata "🗨️ Customer Care". Sidebar workspace già nascondeva `chat`, la rotta già redirige.
+  **Nessun dato o tabella cancellati**: i canali interni restano nel DB, deprecati.
+- **6c** §27.1: "Aggiungi persone" (in `ChannelDetailsPanel`) è ora **collassata di base**, con contatore;
+  si espande su richiesta e non domina più il pannello.
+- **6d** §27.2: **assistente AI interno** del Customer Care. Nuova route `/api/ai/customer-care-suggest`:
+  legge il canale **server-side** (service role — non accetta messaggi dal body, così nessuno fa analizzare
+  canali altrui), riservata allo staff (**403 per client/guest**), e propone 2–5 suggerimenti tipizzati
+  (azione/follow-up/risposta/chiarimento/rischio/escalation/documento). CTA "Suggerisci azioni" nel composer,
+  in basso a destra, **visibile solo al team**. L'AI **non invia messaggi, non scrive al cliente, non crea
+  task**: le bozze di risposta si possono al più caricare nel composer, e le invia l'utente.
+
+**Verifica**: tsc verde; compile dev pulita. Test in-app: aprire Ticket (Customer Care non deve restare acceso), aprire un canale CC e usare "Suggerisci azioni".
+
 ## Fase 5 — Documenti e Knowledge (COMPLETA)
 **Migration**: `107_knowledge_redesign.sql` (additiva).
 - **5a** §23/D9/D10: `DocumentsTab` cliente **Drive-only** — rimosso upload su bucket pubblico e

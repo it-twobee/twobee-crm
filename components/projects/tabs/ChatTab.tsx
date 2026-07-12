@@ -4,14 +4,15 @@ import { useState, useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
 import type { Profile } from '@/lib/types/database'
 import { SlackChat } from '@/components/chat/SlackChat'
-import { ChatBridgeWidget } from '@/components/chat/ChatBridgeWidget'
 import { ensureProjectChannels } from '@/app/actions/project-channels'
 
-export function ProjectChatSection({ projectId, clientId, projectName, currentProfile, allProfiles, isAdmin, accent }: {
+// §21 (v1.0): l'unica chat è quella del Customer Care, cioè il canale col cliente.
+// La chat interna di progetto (`cliente_interno`) non ha più una superficie: il canale
+// e i messaggi restano nel DB — deprecati, non cancellati. Niente DM, niente #best-ideas.
+export function ProjectChatSection({ projectId, clientId, projectName, currentProfile, allProfiles, isAdmin }: {
   projectId: string; clientId: string; projectName: string
   currentProfile: Profile; allProfiles: Profile[]; isAdmin: boolean; accent: string
 }) {
-  const [chatTab, setChatTab] = useState<'customer_care' | 'cliente_interno'>('cliente_interno')
   const [channels, setChannels] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
 
@@ -19,7 +20,7 @@ export function ProjectChatSection({ projectId, clientId, projectName, currentPr
     ensureProjectChannels(projectId, clientId, projectName)
       .then(map => { setChannels(map); setLoading(false) })
       .catch(() => setLoading(false))
-  }, [projectId])
+  }, [projectId, clientId, projectName])
 
   if (loading) return (
     <div className="flex items-center justify-center h-64 text-text-secondary">
@@ -27,31 +28,17 @@ export function ProjectChatSection({ projectId, clientId, projectName, currentPr
     </div>
   )
 
-  const channelId = channels[chatTab]
+  const channelId = channels['customer_care']
 
   return (
     <div className="flex flex-col h-[calc(100vh-180px)]">
-      <div className="flex gap-1 mb-3 bg-background border border-border rounded-xl p-1 w-fit">
-        {(['cliente_interno', 'customer_care'] as const).map(t => (
-          <button key={t} onClick={() => setChatTab(t)}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${chatTab === t
-              ? t === 'cliente_interno' ? 'text-on-gold' : 'bg-info text-text-primary'
-              : 'text-text-secondary hover:text-text-primary'}`}
-            style={chatTab === t && t === 'cliente_interno' ? { background: accent } : undefined}>
-            {t === 'cliente_interno' ? '🔒 Team interno' : '👤 Cliente'}
-          </button>
-        ))}
-      </div>
       {channelId ? (
         <div className="flex-1 min-h-0 border border-border rounded-xl overflow-hidden">
-          {chatTab === 'cliente_interno' && channels['customer_care'] && (
-            <ChatBridgeWidget internalChannelId={channelId} customerCareChannelId={channels['customer_care']} />
-          )}
           <SlackChat
             key={channelId}
             channelId={channelId}
-            channelName={chatTab === 'cliente_interno' ? `${projectName} — Team` : `${projectName} — Cliente`}
-            channelType={chatTab}
+            channelName={`${projectName} — Cliente`}
+            channelType="customer_care"
             currentProfile={currentProfile}
             allProfiles={allProfiles}
             isAdmin={isAdmin}
