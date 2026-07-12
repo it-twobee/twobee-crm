@@ -234,12 +234,13 @@ function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, mileston
 }
 
 // ─── MilestoneBlock ────────────────────────────────────────────────────────────
-function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, accent, onUpdate, dragHandlers, focusId }: {
+function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, accent, onUpdate, dragHandlers, focusId, onOpenDrawer }: {
   milestone: ExtTask; allTasks: ExtTask[]; profiles: Profile[]
   isAdmin: boolean; projectId: string; accent: string
   onUpdate: (t: ExtTask[]) => void
   dragHandlers: DragHandlers<ExtTask>
   focusId?: string | null
+  onOpenDrawer?: (t: ExtTask) => void
 }) {
   const [open, setOpen]         = useState(false)
   // Arrivo dal Gantt: la milestone si apre da sola.
@@ -276,17 +277,20 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
     toast.success('Milestone eliminata')
   }
 
+  // "Aggiungi task": crea subito la task e apre l'EDITOR LATERALE per compilarla
+  // (stesso drawer che si apre cliccando una task esistente).
   const addTask = async () => {
-    if (!taskDraft.trim()) return
     setSaving(true)
     const { data, error } = await createClient().from('tasks').insert({
-      project_id: projectId, title: taskDraft.trim(), status: 'da_fare',
+      project_id: projectId, title: 'Nuova task', status: 'da_fare',
       priority: 'media', is_milestone: false, milestone_id: milestone.id, order: tasks.length,
     } as never).select().single()
     setSaving(false)
     if (error) { toast.error(error.message); return }
-    onUpdate([...allTasks, data as ExtTask])
-    setDraft(''); setAdding(false)
+    const created = data as ExtTask
+    onUpdate([...allTasks, created])
+    setOpen(true)
+    onOpenDrawer?.(created)
   }
 
   return (
@@ -433,7 +437,7 @@ function useDragReorder<T extends { id: string }>(
 
 // ─── Sprint block ──────────────────────────────────────────────────────────────
 function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, allSprints,
-  onUpdateTasks, onUpdateSprint, onDeleteSprint, dragHandlers, focusId }: {
+  onUpdateTasks, onUpdateSprint, onDeleteSprint, dragHandlers, focusId, onOpenDrawer }: {
   sprint: ExtSprint; allTasks: ExtTask[]; profiles: Profile[]
   isAdmin: boolean; projectId: string; accent: string; allSprints: ExtSprint[]
   onUpdateTasks: (t: ExtTask[]) => void
@@ -441,6 +445,7 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, a
   onDeleteSprint: (id: string) => void
   dragHandlers: DragHandlers<ExtSprint>
   focusId?: string | null
+  onOpenDrawer?: (t: ExtTask) => void
 }) {
   const [open, setOpen]     = useState(false)
   // Arrivo dal Gantt: lo sprint si apre da solo.
@@ -473,17 +478,19 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, a
     await createClient().from('sprints').update(patch as Record<string, unknown>).eq('id', sprint.id)
   }
 
+  // "Aggiungi milestone": crea subito e apre l'EDITOR LATERALE per compilarla.
   const addMilestone = async () => {
-    if (!mDraft.trim()) return
     setSaving(true)
     const { data, error } = await createClient().from('tasks').insert({
-      project_id: projectId, title: mDraft.trim(), status: 'da_fare', priority: 'media',
+      project_id: projectId, title: 'Nuova milestone', status: 'da_fare', priority: 'media',
       is_milestone: true, sprint_id: sprint.id, order: milestones.length,
     } as never).select().single()
     setSaving(false)
     if (error) { toast.error(error.message); return }
-    onUpdateTasks([...allTasks, data as ExtTask])
-    setMDraft(''); setAddM(false)
+    const created = data as ExtTask
+    onUpdateTasks([...allTasks, created])
+    setOpen(true)
+    onOpenDrawer?.(created)
   }
 
   const milDrag = useDragReorder(
@@ -601,7 +608,7 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, a
           {milestones.map(m => (
             <MilestoneBlock key={m.id} milestone={m} allTasks={allTasks} profiles={profiles}
               isAdmin={isAdmin} projectId={projectId} accent={accent}
-              focusId={focusId}
+              focusId={focusId} onOpenDrawer={onOpenDrawer}
               onUpdate={onUpdateTasks} dragHandlers={milDrag as DragHandlers<ExtTask>} />
           ))}
 
@@ -1441,6 +1448,10 @@ function ProgettoView({ project, client, allSprints, allTasks, profiles, isAdmin
 
   const allMilestonesInSprints = allTasks.filter(t => t.is_milestone)
 
+  // Editor laterale condiviso: si apre cliccando una task e anche creando
+  // una nuova task/milestone da "Aggiungi …".
+  const [drawerTask, setDrawerTask] = useState<ExtTask | null>(null)
+
   // Dal Gantt: porta all'elemento nella pagina (lo apre e ci scrolla), niente popup.
   const [focusId, setFocusId] = useState<string | null>(null)
   const goToItem = (item: { kind: 'sprint' | 'milestone'; id: string }) => {
@@ -1452,6 +1463,30 @@ function ProgettoView({ project, client, allSprints, allTasks, profiles, isAdmin
 
   return (
     <div>
+      {/* Editor laterale condiviso (task e milestone) */}
+      {drawerTask && (
+        <div className="fixed inset-0 z-50 bg-scrim backdrop-blur-sm" onClick={() => setDrawerTask(null)}>
+          <div className="absolute inset-y-0 right-0 flex" onClick={e => e.stopPropagation()}>
+            <TaskDrawer
+              task={drawerTask}
+              profiles={profiles}
+              canEdit={isAdmin}
+              onClose={() => setDrawerTask(null)}
+              onPatched={p => {
+                onUpdateTasks(allTasks.map(t => t.id === drawerTask.id ? { ...t, ...p } as ExtTask : t))
+                setDrawerTask(prev => prev ? { ...prev, ...p } as ExtTask : null)
+              }}
+              onDelete={async () => {
+                await createClient().from('tasks').delete().eq('id', drawerTask.id)
+                onUpdateTasks(allTasks.filter(t => t.id !== drawerTask.id))
+                setDrawerTask(null)
+                toast.success('Eliminata')
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {showReassign && (
         <BulkReassignModal
           tasks={allTasks.filter(t => !t.is_milestone)}
@@ -1520,7 +1555,7 @@ function ProgettoView({ project, client, allSprints, allTasks, profiles, isAdmin
           {sorted.map(s => (
             <SprintBlock key={s.id} sprint={s} allTasks={allTasks} profiles={profiles}
               isAdmin={isAdmin} projectId={project.id} accent={accent} allSprints={allSprints}
-              focusId={focusId}
+              focusId={focusId} onOpenDrawer={setDrawerTask}
               onUpdateTasks={onUpdateTasks}
               onUpdateSprint={updated => onUpdateSprints(allSprints.map(x => x.id === updated.id ? updated : x))}
               onDeleteSprint={deleteSprint}

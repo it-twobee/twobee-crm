@@ -104,20 +104,23 @@ export function ProjectGantt({ project, sprints, milestones, tasks, editable, on
   const fmtD = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })
   const showToday = todayStr >= isoLocal(gStartD) && todayStr <= isoLocal(gEndD)
 
-  // Milestone su corsie: due marker vicini non si accavallano. La bandierina resta
-  // SEMPRE sulla data esatta; è l'etichetta che si sposta (a destra, o a sinistra sul bordo).
+  // Milestone: pattern standard dei Gantt (MS Project, Jira, Asana) — sulla timeline
+  // vanno solo MARKER NUMERATI, mai le etichette. I titoli stanno in una legenda sotto:
+  // così è matematicamente impossibile che si accavallino, per quante milestone ci siano.
+  // Le corsie servono solo se due marker cadono a pochi giorni di distanza.
   const ms = items.filter(i => i.kind === 'milestone').sort((a, b) => a.start.localeCompare(b.start))
-  const LANE_GAP = 16                                     // % minima fra due etichette sulla stessa corsia
+  const MARKER_GAP = 2.5                                  // % minima fra due marker sulla stessa corsia
   const laneOf = new Map<string, number>()
   const laneLastX: number[] = []
   for (const m of ms) {
     const x = pctOf(m.start)
-    let lane = laneLastX.findIndex(last => x - last >= LANE_GAP)
+    let lane = laneLastX.findIndex(last => x - last >= MARKER_GAP)
     if (lane === -1) { lane = laneLastX.length; laneLastX.push(x) }
     else laneLastX[lane] = x
     laneOf.set(m.id, lane)
   }
   const laneCount = Math.max(1, laneLastX.length)
+  const msIndex = new Map(ms.map((m, i) => [m.id, i + 1]))  // numerazione legenda
   const sprintItems = items.filter(i => i.kind === 'sprint')
     .sort((a, b) => a.start.localeCompare(b.start))
 
@@ -180,37 +183,68 @@ export function ProjectGantt({ project, sprints, milestones, tasks, editable, on
           )}
         </div>
 
-        {/* Milestone: bandierina ANCORATA alla data, etichetta accanto */}
+        {/* Milestone sulla timeline: SOLO marker numerati (mai testo → mai accavallamenti) */}
         {ms.length > 0 && (
-          <div className="relative mt-2.5 border-t border-border pt-2" style={{ height: laneCount * 30 + 6 }}>
+          <div className="relative mt-2 border-t border-border pt-2.5" style={{ height: laneCount * 22 + 4 }}>
             {ms.map(m => {
               const done = m.status === 'completato'
               const late = !done && m.start < todayStr
               const lane = laneOf.get(m.id) ?? 0
-              const x = pctOf(m.start)
-              const flip = x > 72                       // vicino al bordo destro: etichetta a sinistra
+              const n = msIndex.get(m.id)
+              const cls = done ? 'bg-success/20 border-success text-success'
+                : late ? 'bg-error/20 border-error text-error'
+                : 'bg-gold/20 border-gold text-gold-text'
               return (
-                // Punto largo 0 sulla data esatta: nulla lo sposta.
-                <div key={m.id} className="absolute" style={{ left: `${x}%`, top: lane * 30, width: 0 }}>
+                // Punto di larghezza 0 sulla data esatta: il marker si centra su di esso.
+                <div key={m.id} className="absolute" style={{ left: `${pctOf(m.start)}%`, top: lane * 22, width: 0 }}>
                   <button onClick={() => onItemClick ? onItemClick({ kind: 'milestone', id: m.id }) : setDetail(m)}
-                    title={`Milestone: ${m.title}\nData: ${fmtD(m.start)}\nStato: ${done ? 'Completata' : late ? 'In ritardo' : 'Da fare'}`}
-                    className={`absolute flex items-center gap-1 hover:brightness-125 transition-all whitespace-nowrap ${
-                      flip ? 'right-0 flex-row-reverse pr-1' : 'left-0 pl-1'
-                    }`}>
-                    <Flag className={`w-3 h-3 shrink-0 ${done ? 'text-success' : late ? 'text-error' : 'text-gold-text'}`} aria-hidden="true" />
-                    <span className="flex flex-col leading-tight text-left">
-                      <span className={`text-2xs font-semibold ${late ? 'text-error' : 'text-text-primary'}`}>{fmtD(m.start)}</span>
-                      <span className="text-2xs text-text-tertiary max-w-[8rem] truncate">{m.title}</span>
-                    </span>
+                    title={`${n}. ${m.title}\n${fmtD(m.start)} · ${done ? 'Completata' : late ? 'In ritardo' : 'Da fare'}`}
+                    aria-label={`Milestone ${n}: ${m.title}`}
+                    className={`absolute -translate-x-1/2 w-[18px] h-[18px] rounded-full border flex items-center justify-center
+                      text-[9px] font-bold hover:scale-125 hover:z-10 transition-transform ${cls}`}>
+                    {n}
                   </button>
-                  {/* Tacca verticale che àncora la bandierina alla data */}
-                  <span className={`absolute top-0 w-px h-3 ${done ? 'bg-success/50' : late ? 'bg-error/50' : 'bg-gold/50'}`} aria-hidden="true" />
                 </div>
               )
             })}
           </div>
         )}
       </div>
+
+      {/* Legenda milestone: qui stanno i titoli, in griglia. Nessun overlap possibile. */}
+      {ms.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-border">
+          <p className="text-2xs uppercase tracking-wider text-text-tertiary mb-1.5 flex items-center gap-1.5">
+            <Flag className="w-3 h-3" aria-hidden="true" /> Milestone ({ms.length})
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1">
+            {ms.map(m => {
+              const done = m.status === 'completato'
+              const late = !done && m.start < todayStr
+              const n = msIndex.get(m.id)
+              const cls = done ? 'bg-success/20 border-success text-success'
+                : late ? 'bg-error/20 border-error text-error'
+                : 'bg-gold/20 border-gold text-gold-text'
+              return (
+                <button key={m.id} onClick={() => onItemClick ? onItemClick({ kind: 'milestone', id: m.id }) : setDetail(m)}
+                  className="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-surface-hover transition-colors text-left group">
+                  <span className={`w-[18px] h-[18px] shrink-0 rounded-full border flex items-center justify-center text-[9px] font-bold ${cls}`}>
+                    {n}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className={`block text-2xs truncate group-hover:text-gold-text transition-colors ${done ? 'text-text-tertiary line-through' : 'text-text-primary'}`}>
+                      {m.title}
+                    </span>
+                  </span>
+                  <span className={`text-2xs tabular shrink-0 ${late ? 'text-error font-semibold' : 'text-text-tertiary'}`}>
+                    {fmtD(m.start)}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Popup dettaglio: sprint o milestone → CTA alla sezione dedicata */}
       {detail && (
