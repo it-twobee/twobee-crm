@@ -65,6 +65,18 @@ export const WORKSPACE_ROLES: AppRole[] = ['manager', 'senior', 'junior', 'stage
 /** Il cliente vive solo dentro /portale */
 export const CLIENT_ROLES: AppRole[] = ['client']
 
+/**
+ * Risorse ESTERNE: freelance (P.IVA) e partner. Hanno role='team' come il resto
+ * del workspace, ma vedono SOLO i progetti in cui sono inclusi e in SOLA LETTURA.
+ * Lo scoping è in RLS (migration 106, is_external_resource/get_my_project_ids);
+ * qui è la fonte per il gate applicativo (server action + UI).
+ */
+export const EXTERNAL_ROLES: AppRole[] = ['freelance', 'partner']
+
+export function isExternalResource(appRole: string | null | undefined): boolean {
+  return EXTERNAL_ROLES.includes(appRole as AppRole)
+}
+
 export function isAdminRole(appRole: string | null | undefined): boolean {
   return ADMIN_ROLES.includes(appRole as AppRole)
 }

@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { isSuperAdminRaw, isAdminRole } from '@/lib/permissions'
+import { isSuperAdminRaw, isAdminRole, isExternalResource } from '@/lib/permissions'
 import { revalidatePath } from 'next/cache'
 
 // Scritture centralizzate sui campi scalari di una task, dal TaskDrawer condiviso.
@@ -27,6 +27,9 @@ async function assertCanEditTask(taskId: string): Promise<{ userId: string } | {
     admin.from('tasks').select('id, assignee_id, project_id').eq('id', taskId).single(),
   ])
   if (!task) return { error: 'Task non trovata' }
+
+  // Le risorse esterne (freelance/partner) sono in sola lettura, anche sulle proprie task.
+  if (isExternalResource(me?.app_role)) return { error: 'Le risorse esterne non possono modificare le task' }
 
   if (isSuperAdminRaw(me?.email, me?.app_role) || isAdminRole(me?.app_role) || me?.role === 'admin' || me?.app_role === 'manager') {
     return { userId: user.id }

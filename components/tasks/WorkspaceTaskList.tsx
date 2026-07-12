@@ -15,10 +15,11 @@ type Row = {
   project: { id: string; name: string; client_id: string; clients: { company_name: string } | null } | null
 }
 
-export function WorkspaceTaskList({ tasks, statusColorMap, profiles }: {
+export function WorkspaceTaskList({ tasks, statusColorMap, profiles, canEdit = true }: {
   tasks: Row[]
   statusColorMap: Record<string, string>
   profiles: Pick<Profile, 'id' | 'full_name' | 'avatar_url'>[]
+  canEdit?: boolean
 }) {
   const [rows, setRows] = useState<Row[]>(tasks)
   const [selected, setSelected] = useState<DrawerTask | null>(null)
@@ -75,6 +76,7 @@ export function WorkspaceTaskList({ tasks, statusColorMap, profiles }: {
             <TaskDrawer
               task={selected}
               profiles={profiles}
+              canEdit={canEdit}
               initialAssignees={initialAssignees}
               onClose={() => setSelected(null)}
               onPatched={patch => {

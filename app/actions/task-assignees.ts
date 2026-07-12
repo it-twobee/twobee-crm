@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isExternalResource } from '@/lib/permissions'
 import { revalidatePath } from 'next/cache'
 
 /**
@@ -24,9 +25,12 @@ export async function setTaskAssignees(
   const { data: { user } } = await sb.auth.getUser()
   if (!user) return { error: 'Non autenticato' }
 
-  const { data: me } = await sb.from('profiles').select('role').eq('id', user.id).single()
+  const { data: me } = await sb.from('profiles').select('role, app_role').eq('id', user.id).single()
   if (me?.role !== 'admin' && me?.role !== 'team') {
     return { error: 'Solo lo staff può assegnare le task' }
+  }
+  if (isExternalResource(me?.app_role)) {
+    return { error: 'Le risorse esterne non possono assegnare le task' }
   }
 
   // Dedup preservando l'ordine: il primo resta il primario.
@@ -75,9 +79,12 @@ export async function bulkSetTaskAssignees(
   const { data: { user } } = await sb.auth.getUser()
   if (!user) return { error: 'Non autenticato' }
 
-  const { data: me } = await sb.from('profiles').select('role').eq('id', user.id).single()
+  const { data: me } = await sb.from('profiles').select('role, app_role').eq('id', user.id).single()
   if (me?.role !== 'admin' && me?.role !== 'team') {
     return { error: 'Solo lo staff può assegnare le task' }
+  }
+  if (isExternalResource(me?.app_role)) {
+    return { error: 'Le risorse esterne non possono assegnare le task' }
   }
 
   const ids = Array.from(new Set(profileIds.filter(Boolean)))

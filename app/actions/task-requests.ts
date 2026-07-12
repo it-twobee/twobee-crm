@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isExternalResource } from '@/lib/permissions'
 import { revalidatePath } from 'next/cache'
 
 // Fase 1d — Richieste dirette (Admin→Risorsa) e Richiesta supporto (§6.2/6.3, D12).
@@ -24,6 +25,11 @@ export async function createTaskRequest(input: {
   if (!input.targetProfileId || !input.title.trim()) return { error: 'Destinatario e titolo obbligatori' }
 
   const admin = createAdminClient()
+  const { data: meRole } = await admin.from('profiles').select('app_role').eq('id', user.id).single()
+  if (isExternalResource((meRole as { app_role?: string } | null)?.app_role)) {
+    return { error: 'Le risorse esterne non possono inviare richieste' }
+  }
+
   const { data: task, error } = await admin.from('tasks').insert({
     title: input.title.trim(),
     description: input.note ?? null,

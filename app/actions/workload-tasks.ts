@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { isSuperAdminRaw, isAdminRole } from '@/lib/permissions'
+import { isSuperAdminRaw, isAdminRole, isExternalResource } from '@/lib/permissions'
 import { revalidatePath } from 'next/cache'
 
 /**
@@ -19,6 +19,9 @@ async function assertCanManage(projectId: string): Promise<{ userId: string } | 
 
   const { data: me } = await sb
     .from('profiles').select('email, app_role, role').eq('id', user.id).single()
+
+  // Le risorse esterne sono in sola lettura, anche se PM designato per errore.
+  if (isExternalResource(me?.app_role)) return { error: 'Le risorse esterne non possono modificare le task' }
 
   const admin = isSuperAdminRaw(me?.email, me?.app_role) || isAdminRole(me?.app_role) || me?.role === 'admin'
   if (admin) return { userId: user.id }

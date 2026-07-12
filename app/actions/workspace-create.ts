@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { isAdminRole, isSuperAdminRaw } from '@/lib/permissions'
+import { isAdminRole, isSuperAdminRaw, isExternalResource } from '@/lib/permissions'
 import { revalidatePath } from 'next/cache'
 
 // La RLS vieta ai ruoli 'team' di inserire progetti/sprint. Questi action girano
@@ -135,9 +135,13 @@ export async function createMyTask(input: {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'Non autenticato' }
-  const { data: me } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const { data: me } = await supabase.from('profiles').select('role, app_role').eq('id', user.id).single()
   if (me?.role !== 'admin' && me?.role !== 'team') return { ok: false, error: 'Permessi insufficienti' }
   if (!input.title.trim()) return { ok: false, error: 'Titolo obbligatorio' }
+  // Le risorse esterne possono tenere todo personali, ma non iniettare task nei progetti.
+  if (isExternalResource(me?.app_role) && input.projectId) {
+    return { ok: false, error: 'Le risorse esterne non possono creare task di progetto' }
+  }
 
   // Sprint e milestone hanno senso solo dentro un progetto: senza progetto la
   // task è personale e non può essere legata a nulla.

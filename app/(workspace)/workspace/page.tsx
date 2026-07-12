@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { AlertCircle, Clock, Calendar, FolderKanban, CheckCircle2, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { isAdminRole, isSuperAdminRaw } from '@/lib/permissions'
+import { isAdminRole, isSuperAdminRaw, isExternalResource } from '@/lib/permissions'
 import { WorkspaceQuickCreate } from '@/components/workspace/WorkspaceQuickCreate'
 import { RequestInbox } from '@/components/tasks/RequestInbox'
 import { WorkspaceTaskList } from '@/components/tasks/WorkspaceTaskList'
@@ -97,6 +97,7 @@ export default async function WorkspaceDashboardPage() {
   const projectIds = Array.from(new Set(workTasks.map(t => t.project?.id).filter(Boolean) as string[]))
   const name = profile?.full_name?.split(' ')[0] ?? 'ciao'
   const wsProfiles = (wsProfilesRes.data ?? []) as Pick<Profile, 'id' | 'full_name' | 'avatar_url'>[]
+  const canEditTasks = !isExternalResource(profile?.app_role)
 
   // §6.4: aggregati strategici consentiti al Workspace (MRR macro + fatturato totale).
   // Calcolati via service role come SOMMA — mai per-cliente (i dettagli restano vietati).
@@ -223,7 +224,7 @@ export default async function WorkspaceDashboardPage() {
             <h2 className="text-xs font-semibold text-error uppercase tracking-wider mb-2">
               Scadute ({overdue.length})
             </h2>
-            <WorkspaceTaskList tasks={overdue} statusColorMap={STATUS_COLOR} profiles={wsProfiles} />
+            <WorkspaceTaskList tasks={overdue} statusColorMap={STATUS_COLOR} profiles={wsProfiles} canEdit={canEditTasks} />
           </section>
         )}
 
@@ -232,7 +233,7 @@ export default async function WorkspaceDashboardPage() {
             <h2 className="text-xs font-semibold text-gold-text uppercase tracking-wider mb-2">
               Oggi ({dueToday.length})
             </h2>
-            <WorkspaceTaskList tasks={dueToday} statusColorMap={STATUS_COLOR} profiles={wsProfiles} />
+            <WorkspaceTaskList tasks={dueToday} statusColorMap={STATUS_COLOR} profiles={wsProfiles} canEdit={canEditTasks} />
           </section>
         )}
 
@@ -241,7 +242,7 @@ export default async function WorkspaceDashboardPage() {
             <h2 className="text-xs font-semibold text-info uppercase tracking-wider mb-2">
               Prossimi 7 giorni ({dueWeek.length})
             </h2>
-            <WorkspaceTaskList tasks={dueWeek} statusColorMap={STATUS_COLOR} profiles={wsProfiles} />
+            <WorkspaceTaskList tasks={dueWeek} statusColorMap={STATUS_COLOR} profiles={wsProfiles} canEdit={canEditTasks} />
           </section>
         )}
 
@@ -257,7 +258,7 @@ export default async function WorkspaceDashboardPage() {
             <h2 className="text-xs font-semibold text-overlay/30 uppercase tracking-wider mb-2">
               Altre task ({allTasks.length})
             </h2>
-            <WorkspaceTaskList tasks={allTasks.slice(0, 15)} statusColorMap={STATUS_COLOR} profiles={wsProfiles} />
+            <WorkspaceTaskList tasks={allTasks.slice(0, 15)} statusColorMap={STATUS_COLOR} profiles={wsProfiles} canEdit={canEditTasks} />
           </section>
         )}
       </div>
