@@ -9,7 +9,7 @@ import {
   ListChecks, Headset, Briefcase, Headphones, Ticket, Receipt, History,
   Lightbulb, Gauge, ChevronLeft, ChevronRight, ChevronDown, LogOut,
 } from 'lucide-react'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { ROLE_LABELS } from '@/lib/permissions'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { PortalSwitcher } from '@/components/shared/PortalSwitcher'
@@ -75,8 +75,7 @@ const GROUP_FALLBACK: Record<string, { key: string; order: number }> = {
 
 const STORAGE_KEY = 'twobee-workspace-collapsed-groups'
 
-function getInitialCollapsed(): Record<string, boolean> {
-  if (typeof window === 'undefined') return {}
+function readCollapsed(): Record<string, boolean> {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') } catch { return {} }
 }
 
@@ -100,7 +99,11 @@ interface Props {
 export function WorkspaceSidebar({ sections, profile, isSuperAdmin = false }: Props) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(getInitialCollapsed)
+  // Lo stato dei gruppi vive in localStorage, che sul server non esiste: leggerlo
+  // nell'initializer farebbe divergere il primo render client dall'HTML del server
+  // (hydration mismatch). Si parte deterministici e si applica dopo il mount.
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
+  useEffect(() => { setCollapsedGroups(readCollapsed()) }, [])
 
   const roleLabel = profile.app_role ? (ROLE_LABELS[profile.app_role] ?? profile.app_role) : ''
   const initials = (profile.full_name ?? 'U').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()

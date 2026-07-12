@@ -10,7 +10,7 @@ import {
   ShoppingCart, Ticket, UserCircle2, Target, History, FlaskConical,
   Layers, Calculator, Map, Scale, Lightbulb, Gauge,
 } from 'lucide-react'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { usePermissions } from '@/lib/hooks/usePermissions'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
@@ -100,8 +100,7 @@ const sections: NavSection[] = [
 
 const STORAGE_KEY = 'twobee-sidebar-collapsed-sections'
 
-function getInitialCollapsed(): Record<string, boolean> {
-  if (typeof window === 'undefined') return {}
+function readCollapsed(): Record<string, boolean> {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}')
   } catch { return {} }
@@ -110,7 +109,10 @@ function getInitialCollapsed(): Record<string, boolean> {
 export function Sidebar() {
   const pathname = usePathname()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(getInitialCollapsed)
+  // Come in WorkspaceSidebar: localStorage non esiste sul server, quindi leggerlo
+  // nell'initializer divergerebbe dall'HTML renderizzato (hydration mismatch).
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
+  useEffect(() => { setCollapsedSections(readCollapsed()) }, [])
   const { profile } = usePermissions()
   const isSuperAdmin = SUPER_ADMIN_EMAILS.includes(profile?.email ?? '')
   const isAdmin = isSuperAdmin || profile?.app_role === 'admin'
