@@ -20,6 +20,7 @@ import { Section, timeAgo, trendDir, type ProjectComment } from './project-share
 import { Avatar, ProgressBar, ProgressRing, InlineEdit, DatePicker } from './ProjectPrimitives'
 import { TaskDrawer } from '@/components/tasks/TaskDrawer'
 import { ContextualCreate } from '@/components/shared/ContextualCreate'
+import { ProjectGantt } from '@/components/shared/ProjectGantt'
 import { AppointmentsSection } from './tabs/AppuntamentiTab'
 import { MeetingRecapsSection } from './tabs/RiunioniTab'
 import { KpiSection } from './tabs/KpiTab'
@@ -239,7 +240,7 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
   onUpdate: (t: ExtTask[]) => void
   dragHandlers: DragHandlers<ExtTask>
 }) {
-  const [open, setOpen]         = useState(true)
+  const [open, setOpen]         = useState(false)
   const [addingTask, setAdding] = useState(false)
   const [taskDraft, setDraft]   = useState('')
   const [saving, setSaving]     = useState(false)
@@ -437,7 +438,7 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, a
   onDeleteSprint: (id: string) => void
   dragHandlers: DragHandlers<ExtSprint>
 }) {
-  const [open, setOpen]     = useState(true)
+  const [open, setOpen]     = useState(false)
   const [addingM, setAddM]  = useState(false)
   const [mDraft, setMDraft] = useState('')
   const [saving, setSaving] = useState(false)
@@ -1073,10 +1074,15 @@ function AiPlanModal({ plan, loading, error, onClose, onRegenerate, onAccept, ac
   plan: AiPlanSprint[] | null; loading: boolean; error: string; accent: string
   onClose: () => void; onAccept: (p: AiPlanSprint[]) => void; onRegenerate: () => void
 }) {
+  // Il piano è una BOZZA modificabile: si rinomina, si elimina, si seleziona.
+  // Solo ciò che resta selezionato viene creato davvero.
+  const [draft, setDraft] = useState<AiPlanSprint[]>([])
   const [sel, setSel] = useState<Record<string, boolean>>({})
+  const [editing, setEditing] = useState<string | null>(null)
 
-  const ensureInit = () => {
-    if (!plan || Object.keys(sel).length) return
+  useEffect(() => {
+    if (!plan) return
+    setDraft(plan)
     const init: Record<string, boolean> = {}
     plan.forEach((s, si) => {
       init[`s${si}`] = true
@@ -1086,16 +1092,57 @@ function AiPlanModal({ plan, loading, error, onClose, onRegenerate, onAccept, ac
       })
     })
     setSel(init)
-  }
-  if (plan && !Object.keys(sel).length) ensureInit()
+    setEditing(null)
+  }, [plan])
 
-  const filtered = (plan ?? []).map((s, si) => ({
+  const toggle = (k: string) => setSel(p => ({ ...p, [k]: !p[k] }))
+
+  const renameSprintDraft = (si: number, v: string) =>
+    setDraft(d => d.map((s, i) => i === si ? { ...s, name: v } : s))
+  const renameMilestoneDraft = (si: number, mi: number, v: string) =>
+    setDraft(d => d.map((s, i) => i !== si ? s : { ...s, milestones: s.milestones.map((m, j) => j === mi ? { ...m, title: v } : m) }))
+  const renameTaskDraft = (si: number, mi: number, ti: number, v: string) =>
+    setDraft(d => d.map((s, i) => i !== si ? s : {
+      ...s, milestones: s.milestones.map((m, j) => j !== mi ? m : { ...m, tasks: m.tasks.map((t, k) => k === ti ? { ...t, title: v } : t) }),
+    }))
+
+  // Elimina = escludi dal piano (basta deselezionare a cascata: niente indici da rinumerare).
+  const dropSprint = (si: number) => setSel(p => {
+    const n = { ...p, [`s${si}`]: false }
+    draft[si]?.milestones.forEach((m, mi) => {
+      n[`m${si}_${mi}`] = false
+      m.tasks.forEach((_, ti) => { n[`t${si}_${mi}_${ti}`] = false })
+    })
+    return n
+  })
+  const dropMilestone = (si: number, mi: number) => setSel(p => {
+    const n = { ...p, [`m${si}_${mi}`]: false }
+    draft[si]?.milestones[mi]?.tasks.forEach((_, ti) => { n[`t${si}_${mi}_${ti}`] = false })
+    return n
+  })
+
+  const filtered = draft.map((s, si) => ({
     ...s,
-    milestones: s.milestones.filter((_, mi) => sel[`m${si}_${mi}`])
-      .map((m, mi) => ({ ...m, tasks: m.tasks.filter((_, ti) => sel[`t${si}_${mi}_${ti}`]) })),
+    milestones: s.milestones
+      .map((m, mi) => ({ m, mi }))
+      .filter(({ mi }) => sel[`m${si}_${mi}`])
+      .map(({ m, mi }) => ({ ...m, tasks: m.tasks.filter((_, ti) => sel[`t${si}_${mi}_${ti}`]) })),
   })).filter((_, si) => sel[`s${si}`])
 
   const total = filtered.reduce((a, s) => a + s.milestones.reduce((b, m) => b + m.tasks.length + 1, 0) + 1, 0)
+
+  const editableTitle = (key: string, value: string, onChange: (v: string) => void, cls: string) =>
+    editing === key ? (
+      <input autoFocus value={value} onChange={e => onChange(e.target.value)}
+        onBlur={() => setEditing(null)}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setEditing(null) }}
+        className={`flex-1 bg-background border border-gold/40 rounded px-1.5 py-0.5 focus:outline-none ${cls}`} />
+    ) : (
+      <button onClick={() => setEditing(key)} title="Clicca per rinominare"
+        className={`flex-1 text-left truncate hover:text-gold-text transition-colors ${cls}`}>
+        {value}
+      </button>
+    )
 
   return (
     <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
@@ -1103,8 +1150,11 @@ function AiPlanModal({ plan, loading, error, onClose, onRegenerate, onAccept, ac
         onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-2 px-5 py-4 border-b border-border shrink-0">
           <Sparkles className="w-4 h-4 text-gold-text" />
-          <h2 className="text-sm font-bold text-text-primary flex-1">Piano AI generato</h2>
-          <button onClick={onClose}><X className="w-4 h-4 text-text-tertiary hover:text-text-primary" /></button>
+          <div className="flex-1">
+            <h2 className="text-sm font-bold text-text-primary">Piano AI generato</h2>
+            <p className="text-2xs text-text-tertiary">Rinomina, deseleziona o elimina prima di creare</p>
+          </div>
+          <button onClick={onClose} aria-label="Chiudi"><X className="w-4 h-4 text-text-tertiary hover:text-text-primary" /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
@@ -1115,59 +1165,85 @@ function AiPlanModal({ plan, loading, error, onClose, onRegenerate, onAccept, ac
             </div>
           )}
           {error && !loading && <p className="text-sm text-error p-4 bg-error/10 rounded-xl">{error}</p>}
-          {plan && !loading && (
+          {!loading && draft.length > 0 && (
             <div className="space-y-3">
-              {plan.map((s, si) => (
-                <div key={si} className={`border rounded-xl overflow-hidden ${sel[`s${si}`] ? 'border-gold/20 bg-background' : 'border-border opacity-40'}`}>
-                  <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-                    <button onClick={() => setSel(p => ({ ...p, [`s${si}`]: !p[`s${si}`] }))}
-                      className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center ${sel[`s${si}`] ? 'bg-gold border-gold' : 'border-border'}`}>
-                      {sel[`s${si}`] && <Check className="w-2.5 h-2.5 text-on-gold" />}
-                    </button>
-                    <Zap className="w-3.5 h-3.5 text-gold-text shrink-0" />
-                    <span className="text-sm font-bold text-text-primary flex-1">{s.name}</span>
-                    <span className="text-2xs text-text-tertiary">{s.duration_weeks} sett.</span>
-                  </div>
-                  {s.milestones.map((m, mi) => (
-                    <div key={mi} className="px-4 py-2.5 border-b border-border last:border-0">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <button onClick={() => setSel(p => ({ ...p, [`m${si}_${mi}`]: !p[`m${si}_${mi}`] }))}
-                          className={`w-3.5 h-3.5 rounded border shrink-0 flex items-center justify-center ${sel[`m${si}_${mi}`] ? 'bg-gold/80 border-gold/80' : 'border-border'}`}>
-                          {sel[`m${si}_${mi}`] && <Check className="w-2 h-2 text-on-gold" />}
-                        </button>
-                        <Flag className="w-3 h-3 text-gold-text shrink-0" />
-                        <span className="text-xs font-bold text-text-primary">{m.title}</span>
-                      </div>
-                      <div className="pl-7 space-y-0.5">
-                        {m.tasks.map((t, ti) => (
-                          <div key={ti} className="flex items-center gap-2">
-                            <button onClick={() => setSel(p => ({ ...p, [`t${si}_${mi}_${ti}`]: !p[`t${si}_${mi}_${ti}`] }))}
-                              className={`w-3 h-3 rounded border shrink-0 flex items-center justify-center ${sel[`t${si}_${mi}_${ti}`] ? 'bg-success border-success' : 'border-border'}`}>
-                              {sel[`t${si}_${mi}_${ti}`] && <Check className="w-2 h-2 text-on-gold" />}
-                            </button>
-                            <div className="w-1 h-1 rounded-full shrink-0"
-                              style={{ background: PRIORITY_COLORS[t.priority] ?? 'var(--color-border)' }} />
-                            <span className="text-2xs text-text-tertiary">{t.title}</span>
-                          </div>
-                        ))}
-                      </div>
+              {draft.map((s, si) => {
+                const sOn = !!sel[`s${si}`]
+                return (
+                  <div key={si} className={`border rounded-xl overflow-hidden ${sOn ? 'border-gold/20 bg-background' : 'border-border opacity-40'}`}>
+                    {/* Sprint */}
+                    <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+                      <button onClick={() => toggle(`s${si}`)} aria-label="Includi sprint"
+                        className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center ${sOn ? 'bg-gold border-gold' : 'border-border'}`}>
+                        {sOn && <Check className="w-2.5 h-2.5 text-on-gold" />}
+                      </button>
+                      <Zap className="w-3.5 h-3.5 text-gold-text shrink-0" />
+                      {editableTitle(`s${si}`, s.name, v => renameSprintDraft(si, v), 'text-sm font-bold text-text-primary')}
+                      <span className="text-2xs text-text-tertiary shrink-0">{s.duration_weeks} sett.</span>
+                      <button onClick={() => dropSprint(si)} aria-label="Elimina sprint dal piano" title="Elimina dal piano"
+                        className="shrink-0 p-1 rounded text-text-tertiary hover:text-error hover:bg-error-dim transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                  ))}
-                </div>
-              ))}
+
+                    {s.milestones.map((m, mi) => {
+                      const mOn = !!sel[`m${si}_${mi}`]
+                      return (
+                        <div key={mi} className={`px-4 py-2.5 border-b border-border last:border-0 ${mOn ? '' : 'opacity-50'}`}>
+                          {/* Milestone */}
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <button onClick={() => toggle(`m${si}_${mi}`)} aria-label="Includi milestone"
+                              className={`w-3.5 h-3.5 rounded border shrink-0 flex items-center justify-center ${mOn ? 'bg-gold border-gold' : 'border-border'}`}>
+                              {mOn && <Check className="w-2 h-2 text-on-gold" />}
+                            </button>
+                            <Flag className="w-3 h-3 text-gold-text shrink-0" />
+                            {editableTitle(`m${si}_${mi}`, m.title, v => renameMilestoneDraft(si, mi, v), 'text-xs font-bold text-text-primary')}
+                            <button onClick={() => dropMilestone(si, mi)} aria-label="Elimina milestone dal piano" title="Elimina dal piano"
+                              className="shrink-0 p-1 rounded text-text-tertiary hover:text-error hover:bg-error-dim transition-colors">
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+
+                          {/* Task */}
+                          <div className="pl-7 space-y-1">
+                            {m.tasks.map((t, ti) => {
+                              const tOn = !!sel[`t${si}_${mi}_${ti}`]
+                              return (
+                                <div key={ti} className={`flex items-center gap-2 ${tOn ? '' : 'opacity-50'}`}>
+                                  <button onClick={() => toggle(`t${si}_${mi}_${ti}`)} aria-label="Includi task"
+                                    className={`w-3 h-3 rounded border shrink-0 flex items-center justify-center ${tOn ? 'bg-success border-success' : 'border-border'}`}>
+                                    {tOn && <Check className="w-2 h-2 text-on-gold" />}
+                                  </button>
+                                  <div className="w-1 h-1 rounded-full shrink-0"
+                                    style={{ background: PRIORITY_COLORS[t.priority] ?? 'var(--color-border)' }} />
+                                  {editableTitle(`t${si}_${mi}_${ti}`, t.title, v => renameTaskDraft(si, mi, ti, v), 'text-2xs text-text-secondary')}
+                                  <button onClick={() => setSel(p => ({ ...p, [`t${si}_${mi}_${ti}`]: false }))}
+                                    aria-label="Elimina task dal piano" title="Elimina dal piano"
+                                    className="shrink-0 p-0.5 rounded text-text-tertiary hover:text-error transition-colors">
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
 
-        {plan && !loading && (
+        {!loading && draft.length > 0 && (
           <div className="flex gap-3 px-5 py-4 border-t border-border shrink-0">
             <button onClick={onRegenerate}
               className="flex items-center gap-1.5 text-sm text-text-tertiary hover:text-text-primary border border-border px-4 py-2.5 rounded-xl transition-colors">
               <Sparkles className="w-3.5 h-3.5" /> Rigenera
             </button>
             <button onClick={() => onAccept(filtered)} disabled={!total}
-              className="flex-1 py-2.5 font-bold rounded-xl text-sm text-on-gold disabled:opacity-40 transition-colors"
-              style={{ background: accent }}>
+              className="flex-1 py-2.5 font-bold rounded-xl text-sm bg-gold text-on-gold disabled:opacity-40 transition-colors">
               Crea piano ({total} elementi)
             </button>
           </div>
@@ -1232,191 +1308,6 @@ function SprintTimeline({ sprints, milestones }: { sprints: ExtSprint[]; milesto
                   </div>
                 )
               })}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-// ─── GanttChart ───────────────────────────────────────────────────────────────
-function GanttChart({ sprints, milestones, accent }: {
-  sprints: ExtSprint[]; milestones: ExtTask[]; accent: string
-}) {
-  const [hov, setHov] = useState<string | null>(null)
-  if (!sprints.length) return null
-
-  const sorted = [...sprints].sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
-  const rangeS  = new Date(sorted[0].start_date).getTime()
-  const allEnds = sorted.map(s => new Date(s.end_date).getTime())
-  const rangeE  = Math.max(...allEnds)
-  const tot     = Math.max(rangeE - rangeS, 1)
-  const today   = Date.now()
-
-  const pct = (ms: number) => Math.min(100, Math.max(0, (ms - rangeS) / tot * 100))
-
-  const scrollTo = (id: string) => {
-    const el = document.getElementById(id)
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
-
-  const ROW_H  = 28
-  const LABEL_W = 110
-  const totalRows = sorted.length + milestones.filter(m => m.due_date).length
-
-  return (
-    <div className="mb-4 rounded-2xl border border-border bg-background overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
-        <BarChart3 className="w-3.5 h-3.5 shrink-0" style={{ color: accent }} />
-        <span className="text-2xs font-bold text-text-tertiary uppercase tracking-wider flex-1">Gantt progettuale</span>
-        <span className="text-2xs text-text-tertiary">
-          {new Date(rangeS).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })} →{' '}
-          {new Date(rangeE).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: '2-digit' })}
-        </span>
-      </div>
-
-      {/* Chart area */}
-      <div className="overflow-x-auto">
-        <div style={{ minWidth: Math.max(480, LABEL_W + 300) }}>
-
-          {/* Sprint rows */}
-          {sorted.map(s => {
-            const isActive = s.status === 'in_corso'
-            const isDone   = s.status === 'completato'
-            const leftPct  = pct(new Date(s.start_date).getTime())
-            const rightPct = pct(new Date(s.end_date).getTime())
-            const widthPct = Math.max(1, rightPct - leftPct)
-            const barColor = isDone ? 'var(--color-success)' : isActive ? accent : 'var(--color-border)'
-            const isHov    = hov === s.id
-
-            return (
-              <div key={s.id} className="flex items-center hover:bg-background transition-colors group"
-                style={{ height: ROW_H }}>
-                {/* Label */}
-                <div style={{ width: LABEL_W, minWidth: LABEL_W }}
-                  className="flex items-center gap-1.5 px-3 shrink-0 overflow-hidden cursor-pointer"
-                  onClick={() => scrollTo(`sprint-${s.id}`)}>
-                  <Zap className="w-2.5 h-2.5 shrink-0" style={{ color: isDone ? 'var(--color-success)' : isActive ? accent : 'var(--color-border)' }} />
-                  <span className="text-2xs truncate font-semibold"
-                    style={{ color: isDone ? 'var(--color-success)' : isActive ? 'white' : '#555' }}>
-                    {s.name.replace(/^Sprint \d+ — /, '')}
-                  </span>
-                </div>
-
-                {/* Bar area */}
-                <div className="relative flex-1 h-full flex items-center px-2">
-                  {/* Grid lines */}
-                  <div className="absolute inset-0 pointer-events-none">
-                    {[0, 25, 50, 75, 100].map(v => (
-                      <div key={v} className="absolute top-0 bottom-0 w-px bg-surface"
-                        style={{ left: `${v}%` }} />
-                    ))}
-                  </div>
-
-                  {/* Bar */}
-                  <div
-                    className="absolute h-5 rounded-full flex items-center px-2 cursor-pointer transition-all"
-                    style={{
-                      left: `${leftPct}%`, width: `${widthPct}%`,
-                      background: isDone ? '#22C55E18' : isActive ? `color-mix(in srgb, ${accent} 13%, transparent)` : '#111',
-                      border: `1px solid ${barColor}${isDone || isActive ? '60' : '30'}`,
-                      opacity: isHov ? 1 : 0.85,
-                      boxShadow: isHov ? `0 0 12px color-mix(in srgb, ${barColor} 13%, transparent)` : 'none',
-                    }}
-                    onClick={() => scrollTo(`sprint-${s.id}`)}
-                    onMouseEnter={() => setHov(s.id)} onMouseLeave={() => setHov(null)}
-                  >
-                    <span className="text-2xs font-bold truncate" style={{ color: barColor }}>{s.name}</span>
-                  </div>
-
-                  {/* Today marker */}
-                  {today >= rangeS && today <= rangeE && (
-                    <div className="absolute top-0 bottom-0 w-px pointer-events-none z-10"
-                      style={{ left: `${pct(today)}%`, background: 'var(--color-error)', opacity: 0.6 }} />
-                  )}
-                </div>
-              </div>
-            )
-          })}
-
-          {/* Milestone rows */}
-          {milestones.filter(m => m.due_date).map(m => {
-            const isDone = m.status === 'completato'
-            const isOver = !isDone && m.due_date! < new Date().toISOString().slice(0, 10)
-            const mColor = isDone ? 'var(--color-success)' : isOver ? 'var(--color-error)' : accent
-            const mPct   = pct(new Date(m.due_date!).getTime())
-            const isHov  = hov === m.id
-
-            return (
-              <div key={m.id} className="flex items-center hover:bg-background transition-colors"
-                style={{ height: ROW_H }}>
-                {/* Label */}
-                <div style={{ width: LABEL_W, minWidth: LABEL_W }}
-                  className="flex items-center gap-1.5 px-3 pl-6 shrink-0 overflow-hidden cursor-pointer"
-                  onClick={() => scrollTo(`milestone-${m.id}`)}>
-                  <Flag className="w-2.5 h-2.5 shrink-0" style={{ color: mColor }} />
-                  <span className="text-2xs truncate" style={{ color: isDone ? 'var(--color-success)' : isOver ? 'var(--color-error)' : '#444' }}>
-                    {m.title}
-                  </span>
-                </div>
-
-                {/* Diamond area */}
-                <div className="relative flex-1 h-full flex items-center">
-                  {/* Grid lines */}
-                  <div className="absolute inset-0 pointer-events-none">
-                    {[0, 25, 50, 75, 100].map(v => (
-                      <div key={v} className="absolute top-0 bottom-0 w-px bg-surface"
-                        style={{ left: `${v}%` }} />
-                    ))}
-                  </div>
-
-                  {/* Tooltip */}
-                  {isHov && (
-                    <div className="absolute z-20 pointer-events-none"
-                      style={{ left: `calc(${mPct}% + 10px)`, top: '50%', transform: 'translateY(-50%)' }}>
-                      <div className="bg-background border border-border rounded-lg px-2 py-1 shadow-xl whitespace-nowrap">
-                        <p className="text-2xs font-bold text-text-primary">{m.title}</p>
-                        <p className="text-2xs mt-0.5" style={{ color: mColor }}>
-                          {new Date(m.due_date!).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Diamond */}
-                  <div className="absolute cursor-pointer transition-all"
-                    style={{ left: `${mPct}%`, transform: 'translate(-50%, 0)' }}
-                    onClick={() => scrollTo(`milestone-${m.id}`)}
-                    onMouseEnter={() => setHov(m.id)} onMouseLeave={() => setHov(null)}>
-                    <svg width="14" height="14" viewBox="0 0 14 14"
-                      style={{ filter: isHov ? `drop-shadow(0 0 4px ${mColor})` : 'none', transition: 'filter 0.15s' }}>
-                      <rect x="3" y="3" width="8" height="8" rx="1" transform="rotate(45 7 7)"
-                        fill={isDone ? mColor : `color-mix(in srgb, ${mColor} 19%, transparent)`}
-                        stroke={mColor} strokeWidth="1.5" />
-                    </svg>
-                  </div>
-
-                  {/* Today marker */}
-                  {today >= rangeS && today <= rangeE && (
-                    <div className="absolute top-0 bottom-0 w-px pointer-events-none z-10"
-                      style={{ left: `${pct(today)}%`, background: 'var(--color-error)', opacity: 0.6 }} />
-                  )}
-                </div>
-              </div>
-            )
-          })}
-
-          {/* Today label at bottom */}
-          {today >= rangeS && today <= rangeE && (
-            <div className="relative flex" style={{ height: 16 }}>
-              <div style={{ width: LABEL_W, minWidth: LABEL_W }} className="shrink-0" />
-              <div className="relative flex-1">
-                <div className="absolute flex items-center pointer-events-none"
-                  style={{ left: `${pct(today)}%`, transform: 'translateX(-50%)', top: 2 }}>
-                  <span className="text-[8px] font-bold text-error bg-background px-1 rounded">oggi</span>
-                </div>
-              </div>
             </div>
           )}
         </div>
@@ -1562,10 +1453,24 @@ function ProgettoView({ project, client, allSprints, allTasks, profiles, isAdmin
         sprintsCount={allSprints.length}
         tasksCount={allTasks.filter(t => !t.is_milestone).length} />
 
-      {/* Gantt chart */}
-      {sorted.length > 0 && (
-        <GanttChart sprints={sorted} milestones={allMilestonesInSprints} accent={accent} />
-      )}
+      {/* Gantt: LO STESSO del Workload (componente condiviso) */}
+      <Section title="Gantt" icon={<BarChart3 className="w-3.5 h-3.5" />} accent={accent}>
+        <ProjectGantt
+          project={{
+            id: project.id, name: project.name, status: project.status,
+            project_kind: project.project_kind, client_id: client.id,
+            client_name: client.display_name ?? client.company_name,
+            manager_id: project.manager_id ?? null,
+          }}
+          sprints={allSprints.map(s => ({
+            id: s.id, project_id: project.id, name: s.name,
+            start_date: s.start_date, end_date: s.end_date, status: s.status,
+          }))}
+          milestones={allTasks.filter(t => t.is_milestone) as unknown as Parameters<typeof ProjectGantt>[0]['milestones']}
+          tasks={allTasks as unknown as Parameters<typeof ProjectGantt>[0]['tasks']}
+          editable={isAdmin}
+        />
+      </Section>
 
       {/* Sprint tree */}
       <Section title="Sprint & Milestone" icon={<Zap className="w-3.5 h-3.5" />}

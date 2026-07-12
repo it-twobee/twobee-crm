@@ -61,8 +61,11 @@ function ClientAgenda({ client, projects, meetings }: {
         const timeMax = new Date(Date.now() + WINDOW_DAYS * 86400000).toISOString()
         const r = await fetch(`/api/google/events?timeMin=${timeMin}&timeMax=${timeMax}`)
         const data = await r.json()
-        if (data.error === 'not_connected' || data.notConnected?.length) setConnected(false)
-        setEvents((data.events ?? []) as GEvent[])
+        const evs = (data.events ?? []) as GEvent[]
+        // "Non collegato" solo se Google non ha restituito nulla: se gli eventi ci sono,
+        // il calendario funziona (notConnected può elencare i colleghi, non me).
+        if ((data.error === 'not_connected' || data.notConnected?.length) && evs.length === 0) setConnected(false)
+        setEvents(evs)
       } catch { setConnected(false) } finally { setLoading(false) }
     }
     run()
@@ -105,7 +108,9 @@ function ClientAgenda({ client, projects, meetings }: {
       <AgendaCard title="Prossimi appuntamenti" icon={<Calendar className="w-3.5 h-3.5 text-gold-text" />}
         subtitle={`dal calendario · prossimi ${WINDOW_DAYS} giorni`}>
         {loading ? <Loading /> : !connected ? <NotConnected /> : upcoming.length === 0 ? (
-          <Empty text={`Nessun appuntamento con ${cName} nei prossimi ${WINDOW_DAYS} giorni.`} />
+          <Empty text={events.length === 0
+            ? `Nessun evento nel calendario nei prossimi ${WINDOW_DAYS} giorni.`
+            : `Nessuno dei ${events.length} eventi in calendario risulta collegato a ${cName}. Metti il nome del cliente o del progetto nel titolo dell'evento.`} />
         ) : (
           <ul className="divide-y divide-border">
             {upcoming.slice(0, 6).map(x => <EventRow key={x.ev.id} x={x} />)}

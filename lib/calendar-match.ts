@@ -17,7 +17,15 @@ export function normalizeName(s: string): string {
 const STOP = new Set(['srl', 'spa', 'sas', 'snc', 'the', 'di', 'e', 'and', 'group', 'holding', 'project', 'progetto'])
 
 export function tokens(s: string): string[] {
-  return normalizeName(s).split(' ').filter(t => t.length >= 3 && !STOP.has(t))
+  const all = normalizeName(s).split(' ').filter(t => t.length >= 3 && !STOP.has(t))
+  // Se il nome è fatto solo di stopword ("Holding S.r.l."), meglio tenerle che non
+  // avere token: senza token non si può matchare nulla.
+  return all.length ? all : normalizeName(s).split(' ').filter(t => t.length >= 3)
+}
+
+/** Un token dell'evento combacia se è uguale o è prefisso/estensione (seven ~ sevens). */
+function tokenHit(hayTokens: string[], t: string): boolean {
+  return hayTokens.some(h => h === t || h.startsWith(t) || t.startsWith(h))
 }
 
 export type MatchLevel = 'sicuro' | 'suggerito' | 'no'
@@ -31,14 +39,17 @@ export function matchEvent(text: string, name: string | null | undefined): Match
   if (!name) return 'no'
   const hay = normalizeName(text)
   const needle = normalizeName(name)
-  if (!needle) return 'no'
+  if (!needle || !hay) return 'no'
   if (hay.includes(needle)) return 'sicuro'
 
   const nt = tokens(name)
   if (nt.length === 0) return 'no'
-  const hit = nt.filter(t => hay.includes(t)).length
+  const hayTokens = hay.split(' ').filter(Boolean)
+  const hit = nt.filter(t => tokenHit(hayTokens, t)).length
+  if (hit === 0) return 'no'
   if (hit === nt.length) return 'sicuro'
-  if (hit >= Math.max(1, Math.ceil(nt.length / 2))) return 'suggerito'
+  // Anche un solo token forte (≥4 lettere, es. "seven") basta come suggerimento.
+  if (hit >= Math.ceil(nt.length / 2) || nt.some(t => t.length >= 4 && tokenHit(hayTokens, t))) return 'suggerito'
   return 'no'
 }
 
