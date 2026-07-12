@@ -402,7 +402,7 @@ function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelet
   )
 }
 
-function ProgettiAttivi({ projects: initialProjects, tasks, sprints, kpis, clientId, hideEconomics = false }: {
+export function ProgettiAttivi({ projects: initialProjects, tasks, sprints, kpis, clientId, hideEconomics = false }: {
   projects: Project[]; tasks: Task[]; sprints: Sprint[]; kpis: ClientKpi[]; clientId: string; hideEconomics?: boolean
 }) {
   const [projects, setProjects] = useState(initialProjects)
@@ -1246,65 +1246,6 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
       {/* 4 ── Relazione commerciale ──────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-        {/* Progetti attivi con link alla pagina completa */}
-        <div className="bg-surface border border-border rounded-xl p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2 text-text-secondary">
-              <FolderKanban className="w-3.5 h-3.5" />
-              <span className="text-2xs uppercase tracking-wider font-bold">Progetti attivi</span>
-              <span className="text-2xs text-text-secondary">({activeProjects.length})</span>
-            </div>
-            {onTabChange && (
-              <button onClick={() => onTabChange(7)} className="text-2xs text-gold-text hover:underline flex items-center gap-1">
-                Vedi tutti <ChevronRight className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-          {activeProjects.length === 0 ? (
-            <p className="text-xs text-text-secondary">Nessun progetto attivo</p>
-          ) : (
-            <div className="space-y-2">
-              {activeProjects.slice(0, 3).map(proj => {
-                const isG = proj.project_kind === 'growth'
-                const isD = proj.project_kind === 'digital'
-                const isM = proj.project_kind === 'marketing'
-                const isAI = proj.project_kind === 'ai'
-                const title = proj.name.includes(' – ') ? proj.name.split(' – ').slice(1).join(' – ') : proj.name
-                const projTasks = tasks.filter(t => t.project_id === proj.id)
-                const pct = projTasks.length ? Math.round((projTasks.filter(t => t.status === 'completato').length / projTasks.length) * 100) : 0
-                return (
-                  <Link key={proj.id} href={hideEconomics ? `/workspace/progetti/${proj.id}` : `/clienti/${client.id}/progetto/${proj.id}`}
-                    className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-overlay/[0.03] transition-colors group">
-                    <span className={`text-2xs font-bold px-1.5 py-0.5 rounded border shrink-0 ${
-                      isG ? 'bg-gold/10 text-gold-text border-gold/25' :
-                      isD ? 'bg-info/10 text-info border-info/25' :
-                      isM ? 'bg-warning/10 text-warning border-warning/25' :
-                      isAI ? 'bg-accent/10 text-accent border-accent/25' :
-                      'bg-surface text-text-secondary border-border'
-                    }`}>{isG ? 'G' : isD ? 'D' : isM ? 'M' : isAI ? 'AI' : '—'}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-text-primary truncate group-hover:text-gold-text transition-colors">{title}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <div className="flex-1 h-1 bg-surface-active rounded-full overflow-hidden">
-                          <div className="h-full bg-gold/60 rounded-full" style={{ width: `${pct}%` }} />
-                        </div>
-                        <span className="text-2xs text-text-secondary shrink-0">{pct}%</span>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-3.5 h-3.5 text-text-secondary opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                  </Link>
-                )
-              })}
-              {activeProjects.length > 3 && onTabChange && (
-                <button onClick={() => onTabChange(7)}
-                  className="w-full text-left px-2.5 py-1.5 text-2xs text-text-tertiary hover:text-gold-text transition-colors">
-                  + {activeProjects.length - 3} altri progetti →
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
         {/* Relazione commerciale */}
         <div className="bg-surface border border-border rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
@@ -1413,15 +1354,6 @@ export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints
       {/* 6 ── Agenda: prossimi appuntamenti + ultimi incontri ────────────── */}
       <AgendaSection meetings={meetings} />
 
-      {/* 7 ── Progetti Attivi ─────────────────────────────────────────────── */}
-      <ProgettiAttivi
-        projects={projects}
-        tasks={tasks}
-        sprints={sprints}
-        kpis={kpis}
-        clientId={client.id}
-        hideEconomics={hideEconomics}
-      />
 
       {/* 8 ── Footer info: Team · Fatture recenti ──────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

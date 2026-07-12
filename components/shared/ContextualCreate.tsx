@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, ChevronDown, Loader2, X } from 'lucide-react'
+import { Plus, ChevronDown, Loader2, X, FolderKanban } from 'lucide-react'
 import { toast } from 'sonner'
+import { createClient } from '@/lib/supabase/client'
 import { createProjectWs, createSprintWs, createMilestoneWs, createMyTask } from '@/app/actions/workspace-create'
 
 // CTA "Crea" contestuale (§12/§15): il contesto in cui ti trovi precompila i campi e
@@ -77,9 +78,30 @@ function CreateModal({ kind, ctx, onClose, onDone }: {
   const [name, setName] = useState('')
   const [projectId, setProjectId] = useState(ctx.projectId ?? '')
   const [sprintId, setSprintId] = useState('')
+  const [milestoneId, setMilestoneId] = useState('')
   const [start, setStart] = useState('')
   const [due, setDue] = useState('')
   const [pending, startT] = useTransition()
+
+  // Sprint e milestone del progetto scelto — stessa logica di "Le mie attività":
+  // cambiando progetto si ricaricano e le selezioni precedenti si azzerano.
+  const [sprints, setSprints] = useState<{ id: string; name: string }[]>(ctx.sprints ?? [])
+  const [milestones, setMilestones] = useState<{ id: string; title: string }[]>([])
+
+  useEffect(() => {
+    if (!projectId) { setSprints([]); setMilestones([]); return }
+    const sb = createClient()
+    let alive = true
+    Promise.all([
+      sb.from('sprints').select('id, name').eq('project_id', projectId).order('start_date'),
+      sb.from('tasks').select('id, title').eq('project_id', projectId).eq('is_milestone', true).order('position'),
+    ]).then(([s, m]) => {
+      if (!alive) return
+      setSprints((s.data ?? []) as { id: string; name: string }[])
+      setMilestones((m.data ?? []) as { id: string; title: string }[])
+    })
+    return () => { alive = false }
+  }, [projectId])
 
   const inp = 'w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/40'
   const needsProject = kind !== 'progetto'
@@ -97,7 +119,11 @@ function CreateModal({ kind, ctx, onClose, onDone }: {
     } else if (kind === 'milestone') {
       res = await createMilestoneWs({ projectId, title: name.trim(), dueDate: due || undefined })
     } else {
-      res = await createMyTask({ title: name.trim(), projectId, sprintId: sprintId || null, dueDate: due || undefined })
+      res = await createMyTask({
+        title: name.trim(), projectId,
+        sprintId: sprintId || null, milestoneId: milestoneId || null,
+        dueDate: due || undefined,
+      })
     }
     if (!res.ok) { toast.error(res.error ?? 'Errore creazione'); return }
     toast.success(`${title} creato`)
@@ -118,25 +144,33 @@ function CreateModal({ kind, ctx, onClose, onDone }: {
         </div>
 
         <input autoFocus value={name} onChange={e => setName(e.target.value)} aria-label="Nome"
-          placeholder={kind === 'progetto' ? 'Nome del progetto' : kind === 'sprint' ? 'Es. Sprint 1 — Analisi' : kind === 'milestone' ? 'Es. Consegna MVP' : 'Cosa va fatto'}
+          placeholder={kind === 'progetto' ? 'Nome del progetto' : kind === 'sprint' ? 'Es. Sprint 1 — Analisi' : kind === 'milestone' ? 'Es. Consegna MVP' : "Cosa c'è da fare?"}
           className={inp} />
 
-        {/* Progetto: obbligatorio e precompilato quando siamo già dentro un progetto */}
-        {needsProject && (
-          ctx.projectId ? null : (
-            <select value={projectId} onChange={e => setProjectId(e.target.value)} aria-label="Progetto" className={inp}>
+        {/* Progetto → obbligatorio (precompilato se siamo già dentro un progetto) */}
+        {needsProject && !ctx.projectId && (
+          <div className="flex items-center gap-1.5">
+            <FolderKanban className="w-4 h-4 text-gold-text shrink-0" aria-hidden="true" />
+            <select value={projectId} onChange={e => { setProjectId(e.target.value); setSprintId(''); setMilestoneId('') }}
+              aria-label="Progetto" className={inp}>
               <option value="">— Scegli il progetto —</option>
               {(ctx.projects ?? []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
-          )
+          </div>
         )}
 
-        {/* Sprint: solo per le task, e solo se il progetto ne ha */}
-        {kind === 'task' && (ctx.sprints?.length ?? 0) > 0 && (
-          <select value={sprintId} onChange={e => setSprintId(e.target.value)} aria-label="Sprint" className={inp}>
-            <option value="">Nessuno sprint</option>
-            {(ctx.sprints ?? []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
+        {/* Task → sprint e milestone, come in "Le mie attività" */}
+        {kind === 'task' && projectId && (sprints.length > 0 || milestones.length > 0) && (
+          <div className="grid grid-cols-2 gap-2">
+            <select value={sprintId} onChange={e => setSprintId(e.target.value)} aria-label="Sprint" className={inp}>
+              <option value="">Sprint —</option>
+              {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <select value={milestoneId} onChange={e => setMilestoneId(e.target.value)} aria-label="Milestone" className={inp}>
+              <option value="">Milestone —</option>
+              {milestones.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
+            </select>
+          </div>
         )}
 
         {kind === 'sprint' ? (

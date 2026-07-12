@@ -6,7 +6,7 @@ import { ArrowLeft, Edit3, Check, X, ChevronDown, Loader2 } from 'lucide-react'
 import { formatCurrency, formatDate, getPaymentBadge } from '@/lib/utils'
 import type { Client, ClientContact, Project, Sprint, Task, MeetingNote, ClientKpi, Profile, Invoice, ClientStakeholder, Document, ClientInteraction } from '@/lib/types/database'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
-import { ProjectStatusTab } from './tabs/ProjectStatusTab'
+import { ProgettiAttiviTab } from './tabs/ProgettiAttiviTab'
 import { ContextualCreate } from '@/components/shared/ContextualCreate'
 import { clientName } from '@/lib/utils'
 import { KpiTab } from './tabs/KpiTab'
@@ -333,10 +333,10 @@ export function ClientPageClient({
             teamMembers={teamMembers} interactions={interactions} isAdmin={isAdmin} openTickets={openTickets}
             onTabChange={setActiveTab} hideEconomics={hideEconomics} />
         )}
-        {/* §14: Progetti attivi — sezione autonoma (PM, sprint, milestone, avanzamento) */}
+        {/* §14: Progetti attivi — vista ricca + agenda dal calendario reale */}
         {activeTab === 7 && (
-          <ProjectStatusTab client={client} projects={projects} sprints={sprints} tasks={tasks}
-            meetings={meetings} profiles={allProfiles} />
+          <ProgettiAttiviTab client={client} projects={projects} sprints={sprints} tasks={tasks}
+            kpis={kpis} meetings={meetings} hideEconomics={hideEconomics} />
         )}
         {activeTab === 1 && <KpiTab client={client} kpis={kpis} kpiConfigs={kpiConfigs} projects={projects} />}
         {activeTab === 2 && <FatturazioneTab client={client} invoices={invoices} />}
