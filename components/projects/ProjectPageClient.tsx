@@ -234,17 +234,17 @@ function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, mileston
 }
 
 // ─── MilestoneBlock ────────────────────────────────────────────────────────────
-function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, accent, onUpdate, dragHandlers, focusId, onOpenDrawer }: {
+function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, accent, onUpdate, dragHandlers, focusIds, onOpenDrawer }: {
   milestone: ExtTask; allTasks: ExtTask[]; profiles: Profile[]
   isAdmin: boolean; projectId: string; accent: string
   onUpdate: (t: ExtTask[]) => void
   dragHandlers: DragHandlers<ExtTask>
-  focusId?: string | null
+  focusIds?: string[]
   onOpenDrawer?: (t: ExtTask) => void
 }) {
   const [open, setOpen]         = useState(false)
   // Arrivo dal Gantt: la milestone si apre da sola.
-  useEffect(() => { if (focusId === milestone.id) setOpen(true) }, [focusId, milestone.id])
+  useEffect(() => { if (focusIds?.includes(milestone.id)) setOpen(true) }, [focusIds, milestone.id])
   const [addingTask, setAdding] = useState(false)
   const [taskDraft, setDraft]   = useState('')
   const [saving, setSaving]     = useState(false)
@@ -437,19 +437,19 @@ function useDragReorder<T extends { id: string }>(
 
 // ─── Sprint block ──────────────────────────────────────────────────────────────
 function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, allSprints,
-  onUpdateTasks, onUpdateSprint, onDeleteSprint, dragHandlers, focusId, onOpenDrawer }: {
+  onUpdateTasks, onUpdateSprint, onDeleteSprint, dragHandlers, focusIds, onOpenDrawer }: {
   sprint: ExtSprint; allTasks: ExtTask[]; profiles: Profile[]
   isAdmin: boolean; projectId: string; accent: string; allSprints: ExtSprint[]
   onUpdateTasks: (t: ExtTask[]) => void
   onUpdateSprint: (s: ExtSprint) => void
   onDeleteSprint: (id: string) => void
   dragHandlers: DragHandlers<ExtSprint>
-  focusId?: string | null
+  focusIds?: string[]
   onOpenDrawer?: (t: ExtTask) => void
 }) {
   const [open, setOpen]     = useState(false)
-  // Arrivo dal Gantt: lo sprint si apre da solo.
-  useEffect(() => { if (focusId === sprint.id) setOpen(true) }, [focusId, sprint.id])
+  // Arrivo dal Gantt: lo sprint si apre da solo (anche quando il target è una sua milestone).
+  useEffect(() => { if (focusIds?.includes(sprint.id)) setOpen(true) }, [focusIds, sprint.id])
   const [addingM, setAddM]  = useState(false)
   const [mDraft, setMDraft] = useState('')
   const [saving, setSaving] = useState(false)
@@ -608,7 +608,7 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, a
           {milestones.map(m => (
             <MilestoneBlock key={m.id} milestone={m} allTasks={allTasks} profiles={profiles}
               isAdmin={isAdmin} projectId={projectId} accent={accent}
-              focusId={focusId} onOpenDrawer={onOpenDrawer}
+              focusIds={focusIds} onOpenDrawer={onOpenDrawer}
               onUpdate={onUpdateTasks} dragHandlers={milDrag as DragHandlers<ExtTask>} />
           ))}
 
@@ -1453,12 +1453,20 @@ function ProgettoView({ project, client, allSprints, allTasks, profiles, isAdmin
   const [drawerTask, setDrawerTask] = useState<ExtTask | null>(null)
 
   // Dal Gantt: porta all'elemento nella pagina (lo apre e ci scrolla), niente popup.
-  const [focusId, setFocusId] = useState<string | null>(null)
+  // Per una milestone va aperto anche lo SPRINT che la contiene, altrimenti resta
+  // collassata (non è nel DOM) e lo scroll non trova nulla.
+  const [focusIds, setFocusIds] = useState<string[]>([])
   const goToItem = (item: { kind: 'sprint' | 'milestone'; id: string }) => {
-    setFocusId(item.id)
+    const ids = [item.id]
+    if (item.kind === 'milestone') {
+      const sprintId = (allTasks.find(t => t.id === item.id) as ExtTask & { sprint_id?: string | null })?.sprint_id
+      if (sprintId) ids.push(sprintId)
+    }
+    setFocusIds(ids)
+    // Attende l'espansione dello sprint prima di scrollare all'elemento.
     setTimeout(() => {
       document.getElementById(`${item.kind}-${item.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }, 60)
+    }, 160)
   }
 
   return (
@@ -1555,7 +1563,7 @@ function ProgettoView({ project, client, allSprints, allTasks, profiles, isAdmin
           {sorted.map(s => (
             <SprintBlock key={s.id} sprint={s} allTasks={allTasks} profiles={profiles}
               isAdmin={isAdmin} projectId={project.id} accent={accent} allSprints={allSprints}
-              focusId={focusId} onOpenDrawer={setDrawerTask}
+              focusIds={focusIds} onOpenDrawer={setDrawerTask}
               onUpdateTasks={onUpdateTasks}
               onUpdateSprint={updated => onUpdateSprints(allSprints.map(x => x.id === updated.id ? updated : x))}
               onDeleteSprint={deleteSprint}
