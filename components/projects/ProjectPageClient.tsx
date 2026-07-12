@@ -60,10 +60,11 @@ const STATUS_PROJECT: { v: Project['status']; l: string }[] = [
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
 // ─── TaskRow ───────────────────────────────────────────────────────────────────
-function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, milestoneId, accent, onUpdate }: {
+function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, milestoneId, accent, onUpdate, onOpenDrawer }: {
   task: ExtTask; allTasks: ExtTask[]; profiles: Profile[]; isAdmin: boolean
   depth: number; projectId: string; milestoneId: string; accent: string
   onUpdate: (tasks: ExtTask[]) => void
+  onOpenDrawer?: (t: ExtTask) => void
 }) {
   const [expanded, setExpanded]   = useState(false)
   const [addingChild, setAdding]  = useState(false)
@@ -120,19 +121,21 @@ function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, mileston
 
   return (
     <div>
-      <div className="group flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-background transition-colors"
-        style={{ paddingLeft: pl + 12 }}>
+      {/* Click ovunque sulla riga → editor laterale (i controlli interni fermano l'evento) */}
+      <div className="group flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-background transition-colors cursor-pointer"
+        style={{ paddingLeft: pl + 12 }}
+        onClick={() => (onOpenDrawer ? onOpenDrawer(task) : setShowDetail(true))}>
         {/* Grip */}
-        {isAdmin && <GripVertical className="w-3 h-3 text-text-tertiary group-hover:text-text-tertiary shrink-0 cursor-grab" />}
+        {isAdmin && <GripVertical className="w-3 h-3 text-text-tertiary group-hover:text-text-tertiary shrink-0 cursor-grab" onClick={e => e.stopPropagation()} />}
 
         {/* Expand toggle */}
-        <button onClick={() => setExpanded(e => !e)} className="w-4 shrink-0 flex items-center justify-center text-text-tertiary hover:text-text-tertiary">
+        <button onClick={e => { e.stopPropagation(); setExpanded(x => !x) }} className="w-4 shrink-0 flex items-center justify-center text-text-tertiary hover:text-text-tertiary">
           {children.length > 0 ? (expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />) :
            canAdd ? <div className="w-1 h-1 rounded-full bg-surface-active" /> : null}
         </button>
 
         {/* Checkbox */}
-        <button onClick={toggleDone}
+        <button onClick={e => { e.stopPropagation(); toggleDone() }}
           className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-all ${
             isDone    ? 'bg-success border-success' :
             isBlocked ? 'border-error' : 'border-border hover:border-border-strong'
@@ -155,8 +158,8 @@ function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, mileston
           />
         </div>
 
-        {/* Meta */}
-        <div className="flex items-center gap-1.5 ml-1 shrink-0">
+        {/* Meta — i controlli non devono aprire il drawer */}
+        <div className="flex items-center gap-1.5 ml-1 shrink-0" onClick={e => e.stopPropagation()}>
           <div className="hidden md:block">
             <DatePicker
               value={task.due_date}
@@ -192,7 +195,7 @@ function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, mileston
 
       {/* Children */}
       {expanded && children.map(c => (
-        <TaskRow key={c.id} task={c} allTasks={allTasks} profiles={profiles}
+        <TaskRow key={c.id} task={c} allTasks={allTasks} profiles={profiles} onOpenDrawer={onOpenDrawer}
           isAdmin={isAdmin} depth={depth + 1} projectId={projectId} milestoneId={milestoneId}
           accent={accent} onUpdate={onUpdate} />
       ))}
@@ -304,15 +307,17 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
       onDragEnd={dragHandlers.onDragEnd}
     >
       {/* Milestone header */}
-      <div className={`group flex items-center gap-2 px-3 py-2.5 rounded-xl transition-colors ${open ? 'bg-background' : 'bg-background hover:bg-background'}`}>
-        {isAdmin && <GripVertical className="w-3 h-3 text-text-tertiary group-hover:text-text-tertiary shrink-0 cursor-grab transition-colors" />}
+      {/* Click ovunque sulla riga → apre/chiude la milestone */}
+      <div className={`group flex items-center gap-2 px-3 py-2.5 rounded-xl transition-colors cursor-pointer hover:bg-surface-hover`}
+        onClick={() => setOpen(o => !o)}>
+        {isAdmin && <GripVertical className="w-3 h-3 text-text-tertiary group-hover:text-text-tertiary shrink-0 cursor-grab transition-colors" onClick={e => e.stopPropagation()} />}
 
-        <button onClick={() => setOpen(o => !o)} className="shrink-0 transition-colors" style={{ color: isDone ? '#22C55E30' : 'var(--color-border)' }}>
+        <button onClick={e => { e.stopPropagation(); setOpen(o => !o) }} className="shrink-0 transition-colors" style={{ color: isDone ? 'var(--color-success)' : 'var(--color-border)' }}>
           {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
         </button>
 
         {/* Flag + done toggle */}
-        <button onClick={() => isAdmin && saveField({ status: isDone ? 'da_fare' : 'completato' })}
+        <button onClick={e => { e.stopPropagation(); if (isAdmin) saveField({ status: isDone ? 'da_fare' : 'completato' }) }}
           className={`shrink-0 transition-all hover:scale-110 ${isAdmin ? 'cursor-pointer' : ''}`}>
           <Flag className="w-3.5 h-3.5" style={{ color: milColor }} fill={isDone ? milColor : 'none'} />
         </button>
@@ -327,8 +332,8 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
           />
         </div>
 
-        {/* Meta row */}
-        <div className="flex items-center gap-2 ml-1 shrink-0">
+        {/* Meta row — i controlli non devono aprire/chiudere la milestone */}
+        <div className="flex items-center gap-2 ml-1 shrink-0" onClick={e => e.stopPropagation()}>
           {/* Task progress pill */}
           {tasks.length > 0 && (
             <span className="text-2xs font-bold px-1.5 py-0.5 rounded-full"
@@ -366,7 +371,7 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
       {open && (
         <div className="px-2 pb-2 pt-1">
           {tasks.map(t => (
-            <TaskRow key={t.id} task={t} allTasks={allTasks} profiles={profiles}
+            <TaskRow key={t.id} task={t} allTasks={allTasks} profiles={profiles} onOpenDrawer={onOpenDrawer}
               isAdmin={isAdmin} depth={0} projectId={projectId} milestoneId={milestone.id}
               accent={accent} onUpdate={onUpdate} />
           ))}
@@ -518,10 +523,11 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, a
         {/* Color accent bar */}
         <div className="h-0.5 w-full" style={{ background: `linear-gradient(90deg, color-mix(in srgb, ${accentColor} 38%, transparent), transparent)` }} />
 
-        <div className="flex items-center gap-2.5 px-4 py-3">
-          {isAdmin && <GripVertical className="w-3.5 h-3.5 text-text-tertiary group-hover:text-text-tertiary shrink-0 cursor-grab transition-colors" />}
+        {/* Click ovunque sulla riga → apre/chiude lo sprint (i controlli fermano l'evento) */}
+        <div className="flex items-center gap-2.5 px-4 py-3 cursor-pointer" onClick={() => setOpen(o => !o)}>
+          {isAdmin && <GripVertical className="w-3.5 h-3.5 text-text-tertiary group-hover:text-text-tertiary shrink-0 cursor-grab transition-colors" onClick={e => e.stopPropagation()} />}
 
-          <button onClick={() => setOpen(o => !o)} className="shrink-0 transition-colors" style={{ color: isDone ? 'var(--color-success)' : '#444' }}>
+          <button onClick={e => { e.stopPropagation(); setOpen(o => !o) }} className="shrink-0 transition-colors" style={{ color: isDone ? 'var(--color-success)' : 'var(--color-text-tertiary)' }}>
             {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           </button>
 
@@ -558,7 +564,7 @@ function SprintBlock({ sprint, allTasks, profiles, isAdmin, projectId, accent, a
           )}
 
           {/* Dates */}
-          <div className="hidden lg:flex items-center gap-1.5 shrink-0">
+          <div className="hidden lg:flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
             <DatePicker
               value={sprint.start_date.slice(0, 10)}
               onChange={v => v && saveField({ start_date: v })}
