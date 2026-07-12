@@ -42,6 +42,21 @@
 **Da eseguire dall'utente**: migration 102. Webhook attivo solo con dominio pubblico (Cal-Q1: presente).
 **Limite noto**: modifica ricorrenza su serie esistenti (istanza vs serie) non gestita — rifinitura futura.
 
+## Fase 5 — Documenti e Knowledge (IN CORSO)
+**Migration**: `107_knowledge_redesign.sql` (additiva).
+- **5a** §23/D9/D10: `DocumentsTab` cliente **Drive-only** — rimosso upload su bucket pubblico e
+  dropzone; restano link Drive (cartella + file) con anteprima embed folder view (nessuna Drive API).
+  I documenti legacy su storage restano in **sola apertura** (non cancellati: decisione utente,
+  D10 rinviata a dopo un report). Upload intatto per HR/buste paga/documenti personali.
+- **5b** §26: Knowledge ridisegnata come centro di conoscenza — sezioni **collassabili**
+  (Mercato, Brand, SWOT, Offerta, Informazioni strategiche) + **Competitor** e **Idee** come liste
+  vere (tabelle `client_competitors`, `client_ideas` con priorità/stato/autore) + area
+  **Marginalità riservata agli admin** (`client_economics`, RLS `role='admin'`, NON `is_staff()`:
+  le risorse workspace non la vedono nemmeno a livello DB). AI Prefill mantenuto, non salva senza conferma.
+
+**Verifica**: tsc verde. **Da eseguire dall'utente**: migration 107.
+**Residuo Fase 5**: anteprima alberatura Drive più ricca in Documenti workspace (§11.1); report+pulizia legacy storage (D10).
+
 ## Fase 4 — Dominio Cliente / Progetto (COMPLETA)
 **Migration**: `105_client_names.sql` (display_name/legal_name).
 - **4a** display_name/legal_name (§24) + backfill; anagrafica solo admin.

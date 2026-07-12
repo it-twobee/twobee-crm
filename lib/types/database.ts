@@ -720,6 +720,79 @@ export interface ClientKnowledge {
   services_active: string | null
   do_not_do: string | null
   opportunities: string | null
+  // §26 (migration 107): aree strutturate. Tutti opzionali — la 107 è additiva.
+  market_sector: string | null
+  market_scenario: string | null
+  market_size: string | null
+  market_trends: string | null
+  market_geography: string | null
+  market_seasonality: string | null
+  market_regulations: string | null
+  brand_values: string | null
+  brand_mission: string | null
+  brand_vision: string | null
+  brand_distinctive: string | null
+  brand_perception: string | null
+  brand_promises: string | null
+  swot_strengths: string | null
+  swot_weaknesses: string | null
+  swot_opportunities: string | null
+  swot_threats: string | null
+  offer_value_prop: string | null
+  offer_pricing: string | null
+  offer_objections: string | null
+  offer_differentiators: string | null
+  strat_objectives: string | null
+  strat_risks: string | null
+  strat_dependencies: string | null
+  strat_next_steps: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type IdeaCategory = 'growth' | 'digital' | 'ai' | 'contenuti' | 'advertising' | 'prodotto' | 'altro'
+export type IdeaStatus = 'proposta' | 'in_valutazione' | 'approvata' | 'scartata' | 'realizzata'
+
+export interface ClientCompetitor {
+  id: string
+  client_id: string
+  name: string
+  website: string | null
+  positioning: string | null
+  strengths: string | null
+  weaknesses: string | null
+  pricing: string | null
+  channels: string | null
+  notes: string | null
+  links: string | null
+  position: number
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ClientIdea {
+  id: string
+  client_id: string
+  title: string
+  description: string | null
+  category: IdeaCategory
+  priority: TaskPriority
+  status: IdeaStatus
+  position: number
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** Area riservata: RLS admin-only (migration 107). Mai esposta al workspace. */
+export interface ClientEconomics {
+  id: string
+  client_id: string
+  margin_notes: string | null
+  cost_notes: string | null
+  pricing_notes: string | null
+  founder_notes: string | null
   created_at: string
   updated_at: string
 }

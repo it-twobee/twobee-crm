@@ -348,7 +348,7 @@ export function ClientPageClient({
           <RelazioneTab clientId={client.id} client={client} interactions={interactions} allProfiles={allProfiles}
             currentProfile={currentProfile} isAdmin={isAdmin} hideEconomics={hideEconomics} />
         )}
-        {activeTab === 6 && <ClientKnowledgeTab clientId={client.id} />}
+        {activeTab === 6 && <ClientKnowledgeTab clientId={client.id} isAdmin={isAdmin} />}
 
       </div>
     </div>
