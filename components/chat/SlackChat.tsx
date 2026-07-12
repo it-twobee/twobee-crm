@@ -13,7 +13,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { getInitials } from '@/lib/utils'
 import { inviteChannelGuest, revokeChannelGuest } from '@/app/actions/invite-guest'
-import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
+import { SUPER_ADMIN_EMAILS, ROLE_LABELS } from '@/lib/permissions'
 import type { Profile, ChatMessageWithSender, ChannelGuest } from '@/lib/types/database'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -466,6 +466,102 @@ function MembersPanel({ members, nonMembers, onAdd, onRemove, onClose, currentPr
 // ─── Guest Panel (Customer Care) ─────────────────────────────────────────────
 
 // ─── Access Panel (Gestisci Accessi) ─────────────────────────────────────────
+
+// ─── Partecipanti (sola lettura) ─────────────────────────────────────────────
+// Chi c'è in questa chat: interni (membri del team, col ruolo da ROLE_LABELS) ed
+// esterni (channel_guests: contatti cliente e partner, col ruolo dichiarato all'invito).
+// È una vista informativa aperta a tutti: la GESTIONE (aggiungi/rimuovi/invita) resta
+// in "Gestisci accessi", riservata agli admin.
+function ParticipantsPanel({ members, guests, currentProfileId, onClose }: {
+  members: Profile[]
+  guests: ChannelGuest[]
+  currentProfileId: string
+  onClose: () => void
+}) {
+  const clienti = guests.filter(g => g.guest_type === 'cliente')
+  const partner = guests.filter(g => g.guest_type === 'partner')
+  const total = members.length + guests.length
+
+  const roleOf = (p: Profile) =>
+    p.app_role ? (ROLE_LABELS[p.app_role] ?? p.app_role) : 'Team'
+
+  const GuestRow = ({ g }: { g: ChannelGuest }) => (
+    <div className="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-surface transition-colors">
+      <div className="w-7 h-7 rounded-full bg-info/15 flex items-center justify-center text-info text-2xs font-bold shrink-0">
+        {getInitials(g.full_name ?? g.email)}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-semibold text-text-primary truncate">{g.full_name ?? g.email}</p>
+        <p className="text-2xs text-text-secondary truncate">{g.role ?? (g.guest_type === 'cliente' ? 'Cliente' : 'Partner')}</p>
+      </div>
+      {g.status === 'pending' && (
+        <span className="text-[9px] font-bold uppercase tracking-wider text-warning bg-warning-dim px-1.5 py-0.5 rounded-full shrink-0">
+          Invitato
+        </span>
+      )}
+    </div>
+  )
+
+  return (
+    <div className="w-80 border-l border-border bg-surface flex flex-col shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <div className="flex items-center gap-2">
+          <Users className="w-4 h-4 text-gold-text" />
+          <h3 className="text-sm font-bold text-text-primary">Partecipanti ({total})</h3>
+        </div>
+        <button onClick={onClose} aria-label="Chiudi">
+          <X className="w-4 h-4 text-text-secondary hover:text-text-primary" />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-3 space-y-4">
+        <div>
+          <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold px-1 mb-1.5">
+            Team TwoBee ({members.length})
+          </p>
+          {members.length === 0 ? (
+            <p className="text-2xs text-text-tertiary px-1">Nessun membro interno.</p>
+          ) : members.map(m => (
+            <div key={m.id} className="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-surface transition-colors">
+              <div className="w-7 h-7 rounded-full bg-gold/20 flex items-center justify-center text-gold-text text-2xs font-bold overflow-hidden shrink-0">
+                {m.avatar_url ? <img src={m.avatar_url} className="w-full h-full object-cover" alt="" /> : getInitials(m.full_name)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-text-primary truncate">
+                  {m.full_name}
+                  {m.id === currentProfileId && <span className="text-text-tertiary font-normal"> (tu)</span>}
+                </p>
+                <p className="text-2xs text-text-secondary truncate">{roleOf(m)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {clienti.length > 0 && (
+          <div>
+            <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold px-1 mb-1.5">
+              Cliente ({clienti.length})
+            </p>
+            {clienti.map(g => <GuestRow key={g.id} g={g} />)}
+          </div>
+        )}
+
+        {partner.length > 0 && (
+          <div>
+            <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold px-1 mb-1.5">
+              Esterni ({partner.length})
+            </p>
+            {partner.map(g => <GuestRow key={g.id} g={g} />)}
+          </div>
+        )}
+
+        {guests.length === 0 && (
+          <p className="text-2xs text-text-tertiary px-1">Nessun partecipante esterno.</p>
+        )}
+      </div>
+    </div>
+  )
+}
 
 function AccessPanel({ channelId, channelType, members, allProfiles, isAdmin, currentProfileId, onAddMember, onRemoveMember, onClose }: {
   channelId: string
@@ -1232,6 +1328,19 @@ export function SlackChat({
   // non lo vede nemmeno. La barriera vera è nell'API (403 per i non-staff): questo
   // flag serve solo a non mostrare una CTA che fallirebbe.
   const isStaff = currentProfile.role === 'admin' || currentProfile.role === 'team'
+
+  // Partecipanti (lettura per tutti): interni = membri profilo, esterni = channel_guests
+  // non revocati (cliente/partner). Il conteggio in header li somma entrambi.
+  const [showParticipants, setShowParticipants] = useState(false)
+  const [channelGuests, setChannelGuests] = useState<ChannelGuest[]>([])
+  const guestCount = channelGuests.length
+
+  useEffect(() => {
+    createClient().from('channel_guests')
+      .select('*').eq('channel_id', channelId).neq('status', 'revoked').order('invited_at')
+      .then(({ data }) => setChannelGuests((data ?? []) as ChannelGuest[]))
+  }, [channelId])
+
   const [aiOpen, setAiOpen] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiSuggestions, setAiSuggestions] = useState<{ type: string; title: string; detail: string }[]>([])
@@ -1529,19 +1638,18 @@ export function SlackChat({
                 <AlertTriangle className="w-4 h-4" />
               </button>
             )}
-            {/* Member avatars */}
-            <button onClick={() => { setShowDetailsPanel(v => !v); setShowMembers(false); setShowAdminPanel(false); setShowTicketPanel(false) }}
-              className="flex -space-x-2 hover:opacity-80 transition-opacity">
-              {members.slice(0, 4).map((m, i) => (
-                <div key={m.id} title={m.full_name}
-                  className="w-7 h-7 rounded-full bg-gold/20 border-2 border-surface flex items-center justify-center text-gold-text text-2xs font-bold overflow-hidden"
-                  style={{ zIndex: 10 - i }}>
-                  {m.avatar_url ? <img src={m.avatar_url} className="w-full h-full object-cover" alt="" /> : getInitials(m.full_name)}
-                </div>
-              ))}
-              {members.length > 4 && <div className="w-7 h-7 rounded-full bg-surface-hover border-2 border-surface flex items-center justify-center text-xs text-text-secondary">{members.length - 4}+</div>}
+            {/* Partecipanti: icona + totale (interni + esterni attivi/invitati) → pannello in sola lettura */}
+            <button onClick={() => { setShowParticipants(v => !v); setShowDetailsPanel(false); setShowMembers(false); setShowAdminPanel(false); setShowTicketPanel(false) }}
+              title="Partecipanti alla chat"
+              aria-label={`Partecipanti: ${members.length + guestCount}`}
+              className={`flex items-center gap-1.5 h-8 px-2.5 rounded-lg border transition-colors ${
+                showParticipants
+                  ? 'border-gold/40 bg-gold/10 text-gold-text'
+                  : 'border-border text-text-secondary hover:text-text-primary hover:border-border-strong'
+              }`}>
+              <Users className="w-4 h-4" />
+              <span className="text-xs font-bold">{members.length + guestCount}</span>
             </button>
-            <span className="text-xs text-text-secondary">{members.length}</span>
 
             {/* ··· menu */}
             <button onClick={() => { setShowChannelMenu(v => !v); setShowDetailsPanel(false); setShowAdminPanel(false) }}
@@ -1732,6 +1840,16 @@ export function SlackChat({
           </div>
         )}
       </div>
+
+      {/* Partecipanti — sola lettura, per tutti (interni + esterni) */}
+      {showParticipants && (
+        <ParticipantsPanel
+          members={members}
+          guests={channelGuests}
+          currentProfileId={currentProfile.id}
+          onClose={() => setShowParticipants(false)}
+        />
+      )}
 
       {/* Access Panel unificato (Gestisci Accessi) */}
       {showDetailsPanel && (
