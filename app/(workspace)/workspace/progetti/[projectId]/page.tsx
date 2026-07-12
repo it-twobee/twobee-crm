@@ -17,15 +17,19 @@ export default async function WorkspaceProgettoPage({ params }: Props) {
   if (!user) redirect('/login')
 
   const [{ data: project }, { data: currentProfile }, { data: allProfiles }] = await Promise.all([
-    supabase.from('projects').select('*, client:clients(*)').eq('id', projectId).single(),
+    supabase.from('projects').select('*').eq('id', projectId).single(),
     supabase.from('profiles').select('*').eq('id', user.id).single(),
     supabase.from('profiles').select('*').order('full_name'),
   ])
 
   if (!project) notFound()
 
-  const client = (project as unknown as { client: Client }).client
   const clientId = project.client_id
+  // Il client si legge dalla VIEW clients_workspace (staff read-all, economici azzerati):
+  // il join clients(*) sulla base è soggetto a RLS ristretta e per un manager senza
+  // assegnazione cliente tornerebbe null → crash a valle su company_name.
+  const { data: client } = await supabase.from('clients_workspace').select('*').eq('id', clientId).single()
+  if (!client) notFound()
 
   const [
     { data: tasks },
