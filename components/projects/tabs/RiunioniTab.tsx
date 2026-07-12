@@ -7,7 +7,8 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import type { MeetingNote, Profile, Project, Client } from '@/lib/types/database'
+import { bulkSetTaskAssignees } from '@/app/actions/task-assignees'
+import type { MeetingNote, Profile, Project, Client, Sprint, Task } from '@/lib/types/database'
 
 interface MeetingExtract {
   summary: string; key_topics: string[]; decisions: string[]
@@ -71,9 +72,10 @@ export function printMeeting(m: MeetingNote, extract: MeetingExtract | null) {
   win.document.close()
 }
 
-export function MeetingRecapsSection({ meetings: initial, project, client, currentProfile, isAdmin, accent }: {
+export function MeetingRecapsSection({ meetings: initial, project, client, currentProfile, isAdmin, accent, sprints = [], milestones = [], profiles = [] }: {
   meetings: MeetingNote[]; project: Project; client: Client
   currentProfile: Profile; isAdmin: boolean; accent: string
+  sprints?: Sprint[]; milestones?: Task[]; profiles?: Profile[]
 }) {
   const [items, setItems]     = useState<MeetingNote[]>(initial)
   const [showForm, setForm]   = useState(false)
@@ -82,6 +84,7 @@ export function MeetingRecapsSection({ meetings: initial, project, client, curre
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [extracts, setExtracts]   = useState<Record<string, MeetingExtract>>({})
   const [aiLoading, setAiLoad]    = useState<string | null>(null)
+  const [composer, setComposer]   = useState<MeetingNote | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const [tab, setTab2] = useState<'manual' | 'file'>('manual')
   const [uploadText, setUploadText] = useState('')
@@ -360,6 +363,13 @@ export function MeetingRecapsSection({ meetings: initial, project, client, curre
                           <Edit2 className="w-3 h-3" /> Modifica
                         </button>
                       )}
+                      {isAdmin && (
+                        <button onClick={() => setComposer(m)}
+                          className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
+                          style={{ background: `color-mix(in srgb, ${accent} 8%, transparent)`, color: accent, border: `1px solid color-mix(in srgb, ${accent} 19%, transparent)` }}>
+                          <Sparkles className="w-3 h-3" /> Crea task dalla riunione
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -459,6 +469,193 @@ export function MeetingRecapsSection({ meetings: initial, project, client, curre
           </div>
         </div>
       )}
+
+      {composer && (
+        <MeetingTaskComposer
+          meeting={composer}
+          extract={extracts[composer.id] ?? null}
+          project={project}
+          sprints={sprints}
+          milestones={milestones}
+          profiles={profiles}
+          accent={accent}
+          onClose={() => setComposer(null)}
+        />
+      )}
     </>
+  )
+}
+
+interface TaskDraft {
+  key: string
+  title: string
+  description: string
+  priority: 'alta' | 'media' | 'bassa'
+  due: string
+  ownerId: string
+  sprintId: string
+  milestoneId: string
+  isClientTask: boolean
+  selected: boolean
+}
+
+// §17 / 4h: le azioni estratte dall'AI (o le "prossime azioni" del recap) diventano
+// task-preview modificabili; solo quelle confermate vengono create come task reali,
+// interne o al cliente (D14). Nessuna creazione automatica.
+function MeetingTaskComposer({ meeting, extract, project, sprints, milestones, profiles, accent, onClose }: {
+  meeting: MeetingNote
+  extract: MeetingExtract | null
+  project: Project
+  sprints: Sprint[]
+  milestones: Task[]
+  profiles: Profile[]
+  accent: string
+  onClose: () => void
+}) {
+  const matchOwner = (who?: string): string => {
+    if (!who) return ''
+    const n = who.trim().toLowerCase()
+    if (!n) return ''
+    const hit = profiles.find(p => (p.full_name ?? '').toLowerCase().includes(n) || n.includes((p.full_name ?? '').toLowerCase().split(' ')[0] ?? '\0'))
+    return hit?.id ?? ''
+  }
+  const parseDate = (by?: string): string => {
+    if (!by) return ''
+    const iso = by.match(/\d{4}-\d{2}-\d{2}/)
+    return iso ? iso[0] : ''
+  }
+
+  const seed = (): TaskDraft[] => {
+    const base = { description: '', priority: 'media' as const, sprintId: '', milestoneId: '', isClientTask: false, selected: true }
+    if (extract?.actions?.length) {
+      return extract.actions.map((a, i) => ({
+        key: `a${i}`, title: a.what, ownerId: matchOwner(a.who), due: parseDate(a.by), ...base,
+      }))
+    }
+    const lines = (meeting.next_actions ?? '').split('\n').map(l => l.trim()).filter(Boolean)
+    return lines.map((l, i) => ({ key: `l${i}`, title: l.replace(/\s+—.*$/, '').trim() || l, ownerId: '', due: '', ...base }))
+  }
+
+  const [drafts, setDrafts] = useState<TaskDraft[]>(seed)
+  const [creating, setCreating] = useState(false)
+
+  const patch = (key: string, p: Partial<TaskDraft>) =>
+    setDrafts(prev => prev.map(d => d.key === key ? { ...d, ...p } : d))
+  const remove = (key: string) => setDrafts(prev => prev.filter(d => d.key !== key))
+  const addBlank = () => setDrafts(prev => [...prev, {
+    key: `n${prev.length}${prev.reduce((s, d) => s + d.key.length, 0)}`,
+    title: '', description: '', priority: 'media', due: '', ownerId: '', sprintId: '', milestoneId: '', isClientTask: false, selected: true,
+  }])
+
+  const chosen = drafts.filter(d => d.selected && d.title.trim())
+
+  const create = async () => {
+    if (chosen.length === 0 || creating) return
+    setCreating(true)
+    const sb = createClient()
+    let done = 0
+    for (const d of chosen) {
+      const { data, error } = await sb.from('tasks').insert({
+        project_id: project.id,
+        title: d.title.trim(),
+        description: d.description.trim() || null,
+        status: 'da_fare',
+        priority: d.priority,
+        is_client_task: d.isClientTask,
+        is_milestone: false,
+        due_date: d.due || null,
+        sprint_id: d.sprintId || null,
+        milestone_id: d.milestoneId || null,
+        position: done,
+        order: done,
+        tags: [],
+        logged_hours: 0,
+        depth: 0,
+      } as never).select('id').single()
+      if (error) { toast.error(error.message); continue }
+      const id = (data as { id: string }).id
+      if (d.ownerId) await bulkSetTaskAssignees([id], [d.ownerId])
+      done++
+    }
+    setCreating(false)
+    if (done > 0) toast.success(`${done} task create dalla riunione`)
+    onClose()
+  }
+
+  const inp = 'w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-gold/40 placeholder:text-text-tertiary'
+  const sel = 'bg-background border border-border rounded-md px-2 py-1 text-2xs text-text-primary focus:outline-none focus:border-gold/40'
+
+  return (
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+      <div className="bg-background border border-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl shadow-2xl flex flex-col max-h-[92vh]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <div>
+            <h3 className="text-sm font-bold text-text-primary flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" style={{ color: accent }} /> Task da «{meeting.title}»
+            </h3>
+            <p className="text-2xs text-text-tertiary mt-0.5">Modifica, seleziona e conferma — solo le task scelte vengono create</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-text-tertiary hover:text-text-primary"><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2.5">
+          {drafts.length === 0 && (
+            <p className="text-xs text-text-tertiary text-center py-8">Nessuna azione rilevata. Aggiungi una task manualmente.</p>
+          )}
+          {drafts.map(d => (
+            <div key={d.key} className={`rounded-xl border p-3 space-y-2 transition-colors ${d.selected ? 'border-gold/30 bg-surface' : 'border-border bg-background opacity-70'}`}>
+              <div className="flex items-start gap-2.5">
+                <input type="checkbox" checked={d.selected} onChange={e => patch(d.key, { selected: e.target.checked })}
+                  aria-label="Includi task" className="mt-1.5 accent-gold shrink-0" />
+                <input value={d.title} onChange={e => patch(d.key, { title: e.target.value })}
+                  placeholder="Titolo task" className={inp + ' font-medium'} />
+                <button onClick={() => remove(d.key)} aria-label="Elimina" className="p-1 text-text-tertiary hover:text-error shrink-0 mt-0.5">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 pl-7">
+                <select value={d.priority} onChange={e => patch(d.key, { priority: e.target.value as TaskDraft['priority'] })} aria-label="Priorità" className={sel}>
+                  <option value="alta">Alta</option><option value="media">Media</option><option value="bassa">Bassa</option>
+                </select>
+                <input type="date" value={d.due} onChange={e => patch(d.key, { due: e.target.value })} aria-label="Scadenza" className={sel} />
+                <select value={d.ownerId} onChange={e => patch(d.key, { ownerId: e.target.value })} aria-label="Owner" className={sel}>
+                  <option value="">Nessun owner</option>
+                  {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name ?? 'Senza nome'}</option>)}
+                </select>
+                {sprints.length > 0 && (
+                  <select value={d.sprintId} onChange={e => patch(d.key, { sprintId: e.target.value, milestoneId: '' })} aria-label="Sprint" className={sel}>
+                    <option value="">Nessuno sprint</option>
+                    {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                )}
+                {d.sprintId && milestones.some(m => m.sprint_id === d.sprintId) && (
+                  <select value={d.milestoneId} onChange={e => patch(d.key, { milestoneId: e.target.value })} aria-label="Milestone" className={sel}>
+                    <option value="">Nessuna milestone</option>
+                    {milestones.filter(m => m.sprint_id === d.sprintId).map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
+                  </select>
+                )}
+                <label className="flex items-center gap-1.5 text-2xs text-text-secondary cursor-pointer">
+                  <input type="checkbox" checked={d.isClientTask} onChange={e => patch(d.key, { isClientTask: e.target.checked })} className="accent-gold" />
+                  Task al cliente
+                </label>
+              </div>
+            </div>
+          ))}
+          <button onClick={addBlank} className="flex items-center gap-1.5 text-xs text-text-tertiary hover:text-text-primary px-2 py-1.5 transition-colors">
+            <Plus className="w-3 h-3" /> Aggiungi task
+          </button>
+        </div>
+
+        <div className="flex gap-3 px-5 pb-5 shrink-0 border-t border-border pt-4">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-border rounded-xl text-sm text-text-tertiary hover:text-text-primary">Annulla</button>
+          <button onClick={create} disabled={creating || chosen.length === 0}
+            className="flex-1 py-2.5 rounded-xl text-sm font-bold text-on-gold disabled:opacity-40 flex items-center justify-center gap-2"
+            style={{ background: accent }}>
+            {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+            Crea {chosen.length > 0 ? `${chosen.length} ` : ''}task
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

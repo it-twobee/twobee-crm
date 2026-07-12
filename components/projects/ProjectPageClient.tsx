@@ -1945,7 +1945,8 @@ export function ProjectPageClient({
         )}
         {activeTab === 'riunioni' && (
           <MeetingRecapsSection meetings={meetings} project={localProject} client={client}
-            currentProfile={currentProfile} isAdmin={isAdmin} accent={accent} />
+            currentProfile={currentProfile} isAdmin={isAdmin} accent={accent}
+            sprints={localSprints} milestones={allMilestones} profiles={allProfiles} />
         )}
         {activeTab === 'kpi' && (
           <KpiSection kpis={kpis} project={localProject} client={client} accent={accent} isAdmin={isAdmin} />

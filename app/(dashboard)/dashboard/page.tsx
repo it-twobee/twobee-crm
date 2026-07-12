@@ -32,7 +32,7 @@ export default async function DashboardPage() {
 
   const today    = new Date().toISOString().split('T')[0]
   const weekLater = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
-  const sixMonthsAgo  = new Date(Date.now() - 24 * 30 * 86400000).toISOString().slice(0, 7)
+  const sixMonthsAgo  = new Date(Date.now() - 24 * 30 * 86400000).toISOString().split('T')[0]
   const twoMonthsAgoDate = new Date(); twoMonthsAgoDate.setMonth(twoMonthsAgoDate.getMonth() - 2); twoMonthsAgoDate.setDate(1)
   const twoMonthsAgo  = twoMonthsAgoDate.toISOString().slice(0, 10)
   const sixMonthsDate = new Date(); sixMonthsDate.setMonth(sixMonthsDate.getMonth() - 5); sixMonthsDate.setDate(1)
@@ -93,20 +93,20 @@ export default async function DashboardPage() {
       ? safe(supabase.from('tasks')
           .select(`*, assignee:profiles!tasks_assignee_id_fkey(id,full_name,avatar_url), project:projects(id,name,client_id)`)
           .neq('status', 'completato').lte('due_date', weekLater).gte('due_date', today)
-          .is('parent_task_id', null).eq('assigned_to', user.id).order('due_date'), 'tasksDueSoon')
+          .is('parent_task_id', null).eq('assignee_id', user.id).order('due_date'), 'tasksDueSoon')
       : safe(supabase.from('tasks')
           .select(`*, assignee:profiles!tasks_assignee_id_fkey(id,full_name,avatar_url), project:projects(id,name,client_id)`)
           .neq('status', 'completato').lte('due_date', weekLater).gte('due_date', today)
           .is('parent_task_id', null).order('due_date'), 'tasksDueSoon'),
 
     isJuniorLevel
-      ? safe(supabase.from('tasks').select('id,title').neq('status','completato').eq('due_date', today).eq('assigned_to', user.id), 'tasksToday')
+      ? safe(supabase.from('tasks').select('id,title').neq('status','completato').eq('due_date', today).eq('assignee_id', user.id), 'tasksToday')
       : safe(supabase.from('tasks').select('id,title').neq('status','completato').eq('due_date', today), 'tasksToday'),
 
     isAdminLevel
       ? safe(supabase.from('tasks')
           .select(`*, assignee:profiles!tasks_assignee_id_fkey(id,full_name,avatar_url,email), project:projects(id,name)`)
-          .neq('status', 'completato').not('assigned_to', 'is', null)
+          .neq('status', 'completato').not('assignee_id', 'is', null)
           .not('project_id', 'is', null), 'allActiveTasks')
       : noop,
 

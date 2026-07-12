@@ -42,6 +42,25 @@
 **Da eseguire dall'utente**: migration 102. Webhook attivo solo con dominio pubblico (Cal-Q1: presente).
 **Limite noto**: modifica ricorrenza su serie esistenti (istanza vs serie) non gestita — rifinitura futura.
 
+## Fase 4 — Dominio Cliente / Progetto (COMPLETA)
+**Migration**: `105_client_names.sql` (display_name/legal_name).
+- **4a** display_name/legal_name (§24) + backfill; anagrafica solo admin.
+- **4b+4c+4d** CTA "Crea" contestuale (cliente/progetto), tab "Progetti attivi" autonoma, Brief view/edit mode.
+- **4e** Gantt collassabile (sprint+milestone di base) + hover ricco condiviso col Workload.
+- **4f** click su riga sprint/milestone/task/subtask → drawer/editor laterale.
+- **4g** Appuntamenti finestra 20gg + matching normalizzato (lowercase/punteggiatura/token, cliente OR progetto).
+- **4h** `MeetingTaskComposer` in RiunioniTab: le azioni AI (o le "prossime azioni" del recap) diventano
+  task-preview modificabili (titolo/descrizione/scadenza/priorità/owner/sprint/milestone, task interna o cliente);
+  select/deselect/elimina; **solo le confermate** creano task reali (owner via `bulkSetTaskAssignees`). Nessuna creazione automatica.
+- **4i** `components/tasks/WorkspaceTaskList.tsx`: le liste task della dashboard workspace aprono lo stesso
+  `TaskDrawer` condiviso (overlay a destra), task idratata al click; il link al progetto resta separato.
+- **4j** ClientPlanTab: la preview AI/template è ora inline-editabile (titolo/scadenza/priorità) con elimina,
+  prima della conferma; titoli vuoti scartati.
+
+**Verifica**: tsc `--noEmit` verde; compile dev pulita. Test end-to-end in-app (crea task da riunione, drawer da dashboard, preview task cliente) da fare dopo migration 105.
+**Da eseguire dall'utente**: migration 105 (se non già applicata).
+**Rischi**: `MeetingTaskComposer` inserisce via client (RLS) sotto gate `isAdmin` UI — coerente con le altre scritture di progetto; il matching owner da nome è best-effort (default "nessun owner" se ambiguo).
+
 ## Fase 3 — Workload + Portfolio + Dashboard strategica (COMPLETA)
 **Migration**: `103_workload_portfolio.sql` (tasks.start_date, profiles.weekly_capacity_hours, disattiva voce sidebar 'progetti').
 - **3a** §9: `/workspace/progetti` → redirect a `/workspace/workload` (dettaglio progetto resta).

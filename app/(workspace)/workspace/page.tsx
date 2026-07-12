@@ -6,6 +6,8 @@ import { cn } from '@/lib/utils'
 import { isAdminRole, isSuperAdminRaw } from '@/lib/permissions'
 import { WorkspaceQuickCreate } from '@/components/workspace/WorkspaceQuickCreate'
 import { RequestInbox } from '@/components/tasks/RequestInbox'
+import { WorkspaceTaskList } from '@/components/tasks/WorkspaceTaskList'
+import type { Profile } from '@/lib/types/database'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { formatCurrency } from '@/lib/utils'
 import { TrendingUp, Euro } from 'lucide-react'
@@ -52,7 +54,7 @@ export default async function WorkspaceDashboardPage() {
     supabase.from('profiles').select('full_name, app_role, email, google_connected').eq('id', user.id).single(),
     supabase.from('clients').select('id, company_name').neq('client_label', 'perso').order('company_name'),
     supabase.from('projects').select('id, name, client_id').eq('status', 'attivo').order('name'),
-    supabase.from('profiles').select('id, full_name').eq('is_active', true).in('role', ['admin', 'team']).order('full_name'),
+    supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true).in('role', ['admin', 'team']).order('full_name'),
   ])
 
   // Solo manager/senior (e admin+) creano progetti/sprint/task dalla dashboard.
@@ -94,6 +96,7 @@ export default async function WorkspaceDashboardPage() {
 
   const projectIds = Array.from(new Set(workTasks.map(t => t.project?.id).filter(Boolean) as string[]))
   const name = profile?.full_name?.split(' ')[0] ?? 'ciao'
+  const wsProfiles = (wsProfilesRes.data ?? []) as Pick<Profile, 'id' | 'full_name' | 'avatar_url'>[]
 
   // §6.4: aggregati strategici consentiti al Workspace (MRR macro + fatturato totale).
   // Calcolati via service role come SOMMA — mai per-cliente (i dettagli restano vietati).
@@ -220,7 +223,7 @@ export default async function WorkspaceDashboardPage() {
             <h2 className="text-xs font-semibold text-error uppercase tracking-wider mb-2">
               Scadute ({overdue.length})
             </h2>
-            <TaskList tasks={overdue} statusColorMap={STATUS_COLOR} />
+            <WorkspaceTaskList tasks={overdue} statusColorMap={STATUS_COLOR} profiles={wsProfiles} />
           </section>
         )}
 
@@ -229,7 +232,7 @@ export default async function WorkspaceDashboardPage() {
             <h2 className="text-xs font-semibold text-gold-text uppercase tracking-wider mb-2">
               Oggi ({dueToday.length})
             </h2>
-            <TaskList tasks={dueToday} statusColorMap={STATUS_COLOR} />
+            <WorkspaceTaskList tasks={dueToday} statusColorMap={STATUS_COLOR} profiles={wsProfiles} />
           </section>
         )}
 
@@ -238,7 +241,7 @@ export default async function WorkspaceDashboardPage() {
             <h2 className="text-xs font-semibold text-info uppercase tracking-wider mb-2">
               Prossimi 7 giorni ({dueWeek.length})
             </h2>
-            <TaskList tasks={dueWeek} statusColorMap={STATUS_COLOR} />
+            <WorkspaceTaskList tasks={dueWeek} statusColorMap={STATUS_COLOR} profiles={wsProfiles} />
           </section>
         )}
 
@@ -254,7 +257,7 @@ export default async function WorkspaceDashboardPage() {
             <h2 className="text-xs font-semibold text-overlay/30 uppercase tracking-wider mb-2">
               Altre task ({allTasks.length})
             </h2>
-            <TaskList tasks={allTasks.slice(0, 15)} statusColorMap={STATUS_COLOR} />
+            <WorkspaceTaskList tasks={allTasks.slice(0, 15)} statusColorMap={STATUS_COLOR} profiles={wsProfiles} />
           </section>
         )}
       </div>
@@ -268,36 +271,3 @@ export default async function WorkspaceDashboardPage() {
   )
 }
 
-function TaskList({
-  tasks,
-  statusColorMap,
-}: {
-  tasks: Array<{ id: string; title: string; status: string; due_date: string | null; project: { id: string; name: string; client_id: string; clients: { company_name: string } | null } | null }>
-  statusColorMap: Record<string, string>
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      {tasks.map(t => (
-        <div key={t.id} className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-surface border border-border hover:border-border/80">
-          <span className={cn('text-xs w-16 shrink-0', statusColorMap[t.status] ?? 'text-text-tertiary')}>
-            {t.status === 'da_fare' ? 'Da fare' : t.status === 'in_corso' ? 'In corso' : 'Revisione'}
-          </span>
-          <span className="text-text-primary text-sm truncate flex-1">{t.title}</span>
-          {t.project && (
-            <Link
-              href={`/workspace/progetti/${t.project.id}`}
-              className="text-overlay/25 hover:text-overlay/50 text-xs truncate max-w-[120px] shrink-0 transition-colors"
-            >
-              {t.project.name}
-            </Link>
-          )}
-          {t.due_date && (
-            <span className="text-overlay/25 text-xs shrink-0">
-              {new Date(t.due_date + 'T00:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
-            </span>
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}

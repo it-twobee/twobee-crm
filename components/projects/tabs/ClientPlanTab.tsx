@@ -21,7 +21,15 @@ interface ClientTask extends Task {
   is_client_task: boolean
 }
 
-type Suggestion = ClientTaskTemplate
+// 4j: la preview AI/template è inline-editabile prima della conferma
+// (titolo/scadenza/priorità), oltre a select/deselect ed elimina.
+interface Suggestion extends ClientTaskTemplate {
+  due?: string
+}
+
+const PRIORITIES: { v: 'alta' | 'media' | 'bassa'; label: string }[] = [
+  { v: 'alta', label: 'Alta' }, { v: 'media', label: 'Media' }, { v: 'bassa', label: 'Bassa' },
+]
 
 type AddMode = 'closed' | 'picker' | 'manuale' | 'template' | 'ai'
 
@@ -93,18 +101,19 @@ export function ClientPlanSection({ project, client, isAdmin, accent }: Props) {
     toast.success('Task aggiunta al piano cliente')
   }
 
-  const addBulkTasks = async (items: Suggestion[]) => {
+  const addBulkTasks = async (all: Suggestion[]) => {
+    const items = all.filter(it => it.title.trim())
     if (items.length === 0 || adding) return
     setAdding(true)
     const rows = items.map((it, i) => ({
       project_id: project.id,
-      title: it.title,
+      title: it.title.trim(),
       description: it.hint?.trim() || null,
       status: 'da_fare' as const,
       priority: it.priority ?? 'media',
       is_client_task: true,
       is_milestone: false,
-      due_date: null,
+      due_date: it.due || null,
       position: tasks.length + i,
       tags: [it.category, it.phase].filter(Boolean),
       logged_hours: 0,
@@ -155,6 +164,18 @@ export function ClientPlanSection({ project, client, isAdmin, accent }: Props) {
     setSelected(prev => {
       const next = new Set(prev)
       if (next.has(i)) next.delete(i); else next.add(i)
+      return next
+    })
+  }
+
+  const updateSuggestion = (i: number, patch: Partial<Suggestion>) =>
+    setSuggestions(prev => prev.map((s, idx) => idx === i ? { ...s, ...patch } : s))
+
+  const removeSuggestion = (i: number) => {
+    setSuggestions(prev => prev.filter((_, idx) => idx !== i))
+    setSelected(prev => {
+      const next = new Set<number>()
+      prev.forEach(idx => { if (idx < i) next.add(idx); else if (idx > i) next.add(idx - 1) })
       return next
     })
   }
@@ -328,22 +349,45 @@ export function ClientPlanSection({ project, client, isAdmin, accent }: Props) {
             <p className="text-xs text-text-secondary py-4 text-center">Nessun suggerimento disponibile.</p>
           ) : (
             <div className="space-y-1.5">
-              {suggestions.map((s, i) => (
-                <label key={i} className="flex items-start gap-2.5 p-2.5 rounded-lg hover:bg-surface-hover cursor-pointer transition-colors">
-                  <input type="checkbox" checked={selected.has(i)} onChange={() => toggleSelected(i)}
-                    className="mt-0.5 accent-gold" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-text-primary">{s.title}</p>
-                    {s.hint && <p className="text-2xs text-text-secondary mt-0.5">{s.hint}</p>}
+              {suggestions.map((s, i) => {
+                const on = selected.has(i)
+                return (
+                  <div key={i}
+                    className={`flex items-start gap-2.5 p-2.5 rounded-lg border transition-colors ${on ? 'border-gold/30 bg-surface-hover' : 'border-border bg-background opacity-70'}`}>
+                    <input type="checkbox" checked={on} onChange={() => toggleSelected(i)}
+                      aria-label="Includi task" className="mt-1.5 accent-gold shrink-0" />
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <input value={s.title} onChange={e => updateSuggestion(i, { title: e.target.value })}
+                        placeholder="Titolo task"
+                        className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-gold/40 text-sm text-text-primary focus:outline-none py-0.5" />
+                      {s.hint && <p className="text-2xs text-text-secondary">{s.hint}</p>}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <select value={s.priority ?? 'media'} onChange={e => updateSuggestion(i, { priority: e.target.value as Suggestion['priority'] })}
+                          aria-label="Priorità"
+                          className="bg-background border border-border rounded-md px-2 py-1 text-2xs text-text-primary focus:outline-none focus:border-gold/40">
+                          {PRIORITIES.map(p => <option key={p.v} value={p.v}>{p.label}</option>)}
+                        </select>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-text-tertiary" />
+                          <input type="date" value={s.due ?? ''} onChange={e => updateSuggestion(i, { due: e.target.value })}
+                            aria-label="Scadenza"
+                            className="bg-background border border-border rounded-md px-2 py-1 text-2xs text-text-primary focus:outline-none focus:border-gold/40" />
+                        </div>
+                        {s.phase && (
+                          <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full"
+                            style={{ background: `color-mix(in srgb, ${PHASE_COLOR[s.phase] ?? 'var(--color-text-tertiary)'} 9%, transparent)`, color: PHASE_COLOR[s.phase] ?? 'var(--color-text-tertiary)' }}>
+                            {s.phase}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <button onClick={() => removeSuggestion(i)} aria-label="Elimina suggerimento"
+                      className="p-1 text-text-tertiary hover:text-error shrink-0 transition-colors">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                  {s.phase && (
-                    <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full shrink-0"
-                      style={{ background: `color-mix(in srgb, ${PHASE_COLOR[s.phase] ?? 'var(--color-text-tertiary)'} 9%, transparent)`, color: PHASE_COLOR[s.phase] ?? 'var(--color-text-tertiary)' }}>
-                      {s.phase}
-                    </span>
-                  )}
-                </label>
-              ))}
+                )
+              })}
             </div>
           )}
 
