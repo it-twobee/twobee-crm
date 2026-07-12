@@ -489,6 +489,7 @@ function AccessPanel({ channelId, channelType, members, allProfiles, isAdmin, cu
   const [inviteType, setInviteType] = useState<'cliente' | 'partner'>('cliente')
   const [sending, setSending] = useState(false)
   const [memberSearch, setMemberSearch] = useState('')
+  const [showAddMember, setShowAddMember] = useState(false)  // §27.1: collassata di base
 
   useEffect(() => {
     createClient().from('channel_guests').select('*').eq('channel_id', channelId).neq('status', 'revoked').order('invited_at')
@@ -497,7 +498,10 @@ function AccessPanel({ channelId, channelType, members, allProfiles, isAdmin, cu
 
   const clientGuests = guests.filter(g => g.guest_type === 'cliente')
   const partnerGuests = guests.filter(g => g.guest_type === 'partner')
-  const nonMembers = allProfiles.filter(p => !members.find(m => m.id === p.id) && p.full_name?.toLowerCase().includes(memberSearch.toLowerCase()))
+  // `nonMembersAll` regge l'intestazione collassabile (contatore + visibilità): se usassi
+  // la lista già filtrata, una ricerca senza risultati farebbe sparire tutta la sezione.
+  const nonMembersAll = allProfiles.filter(p => !members.find(m => m.id === p.id))
+  const nonMembers = nonMembersAll.filter(p => p.full_name?.toLowerCase().includes(memberSearch.toLowerCase()))
 
   const sendInvite = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -579,26 +583,36 @@ function AccessPanel({ channelId, channelType, members, allProfiles, isAdmin, cu
                 )}
               </div>
             ))}
-            {isAdmin && nonMembers.length > 0 && (
+            {/* §27.1: collassata di base anche qui (Customer Care → Gestisci Accessi). */}
+            {isAdmin && nonMembersAll.length > 0 && (
               <div className="mt-3 pt-3 border-t border-border">
-                <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold px-1 mb-2">Aggiungi membro team</p>
-                <div className="flex items-center gap-2 bg-surface border border-border rounded-xl px-2.5 py-1.5 mb-2 focus-within:border-gold/40">
-                  <Search className="w-3 h-3 text-text-secondary shrink-0" />
-                  <input value={memberSearch} onChange={e => setMemberSearch(e.target.value)} placeholder="Cerca..."
-                    className="flex-1 bg-transparent text-xs text-text-primary focus:outline-none placeholder:text-text-secondary" />
-                </div>
-                <div className="space-y-0.5 max-h-48 overflow-y-auto">
-                  {nonMembers.map(p => (
-                    <button key={p.id} onClick={() => onAddMember(p.id)}
-                      className="w-full flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-surface transition-colors text-left group/a">
-                      <div className="w-6 h-6 rounded-full bg-surface-hover flex items-center justify-center text-2xs font-bold text-text-primary overflow-hidden shrink-0">
-                        {p.avatar_url ? <img src={p.avatar_url} className="w-full h-full object-cover" alt="" /> : getInitials(p.full_name)}
-                      </div>
-                      <span className="text-xs text-text-secondary group-hover/a:text-text-primary flex-1 truncate">{p.full_name}</span>
-                      <Plus className="w-3 h-3 text-text-secondary opacity-0 group-hover/a:opacity-100 shrink-0" />
-                    </button>
-                  ))}
-                </div>
+                <button onClick={() => setShowAddMember(v => !v)}
+                  className="w-full flex items-center gap-1.5 px-1 mb-2 text-2xs text-text-secondary uppercase tracking-wider font-bold hover:text-text-primary transition-colors">
+                  {showAddMember ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                  Aggiungi membro team
+                  <span className="ml-auto normal-case tracking-normal font-normal text-text-tertiary">{nonMembersAll.length}</span>
+                </button>
+                {showAddMember && (
+                  <>
+                    <div className="flex items-center gap-2 bg-surface border border-border rounded-xl px-2.5 py-1.5 mb-2 focus-within:border-gold/40">
+                      <Search className="w-3 h-3 text-text-secondary shrink-0" />
+                      <input value={memberSearch} onChange={e => setMemberSearch(e.target.value)} placeholder="Cerca..."
+                        className="flex-1 bg-transparent text-xs text-text-primary focus:outline-none placeholder:text-text-secondary" />
+                    </div>
+                    <div className="space-y-0.5 max-h-48 overflow-y-auto">
+                      {nonMembers.map(p => (
+                        <button key={p.id} onClick={() => onAddMember(p.id)}
+                          className="w-full flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-surface transition-colors text-left group/a">
+                          <div className="w-6 h-6 rounded-full bg-surface-hover flex items-center justify-center text-2xs font-bold text-text-primary overflow-hidden shrink-0">
+                            {p.avatar_url ? <img src={p.avatar_url} className="w-full h-full object-cover" alt="" /> : getInitials(p.full_name)}
+                          </div>
+                          <span className="text-xs text-text-secondary group-hover/a:text-text-primary flex-1 truncate">{p.full_name}</span>
+                          <Plus className="w-3 h-3 text-text-secondary opacity-0 group-hover/a:opacity-100 shrink-0" />
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
