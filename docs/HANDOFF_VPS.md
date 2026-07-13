@@ -66,79 +66,72 @@ Con questo il **Calendar** si collega. **Drive no**: gli scope OAuth attuali son
 solo Calendar (`auth/route.ts:50-53`) e non esiste codice Drive-API — solo iframe
 di link incollati a mano (`lib/drive.ts` lo dichiara: "Nessuna API/OAuth").
 
-## 4. Storage — decisione e piano
-**Decisione presa**: **ibrido Google Drive (documenti/knowledge) + MinIO/S3 su
-Coolify (file sensibili)**. Supabase Storage **scartato** (spazio free minuscolo).
-Rimpiazza anche la vecchia proposta Nextcloud in `docs/storage-architecture.md`.
+## 4. Storage — DECISIONE RIVISTA + infra fatta (2026-07-13)
+**Semplificazione rispetto al piano precedente.** Niente Drive-API/service account:
+- **MinIO interno = storage UNICO del CRM.** Tutto ciò che si carica dalla UI del
+  CRM finisce su MinIO (VPS), dietro il backend. Sostituisce anche i bucket Supabase
+  "mai creati" (buste paga, documenti personali, best-ideas).
+- **Google Drive = SOLO iframe** (`lib/drive.ts` + `DriveEmbed`, "Nessuna API/OAuth")
+  per incollare/condividere roba che vive già su Drive del cliente. **Scartati**
+  service account, domain-wide delegation, Shared Drive, provider `googleDrive.ts`,
+  migrazione Drive-API. Il layer storage è **mono-provider (S3/MinIO)**.
+- Supabase Storage resta scartato (spazio free minuscolo).
 
-| Uso | Backend | Perché |
-|---|---|---|
-| Documenti cliente, Knowledge | **Google Drive Shared Drive** | TB già pagati nel Workspace Business, durabile, backup Google, il team già ci lavora |
-| Buste-paga, documenti-personali, best-ideas, allegati sensibili | **MinIO/S3 su Coolify** | presigned URL brevi, semantica S3, controllo totale sulla VPS |
+### Infra MinIO (già deployata e verificata)
+- Service Coolify **`minio`** (progetto Twobee, service uuid `a2bmvfs0bz0g1a3pxa5h2eob`,
+  immagine `minio/minio:latest`, volume `minio-data`). **NON esposto** (nessun FQDN/
+  Traefik). Agganciato via `docker_compose_raw` alla rete esterna **`coolify` con
+  alias `minio`** → il container CRM (anch'esso su `coolify`) lo raggiunge a
+  **`http://minio:9000`** (verificato: health 200 dal CRM). L'alias è nel compose,
+  quindi persiste ai redeploy.
+- **Bucket unico `twobee-crm`** (privato). Organizzazione per **prefissi in-code**
+  (`clients/ payslips/ personal/ best_ideas/ chat/ knowledge/ misc/`), non bucket
+  separati. Access control fatto dal backend (unico a parlare con MinIO).
+- **Access key dedicata `twobee-crm-app`** (NON root) con policy `twobee-crm-rw`
+  limitata al solo bucket (testato PUT/GET/DELETE + isolamento).
+- **Env su app CRM in Coolify (runtime, non buildtime)**: `S3_ENDPOINT=http://minio:9000`,
+  `S3_REGION=us-east-1`, `S3_FORCE_PATH_STYLE=true`, `S3_ACCESS_KEY_ID=twobee-crm-app`,
+  `S3_SECRET_ACCESS_KEY=***`, `S3_BUCKET=twobee-crm`.
 
-### Principi architetturali
-- **UI nativa, ZERO iframe.** Oggi `DocumentsTab` + `DriveEmbed` mostrano un
-  `<iframe embeddedfolderview>` di un URL incollato. Va sostituito da componenti
-  nostri che leggono dalla Drive API v3 (`files.list`, `files.create`,
-  `files.get?alt=media`, `thumbnailLink` per anteprime).
-- **Il frontend non parla mai con Drive/MinIO.** Tutto passa dal backend Next.js,
-  che verifica auth+ruoli Supabase, esegue l'op, e restituisce download controllati
-  / URL temporanei. (Stesso principio del vecchio doc storage.)
-- **Drive ownership** = **Shared Drive** di Workspace (non Drive personali) via
-  **service account con domain-wide delegation** (l'admin Workspace autorizza il
-  client-id del service account con lo scope Drive nella Admin Console). L'OAuth
-  per-utente resta solo per il Calendar.
-- **Metadata su Supabase** (id, provider, drive_file_id / s3_key, client_id,
-  project_id, name, mime, size, uploaded_by, created_at), binari sul provider.
+### Codice (branch `feat/storage-minio`, buildato + smoke-testato)
+- `lib/storage/shared.ts` — cartelle, `SENSITIVE_FOLDERS`, tipi (client-safe).
+- `lib/storage/s3.ts` — provider S3/MinIO (`@aws-sdk/client-s3`, `forcePathStyle`),
+  `putObject/getObject/deleteObject/listObjects` + `buildObjectKey`.
+- `lib/storage/guard.ts` — `getCaller()` (user+ruolo), `canReadFile/canDeleteFile`
+  (cartelle sensibili → solo owner/admin).
+- `app/api/files/*` — `POST /upload` (multipart, max 50MB, rollback oggetto se il
+  metadato fallisce), `GET /` (lista filtrata per permesso), `GET /:id/download`
+  (**proxy**: streama i byte, MinIO resta interno), `DELETE /:id`.
+- `components/shared/FileManager.tsx` — uploader+lista riutilizzabile; il browser
+  parla SOLO con `/api/files/*`, mai con MinIO. Montato in `DocumentsTab` come
+  "Allegati interni" (staff-only, non nel portale) accanto alla sezione Drive.
+- **Migration `108_files_storage.sql`** — tabella `public.files` (metadati) + RLS
+  (admin all; owner CRUD dei propri; team select cartelle non-sensibili).
 
-### Layer da costruire
-```
-lib/storage/
-  index.ts        # sceglie il provider per caso d'uso / env
-  types.ts        # interfaccia comune
-  providers/
-    googleDrive.ts # Shared Drive via service account + scope auth/drive
-    s3.ts          # MinIO su Coolify, presigned URL
-```
-Interfaccia minima: `uploadFile`, `deleteFile`, `getDownloadUrl`, `getPreviewUrl`,
-`listFolder`, `ensureProjectFolder`.
-API interne: `POST /api/files/upload`, `GET /api/files/:id/download`,
-`DELETE /api/files/:id`, `GET /api/files?folder=...`.
+### Metadati — tabella `public.files`
+`id, bucket, object_key (unique), folder, entity_type, entity_id, name, mime, size,
+uploaded_by → profiles(id), created_at`. Binari su MinIO, metadati qui.
 
-### Env storage (Coolify)
-```
-STORAGE_DOCS_PROVIDER=googleDrive
-GOOGLE_SA_CLIENT_EMAIL=...            # service account
-GOOGLE_SA_PRIVATE_KEY=...
-GOOGLE_DRIVE_ROOT_FOLDER_ID=...       # cartella radice nella Shared Drive
-STORAGE_SENSITIVE_PROVIDER=s3
-S3_ENDPOINT=https://<minio-su-coolify>
-S3_REGION=us-east-1
-S3_ACCESS_KEY_ID=...
-S3_SECRET_ACCESS_KEY=...
-S3_BUCKET_PAYSLIPS=payslips
-S3_BUCKET_PERSONAL=personal-documents
-S3_BUCKET_BEST_IDEAS=best-ideas
-```
+## 5. Cosa RESTA per chiudere lo storage
+1. **Applicare la migration `108`** al DB di produzione (metodo handoff §2: modulo
+   node `pg`, `DATABASE_URL` pooler, SSL `rejectUnauthorized:false`). **Bloccante**:
+   fino a qui `/api/files/*` va in 500 (tabella assente).
+2. **Merge del branch `feat/storage-minio` in `main`** → auto-deploy Coolify. NB:
+   mergiare DOPO il punto 1, o la tab Documenti mostra un errore all'apertura.
+3. (Incrementale) montare `FileManager` sulle altre superfici: documenti personali /
+   buste paga (`personal`/`payslips`), best-ideas (`best_ideas`), allegati chat
+   (`chat`), knowledge (`knowledge`). Il layer è già pronto: basta il componente.
+4. (Opzionale) backup del volume `minio-data` (i file sensibili stanno su un solo
+   disco VPS): snapshot Hetzner o `mc mirror` verso un S3 esterno.
 
-### Migrazione incrementale (non rompere l'esistente)
-1. Introdurre `lib/storage` + `/api/files/*` senza cambiare UX.
-2. Documenti cliente/knowledge: nuova UI nativa su Drive API; **lettura di
-   compatibilità** per i vecchi `documents.file_url` (link Drive + `DriveEmbed`).
-3. Buste-paga / documenti-personali / best-ideas: da subito su MinIO (erano su
-   bucket Supabase mai creati).
-4. Allegati chat (oggi serializzati in `chat_messages.attachments`): ultimi,
-   più delicati.
+## 6. Altri "cosa resta" (non-storage, da piattaforma)
+- **Google Calendar**: impostare `GOOGLE_CLIENT_ID/SECRET` (+ `GROQ_API_KEY`) su
+  Coolify e OAuth Console (vedi §3). Drive resta iframe: nessun setup Google.
+- **Data quality**: assegnare PM (`projects.manager_id`); popolare
+  `client_assignments`; stime/scadenze sulle task; marcare clienti interni.
 
-## 5. Cosa resta (non-code, da piattaforma)
-- **Data quality**: assegnare PM (`projects.manager_id`) ai progetti attivi;
-  popolare `client_assignments`; stime/scadenze sulle task; marcare clienti interni.
-- Creare la **Shared Drive** + service account + cartella radice.
-- Creare i **bucket MinIO** su Coolify (`payslips`, `personal-documents`,
-  `best-ideas`).
-
-## 6. Primo comando utile sulla VPS
+## 7. Primo comando utile sulla VPS
 ```bash
-git pull origin main          # porta WL-01 + questo handoff
-# imposta le env su Coolify (sez. 3 e 4), poi redeploy
+git fetch origin && git checkout feat/storage-minio   # oppure main dopo il merge
+# 1) applica migration 108 al DB prod  2) merge in main → deploy Coolify
 ```
