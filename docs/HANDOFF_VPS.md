@@ -127,16 +127,27 @@ mime, size, uploaded_by → profiles(id), created_at`. Binari su MinIO, metadati
   passare `/api/*`; sicurezza = token non indovinabile + scadenza/revoca). Un solo
   link attivo per file; scadenza 24h/7g/30g/mai (default 7g).
 
-## 5. Cosa RESTA per chiudere lo storage
-1. **Applicare la migration `108`** al DB di produzione (metodo handoff §2: modulo
-   node `pg`, `DATABASE_URL` pooler, SSL `rejectUnauthorized:false`). **Bloccante**:
-   fino a qui `/api/files/*` va in 500 (tabella assente).
-2. **Merge del branch `feat/storage-minio` in `main`** → auto-deploy Coolify. NB:
-   mergiare DOPO il punto 1, o la tab Documenti mostra un errore all'apertura.
-3. (Incrementale) montare `FileManager` sulle altre superfici: documenti personali /
-   buste paga (`personal`/`payslips`), best-ideas (`best_ideas`), allegati chat
-   (`chat`), knowledge (`knowledge`). Il layer è già pronto: basta il componente.
-4. (Opzionale) backup del volume `minio-data` (i file sensibili stanno su un solo
+## 5. Stato storage — LIVE (migration 108+109 applicate, PR #2+#3 in main)
+Fatto e in produzione: MinIO interno, layer `lib/storage` + `/api/files/*`, file
+explorer (cartelle/multi-upload/anteprime/condivisione), montato in `DocumentsTab`.
+
+### Superfici HR agganciate a MinIO (buste paga + documenti personali)
+NON col `FileManager` generico (il dominio ha regole proprie), ma ricablando i
+flussi esistenti sullo storage interno:
+- **Buste paga** (`app/actions/payslips.ts`): upload/delete su MinIO (prefisso
+  `payslips/<profileId>/<anno>-<mese>.<ext>`), download via proxy autenticato
+  `GET /api/payslips/:id/download` (propria busta o admin). Regole invariate:
+  carica solo l'admin, il dipendente vede solo le sue. Prima puntava a un bucket
+  Supabase `payslips` mai creato → era rotto.
+- **Documenti personali** (`app/actions/personal-documents.ts`): il modale ora
+  permette di **allegare un file** (opzionale) → MinIO (`personal/<profileId>/…`),
+  con `Paperclip`/download nella lista; proxy `GET /api/personal-documents/:id/download`
+  (owner o admin). Prima si salvavano solo i metadati (scadenze) senza file.
+
+### Resta (incrementale)
+1. Montare lo storage su **best-ideas** (`best_ideas`), **allegati chat** (`chat`),
+   **knowledge** (`knowledge`). Layer già pronto.
+2. (Opzionale) backup del volume `minio-data` (i file sensibili stanno su un solo
    disco VPS): snapshot Hetzner o `mc mirror` verso un S3 esterno.
 
 ## 6. Altri "cosa resta" (non-storage, da piattaforma)
@@ -145,8 +156,13 @@ mime, size, uploaded_by → profiles(id), created_at`. Binari su MinIO, metadati
 - **Data quality**: assegnare PM (`projects.manager_id`); popolare
   `client_assignments`; stime/scadenze sulle task; marcare clienti interni.
 
-## 7. Primo comando utile sulla VPS
+## 7. Metodo per applicare una migration al DB prod (quando serve)
+`psql` non è sull'host: usare un container usa-e-getta (SSL require).
 ```bash
-git fetch origin && git checkout feat/storage-minio   # oppure main dopo il merge
-# 1) applica migration 108 al DB prod  2) merge in main → deploy Coolify
+docker run --rm -e PGPASSWORD='<db-pass>' -e PGSSLMODE=require \
+  -v "$PWD/supabase/migrations/<file>.sql":/m.sql:ro postgres:16-alpine \
+  psql -h aws-0-eu-west-1.pooler.supabase.com -p 5432 \
+       -U postgres.ujkrrryitfqboskdqhwf -d postgres -v ON_ERROR_STOP=1 -f /m.sql
 ```
+Le migration dello storage (108, 109) sono già applicate. Nuove migration:
+applicarle PRIMA di mergiare il codice che le usa.
