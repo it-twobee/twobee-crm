@@ -727,7 +727,14 @@ function ProjectRow({ load, tasks, sprints, resources, multiMap, resourceById, e
             <Crown className="w-3 h-3 text-gold-text" aria-hidden="true" />
             <span className="text-2xs text-text-tertiary">{manager.full_name.split(' ')[0]}</span>
           </span>
-        ) : !editable && (
+        ) : editable ? (
+          <Link href={projectHref(p.client_id, p.id)} onClick={e => e.stopPropagation()}
+            className="hidden md:flex items-center gap-1 shrink-0 text-warning hover:text-gold-text transition-colors"
+            title="Nessun responsabile — assegna un PM">
+            <AlertTriangle className="w-3 h-3" aria-hidden="true" />
+            <span className="text-2xs">assegna PM</span>
+          </Link>
+        ) : (
           <span className="hidden md:flex items-center gap-1 shrink-0 text-warning" title="Nessun responsabile assegnato">
             <AlertTriangle className="w-3 h-3" aria-hidden="true" />
             <span className="text-2xs">senza PM</span>
