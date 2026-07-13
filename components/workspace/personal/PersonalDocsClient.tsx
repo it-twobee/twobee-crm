@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { FileText, Plus, X, Loader2, Trash2, AlertTriangle, CheckCircle2, Clock } from 'lucide-react'
+import { FileText, Plus, X, Loader2, Trash2, AlertTriangle, CheckCircle2, Clock, Download, Paperclip } from 'lucide-react'
 import { docState, DOC_TYPES, type DocStatus } from '@/lib/personal-documents'
+import { upsertPersonalDoc, getPersonalDocUrl, deletePersonalDoc } from '@/app/actions/personal-documents'
 import type { PersonalDocument } from '@/lib/types/database'
 
 const STATUS_UI: Record<DocStatus, { label: string; cls: string; Icon: typeof CheckCircle2 }> = {
@@ -21,13 +21,22 @@ export function PersonalDocsClient({ documents, profileId }: {
 }) {
   const router = useRouter()
   const [showNew, setShowNew] = useState(false)
+  const [downloading, setDownloading] = useState<string | null>(null)
 
   const withState = documents.map(d => ({ doc: d, state: docState(d) }))
   const urgent = withState.filter(x => x.state.status === 'scaduto' || x.state.status === 'in_scadenza')
 
+  const download = async (doc: PersonalDocument) => {
+    setDownloading(doc.id)
+    const res = await getPersonalDocUrl(doc.id)
+    setDownloading(null)
+    if ('error' in res) { toast.error(res.error); return }
+    window.open(res.url, '_blank', 'noopener,noreferrer')
+  }
+
   const remove = async (id: string) => {
-    const { error } = await createClient().from('personal_documents').delete().eq('id', id)
-    if (error) { toast.error(error.message); return }
+    const res = await deletePersonalDoc(id)
+    if ('error' in res) { toast.error(res.error); return }
     toast.success('Documento eliminato')
     router.refresh()
   }
@@ -75,7 +84,10 @@ export function PersonalDocsClient({ documents, profileId }: {
             <li key={doc.id} className="flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3">
               <ui.Icon className="w-4 h-4 text-text-tertiary shrink-0" aria-hidden="true" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-text-primary truncate">{doc.label}</p>
+                <p className="text-sm font-medium text-text-primary truncate flex items-center gap-1.5">
+                  {doc.label}
+                  {doc.file_path && <Paperclip className="w-3 h-3 text-text-tertiary shrink-0" aria-label="Con allegato" />}
+                </p>
                 <p className="text-2xs text-text-tertiary">
                   {doc.doc_type}
                   {doc.expires_at && ` · scade il ${new Date(doc.expires_at).toLocaleDateString('it-IT')}`}
@@ -88,6 +100,15 @@ export function PersonalDocsClient({ documents, profileId }: {
                     ? `Scaduto da ${Math.abs(state.daysLeft)} gg`
                     : ui.label}
               </span>
+              {doc.file_path && (
+                <button onClick={() => download(doc)} disabled={downloading === doc.id}
+                  aria-label={`Scarica ${doc.label}`}
+                  className="p-2 rounded-lg text-text-tertiary hover:text-gold-text hover:bg-surface-hover transition-colors shrink-0 disabled:opacity-50">
+                  {downloading === doc.id
+                    ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                    : <Download className="w-4 h-4" aria-hidden="true" />}
+                </button>
+              )}
               <button onClick={() => remove(doc.id)} aria-label={`Elimina ${doc.label}`}
                 className="p-2 rounded-lg text-text-tertiary hover:text-error hover:bg-error-dim transition-colors shrink-0">
                 <Trash2 className="w-4 h-4" aria-hidden="true" />
@@ -114,21 +135,22 @@ function NewDocModal({ profileId, onClose, onSaved }: {
   const [docType, setDocType] = useState<string>(DOC_TYPES[0])
   const [expiresAt, setExpiresAt] = useState('')
   const [reminder, setReminder] = useState(30)
+  const [file, setFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
 
   const save = async () => {
     if (!label.trim()) { toast.error('Il nome del documento è obbligatorio'); return }
     setSaving(true)
-    const { error } = await createClient().from('personal_documents').insert({
-      profile_id: profileId,
-      doc_type: docType,
-      label: label.trim(),
-      expires_at: expiresAt || null,
-      reminder_days_before: reminder,
-      created_by: profileId,
-    } as never)
+    const fd = new FormData()
+    fd.append('profile_id', profileId)
+    fd.append('label', label.trim())
+    fd.append('doc_type', docType)
+    fd.append('expires_at', expiresAt)
+    fd.append('reminder_days_before', String(reminder))
+    if (file) fd.append('file', file)
+    const res = await upsertPersonalDoc(fd)
     setSaving(false)
-    if (error) { toast.error(error.message); return }
+    if ('error' in res) { toast.error(res.error); return }
     toast.success('Documento aggiunto')
     onSaved()
   }
@@ -171,6 +193,14 @@ function NewDocModal({ profileId, onClose, onSaved }: {
                 onChange={e => setReminder(Number(e.target.value))}
                 className="w-full bg-background border border-border-interactive rounded-xl px-3 py-2 text-sm text-text-primary tabular" />
             </div>
+          </div>
+
+          <div>
+            <label htmlFor="file" className="text-text-tertiary text-xs mb-1.5 block">File (opzionale)</label>
+            <input id="file" type="file" accept="application/pdf,image/*"
+              onChange={e => setFile(e.target.files?.[0] ?? null)}
+              className="w-full text-sm text-text-secondary file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-surface-active file:text-text-primary file:text-xs" />
+            <p className="text-2xs text-text-tertiary mt-1">Se alleghi il file, resta privato sullo storage interno (VPS).</p>
           </div>
         </div>
 
