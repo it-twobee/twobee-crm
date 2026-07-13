@@ -36,6 +36,7 @@ export interface StorageFile {
   bucket: string
   object_key: string
   folder: StorageFolder
+  folder_id: string | null
   entity_type: string | null
   entity_id: string | null
   name: string
@@ -43,6 +44,45 @@ export interface StorageFile {
   size: number | null
   uploaded_by: string | null
   created_at: string
+}
+
+/** Cartella virtuale (riga tabella public.file_folders). */
+export interface StorageFolderRow {
+  id: string
+  name: string
+  parent_id: string | null
+  folder: StorageFolder
+  entity_type: string | null
+  entity_id: string | null
+  created_by: string | null
+  created_at: string
+}
+
+/** Condivisione pubblica di un file (riga tabella public.file_shares). */
+export interface FileShare {
+  id: string
+  file_id: string
+  token: string
+  created_by: string | null
+  expires_at: string | null
+  revoked: boolean
+  created_at: string
+}
+
+// ── Anteprime ────────────────────────────────────────────────────────────────
+
+export type PreviewKind = 'image' | 'pdf' | 'video' | 'audio' | 'text' | 'other'
+
+/** Che tipo di anteprima rendere per un dato mime/nome. */
+export function previewKind(mime: string | null | undefined, name?: string): PreviewKind {
+  const m = (mime ?? '').toLowerCase()
+  const ext = (name ?? '').split('.').pop()?.toLowerCase() ?? ''
+  if (m.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif'].includes(ext)) return 'image'
+  if (m === 'application/pdf' || ext === 'pdf') return 'pdf'
+  if (m.startsWith('video/') || ['mp4', 'webm', 'mov'].includes(ext)) return 'video'
+  if (m.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'm4a'].includes(ext)) return 'audio'
+  if (m.startsWith('text/') || ['txt', 'md', 'csv', 'json'].includes(ext)) return 'text'
+  return 'other'
 }
 
 /** Dimensione file leggibile (KB/MB). */

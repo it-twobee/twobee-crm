@@ -14,11 +14,15 @@ export async function GET(req: Request) {
   const folder = url.searchParams.get('folder')
   const entityType = url.searchParams.get('entityType')
   const entityId = url.searchParams.get('entityId')
+  // folderId: assente = radice del contesto (folder_id IS NULL); un id = quella cartella.
+  const folderId = url.searchParams.get('folderId')
 
   let query = caller.admin.from('files').select('*').order('created_at', { ascending: false })
   if (folder) query = query.eq('folder', folder)
   if (entityType) query = query.eq('entity_type', entityType)
   if (entityId) query = query.eq('entity_id', entityId)
+  if (folderId) query = query.eq('folder_id', folderId)
+  else query = query.is('folder_id', null)
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

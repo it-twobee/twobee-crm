@@ -109,8 +109,23 @@ di link incollati a mano (`lib/drive.ts` lo dichiara: "Nessuna API/OAuth").
   (admin all; owner CRUD dei propri; team select cartelle non-sensibili).
 
 ### Metadati — tabella `public.files`
-`id, bucket, object_key (unique), folder, entity_type, entity_id, name, mime, size,
-uploaded_by → profiles(id), created_at`. Binari su MinIO, metadati qui.
+`id, bucket, object_key (unique), folder, folder_id, entity_type, entity_id, name,
+mime, size, uploaded_by → profiles(id), created_at`. Binari su MinIO, metadati qui.
+
+### Evoluzione "file explorer" (migration 109)
+`FileManager` è ora un mini-explorer, non una lista piatta:
+- **Multi-upload** (input `multiple` + drag&drop) nella cartella corrente.
+- **Cartelle/sottocartelle**: tabella `public.file_folders` (self-ref `parent_id`)
+  dentro il contesto (folder-categoria + entity). `files.folder_id` → cartella
+  (NULL = radice). Delete cartella = ricorsivo (sottocartelle + file + oggetti MinIO).
+  API: `GET/POST /api/files/folders`, `DELETE /api/files/folders/:id`.
+- **Anteprime**: modale che rende inline immagini/PDF/video/audio (via il download
+  proxy); thumbnail immagini nella griglia; icona+download per gli altri tipi.
+- **Condivisione esterna**: tabella `public.file_shares` (token unico, `expires_at`,
+  `revoked`). API `POST/GET/DELETE /api/files/:id/share` (solo owner/admin) + route
+  **pubblica** `GET /api/public/files/:token` (nessuna auth — il middleware lascia
+  passare `/api/*`; sicurezza = token non indovinabile + scadenza/revoca). Un solo
+  link attivo per file; scadenza 24h/7g/30g/mai (default 7g).
 
 ## 5. Cosa RESTA per chiudere lo storage
 1. **Applicare la migration `108`** al DB di produzione (metodo handoff §2: modulo
