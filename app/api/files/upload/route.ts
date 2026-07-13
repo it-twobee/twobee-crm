@@ -24,6 +24,7 @@ export async function POST(req: Request) {
   const folder = (form.get('folder') as string | null) ?? 'misc'
   const entityType = (form.get('entityType') as string | null) || null
   const entityId = (form.get('entityId') as string | null) || null
+  const folderId = (form.get('folderId') as string | null) || null
 
   if (!(file instanceof File)) return NextResponse.json({ error: 'File mancante' }, { status: 400 })
   if (!isStorageFolder(folder)) return NextResponse.json({ error: `Cartella non valida: ${folder}` }, { status: 400 })
@@ -45,6 +46,7 @@ export async function POST(req: Request) {
       bucket: S3_BUCKET,
       object_key: key,
       folder,
+      folder_id: folderId,
       entity_type: entityType,
       entity_id: entityId,
       name: file.name,
