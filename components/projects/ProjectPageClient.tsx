@@ -10,7 +10,7 @@ import {
   Printer, Tag, Link as LinkIcon, RefreshCw, UserCheck,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { softDeleteTasks } from '@/app/actions/tasks-trash'
+import { softDeleteTask, softDeleteTasks } from '@/app/actions/tasks-trash'
 import { toast } from 'sonner'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { AssigneePicker } from '@/components/tasks/AssigneePicker'
@@ -1492,7 +1492,7 @@ function ProgettoView({ project, client, allSprints, allTasks, profiles, isAdmin
                 setDrawerTask(prev => prev ? { ...prev, ...p } as ExtTask : null)
               }}
               onDelete={async () => {
-                await createClient().from('tasks').delete().eq('id', drawerTask.id)
+                await softDeleteTask(drawerTask.id)
                 onUpdateTasks(allTasks.filter(t => t.id !== drawerTask.id))
                 setDrawerTask(null)
                 toast.success('Eliminata')

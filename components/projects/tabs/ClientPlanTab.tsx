@@ -6,6 +6,7 @@ import {
   Calendar, Star, Sparkles, ListChecks, PenLine, RefreshCw,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { softDeleteTask } from '@/app/actions/tasks-trash'
 import { toast } from 'sonner'
 import { CLIENT_TASK_TEMPLATES, PHASE_COLOR, type ClientTaskTemplate } from '@/lib/reparti-constants'
 import type { Task, Project, Client } from '@/lib/types/database'
@@ -189,10 +190,10 @@ export function ClientPlanSection({ project, client, isAdmin, accent }: Props) {
   }
 
   const deleteTask = async (id: string) => {
-    const { error } = await sb.from('tasks').delete().eq('id', id)
-    if (error) { toast.error(error.message); return }
+    const res = await softDeleteTask(id)
+    if ('error' in res) { toast.error(res.error); return }
     setTasks(prev => prev.filter(t => t.id !== id))
-    toast.success('Eliminata')
+    toast.success('Spostata nel cestino')
   }
 
   const startEdit = (t: ClientTask) => {
