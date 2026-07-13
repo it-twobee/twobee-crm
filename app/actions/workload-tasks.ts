@@ -68,13 +68,15 @@ export async function pmDeleteTask(
   if ('error' in auth) return { error: auth.error }
 
   const admin = createAdminClient()
-  // Il bridge multi-assegnatario va giù in cascata (ON DELETE CASCADE), ma
-  // ripuliamo comunque per sicurezza prima di eliminare la task.
-  await admin.from('task_assignees').delete().eq('task_id', taskId)
-  const { error } = await admin.from('tasks').delete().eq('id', taskId).eq('project_id', projectId)
+  // Soft-delete: la task finisce nel cestino (ripristinabile). Gli assegnatari
+  // NON vengono rimossi, così il ripristino la riporta com'era.
+  const { error } = await admin.from('tasks')
+    .update({ deleted_at: new Date().toISOString(), deleted_by: auth.userId } as never)
+    .eq('id', taskId).eq('project_id', projectId).is('deleted_at', null)
   if (error) return { error: error.message }
 
   revalidatePath('/workload')
   revalidatePath('/workspace/workload')
+  revalidatePath('/cestino')
   return { ok: true }
 }

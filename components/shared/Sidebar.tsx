@@ -8,7 +8,7 @@ import {
   BarChart3, FolderOpen, Settings, ChevronRight, ChevronLeft, ChevronDown,
   CheckCircle2, FolderKanban, Briefcase, CalendarDays, Receipt, Headphones, Crown,
   ShoppingCart, Ticket, UserCircle2, Target, History, FlaskConical,
-  Layers, Calculator, Map, Scale, Lightbulb, Gauge,
+  Layers, Calculator, Map, Scale, Lightbulb, Gauge, Trash2,
 } from 'lucide-react'
 import { useState, useCallback, useEffect } from 'react'
 import { usePermissions } from '@/lib/hooks/usePermissions'
@@ -45,6 +45,7 @@ const sections: NavSection[] = [
       { href: '/progetti', icon: FolderKanban, label: 'Progetti' },
       { href: '/portfolio', icon: Briefcase, label: 'Portfolio' },
       { href: '/documenti', icon: FolderOpen, label: 'Documenti' },
+      { href: '/cestino', icon: Trash2, label: 'Cestino' },
     ],
   },
   {

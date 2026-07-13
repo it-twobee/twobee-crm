@@ -31,7 +31,7 @@ export default async function PortaleClienteDetailPage({ params }: { params: { i
 
   const [tasksRes, sprintsRes, kpisRes, invoicesRes, channelRes, commentsRes, docsRes] = await Promise.all([
     projectIds.length > 0
-      ? admin.from('tasks').select('*').in('project_id', projectIds).eq('is_client_task', true as never).order('order')
+      ? admin.from('tasks').select('*').in('project_id', projectIds).eq('is_client_task', true as never).is('deleted_at', null).order('order')
       : Promise.resolve({ data: [] }),
     projectIds.length > 0
       ? admin.from('sprints').select('*').in('project_id', projectIds).order('start_date')

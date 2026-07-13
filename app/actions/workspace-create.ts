@@ -187,9 +187,13 @@ export async function deleteMyTask(taskId: string) {
   if (t.project_id) return { ok: false, error: 'Le task di progetto vanno eliminate con approvazione' }
   if (t.assignee_id !== user.id) return { ok: false, error: 'Non è una tua task' }
 
-  const { error } = await admin.from('tasks').delete().eq('id', taskId)
+  // Soft-delete: nel cestino, ripristinabile.
+  const { error } = await admin.from('tasks')
+    .update({ deleted_at: new Date().toISOString(), deleted_by: user.id } as never)
+    .eq('id', taskId).is('deleted_at', null)
   if (error) return { ok: false, error: error.message }
   revalidatePersonalTasks()  // solo task personali: nessuna vista aggregata le mostra
+  revalidatePath('/cestino')
   return { ok: true }
 }
 
