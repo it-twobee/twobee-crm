@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { timeAgo } from '@/lib/utils'
 import { isDriveUrl, driveKind } from '@/lib/drive'
 import { DriveEmbed } from '@/components/shared/DriveEmbed'
+import { FileManager } from '@/components/shared/FileManager'
 import type { Document, Client } from '@/lib/types/database'
 
 interface Props {
@@ -14,10 +15,12 @@ interface Props {
   documents: Document[]
 }
 
-// §23 / Fase 5 (D9, D10): la sezione Documenti gestisce ESCLUSIVAMENTE link Google
-// Drive (cartella cliente + sottocartelle/file). Niente upload su storage: i file
-// stanno su Drive, qui salviamo solo il riferimento. L'anteprima è l'embed folder
-// view di Drive (nessuna Drive API). L'upload resta solo per HR/documenti personali.
+// §23 / Fase 5 (D9, D10): la sezione Documenti è IBRIDA.
+//  • Google Drive: link (cartella cliente + file) — visibili al cliente nel portale,
+//    anteprima via embed folder view (nessuna Drive API). Restano la fonte condivisa.
+//  • Allegati interni: upload reali su storage VPS (MinIO, cartella `clients`) tramite
+//    /api/files/* — staff-only, NON visibili al cliente. Il browser non parla mai con
+//    MinIO: tutto passa dal backend.
 
 const CATEGORIES = ['tutti', 'contratto', 'report', 'creatività', 'altro'] as const
 
@@ -203,6 +206,16 @@ export function DocumentsTab({ client, documents: initialDocs }: Props) {
           </div>
         </div>
       )}
+
+      {/* Allegati interni su storage VPS (MinIO) — staff-only, non nel portale */}
+      <div className="pt-4 border-t border-border">
+        <FileManager
+          folder="clients"
+          entityType="client"
+          entityId={client.id}
+          title="Allegati interni"
+        />
+      </div>
 
       {/* Empty */}
       {docs.length === 0 && (
