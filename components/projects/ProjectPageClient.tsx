@@ -10,6 +10,7 @@ import {
   Printer, Tag, Link as LinkIcon, RefreshCw, UserCheck,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { softDeleteTasks } from '@/app/actions/tasks-trash'
 import { toast } from 'sonner'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { AssigneePicker } from '@/components/tasks/AssigneePicker'
@@ -98,7 +99,7 @@ function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, mileston
     const col = (id: string) => { ids.add(id); allTasks.filter(t => (t as ExtTask).parent_id === id).forEach(c => col(c.id)) }
     col(task.id)
     onUpdate(allTasks.filter(t => !ids.has(t.id)))
-    await createClient().from('tasks').delete().in('id', Array.from(ids))
+    await softDeleteTasks(Array.from(ids))
     toast.success('Task eliminata')
   }
 
@@ -276,7 +277,7 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
     const col = (id: string) => { ids.add(id); allTasks.filter(t => (t as ExtTask).parent_id === id || (t as ExtTask).milestone_id === id).forEach(c => col(c.id)) }
     col(milestone.id)
     onUpdate(allTasks.filter(t => !ids.has(t.id)))
-    await createClient().from('tasks').delete().in('id', Array.from(ids))
+    await softDeleteTasks(Array.from(ids))
     toast.success('Milestone eliminata')
   }
 

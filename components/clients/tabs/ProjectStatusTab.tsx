@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
+import { softDeleteTask } from '@/app/actions/tasks-trash'
 import { toast } from 'sonner'
 import type { Client, Project, Sprint, Task, MeetingNote, SprintStatus, TaskPriority, Profile, ProjectKind, ClientType } from '@/lib/types/database'
 import { notifyTaskAssigned } from '@/lib/notifications'
@@ -1246,11 +1247,10 @@ export function ProjectStatusTab({ client, projects: initialProjects, sprints: i
   }
 
   const handleTaskDelete = async (id: string) => {
-    const sb = createClient()
-    const { error } = await sb.from('tasks').delete().eq('id', id)
-    if (error) { toast.error('Errore: ' + error.message); return }
+    const res = await softDeleteTask(id)
+    if ('error' in res) { toast.error('Errore: ' + res.error); return }
     setLocalTasks(prev => prev.filter(t => t.id !== id))
-    toast.success('Eliminata')
+    toast.success('Spostata nel cestino')
   }
 
   const handleSprintSaved = (s: Sprint) => {

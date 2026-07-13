@@ -3,6 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { softDeleteTask } from './tasks-trash'
 import type { ClientTaskTemplate } from '@/lib/reparti-constants'
 
 export async function assignTask(taskId: string, profileId: string | null) {
@@ -69,6 +70,7 @@ export async function updateClientTaskStatus(taskId: string, status: string) {
 }
 
 export async function deleteTask(taskId: string) {
-  await createAdminClient().from('tasks').delete().eq('id', taskId)
+  // Soft-delete: la task va nel cestino (ripristinabile), non eliminata fisicamente.
+  await softDeleteTask(taskId)
   revalidatePath('/reparti')
 }
