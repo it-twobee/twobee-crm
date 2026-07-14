@@ -6,6 +6,8 @@ import {
   Check, X, Loader2, Calendar, MoreHorizontal, CheckSquare, Square, UserPlus, Users,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { softDeleteTasks } from '@/app/actions/tasks-trash'
+import { notifyTasksDeleted } from '@/lib/task-undo'
 import { toast } from 'sonner'
 import { getInitials } from '@/lib/utils'
 import { TaskDrawer } from '@/components/tasks/TaskDrawer'
@@ -140,8 +142,8 @@ function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, mileston
     const col = (id: string) => { ids.add(id); allTasks.filter(t => t.parent_id === id).forEach(c => col(c.id)) }
     col(task.id)
     onUpdate(allTasks.filter(t => !ids.has(t.id)))
-    await createClient().from('tasks').delete().in('id', Array.from(ids))
-    toast.success('Task eliminata')
+    await softDeleteTasks(Array.from(ids))
+    notifyTasksDeleted(Array.from(ids))
   }
 
   const addChild = async () => {
@@ -307,8 +309,8 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
     const col = (id: string) => { ids.add(id); allTasks.filter(t => t.parent_id === id || t.milestone_id === id).forEach(c => col(c.id)) }
     col(milestone.id)
     onUpdate(allTasks.filter(t => !ids.has(t.id)))
-    await createClient().from('tasks').delete().in('id', Array.from(ids))
-    toast.success('Milestone eliminata')
+    await softDeleteTasks(Array.from(ids))
+    notifyTasksDeleted(Array.from(ids))
   }
 
   const addTask = async () => {

@@ -10,6 +10,7 @@ import {
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { createMyTask, deleteMyTask } from '@/app/actions/workspace-create'
+import { notifyTasksDeleted } from '@/lib/task-undo'
 import { usePortalRoutes } from '@/lib/portal-routes'
 import { toast } from 'sonner'
 import { formatDate, getInitials } from '@/lib/utils'
@@ -205,7 +206,7 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles, proj
       if (!r.ok) { toast.error('Errore: ' + (r.error ?? '')); return }
       setTasks(p => p.filter(t => t.id !== task.id))
       if (selectedTask?.id === task.id) setSelectedTask(null)
-      toast.success('Task eliminata')
+      notifyTasksDeleted(task.id)
       return
     }
     // Task di progetto: resta soggetta ad approvazione del supervisore.
