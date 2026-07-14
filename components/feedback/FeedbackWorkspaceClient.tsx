@@ -3,9 +3,13 @@
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Lightbulb, Wand2, PlusSquare, Bug, ChevronUp, Loader2 } from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
+import { it } from 'date-fns/locale'
+import { Lightbulb, Wand2, PlusSquare, ChevronUp, Loader2, ImagePlus } from 'lucide-react'
+import { getInitials } from '@/lib/utils'
 import { createFeedback, voteFeedback } from '@/app/actions/feedback'
-import { FeedbackItem, FeedbackSection, FeedbackKind, STATUS_LABELS, STATUS_STYLE, KIND_LABELS } from './types'
+import { ImagePicker, AttachmentThumbs, uploadFeedbackImages, MAX_IMAGES } from './attachments'
+import { FeedbackItem, FeedbackSection, FeedbackKind, STATUS_LABELS, STATUS_STYLE, KIND_LABELS, IMPACT_LABELS } from './types'
 
 type FormKind = Extract<FeedbackKind, 'improvement' | 'new_section' | 'idea'>
 
@@ -30,6 +34,7 @@ export function FeedbackWorkspaceClient({ currentUserId, sections, feedback, vot
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [impact, setImpact] = useState<'bassa' | 'media' | 'alta'>('media')
+  const [images, setImages] = useState<File[]>([])
   const [saving, setSaving] = useState(false)
   const [tab, setTab] = useState<'mie' | 'tutte'>('tutte')
   const [votedSet, setVotedSet] = useState<Set<string>>(new Set(votedIds))
@@ -48,10 +53,15 @@ export function FeedbackWorkspaceClient({ currentUserId, sections, feedback, vot
       proposedSectionName: kind === 'new_section' ? newName : null,
       title, description, impact,
     })
+    if (!r.ok || !r.id) { setSaving(false); toast.error(r.error ?? 'Errore'); return }
+
+    if (images.length) {
+      const { failed } = await uploadFeedbackImages(r.id, images)
+      if (failed) toast.warning(`${failed} immagine/i non caricate, il resto è stato inviato`)
+    }
     setSaving(false)
-    if (!r.ok) { toast.error(r.error ?? 'Errore'); return }
     toast.success('Feedback inviato, grazie!')
-    setTitle(''); setDescription(''); setSectionKey(''); setNewName(''); setImpact('media')
+    setTitle(''); setDescription(''); setSectionKey(''); setNewName(''); setImpact('media'); setImages([])
     router.refresh()
   }
 
@@ -129,6 +139,14 @@ export function FeedbackWorkspaceClient({ currentUserId, sections, feedback, vot
             placeholder="Cosa succede oggi, cosa vorresti, e perché ti aiuterebbe." className={`${inputCls} resize-none`} />
         </div>
 
+        <div>
+          <p className="text-2xs font-semibold text-text-tertiary uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <ImagePlus className="w-3.5 h-3.5" /> Screenshot <span className="text-text-tertiary/70 normal-case tracking-normal font-normal">— facoltativi, max {MAX_IMAGES}</span>
+          </p>
+          <ImagePicker files={images} onChange={setImages} disabled={saving} />
+          <p className="text-2xs text-text-tertiary mt-2 leading-snug">Un&apos;immagine di com&apos;è oggi ci aiuta a capire meglio cosa ottimizzare.</p>
+        </div>
+
         <div className="flex items-center justify-between gap-3">
           <div className="flex gap-1.5">
             {(['bassa', 'media', 'alta'] as const).map(i => (
@@ -150,6 +168,7 @@ export function FeedbackWorkspaceClient({ currentUserId, sections, feedback, vot
       <section>
         <div className="flex items-center gap-2 mb-3">
           <h2 className="text-sm font-bold text-text-primary">Proposte del team</h2>
+          <span className="text-2xs text-text-tertiary">{list.length}</span>
           <div className="ml-auto flex bg-surface border border-border rounded-lg p-0.5">
             {(['tutte', 'mie'] as const).map(t => (
               <button key={t} onClick={() => setTab(t)}
@@ -163,39 +182,80 @@ export function FeedbackWorkspaceClient({ currentUserId, sections, feedback, vot
 
         <div className="space-y-2">
           {list.map(f => (
-            <article key={f.id} className="flex gap-3 p-4 rounded-xl border border-border bg-surface">
-              <button onClick={() => vote(f.id)} disabled={voting === f.id}
-                aria-label={votedSet.has(f.id) ? 'Togli voto' : 'Vota'}
-                className={`flex flex-col items-center justify-center w-11 shrink-0 rounded-lg border transition-colors ${
-                  votedSet.has(f.id) ? 'border-gold bg-gold-dim text-gold-text' : 'border-border text-text-tertiary hover:text-text-primary'}`}>
-                <ChevronUp className="w-4 h-4" />
-                <span className="text-xs font-bold tabular">{f.vote_count}</span>
-              </button>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`text-2xs font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLE[f.status]}`}>{STATUS_LABELS[f.status]}</span>
-                  <span className="text-2xs text-text-tertiary">{KIND_LABELS[f.kind]}</span>
-                  {f.target_section_key && (
-                    <span className="text-2xs text-text-tertiary">· {sectionLabel[f.target_section_key] ?? f.target_section_key}</span>
-                  )}
-                  {f.proposed_section_name && <span className="text-2xs text-gold-text">· {f.proposed_section_name}</span>}
-                </div>
-                <p className="text-sm font-semibold text-text-primary mt-1">{f.title}</p>
-                <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">{f.description}</p>
-                <p className="text-2xs text-text-tertiary mt-1.5">{f.author?.full_name ?? 'Anonimo'}</p>
-                {f.admin_note && (
-                  <p className="text-2xs text-text-secondary mt-2 p-2 rounded-lg bg-surface-hover border border-border">
-                    <span className="font-semibold text-gold-text">Risposta: </span>{f.admin_note}
-                  </p>
-                )}
-              </div>
-            </article>
+            <WorkspaceCard key={f.id} f={f} sectionLabel={sectionLabel}
+              voted={votedSet.has(f.id)} voting={voting === f.id} onVote={() => vote(f.id)} />
           ))}
           {list.length === 0 && (
-            <p className="text-sm text-text-tertiary text-center py-10">Nessuna proposta ancora. Inizia tu!</p>
+            <div className="text-center py-12 rounded-xl border border-dashed border-border">
+              <Lightbulb className="w-6 h-6 text-text-tertiary mx-auto mb-2" />
+              <p className="text-sm text-text-tertiary">
+                {tab === 'mie' ? 'Non hai ancora inviato proposte.' : 'Nessuna proposta ancora. Inizia tu!'}
+              </p>
+            </div>
           )}
         </div>
       </section>
     </div>
+  )
+}
+
+function WorkspaceCard({ f, sectionLabel, voted, voting, onVote }: {
+  f: FeedbackItem
+  sectionLabel: Record<string, string>
+  voted: boolean
+  voting: boolean
+  onVote: () => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const isLong = f.description.length > 160 || f.description.includes('\n')
+
+  return (
+    <article className="flex gap-3 p-4 rounded-xl border border-border bg-surface">
+      <button onClick={onVote} disabled={voting}
+        aria-label={voted ? 'Togli voto' : 'Vota'}
+        className={`flex flex-col items-center justify-center w-11 h-12 shrink-0 rounded-lg border transition-colors ${
+          voted ? 'border-gold bg-gold-dim text-gold-text' : 'border-border text-text-tertiary hover:text-text-primary'}`}>
+        {voting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronUp className="w-4 h-4" />}
+        <span className="text-xs font-bold tabular">{f.vote_count}</span>
+      </button>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`text-2xs font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLE[f.status]}`}>{STATUS_LABELS[f.status]}</span>
+          <span className="text-2xs text-text-tertiary">{KIND_LABELS[f.kind]}</span>
+          {f.target_section_key && (
+            <span className="text-2xs text-text-tertiary">· {sectionLabel[f.target_section_key] ?? f.target_section_key}</span>
+          )}
+          {f.proposed_section_name && <span className="text-2xs text-gold-text">· {f.proposed_section_name}</span>}
+          <span className="text-2xs text-text-tertiary">· {IMPACT_LABELS[f.impact]}</span>
+        </div>
+        <p className="text-sm font-semibold text-text-primary mt-1">{f.title}</p>
+        <p className={`text-xs text-text-secondary mt-0.5 whitespace-pre-line ${expanded || !isLong ? '' : 'line-clamp-2'}`}>{f.description}</p>
+        {isLong && (
+          <button onClick={() => setExpanded(e => !e)} className="text-2xs font-semibold text-gold-text hover:opacity-80 mt-1">
+            {expanded ? 'Mostra meno' : 'Mostra tutto'}
+          </button>
+        )}
+
+        <AttachmentThumbs attachments={f.attachments} />
+
+        <div className="flex items-center gap-1.5 mt-2">
+          <span className="w-5 h-5 rounded-full bg-surface-active text-text-secondary text-[9px] font-bold flex items-center justify-center overflow-hidden shrink-0">
+            {f.author?.avatar_url
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={f.author.avatar_url} alt="" className="w-full h-full object-cover" />
+              : getInitials(f.author?.full_name ?? 'Anonimo')}
+          </span>
+          <span className="text-2xs text-text-tertiary">
+            {f.author?.full_name ?? 'Anonimo'} · {formatDistanceToNow(new Date(f.created_at), { addSuffix: true, locale: it })}
+          </span>
+        </div>
+
+        {f.admin_note && (
+          <p className="text-2xs text-text-secondary mt-2 p-2 rounded-lg bg-surface-hover border border-border">
+            <span className="font-semibold text-gold-text">Risposta: </span>{f.admin_note}
+          </p>
+        )}
+      </div>
+    </article>
   )
 }

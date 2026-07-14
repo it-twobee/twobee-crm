@@ -3,8 +3,12 @@
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ChevronUp, Filter, Plus, X, Loader2 } from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
+import { it } from 'date-fns/locale'
+import { ChevronUp, Filter, Plus, X, Loader2, ImagePlus } from 'lucide-react'
+import { getInitials } from '@/lib/utils'
 import { createFeedback, voteFeedback, setFeedbackStatus } from '@/app/actions/feedback'
+import { ImagePicker, AttachmentThumbs, uploadFeedbackImages, MAX_IMAGES } from './attachments'
 import { FeedbackItem, FeedbackSection, FeedbackKind, FeedbackStatus, STATUS_LABELS, STATUS_STYLE, KIND_LABELS, IMPACT_LABELS } from './types'
 
 const STATUSES: FeedbackStatus[] = ['nuovo', 'in_valutazione', 'pianificato', 'in_corso', 'realizzato', 'archiviato']
@@ -154,8 +158,21 @@ function AdminRow({ f, sectionLabel, voted, busy, onVote, onStatus, onSaveNote }
           <button onClick={() => setExpanded(e => !e)} className="text-sm font-semibold text-text-primary mt-1 text-left hover:text-gold-text transition-colors">
             {f.title}
           </button>
-          <p className={`text-xs text-text-secondary mt-0.5 ${expanded ? '' : 'line-clamp-2'}`}>{f.description}</p>
-          <p className="text-2xs text-text-tertiary mt-1.5">{f.author?.full_name ?? 'Anonimo'}</p>
+          <p className={`text-xs text-text-secondary mt-0.5 whitespace-pre-line ${expanded ? '' : 'line-clamp-2'}`}>{f.description}</p>
+
+          <AttachmentThumbs attachments={f.attachments} size="sm" />
+
+          <div className="flex items-center gap-1.5 mt-1.5">
+            <span className="w-5 h-5 rounded-full bg-surface-active text-text-secondary text-[9px] font-bold flex items-center justify-center overflow-hidden shrink-0">
+              {f.author?.avatar_url
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={f.author.avatar_url} alt="" className="w-full h-full object-cover" />
+                : getInitials(f.author?.full_name ?? 'Anonimo')}
+            </span>
+            <span className="text-2xs text-text-tertiary">
+              {f.author?.full_name ?? 'Anonimo'} · {formatDistanceToNow(new Date(f.created_at), { addSuffix: true, locale: it })}
+            </span>
+          </div>
 
           {expanded && (
             <div className="mt-3 space-y-2">
@@ -188,6 +205,7 @@ function ComposerModal({ sections, onClose, onCreated }: {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [impact, setImpact] = useState<'bassa' | 'media' | 'alta'>('media')
+  const [images, setImages] = useState<File[]>([])
   const [saving, setSaving] = useState(false)
 
   const submit = async () => {
@@ -198,8 +216,12 @@ function ComposerModal({ sections, onClose, onCreated }: {
       proposedSectionName: kind === 'new_section' ? newName : null,
       title, description, impact,
     })
+    if (!r.ok || !r.id) { setSaving(false); toast.error(r.error ?? 'Errore'); return }
+    if (images.length) {
+      const { failed } = await uploadFeedbackImages(r.id, images)
+      if (failed) toast.warning(`${failed} immagine/i non caricate`)
+    }
     setSaving(false)
-    if (!r.ok) { toast.error(r.error ?? 'Errore'); return }
     onCreated()
   }
 
@@ -227,6 +249,12 @@ function ComposerModal({ sections, onClose, onCreated }: {
         )}
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Titolo" className={inputCls} />
         <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} placeholder="Descrizione" className={`${inputCls} resize-none`} />
+        <div>
+          <p className="text-2xs font-semibold text-text-tertiary uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+            <ImagePlus className="w-3.5 h-3.5" /> Screenshot <span className="normal-case tracking-normal font-normal text-text-tertiary/70">— facoltativi, max {MAX_IMAGES}</span>
+          </p>
+          <ImagePicker files={images} onChange={setImages} disabled={saving} />
+        </div>
         <div className="flex items-center justify-between">
           <div className="flex gap-1.5">
             {(['bassa', 'media', 'alta'] as const).map(i => (

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { FeedbackWorkspaceClient } from '@/components/feedback/FeedbackWorkspaceClient'
+import { attachSubmittedImages } from '@/lib/feedback-attachments'
 import type { FeedbackItem, FeedbackSection } from '@/components/feedback/types'
 
 export const revalidate = 0
@@ -21,11 +22,13 @@ export default async function WorkspaceFeedbackPage() {
 
   const votedIds = new Set((votesRes.data ?? []).map((v: { feedback_id: string }) => v.feedback_id))
 
+  const feedback = await attachSubmittedImages(supabase, (feedbackRes.data ?? []) as unknown as FeedbackItem[])
+
   return (
     <FeedbackWorkspaceClient
       currentUserId={user.id}
       sections={(sectionsRes.data ?? []) as FeedbackSection[]}
-      feedback={(feedbackRes.data ?? []) as unknown as FeedbackItem[]}
+      feedback={feedback}
       votedIds={Array.from(votedIds)}
     />
   )

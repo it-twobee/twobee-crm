@@ -3,6 +3,13 @@ export type FeedbackStatus = 'nuovo' | 'in_valutazione' | 'pianificato' | 'in_co
 
 export interface FeedbackSection { key: string; label: string }
 
+/** Immagine/screenshot allegata a un feedback (riga public.files, folder 'feedback'). */
+export interface FeedbackAttachment {
+  id: string
+  name: string
+  mime: string | null
+}
+
 export interface FeedbackItem {
   id: string
   author_id: string
@@ -18,6 +25,7 @@ export interface FeedbackItem {
   vote_count: number
   created_at: string
   author: { full_name: string | null; avatar_url: string | null } | null
+  attachments?: FeedbackAttachment[]
 }
 
 export const STATUS_LABELS: Record<FeedbackStatus, string> = {

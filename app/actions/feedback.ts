@@ -22,7 +22,7 @@ export async function createFeedback(input: {
   if (input.kind === 'improvement' && !input.targetSectionKey) return { ok: false, error: 'Seleziona la sezione' }
   if (input.kind === 'new_section' && !input.proposedSectionName?.trim()) return { ok: false, error: 'Indica il nome della nuova sezione' }
 
-  const { error } = await supabase.from('feedback').insert({
+  const { data, error } = await supabase.from('feedback').insert({
     author_id: user.id,
     source_portal: input.sourcePortal,
     kind: input.kind,
@@ -32,11 +32,13 @@ export async function createFeedback(input: {
     description: input.description.trim(),
     impact: input.impact ?? 'media',
   } as never)
+    .select('id')
+    .single()
 
   if (error) return { ok: false, error: error.message }
   revalidatePath('/workspace/feedback')
   revalidatePath('/feedback')
-  return { ok: true }
+  return { ok: true, id: (data as { id: string }).id }
 }
 
 export async function voteFeedback(feedbackId: string, on: boolean) {

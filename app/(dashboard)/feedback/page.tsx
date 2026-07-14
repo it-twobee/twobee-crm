@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { isAdminRole, isSuperAdminRaw } from '@/lib/permissions'
 import { FeedbackAdminClient } from '@/components/feedback/FeedbackAdminClient'
+import { attachSubmittedImages } from '@/lib/feedback-attachments'
 import type { FeedbackItem, FeedbackSection } from '@/components/feedback/types'
 
 export const revalidate = 0
@@ -23,10 +24,12 @@ export default async function AdminFeedbackPage() {
     supabase.from('feedback_votes').select('feedback_id').eq('profile_id', user.id),
   ])
 
+  const feedback = await attachSubmittedImages(supabase, (feedbackRes.data ?? []) as unknown as FeedbackItem[])
+
   return (
     <FeedbackAdminClient
       sections={(sectionsRes.data ?? []) as FeedbackSection[]}
-      feedback={(feedbackRes.data ?? []) as unknown as FeedbackItem[]}
+      feedback={feedback}
       votedIds={(votesRes.data ?? []).map((v: { feedback_id: string }) => v.feedback_id)}
     />
   )
