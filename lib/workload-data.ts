@@ -54,7 +54,7 @@ export async function fetchWorkloadData(
   if (projectIds.length > 0) {
     const [{ data: taskRows }, { data: sprintRows }] = await Promise.all([
       sb.from('tasks')
-        .select('id, title, status, priority, due_date, start_date, estimated_hours, logged_hours, assignee_id, project_id, is_milestone')
+        .select('id, title, status, priority, due_date, start_date, estimated_hours, logged_hours, assignee_id, project_id, is_milestone, milestone_id')
         .in('project_id', projectIds),
       // Sprint: servono al Gantt di progetto (barre temporali).
       sb.from('sprints')

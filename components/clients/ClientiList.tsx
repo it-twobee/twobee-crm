@@ -16,12 +16,39 @@ import { NewClientModal } from './NewClientModal'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { deleteClient } from '@/app/actions/delete-client'
 import { PrioritaOggi } from './PrioritaOggi'
+import type { ClientTaskStats } from '@/lib/client-task-stats'
 
 interface ClientiListProps {
   clients: Client[]
   currentProfile?: Profile
   /** Portale operativo: oscura MRR, pagamenti, export ed elimina — solo vista clienti attivi */
   hideEconomics?: boolean
+  /** Task aperte per cliente (chiave = client.id) — colonna "Task" color-coded. */
+  taskStats?: Record<string, ClientTaskStats>
+}
+
+/** Badge task rimanenti: rosso se ci sono scaduti, arancione se imminenti, giallo altrimenti. */
+function TaskBadge({ stats }: { stats?: ClientTaskStats }) {
+  if (!stats || stats.remaining === 0) return <span className="text-xs text-text-tertiary">—</span>
+  const { remaining, imminent, overdue } = stats
+  const cls = overdue > 0
+    ? 'bg-error-dim text-error'
+    : imminent > 0
+      ? 'bg-orange-dim text-orange'
+      : 'bg-warning-dim text-warning'
+  const title = [
+    `${remaining} task da completare`,
+    overdue > 0 ? `${overdue} in ritardo` : null,
+    imminent > 0 ? `${imminent} in scadenza` : null,
+  ].filter(Boolean).join(' · ')
+  return (
+    <span title={title}
+      className={`inline-flex items-center gap-1 whitespace-nowrap text-xs font-bold px-2 py-0.5 rounded-full tabular ${cls}`}>
+      {remaining}
+      {overdue > 0 && <span className="text-2xs font-semibold">·{overdue} ritardo</span>}
+      {overdue === 0 && imminent > 0 && <span className="text-2xs font-semibold">·{imminent} presto</span>}
+    </span>
+  )
 }
 
 type SortKey = 'company_name' | 'mrr' | 'client_type' | 'client_label' | 'payment_status' | 'package' | 'contract_end' | 'risk_score'
@@ -166,7 +193,7 @@ function SortValue(c: Client, key: SortKey): string | number {
 const STORAGE_PINS = 'twobee_pinned_clients'
 const STORAGE_PIN_ORDER = 'twobee_pinned_order'
 
-export function ClientiList({ clients: initialClients, currentProfile, hideEconomics = false }: ClientiListProps) {
+export function ClientiList({ clients: initialClients, currentProfile, hideEconomics = false, taskStats = {} }: ClientiListProps) {
   const canSeeMrr = !hideEconomics && (!currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || ['admin', 'manager'].includes(currentProfile.app_role ?? ''))
   const canCreateClient = !hideEconomics && (!currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || ['admin', 'manager'].includes(currentProfile.app_role ?? ''))
   const showPayments = !hideEconomics
@@ -402,6 +429,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
             </span>
           )}
           {client.risk_score != null && <RiskBadge score={client.risk_score} trend={client.risk_trend} factors={client.risk_factors} />}
+          <TaskBadge stats={taskStats[client.id]} />
         </div>
 
         {/* Contratto */}
@@ -499,6 +527,9 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
         {client.industry
           ? <span className="inline-flex whitespace-nowrap text-xs text-text-secondary bg-background border border-border px-2 py-0.5 rounded">{client.industry}</span>
           : <span className="text-xs text-text-tertiary">—</span>}
+      </td>
+      <td className="px-4 py-3.5">
+        <TaskBadge stats={taskStats[client.id]} />
       </td>
       <td className="px-4 py-3.5">
         <div className="flex items-center gap-3">
@@ -720,19 +751,20 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
                 {canSeeMrr && <ColHeader col="mrr" label="MRR" />}
                 {showPayments && <ColHeader col="payment_status" label="Pagamenti" />}
                 <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Settore</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Task</th>
                 <th className="px-4 py-3 w-24" />
               </tr>
             </thead>
             <tbody>
               {allFiltered.length === 0 && (
-                <tr><td colSpan={10} className="px-5 py-12 text-center text-text-secondary text-sm">Nessun cliente trovato</td></tr>
+                <tr><td colSpan={11} className="px-5 py-12 text-center text-text-secondary text-sm">Nessun cliente trovato</td></tr>
               )}
               {pinnedClients.map((client) => (
                 <ClientRow key={client.id} client={client} pinned />
               ))}
               {pinnedClients.length > 0 && unpinnedClients.length > 0 && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-1.5 bg-surface">
+                  <td colSpan={11} className="px-4 py-1.5 bg-surface">
                     <div className="flex items-center gap-2">
                       <div className="flex-1 h-px bg-surface-hover" />
                       <span className="text-2xs text-text-secondary uppercase tracking-widest">Altri clienti</span>

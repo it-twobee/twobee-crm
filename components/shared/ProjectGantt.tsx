@@ -18,7 +18,7 @@ type GanttItem =
   | { kind: 'sprint'; id: string; title: string; start: string; end: string; status: string; tasks: number; done: number }
   | { kind: 'milestone'; id: string; title: string; start: string; end: string; status: string }
 
-export function ProjectGantt({ project, sprints, milestones, tasks, editable, onItemClick }: {
+export function ProjectGantt({ project, sprints, milestones, tasks, editable, onItemClick, onMilestoneClick }: {
   project: WLProject
   sprints: WLSprint[]
   milestones: WLTask[]
@@ -27,6 +27,9 @@ export function ProjectGantt({ project, sprints, milestones, tasks, editable, on
   /** Se presente (dominio progetto), il click porta all'elemento nella pagina invece
    *  di aprire il popup: siamo già nel progetto, un popup che rimanda qui è inutile. */
   onItemClick?: (item: { kind: 'sprint' | 'milestone'; id: string }) => void
+  /** Se presente, il click su una MILESTONE (non sullo sprint) è intercettato qui —
+   *  usato dal Workload per aprire il drawer laterale dei sottotask senza cambiare pagina. */
+  onMilestoneClick?: (id: string) => void
 }) {
   const { projectHref } = usePortalRoutes()
   const [detail, setDetail] = useState<GanttItem | null>(null)
@@ -197,7 +200,7 @@ export function ProjectGantt({ project, sprints, milestones, tasks, editable, on
               return (
                 // Punto di larghezza 0 sulla data esatta: il marker si centra su di esso.
                 <div key={m.id} className="absolute" style={{ left: `${pctOf(m.start)}%`, top: lane * 22, width: 0 }}>
-                  <button onClick={() => onItemClick ? onItemClick({ kind: 'milestone', id: m.id }) : setDetail(m)}
+                  <button onClick={() => onMilestoneClick ? onMilestoneClick(m.id) : onItemClick ? onItemClick({ kind: 'milestone', id: m.id }) : setDetail(m)}
                     title={`${n}. ${m.title}\n${fmtD(m.start)} · ${done ? 'Completata' : late ? 'In ritardo' : 'Da fare'}`}
                     aria-label={`Milestone ${n}: ${m.title}`}
                     className={`absolute -translate-x-1/2 w-[18px] h-[18px] rounded-full border flex items-center justify-center
@@ -226,7 +229,7 @@ export function ProjectGantt({ project, sprints, milestones, tasks, editable, on
                 : late ? 'bg-error/20 border-error text-error'
                 : 'bg-gold/20 border-gold text-gold-text'
               return (
-                <button key={m.id} onClick={() => onItemClick ? onItemClick({ kind: 'milestone', id: m.id }) : setDetail(m)}
+                <button key={m.id} onClick={() => onMilestoneClick ? onMilestoneClick(m.id) : onItemClick ? onItemClick({ kind: 'milestone', id: m.id }) : setDetail(m)}
                   className="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-surface-hover transition-colors text-left group">
                   <span className={`w-[18px] h-[18px] shrink-0 rounded-full border flex items-center justify-center text-[9px] font-bold ${cls}`}>
                     {n}

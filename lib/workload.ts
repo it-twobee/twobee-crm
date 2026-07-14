@@ -20,6 +20,7 @@ export interface WLTask {
   assignee_id: string | null
   project_id: string
   is_milestone?: boolean
+  milestone_id?: string | null
 }
 
 export interface WLProject {

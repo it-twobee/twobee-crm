@@ -18,6 +18,7 @@ import {
 import { pmUpdateTask } from '@/app/actions/workload-tasks'
 import { createMyTask } from '@/app/actions/workspace-create'
 import { ProjectGantt } from '@/components/shared/ProjectGantt'
+import { MilestoneTasksDrawer } from '@/components/workload/MilestoneTasksDrawer'
 import { usePortalRoutes } from '@/lib/portal-routes'
 
 type View = 'progetti' | 'risorse'
@@ -667,6 +668,7 @@ function ProjectRow({ load, tasks, sprints, resources, multiMap, resourceById, e
   manager: WLResource | null | undefined
 }) {
   const [open, setOpen] = useState(false)
+  const [drawerMs, setDrawerMs] = useState<WLTask | null>(null)
   const { projectHref } = usePortalRoutes()
   const p = load.project
   const kindUi = p.project_kind ? KIND_UI[p.project_kind] : null
@@ -750,9 +752,21 @@ function ProjectRow({ load, tasks, sprints, resources, multiMap, resourceById, e
 
       {open && (
         <div className="border-t border-border">
-          {/* Gantt su calendario: SOLO sprint e milestone, cliccabili → popup → progetto */}
-          <ProjectGantt project={p} sprints={sprints} milestones={milestones} tasks={tasks} editable={editable} />
+          {/* Gantt su calendario: sprint → popup; milestone → drawer laterale dei sottotask
+              (in-place, così il tasto "indietro" non porta più sulla scheda cliente). */}
+          <ProjectGantt project={p} sprints={sprints} milestones={milestones} tasks={tasks} editable={editable}
+            onMilestoneClick={id => setDrawerMs(milestones.find(m => m.id === id) ?? null)} />
         </div>
+      )}
+
+      {drawerMs && (
+        <MilestoneTasksDrawer
+          milestone={drawerMs}
+          subtasks={tasks.filter(t => t.milestone_id === drawerMs.id && !t.is_milestone)}
+          project={p}
+          resourceById={resourceById}
+          onClose={() => setDrawerMs(null)}
+        />
       )}
     </div>
   )
