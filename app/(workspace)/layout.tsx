@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { WorkspaceSidebar } from '@/components/workspace/WorkspaceSidebar'
+import { UndoHotkey } from '@/components/undo/UndoHotkey'
 import { GlobalSearch } from '@/components/shared/GlobalSearch'
 import { workspaceSearch } from '@/app/actions/global-search'
 import { isSuperAdminRaw, isAdminRole, isWorkspaceRole } from '@/lib/permissions'
@@ -71,8 +72,18 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     ]
   }
 
+  // Cestino: visibile a tutti nel workspace (ognuno vede le task che ha cestinato;
+  // manager/admin tutte). Fallback sintetico se la migration 112 non è ancora attiva.
+  if (!(visibleSections ?? []).some((s: { key: string }) => s.key === 'cestino')) {
+    visibleSections = [
+      ...(visibleSections ?? []),
+      { id: 'synthetic-cestino', key: 'cestino', label: 'Cestino', route: '/workspace/cestino', icon: 'Trash2', sort_order: 20, group_key: 'lavori', group_order: 1 },
+    ]
+  }
+
   return (
     <div className="flex h-screen bg-background overflow-hidden">
+      <UndoHotkey />
       <WorkspaceSidebar
         sections={(visibleSections ?? []) as WorkspaceSectionRow[]}
         isSuperAdmin={isSuperAdmin}

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { softDeleteTasks } from '@/app/actions/tasks-trash'
+import { notifyTasksDeleted } from '@/lib/task-undo'
 import { toast } from 'sonner'
 import { getInitials } from '@/lib/utils'
 import { TaskDrawer } from '@/components/tasks/TaskDrawer'
@@ -142,7 +143,7 @@ function TaskRow({ task, allTasks, profiles, isAdmin, depth, projectId, mileston
     col(task.id)
     onUpdate(allTasks.filter(t => !ids.has(t.id)))
     await softDeleteTasks(Array.from(ids))
-    toast.success('Task eliminata')
+    notifyTasksDeleted(Array.from(ids))
   }
 
   const addChild = async () => {
@@ -309,7 +310,7 @@ function MilestoneBlock({ milestone, allTasks, profiles, isAdmin, projectId, acc
     col(milestone.id)
     onUpdate(allTasks.filter(t => !ids.has(t.id)))
     await softDeleteTasks(Array.from(ids))
-    toast.success('Milestone eliminata')
+    notifyTasksDeleted(Array.from(ids))
   }
 
   const addTask = async () => {

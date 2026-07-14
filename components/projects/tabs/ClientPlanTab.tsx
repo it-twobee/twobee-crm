@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { softDeleteTask } from '@/app/actions/tasks-trash'
+import { notifyTasksDeleted } from '@/lib/task-undo'
 import { toast } from 'sonner'
 import { CLIENT_TASK_TEMPLATES, PHASE_COLOR, type ClientTaskTemplate } from '@/lib/reparti-constants'
 import type { Task, Project, Client } from '@/lib/types/database'
@@ -193,7 +194,7 @@ export function ClientPlanSection({ project, client, isAdmin, accent }: Props) {
     const res = await softDeleteTask(id)
     if ('error' in res) { toast.error(res.error); return }
     setTasks(prev => prev.filter(t => t.id !== id))
-    toast.success('Spostata nel cestino')
+    notifyTasksDeleted(id)
   }
 
   const startEdit = (t: ClientTask) => {

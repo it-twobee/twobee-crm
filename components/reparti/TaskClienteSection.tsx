@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { softDeleteTask } from '@/app/actions/tasks-trash'
+import { notifyTasksDeleted } from '@/lib/task-undo'
 import { toast } from 'sonner'
 import {
   CLIENT_TASK_TEMPLATES, PHASE_LABEL, PHASE_COLOR,
@@ -42,7 +43,7 @@ function ClientTaskRow({ task, onUpdate, onDelete }: {
   const del = async () => {
     onDelete(task.id)
     await softDeleteTask(task.id)
-    toast.success('Spostata nel cestino')
+    notifyTasksDeleted(task.id)
   }
 
   const phase = (task.tags ?? []).find(t => ['onboarding', 'build', 'lancio'].includes(t))

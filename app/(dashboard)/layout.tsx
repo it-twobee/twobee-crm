@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/shared/Sidebar'
 import { Header } from '@/components/shared/Header'
+import { UndoHotkey } from '@/components/undo/UndoHotkey'
 import type { Profile } from '@/lib/types/database'
 
 export default async function DashboardLayout({
@@ -30,6 +31,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
+      <UndoHotkey />
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header profile={profile as Profile | null} />
