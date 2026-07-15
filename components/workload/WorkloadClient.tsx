@@ -18,6 +18,7 @@ import {
 import { pmUpdateTask } from '@/app/actions/workload-tasks'
 import { createMyTask } from '@/app/actions/workspace-create'
 import { ProjectGantt } from '@/components/shared/ProjectGantt'
+import { PortfolioTimeline } from '@/components/workload/PortfolioTimeline'
 import { MilestoneTasksDrawer } from '@/components/workload/MilestoneTasksDrawer'
 import { usePortalRoutes } from '@/lib/portal-routes'
 
@@ -198,6 +199,7 @@ export function WorkloadClient({
         windows={intensity.windows} signals={signals} needsAttention={aiNeeds}
         tasks={filtered} projectById={projectById} resourceById={new Map(resources.map(r => [r.id, r]))}
         multiMap={multiMap} canEditProject={canEditProject} sprints={sprints}
+        projects={visibleProjects} allTasks={tasks}
         grain={grain} setGrain={setGrain} />
 
       {/* Filtri */}
@@ -244,9 +246,11 @@ export function WorkloadClient({
 /* ── AI Planning Assistant (§9.4): propone, non applica ──────────────────────── */
 type AISuggestion = { type: string; title: string; detail: string }
 /* ── Previsione effort: barra continua + drill-down + AI ──────────────────────── */
-function EffortForecast({ buckets, capacity, windows, signals, needsAttention, tasks, projectById, resourceById, multiMap, canEditProject, sprints, grain, setGrain }: {
+function EffortForecast({ buckets, capacity, windows, signals, needsAttention, tasks, projectById, resourceById, multiMap, canEditProject, sprints, projects, allTasks, grain, setGrain }: {
   buckets: EffortBucket[]
   sprints: WLSprint[]
+  projects: WLProject[]
+  allTasks: WLTask[]
   grain: Grain
   setGrain: (g: Grain) => void
   capacity: number
@@ -423,6 +427,11 @@ function EffortForecast({ buckets, capacity, windows, signals, needsAttention, t
           <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-orange" /> intenso</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm bg-error" /> al limite ({MAX_PARALLEL_SPRINTS} sprint)</span>
           <span className="ml-auto">Il numero nella barra è il picco di sprint contemporanei</span>
+        </div>
+
+        {/* Timeline espandibile (stile Asana): progetti in parallelo → sprint/milestone/task */}
+        <div className="mt-4 pt-4 border-t border-border">
+          <PortfolioTimeline projects={projects} sprints={sprints} tasks={allTasks} />
         </div>
       </div>
 
