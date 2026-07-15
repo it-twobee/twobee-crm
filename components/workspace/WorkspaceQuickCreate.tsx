@@ -5,13 +5,18 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import {
-  Plus, X, FolderKanban, Flag, ListChecks, ChevronDown, Loader2, Zap, GitBranch, Users2,
+  Plus, X, FolderKanban, Flag, ListChecks, ChevronDown, Loader2, Zap, GitBranch, Users2, Sparkles,
+  UserCheck, Trash2,
 } from 'lucide-react'
 import {
   createProjectWs, createSprintWs, createMilestoneWs, createTaskWs,
+  createAiPlan, createAiMilestones, createAiTasks,
 } from '@/app/actions/workspace-create'
+import { AiPlanBuilder, type AiPlanSprint } from '@/components/projects/AiPlanBuilder'
+import { SearchableSelect } from '@/components/shared/SearchableSelect'
+import type { Profile } from '@/lib/types/database'
 
-type Mode = 'project' | 'sprint' | 'milestone' | 'task' | null
+type Mode = 'project' | 'sprint' | 'milestone' | 'task' | 'ai_plan' | null
 interface ProjectRef { id: string; name: string; client_id: string | null }
 interface Client { id: string; company_name: string }
 interface PersonRef { id: string; full_name: string | null }
@@ -38,9 +43,20 @@ export function WorkspaceQuickCreate({ clients, projects, profiles = [] }: {
     })
   }, [projects])
 
-  const done = () => { setMode(null); router.refresh() }
   const addProjectLocal = (p: { id: string; name: string; client_id: string }) =>
     setProjectList(prev => [{ id: p.id, name: p.name, client_id: p.client_id }, ...prev])
+
+  // La toast di conferma offre "Vai al progetto": apre il progetto ed evidenzia
+  // l'elemento nuovo (?focus + kind). Nessun redirect automatico: resti dove sei.
+  const goToNew = (projectId: string, id: string, kind: 'sprint' | 'milestone' | 'task') =>
+    router.push(`/workspace/progetti/${projectId}?focus=${id}&kind=${kind}`)
+  const goToProject = (projectId: string) => router.push(`/workspace/progetti/${projectId}`)
+
+  const created = (msg: string, onClick: () => void) => {
+    setMode(null)
+    router.refresh()
+    toast.success(msg, { action: { label: 'Vai al progetto', onClick } })
+  }
 
   return (
     <>
@@ -53,7 +69,11 @@ export function WorkspaceQuickCreate({ clients, projects, profiles = [] }: {
           <>
             <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden="true" />
             <div className="absolute right-0 top-full mt-1 w-60 rounded-xl border border-border bg-surface p-1 z-20 shadow-xl">
-              <p className="px-3 pt-2 pb-1 text-2xs font-semibold text-text-tertiary uppercase tracking-wider">Catena di delivery</p>
+              <p className="px-3 pt-2 pb-1 text-2xs font-semibold text-text-tertiary uppercase tracking-wider">Da brief con AI</p>
+              <MenuItem icon={<Sparkles className="w-4 h-4" />} label="Crea da brief" hint="piano, sprint, milestone o task"
+                onClick={() => { setOpen(false); setMode('ai_plan') }} />
+              <div className="my-1 border-t border-border" />
+              <p className="px-3 pt-1 pb-1 text-2xs font-semibold text-text-tertiary uppercase tracking-wider">Catena di delivery</p>
               <MenuItem icon={<FolderKanban className="w-4 h-4" />} label="Progetto" hint="legato a un cliente"
                 onClick={() => { setOpen(false); setMode('project') }} />
               <MenuItem icon={<Zap className="w-4 h-4" />} label="Sprint" hint="dentro un progetto"
@@ -69,19 +89,23 @@ export function WorkspaceQuickCreate({ clients, projects, profiles = [] }: {
 
       {mode === 'project' && (
         <ProjectModal clients={clients} onClose={() => setMode(null)}
-          onCreated={p => { addProjectLocal(p); toast.success('Progetto creato e collegato al cliente'); done() }} />
+          onCreated={p => { addProjectLocal(p); created('Progetto creato e collegato al cliente', () => goToProject(p.id)) }} />
       )}
       {mode === 'sprint' && (
         <SprintModal clients={clients} projects={projectList} onClose={() => setMode(null)}
-          onCreated={() => { toast.success('Sprint creata'); done() }} />
+          onCreated={n => created('Sprint creata', () => goToNew(n.projectId, n.id, 'sprint'))} />
       )}
       {mode === 'milestone' && (
         <MilestoneModal clients={clients} projects={projectList} onClose={() => setMode(null)}
-          onCreated={() => { toast.success('Milestone creata'); done() }} />
+          onCreated={n => created('Milestone creata', () => goToNew(n.projectId, n.id, 'milestone'))} />
       )}
       {mode === 'task' && (
         <TaskModal clients={clients} projects={projectList} profiles={profiles} onClose={() => setMode(null)}
-          onCreated={() => { toast.success('Task creata'); done() }} />
+          onCreated={n => created('Task creata', () => goToNew(n.projectId, n.id, 'task'))} />
+      )}
+      {mode === 'ai_plan' && (
+        <AiCreateModal clients={clients} projects={projectList} onClose={() => setMode(null)}
+          onCreated={projectId => created('Struttura creata', () => goToProject(projectId))} />
       )}
     </>
   )
@@ -117,37 +141,45 @@ function Shell({ title, subtitle, children, onClose }: { title: string; subtitle
   )
 }
 
-/** Cliente → Progetto filtrato. Restituisce il progetto scelto al parent. */
-function ClientProjectPicker({ clients, projects, clientId, setClientId, projectId, setProjectId }: {
+/** Nome cliente da id, per il sottotesto dei progetti. */
+function clientNameOf(clients: Client[], clientId: string | null) {
+  return clients.find(c => c.id === clientId)?.company_name ?? '—'
+}
+
+/** Progetto ricercabile, con il cliente di appartenenza visibile. Il cliente si
+ *  deriva dal progetto scelto: niente doppio menu. */
+function ProjectPicker({ clients, projects, projectId, setProjectId, onClientResolved }: {
+  clients: Client[]; projects: ProjectRef[]
+  projectId: string; setProjectId: (s: string) => void
+  onClientResolved?: (clientId: string | null) => void
+}) {
+  const options = projects.map(p => ({ id: p.id, label: p.name, sublabel: clientNameOf(clients, p.client_id) }))
+  return (
+    <label className="block">
+      <span className={labelCls}>Progetto (cerca)</span>
+      <SearchableSelect value={projectId} options={options} placeholder="Cerca progetto o cliente…"
+        onChange={id => { setProjectId(id); onClientResolved?.(projects.find(p => p.id === id)?.client_id ?? null) }} />
+    </label>
+  )
+}
+
+/** Cliente → Progetto: mantengo la firma per compatibilità, ma ora è un solo
+ *  picker ricercabile con cliente visibile. */
+function ClientProjectPicker({ clients, projects, setClientId, projectId, setProjectId }: {
   clients: Client[]; projects: ProjectRef[]
   clientId: string; setClientId: (s: string) => void
   projectId: string; setProjectId: (s: string) => void
 }) {
-  const filtered = clientId ? projects.filter(p => p.client_id === clientId) : projects
   return (
-    <>
-      <label className="block">
-        <span className={labelCls}>Cliente</span>
-        <select value={clientId} onChange={e => { setClientId(e.target.value); setProjectId('') }} className={inputCls}>
-          <option value="">Tutti i clienti</option>
-          {clients.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
-        </select>
-      </label>
-      <label className="block">
-        <span className={labelCls}>Progetto</span>
-        <select value={projectId} onChange={e => setProjectId(e.target.value)} className={inputCls}>
-          <option value="">Seleziona progetto…</option>
-          {filtered.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-      </label>
-    </>
+    <ProjectPicker clients={clients} projects={projects} projectId={projectId} setProjectId={setProjectId}
+      onClientResolved={cid => setClientId(cid ?? '')} />
   )
 }
 
 /** Carica sprint, milestone e task-padre del progetto selezionato. */
 function useCascade(projectId: string) {
   const [sprints, setSprints] = useState<{ id: string; name: string }[]>([])
-  const [milestones, setMilestones] = useState<{ id: string; title: string }[]>([])
+  const [milestones, setMilestones] = useState<{ id: string; title: string; sprint_id: string | null }[]>([])
   const [parents, setParents] = useState<{ id: string; title: string }[]>([])
   useEffect(() => {
     if (!projectId) { setSprints([]); setMilestones([]); setParents([]); return }
@@ -155,12 +187,12 @@ function useCascade(projectId: string) {
     let alive = true
     Promise.all([
       sb.from('sprints').select('id, name').eq('project_id', projectId).order('start_date'),
-      sb.from('tasks').select('id, title').eq('project_id', projectId).eq('is_milestone', true).order('position'),
+      sb.from('tasks').select('id, title, sprint_id').eq('project_id', projectId).eq('is_milestone', true).order('position'),
       sb.from('tasks').select('id, title').eq('project_id', projectId).eq('is_milestone', false).is('parent_task_id', null).order('created_at', { ascending: false }).limit(100),
     ]).then(([s, m, t]) => {
       if (!alive) return
       setSprints((s.data ?? []) as { id: string; name: string }[])
-      setMilestones((m.data ?? []) as { id: string; title: string }[])
+      setMilestones((m.data ?? []) as { id: string; title: string; sprint_id: string | null }[])
       setParents((t.data ?? []) as { id: string; title: string }[])
     })
     return () => { alive = false }
@@ -188,11 +220,10 @@ function ProjectModal({ clients, onClose, onCreated }: {
   return (
     <Shell title="Nuovo progetto" subtitle="Cliente → Progetto" onClose={onClose}>
       <label className="block">
-        <span className={labelCls}>Cliente</span>
-        <select value={clientId} onChange={e => setClientId(e.target.value)} className={inputCls}>
-          <option value="">Seleziona cliente…</option>
-          {clients.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
-        </select>
+        <span className={labelCls}>Cliente (cerca)</span>
+        <SearchableSelect value={clientId} placeholder="Cerca cliente…"
+          options={clients.map(c => ({ id: c.id, label: c.company_name }))}
+          onChange={setClientId} />
       </label>
       <input value={name} onChange={e => setName(e.target.value)} placeholder="Nome progetto" className={inputCls} />
       <div className="flex gap-2">
@@ -209,7 +240,8 @@ function ProjectModal({ clients, onClose, onCreated }: {
 }
 
 function SprintModal({ clients, projects, onClose, onCreated }: {
-  clients: Client[]; projects: ProjectRef[]; onClose: () => void; onCreated: () => void
+  clients: Client[]; projects: ProjectRef[]; onClose: () => void
+  onCreated: (nav: { projectId: string; id: string }) => void
 }) {
   const [clientId, setClientId] = useState('')
   const [projectId, setProjectId] = useState('')
@@ -222,7 +254,7 @@ function SprintModal({ clients, projects, onClose, onCreated }: {
     const r = await createSprintWs({ projectId, name, startDate, endDate })
     setLoading(false)
     if (!r.ok) { toast.error(r.error ?? 'Errore'); return }
-    onCreated()
+    onCreated({ projectId, id: r.sprint!.id })
   }
   return (
     <Shell title="Nuova sprint" subtitle="Cliente → Progetto → Sprint" onClose={onClose}>
@@ -240,33 +272,48 @@ function SprintModal({ clients, projects, onClose, onCreated }: {
 }
 
 function MilestoneModal({ clients, projects, onClose, onCreated }: {
-  clients: Client[]; projects: ProjectRef[]; onClose: () => void; onCreated: () => void
+  clients: Client[]; projects: ProjectRef[]; onClose: () => void
+  onCreated: (nav: { projectId: string; id: string }) => void
 }) {
   const [clientId, setClientId] = useState('')
   const [projectId, setProjectId] = useState('')
+  const [sprintId, setSprintId] = useState('')
   const [title, setTitle] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [loading, setLoading] = useState(false)
+  const { sprints } = useCascade(projectId)
+  useEffect(() => { setSprintId('') }, [projectId])
+
   const submit = async () => {
     setLoading(true)
-    const r = await createMilestoneWs({ projectId, title, dueDate })
+    const r = await createMilestoneWs({ projectId, title, sprintId, dueDate })
     setLoading(false)
     if (!r.ok) { toast.error(r.error ?? 'Errore'); return }
-    onCreated()
+    onCreated({ projectId, id: r.milestone!.id })
   }
   return (
-    <Shell title="Nuova milestone" subtitle="Cliente → Progetto → Milestone" onClose={onClose}>
+    <Shell title="Nuova milestone" subtitle="Cliente → Progetto → Sprint → Milestone" onClose={onClose}>
       <ClientProjectPicker clients={clients} projects={projects} clientId={clientId} setClientId={setClientId} projectId={projectId} setProjectId={setProjectId} />
+      {projectId && (
+        <label className="block"><span className="flex items-center gap-1 text-2xs text-text-tertiary"><Zap className="w-3 h-3" /> Sprint *</span>
+          <select value={sprintId} onChange={e => setSprintId(e.target.value)} className={inputCls}>
+            <option value="">Seleziona sprint…</option>
+            {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          {sprints.length === 0 && <span className="text-2xs text-warning">Nessuno sprint: creane prima uno in questo progetto.</span>}
+        </label>
+      )}
       <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Nome milestone (es. Lancio beta)" className={inputCls} />
       <label className="block"><span className="text-2xs text-text-tertiary">Data obiettivo</span>
         <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputCls} /></label>
-      <SubmitBtn loading={loading} disabled={!projectId || !title.trim()} onClick={submit} label="Crea milestone" />
+      <SubmitBtn loading={loading} disabled={!projectId || !sprintId || !title.trim()} onClick={submit} label="Crea milestone" />
     </Shell>
   )
 }
 
 function TaskModal({ clients, projects, profiles, onClose, onCreated }: {
-  clients: Client[]; projects: ProjectRef[]; profiles: PersonRef[]; onClose: () => void; onCreated: () => void
+  clients: Client[]; projects: ProjectRef[]; profiles: PersonRef[]; onClose: () => void
+  onCreated: (nav: { projectId: string; id: string }) => void
 }) {
   const [clientId, setClientId] = useState('')
   const [projectId, setProjectId] = useState('')
@@ -292,26 +339,32 @@ function TaskModal({ clients, projects, profiles, onClose, onCreated }: {
     })
     setLoading(false)
     if (!r.ok) { toast.error(r.error ?? 'Errore'); return }
-    onCreated()
+    onCreated({ projectId, id: r.task!.id })
   }
 
   return (
     <Shell title={parentTaskId ? 'Nuova subtask' : 'Nuova task'} subtitle="Cliente → Progetto → Sprint → Milestone → Task" onClose={onClose}>
       <ClientProjectPicker clients={clients} projects={projects} clientId={clientId} setClientId={setClientId} projectId={projectId} setProjectId={setProjectId} />
 
-      {projectId && (
+      {projectId && !parentTaskId && (
         <div className="grid grid-cols-2 gap-2">
-          <label className="block"><span className="flex items-center gap-1 text-2xs text-text-tertiary"><Zap className="w-3 h-3" /> Sprint</span>
-            <select value={sprintId} onChange={e => setSprintId(e.target.value)} className={inputCls}>
-              <option value="">—</option>
+          <label className="block"><span className="flex items-center gap-1 text-2xs text-text-tertiary"><Zap className="w-3 h-3" /> Sprint (filtro)</span>
+            <select value={sprintId} onChange={e => { setSprintId(e.target.value); setMilestoneId('') }} className={inputCls}>
+              <option value="">Tutti</option>
               {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select></label>
-          <label className="block"><span className="flex items-center gap-1 text-2xs text-text-tertiary"><Flag className="w-3 h-3" /> Milestone</span>
-            <select value={milestoneId} onChange={e => setMilestoneId(e.target.value)} className={inputCls}>
-              <option value="">—</option>
-              {milestones.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
+          <label className="block"><span className="flex items-center gap-1 text-2xs text-text-tertiary"><Flag className="w-3 h-3" /> Milestone *</span>
+            <select value={milestoneId}
+              onChange={e => { const mid = e.target.value; setMilestoneId(mid); const sp = milestones.find(m => m.id === mid)?.sprint_id; if (sp) setSprintId(sp) }}
+              className={inputCls}>
+              <option value="">Seleziona milestone…</option>
+              {milestones.filter(m => !sprintId || m.sprint_id === sprintId).map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
             </select></label>
         </div>
+      )}
+
+      {projectId && milestones.length === 0 && parents.length === 0 && (
+        <p className="text-2xs text-warning">Nessuna milestone in questo progetto: creane prima una.</p>
       )}
 
       {projectId && parents.length > 0 && (
@@ -341,7 +394,7 @@ function TaskModal({ clients, projects, profiles, onClose, onCreated }: {
           </select></label>
       )}
 
-      <SubmitBtn loading={loading} disabled={!projectId || !title.trim()} onClick={submit} label={parentTaskId ? 'Crea subtask' : 'Crea task'} />
+      <SubmitBtn loading={loading} disabled={!projectId || !title.trim() || (!milestoneId && !parentTaskId)} onClick={submit} label={parentTaskId ? 'Crea subtask' : 'Crea task'} />
     </Shell>
   )
 }
@@ -352,5 +405,327 @@ function SubmitBtn({ loading, disabled, onClick, label }: { loading: boolean; di
       className="w-full py-2.5 bg-gold text-on-gold rounded-lg text-sm font-bold disabled:opacity-50 hover:bg-gold/90 transition-colors flex items-center justify-center gap-2">
       {loading && <Loader2 className="w-4 h-4 animate-spin" />} {label}
     </button>
+  )
+}
+
+// Piano da brief: scegli cliente + progetto (nuovo o esistente), scrivi un brief,
+// l'AI propone la struttura e la apri nello STESSO builder della pagina progetto.
+
+// ─── AI da brief, scope-aware ────────────────────────────────────────────────
+const ASSIGNABLE_ROLES = ['manager', 'senior', 'junior', 'stage']
+type Scope = 'plan' | 'sprint' | 'milestones' | 'tasks'
+interface EditTask { title: string; priority: string; suggested_role?: string; due_date?: string; assignee_id?: string }
+interface EditMilestone { title: string; due_date?: string; assignee_id?: string; tasks: EditTask[] }
+
+function usePeople() {
+  const [people, setPeople] = useState<Profile[]>([])
+  const [currentUserId, setCurrentUserId] = useState('')
+  useEffect(() => {
+    const sb = createClient()
+    sb.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? ''))
+    sb.from('profiles').select('id, full_name, app_role').eq('is_active', true).order('full_name')
+      .then(({ data }) => setPeople((data ?? []) as unknown as Profile[]))
+  }, [])
+  return { people, currentUserId }
+}
+
+function PeopleSelect2({ value, onChange, people, currentUserId }: {
+  value: string; onChange: (v: string) => void; people: Profile[]; currentUserId: string
+}) {
+  const assignable = people.filter(p => ASSIGNABLE_ROLES.includes((p.app_role ?? '') as string))
+  return (
+    <div className="flex items-center gap-1 shrink-0">
+      <select value={value} onChange={e => onChange(e.target.value)}
+        className="text-2xs bg-background border border-border-interactive rounded px-1.5 py-1 text-text-primary focus:outline-none focus:border-gold max-w-[120px]">
+        <option value="">— Nessuno</option>
+        {assignable.map(p => <option key={p.id} value={p.id}>{p.full_name ?? 'Senza nome'}</option>)}
+      </select>
+      <button type="button" onClick={() => onChange(currentUserId)} title="Assegna a me" aria-label="Assegna a me"
+        className="p-1 rounded text-text-tertiary hover:text-gold-text hover:bg-gold/10 transition-colors">
+        <UserCheck className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  )
+}
+
+const PRIO = ['alta', 'media', 'bassa']
+const PRIO_LABEL: Record<string, string> = { alta: 'Alta', media: 'Media', bassa: 'Bassa' }
+const PRIO_COLOR: Record<string, string> = { alta: 'var(--color-error)', media: 'var(--color-warning)', bassa: 'var(--color-text-tertiary)' }
+
+// Editor compatto per gli scope "milestone" e "task": stessa cifra visiva del
+// builder di progetto, ma piatto sul livello richiesto (dentro un genitore già scelto).
+function ScopedPlanEditor({ mode, milestones, tasks, people, currentUserId, loading, error, targetLabel, onBack, onConfirm }: {
+  mode: 'milestones' | 'tasks'
+  milestones: EditMilestone[]; tasks: EditTask[]
+  people: Profile[]; currentUserId: string
+  loading: boolean; error: string; targetLabel: string
+  onBack: () => void; onConfirm: (data: { milestones?: EditMilestone[]; tasks?: EditTask[] }) => void
+}) {
+  const [mDraft, setMDraft] = useState<EditMilestone[]>([])
+  const [tDraft, setTDraft] = useState<EditTask[]>([])
+  useEffect(() => { setMDraft(milestones) }, [milestones])
+  useEffect(() => { setTDraft(tasks) }, [tasks])
+
+  const dateCls = 'text-2xs bg-background border border-border-interactive rounded px-1.5 py-1 text-text-primary focus:outline-none focus:border-gold shrink-0'
+  const nameCls = 'flex-1 min-w-0 bg-transparent border-b border-transparent hover:border-border focus:border-gold px-0.5 py-0.5 focus:outline-none'
+
+  const TaskRowE = ({ t, onPatch, onDrop }: { t: EditTask; onPatch: (p: Partial<EditTask>) => void; onDrop: () => void }) => (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <select value={t.priority} onChange={e => onPatch({ priority: e.target.value })} aria-label="Priorità"
+        className="text-2xs bg-background border border-border-interactive rounded px-1 py-1 text-text-primary focus:outline-none focus:border-gold shrink-0"
+        style={{ color: PRIO_COLOR[t.priority] ?? 'var(--color-text-secondary)' }}>
+        {PRIO.map(p => <option key={p} value={p} className="text-text-primary">{PRIO_LABEL[p]}</option>)}
+      </select>
+      <input value={t.title} onChange={e => onPatch({ title: e.target.value })} className={`${nameCls} text-2xs text-text-secondary`} />
+      <input type="date" value={t.due_date ?? ''} onChange={e => onPatch({ due_date: e.target.value })} className={dateCls} />
+      <PeopleSelect2 value={t.assignee_id ?? ''} onChange={v => onPatch({ assignee_id: v })} people={people} currentUserId={currentUserId} />
+      <button type="button" onClick={onDrop} aria-label="Elimina task" className="shrink-0 p-0.5 rounded text-text-tertiary hover:text-error">
+        <X className="w-3 h-3" />
+      </button>
+    </div>
+  )
+
+  const totalTasks = mode === 'tasks' ? tDraft.length : mDraft.reduce((a, m) => a + m.tasks.length + 1, 0)
+
+  return (
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onBack}>
+      <div className="bg-background border border-border rounded-t-2xl sm:rounded-2xl w-full sm:max-w-3xl shadow-2xl flex flex-col max-h-[92vh]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-border shrink-0">
+          <Sparkles className="w-4 h-4 text-gold-text" />
+          <div className="flex-1">
+            <h2 className="text-sm font-bold text-text-primary">{mode === 'milestones' ? 'Milestone da brief' : 'Task da brief'}</h2>
+            <p className="text-2xs text-text-tertiary">Rifinisci e conferma · {targetLabel}</p>
+          </div>
+          <button type="button" onClick={onBack} aria-label="Indietro"><X className="w-4 h-4 text-text-tertiary hover:text-text-primary" /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-2">
+          {loading && <div className="flex flex-col items-center gap-3 py-16"><Loader2 className="w-10 h-10 text-gold-text animate-spin" /><p className="text-sm text-text-tertiary">L&apos;AI sta analizzando il brief…</p></div>}
+          {error && !loading && <p className="text-sm text-error p-4 bg-error/10 rounded-xl">{error}</p>}
+
+          {!loading && mode === 'tasks' && tDraft.map((t, ti) => (
+            <TaskRowE key={ti} t={t}
+              onPatch={p => setTDraft(d => d.map((x, i) => i === ti ? { ...x, ...p } : x))}
+              onDrop={() => setTDraft(d => d.filter((_, i) => i !== ti))} />
+          ))}
+          {!loading && mode === 'tasks' && (
+            <button type="button" onClick={() => setTDraft(d => [...d, { title: 'Nuova task', priority: 'media' }])}
+              className="flex items-center gap-1 text-2xs text-text-tertiary hover:text-gold-text transition-colors mt-1">
+              <Plus className="w-3 h-3" /> Aggiungi task
+            </button>
+          )}
+
+          {!loading && mode === 'milestones' && mDraft.map((m, mi) => (
+            <div key={mi} className="border border-gold/20 rounded-xl p-3 space-y-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <Flag className="w-3 h-3 text-gold-text shrink-0" />
+                <input value={m.title} onChange={e => setMDraft(d => d.map((x, i) => i === mi ? { ...x, title: e.target.value } : x))} className={`${nameCls} text-xs font-bold text-text-primary`} />
+                <input type="date" value={m.due_date ?? ''} onChange={e => setMDraft(d => d.map((x, i) => i === mi ? { ...x, due_date: e.target.value } : x))} className={dateCls} />
+                <PeopleSelect2 value={m.assignee_id ?? ''} onChange={v => setMDraft(d => d.map((x, i) => i === mi ? { ...x, assignee_id: v } : x))} people={people} currentUserId={currentUserId} />
+                <button type="button" onClick={() => setMDraft(d => d.filter((_, i) => i !== mi))} aria-label="Elimina milestone" className="shrink-0 p-1 rounded text-text-tertiary hover:text-error hover:bg-error-dim transition-colors"><Trash2 className="w-3 h-3" /></button>
+              </div>
+              <div className="pl-5 space-y-1">
+                {m.tasks.map((t, ti) => (
+                  <TaskRowE key={ti} t={t}
+                    onPatch={p => setMDraft(d => d.map((x, i) => i === mi ? { ...x, tasks: x.tasks.map((y, j) => j === ti ? { ...y, ...p } : y) } : x))}
+                    onDrop={() => setMDraft(d => d.map((x, i) => i === mi ? { ...x, tasks: x.tasks.filter((_, j) => j !== ti) } : x))} />
+                ))}
+                <button type="button" onClick={() => setMDraft(d => d.map((x, i) => i === mi ? { ...x, tasks: [...x.tasks, { title: 'Nuova task', priority: 'media', due_date: x.due_date }] } : x))}
+                  className="flex items-center gap-1 text-2xs text-text-tertiary hover:text-gold-text transition-colors mt-0.5"><Plus className="w-3 h-3" /> Aggiungi task</button>
+              </div>
+            </div>
+          ))}
+          {!loading && mode === 'milestones' && (
+            <button type="button" onClick={() => setMDraft(d => [...d, { title: 'Nuova milestone', tasks: [] }])}
+              className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-text-secondary hover:text-gold-text border border-dashed border-border hover:border-gold/40 rounded-xl py-2.5 transition-colors">
+              <Plus className="w-3.5 h-3.5" /> Aggiungi milestone
+            </button>
+          )}
+        </div>
+
+        {!loading && (
+          <div className="flex gap-3 px-5 py-4 border-t border-border shrink-0">
+            <button type="button" onClick={onBack} className="text-sm text-text-tertiary hover:text-text-primary border border-border px-4 py-2.5 rounded-xl transition-colors">Indietro</button>
+            <button type="button" onClick={() => onConfirm(mode === 'tasks' ? { tasks: tDraft } : { milestones: mDraft })} disabled={!totalTasks}
+              className="flex-1 py-2.5 font-bold rounded-xl text-sm bg-gold text-on-gold disabled:opacity-40 transition-colors">
+              Crea ({totalTasks} elementi)
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function AiCreateModal({ clients, projects, onClose, onCreated }: {
+  clients: Client[]; projects: ProjectRef[]; onClose: () => void
+  onCreated: (projectId: string) => void
+}) {
+  const [scope, setScope] = useState<Scope>('plan')
+  const [clientId, setClientId] = useState('')
+  const [projMode, setProjMode] = useState<'new' | 'existing'>('new')
+  const [projectId, setProjectId] = useState('')
+  const [newName, setNewName] = useState('')
+  const [kind, setKind] = useState<'growth' | 'digital'>('growth')
+  const [sprintId, setSprintId] = useState('')
+  const [milestoneId, setMilestoneId] = useState('')
+  const [brief, setBrief] = useState('')
+  const [phase, setPhase] = useState<'config' | 'preview'>('config')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [plan, setPlan] = useState<AiPlanSprint[] | null>(null)
+  const [ems, setEms] = useState<EditMilestone[]>([])
+  const [ets, setEts] = useState<EditTask[]>([])
+  const [creating, setCreating] = useState(false)
+  const { people, currentUserId } = usePeople()
+  const { sprints, milestones } = useCascade(scope === 'plan' ? '' : projectId)
+
+  useEffect(() => { setSprintId(''); setMilestoneId('') }, [projectId, scope])
+  useEffect(() => { setMilestoneId('') }, [sprintId])
+
+  const clientName = scope === 'plan'
+    ? (clients.find(c => c.id === clientId)?.company_name ?? '')
+    : clientNameOf(clients, projects.find(p => p.id === projectId)?.client_id ?? null)
+  const projectName = scope === 'plan' && projMode === 'new' ? newName : (projects.find(p => p.id === projectId)?.name ?? '')
+  const sprintName = sprints.find(s => s.id === sprintId)?.name ?? ''
+  const milestoneTitle = milestones.find(m => m.id === milestoneId)?.title ?? ''
+
+  const resolveAssignee = (role?: string) => people.filter(p => ASSIGNABLE_ROLES.includes((p.app_role ?? '') as string)).find(p => p.app_role === role)?.id ?? ''
+
+  const targetReady =
+    scope === 'plan' ? (projMode === 'existing' ? !!projectId : (!!clientId && !!newName.trim()))
+    : scope === 'sprint' ? !!projectId
+    : scope === 'milestones' ? (!!projectId && !!sprintId)
+    : (!!projectId && !!milestoneId)
+  const canGenerate = brief.trim().length > 0 && targetReady
+
+  const generate = async () => {
+    if (!canGenerate) return
+    setPhase('preview'); setLoading(true); setError(''); setPlan(null); setEms([]); setEts([])
+    try {
+      const r = await fetch('/api/ai/generate-structure', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope, brief, project_name: projectName, company_name: clientName, kind, sprint_name: sprintName, milestone_title: milestoneTitle }),
+      })
+      const data = await r.json()
+      if (data.error) { setError(data.error); setLoading(false); return }
+      if (scope === 'plan' || scope === 'sprint') setPlan(data.sprints ?? [])
+      else if (scope === 'milestones') setEms((data.milestones ?? []).map((m: { title: string; tasks?: EditTask[] }) => ({ title: m.title, due_date: '', assignee_id: '', tasks: (m.tasks ?? []).map(t => ({ title: t.title, priority: t.priority || 'media', suggested_role: t.suggested_role, due_date: '', assignee_id: resolveAssignee(t.suggested_role) })) })))
+      else setEts((data.tasks ?? []).map((t: EditTask) => ({ title: t.title, priority: t.priority || 'media', suggested_role: t.suggested_role, due_date: '', assignee_id: resolveAssignee(t.suggested_role) })))
+    } catch {
+      setError('Errore di rete')
+    }
+    setLoading(false)
+  }
+
+  const finish = async (r: { ok: boolean; error?: string; projectId?: string }) => {
+    setCreating(false)
+    if (!r.ok) { toast.error(r.error ?? 'Errore'); return }
+    onCreated(r.projectId ?? projectId)
+  }
+
+  const acceptPlan = async (finalPlan: AiPlanSprint[]) => {
+    if (creating) return
+    setCreating(true)
+    const r = await createAiPlan({
+      clientId: scope === 'plan' && projMode === 'new' ? clientId : undefined,
+      projectId: scope === 'sprint' || (scope === 'plan' && projMode === 'existing') ? projectId : undefined,
+      newProjectName: scope === 'plan' && projMode === 'new' ? newName : undefined,
+      projectKind: kind, plan: finalPlan,
+    })
+    finish(r)
+  }
+  const acceptMilestones = async (data: { milestones?: EditMilestone[] }) => {
+    if (creating) return
+    setCreating(true)
+    finish(await createAiMilestones({ projectId, sprintId, milestones: data.milestones ?? [] }))
+  }
+  const acceptTasks = async (data: { tasks?: EditTask[] }) => {
+    if (creating) return
+    setCreating(true)
+    finish(await createAiTasks({ projectId, milestoneId, sprintId: sprintId || null, tasks: data.tasks ?? [] }))
+  }
+
+  if (phase === 'preview') {
+    if (scope === 'plan' || scope === 'sprint') {
+      return (
+        <AiPlanBuilder plan={plan} loading={loading} error={error} profiles={people} currentUserId={currentUserId} kind={kind}
+          accent="var(--color-gold-text)" onClose={() => setPhase('config')} onRegenerate={generate} onAccept={acceptPlan} />
+      )
+    }
+    return (
+      <ScopedPlanEditor mode={scope === 'milestones' ? 'milestones' : 'tasks'} milestones={ems} tasks={ets}
+        people={people} currentUserId={currentUserId} loading={loading} error={error}
+        targetLabel={scope === 'milestones' ? `${projectName} · ${sprintName}` : `${projectName} · ${milestoneTitle}`}
+        onBack={() => setPhase('config')}
+        onConfirm={d => scope === 'milestones' ? acceptMilestones(d) : acceptTasks(d)} />
+    )
+  }
+
+  const SCOPES: { k: Scope; label: string }[] = [
+    { k: 'plan', label: 'Piano' }, { k: 'sprint', label: 'Sprint' }, { k: 'milestones', label: 'Milestone' }, { k: 'tasks', label: 'Task' },
+  ]
+  const sprintOpts = sprints.map(s => ({ id: s.id, label: s.name }))
+  const milestoneOpts = milestones.filter(m => !sprintId || m.sprint_id === sprintId).map(m => ({ id: m.id, label: m.title }))
+
+  return (
+    <Shell title="Crea con AI da brief" subtitle="Scegli cosa generare, aggancia il contesto, poi rifinisci" onClose={onClose}>
+      <div className="grid grid-cols-4 gap-1.5">
+        {SCOPES.map(s => (
+          <button key={s.k} onClick={() => setScope(s.k)}
+            className={`py-2 rounded-lg text-2xs font-bold transition-colors border ${scope === s.k ? 'bg-gold text-on-gold border-gold' : 'border-border text-text-secondary hover:text-text-primary'}`}>
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      {scope === 'plan' ? (
+        <>
+          <label className="block"><span className={labelCls}>Cliente (cerca)</span>
+            <SearchableSelect value={clientId} placeholder="Cerca cliente…" options={clients.map(c => ({ id: c.id, label: c.company_name }))} onChange={setClientId} />
+          </label>
+          <div className="flex gap-2">
+            {(['new', 'existing'] as const).map(m => (
+              <button key={m} onClick={() => setProjMode(m)}
+                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors border ${projMode === m ? 'bg-gold text-on-gold border-gold' : 'border-border text-text-secondary hover:text-text-primary'}`}>
+                {m === 'new' ? 'Nuovo progetto' : 'Progetto esistente'}
+              </button>
+            ))}
+          </div>
+          {projMode === 'new' ? (
+            <>
+              <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Nome del nuovo progetto" className={inputCls} />
+              <div className="flex gap-2">
+                {(['growth', 'digital'] as const).map(k => (
+                  <button key={k} onClick={() => setKind(k)} className={`flex-1 py-2 rounded-lg text-sm font-semibold capitalize transition-colors border ${kind === k ? 'bg-gold text-on-gold border-gold' : 'border-border text-text-secondary hover:text-text-primary'}`}>{k}</button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <ProjectPicker clients={clients} projects={projects} projectId={projectId} setProjectId={setProjectId} onClientResolved={c => setClientId(c ?? '')} />
+          )}
+        </>
+      ) : (
+        <ProjectPicker clients={clients} projects={projects} projectId={projectId} setProjectId={setProjectId} />
+      )}
+
+      {(scope === 'milestones' || scope === 'tasks') && projectId && (
+        <label className="block"><span className={labelCls}>Sprint {scope === 'milestones' ? '*' : ''}</span>
+          <SearchableSelect value={sprintId} placeholder="Cerca sprint…" options={sprintOpts} emptyText="Nessuno sprint: creane prima uno" onChange={setSprintId} />
+        </label>
+      )}
+      {scope === 'tasks' && projectId && (
+        <label className="block"><span className={labelCls}>Milestone *</span>
+          <SearchableSelect value={milestoneId} placeholder="Cerca milestone…" options={milestoneOpts} emptyText="Nessuna milestone: creane prima una" onChange={id => { setMilestoneId(id); const sp = milestones.find(m => m.id === id)?.sprint_id; if (sp) setSprintId(sp) }} />
+        </label>
+      )}
+
+      <label className="block"><span className={labelCls}>Brief</span>
+        <textarea value={brief} onChange={e => setBrief(e.target.value)} rows={5}
+          placeholder="Descrivi obiettivi, target, vincoli… L'AI proporrà la struttura." className={`${inputCls} resize-none`} />
+      </label>
+
+      <SubmitBtn loading={false} disabled={!canGenerate} onClick={generate} label="Genera struttura" />
+    </Shell>
   )
 }

@@ -86,7 +86,7 @@ function CreateModal({ kind, ctx, onClose, onDone }: {
   // Sprint e milestone del progetto scelto — stessa logica di "Le mie attività":
   // cambiando progetto si ricaricano e le selezioni precedenti si azzerano.
   const [sprints, setSprints] = useState<{ id: string; name: string }[]>(ctx.sprints ?? [])
-  const [milestones, setMilestones] = useState<{ id: string; title: string }[]>([])
+  const [milestones, setMilestones] = useState<{ id: string; title: string; sprint_id: string | null }[]>([])
 
   useEffect(() => {
     if (!projectId) { setSprints([]); setMilestones([]); return }
@@ -94,11 +94,11 @@ function CreateModal({ kind, ctx, onClose, onDone }: {
     let alive = true
     Promise.all([
       sb.from('sprints').select('id, name').eq('project_id', projectId).order('start_date'),
-      sb.from('tasks').select('id, title').eq('project_id', projectId).eq('is_milestone', true).order('position'),
+      sb.from('tasks').select('id, title, sprint_id').eq('project_id', projectId).eq('is_milestone', true).order('position'),
     ]).then(([s, m]) => {
       if (!alive) return
       setSprints((s.data ?? []) as { id: string; name: string }[])
-      setMilestones((m.data ?? []) as { id: string; title: string }[])
+      setMilestones((m.data ?? []) as { id: string; title: string; sprint_id: string | null }[])
     })
     return () => { alive = false }
   }, [projectId])
@@ -117,11 +117,13 @@ function CreateModal({ kind, ctx, onClose, onDone }: {
     } else if (kind === 'sprint') {
       res = await createSprintWs({ projectId, name: name.trim(), startDate: start || undefined, endDate: due || undefined })
     } else if (kind === 'milestone') {
-      res = await createMilestoneWs({ projectId, title: name.trim(), dueDate: due || undefined })
+      if (!sprintId) { toast.error('La milestone va legata a uno sprint'); return }
+      res = await createMilestoneWs({ projectId, title: name.trim(), sprintId, dueDate: due || undefined })
     } else {
+      if (!milestoneId) { toast.error('La task va legata a una milestone'); return }
       res = await createMyTask({
         title: name.trim(), projectId,
-        sprintId: sprintId || null, milestoneId: milestoneId || null,
+        sprintId: sprintId || null, milestoneId,
         dueDate: due || undefined,
       })
     }
@@ -159,18 +161,34 @@ function CreateModal({ kind, ctx, onClose, onDone }: {
           </div>
         )}
 
-        {/* Task → sprint e milestone, come in "Le mie attività" */}
-        {kind === 'task' && projectId && (sprints.length > 0 || milestones.length > 0) && (
-          <div className="grid grid-cols-2 gap-2">
+        {/* Milestone → sprint obbligatorio */}
+        {kind === 'milestone' && projectId && (
+          <>
             <select value={sprintId} onChange={e => setSprintId(e.target.value)} aria-label="Sprint" className={inp}>
-              <option value="">Sprint —</option>
+              <option value="">— Scegli lo sprint —</option>
               {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
-            <select value={milestoneId} onChange={e => setMilestoneId(e.target.value)} aria-label="Milestone" className={inp}>
-              <option value="">Milestone —</option>
-              {milestones.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
-            </select>
-          </div>
+            {sprints.length === 0 && <p className="text-2xs text-warning">Nessuno sprint: creane prima uno.</p>}
+          </>
+        )}
+
+        {/* Task → sprint (filtro) + milestone obbligatoria */}
+        {kind === 'task' && projectId && (
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <select value={sprintId} onChange={e => { setSprintId(e.target.value); setMilestoneId('') }} aria-label="Sprint" className={inp}>
+                <option value="">Sprint — tutti</option>
+                {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+              <select value={milestoneId}
+                onChange={e => { const mid = e.target.value; setMilestoneId(mid); const sp = milestones.find(m => m.id === mid)?.sprint_id; if (sp) setSprintId(sp) }}
+                aria-label="Milestone" className={inp}>
+                <option value="">Milestone *</option>
+                {milestones.filter(m => !sprintId || m.sprint_id === sprintId).map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
+              </select>
+            </div>
+            {milestones.length === 0 && <p className="text-2xs text-warning">Nessuna milestone: creane prima una.</p>}
+          </>
         )}
 
         {kind === 'sprint' ? (

@@ -38,7 +38,7 @@ Restituisci SOLO questo JSON:
         {
           "title": "Titolo milestone breve",
           "tasks": [
-            { "title": "Task concreta", "priority": "alta" }
+            { "title": "Task concreta", "priority": "alta", "suggested_role": "senior" }
           ]
         }
       ]
@@ -51,7 +51,11 @@ Regole:
 - priority: "alta" | "media" | "bassa"
 - task title: azione concreta in italiano, max 6 parole
 - milestone title: deliverable principale, max 4 parole
-- duration_weeks: 1-4 settimane per sprint`
+- duration_weeks: 1-4 settimane per sprint
+- suggested_role: il livello di seniority più adatto a svolgere quella task, uno tra
+  "manager" | "senior" | "junior" | "stage". Regola pratica: attività strategiche,
+  di coordinamento o ad alto rischio → "senior" o "manager"; attività esecutive
+  standard → "junior"; attività semplici o di supporto → "stage".`
 
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',

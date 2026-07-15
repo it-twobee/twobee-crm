@@ -378,6 +378,7 @@ export interface Sprint {
   start_date: string
   end_date: string
   status: SprintStatus
+  created_at?: string
 }
 
 export interface Task {

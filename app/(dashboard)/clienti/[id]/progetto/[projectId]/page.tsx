@@ -38,6 +38,7 @@ export default async function ProgettoPage({ params }: Props) {
     { data: comments },
     { data: appointments },
     { data: meetings },
+    { data: seenViews },
   ] = await Promise.all([
     supabase.from('tasks')
       .select('*')
@@ -49,6 +50,7 @@ export default async function ProgettoPage({ params }: Props) {
     supabase.from('project_comments').select('*').eq('project_id', projectId).order('created_at', { ascending: true }),
     supabase.from('project_appointments').select('*').eq('project_id', projectId).order('date', { ascending: true }),
     supabase.from('meeting_notes').select('*').eq('project_id', projectId).order('date', { ascending: false }),
+    supabase.from('item_views').select('item_id').eq('profile_id', user.id),
   ])
 
   return (
@@ -64,6 +66,7 @@ export default async function ProgettoPage({ params }: Props) {
       comments={(comments ?? []) as ProjectComment[]}
       appointments={(appointments ?? []) as ProjectAppointment[]}
       meetings={(meetings ?? []) as MeetingNote[]}
+      seenItemIds={((seenViews ?? []) as { item_id: string }[]).map(v => v.item_id)}
     />
   )
 }
