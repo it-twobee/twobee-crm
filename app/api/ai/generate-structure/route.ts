@@ -72,20 +72,30 @@ Regole:
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
     body: JSON.stringify({
       model: 'llama-3.3-70b-versatile',
-      max_tokens: 2000,
+      max_tokens: 4000,
       temperature: 0.35,
+      // JSON mode: forza un output JSON valido (niente preamboli/markdown → niente "parsing fallito").
+      response_format: { type: 'json_object' },
       messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
     }),
   })
 
   const data = await res.json()
-  const text = data.choices?.[0]?.message?.content ?? ''
-  const match = text.match(/\{[\s\S]*\}/)
-  if (!match) return NextResponse.json({ error: 'Parsing fallito', raw: text }, { status: 500 })
-
-  try {
-    return NextResponse.json(JSON.parse(match[0]))
-  } catch {
-    return NextResponse.json({ error: 'JSON non valido', raw: text }, { status: 500 })
+  if (!res.ok || data.error) {
+    return NextResponse.json({ error: `AI non disponibile: ${data.error?.message ?? res.status}` }, { status: 502 })
   }
+
+  const text = data.choices?.[0]?.message?.content ?? ''
+  const parsed = safeParseJson(text)
+  if (!parsed) return NextResponse.json({ error: 'La risposta AI non era leggibile. Riprova, o accorcia il brief.' }, { status: 500 })
+  return NextResponse.json(parsed)
+}
+
+// Prova il parse diretto (JSON mode); in fallback estrae il primo oggetto {…}.
+function safeParseJson(text: string): unknown | null {
+  if (!text.trim()) return null
+  try { return JSON.parse(text) } catch { /* fallback */ }
+  const m = text.match(/\{[\s\S]*\}/)
+  if (!m) return null
+  try { return JSON.parse(m[0]) } catch { return null }
 }
