@@ -13,9 +13,10 @@ type Grana = 'sprint' | 'milestone' | 'task'
 type Detail = { kind: 'project' | 'sprint' | 'milestone' | 'task'; id: string; title: string; projectId: string; clientId: string; start?: string; end?: string }
 const TYPE_LABEL: Record<Detail['kind'], string> = { project: 'Progetto', sprint: 'Sprint', milestone: 'Milestone', task: 'Task' }
 
-const COL_W = 46          // px per settimana
-const NAME_W = 210        // px colonna nomi
+const COL_W = 44          // px per settimana
+const NAME_W = 190        // px colonna nomi
 const ROW_H = 30
+const HEAD_H = 40         // header a due righe (mese + settimana)
 
 const parse = (s: string) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d) }
 const daysBetween = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / 86400000)
@@ -66,7 +67,20 @@ export function PortfolioTimeline({ projects, sprints, tasks }: {
 
   const xOf = (dateStr: string) => (daysBetween(grid.start, parse(dateStr)) / 7) * COL_W
   const gridW = grid.weeks * COL_W
-  const todayX = xOf(isoLocal(new Date()))
+  const todayIso = isoLocal(new Date())
+  const todayX = xOf(todayIso)
+  const todayWeekIdx = Math.floor(daysBetween(grid.start, parse(todayIso)) / 7)
+  const todayInRange = todayX >= 0 && todayX <= gridW
+
+  // Settimane + raggruppamento per mese (header a due righe, stile Asana).
+  const weeksArr = Array.from({ length: grid.weeks }, (_, i) => { const d = new Date(grid.start); d.setDate(d.getDate() + i * 7); return d })
+  const monthSegs: { label: string; start: number; span: number }[] = []
+  weeksArr.forEach((d, i) => {
+    const label = d.toLocaleDateString('it-IT', { month: 'long' })
+    const last = monthSegs[monthSegs.length - 1]
+    if (last && last.label === label) last.span++
+    else monthSegs.push({ label, start: i, span: 1 })
+  })
 
   const rangeOf = (b: { sprints: WLSprint[]; milestones: WLTask[]; tasks: WLTask[] }): [string, string] | null => {
     const s: string[] = []
@@ -115,18 +129,31 @@ export function PortfolioTimeline({ projects, sprints, tasks }: {
 
       <div className="overflow-auto max-h-[70vh] border border-border rounded-xl">
         <div style={{ minWidth: NAME_W + gridW }}>
-          {/* Header settimane: resta fisso in alto (scroll verticale) e a sinistra la colonna nomi */}
+          {/* Header a due righe (mese + settimana): fisso in alto, colonna nomi fissa a sinistra */}
           <div className="flex sticky top-0 z-20 bg-surface border-b border-border">
-            <div className="shrink-0 sticky left-0 z-30 bg-surface border-r border-border" style={{ width: NAME_W }} />
-            <div className="relative" style={{ width: gridW, height: 26 }}>
-              {Array.from({ length: grid.weeks }).map((_, i) => {
-                const d = new Date(grid.start); d.setDate(d.getDate() + i * 7)
-                return <div key={i} className="absolute top-0 h-full flex items-center text-2xs text-text-tertiary border-l border-border/60 pl-1" style={{ left: i * COL_W, width: COL_W }}>{fmtDay(d)}</div>
-              })}
+            <div className="shrink-0 sticky left-0 z-30 bg-surface border-r border-border" style={{ width: NAME_W, height: HEAD_H }} />
+            <div className="relative" style={{ width: gridW, height: HEAD_H }}>
+              {monthSegs.map((m, i) => (
+                <div key={`m${i}`} className="absolute top-0 h-5 flex items-center text-2xs font-semibold text-text-secondary capitalize border-l border-border/60 pl-1 overflow-hidden"
+                  style={{ left: m.start * COL_W, width: m.span * COL_W }}>{m.label}</div>
+              ))}
+              {weeksArr.map((d, i) => (
+                <div key={`w${i}`} className={`absolute h-5 flex items-center text-2xs border-l border-border/50 pl-1 ${i === todayWeekIdx ? 'text-gold-text font-bold' : 'text-text-tertiary'}`}
+                  style={{ top: 20, left: i * COL_W, width: COL_W }}>{d.getDate()}</div>
+              ))}
+              {todayInRange && (
+                <div className="absolute -translate-x-1/2 z-20" style={{ left: todayX, bottom: -4 }} title="Oggi">
+                  <span className="block w-2.5 h-2.5 rounded-full bg-gold ring-2 ring-surface" />
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Righe progetto */}
+          {/* Righe progetto (con marker "oggi" continuo su tutta l'altezza) */}
+          <div className="relative">
+          {todayInRange && (
+            <div className="absolute top-0 bottom-0 w-0.5 -translate-x-1/2 z-[15] pointer-events-none" style={{ left: NAME_W + todayX, background: 'color-mix(in srgb, var(--color-gold) 75%, transparent)' }} />
+          )}
           {projects.map(p => {
             const b = byProject.get(p.id)!
             const accent = p.project_kind === 'digital' ? 'var(--color-info)' : 'var(--color-gold-text)'
@@ -147,7 +174,6 @@ export function PortfolioTimeline({ projects, sprints, tasks }: {
                     {items.length > 0 && <span className="ml-auto text-2xs text-text-tertiary shrink-0">{items.length}</span>}
                   </div>
                   <div className="relative" style={{ width: gridW, height: ROW_H }}>
-                    <div className="absolute inset-y-0 border-l border-gold/40" style={{ left: todayX }} />
                     {range && <Bar start={range[0]} end={range[1]} accent={accent} dim
                       onClick={() => setDetail({ kind: 'project', id: p.id, title: p.name, projectId: p.id, clientId: p.client_id, start: range[0], end: range[1] })} />}
                   </div>
@@ -162,7 +188,6 @@ export function PortfolioTimeline({ projects, sprints, tasks }: {
                       </span>
                     </div>
                     <div className="relative" style={{ width: gridW, height: ROW_H }}>
-                      <div className="absolute inset-y-0 border-l border-gold/40" style={{ left: todayX }} />
                       {grana === 'sprint' && <Bar start={(it as WLSprint).start_date} end={(it as WLSprint).end_date} accent={accent} label={(it as WLSprint).name}
                         onClick={() => setDetail({ kind: 'sprint', id: it.id, title: (it as WLSprint).name, projectId: p.id, clientId: p.client_id, start: (it as WLSprint).start_date, end: (it as WLSprint).end_date })} />}
                       {grana === 'milestone' && (it as WLTask).due_date && <Diamond date={(it as WLTask).due_date!} label={(it as WLTask).title}
@@ -175,6 +200,7 @@ export function PortfolioTimeline({ projects, sprints, tasks }: {
               </div>
             )
           })}
+          </div>
         </div>
       </div>
 
