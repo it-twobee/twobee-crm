@@ -127,6 +127,44 @@ export async function createMilestoneWs(input: {
   return { ok: true, milestone: data as { id: string; title: string }, projectId: input.projectId, clientId }
 }
 
+export const AD_HOC_TITLE = 'Ad Hoc'
+
+/**
+ * L'Ad Hoc di un progetto: milestone senza sprint che raccoglie le richieste
+ * una tantum (modifiche veloci, richieste del cliente) che non spostano il piano.
+ * È relativa al progetto — ogni progetto ha la sua — e viene creata al primo uso,
+ * così i "+ Crea" possono offrirla anche dove non esiste ancora.
+ * Fuori da createMilestoneWs perché quella pretende uno sprint, che qui non c'è.
+ */
+export async function ensureAdHocMilestone(projectId: string) {
+  const g = await guard()
+  if ('error' in g) return { ok: false as const, error: g.error }
+  if (!projectId) return { ok: false as const, error: 'Progetto obbligatorio' }
+
+  const { data: found } = await g.admin.from('tasks')
+    .select('id').eq('project_id', projectId).eq('is_milestone', true)
+    .is('sprint_id', null).ilike('title', AD_HOC_TITLE).maybeSingle()
+  if (found) return { ok: true as const, milestoneId: found.id as string, created: false }
+
+  const { data, error } = await g.admin.from('tasks').insert({
+    project_id: projectId,
+    title: AD_HOC_TITLE,
+    status: 'da_fare',
+    priority: 'media',
+    is_milestone: true,
+    sprint_id: null,
+    tags: [],
+    logged_hours: 0,
+    depth: 0,
+    position: 0,
+  } as never).select('id').single()
+  if (error) return { ok: false as const, error: error.message }
+
+  const clientId = await clientIdOf(g.admin, projectId)
+  revalidateConnected(clientId)
+  return { ok: true as const, milestoneId: data.id as string, created: true }
+}
+
 // Task delle "Mie attività": la crea qualunque membro interno per sé stesso.
 // Con projectId è una task di progetto (condivisa); senza, è personale/privata
 // (project_id NULL → invisibile ai colleghi via RLS, vedi migration 094).

@@ -10,8 +10,14 @@ import {
 } from 'lucide-react'
 import {
   createProjectWs, createSprintWs, createMilestoneWs, createTaskWs,
-  createAiPlan, createAiMilestones, createAiTasks,
+  createAiPlan, createAiMilestones, createAiTasks, ensureAdHocMilestone,
 } from '@/app/actions/workspace-create'
+
+// Destinazione "Ad Hoc": la milestone del progetto per le richieste una tantum,
+// risolta (o creata) al salvataggio perché può non esistere ancora.
+const AD_HOC = '__adhoc'
+const isAdHoc = (m: { title: string; sprint_id: string | null }) =>
+  !m.sprint_id && m.title.trim().toLowerCase() === 'ad hoc'
 import { AiPlanBuilder, type AiPlanSprint } from '@/components/projects/AiPlanBuilder'
 import { SearchableSelect } from '@/components/shared/SearchableSelect'
 import type { Profile } from '@/lib/types/database'
@@ -332,8 +338,15 @@ function TaskModal({ clients, projects, profiles, onClose, onCreated }: {
 
   const submit = async () => {
     setLoading(true)
+    let mid = milestoneId
+    if (mid === AD_HOC) {
+      const ah = await ensureAdHocMilestone(projectId)
+      if (!ah.ok) { setLoading(false); toast.error(ah.error ?? 'Errore Ad Hoc'); return }
+      mid = ah.milestoneId
+    }
     const r = await createTaskWs({
-      projectId, title, sprintId: sprintId || undefined, milestoneId: milestoneId || undefined,
+      projectId, title, sprintId: mid === milestoneId ? (sprintId || undefined) : undefined,
+      milestoneId: mid || undefined,
       parentTaskId: parentTaskId || undefined, assigneeId: assigneeId || undefined,
       dueDate: dueDate || undefined, priority,
     })
@@ -358,13 +371,14 @@ function TaskModal({ clients, projects, profiles, onClose, onCreated }: {
               onChange={e => { const mid = e.target.value; setMilestoneId(mid); const sp = milestones.find(m => m.id === mid)?.sprint_id; if (sp) setSprintId(sp) }}
               className={inputCls}>
               <option value="">Seleziona milestone…</option>
-              {milestones.filter(m => !sprintId || m.sprint_id === sprintId).map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
+              <option value={AD_HOC}>⚡ Ad Hoc — richiesta una tantum</option>
+              {milestones.filter(m => !isAdHoc(m) && (!sprintId || m.sprint_id === sprintId)).map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
             </select></label>
         </div>
       )}
 
-      {projectId && milestones.length === 0 && parents.length === 0 && (
-        <p className="text-2xs text-warning">Nessuna milestone in questo progetto: creane prima una.</p>
+      {projectId && milestoneId === AD_HOC && (
+        <p className="text-2xs text-text-tertiary">Fuori dal piano del progetto: non sposta sprint né milestone.</p>
       )}
 
       {projectId && parents.length > 0 && (

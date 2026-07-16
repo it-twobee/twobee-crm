@@ -5,7 +5,15 @@ import { useRouter } from 'next/navigation'
 import { Plus, ChevronDown, Loader2, X, FolderKanban } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
-import { createProjectWs, createSprintWs, createMilestoneWs, createMyTask } from '@/app/actions/workspace-create'
+import { createProjectWs, createSprintWs, createMilestoneWs, createMyTask, ensureAdHocMilestone } from '@/app/actions/workspace-create'
+
+// Destinazione "Ad Hoc": non è una milestone che scegli, è quella del progetto —
+// risolta (o creata) al salvataggio, perché può non esistere ancora.
+const AD_HOC = '__adhoc'
+// L'Ad Hoc già esistente non va listato: la voce dedicata sopra lo copre e
+// mostrarlo due volte farebbe scegliere a caso.
+const isAdHoc = (m: { title: string; sprint_id: string | null }) =>
+  !m.sprint_id && m.title.trim().toLowerCase() === 'ad hoc'
 
 // CTA "Crea" contestuale (§12/§15): il contesto in cui ti trovi precompila i campi e
 // nasconde le opzioni impossibili. Dal cliente non puoi creare uno sprint senza prima
@@ -121,9 +129,15 @@ function CreateModal({ kind, ctx, onClose, onDone }: {
       res = await createMilestoneWs({ projectId, title: name.trim(), sprintId, dueDate: due || undefined })
     } else {
       if (!milestoneId) { toast.error('La task va legata a una milestone'); return }
+      let mid = milestoneId
+      if (mid === AD_HOC) {
+        const ah = await ensureAdHocMilestone(projectId)
+        if (!ah.ok) { toast.error(ah.error ?? 'Errore Ad Hoc'); return }
+        mid = ah.milestoneId
+      }
       res = await createMyTask({
         title: name.trim(), projectId,
-        sprintId: sprintId || null, milestoneId,
+        sprintId: mid === milestoneId ? (sprintId || null) : null, milestoneId: mid,
         dueDate: due || undefined,
       })
     }
@@ -184,10 +198,13 @@ function CreateModal({ kind, ctx, onClose, onDone }: {
                 onChange={e => { const mid = e.target.value; setMilestoneId(mid); const sp = milestones.find(m => m.id === mid)?.sprint_id; if (sp) setSprintId(sp) }}
                 aria-label="Milestone" className={inp}>
                 <option value="">Milestone *</option>
-                {milestones.filter(m => !sprintId || m.sprint_id === sprintId).map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
+                <option value={AD_HOC}>⚡ Ad Hoc — richiesta una tantum</option>
+                {milestones.filter(m => !isAdHoc(m) && (!sprintId || m.sprint_id === sprintId)).map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
               </select>
             </div>
-            {milestones.length === 0 && <p className="text-2xs text-warning">Nessuna milestone: creane prima una.</p>}
+            {milestoneId === AD_HOC && (
+              <p className="text-2xs text-text-tertiary">Fuori dal piano del progetto: non sposta sprint né milestone.</p>
+            )}
           </>
         )}
 
