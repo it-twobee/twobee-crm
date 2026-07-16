@@ -127,7 +127,8 @@ export async function createMilestoneWs(input: {
   return { ok: true, milestone: data as { id: string; title: string }, projectId: input.projectId, clientId }
 }
 
-export const AD_HOC_TITLE = 'Ad Hoc'
+// Non esportabile: in un file 'use server' si esportano solo funzioni async.
+const AD_HOC_TITLE = 'Ad Hoc'
 
 /**
  * L'Ad Hoc di un progetto: milestone senza sprint che raccoglie le richieste
