@@ -44,7 +44,8 @@ export type StakeholderRole = 'owner' | 'stakeholder' | 'collaboratore_esterno' 
 export type ProjectStatus = 'attivo' | 'in_pausa' | 'completato' | 'archiviato'
 export type SprintStatus = 'pianificato' | 'in_corso' | 'completato'
 export type TaskPriority = 'alta' | 'media' | 'bassa'
-export type TaskStatus = 'da_fare' | 'in_corso' | 'in_revisione' | 'completato'
+/** Allineato al CHECK `tasks_status_check`: 'richiesta_supporto' dalla 101, 'non_svolta' dalla 129. */
+export type TaskStatus = 'da_fare' | 'in_corso' | 'in_revisione' | 'completato' | 'richiesta_supporto' | 'non_svolta'
 // 'team' e 'dm' arrivano dalla migration 090. 'customer_care'/'cliente' esistono
 // ancora ma la chat non li mostra più: vivono nella sezione Customer Care.
 export type ChannelType =
@@ -178,6 +179,93 @@ export interface BusinessCost {
   is_active: boolean
   notes: string | null
   created_at: string
+  updated_at: string
+}
+
+// ─── Modello economico (Fase 1, migration 115–118 + 122) ────────────────────
+
+/** `marketing` aggiunta dalla 123: brand identity, contenuti, social media management. */
+export type ServiceLine   = 'growth' | 'digital' | 'marketing' | 'ai' | 'hybrid' | 'consulting' | 'other'
+export type DeliveryModel = 'recurring_operations' | 'structured_project' | 'hybrid'
+export type LifecycleStatus = 'draft' | 'startup' | 'active' | 'paused' | 'closed' | 'archived'
+export type RevenueModel  = 'recurring' | 'one_off' | 'milestone_based' | 'maintenance' | 'usage_based' | 'non_billable'
+export type BillingFrequency = 'mensile' | 'bimestrale' | 'trimestrale' | 'semestrale' | 'annuale' | 'una_tantum'
+export type RevenueStreamStatus = 'bozza' | 'attivo' | 'sospeso' | 'cessato'
+export type RevenueMilestoneStatus = 'previsto' | 'maturato' | 'fatturato' | 'incassato' | 'annullato'
+
+export interface RevenueStream {
+  id: string
+  client_id: string
+  project_id: string | null
+  quote_id: string | null
+  label: string
+  service_line: ServiceLine
+  revenue_model: RevenueModel
+  /** Imponibile. Per periodo se ricorrente, totale se una tantum. */
+  amount: number
+  currency: string
+  billing_frequency: BillingFrequency | null
+  start_date: string
+  end_date: string | null
+  competence_start: string | null
+  competence_end: string | null
+  status: RevenueStreamStatus
+  payment_terms: string | null
+  source: string
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface RevenueMilestone {
+  id: string
+  stream_id: string
+  label: string
+  amount: number
+  due_on: string | null
+  /** Milestone di progetto che rende maturato il SAL. */
+  trigger_task_id: string | null
+  status: RevenueMilestoneStatus
+  invoice_id: string | null
+  position: number
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CompanyTarget {
+  year: number
+  revenue_target: number
+  notes: string | null
+  updated_at: string
+}
+
+/** Output di `admin_revenue_scorecards()` — le otto scorecard economiche, solo admin. */
+export interface AdminRevenueScorecards {
+  year: number
+  growth_mrr: number
+  total_recurring: number
+  recurring_by_line: Record<string, number>
+  digital_sold_ytd: number
+  digital_collected_ytd: number
+  digital_backlog: number
+  unbilled_sal: number
+  revenue_ytd: number
+  annual_target: number | null
+  target_progress: number | null
+  /** Incassato con `stream_id` nullo: se cresce, gli aggregati per linea perdono pezzi. */
+  unassigned_revenue: number
+  computed_at: string
+}
+
+/** Output di `workspace_revenue_summary()` — l'unico dato economico che il Workspace può leggere. */
+export interface WorkspaceRevenueSummary {
+  year: number
+  revenue_ytd: number
+  monthly_revenue: { month: string; amount: number }[]
+  total_mrr: number
+  annual_target: number | null
+  target_progress: number | null
   updated_at: string
 }
 
@@ -322,6 +410,15 @@ export interface Invoice {
   description: string | null
   pdf_url: string | null
   created_at: string
+  // Migration 118 — fonte del ricavo e scomposizione IVA
+  stream_id: string | null
+  revenue_milestone_id: string | null
+  project_id: string | null
+  /** Imponibile. Gli aggregati usano QUESTO, non `amount`. */
+  taxable_amount: number | null
+  vat_rate: number | null
+  vat_amount: number | null
+  total_gross: number | null
 }
 
 export interface ClientStakeholder {
@@ -365,7 +462,11 @@ export interface Project {
   brief_updated_at: string | null
   status: ProjectStatus
   project_type: ProjectType
+  /** @deprecated Usa `service_line` (migration 115). Rimossa dopo il ripuntamento del codice. */
   project_kind: ProjectKind | null
+  service_line: ServiceLine
+  delivery_model: DeliveryModel
+  lifecycle_status: LifecycleStatus
   sprint_current: number
   manager_id: string | null
   created_at: string
@@ -406,6 +507,15 @@ export interface Task {
   links: { url: string; label: string }[]
   created_at: string
   created_by: string | null
+  // Migration 128 — scope della task
+  client_id: string | null
+  scope_type: 'project' | 'client' | 'personal'
+  work_type: 'project' | 'startup' | 'routine' | 'initiative' | 'adhoc'
+  // Migration 129 — occorrenze delle routine Growth
+  routine_id: string | null
+  initiative_id: string | null
+  /** '2026-W30' | '2026-07' | '2026-Q3': con routine_id forma la chiave unica. */
+  period_key: string | null
 }
 
 export interface TaskComment {

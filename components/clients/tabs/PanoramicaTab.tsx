@@ -7,7 +7,7 @@ import {
   Phone, Users2, Mail, Presentation, MapPin, HelpCircle, Star,
   Check, AlertCircle, Clock, AlertTriangle, ChevronDown, ChevronUp,
   Brain, Loader2, ArrowRight, FolderKanban, Flag,
-  Plus, Pencil, Trash2, X, Upload, Sparkles,
+  Plus, Pencil, Trash2, X, Upload, Sparkles, Layers,
 } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -15,6 +15,7 @@ import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { CalendarAgenda } from '@/components/shared/CalendarAgenda'
 import type { Client, Task, Invoice, ClientKpi, Project, Sprint, MeetingNote, Profile, ClientInteraction, InteractionType, InteractionOutcome } from '@/lib/types/database'
+import type { Workstream, Milestone } from '@/components/projects/board/types'
 
 const TYPE_ICON: Record<InteractionType, React.ReactNode> = {
   call:     <Phone className="w-3 h-3" />,
@@ -47,7 +48,8 @@ interface Props {
   invoices: Invoice[]
   kpis: ClientKpi[]
   projects: Project[]
-  sprints: Sprint[]
+  workstreams: Workstream[]
+  milestones: Milestone[]
   meetings: MeetingNote[]
   allProfiles: Profile[]
   teamMembers: Profile[]
@@ -120,8 +122,8 @@ function ProgressRing({ pct, size = 52 }: { pct: number; size?: number }) {
   )
 }
 
-function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelete, hideEconomics = false }: {
-  project: Project; tasks: Task[]; sprints: Sprint[]; kpis: ClientKpi[]; clientId: string
+function ProgettoCard({ project, tasks, workstreams, milestones, kpis, clientId, onEdit, onDelete, hideEconomics = false }: {
+  project: Project; tasks: Task[]; workstreams: Workstream[]; milestones: Milestone[]; kpis: ClientKpi[]; clientId: string
   onEdit: () => void; onDelete: () => void; hideEconomics?: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -132,10 +134,14 @@ function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelet
   const done        = projTasks.filter(t => t.status === 'completato').length
   const open        = projTasks.filter(t => t.status !== 'completato').length
   const overdue     = projTasks.filter(t => t.status !== 'completato' && t.due_date && new Date(t.due_date) < new Date()).length
-  const milestones  = projTasks.filter(t => t.is_milestone)
-  const doneMilestones = milestones.filter(m => m.status === 'completato').length
+  const projMilestones = milestones.filter(m => m.project_id === project.id)
+  const doneMilestones = projMilestones.filter(m => m.status === 'completata').length
+  const projWorkstreams = workstreams.filter(w => w.project_id === project.id)
+  // La prossima consegna: più utile dello "sprint in corso" che indicava solo il tempo.
+  const nextMilestone = projMilestones
+    .filter(m => m.status !== 'completata' && m.expected_date)
+    .sort((a, b) => (a.expected_date ?? '').localeCompare(b.expected_date ?? ''))[0] ?? null
   const pct         = projTasks.length ? Math.round(done / projTasks.length * 100) : 0
-  const curSprint   = sprints.find(s => s.project_id === project.id && s.status === 'in_corso')
   const projKpis    = kpis.filter(k => k.project_id === project.id)
   const lastKpi     = projKpis[0] ?? null
   const isG         = project.project_kind === 'growth'
@@ -146,7 +152,7 @@ function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelet
     const res = await fetch('/api/ai/project-summary', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ project, tasks: projTasks, sprints: sprints.filter(s => s.project_id === project.id), kpis: projKpis }),
+      body: JSON.stringify({ project, tasks: projTasks, sprints: [], kpis: projKpis }),
     })
     const data = await res.json()
     setAiSummary(data.summary ?? 'Nessuna analisi disponibile.')
@@ -170,9 +176,9 @@ function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelet
                   isG ? 'bg-gold/10 text-gold-text border-gold/25' : 'bg-info/10 text-info border-info/25'
                 }`}>{isG ? '📈 Growth' : '💻 Digital'}</span>
               )}
-              {curSprint && (
+              {nextMilestone && (
                 <span className="text-2xs text-gold-text bg-gold/10 border border-gold/20 px-1.5 py-0.5 rounded font-semibold">
-                  Sprint in corso
+                  Prossima: {nextMilestone.title}
                 </span>
               )}
             </div>
@@ -181,8 +187,11 @@ function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelet
                 ? <span className={overdue > 0 ? 'text-error font-semibold' : ''}>{open} task aperte{overdue > 0 ? ` · ${overdue} scadute` : ''}</span>
                 : projTasks.length > 0 ? <span className="text-success font-semibold">✓ Tutto completato</span>
                 : <span>Nessuna task ancora</span>}
-              {milestones.length > 0 && (
-                <span className="flex items-center gap-1"><Flag className="w-3 h-3" />{doneMilestones}/{milestones.length} milestone</span>
+              {projWorkstreams.length > 0 && (
+                <span className="flex items-center gap-1"><Layers className="w-3 h-3" />{projWorkstreams.length} aree di lavoro</span>
+              )}
+              {projMilestones.length > 0 && (
+                <span className="flex items-center gap-1"><Flag className="w-3 h-3" />{doneMilestones}/{projMilestones.length} milestone</span>
               )}
             </div>
           </div>
@@ -264,7 +273,7 @@ function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelet
                 <p className="text-sm text-text-primary leading-relaxed">{aiSummary}</p>
               ) : (
                 <p className="text-xs text-text-secondary">
-                  {aiLoading ? 'Sto analizzando task, sprint e KPI del progetto...' : 'Un riassunto AI della fase attuale: cosa è completato, dove siete bloccati, prossimi passi critici.'}
+                  {aiLoading ? 'Sto analizzando task, aree di lavoro e KPI del progetto...' : 'Un riassunto AI della fase attuale: cosa è completato, dove siete bloccati, prossimi passi critici.'}
                 </p>
               )}
             </div>
@@ -287,8 +296,8 @@ function ProgettoCard({ project, tasks, sprints, kpis, clientId, onEdit, onDelet
   )
 }
 
-export function ProgettiAttivi({ projects: initialProjects, tasks, sprints, kpis, clientId, hideEconomics = false }: {
-  projects: Project[]; tasks: Task[]; sprints: Sprint[]; kpis: ClientKpi[]; clientId: string; hideEconomics?: boolean
+export function ProgettiAttivi({ projects: initialProjects, tasks, workstreams, milestones, kpis, clientId, hideEconomics = false }: {
+  projects: Project[]; tasks: Task[]; workstreams: Workstream[]; milestones: Milestone[]; kpis: ClientKpi[]; clientId: string; hideEconomics?: boolean
 }) {
   const [projects, setProjects] = useState(initialProjects)
   const [showNew, setShowNew]   = useState(false)
@@ -324,7 +333,7 @@ export function ProgettiAttivi({ projects: initialProjects, tasks, sprints, kpis
         <>
           <div className="space-y-2">
             {active.map(p => (
-              <ProgettoCard key={p.id} project={p} tasks={tasks} sprints={sprints} kpis={kpis} clientId={clientId}
+              <ProgettoCard key={p.id} project={p} tasks={tasks} workstreams={workstreams} milestones={milestones} kpis={kpis} clientId={clientId}
                 onEdit={() => setEditP(p)} onDelete={() => setDeleteP(p)} hideEconomics={hideEconomics} />
             ))}
           </div>
@@ -336,7 +345,7 @@ export function ProgettiAttivi({ projects: initialProjects, tasks, sprints, kpis
               </summary>
               <div className="space-y-2 mt-2">
                 {other.map(p => (
-                  <ProgettoCard key={p.id} project={p} tasks={tasks} sprints={sprints} kpis={kpis} clientId={clientId}
+                  <ProgettoCard key={p.id} project={p} tasks={tasks} workstreams={workstreams} milestones={milestones} kpis={kpis} clientId={clientId}
                     onEdit={() => setEditP(p)} onDelete={() => setDeleteP(p)} hideEconomics={hideEconomics} />
                 ))}
               </div>
@@ -917,7 +926,7 @@ function HealthRing({ score }: { score: number }) {
   )
 }
 
-export function PanoramicaTab({ client, tasks, invoices, kpis, projects, sprints, meetings, allProfiles, teamMembers, interactions, isAdmin, openTickets, onTabChange, hideEconomics = false }: Props) {
+export function PanoramicaTab({ client, tasks, invoices, kpis, projects, workstreams, milestones, meetings, allProfiles, teamMembers, interactions, isAdmin, openTickets, onTabChange, hideEconomics = false }: Props) {
   const now = new Date()
 
   // KPI più recente per tipo progetto

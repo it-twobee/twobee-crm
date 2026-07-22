@@ -28,12 +28,16 @@ app/actions/
   delete-client.ts                ← elimina client + cascade chat/tasks/projects
 components/dashboard/             ← tutti i widget (vedi sezione stato)
 components/clients/tabs/          ← PanoramicaTab, KpiTab, AnagraficaTab, ProjectStatusTab…
-components/projects/ProjectPageClient.tsx  ← 2980 righe, tab Chat con ProjectChatSection
+components/projects/ProjectPageClient.tsx  ← 285 righe: header, tab, orchestrazione
+components/projects/board/        ← il board, spezzato: ProgettoView, SprintBlock (da
+                                    sostituire con WorkstreamBlock), MilestoneBlock,
+                                    TaskRow, BriefPanel, useDragReorder, types.ts
 components/chat/SlackChat.tsx     ← componente chat completo (props: channelId, channelType, currentProfile…)
 components/progetti/ProgettiClient.tsx     ← CRUD progetti: NewProjectDetailedModal + EditProgettoModal + DeleteConfirmModal
 lib/types/database.ts             ← tutti i tipi
 app/api/ai/                       ← extract-project, extract-meeting, sprint-plan, kpi-report, project-summary
-supabase/migrations/              ← 001–091 (086–091 da eseguire, vedi sotto)
+supabase/migrations/              ← 001–142, tutte applicate. Prossima libera: 143
+docs/project-v2/                  ← audit e decisioni della gerarchia V2 (00-DECISIONS.md)
 ```
 
 ## Design system — MAI colori hardcoded
@@ -78,13 +82,41 @@ con `*{transition:none!important}` prima di misurare).
 - Set spread: `Array.from(new Set([...]))` non `[...new Set(...)]`
 - Server Action: `'use server'` + `revalidatePath('/path')`
 
+## Gerarchia del Project Management (V2, dal 2026-07-20)
+
+```
+Cliente → Progetto → Workstream → Milestone → Task
+```
+
+**Gli Sprint sono fuori dalla gerarchia.** `sprints` esiste ancora (0 righe,
+mai usata in produzione) e `tasks.sprint_id` pure: entrambi deprecati, nessun
+`DROP`. Non scriverci.
+
+**Le Subtask non sono un livello.** `tasks.parent_task_id` resta come
+funzionalità accessoria (0 righe) ma non è navigazione: per il lavoro dentro
+una task si usa `task_checklist_items`.
+
+Nomi: in DB è `project_workstreams`, **nella UI interna si scrive "Area di
+lavoro"**. Nel Portale Cliente la label dipende dal servizio
+(`service_catalog.client_workstream_label`: Iniziative / Fasi / Moduli / Aree
+organizzative). Vedi `docs/project-v2/` per l'audit e le decisioni.
+
+Quattro assi separati, da non confondere: **servizio** (cosa ha comprato il
+cliente) · **linea** (chi lo fa) · **motore** (come si organizza il lavoro) ·
+**accordo** (come si guadagna).
+
 ## DB — tabelle chiave
-- `clients`: `company_name, client_type (growth|digital|growth_digital), package, mrr, client_label, risk_score`
-- `projects`: `client_id, name, status, project_type, project_kind (growth|digital), sprint_current`
+- `clients`: `company_name, display_name, legal_name, client_type (growth|digital|growth_digital), package, mrr, client_label, risk_score`
+- `projects`: `client_id, name, status, service_line, service_key, delivery_model, growth_vertical, economic_status, manager_id (= PM), project_kind (growth|digital)`. `project_type` e `sprint_current` sono legacy.
+- `service_catalog`: catalogo dei 17 servizi — `key, service_line, delivery_engine, default_revenue_model, phases JSONB, milestone_templates JSONB, client_workstream_label`. **Il catalogo propone, il progetto dispone**: il contenuto viene *copiato* sul progetto alla creazione, poi diverge. Cambiare il default aziendale NON aggiorna i progetti esistenti.
+- `project_workstreams`: `project_id, name, position, status, owner_id, visibility (internal|client|partner), requires_client_approval, deliverables`
+- `workstream_milestones`: `workstream_id, project_id, title, milestone_type (delivery|approval|checkpoint|release|control|recurring_cycle), expected_date, actual_date, approval_required, completion_criteria, visibility`
+- `recurring_task_templates`: la **regola**, non l'occorrenza. `project_id, workstream_id, frequency, recurrence_interval, generation_lead_days, is_active, template_key`
 - `client_kpis`: KPI mensili, unique `(client_id, month)`
 - `chat_channels`: `type (cliente|interno|task|customer_care|cliente_interno|team|dm), client_id, project_id, team_key`
 - `chat_messages`: `channel_id, sender_id, content`
-- `tasks`: `project_id, title, status (da_fare|in_corso|completato), is_milestone, due_date, assignee_id (PRIMARIO)`
+- `tasks`: `project_id, client_id, workstream_id, milestone_id, title, status (da_fare|in_corso|in_revisione|completato|richiesta_supporto), task_type, priority, due_date, start_date, visibility, assignee_id (PRIMARIO), routine_id, period_key`. `milestone_id` è **opzionale** (le occorrenze ricorrenti non ne hanno una sensata); `workstream_id` no. `is_milestone` è deprecata.
+- `task_checklist_items`: `(task_id, label, done, position)` — sostituisce la subtask
 - `task_assignees`: multi-assegnatario `(task_id, profile_id, is_primary_owner, role)`. **Sorgente canonica** dei 0..N assegnatari; `tasks.assignee_id` resta il primario (= primo della lista) perché molte viste lo leggono. Scrivi SEMPRE via `setTaskAssignees`/`bulkSetTaskAssignees` (service role), che tengono i due in sync.
 - `objectives`: OKR aziendali con `progress, status`
 - `deals`: pipeline commerciale con `stage`
@@ -115,21 +147,22 @@ const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
 const parsed = JSON.parse((await res.json()).choices?.[0]?.message?.content?.match(/\{[\s\S]*\}/)?.[0] ?? '{}')
 ```
 
-## Migration da eseguire (Supabase Dashboard → SQL Editor)
-`chat_channels.project_id` **esiste** in produzione: il vecchio "BUG NOTO" è risolto.
-Numerazione: attenzione, `080_*`, `081_*` e `092_*` compaiono due volte. Il prossimo libero è **106**.
+## Migration (Supabase Dashboard → SQL Editor)
+**Non c'è nulla di arretrato: 001–142 sono tutte applicate in produzione**
+(verificato sul DB il 2026-07-20). Il prossimo numero libero è **143**.
+Attenzione: `080_*`, `081_*`, `092_*` e `109_*` compaiono due volte.
 
-| # | Cosa fa | Serve anche |
-|---|---|---|
-| `086_decisions.sql` | ALTER su `decisions` (la 044 l'aveva già creata: NON ricrearla) | — |
-| `087_workspace_groups_sections.sql` | `group_key`/`group_order` + sezioni workspace nuove | — |
-| `088_payslips.sql` | Buste paga, RLS owner-only | bucket **privato** `payslips` |
-| `089_personal_documents.sql` | Documenti personali con scadenze | bucket privato `personal-documents` |
-| `090_chat_rework.sql` | canali `team`/`dm`, `chat_dm_participants`, `chat_best_ideas` | bucket `best-ideas` |
-| `091_google_credentials.sql` | token Google fuori da `user_metadata` | ricollegare Google una volta |
-| `092_workspace_team_read_all.sql` | i ruoli `team` (manager…partner) leggono TUTTI clienti/progetti/task (scrittura task resta scoped) | — |
-| `093_feedback.sql` | tabelle `feedback` + `feedback_votes` (RLS staff-read/own-write/admin-manage) + sezione workspace `feedback` | — |
-| `095_workspace_workload_section.sql` | voce sidebar `workload` nel workspace (il layout la inietta comunque come fallback) | — |
+Ogni migration nuova deve essere **additiva e idempotente** (`IF NOT EXISTS`,
+`DROP POLICY IF EXISTS` prima di `CREATE POLICY`) e chiudersi con una `SELECT`
+di verifica.
+
+⚠️ **Il SQL Editor di Supabase tronca gli incolli lunghi** (blocchi da ~25
+caratteri persi, in silenzio). Statement corti, una migration per volta, mai
+concatenare: il troncamento diventa un errore di sintassi visibile invece che
+una colonna mancante scoperta settimane dopo.
+
+Bucket privati da creare a mano (le migration non li creano): `payslips`,
+`personal-documents`, `best-ideas`.
 
 ## Workload (`/workload` e `/workspace/workload`)
 Vista strategica dei progetti in parallelo: effort (ore stimate, default 4h dove
@@ -200,30 +233,45 @@ Le task del calendario sono personali e nascoste di default.
 | Risk/Alerts | `SmartInsights` + `AlertCenter` | ✅ attivo, rule-based |
 | Founder Focus | `DailyFocus` | ✅ attivo |
 | AI Chat | `AIDashboardChat` | ✅ attivo |
-| Margin Radar | — | ❌ da costruire |
-| Decision Center | — | ❌ da costruire |
+| Margin Radar | `MarginRadar` | ✅ attivo |
+| Decision Center | `DecisionCenter` | ✅ attivo |
+| Financial Control aggregato | `FinancialControl` | ✅ attivo |
+| Sales Pipeline widget | `SalesPipeline` | ✅ attivo |
+| Strategic Objectives widget | `StrategicObjectives` | ✅ attivo |
+| AI & Automation Center | `AIAutomationCenter` | ✅ attivo |
+| Revenue Scorecards | `RevenueScorecards` | ✅ attivo |
 | AI Executive Brief | `SmartInsights` (approssimazione) | ⚠️ parziale |
-| Financial Control aggregato | — | ❌ solo in tab cliente |
 | Growth Performance aggregato | — | ❌ solo in tab cliente |
-| Sales Pipeline widget | Fetcha `deals` ma no widget | ⚠️ dati ci sono |
-| Strategic Objectives widget | Fetcha `objectives` ma no widget | ⚠️ dati ci sono |
-| AI & Automation Center | — | ❌ da costruire |
 
-## Funzionalità completate (sessione corrente)
-- Dashboard grid drag/resize con localStorage, 3 template, `CustomizePanel` (solo super_admin)
-- Clienti: Supabase Realtime (INSERT/UPDATE/DELETE), `router.refresh()` su dettaglio
-- Progetti: `project_kind (growth|digital)` su ogni progetto; CRUD completo in `PanoramicaTab` (con upload file → AI extract) e `ProgettiClient`; badge G/D su `ProgettiWidget`
-- Chat: rimossa da tab cliente, spostata in ogni progetto (tab `🗨️ Chat`) con canali `cliente_interno` (team) e `customer_care` (cliente); creazione via `ensureProjectChannels()` server action
-- CLAUDE.md aggiornato con regole caveman
+## Task ricorrenti — la regola da non rompere
+Le ricorrenze si generano da `recurring_task_templates`; ogni occorrenza è una
+task reale con `routine_id` + `period_key`.
 
-## Prossimi lavori suggeriti (in ordine priorità)
-1. **Eseguire SQL migration** `project_id` su chat_channels (vedi BUG sopra)
-2. **Decision Center** — nuova tabella `decisions` + widget dashboard
-3. **AI Executive Brief** — sintesi narrativa Groq che legge dati dashboard
-4. **Margin Radar** — widget per margine per cliente (fee − costi)
-5. **Financial Control aggregato** — crediti totali, scaduti, burn rate in dashboard
-6. **Sales Pipeline widget** — i dati `deals` sono già fetchati in `page.tsx`
-7. **Strategic Objectives widget** — i dati `objectives` sono già fetchati
+**`uq_tasks_routine_period` — UNIQUE(routine_id, period_key) — è ciò che
+impedisce le occorrenze doppie.** La garanzia sta nel database, non nel codice
+che genera: non toglierla, non rinominare quelle due colonne, e non aggirarla
+con un controllo applicativo "tanto è più veloce". È l'unica parte del motore
+già in produzione (27 task generate) e regge da sola l'idempotenza.
+
+## Stato della migrazione V2 (2026-07-20)
+Fatto: schema (138–142), split del board, allineamento del codice ai rename.
+
+Da fare, nell'ordine:
+1. **Board su Workstream → Milestone → Task**: `WorkstreamBlock` sostituisce
+   `SprintBlock`, `MilestoneBlock` passa da `tasks.is_milestone` a
+   `workstream_milestones`, sparisce la tab "Fasi" (era il Workstream sotto
+   altro nome). *Questo passo elimina gli Sprint dalla UI per costruzione:
+   non farlo in due tempi, o l'app ha due modelli di milestone insieme.*
+2. Riadattare `SprintTimeline`, `ProjectGantt`, `AiPlanBuilder` (consumano sprint)
+3. **Wizard a 10 step** + riscrittura di `create_project_from_wizard` (migration 143)
+   e chiusura degli altri 10 punti di creazione progetto
+4. Workload: filtri e timeline a 4 livelli
+5. Portali: Workspace, Cliente (label per servizio), Risorsa
+6. Pilota end-to-end su Social Media Management + **verifica RLS con utenti veri**
+
+⚠️ Il service role bypassa le RLS: le policy `partner` e `client` non sono mai
+state provate con un utente reale (`resource_profiles` ha 0 righe). Testarle con
+il service role non prova niente.
 
 ## Regole di risposta
 - Zero preamboli. Vai dritto a codice.

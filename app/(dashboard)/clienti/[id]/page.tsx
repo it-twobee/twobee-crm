@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { ClientPageClient } from '@/components/clients/ClientPageClient'
-import type { Client, ClientContact, Project, Sprint, Task, MeetingNote, ClientKpi, Profile, Invoice, ClientStakeholder, Document, ClientInteraction } from '@/lib/types/database'
+import type { Client, ClientContact, Project, Task, MeetingNote, ClientKpi, Profile, Invoice, ClientStakeholder, Document, ClientInteraction } from '@/lib/types/database'
+import type { Workstream, Milestone } from '@/components/projects/board/types'
 
 export const revalidate = 0
 
@@ -41,11 +42,21 @@ export default async function ClientePage({ params, searchParams }: Props) {
 
   if (!client) notFound()
 
+  // Linee di servizio reali, derivate dagli accordi economici (migration 123).
+  // `undefined` se la VIEW non esiste ancora: il badge ripiega su client_type.
+  const { data: lines, error: linesError } = await supabase
+    .from('client_service_lines').select('active_lines').eq('client_id', id).maybeSingle()
+  const activeLines = linesError ? undefined : ((lines?.active_lines ?? []) as string[])
+
   const projectIds = (projects ?? []).map((p: Project) => p.id)
 
-  const [{ data: sprints }, { data: tasks }, { data: meetings }, { data: kpis }, { count: openTickets }] = await Promise.all([
+  // Gerarchia V2: aree di lavoro e milestone al posto degli sprint.
+  const [{ data: workstreams }, { data: milestones }, { data: tasks }, { data: meetings }, { data: kpis }, { count: openTickets }] = await Promise.all([
     projectIds.length > 0
-      ? supabase.from('sprints').select('*').in('project_id', projectIds).order('start_date')
+      ? supabase.from('project_workstreams').select('*').in('project_id', projectIds).order('position')
+      : Promise.resolve({ data: [] }),
+    projectIds.length > 0
+      ? supabase.from('workstream_milestones').select('*').in('project_id', projectIds).order('sort_order')
       : Promise.resolve({ data: [] }),
     projectIds.length > 0
       ? supabase.from('tasks').select('*, assignee:profiles!tasks_assignee_id_fkey(id, full_name, avatar_url)').in('project_id', projectIds).is('parent_task_id', null).order('created_at', { ascending: false })
@@ -76,7 +87,8 @@ export default async function ClientePage({ params, searchParams }: Props) {
       client={client as Client}
       contacts={(contacts ?? []) as ClientContact[]}
       projects={(projects ?? []) as Project[]}
-      sprints={(sprints ?? []) as Sprint[]}
+      workstreams={(workstreams ?? []) as unknown as Workstream[]}
+      milestones={(milestones ?? []) as unknown as Milestone[]}
       tasks={(tasks ?? []) as Task[]}
       meetings={(meetings ?? []) as MeetingNote[]}
       kpis={(kpis ?? []) as ClientKpi[]}
@@ -89,6 +101,7 @@ export default async function ClientePage({ params, searchParams }: Props) {
       allProfiles={(allProfiles ?? []) as Profile[]}
       interactions={interactions}
       openTickets={openTickets ?? 0}
+      activeLines={activeLines}
       initialTab={tab ? parseInt(tab) : undefined}
     />
   )

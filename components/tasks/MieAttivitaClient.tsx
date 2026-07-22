@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { NewProjectButton } from '@/components/projects/NewProjectButton'
 import { createMyTask, deleteMyTask } from '@/app/actions/workspace-create'
 import { notifyTasksDeleted } from '@/lib/task-undo'
 import { usePortalRoutes } from '@/lib/portal-routes'
@@ -80,11 +81,15 @@ function deadlineColor(due: string | null): string {
   return 'text-success'
 }
 
-export function MieAttivitaClient({ tasks: initialTasks, profile, profiles, projects = [] }: {
+export function MieAttivitaClient({ tasks: initialTasks, profile, profiles, projects = [], clients = [], canCreateProject = false, isAdmin = false }: {
   tasks: TaskWithMeta[]
   profile: Profile
   profiles: Pick<Profile, 'id' | 'full_name' | 'avatar_url'>[]
   projects?: { id: string; name: string; company_name: string | null }[]
+  clients?: { id: string; company_name: string }[]
+  /** Il wizard progetto compare solo a chi può crearne (admin e manager). */
+  canCreateProject?: boolean
+  isAdmin?: boolean
 }) {
   const [tasks, setTasks] = useState(initialTasks)
   const [view, setView] = useState<View>('elenco')
@@ -98,15 +103,17 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles, proj
   const [projectSprints, setProjectSprints] = useState<{ id: string; name: string }[]>([])
   const [projectMilestones, setProjectMilestones] = useState<{ id: string; title: string }[]>([])
 
-  // Quando scelgo un progetto, carico le sue sprint e milestone per collegarle.
+  // Quando scelgo un progetto, carico le sue aree di lavoro e milestone.
+  // `newSprintId`/`projectSprints` ora portano l'AREA DI LAVORO: nomi legacy,
+  // rinominarli qui significherebbe toccare ElencoView e le sue 8 prop.
   useEffect(() => {
     setNewSprintId(''); setNewMilestoneId('')
     if (!newProjectId) { setProjectSprints([]); setProjectMilestones([]); return }
     const sb = createClient()
     let alive = true
     Promise.all([
-      sb.from('sprints').select('id, name').eq('project_id', newProjectId).order('start_date'),
-      sb.from('tasks').select('id, title').eq('project_id', newProjectId).eq('is_milestone', true).order('position'),
+      sb.from('project_workstreams').select('id, name').eq('project_id', newProjectId).order('position'),
+      sb.from('workstream_milestones').select('id, title').eq('project_id', newProjectId).order('sort_order'),
     ]).then(([s, m]) => {
       if (!alive) return
       setProjectSprints((s.data ?? []) as { id: string; name: string }[])
@@ -185,7 +192,7 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles, proj
     const r = await createMyTask({
       title: newTitle.trim(),
       projectId: newProjectId || null,
-      sprintId: newSprintId || null,
+      workstreamId: newSprintId || null,
       milestoneId: newMilestoneId || null,
       dueDate: dueDate ?? undefined,
     })
@@ -236,6 +243,15 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles, proj
               <p className="text-xs text-text-secondary">{active.length} attive · {done.length} completate</p>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+          {canCreateProject && (
+            <NewProjectButton
+              clients={clients}
+              profiles={profiles.map(p => ({ id: p.id, full_name: p.full_name }))}
+              isAdmin={isAdmin}
+              variant="ghost"
+            />
+          )}
           <div className="flex bg-surface border border-border rounded-lg p-0.5">
             {VIEWS.map(v => (
               <button key={v.key} onClick={() => setView(v.key)}
@@ -245,6 +261,7 @@ export function MieAttivitaClient({ tasks: initialTasks, profile, profiles, proj
                 {v.icon} {v.label}
               </button>
             ))}
+          </div>
           </div>
         </div>
         {(active.length + done.length) > 0 && (
@@ -411,9 +428,9 @@ function ElencoView({ tasks, sections, collapsed, setCollapsed, addingIn, setAdd
                         </select>
                       </div>
                       {newProjectId && (
-                        <select value={newSprintId} onChange={e => setNewSprintId(e.target.value)} title="Sprint"
+                        <select value={newSprintId} onChange={e => setNewSprintId(e.target.value)} title="Area di lavoro"
                           className="bg-background border border-border-interactive rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-gold max-w-[150px]">
-                          <option value="">Sprint —</option>
+                          <option value="">Area di lavoro —</option>
                           {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                       )}

@@ -11,6 +11,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/utils'
+import { totalMrr, signedTaxable, projectRevenue } from '@/lib/revenue'
 import type {
   Client, Project, Invoice, ResourceCost, ResourceCostType, ResourceType,
   ProjectCostEntry, ProjectCostCategory, BusinessCost, BusinessCostCategory, Profile,
@@ -116,8 +117,12 @@ export function ControlloGestioneClient({
 
   const externalClients = initClients.filter(c => !c.is_internal)
 
-  const totalRevenue = invoices.filter(i => i.status === 'pagata').reduce((s, i) => s + i.amount, 0)
-  const totalMRR = externalClients.reduce((s, c) => s + (c.mrr ?? 0), 0)
+  // Incassato al netto IVA, note di credito SOTTRATTE (prima erano sommate: mancava
+  // il filtro su invoice_type e una nota `pagata` gonfiava il fatturato).
+  const totalRevenue = invoices
+    .filter(i => i.status === 'pagata')
+    .reduce((s, i) => s + signedTaxable(i), 0)
+  const totalMRR = totalMrr(initClients)
   const totalDirectCosts = pCosts.filter(c => c.category !== 'indiretto').reduce((s, c) => s + c.amount, 0)
   const totalIndirectCosts = pCosts.filter(c => c.category === 'indiretto').reduce((s, c) => s + c.amount, 0)
   const monthlyOverhead = bizCosts.filter(b => b.is_active).reduce((s, b) => s + b.monthly_amount, 0)
@@ -130,9 +135,9 @@ export function ControlloGestioneClient({
     return initProjects.map(p => {
       const client = initClients.find(c => c.id === p.client_id)
       const costs = pCosts.filter(c => c.project_id === p.id)
-      const revenue = invoices
-        .filter(i => i.client_id === p.client_id && i.status === 'pagata')
-        .reduce((s, i) => s + i.amount, 0)
+      // Ricavo del PROGETTO, non del cliente: prima ogni progetto ereditava il
+      // fatturato dell'intero cliente e N progetti moltiplicavano il ricavo ×N.
+      const revenue = projectRevenue(invoices, p.id)
       const totalCost = costs.reduce((s, c) => s + c.amount, 0)
       return { ...p, client, costs, revenue, totalCost, margin: revenue - totalCost }
     }).sort((a, b) => b.totalCost - a.totalCost)
@@ -330,7 +335,7 @@ export function ControlloGestioneClient({
     setActiveTab('ai_analisi')
     try {
       const clientSummaries = externalClients.map(c => {
-        const rev = invoices.filter(i => i.client_id === c.id && i.status === 'pagata').reduce((s, i) => s + i.amount, 0)
+        const rev = invoices.filter(i => i.client_id === c.id && i.status === 'pagata').reduce((s, i) => s + signedTaxable(i), 0)
         const costs = pCosts.filter(pc => pc.client_id === c.id).reduce((s, pc) => s + pc.amount, 0)
         return { name: c.company_name, type: c.client_type, mrr: c.mrr, revenue: rev, costs, margin: rev - costs }
       })
@@ -511,7 +516,7 @@ Rispondi SOLO con JSON valido:
             <div className="space-y-2">
               {externalClients
                 .map(c => {
-                  const rev = invoices.filter(i => i.client_id === c.id && i.status === 'pagata').reduce((s, i) => s + i.amount, 0)
+                  const rev = invoices.filter(i => i.client_id === c.id && i.status === 'pagata').reduce((s, i) => s + signedTaxable(i), 0)
                   const cost = pCosts.filter(pc => pc.client_id === c.id).reduce((s, pc) => s + pc.amount, 0)
                   const margin = rev - cost
                   const pct = rev > 0 ? Math.round((margin / rev) * 100) : 0

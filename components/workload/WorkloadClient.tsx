@@ -43,6 +43,16 @@ const SEV_BAR: Record<string, string> = {
   critical: 'bg-error',
 }
 
+/**
+ * Etichetta di appartenenza di una task: il progetto, oppure "Cliente — ad hoc"
+ * per le task di scope cliente, che un progetto non ce l'hanno per definizione.
+ */
+function projectLabelOf(t: WLTask, projectById: Map<string, WLProject>): string {
+  if (t.project_id) return projectById.get(t.project_id)?.name ?? '—'
+  if (t.client_id) return `${t.client_name ?? 'Cliente'} — ad hoc`
+  return 'Personale'
+}
+
 const dISO = (iso: string) => new Date(iso + 'T00:00:00')
 const fmtRange = (a: string, b: string) =>
   `${dISO(a).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })} – ${dISO(b).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: '2-digit' })}`
@@ -95,7 +105,7 @@ export function WorkloadClient({
   const multiMap = useMemo(() => new Map(Object.entries(multiAssignees)), [multiAssignees])
   const projectById = useMemo(() => new Map(projects.map(p => [p.id, p])), [projects])
   const managedSet = useMemo(() => new Set(managedProjectIds), [managedProjectIds])
-  const canEditProject = (pid: string) => canEditAll || managedSet.has(pid)
+  const canEditProject = (pid: string | null) => canEditAll || (pid !== null && managedSet.has(pid))
 
   const filters: WLFilters = useMemo(() => {
     const win = periodWindow(period)
@@ -144,7 +154,7 @@ export function WorkloadClient({
       if (!t.due_date) issues.push('senza scadenza')
       if (t.due_date && t.due_date < todayStr) issues.push('scaduta')
       if (issues.length) out.push({
-        title: t.title, project: projectById.get(t.project_id)?.name ?? '—',
+        title: t.title, project: projectLabelOf(t, projectById),
         due_date: t.due_date, estimated_hours: t.estimated_hours,
         owner: owners[0] ? (resName.get(owners[0]) ?? null) : null, issue: issues.join(', '),
       })
@@ -261,7 +271,7 @@ function EffortForecast({ buckets, capacity, windows, signals, needsAttention, t
   projectById: Map<string, WLProject>
   resourceById: Map<string, WLResource>
   multiMap: Map<string, string[]>
-  canEditProject: (pid: string) => boolean
+  canEditProject: (pid: string | null) => boolean
 }) {
   const [aiLoading, setAiLoading] = useState(false)
   const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[] | null>(null)
@@ -469,7 +479,7 @@ function EffortForecast({ buckets, capacity, windows, signals, needsAttention, t
           ) : (
             <ul className="space-y-1 max-h-60 overflow-y-auto">
               {weekTasks.map(t => {
-                const proj = projectById.get(t.project_id)
+                const proj = t.project_id ? projectById.get(t.project_id) : undefined
                 const owners = (multiMap.get(t.id) ?? (t.assignee_id ? [t.assignee_id] : [])).map(id => resourceById.get(id)?.full_name.split(' ')[0] ?? '—')
                 const canEdit = canEditProject(t.project_id)
                 return (
@@ -642,7 +652,7 @@ function ProjectsView({ loads, tasksByProject, sprints, resources, multiMap, can
   sprints: WLSprint[]
   resources: WLResource[]
   multiMap: Map<string, string[]>
-  canEditProject: (pid: string) => boolean
+  canEditProject: (pid: string | null) => boolean
   resourceById: Map<string, WLResource>
 }) {
   if (loads.length === 0) {
@@ -862,7 +872,7 @@ function ResourceCard({ load: l, tasks, projectById }: {
                   t.status === 'in_corso' ? 'bg-warning' : t.status === 'in_revisione' ? 'bg-accent' : 'bg-text-tertiary'
                 }`} aria-hidden="true" />
                 <span className="flex-1 min-w-0 text-xs text-text-primary truncate">{t.title}</span>
-                <span className="text-2xs text-text-tertiary truncate max-w-[10rem]">{projectById.get(t.project_id)?.name ?? '—'}</span>
+                <span className="text-2xs text-text-tertiary truncate max-w-[10rem]">{projectLabelOf(t, projectById)}</span>
                 <span className="text-2xs text-text-tertiary shrink-0">{STATUS_LABEL[t.status] ?? t.status}</span>
                 {t.due_date && (
                   <span className={`text-2xs tabular shrink-0 ${overdue ? 'text-error' : 'text-text-tertiary'}`}>

@@ -1,6 +1,7 @@
 'use client'
 
-import type { Client, Project, Sprint, Task, ClientKpi, MeetingNote } from '@/lib/types/database'
+import type { Client, Project, Task, ClientKpi, MeetingNote } from '@/lib/types/database'
+import type { Workstream, Milestone } from '@/components/projects/board/types'
 import { clientName as displayName } from '@/lib/utils'
 import { CalendarAgenda } from '@/components/shared/CalendarAgenda'
 import { ProgettiAttivi } from './PanoramicaTab'
@@ -8,10 +9,11 @@ import { ProgettiAttivi } from './PanoramicaTab'
 // §14 — Tab "Progetti attivi": la vista ricca dei progetti (spostata dalla Panoramica)
 // + l'agenda REALE del cliente, presa dal calendario (non più dalle sole meeting_notes).
 
-export function ProgettiAttiviTab({ client, projects, sprints, tasks, kpis, meetings, hideEconomics = false }: {
+export function ProgettiAttiviTab({ client, projects, workstreams, milestones, tasks, kpis, meetings, hideEconomics = false }: {
   client: Client
   projects: Project[]
-  sprints: Sprint[]
+  workstreams: Workstream[]
+  milestones: Milestone[]
   tasks: Task[]
   kpis: ClientKpi[]
   meetings: MeetingNote[]
@@ -27,7 +29,8 @@ export function ProgettiAttiviTab({ client, projects, sprints, tasks, kpis, meet
       <ProgettiAttivi
         projects={projects}
         tasks={tasks}
-        sprints={sprints}
+        workstreams={workstreams}
+        milestones={milestones}
         kpis={kpis}
         clientId={client.id}
         hideEconomics={hideEconomics}

@@ -64,6 +64,18 @@ export async function fetchWorkloadData(
     tasks = (taskRows ?? []) as WLTask[]
     sprints = (sprintRows ?? []) as WLSprint[]
 
+    // Ad hoc di cliente: nessun progetto, ma occupano una risorsa esattamente
+    // come le altre. Senza questa query il carico di chi le esegue è sottostimato.
+    // Le personali (scope_type='personal') restano fuori: non sono lavoro di team.
+    const { data: adHocRows } = await sb.from('tasks')
+      .select('id, title, status, priority, due_date, start_date, estimated_hours, logged_hours, assignee_id, project_id, client_id, scope_type, work_type, is_milestone, milestone_id, client:clients(company_name)')
+      .eq('scope_type', 'client')
+      .is('deleted_at', null)
+
+    const adHoc: WLTask[] = ((adHocRows ?? []) as unknown as (WLTask & { client: { company_name: string } | null })[])
+      .map(t => ({ ...t, client_name: t.client?.company_name ?? null }))
+    tasks = tasks.concat(adHoc)
+
     const taskIds = tasks.map(t => t.id)
     if (taskIds.length > 0) {
       // in blocchi per non esplodere l'URL su liste lunghe
@@ -86,17 +98,27 @@ export async function fetchWorkloadData(
     const involved = new Set<string>(managedProjectIds)
     for (const t of tasks) {
       const assignees = multiAssignees[t.id] ?? (t.assignee_id ? [t.assignee_id] : [])
-      if (assignees.includes(restrictToUserId)) involved.add(t.project_id)
+      if (assignees.includes(restrictToUserId) && t.project_id) involved.add(t.project_id)
     }
     projects = allProjects.filter(p => involved.has(p.id))
     const keep = new Set(projects.map(p => p.id))
-    tasks = tasks.filter(t => keep.has(t.project_id))
+    // Delle ad hoc, nel workspace, restano solo quelle assegnate all'utente:
+    // sono visibili a tutto il team ma nel "mio carico" non c'entrano quelle altrui.
+    tasks = tasks.filter(t => {
+      if (t.project_id) return keep.has(t.project_id)
+      const assignees = multiAssignees[t.id] ?? (t.assignee_id ? [t.assignee_id] : [])
+      return assignees.includes(restrictToUserId)
+    })
     sprints = sprints.filter(s => keep.has(s.project_id))
   }
 
   const resources: WLResource[] = (resRes.data ?? []) as WLResource[]
   const clientMap = new Map<string, string>()
   for (const p of projects) clientMap.set(p.client_id, p.client_name)
+  // Un cliente con sole ad hoc e nessun progetto deve comunque comparire nel filtro.
+  for (const t of tasks) {
+    if (!t.project_id && t.client_id) clientMap.set(t.client_id, t.client_name ?? 'Cliente')
+  }
   const clients = Array.from(clientMap.entries())
     .map(([id, name]) => ({ id, name }))
     .sort((a, b) => a.name.localeCompare(b.name))

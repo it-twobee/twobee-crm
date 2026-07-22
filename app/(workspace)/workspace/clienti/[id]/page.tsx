@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import { ClientPageClient } from '@/components/clients/ClientPageClient'
 import type { Client, ClientContact, Project, Sprint, Task, MeetingNote, ClientKpi, Profile, ClientStakeholder, Document, ClientInteraction } from '@/lib/types/database'
+import type { Workstream, Milestone } from '@/components/projects/board/types'
 
 export const revalidate = 0
 
@@ -40,9 +41,13 @@ export default async function WorkspaceClientePage({ params }: Props) {
 
   const projectIds = (projects ?? []).map((p: Project) => p.id)
 
-  const [{ data: sprints }, { data: tasks }, { data: meetings }, { data: kpis }, { count: openTickets }] = await Promise.all([
+  // Gerarchia V2: stesse entità dell'admin, filtrate dalle RLS del workspace.
+  const [{ data: workstreams }, { data: milestones }, { data: tasks }, { data: meetings }, { data: kpis }, { count: openTickets }] = await Promise.all([
     projectIds.length > 0
-      ? supabase.from('sprints').select('*').in('project_id', projectIds).order('start_date')
+      ? supabase.from('project_workstreams').select('*').in('project_id', projectIds).order('position')
+      : Promise.resolve({ data: [] }),
+    projectIds.length > 0
+      ? supabase.from('workstream_milestones').select('*').in('project_id', projectIds).order('sort_order')
       : Promise.resolve({ data: [] }),
     projectIds.length > 0
       ? supabase.from('tasks').select('*, assignee:profiles!tasks_assignee_id_fkey(id, full_name, avatar_url)').in('project_id', projectIds).is('parent_task_id', null).order('created_at', { ascending: false })
@@ -73,7 +78,8 @@ export default async function WorkspaceClientePage({ params }: Props) {
       client={client as Client}
       contacts={(contacts ?? []) as ClientContact[]}
       projects={(projects ?? []) as Project[]}
-      sprints={(sprints ?? []) as Sprint[]}
+      workstreams={(workstreams ?? []) as unknown as Workstream[]}
+      milestones={(milestones ?? []) as unknown as Milestone[]}
       tasks={(tasks ?? []) as Task[]}
       meetings={(meetings ?? []) as MeetingNote[]}
       kpis={(kpis ?? []) as ClientKpi[]}

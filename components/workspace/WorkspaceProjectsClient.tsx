@@ -7,6 +7,7 @@ import {
   LayoutGrid, AlignLeft, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { NewProjectButton } from '@/components/projects/NewProjectButton'
 
 interface TaskMeta {
   id: string
@@ -60,7 +61,11 @@ interface Props {
 type ViewMode = 'cards' | 'timeline'
 type TimeGrain = 'day' | 'month'
 
-export function WorkspaceProjectsClient({ projects }: Props) {
+export function WorkspaceProjectsClient({ projects, canCreate = false, clients = [], profiles = [] }: Props & {
+  canCreate?: boolean
+  clients?: { id: string; company_name: string }[]
+  profiles?: { id: string; full_name: string | null }[]
+}) {
   const [search, setSearch] = useState('')
   const [kind, setKind]     = useState('tutti')
   const [view, setView]     = useState<ViewMode>('cards')
@@ -81,6 +86,9 @@ export function WorkspaceProjectsClient({ projects }: Props) {
           <p className="text-text-tertiary text-sm mt-0.5">{projects.length} progett{projects.length === 1 ? 'o' : 'i'} attiv{projects.length === 1 ? 'o' : 'i'} in totale</p>
         </div>
         <div className="flex items-center gap-2">
+          {canCreate && (
+            <NewProjectButton clients={clients} profiles={profiles} isAdmin={false} />
+          )}
           <select
             value={kind}
             onChange={e => setKind(e.target.value)}

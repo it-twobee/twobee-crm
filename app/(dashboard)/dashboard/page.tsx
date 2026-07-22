@@ -13,6 +13,9 @@ import type { FocusItem } from '@/components/dashboard/DailyFocus'
 import type { MonthRevenue } from '@/components/dashboard/RevenueSnapshot'
 import type { ProjectSummary } from '@/components/dashboard/ProgettiWidget'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
+import { totalMrr } from '@/lib/revenue'
+import { NewProjectButton } from '@/components/projects/NewProjectButton'
+import type { AdminRevenueScorecards } from '@/lib/types/database'
 import { Crown } from 'lucide-react'
 
 export const revalidate = 60
@@ -267,7 +270,24 @@ export default async function DashboardPage() {
   // Aggrega risultati
   // ═══════════════════════════════════════════════════════════════
   const externalClients = clients.filter(c => !c.is_internal)
-  const mrr             = externalClients.reduce((s, c) => s + (c.mrr ?? 0), 0)
+  const mrr             = totalMrr(clients)
+
+  // Scorecard economiche e linee reali. Tutte e tre degradano a `null` senza
+  // rompere la dashboard: la RPC rifiuta i non-admin, e la VIEW non esiste
+  // finché la 123 non è applicata.
+  const [scorecardsRes, linesRes] = await Promise.all([
+    isAdminLevel
+      ? supabase.rpc('admin_revenue_scorecards').single()
+      : Promise.resolve({ data: null, error: null }),
+    supabase.from('client_service_lines').select('client_id, active_lines'),
+  ])
+
+  const revenueScorecards = (scorecardsRes.error ? null : scorecardsRes.data) as AdminRevenueScorecards | null
+  const mrrByLine = revenueScorecards?.recurring_by_line ?? null
+  const linesByClient = linesRes.error ? null : Object.fromEntries(
+    ((linesRes.data ?? []) as { client_id: string; active_lines: string[] | null }[])
+      .map(r => [r.client_id, r.active_lines ?? []])
+  )
   const clientsAtRisk   = externalClients.filter(c => c.client_label === 'in_bilico').length
   const clientsLost     = externalClients.filter(c => c.client_label === 'perso').length
   const tasks           = tasksResult.data as TaskWithAssignee[] ?? []
@@ -425,6 +445,9 @@ export default async function DashboardPage() {
     tasks,
     clients,
     mrr,
+    revenueScorecards,
+    mrrByLine,
+    linesByClient,
     revenueMonths,
     projectSummaries,
     allProfiles,
@@ -458,12 +481,21 @@ export default async function DashboardPage() {
             {!isAdminLevel && ` · ${clients.length} clienti assegnati`}
           </p>
         </div>
-        {isGod && (
-          <div className="flex items-center gap-1.5 bg-gold/[0.08] border border-gold/[0.15] rounded-xl px-3 py-1.5">
-            <Crown className="w-3.5 h-3.5 text-gold-text" />
-            <span className="text-xs font-black text-gold-text">GOD MODE</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {isAdminLevel && (
+            <NewProjectButton
+              clients={clients.filter(c => !c.is_internal).map(c => ({ id: c.id, company_name: c.company_name }))}
+              profiles={allProfiles.map(p => ({ id: p.id, full_name: p.full_name }))}
+              isAdmin={isGod || appRole === 'admin'}
+            />
+          )}
+          {isGod && (
+            <div className="flex items-center gap-1.5 bg-gold/[0.08] border border-gold/[0.15] rounded-xl px-3 py-1.5">
+              <Crown className="w-3.5 h-3.5 text-gold-text" />
+              <span className="text-xs font-black text-gold-text">GOD MODE</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── ADMIN: Dashboard modulare drag/resize/collapse ── */}

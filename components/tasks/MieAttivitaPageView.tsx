@@ -16,7 +16,7 @@ export async function MieAttivitaPageView() {
     project:projects(id, name, client_id, clients(company_name))
   `
 
-  const [ownedRes, assignedRes, profileRes, profilesRes, projectsRes] = await Promise.all([
+  const [ownedRes, assignedRes, profileRes, profilesRes, projectsRes, clientsRes] = await Promise.all([
     supabase.from('tasks').select(taskSelect)
       .eq('assignee_id', user.id)
       .is('parent_task_id', null)
@@ -33,6 +33,7 @@ export async function MieAttivitaPageView() {
     supabase.from('profiles').select('*').eq('id', user.id).single(),
     supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true).order('full_name'),
     supabase.from('projects').select('id, name, clients(company_name)').eq('status', 'attivo').order('name'),
+    supabase.from('clients').select('id, company_name').order('company_name'),
   ])
 
   const ownedTasks = (ownedRes.data ?? []) as Parameters<typeof MieAttivitaClient>[0]['tasks']
@@ -43,12 +44,20 @@ export async function MieAttivitaPageView() {
   const projects = ((projectsRes.data ?? []) as unknown as { id: string; name: string; clients: { company_name: string } | null }[])
     .map(p => ({ id: p.id, name: p.name, company_name: p.clients?.company_name ?? null }))
 
+  const me = profileRes.data as Profile | null
+  const role = (me as { role?: string } | null)?.role
+  const appRole = me?.app_role
+  const canCreateProject = role === 'admin' || appRole === 'manager'
+
   return (
     <MieAttivitaClient
       tasks={merged}
       profile={profileRes.data as Profile}
       profiles={(profilesRes.data ?? []) as Pick<Profile, 'id' | 'full_name' | 'avatar_url'>[]}
       projects={projects}
+      clients={(clientsRes.data ?? []) as { id: string; company_name: string }[]}
+      canCreateProject={canCreateProject}
+      isAdmin={role === 'admin'}
     />
   )
 }

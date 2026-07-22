@@ -17,6 +17,7 @@ import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { deleteClient } from '@/app/actions/delete-client'
 import { PrioritaOggi } from './PrioritaOggi'
 import type { ClientTaskStats } from '@/lib/client-task-stats'
+import { ServiceLineBadges } from './ServiceLineBadges'
 
 interface ClientiListProps {
   clients: Client[]
@@ -25,6 +26,9 @@ interface ClientiListProps {
   hideEconomics?: boolean
   /** Task aperte per cliente (chiave = client.id) — colonna "Task" color-coded. */
   taskStats?: Record<string, ClientTaskStats>
+  /** Linee di servizio reali per cliente (VIEW client_service_lines). Assente = si
+   *  ripiega su `client_type`, l'etichetta storica scritta a mano. */
+  linesByClient?: Record<string, string[]>
 }
 
 /** Badge task rimanenti: rosso se ci sono scaduti, arancione se imminenti, giallo altrimenti. */
@@ -62,18 +66,17 @@ const labelBadge: Record<string, string> = {
   partner: 'bg-gold/20 text-gold-text',
 }
 const labelIcon: Record<string, string> = { stabile: '✅', in_bilico: '⚠️', perso: '❌', partner: '🤝' }
-const typeBadge: Record<string, string> = {
-  growth: 'bg-gold/15 text-gold-text',
-  digital: 'bg-info/15 text-info',
-  growth_digital: 'bg-accent/15 text-accent',
-}
+// I colori delle linee di servizio vivono in ServiceLineBadges: unica fonte,
+// così il badge del cliente e quello della lista non divergono.
 
-type PortfolioTab = 'tutti' | 'growth' | 'digital' | 'growth_digital' | 'interni'
+type PortfolioTab = 'tutti' | 'growth' | 'digital' | 'marketing' | 'interni'
 const PORTFOLIO_TABS: { key: PortfolioTab; label: string; emoji: string }[] = [
   { key: 'tutti',          label: 'Tutti',          emoji: '🗂️' },
   { key: 'growth',         label: 'Growth',         emoji: '📈' },
   { key: 'digital',        label: 'Digital',        emoji: '💻' },
-  { key: 'growth_digital', label: 'Growth+Digital', emoji: '⚡' },
+  // Non serve più un tab "Growth+Digital": con le linee reali un cliente compare
+  // in entrambi i tab se ha entrambi gli accordi.
+  { key: 'marketing',      label: 'Marketing',      emoji: '🎨' },
   { key: 'interni',        label: 'Interni',        emoji: '🏢' },
 ]
 
@@ -193,7 +196,16 @@ function SortValue(c: Client, key: SortKey): string | number {
 const STORAGE_PINS = 'twobee_pinned_clients'
 const STORAGE_PIN_ORDER = 'twobee_pinned_order'
 
-export function ClientiList({ clients: initialClients, currentProfile, hideEconomics = false, taskStats = {} }: ClientiListProps) {
+export function ClientiList({ clients: initialClients, currentProfile, hideEconomics = false, taskStats = {}, linesByClient }: ClientiListProps) {
+  /** Linee reali del cliente; `undefined` se la VIEW non è disponibile. */
+  const linesOf = (c: Client): string[] | undefined => linesByClient?.[c.id]
+  /** Il cliente appartiene a una linea? Usa gli accordi reali, con fallback su client_type. */
+  const hasLine = (c: Client, line: string): boolean => {
+    const lines = linesOf(c)
+    if (lines) return lines.includes(line)
+    return c.client_type === line || (c.client_type === 'growth_digital' && (line === 'growth' || line === 'digital'))
+  }
+
   const canSeeMrr = !hideEconomics && (!currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || ['admin', 'manager'].includes(currentProfile.app_role ?? ''))
   const canCreateClient = !hideEconomics && (!currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || ['admin', 'manager'].includes(currentProfile.app_role ?? ''))
   const showPayments = !hideEconomics
@@ -302,11 +314,11 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
     const matchSearch = c.company_name.toLowerCase().includes(search.toLowerCase())
     const matchPackage = filterPackage === ALL || c.package === filterPackage
     const matchPayment = filterPayment === ALL || c.payment_status === filterPayment
-    const matchType = filterType === ALL || c.client_type === filterType
+    const matchType = filterType === ALL || hasLine(c, filterType)
     const matchLabel = filterLabel === ALL || c.client_label === filterLabel
     const matchMrrMin = filterMrrMin === '' || c.mrr >= parseFloat(filterMrrMin)
     const matchMrrMax = filterMrrMax === '' || c.mrr <= parseFloat(filterMrrMax)
-    const matchPortfolio = portfolioTab === 'tutti' || (portfolioTab === 'interni' ? c.is_internal : c.client_type === portfolioTab)
+    const matchPortfolio = portfolioTab === 'tutti' || (portfolioTab === 'interni' ? c.is_internal : hasLine(c, portfolioTab))
     return matchSearch && matchPackage && matchPayment && matchType && matchLabel && matchMrrMin && matchMrrMax && matchPortfolio
   })
 
@@ -394,9 +406,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
               {clientName(client)}
             </Link>
             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-              <span className={`inline-flex items-center whitespace-nowrap text-2xs font-semibold px-1.5 py-0.5 rounded ${typeBadge[client.client_type ?? 'growth']}`}>
-                {client.client_type === 'growth_digital' ? 'G+D' : (client.client_type ?? 'growth')}
-              </span>
+              <ServiceLineBadges lines={linesOf(client)} fallback={client.client_type} />
               <span className={`inline-flex items-center gap-1 whitespace-nowrap text-2xs font-semibold px-1.5 py-0.5 rounded ${labelBadge[client.client_label ?? 'stabile']}`}>
                 {labelIcon[client.client_label ?? 'stabile']} {(client.client_label ?? 'stabile').replace('_', ' ')}
               </span>
@@ -500,9 +510,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
         </div>
       </td>
       <td className="px-4 py-3.5">
-        <span className={`inline-flex items-center whitespace-nowrap text-xs font-semibold px-2 py-0.5 rounded ${typeBadge[client.client_type ?? 'growth']}`}>
-          {client.client_type === 'growth_digital' ? 'G+D' : (client.client_type ?? 'growth')}
-        </span>
+        <ServiceLineBadges lines={linesOf(client)} fallback={client.client_type} />
       </td>
       <td className="px-4 py-3.5">
         <span className={`inline-flex items-center gap-1 whitespace-nowrap text-xs font-semibold px-2 py-0.5 rounded ${labelBadge[client.client_label ?? 'stabile']}`}>
@@ -603,7 +611,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
                 portfolioTab === tab.key
                   ? tab.key === 'growth'         ? 'bg-gold/10 text-gold-text border-gold/30'
                   : tab.key === 'digital'        ? 'bg-info/10 text-info border-info/30'
-                  : tab.key === 'growth_digital' ? 'bg-accent/10 text-accent border-accent/30'
+                  : tab.key === 'marketing'      ? 'bg-accent/10 text-accent border-accent/30'
                   : 'bg-overlay/5 text-text-primary border-overlay/10'
                   : 'bg-transparent text-text-secondary border-border hover:border-border-strong hover:text-text-primary'
               }`}>

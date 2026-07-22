@@ -19,6 +19,8 @@ import { WorkloadPanel }    from './WorkloadPanel'
 import { SmartInsights }    from './SmartInsights'
 import { AIDashboardChat }  from './AIDashboardChat'
 import { MarginRadar }      from './MarginRadar'
+import { RevenueScorecards } from './RevenueScorecards'
+import type { AdminRevenueScorecards } from '@/lib/types/database'
 import { FinancialControl } from './FinancialControl'
 import { SalesPipeline }    from './SalesPipeline'
 import { AIExecutiveBrief } from './AIExecutiveBrief'
@@ -51,6 +53,12 @@ export interface DashboardData {
   tasks: TaskWithAssignee[]
   clients: Client[]
   mrr: number
+  /** Otto scorecard economiche dalla RPC `admin_revenue_scorecards`. Null se non admin. */
+  revenueScorecards: AdminRevenueScorecards | null
+  /** MRR per linea di servizio, dagli accordi reali. Null se la 123 non è applicata. */
+  mrrByLine: Record<string, number> | null
+  /** Linee attive per cliente (VIEW client_service_lines). */
+  linesByClient: Record<string, string[]> | null
   revenueMonths: MonthRevenue[]
   projectSummaries: ProjectSummary[]
   allProfiles: Profile[]
@@ -89,6 +97,7 @@ interface WidgetDef {
 
 const WIDGET_DEFS: WidgetDef[] = [
   { id: 'metrics',  label: 'Metriche',             emoji: '📊', href: '/dashboard' },
+  { id: 'scorecards', label: 'Scorecard economiche', emoji: '💶', href: '/controllo-gestione', span: 'full' },
   { id: 'focus',    label: 'Focus di oggi',         emoji: '☀️', href: '/le-mie-attivita' },
   { id: 'alerts',   label: 'Alert',                 emoji: '⚠️', href: '/dashboard' },
   { id: 'tasks',    label: 'Task Settimana',        emoji: '✅', href: '/le-mie-attivita' },
@@ -140,7 +149,7 @@ const TEMPLATES: Template[] = [
     emoji: '📊',
     desc: 'Visione finanziaria: revenue, pipeline, margini e fatturazione.',
     color: 'var(--color-success)',
-    widgets: ['metrics', 'revenue', 'financial', 'pipeline', 'margin', 'aibrief', 'risk', 'kpiperf'],
+    widgets: ['scorecards', 'metrics', 'revenue', 'financial', 'pipeline', 'margin', 'aibrief', 'risk', 'kpiperf'],
   },
   {
     id: 'full',
@@ -350,6 +359,10 @@ export function DashboardGrid({ data, initialConfig }: { data: DashboardData; in
     focus:    <DailyFocus items={data.focusItems.slice(0, 5)} name={data.greetingName} />,
     alerts:   <AlertCenter alerts={data.alerts.slice(0, 8)} />,
     metrics:  <MetricCards mrr={data.mrr} clientsCount={data.clients.length} clientsAtRisk={data.clientsAtRisk} tasksDueSoon={data.tasks.length} invoicesPending={data.invoicesPending} />,
+    // Assente se la RPC non è disponibile (non admin, o migration 127 non applicata).
+    scorecards: data.revenueScorecards
+      ? <div className="p-3"><RevenueScorecards data={data.revenueScorecards} /></div>
+      : <div className="p-5 text-sm text-text-secondary">Scorecard economiche non disponibili.</div>,
     revenue:  <RevenueChart months={data.revenueMonths} currentMrr={data.mrr} />,
     tasks:    <TasksDue tasks={data.tasks} />,
     projects: <ProgettiWidget projects={data.projectSummaries.slice(0, 6)} />,
@@ -357,7 +370,7 @@ export function DashboardGrid({ data, initialConfig }: { data: DashboardData; in
     pulse:    <CompanyPulse areas={pulseAreas} />,
     workload: <WorkloadPanel profiles={data.allProfiles} tasks={data.allActiveTasks} />,
     insights: <SmartInsights clients={data.clients} totalMrr={data.mrr} />,
-    margin:   <MarginRadar clients={data.clients} />,
+    margin:   <MarginRadar clients={data.clients} mrrByLine={data.mrrByLine} linesByClient={data.linesByClient} />,
     financial:<FinancialControl summary={data.financialSummary} />,
     pipeline: <SalesPipeline deals={data.dealsFull} />,
     decision: <DecisionCenter decisions={data.decisions} />,

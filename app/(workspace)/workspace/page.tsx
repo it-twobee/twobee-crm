@@ -7,8 +7,7 @@ import { isAdminRole, isSuperAdminRaw, isExternalResource } from '@/lib/permissi
 import { RequestInbox } from '@/components/tasks/RequestInbox'
 import { WorkspaceTaskList } from '@/components/tasks/WorkspaceTaskList'
 import { WorkspaceQuickCreate } from '@/components/workspace/WorkspaceQuickCreate'
-import type { Profile } from '@/lib/types/database'
-import { createAdminClient } from '@/lib/supabase/admin'
+import type { Profile, WorkspaceRevenueSummary } from '@/lib/types/database'
 import { formatCurrency } from '@/lib/utils'
 import { TrendingUp, Euro } from 'lucide-react'
 
@@ -100,15 +99,15 @@ export default async function WorkspaceDashboardPage() {
   const canEditTasks = !isExternalResource(profile?.app_role)
 
   // §6.4: aggregati strategici consentiti al Workspace (MRR macro + fatturato totale).
-  // Calcolati via service role come SOMMA — mai per-cliente (i dettagli restano vietati).
-  const adminSb = createAdminClient()
-  const yearStart = `${new Date().getFullYear()}-01-01`
-  const [mrrAgg, invAgg] = await Promise.all([
-    adminSb.from('clients').select('mrr').neq('client_label', 'perso'),
-    adminSb.from('invoices').select('amount').eq('invoice_type', 'fattura').eq('status', 'pagata').gte('month', yearStart),
-  ])
-  const totalMrr = ((mrrAgg.data ?? []) as { mrr: number | null }[]).reduce((s, r) => s + (Number(r.mrr) || 0), 0)
-  const totalInvoicedYtd = ((invAgg.data ?? []) as { amount: number | null }[]).reduce((s, r) => s + (Number(r.amount) || 0), 0)
+  // L'aggregazione vive nella RPC `workspace_revenue_summary` (SECURITY DEFINER +
+  // guardia is_staff()): al client arriva solo la somma, e la barriera non dipende
+  // più dal fatto che nessuno allarghi una select con il service role.
+  const { data: revSummary } = await supabase.rpc('workspace_revenue_summary').single()
+  const revenue = (revSummary ?? null) as WorkspaceRevenueSummary | null
+  const totalMrr = Number(revenue?.total_mrr ?? 0)
+  const totalInvoicedYtd = Number(revenue?.revenue_ytd ?? 0)
+  const annualTarget = revenue?.annual_target != null ? Number(revenue.annual_target) : null
+  const targetProgress = revenue?.target_progress != null ? Number(revenue.target_progress) : null
 
   const STATUS_COLOR: Record<string, string> = {
     da_fare: 'text-text-tertiary',
@@ -200,7 +199,20 @@ export default async function WorkspaceDashboardPage() {
             <Euro className="w-4 h-4 text-success" />
           </div>
           <p className="text-2xl font-bold text-text-primary">{formatCurrency(totalInvoicedYtd)}</p>
-          <p className="text-2xs text-text-tertiary mt-0.5">Totale incassato quest'anno</p>
+          <p className="text-2xs text-text-tertiary mt-0.5">Incassato al netto IVA, note di credito sottratte</p>
+          {annualTarget != null && (
+            <div className="mt-3">
+              <div className="h-1.5 w-full rounded-full bg-surface-active overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-success"
+                  style={{ width: `${Math.min(100, Math.max(0, (targetProgress ?? 0) * 100))}%` }}
+                />
+              </div>
+              <p className="text-2xs text-text-tertiary mt-1.5">
+                {Math.round((targetProgress ?? 0) * 100)}% dell&apos;obiettivo {formatCurrency(annualTarget)}
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

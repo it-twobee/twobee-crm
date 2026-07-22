@@ -38,5 +38,14 @@ export default async function ClientiPage() {
 
   const taskStats = await fetchClientTaskStats(supabase, clients.map(c => c.id))
 
-  return <ClientiList clients={clients} currentProfile={profile as Profile} taskStats={taskStats} />
+  // Linee di servizio reali, derivate dagli accordi economici (migration 123).
+  // `undefined` se la VIEW non esiste ancora: i badge ripiegano su client_type.
+  const { data: linesRows, error: linesError } = await supabase
+    .from('client_service_lines').select('client_id, active_lines')
+  const linesByClient = linesError ? undefined : Object.fromEntries(
+    ((linesRows ?? []) as { client_id: string; active_lines: string[] | null }[])
+      .map(r => [r.client_id, r.active_lines ?? []])
+  )
+
+  return <ClientiList clients={clients} currentProfile={profile as Profile} taskStats={taskStats} linesByClient={linesByClient} />
 }

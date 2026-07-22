@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft, Edit3, Check, X, ChevronDown, Loader2 } from 'lucide-react'
 import { formatCurrency, formatDate, getPaymentBadge } from '@/lib/utils'
 import type { Client, ClientContact, Project, Sprint, Task, MeetingNote, ClientKpi, Profile, Invoice, ClientStakeholder, Document, ClientInteraction } from '@/lib/types/database'
+import type { Workstream, Milestone } from '@/components/projects/board/types'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { ProgettiAttiviTab } from './tabs/ProgettiAttiviTab'
 import { ContextualCreate } from '@/components/shared/ContextualCreate'
@@ -16,6 +17,9 @@ import { DocumentsTab } from './tabs/DocumentsTab'
 import { PanoramicaTab } from './tabs/PanoramicaTab'
 import { RelazioneTab } from './tabs/RelazioneTab'
 import { ClientKnowledgeTab } from './tabs/ClientKnowledgeTab'
+import { AccordiEconomiciTab } from './tabs/AccordiEconomiciTab'
+import { ClientAdHocPanel } from './ClientAdHocPanel'
+import { ServiceLineBadges } from './ServiceLineBadges'
 import { ClientAlertBanner } from './ClientAlertBanner'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -24,7 +28,8 @@ interface Props {
   client: Client
   contacts: ClientContact[]
   projects: Project[]
-  sprints: Sprint[]
+  workstreams: Workstream[]
+  milestones: Milestone[]
   tasks: Task[]
   meetings: MeetingNote[]
   kpis: ClientKpi[]
@@ -38,6 +43,9 @@ interface Props {
   allProfiles: Profile[]
   openTickets: number
   initialTab?: number
+  /** Linee di servizio REALI, derivate dagli accordi economici attivi (VIEW client_service_lines).
+   *  Sostituisce `client_type`, che è un'etichetta a mano e diverge dalla realtà. */
+  activeLines?: string[]
   /** Portale operativo: oscura MRR, Fatturazione, pagamenti — resta gestibile tutto il resto (progetti, task, documenti…) */
   hideEconomics?: boolean
   backHref?: string
@@ -203,9 +211,9 @@ function InlineNumberField({ value, field, clientId, canEdit, prefix = '', suffi
 }
 
 export function ClientPageClient({
-  client, contacts, projects, sprints, tasks, meetings, kpis, kpiConfigs,
+  client, contacts, projects, workstreams, milestones, tasks, meetings, kpis, kpiConfigs,
   teamMembers, stakeholders, invoices, documents, interactions, currentProfile, allProfiles,
-  openTickets, initialTab, hideEconomics = false, backHref = '/clienti'
+  openTickets, initialTab, activeLines, hideEconomics = false, backHref = '/clienti'
 }: Props) {
   const isAdmin = SUPER_ADMIN_EMAILS.includes(currentProfile?.email ?? '') || currentProfile?.app_role === 'admin'
   const isAdminLevel = isAdmin || currentProfile?.app_role === 'manager'
@@ -219,7 +227,10 @@ export function ClientPageClient({
     // §14: sezione autonoma fra Panoramica e KPI (indice 7: gli altri non si spostano)
     { label: 'Progetti attivi', index: 7 },
     { label: 'KPI & Performance', index: 1 },
+    { label: 'Attività ad hoc', index: 9 },
     ...(canSeeFatturazione ? [{ label: 'Fatturazione', index: 2 }] : []),
+    // Accordi economici: solo admin (revenue_streams è admin-only in RLS).
+    ...(isAdmin && !hideEconomics ? [{ label: 'Accordi economici', index: 8 }] : []),
     { label: 'Documenti', index: 3 },
     ...(canSeeAnagrafica ? [{ label: 'Anagrafica', index: 4 }] : []),
     ...(isAdminLevel ? [{ label: 'Relazione', index: 5 }] : []),
@@ -256,14 +267,9 @@ export function ClientPageClient({
                 <InlineTextField value={client.display_name ?? client.company_name} field="display_name" clientId={client.id}
                   canEdit={isAdmin} className="text-2xl font-black text-text-primary" />
               </h1>
-              <InlineBadgeSelect value={client.client_type ?? 'growth'} options={['growth','digital','growth_digital']} field="client_type"
-                clientId={client.id} canEdit={isAdmin}
-                labelFn={v => v === 'growth_digital' ? 'Growth + Digital' : v}
-                badgeClass={v =>
-                  v === 'growth'         ? 'bg-gold/15 text-gold-text border-gold/30' :
-                  v === 'growth_digital' ? 'bg-accent/15 text-accent border-accent/30' :
-                                           'bg-info/15 text-info border-info/30'
-                } />
+              {/* Linee di servizio derivate dagli accordi attivi: non più un'etichetta
+                  scelta a mano, che non sapeva esprimere Growth + Digital + Marketing. */}
+              <ServiceLineBadges lines={activeLines} fallback={client.client_type} />
               <InlineBadgeSelect value={client.client_label ?? 'stabile'} options={labelOptions} field="client_label"
                 clientId={client.id} canEdit={isAdmin}
                 badgeClass={v => labelBadge[v] ?? 'border-border text-text-secondary bg-transparent'} />
@@ -309,6 +315,10 @@ export function ClientPageClient({
             clientId: client.id,
             clientName: clientName(client),
             projects: projects.filter(p => p.status === 'attivo').map(p => ({ id: p.id, name: p.name })),
+          }} wizardData={{
+            clients: [{ id: client.id, company_name: clientName(client) }],
+            profiles: allProfiles.map(p => ({ id: p.id, full_name: p.full_name })),
+            isAdmin,
           }} />
         </div>
       </div>
@@ -329,13 +339,13 @@ export function ClientPageClient({
       <div className="flex-1 overflow-y-auto p-6">
         {activeTab === 0 && (
           <PanoramicaTab client={client} tasks={tasks} invoices={invoices} kpis={kpis} projects={projects}
-            sprints={sprints} meetings={meetings} allProfiles={allProfiles}
+            workstreams={workstreams} milestones={milestones} meetings={meetings} allProfiles={allProfiles}
             teamMembers={teamMembers} interactions={interactions} isAdmin={isAdmin} openTickets={openTickets}
             onTabChange={setActiveTab} hideEconomics={hideEconomics} />
         )}
         {/* §14: Progetti attivi — vista ricca + agenda dal calendario reale */}
         {activeTab === 7 && (
-          <ProgettiAttiviTab client={client} projects={projects} sprints={sprints} tasks={tasks}
+          <ProgettiAttiviTab client={client} projects={projects} workstreams={workstreams} milestones={milestones} tasks={tasks}
             kpis={kpis} meetings={meetings} hideEconomics={hideEconomics} />
         )}
         {activeTab === 1 && <KpiTab client={client} kpis={kpis} kpiConfigs={kpiConfigs} projects={projects} />}
@@ -349,6 +359,17 @@ export function ClientPageClient({
             currentProfile={currentProfile} isAdmin={isAdmin} hideEconomics={hideEconomics} />
         )}
         {activeTab === 6 && <ClientKnowledgeTab clientId={client.id} isAdmin={isAdmin} />}
+        {activeTab === 8 && (
+          <AccordiEconomiciTab clientId={client.id} projects={projects.map(p => ({ id: p.id, name: p.name }))} />
+        )}
+        {activeTab === 9 && (
+          <ClientAdHocPanel
+            clientId={client.id}
+            projects={projects.filter(p => p.status === 'attivo').map(p => ({ id: p.id, name: p.name }))}
+            profiles={allProfiles.map(p => ({ id: p.id, full_name: p.full_name }))}
+            canEdit={isAdminLevel}
+          />
+        )}
 
       </div>
     </div>

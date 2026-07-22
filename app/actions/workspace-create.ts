@@ -98,27 +98,63 @@ export async function createSprintWs(input: {
   return { ok: true, sprint: data as { id: string; name: string }, projectId: input.projectId, clientId }
 }
 
-// Milestone = task con is_milestone=true dentro un progetto.
+// Workstream — nella UI "Area di lavoro". È il livello che ha sostituito lo
+// sprint: filone di lavoro logico, non finestra temporale.
+export async function createWorkstreamWs(input: {
+  projectId: string; name: string; ownerId?: string | null
+  startDate?: string; endDate?: string; visibility?: 'internal' | 'client' | 'partner'
+}) {
+  const g = await guard()
+  if ('error' in g) return { ok: false, error: g.error }
+  if (!input.projectId || !input.name.trim()) return { ok: false, error: 'Progetto e nome obbligatori' }
+
+  // In coda: position = quante ne esistono già sul progetto.
+  const { count } = await g.admin.from('project_workstreams')
+    .select('id', { count: 'exact', head: true }).eq('project_id', input.projectId)
+
+  const { data, error } = await g.admin.from('project_workstreams').insert({
+    project_id: input.projectId,
+    name: input.name.trim(),
+    position: count ?? 0,
+    status: 'da_avviare',
+    owner_id: input.ownerId || null,
+    start_date: input.startDate || null,
+    end_date: input.endDate || null,
+    visibility: input.visibility ?? 'internal',
+  } as never).select('id, name').single()
+
+  if (error) return { ok: false, error: error.message }
+  const clientId = await clientIdOf(g.admin, input.projectId)
+  revalidateConnected(clientId)
+  return { ok: true, workstream: data as { id: string; name: string }, projectId: input.projectId, clientId }
+}
+
+// Milestone V2: entità sua (139), non più una task con is_milestone=true.
+// Vive dentro un'Area di lavoro, non dentro uno sprint.
 export async function createMilestoneWs(input: {
-  projectId: string; title: string; sprintId: string; dueDate?: string
+  projectId: string; title: string; workstreamId: string
+  expectedDate?: string; milestoneType?: string
+  approvalRequired?: boolean; visibility?: 'internal' | 'client' | 'partner'
 }) {
   const g = await guard()
   if ('error' in g) return { ok: false, error: g.error }
   if (!input.projectId || !input.title.trim()) return { ok: false, error: 'Progetto e nome obbligatori' }
-  if (!input.sprintId) return { ok: false, error: 'La milestone va legata a uno sprint' }
+  if (!input.workstreamId) return { ok: false, error: "La milestone va legata a un'area di lavoro" }
 
-  const { data, error } = await g.admin.from('tasks').insert({
+  const { count } = await g.admin.from('workstream_milestones')
+    .select('id', { count: 'exact', head: true }).eq('workstream_id', input.workstreamId)
+
+  // project_id lo riallinea comunque il trigger wm_sync_project (139).
+  const { data, error } = await g.admin.from('workstream_milestones').insert({
+    workstream_id: input.workstreamId,
     project_id: input.projectId,
     title: input.title.trim(),
-    status: 'da_fare',
-    priority: 'media',
-    is_milestone: true,
-    sprint_id: input.sprintId,
-    due_date: input.dueDate || null,
-    tags: [],
-    logged_hours: 0,
-    depth: 0,
-    position: 0,
+    milestone_type: input.milestoneType ?? 'delivery',
+    status: 'da_avviare',
+    expected_date: input.expectedDate || null,
+    approval_required: input.approvalRequired ?? false,
+    visibility: input.visibility ?? 'internal',
+    sort_order: count ?? 0,
   } as never).select('id, title').single()
 
   if (error) return { ok: false, error: error.message }
@@ -127,52 +163,19 @@ export async function createMilestoneWs(input: {
   return { ok: true, milestone: data as { id: string; title: string }, projectId: input.projectId, clientId }
 }
 
-// Non esportabile: in un file 'use server' si esportano solo funzioni async.
-const AD_HOC_TITLE = 'Ad Hoc'
-
-/**
- * L'Ad Hoc di un progetto: milestone senza sprint che raccoglie le richieste
- * una tantum (modifiche veloci, richieste del cliente) che non spostano il piano.
- * È relativa al progetto — ogni progetto ha la sua — e viene creata al primo uso,
- * così i "+ Crea" possono offrirla anche dove non esiste ancora.
- * Fuori da createMilestoneWs perché quella pretende uno sprint, che qui non c'è.
- */
-export async function ensureAdHocMilestone(projectId: string) {
-  const g = await guard()
-  if ('error' in g) return { ok: false as const, error: g.error }
-  if (!projectId) return { ok: false as const, error: 'Progetto obbligatorio' }
-
-  const { data: found } = await g.admin.from('tasks')
-    .select('id').eq('project_id', projectId).eq('is_milestone', true)
-    .is('sprint_id', null).ilike('title', AD_HOC_TITLE).maybeSingle()
-  if (found) return { ok: true as const, milestoneId: found.id as string, created: false }
-
-  const { data, error } = await g.admin.from('tasks').insert({
-    project_id: projectId,
-    title: AD_HOC_TITLE,
-    status: 'da_fare',
-    priority: 'media',
-    is_milestone: true,
-    sprint_id: null,
-    tags: [],
-    logged_hours: 0,
-    depth: 0,
-    position: 0,
-  } as never).select('id').single()
-  if (error) return { ok: false as const, error: error.message }
-
-  const clientId = await clientIdOf(g.admin, projectId)
-  revalidateConnected(clientId)
-  return { ok: true as const, milestoneId: data.id as string, created: true }
-}
+// La milestone "Ad Hoc" di progetto è stata RIMOSSA dalla migration 128: le
+// richieste una tantum ora sono task di scope CLIENTE (project_id NULL,
+// client_id valorizzato, scope_type='client'), gestite da app/actions/client-adhoc.ts.
+// Attribuirle a un progetto per comodità falsava avanzamenti e aggregati.
 
 // Task delle "Mie attività": la crea qualunque membro interno per sé stesso.
 // Con projectId è una task di progetto (condivisa); senza, è personale/privata
-// (project_id NULL → invisibile ai colleghi via RLS, vedi migration 094).
+// (scope_type='personal' → invisibile ai colleghi via RLS, vedi migration 128).
 // Passa dal service role perché la RLS vieta al team di scrivere task su clienti
 // non assegnati; qui verifichiamo solo che sia staff interno e che assegni a sé.
 export async function createMyTask(input: {
-  title: string; projectId?: string | null; sprintId?: string | null; milestoneId?: string | null
+  title: string; projectId?: string | null
+  workstreamId?: string | null; milestoneId?: string | null
   dueDate?: string; priority?: string
 }) {
   const supabase = await createClient()
@@ -186,8 +189,8 @@ export async function createMyTask(input: {
     return { ok: false, error: 'Le risorse esterne non possono creare task di progetto' }
   }
 
-  // Sprint e milestone hanno senso solo dentro un progetto: senza progetto la
-  // task è personale e non può essere legata a nulla.
+  // Area di lavoro e milestone hanno senso solo dentro un progetto: senza
+  // progetto la task è personale e non può essere legata a nulla.
   const projectId = input.projectId || null
   const admin = createAdminClient()
   const { data, error } = await admin.from('tasks').insert({
@@ -196,7 +199,7 @@ export async function createMyTask(input: {
     status: 'da_fare',
     priority: input.priority ?? 'media',
     project_id: projectId,
-    sprint_id: projectId ? (input.sprintId || null) : null,
+    workstream_id: projectId ? (input.workstreamId || null) : null,
     milestone_id: projectId ? (input.milestoneId || null) : null,
     due_date: input.dueDate || null,
     is_milestone: false,
@@ -241,24 +244,26 @@ export async function deleteMyTask(taskId: string) {
 }
 
 export async function createTaskWs(input: {
-  projectId: string; title: string; isMilestone?: boolean
-  sprintId?: string; milestoneId?: string; parentTaskId?: string
-  dueDate?: string; priority?: string; assigneeId?: string
+  projectId: string; title: string
+  workstreamId?: string; milestoneId?: string; parentTaskId?: string
+  dueDate?: string; priority?: string; assigneeId?: string; taskType?: string
 }) {
   const g = await guard()
   if ('error' in g) return { ok: false, error: g.error }
   if (!input.projectId || !input.title.trim()) return { ok: false, error: 'Progetto e titolo obbligatori' }
-  // La task si lega a una milestone; una subtask si lega invece a una task padre.
-  if (!input.parentTaskId && !input.milestoneId) return { ok: false, error: 'La task va legata a una milestone' }
+  // Obbligatoria è l'AREA DI LAVORO, non la milestone (decisione D-2): il lavoro
+  // ricorrente non ha una milestone sensata, e forzarla produrrebbe contenitori finti.
+  if (!input.parentTaskId && !input.workstreamId) {
+    return { ok: false, error: "La task va legata a un'area di lavoro" }
+  }
 
-  // Una subtask eredita profondità dal padre (depth 1); niente subtask di subtask qui.
   const { data, error } = await g.admin.from('tasks').insert({
     project_id: input.projectId,
     title: input.title.trim(),
     status: 'da_fare',
     priority: input.priority ?? 'media',
-    is_milestone: input.isMilestone ?? false,
-    sprint_id: input.sprintId || null,
+    task_type: input.taskType ?? 'action',
+    workstream_id: input.workstreamId || null,
     milestone_id: input.milestoneId || null,
     parent_task_id: input.parentTaskId || null,
     due_date: input.dueDate || null,

@@ -5,20 +5,21 @@ import { useRouter } from 'next/navigation'
 import { Plus, ChevronDown, Loader2, X, FolderKanban } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
-import { createProjectWs, createSprintWs, createMilestoneWs, createMyTask, ensureAdHocMilestone } from '@/app/actions/workspace-create'
+import { ProjectWizard } from '@/components/projects/ProjectWizard'
+import { createProjectWs, createWorkstreamWs, createMilestoneWs, createMyTask } from '@/app/actions/workspace-create'
+import { createClientAdHoc } from '@/app/actions/client-adhoc'
 
-// Destinazione "Ad Hoc": non è una milestone che scegli, è quella del progetto —
-// risolta (o creata) al salvataggio, perché può non esistere ancora.
+// Destinazione "Ad Hoc": non è una milestone che scegli, è una task di scope
+// CLIENTE (128) — fuori dal piano del progetto, risolta al salvataggio.
 const AD_HOC = '__adhoc'
-// L'Ad Hoc già esistente non va listato: la voce dedicata sopra lo copre e
-// mostrarlo due volte farebbe scegliere a caso.
-const isAdHoc = (m: { title: string; sprint_id: string | null }) =>
-  !m.sprint_id && m.title.trim().toLowerCase() === 'ad hoc'
 
-// CTA "Crea" contestuale (§12/§15): il contesto in cui ti trovi precompila i campi e
-// nasconde le opzioni impossibili. Dal cliente non puoi creare uno sprint senza prima
-// scegliere il progetto; dal progetto, cliente e progetto sono già fissati.
-type Kind = 'progetto' | 'sprint' | 'milestone' | 'task'
+// CTA "Crea" contestuale (§13): il contesto in cui ti trovi precompila i campi e
+// nasconde le opzioni impossibili. Dal cliente non puoi creare una milestone senza
+// prima scegliere progetto e area di lavoro; dal progetto sono già fissati.
+//
+// GERARCHIA V2: Cliente → Progetto → Area di lavoro → Milestone → Task.
+// Gli Sprint non sono più un livello; le Subtask non sono navigazione.
+type Kind = 'progetto' | 'workstream' | 'milestone' | 'task'
 
 export interface CreateCtx {
   clientId: string
@@ -28,11 +29,17 @@ export interface CreateCtx {
   projectName?: string | null
   /** Progetti del cliente: servono a scegliere il target quando si crea dal cliente. */
   projects?: { id: string; name: string }[]
-  /** Sprint del progetto corrente (per collegare una milestone). */
-  sprints?: { id: string; name: string }[]
+  /** Aree di lavoro del progetto corrente (per collegare milestone e task). */
+  workstreams?: { id: string; name: string }[]
 }
 
-export function ContextualCreate({ ctx, canCreate = true }: { ctx: CreateCtx; canCreate?: boolean }) {
+export function ContextualCreate({ ctx, canCreate = true, wizardData }: {
+  ctx: CreateCtx
+  canCreate?: boolean
+  /** Dati per il wizard unico. Se assenti, "Nuovo progetto" resta nascosto:
+   *  meglio non offrirlo che offrirne una versione monca. */
+  wizardData?: { clients: { id: string; company_name: string }[]; profiles: { id: string; full_name: string | null }[]; isAdmin: boolean }
+}) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [kind, setKind] = useState<Kind | null>(null)
@@ -40,13 +47,14 @@ export function ContextualCreate({ ctx, canCreate = true }: { ctx: CreateCtx; ca
   if (!canCreate) return null
 
   const inProject = !!ctx.projectId
+  const inProj = inProject ? ctx.projectName ?? undefined : 'scegli il progetto'
   const opts: { k: Kind; label: string; hint?: string }[] = [
-    { k: 'progetto', label: 'Nuovo progetto', hint: ctx.clientName },
-    { k: 'sprint', label: 'Nuovo sprint', hint: inProject ? ctx.projectName ?? undefined : 'scegli il progetto' },
-    { k: 'milestone', label: 'Nuova milestone', hint: inProject ? ctx.projectName ?? undefined : 'scegli il progetto' },
-    { k: 'task', label: 'Nuova task', hint: inProject ? ctx.projectName ?? undefined : 'scegli il progetto' },
+    ...(wizardData ? [{ k: 'progetto' as Kind, label: 'Nuovo progetto', hint: ctx.clientName }] : []),
+    { k: 'workstream', label: 'Nuova area di lavoro', hint: inProj },
+    { k: 'milestone', label: 'Nuova milestone', hint: inProj },
+    { k: 'task', label: 'Nuova task', hint: inProj },
   ]
-  // Dal cliente senza progetti non ha senso proporre sprint/milestone/task.
+  // Dal cliente senza progetti non ha senso proporre area/milestone/task.
   const hasTarget = inProject || (ctx.projects?.length ?? 0) > 0
   const visible = opts.filter(o => o.k === 'progetto' || hasTarget)
 
@@ -73,7 +81,20 @@ export function ContextualCreate({ ctx, canCreate = true }: { ctx: CreateCtx; ca
         </>
       )}
 
-      {kind && (
+      {/* "Nuovo progetto" passa dal wizard unico (§12): stesso flusso ovunque,
+          con il cliente già precompilato dal contesto. */}
+      {kind === 'progetto' && wizardData && (
+        <ProjectWizard
+          open
+          onClose={() => setKind(null)}
+          clients={wizardData.clients}
+          profiles={wizardData.profiles}
+          isAdmin={wizardData.isAdmin}
+          defaultClientId={ctx.clientId}
+        />
+      )}
+
+      {kind && kind !== 'progetto' && (
         <CreateModal kind={kind} ctx={ctx} onClose={() => setKind(null)} onDone={() => { setKind(null); router.refresh() }} />
       )}
     </div>
@@ -85,66 +106,76 @@ function CreateModal({ kind, ctx, onClose, onDone }: {
 }) {
   const [name, setName] = useState('')
   const [projectId, setProjectId] = useState(ctx.projectId ?? '')
-  const [sprintId, setSprintId] = useState('')
+  const [workstreamId, setWorkstreamId] = useState('')
   const [milestoneId, setMilestoneId] = useState('')
   const [start, setStart] = useState('')
   const [due, setDue] = useState('')
   const [pending, startT] = useTransition()
 
-  // Sprint e milestone del progetto scelto — stessa logica di "Le mie attività":
-  // cambiando progetto si ricaricano e le selezioni precedenti si azzerano.
-  const [sprints, setSprints] = useState<{ id: string; name: string }[]>(ctx.sprints ?? [])
-  const [milestones, setMilestones] = useState<{ id: string; title: string; sprint_id: string | null }[]>([])
+  // Aree di lavoro e milestone del progetto scelto: cambiando progetto si
+  // ricaricano e le selezioni precedenti si azzerano.
+  const [workstreams, setWorkstreams] = useState<{ id: string; name: string }[]>(ctx.workstreams ?? [])
+  const [milestones, setMilestones] = useState<{ id: string; title: string; workstream_id: string }[]>([])
 
   useEffect(() => {
-    if (!projectId) { setSprints([]); setMilestones([]); return }
+    if (!projectId) { setWorkstreams([]); setMilestones([]); return }
     const sb = createClient()
     let alive = true
     Promise.all([
-      sb.from('sprints').select('id, name').eq('project_id', projectId).order('start_date'),
-      sb.from('tasks').select('id, title, sprint_id').eq('project_id', projectId).eq('is_milestone', true).order('position'),
-    ]).then(([s, m]) => {
+      sb.from('project_workstreams').select('id, name').eq('project_id', projectId).order('position'),
+      sb.from('workstream_milestones').select('id, title, workstream_id').eq('project_id', projectId).order('sort_order'),
+    ]).then(([w, m]) => {
       if (!alive) return
-      setSprints((s.data ?? []) as { id: string; name: string }[])
-      setMilestones((m.data ?? []) as { id: string; title: string; sprint_id: string | null }[])
+      setWorkstreams((w.data ?? []) as { id: string; name: string }[])
+      setMilestones((m.data ?? []) as { id: string; title: string; workstream_id: string }[])
     })
     return () => { alive = false }
   }, [projectId])
 
   const inp = 'w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/40'
-  const needsProject = kind !== 'progetto'
-  const title = { progetto: 'Nuovo progetto', sprint: 'Nuovo sprint', milestone: 'Nuova milestone', task: 'Nuova task' }[kind]
+  const title = { progetto: 'Nuovo progetto', workstream: 'Nuova area di lavoro', milestone: 'Nuova milestone', task: 'Nuova task' }[kind]
 
   const save = () => startT(async () => {
     if (!name.trim()) { toast.error('Il nome è obbligatorio'); return }
-    if (needsProject && !projectId) { toast.error('Scegli il progetto'); return }
+    if (!projectId) { toast.error('Scegli il progetto'); return }
 
     let res: { ok: boolean; error?: string }
-    if (kind === 'progetto') {
-      res = await createProjectWs({ clientId: ctx.clientId, name: name.trim() })
-    } else if (kind === 'sprint') {
-      res = await createSprintWs({ projectId, name: name.trim(), startDate: start || undefined, endDate: due || undefined })
+    if (kind === 'workstream') {
+      res = await createWorkstreamWs({
+        projectId, name: name.trim(),
+        startDate: start || undefined, endDate: due || undefined,
+      })
     } else if (kind === 'milestone') {
-      if (!sprintId) { toast.error('La milestone va legata a uno sprint'); return }
-      res = await createMilestoneWs({ projectId, title: name.trim(), sprintId, dueDate: due || undefined })
+      if (!workstreamId) { toast.error("La milestone va legata a un'area di lavoro"); return }
+      res = await createMilestoneWs({ projectId, title: name.trim(), workstreamId, expectedDate: due || undefined })
     } else {
-      if (!milestoneId) { toast.error('La task va legata a una milestone'); return }
-      let mid = milestoneId
-      if (mid === AD_HOC) {
-        const ah = await ensureAdHocMilestone(projectId)
-        if (!ah.ok) { toast.error(ah.error ?? 'Errore Ad Hoc'); return }
-        mid = ah.milestoneId
+      // ⚡ Ad Hoc: task di scope CLIENTE, fuori dal piano del progetto (128).
+      if (workstreamId === AD_HOC) {
+        if (!ctx.clientId) { toast.error('Serve un cliente per creare un ad hoc'); return }
+        const r = await createClientAdHoc({
+          client_id: ctx.clientId, title: name.trim(), due_date: due || null,
+        })
+        if (!r.ok) { toast.error(r.error ?? 'Errore'); return }
+        toast.success('Attività ad hoc creata')
+        onDone(); onClose()
+        return
       }
+      if (!workstreamId) { toast.error("La task va legata a un'area di lavoro"); return }
+      // La milestone resta FACOLTATIVA (D-2): obbligatoria è solo l'area di lavoro.
       res = await createMyTask({
         title: name.trim(), projectId,
-        sprintId: mid === milestoneId ? (sprintId || null) : null, milestoneId: mid,
+        workstreamId, milestoneId: milestoneId || null,
         dueDate: due || undefined,
       })
     }
     if (!res.ok) { toast.error(res.error ?? 'Errore creazione'); return }
-    toast.success(`${title} creato`)
+    toast.success(`${title} creata`)
     onDone()
   })
+
+  const placeholder = kind === 'workstream' ? 'Es. Produzione contenuti'
+    : kind === 'milestone' ? 'Es. Consegna MVP'
+    : "Cosa c'è da fare?"
 
   return (
     <div className="fixed inset-0 z-50 bg-scrim backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
@@ -153,21 +184,20 @@ function CreateModal({ kind, ctx, onClose, onDone }: {
           <div>
             <h3 className="text-base font-bold text-text-primary">{title}</h3>
             <p className="text-2xs text-text-tertiary mt-0.5">
-              {ctx.clientName}{ctx.projectName && kind !== 'progetto' ? ` · ${ctx.projectName}` : ''}
+              {ctx.clientName}{ctx.projectName ? ` · ${ctx.projectName}` : ''}
             </p>
           </div>
           <button onClick={onClose} aria-label="Chiudi" className="p-1 text-text-tertiary hover:text-text-primary"><X className="w-4 h-4" /></button>
         </div>
 
         <input autoFocus value={name} onChange={e => setName(e.target.value)} aria-label="Nome"
-          placeholder={kind === 'progetto' ? 'Nome del progetto' : kind === 'sprint' ? 'Es. Sprint 1 — Analisi' : kind === 'milestone' ? 'Es. Consegna MVP' : "Cosa c'è da fare?"}
-          className={inp} />
+          placeholder={placeholder} className={inp} />
 
         {/* Progetto → obbligatorio (precompilato se siamo già dentro un progetto) */}
-        {needsProject && !ctx.projectId && (
+        {!ctx.projectId && (
           <div className="flex items-center gap-1.5">
             <FolderKanban className="w-4 h-4 text-gold-text shrink-0" aria-hidden="true" />
-            <select value={projectId} onChange={e => { setProjectId(e.target.value); setSprintId(''); setMilestoneId('') }}
+            <select value={projectId} onChange={e => { setProjectId(e.target.value); setWorkstreamId(''); setMilestoneId('') }}
               aria-label="Progetto" className={inp}>
               <option value="">— Scegli il progetto —</option>
               {(ctx.projects ?? []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -175,45 +205,50 @@ function CreateModal({ kind, ctx, onClose, onDone }: {
           </div>
         )}
 
-        {/* Milestone → sprint obbligatorio */}
+        {/* Milestone → area di lavoro obbligatoria */}
         {kind === 'milestone' && projectId && (
           <>
-            <select value={sprintId} onChange={e => setSprintId(e.target.value)} aria-label="Sprint" className={inp}>
-              <option value="">— Scegli lo sprint —</option>
-              {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            <select value={workstreamId} onChange={e => setWorkstreamId(e.target.value)} aria-label="Area di lavoro" className={inp}>
+              <option value="">— Scegli l&apos;area di lavoro —</option>
+              {workstreams.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
-            {sprints.length === 0 && <p className="text-2xs text-warning">Nessuno sprint: creane prima uno.</p>}
+            {workstreams.length === 0 && <p className="text-2xs text-warning">Nessuna area di lavoro: creane prima una.</p>}
           </>
         )}
 
-        {/* Task → sprint (filtro) + milestone obbligatoria */}
+        {/* Task → area di lavoro obbligatoria, milestone facoltativa */}
         {kind === 'task' && projectId && (
           <>
-            <div className="grid grid-cols-2 gap-2">
-              <select value={sprintId} onChange={e => { setSprintId(e.target.value); setMilestoneId('') }} aria-label="Sprint" className={inp}>
-                <option value="">Sprint — tutti</option>
-                {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-              <select value={milestoneId}
-                onChange={e => { const mid = e.target.value; setMilestoneId(mid); const sp = milestones.find(m => m.id === mid)?.sprint_id; if (sp) setSprintId(sp) }}
+            <select value={workstreamId}
+              onChange={e => { setWorkstreamId(e.target.value); setMilestoneId('') }}
+              aria-label="Area di lavoro" className={inp}>
+              <option value="">— Scegli l&apos;area di lavoro —</option>
+              <option value={AD_HOC}>⚡ Ad Hoc — richiesta una tantum</option>
+              {workstreams.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+            </select>
+
+            {workstreamId && workstreamId !== AD_HOC && (
+              <select value={milestoneId} onChange={e => setMilestoneId(e.target.value)}
                 aria-label="Milestone" className={inp}>
-                <option value="">Milestone *</option>
-                <option value={AD_HOC}>⚡ Ad Hoc — richiesta una tantum</option>
-                {milestones.filter(m => !isAdHoc(m) && (!sprintId || m.sprint_id === sprintId)).map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
+                <option value="">Milestone — nessuna (facoltativa)</option>
+                {milestones.filter(m => m.workstream_id === workstreamId)
+                  .map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
               </select>
-            </div>
-            {milestoneId === AD_HOC && (
-              <p className="text-2xs text-text-tertiary">Fuori dal piano del progetto: non sposta sprint né milestone.</p>
             )}
+
+            {workstreamId === AD_HOC && (
+              <p className="text-2xs text-text-tertiary">Fuori dal piano del progetto: non sposta aree di lavoro né milestone.</p>
+            )}
+            {workstreams.length === 0 && <p className="text-2xs text-warning">Nessuna area di lavoro: creane prima una.</p>}
           </>
         )}
 
-        {kind === 'sprint' ? (
+        {kind === 'workstream' ? (
           <div className="grid grid-cols-2 gap-2">
             <input type="date" value={start} onChange={e => setStart(e.target.value)} aria-label="Inizio" className={inp} />
             <input type="date" value={due} onChange={e => setDue(e.target.value)} aria-label="Fine" className={inp} />
           </div>
-        ) : kind !== 'progetto' && (
+        ) : (
           <input type="date" value={due} onChange={e => setDue(e.target.value)} aria-label="Scadenza" className={inp} />
         )}
 

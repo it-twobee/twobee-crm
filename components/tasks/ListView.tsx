@@ -15,7 +15,7 @@ type SortKey = 'title' | 'due_date' | 'priority' | 'status' | 'assignee'
 type SortDir = 'asc' | 'desc'
 
 const PRIORITY_ORDER = { alta: 0, media: 1, bassa: 2 }
-const STATUS_ORDER = { da_fare: 0, in_corso: 1, in_revisione: 2, completato: 3 }
+const STATUS_ORDER: Record<string, number> = { da_fare: 0, in_corso: 1, in_revisione: 2, completato: 3, richiesta_supporto: 4, non_svolta: 5 }
 
 const STATUS_BADGE: Record<string, string> = {
   da_fare: 'bg-surface-active text-text-secondary',

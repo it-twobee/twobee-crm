@@ -36,14 +36,14 @@ export function PortfolioTimeline({ projects, sprints, tasks }: {
   // Scopo tutto ai soli progetti mostrati, così la timeline non si allarga per date altrui.
   const pids = useMemo(() => new Set(projects.map(p => p.id)), [projects])
   const sp = useMemo(() => sprints.filter(s => pids.has(s.project_id)), [sprints, pids])
-  const tk = useMemo(() => tasks.filter(t => pids.has(t.project_id)), [tasks, pids])
+  const tk = useMemo(() => tasks.filter(t => t.project_id && pids.has(t.project_id)), [tasks, pids])
 
   const byProject = useMemo(() => {
     const map = new Map<string, { sprints: WLSprint[]; milestones: WLTask[]; tasks: WLTask[] }>()
     for (const p of projects) map.set(p.id, { sprints: [], milestones: [], tasks: [] })
     for (const s of sp) map.get(s.project_id)?.sprints.push(s)
     for (const t of tk) {
-      const b = map.get(t.project_id); if (!b) continue
+      const b = t.project_id ? map.get(t.project_id) : undefined; if (!b) continue
       if (t.is_milestone) { if (t.due_date) b.milestones.push(t) }
       else if (t.due_date || t.start_date) b.tasks.push(t)
     }

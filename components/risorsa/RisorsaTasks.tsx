@@ -18,6 +18,8 @@ const STATUS_META: Record<TaskStatus, { label: string; color: string }> = {
   in_corso:     { label: 'In corso',     color: 'var(--color-gold-text)' },
   in_revisione: { label: 'In revisione', color: 'var(--color-info)' },
   completato:   { label: 'Completato',   color: 'var(--color-success)' },
+  richiesta_supporto: { label: 'Richiesta supporto', color: 'var(--color-accent)' },
+  non_svolta:   { label: 'Non svolta',   color: 'var(--color-text-tertiary)' },
 }
 const PRIO_COLOR: Record<string, string> = { alta: 'var(--color-error)', media: 'var(--color-warning)', bassa: 'var(--color-text-tertiary)' }
 

@@ -35,6 +35,7 @@ export function NewClientModal({ onClose, onCreated }: NewClientModalProps) {
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({
     company_name: '', package: 'Hive Basic' as ClientPackage, mrr: '', ad_budget_monthly: '',
+    service_line: 'growth', billing_frequency: 'mensile',
     contract_start: '', contract_end: '', payment_status: 'pagato' as PaymentStatus,
     active_channels: [] as string[], client_type: 'growth' as ClientType, client_label: 'stabile' as ClientLabel,
     is_internal: false,
@@ -67,7 +68,10 @@ export function NewClientModal({ onClose, onCreated }: NewClientModalProps) {
     setLoading(true)
     const supabase = createClient()
     const { data: client, error } = await supabase.from('clients').insert({
-      company_name: form.company_name, package: form.package, mrr: parseFloat(form.mrr) || 0,
+      // `mrr` NON si scrive: è derivato dal trigger su revenue_streams (migration 116).
+      // Scriverlo qui creerebbe un valore che sopravvive fino alla prima
+      // refresh_all_client_mrr() e poi sparisce senza avviso.
+      company_name: form.company_name, package: form.package,
       ad_budget_monthly: form.ad_budget_monthly ? parseFloat(form.ad_budget_monthly) : null,
       contract_start: form.contract_start, contract_end: form.contract_end,
       payment_status: form.payment_status, active_channels: form.active_channels,
@@ -85,8 +89,24 @@ export function NewClientModal({ onClose, onCreated }: NewClientModalProps) {
 
     if (error) { toast.error('Errore: ' + error.message); setLoading(false); return }
 
+    const canone = parseFloat(form.mrr) || 0
+
     await Promise.all([
       contacts.length > 0 ? supabase.from('client_contacts').insert(contacts.map((c) => ({ ...c, client_id: client.id }))) : Promise.resolve(),
+      canone > 0
+        ? supabase.from('revenue_streams').insert({
+            client_id: client.id,
+            label: `Canone ${form.service_line === 'growth' ? 'Growth' : form.service_line === 'digital' ? 'Digital' : form.service_line.toUpperCase()}`,
+            service_line: form.service_line,
+            revenue_model: 'recurring',
+            amount: canone,
+            billing_frequency: form.billing_frequency,
+            start_date: form.contract_start,
+            end_date: form.contract_end || null,
+            status: 'attivo',
+            source: 'manuale',
+          })
+        : Promise.resolve(),
       supabase.from('projects').insert({ client_id: client.id, name: `Progetto ${form.company_name}`, status: 'attivo' }),
       supabase.from('chat_channels').insert([
         { name: form.company_name.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 40), type: 'cliente', client_id: client.id },
@@ -209,10 +229,41 @@ export function NewClientModal({ onClose, onCreated }: NewClientModalProps) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-text-secondary mb-1.5">MRR (€/mese) *</label>
+                  <label className="block text-xs text-text-secondary mb-1.5">Canone *</label>
                   <input type="number" value={form.mrr} onChange={(e) => f('mrr', e.target.value)} placeholder="1800" className={ic} />
                 </div>
               </div>
+
+              {/* L'MRR non si scrive più a mano: nasce da un accordo economico
+                  (revenue_streams) e `clients.mrr` ne è la somma derivata. */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-text-secondary mb-1.5">Linea di servizio *</label>
+                  <select value={form.service_line} onChange={(e) => f('service_line', e.target.value)} className={ic}>
+                    <option value="growth">Growth</option>
+                    <option value="digital">Digital</option>
+                    <option value="marketing">Marketing</option>
+                    <option value="ai">AI</option>
+                    <option value="hybrid">Hybrid</option>
+                    <option value="consulting">Consulting</option>
+                    <option value="other">Altro</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-text-secondary mb-1.5">Frequenza *</label>
+                  <select value={form.billing_frequency} onChange={(e) => f('billing_frequency', e.target.value)} className={ic}>
+                    <option value="mensile">Mensile</option>
+                    <option value="bimestrale">Bimestrale</option>
+                    <option value="trimestrale">Trimestrale</option>
+                    <option value="semestrale">Semestrale</option>
+                    <option value="annuale">Annuale</option>
+                  </select>
+                </div>
+              </div>
+              <p className="text-2xs text-text-tertiary -mt-1">
+                Il canone genera l&apos;accordo economico del cliente. L&apos;MRR viene
+                calcolato da qui: un canone trimestrale da 3.000 vale 1.000 di MRR.
+              </p>
               <div>
                 <label className="block text-xs text-text-secondary mb-1.5">Budget ADV mensile cliente (€)</label>
                 <input type="number" value={form.ad_budget_monthly} onChange={(e) => f('ad_budget_monthly', e.target.value)} placeholder="Spesa pubblicitaria del cliente" className={ic} />

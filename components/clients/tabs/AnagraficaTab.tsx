@@ -85,7 +85,9 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
   const save = async (section: string) => {
     setSaving(true)
     const supabase = createSupabase()
-    const { error } = await supabase.from('clients').update(form).eq('id', client.id)
+    // `mrr` è derivato da revenue_streams: non va mai rispedito in UPDATE.
+    const { mrr: _derivedMrr, ...payload } = form
+    const { error } = await supabase.from('clients').update(payload).eq('id', client.id)
     setSaving(false)
     if (error) { toast.error('Errore nel salvataggio'); return }
     setClient(form)
@@ -260,9 +262,13 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
               <Select value={form.package} onChange={(v) => setForm((p) => ({ ...p, package: v as ClientPackage }))}
                 options={PACKAGES.map((pk) => ({ value: pk, label: pk }))} />
             </Field>
-            <Field label="MRR (€/mese)" value={`€${client.mrr.toLocaleString('it-IT')}`} editMode={editContratto}>
-              <Input type="number" value={form.mrr.toString()} onChange={(v) => setForm((p) => ({ ...p, mrr: parseFloat(v) || 0 }))} />
-            </Field>
+            {/* Sola lettura: `mrr` è derivato da revenue_streams (migration 116).
+                Scriverlo qui verrebbe sovrascritto alla prima refresh_all_client_mrr(). */}
+            <div>
+              <p className="text-2xs text-text-tertiary mb-1">MRR (€/mese)</p>
+              <p className="text-sm text-text-primary">€{client.mrr.toLocaleString('it-IT')}</p>
+              <p className="text-2xs text-text-tertiary mt-0.5">Calcolato dagli accordi economici attivi</p>
+            </div>
             <Field label="Inizio Contratto" value={formatDate(client.contract_start)} editMode={editContratto}>
               <Input type="date" value={form.contract_start?.slice(0, 10) ?? ''} onChange={(v) => setForm((p) => ({ ...p, contract_start: v }))} />
             </Field>

@@ -7,6 +7,7 @@ import {
   TrendingDown, Flag, Pencil, Trash2,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { ProjectWizard } from '@/components/projects/ProjectWizard'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import type { ProjectStatus } from '@/lib/types/database'
@@ -339,7 +340,12 @@ function ProjectRow({ proj, onSprint, onSync, onEdit, onDelete }: {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export function ProgettiClient({ projects: initialProjects }: { projects: Project[] }) {
+export function ProgettiClient({ projects: initialProjects, clients = [], profiles = [], isAdmin = false }: {
+  projects: Project[]
+  clients?: { id: string; company_name: string }[]
+  profiles?: { id: string; full_name: string | null }[]
+  isAdmin?: boolean
+}) {
   const [projects, setProjects]       = useState(initialProjects)
   const [search, setSearch]           = useState('')
   const [filterStatus, setFilterStatus] = useState('tutti')
@@ -486,7 +492,16 @@ export function ProgettiClient({ projects: initialProjects }: { projects: Projec
 
       {syncProject   && <AsanaSyncModal  project={syncProject}   onClose={() => setSyncProject(null)} />}
       {sprintProject && <SprintPlannerModal project={sprintProject} onClose={() => setSprintProject(null)} />}
-      {showNewProject && (
+      {/* Wizard unico (§6): sostituisce NewProgettoModal, che non chiedeva il
+          servizio né collegava un accordo economico. */}
+      <ProjectWizard
+        open={showNewProject}
+        onClose={() => setShowNewProject(false)}
+        clients={clients}
+        profiles={profiles}
+        isAdmin={isAdmin}
+      />
+      {false && (
         <NewProgettoModal onClose={() => setShowNewProject(false)}
           onCreated={p => { setProjects(prev => [p, ...prev]); setShowNewProject(false) }} />
       )}

@@ -12,7 +12,7 @@ import { revalidatePath } from 'next/cache'
  * L'autorizzazione la facciamo qui e scriviamo via service role: un manager è
  * `role='team'` e la RLS su tasks non gli darebbe necessariamente il delete.
  */
-async function assertCanManage(projectId: string): Promise<{ userId: string } | { error: string }> {
+async function assertCanManage(projectId: string | null): Promise<{ userId: string } | { error: string }> {
   const sb = await createClient()
   const { data: { user } } = await sb.auth.getUser()
   if (!user) return { error: 'Non autenticato' }
@@ -29,6 +29,10 @@ async function assertCanManage(projectId: string): Promise<{ userId: string } | 
   // Manager di ruolo: può gestire qualunque progetto operativo.
   if (me?.app_role === 'manager') return { userId: user.id }
 
+  // Le task ad hoc di cliente non hanno progetto, quindi non hanno un PM a cui
+  // delegare: restano ad admin e manager, già coperti sopra.
+  if (!projectId) return { error: 'Solo un admin o un manager può modificare le attività ad hoc' }
+
   // Altrimenti dev'essere il PM designato di QUESTO progetto.
   const { data: proj } = await createAdminClient()
     .from('projects').select('manager_id').eq('id', projectId).single()
@@ -38,7 +42,7 @@ async function assertCanManage(projectId: string): Promise<{ userId: string } | 
 }
 
 export async function pmUpdateTask(
-  projectId: string,
+  projectId: string | null,
   taskId: string,
   patch: { status?: string; due_date?: string | null; priority?: string },
 ): Promise<{ ok: true } | { error: string }> {
@@ -52,7 +56,7 @@ export async function pmUpdateTask(
   if (Object.keys(updates).length === 0) return { ok: true }
 
   const { error } = await createAdminClient()
-    .from('tasks').update(updates as never).eq('id', taskId).eq('project_id', projectId)
+    .from('tasks').update(updates as never).eq('id', taskId)
   if (error) return { error: error.message }
 
   revalidatePath('/workload')
@@ -61,7 +65,7 @@ export async function pmUpdateTask(
 }
 
 export async function pmDeleteTask(
-  projectId: string,
+  projectId: string | null,
   taskId: string,
 ): Promise<{ ok: true } | { error: string }> {
   const auth = await assertCanManage(projectId)
@@ -70,9 +74,11 @@ export async function pmDeleteTask(
   const admin = createAdminClient()
   // Soft-delete: la task finisce nel cestino (ripristinabile). Gli assegnatari
   // NON vengono rimossi, così il ripristino la riporta com'era.
+  // Nessun filtro su project_id: le ad hoc di cliente non ne hanno, e l'identità
+  // della task è già garantita dall'id. L'autorizzazione è passata da assertCanManage.
   const { error } = await admin.from('tasks')
     .update({ deleted_at: new Date().toISOString(), deleted_by: auth.userId } as never)
-    .eq('id', taskId).eq('project_id', projectId).is('deleted_at', null)
+    .eq('id', taskId).is('deleted_at', null)
   if (error) return { error: error.message }
 
   revalidatePath('/workload')

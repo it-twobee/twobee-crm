@@ -9,7 +9,8 @@ export default async function ProgettiPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: projects } = await supabase
+  const [{ data: projects }, { data: clients }, { data: profiles }, { data: me }] = await Promise.all([
+    supabase
     .from('projects')
     .select(`
       *,
@@ -17,7 +18,20 @@ export default async function ProgettiPage() {
       tasks(id, title, status, priority, due_date, assignee_id),
       sprints(id, name, status, end_date)
     `)
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: false }),
+    supabase.from('clients').select('id, company_name').order('company_name'),
+    supabase.from('profiles').select('id, full_name').eq('is_active', true).order('full_name'),
+    supabase.from('profiles').select('email, app_role, role').eq('id', user.id).single(),
+  ])
 
-  return <ProgettiClient projects={(projects ?? []) as Parameters<typeof ProgettiClient>[0]['projects']} />
+  const isAdmin = (me as { role?: string } | null)?.role === 'admin'
+
+  return (
+    <ProgettiClient
+      projects={(projects ?? []) as Parameters<typeof ProgettiClient>[0]['projects']}
+      clients={(clients ?? []) as { id: string; company_name: string }[]}
+      profiles={(profiles ?? []) as { id: string; full_name: string | null }[]}
+      isAdmin={isAdmin}
+    />
+  )
 }

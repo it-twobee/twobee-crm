@@ -18,7 +18,12 @@ export interface WLTask {
   estimated_hours: number | null
   logged_hours: number
   assignee_id: string | null
-  project_id: string
+  /** NULL per le task ad hoc di cliente: occupano una risorsa senza avere un progetto. */
+  project_id: string | null
+  client_id?: string | null
+  client_name?: string | null
+  scope_type?: 'project' | 'client' | 'personal'
+  work_type?: 'project' | 'startup' | 'routine' | 'initiative' | 'adhoc'
   is_milestone?: boolean
   milestone_id?: string | null
 }
@@ -27,7 +32,9 @@ export interface WLProject {
   id: string
   name: string
   status: string
+  /** @deprecated Usa `service_line` (migration 115). */
   project_kind: string | null
+  service_line?: string | null
   client_id: string
   client_name: string
   manager_id: string | null
@@ -50,14 +57,19 @@ export interface WLSprint {
 }
 
 export interface WLFilters {
-  kind: string | null        // 'growth' | 'digital' | null
+  /** Linea di servizio: 'growth' | 'digital' | 'marketing' | 'ai' | … */
+  kind: string | null
+  /** Tipo di lavoro: 'routine' | 'initiative' | 'adhoc' | 'startup' | 'project' */
+  workType: string | null
   clientId: string | null
   resourceId: string | null
   from: string | null        // ISO date, inclusivo
   to: string | null          // ISO date, inclusivo
 }
 
-export const EMPTY_FILTERS: WLFilters = { kind: null, clientId: null, resourceId: null, from: null, to: null }
+export const EMPTY_FILTERS: WLFilters = {
+  kind: null, workType: null, clientId: null, resourceId: null, from: null, to: null,
+}
 
 const isActive = (t: WLTask) => t.status !== 'completato' && t.status !== 'richiesta_supporto' && !t.is_milestone
 const effortOf = (t: WLTask) => t.estimated_hours ?? DEFAULT_TASK_HOURS
@@ -79,10 +91,18 @@ export function filterTasks(
   multiAssignees?: Map<string, string[]>,
 ): WLTask[] {
   return tasks.filter(t => {
-    const p = projectById.get(t.project_id)
-    if (!p) return false
-    if (filters.kind && p.project_kind !== filters.kind) return false
-    if (filters.clientId && p.client_id !== filters.clientId) return false
+    // Le ad hoc di cliente non hanno progetto ma sono lavoro reale: si filtrano
+    // sui campi della task, non su quelli del progetto.
+    const p = t.project_id ? projectById.get(t.project_id) : undefined
+    const isAdHoc = !t.project_id && t.scope_type === 'client'
+    if (!p && !isAdHoc) return false
+
+    const line = p ? (p.service_line ?? p.project_kind) : null
+    if (filters.kind && line !== filters.kind) return false
+    if (filters.workType && (t.work_type ?? 'project') !== filters.workType) return false
+
+    const clientId = p ? p.client_id : t.client_id
+    if (filters.clientId && clientId !== filters.clientId) return false
     if (filters.resourceId) {
       const all = multiAssignees?.get(t.id) ?? (t.assignee_id ? [t.assignee_id] : [])
       if (!all.includes(filters.resourceId)) return false
@@ -122,7 +142,12 @@ export function computeResourceLoads(
     const assignees = multiAssignees?.get(t.id) ?? (t.assignee_id ? [t.assignee_id] : [])
     if (assignees.length === 0) continue
     const share = effortOf(t) / assignees.length
-    const p = projectById.get(t.project_id)
+    const p = t.project_id ? projectById.get(t.project_id) : undefined
+    // Le ad hoc si raggruppano per CLIENTE: non hanno progetto, ma finire tutte
+    // in un unico "Senza progetto" renderebbe la riga inutile appena ce n'è più d'una.
+    const bucketId = t.project_id ?? (t.client_id ? `client:${t.client_id}` : 'personal')
+    const bucketName = p?.name
+      ?? (t.client_id ? `${t.client_name ?? 'Cliente'} — ad hoc` : 'Attività personali')
 
     for (const rid of assignees) {
       const load = byRes.get(rid)
@@ -131,11 +156,11 @@ export function computeResourceLoads(
       load.activeTasks += 1
       if (t.due_date && t.due_date < todayStr) load.overdue += 1
 
-      const row = load.byProject.find(x => x.projectId === t.project_id)
+      const row = load.byProject.find(x => x.projectId === bucketId)
       if (row) { row.hours += share; row.tasks += 1 }
       else load.byProject.push({
-        projectId: t.project_id,
-        projectName: p?.name ?? 'Senza progetto',
+        projectId: bucketId,
+        projectName: bucketName,
         hours: share, tasks: 1,
       })
     }
@@ -172,6 +197,9 @@ export function computeProjectLoads(
   const byProj = new Map<string, WLTask[]>()
   for (const t of tasks) {
     if (t.is_milestone) continue
+    // Le ad hoc non hanno progetto: restano fuori dagli aggregati di progetto
+    // (compaiono nel carico risorsa e nei bucket di effort, dove pesano davvero).
+    if (!t.project_id) continue
     if (!byProj.has(t.project_id)) byProj.set(t.project_id, [])
     byProj.get(t.project_id)!.push(t)
   }
@@ -304,10 +332,13 @@ export function computeEffortBuckets(
       const h = (effortOf(s.t) / s.days) * ov
       b.hours += h
       b.taskCount += 1
-      const pname = projectById.get(s.t.project_id)?.name ?? '—'
-      const row = b.byProject.find(x => x.projectId === s.t.project_id)
+      const bid = s.t.project_id ?? (s.t.client_id ? `client:${s.t.client_id}` : 'personal')
+      const pname = s.t.project_id
+        ? (projectById.get(s.t.project_id)?.name ?? '—')
+        : (s.t.client_id ? `${s.t.client_name ?? 'Cliente'} — ad hoc` : 'Attività personali')
+      const row = b.byProject.find(x => x.projectId === bid)
       if (row) row.hours += h
-      else b.byProject.push({ projectId: s.t.project_id, projectName: pname, hours: h })
+      else b.byProject.push({ projectId: bid, projectName: pname, hours: h })
     }
     b.hours = Math.round(b.hours * 10) / 10
     b.byProject.forEach(r => { r.hours = Math.round(r.hours * 10) / 10 })
