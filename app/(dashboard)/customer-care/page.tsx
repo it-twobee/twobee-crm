@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { CustomerCareClient } from '@/components/customer-care/CustomerCareClient'
-import type { Profile } from '@/lib/types/database'
+import type { Profile, ChatChannel } from '@/lib/types/database'
 
 export const revalidate = 0
 
@@ -15,44 +15,47 @@ export default async function CustomerCarePage() {
     supabase.from('profiles').select('*').order('full_name'),
   ])
 
-  // Carica progetti con cliente + canali collegati
-  const { data: projects } = await supabase
-    .from('projects')
-    .select(`
-      id, name, status, client_id,
-      client:clients(id, company_name, client_label),
-      channels:chat_channels(*)
-    `)
-    .eq('status', 'attivo')
-    .order('name')
+  // Il Customer Care è ancorato al cliente: un canale `customer_care` per cliente.
+  const { data: clients } = await supabase
+    .from('clients')
+    .select('id, company_name, display_name, client_label')
+    .neq('client_label', 'perso')
+    .order('company_name')
 
-  const projectList = (projects ?? []) as unknown as Array<{
-    id: string; name: string; status: string; client_id: string
-    client: { id: string; company_name: string; client_label: string } | null
-    channels: Array<{ id: string; type: string; name: string; last_message_at: string | null; [key: string]: unknown }>
+  const clientList = (clients ?? []) as Array<{
+    id: string; company_name: string; display_name: string | null; client_label: string
   }>
+  const clientIds = clientList.map(c => c.id)
 
-  const channelIds = projectList.flatMap(p => p.channels.map(ch => ch.id))
-
-  // Conti messaggi per i canali CC
-  const [{ data: msgCounts }, { data: recentMsgCounts }, { data: allAccounts }] = await Promise.all([
-    channelIds.length > 0
-      ? supabase.rpc('get_cc_message_counts', { p_client_ids: projectList.map(p => p.client_id) })
+  const [{ data: channels }, { data: msgCounts }, { data: recentMsgCounts }, { data: allAccounts }] = await Promise.all([
+    clientIds.length > 0
+      ? supabase.from('chat_channels').select('*').in('client_id', clientIds).eq('type', 'customer_care')
       : Promise.resolve({ data: [] }),
-    channelIds.length > 0
-      ? supabase.rpc('get_cc_recent_message_counts', { p_client_ids: projectList.map(p => p.client_id) })
+    clientIds.length > 0
+      ? supabase.rpc('get_cc_message_counts', { p_client_ids: clientIds })
       : Promise.resolve({ data: [] }),
-    supabase.from('client_accounts').select('*').in('client_id', projectList.map(p => p.client_id)),
+    clientIds.length > 0
+      ? supabase.rpc('get_cc_recent_message_counts', { p_client_ids: clientIds })
+      : Promise.resolve({ data: [] }),
+    clientIds.length > 0
+      ? supabase.from('client_accounts').select('*').in('client_id', clientIds)
+      : Promise.resolve({ data: [] }),
   ])
 
-  const projectsWithData = projectList.map(p => {
-    const ccChannel = p.channels.find(ch => ch.type === 'customer_care') ?? null
+  const channelList = (channels ?? []) as ChatChannel[]
+
+  const rows = clientList.map(c => {
+    const ccChannel = channelList.find(ch => ch.client_id === c.id) ?? null
     const channelId = ccChannel?.id
     return {
-      ...p,
+      id: c.id,
+      name: c.display_name ?? c.company_name,
+      status: 'attivo',
+      client_id: c.id,
+      client: { id: c.id, company_name: c.company_name, client_label: c.client_label },
       customer_care_channel: ccChannel,
-      internal_channel: p.channels.find(ch => ch.type === 'cliente_interno') ?? null,
-      accounts: (allAccounts ?? []).filter((a: { client_id: string }) => a.client_id === p.client_id),
+      internal_channel: null,
+      accounts: (allAccounts ?? []).filter((a: { client_id: string }) => a.client_id === c.id),
       total_messages: channelId
         ? ((msgCounts ?? []) as { channel_id: string; count: number }[]).find(r => r.channel_id === channelId)?.count ?? 0
         : 0,
@@ -65,7 +68,7 @@ export default async function CustomerCarePage() {
   return (
     <div className="h-full">
       <CustomerCareClient
-        projects={projectsWithData as Parameters<typeof CustomerCareClient>[0]['projects']}
+        projects={rows as Parameters<typeof CustomerCareClient>[0]['projects']}
         currentProfile={profile as Profile}
         allProfiles={(allProfiles ?? []) as Profile[]}
       />

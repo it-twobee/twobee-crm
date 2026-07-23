@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { Users, Shield, Bell, Mail, Crown, X, Check, ChevronDown, Loader2, Trash2, Plus, AlertCircle, Pencil, KeyRound, AtSign, User, Copy, Link2, RefreshCw } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import type { Profile, RolePermission, Invitation, Approval, AppRole, PermissionSection, PermissionAction } from '@/lib/types/database'
+import type { Profile, RolePermission, Invitation, AppRole, PermissionSection, PermissionAction } from '@/lib/types/database'
 import {
   SUPER_ADMIN_EMAILS, ROLE_LABELS, ROLE_COLORS, SECTIONS, ACTIONS,
   SECTION_LABELS, ACTION_LABELS, isSuperAdmin, buildPermMap,
@@ -20,12 +20,11 @@ interface Props {
   profiles: Profile[]
   permissions: RolePermission[]
   invitations: Invitation[]
-  approvals: (Approval & { requester?: { full_name: string; email: string; app_role: string } })[]
   clients: { id: string; company_name: string }[]
 }
 
 const ic = 'w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/50'
-const TABS = ['👤 Utenti', '🔐 Permessi', '✅ Approvazioni', '✉️ Inviti']
+const TABS = ['👤 Utenti', '🔐 Permessi', '✉️ Inviti']
 
 // ─────────────────────────────────────────────────────────
 // GOD MODE banner
@@ -484,88 +483,6 @@ function PermissionsTab({ currentProfile, permissions: initialPerms }: { current
 }
 
 // ─────────────────────────────────────────────────────────
-// Tab: Approvazioni
-// ─────────────────────────────────────────────────────────
-function ApprovalsTab({ currentProfile, approvals: initialApprovals }: { currentProfile: Profile; approvals: (Approval & { requester?: { full_name: string; email: string; app_role: string } })[] }) {
-  const [approvals, setApprovals] = useState(initialApprovals)
-  const [processing, setProcessing] = useState<string | null>(null)
-
-  const resolve = async (id: string, status: 'approved' | 'rejected', notes?: string) => {
-    setProcessing(id)
-    const supabase = createClient()
-    const { error } = await supabase.from('approvals').update({
-      status, resolved_at: new Date().toISOString(), resolved_by: currentProfile.id, notes: notes ?? null,
-    }).eq('id', id)
-    setProcessing(null)
-    if (error) { toast.error(error.message); return }
-    setApprovals((p) => p.map((a) => a.id === id ? { ...a, status } : a))
-    toast.success(status === 'approved' ? 'Approvato!' : 'Rifiutato')
-  }
-
-  const pending = approvals.filter((a) => a.status === 'pending')
-  const resolved = approvals.filter((a) => a.status !== 'pending')
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-sm font-bold text-text-primary mb-3">In attesa ({pending.length})</h3>
-        {pending.length === 0 ? (
-          <div className="text-center py-10 text-text-secondary text-sm border border-dashed border-border rounded-xl">Nessuna richiesta in attesa ✓</div>
-        ) : (
-          <div className="space-y-2">
-            {pending.map((a) => (
-              <div key={a.id} className="bg-surface border border-gold/20 rounded-xl px-5 py-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <p className="text-sm font-bold text-text-primary">{a.title}</p>
-                    {a.description && <p className="text-xs text-text-secondary mt-1">{a.description}</p>}
-                    <p className="text-xs text-text-secondary mt-2">
-                      Richiesto da <strong className="text-text-primary">{a.requester?.full_name ?? a.requested_by}</strong>
-                      {' '}· {new Date(a.created_at).toLocaleDateString('it-IT')}
-                    </p>
-                  </div>
-                  <div className="flex gap-2 shrink-0">
-                    <button onClick={() => resolve(a.id, 'rejected')} disabled={processing === a.id}
-                      className="flex items-center gap-1 text-xs px-3 py-1.5 border border-error/30 text-error rounded-lg hover:bg-error/10 disabled:opacity-50">
-                      <X className="w-3.5 h-3.5" /> Rifiuta
-                    </button>
-                    <button onClick={() => resolve(a.id, 'approved')} disabled={processing === a.id}
-                      className="flex items-center gap-1 text-xs px-3 py-1.5 bg-gold text-on-gold font-bold rounded-lg hover:bg-gold/90 disabled:opacity-50">
-                      {processing === a.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Approva
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {resolved.length > 0 && (
-        <div>
-          <h3 className="text-sm font-bold text-text-secondary mb-3">Storico ({resolved.length})</h3>
-          <div className="space-y-2">
-            {resolved.slice(0, 20).map((a) => (
-              <div key={a.id} className="bg-surface border border-border rounded-xl px-5 py-3 flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-text-primary">{a.title}</p>
-                  <p className="text-xs text-text-secondary">{a.requester?.full_name} · {new Date(a.created_at).toLocaleDateString('it-IT')}</p>
-                </div>
-                <span className={`text-xs font-bold px-2 py-1 rounded-full ${a.status === 'approved' ? 'bg-success/20 text-success' : 'bg-error/20 text-error'}`}>
-                  {a.status === 'approved' ? '✓ Approvato' : '✗ Rifiutato'}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────
-// Tab: Inviti
-// ─────────────────────────────────────────────────────────
 function InvitationsTab({ currentProfile, invitations: initialInvitations }: { currentProfile: Profile; invitations: Invitation[] }) {
   const [invitations, setInvitations] = useState(initialInvitations)
   const [form, setForm] = useState({ email: '', app_role: 'junior' as AppRole, area: '', job_title: '' })
@@ -742,10 +659,9 @@ function InvitationsTab({ currentProfile, invitations: initialInvitations }: { c
 // ─────────────────────────────────────────────────────────
 // Main
 // ─────────────────────────────────────────────────────────
-export function ImpostazioniClient({ currentProfile, profiles, permissions, invitations, approvals, clients }: Props) {
+export function ImpostazioniClient({ currentProfile, profiles, permissions, invitations, clients }: Props) {
   const [activeTab, setActiveTab] = useState(0)
   const godMode = isSuperAdmin(currentProfile)
-  const pendingCount = approvals.filter((a) => a.status === 'pending').length
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -762,17 +678,13 @@ export function ImpostazioniClient({ currentProfile, profiles, permissions, invi
           <button key={t} onClick={() => setActiveTab(i)}
             className={`relative px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${activeTab === i ? 'border-gold text-gold-text' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
             {t}
-            {i === 2 && pendingCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-error rounded-full text-2xs font-black text-text-primary flex items-center justify-center">{pendingCount}</span>
-            )}
           </button>
         ))}
       </div>
 
       {activeTab === 0 && <UsersTab currentProfile={currentProfile} profiles={profiles} clients={clients} />}
       {activeTab === 1 && <PermissionsTab currentProfile={currentProfile} permissions={permissions} />}
-      {activeTab === 2 && <ApprovalsTab currentProfile={currentProfile} approvals={approvals} />}
-      {activeTab === 3 && <InvitationsTab currentProfile={currentProfile} invitations={invitations} />}
+      {activeTab === 2 && <InvitationsTab currentProfile={currentProfile} invitations={invitations} />}
     </div>
   )
 }

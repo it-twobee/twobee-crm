@@ -5,14 +5,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 
 const RESTORABLE: Record<string, string> = {
-  clients:     'clients',
-  tasks:       'tasks',
-  deals:       'deals',
-  invoices:    'invoices',
-  tickets:     'tickets',
-  objectives:  'objectives',
-  key_results: 'key_results',
-  projects:    'projects',
+  clients: 'clients',
+  tickets: 'tickets',
 }
 
 // Campi da escludere dal restore (meta fields)

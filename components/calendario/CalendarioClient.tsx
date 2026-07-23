@@ -97,7 +97,7 @@ function taskStyle(due: string): string {
 export function CalendarioClient({
   isGoogleConnected, localMeetings = [], tasks = [], profiles = [], currentUserId,
 }: {
-  isGoogleConnected: boolean; localMeetings: LocalMeeting[]; tasks: CalTask[]
+  isGoogleConnected: boolean; localMeetings: LocalMeeting[]; tasks?: CalTask[]
   profiles: Pick<Profile, 'id' | 'full_name' | 'avatar_url'>[]; currentUserId: string
 }) {
   const [currentDate, setCurrentDate] = useState(new Date())

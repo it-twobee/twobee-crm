@@ -11,13 +11,12 @@ import {
 import { formatCurrency } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import type { Client, ClientKpi, ClientKpiConfig, CustomKpiDef, Project } from '@/lib/types/database'
+import type { Client, ClientKpi, ClientKpiConfig, CustomKpiDef } from '@/lib/types/database'
 
 interface Props {
   client: Client
   kpis: ClientKpi[]
   kpiConfigs: ClientKpiConfig[]
-  projects: Project[]
 }
 
 // ─── KPI standard per tipo ──────────────────────────────────────────────────
@@ -437,8 +436,8 @@ function fmtTarget(key: string, v: number): string {
   return v.toLocaleString('it-IT')
 }
 
-function KpiTargetPrecompileModal({ client, isGrowth, selectedProject, onClose, onApplied }: {
-  client: Client; isGrowth: boolean; selectedProject: Project | null
+function KpiTargetPrecompileModal({ client, isGrowth, onClose, onApplied }: {
+  client: Client; isGrowth: boolean
   onClose: () => void; onApplied: (updates: Partial<Client>) => void
 }) {
   const [loading, setLoading]  = useState(true)
@@ -455,9 +454,9 @@ function KpiTargetPrecompileModal({ client, isGrowth, selectedProject, onClose, 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          projectKind: selectedProject?.project_kind ?? (isGrowth ? 'growth' : 'digital'),
-          projectType: selectedProject?.project_type ?? 'custom',
-          projectName: selectedProject?.name ?? client.company_name,
+          projectKind: isGrowth ? 'growth' : 'digital',
+          projectType: 'custom',
+          projectName: client.company_name,
           clientPackage: client.package,
           clientMrr: client.mrr,
           mode: 'targets',
@@ -561,22 +560,21 @@ function KpiTargetPrecompileModal({ client, isGrowth, selectedProject, onClose, 
 
 // ─── Main component ──────────────────────────────────────────────────────────
 
-export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: initialConfigs, projects }: Props) {
+export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: initialConfigs }: Props) {
   const [client, setClient] = useState(initialClient)
   const [allKpis, setAllKpis] = useState(initialKpis)
   const [configs, setConfigs] = useState<ClientKpiConfig[]>(initialConfigs)
 
-  // Progetti con project_kind definito
-  const kpiProjects = projects.filter(p => p.project_kind)
-  const firstProject = kpiProjects[0] ?? null
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(firstProject?.id ?? null)
+  // I KPI sono mensili per cliente. Un cliente growth_digital vede due letture
+  // degli stessi mesi: il toggle sceglie quale set di metriche mostrare.
+  const isMixed = initialClient.client_type === 'growth_digital'
+  const [view, setView] = useState<'growth' | 'digital'>(
+    initialClient.client_type === 'digital' ? 'digital' : 'growth'
+  )
+  const isGrowth = view === 'growth'
 
-  const selectedProject = kpiProjects.find(p => p.id === selectedProjectId) ?? null
-  const isGrowth = selectedProject?.project_kind === 'growth'
-
-  // KPI e config filtrate per il progetto selezionato
-  const kpis = allKpis.filter(k => k.project_id === selectedProjectId)
-  const config = configs.find(c => c.project_id === selectedProjectId) ?? null
+  const kpis = allKpis
+  const config = configs[0] ?? null
 
   const [showModal, setShowModal] = useState(false)
   const [showConfig, setShowConfig] = useState(false)
@@ -646,8 +644,8 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
 
   const handleConfigSaved = (newConfig: ClientKpiConfig) => {
     setConfigs(prev => {
-      const exists = prev.find(c => c.project_id === newConfig.project_id)
-      return exists ? prev.map(c => c.project_id === newConfig.project_id ? newConfig : c) : [...prev, newConfig]
+      const exists = prev.find(c => c.id === newConfig.id)
+      return exists ? prev.map(c => c.id === newConfig.id ? newConfig : c) : [...prev, newConfig]
     })
   }
 
@@ -663,50 +661,38 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
 
   const chartTheme = { grid: 'var(--color-border)', text: 'var(--color-text-tertiary)', gold: 'var(--color-gold-text)', green: 'var(--color-success)', blue: 'var(--color-info)' }
 
-  // Nessun progetto con project_kind definito
-  if (kpiProjects.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <p className="text-text-secondary text-sm">Nessun progetto Growth o Digital trovato.</p>
-        <p className="text-xs text-text-secondary">Crea un progetto dalla tab Progetti e assegnagli la natura Growth o Digital.</p>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6">
       {showTargetPrecompile && (
         <KpiTargetPrecompileModal
           client={client}
           isGrowth={isGrowth}
-          selectedProject={selectedProject}
           onClose={() => setShowTargetPrecompile(false)}
           onApplied={updates => setClient(prev => ({ ...prev, ...updates }))}
         />
       )}
 
-      {/* Selettore progetto */}
-      <div className="flex flex-wrap gap-2">
-        {kpiProjects.map(p => {
-          const isSelected = p.id === selectedProjectId
-          const isG = p.project_kind === 'growth'
-          const projectTitle = p.name.includes(' – ') ? p.name.split(' – ').slice(1).join(' – ') : p.name
-          return (
-            <button key={p.id} onClick={() => { setSelectedProjectId(p.id); setExpandedMonth(null) }}
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-semibold transition-all ${
-                isSelected
-                  ? isG
-                    ? 'bg-gold/10 border-gold text-gold-text'
-                    : 'bg-info/10 border-info text-info'
-                  : 'bg-surface border-border text-text-secondary hover:border-border-strong hover:text-text-primary'
-              }`}>
-              <span>{isG ? '📈' : '💻'}</span>
-              <span className="truncate max-w-[180px]">{projectTitle}</span>
-              {isSelected && <span className="text-2xs font-bold opacity-70">{isG ? 'Growth' : 'Digital'}</span>}
-            </button>
-          )
-        })}
-      </div>
+      {isMixed && (
+        <div className="flex flex-wrap gap-2">
+          {(['growth', 'digital'] as const).map(v => {
+            const isSelected = v === view
+            const isG = v === 'growth'
+            return (
+              <button key={v} onClick={() => { setView(v); setExpandedMonth(null) }}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-semibold transition-all ${
+                  isSelected
+                    ? isG
+                      ? 'bg-gold/10 border-gold text-gold-text'
+                      : 'bg-info/10 border-info text-info'
+                    : 'bg-surface border-border text-text-secondary hover:border-border-strong hover:text-text-primary'
+                }`}>
+                <span>{isG ? '📈' : '💻'}</span>
+                <span>{isG ? 'Growth' : 'Digital'}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -720,7 +706,7 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
           </span>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <button onClick={() => setShowConfig(true)} disabled={!selectedProject}
+          <button onClick={() => setShowConfig(true)}
             className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary border border-border rounded-lg hover:text-text-primary hover:border-overlay/20 transition-colors disabled:opacity-40">
             <Settings2 className="w-4 h-4" /> Configura KPI
           </button>
@@ -732,7 +718,7 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
             className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary border border-border rounded-lg hover:text-text-primary hover:border-overlay/20 transition-colors">
             <FileText className="w-4 h-4" /> Report PDF
           </button>
-          <button onClick={() => { setEditingKpi(null); setShowModal(true) }} disabled={!selectedProject}
+          <button onClick={() => { setEditingKpi(null); setShowModal(true) }}
             className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-gold text-on-gold rounded-lg hover:bg-gold/90 transition-colors disabled:opacity-40">
             <Plus className="w-4 h-4" /> Inserisci mese
           </button>
@@ -744,7 +730,7 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <p className="text-xs font-bold text-text-secondary uppercase tracking-wider">Obiettivi configurati</p>
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowTargetPrecompile(true)} disabled={!selectedProject}
+            <button onClick={() => setShowTargetPrecompile(true)}
               className="flex items-center gap-1.5 text-2xs font-bold px-2.5 py-1.5 rounded-lg transition-all disabled:opacity-40"
               style={{ background: 'var(--color-gold-dim)', border: '1px solid var(--color-gold)', color: 'var(--color-gold-text)' }}>
               <Sparkles className="w-3 h-3" /> Precompila con AI
@@ -1047,26 +1033,23 @@ export function KpiTab({ client: initialClient, kpis: initialKpis, kpiConfigs: i
         </>
       )}
 
-      {showModal && selectedProject && (
+      {showModal && (
         <KpiModal
           clientId={client.id}
-          projectId={selectedProject.id}
           isGrowth={isGrowth}
           enabledStd={enabledStd}
           categories={categories}
           customKpis={customKpis}
           initialData={editingKpi}
-          projectName={selectedProject.name}
-          projectType={selectedProject.project_type}
+          clientLabel={client.display_name ?? client.company_name}
           onClose={() => { setShowModal(false); setEditingKpi(null) }}
           onSaved={handleSaved}
         />
       )}
 
-      {showConfig && selectedProject && (
+      {showConfig && (
         <KpiConfigModal
           client={client}
-          projectId={selectedProject.id}
           config={config}
           stdDefs={stdDefs}
           categories={categories}
@@ -1263,11 +1246,11 @@ const CONNECTORS = [
   { name: 'HubSpot',             emoji: '🟠', color: '#FF7A59', desc: 'Lead, SQL, Contatti CRM, Deal pipeline' },
 ]
 
-function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, customKpis, initialData,
-  projectName, projectType, onClose, onSaved }: {
-  clientId: string; projectId: string; isGrowth: boolean
+function KpiModal({ clientId, isGrowth, enabledStd, categories, customKpis, initialData,
+  clientLabel, onClose, onSaved }: {
+  clientId: string; isGrowth: boolean
   enabledStd: StdKpiDef[]; categories: KpiCategory[]; customKpis: CustomKpiDef[]
-  initialData: ClientKpi | null; projectName?: string; projectType?: string
+  initialData: ClientKpi | null; clientLabel?: string
   onClose: () => void; onSaved: (k: ClientKpi) => void
 }) {
   const [loading, setLoading]     = useState(false)
@@ -1305,8 +1288,8 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           projectKind: isGrowth ? 'growth' : 'digital',
-          projectType: projectType ?? 'custom',
-          projectName: projectName ?? '',
+          projectType: 'custom',
+          projectName: clientLabel ?? '',
           mode: 'monthly',
         }),
       })
@@ -1336,7 +1319,7 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true)
-    const payload: Record<string, unknown> = { client_id: clientId, project_id: projectId, month: month + '-01', notes: notes || null }
+    const payload: Record<string, unknown> = { client_id: clientId, month: month + '-01', notes: notes || null }
     enabledStd.forEach(d => {
       const raw = stdValues[d.key]
       payload[d.key] = raw ? (d.isInt ? parseInt(raw) : parseFloat(raw)) : null
@@ -1348,7 +1331,7 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
     const supabase = createClient()
     const result = initialData
       ? await supabase.from('client_kpis').update(payload).eq('id', initialData.id).select().single()
-      : await supabase.from('client_kpis').upsert(payload, { onConflict: 'client_id,project_id,month' }).select().single()
+      : await supabase.from('client_kpis').upsert(payload, { onConflict: 'client_id,month' }).select().single()
 
     setLoading(false)
     if (result.error) { toast.error(result.error.message); return }
@@ -1592,9 +1575,8 @@ function KpiModal({ clientId, projectId, isGrowth, enabledStd, categories, custo
 
 // ─── Modal configurazione KPI ────────────────────────────────────────────────
 
-function KpiConfigModal({ client, projectId, config, stdDefs, categories, isGrowth, onClose, onSaved }: {
+function KpiConfigModal({ client, config, stdDefs, categories, isGrowth, onClose, onSaved }: {
   client: Client
-  projectId: string
   config: ClientKpiConfig | null
   stdDefs: StdKpiDef[]
   categories: KpiCategory[]
@@ -1631,7 +1613,7 @@ function KpiConfigModal({ client, projectId, config, stdDefs, categories, isGrow
   const save = async () => {
     setLoading(true)
     const supabase = createClient()
-    const payload = { client_id: client.id, project_id: projectId, enabled, custom_kpis: customKpis }
+    const payload = { client_id: client.id, enabled, custom_kpis: customKpis }
     const { data, error } = config
       ? await supabase.from('client_kpi_config').update(payload).eq('id', config.id).select().single()
       : await supabase.from('client_kpi_config').insert(payload).select().single()

@@ -87,7 +87,6 @@ export function NewClientModal({ onClose, onCreated }: NewClientModalProps) {
 
     await Promise.all([
       contacts.length > 0 ? supabase.from('client_contacts').insert(contacts.map((c) => ({ ...c, client_id: client.id }))) : Promise.resolve(),
-      supabase.from('projects').insert({ client_id: client.id, name: `Progetto ${form.company_name}`, status: 'attivo' }),
       supabase.from('chat_channels').insert([
         { name: form.company_name.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 40), type: 'cliente', client_id: client.id },
         { name: `cc-${form.company_name.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 37)}`, type: 'customer_care', client_id: client.id },

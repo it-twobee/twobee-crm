@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { WorkspaceSidebar } from '@/components/workspace/WorkspaceSidebar'
-import { UndoHotkey } from '@/components/undo/UndoHotkey'
 import { GlobalSearch } from '@/components/shared/GlobalSearch'
 import { workspaceSearch } from '@/app/actions/global-search'
 import { isSuperAdminRaw, isAdminRole, isWorkspaceRole } from '@/lib/permissions'
@@ -56,34 +55,13 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     visibleSections = [...(visibleSections ?? []), ...universal]
   }
 
-  // Sezioni disattivate nel workspace: Chat (resta solo il Customer Care) e la
-  // vista Task globale (le task si gestiscono da "Le mie attività" e dai progetti).
-  // Nascondo le voci a monte; le rotte reindirizzano comunque.
-  const HIDDEN_WORKSPACE_KEYS = ['chat', 'task']
+  // Sezioni senza pagina dopo il reset del dominio progetto: la 146 le disattiva
+  // in tabella, qui restano filtrate anche se qualcuno le riattiva a mano.
+  const HIDDEN_WORKSPACE_KEYS = ['chat', 'task', 'progetti', 'portfolio', 'workload', 'mie_attivita', 'cestino']
   visibleSections = (visibleSections ?? []).filter((s: { key: string }) => !HIDDEN_WORKSPACE_KEYS.includes(s.key))
-
-  // Workload: visibile a tutti nel workspace. Iniettata come fallback se la
-  // migration 095 non è ancora stata applicata, così la voce compare subito.
-  // sort_order 2 → tra "Le mie attività" (1) e "Calendario" (3, migration 104).
-  if (!(visibleSections ?? []).some((s: { key: string }) => s.key === 'workload')) {
-    visibleSections = [
-      ...(visibleSections ?? []),
-      { id: 'synthetic-workload', key: 'workload', label: 'Workload', route: '/workspace/workload', icon: 'Gauge', sort_order: 2, group_key: 'lavori', group_order: 1 },
-    ]
-  }
-
-  // Cestino: visibile a tutti nel workspace (ognuno vede le task che ha cestinato;
-  // manager/admin tutte). Fallback sintetico se la migration 112 non è ancora attiva.
-  if (!(visibleSections ?? []).some((s: { key: string }) => s.key === 'cestino')) {
-    visibleSections = [
-      ...(visibleSections ?? []),
-      { id: 'synthetic-cestino', key: 'cestino', label: 'Cestino', route: '/workspace/cestino', icon: 'Trash2', sort_order: 20, group_key: 'lavori', group_order: 1 },
-    ]
-  }
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
-      <UndoHotkey />
       <WorkspaceSidebar
         sections={(visibleSections ?? []) as WorkspaceSectionRow[]}
         isSuperAdmin={isSuperAdmin}
@@ -99,8 +77,8 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
           <div className="flex-1 max-w-md">
             <GlobalSearch
               search={workspaceSearch}
-              types={['cliente', 'progetto', 'task', 'documento']}
-              placeholder="Cerca clienti, progetti, task…"
+              types={['cliente', 'documento']}
+              placeholder="Cerca clienti, documenti…"
             />
           </div>
         </header>

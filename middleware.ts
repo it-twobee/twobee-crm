@@ -38,18 +38,14 @@ export async function middleware(request: NextRequest) {
   const protectedPaths = [
     '/dashboard',
     '/clienti',
-    '/task',
+    '/customer-care',
+    '/calendario',
+    '/documenti',
     '/chat',
-    '/report',
     '/impostazioni',
-    '/portale',
-    '/risorsa',
     '/workspace',
-    '/reparti',
-    '/commerciale',
-    '/fatturazione',
     '/hr',
-    '/strategia',
+    '/feedback',
   ]
 
   const isProtected = protectedPaths.some((p) => pathname.startsWith(p))
@@ -62,7 +58,7 @@ export async function middleware(request: NextRequest) {
 
   if (!user && isProtected) return redirectTo('/login')
 
-  // Routing per ruolo: client → /portale · workspace → /workspace · risorsa esterna → /risorsa · staff → /dashboard
+  // Routing per ruolo: workspace → /workspace · staff → /dashboard · client/guest → solo profilo
   if (user) {
     const { data: profile } = await supabase
       .from('profiles').select('role, app_role, email').eq('id', user.id).single()
@@ -87,54 +83,24 @@ export async function middleware(request: NextRequest) {
       return supabaseResponse
     }
 
-    // Solo il super admin entra nel portale cliente per ispezionarlo: /portale
-    // mostra i dati di un singolo cliente, non è una vista aggregata.
-    if (isSuper && (pathname === '/portale' || pathname.startsWith('/portale/'))) {
-      return supabaseResponse
-    }
-
     // Admin/super_admin possono visitare /workspace senza restrizioni
     if (isAdminLevel && (pathname === '/workspace' || pathname.startsWith('/workspace/'))) {
       return supabaseResponse
     }
 
-    // Distinzione risorsa esterna vs guest-cliente (solo per i guest)
-    let isResource = false
-    if (role === 'guest') {
-      const { data: rp } = await supabase
-        .from('resource_profiles').select('can_access_resource_portal').eq('profile_id', user.id).maybeSingle()
-      isResource = !!rp?.can_access_resource_portal
+    // Portale cliente e portale risorsa sono stati demoliti insieme al flusso
+    // progetto: finché non vengono ricostruiti, client/guest vedono solo il
+    // proprio profilo. Nessun redirect verso rotte inesistenti.
+    const isPortalUser = role === 'client' || role === 'guest'
+    if (isPortalUser) {
+      const allowed =
+        pathname === '/impostazioni/profilo' ||
+        pathname.startsWith('/onboarding')
+      if (!allowed) return redirectTo('/impostazioni/profilo')
+      return supabaseResponse
     }
 
-    const isClient = (role === 'client' || role === 'guest') && !isResource
-
-    if (isResource) {
-      // La risorsa vive solo nel proprio portale (+ onboarding e profilo)
-      const allowedForResource =
-        pathname === '/risorsa' ||
-        pathname.startsWith('/risorsa/') ||
-        pathname.startsWith('/onboarding') ||
-        pathname === '/impostazioni/profilo'
-      if (!allowedForResource && pathname !== '/risorsa') return redirectTo('/risorsa')
-    } else if (isClient) {
-      // Il cliente può accedere solo a /portale (+ onboarding e profilo)
-      const allowedForClient =
-        pathname === '/portale' ||
-        pathname.startsWith('/portale/') ||
-        pathname.startsWith('/onboarding') ||
-        pathname === '/impostazioni/profilo'
-      if (pathname.startsWith('/portale-cliente') || !allowedForClient) {
-        if (pathname !== '/portale') return redirectTo('/portale')
-      }
-    } else {
-      // Lo staff non usa la rotta cliente /portale
-      if (pathname === '/portale' || pathname.startsWith('/portale/')) {
-        return redirectTo('/dashboard')
-      }
-    }
-
-    const home = isResource ? '/risorsa' : isClient ? '/portale' : '/dashboard'
-    if (pathname === '/login' || pathname === '/') return redirectTo(home)
+    if (pathname === '/login' || pathname === '/') return redirectTo('/dashboard')
   }
 
   return supabaseResponse

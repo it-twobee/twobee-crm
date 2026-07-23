@@ -4,14 +4,11 @@ import { useState, useRef } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Edit3, Check, X, ChevronDown, Loader2 } from 'lucide-react'
 import { formatCurrency, formatDate, getPaymentBadge } from '@/lib/utils'
-import type { Client, ClientContact, Project, Sprint, Task, MeetingNote, ClientKpi, Profile, Invoice, ClientStakeholder, Document, ClientInteraction } from '@/lib/types/database'
+import type { Client, ClientContact, ClientKpi, Profile, ClientStakeholder, Document, ClientInteraction } from '@/lib/types/database'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
-import { ProgettiAttiviTab } from './tabs/ProgettiAttiviTab'
-import { ContextualCreate } from '@/components/shared/ContextualCreate'
 import { clientName } from '@/lib/utils'
 import { KpiTab } from './tabs/KpiTab'
 import { AnagraficaTab } from './tabs/AnagraficaTab'
-import { FatturazioneTab } from './tabs/FatturazioneTab'
 import { DocumentsTab } from './tabs/DocumentsTab'
 import { PanoramicaTab } from './tabs/PanoramicaTab'
 import { RelazioneTab } from './tabs/RelazioneTab'
@@ -23,22 +20,17 @@ import { toast } from 'sonner'
 interface Props {
   client: Client
   contacts: ClientContact[]
-  projects: Project[]
-  sprints: Sprint[]
-  tasks: Task[]
-  meetings: MeetingNote[]
   kpis: ClientKpi[]
   kpiConfigs: import('@/lib/types/database').ClientKpiConfig[]
   teamMembers: Profile[]
   stakeholders: ClientStakeholder[]
-  invoices: Invoice[]
   documents: Document[]
   interactions: ClientInteraction[]
   currentProfile: Profile
   allProfiles: Profile[]
   openTickets: number
   initialTab?: number
-  /** Portale operativo: oscura MRR, Fatturazione, pagamenti — resta gestibile tutto il resto (progetti, task, documenti…) */
+  /** Portale operativo: oscura MRR e pagamenti. */
   hideEconomics?: boolean
   backHref?: string
 }
@@ -203,8 +195,8 @@ function InlineNumberField({ value, field, clientId, canEdit, prefix = '', suffi
 }
 
 export function ClientPageClient({
-  client, contacts, projects, sprints, tasks, meetings, kpis, kpiConfigs,
-  teamMembers, stakeholders, invoices, documents, interactions, currentProfile, allProfiles,
+  client, contacts, kpis, kpiConfigs,
+  teamMembers, stakeholders, documents, interactions, currentProfile, allProfiles,
   openTickets, initialTab, hideEconomics = false, backHref = '/clienti'
 }: Props) {
   const isAdmin = SUPER_ADMIN_EMAILS.includes(currentProfile?.email ?? '') || currentProfile?.app_role === 'admin'
@@ -216,10 +208,7 @@ export function ClientPageClient({
 
   const visibleTabs = [
     { label: 'Panoramica', index: 0 },
-    // §14: sezione autonoma fra Panoramica e KPI (indice 7: gli altri non si spostano)
-    { label: 'Progetti attivi', index: 7 },
     { label: 'KPI & Performance', index: 1 },
-    ...(canSeeFatturazione ? [{ label: 'Fatturazione', index: 2 }] : []),
     { label: 'Documenti', index: 3 },
     ...(canSeeAnagrafica ? [{ label: 'Anagrafica', index: 4 }] : []),
     ...(isAdminLevel ? [{ label: 'Relazione', index: 5 }] : []),
@@ -238,7 +227,7 @@ export function ClientPageClient({
       </div>
 
       {/* Alert banner contestuale */}
-      <ClientAlertBanner client={client} invoices={invoices} hideEconomics={hideEconomics} />
+      <ClientAlertBanner client={client} hideEconomics={hideEconomics} />
 
       {/* Header cliente — tutto editabile per admin */}
       <div className="px-6 pb-5 border-b border-border">
@@ -304,12 +293,6 @@ export function ClientPageClient({
             )}
           </div>
 
-          {/* §12: CTA "Crea" contestuale — dal cliente, client_id è già precompilato */}
-          <ContextualCreate canCreate={isAdminLevel} ctx={{
-            clientId: client.id,
-            clientName: clientName(client),
-            projects: projects.filter(p => p.status === 'attivo').map(p => ({ id: p.id, name: p.name })),
-          }} />
         </div>
       </div>
 
@@ -328,18 +311,11 @@ export function ClientPageClient({
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto p-6">
         {activeTab === 0 && (
-          <PanoramicaTab client={client} tasks={tasks} invoices={invoices} kpis={kpis} projects={projects}
-            sprints={sprints} meetings={meetings} allProfiles={allProfiles}
+          <PanoramicaTab client={client} kpis={kpis} allProfiles={allProfiles}
             teamMembers={teamMembers} interactions={interactions} isAdmin={isAdmin} openTickets={openTickets}
             onTabChange={setActiveTab} hideEconomics={hideEconomics} />
         )}
-        {/* §14: Progetti attivi — vista ricca + agenda dal calendario reale */}
-        {activeTab === 7 && (
-          <ProgettiAttiviTab client={client} projects={projects} sprints={sprints} tasks={tasks}
-            kpis={kpis} meetings={meetings} hideEconomics={hideEconomics} />
-        )}
-        {activeTab === 1 && <KpiTab client={client} kpis={kpis} kpiConfigs={kpiConfigs} projects={projects} />}
-        {activeTab === 2 && <FatturazioneTab client={client} invoices={invoices} />}
+        {activeTab === 1 && <KpiTab client={client} kpis={kpis} kpiConfigs={kpiConfigs} />}
         {activeTab === 3 && <DocumentsTab client={client} documents={documents} />}
         {activeTab === 4 && (
           <AnagraficaTab client={client} contacts={contacts} teamMembers={teamMembers} stakeholders={stakeholders} hideEconomics={hideEconomics} />

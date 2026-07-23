@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { ClientiList } from '@/components/clients/ClientiList'
-import { fetchClientTaskStats } from '@/lib/client-task-stats'
 import type { Client, Profile } from '@/lib/types/database'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 
@@ -36,7 +35,6 @@ export default async function ClientiPage() {
     }
   }
 
-  const taskStats = await fetchClientTaskStats(supabase, clients.map(c => c.id))
 
-  return <ClientiList clients={clients} currentProfile={profile as Profile} taskStats={taskStats} />
+  return <ClientiList clients={clients} currentProfile={profile as Profile} />
 }

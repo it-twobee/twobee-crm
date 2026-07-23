@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import {
-  FileText, Search, FolderOpen, FolderKanban, Users, ExternalLink,
+  FileText, Search, FolderOpen, Users, ExternalLink,
   ChevronDown, ChevronRight, Eye, X, AlertTriangle, Folder,
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
@@ -12,28 +12,25 @@ import type { Profile } from '@/lib/types/database'
 
 // §11 / §11.1 (D9): i Documenti workspace sono la raccolta dei riferimenti Drive di
 // clienti e progetti — nessun upload, nessuna Drive API. L'alberatura è
-// Cliente → Progetto → documenti, espandibile/collassabile, con embed folder view
+// Cliente → documenti, espandibile/collassabile, con embed folder view
 // e "Apri in Drive". I file storici su storage (non Drive) restano visibili in
 // sola apertura, marcati, finché non vengono ripuliti (D10).
 
 interface DocItem {
   id: string; name: string; file_url: string; file_type: string | null
-  created_at: string; client_id: string | null; project_id: string | null
+  created_at: string; client_id: string | null
   uploader: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
   client: { id: string; company_name: string } | null
-  project: { id: string; name: string } | null
 }
 
 export function DocumentiClient({ documents, clients }: {
   documents: DocItem[]
   clients: { id: string; company_name: string }[]
-  projects: { id: string; name: string; client_id: string }[]
 }) {
   const [search, setSearch] = useState('')
   const [filterClient, setFilterClient] = useState<string | null>(null)
   const [onlyDrive, setOnlyDrive] = useState(true)
   const [openClients, setOpenClients] = useState<Set<string>>(new Set())
-  const [openProjects, setOpenProjects] = useState<Set<string>>(new Set())
   const [preview, setPreview] = useState<DocItem | null>(null)
 
   const legacyCount = useMemo(() => documents.filter(d => !isDriveUrl(d.file_url)).length, [documents])
@@ -46,44 +43,30 @@ export function DocumentiClient({ documents, clients }: {
       const q = search.toLowerCase()
       d = d.filter(doc =>
         doc.name.toLowerCase().includes(q)
-        || doc.client?.company_name.toLowerCase().includes(q)
-        || doc.project?.name.toLowerCase().includes(q))
+        || doc.client?.company_name.toLowerCase().includes(q))
     }
     return d
   }, [documents, search, filterClient, onlyDrive])
 
-  // Albero: cliente → { progetti → docs, docs senza progetto }
+  // Albero: cliente → documenti
   const tree = useMemo(() => {
-    type ProjNode = { id: string; label: string; docs: DocItem[] }
-    type ClientNode = { id: string; label: string; projects: Map<string, ProjNode>; loose: DocItem[] }
+    type ClientNode = { id: string; label: string; docs: DocItem[] }
     const byClient = new Map<string, ClientNode>()
     for (const doc of filtered) {
       const cid = doc.client_id ?? 'no-client'
       const clabel = doc.client?.company_name ?? 'Senza cliente'
-      const entry: ClientNode = byClient.get(cid) ?? { id: cid, label: clabel, projects: new Map(), loose: [] }
-      if (doc.project_id && doc.project) {
-        const p: ProjNode = entry.projects.get(doc.project_id) ?? { id: doc.project_id, label: doc.project.name, docs: [] }
-        p.docs.push(doc)
-        entry.projects.set(doc.project_id, p)
-      } else {
-        entry.loose.push(doc)
-      }
+      const entry: ClientNode = byClient.get(cid) ?? { id: cid, label: clabel, docs: [] }
+      entry.docs.push(doc)
       byClient.set(cid, entry)
     }
-    return Array.from(byClient.values())
-      .map(c => ({ ...c, projects: Array.from(c.projects.values()).sort((a, b) => a.label.localeCompare(b.label)) }))
-      .sort((a, b) => a.label.localeCompare(b.label))
+    return Array.from(byClient.values()).sort((a, b) => a.label.localeCompare(b.label))
   }, [filtered])
 
   // Una ricerca attiva espande tutto: altrimenti i match restano nascosti nei rami chiusi.
   const searching = search.trim().length > 0
   const isClientOpen = (id: string) => searching || openClients.has(id)
-  const isProjectOpen = (id: string) => searching || openProjects.has(id)
 
   const toggleClient = (id: string) => setOpenClients(p => {
-    const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n
-  })
-  const toggleProject = (id: string) => setOpenProjects(p => {
     const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n
   })
 
@@ -151,42 +134,13 @@ export function DocumentiClient({ documents, clients }: {
                 : <ChevronRight className="w-4 h-4 text-text-tertiary shrink-0" />}
               <Users className="w-4 h-4 text-gold-text shrink-0" />
               <span className="text-sm font-bold text-text-primary flex-1 truncate">{client.label}</span>
-              <span className="text-2xs text-text-tertiary shrink-0">
-                {client.projects.reduce((s, p) => s + p.docs.length, 0) + client.loose.length}
-              </span>
+              <span className="text-2xs text-text-tertiary shrink-0">{client.docs.length}</span>
             </button>
 
             {isClientOpen(client.id) && (
-              <div className="border-t border-border">
-                {/* Documenti del cliente senza progetto */}
-                {client.loose.length > 0 && (
-                  <div className="pl-6 pr-3 py-2 space-y-1">
-                    {client.loose.map(doc => (
-                      <DocRow key={doc.id} doc={doc} onPreview={() => setPreview(doc)} />
-                    ))}
-                  </div>
-                )}
-
-                {/* Progetti */}
-                {client.projects.map(project => (
-                  <div key={project.id} className="border-t border-border">
-                    <button onClick={() => toggleProject(project.id)}
-                      className="w-full flex items-center gap-2.5 pl-6 pr-4 py-2.5 hover:bg-surface-hover transition-colors text-left">
-                      {isProjectOpen(project.id)
-                        ? <ChevronDown className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
-                        : <ChevronRight className="w-3.5 h-3.5 text-text-tertiary shrink-0" />}
-                      <FolderKanban className="w-3.5 h-3.5 text-info shrink-0" />
-                      <span className="text-xs font-semibold text-text-primary flex-1 truncate">{project.label}</span>
-                      <span className="text-2xs text-text-tertiary shrink-0">{project.docs.length}</span>
-                    </button>
-                    {isProjectOpen(project.id) && (
-                      <div className="pl-12 pr-3 pb-2 space-y-1">
-                        {project.docs.map(doc => (
-                          <DocRow key={doc.id} doc={doc} onPreview={() => setPreview(doc)} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
+              <div className="border-t border-border pl-6 pr-3 py-2 space-y-1">
+                {client.docs.map(doc => (
+                  <DocRow key={doc.id} doc={doc} onPreview={() => setPreview(doc)} />
                 ))}
               </div>
             )}
@@ -202,7 +156,6 @@ export function DocumentiClient({ documents, clients }: {
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-bold text-text-primary truncate">
                 {preview.client?.company_name}
-                {preview.project && <span className="text-text-tertiary"> / {preview.project.name}</span>}
                 <span className="text-text-tertiary"> / </span>{preview.name}
               </p>
               <button onClick={() => setPreview(null)} aria-label="Chiudi anteprima"

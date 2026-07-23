@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import type { ClientKnowledge, ClientCompetitor, ClientIdea, ClientEconomics } from '@/lib/types/database'
+import type { ClientKnowledge, ClientCompetitor, ClientIdea } from '@/lib/types/database'
 
 export type ClientKnowledgeInput = Omit<ClientKnowledge, 'id' | 'created_at' | 'updated_at'>
 
@@ -79,26 +79,4 @@ export async function deleteIdea(clientId: string, id: string): Promise<void> {
   const { error } = await sb.from('client_ideas').delete().eq('id', id)
   if (error) throw new Error(error.message)
   revalidatePath(`/clienti/${clientId}`)
-}
-
-// ── Marginalità (§26, area riservata) ────────────────────────────────────────
-// RLS client_economics_admin (role='admin') è la barriera vera; qui rifiutiamo
-// presto per dare un errore leggibile invece di una riga vuota.
-export type EconomicsInput = Omit<ClientEconomics, 'id' | 'created_at' | 'updated_at'>
-
-export async function upsertClientEconomics(input: EconomicsInput): Promise<ClientEconomics> {
-  const sb = await createClient()
-  const { data: { user } } = await sb.auth.getUser()
-  if (!user) throw new Error('Non autenticato')
-
-  const { data: me } = await sb.from('profiles').select('role').eq('id', user.id).single()
-  if ((me as { role?: string } | null)?.role !== 'admin') {
-    throw new Error('Area riservata: solo gli admin possono modificare la marginalità')
-  }
-
-  const { data, error } = await sb
-    .from('client_economics').upsert(input, { onConflict: 'client_id' }).select().single()
-  if (error) throw new Error(error.message)
-  revalidatePath(`/clienti/${input.client_id}`)
-  return data as ClientEconomics
 }

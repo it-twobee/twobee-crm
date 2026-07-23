@@ -2,26 +2,23 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Loader2, Users, FolderKanban, CheckSquare, MessageSquare, FileText, ShoppingCart, CornerDownLeft } from 'lucide-react'
+import { Search, Loader2, Users, MessageSquare, FileText, CornerDownLeft } from 'lucide-react'
 import { globalSearch, type SearchResult, type SearchType } from '@/app/actions/global-search'
 
 const TYPE_META: Record<SearchType, { label: string; icon: React.ReactNode; color: string }> = {
-  cliente:    { label: 'Clienti',    icon: <Users className="w-3.5 h-3.5" />,        color: 'var(--color-gold-text)' },
-  progetto:   { label: 'Progetti',   icon: <FolderKanban className="w-3.5 h-3.5" />, color: 'var(--color-info)' },
-  task:       { label: 'Task',       icon: <CheckSquare className="w-3.5 h-3.5" />,  color: 'var(--color-success)' },
-  messaggio:  { label: 'Messaggi',   icon: <MessageSquare className="w-3.5 h-3.5" />, color: 'var(--color-accent)' },
-  documento:  { label: 'Documenti',  icon: <FileText className="w-3.5 h-3.5" />,     color: 'var(--color-info)' },
-  deal:       { label: 'Commerciale', icon: <ShoppingCart className="w-3.5 h-3.5" />, color: 'var(--color-warning)' },
+  cliente:    { label: 'Clienti',   icon: <Users className="w-3.5 h-3.5" />,         color: 'var(--color-gold-text)' },
+  messaggio:  { label: 'Messaggi',  icon: <MessageSquare className="w-3.5 h-3.5" />,  color: 'var(--color-accent)' },
+  documento:  { label: 'Documenti', icon: <FileText className="w-3.5 h-3.5" />,       color: 'var(--color-info)' },
 }
 
-const TYPE_ORDER: SearchType[] = ['cliente', 'progetto', 'task', 'messaggio', 'documento', 'deal']
+const TYPE_ORDER: SearchType[] = ['cliente', 'messaggio', 'documento']
 
 // Riusabile: l'admin usa globalSearch su tutto; il workspace passa una search
-// scoped al proprio perimetro (clienti/progetti/task/documenti) con rotte /workspace.
+// scoped al proprio perimetro con rotte /workspace.
 export function GlobalSearch({
   search = globalSearch,
   types = TYPE_ORDER,
-  placeholder = 'Cerca clienti, task, messaggi…',
+  placeholder = 'Cerca clienti, messaggi, documenti…',
 }: {
   search?: (q: string) => Promise<SearchResult[]>
   types?: SearchType[]

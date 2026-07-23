@@ -12,7 +12,6 @@ import {
 import { useState, useCallback, useEffect } from 'react'
 import { ROLE_LABELS } from '@/lib/permissions'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
-import { PortalSwitcher } from '@/components/shared/PortalSwitcher'
 import { Logo } from '@/components/shared/Logo'
 import type { AppRole } from '@/lib/types/database'
 
@@ -234,7 +233,6 @@ export function WorkspaceSidebar({ sections, profile, isSuperAdmin = false }: Pr
 
       {/* User + collapse */}
       <div className="border-t border-border p-3 flex flex-col gap-2 shrink-0">
-        {isSuperAdmin && <PortalSwitcher collapsed={collapsed} />}
         <ThemeToggle collapsed={collapsed} />
         {!collapsed && (
           <div className="flex items-center gap-2 px-1">

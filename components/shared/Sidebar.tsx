@@ -5,16 +5,14 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard, Users,
-  BarChart3, FolderOpen, Settings, ChevronRight, ChevronLeft, ChevronDown,
-  CheckCircle2, FolderKanban, Briefcase, CalendarDays, Receipt, Headphones, Crown,
-  ShoppingCart, Ticket, UserCircle2, Target, History, FlaskConical,
-  Layers, Calculator, Map, Scale, Lightbulb, Gauge, Trash2,
+  FolderOpen, Settings, ChevronRight, ChevronLeft, ChevronDown,
+  CalendarDays, Headphones, Crown,
+  Ticket, UserCircle2, History, Lightbulb,
 } from 'lucide-react'
 import { useState, useCallback, useEffect } from 'react'
 import { usePermissions } from '@/lib/hooks/usePermissions'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
-import { PortalSwitcher } from '@/components/shared/PortalSwitcher'
 import { Logo } from '@/components/shared/Logo'
 
 interface NavItem {
@@ -38,17 +36,6 @@ const sections: NavSection[] = [
     ],
   },
   {
-    label: 'Lavori',
-    items: [
-      { href: '/le-mie-attivita', icon: CheckCircle2, label: 'Le mie attività' },
-      { href: '/calendario', icon: CalendarDays, label: 'Calendario' },
-      { href: '/progetti', icon: FolderKanban, label: 'Progetti' },
-      { href: '/portfolio', icon: Briefcase, label: 'Portfolio' },
-      { href: '/documenti', icon: FolderOpen, label: 'Documenti' },
-      { href: '/cestino', icon: Trash2, label: 'Cestino' },
-    ],
-  },
-  {
     label: 'Clienti',
     items: [
       { href: '/clienti', icon: Users, label: 'Clienti' },
@@ -57,36 +44,16 @@ const sections: NavSection[] = [
     ],
   },
   {
-    label: 'Commerciale',
+    label: 'Lavori',
     items: [
-      { href: '/commerciale', icon: ShoppingCart, label: 'Commerciale' },
-    ],
-  },
-  {
-    label: 'Finanziario',
-    items: [
-      { href: '/fatturazione', icon: Receipt, label: 'Fatturazione' },
+      { href: '/calendario', icon: CalendarDays, label: 'Calendario' },
+      { href: '/documenti', icon: FolderOpen, label: 'Documenti' },
     ],
   },
   {
     label: 'Team',
     items: [
-      { href: '/workload', icon: Gauge, label: 'Workload' },
       { href: '/hr', icon: UserCircle2, label: 'HR & Team' },
-      { href: '/reparti/growth',    icon: Layers, label: 'Growth' },
-      { href: '/reparti/marketing', icon: Layers, label: 'Marketing' },
-      { href: '/reparti/digital',   icon: Layers, label: 'Digital' },
-      { href: '/reparti/ai',        icon: Layers, label: 'AI' },
-    ],
-  },
-  {
-    label: 'Direzione',
-    items: [
-      { href: '/controllo-gestione', icon: Calculator, label: 'Controllo Gestione', adminOnly: true },
-      { href: '/strategia', icon: Target, label: 'Strategia & OKR' },
-      { href: '/direzione/roadmap', icon: Map, label: 'Roadmap', superAdminOnly: true },
-      { href: '/direzione/decision-center', icon: Scale, label: 'Decision Center', superAdminOnly: true },
-      { href: '/twobee-os', icon: FlaskConical, label: 'TwoBee OS', superAdminOnly: true },
     ],
   },
   {
@@ -238,7 +205,6 @@ export function Sidebar() {
       {/* Portal switcher — solo super admin */}
       {isSuperAdmin && (
         <div className="border-t border-border px-2 py-2">
-          <PortalSwitcher collapsed={sidebarCollapsed} />
         </div>
       )}
 

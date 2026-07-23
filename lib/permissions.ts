@@ -62,14 +62,13 @@ export const ADMIN_ROLES: AppRole[] = ['super_admin', 'founder', 'admin']
 /** Dipendenti, collaboratori e partner: vivono solo dentro /workspace */
 export const WORKSPACE_ROLES: AppRole[] = ['manager', 'senior', 'junior', 'stage', 'freelance', 'partner']
 
-/** Il cliente vive solo dentro /portale */
+/** Il cliente: il portale è demolito, resta il ruolo per la ricostruzione */
 export const CLIENT_ROLES: AppRole[] = ['client']
 
 /**
  * Risorse ESTERNE: freelance (P.IVA) e partner. Hanno role='team' come il resto
- * del workspace, ma vedono SOLO i progetti in cui sono inclusi e in SOLA LETTURA.
- * Lo scoping è in RLS (migration 106, is_external_resource/get_my_project_ids);
- * qui è la fonte per il gate applicativo (server action + UI).
+ * del workspace. Lo scoping per progetto (RLS 106) è caduto con la 146: va
+ * riscritto sul nuovo flusso di progetto prima di riaprire loro qualcosa.
  */
 export const EXTERNAL_ROLES: AppRole[] = ['freelance', 'partner']
 

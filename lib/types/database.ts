@@ -38,11 +38,7 @@ export type PaymentStatus = 'pagato' | 'in_attesa' | 'scaduto'
 export type ClientStatus = 'verde' | 'giallo' | 'rosso'
 export type ClientType = 'growth' | 'digital' | 'growth_digital'
 export type ClientLabel = 'stabile' | 'in_bilico' | 'perso' | 'partner'
-export type InvoiceStatus = 'da_inviare' | 'inviata' | 'pagata' | 'in_ritardo' | 'accettata'
-export type InvoiceType = 'fattura' | 'nota_credito'
 export type StakeholderRole = 'owner' | 'stakeholder' | 'collaboratore_esterno' | 'agenzia_supporto'
-export type ProjectStatus = 'attivo' | 'in_pausa' | 'completato' | 'archiviato'
-export type SprintStatus = 'pianificato' | 'in_corso' | 'completato'
 export type TaskPriority = 'alta' | 'media' | 'bassa'
 export type TaskStatus = 'da_fare' | 'in_corso' | 'in_revisione' | 'completato'
 // 'team' e 'dm' arrivano dalla migration 090. 'customer_care'/'cliente' esistono
@@ -120,67 +116,6 @@ export interface ResourceProfile {
   updated_at: string
 }
 
-export type ResourceType = 'internal_employee' | 'external_freelancer' | 'partner' | 'agency_supplier' | 'consultant' | 'contractor'
-export type ResourceCostType = 'monthly_salary' | 'hourly' | 'daily' | 'project_fee' | 'retainer' | 'partner_percentage'
-
-export interface ResourceCost {
-  id: string
-  profile_id: string | null
-  name: string
-  resource_type: ResourceType
-  role_title: string | null
-  department: string | null
-  seniority: string | null
-  cost_type: ResourceCostType
-  monthly_cost: number | null
-  hourly_cost: number | null
-  daily_cost: number | null
-  project_fee: number | null
-  partner_percentage: number | null
-  tools_cost_monthly: number
-  overhead_percentage: number
-  availability_hours_month: number
-  billable_target_hours_month: number
-  calculated_hourly_cost: number | null
-  markup_default: number
-  is_active: boolean
-  notes: string | null
-  created_at: string
-  updated_at: string
-}
-
-export type ProjectCostCategory = 'risorsa' | 'software' | 'provvigione' | 'cac' | 'produzione' | 'indiretto' | 'altro'
-
-export interface ProjectCostEntry {
-  id: string
-  project_id: string
-  client_id: string | null
-  category: ProjectCostCategory
-  description: string
-  amount: number
-  resource_cost_id: string | null
-  hours: number | null
-  hourly_rate: number | null
-  month: string | null
-  is_recurring: boolean
-  notes: string | null
-  created_at: string
-  updated_at: string
-}
-
-export type BusinessCostCategory = 'affitto' | 'software' | 'amministrazione' | 'marketing' | 'personale' | 'formazione' | 'altro'
-
-export interface BusinessCost {
-  id: string
-  category: BusinessCostCategory
-  description: string
-  monthly_amount: number
-  is_active: boolean
-  notes: string | null
-  created_at: string
-  updated_at: string
-}
-
 export interface OrgUnit {
   id: string
   name: string
@@ -232,23 +167,6 @@ export interface Invitation {
   invited_by: string | null
   accepted_at: string | null
   expires_at: string
-  created_at: string
-}
-
-export interface Approval {
-  id: string
-  type: string
-  title: string
-  description: string | null
-  requested_by: string
-  approver_id: string | null
-  status: 'pending' | 'approved' | 'rejected'
-  entity_type: string | null
-  entity_id: string | null
-  payload: Record<string, unknown> | null
-  resolved_at: string | null
-  resolved_by: string | null
-  notes: string | null
   created_at: string
 }
 
@@ -305,25 +223,6 @@ export interface Client {
   risk_updated_at: string | null
 }
 
-export interface Invoice {
-  id: string
-  client_id: string
-  month: string
-  amount: number
-  invoice_number: string | null
-  sent_at: string | null
-  paid_at: string | null
-  status: InvoiceStatus
-  notes: string | null
-  created_by: string | null
-  invoice_type: InvoiceType
-  due_date: string | null
-  aruba_id: string | null
-  description: string | null
-  pdf_url: string | null
-  created_at: string
-}
-
 export interface ClientStakeholder {
   id: string
   client_id: string
@@ -351,150 +250,6 @@ export interface ClientAssignment {
   id: string
   client_id: string
   profile_id: string
-}
-
-export type ProjectType = 'ecommerce' | 'lead_gen' | 'sito_web' | 'app_ai' | 'campagna' | 'custom'
-export type ProjectKind = 'growth' | 'marketing' | 'digital' | 'ai'
-
-export interface Project {
-  id: string
-  client_id: string
-  name: string
-  description: string | null
-  brief: string | null
-  brief_updated_at: string | null
-  status: ProjectStatus
-  project_type: ProjectType
-  project_kind: ProjectKind | null
-  sprint_current: number
-  manager_id: string | null
-  created_at: string
-}
-
-export interface Sprint {
-  id: string
-  project_id: string
-  name: string
-  start_date: string
-  end_date: string
-  status: SprintStatus
-  created_at?: string
-}
-
-export interface Task {
-  id: string
-  project_id: string
-  sprint_id: string | null
-  parent_task_id: string | null
-  depth: number
-  title: string
-  description: string | null
-  assignee_id: string | null
-  priority: TaskPriority
-  status: TaskStatus
-  due_date: string | null
-  is_milestone: boolean
-  tags: string[]
-  estimated_hours: number | null
-  logged_hours: number
-  position: number
-  recurrence: string | null
-  section: string | null
-  asana_gid: string | null
-  assigned_to: string | null
-  is_client_task: boolean
-  links: { url: string; label: string }[]
-  created_at: string
-  created_by: string | null
-}
-
-export interface TaskComment {
-  id: string
-  task_id: string
-  author_id: string | null
-  content: string
-  created_at: string
-  edited_at: string | null
-  author?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'>
-}
-
-export interface TaskDependency {
-  id: string
-  task_id: string
-  depends_on_id: string
-  type: 'blocking' | 'waiting_on'
-  created_at: string
-}
-
-/** @deprecated TIME-01: sostituita da time_entries (TimeEntryRow). Tabella non più alimentata. */
-export interface TaskTimeLog {
-  id: string
-  task_id: string
-  profile_id: string | null
-  hours: number
-  note: string | null
-  logged_date: string
-  created_at: string
-  profile?: Pick<Profile, 'id' | 'full_name'>
-}
-
-export type TimeEntryCategory = 'sviluppo' | 'design' | 'riunione' | 'strategia' | 'formazione' | 'admin' | 'altro'
-
-export interface TimeEntry {
-  id: string
-  profile_id: string
-  project_id: string | null
-  client_id: string | null
-  task_id: string | null
-  date: string
-  hours: number
-  category: TimeEntryCategory
-  note: string | null
-  created_at: string
-}
-
-export interface TimeEntryRow extends TimeEntry {
-  profile?: Pick<Profile, 'id' | 'full_name'>
-  project?: Pick<Project, 'id' | 'name'> | null
-  client?: Pick<Client, 'id' | 'company_name'> | null
-  task?: Pick<Task, 'id' | 'title'> | null
-}
-
-export interface TaskAttachment {
-  id: string
-  task_id: string
-  name: string
-  file_url: string
-  uploaded_by: string | null
-  created_at: string
-}
-
-export interface MeetingNote {
-  id: string
-  client_id: string
-  project_id: string | null
-  title: string
-  date: string
-  attendees: string[] | null
-  summary: string
-  decisions: string | null
-  next_actions: string | null
-  created_by: string | null
-  created_at: string
-}
-
-export interface ProjectAppointment {
-  id: string
-  project_id: string
-  client_id: string
-  title: string
-  date: string
-  time: string | null
-  location: string | null
-  notes: string | null
-  attendees: string[] | null
-  created_by: string | null
-  created_at: string
 }
 
 export interface ClientKpi {
@@ -664,45 +419,8 @@ export interface ClientWithContacts extends Client {
   client_contacts: ClientContact[]
 }
 
-export interface TaskWithAssignee extends Task {
-  assignee: Profile | null
-  project: Pick<Project, 'id' | 'name' | 'client_id'> | null
-}
-
 export interface ChatMessageWithSender extends ChatMessage {
   sender: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
-}
-
-// ─── Area Commerciale ────────────────────────────────────────
-export type DealStage = 'lead' | 'contatto' | 'proposta' | 'trattativa' | 'chiuso_vinto' | 'chiuso_perso'
-
-export interface Deal {
-  id: string
-  title: string
-  company_name: string
-  contact_name: string | null
-  contact_email: string | null
-  contact_phone: string | null
-  value: number | null
-  stage: DealStage
-  probability: number
-  expected_close: string | null
-  source: string | null
-  notes: string | null
-  assigned_to: string | null
-  client_id: string | null
-  created_by: string | null
-  created_at: string
-  updated_at: string
-}
-
-export interface DealActivity {
-  id: string
-  deal_id: string
-  type: 'nota' | 'chiamata' | 'email' | 'meeting' | 'followup'
-  content: string
-  created_by: string | null
-  created_at: string
 }
 
 export interface ClientKnowledge {
@@ -786,103 +504,6 @@ export interface ClientIdea {
   updated_at: string
 }
 
-/** Area riservata: RLS admin-only (migration 107). Mai esposta al workspace. */
-export interface ClientEconomics {
-  id: string
-  client_id: string
-  margin_notes: string | null
-  cost_notes: string | null
-  pricing_notes: string | null
-  founder_notes: string | null
-  created_at: string
-  updated_at: string
-}
-
-export type BrandMode = 'twobee' | 'white_label' | 'partner_branded' | 'neutral'
-export type ProposalStatus = 'draft' | 'ready' | 'sent' | 'accepted' | 'rejected'
-
-export interface ProposalSection {
-  title: string
-  content: string
-  bullets: string[]
-  speaker_notes?: string
-}
-
-export interface ProposalContent {
-  title: string
-  sections: ProposalSection[]
-  commercial_summary: string
-  next_steps: string[]
-  missing_data: string[]
-}
-
-export interface ProposalDocument {
-  id: string
-  quote_id: string | null
-  client_id: string | null
-  deal_id: string | null
-  title: string
-  brand_mode: BrandMode
-  white_label_partner_name: string | null
-  status: ProposalStatus
-  content_json: ProposalContent
-  html_content: string | null
-  pdf_url: string | null
-  created_by: string | null
-  created_at: string
-  updated_at: string
-}
-
-export type QuoteStatus = 'bozza' | 'inviata' | 'accettata' | 'rifiutata' | 'scaduta'
-
-export interface QuoteItem {
-  id: string
-  service_name: string
-  resource_cost_id: string | null
-  resource_name: string | null
-  hours: number
-  cost_rate: number
-  markup: number
-  sale_price: number
-}
-
-export interface QuoteExternalCost {
-  id: string
-  label: string
-  amount: number
-}
-
-export interface Quote {
-  id: string
-  deal_id: string | null
-  client_id: string | null
-  title: string
-  items: QuoteItem[]
-  external_costs: QuoteExternalCost[]
-  total: number
-  total_cost: number
-  target_margin: number
-  final_price: number | null
-  margin_amount: number | null
-  margin_percentage: number | null
-  status: QuoteStatus
-  valid_until: string | null
-  notes: string | null
-  created_by: string | null
-  created_at: string
-  updated_at: string | null
-}
-
-// ─── Area Operativa ──────────────────────────────────────────
-export interface TaskTemplate {
-  id: string
-  name: string
-  service_type: 'growth' | 'digital' | 'entrambi'
-  tasks: { title: string; priority: string; days_offset: number; area?: string }[]
-  created_by: string | null
-  created_at: string
-}
-
 // ─── Area Customer Care ──────────────────────────────────────
 export type TicketStatus = 'aperto' | 'in_lavorazione' | 'in_attesa' | 'risolto' | 'chiuso'
 export type TicketPriority = 'bassa' | 'normale' | 'alta' | 'urgente'
@@ -950,98 +571,6 @@ export interface PerformanceReview {
   updated_at: string
 }
 
-export interface OnboardingStep {
-  id: string
-  user_id: string
-  step: string
-  completed: boolean
-  completed_at: string | null
-  due_date: string | null
-  notes: string | null
-  created_at: string
-}
-
-// ─── Strategia ───────────────────────────────────────────────
-export type OkrStatus = 'attivo' | 'completato' | 'abbandonato'
-export type KrStatus = 'in_corso' | 'completato' | 'a_rischio' | 'abbandonato'
-export type RoadmapStatus = 'pianificato' | 'in_corso' | 'completato' | 'bloccato' | 'rinviato'
-export type RoadmapPriority = 'critica' | 'alta' | 'media' | 'bassa'
-export type StrategicNoteType = 'nota' | 'verbale' | 'decisione' | 'retrospettiva'
-
-export interface Objective {
-  id: string
-  title: string
-  description: string | null
-  quarter: string
-  owner_id: string | null
-  status: OkrStatus
-  progress: number
-  area: string | null
-  created_by: string | null
-  created_at: string
-  updated_at: string
-}
-
-export interface KeyResult {
-  id: string
-  objective_id: string
-  title: string
-  target_value: number | null
-  current_value: number
-  unit: string
-  due_date: string | null
-  status: KrStatus
-  notes: string | null
-  updated_at: string
-}
-
-export interface RoadmapItem {
-  id: string
-  title: string
-  description: string | null
-  area: string
-  status: RoadmapStatus
-  priority: RoadmapPriority
-  start_date: string | null
-  due_date: string | null
-  completed_at: string | null
-  owner_id: string | null
-  objective_id: string | null
-  created_by: string | null
-  created_at: string
-}
-
-// ─── Decision Center ─────────────────────────────────────────
-// Schema reale: tabella creata dalla 044, estesa dalla 086.
-export type DecisionStatus = 'aperta' | 'in_revisione' | 'decisa' | 'archiviata'
-export type DecisionPriority = 'bassa' | 'media' | 'alta' | 'critica'
-
-export interface DecisionOption {
-  label: string
-  pros: string
-  cons: string
-}
-
-export interface Decision {
-  id: string
-  title: string
-  context: string | null
-  options: DecisionOption[]
-  /** La scelta effettuata (colonna storica `outcome`) */
-  outcome: string | null
-  rationale: string | null
-  status: DecisionStatus
-  priority: DecisionPriority
-  area: string | null
-  due_date: string | null
-  decided_at: string | null
-  client_id: string | null
-  created_by: string | null
-  decided_by: string | null
-  created_at: string
-  updated_at: string
-}
-
 // ─── Buste paga (088) ────────────────────────────────────────
 export interface Payslip {
   id: string
@@ -1087,45 +616,6 @@ export interface ActivityLog {
   created_at: string
 }
 
-export interface StrategicNote {
-  id: string
-  title: string
-  content: string | null
-  type: StrategicNoteType
-  date: string
-  participants: string[]
-  tags: string[]
-  pinned: boolean
-  created_by: string | null
-  created_at: string
-  updated_at: string
-}
-
-export type TaskAssigneeRole = 'owner' | 'collaborator' | 'reviewer'
-
-export interface TaskAssignee {
-  id: string
-  task_id: string
-  profile_id: string
-  role: TaskAssigneeRole
-  is_primary_owner: boolean
-  assigned_at: string
-  assigned_by: string | null
-}
-
-export type TaskDeletionRequestStatus = 'pending' | 'approved' | 'rejected'
-
-export interface TaskDeletionRequest {
-  id: string
-  task_id: string
-  requested_by: string
-  reason: string | null
-  status: TaskDeletionRequestStatus
-  reviewed_by: string | null
-  reviewed_at: string | null
-  created_at: string
-}
-
 export interface ChatBridgeEvent {
   id: string
   source_message_id: string
@@ -1136,27 +626,6 @@ export interface ChatBridgeEvent {
   handled_by: string | null
   handled_at: string | null
   created_at: string
-}
-
-export type LeadStatus = 'nuovo' | 'contattato' | 'qualificato' | 'convertito' | 'perso'
-export type LeadSource = 'facebook' | 'google' | 'linkedin' | 'organic' | 'referral' | 'email' | 'evento' | 'altro'
-
-export interface Lead {
-  id: string
-  created_at: string
-  updated_at: string
-  client_id: string | null
-  project_id: string | null
-  name: string
-  company: string | null
-  email: string | null
-  phone: string | null
-  source: LeadSource
-  status: LeadStatus
-  notes: string | null
-  value: number | null
-  assigned_to: string | null
-  converted_at: string | null
 }
 
 // ─── TwoBee OS — Fase 1 ──────────────────────────────────────────────────────
@@ -1267,17 +736,3 @@ export interface LeadContact {
   updated_at: string
 }
 
-export interface TaskBlockReport {
-  id: string
-  task_id: string
-  reported_by: string
-  reason: string
-  status: 'open' | 'acknowledged' | 'resolved'
-  resolved_by: string | null
-  resolved_at: string | null
-  created_at: string
-  updated_at: string
-  // join
-  reporter?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
-  task?: Pick<Task, 'id' | 'title'> | null
-}

@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { AlertTriangle, Clock, RefreshCw, TrendingDown } from 'lucide-react'
-import type { Client, Invoice } from '@/lib/types/database'
+import type { Client } from '@/lib/types/database'
 
 interface Alert {
   type: 'contratto' | 'pagamento' | 'stato' | 'rischio'
@@ -10,7 +10,7 @@ interface Alert {
   urgency: 'alta' | 'media'
 }
 
-function buildClientAlerts(client: Client, invoices: Invoice[], hideEconomics: boolean): Alert[] {
+function buildClientAlerts(client: Client, hideEconomics: boolean): Alert[] {
   const alerts: Alert[] = []
   const today = new Date()
 
@@ -23,14 +23,8 @@ function buildClientAlerts(client: Client, invoices: Invoice[], hideEconomics: b
     }
   }
 
-  if (!hideEconomics) {
-    const overdueInvoices = invoices.filter(i => i.status === 'in_ritardo' || (i.status === 'inviata' && i.due_date && new Date(i.due_date) < today))
-    if (overdueInvoices.length > 0) {
-      const total = overdueInvoices.reduce((s, i) => s + i.amount, 0)
-      alerts.push({ type: 'pagamento', message: `${overdueInvoices.length} fattura${overdueInvoices.length > 1 ? 'e' : ''} in ritardo — totale €${total.toLocaleString('it-IT')}`, urgency: 'alta' })
-    } else if (client.payment_status === 'scaduto') {
-      alerts.push({ type: 'pagamento', message: 'Pagamento segnato come scaduto — verifica lo stato fatture', urgency: 'alta' })
-    }
+  if (!hideEconomics && client.payment_status === 'scaduto') {
+    alerts.push({ type: 'pagamento', message: 'Pagamento segnato come scaduto — verifica lo stato fatture', urgency: 'alta' })
   }
 
   if (client.status === 'rosso') {
@@ -59,12 +53,11 @@ const urgencyStyle: Record<Alert['urgency'], string> = {
 
 interface Props {
   client: Client
-  invoices: Invoice[]
   hideEconomics?: boolean
 }
 
-export function ClientAlertBanner({ client, invoices, hideEconomics = false }: Props) {
-  const alerts = useMemo(() => buildClientAlerts(client, invoices, hideEconomics), [client, invoices, hideEconomics])
+export function ClientAlertBanner({ client, hideEconomics = false }: Props) {
+  const alerts = useMemo(() => buildClientAlerts(client, hideEconomics), [client, hideEconomics])
   if (alerts.length === 0) return null
 
   return (

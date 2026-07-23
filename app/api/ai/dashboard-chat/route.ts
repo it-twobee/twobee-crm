@@ -36,8 +36,8 @@ REGOLE:
 - Usa esattamente i path del gestionale per gli href.
 
 PATH DISPONIBILI:
-/dashboard, /clienti, /clienti/[id], /clienti/[id]/progetto/[projectId],
-/task, /fatturazione, /report, /progetti, /commerciale, /customer-care, /customer-care/tickets
+/dashboard, /clienti, /clienti/[id], /customer-care, /customer-care/tickets,
+/calendario, /documenti, /hr
 
 Rispondi SOLO con JSON valido:
 {

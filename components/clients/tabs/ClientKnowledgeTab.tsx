@@ -3,24 +3,21 @@
 import { useState, useEffect } from 'react'
 import {
   Loader2, Save, Brain, ShieldAlert, Briefcase, Target, Palette, Lightbulb,
-  ChevronDown, ChevronRight, Plus, Trash2, Globe, Swords, Grid2x2, Lock, Pencil,
+  ChevronDown, ChevronRight, Plus, Trash2, Globe, Swords, Grid2x2, Pencil,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
-import { AIPrefillPanel } from '@/components/shared/AIPrefillPanel'
 import {
   upsertClientKnowledge, saveCompetitor, deleteCompetitor, saveIdea, deleteIdea,
-  upsertClientEconomics, type ClientKnowledgeInput,
+  type ClientKnowledgeInput,
 } from '@/app/actions/client-knowledge'
 import type {
-  ClientKnowledge, ClientCompetitor, ClientIdea, ClientEconomics,
+  ClientKnowledge, ClientCompetitor, ClientIdea,
   IdeaCategory, IdeaStatus, TaskPriority,
 } from '@/lib/types/database'
 
 // §26 — Knowledge come centro di conoscenza strategica: sezioni collassabili,
-// competitor e idee come liste vere (tabelle dedicate, migration 107), SWOT,
-// e area Marginalità RISERVATA agli admin (RLS client_economics_admin: nascondere
-// la sezione non basterebbe, la barriera è nel DB).
+// competitor e idee come liste vere (tabelle dedicate, migration 107), SWOT.
 
 type FieldKey = keyof Omit<ClientKnowledgeInput, 'client_id'>
 
@@ -98,9 +95,6 @@ const GROUPS: GroupDef[] = [
 ]
 
 const ALL_KEYS = GROUPS.flatMap(g => g.fields.map(f => f.key))
-const AI_FIELDS = GROUPS.flatMap(g => g.fields)
-  .filter(f => !['brand_assets_url', 'access_status'].includes(f.key))
-  .map(f => ({ key: f.key as string, label: f.label }))
 
 const emptyForm = (clientId: string): ClientKnowledgeInput => ({
   client_id: clientId,
@@ -144,7 +138,6 @@ export function ClientKnowledgeTab({ clientId, isAdmin = false }: { clientId: st
 
   const [competitors, setCompetitors] = useState<ClientCompetitor[]>([])
   const [ideas, setIdeas]             = useState<ClientIdea[]>([])
-  const [economics, setEconomics]     = useState<ClientEconomics | null>(null)
 
   useEffect(() => {
     const sb = createClient()
@@ -160,11 +153,6 @@ export function ClientKnowledgeTab({ clientId, isAdmin = false }: { clientId: st
       }
       setCompetitors((c.data ?? []) as ClientCompetitor[])
       setIdeas((i.data ?? []) as ClientIdea[])
-      // Area riservata: la query parte solo per gli admin (la RLS la bloccherebbe comunque).
-      if (isAdmin) {
-        const { data } = await sb.from('client_economics').select('*').eq('client_id', clientId).maybeSingle()
-        setEconomics((data as ClientEconomics) ?? null)
-      }
       setLoading(false)
     }
     load()
@@ -210,11 +198,6 @@ export function ClientKnowledgeTab({ clientId, isAdmin = false }: { clientId: st
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <AIPrefillPanel entityType="client" entityId={clientId} fields={AI_FIELDS}
-            onApply={vals => {
-              setForm(p => ({ ...p, ...Object.fromEntries(Object.entries(vals).map(([k, v]) => [k, v || null])) }))
-              setDirty(true)
-            }} />
           <div className="flex items-center gap-2">
             <div className="w-24 h-1.5 bg-surface rounded-full overflow-hidden">
               <div className="h-full rounded-full transition-all"
@@ -285,12 +268,6 @@ export function ClientKnowledgeTab({ clientId, isAdmin = false }: { clientId: st
       {/* Idee (lista) */}
       <IdeasSection clientId={clientId} items={ideas} setItems={setIdeas}
         isOpen={open.has('idee')} toggle={() => toggle('idee')} />
-
-      {/* Marginalità — solo admin (§26 area riservata) */}
-      {isAdmin && (
-        <EconomicsSection clientId={clientId} value={economics} setValue={setEconomics}
-          isOpen={open.has('marginalita')} toggle={() => toggle('marginalita')} />
-      )}
     </div>
   )
 }
@@ -518,72 +495,3 @@ function IdeasSection({ clientId, items, setItems, isOpen, toggle }: {
   )
 }
 
-// ── Marginalità (admin-only) ─────────────────────────────────────────────────
-function EconomicsSection({ clientId, value, setValue, isOpen, toggle }: {
-  clientId: string; value: ClientEconomics | null; setValue: (v: ClientEconomics) => void
-  isOpen: boolean; toggle: () => void
-}) {
-  const [form, setForm] = useState({
-    margin_notes: value?.margin_notes ?? '', cost_notes: value?.cost_notes ?? '',
-    pricing_notes: value?.pricing_notes ?? '', founder_notes: value?.founder_notes ?? '',
-  })
-  const [saving, setSaving] = useState(false)
-  const [dirty, setDirty] = useState(false)
-
-  const set = (k: keyof typeof form, v: string) => { setForm(p => ({ ...p, [k]: v })); setDirty(true) }
-
-  const save = async () => {
-    setSaving(true)
-    try {
-      const saved = await upsertClientEconomics({
-        client_id: clientId,
-        margin_notes: form.margin_notes || null, cost_notes: form.cost_notes || null,
-        pricing_notes: form.pricing_notes || null, founder_notes: form.founder_notes || null,
-      })
-      setValue(saved); setDirty(false)
-      toast.success('Marginalità salvata')
-    } catch (e) { toast.error((e as Error).message) }
-    finally { setSaving(false) }
-  }
-
-  const FIELDS: { k: keyof typeof form; label: string; ph: string }[] = [
-    { k: 'margin_notes',  label: 'Marginalità',   ph: 'Margine stimato, andamento, criticità…' },
-    { k: 'cost_notes',    label: 'Costi',         ph: 'Costi risorse, tool, media buying…' },
-    { k: 'pricing_notes', label: 'Pricing',       ph: 'Fee concordata, revisioni, sconti applicati…' },
-    { k: 'founder_notes', label: 'Note founder',  ph: 'Considerazioni riservate sulla relazione economica…' },
-  ]
-
-  return (
-    <section className="bg-surface border border-error/20 rounded-2xl overflow-hidden">
-      <button onClick={toggle} className="w-full flex items-center gap-3 p-4 hover:bg-surface-hover transition-colors text-left">
-        <div className="w-8 h-8 rounded-lg bg-error/10 flex items-center justify-center shrink-0">
-          <Lock className="w-4 h-4 text-error" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-text-primary">Marginalità e informazioni economiche</p>
-          <p className="text-2xs text-error mt-0.5">Area riservata — visibile solo ad admin e founder, mai alle risorse</p>
-        </div>
-        {isOpen ? <ChevronDown className="w-4 h-4 text-text-tertiary shrink-0" /> : <ChevronRight className="w-4 h-4 text-text-tertiary shrink-0" />}
-      </button>
-
-      {isOpen && (
-        <div className="px-5 pb-5 pt-4 space-y-3 border-t border-border">
-          {FIELDS.map(f => (
-            <div key={f.k}>
-              <label className="block text-xs text-text-secondary mb-1.5">{f.label}</label>
-              <textarea value={form[f.k]} onChange={e => set(f.k, e.target.value)} placeholder={f.ph}
-                rows={2} className={`${inp} resize-none`} />
-            </div>
-          ))}
-          <div className="flex justify-end">
-            <button onClick={save} disabled={saving || !dirty}
-              className="flex items-center gap-2 px-4 py-2 bg-gold text-on-gold text-xs font-bold rounded-lg disabled:opacity-40">
-              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-              {dirty ? 'Salva' : 'Salvato'}
-            </button>
-          </div>
-        </div>
-      )}
-    </section>
-  )
-}
