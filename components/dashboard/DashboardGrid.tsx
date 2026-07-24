@@ -138,7 +138,7 @@ function MetricCards({ mrr, clientsCount, clientsAtRisk, ticketsOpen }: {
 function WidgetCard({ def, children }: { def: WidgetDef; children: React.ReactNode }) {
   return (
     <div
-      className={`flex flex-col rounded-2xl overflow-hidden ${def.span === 'full' ? 'col-span-2' : ''}`}
+      className={`flex flex-col rounded-2xl overflow-hidden shadow-soft ${def.span === 'full' ? 'md:col-span-2' : ''}`}
       style={{
         background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
@@ -340,7 +340,7 @@ export function DashboardGrid({ data, initialConfig }: { data: DashboardData; in
       </div>
 
       {/* Grid — fixed 2-column layout */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 animate-fade-in">
         {visibleWidgets.map(wid => {
           const def = WIDGET_DEFS.find(w => w.id === wid)
           if (!def || !WIDGET_CONTENT[wid]) return null

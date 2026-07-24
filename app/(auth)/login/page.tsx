@@ -76,7 +76,7 @@ export default function LoginPage() {
         </div>
 
         {/* Card */}
-        <div className="glass-strong rounded-3xl p-8">
+        <div className="glass-strong rounded-3xl p-8 shadow-pop animate-scale-in">
           {!resetMode ? (
             <>
               <h2 className="text-xl font-bold mb-6 text-center font-heading">Accedi</h2>
