@@ -268,6 +268,42 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* Card interattiva: hover morbido + micro-lift. Usa i token, mai hex. */
+  .card-interactive {
+    transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  }
+  .card-interactive:hover {
+    border-color: var(--color-border-strong);
+    box-shadow: var(--shadow-color) 0 4px 16px -4px;
+    transform: translateY(-1px);
+  }
+
+  /* Feedback tattile al click: leggera compressione. */
+  .press { transition: transform 0.08s ease; }
+  .press:active { transform: scale(0.97); }
+
+  /* Skeleton di caricamento (pulsazione via token). */
+  .skeleton {
+    background: var(--color-surface-hover);
+    border-radius: 0.5rem;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+
+  /* Safe-area iOS: barre e drawer non finiscono sotto il notch/home bar. */
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+
+  /* Scroll orizzontale fluido su mobile senza scrollbar (board, tab). */
+  .scroll-x-touch {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .scroll-x-touch::-webkit-scrollbar { display: none; }
+
+  /* Superficie di comando full-bleed su mobile, contenuta su desktop. */
+  .no-tap-highlight { -webkit-tap-highlight-color: transparent; }
+
   /* Logo: due incisioni fisse (webp con alpha, non colorabili). Scegliamo in CSS
      così la variante giusta è già lì al primo paint, senza attendere il JS. */
   .logo-on-dark { display: block; }

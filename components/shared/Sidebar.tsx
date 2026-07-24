@@ -4,69 +4,14 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import {
-  LayoutDashboard, Users,
-  FolderOpen, Settings, ChevronRight, ChevronLeft, ChevronDown,
-  CalendarDays, Headphones, Crown,
-  Ticket, UserCircle2, History, Lightbulb, FolderKanban, Briefcase,
+  ChevronRight, ChevronLeft, ChevronDown, Crown,
 } from 'lucide-react'
 import { useState, useCallback, useEffect } from 'react'
 import { usePermissions } from '@/lib/hooks/usePermissions'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { Logo } from '@/components/shared/Logo'
-
-interface NavItem {
-  href: string
-  icon: typeof LayoutDashboard
-  label: string
-  superAdminOnly?: boolean
-  adminOnly?: boolean
-}
-
-interface NavSection {
-  label: string
-  items: NavItem[]
-}
-
-const sections: NavSection[] = [
-  {
-    label: 'Dashboard',
-    items: [
-      { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    ],
-  },
-  {
-    label: 'Clienti',
-    items: [
-      { href: '/clienti', icon: Users, label: 'Clienti' },
-      { href: '/progetti', icon: Briefcase, label: 'Progetti' },
-      { href: '/customer-care', icon: Headphones, label: 'Customer Care' },
-      { href: '/customer-care/tickets', icon: Ticket, label: 'Ticket' },
-    ],
-  },
-  {
-    label: 'Lavori',
-    items: [
-      { href: '/calendario', icon: CalendarDays, label: 'Calendario' },
-      { href: '/documenti', icon: FolderOpen, label: 'Documenti' },
-    ],
-  },
-  {
-    label: 'Team',
-    items: [
-      { href: '/hr', icon: UserCircle2, label: 'HR & Team' },
-    ],
-  },
-  {
-    label: 'Sistema',
-    items: [
-      { href: '/feedback', icon: Lightbulb, label: 'Feedback', adminOnly: true },
-      { href: '/impostazioni/catalogo', icon: FolderKanban, label: 'Catalogo progetti', superAdminOnly: true },
-      { href: '/impostazioni/cronologia', icon: History, label: 'Cronologia', adminOnly: true },
-      { href: '/impostazioni', icon: Settings, label: 'Impostazioni', adminOnly: true },
-    ],
-  },
-]
+import { navSections as sections, type NavItem } from '@/components/shared/nav-config'
 
 const STORAGE_KEY = 'twobee-sidebar-collapsed-sections'
 
@@ -104,7 +49,7 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'flex flex-col h-screen sticky top-0 transition-all duration-200 shrink-0',
+        'hidden lg:flex flex-col h-screen sticky top-0 transition-all duration-200 shrink-0',
         'bg-surface backdrop-blur-xl border-r border-border',
         sidebarCollapsed ? 'w-16' : 'w-56'
       )}

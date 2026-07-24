@@ -11,6 +11,8 @@ import { getInitials } from '@/lib/utils'
 import type { Profile, Notification } from '@/lib/types/database'
 import { SUPER_ADMIN_EMAILS, ROLE_LABELS } from '@/lib/permissions'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
+import { MobileNav } from '@/components/shared/MobileNav'
+import { Logo } from '@/components/shared/Logo'
 
 interface HeaderProps { profile: Profile | null }
 
@@ -97,12 +99,17 @@ export function Header({ profile }: HeaderProps) {
   }
 
   return (
-    <header className="h-14 bg-surface backdrop-blur-xl border-b border-border flex items-center px-6 gap-4 sticky top-0 z-40">
+    <header className="h-14 bg-surface backdrop-blur-xl border-b border-border flex items-center px-4 lg:px-6 gap-2 lg:gap-4 sticky top-0 z-40 pt-safe">
+      <MobileNav />
+      <Link href="/dashboard" aria-label="TwoBee — dashboard" className="lg:hidden flex items-center">
+        <Logo variant="mark" className="w-6 h-6" priority />
+      </Link>
+
       <div className="flex-1 max-w-md">
         <GlobalSearch />
       </div>
 
-      <div className="flex items-center gap-3 ml-auto">
+      <div className="flex items-center gap-1.5 lg:gap-3 ml-auto">
         <ThemeToggle collapsed />
 
         {/* Notifications bell */}

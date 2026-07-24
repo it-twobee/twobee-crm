@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { WorkspaceSidebar } from '@/components/workspace/WorkspaceSidebar'
+import { WorkspaceMobileNav } from '@/components/workspace/WorkspaceMobileNav'
+import { Logo } from '@/components/shared/Logo'
+import Link from 'next/link'
 import { GlobalSearch } from '@/components/shared/GlobalSearch'
 import { workspaceSearch } from '@/app/actions/global-search'
 import { isSuperAdminRaw, isAdminRole, isWorkspaceRole } from '@/lib/permissions'
@@ -57,7 +60,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
 
   // Sezioni senza pagina dopo il reset del dominio progetto: la 146 le disattiva
   // in tabella, qui restano filtrate anche se qualcuno le riattiva a mano.
-  const HIDDEN_WORKSPACE_KEYS = ['chat', 'task', 'progetti', 'portfolio', 'workload', 'mie_attivita', 'cestino']
+  const HIDDEN_WORKSPACE_KEYS = ['chat', 'task', 'portfolio', 'workload', 'cestino']
   visibleSections = (visibleSections ?? []).filter((s: { key: string }) => !HIDDEN_WORKSPACE_KEYS.includes(s.key))
 
   return (
@@ -73,7 +76,14 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header con ricerca, come nel portale admin — scoped al workspace */}
-        <header className="h-14 bg-surface backdrop-blur-xl border-b border-border flex items-center px-6 gap-4 sticky top-0 z-40 shrink-0">
+        <header className="h-14 bg-surface backdrop-blur-xl border-b border-border flex items-center px-4 lg:px-6 gap-2 lg:gap-4 sticky top-0 z-40 shrink-0 pt-safe">
+          <WorkspaceMobileNav
+            sections={(visibleSections ?? []) as WorkspaceSectionRow[]}
+            profile={{ full_name: profile.full_name, avatar_url: profile.avatar_url, app_role: profile.app_role as AppRole | null }}
+          />
+          <Link href="/workspace" aria-label="TwoBee — workspace" className="lg:hidden flex items-center">
+            <Logo variant="mark" className="w-6 h-6" priority />
+          </Link>
           <div className="flex-1 max-w-md">
             <GlobalSearch
               search={workspaceSearch}

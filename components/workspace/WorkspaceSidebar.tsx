@@ -15,7 +15,7 @@ import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { Logo } from '@/components/shared/Logo'
 import type { AppRole } from '@/lib/types/database'
 
-const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+export const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard,
   CheckSquare,
   FolderKanban,
@@ -75,7 +75,7 @@ function readCollapsed(): Record<string, boolean> {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') } catch { return {} }
 }
 
-interface WorkspaceSection {
+export interface WorkspaceSection {
   id: string
   key: string
   label: string
@@ -145,7 +145,7 @@ export function WorkspaceSidebar({ sections, profile, isSuperAdmin = false }: Pr
   return (
     <aside
       className={cn(
-        'flex flex-col h-screen bg-background border-r border-border transition-all duration-200 shrink-0',
+        'hidden lg:flex flex-col h-screen bg-background border-r border-border transition-all duration-200 shrink-0',
         collapsed ? 'w-[60px]' : 'w-[220px]',
       )}
     >
