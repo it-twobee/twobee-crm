@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   ArrowLeft, FolderTree, Flag, Repeat, ChevronDown, ChevronRight,
-  Calendar,
+  Calendar, ListChecks, AlertTriangle, CheckSquare, Users, Clock,
 } from 'lucide-react'
 import { updateProjectStatus } from '@/app/actions/projects'
 import { generateRecurringNow } from '@/app/actions/tasks'
@@ -20,6 +20,11 @@ type Person = { id: string; full_name: string; avatar_url: string | null }
 const STATUSES: ProjectStatus[] = ['draft', 'active', 'on_hold', 'completed', 'archived']
 const STATUS_LABEL: Record<string, string> = {
   draft: 'Bozza', active: 'Attivo', on_hold: 'In pausa', completed: 'Completato', archived: 'Archiviato',
+}
+const AREA_BADGE: Record<string, string> = {
+  marketing: 'bg-accent-dim text-accent',
+  growth: 'bg-gold-dim text-gold-text',
+  digital: 'bg-info-dim text-info',
 }
 const MS_TONE: Record<string, string> = {
   da_fare: 'text-text-tertiary', in_corso: 'text-info', in_approvazione: 'text-warning', completata: 'text-success',
@@ -53,6 +58,21 @@ export function ProjectDetailClient({
   const overdue = tasks.filter(isOverdue)
   const nextMs = [...openMs].filter(m => m.due_date).sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1))[0]
 
+  const prettyLabel = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  const totalTasks = tasks.length
+  const doneTasks = tasks.filter(t => t.status === 'completato').length
+  const progress = totalTasks ? Math.round((doneTasks / totalTasks) * 100) : 0
+  const upcoming = [...tasks]
+    .filter(t => t.due_date && t.status !== 'completato')
+    .sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1))
+    .slice(0, 5)
+  const teamMembers = profiles.filter(p => memberIds.includes(p.id) || p.id === project.manager_id)
+  const wsProgress = (wsId: string) => {
+    const wt = tasks.filter(t => t.workstream_id === wsId)
+    if (!wt.length) return null
+    return Math.round((wt.filter(t => t.status === 'completato').length / wt.length) * 100)
+  }
+
   const changeStatus = (s: ProjectStatus) =>
     start(async () => {
       try { await updateProjectStatus(project.id, s); router.refresh(); toast.success('Stato aggiornato') }
@@ -79,8 +99,9 @@ export function ProjectDetailClient({
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl sm:text-3xl font-black text-text-primary font-heading break-words">{project.name}</h1>
             <div className="flex flex-wrap items-center gap-3 mt-2 text-sm">
-              <Link href={`/clienti/${project.client_id}`} className="text-gold-text hover:underline">{clientName}</Link>
-              <span className="text-text-tertiary text-xs uppercase">{project.area} · {project.service_type}{project.service_subtype ? `/${project.service_subtype}` : ''}</span>
+              <Link href={`/clienti/${project.client_id}`} className="text-gold-text hover:underline font-medium">{clientName}</Link>
+              <span className={`text-2xs font-semibold px-2 py-0.5 rounded-full capitalize ${AREA_BADGE[project.area] ?? 'bg-surface-active text-text-tertiary'}`}>{prettyLabel(project.area)}</span>
+              <span className="text-text-secondary text-xs">{prettyLabel(project.service_type)}{project.service_subtype ? ` · ${prettyLabel(project.service_subtype)}` : ''}</span>
               {canManageProject ? (
                 <select value={project.status} disabled={pending} onChange={e => changeStatus(e.target.value as ProjectStatus)}
                   aria-label="Stato progetto"
@@ -113,28 +134,131 @@ export function ProjectDetailClient({
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {tab === 'panoramica' && (
-          <div className="space-y-5 max-w-3xl">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <Stat label="Sottoprogetti" value={workstreams.length} />
-              <Stat label="Milestone aperte" value={openMs.length} />
-              <Stat label="Task aperte" value={openTasks.length} />
-              <Stat label="Task scadute" value={overdue.length} tone={overdue.length ? 'error' : undefined} />
-            </div>
-            {project.description && <p className="text-sm text-text-secondary">{project.description}</p>}
-            <div className="bg-surface border border-border rounded-lg p-4">
-              <div className="text-2xs font-semibold text-text-tertiary mb-1">Prossima milestone</div>
-              {nextMs ? (
-                <div className="flex items-center gap-2">
-                  <Flag className="w-4 h-4 text-info" />
-                  <span className="text-sm text-text-primary">{nextMs.title}</span>
-                  {nextMs.due_date && <span className="text-2xs text-text-tertiary ml-auto">{nextMs.due_date}</span>}
+          <div className="space-y-5 max-w-4xl animate-fade-in">
+            {/* progress + stat */}
+            <div className="grid gap-3 lg:grid-cols-3">
+              {/* barra avanzamento */}
+              <div className="bg-surface border border-border rounded-2xl p-4 shadow-soft lg:col-span-1 flex flex-col justify-center">
+                <div className="flex items-end justify-between mb-2">
+                  <span className="text-2xs font-semibold text-text-tertiary uppercase tracking-wide">Avanzamento</span>
+                  <span className="text-2xl font-black tabular font-heading text-text-primary">{progress}%</span>
                 </div>
-              ) : <p className="text-sm text-text-tertiary">Nessuna milestone di consegna programmata.</p>}
+                <div className="h-2 bg-surface-active rounded-full overflow-hidden">
+                  <div className="h-full bg-gold rounded-full transition-all" style={{ width: `${progress}%` }} />
+                </div>
+                <span className="text-2xs text-text-tertiary mt-2">{doneTasks}/{totalTasks} task completate</span>
+              </div>
+              {/* stat */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:col-span-2">
+                <Stat label="Sottoprogetti" value={workstreams.length} icon={<FolderTree className="w-4 h-4 text-gold-text" />} />
+                <Stat label="Milestone aperte" value={openMs.length} icon={<Flag className="w-4 h-4 text-info" />} />
+                <Stat label="Task aperte" value={openTasks.length} icon={<ListChecks className="w-4 h-4 text-text-secondary" />} />
+                <Stat label="Task scadute" value={overdue.length} tone={overdue.length ? 'error' : undefined} icon={<AlertTriangle className={`w-4 h-4 ${overdue.length ? 'text-error' : 'text-text-tertiary'}`} />} />
+              </div>
             </div>
-            <div className="text-2xs text-text-tertiary flex items-center gap-2">
-              <Repeat className="w-3.5 h-3.5 text-success" />{recurring.filter(r => r.active).length} template ricorrenti attivi ·
-              <span>{memberIds.length} membri nel team</span>
+
+            {project.description && (
+              <p className="text-sm text-text-secondary bg-surface border border-border rounded-2xl p-4 shadow-soft">{project.description}</p>
+            )}
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              {/* prossime scadenze */}
+              <section className="bg-surface border border-border rounded-2xl p-4 shadow-soft">
+                <div className="flex items-center gap-2 mb-3">
+                  <Clock className="w-4 h-4 text-warning" />
+                  <h3 className="text-sm font-bold text-text-primary">Prossime scadenze</h3>
+                </div>
+                {upcoming.length === 0 ? (
+                  <p className="text-2xs text-text-tertiary">Nessuna task in scadenza.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {upcoming.map(t => (
+                      <button key={t.id} onClick={() => { setTab('task') }}
+                        className="w-full flex items-center gap-2 text-left group">
+                        <CheckSquare className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
+                        <span className="flex-1 text-sm text-text-primary truncate">{t.title}</span>
+                        {isOverdue(t) && <AlertTriangle className="w-3.5 h-3.5 text-error shrink-0" />}
+                        <span className={`text-2xs tabular shrink-0 ${isOverdue(t) ? 'text-error' : 'text-text-tertiary'}`}>{t.due_date}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* prossima milestone + ricorrenti */}
+              <section className="bg-surface border border-border rounded-2xl p-4 shadow-soft space-y-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Flag className="w-4 h-4 text-info" />
+                    <h3 className="text-sm font-bold text-text-primary">Prossima milestone</h3>
+                  </div>
+                  {nextMs ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-text-primary">{nextMs.title}</span>
+                      {nextMs.due_date && <span className="text-2xs text-text-tertiary ml-auto tabular">{nextMs.due_date}</span>}
+                    </div>
+                  ) : <p className="text-2xs text-text-tertiary">Nessuna milestone di consegna programmata.</p>}
+                </div>
+                <div className="flex items-center gap-2 text-2xs text-text-tertiary pt-2 border-t border-border">
+                  <Repeat className="w-3.5 h-3.5 text-success" />
+                  <span className="tabular font-semibold text-text-secondary">{recurring.filter(r => r.active).length}</span> ricorrenti attivi
+                </div>
+              </section>
             </div>
+
+            {/* sottoprogetti preview */}
+            {workstreams.length > 0 && (
+              <section className="bg-surface border border-border rounded-2xl p-4 shadow-soft">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <FolderTree className="w-4 h-4 text-gold-text" />
+                    <h3 className="text-sm font-bold text-text-primary">Sottoprogetti</h3>
+                  </div>
+                  <button onClick={() => setTab('sottoprogetti')} className="text-2xs font-semibold text-gold-text hover:opacity-80 flex items-center gap-0.5">
+                    Vedi tutti<ChevronRight className="w-3 h-3" />
+                  </button>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {workstreams.slice(0, 6).map(w => {
+                    const pr = wsProgress(w.id)
+                    return (
+                      <button key={w.id} onClick={() => setTab('sottoprogetti')}
+                        className="card-interactive bg-background border border-border rounded-xl p-3 text-left no-tap-highlight">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-text-primary truncate flex-1">{w.name}</span>
+                          <span className="text-2xs text-text-tertiary shrink-0">{w.workstream_type === 'recurring' ? 'Continuativa' : 'Una tantum'}</span>
+                        </div>
+                        {pr !== null && (
+                          <div className="h-1 bg-surface-active rounded-full overflow-hidden mt-2">
+                            <div className="h-full bg-gold rounded-full" style={{ width: `${pr}%` }} />
+                          </div>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* team */}
+            {teamMembers.length > 0 && (
+              <section className="bg-surface border border-border rounded-2xl p-4 shadow-soft">
+                <div className="flex items-center gap-2 mb-3">
+                  <Users className="w-4 h-4 text-text-secondary" />
+                  <h3 className="text-sm font-bold text-text-primary">Team</h3>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {teamMembers.map(p => (
+                    <div key={p.id} className="flex items-center gap-2 bg-background border border-border rounded-full pl-1 pr-3 py-1">
+                      <div className="w-6 h-6 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center text-2xs font-bold text-gold-text shrink-0">
+                        {p.avatar_url ? <img src={p.avatar_url} className="w-full h-full rounded-full object-cover" alt="" /> : (p.full_name || '?')[0].toUpperCase()}
+                      </div>
+                      <span className="text-2xs text-text-secondary">{p.full_name}{p.id === project.manager_id ? ' · PM' : ''}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         )}
 
@@ -236,10 +360,13 @@ function WorkstreamCard({
   )
 }
 
-function Stat({ label, value, tone }: { label: string; value: number; tone?: 'error' }) {
+function Stat({ label, value, tone, icon }: { label: string; value: number; tone?: 'error'; icon?: React.ReactNode }) {
   return (
     <div className="bg-surface border border-border rounded-2xl p-3.5 shadow-soft">
-      <div className={`text-2xl font-black tabular font-heading ${tone === 'error' ? 'text-error' : 'text-text-primary'}`}>{value}</div>
+      <div className="flex items-center justify-between">
+        <div className={`text-2xl font-black tabular font-heading ${tone === 'error' ? 'text-error' : 'text-text-primary'}`}>{value}</div>
+        {icon}
+      </div>
       <div className="text-2xs text-text-tertiary mt-0.5">{label}</div>
     </div>
   )
