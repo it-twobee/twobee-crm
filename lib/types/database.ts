@@ -861,6 +861,7 @@ export interface Task {
   recurring_template_id: string | null
   is_recurring_instance: boolean
   generated_for_date: string | null
+  parent_task_id: string | null
   created_by: string | null
   created_at: string
   updated_at: string

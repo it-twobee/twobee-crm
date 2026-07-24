@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { revalidatePath } from 'next/cache'
 import type { TaskStatusV2, Priority, Visibility } from '@/lib/types/database'
 
 async function requireStaff(): Promise<string> {
@@ -23,6 +24,7 @@ export async function createProjectTask(input: {
   assignee_id?: string | null
   due_date?: string | null
   visibility?: Visibility
+  parent_task_id?: string | null
 }) {
   const uid = await requireStaff()
   const admin = createAdminClient()
@@ -31,6 +33,7 @@ export async function createProjectTask(input: {
     project_id: input.project_id, workstream_id: input.workstream_id, milestone_id: input.milestone_id,
     title: input.title.trim(), priority: input.priority ?? 'media',
     due_date: input.due_date || null, visibility: input.visibility ?? 'internal',
+    parent_task_id: input.parent_task_id || null,
     created_by: uid,
   }).select('id').single()
   if (error) throw new Error(error.message)
@@ -39,6 +42,7 @@ export async function createProjectTask(input: {
       .insert({ task_id: data.id, profile_id: input.assignee_id, is_primary_owner: true })
     if (e2) throw new Error(e2.message)
   }
+  revalidatePath(`/progetti/${input.project_id}`)
   return data.id as string
 }
 

@@ -26,3 +26,12 @@ export async function updateProjectStatus(projectId: string, status: ProjectStat
   revalidatePath(`/progetti/${projectId}`)
   revalidatePath('/progetti')
 }
+
+// Brief = campo description del progetto (editabile/cancellabile dalla panoramica)
+export async function updateProjectBrief(projectId: string, description: string | null) {
+  await requireManagerOrAdmin(projectId)
+  const { error } = await createAdminClient().from('projects')
+    .update({ description: description?.trim() || null }).eq('id', projectId)
+  if (error) throw new Error(error.message)
+  revalidatePath(`/progetti/${projectId}`)
+}

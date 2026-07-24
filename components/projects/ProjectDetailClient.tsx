@@ -5,14 +5,17 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  ArrowLeft, FolderTree, Flag, Repeat, ChevronDown, ChevronRight,
-  Calendar, ListChecks, AlertTriangle, CheckSquare, Users, Clock,
+  ArrowLeft, FolderTree, Flag, Repeat, ChevronRight,
+  Calendar, ListChecks, AlertTriangle, CheckSquare, Users, Clock, Plus, Pencil, Check, X, Trash2,
 } from 'lucide-react'
-import { updateProjectStatus } from '@/app/actions/projects'
+import { updateProjectStatus, updateProjectBrief } from '@/app/actions/projects'
 import { generateRecurringNow } from '@/app/actions/tasks'
-import { TaskViews } from './TaskViews'
+import { createWorkstream } from '@/app/actions/workstreams'
+import { ProjectGantt } from './ProjectGantt'
+import { WorkstreamEditor } from './WorkstreamEditor'
+// TaskViews non più usato qui: la gestione task è dentro WorkstreamEditor
 import type {
-  Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate, ProjectStatus,
+  Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate, ProjectStatus, WorkstreamType,
 } from '@/lib/types/database'
 
 type Person = { id: string; full_name: string; avatar_url: string | null }
@@ -57,7 +60,9 @@ export function ProjectDetailClient({
 }) {
   const router = useRouter()
   const [pending, start] = useTransition()
-  const [tab, setTab] = useState<'panoramica' | 'sottoprogetti' | 'milestone' | 'task'>('panoramica')
+  const [tab, setTab] = useState<'panoramica' | 'workstream'>('panoramica')
+  const [openWsId, setOpenWsId] = useState<string | null>(null)
+  const [creatingWs, setCreatingWs] = useState(false)
 
   const name = (id: string | null) => id ? (profiles.find(p => p.id === id)?.full_name ?? '—') : '—'
   const openMs = milestones.filter(m => m.status !== 'completata' && m.milestone_type === 'delivery')
@@ -91,6 +96,10 @@ export function ProjectDetailClient({
       try { const n = await generateRecurringNow(); router.refresh(); toast.success(`${n} occorrenze generate`) }
       catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
     })
+
+  const openWs = workstreams.find(w => w.id === openWsId) ?? null
+  const recurringWs = workstreams.filter(w => w.workstream_type === 'recurring')
+  const projectWs = workstreams.filter(w => w.workstream_type === 'project')
 
   return (
     <div className="flex flex-col h-full">
@@ -131,11 +140,11 @@ export function ProjectDetailClient({
 
       {/* tabs */}
       <div className="flex border-b border-border px-4 sm:px-6 scroll-x-touch">
-        {(['panoramica', 'sottoprogetti', 'milestone', 'task'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`px-4 py-3.5 text-sm font-semibold border-b-2 whitespace-nowrap capitalize transition-colors ${
-              tab === t ? 'border-gold text-gold-text' : 'border-transparent text-text-secondary hover:text-text-primary'
-            }`}>{t}</button>
+        {([['panoramica', 'Panoramica'], ['workstream', 'Workstream']] as const).map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)}
+            className={`px-4 py-3.5 text-sm font-semibold border-b-2 whitespace-nowrap transition-colors ${
+              tab === key ? 'border-gold text-gold-text' : 'border-transparent text-text-secondary hover:text-text-primary'
+            }`}>{label}</button>
         ))}
       </div>
 
@@ -157,16 +166,16 @@ export function ProjectDetailClient({
               </div>
               {/* stat */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:col-span-2">
-                <Stat label="Sottoprogetti" value={workstreams.length} icon={<FolderTree className="w-4 h-4 text-gold-text" />} />
+                <Stat label="Workstream" value={workstreams.length} icon={<FolderTree className="w-4 h-4 text-gold-text" />} />
                 <Stat label="Milestone aperte" value={openMs.length} icon={<Flag className="w-4 h-4 text-info" />} />
                 <Stat label="Task aperte" value={openTasks.length} icon={<ListChecks className="w-4 h-4 text-text-secondary" />} />
                 <Stat label="Task scadute" value={overdue.length} tone={overdue.length ? 'error' : undefined} icon={<AlertTriangle className={`w-4 h-4 ${overdue.length ? 'text-error' : 'text-text-tertiary'}`} />} />
               </div>
             </div>
 
-            {project.description && (
-              <p className="text-sm text-text-secondary bg-surface border border-border rounded-2xl p-4 shadow-soft">{project.description}</p>
-            )}
+            {/* Brief del progetto — editabile/cancellabile */}
+            <ProjectBrief projectId={project.id} initial={project.description} canEdit={canManageProject} />
+
 
             <div className="grid gap-4 lg:grid-cols-2">
               {/* prossime scadenze */}
@@ -180,7 +189,7 @@ export function ProjectDetailClient({
                 ) : (
                   <div className="space-y-1.5">
                     {upcoming.map(t => (
-                      <button key={t.id} onClick={() => { setTab('task') }}
+                      <button key={t.id} onClick={() => { setTab('workstream'); setOpenWsId(t.workstream_id) }}
                         className="w-full flex items-center gap-2 text-left group">
                         <CheckSquare className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
                         <span className="flex-1 text-sm text-text-primary truncate">{t.title}</span>
@@ -213,27 +222,27 @@ export function ProjectDetailClient({
               </section>
             </div>
 
-            {/* sottoprogetti preview */}
+            {/* workstream preview */}
             {workstreams.length > 0 && (
               <section className="bg-surface border border-border rounded-2xl p-4 shadow-soft">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <FolderTree className="w-4 h-4 text-gold-text" />
-                    <h3 className="text-sm font-bold text-text-primary">Sottoprogetti</h3>
+                    <h3 className="text-sm font-bold text-text-primary">Workstream</h3>
                   </div>
-                  <button onClick={() => setTab('sottoprogetti')} className="text-2xs font-semibold text-gold-text hover:opacity-80 flex items-center gap-0.5">
-                    Vedi tutti<ChevronRight className="w-3 h-3" />
+                  <button onClick={() => setTab('workstream')} className="text-2xs font-semibold text-gold-text hover:opacity-80 flex items-center gap-0.5">
+                    Vedi tutte<ChevronRight className="w-3 h-3" />
                   </button>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {workstreams.slice(0, 6).map(w => {
                     const pr = wsProgress(w.id)
                     return (
-                      <button key={w.id} onClick={() => setTab('sottoprogetti')}
+                      <button key={w.id} onClick={() => { setTab('workstream'); setOpenWsId(w.id) }}
                         className="card-interactive bg-background border border-border rounded-xl p-3 text-left no-tap-highlight">
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-text-primary truncate flex-1">{w.name}</span>
-                          <span className="text-2xs text-text-tertiary shrink-0">{w.workstream_type === 'recurring' ? 'Continuativa' : 'Una tantum'}</span>
+                          <span className="text-2xs text-text-tertiary shrink-0">{w.workstream_type === 'recurring' ? 'Continuativa' : 'A termine'}</span>
                         </div>
                         {pr !== null && (
                           <div className="h-1 bg-surface-active rounded-full overflow-hidden mt-2">
@@ -269,132 +278,198 @@ export function ProjectDetailClient({
           </div>
         )}
 
-        {tab === 'sottoprogetti' && (
-          <div className="max-w-6xl animate-fade-in">
-            {workstreams.length === 0 ? <Empty text="Nessun sottoprogetto." /> : (
-              <div className="grid gap-3 lg:grid-cols-2">
-                {workstreams.map(w => (
-                  <WorkstreamCard key={w.id} ws={w}
-                    milestones={milestones.filter(m => m.workstream_id === w.id)}
-                    tasks={tasks} recurring={recurring.filter(r => r.workstream_id === w.id)} name={name} />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        {tab === 'workstream' && (
+          <div className="max-w-6xl space-y-6 animate-fade-in">
+            {/* Gantt / timeline milestone di tutto il progetto */}
+            <ProjectGantt workstreams={workstreams} milestones={milestones} onOpenWorkstream={setOpenWsId} />
 
-        {tab === 'milestone' && (
-          <div className="max-w-6xl space-y-5 animate-fade-in">
-            {milestones.length === 0 && <Empty text="Nessuna milestone." />}
-            {workstreams.map(w => {
-              const wsMs = milestones.filter(m => m.workstream_id === w.id)
-              if (wsMs.length === 0) return null
-              return (
-                <section key={w.id}>
-                  <div className="flex items-center gap-2 mb-2 px-1">
-                    <FolderTree className="w-3.5 h-3.5 text-gold-text" />
-                    <h3 className="text-2xs font-bold uppercase tracking-wide text-text-tertiary">{w.name}</h3>
-                  </div>
-                  <div className="grid gap-2.5 sm:grid-cols-2">
-                    {wsMs.map(m => {
-                      const mt = tasks.filter(t => t.milestone_id === m.id)
-                      const mdone = mt.filter(t => t.status === 'completato').length
-                      return (
-                        <div key={m.id} className="bg-surface border border-border rounded-2xl p-4 shadow-soft">
-                          <div className="flex items-start gap-2.5">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${m.milestone_type === 'system' ? 'bg-surface-active' : 'bg-info-dim'}`}>
-                              <Flag className={`w-4 h-4 ${m.milestone_type === 'system' ? 'text-text-tertiary' : 'text-info'}`} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-semibold text-text-primary truncate flex-1">{m.title}</span>
-                                <span className={`text-2xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${MS_BADGE[m.status]}`}>{MS_LABEL[m.status]}</span>
-                              </div>
-                              <div className="flex items-center gap-2 mt-1 text-2xs text-text-tertiary">
-                                {m.milestone_type === 'system'
-                                  ? <span className="px-1.5 py-0.5 rounded bg-surface-active">Sistema</span>
-                                  : <span className="px-1.5 py-0.5 rounded bg-info-dim text-info">Consegna</span>}
-                                <span className="tabular">{mdone}/{mt.length} task</span>
-                                {m.due_date && <span className="ml-auto tabular">{m.due_date}</span>}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </section>
-              )
-            })}
-          </div>
-        )}
-
-        {tab === 'task' && (
-          <div className="space-y-3 max-w-6xl animate-fade-in">
-            {recurring.some(r => r.active) && (
-              <div className="flex justify-end">
-                <button onClick={genRecurring} disabled={pending}
-                  className="flex items-center gap-1 text-2xs font-semibold text-gold-text hover:opacity-80">
-                  <Repeat className="w-3.5 h-3.5" />Genera occorrenze ricorrenti ora
-                </button>
+            {/* toolbar */}
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h3 className="text-sm font-bold text-text-primary">Workstream</h3>
+              <div className="flex items-center gap-2">
+                {recurring.some(r => r.active) && (
+                  <button onClick={genRecurring} disabled={pending}
+                    className="flex items-center gap-1 text-2xs font-semibold text-gold-text hover:opacity-80 press">
+                    <Repeat className="w-3.5 h-3.5" />Genera ricorrenti
+                  </button>
+                )}
+                {canManageProject && (
+                  <button onClick={() => setCreatingWs(true)}
+                    className="flex items-center gap-1.5 text-2xs font-semibold bg-gold text-on-gold px-3 py-1.5 rounded-lg shadow-soft press">
+                    <Plus className="w-3.5 h-3.5" />Nuova workstream
+                  </button>
+                )}
               </div>
+            </div>
+
+            {workstreams.length === 0 && <Empty text="Nessuna workstream. Creane una per organizzare milestone e task." />}
+
+            {/* Continuative */}
+            {recurringWs.length > 0 && (
+              <WsGroup title="Continuative" hint="Attività ricorrenti senza fine definita"
+                items={recurringWs} tasks={tasks} onOpen={setOpenWsId} progress={wsProgress} />
             )}
-            <TaskViews tasks={tasks} workstreams={workstreams} milestones={milestones}
-              profiles={profiles} canEdit={canEditTasks} projectId={project.id} clientId={project.client_id} />
+            {/* A termine */}
+            {projectWs.length > 0 && (
+              <WsGroup title="A termine" hint="Con data di inizio e fine"
+                items={projectWs} tasks={tasks} onOpen={setOpenWsId} progress={wsProgress} />
+            )}
           </div>
         )}
       </div>
+
+      {openWs && (
+        <WorkstreamEditor ws={openWs} projectId={project.id} clientId={project.client_id}
+          milestones={milestones} tasks={tasks} recurring={recurring} profiles={profiles}
+          canEdit={canEditTasks} onClose={() => setOpenWsId(null)} />
+      )}
+      {creatingWs && (
+        <NewWorkstreamModal projectId={project.id} pending={pending}
+          onClose={() => setCreatingWs(false)}
+          onCreate={(input) => start(async () => {
+            try { const id = await createWorkstream(input); router.refresh(); toast.success('Workstream creata'); setCreatingWs(false); setOpenWsId(id) }
+            catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+          })} />
+      )}
     </div>
   )
 }
 
-function WorkstreamCard({
-  ws, milestones, tasks, recurring, name,
-}: {
-  ws: ProjectWorkstream
-  milestones: Milestone[]
-  tasks: Task[]
-  recurring: RecurringTaskTemplate[]
-  name: (id: string | null) => string
-}) {
-  const [open, setOpen] = useState(true)
-  const recurringBadge = ws.workstream_type === 'recurring'
-  return (
-    <div className="bg-surface border border-border rounded-2xl shadow-soft self-start">
-      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center gap-2 p-3.5 text-left">
-        {open ? <ChevronDown className="w-4 h-4 text-text-tertiary" /> : <ChevronRight className="w-4 h-4 text-text-tertiary" />}
-        <FolderTree className="w-4 h-4 text-gold-text shrink-0" />
-        <span className="flex-1 text-sm font-semibold text-text-primary truncate">{ws.name}</span>
-        {ws.owner_id && <span className="text-2xs text-text-tertiary hidden sm:inline truncate max-w-[90px]">{name(ws.owner_id)}</span>}
-        <span className={`text-2xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${recurringBadge ? 'bg-success-dim text-success' : 'bg-surface-active text-text-tertiary'}`}>
-          {recurringBadge ? 'Continuativa' : 'Una tantum'}
-        </span>
-      </button>
-      {open && (
-        <div className="border-t border-border p-3 space-y-1">
-          {milestones.map(m => {
-            const mt = tasks.filter(t => t.milestone_id === m.id)
-            return (
-              <div key={m.id} className="flex items-center gap-2 py-0.5">
-                <Flag className={`w-3.5 h-3.5 shrink-0 ${m.milestone_type === 'system' ? 'text-text-tertiary' : 'text-info'}`} />
-                <span className="flex-1 text-sm text-text-primary truncate">{m.title}</span>
-                <span className="text-2xs text-text-tertiary shrink-0">{mt.length} task</span>
-                <span className={`text-2xs font-semibold shrink-0 ${MS_TONE[m.status]}`}>{MS_LABEL[m.status]}</span>
-              </div>
-            )
-          })}
-          {recurring.map(r => (
-            <div key={r.id} className="flex items-center gap-2 py-0.5 pl-5">
-              <Repeat className="w-3.5 h-3.5 text-success" />
-              <span className="flex-1 text-sm text-text-primary">{r.title}</span>
-              <span className="text-2xs text-success">{r.frequency}</span>
-              {r.visibility === 'client_visible' && <span className="text-2xs text-info">cliente</span>}
-              {!r.active && <span className="text-2xs text-text-tertiary">pausa</span>}
-            </div>
-          ))}
-          {milestones.length === 0 && recurring.length === 0 && <p className="text-2xs text-text-tertiary">Vuoto.</p>}
+// Brief editabile del progetto
+function ProjectBrief({ projectId, initial, canEdit }: { projectId: string; initial: string | null; canEdit: boolean }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(initial ?? '')
+
+  const save = () => start(async () => {
+    try { await updateProjectBrief(projectId, val); router.refresh(); toast.success('Brief salvato'); setEditing(false) }
+    catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+  })
+  const remove = () => start(async () => {
+    try { await updateProjectBrief(projectId, null); router.refresh(); toast.success('Brief eliminato'); setVal(''); setEditing(false) }
+    catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+  })
+
+  if (editing) {
+    return (
+      <div className="bg-surface border border-border rounded-2xl p-4 shadow-soft space-y-2">
+        <textarea value={val} onChange={e => setVal(e.target.value)} autoFocus rows={4}
+          placeholder="Scrivi il brief del progetto: obiettivi, contesto, note chiave…"
+          className="w-full bg-background border border-border-interactive rounded-xl px-3 py-2 text-sm text-text-primary" />
+        <div className="flex items-center gap-2 justify-end">
+          {initial && <button onClick={remove} disabled={pending} className="flex items-center gap-1 text-2xs font-semibold text-error hover:opacity-80 mr-auto"><Trash2 className="w-3.5 h-3.5" />Elimina</button>}
+          <button onClick={() => { setVal(initial ?? ''); setEditing(false) }} className="text-2xs font-semibold text-text-secondary px-3 py-1.5">Annulla</button>
+          <button onClick={save} disabled={pending} className="flex items-center gap-1 text-2xs font-semibold bg-gold text-on-gold px-3 py-1.5 rounded-lg"><Check className="w-3.5 h-3.5" />Salva</button>
         </div>
-      )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-2xl p-4 shadow-soft group">
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="text-2xs font-semibold text-text-tertiary uppercase tracking-wide">Brief</h3>
+        {canEdit && (
+          <button onClick={() => { setVal(initial ?? ''); setEditing(true) }} aria-label="Modifica brief"
+            className="text-text-tertiary hover:text-gold-text opacity-0 group-hover:opacity-100 transition-opacity">
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+      {initial
+        ? <p className="text-sm text-text-secondary mt-1.5 whitespace-pre-wrap">{initial}</p>
+        : <button onClick={() => canEdit && setEditing(true)} disabled={!canEdit}
+            className="text-sm text-text-tertiary mt-1.5 hover:text-gold-text disabled:hover:text-text-tertiary">
+            {canEdit ? '+ Aggiungi un brief' : 'Nessun brief.'}
+          </button>}
+    </div>
+  )
+}
+// Gruppo di workstream (Continuative / A termine)
+function WsGroup({ title, hint, items, tasks, onOpen, progress }: {
+  title: string; hint: string; items: ProjectWorkstream[]; tasks: Task[]
+  onOpen: (id: string) => void; progress: (id: string) => number | null
+}) {
+  return (
+    <section>
+      <div className="mb-2 px-1">
+        <h4 className="text-2xs font-bold uppercase tracking-wide text-text-tertiary">{title} · {items.length}</h4>
+        <p className="text-2xs text-text-tertiary/70">{hint}</p>
+      </div>
+      <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+        {items.map(w => {
+          const pr = progress(w.id)
+          const wt = tasks.filter(t => t.workstream_id === w.id)
+          return (
+            <button key={w.id} onClick={() => onOpen(w.id)}
+              className="card-interactive bg-surface border border-border rounded-2xl p-4 shadow-soft text-left no-tap-highlight">
+              <div className="flex items-center gap-2">
+                <FolderTree className="w-4 h-4 text-gold-text shrink-0" />
+                <span className="text-sm font-semibold text-text-primary truncate flex-1">{w.name}</span>
+                <ChevronRight className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
+              </div>
+              {w.workstream_type === 'project' && (w.start_date || w.end_date) && (
+                <p className="text-2xs text-text-tertiary mt-1 tabular">{w.start_date ?? '—'} → {w.end_date ?? '—'}</p>
+              )}
+              <div className="flex items-center gap-2 mt-2">
+                <div className="h-1 bg-surface-active rounded-full overflow-hidden flex-1">
+                  <div className="h-full bg-gold rounded-full" style={{ width: `${pr ?? 0}%` }} />
+                </div>
+                <span className="text-2xs text-text-tertiary tabular shrink-0">{wt.length} task</span>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+// Modale creazione workstream
+function NewWorkstreamModal({ projectId, pending, onClose, onCreate }: {
+  projectId: string; pending: boolean
+  onClose: () => void
+  onCreate: (input: { project_id: string; name: string; workstream_type: WorkstreamType; start_date?: string | null; end_date?: string | null }) => void
+}) {
+  const [name, setName] = useState('')
+  const [type, setType] = useState<WorkstreamType>('project')
+  const [start, setStart] = useState('')
+  const [end, setEnd] = useState('')
+  return (
+    <div className="fixed inset-0 z-[55] flex items-end sm:items-center justify-center bg-scrim sm:p-4 animate-fade-in" onClick={onClose}>
+      <div className="bg-surface border border-border rounded-t-2xl sm:rounded-2xl w-full max-w-md p-4 space-y-3 shadow-pop animate-slide-up pb-safe" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-text-primary">Nuova workstream</h3>
+          <button onClick={onClose} aria-label="Chiudi" className="text-text-tertiary"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={() => setType('project')} className={`p-3 rounded-xl border text-left ${type === 'project' ? 'border-gold bg-surface-active' : 'border-border hover:bg-surface-hover'}`}>
+            <div className="text-sm font-semibold text-text-primary">A termine</div>
+            <div className="text-2xs text-text-tertiary">Con inizio e fine</div>
+          </button>
+          <button onClick={() => setType('recurring')} className={`p-3 rounded-xl border text-left ${type === 'recurring' ? 'border-gold bg-surface-active' : 'border-border hover:bg-surface-hover'}`}>
+            <div className="text-sm font-semibold text-text-primary">Continuativa</div>
+            <div className="text-2xs text-text-tertiary">Ricorrente, senza fine</div>
+          </button>
+        </div>
+        <input value={name} onChange={e => setName(e.target.value)} autoFocus placeholder="Nome workstream"
+          className="w-full bg-background border border-border-interactive rounded-lg px-3 py-2 text-sm text-text-primary" />
+        {type === 'project' && (
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block"><span className="text-2xs font-semibold text-text-secondary">Inizio</span>
+              <input type="date" value={start} onChange={e => setStart(e.target.value)} className="w-full bg-background border border-border-interactive rounded-lg px-2 py-1.5 text-sm text-text-primary mt-1" /></label>
+            <label className="block"><span className="text-2xs font-semibold text-text-secondary">Fine</span>
+              <input type="date" value={end} onChange={e => setEnd(e.target.value)} className="w-full bg-background border border-border-interactive rounded-lg px-2 py-1.5 text-sm text-text-primary mt-1" /></label>
+          </div>
+        )}
+        <div className="flex justify-end gap-2 pt-1">
+          <button onClick={onClose} className="text-2xs font-semibold text-text-secondary px-3 py-1.5">Annulla</button>
+          <button disabled={pending || !name.trim()}
+            onClick={() => onCreate({ project_id: projectId, name, workstream_type: type, start_date: start || null, end_date: end || null })}
+            className="text-2xs font-semibold bg-gold text-on-gold px-3 py-1.5 rounded-lg disabled:opacity-40">Crea</button>
+        </div>
+      </div>
     </div>
   )
 }
