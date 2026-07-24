@@ -5,7 +5,7 @@ import {
   Hash, Send, Users, Loader2, X, UserPlus, Mail,
   Trash2, Check, AlertCircle, MessageSquare, Search, Plus,
   Sparkles, FileText, Clock, StickyNote, Zap, Edit3,
-  Flame, ChevronDown, ChevronRight, SlidersHorizontal, Archive, Shield, Smile,
+  Flame, ChevronDown, ChevronRight, SlidersHorizontal, Archive, Shield, Smile, ArrowLeft,
 } from 'lucide-react'
 import { TicketChatPanel } from '@/components/ticket/TicketChatPanel'
 import { createClient } from '@/lib/supabase/client'
@@ -297,6 +297,8 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
 
   // ─── State ─────────────────────────────────────────────────────────────────
   const [selectedProjectId, setSelectedProjectId] = useState<string>(projects[0]?.id ?? '')
+  // master-detail su mobile: 'list' = elenco a tutto schermo, 'chat' = conversazione
+  const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
   const [channels, setChannels] = useState<Record<string, ChatChannel | null>>(
     Object.fromEntries(projects.map(p => [p.id, p.customer_care_channel]))
   )
@@ -790,7 +792,7 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
     <div className="flex h-full overflow-hidden">
 
       {/* ── Sidebar ────────────────────────────────────────────────────────── */}
-      <div className="w-72 bg-surface border-r border-border flex flex-col shrink-0">
+      <div className={`${mobileView === 'chat' ? 'hidden md:flex' : 'flex'} w-full md:w-72 bg-surface border-r border-border flex-col shrink-0`}>
 
         {/* Header + search */}
         <div className="px-4 pt-4 pb-3 border-b border-border">
@@ -848,7 +850,7 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
               const msgCount = totalMsgs[project.id] ?? 0
 
               return (
-                <button key={project.id} onClick={() => setSelectedProjectId(project.id)}
+                <button key={project.id} onClick={() => { setSelectedProjectId(project.id); setMobileView("chat") }}
                   className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all ${isSel ? 'bg-gold/10 ring-1 ring-gold/20' : 'hover:bg-overlay/5'}`}>
 
                   {/* Avatar + status dot */}
@@ -917,7 +919,7 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
                   {filteredArchived.map(project => {
                     const isSel = project.id === selectedProjectId
                     return (
-                      <button key={project.id} onClick={() => setSelectedProjectId(project.id)}
+                      <button key={project.id} onClick={() => { setSelectedProjectId(project.id); setMobileView("chat") }}
                         className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-colors opacity-60 hover:opacity-100 ${isSel ? 'bg-surface-hover' : 'hover:bg-overlay/5'}`}>
                         <div className="w-7 h-7 rounded-full bg-surface-hover flex items-center justify-center text-2xs font-bold text-text-tertiary shrink-0">
                           {getInitials(project.name)}
@@ -939,7 +941,7 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
 
       {/* ── Main ───────────────────────────────────────────────────────────── */}
       {selectedProject ? (
-        <div className="flex-1 flex min-w-0 overflow-hidden">
+        <div className={`${mobileView === 'list' ? 'hidden md:flex' : 'flex'} flex-1 min-w-0 overflow-hidden`}>
 
           {/* Chat column */}
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -947,6 +949,10 @@ export function CustomerCareClient({ projects, currentProfile, allProfiles }: Pr
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-surface shrink-0">
               <div className="flex items-center gap-3 min-w-0">
+                <button onClick={() => setMobileView('list')} aria-label="Torna all'elenco"
+                  className="md:hidden p-1 -ml-1 rounded-lg text-text-secondary hover:bg-surface-hover press shrink-0">
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
                 <Hash className="w-4 h-4 text-text-secondary shrink-0" />
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
