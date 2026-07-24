@@ -1,41 +1,44 @@
 'use client'
 
 import { useMemo, useRef, useEffect, useState } from 'react'
-import { Flag } from 'lucide-react'
-import type { ProjectWorkstream, Milestone } from '@/lib/types/database'
+import { Flag, Calendar as CalIcon, User, CheckSquare, FolderTree } from 'lucide-react'
+import type { ProjectWorkstream, Milestone, Task } from '@/lib/types/database'
 
 type Person = { id: string; full_name: string; avatar_url: string | null }
 
-const ZOOMS = { giorni: 34, settimane: 16, mesi: 7 } as const
+const MS_LABEL: Record<string, string> = { da_fare: 'Da fare', in_corso: 'In corso', in_approvazione: 'In approvazione', completata: 'Completata' }
+
+const ZOOMS = { giorni: 44, settimane: 20, mesi: 9 } as const
 type Zoom = keyof typeof ZOOMS
 const MS = 86400000
-const LABEL_W = 148 // colonna sinistra nomi workstream
+const LABEL_W = 160 // colonna sinistra nomi workstream
+const LANE_H = 56   // altezza corsia (più respiro)
 
 function parse(d: string) { return new Date(d + 'T00:00:00').getTime() }
 function addDays(t: number, n: number) { return t + n * MS }
 const MONTHS = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
 
 export function ProjectGantt({
-  workstreams, milestones, profiles, onOpenMilestone,
+  workstreams, milestones, tasks, profiles, onOpenMilestone,
 }: {
   workstreams: ProjectWorkstream[]
   milestones: Milestone[]
+  tasks?: Task[]
   profiles?: Person[]
   onOpenMilestone?: (workstreamId: string, milestoneId: string) => void
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [zoom, setZoom] = useState<Zoom>('giorni')
+  const [hover, setHover] = useState<{ m: Milestone; wsName: string } | null>(null)
   const DAY_W = ZOOMS[zoom]
   const showDays = zoom === 'giorni'
   const person = (id: string | null) => (id ? profiles?.find(p => p.id === id) ?? null : null)
 
-  // corsie: una per workstream che ha milestone datate; poi le altre milestone datate senza match
-  const lanes = useMemo(() => {
-    const withMs = workstreams
+  const lanes = useMemo(() =>
+    workstreams
       .map(w => ({ ws: w, ms: milestones.filter(m => m.workstream_id === w.id && m.due_date) }))
-      .filter(l => l.ms.length > 0)
-    return withMs
-  }, [workstreams, milestones])
+      .filter(l => l.ms.length > 0),
+    [workstreams, milestones])
 
   const model = useMemo(() => {
     const dates: number[] = []
@@ -60,7 +63,7 @@ export function ProjectGantt({
   }, [workstreams, milestones, lanes, DAY_W])
 
   useEffect(() => {
-    if (model && scrollRef.current) scrollRef.current.scrollLeft = Math.max(0, model.todayLeft - 240)
+    if (model && scrollRef.current) scrollRef.current.scrollLeft = Math.max(0, model.todayLeft - 260)
   }, [model])
 
   if (!model) {
@@ -80,31 +83,66 @@ export function ProjectGantt({
     return { pill: 'bg-info-dim border-info/40', flag: 'text-info' }
   }
 
+  // recap milestone in hover
+  const hm = hover?.m
+  const hmTone = hm ? msTone(hm) : null
+  const hmOwner = hm ? person(hm.owner_id) : null
+  const hmTasks = hm ? (tasks ?? []).filter(t => t.milestone_id === hm.id && !t.parent_task_id) : []
+  const hmDone = hmTasks.filter(t => t.status === 'completato').length
+  const hmRel = hm?.due_date ? relDaysLabel(hm.due_date, todayIso) : null
+
   return (
-    <div className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
+    <div className="relative bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border flex-wrap">
         <span className="text-sm font-bold text-text-primary">Calendario milestone</span>
         <span className="text-2xs text-text-tertiary">· {lanes.reduce((n, l) => n + l.ms.length, 0)}</span>
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={() => { if (scrollRef.current) scrollRef.current.scrollTo({ left: Math.max(0, model.todayLeft - 240), behavior: 'smooth' }) }}
+          <button onClick={() => { if (scrollRef.current) scrollRef.current.scrollTo({ left: Math.max(0, model.todayLeft - 260), behavior: 'smooth' }) }}
             className="text-2xs font-semibold text-gold-text hover:opacity-80 press">Oggi</button>
           <div className="flex bg-surface-active rounded-lg p-0.5">
             {(Object.keys(ZOOMS) as Zoom[]).map(z => (
               <button key={z} onClick={() => setZoom(z)} aria-pressed={zoom === z}
-                className={`px-2 py-0.5 rounded-md text-2xs font-semibold capitalize ${zoom === z ? 'bg-surface text-text-primary shadow-soft' : 'text-text-secondary hover:text-text-primary'}`}>{z}</button>
+                className={`px-2.5 py-1 rounded-md text-2xs font-semibold capitalize ${zoom === z ? 'bg-surface text-text-primary shadow-soft' : 'text-text-secondary hover:text-text-primary'}`}>{z}</button>
             ))}
           </div>
         </div>
       </div>
 
+      {/* pannello recap in hover — fisso nell'angolo, sempre leggibile */}
+      {hm && hmTone && (
+        <div className="absolute top-14 right-3 z-40 w-64 bg-surface border border-border-strong rounded-xl shadow-pop p-3 animate-fade-in pointer-events-none">
+          <div className="flex items-start gap-2">
+            <Flag className={`w-4 h-4 mt-0.5 shrink-0 ${hmTone.flag}`} />
+            <span className="text-sm font-bold text-text-primary leading-snug">{hm.title}</span>
+          </div>
+          <div className="mt-2.5 space-y-1.5">
+            <div className="flex items-center gap-2 text-2xs text-text-secondary">
+              <FolderTree className="w-3.5 h-3.5 text-gold-text shrink-0" /><span className="truncate">{hover!.wsName}</span>
+            </div>
+            <div className="flex items-center gap-2 text-2xs text-text-secondary">
+              <CalIcon className="w-3.5 h-3.5 text-text-tertiary shrink-0" /><span className="tabular">{hm.due_date}</span>
+              {hmRel && <span className={hmRel.tone}>· {hmRel.text}</span>}
+            </div>
+            <div className="flex items-center gap-2 text-2xs text-text-secondary">
+              <User className="w-3.5 h-3.5 text-text-tertiary shrink-0" /><span className="truncate">{hmOwner ? hmOwner.full_name : 'Non assegnata'}</span>
+            </div>
+            <div className="flex items-center gap-2 text-2xs text-text-secondary">
+              <CheckSquare className="w-3.5 h-3.5 text-text-tertiary shrink-0" /><span className="tabular">{hmDone}/{hmTasks.length} task</span>
+              <span className={`ml-auto text-2xs font-semibold px-2 py-0.5 rounded-full border ${hmTone.pill} ${hmTone.flag}`}>{MS_LABEL[hm.status]}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex">
         {/* colonna nomi sticky */}
         <div className="shrink-0 border-r border-border bg-surface z-10" style={{ width: LABEL_W }}>
-          <div className="h-6 border-b border-border/60" />
+          <div className="h-7 border-b border-border/60" />
           {showDays && <div className="h-8 border-b border-border" />}
           {lanes.map(l => (
-            <div key={l.ws.id} className="h-12 border-b border-border/40 flex items-center px-3">
-              <span className="text-2xs font-semibold text-text-primary truncate">{l.ws.name}</span>
+            <div key={l.ws.id} className="border-b border-border/40 flex items-center px-3" style={{ height: LANE_H }}>
+              <FolderTree className="w-3.5 h-3.5 text-gold-text shrink-0 mr-1.5" />
+              <span className="text-xs font-semibold text-text-primary truncate">{l.ws.name}</span>
             </div>
           ))}
         </div>
@@ -113,14 +151,14 @@ export function ProjectGantt({
         <div ref={scrollRef} className="scroll-x-touch flex-1">
           <div className="relative select-none" style={{ width: model.width, minWidth: '100%' }}>
             {/* header mesi */}
-            <div className="relative h-6 border-b border-border/60">
+            <div className="relative h-7 border-b border-border/60">
               {model.monthSegs.map((s, i) => (
                 <div key={i} className="absolute top-0 bottom-0 flex items-center border-l border-border/40 pl-2" style={{ left: s.left, width: s.width }}>
-                  <span className="text-2xs font-semibold text-text-secondary whitespace-nowrap capitalize">{s.label}</span>
+                  <span className="text-xs font-semibold text-text-secondary whitespace-nowrap capitalize">{s.label}</span>
                 </div>
               ))}
             </div>
-            {/* header giorni (solo zoom giorni) */}
+            {/* header giorni */}
             {showDays && (
               <div className="relative h-8 border-b border-border">
                 {model.days.map((d, i) => {
@@ -128,16 +166,16 @@ export function ProjectGantt({
                   const weekend = d.getDay() === 0 || d.getDay() === 6
                   const isToday = iso === todayIso
                   return (
-                    <div key={i} className={`absolute top-0 bottom-0 flex items-center justify-center border-l ${weekend ? 'bg-overlay/[0.03]' : ''} border-border/30`} style={{ left: i * DAY_W, width: DAY_W }}>
-                      <span className={`text-2xs tabular ${isToday ? 'text-gold-text font-bold' : weekend ? 'text-text-tertiary/60' : 'text-text-tertiary'}`}>{d.getDate()}</span>
+                    <div key={i} className={`absolute top-0 bottom-0 flex flex-col items-center justify-center border-l ${weekend ? 'bg-overlay/[0.03]' : ''} border-border/30`} style={{ left: i * DAY_W, width: DAY_W }}>
+                      <span className={`text-2xs tabular ${isToday ? 'text-gold-text font-bold' : weekend ? 'text-text-tertiary/60' : 'text-text-secondary'}`}>{d.getDate()}</span>
                     </div>
                   )
                 })}
               </div>
             )}
 
-            {/* marker oggi verticale (attraversa le corsie) */}
-            <div className="absolute bottom-0 w-0.5 bg-gold z-20 pointer-events-none" style={{ left: model.todayLeft + DAY_W / 2, top: showDays ? 56 : 24 }}>
+            {/* marker oggi verticale */}
+            <div className="absolute bottom-0 w-0.5 bg-gold z-20 pointer-events-none" style={{ left: model.todayLeft + DAY_W / 2, top: showDays ? 60 : 28 }}>
               <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-gold" />
             </div>
 
@@ -148,21 +186,24 @@ export function ProjectGantt({
               const bs = hasBar ? model.x(parse(w.start_date!)) : 0
               const be = hasBar ? (w.end_date ? model.x(parse(w.end_date)) : bs + DAY_W) : 0
               return (
-                <div key={w.id} className="relative h-12 border-b border-border/40">
-                  {/* banda weekend leggera già nell'header; qui barra durata */}
+                <div key={w.id} className="relative border-b border-border/40" style={{ height: LANE_H }}>
                   {hasBar && (
-                    <div className="absolute top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-gold-dim border border-gold/30" style={{ left: bs + DAY_W / 2, width: Math.max(DAY_W, be - bs) }} />
+                    <div className="absolute top-1/2 -translate-y-1/2 h-2 rounded-full bg-gold-dim border border-gold/30" style={{ left: bs + DAY_W / 2, width: Math.max(DAY_W, be - bs) }} />
                   )}
                   {l.ms.map(m => {
                     const tone = msTone(m)
                     const owner = person(m.owner_id)
                     return (
-                      <button key={m.id} onClick={() => onOpenMilestone?.(w.id, m.id)} title={`${m.title}${owner ? ' · ' + owner.full_name : ''}`}
-                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 group z-10" style={{ left: model.x(parse(m.due_date!)) + DAY_W / 2 }}>
-                        <span className={`relative w-6 h-6 rounded-full border flex items-center justify-center transition-transform group-hover:scale-110 ${tone.pill}`}>
-                          <Flag className={`w-3 h-3 ${tone.flag}`} />
+                      <button key={m.id}
+                        onClick={() => onOpenMilestone?.(w.id, m.id)}
+                        onMouseEnter={() => setHover({ m, wsName: w.name })}
+                        onMouseLeave={() => setHover(h => (h?.m.id === m.id ? null : h))}
+                        aria-label={`Milestone ${m.title}`}
+                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10" style={{ left: model.x(parse(m.due_date!)) + DAY_W / 2 }}>
+                        <span className={`relative w-7 h-7 rounded-full border flex items-center justify-center transition-transform hover:scale-110 ${tone.pill}`}>
+                          <Flag className={`w-3.5 h-3.5 ${tone.flag}`} />
                           {owner && (
-                            <span className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-gold border-2 border-surface overflow-hidden" title={owner.full_name} aria-label={`Responsabile: ${owner.full_name}`}>
+                            <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-gold border-2 border-surface overflow-hidden" aria-label={`Responsabile: ${owner.full_name}`}>
                               {owner.avatar_url && <img src={owner.avatar_url} className="w-full h-full object-cover" alt="" />}
                             </span>
                           )}
@@ -181,3 +222,11 @@ export function ProjectGantt({
 }
 
 function addIso(n: number) { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10) }
+
+function relDaysLabel(iso: string, today: string) {
+  const d = Math.round((new Date(iso + 'T00:00:00').getTime() - new Date(today + 'T00:00:00').getTime()) / 86400000)
+  if (d < 0) return { text: `scaduta ${-d}g fa`, tone: 'text-error' }
+  if (d === 0) return { text: 'oggi', tone: 'text-warning' }
+  if (d <= 7) return { text: `tra ${d}g`, tone: 'text-warning' }
+  return { text: `tra ${d}g`, tone: 'text-text-tertiary' }
+}

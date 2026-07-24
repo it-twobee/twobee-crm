@@ -7,7 +7,7 @@ import type {
 
 export const revalidate = 0
 
-export default async function WorkspaceProjectDetailPage({ params }: { params: { projectId: string } }) {
+export default async function WorkspaceProjectDetailPage({ params, searchParams }: { params: { projectId: string }; searchParams: { tab?: string } }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -50,6 +50,7 @@ export default async function WorkspaceProjectDetailPage({ params }: { params: {
       backHref="/workspace/progetti"
       canManageProject={canManageProject}
       canEditTasks
+      initialTab={searchParams.tab === 'workstream' ? 'workstream' : undefined}
     />
   )
 }

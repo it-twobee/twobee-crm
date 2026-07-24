@@ -1,14 +1,15 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
+import { useState, useMemo, useTransition, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   ArrowLeft, FolderTree, Flag, Repeat, ChevronRight,
   Calendar, ListChecks, AlertTriangle, CheckSquare, Users, Clock, Plus, Pencil, Check, X, Trash2,
+  MoreHorizontal,
 } from 'lucide-react'
-import { updateProjectStatus, updateProjectBrief } from '@/app/actions/projects'
+import { updateProjectStatus, updateProjectBrief, deleteProject } from '@/app/actions/projects'
 import { generateRecurringNow } from '@/app/actions/tasks'
 import { createWorkstream } from '@/app/actions/workstreams'
 import { ProjectGantt } from './ProjectGantt'
@@ -43,7 +44,7 @@ const isOverdue = (t: Task) => !!t.due_date && t.status !== 'completato' && t.du
 
 export function ProjectDetailClient({
   project, clientName, workstreams, milestones, tasks, recurring, memberIds, profiles,
-  backHref = '/progetti', canManageProject = true, canEditTasks = true,
+  backHref = '/progetti', canManageProject = true, canEditTasks = true, initialTab,
 }: {
   project: Project
   clientName: string
@@ -56,10 +57,11 @@ export function ProjectDetailClient({
   backHref?: string
   canManageProject?: boolean
   canEditTasks?: boolean
+  initialTab?: 'panoramica' | 'workstream'
 }) {
   const router = useRouter()
   const [pending, start] = useTransition()
-  const [tab, setTab] = useState<'panoramica' | 'workstream'>('panoramica')
+  const [tab, setTab] = useState<'panoramica' | 'workstream'>(initialTab ?? 'panoramica')
   const [creatingWs, setCreatingWs] = useState(false)
 
   const wsBase = `${backHref.replace(/\/$/, '')}/${project.id}/workstream`
@@ -96,6 +98,12 @@ export function ProjectDetailClient({
   const genRecurring = () =>
     start(async () => {
       try { const n = await generateRecurringNow(); router.refresh(); toast.success(`${n} occorrenze generate`) }
+      catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+    })
+
+  const deleteThisProject = () =>
+    start(async () => {
+      try { await deleteProject(project.id, project.client_id); toast.success('Progetto eliminato'); router.push(backHref); router.refresh() }
       catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
     })
 
@@ -142,7 +150,10 @@ export function ProjectDetailClient({
       <div className="px-4 sm:px-6 pb-5 border-b border-border">
         <div className="flex items-start gap-4 flex-wrap">
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-black text-text-primary font-heading break-words">{project.name}</h1>
+            <div className="flex items-start gap-2">
+              <h1 className="flex-1 text-2xl sm:text-3xl font-black text-text-primary font-heading break-words">{project.name}</h1>
+              {canManageProject && <ProjectMenu onDelete={deleteThisProject} />}
+            </div>
             <div className="flex flex-wrap items-center gap-3 mt-2 text-sm">
               <Link href={`/clienti/${project.client_id}`} className="text-gold-text hover:underline font-medium">{clientName}</Link>
               <span className={`text-2xs font-semibold px-2 py-0.5 rounded-full capitalize ${AREA_BADGE[project.area] ?? 'bg-surface-active text-text-tertiary'}`}>{prettyLabel(project.area)}</span>
@@ -319,7 +330,7 @@ export function ProjectDetailClient({
             </div>
 
             {/* ── Calendario milestone a swimlane ── */}
-            <ProjectGantt workstreams={workstreams} milestones={milestones} profiles={profiles} onOpenMilestone={openMilestone} />
+            <ProjectGantt workstreams={workstreams} milestones={milestones} tasks={tasks} profiles={profiles} onOpenMilestone={openMilestone} />
 
             {/* ── toolbar ── */}
             <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
@@ -456,6 +467,43 @@ function Signal({ label, value, icon, tone, bar, sub }: {
         <div className="h-1 bg-surface-active rounded-full overflow-hidden mt-1.5"><div className="h-full bg-gold rounded-full" style={{ width: `${bar}%` }} /></div>
       )}
       {sub && <div className="text-2xs text-text-tertiary mt-1 truncate">{sub}</div>}
+    </div>
+  )
+}
+
+// Menu ⋯ del progetto (elimina, con conferma a due passi)
+function ProjectMenu({ onDelete }: { onDelete: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [confirm, setConfirm] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setConfirm(false) } }
+    document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h)
+  }, [])
+  return (
+    <div className="relative shrink-0" ref={ref}>
+      <button onClick={() => setOpen(o => !o)} aria-label="Opzioni progetto"
+        className="p-2 rounded-xl text-text-tertiary hover:text-text-primary hover:bg-surface-hover press">
+        <MoreHorizontal className="w-5 h-5" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-60 bg-surface border border-border-strong rounded-2xl shadow-pop z-50 p-1.5 animate-scale-in">
+          {!confirm ? (
+            <button onClick={() => setConfirm(true)}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-error hover:bg-error/10 transition-colors press">
+              <Trash2 className="w-4 h-4" />Elimina progetto
+            </button>
+          ) : (
+            <div className="p-2">
+              <p className="text-2xs text-text-secondary mb-2 leading-snug">Eliminare l&apos;intero progetto con workstream, milestone e task? L&apos;azione sposta tutto nel cestino.</p>
+              <div className="flex gap-2">
+                <button onClick={() => { setConfirm(false); setOpen(false) }} className="flex-1 text-2xs font-semibold text-text-secondary px-2 py-1.5 rounded-lg border border-border">Annulla</button>
+                <button onClick={() => { onDelete(); setOpen(false) }} className="flex-1 text-2xs font-semibold bg-error-dim text-error border border-error/40 px-2 py-1.5 rounded-lg press">Elimina</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

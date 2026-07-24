@@ -7,7 +7,7 @@ import type {
 
 export const revalidate = 0
 
-export default async function ProjectDetailPage({ params }: { params: { projectId: string } }) {
+export default async function ProjectDetailPage({ params, searchParams }: { params: { projectId: string }; searchParams: { tab?: string } }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -43,6 +43,7 @@ export default async function ProjectDetailPage({ params }: { params: { projectI
       recurring={(recurring ?? []) as RecurringTaskTemplate[]}
       memberIds={memberIds}
       profiles={(profiles ?? []) as { id: string; full_name: string; avatar_url: string | null }[]}
+      initialTab={searchParams.tab === 'workstream' ? 'workstream' : undefined}
     />
   )
 }

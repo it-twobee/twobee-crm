@@ -35,3 +35,17 @@ export async function updateProjectBrief(projectId: string, description: string 
   if (error) throw new Error(error.message)
   revalidatePath(`/progetti/${projectId}`)
 }
+
+// Elimina il progetto intero (soft-delete). Le task figlie vengono soft-deleted;
+// workstream/milestone/ricorrenti restano collegati (cadono su hard-delete futuro).
+export async function deleteProject(projectId: string, clientId: string) {
+  await requireManagerOrAdmin(projectId)
+  const admin = createAdminClient()
+  const now = new Date().toISOString()
+  // soft-delete progetto + tutte le sue task (per non lasciarle orfane nelle viste)
+  const { error } = await admin.from('projects').update({ deleted_at: now }).eq('id', projectId)
+  if (error) throw new Error(error.message)
+  await admin.from('tasks').update({ deleted_at: now }).eq('project_id', projectId).is('deleted_at', null)
+  revalidatePath('/progetti')
+  revalidatePath(`/clienti/${clientId}`)
+}

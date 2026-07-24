@@ -75,7 +75,7 @@ export function WorkstreamPageClient({
     <div className="flex flex-col h-full">
       {/* header sticky */}
       <div className="px-4 sm:px-6 pt-5 pb-4 border-b border-border">
-        <Link href={backHref} className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary w-fit press mb-3">
+        <Link href={`${backHref}?tab=workstream`} className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary w-fit press mb-3">
           <ArrowLeft className="w-4 h-4" />{project.name}
         </Link>
         <div className="flex items-start gap-4 flex-wrap max-w-5xl">
@@ -164,7 +164,7 @@ export function WorkstreamPageClient({
           {/* elimina workstream */}
           {canEdit && (
             <div className="pt-4 border-t border-border">
-              <button onClick={() => { if (confirm(`Eliminare la workstream "${ws.name}" e tutto il suo contenuto?`)) { act(() => deleteWorkstream(ws.id, project.id)); router.push(backHref) } }}
+              <button onClick={() => { if (confirm(`Eliminare la workstream "${ws.name}" e tutto il suo contenuto?`)) { act(() => deleteWorkstream(ws.id, project.id)); router.push(`${backHref}?tab=workstream`) } }}
                 className="flex items-center gap-1 text-2xs font-semibold text-error hover:opacity-80">
                 <Trash2 className="w-3.5 h-3.5" />Elimina workstream
               </button>
