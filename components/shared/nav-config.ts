@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Users, FolderOpen, Settings, CalendarDays, Headphones,
-  Ticket, UserCircle2, History, Lightbulb, FolderKanban, Briefcase,
+  Ticket, UserCircle2, History, Lightbulb, FolderKanban, Briefcase, ListChecks,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -19,7 +19,10 @@ export interface NavSection {
 export const navSections: NavSection[] = [
   {
     label: 'Dashboard',
-    items: [{ href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' }],
+    items: [
+      { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+      { href: '/le-mie-attivita', icon: ListChecks, label: 'Le mie attività' },
+    ],
   },
   {
     label: 'Clienti',
