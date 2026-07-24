@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users,
   FolderOpen, Settings, ChevronRight, ChevronLeft, ChevronDown,
   CalendarDays, Headphones, Crown,
-  Ticket, UserCircle2, History, Lightbulb,
+  Ticket, UserCircle2, History, Lightbulb, FolderKanban,
 } from 'lucide-react'
 import { useState, useCallback, useEffect } from 'react'
 import { usePermissions } from '@/lib/hooks/usePermissions'
@@ -60,6 +60,7 @@ const sections: NavSection[] = [
     label: 'Sistema',
     items: [
       { href: '/feedback', icon: Lightbulb, label: 'Feedback', adminOnly: true },
+      { href: '/impostazioni/catalogo', icon: FolderKanban, label: 'Catalogo progetti', superAdminOnly: true },
       { href: '/impostazioni/cronologia', icon: History, label: 'Cronologia', adminOnly: true },
       { href: '/impostazioni', icon: Settings, label: 'Impostazioni', adminOnly: true },
     ],
