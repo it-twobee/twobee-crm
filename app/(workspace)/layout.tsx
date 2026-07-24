@@ -74,7 +74,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
           app_role: profile.app_role as AppRole | null,
         }}
       />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Header con ricerca, come nel portale admin — scoped al workspace */}
         <header className="h-14 bg-surface backdrop-blur-xl border-b border-border flex items-center px-4 lg:px-6 gap-2 lg:gap-4 sticky top-0 z-40 shrink-0 pt-safe">
           <WorkspaceMobileNav
@@ -92,7 +92,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
             />
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden">
           {children}
         </main>
       </div>

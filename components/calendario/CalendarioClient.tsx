@@ -417,7 +417,7 @@ export function CalendarioClient({
 
       {/* Side panel */}
       {selectedDay && (
-        <div className="w-80 border-l border-overlay/[0.06] p-4 flex flex-col gap-4 bg-surface">
+        <div className="hidden xl:flex w-80 border-l border-overlay/[0.06] p-4 flex-col gap-4 bg-surface shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-text-primary capitalize">{format(selectedDay, 'EEEE d MMMM', { locale: it })}</h3>
