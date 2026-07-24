@@ -141,7 +141,7 @@ export function ProjectDetailClient({
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {tab === 'panoramica' && (
-          <div className="space-y-5 max-w-5xl animate-fade-in">
+          <div className="space-y-5 max-w-6xl animate-fade-in">
             {/* progress + stat */}
             <div className="grid gap-3 lg:grid-cols-3">
               {/* barra avanzamento */}
@@ -270,7 +270,7 @@ export function ProjectDetailClient({
         )}
 
         {tab === 'sottoprogetti' && (
-          <div className="max-w-5xl animate-fade-in">
+          <div className="max-w-6xl animate-fade-in">
             {workstreams.length === 0 ? <Empty text="Nessun sottoprogetto." /> : (
               <div className="grid gap-3 lg:grid-cols-2">
                 {workstreams.map(w => (
@@ -284,7 +284,7 @@ export function ProjectDetailClient({
         )}
 
         {tab === 'milestone' && (
-          <div className="max-w-5xl space-y-5 animate-fade-in">
+          <div className="max-w-6xl space-y-5 animate-fade-in">
             {milestones.length === 0 && <Empty text="Nessuna milestone." />}
             {workstreams.map(w => {
               const wsMs = milestones.filter(m => m.workstream_id === w.id)
@@ -330,7 +330,7 @@ export function ProjectDetailClient({
         )}
 
         {tab === 'task' && (
-          <div className="space-y-3">
+          <div className="space-y-3 max-w-6xl animate-fade-in">
             {recurring.some(r => r.active) && (
               <div className="flex justify-end">
                 <button onClick={genRecurring} disabled={pending}

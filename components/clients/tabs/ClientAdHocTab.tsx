@@ -63,7 +63,7 @@ export function ClientAdHocTab({
   })
 
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="max-w-6xl space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-sm font-bold text-text-primary">Task Ad Hoc</h2>

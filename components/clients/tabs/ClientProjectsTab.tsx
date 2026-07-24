@@ -35,7 +35,7 @@ export function ClientProjectsTab({ clientId, canCreate }: { clientId: string; c
   }, [clientId])
 
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="max-w-6xl space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-bold text-text-primary">Progetti del cliente</h2>
         {canCreate && (
@@ -56,7 +56,7 @@ export function ClientProjectsTab({ clientId, canCreate }: { clientId: string; c
           <p className="text-sm text-text-secondary">Nessun progetto per questo cliente.</p>
         </div>
       ) : (
-        <div className="grid gap-2.5 sm:grid-cols-2 animate-fade-in">
+        <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3 animate-fade-in">
           {rows.map(p => (
             <Link key={p.id} href={`/progetti/${p.id}`}
               className="card-interactive bg-surface border border-border rounded-2xl flex items-center gap-3 px-4 py-3.5 no-tap-highlight">
