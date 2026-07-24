@@ -19,6 +19,7 @@ const LANE_H = 56   // altezza corsia (più respiro)
 function parse(d: string) { return new Date(d + 'T00:00:00').getTime() }
 function addDays(t: number, n: number) { return t + n * MS }
 const MONTHS = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
+const WEEKDAY_SHORT = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab']
 
 export function ProjectGantt({
   workstreams, milestones, tasks, profiles, onOpenMilestone,
@@ -160,7 +161,7 @@ export function ProjectGantt({
         {/* colonna nomi sticky */}
         <div className="shrink-0 border-r border-border bg-surface z-10" style={{ width: labelWidth }}>
           <div className="h-7 border-b border-border/60" />
-          {showDays && <div className="h-8 border-b border-border" />}
+          {showDays && <div className="h-10 border-b border-border" />}
           {lanes.map(l => {
             const sub = laneSubtitle?.(l.ws)
             const accent = laneAccent?.(l.ws)
@@ -188,16 +189,17 @@ export function ProjectGantt({
                 </div>
               ))}
             </div>
-            {/* header giorni */}
+            {/* header giorni: giorno della settimana + numero */}
             {showDays && (
-              <div className="relative h-8 border-b border-border">
+              <div className="relative h-10 border-b border-border">
                 {model.days.map((d, i) => {
                   const iso = d.toISOString().slice(0, 10)
                   const weekend = d.getDay() === 0 || d.getDay() === 6
                   const isToday = iso === todayIso
                   return (
-                    <div key={i} className={`absolute top-0 bottom-0 flex flex-col items-center justify-center border-l ${weekend ? 'bg-overlay/[0.03]' : ''} border-border/30`} style={{ left: i * DAY_W, width: DAY_W }}>
-                      <span className={`text-2xs tabular ${isToday ? 'text-gold-text font-bold' : weekend ? 'text-text-tertiary/60' : 'text-text-secondary'}`}>{d.getDate()}</span>
+                    <div key={i} className={`absolute top-0 bottom-0 flex flex-col items-center justify-center gap-0.5 border-l ${weekend ? 'bg-overlay/[0.03]' : ''} border-border/30`} style={{ left: i * DAY_W, width: DAY_W }}>
+                      <span className={`text-2xs leading-none ${isToday ? 'text-gold-text font-bold' : 'text-text-tertiary/70'}`}>{WEEKDAY_SHORT[d.getDay()]}</span>
+                      <span className={`text-2xs tabular leading-none ${isToday ? 'text-gold-text font-bold' : weekend ? 'text-text-tertiary/60' : 'text-text-secondary'}`}>{d.getDate()}</span>
                     </div>
                   )
                 })}
@@ -205,7 +207,7 @@ export function ProjectGantt({
             )}
 
             {/* marker oggi verticale */}
-            <div className="absolute bottom-0 w-0.5 bg-gold z-20 pointer-events-none" style={{ left: model.todayLeft + DAY_W / 2, top: showDays ? 60 : 28 }}>
+            <div className="absolute bottom-0 w-0.5 bg-gold z-20 pointer-events-none" style={{ left: model.todayLeft + DAY_W / 2, top: showDays ? 68 : 28 }}>
               <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-gold" />
             </div>
 

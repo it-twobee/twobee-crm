@@ -54,18 +54,19 @@ export function WorkstreamPageClient({
   const [taskDetail, setTaskDetail] = useState<Task | null>(null)
   const [addingMs, setAddingMs] = useState(false)
   const [newMs, setNewMs] = useState('')
+  const [editingName, setEditingName] = useState(false)
+  const [wsName, setWsName] = useState(ws.name)
 
   const act = (fn: () => Promise<unknown>, ok?: string) => start(async () => {
     try { await fn(); if (ok) toast.success(ok); router.refresh() }
     catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
   })
 
-  // delivery ordinate per data, sistema in fondo
+  // delivery = tappe della timeline; system ("Operatività continua") = blocco a parte
   const deliveryMs = milestones.filter(m => m.milestone_type === 'delivery')
     .sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999'))
   const systemMs = milestones.filter(m => m.milestone_type === 'system')
-  const ordered = [...deliveryMs, ...systemMs]
-  const systemMilestoneId = systemMs[0]?.id ?? ordered[0]?.id ?? ''
+  const systemMilestoneId = systemMs[0]?.id ?? deliveryMs[0]?.id ?? ''
 
   const allTasks = tasks.filter(t => !t.parent_task_id)
   const done = tasks.filter(t => t.status === 'completato').length
@@ -93,7 +94,18 @@ export function WorkstreamPageClient({
                 </select>
               ) : <span className="text-2xs text-text-tertiary">{WS_STATUS_LABEL[ws.status]}</span>}
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-text-primary font-heading break-words">{ws.name}</h1>
+            {editingName && canEdit ? (
+              <input value={wsName} onChange={e => setWsName(e.target.value)} autoFocus
+                onBlur={() => { if (wsName.trim() && wsName !== ws.name) act(() => updateWorkstream(ws.id, project.id, { name: wsName.trim() }), 'Nome aggiornato'); else setWsName(ws.name); setEditingName(false) }}
+                onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setWsName(ws.name); setEditingName(false) } }}
+                className="w-full text-2xl sm:text-3xl font-black text-text-primary font-heading bg-background border border-border-interactive rounded-lg px-2 py-1" />
+            ) : (
+              <button onClick={() => canEdit && setEditingName(true)} disabled={!canEdit}
+                className="group/name flex items-center gap-2 text-left">
+                <h1 className="text-2xl sm:text-3xl font-black text-text-primary font-heading break-words">{ws.name}</h1>
+                {canEdit && <Pencil className="w-4 h-4 text-text-tertiary opacity-0 group-hover/name:opacity-100 transition-opacity shrink-0" />}
+              </button>
+            )}
             {ws.workstream_type === 'project' && canEdit && (
               <div className="flex items-center gap-3 mt-2 text-2xs text-text-tertiary">
                 <label className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" />Inizio
@@ -129,37 +141,51 @@ export function WorkstreamPageClient({
               wsId={ws.id} systemMilestoneId={systemMilestoneId} profiles={profiles} canEdit={canEdit} act={act} pending={pending} />
           )}
 
-          {/* timeline milestone */}
-          <div className="relative">
-            {ordered.length === 0 && <p className="text-sm text-text-tertiary text-center py-8">Nessuna milestone. Aggiungine una per organizzare le task.</p>}
-            {ordered.map((m, i) => (
-              <MilestoneNode key={m.id} m={m} last={i === ordered.length - 1}
-                project={project} wsId={ws.id}
-                tasks={allTasks.filter(t => t.milestone_id === m.id)}
-                subtasksOf={(pid) => tasks.filter(t => t.parent_task_id === pid)}
-                profiles={profiles} canEdit={canEdit} act={act} pending={pending}
-                onOpenTask={setTaskDetail} focus={m.id === focusMilestoneId} />
-            ))}
+          {/* MILESTONE DI CONSEGNA — timeline */}
+          <section>
+            <div className="flex items-center gap-2 mb-3 px-1">
+              <Flag className="w-4 h-4 text-info" />
+              <h2 className="text-sm font-bold text-text-primary">Milestone di consegna</h2>
+              <span className="text-2xs text-text-tertiary">· {deliveryMs.length}</span>
+            </div>
+            <div className="relative">
+              {deliveryMs.length === 0 && <p className="text-2xs text-text-tertiary px-1 pb-2">Nessuna milestone di consegna. Aggiungine una con una data per pianificare le tappe.</p>}
+              {deliveryMs.map((m, i) => (
+                <MilestoneNode key={m.id} m={m} last={i === deliveryMs.length - 1}
+                  project={project} wsId={ws.id}
+                  tasks={allTasks.filter(t => t.milestone_id === m.id)}
+                  subtasksOf={(pid) => tasks.filter(t => t.parent_task_id === pid)}
+                  profiles={profiles} canEdit={canEdit} act={act} pending={pending}
+                  onOpenTask={setTaskDetail} focus={m.id === focusMilestoneId} />
+              ))}
+              {canEdit && (
+                <div className="pl-11 pt-1">
+                  {addingMs ? (
+                    <div className="flex items-center gap-2">
+                      <input value={newMs} onChange={e => setNewMs(e.target.value)} autoFocus placeholder="Titolo milestone"
+                        onKeyDown={e => { if (e.key === 'Enter' && newMs.trim()) { act(() => createMilestone({ project_id: project.id, workstream_id: ws.id, title: newMs }), 'Milestone creata'); setNewMs(''); setAddingMs(false) } }}
+                        className="flex-1 max-w-md bg-background border border-border-interactive rounded-lg px-3 py-2 text-sm text-text-primary" />
+                      <button onClick={() => { if (newMs.trim()) { act(() => createMilestone({ project_id: project.id, workstream_id: ws.id, title: newMs }), 'Milestone creata'); setNewMs(''); setAddingMs(false) } }}
+                        className="text-2xs font-semibold bg-gold text-on-gold px-3 py-2 rounded-lg">Aggiungi</button>
+                      <button onClick={() => { setAddingMs(false); setNewMs('') }} aria-label="Annulla" className="text-text-tertiary"><X /></button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setAddingMs(true)} className="flex items-center gap-1.5 text-2xs font-semibold text-gold-text hover:opacity-80 press">
+                      <Plus className="w-3.5 h-3.5" />Nuova milestone
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
 
-            {canEdit && (
-              <div className="pl-11 pt-1">
-                {addingMs ? (
-                  <div className="flex items-center gap-2">
-                    <input value={newMs} onChange={e => setNewMs(e.target.value)} autoFocus placeholder="Titolo milestone"
-                      onKeyDown={e => { if (e.key === 'Enter' && newMs.trim()) { act(() => createMilestone({ project_id: project.id, workstream_id: ws.id, title: newMs }), 'Milestone creata'); setNewMs(''); setAddingMs(false) } }}
-                      className="flex-1 max-w-md bg-background border border-border-interactive rounded-lg px-3 py-2 text-sm text-text-primary" />
-                    <button onClick={() => { if (newMs.trim()) { act(() => createMilestone({ project_id: project.id, workstream_id: ws.id, title: newMs }), 'Milestone creata'); setNewMs(''); setAddingMs(false) } }}
-                      className="text-2xs font-semibold bg-gold text-on-gold px-3 py-2 rounded-lg">Aggiungi</button>
-                    <button onClick={() => { setAddingMs(false); setNewMs('') }} aria-label="Annulla" className="text-text-tertiary"><X /></button>
-                  </div>
-                ) : (
-                  <button onClick={() => setAddingMs(true)} className="flex items-center gap-1.5 text-2xs font-semibold text-gold-text hover:opacity-80 press">
-                    <Plus className="w-3.5 h-3.5" />Nuova milestone
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+          {/* OPERATIVITÀ CONTINUA — blocco a parte (milestone di sistema) */}
+          {systemMs.map(m => (
+            <ContinuousBlock key={m.id} m={m} project={project} wsId={ws.id}
+              tasks={allTasks.filter(t => t.milestone_id === m.id)}
+              subtasksOf={(pid) => tasks.filter(t => t.parent_task_id === pid)}
+              profiles={profiles} canEdit={canEdit} act={act} onOpenTask={setTaskDetail} />
+          ))}
 
           {/* elimina workstream */}
           {canEdit && (
@@ -178,6 +204,66 @@ export function WorkstreamPageClient({
           contextLabel={ws.name} onClose={() => setTaskDetail(null)} onChanged={() => router.refresh()} />
       )}
     </div>
+  )
+}
+
+// Blocco "Operatività continua" — attività continuative senza scadenza di consegna
+function ContinuousBlock({
+  m, project, wsId, tasks, subtasksOf, profiles, canEdit, act, onOpenTask,
+}: {
+  m: Milestone
+  project: Project
+  wsId: string
+  tasks: Task[]
+  subtasksOf: (parentId: string) => Task[]
+  profiles: Person[]
+  canEdit: boolean
+  act: (fn: () => Promise<unknown>, ok?: string) => void
+  onOpenTask: (t: Task) => void
+}) {
+  const [addingTask, setAddingTask] = useState(false)
+  const [newTask, setNewTask] = useState('')
+  const done = tasks.filter(t => t.status === 'completato').length
+
+  return (
+    <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
+      <div className="flex items-center gap-2.5 px-4 py-3 bg-success-dim/40 border-b border-border">
+        <span className="w-8 h-8 rounded-lg bg-success-dim flex items-center justify-center shrink-0">
+          <Repeat className="w-4 h-4 text-success" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-bold text-text-primary truncate">{m.title}</h2>
+            <span className="text-2xs font-semibold px-2 py-0.5 rounded-full bg-success-dim text-success shrink-0">Continuativa</span>
+          </div>
+          <p className="text-2xs text-text-tertiary mt-0.5">Attività senza scadenza di consegna · include le occorrenze ricorrenti</p>
+        </div>
+        {tasks.length > 0 && <span className="text-2xs text-text-tertiary tabular shrink-0">{done}/{tasks.length}</span>}
+      </div>
+      <div className="p-2 space-y-0.5">
+        {tasks.length === 0 && <p className="text-2xs text-text-tertiary px-2 py-1.5">Nessuna attività continuativa.</p>}
+        {tasks.map(t => (
+          <TaskRow key={t.id} t={t} subs={subtasksOf(t.id)} project={project} wsId={wsId} milestoneId={m.id}
+            profiles={profiles} canEdit={canEdit} act={act} onOpenTask={onOpenTask} />
+        ))}
+        {canEdit && (
+          addingTask ? (
+            <div className="flex items-center gap-2 px-1 pt-1">
+              <input value={newTask} onChange={e => setNewTask(e.target.value)} autoFocus placeholder="Nuova attività"
+                onKeyDown={e => { if (e.key === 'Enter' && newTask.trim()) { act(() => createProjectTask({ client_id: project.client_id, project_id: project.id, workstream_id: wsId, milestone_id: m.id, title: newTask }), 'Attività creata'); setNewTask(''); setAddingTask(false) } }}
+                className="flex-1 bg-background border border-border-interactive rounded px-2 py-1.5 text-sm text-text-primary" />
+              <button onClick={() => { if (newTask.trim()) { act(() => createProjectTask({ client_id: project.client_id, project_id: project.id, workstream_id: wsId, milestone_id: m.id, title: newTask }), 'Attività creata'); setNewTask(''); setAddingTask(false) } }}
+                className="text-2xs font-semibold bg-gold text-on-gold px-2.5 py-1.5 rounded">OK</button>
+              <button onClick={() => { setAddingTask(false); setNewTask('') }} aria-label="Annulla" className="text-text-tertiary"><X /></button>
+            </div>
+          ) : (
+            <button onClick={() => setAddingTask(true)} className="flex items-center gap-1 text-2xs text-text-tertiary hover:text-gold-text px-1 pt-1 pb-0.5">
+              <Plus className="w-3 h-3" />Attività
+            </button>
+          )
+        )}
+      </div>
+    </section>
   )
 }
 
