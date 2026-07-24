@@ -6,6 +6,7 @@ import { Flag, Calendar as CalIcon, User, CheckSquare, FolderTree } from 'lucide
 import type { ProjectWorkstream, Milestone, Task } from '@/lib/types/database'
 
 type Person = { id: string; full_name: string; avatar_url: string | null }
+type GanttTask = Pick<Task, 'id' | 'milestone_id' | 'status' | 'parent_task_id'>
 
 const MS_LABEL: Record<string, string> = { da_fare: 'Da fare', in_corso: 'In corso', in_approvazione: 'In approvazione', completata: 'Completata' }
 
@@ -21,12 +22,19 @@ const MONTHS = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'L
 
 export function ProjectGantt({
   workstreams, milestones, tasks, profiles, onOpenMilestone,
+  title = 'Calendario milestone', laneSubtitle, laneAccent, labelWidth = LABEL_W,
 }: {
   workstreams: ProjectWorkstream[]
   milestones: Milestone[]
-  tasks?: Task[]
+  tasks?: GanttTask[]
   profiles?: Person[]
   onOpenMilestone?: (workstreamId: string, milestoneId: string) => void
+  title?: string
+  /** riga secondaria nella colonna nomi (es. "Progetto · Cliente") */
+  laneSubtitle?: (ws: ProjectWorkstream) => string | null
+  /** classe bg per il pallino d'accento (raggruppa visivamente per progetto) */
+  laneAccent?: (ws: ProjectWorkstream) => string | undefined
+  labelWidth?: number
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [zoom, setZoom] = useState<Zoom>('giorni')
@@ -97,8 +105,8 @@ export function ProjectGantt({
   return (
     <div className="relative bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border flex-wrap">
-        <span className="text-sm font-bold text-text-primary">Calendario milestone</span>
-        <span className="text-2xs text-text-tertiary">· {lanes.reduce((n, l) => n + l.ms.length, 0)}</span>
+        <span className="text-sm font-bold text-text-primary">{title}</span>
+        <span className="text-2xs text-text-tertiary">· {lanes.reduce((n, l) => n + l.ms.length, 0)} milestone · {lanes.length} workstream</span>
         <div className="ml-auto flex items-center gap-2">
           <button onClick={() => { if (scrollRef.current) scrollRef.current.scrollTo({ left: Math.max(0, model.todayLeft - 260), behavior: 'smooth' }) }}
             className="text-2xs font-semibold text-gold-text hover:opacity-80 press">Oggi</button>
@@ -150,15 +158,23 @@ export function ProjectGantt({
 
       <div className="flex">
         {/* colonna nomi sticky */}
-        <div className="shrink-0 border-r border-border bg-surface z-10" style={{ width: LABEL_W }}>
+        <div className="shrink-0 border-r border-border bg-surface z-10" style={{ width: labelWidth }}>
           <div className="h-7 border-b border-border/60" />
           {showDays && <div className="h-8 border-b border-border" />}
-          {lanes.map(l => (
-            <div key={l.ws.id} className="border-b border-border/40 flex items-center px-3" style={{ height: LANE_H }}>
-              <FolderTree className="w-3.5 h-3.5 text-gold-text shrink-0 mr-1.5" />
-              <span className="text-xs font-semibold text-text-primary truncate">{l.ws.name}</span>
-            </div>
-          ))}
+          {lanes.map(l => {
+            const sub = laneSubtitle?.(l.ws)
+            const accent = laneAccent?.(l.ws)
+            return (
+              <div key={l.ws.id} className="border-b border-border/40 flex items-center gap-2 px-3" style={{ height: LANE_H }}>
+                {accent ? <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${accent}`} aria-hidden />
+                        : <FolderTree className="w-3.5 h-3.5 text-gold-text shrink-0" />}
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-text-primary truncate leading-tight">{l.ws.name}</div>
+                  {sub && <div className="text-2xs text-text-tertiary truncate leading-tight">{sub}</div>}
+                </div>
+              </div>
+            )
+          })}
         </div>
 
         {/* griglia scrollabile */}

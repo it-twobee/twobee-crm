@@ -2,11 +2,19 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Plus, FolderKanban, Search, ChevronRight } from 'lucide-react'
 import { ProjectWizard } from './ProjectWizard'
-import type { ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode } from '@/lib/types/database'
+import { ProjectGantt } from './ProjectGantt'
+import type {
+  ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode,
+  ProjectWorkstream, Milestone, Task,
+} from '@/lib/types/database'
 
 type ProjectRow = { id: string; name: string; status: string; area: string; service_type: string; client_id: string; created_at: string }
+
+// palette d'accento per progetto (token semantici, mai hex)
+const ACCENTS = ['bg-gold', 'bg-info', 'bg-accent', 'bg-success', 'bg-orange', 'bg-warning']
 
 const STATUS_BADGE: Record<string, string> = {
   draft: 'bg-surface-active text-text-tertiary',
@@ -24,22 +32,44 @@ const AREA_TONE: Record<string, string> = {
 const AREAS = ['marketing', 'growth', 'digital'] as const
 
 export function ProgettiClient({
-  clients, profiles, services, templates, nodes, projects, initialClientId,
+  clients, profiles, services, templates, nodes, projects, workstreams, milestones, calTasks, initialClientId,
 }: {
   clients: { id: string; name: string }[]
-  profiles: { id: string; full_name: string; app_role: string | null }[]
+  profiles: { id: string; full_name: string; app_role: string | null; avatar_url?: string | null }[]
   services: ServiceCatalogEntry[]
   templates: ProjectTemplate[]
   nodes: ProjectTemplateNode[]
   projects: ProjectRow[]
+  workstreams?: ProjectWorkstream[]
+  milestones?: Milestone[]
+  calTasks?: Pick<Task, 'id' | 'milestone_id' | 'status' | 'parent_task_id'>[]
   initialClientId?: string
 }) {
+  const router = useRouter()
   const [wizard, setWizard] = useState(!!initialClientId)
   const [q, setQ] = useState('')
   const [area, setArea] = useState<string>('')
 
   const clientName = (id: string) => clients.find(c => c.id === id)?.name ?? '—'
   const serviceLabel = (st: string) => services.find(s => s.service_type === st)?.label ?? st
+
+  // ── Calendario milestone globale (progetti attivi) ────────────────────────
+  const projById = useMemo(() => new Map(projects.map(p => [p.id, p])), [projects])
+  const accentOf = useMemo(() => {
+    const ids = Array.from(new Set((workstreams ?? []).map(w => w.project_id)))
+    const m = new Map<string, string>()
+    ids.forEach((id, i) => m.set(id, ACCENTS[i % ACCENTS.length]))
+    return m
+  }, [workstreams])
+  const laneSubtitle = (w: ProjectWorkstream) => {
+    const p = projById.get(w.project_id)
+    if (!p) return null
+    return `${p.name} · ${clientName(p.client_id)}`
+  }
+  const openMilestone = (wsId: string, msId: string) => {
+    const w = (workstreams ?? []).find(x => x.id === wsId)
+    if (w) router.push(`/progetti/${w.project_id}/workstream/${wsId}?ms=${msId}`)
+  }
 
   const filtered = useMemo(() => projects.filter(p =>
     (!area || p.area === area) &&
@@ -64,6 +94,21 @@ export function ProgettiClient({
           <Plus className="w-4 h-4" />Nuovo progetto
         </button>
       </div>
+
+      {/* Calendario milestone globale (progetti attivi) */}
+      {(milestones ?? []).some(m => m.due_date) && (
+        <ProjectGantt
+          title="Calendario milestone · progetti attivi"
+          workstreams={workstreams ?? []}
+          milestones={milestones ?? []}
+          tasks={calTasks ?? []}
+          profiles={profiles as { id: string; full_name: string; avatar_url: string | null }[]}
+          onOpenMilestone={openMilestone}
+          laneSubtitle={laneSubtitle}
+          laneAccent={(w) => accentOf.get(w.project_id)}
+          labelWidth={220}
+        />
+      )}
 
       {/* toolbar filtri */}
       <div className="flex items-center gap-2 flex-wrap">
