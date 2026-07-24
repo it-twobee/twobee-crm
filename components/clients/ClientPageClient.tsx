@@ -9,6 +9,8 @@ import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { clientName } from '@/lib/utils'
 import { AnagraficaTab } from './tabs/AnagraficaTab'
 import { PanoramicaTab } from './tabs/PanoramicaTab'
+import { ClientProjectsTab } from './tabs/ClientProjectsTab'
+import { ClientAdHocTab } from './tabs/ClientAdHocTab'
 import { ClientAlertBanner } from './ClientAlertBanner'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -201,6 +203,8 @@ export function ClientPageClient({
 
   const visibleTabs = [
     { label: 'Panoramica', index: 0 },
+    { label: 'Progetti', index: 2 },
+    { label: 'Task Ad Hoc', index: 3 },
     ...(canSeeAnagrafica ? [{ label: 'Anagrafica', index: 1 }] : []),
   ]
 
@@ -309,6 +313,12 @@ export function ClientPageClient({
         )}
         {activeTab === 1 && canSeeAnagrafica && (
           <AnagraficaTab client={client} contacts={contacts} teamMembers={teamMembers} stakeholders={stakeholders} hideEconomics={hideEconomics} />
+        )}
+        {activeTab === 2 && (
+          <ClientProjectsTab clientId={client.id} canCreate={isAdminLevel && !hideEconomics} />
+        )}
+        {activeTab === 3 && (
+          <ClientAdHocTab clientId={client.id} profiles={allProfiles} canManage={isAdminLevel} />
         )}
       </div>
     </div>

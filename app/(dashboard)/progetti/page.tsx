@@ -5,7 +5,7 @@ import type { ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode } from '
 
 export const revalidate = 0
 
-export default async function ProgettiPage() {
+export default async function ProgettiPage({ searchParams }: { searchParams: { client?: string } }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -35,6 +35,7 @@ export default async function ProgettiPage() {
       templates={(templates ?? []) as ProjectTemplate[]}
       nodes={(nodes ?? []) as ProjectTemplateNode[]}
       projects={(projects ?? []) as { id: string; name: string; status: string; area: string; service_type: string; client_id: string; created_at: string }[]}
+      initialClientId={searchParams.client && clientOpts.some(c => c.id === searchParams.client) ? searchParams.client : undefined}
     />
   )
 }

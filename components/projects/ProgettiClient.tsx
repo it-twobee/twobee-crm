@@ -14,7 +14,7 @@ const STATUS_TONE: Record<string, string> = {
 }
 
 export function ProgettiClient({
-  clients, profiles, services, templates, nodes, projects,
+  clients, profiles, services, templates, nodes, projects, initialClientId,
 }: {
   clients: { id: string; name: string }[]
   profiles: { id: string; full_name: string; app_role: string | null }[]
@@ -22,8 +22,9 @@ export function ProgettiClient({
   templates: ProjectTemplate[]
   nodes: ProjectTemplateNode[]
   projects: ProjectRow[]
+  initialClientId?: string
 }) {
-  const [wizard, setWizard] = useState(false)
+  const [wizard, setWizard] = useState(!!initialClientId)
   const clientName = (id: string) => clients.find(c => c.id === id)?.name ?? '—'
   const serviceLabel = (st: string) => services.find(s => s.service_type === st)?.label ?? st
 
@@ -48,7 +49,7 @@ export function ProgettiClient({
       ) : (
         <div className="border border-border rounded-lg divide-y divide-border">
           {projects.map(p => (
-            <Link key={p.id} href={`/clienti/${p.client_id}`}
+            <Link key={p.id} href={`/progetti/${p.id}`}
               className="flex items-center gap-3 px-4 py-3 hover:bg-surface-hover transition-colors">
               <FolderKanban className="w-4 h-4 text-gold-text shrink-0" />
               <div className="flex-1 min-w-0">
@@ -65,6 +66,7 @@ export function ProgettiClient({
         <ProjectWizard
           clients={clients} profiles={profiles} services={services}
           templates={templates} nodes={nodes}
+          fixedClientId={initialClientId}
           onClose={() => setWizard(false)}
         />
       )}
