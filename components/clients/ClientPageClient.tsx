@@ -216,7 +216,7 @@ export function ClientPageClient({
   return (
     <div className="flex flex-col h-full">
       {/* Back */}
-      <div className="px-6 pt-5 pb-3">
+      <div className="px-4 sm:px-6 pt-5 pb-3">
         <Link href={backHref} className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors w-fit">
           <ArrowLeft className="w-4 h-4" /> Tutti i clienti
         </Link>
@@ -226,7 +226,7 @@ export function ClientPageClient({
       <ClientAlertBanner client={client} hideEconomics={hideEconomics} />
 
       {/* Header cliente — tutto editabile per admin */}
-      <div className="px-6 pb-5 border-b border-border">
+      <div className="px-4 sm:px-6 pb-5 border-b border-border">
         <div className="flex items-start gap-4 flex-wrap">
           {/* Avatar azienda */}
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gold/20 to-gold/5 border border-gold/20 flex items-center justify-center text-xl font-black text-gold-text shrink-0">
@@ -293,7 +293,7 @@ export function ClientPageClient({
       </div>
 
       {/* Tab nav */}
-      <div className="flex border-b border-border px-6 overflow-x-auto">
+      <div className="flex border-b border-border px-4 sm:px-6 scroll-x-touch">
         {visibleTabs.map(({ label, index }) => (
           <button key={label} onClick={() => setActiveTab(index)}
             className={`px-4 py-3.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
@@ -305,7 +305,7 @@ export function ClientPageClient({
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {activeTab === 0 && (
           <PanoramicaTab client={client} kpis={kpis} allProfiles={allProfiles}
             teamMembers={teamMembers} interactions={interactions} isAdmin={isAdmin} openTickets={openTickets}

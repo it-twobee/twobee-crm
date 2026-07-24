@@ -356,7 +356,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
     const expiringSoon = daysLeft !== null && daysLeft < 30
 
     return (
-      <div className="bg-surface border border-border rounded-xl p-4 hover:border-gold/20 transition-colors group flex flex-col gap-3">
+      <div className="card-interactive bg-surface border border-border rounded-2xl p-4 group flex flex-col gap-3 no-tap-highlight">
         {/* Top: avatar + nome + pin */}
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gold/20 to-gold/5 border border-gold/20 flex items-center justify-center text-base font-black text-gold-text shrink-0">
@@ -521,18 +521,18 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
   )
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-4 sm:p-6 space-y-4">
       {!hideEconomics && <PrioritaOggi clients={clients} />}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-black text-text-primary">Clienti</h1>
+          <h1 className="text-2xl sm:text-3xl font-black text-text-primary font-heading">Clienti</h1>
           <p className="text-text-secondary text-sm mt-0.5">
-            {allFiltered.length} clienti{canSeeMrr && <> · MRR totale <span className="text-gold-text font-semibold">{formatCurrency(totalMrr)}</span></>}
+            {allFiltered.length} clienti{canSeeMrr && <> · MRR totale <span className="text-gold-text font-semibold tabular">{formatCurrency(totalMrr)}</span></>}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {/* Vista toggle */}
           <div className="flex border border-border rounded-lg overflow-hidden">
             <button onClick={() => setViewMode('table')}
@@ -547,13 +547,13 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
             </button>
           </div>
           {!hideEconomics && (
-            <button onClick={exportCsv} className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary border border-border rounded-lg hover:text-text-primary hover:border-overlay/20 transition-colors">
-              <Download className="w-4 h-4" /> Export CSV
+            <button onClick={exportCsv} className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary border border-border rounded-xl hover:text-text-primary hover:border-border-strong transition-colors press">
+              <Download className="w-4 h-4" /> <span className="hidden sm:inline">Export CSV</span>
             </button>
           )}
           {canCreateClient && (
-            <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-gold text-on-gold rounded-lg hover:bg-gold/90 transition-colors">
-              <Plus className="w-4 h-4" /> Nuovo Cliente
+            <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-gold text-on-gold rounded-xl shadow-soft hover:bg-gold/90 transition-colors press">
+              <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Nuovo Cliente</span><span className="sm:hidden">Nuovo</span>
             </button>
           )}
         </div>
@@ -587,12 +587,12 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
       {/* Barra ricerca + filtri */}
       <div className="flex flex-wrap items-center gap-2">
         {/* Ricerca */}
-        <div className="relative">
+        <div className="relative flex-1 min-w-[160px] sm:flex-none">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
           <input
             type="text" placeholder="Cerca azienda..." value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="bg-surface border border-border rounded-lg pl-9 pr-4 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-gold/40 w-52"
+            className="bg-surface border border-border rounded-xl pl-9 pr-4 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-gold/40 w-full sm:w-52"
           />
           {search && (
             <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary">
@@ -698,8 +698,8 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
 
       {viewMode === 'table' ? (
         /* ── VISTA TABELLA ── */
-        <div className="bg-surface border border-border rounded-card overflow-x-auto">
-          <table className="w-full">
+        <div className="bg-surface border border-border rounded-card overflow-x-auto animate-fade-in">
+          <table className="w-full min-w-[720px]">
             <thead>
               <tr className="border-b border-border">
                 <th className="px-2 py-3 w-8" />
