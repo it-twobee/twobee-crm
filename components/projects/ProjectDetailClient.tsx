@@ -29,6 +29,13 @@ const AREA_BADGE: Record<string, string> = {
 const MS_TONE: Record<string, string> = {
   da_fare: 'text-text-tertiary', in_corso: 'text-info', in_approvazione: 'text-warning', completata: 'text-success',
 }
+const MS_BADGE: Record<string, string> = {
+  da_fare: 'bg-surface-active text-text-tertiary', in_corso: 'bg-info-dim text-info',
+  in_approvazione: 'bg-warning-dim text-warning', completata: 'bg-success-dim text-success',
+}
+const MS_LABEL: Record<string, string> = {
+  da_fare: 'Da fare', in_corso: 'In corso', in_approvazione: 'In approvazione', completata: 'Completata',
+}
 
 const isOverdue = (t: Task) => !!t.due_date && t.status !== 'completato' && t.due_date < new Date().toISOString().slice(0, 10)
 
@@ -134,7 +141,7 @@ export function ProjectDetailClient({
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {tab === 'panoramica' && (
-          <div className="space-y-5 max-w-4xl animate-fade-in">
+          <div className="space-y-5 max-w-5xl animate-fade-in">
             {/* progress + stat */}
             <div className="grid gap-3 lg:grid-cols-3">
               {/* barra avanzamento */}
@@ -263,31 +270,60 @@ export function ProjectDetailClient({
         )}
 
         {tab === 'sottoprogetti' && (
-          <div className="space-y-3 max-w-3xl">
-            {workstreams.length === 0 && <Empty text="Nessun sottoprogetto." />}
-            {workstreams.map(w => (
-              <WorkstreamCard key={w.id} ws={w}
-                milestones={milestones.filter(m => m.workstream_id === w.id)}
-                tasks={tasks} recurring={recurring.filter(r => r.workstream_id === w.id)} name={name} />
-            ))}
+          <div className="max-w-5xl animate-fade-in">
+            {workstreams.length === 0 ? <Empty text="Nessun sottoprogetto." /> : (
+              <div className="grid gap-3 lg:grid-cols-2">
+                {workstreams.map(w => (
+                  <WorkstreamCard key={w.id} ws={w}
+                    milestones={milestones.filter(m => m.workstream_id === w.id)}
+                    tasks={tasks} recurring={recurring.filter(r => r.workstream_id === w.id)} name={name} />
+                ))}
+              </div>
+            )}
           </div>
         )}
 
         {tab === 'milestone' && (
-          <div className="max-w-3xl border border-border rounded-lg divide-y divide-border">
-            {milestones.length === 0 && <div className="p-4"><Empty text="Nessuna milestone." /></div>}
-            {milestones.map(m => {
-              const ws = workstreams.find(w => w.id === m.workstream_id)
+          <div className="max-w-5xl space-y-5 animate-fade-in">
+            {milestones.length === 0 && <Empty text="Nessuna milestone." />}
+            {workstreams.map(w => {
+              const wsMs = milestones.filter(m => m.workstream_id === w.id)
+              if (wsMs.length === 0) return null
               return (
-                <div key={m.id} className="flex items-center gap-3 px-4 py-2.5">
-                  <Flag className={`w-4 h-4 ${m.milestone_type === 'system' ? 'text-text-tertiary' : 'text-info'}`} />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm text-text-primary truncate">{m.title}</div>
-                    <div className="text-2xs text-text-tertiary">{ws?.name}{m.milestone_type === 'system' ? ' · sistema' : ''}</div>
+                <section key={w.id}>
+                  <div className="flex items-center gap-2 mb-2 px-1">
+                    <FolderTree className="w-3.5 h-3.5 text-gold-text" />
+                    <h3 className="text-2xs font-bold uppercase tracking-wide text-text-tertiary">{w.name}</h3>
                   </div>
-                  {m.due_date && <span className="text-2xs text-text-tertiary">{m.due_date}</span>}
-                  <span className={`text-2xs font-semibold ${MS_TONE[m.status]}`}>{m.status}</span>
-                </div>
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    {wsMs.map(m => {
+                      const mt = tasks.filter(t => t.milestone_id === m.id)
+                      const mdone = mt.filter(t => t.status === 'completato').length
+                      return (
+                        <div key={m.id} className="bg-surface border border-border rounded-2xl p-4 shadow-soft">
+                          <div className="flex items-start gap-2.5">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${m.milestone_type === 'system' ? 'bg-surface-active' : 'bg-info-dim'}`}>
+                              <Flag className={`w-4 h-4 ${m.milestone_type === 'system' ? 'text-text-tertiary' : 'text-info'}`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold text-text-primary truncate flex-1">{m.title}</span>
+                                <span className={`text-2xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${MS_BADGE[m.status]}`}>{MS_LABEL[m.status]}</span>
+                              </div>
+                              <div className="flex items-center gap-2 mt-1 text-2xs text-text-tertiary">
+                                {m.milestone_type === 'system'
+                                  ? <span className="px-1.5 py-0.5 rounded bg-surface-active">Sistema</span>
+                                  : <span className="px-1.5 py-0.5 rounded bg-info-dim text-info">Consegna</span>}
+                                <span className="tabular">{mdone}/{mt.length} task</span>
+                                {m.due_date && <span className="ml-auto tabular">{m.due_date}</span>}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </section>
               )
             })}
           </div>
@@ -322,14 +358,17 @@ function WorkstreamCard({
   name: (id: string | null) => string
 }) {
   const [open, setOpen] = useState(true)
+  const recurringBadge = ws.workstream_type === 'recurring'
   return (
-    <div className="bg-surface border border-border rounded-lg">
-      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center gap-2 p-3 text-left">
-        {open ? <ChevronDown className="w-4 h-4 text-text-secondary" /> : <ChevronRight className="w-4 h-4 text-text-secondary" />}
-        <FolderTree className="w-4 h-4 text-gold-text" />
-        <span className="flex-1 text-sm font-semibold text-text-primary">{ws.name}</span>
-        <span className="text-2xs text-text-tertiary">{ws.workstream_type === 'recurring' ? 'Continuativa' : 'Una tantum'}</span>
-        {ws.owner_id && <span className="text-2xs text-text-tertiary">{name(ws.owner_id)}</span>}
+    <div className="bg-surface border border-border rounded-2xl shadow-soft self-start">
+      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center gap-2 p-3.5 text-left">
+        {open ? <ChevronDown className="w-4 h-4 text-text-tertiary" /> : <ChevronRight className="w-4 h-4 text-text-tertiary" />}
+        <FolderTree className="w-4 h-4 text-gold-text shrink-0" />
+        <span className="flex-1 text-sm font-semibold text-text-primary truncate">{ws.name}</span>
+        {ws.owner_id && <span className="text-2xs text-text-tertiary hidden sm:inline truncate max-w-[90px]">{name(ws.owner_id)}</span>}
+        <span className={`text-2xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${recurringBadge ? 'bg-success-dim text-success' : 'bg-surface-active text-text-tertiary'}`}>
+          {recurringBadge ? 'Continuativa' : 'Una tantum'}
+        </span>
       </button>
       {open && (
         <div className="border-t border-border p-3 space-y-1">
@@ -337,10 +376,10 @@ function WorkstreamCard({
             const mt = tasks.filter(t => t.milestone_id === m.id)
             return (
               <div key={m.id} className="flex items-center gap-2 py-0.5">
-                <Flag className={`w-3.5 h-3.5 ${m.milestone_type === 'system' ? 'text-text-tertiary' : 'text-info'}`} />
-                <span className="flex-1 text-sm text-text-primary">{m.title}</span>
-                <span className="text-2xs text-text-tertiary">{mt.length} task</span>
-                <span className={`text-2xs font-semibold ${MS_TONE[m.status]}`}>{m.status}</span>
+                <Flag className={`w-3.5 h-3.5 shrink-0 ${m.milestone_type === 'system' ? 'text-text-tertiary' : 'text-info'}`} />
+                <span className="flex-1 text-sm text-text-primary truncate">{m.title}</span>
+                <span className="text-2xs text-text-tertiary shrink-0">{mt.length} task</span>
+                <span className={`text-2xs font-semibold shrink-0 ${MS_TONE[m.status]}`}>{MS_LABEL[m.status]}</span>
               </div>
             )
           })}

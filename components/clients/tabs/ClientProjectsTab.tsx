@@ -7,10 +7,20 @@ import { createClient as createBrowserClient } from '@/lib/supabase/client'
 
 type Row = { id: string; name: string; status: string; area: string; service_type: string }
 
-const STATUS_TONE: Record<string, string> = {
-  draft: 'text-text-tertiary', active: 'text-success', on_hold: 'text-warning',
-  completed: 'text-info', archived: 'text-text-tertiary',
+const STATUS_BADGE: Record<string, string> = {
+  draft: 'bg-surface-active text-text-tertiary',
+  active: 'bg-success-dim text-success',
+  on_hold: 'bg-warning-dim text-warning',
+  completed: 'bg-info-dim text-info',
+  archived: 'bg-surface-active text-text-tertiary',
 }
+const STATUS_LABEL: Record<string, string> = {
+  draft: 'Bozza', active: 'Attivo', on_hold: 'In pausa', completed: 'Completato', archived: 'Archiviato',
+}
+const AREA_TONE: Record<string, string> = {
+  marketing: 'text-accent', growth: 'text-gold-text', digital: 'text-info',
+}
+const pretty = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 
 export function ClientProjectsTab({ clientId, canCreate }: { clientId: string; canCreate: boolean }) {
   const [rows, setRows] = useState<Row[] | null>(null)
@@ -49,13 +59,19 @@ export function ClientProjectsTab({ clientId, canCreate }: { clientId: string; c
         <div className="grid gap-2.5 sm:grid-cols-2 animate-fade-in">
           {rows.map(p => (
             <Link key={p.id} href={`/progetti/${p.id}`}
-              className="card-interactive bg-surface border border-border rounded-2xl flex items-center gap-3 px-4 py-3 no-tap-highlight">
-              <Briefcase className="w-4 h-4 text-gold-text shrink-0" />
+              className="card-interactive bg-surface border border-border rounded-2xl flex items-center gap-3 px-4 py-3.5 no-tap-highlight">
+              <div className="w-9 h-9 rounded-xl bg-gold-dim flex items-center justify-center shrink-0">
+                <Briefcase className="w-[18px] h-[18px] text-gold-text" />
+              </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-text-primary truncate">{p.name}</div>
-                <div className="text-2xs text-text-tertiary">{p.area} · {p.service_type}</div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className={`text-2xs font-semibold capitalize ${AREA_TONE[p.area] ?? 'text-text-tertiary'}`}>{pretty(p.area)}</span>
+                  <span className="text-2xs text-text-tertiary">·</span>
+                  <span className="text-2xs text-text-secondary truncate">{pretty(p.service_type)}</span>
+                </div>
               </div>
-              <span className={`text-2xs font-semibold ${STATUS_TONE[p.status] ?? 'text-text-tertiary'}`}>{p.status}</span>
+              <span className={`text-2xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${STATUS_BADGE[p.status] ?? STATUS_BADGE.draft}`}>{STATUS_LABEL[p.status] ?? p.status}</span>
             </Link>
           ))}
         </div>
