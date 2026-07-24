@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users,
   FolderOpen, Settings, ChevronRight, ChevronLeft, ChevronDown,
   CalendarDays, Headphones, Crown,
-  Ticket, UserCircle2, History, Lightbulb, FolderKanban,
+  Ticket, UserCircle2, History, Lightbulb, FolderKanban, Briefcase,
 } from 'lucide-react'
 import { useState, useCallback, useEffect } from 'react'
 import { usePermissions } from '@/lib/hooks/usePermissions'
@@ -39,6 +39,7 @@ const sections: NavSection[] = [
     label: 'Clienti',
     items: [
       { href: '/clienti', icon: Users, label: 'Clienti' },
+      { href: '/progetti', icon: Briefcase, label: 'Progetti' },
       { href: '/customer-care', icon: Headphones, label: 'Customer Care' },
       { href: '/customer-care/tickets', icon: Ticket, label: 'Ticket' },
     ],
