@@ -5,10 +5,12 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  ArrowLeft, FolderTree, Flag, CheckSquare, Repeat, ChevronDown, ChevronRight,
-  AlertTriangle, Calendar,
+  ArrowLeft, FolderTree, Flag, Repeat, ChevronDown, ChevronRight,
+  Calendar,
 } from 'lucide-react'
 import { updateProjectStatus } from '@/app/actions/projects'
+import { generateRecurringNow } from '@/app/actions/tasks'
+import { TaskViews } from './TaskViews'
 import type {
   Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate, ProjectStatus,
 } from '@/lib/types/database'
@@ -18,10 +20,6 @@ type Person = { id: string; full_name: string; avatar_url: string | null }
 const STATUSES: ProjectStatus[] = ['draft', 'active', 'on_hold', 'completed', 'archived']
 const STATUS_LABEL: Record<string, string> = {
   draft: 'Bozza', active: 'Attivo', on_hold: 'In pausa', completed: 'Completato', archived: 'Archiviato',
-}
-const TASK_TONE: Record<string, string> = {
-  da_fare: 'text-text-tertiary', in_corso: 'text-info', in_review: 'text-warning',
-  richiesta_supporto: 'text-orange', completato: 'text-success',
 }
 const MS_TONE: Record<string, string> = {
   da_fare: 'text-text-tertiary', in_corso: 'text-info', in_approvazione: 'text-warning', completata: 'text-success',
@@ -54,6 +52,12 @@ export function ProjectDetailClient({
   const changeStatus = (s: ProjectStatus) =>
     start(async () => {
       try { await updateProjectStatus(project.id, s); router.refresh(); toast.success('Stato aggiornato') }
+      catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+    })
+
+  const genRecurring = () =>
+    start(async () => {
+      try { const n = await generateRecurringNow(); router.refresh(); toast.success(`${n} occorrenze generate`) }
       catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
     })
 
@@ -158,31 +162,17 @@ export function ProjectDetailClient({
         )}
 
         {tab === 'task' && (
-          <div className="max-w-3xl space-y-4">
-            {tasks.length === 0 && <Empty text="Nessuna task. Le occorrenze ricorrenti verranno generate dal motore (Fase 4)." />}
-            {workstreams.map(w => {
-              const wsTasks = tasks.filter(t => t.workstream_id === w.id)
-              if (wsTasks.length === 0) return null
-              return (
-                <div key={w.id}>
-                  <div className="text-2xs font-semibold text-text-tertiary mb-1 flex items-center gap-1">
-                    <FolderTree className="w-3.5 h-3.5 text-gold-text" />{w.name}
-                  </div>
-                  <div className="border border-border rounded-lg divide-y divide-border">
-                    {wsTasks.map(t => (
-                      <div key={t.id} className="flex items-center gap-3 px-4 py-2">
-                        <CheckSquare className="w-3.5 h-3.5 text-text-secondary" />
-                        <span className="flex-1 text-sm text-text-primary truncate">{t.title}</span>
-                        {isOverdue(t) && <AlertTriangle className="w-3.5 h-3.5 text-error" />}
-                        {t.assignee_id && <span className="text-2xs text-text-tertiary">{name(t.assignee_id)}</span>}
-                        {t.due_date && <span className="text-2xs text-text-tertiary">{t.due_date}</span>}
-                        <span className={`text-2xs font-semibold ${TASK_TONE[t.status]}`}>{t.status}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
+          <div className="space-y-3">
+            {recurring.some(r => r.active) && (
+              <div className="flex justify-end">
+                <button onClick={genRecurring} disabled={pending}
+                  className="flex items-center gap-1 text-2xs font-semibold text-gold-text hover:opacity-80">
+                  <Repeat className="w-3.5 h-3.5" />Genera occorrenze ricorrenti ora
+                </button>
+              </div>
+            )}
+            <TaskViews tasks={tasks} workstreams={workstreams} milestones={milestones}
+              profiles={profiles} canEdit projectId={project.id} clientId={project.client_id} />
           </div>
         )}
       </div>
