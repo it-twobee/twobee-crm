@@ -97,7 +97,7 @@ function KpiSnapshotPanel({ label, accent, month, items }: {
   items: { label: string; raw: number | null; fmt: (v: number) => string; target?: number | null }[]
 }) {
   return (
-    <div className="bg-surface border border-border rounded-xl p-4">
+    <div className="bg-surface border border-border rounded-2xl p-4 shadow-soft">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <BarChart3 className="w-3.5 h-3.5" style={{ color: accent }} />
@@ -210,7 +210,7 @@ export function PanoramicaTab({ client, kpis, teamMembers, interactions, openTic
       )}
 
       {/* 2 ── Hero: Health Score + MRR + contratto ─────────────────────── */}
-      <div className="bg-surface border border-border rounded-xl p-5">
+      <div className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
         <div className="flex flex-col sm:flex-row items-center sm:items-stretch gap-5">
           <div className="shrink-0">
             <HealthRing score={healthScore} />
@@ -254,7 +254,7 @@ export function PanoramicaTab({ client, kpis, teamMembers, interactions, openTic
 
       {/* 3 ── Metriche di relazione ────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="bg-surface border border-border rounded-xl p-4 text-left">
+        <div className="bg-surface border border-border rounded-2xl p-4 shadow-soft text-left">
           <div className="flex items-center gap-2 text-text-secondary mb-2">
             <AlertCircle className="w-3.5 h-3.5" />
             <span className="text-2xs uppercase tracking-wider font-bold">Ticket aperti</span>
@@ -267,7 +267,7 @@ export function PanoramicaTab({ client, kpis, teamMembers, interactions, openTic
           </p>
         </div>
 
-        <div className="bg-surface border border-border rounded-xl p-4 text-left">
+        <div className="bg-surface border border-border rounded-2xl p-4 shadow-soft text-left">
           <div className="flex items-center gap-2 text-text-secondary mb-2">
             <MessageSquare className="w-3.5 h-3.5" />
             <span className="text-2xs uppercase tracking-wider font-bold">Ultimo contatto</span>
@@ -286,7 +286,7 @@ export function PanoramicaTab({ client, kpis, teamMembers, interactions, openTic
       </div>
 
       {/* 4 ── Relazione commerciale ────────────────────────────────────── */}
-      <div className="bg-surface border border-border rounded-xl p-4">
+      <div className="bg-surface border border-border rounded-2xl p-4 shadow-soft">
         <div className="flex items-center gap-2 text-text-secondary mb-3">
           <MessageSquare className="w-3.5 h-3.5" />
           <span className="text-2xs uppercase tracking-wider font-bold">Relazione commerciale</span>
@@ -355,7 +355,7 @@ export function PanoramicaTab({ client, kpis, teamMembers, interactions, openTic
 
       {/* 7 ── Team assegnato ───────────────────────────────────────────── */}
       {teamMembers.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-4">
+        <div className="bg-surface border border-border rounded-2xl p-4 shadow-soft">
           <div className="flex items-center gap-2 text-text-secondary mb-3">
             <Users className="w-3.5 h-3.5" />
             <span className="text-2xs uppercase tracking-wider font-bold">Team assegnato</span>

@@ -30,7 +30,7 @@ export function ClientProjectsTab({ clientId, canCreate }: { clientId: string; c
         <h2 className="text-sm font-bold text-text-primary">Progetti del cliente</h2>
         {canCreate && (
           <Link href={`/progetti?client=${clientId}`}
-            className="flex items-center gap-1.5 text-2xs font-semibold bg-gold text-on-gold px-3 py-1.5 rounded">
+            className="flex items-center gap-1.5 text-2xs font-semibold bg-gold text-on-gold px-3 py-1.5 rounded-lg shadow-soft press">
             <Plus className="w-3.5 h-3.5" />Nuovo progetto
           </Link>
         )}
@@ -46,10 +46,10 @@ export function ClientProjectsTab({ clientId, canCreate }: { clientId: string; c
           <p className="text-sm text-text-secondary">Nessun progetto per questo cliente.</p>
         </div>
       ) : (
-        <div className="border border-border rounded-lg divide-y divide-border">
+        <div className="grid gap-2.5 sm:grid-cols-2 animate-fade-in">
           {rows.map(p => (
             <Link key={p.id} href={`/progetti/${p.id}`}
-              className="flex items-center gap-3 px-4 py-3 hover:bg-surface-hover transition-colors">
+              className="card-interactive bg-surface border border-border rounded-2xl flex items-center gap-3 px-4 py-3 no-tap-highlight">
               <Briefcase className="w-4 h-4 text-gold-text shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-text-primary truncate">{p.name}</div>

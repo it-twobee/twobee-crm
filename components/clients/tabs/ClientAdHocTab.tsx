@@ -71,7 +71,7 @@ export function ClientAdHocTab({
         </div>
         {canManage && !adding && (
           <button onClick={() => setAdding(true)}
-            className="flex items-center gap-1.5 text-2xs font-semibold bg-gold text-on-gold px-3 py-1.5 rounded">
+            className="flex items-center gap-1.5 text-2xs font-semibold bg-gold text-on-gold px-3 py-1.5 rounded-lg shadow-soft press">
             <Plus className="w-3.5 h-3.5" />Nuova task
           </button>
         )}

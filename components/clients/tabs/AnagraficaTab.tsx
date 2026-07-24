@@ -154,7 +154,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
     <div className="space-y-6">
 
       {/* Dati Aziendali */}
-      <section className="bg-surface border border-border rounded-2xl p-5">
+      <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
         <SectionHeader title="Dati Aziendali" section="azienda" editing={editAzienda} />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {/* §24: nome visualizzato ≠ ragione sociale */}
@@ -219,7 +219,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
       </section>
 
       {/* Dati Fiscali (per Aruba) */}
-      <section className="bg-surface border border-border rounded-2xl p-5">
+      <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
         <SectionHeader title="Dati Fiscali & Fatturazione Elettronica" section="fiscale" editing={editFiscale} />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <Field label="P.IVA" value={client.piva} editMode={editFiscale}>
@@ -253,7 +253,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
 
       {/* Contratto & Pagamenti — nascosto nel portale operativo (dati economici) */}
       {!hideEconomics && (
-        <section className="bg-surface border border-border rounded-2xl p-5">
+        <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
           <SectionHeader title="Contratto & Pagamenti" section="contratto" editing={editContratto} />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <Field label="Pacchetto" value={client.package} editMode={editContratto}>
@@ -278,7 +278,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
       )}
 
       {/* Referenti Cliente */}
-      <section className="bg-surface border border-border rounded-2xl p-5">
+      <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
         <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
           <Users2 className="w-4 h-4 text-success" />
           <h3 className="text-sm font-bold text-text-primary">Referenti Cliente</h3>
@@ -310,7 +310,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
       </section>
 
       {/* Stakeholders */}
-      <section className="bg-surface border border-border rounded-2xl p-5">
+      <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
         <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
           <div className="flex items-center gap-2.5">
             <Crown className="w-4 h-4 text-warning" />
@@ -353,7 +353,7 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
       </section>
 
       {/* Team TWO BEE */}
-      <section className="bg-surface border border-border rounded-2xl p-5">
+      <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
         <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
           <Users2 className="w-4 h-4 text-gold-text" />
           <h3 className="text-sm font-bold text-text-primary">Team TWO BEE Assegnato</h3>
