@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Flag, Calendar as CalIcon, User, CheckSquare, FolderTree } from 'lucide-react'
 import type { ProjectWorkstream, Milestone, Task } from '@/lib/types/database'
 
@@ -29,7 +30,9 @@ export function ProjectGantt({
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [zoom, setZoom] = useState<Zoom>('giorni')
-  const [hover, setHover] = useState<{ m: Milestone; wsName: string } | null>(null)
+  const [hover, setHover] = useState<{ m: Milestone; wsName: string; rect: DOMRect } | null>(null)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
   const DAY_W = ZOOMS[zoom]
   const showDays = zoom === 'giorni'
   const person = (id: string | null) => (id ? profiles?.find(p => p.id === id) ?? null : null)
@@ -108,30 +111,41 @@ export function ProjectGantt({
         </div>
       </div>
 
-      {/* pannello recap in hover — fisso nell'angolo, sempre leggibile */}
-      {hm && hmTone && (
-        <div className="absolute top-14 right-3 z-40 w-64 bg-surface border border-border-strong rounded-xl shadow-pop p-3 animate-fade-in pointer-events-none">
-          <div className="flex items-start gap-2">
-            <Flag className={`w-4 h-4 mt-0.5 shrink-0 ${hmTone.flag}`} />
-            <span className="text-sm font-bold text-text-primary leading-snug">{hm.title}</span>
-          </div>
-          <div className="mt-2.5 space-y-1.5">
-            <div className="flex items-center gap-2 text-2xs text-text-secondary">
-              <FolderTree className="w-3.5 h-3.5 text-gold-text shrink-0" /><span className="truncate">{hover!.wsName}</span>
+      {/* recap in hover — portale su body, ancorato al marker, non tagliato dallo scroll */}
+      {mounted && hm && hmTone && hover && createPortal(
+        (() => {
+          const r = hover.rect
+          const above = r.top > 150
+          const top = above ? r.top - 8 : r.bottom + 8
+          return (
+            <div style={{ position: 'fixed', left: r.left + r.width / 2, top, transform: `translate(-50%, ${above ? '-100%' : '0'})`, zIndex: 60 }}
+              className="w-64 pointer-events-none">
+              <div className="bg-surface border border-border-strong rounded-xl shadow-pop p-3 animate-fade-in">
+                <div className="flex items-start gap-2">
+                  <Flag className={`w-4 h-4 mt-0.5 shrink-0 ${hmTone.flag}`} />
+                  <span className="text-sm font-bold text-text-primary leading-snug">{hm.title}</span>
+                </div>
+                <div className="mt-2.5 space-y-1.5">
+                  <div className="flex items-center gap-2 text-2xs text-text-secondary">
+                    <FolderTree className="w-3.5 h-3.5 text-gold-text shrink-0" /><span className="truncate">{hover.wsName}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-2xs text-text-secondary">
+                    <CalIcon className="w-3.5 h-3.5 text-text-tertiary shrink-0" /><span className="tabular">{hm.due_date}</span>
+                    {hmRel && <span className={hmRel.tone}>· {hmRel.text}</span>}
+                  </div>
+                  <div className="flex items-center gap-2 text-2xs text-text-secondary">
+                    <User className="w-3.5 h-3.5 text-text-tertiary shrink-0" /><span className="truncate">{hmOwner ? hmOwner.full_name : 'Non assegnata'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-2xs text-text-secondary">
+                    <CheckSquare className="w-3.5 h-3.5 text-text-tertiary shrink-0" /><span className="tabular">{hmDone}/{hmTasks.length} task</span>
+                    <span className={`ml-auto text-2xs font-semibold px-2 py-0.5 rounded-full border ${hmTone.pill} ${hmTone.flag}`}>{MS_LABEL[hm.status]}</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-2xs text-text-secondary">
-              <CalIcon className="w-3.5 h-3.5 text-text-tertiary shrink-0" /><span className="tabular">{hm.due_date}</span>
-              {hmRel && <span className={hmRel.tone}>· {hmRel.text}</span>}
-            </div>
-            <div className="flex items-center gap-2 text-2xs text-text-secondary">
-              <User className="w-3.5 h-3.5 text-text-tertiary shrink-0" /><span className="truncate">{hmOwner ? hmOwner.full_name : 'Non assegnata'}</span>
-            </div>
-            <div className="flex items-center gap-2 text-2xs text-text-secondary">
-              <CheckSquare className="w-3.5 h-3.5 text-text-tertiary shrink-0" /><span className="tabular">{hmDone}/{hmTasks.length} task</span>
-              <span className={`ml-auto text-2xs font-semibold px-2 py-0.5 rounded-full border ${hmTone.pill} ${hmTone.flag}`}>{MS_LABEL[hm.status]}</span>
-            </div>
-          </div>
-        </div>
+          )
+        })(),
+        document.body,
       )}
 
       <div className="flex">
@@ -196,7 +210,7 @@ export function ProjectGantt({
                     return (
                       <button key={m.id}
                         onClick={() => onOpenMilestone?.(w.id, m.id)}
-                        onMouseEnter={() => setHover({ m, wsName: w.name })}
+                        onMouseEnter={e => setHover({ m, wsName: w.name, rect: e.currentTarget.getBoundingClientRect() })}
                         onMouseLeave={() => setHover(h => (h?.m.id === m.id ? null : h))}
                         aria-label={`Milestone ${m.title}`}
                         className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10" style={{ left: model.x(parse(m.due_date!)) + DAY_W / 2 }}>
