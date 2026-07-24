@@ -29,6 +29,7 @@ const isOverdue = (t: Task) => !!t.due_date && t.status !== 'completato' && t.du
 
 export function ProjectDetailClient({
   project, clientName, workstreams, milestones, tasks, recurring, memberIds, profiles,
+  backHref = '/progetti', canManageProject = true, canEditTasks = true,
 }: {
   project: Project
   clientName: string
@@ -38,6 +39,9 @@ export function ProjectDetailClient({
   recurring: RecurringTaskTemplate[]
   memberIds: string[]
   profiles: Person[]
+  backHref?: string
+  canManageProject?: boolean
+  canEditTasks?: boolean
 }) {
   const router = useRouter()
   const [pending, start] = useTransition()
@@ -64,7 +68,7 @@ export function ProjectDetailClient({
   return (
     <div className="flex flex-col h-full">
       <div className="px-6 pt-5 pb-3">
-        <Link href="/progetti" className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary w-fit">
+        <Link href={backHref} className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary w-fit">
           <ArrowLeft className="w-4 h-4" />Tutti i progetti
         </Link>
       </div>
@@ -77,11 +81,15 @@ export function ProjectDetailClient({
             <div className="flex flex-wrap items-center gap-3 mt-2 text-sm">
               <Link href={`/clienti/${project.client_id}`} className="text-gold-text hover:underline">{clientName}</Link>
               <span className="text-text-tertiary text-xs uppercase">{project.area} · {project.service_type}{project.service_subtype ? `/${project.service_subtype}` : ''}</span>
-              <select value={project.status} disabled={pending} onChange={e => changeStatus(e.target.value as ProjectStatus)}
-                aria-label="Stato progetto"
-                className="text-2xs font-semibold bg-background border border-border-interactive rounded px-2 py-1 text-text-primary">
-                {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-              </select>
+              {canManageProject ? (
+                <select value={project.status} disabled={pending} onChange={e => changeStatus(e.target.value as ProjectStatus)}
+                  aria-label="Stato progetto"
+                  className="text-2xs font-semibold bg-background border border-border-interactive rounded px-2 py-1 text-text-primary">
+                  {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+                </select>
+              ) : (
+                <span className="text-2xs font-semibold text-text-secondary border border-border rounded px-2 py-1">{STATUS_LABEL[project.status]}</span>
+              )}
               {project.manager_id && <span className="text-xs text-text-secondary">PM: {name(project.manager_id)}</span>}
               {project.start_date && (
                 <span className="text-xs text-text-tertiary flex items-center gap-1">
@@ -172,7 +180,7 @@ export function ProjectDetailClient({
               </div>
             )}
             <TaskViews tasks={tasks} workstreams={workstreams} milestones={milestones}
-              profiles={profiles} canEdit projectId={project.id} clientId={project.client_id} />
+              profiles={profiles} canEdit={canEditTasks} projectId={project.id} clientId={project.client_id} />
           </div>
         )}
       </div>
