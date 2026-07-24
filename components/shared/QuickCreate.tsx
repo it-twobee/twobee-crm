@@ -106,17 +106,16 @@ export function QuickCreate() {
         document.body,
       )}
 
-      {mode === 'project' && wizardLoaded && (
+      {/* modali/wizard in portale: l'header ha backdrop-filter, che ancorerebbe
+          i fixed all'header invece che al viewport → li montiamo su document.body */}
+      {mounted && mode === 'project' && wizardLoaded && createPortal(
         <ProjectWizard clients={clients} profiles={profiles} services={services} templates={templates} nodes={nodes}
-          onClose={() => setMode(null)} />
-      )}
-      {mode === 'workstream' && (
-        <WorkstreamModal projects={projects} onClose={() => setMode(null)} onDone={() => setMode(null)} notify={notifyCreated} />
-      )}
-      {mode === 'task' && (
+          onClose={() => setMode(null)} />, document.body)}
+      {mounted && mode === 'workstream' && createPortal(
+        <WorkstreamModal projects={projects} onClose={() => setMode(null)} onDone={() => setMode(null)} notify={notifyCreated} />, document.body)}
+      {mounted && mode === 'task' && createPortal(
         <TaskModal clients={clients} projects={projects} profiles={profiles}
-          onClose={() => setMode(null)} onDone={() => setMode(null)} notify={notifyCreated} />
-      )}
+          onClose={() => setMode(null)} onDone={() => setMode(null)} notify={notifyCreated} />, document.body)}
     </div>
   )
 }
