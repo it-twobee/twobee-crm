@@ -28,9 +28,11 @@ CREATE TABLE IF NOT EXISTS public.service_catalog (
   is_active       BOOLEAN NOT NULL DEFAULT true,
   sort_order      INT NOT NULL DEFAULT 0,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (area, service_type, COALESCE(service_subtype, ''))
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- UNIQUE su espressione (COALESCE) → index, non constraint inline
+CREATE UNIQUE INDEX IF NOT EXISTS uidx_service_catalog
+  ON public.service_catalog (area, service_type, COALESCE(service_subtype, ''));
 DROP TRIGGER IF EXISTS trg_service_catalog_updated ON public.service_catalog;
 CREATE TRIGGER trg_service_catalog_updated BEFORE UPDATE ON public.service_catalog
   FOR EACH ROW EXECUTE FUNCTION public.tbv2_set_updated_at();
