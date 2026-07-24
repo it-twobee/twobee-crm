@@ -98,7 +98,7 @@ export function ProgettiClient({
       {/* Calendario milestone globale (progetti attivi) */}
       {(milestones ?? []).some(m => m.due_date) && (
         <ProjectGantt
-          title="Calendario milestone · progetti attivi"
+          title="Calendario milestone · progetti in corso"
           workstreams={workstreams ?? []}
           milestones={milestones ?? []}
           tasks={calTasks ?? []}

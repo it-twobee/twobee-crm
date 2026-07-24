@@ -28,8 +28,8 @@ export default async function ProgettiPage({ searchParams }: { searchParams: { c
       .is('deleted_at', null).order('created_at', { ascending: false }),
   ])
 
-  // Dati per il calendario milestone globale: solo progetti attivi
-  const activeIds = (projects ?? []).filter(p => p.status === 'active').map(p => p.id)
+  // Dati per il calendario milestone globale: progetti in corso (esclude completati/archiviati)
+  const activeIds = (projects ?? []).filter(p => ['active', 'draft', 'on_hold'].includes(p.status)).map(p => p.id)
   const [{ data: workstreams }, { data: milestones }, { data: calTasks }] = activeIds.length
     ? await Promise.all([
         supabase.from('project_workstreams').select('*').in('project_id', activeIds).order('sort_order'),
