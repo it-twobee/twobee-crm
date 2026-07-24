@@ -57,7 +57,18 @@ Nessuna colonna economica nelle tabelle di progetto/task (per scelta). `revenue_
 su `projects` è metadato non sensibile; eventuali importi vivranno in tabelle
 economiche separate (fase futura) con RLS admin-only, mai esposte a workspace/cliente.
 
-## Debito da chiudere
-- Ridisegnare la visibilità **clienti** per team/guest (policy `clients_external`
-  caduta nel reset). Serve prima del Portale Cliente/Risorsa (doc 13/14/15).
-- Verificare in SQL le policy attuali su `clients` e la VIEW `clients_workspace`.
+## Stato RLS `clients` (VERIFICATO 2026-07-24)
+- `clients_admin_all` (ALL) → `get_my_role()='admin'`.
+- `clients_client_own` (SELECT) → `client`/`guest` vedono **solo la propria riga**.
+- `clients_team_all` (SELECT) → `team` **interni** (`NOT is_external_resource()`)
+  vedono **tutti** i clienti.
+- `clients_external` **caduta** nel reset. VIEW `clients_workspace` **viva**
+  (mrr/fiscali azzerati) → base per letture Workspace/Cliente.
+
+## Debito da chiudere (fase portali, non ora)
+- **Esterni** (guest, freelance/partner flaggati `is_external_resource`): oggi non
+  vedono i clienti dei progetti a cui sono assegnati (solo la propria riga). Nuova
+  policy `clients_external_scoped`: SELECT dei clienti con almeno un
+  progetto/task assegnato alla risorsa. Da introdurre in Fase 6.
+- Decidere se i `team` interni restano read-all clienti o passano a scoped col
+  nuovo modello progetti.

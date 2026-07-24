@@ -154,9 +154,16 @@ nuovo motore partono da zero.
   `CASCADE`, che ha portato via la policy `clients_external` su `clients`. → le
   risorse esterne (guest) **non hanno più accesso ai clienti** finché non si
   ridisegna la visibilità. Da riprogettare col Portale Risorsa/Cliente.
-- **[DA VERIFICARE IN SQL]** stato attuale delle policy su `clients`
-  (`clients_team_all` vs read-all team dalla 092/100) e se la VIEW
-  `clients_workspace` (mrr/fiscali azzerati) sopravvive.
+- **VERIFICATO IN SQL (2026-07-24)** — policy su `clients`:
+  - `clients_admin_all` (ALL): `get_my_role()='admin'`.
+  - `clients_client_own` (SELECT): `get_my_role() IN ('client','guest') AND id = <proprio client>`.
+  - `clients_team_all` (SELECT): `get_my_role()='team' AND NOT is_external_resource()`.
+  - → `clients_external` **è caduta** (confermato). I ruoli team **interni** vedono
+    tutti i clienti; gli **esterni** (guest/freelance/partner flaggati) hanno solo
+    la propria riga cliente, non i clienti dei progetti a cui sono assegnati = gap
+    da chiudere nella fase portali.
+  - VIEW `clients_workspace` **sopravvive** (mrr/fiscali azzerati) → riusabile per
+    Workspace e Portale Cliente.
 - Le policy delle tabelle nuove (`projects`, `tasks`, ecc.) **non esistono**:
   vanno scritte da zero nella matrice del doc 10.
 

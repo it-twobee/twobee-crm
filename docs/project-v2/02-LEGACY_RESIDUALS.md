@@ -36,7 +36,7 @@ orfano nel DB, nessuna FK che blocchi il nuovo schema.
 |---|---|---|---|---|
 | B1 | Sezioni workspace spente ma presenti: `progetti, portfolio, task, mie_attivita, workload, cestino` (`is_active=false`) | `workspace_sections` | **da archiviare** | riattivare *solo* quelle del nuovo modello con le nuove route (mie_attivita, progetti); lasciare spente workload/portfolio in questa fase |
 | B2 | Policy `clients_external` caduta (drop CASCADE di `get_my_project_ids()`) → esterni senza accesso clienti | RLS `clients` | **da scollegare** (già scollegata) | riprogettare la visibilità cliente per guest col Portale Risorsa/Cliente (doc 10) |
-| B3 | Stato policy `clients` per ruoli `team` (dalla 092/100) e VIEW `clients_workspace` | RLS `clients` | **[DA VERIFICARE IN SQL]** | ispezionare `pg_policies` su `clients`; decidere read-all vs scoped nel nuovo modello |
+| B3 | **VERIFICATO**: policy `clients` = `admin_all` (admin), `client_own` (client/guest → propria riga), `team_all` (team interni → tutti). `clients_external` caduta. VIEW `clients_workspace` sopravvive. | RLS `clients` | **da scollegare** (gap noto) | esterni (guest/freelance/partner) non vedono i clienti dei progetti assegnati → scoping per-assegnazione nella fase portali. Riusare VIEW `clients_workspace` per Workspace/Cliente |
 | B4 | Enum `chat_channels.type` può ancora ammettere `interno/task/cliente_interno` a livello di CHECK anche se le righe sono state cancellate | `chat_channels` | **da eliminare dopo conferma** | il nuovo motore non usa canali task-per-progetto? decidere in doc 13 (chat di progetto) |
 | B5 | Backup JSON pre-reset (47 tabelle) | `supabase/backup/2026-07-22-pre-reset/` | **da preservare** | fonte per seed tassonomia/template e per audit storico |
 
