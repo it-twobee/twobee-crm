@@ -13,6 +13,7 @@ import { SUPER_ADMIN_EMAILS, ROLE_LABELS } from '@/lib/permissions'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { MobileNav } from '@/components/shared/MobileNav'
 import { Logo } from '@/components/shared/Logo'
+import { PortalSwitcher } from '@/components/shared/PortalSwitcher'
 
 interface HeaderProps { profile: Profile | null }
 
@@ -104,6 +105,7 @@ export function Header({ profile }: HeaderProps) {
       <Link href="/dashboard" aria-label="TwoBee — dashboard" className="lg:hidden flex items-center">
         <Logo variant="mark" className="w-6 h-6" priority />
       </Link>
+      {isGod && <PortalSwitcher />}
 
       <div className="flex-1 max-w-md">
         <GlobalSearch />

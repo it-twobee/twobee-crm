@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { WorkspaceSidebar } from '@/components/workspace/WorkspaceSidebar'
 import { WorkspaceMobileNav } from '@/components/workspace/WorkspaceMobileNav'
 import { Logo } from '@/components/shared/Logo'
+import { PortalSwitcher } from '@/components/shared/PortalSwitcher'
 import Link from 'next/link'
 import { GlobalSearch } from '@/components/shared/GlobalSearch'
 import { workspaceSearch } from '@/app/actions/global-search'
@@ -84,6 +85,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
           <Link href="/workspace" aria-label="TwoBee — workspace" className="lg:hidden flex items-center">
             <Logo variant="mark" className="w-6 h-6" priority />
           </Link>
+          {isSuperAdmin && <PortalSwitcher />}
           <div className="flex-1 max-w-md">
             <GlobalSearch
               search={workspaceSearch}
