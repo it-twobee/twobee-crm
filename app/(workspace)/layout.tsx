@@ -4,6 +4,7 @@ import { WorkspaceSidebar } from '@/components/workspace/WorkspaceSidebar'
 import { WorkspaceMobileNav } from '@/components/workspace/WorkspaceMobileNav'
 import { Logo } from '@/components/shared/Logo'
 import { PortalSwitcher } from '@/components/shared/PortalSwitcher'
+import { QuickCreate } from '@/components/shared/QuickCreate'
 import Link from 'next/link'
 import { GlobalSearch } from '@/components/shared/GlobalSearch'
 import { workspaceSearch } from '@/app/actions/global-search'
@@ -93,6 +94,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
               placeholder="Cerca clienti, documenti…"
             />
           </div>
+          <QuickCreate />
         </header>
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
           {children}

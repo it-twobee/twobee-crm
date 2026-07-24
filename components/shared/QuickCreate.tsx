@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useTransition, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
@@ -28,12 +29,10 @@ export function QuickCreate() {
   const [clients, setClients] = useState<ClientOpt[]>([])
   const [projects, setProjects] = useState<ProjectOpt[]>([])
   const [profiles, setProfiles] = useState<PersonOpt[]>([])
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
-    document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h)
-  }, [])
+  const [mounted, setMounted] = useState(false)
+  const [rect, setRect] = useState<DOMRect | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => { setMounted(true) }, [])
 
   const ensureData = useCallback(async () => {
     if (loaded) return
@@ -55,19 +54,30 @@ export function QuickCreate() {
     ensureData(); setMode(m)
   }
 
+  const toggleMenu = () => {
+    if (!open && btnRef.current) setRect(btnRef.current.getBoundingClientRect())
+    setOpen(o => !o)
+  }
+
   return (
-    <div className="relative" ref={ref}>
-      <button onClick={() => setOpen(o => !o)} aria-label="Crea"
+    <div className="contents">
+      <button ref={btnRef} onClick={toggleMenu} aria-label="Crea" aria-expanded={open}
         className="flex items-center gap-1.5 h-9 px-3 rounded-xl bg-gold text-on-gold text-sm font-semibold shadow-soft press no-tap-highlight">
         <Plus className="w-4 h-4" /><span className="hidden sm:inline">Crea</span>
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-full mt-2 w-56 bg-surface border border-border-strong rounded-2xl shadow-pop z-50 p-1.5 animate-scale-in">
-          <MenuRow icon={<Briefcase className="w-4 h-4 text-gold-text" />} title="Nuovo progetto" hint="Con il wizard" onClick={() => start('project')} />
-          <MenuRow icon={<FolderTree className="w-4 h-4 text-gold-text" />} title="Nuovo workstream" hint="In un progetto" onClick={() => start('workstream')} />
-          <MenuRow icon={<CheckSquare className="w-4 h-4 text-gold-text" />} title="Nuova task" hint="Ad hoc o in progetto" onClick={() => start('task')} />
-        </div>
+      {/* menu in portale: mai tagliato da overflow del layout */}
+      {mounted && open && rect && createPortal(
+        <>
+          <div className="fixed inset-0 z-[59]" onClick={() => setOpen(false)} />
+          <div style={{ position: 'fixed', top: rect.bottom + 8, left: Math.max(8, rect.right - 224) }}
+            className="w-56 bg-surface border border-border-strong rounded-2xl shadow-pop z-[60] p-1.5 animate-scale-in">
+            <MenuRow icon={<Briefcase className="w-4 h-4 text-gold-text" />} title="Nuovo progetto" hint="Con il wizard" onClick={() => start('project')} />
+            <MenuRow icon={<FolderTree className="w-4 h-4 text-gold-text" />} title="Nuovo workstream" hint="In un progetto" onClick={() => start('workstream')} />
+            <MenuRow icon={<CheckSquare className="w-4 h-4 text-gold-text" />} title="Nuova task" hint="Ad hoc o in progetto" onClick={() => start('task')} />
+          </div>
+        </>,
+        document.body,
       )}
 
       {mode === 'workstream' && (
