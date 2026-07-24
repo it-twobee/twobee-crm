@@ -39,13 +39,12 @@ export type ClientStatus = 'verde' | 'giallo' | 'rosso'
 export type ClientType = 'growth' | 'digital' | 'growth_digital'
 export type ClientLabel = 'stabile' | 'in_bilico' | 'perso' | 'partner'
 export type StakeholderRole = 'owner' | 'stakeholder' | 'collaboratore_esterno' | 'agenzia_supporto'
-export type TaskPriority = 'alta' | 'media' | 'bassa'
-export type TaskStatus = 'da_fare' | 'in_corso' | 'in_revisione' | 'completato'
-// 'team' e 'dm' arrivano dalla migration 090. 'customer_care'/'cliente' esistono
-// ancora ma la chat non li mostra più: vivono nella sezione Customer Care.
+export type Priority = 'alta' | 'media' | 'bassa'
+// 'customer_care'/'cliente' esistono ancora ma la chat non li mostra più: vivono
+// nella sezione Customer Care. I canali di progetto ('interno', 'task',
+// 'cliente_interno') sono stati eliminati dalla migration 146.
 export type ChannelType =
-  | 'cliente' | 'interno' | 'task' | 'customer_care' | 'cliente_interno'
-  | 'partner_customer_care' | 'team' | 'dm'
+  | 'cliente' | 'customer_care' | 'partner_customer_care' | 'team' | 'dm'
 
 /** Sottotipo dei tre canali aziendali fissi (chat_channels.team_key) */
 export type TeamChannelKey = 'team_intern' | 'angolo_informativo' | 'best_ideas'
@@ -255,7 +254,6 @@ export interface ClientAssignment {
 export interface ClientKpi {
   id: string
   client_id: string
-  project_id: string | null
   month: string
   // Growth — Advertising
   mer: number | null
@@ -314,7 +312,6 @@ export interface CustomKpiDef {
 export interface ClientKpiConfig {
   id: string
   client_id: string
-  project_id: string | null
   enabled: string[]
   custom_kpis: CustomKpiDef[]
 }
@@ -322,7 +319,6 @@ export interface ClientKpiConfig {
 export interface Document {
   id: string
   client_id: string
-  project_id: string | null
   name: string
   file_url: string
   file_type: string | null
@@ -335,8 +331,6 @@ export interface ChatChannel {
   name: string
   type: ChannelType
   client_id: string | null
-  project_id: string | null
-  task_id: string | null
   created_at: string
   created_by: string | null
   is_archived: boolean
@@ -496,7 +490,7 @@ export interface ClientIdea {
   title: string
   description: string | null
   category: IdeaCategory
-  priority: TaskPriority
+  priority: Priority
   status: IdeaStatus
   position: number
   created_by: string | null

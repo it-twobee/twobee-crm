@@ -20,8 +20,6 @@ const ENTITY_LABELS: Record<string, string> = {
 /** Dove si apre l'entità. null = non c'è una pagina dedicata. */
 function entityHref(log: ActivityLog): string | null {
   switch (log.entity_type) {
-    case 'task':    return '/workspace/attivita'
-    case 'project': return `/workspace/progetti/${log.entity_id}`
     case 'client':  return `/workspace/clienti/${log.entity_id}`
     default:        return null
   }

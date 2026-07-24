@@ -97,7 +97,7 @@ export function GlobalSearch({
             <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
               <Search className="w-4 h-4 text-text-secondary shrink-0" />
               <input ref={inputRef} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={onKeyDown}
-                placeholder="Cerca in clienti, progetti, task, chat, documenti…"
+                placeholder="Cerca in clienti, chat, documenti…"
                 className="flex-1 bg-transparent text-sm text-text-primary placeholder-text-tertiary focus:outline-none" />
               {loading && <Loader2 className="w-4 h-4 text-text-secondary animate-spin shrink-0" />}
             </div>

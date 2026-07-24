@@ -56,12 +56,8 @@ const GROUP_LABELS: Record<string, string> = {
 // una lista piatta né esplode su colonna mancante.
 const GROUP_FALLBACK: Record<string, { key: string; order: number }> = {
   dashboard:           { key: 'dashboard', order: 0 },
-  mie_attivita:        { key: 'lavori',    order: 1 },
   calendario:          { key: 'lavori',    order: 1 },
   chat:                { key: 'lavori',    order: 1 },
-  progetti:            { key: 'lavori',    order: 1 },
-  portfolio:           { key: 'lavori',    order: 1 },
-  workload:            { key: 'lavori',    order: 1 },
   documenti:           { key: 'lavori',    order: 1 },
   clienti_attivi:      { key: 'clienti',   order: 2 },
   customer_care:       { key: 'clienti',   order: 2 },

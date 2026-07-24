@@ -4,15 +4,11 @@ import { useState, useRef } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Edit3, Check, X, ChevronDown, Loader2 } from 'lucide-react'
 import { formatCurrency, formatDate, getPaymentBadge } from '@/lib/utils'
-import type { Client, ClientContact, ClientKpi, Profile, ClientStakeholder, Document, ClientInteraction } from '@/lib/types/database'
+import type { Client, ClientContact, ClientKpi, Profile, ClientStakeholder, ClientInteraction } from '@/lib/types/database'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { clientName } from '@/lib/utils'
-import { KpiTab } from './tabs/KpiTab'
 import { AnagraficaTab } from './tabs/AnagraficaTab'
-import { DocumentsTab } from './tabs/DocumentsTab'
 import { PanoramicaTab } from './tabs/PanoramicaTab'
-import { RelazioneTab } from './tabs/RelazioneTab'
-import { ClientKnowledgeTab } from './tabs/ClientKnowledgeTab'
 import { ClientAlertBanner } from './ClientAlertBanner'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -21,10 +17,8 @@ interface Props {
   client: Client
   contacts: ClientContact[]
   kpis: ClientKpi[]
-  kpiConfigs: import('@/lib/types/database').ClientKpiConfig[]
   teamMembers: Profile[]
   stakeholders: ClientStakeholder[]
-  documents: Document[]
   interactions: ClientInteraction[]
   currentProfile: Profile
   allProfiles: Profile[]
@@ -195,27 +189,25 @@ function InlineNumberField({ value, field, clientId, canEdit, prefix = '', suffi
 }
 
 export function ClientPageClient({
-  client, contacts, kpis, kpiConfigs,
-  teamMembers, stakeholders, documents, interactions, currentProfile, allProfiles,
+  client, contacts, kpis,
+  teamMembers, stakeholders, interactions, currentProfile, allProfiles,
   openTickets, initialTab, hideEconomics = false, backHref = '/clienti'
 }: Props) {
   const isAdmin = SUPER_ADMIN_EMAILS.includes(currentProfile?.email ?? '') || currentProfile?.app_role === 'admin'
   const isAdminLevel = isAdmin || currentProfile?.app_role === 'manager'
-  const canSeeFatturazione = isAdminLevel && !hideEconomics
   // D3 (Fase 0): l'anagrafica (P.IVA/dati fiscali) è visibile SOLO ad admin.
   const canSeeAnagrafica = isAdmin
   const canSeeMrr = isAdminLevel && !hideEconomics
 
   const visibleTabs = [
     { label: 'Panoramica', index: 0 },
-    { label: 'KPI & Performance', index: 1 },
-    { label: 'Documenti', index: 3 },
-    ...(canSeeAnagrafica ? [{ label: 'Anagrafica', index: 4 }] : []),
-    ...(isAdminLevel ? [{ label: 'Relazione', index: 5 }] : []),
-    { label: 'Knowledge', index: 6 },
+    ...(canSeeAnagrafica ? [{ label: 'Anagrafica', index: 1 }] : []),
   ]
 
-  const [activeTab, setActiveTab] = useState(initialTab ?? 0)
+  // ?tab= arriva da link vecchi: fuori range mostrerebbe una pagina vuota
+  const [activeTab, setActiveTab] = useState(
+    visibleTabs.some(t => t.index === initialTab) ? initialTab! : 0
+  )
 
   return (
     <div className="flex flex-col h-full">
@@ -315,17 +307,9 @@ export function ClientPageClient({
             teamMembers={teamMembers} interactions={interactions} isAdmin={isAdmin} openTickets={openTickets}
             onTabChange={setActiveTab} hideEconomics={hideEconomics} />
         )}
-        {activeTab === 1 && <KpiTab client={client} kpis={kpis} kpiConfigs={kpiConfigs} />}
-        {activeTab === 3 && <DocumentsTab client={client} documents={documents} />}
-        {activeTab === 4 && (
+        {activeTab === 1 && canSeeAnagrafica && (
           <AnagraficaTab client={client} contacts={contacts} teamMembers={teamMembers} stakeholders={stakeholders} hideEconomics={hideEconomics} />
         )}
-        {activeTab === 5 && (
-          <RelazioneTab clientId={client.id} client={client} interactions={interactions} allProfiles={allProfiles}
-            currentProfile={currentProfile} isAdmin={isAdmin} hideEconomics={hideEconomics} />
-        )}
-        {activeTab === 6 && <ClientKnowledgeTab clientId={client.id} isAdmin={isAdmin} />}
-
       </div>
     </div>
   )

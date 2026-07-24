@@ -1,7 +1,7 @@
 'use client'
 
 import {
-  FileText, Users, MessageSquare, BarChart3, ChevronRight,
+  FileText, Users, MessageSquare, BarChart3,
   Phone, Users2, Mail, Presentation, MapPin, HelpCircle, Star,
   Check, AlertCircle, Clock, AlertTriangle,
 } from 'lucide-react'
@@ -90,11 +90,10 @@ function calcDigitalHealth(kpi: ClientKpi | undefined): number {
   return 25
 }
 
-function KpiSnapshotPanel({ label, accent, month, items, onTabChange }: {
+function KpiSnapshotPanel({ label, accent, month, items }: {
   label: string
   accent: string
   month: string
-  onTabChange?: (tab: number) => void
   items: { label: string; raw: number | null; fmt: (v: number) => string; target?: number | null }[]
 }) {
   return (
@@ -107,11 +106,6 @@ function KpiSnapshotPanel({ label, accent, month, items, onTabChange }: {
             — {new Date(month).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}
           </span>
         </div>
-        {onTabChange && (
-          <button onClick={() => onTabChange(1)} className="text-2xs text-gold-text hover:text-gold-text flex items-center gap-1">
-            Tutti <ChevronRight className="w-3 h-3" />
-          </button>
-        )}
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {items.map(k => {
@@ -183,13 +177,13 @@ export function PanoramicaTab({ client, kpis, teamMembers, interactions, openTic
 
   const alerts: { level: 'error' | 'warning'; msg: string; action?: () => void; actionLabel?: string }[] = []
   if (daysToExpiry > 0 && daysToExpiry <= 30)
-    alerts.push({ level: 'warning', msg: `Contratto in scadenza tra ${daysToExpiry} giorni`, action: () => onTabChange?.(4), actionLabel: 'Anagrafica' })
+    alerts.push({ level: 'warning', msg: `Contratto in scadenza tra ${daysToExpiry} giorni`, action: () => onTabChange?.(1), actionLabel: 'Anagrafica' })
   if (daysToExpiry <= 0)
     alerts.push({ level: 'error', msg: 'Contratto scaduto' })
   if (openTickets > 2)
     alerts.push({ level: 'warning', msg: `${openTickets} ticket aperti — verifica customer care` })
   if (daysSinceContact !== null && daysSinceContact > 21)
-    alerts.push({ level: 'warning', msg: `Ultimo contatto ${daysSinceContact} giorni fa — pianifica un touchpoint`, action: () => onTabChange?.(5), actionLabel: 'Relazione' })
+    alerts.push({ level: 'warning', msg: `Ultimo contatto ${daysSinceContact} giorni fa — pianifica un touchpoint` })
 
   return (
     <div className="space-y-4">
@@ -273,8 +267,7 @@ export function PanoramicaTab({ client, kpis, teamMembers, interactions, openTic
           </p>
         </div>
 
-        <button onClick={() => onTabChange?.(5)}
-          className="bg-surface border border-border rounded-xl p-4 text-left hover:border-gold/20 transition-colors">
+        <div className="bg-surface border border-border rounded-xl p-4 text-left">
           <div className="flex items-center gap-2 text-text-secondary mb-2">
             <MessageSquare className="w-3.5 h-3.5" />
             <span className="text-2xs uppercase tracking-wider font-bold">Ultimo contatto</span>
@@ -289,7 +282,7 @@ export function PanoramicaTab({ client, kpis, teamMembers, interactions, openTic
                 ? 'Pianifica un touchpoint'
                 : lastInteraction ? TYPE_LABEL[lastInteraction.type] : ''}
           </p>
-        </button>
+        </div>
       </div>
 
       {/* 4 ── Relazione commerciale ────────────────────────────────────── */}
@@ -333,7 +326,6 @@ export function PanoramicaTab({ client, kpis, teamMembers, interactions, openTic
               label="KPI Growth"
               accent="var(--color-gold-text)"
               month={lastKpi.month}
-              onTabChange={onTabChange}
               items={[
                 { label: 'Revenue',  raw: lastKpi.revenue_attributed, fmt: (v) => formatCurrency(v), target: client.target_revenue_monthly },
                 { label: 'Lead',     raw: lastKpi.leads_generated,    fmt: (v) => String(v),         target: client.target_leads_monthly },
@@ -347,7 +339,6 @@ export function PanoramicaTab({ client, kpis, teamMembers, interactions, openTic
               label="KPI Digital"
               accent="var(--color-info)"
               month={lastKpi.month}
-              onTabChange={onTabChange}
               items={[
                 { label: 'Sessioni org.',  raw: lastKpi.organic_sessions, fmt: (v) => v.toLocaleString('it-IT') },
                 { label: 'Nuovi utenti',   raw: lastKpi.new_users,        fmt: (v) => v.toLocaleString('it-IT') },
