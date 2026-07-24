@@ -94,7 +94,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
               placeholder="Cerca clienti, documenti…"
             />
           </div>
-          <QuickCreate />
+          <QuickCreate context="workspace" />
         </header>
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
           {children}

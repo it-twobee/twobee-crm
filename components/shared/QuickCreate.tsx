@@ -2,19 +2,23 @@
 
 import { useState, useEffect, useRef, useTransition, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  Plus, X, Briefcase, FolderTree, CheckSquare, ChevronDown, Loader2,
+  Plus, X, Briefcase, FolderTree, CheckSquare, Users, Loader2,
 } from 'lucide-react'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import { createAdHocTask } from '@/app/actions/ad-hoc-tasks'
 import { createProjectTask } from '@/app/actions/tasks'
 import { createWorkstream } from '@/app/actions/workstreams'
-import { ProjectWizard } from '@/components/projects/ProjectWizard'
 import type {
   WorkstreamType, Priority, ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode,
 } from '@/lib/types/database'
+
+// componenti pesanti: caricati solo all'apertura (fuori dal bundle dell'header globale)
+const ProjectWizard = dynamic(() => import('@/components/projects/ProjectWizard').then(m => ({ default: m.ProjectWizard })), { ssr: false })
+const NewClientModal = dynamic(() => import('@/components/clients/NewClientModal').then(m => ({ default: m.NewClientModal })), { ssr: false })
 
 type ClientOpt = { id: string; name: string }
 type ProjectOpt = { id: string; name: string; client_id: string }
@@ -22,9 +26,9 @@ type PersonOpt = { id: string; full_name: string; app_role: string | null }
 type WsOpt = { id: string; name: string }
 type MsOpt = { id: string; title: string; milestone_type: string }
 
-type Mode = null | 'project' | 'workstream' | 'task'
+type Mode = null | 'client' | 'project' | 'workstream' | 'task'
 
-export function QuickCreate() {
+export function QuickCreate({ context = 'admin' }: { context?: 'admin' | 'workspace' }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<Mode>(null)
@@ -98,6 +102,9 @@ export function QuickCreate() {
           <div className="fixed inset-0 z-[59]" onClick={() => setOpen(false)} />
           <div style={{ position: 'fixed', top: rect.bottom + 8, left: Math.max(8, rect.right - 224) }}
             className="w-56 bg-surface border border-border-strong rounded-2xl shadow-pop z-[60] p-1.5 animate-scale-in">
+            {context === 'admin' && (
+              <MenuRow icon={<Users className="w-4 h-4 text-gold-text" />} title="Nuova anagrafica" hint="Aggiungi un cliente" onClick={() => start('client')} />
+            )}
             <MenuRow icon={<Briefcase className="w-4 h-4 text-gold-text" />} title="Nuovo progetto" hint="Con il wizard" onClick={() => start('project')} />
             <MenuRow icon={<FolderTree className="w-4 h-4 text-gold-text" />} title="Nuovo workstream" hint="In un progetto" onClick={() => start('workstream')} />
             <MenuRow icon={<CheckSquare className="w-4 h-4 text-gold-text" />} title="Nuova task" hint="Ad hoc o in progetto" onClick={() => start('task')} />
@@ -108,6 +115,9 @@ export function QuickCreate() {
 
       {/* modali/wizard in portale: l'header ha backdrop-filter, che ancorerebbe
           i fixed all'header invece che al viewport → li montiamo su document.body */}
+      {mounted && mode === 'client' && createPortal(
+        <NewClientModal onClose={() => setMode(null)}
+          onCreated={(c) => { setMode(null); notifyCreated('Anagrafica creata', `/clienti/${c.id}`); router.refresh() }} />, document.body)}
       {mounted && mode === 'project' && wizardLoaded && createPortal(
         <ProjectWizard clients={clients} profiles={profiles} services={services} templates={templates} nodes={nodes}
           onClose={() => setMode(null)} />, document.body)}
@@ -239,7 +249,7 @@ function TaskModal({ clients, projects, profiles, onClose, onDone, notify }: {
     try {
       if (kind === 'adhoc') {
         await createAdHocTask({ client_id: clientId, title, assignee_id: assignee || null, due_date: dueDate || null, priority, visibility: clientVisible ? 'client_visible' : 'internal' })
-        notify('Task ad hoc creata', `/clienti/${clientId}`)
+        notify('Task ad hoc creata', `/clienti/${clientId}?tab=3`)
       } else {
         await createProjectTask({ client_id: projClientId, project_id: projectId, workstream_id: wsId, milestone_id: msId, title, assignee_id: assignee || null, due_date: dueDate || null, priority })
         notify('Task creata', `/progetti/${projectId}/workstream/${wsId}`)

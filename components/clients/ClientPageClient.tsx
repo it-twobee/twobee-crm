@@ -71,8 +71,8 @@ function InlineTextField({ value, field, clientId, canEdit, className = '' }: {
       {saving
         ? <Loader2 className="w-3 h-3 text-gold-text animate-spin" />
         : <>
-          <button onClick={save}><Check className="w-3 h-3 text-success" /></button>
-          <button onClick={() => { setVal(value); setEditing(false) }}><X className="w-3 h-3 text-error" /></button>
+          <button onClick={save} aria-label="Salva"><Check className="w-3 h-3 text-success" /></button>
+          <button onClick={() => { setVal(value); setEditing(false) }} aria-label="Annulla"><X className="w-3 h-3 text-error" /></button>
         </>}
     </span>
   )
@@ -176,8 +176,8 @@ function InlineNumberField({ value, field, clientId, canEdit, prefix = '', suffi
       {saving
         ? <Loader2 className="w-3 h-3 text-gold-text animate-spin" />
         : <>
-          <button onClick={save}><Check className="w-3 h-3 text-success" /></button>
-          <button onClick={() => { setVal(String(value)); setEditing(false) }}><X className="w-3 h-3 text-error" /></button>
+          <button onClick={save} aria-label="Salva"><Check className="w-3 h-3 text-success" /></button>
+          <button onClick={() => { setVal(String(value)); setEditing(false) }} aria-label="Annulla"><X className="w-3 h-3 text-error" /></button>
         </>}
     </span>
   )
