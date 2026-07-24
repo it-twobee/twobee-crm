@@ -12,8 +12,7 @@ import { updateProjectStatus, updateProjectBrief } from '@/app/actions/projects'
 import { generateRecurringNow } from '@/app/actions/tasks'
 import { createWorkstream } from '@/app/actions/workstreams'
 import { ProjectGantt } from './ProjectGantt'
-import { WorkstreamEditor } from './WorkstreamEditor'
-// TaskViews non più usato qui: la gestione task è dentro WorkstreamEditor
+// La gestione workstream → milestone → task è nella pagina dedicata /workstream/[wsId]
 import type {
   Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate, ProjectStatus, WorkstreamType,
 } from '@/lib/types/database'
@@ -61,11 +60,11 @@ export function ProjectDetailClient({
   const router = useRouter()
   const [pending, start] = useTransition()
   const [tab, setTab] = useState<'panoramica' | 'workstream'>('panoramica')
-  const [openWsId, setOpenWsId] = useState<string | null>(null)
-  const [focusMsId, setFocusMsId] = useState<string | null>(null)
   const [creatingWs, setCreatingWs] = useState(false)
 
-  const openMilestone = (wsId: string, msId: string) => { setFocusMsId(msId); setOpenWsId(wsId); setTab('workstream') }
+  const wsBase = `${backHref.replace(/\/$/, '')}/${project.id}/workstream`
+  const openWorkstream = (wsId: string) => router.push(`${wsBase}/${wsId}`)
+  const openMilestone = (wsId: string, msId: string) => router.push(`${wsBase}/${wsId}?ms=${msId}`)
 
   const name = (id: string | null) => id ? (profiles.find(p => p.id === id)?.full_name ?? '—') : '—'
   const openMs = milestones.filter(m => m.status !== 'completata' && m.milestone_type === 'delivery')
@@ -100,7 +99,6 @@ export function ProjectDetailClient({
       catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
     })
 
-  const openWs = workstreams.find(w => w.id === openWsId) ?? null
   const recurringWs = workstreams.filter(w => w.workstream_type === 'recurring')
   const projectWs = workstreams.filter(w => w.workstream_type === 'project')
 
@@ -192,7 +190,7 @@ export function ProjectDetailClient({
                 ) : (
                   <div className="space-y-1.5">
                     {upcoming.map(t => (
-                      <button key={t.id} onClick={() => { setTab('workstream'); setOpenWsId(t.workstream_id) }}
+                      <button key={t.id} onClick={() => t.workstream_id && openWorkstream(t.workstream_id)}
                         className="w-full flex items-center gap-2 text-left group">
                         <CheckSquare className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
                         <span className="flex-1 text-sm text-text-primary truncate">{t.title}</span>
@@ -241,7 +239,7 @@ export function ProjectDetailClient({
                   {workstreams.slice(0, 6).map(w => {
                     const pr = wsProgress(w.id)
                     return (
-                      <button key={w.id} onClick={() => { setTab('workstream'); setOpenWsId(w.id) }}
+                      <button key={w.id} onClick={() => openWorkstream(w.id)}
                         className="card-interactive bg-background border border-border rounded-xl p-3 text-left no-tap-highlight">
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-text-primary truncate flex-1">{w.name}</span>
@@ -310,28 +308,22 @@ export function ProjectDetailClient({
             {/* Continuative */}
             {recurringWs.length > 0 && (
               <WsGroup title="Continuative" hint="Attività ricorrenti senza fine definita"
-                items={recurringWs} tasks={tasks} onOpen={setOpenWsId} progress={wsProgress} />
+                items={recurringWs} tasks={tasks} onOpen={openWorkstream} progress={wsProgress} />
             )}
             {/* A termine */}
             {projectWs.length > 0 && (
               <WsGroup title="A termine" hint="Con data di inizio e fine"
-                items={projectWs} tasks={tasks} onOpen={setOpenWsId} progress={wsProgress} />
+                items={projectWs} tasks={tasks} onOpen={openWorkstream} progress={wsProgress} />
             )}
           </div>
         )}
       </div>
 
-      {openWs && (
-        <WorkstreamEditor ws={openWs} projectId={project.id} clientId={project.client_id}
-          milestones={milestones} tasks={tasks} recurring={recurring} profiles={profiles}
-          canEdit={canEditTasks} focusMilestoneId={focusMsId}
-          onClose={() => { setOpenWsId(null); setFocusMsId(null) }} />
-      )}
       {creatingWs && (
         <NewWorkstreamModal projectId={project.id} pending={pending}
           onClose={() => setCreatingWs(false)}
           onCreate={(input) => start(async () => {
-            try { const id = await createWorkstream(input); router.refresh(); toast.success('Workstream creata'); setCreatingWs(false); setOpenWsId(id) }
+            try { const id = await createWorkstream(input); toast.success('Workstream creata'); setCreatingWs(false); openWorkstream(id) }
             catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
           })} />
       )}
