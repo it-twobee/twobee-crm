@@ -10,15 +10,15 @@
 
 BEGIN;
 
--- ── trigger updated_at condiviso per tutte le tabelle V2 ────────────────────
+-- -- trigger updated_at condiviso per tutte le tabelle V2 --------------------
 CREATE OR REPLACE FUNCTION public.tbv2_set_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END;
 $$ LANGUAGE plpgsql;
 
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 -- 1) CATALOGO SERVIZI (tassonomia configurabile)
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.service_catalog (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   area            TEXT NOT NULL CHECK (area IN ('marketing','growth','digital')),
@@ -37,9 +37,9 @@ DROP TRIGGER IF EXISTS trg_service_catalog_updated ON public.service_catalog;
 CREATE TRIGGER trg_service_catalog_updated BEFORE UPDATE ON public.service_catalog
   FOR EACH ROW EXECUTE FUNCTION public.tbv2_set_updated_at();
 
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 -- 2) TEMPLATE DI PROGETTO (struttura suggerita per servizio) — dati, non codice
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.project_templates (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   service_type    TEXT NOT NULL,
@@ -77,9 +77,9 @@ CREATE TABLE IF NOT EXISTS public.project_template_nodes (
 CREATE INDEX IF NOT EXISTS idx_ptn_template ON public.project_template_nodes(template_id);
 CREATE INDEX IF NOT EXISTS idx_ptn_parent   ON public.project_template_nodes(parent_id);
 
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 -- 3) PROGETTI
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.projects (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   client_id       UUID NOT NULL REFERENCES public.clients(id) ON DELETE CASCADE,
@@ -121,9 +121,9 @@ CREATE TABLE IF NOT EXISTS public.project_members (
 );
 CREATE INDEX IF NOT EXISTS idx_project_members_profile ON public.project_members(profile_id);
 
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 -- 4) SOTTOPROGETTI (workstream)
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.project_workstreams (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id      UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
@@ -148,9 +148,9 @@ DROP TRIGGER IF EXISTS trg_workstreams_updated ON public.project_workstreams;
 CREATE TRIGGER trg_workstreams_updated BEFORE UPDATE ON public.project_workstreams
   FOR EACH ROW EXECUTE FUNCTION public.tbv2_set_updated_at();
 
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 -- 5) MILESTONE (delivery | system)
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.milestones (
   id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id         UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
@@ -180,9 +180,9 @@ DROP TRIGGER IF EXISTS trg_milestones_updated ON public.milestones;
 CREATE TRIGGER trg_milestones_updated BEFORE UPDATE ON public.milestones
   FOR EACH ROW EXECUTE FUNCTION public.tbv2_set_updated_at();
 
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 -- 6) RICORRENZE (template) — la tabella; il motore di generazione è Fase 4
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.recurring_task_templates (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   client_id           UUID NOT NULL REFERENCES public.clients(id) ON DELETE CASCADE,
@@ -217,9 +217,9 @@ DROP TRIGGER IF EXISTS trg_rtt_updated ON public.recurring_task_templates;
 CREATE TRIGGER trg_rtt_updated BEFORE UPDATE ON public.recurring_task_templates
   FOR EACH ROW EXECUTE FUNCTION public.tbv2_set_updated_at();
 
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 -- 7) TASK (di progetto | ad_hoc)
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.tasks (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   client_id             UUID NOT NULL REFERENCES public.clients(id) ON DELETE CASCADE,
@@ -265,9 +265,9 @@ DROP TRIGGER IF EXISTS trg_tasks_updated ON public.tasks;
 CREATE TRIGGER trg_tasks_updated BEFORE UPDATE ON public.tasks
   FOR EACH ROW EXECUTE FUNCTION public.tbv2_set_updated_at();
 
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 -- 8) MULTI-ASSEGNATARIO + COMMENTI + CHECKLIST
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.task_assignees (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   task_id          UUID NOT NULL REFERENCES public.tasks(id) ON DELETE CASCADE,
@@ -310,9 +310,9 @@ CREATE INDEX IF NOT EXISTS idx_checklist_task ON public.task_checklist_items(tas
 
 COMMIT;
 
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 -- 9) TRIGGER DI DOMINIO (Fase 0): milestone di sistema + sync primario
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 BEGIN;
 
 -- Ogni Sottoprogetto nasce con la milestone di sistema "Operatività continua"

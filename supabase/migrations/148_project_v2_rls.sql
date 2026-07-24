@@ -6,10 +6,10 @@
 -- pattern già in uso nel progetto (INSERT chat_channels → createAdminClient).
 --
 -- Tre livelli di lettura:
---   • admin            → tutto
---   • team INTERNO     → tutto (come clients_team_all)
---   • team ESTERNO     → solo progetti/task dove è membro o assegnato
---   • client/guest     → solo il proprio cliente e solo visibility='client_visible'
+--   * admin            → tutto
+--   * team INTERNO     → tutto (come clients_team_all)
+--   * team ESTERNO     → solo progetti/task dove è membro o assegnato
+--   * client/guest     → solo il proprio cliente e solo visibility='client_visible'
 
 BEGIN;
 
@@ -23,7 +23,7 @@ RETURNS UUID[] AS $$
   );
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
--- ── abilita RLS su tutte le tabelle V2 ──────────────────────────────────────
+-- -- abilita RLS su tutte le tabelle V2 --------------------------------------
 ALTER TABLE public.service_catalog          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_templates        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_template_nodes   ENABLE ROW LEVEL SECURITY;
@@ -37,9 +37,9 @@ ALTER TABLE public.task_assignees           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.task_comments            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.task_checklist_items     ENABLE ROW LEVEL SECURITY;
 
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 -- CATALOGO e TEMPLATE — staff legge, admin scrive (super_admin-only in app layer)
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 CREATE POLICY service_catalog_admin_all ON public.service_catalog
   FOR ALL USING (public.get_my_role() = 'admin') WITH CHECK (public.get_my_role() = 'admin');
 CREATE POLICY service_catalog_staff_read ON public.service_catalog
@@ -55,9 +55,9 @@ CREATE POLICY ptn_admin_all ON public.project_template_nodes
 CREATE POLICY ptn_staff_read ON public.project_template_nodes
   FOR SELECT USING (public.is_staff());
 
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 -- PROJECTS
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 CREATE POLICY projects_admin_all ON public.projects
   FOR ALL USING (public.get_my_role() = 'admin') WITH CHECK (public.get_my_role() = 'admin');
 CREATE POLICY projects_team_internal_read ON public.projects
@@ -70,9 +70,9 @@ CREATE POLICY projects_client_read ON public.projects
                     AND visibility = 'client_visible'
                     AND client_id = public.get_my_client_id_as_client());
 
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 -- PROJECT_MEMBERS
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 CREATE POLICY pm_admin_all ON public.project_members
   FOR ALL USING (public.get_my_role() = 'admin') WITH CHECK (public.get_my_role() = 'admin');
 CREATE POLICY pm_staff_read ON public.project_members
@@ -80,9 +80,9 @@ CREATE POLICY pm_staff_read ON public.project_members
                     AND (NOT public.is_external_resource()
                          OR project_id = ANY (public.get_my_v2_project_ids())));
 
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 -- PROJECT_WORKSTREAMS
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 CREATE POLICY ws_admin_all ON public.project_workstreams
   FOR ALL USING (public.get_my_role() = 'admin') WITH CHECK (public.get_my_role() = 'admin');
 CREATE POLICY ws_team_internal_read ON public.project_workstreams
@@ -97,9 +97,9 @@ CREATE POLICY ws_client_read ON public.project_workstreams
                                 WHERE p.id = project_id
                                   AND p.client_id = public.get_my_client_id_as_client()));
 
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 -- MILESTONES
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 CREATE POLICY ms_admin_all ON public.milestones
   FOR ALL USING (public.get_my_role() = 'admin') WITH CHECK (public.get_my_role() = 'admin');
 CREATE POLICY ms_team_internal_read ON public.milestones
@@ -114,9 +114,9 @@ CREATE POLICY ms_client_read ON public.milestones
                                 WHERE p.id = project_id
                                   AND p.client_id = public.get_my_client_id_as_client()));
 
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 -- RECURRING_TASK_TEMPLATES — nessun accesso client
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 CREATE POLICY rtt_admin_all ON public.recurring_task_templates
   FOR ALL USING (public.get_my_role() = 'admin') WITH CHECK (public.get_my_role() = 'admin');
 CREATE POLICY rtt_team_internal_read ON public.recurring_task_templates
@@ -125,9 +125,9 @@ CREATE POLICY rtt_team_external_read ON public.recurring_task_templates
   FOR SELECT USING (public.get_my_role() = 'team' AND public.is_external_resource()
                     AND project_id = ANY (public.get_my_v2_project_ids()));
 
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 -- TASKS  (client_id diretto; include Ad Hoc)
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 CREATE POLICY tasks_admin_all ON public.tasks
   FOR ALL USING (public.get_my_role() = 'admin') WITH CHECK (public.get_my_role() = 'admin');
 CREATE POLICY tasks_team_internal_read ON public.tasks
@@ -141,9 +141,9 @@ CREATE POLICY tasks_client_read ON public.tasks
                     AND visibility = 'client_visible'
                     AND client_id = public.get_my_client_id_as_client());
 
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 -- TASK_ASSIGNEES / TASK_COMMENTS / TASK_CHECKLIST — allineate al task padre
--- ════════════════════════════════════════════════════════════════════════════
+-- ----------------------------------------------------------------------------
 CREATE POLICY ta_admin_all ON public.task_assignees
   FOR ALL USING (public.get_my_role() = 'admin') WITH CHECK (public.get_my_role() = 'admin');
 CREATE POLICY ta_staff_read ON public.task_assignees
