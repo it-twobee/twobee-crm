@@ -11,11 +11,14 @@ import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import { createAdHocTask } from '@/app/actions/ad-hoc-tasks'
 import { createProjectTask } from '@/app/actions/tasks'
 import { createWorkstream } from '@/app/actions/workstreams'
-import type { WorkstreamType, Priority } from '@/lib/types/database'
+import { ProjectWizard } from '@/components/projects/ProjectWizard'
+import type {
+  WorkstreamType, Priority, ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode,
+} from '@/lib/types/database'
 
 type ClientOpt = { id: string; name: string }
 type ProjectOpt = { id: string; name: string; client_id: string }
-type PersonOpt = { id: string; full_name: string }
+type PersonOpt = { id: string; full_name: string; app_role: string | null }
 type WsOpt = { id: string; name: string }
 type MsOpt = { id: string; title: string; milestone_type: string }
 
@@ -29,6 +32,10 @@ export function QuickCreate() {
   const [clients, setClients] = useState<ClientOpt[]>([])
   const [projects, setProjects] = useState<ProjectOpt[]>([])
   const [profiles, setProfiles] = useState<PersonOpt[]>([])
+  const [services, setServices] = useState<ServiceCatalogEntry[]>([])
+  const [templates, setTemplates] = useState<ProjectTemplate[]>([])
+  const [nodes, setNodes] = useState<ProjectTemplateNode[]>([])
+  const [wizardLoaded, setWizardLoaded] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [rect, setRect] = useState<DOMRect | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
@@ -40,7 +47,7 @@ export function QuickCreate() {
     const [c, p, pr] = await Promise.all([
       sb.from('clients').select('id, company_name, display_name').order('company_name'),
       sb.from('projects').select('id, name, client_id').is('deleted_at', null).order('created_at', { ascending: false }),
-      sb.from('profiles').select('id, full_name').eq('is_active', true).order('full_name'),
+      sb.from('profiles').select('id, full_name, app_role').eq('is_active', true).order('full_name'),
     ])
     setClients((c.data ?? []).map((x: { id: string; company_name: string; display_name: string | null }) => ({ id: x.id, name: x.display_name || x.company_name })))
     setProjects((p.data ?? []) as ProjectOpt[])
@@ -48,16 +55,35 @@ export function QuickCreate() {
     setLoaded(true)
   }, [loaded])
 
+  // dati aggiuntivi per il wizard progetto
+  const ensureWizardData = useCallback(async () => {
+    if (wizardLoaded) return
+    const sb = createBrowserClient()
+    const [s, t, n] = await Promise.all([
+      sb.from('service_catalog').select('*').order('area').order('sort_order'),
+      sb.from('project_templates').select('*').order('sort_order'),
+      sb.from('project_template_nodes').select('*').order('sort_order'),
+    ])
+    setServices((s.data ?? []) as ServiceCatalogEntry[])
+    setTemplates((t.data ?? []) as ProjectTemplate[])
+    setNodes((n.data ?? []) as ProjectTemplateNode[])
+    setWizardLoaded(true)
+  }, [wizardLoaded])
+
   const start = (m: Mode) => {
     setOpen(false)
-    if (m === 'project') { router.push('/progetti?new=1'); return }
-    ensureData(); setMode(m)
+    ensureData()
+    if (m === 'project') ensureWizardData()
+    setMode(m)
   }
 
   const toggleMenu = () => {
     if (!open && btnRef.current) setRect(btnRef.current.getBoundingClientRect())
     setOpen(o => !o)
   }
+
+  const notifyCreated = (label: string, href: string) =>
+    toast.success(label, { action: { label: 'Apri', onClick: () => router.push(href) } })
 
   return (
     <div className="contents">
@@ -80,12 +106,16 @@ export function QuickCreate() {
         document.body,
       )}
 
+      {mode === 'project' && wizardLoaded && (
+        <ProjectWizard clients={clients} profiles={profiles} services={services} templates={templates} nodes={nodes}
+          onClose={() => setMode(null)} />
+      )}
       {mode === 'workstream' && (
-        <WorkstreamModal projects={projects} onClose={() => setMode(null)} onDone={() => { setMode(null); router.refresh() }} />
+        <WorkstreamModal projects={projects} onClose={() => setMode(null)} onDone={() => setMode(null)} notify={notifyCreated} />
       )}
       {mode === 'task' && (
         <TaskModal clients={clients} projects={projects} profiles={profiles}
-          onClose={() => setMode(null)} onDone={() => { setMode(null); router.refresh() }} />
+          onClose={() => setMode(null)} onDone={() => setMode(null)} notify={notifyCreated} />
       )}
     </div>
   )
@@ -106,12 +136,12 @@ function MenuRow({ icon, title, hint, onClick }: { icon: React.ReactNode; title:
 function Shell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-scrim sm:p-4 animate-fade-in" onClick={onClose}>
-      <div className="bg-surface border border-border rounded-t-2xl sm:rounded-2xl w-full max-w-md p-4 space-y-3 shadow-pop animate-slide-up pb-safe" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
+      <div className="bg-surface border border-border rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[92vh] flex flex-col shadow-pop animate-slide-up" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-4 pb-2 shrink-0">
           <h3 className="text-sm font-bold text-text-primary">{title}</h3>
           <button onClick={onClose} aria-label="Chiudi" className="text-text-tertiary hover:text-text-primary"><X className="w-4 h-4" /></button>
         </div>
-        {children}
+        <div className="px-4 pb-4 pb-safe space-y-3 overflow-y-auto">{children}</div>
       </div>
     </div>
   )
@@ -119,7 +149,7 @@ function Shell({ title, onClose, children }: { title: string; onClose: () => voi
 
 const fieldCls = 'w-full bg-background border border-border-interactive rounded-lg px-3 py-2 text-sm text-text-primary'
 
-function WorkstreamModal({ projects, onClose, onDone }: { projects: ProjectOpt[]; onClose: () => void; onDone: () => void }) {
+function WorkstreamModal({ projects, onClose, onDone, notify }: { projects: ProjectOpt[]; onClose: () => void; onDone: () => void; notify: (l: string, h: string) => void }) {
   const [pending, start] = useTransition()
   const [projectId, setProjectId] = useState('')
   const [name, setName] = useState('')
@@ -129,8 +159,8 @@ function WorkstreamModal({ projects, onClose, onDone }: { projects: ProjectOpt[]
 
   const submit = () => start(async () => {
     try {
-      await createWorkstream({ project_id: projectId, name, workstream_type: type, start_date: startDate || null, end_date: endDate || null })
-      toast.success('Workstream creato'); onDone()
+      const wsId = await createWorkstream({ project_id: projectId, name, workstream_type: type, start_date: startDate || null, end_date: endDate || null })
+      notify('Workstream creato', `/progetti/${projectId}/workstream/${wsId}`); onDone()
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
   })
 
@@ -162,8 +192,8 @@ function WorkstreamModal({ projects, onClose, onDone }: { projects: ProjectOpt[]
   )
 }
 
-function TaskModal({ clients, projects, profiles, onClose, onDone }: {
-  clients: ClientOpt[]; projects: ProjectOpt[]; profiles: PersonOpt[]; onClose: () => void; onDone: () => void
+function TaskModal({ clients, projects, profiles, onClose, onDone, notify }: {
+  clients: ClientOpt[]; projects: ProjectOpt[]; profiles: PersonOpt[]; onClose: () => void; onDone: () => void; notify: (l: string, h: string) => void
 }) {
   const [pending, start] = useTransition()
   const [kind, setKind] = useState<'adhoc' | 'project'>('adhoc')
@@ -210,10 +240,12 @@ function TaskModal({ clients, projects, profiles, onClose, onDone }: {
     try {
       if (kind === 'adhoc') {
         await createAdHocTask({ client_id: clientId, title, assignee_id: assignee || null, due_date: dueDate || null, priority, visibility: clientVisible ? 'client_visible' : 'internal' })
+        notify('Task ad hoc creata', `/clienti/${clientId}`)
       } else {
         await createProjectTask({ client_id: projClientId, project_id: projectId, workstream_id: wsId, milestone_id: msId, title, assignee_id: assignee || null, due_date: dueDate || null, priority })
+        notify('Task creata', `/progetti/${projectId}/workstream/${wsId}`)
       }
-      toast.success('Task creata'); onDone()
+      onDone()
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
   })
 

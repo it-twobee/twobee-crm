@@ -149,11 +149,10 @@ export function ProjectWizard({
     start(async () => {
       try {
         const id = await createProjectFromWizard(buildPayload())
-        toast.success('Progetto creato')
-        router.push(`/clienti/${clientId}`)
+        toast.success('Progetto creato', { action: { label: 'Apri', onClick: () => router.push(`/progetti/${id}`) } })
+        router.push(`/progetti/${id}`)
         router.refresh()
         onClose()
-        void id
       } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
     })
   }

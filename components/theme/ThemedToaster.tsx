@@ -9,6 +9,7 @@ export function ThemedToaster() {
   return (
     <Toaster
       theme={theme}
+      position="bottom-right"
       toastOptions={{
         style: {
           background: 'var(--color-surface-hover)',
@@ -16,6 +17,12 @@ export function ThemedToaster() {
           WebkitBackdropFilter: 'blur(16px)',
           border: '1px solid var(--color-border-strong)',
           color: 'var(--color-text-primary)',
+        },
+        actionButtonStyle: {
+          background: 'var(--color-gold)',
+          color: 'var(--color-on-gold)',
+          fontWeight: '600',
+          borderRadius: '8px',
         },
       }}
     />
