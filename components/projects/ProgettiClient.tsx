@@ -32,7 +32,7 @@ const AREA_TONE: Record<string, string> = {
 const AREAS = ['marketing', 'growth', 'digital'] as const
 
 export function ProgettiClient({
-  clients, profiles, services, templates, nodes, projects, workstreams, milestones, calTasks, initialClientId,
+  clients, profiles, services, templates, nodes, projects, workstreams, milestones, calTasks, initialClientId, openWizard,
 }: {
   clients: { id: string; name: string }[]
   profiles: { id: string; full_name: string; app_role: string | null; avatar_url?: string | null }[]
@@ -44,9 +44,10 @@ export function ProgettiClient({
   milestones?: Milestone[]
   calTasks?: Pick<Task, 'id' | 'milestone_id' | 'status' | 'parent_task_id'>[]
   initialClientId?: string
+  openWizard?: boolean
 }) {
   const router = useRouter()
-  const [wizard, setWizard] = useState(!!initialClientId)
+  const [wizard, setWizard] = useState(!!initialClientId || !!openWizard)
   const [q, setQ] = useState('')
   const [area, setArea] = useState<string>('')
 

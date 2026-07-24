@@ -14,6 +14,7 @@ import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { MobileNav } from '@/components/shared/MobileNav'
 import { Logo } from '@/components/shared/Logo'
 import { PortalSwitcher } from '@/components/shared/PortalSwitcher'
+import { QuickCreate } from '@/components/shared/QuickCreate'
 
 interface HeaderProps { profile: Profile | null }
 
@@ -112,6 +113,7 @@ export function Header({ profile }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-1.5 lg:gap-3 ml-auto">
+        <QuickCreate />
         <ThemeToggle collapsed />
 
         {/* Notifications bell */}

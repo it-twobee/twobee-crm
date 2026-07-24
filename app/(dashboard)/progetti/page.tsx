@@ -8,7 +8,7 @@ import type {
 
 export const revalidate = 0
 
-export default async function ProgettiPage({ searchParams }: { searchParams: { client?: string } }) {
+export default async function ProgettiPage({ searchParams }: { searchParams: { client?: string; new?: string } }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -52,6 +52,7 @@ export default async function ProgettiPage({ searchParams }: { searchParams: { c
       milestones={(milestones ?? []) as Milestone[]}
       calTasks={(calTasks ?? []) as Pick<Task, 'id' | 'milestone_id' | 'status' | 'parent_task_id'>[]}
       initialClientId={searchParams.client && clientOpts.some(c => c.id === searchParams.client) ? searchParams.client : undefined}
+      openWizard={searchParams.new === '1'}
     />
   )
 }
