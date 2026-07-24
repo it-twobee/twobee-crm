@@ -26,7 +26,7 @@ export default async function LeMieAttivitaPage() {
   const [{ data: projects }, { data: clients }, { data: profiles }] = await Promise.all([
     projectIds.length ? supabase.from('projects').select('id, name').in('id', projectIds) : Promise.resolve({ data: [] }),
     clientIds.length ? supabase.from('clients').select('id, company_name, display_name').in('id', clientIds) : Promise.resolve({ data: [] }),
-    supabase.from('profiles').select('id, full_name').eq('is_active', true),
+    supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true),
   ])
 
   const projectName: Record<string, string> = {}
@@ -40,7 +40,7 @@ export default async function LeMieAttivitaPage() {
       <p className="text-sm text-text-secondary mb-5">Task assegnate a te, da tutti i progetti e ad hoc.</p>
       <MyTasksClient
         tasks={(tasks ?? []) as Task[]}
-        profiles={(profiles ?? []) as { id: string; full_name: string }[]}
+        profiles={(profiles ?? []) as { id: string; full_name: string; avatar_url: string | null }[]}
         projectName={projectName}
         clientName={clientName}
       />
