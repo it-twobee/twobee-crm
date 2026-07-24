@@ -17,8 +17,6 @@ export type DocumentVisibility =
 export type HrRequestType = 'ferie' | 'permesso' | 'malattia' | 'spesa' | 'documento_hr'
 export type HrRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
 
-export type LeadContactSource = 'meta_ads' | 'google_ads' | 'website' | 'organic' | 'whatsapp' | 'email' | 'referral' | 'other'
-export type LeadContactStatus = 'nuovo' | 'contattato' | 'qualificato' | 'in_trattativa' | 'convertito' | 'perso'
 
 export type ProfilePermissionKey =
   | 'can_view_full_financials' | 'can_view_macro_revenue' | 'can_view_manager_economics'
@@ -715,18 +713,218 @@ export interface VacationBalance {
   remaining_leave_hours: number
 }
 
-export interface LeadContact {
+// ============================================================
+// PROJECT V2 — nuovo motore PM (schema mig 147+)
+// Gerarchia: Cliente → Progetto → Sottoprogetto → Milestone → Task (+ Ad Hoc)
+// ============================================================
+
+export type ProjectArea = 'marketing' | 'growth' | 'digital'
+export type ProjectStatus = 'draft' | 'active' | 'on_hold' | 'completed' | 'archived'
+export type WorkstreamType = 'project' | 'recurring'
+export type WorkstreamStatus = 'draft' | 'active' | 'paused' | 'completed' | 'archived'
+export type MilestoneType = 'delivery' | 'system'
+export type MilestoneStatus = 'da_fare' | 'in_corso' | 'in_approvazione' | 'completata'
+export type TaskType = 'project' | 'ad_hoc'
+export type TaskStatusV2 = 'da_fare' | 'in_corso' | 'in_review' | 'richiesta_supporto' | 'completato'
+export type RecurrenceFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'custom'
+export type Visibility = 'internal' | 'client_visible'
+export type ServiceSubtype = 'crm' | 'management_software' | 'custom_application'
+
+export interface ServiceCatalogEntry {
+  id: string
+  area: ProjectArea
+  service_type: string
+  service_subtype: string | null
+  label: string
+  is_active: boolean
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface Project {
+  id: string
+  client_id: string
+  name: string
+  description: string | null
+  area: ProjectArea
+  service_type: string
+  service_subtype: string | null
+  operating_model: 'una_tantum' | 'continuativo' | 'misto' | null
+  revenue_model: 'fixed' | 'retainer' | 'performance' | 'misto' | null
+  status: ProjectStatus
+  manager_id: string | null
+  priority: Priority
+  visibility: Visibility
+  start_date: string | null
+  target_end_date: string | null
+  actual_end_date: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+}
+
+export interface ProjectMember {
+  id: string
+  project_id: string
+  profile_id: string
+  role_in_project: string | null
+  created_at: string
+}
+
+export interface ProjectWorkstream {
+  id: string
+  project_id: string
+  name: string
+  description: string | null
+  workstream_type: WorkstreamType
+  status: WorkstreamStatus
+  owner_id: string | null
+  priority: Priority
+  visibility: Visibility
+  start_date: string | null
+  end_date: string | null
+  sort_order: number
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Milestone {
+  id: string
+  project_id: string
+  workstream_id: string
+  title: string
+  description: string | null
+  milestone_type: MilestoneType
+  status: MilestoneStatus
+  owner_id: string | null
+  due_date: string | null
+  completed_at: string | null
+  approval_required: boolean
+  approved_by: string | null
+  approved_at: string | null
+  deliverable: string | null
+  completion_criteria: string | null
+  visibility: Visibility
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface RecurringTaskTemplate {
   id: string
   client_id: string
   project_id: string | null
-  source: LeadContactSource | null
-  full_name: string | null
-  email: string | null
-  phone: string | null
-  status: LeadContactStatus
-  notes: string | null
-  metadata: Record<string, unknown>
+  workstream_id: string | null
+  milestone_id: string | null
+  title: string
+  description: string | null
+  frequency: RecurrenceFrequency
+  interval: number
+  recurrence_rule: string | null
+  weekdays: number[] | null
+  day_of_month: number | null
+  start_date: string
+  end_date: string | null
+  generation_lead_days: number
+  owner_id: string | null
+  priority: Priority
+  estimated_hours: number | null
+  visibility: Visibility
+  active: boolean
+  last_generated_at: string | null
+  next_generation_at: string | null
+  created_by: string | null
   created_at: string
   updated_at: string
+}
+
+export interface Task {
+  id: string
+  client_id: string
+  task_type: TaskType
+  project_id: string | null
+  workstream_id: string | null
+  milestone_id: string | null
+  title: string
+  description: string | null
+  status: TaskStatusV2
+  priority: Priority
+  assignee_id: string | null
+  start_date: string | null
+  due_date: string | null
+  estimated_hours: number | null
+  logged_hours: number
+  visibility: Visibility
+  recurring_template_id: string | null
+  is_recurring_instance: boolean
+  generated_for_date: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+}
+
+export interface TaskAssignee {
+  id: string
+  task_id: string
+  profile_id: string
+  is_primary_owner: boolean
+  role_in_task: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TaskComment {
+  id: string
+  task_id: string
+  author_id: string
+  content: string
+  visibility: Visibility
+  created_at: string
+  updated_at: string
+}
+
+export interface TaskChecklistItem {
+  id: string
+  task_id: string
+  content: string
+  is_done: boolean
+  sort_order: number
+  created_at: string
+}
+
+export interface ProjectTemplate {
+  id: string
+  service_type: string
+  service_subtype: string | null
+  name: string
+  description: string | null
+  is_active: boolean
+  sort_order: number
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ProjectTemplateNode {
+  id: string
+  template_id: string
+  parent_id: string | null
+  node_type: 'workstream' | 'milestone' | 'task' | 'recurring_task'
+  name: string
+  description: string | null
+  workstream_type: WorkstreamType | null
+  milestone_type: MilestoneType | null
+  frequency: RecurrenceFrequency | null
+  suggested_owner_role: string | null
+  relative_due_days: number | null
+  priority: Priority | null
+  visibility: Visibility
+  estimated_hours: number | null
+  sort_order: number
+  created_at: string
 }
 
