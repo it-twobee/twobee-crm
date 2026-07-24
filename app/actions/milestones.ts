@@ -48,6 +48,7 @@ export async function updateMilestone(id: string, projectId: string, updates: {
   due_date?: string | null
   deliverable?: string | null
   visibility?: Visibility
+  owner_id?: string | null
 }) {
   await requireStaff()
   const patch: Record<string, unknown> = { ...updates }

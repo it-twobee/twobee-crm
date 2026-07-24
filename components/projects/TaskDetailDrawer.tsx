@@ -108,11 +108,6 @@ export function TaskDetailDrawer({
                 onBlur={e => act(() => updateTask(task.id, { due_date: e.target.value || null }))}
                 className="w-full bg-background border border-border-interactive rounded px-2 py-1.5 text-2xs text-text-primary" />
             </Meta>
-            <Meta label="Ore stimate">
-              <input type="number" step="0.5" defaultValue={task.estimated_hours ?? ''} disabled={!canEdit}
-                onBlur={e => act(() => updateTask(task.id, { estimated_hours: e.target.value ? Number(e.target.value) : null }))}
-                className="w-full bg-background border border-border-interactive rounded px-2 py-1.5 text-2xs text-text-primary" />
-            </Meta>
             <Meta label="Visibilità">
               <select value={task.visibility} disabled={!canEdit || pending}
                 onChange={e => act(() => updateTask(task.id, { visibility: e.target.value as Visibility }))}

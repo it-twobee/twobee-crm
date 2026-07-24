@@ -62,7 +62,10 @@ export function ProjectDetailClient({
   const [pending, start] = useTransition()
   const [tab, setTab] = useState<'panoramica' | 'workstream'>('panoramica')
   const [openWsId, setOpenWsId] = useState<string | null>(null)
+  const [focusMsId, setFocusMsId] = useState<string | null>(null)
   const [creatingWs, setCreatingWs] = useState(false)
+
+  const openMilestone = (wsId: string, msId: string) => { setFocusMsId(msId); setOpenWsId(wsId); setTab('workstream') }
 
   const name = (id: string | null) => id ? (profiles.find(p => p.id === id)?.full_name ?? '—') : '—'
   const openMs = milestones.filter(m => m.status !== 'completata' && m.milestone_type === 'delivery')
@@ -280,8 +283,8 @@ export function ProjectDetailClient({
 
         {tab === 'workstream' && (
           <div className="max-w-6xl space-y-6 animate-fade-in">
-            {/* Gantt / timeline milestone di tutto il progetto */}
-            <ProjectGantt workstreams={workstreams} milestones={milestones} onOpenWorkstream={setOpenWsId} />
+            {/* Calendario milestone di tutto il progetto */}
+            <ProjectGantt workstreams={workstreams} milestones={milestones} onOpenMilestone={openMilestone} />
 
             {/* toolbar */}
             <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -321,7 +324,8 @@ export function ProjectDetailClient({
       {openWs && (
         <WorkstreamEditor ws={openWs} projectId={project.id} clientId={project.client_id}
           milestones={milestones} tasks={tasks} recurring={recurring} profiles={profiles}
-          canEdit={canEditTasks} onClose={() => setOpenWsId(null)} />
+          canEdit={canEditTasks} focusMilestoneId={focusMsId}
+          onClose={() => { setOpenWsId(null); setFocusMsId(null) }} />
       )}
       {creatingWs && (
         <NewWorkstreamModal projectId={project.id} pending={pending}

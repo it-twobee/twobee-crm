@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   X, Plus, Flag, CheckSquare, ChevronDown, ChevronRight, Trash2, Repeat,
-  Pencil, CornerDownRight, Loader2,
+  Pencil, CornerDownRight, Loader2, Calendar, User,
 } from 'lucide-react'
 import { createMilestone, updateMilestone, deleteMilestone } from '@/app/actions/milestones'
 import { updateWorkstream, deleteWorkstream } from '@/app/actions/workstreams'
@@ -27,7 +27,7 @@ const WS_STATUS_LABEL: Record<string, string> = {
 }
 
 export function WorkstreamEditor({
-  ws, projectId, clientId, milestones, tasks, recurring, profiles, canEdit, onClose,
+  ws, projectId, clientId, milestones, tasks, recurring, profiles, canEdit, focusMilestoneId, onClose,
 }: {
   ws: ProjectWorkstream
   projectId: string
@@ -37,6 +37,7 @@ export function WorkstreamEditor({
   recurring: RecurringTaskTemplate[]
   profiles: Person[]
   canEdit: boolean
+  focusMilestoneId?: string | null
   onClose: () => void
 }) {
   const router = useRouter()
@@ -86,7 +87,7 @@ export function WorkstreamEditor({
           {wsMilestones.map(m => (
             <MilestoneBlock key={m.id} m={m} projectId={projectId} clientId={clientId} wsId={ws.id}
               tasks={topTasks(m.id)} subtasksOf={subtasks} profiles={profiles} canEdit={canEdit}
-              act={act} pending={pending} onOpenTask={setTaskDetail} />
+              act={act} pending={pending} onOpenTask={setTaskDetail} focus={m.id === focusMilestoneId} />
           ))}
 
           {/* ricorrenti della workstream (read-only qui) */}
@@ -145,7 +146,7 @@ export function WorkstreamEditor({
 }
 
 function MilestoneBlock({
-  m, projectId, clientId, wsId, tasks, subtasksOf, profiles, canEdit, act, pending, onOpenTask,
+  m, projectId, clientId, wsId, tasks, subtasksOf, profiles, canEdit, act, pending, onOpenTask, focus,
 }: {
   m: Milestone
   projectId: string
@@ -158,17 +159,29 @@ function MilestoneBlock({
   act: (fn: () => Promise<unknown>, ok?: string) => void
   pending: boolean
   onOpenTask: (t: Task) => void
+  focus?: boolean
 }) {
   const [open, setOpen] = useState(true)
   const [addingTask, setAddingTask] = useState(false)
   const [newTask, setNewTask] = useState('')
   const [editingTitle, setEditingTitle] = useState(false)
   const [title, setTitle] = useState(m.title)
+  const ref = useRef<HTMLDivElement>(null)
+
+  // milestone aperta da un click sul calendario: scrolla in vista + apre l'edit del titolo
+  useEffect(() => {
+    if (focus && ref.current) {
+      ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      if (canEdit && m.milestone_type !== 'system') { setTitle(m.title); setEditingTitle(true) }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus])
 
   const done = tasks.filter(t => t.status === 'completato').length
+  const ownerName = m.owner_id ? (profiles.find(p => p.id === m.owner_id)?.full_name ?? '—') : null
 
   return (
-    <div className="bg-background border border-border rounded-xl">
+    <div ref={ref} className={`bg-background border rounded-xl transition-colors ${focus ? 'border-gold shadow-soft' : 'border-border'}`}>
       <div className="flex items-center gap-2 p-3">
         <button onClick={() => setOpen(o => !o)} aria-label="Espandi" className="text-text-tertiary shrink-0">
           {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -205,6 +218,27 @@ function MilestoneBlock({
 
       {open && (
         <div className="border-t border-border p-2 pl-4 space-y-1">
+          {/* meta milestone: scadenza + assegnatario */}
+          {m.milestone_type !== 'system' && (
+            <div className="flex flex-wrap items-center gap-3 px-1 pb-2 mb-1 border-b border-border/60">
+              <label className="flex items-center gap-1.5 text-2xs text-text-tertiary">
+                <Calendar className="w-3.5 h-3.5" />
+                <input type="date" defaultValue={m.due_date ?? ''} disabled={!canEdit}
+                  onBlur={e => { if (e.target.value !== (m.due_date ?? '')) act(() => updateMilestone(m.id, projectId, { due_date: e.target.value || null }), 'Scadenza aggiornata') }}
+                  className="bg-surface border border-border-interactive rounded px-2 py-1 text-2xs text-text-primary" />
+              </label>
+              <label className="flex items-center gap-1.5 text-2xs text-text-tertiary">
+                <User className="w-3.5 h-3.5" />
+                <select value={m.owner_id ?? ''} disabled={!canEdit}
+                  onChange={e => act(() => updateMilestone(m.id, projectId, { owner_id: e.target.value || null }), 'Assegnatario aggiornato')}
+                  className="bg-surface border border-border-interactive rounded px-2 py-1 text-2xs text-text-primary">
+                  <option value="">Nessun responsabile</option>
+                  {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                </select>
+              </label>
+              {ownerName && <span className="text-2xs text-text-tertiary">· {ownerName}</span>}
+            </div>
+          )}
           {tasks.length === 0 && <p className="text-2xs text-text-tertiary px-2 py-1">Nessuna task.</p>}
           {tasks.map(t => (
             <TaskRow key={t.id} t={t} subs={subtasksOf(t.id)} projectId={projectId} clientId={clientId} wsId={wsId} milestoneId={m.id}
