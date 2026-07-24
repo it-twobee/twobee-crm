@@ -205,7 +205,7 @@ export function CalendarioClient({
 
   return (
     <div className="flex h-full">
-      <div className="flex-1 p-6 flex flex-col">
+      <div className="flex-1 p-4 sm:p-6 flex flex-col min-w-0">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">

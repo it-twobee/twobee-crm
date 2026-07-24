@@ -664,9 +664,9 @@ export function ImpostazioniClient({ currentProfile, profiles, permissions, invi
   const godMode = isSuperAdmin(currentProfile)
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-black text-text-primary mb-1">Impostazioni</h1>
+        <h1 className="text-2xl sm:text-3xl font-black text-text-primary font-heading mb-1">Impostazioni</h1>
         <p className="text-text-secondary text-sm">Gestione utenti, ruoli, permessi e approvazioni</p>
       </div>
 

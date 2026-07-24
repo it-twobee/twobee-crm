@@ -405,7 +405,7 @@ function AnalyticsView({ tickets, clients }: { tickets: TicketWithClient[]; clie
 
       <div className="grid md:grid-cols-2 gap-5">
         {/* Trend mensile */}
-        <div className="bg-surface border border-border rounded-xl p-5">
+        <div className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-4 h-4 text-gold-text" />
             <p className="text-sm font-bold text-text-primary">Trend ultimi 6 mesi</p>
@@ -427,7 +427,7 @@ function AnalyticsView({ tickets, clients }: { tickets: TicketWithClient[]; clie
         </div>
 
         {/* Top clienti */}
-        <div className="bg-surface border border-border rounded-xl p-5">
+        <div className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
           <div className="flex items-center gap-2 mb-4">
             <Users className="w-4 h-4 text-gold-text" />
             <p className="text-sm font-bold text-text-primary">Top clienti</p>
@@ -455,7 +455,7 @@ function AnalyticsView({ tickets, clients }: { tickets: TicketWithClient[]; clie
 
       <div className="grid md:grid-cols-2 gap-5">
         {/* Distribuzione priorità */}
-        <div className="bg-surface border border-border rounded-xl p-5">
+        <div className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
           <div className="flex items-center gap-2 mb-4">
             <BarChart2 className="w-4 h-4 text-gold-text" />
             <p className="text-sm font-bold text-text-primary">Per urgenza</p>
@@ -479,7 +479,7 @@ function AnalyticsView({ tickets, clients }: { tickets: TicketWithClient[]; clie
         </div>
 
         {/* Distribuzione categoria */}
-        <div className="bg-surface border border-border rounded-xl p-5">
+        <div className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
           <div className="flex items-center gap-2 mb-4">
             <Shield className="w-4 h-4 text-gold-text" />
             <p className="text-sm font-bold text-text-primary">Per categoria</p>
@@ -504,7 +504,7 @@ function AnalyticsView({ tickets, clients }: { tickets: TicketWithClient[]; clie
       </div>
 
       {/* Status snapshot */}
-      <div className="bg-surface border border-border rounded-xl p-5">
+      <div className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
         <div className="flex items-center gap-2 mb-4">
           <Clock className="w-4 h-4 text-gold-text" />
           <p className="text-sm font-bold text-text-primary">Snapshot status attuale</p>
