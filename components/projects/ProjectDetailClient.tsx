@@ -102,6 +102,34 @@ export function ProjectDetailClient({
   const recurringWs = workstreams.filter(w => w.workstream_type === 'recurring')
   const projectWs = workstreams.filter(w => w.workstream_type === 'project')
 
+  // ── Segnali PM (per la Signal Bar del tab Workstream) ─────────────────────
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const in7 = (() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10) })()
+  const dueSoon = tasks.filter(t => t.due_date && t.status !== 'completato' && t.due_date >= todayStr && t.due_date <= in7)
+  const unassigned = openTasks.filter(t => !t.assignee_id)
+  const nextDelivery = nextMs
+
+  // health di una workstream: dai suoi task → red (overdue) / amber (≤7gg) / green / grey
+  const wsHealth = (wsId: string): 'red' | 'amber' | 'green' | 'grey' => {
+    const wt = tasks.filter(t => t.workstream_id === wsId && t.status !== 'completato')
+    if (wt.some(isOverdue)) return 'red'
+    if (wt.some(t => t.due_date && t.due_date >= todayStr && t.due_date <= in7)) return 'amber'
+    if (tasks.some(t => t.workstream_id === wsId)) return 'green'
+    return 'grey'
+  }
+  const wsNextMilestone = (wsId: string) => milestones
+    .filter(m => m.workstream_id === wsId && m.milestone_type === 'delivery' && m.status !== 'completata' && m.due_date)
+    .sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1))[0]
+  const wsOverdueCount = (wsId: string) => tasks.filter(t => t.workstream_id === wsId && isOverdue(t)).length
+  const wsOwners = (wsId: string) => {
+    const ids = new Set<string>()
+    const w = workstreams.find(x => x.id === wsId)
+    if (w?.owner_id) ids.add(w.owner_id)
+    milestones.filter(m => m.workstream_id === wsId && m.owner_id).forEach(m => ids.add(m.owner_id!))
+    tasks.filter(t => t.workstream_id === wsId && t.assignee_id).forEach(t => ids.add(t.assignee_id!))
+    return Array.from(ids).map(id => profiles.find(p => p.id === id)).filter(Boolean) as Person[]
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className="px-4 sm:px-6 pt-5 pb-3">
@@ -280,13 +308,22 @@ export function ProjectDetailClient({
         )}
 
         {tab === 'workstream' && (
-          <div className="max-w-6xl space-y-6 animate-fade-in">
-            {/* Calendario milestone di tutto il progetto */}
-            <ProjectGantt workstreams={workstreams} milestones={milestones} onOpenMilestone={openMilestone} />
+          <div className="max-w-6xl space-y-5 animate-fade-in">
+            {/* ── Signal Bar ── */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+              <Signal label="In ritardo" value={overdue.length} icon={<AlertTriangle className="w-4 h-4" />} tone={overdue.length ? 'error' : 'neutral'} />
+              <Signal label="Scade ≤ 7 giorni" value={dueSoon.length} icon={<Clock className="w-4 h-4" />} tone={dueSoon.length ? 'warning' : 'neutral'} />
+              <Signal label="Non assegnate" value={unassigned.length} icon={<Users className="w-4 h-4" />} tone={unassigned.length ? 'info' : 'neutral'} />
+              <Signal label="Avanzamento" value={`${progress}%`} icon={<ListChecks className="w-4 h-4" />} tone="gold" bar={progress}
+                sub={nextDelivery ? `Prossima: ${nextDelivery.title}` : undefined} />
+            </div>
 
-            {/* toolbar */}
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <h3 className="text-sm font-bold text-text-primary">Workstream</h3>
+            {/* ── Calendario milestone a swimlane ── */}
+            <ProjectGantt workstreams={workstreams} milestones={milestones} profiles={profiles} onOpenMilestone={openMilestone} />
+
+            {/* ── toolbar ── */}
+            <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
+              <h3 className="text-xl font-bold text-text-primary font-heading">Workstream <span className="text-text-tertiary text-sm font-sans">· {workstreams.length}</span></h3>
               <div className="flex items-center gap-2">
                 {recurring.some(r => r.active) && (
                   <button onClick={genRecurring} disabled={pending}
@@ -303,17 +340,31 @@ export function ProjectDetailClient({
               </div>
             </div>
 
-            {workstreams.length === 0 && <Empty text="Nessuna workstream. Creane una per organizzare milestone e task." />}
+            {workstreams.length === 0 && (
+              <div className="text-center py-14 border border-dashed border-border rounded-2xl">
+                <div className="w-12 h-12 rounded-full bg-gold-dim flex items-center justify-center mx-auto mb-3">
+                  <FolderTree className="w-6 h-6 text-gold-text" />
+                </div>
+                <p className="text-sm text-text-secondary mb-3">Nessuna workstream. Organizza il progetto in filoni operativi.</p>
+                {canManageProject && (
+                  <button onClick={() => setCreatingWs(true)} className="text-2xs font-semibold bg-gold text-on-gold px-4 py-2 rounded-lg shadow-soft press">
+                    Crea la prima workstream
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Continuative */}
             {recurringWs.length > 0 && (
               <WsGroup title="Continuative" hint="Attività ricorrenti senza fine definita"
-                items={recurringWs} tasks={tasks} onOpen={openWorkstream} progress={wsProgress} />
+                items={recurringWs} onOpen={openWorkstream} progress={wsProgress}
+                health={wsHealth} nextMs={wsNextMilestone} overdueOf={wsOverdueCount} ownersOf={wsOwners} />
             )}
             {/* A termine */}
             {projectWs.length > 0 && (
               <WsGroup title="A termine" hint="Con data di inizio e fine"
-                items={projectWs} tasks={tasks} onOpen={openWorkstream} progress={wsProgress} />
+                items={projectWs} onOpen={openWorkstream} progress={wsProgress}
+                health={wsHealth} nextMs={wsNextMilestone} overdueOf={wsOverdueCount} ownersOf={wsOwners} />
             )}
           </div>
         )}
@@ -383,9 +434,50 @@ function ProjectBrief({ projectId, initial, canEdit }: { projectId: string; init
   )
 }
 // Gruppo di workstream (Continuative / A termine)
-function WsGroup({ title, hint, items, tasks, onOpen, progress }: {
-  title: string; hint: string; items: ProjectWorkstream[]; tasks: Task[]
-  onOpen: (id: string) => void; progress: (id: string) => number | null
+// Signal chip della Signal Bar
+function Signal({ label, value, icon, tone, bar, sub }: {
+  label: string; value: number | string; icon: React.ReactNode
+  tone: 'error' | 'warning' | 'info' | 'gold' | 'neutral'; bar?: number; sub?: string
+}) {
+  const toneCls =
+    tone === 'error' ? 'bg-error-dim text-error' :
+    tone === 'warning' ? 'bg-warning-dim text-warning' :
+    tone === 'info' ? 'bg-info-dim text-info' :
+    tone === 'gold' ? 'bg-surface text-gold-text' :
+    'bg-surface text-text-tertiary'
+  return (
+    <div className={`border border-border rounded-2xl px-3.5 py-3 shadow-soft ${tone === 'neutral' || tone === 'gold' ? 'bg-surface' : toneCls}`}>
+      <div className="flex items-center justify-between">
+        <span className="text-2xl font-black tabular font-heading text-text-primary">{value}</span>
+        <span className={tone === 'neutral' ? 'text-text-tertiary' : tone === 'gold' ? 'text-gold-text' : ''}>{icon}</span>
+      </div>
+      <div className="text-2xs text-text-tertiary mt-0.5 truncate">{label}</div>
+      {bar !== undefined && (
+        <div className="h-1 bg-surface-active rounded-full overflow-hidden mt-1.5"><div className="h-full bg-gold rounded-full" style={{ width: `${bar}%` }} /></div>
+      )}
+      {sub && <div className="text-2xs text-text-tertiary mt-1 truncate">{sub}</div>}
+    </div>
+  )
+}
+
+const HEALTH_DOT: Record<string, string> = { red: 'bg-error', amber: 'bg-warning', green: 'bg-success', grey: 'bg-text-tertiary' }
+const relDays = (iso: string) => {
+  const d = Math.round((new Date(iso + 'T00:00:00').getTime() - new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00').getTime()) / 86400000)
+  if (d < 0) return { text: `scaduta ${-d}g fa`, tone: 'text-error' }
+  if (d === 0) return { text: 'oggi', tone: 'text-warning' }
+  if (d <= 7) return { text: `tra ${d}g`, tone: 'text-warning' }
+  return { text: iso.slice(5), tone: 'text-text-tertiary' }
+}
+
+// Gruppo workstream come RIGHE ricche
+function WsGroup({ title, hint, items, onOpen, progress, health, nextMs, overdueOf, ownersOf }: {
+  title: string; hint: string; items: ProjectWorkstream[]
+  onOpen: (id: string) => void
+  progress: (id: string) => number | null
+  health: (id: string) => 'red' | 'amber' | 'green' | 'grey'
+  nextMs: (id: string) => Milestone | undefined
+  overdueOf: (id: string) => number
+  ownersOf: (id: string) => Person[]
 }) {
   return (
     <section>
@@ -393,27 +485,56 @@ function WsGroup({ title, hint, items, tasks, onOpen, progress }: {
         <h4 className="text-2xs font-bold uppercase tracking-wide text-text-tertiary">{title} · {items.length}</h4>
         <p className="text-2xs text-text-tertiary/70">{hint}</p>
       </div>
-      <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="rounded-2xl border border-border shadow-soft overflow-hidden divide-y divide-border">
         {items.map(w => {
-          const pr = progress(w.id)
-          const wt = tasks.filter(t => t.workstream_id === w.id)
+          const pr = progress(w.id) ?? 0
+          const nm = nextMs(w.id)
+          const od = overdueOf(w.id)
+          const owners = ownersOf(w.id).slice(0, 4)
+          const rel = nm?.due_date ? relDays(nm.due_date) : null
+          const h = health(w.id)
           return (
             <button key={w.id} onClick={() => onOpen(w.id)}
-              className="card-interactive bg-surface border border-border rounded-2xl p-4 shadow-soft text-left no-tap-highlight">
-              <div className="flex items-center gap-2">
-                <FolderTree className="w-4 h-4 text-gold-text shrink-0" />
-                <span className="text-sm font-semibold text-text-primary truncate flex-1">{w.name}</span>
-                <ChevronRight className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
-              </div>
-              {w.workstream_type === 'project' && (w.start_date || w.end_date) && (
-                <p className="text-2xs text-text-tertiary mt-1 tabular">{w.start_date ?? '—'} → {w.end_date ?? '—'}</p>
-              )}
-              <div className="flex items-center gap-2 mt-2">
-                <div className="h-1 bg-surface-active rounded-full overflow-hidden flex-1">
-                  <div className="h-full bg-gold rounded-full" style={{ width: `${pr ?? 0}%` }} />
+              className="w-full flex items-center gap-3 p-3 sm:p-3.5 text-left hover:bg-surface-hover transition-colors group no-tap-highlight bg-surface">
+              {/* semaforo */}
+              <span className={`w-1 self-stretch rounded-full shrink-0 ${HEALTH_DOT[h]}`} aria-hidden />
+              {/* nome + tipo + date */}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-text-primary truncate">{w.name}</span>
+                  {w.workstream_type === 'recurring'
+                    ? <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-success-dim text-success shrink-0">Continuativa</span>
+                    : <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-surface-active text-text-tertiary shrink-0">A termine</span>}
                 </div>
-                <span className="text-2xs text-text-tertiary tabular shrink-0">{wt.length} task</span>
+                <div className="flex items-center gap-2 mt-1">
+                  {w.workstream_type === 'project' && (w.start_date || w.end_date) && (
+                    <span className="text-2xs text-text-tertiary tabular">{w.start_date ?? '—'} → {w.end_date ?? '—'}</span>
+                  )}
+                  {nm && rel && (
+                    <span className="text-2xs flex items-center gap-1">
+                      <Flag className="w-3 h-3 text-info" /><span className="text-text-secondary truncate max-w-[140px]">{nm.title}</span>
+                      <span className={rel.tone}>· {rel.text}</span>
+                    </span>
+                  )}
+                </div>
               </div>
+              {/* progress */}
+              <div className="hidden sm:flex items-center gap-2 w-28 shrink-0">
+                <div className="h-1.5 bg-surface-active rounded-full overflow-hidden flex-1"><div className="h-full bg-gold rounded-full" style={{ width: `${pr}%` }} /></div>
+                <span className="text-2xs text-text-tertiary tabular w-8 text-right">{pr}%</span>
+              </div>
+              {/* contatore ritardo */}
+              {od > 0 && <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-error-dim text-error shrink-0 tabular">{od} in ritardo</span>}
+              {/* avatar owner */}
+              <div className="hidden sm:flex items-center shrink-0">
+                {owners.map((p, i) => (
+                  <span key={p.id} style={{ marginLeft: i ? -6 : 0 }}
+                    className="w-6 h-6 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center text-2xs font-bold text-gold-text overflow-hidden" title={p.full_name}>
+                    {p.avatar_url ? <img src={p.avatar_url} className="w-full h-full object-cover" alt="" /> : p.full_name[0].toUpperCase()}
+                  </span>
+                ))}
+              </div>
+              <ChevronRight className="w-4 h-4 text-text-tertiary shrink-0 group-hover:translate-x-0.5 transition-transform" />
             </button>
           )
         })}
@@ -480,7 +601,4 @@ function Stat({ label, value, tone, icon }: { label: string; value: number; tone
       <div className="text-2xs text-text-tertiary mt-0.5">{label}</div>
     </div>
   )
-}
-function Empty({ text }: { text: string }) {
-  return <p className="text-sm text-text-tertiary text-center py-8">{text}</p>
 }
