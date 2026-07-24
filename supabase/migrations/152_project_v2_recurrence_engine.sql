@@ -51,7 +51,8 @@ BEGIN
         AND ((((EXTRACT(year FROM g) - EXTRACT(year FROM t.start_date)) * 12
               + (EXTRACT(month FROM g) - EXTRACT(month FROM t.start_date)))::int) % 3) = 0)
     )
-  ON CONFLICT (recurring_template_id, generated_for_date) DO NOTHING;
+  ON CONFLICT (recurring_template_id, generated_for_date)
+    WHERE recurring_template_id IS NOT NULL DO NOTHING;
 
   GET DIAGNOSTICS v_count = ROW_COUNT;
 
