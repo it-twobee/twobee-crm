@@ -161,14 +161,14 @@ export function ProjectWizard({
   const clientName = clients.find(c => c.id === clientId)?.name ?? ''
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim p-4" onClick={onClose}>
-      <div className="bg-surface border border-border rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-scrim sm:p-4 animate-fade-in" onClick={onClose}>
+      <div className="bg-surface border border-border rounded-t-2xl sm:rounded-2xl w-full max-w-3xl h-[92vh] sm:max-h-[90vh] sm:h-auto flex flex-col shadow-pop animate-slide-up pb-safe" onClick={e => e.stopPropagation()}>
         {/* header + stepper */}
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h2 className="text-base font-bold text-text-primary">Nuovo progetto</h2>
           <button onClick={onClose} aria-label="Chiudi" className="text-text-tertiary hover:text-text-primary"><X className="w-5 h-5" /></button>
         </div>
-        <div className="flex items-center gap-1 px-4 py-3 border-b border-border overflow-x-auto">
+        <div className="flex items-center gap-1 px-4 py-3 border-b border-border scroll-x-touch">
           {STEPS.map((s, i) => (
             <div key={s} className="flex items-center gap-1 shrink-0">
               <span className={`text-2xs font-semibold px-2 py-1 rounded ${

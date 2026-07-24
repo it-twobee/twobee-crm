@@ -150,7 +150,7 @@ function BoardView({ tasks, pName, canEdit, onOpen, onMove, pending }: {
 }) {
   const [dragId, setDragId] = useState<string | null>(null)
   return (
-    <div className="flex gap-3 overflow-x-auto pb-2">
+    <div className="flex gap-3 scroll-x-touch pb-2">
       {COLUMNS.map(col => {
         const items = tasks.filter(t => t.status === col.key)
         return (

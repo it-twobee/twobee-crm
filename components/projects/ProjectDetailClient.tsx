@@ -67,17 +67,17 @@ export function ProjectDetailClient({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="px-6 pt-5 pb-3">
-        <Link href={backHref} className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary w-fit">
+      <div className="px-4 sm:px-6 pt-5 pb-3">
+        <Link href={backHref} className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary w-fit press">
           <ArrowLeft className="w-4 h-4" />Tutti i progetti
         </Link>
       </div>
 
       {/* header */}
-      <div className="px-6 pb-5 border-b border-border">
+      <div className="px-4 sm:px-6 pb-5 border-b border-border">
         <div className="flex items-start gap-4 flex-wrap">
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-black text-text-primary">{project.name}</h1>
+            <h1 className="text-2xl sm:text-3xl font-black text-text-primary font-heading break-words">{project.name}</h1>
             <div className="flex flex-wrap items-center gap-3 mt-2 text-sm">
               <Link href={`/clienti/${project.client_id}`} className="text-gold-text hover:underline">{clientName}</Link>
               <span className="text-text-tertiary text-xs uppercase">{project.area} · {project.service_type}{project.service_subtype ? `/${project.service_subtype}` : ''}</span>
@@ -102,16 +102,16 @@ export function ProjectDetailClient({
       </div>
 
       {/* tabs */}
-      <div className="flex border-b border-border px-6 overflow-x-auto">
+      <div className="flex border-b border-border px-4 sm:px-6 scroll-x-touch">
         {(['panoramica', 'sottoprogetti', 'milestone', 'task'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={`px-4 py-3.5 text-sm font-semibold border-b-2 whitespace-nowrap capitalize ${
+            className={`px-4 py-3.5 text-sm font-semibold border-b-2 whitespace-nowrap capitalize transition-colors ${
               tab === t ? 'border-gold text-gold-text' : 'border-transparent text-text-secondary hover:text-text-primary'
             }`}>{t}</button>
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {tab === 'panoramica' && (
           <div className="space-y-5 max-w-3xl">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -238,8 +238,8 @@ function WorkstreamCard({
 
 function Stat({ label, value, tone }: { label: string; value: number; tone?: 'error' }) {
   return (
-    <div className="bg-surface border border-border rounded-lg p-3">
-      <div className={`text-2xl font-black ${tone === 'error' ? 'text-error' : 'text-text-primary'}`}>{value}</div>
+    <div className="bg-surface border border-border rounded-2xl p-3.5 shadow-soft">
+      <div className={`text-2xl font-black tabular font-heading ${tone === 'error' ? 'text-error' : 'text-text-primary'}`}>{value}</div>
       <div className="text-2xs text-text-tertiary mt-0.5">{label}</div>
     </div>
   )

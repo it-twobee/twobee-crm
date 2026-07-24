@@ -63,8 +63,8 @@ export function TaskDetailDrawer({
   const done = checklist ? checklist.filter(c => c.is_done).length : 0
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-scrim" onClick={onClose}>
-      <div className="bg-surface border-l border-border w-full max-w-md h-full flex flex-col" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex justify-end bg-scrim animate-fade-in" onClick={onClose}>
+      <div className="bg-surface border-l border-border w-full max-w-md h-full flex flex-col shadow-drawer animate-slide-in-right pt-safe" onClick={e => e.stopPropagation()}>
         {/* header */}
         <div className="flex items-start justify-between gap-2 p-4 border-b border-border">
           <div className="flex-1 min-w-0">
