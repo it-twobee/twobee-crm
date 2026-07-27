@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   ArrowLeft, Plus, Flag, Trash2, Repeat, Check, CornerDownRight,
-  Calendar, Pencil, AlertTriangle, Clock, Users, ListChecks, EyeOff,
+  Calendar, Pencil, AlertTriangle, Clock, Users, ListChecks, EyeOff, RotateCcw,
 } from 'lucide-react'
 import { createMilestone, updateMilestone, deleteMilestone } from '@/app/actions/milestones'
 import { updateWorkstream, deleteWorkstream } from '@/app/actions/workstreams'
@@ -91,6 +91,7 @@ export function WorkstreamPageClient({
   const systemMs = milestones.filter(m => m.milestone_type === 'system')
   const systemMilestoneId = systemMs[0]?.id ?? deliveryMs[0]?.id ?? ''
 
+  const wsDone = ws.status === 'completed'
   const allTasks = tasks.filter(t => !t.parent_task_id)
   const done = tasks.filter(t => t.status === 'completato').length
   const progress = tasks.length ? Math.round((done / tasks.length) * 100) : 0
@@ -163,6 +164,37 @@ export function WorkstreamPageClient({
               ) : <span className="text-2xs text-text-tertiary">{WS_STATUS_LABEL[ws.status]}</span>}
               {ws.visibility === 'internal' && (
                 <span className="flex items-center gap-1 text-2xs text-text-tertiary"><EyeOff className="w-3 h-3" />interna</span>
+              )}
+              {/* i workstream a termine si chiudono; quelli continuativi per definizione no */}
+              {canEdit && ws.workstream_type === 'project' && (
+                wsDone ? (
+                  <button onClick={() => act(() => updateWorkstream(ws.id, project.id, { status: 'active' }), 'Workstream riaperto')}
+                    disabled={pending}
+                    className="flex items-center gap-1 text-2xs font-semibold text-text-tertiary hover:text-text-primary disabled:opacity-50">
+                    <RotateCcw className="w-3.5 h-3.5" />Riapri
+                  </button>
+                ) : (
+                  <button disabled={pending}
+                    onClick={() => {
+                      const openHere = tasks.filter(t => t.status !== 'completato')
+                      const openMs = deliveryMs.filter(m => m.status !== 'completata')
+                      const pieces = [
+                        openHere.length ? `${openHere.length} task` : null,
+                        openMs.length ? `${openMs.length} milestone` : null,
+                      ].filter(Boolean).join(' e ')
+                      if (pieces && !confirm(
+                        `"${ws.name}" ha ancora ${pieces} da chiudere.\n\nOK: completa tutto.\nAnnulla: non fare nulla.`,
+                      )) return
+                      act(async () => {
+                        for (const t of tasks.filter(t => t.status !== 'completato')) await updateTaskStatus(t.id, 'completato')
+                        for (const m of deliveryMs.filter(m => m.status !== 'completata')) await updateMilestone(m.id, project.id, { status: 'completata' })
+                        await updateWorkstream(ws.id, project.id, { status: 'completed' })
+                      }, 'Workstream completato')
+                    }}
+                    className="flex items-center gap-1 text-2xs font-semibold text-success border border-success/30 bg-success-dim px-2 py-1 rounded-lg press disabled:opacity-50">
+                    <Check className="w-3.5 h-3.5" />Completa
+                  </button>
+                )
               )}
             </div>
             {editingName && canEdit ? (
@@ -426,6 +458,7 @@ function MilestoneNode({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus])
 
+  const done2 = m.status === 'completata'
   const d = shortDate(m.due_date)
   const rel = m.due_date && m.status !== 'completata' ? relDays(m.due_date) : null
   const overdueMs = !!m.due_date && m.status !== 'completata' && m.due_date < today()
@@ -453,6 +486,26 @@ function MilestoneNode({
         focus ? 'border-gold' : overdueMs ? 'border-error/40' : 'border-border'
       } bg-surface`}>
         <div className="flex items-center gap-2 p-3">
+          {/* completamento in un click, come le task. Se restano task aperte lo dice
+              e offre di chiuderle insieme, invece di lasciare stati incoerenti. */}
+          <button disabled={!canEdit || pending}
+            aria-label={done2 ? 'Riapri milestone' : 'Completa milestone'}
+            onClick={() => {
+              if (done2) { act(() => updateMilestone(m.id, project.id, { status: 'da_fare' }), 'Milestone riaperta'); return }
+              const openHere = totalTasks.filter(t => t.status !== 'completato')
+              if (openHere.length && !confirm(
+                `"${m.title}" ha ${openHere.length} task ancora aperte.\n\nOK: completa milestone e task.\nAnnulla: non fare nulla.`,
+              )) return
+              act(async () => {
+                for (const t of totalTasks.filter(t => t.status !== 'completato')) await updateTaskStatus(t.id, 'completato')
+                await updateMilestone(m.id, project.id, { status: 'completata' })
+              }, 'Milestone completata')
+            }}
+            className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+              done2 ? 'bg-success border-success' : 'border-border-strong hover:border-gold'
+            } disabled:opacity-40`}>
+            {done2 && <Check className="w-3 h-3 text-on-gold" strokeWidth={3} />}
+          </button>
           <span className="w-6 h-6 rounded-lg bg-info-dim flex items-center justify-center text-2xs font-bold text-info shrink-0 tabular">
             {index + 1}
           </span>
@@ -464,7 +517,9 @@ function MilestoneNode({
               className="flex-1 bg-background border border-border-interactive rounded-lg px-2 py-1 text-sm font-semibold text-text-primary" />
           ) : (
             <button onClick={() => canEdit && m.milestone_type !== 'system' && setEditingTitle(true)}
-              className="flex-1 min-w-0 text-left text-sm font-semibold text-text-primary truncate hover:text-gold-text">
+              className={`flex-1 min-w-0 text-left text-sm font-semibold truncate hover:text-gold-text ${
+                done2 ? 'text-text-tertiary line-through' : 'text-text-primary'
+              }`}>
               {m.title}
             </button>
           )}

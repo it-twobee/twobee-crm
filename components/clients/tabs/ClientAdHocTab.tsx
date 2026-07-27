@@ -10,6 +10,7 @@ import { createAdHocTask, setAdHocTaskStatus, deleteAdHocTask, updateAdHocTask }
 import { Avatar, SearchInput, Empty } from '@/components/shared/formkit'
 import { NewTaskModal, type NewTaskValues } from '@/components/projects/NewTaskModal'
 import { AdHocDetailModal, type AssignablePerson, type AdHocPatch } from '@/components/adhoc/AdHocDetailModal'
+import { SUPERVISOR_ROLE } from '@/lib/task-roles'
 import type { Profile, Priority, Visibility, TaskStatusV2 } from '@/lib/types/database'
 
 type Row = {
@@ -37,19 +38,40 @@ const relDays = (iso: string) => {
 
 type Filter = 'aperte' | 'late' | 'soon' | 'unassigned' | 'tutte'
 
+/** Copy diverse per i due tipi: sono due cose diverse, non due filtri. */
+const KIND_COPY = {
+  ad_hoc: {
+    title: 'Task Ad Hoc',
+    hint: 'Attività nostre, fuori progetto: richieste veloci, extra, favori. Le facciamo noi.',
+    empty: 'Nessuna task ad hoc.',
+    emptyHint: 'Quello che non sta in un progetto, e che facciamo noi, sta qui.',
+    context: 'Ad hoc',
+  },
+  cliente: {
+    title: 'Task al cliente',
+    hint: 'Cose che deve fare il cliente: materiali, approvazioni, accessi. Sempre visibili nel suo portale.',
+    empty: 'Nessuna task in carico al cliente.',
+    emptyHint: 'Quando aspetti qualcosa da lui, mettilo qui invece che in una mail.',
+    context: 'Al cliente',
+  },
+} as const
+
 export function ClientAdHocTab({
-  clientId, clientName, profiles, canManage,
+  clientId, clientName, profiles, canManage, kind = 'ad_hoc',
 }: {
   clientId: string
   clientName?: string
   profiles: Pick<Profile, 'id' | 'full_name' | 'avatar_url' | 'app_role'>[]
   canManage: boolean
+  kind?: 'ad_hoc' | 'cliente'
 }) {
+  const copy = KIND_COPY[kind]
   const [rows, setRows] = useState<Row[] | null>(null)
   const [pending, start] = useTransition()
   const [adding, setAdding] = useState(false)
   const [detail, setDetail] = useState<Row | null>(null)
   const [assignable, setAssignable] = useState<AssignablePerson[]>([])
+  const [supervisors, setSupervisors] = useState<Map<string, string>>(new Map())
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<Filter>('aperte')
 
@@ -66,23 +88,42 @@ export function ClientAdHocTab({
       })
   }, [clientId, profiles])
 
-  const reload = useCallback(() => {
-    createBrowserClient()
+  const reload = useCallback(async () => {
+    const sb = createBrowserClient()
+    const { data } = await sb
       .from('tasks').select('id,title,description,status,priority,due_date,visibility,assignee_id')
-      .eq('client_id', clientId).eq('task_type', 'ad_hoc').is('deleted_at', null)
+      .eq('client_id', clientId).eq('task_type', kind).is('deleted_at', null)
       .order('created_at', { ascending: false })
-      .then(({ data }) => setRows((data ?? []) as Row[]))
-  }, [clientId])
+    const list = (data ?? []) as Row[]
+    setRows(list)
+
+    // chi presidia: secondo livello, non è in tasks.assignee_id
+    if (kind === 'cliente' && list.length) {
+      const { data: sup } = await sb.from('task_assignees')
+        .select('task_id, profile_id').eq('role_in_task', SUPERVISOR_ROLE)
+        .in('task_id', list.map(r => r.id))
+      setSupervisors(new Map((sup ?? []).map(s => [s.task_id as string, s.profile_id as string])))
+    } else setSupervisors(new Map())
+  }, [clientId, kind])
 
   useEffect(() => { reload() }, [reload])
 
   const person = (id: string | null) => id ? profiles.find(p => p.id === id) ?? null : null
 
+  // Su una task "al cliente" il titolare è il suo referente registrato; noi restiamo
+  // secondo livello, a presidiare. Se il cliente non ha ancora un account, il primo
+  // campo resta vuoto e lo dice.
+  const clientContacts = assignable.filter(p => p.client_id === clientId)
+  const internals = assignable.filter(p => p.client_id !== clientId)
+  const defaultContact = clientContacts[0]?.id ?? null
+
   const submit = (v: NewTaskValues, again: boolean) => start(async () => {
     try {
       await createAdHocTask({
         client_id: clientId, title: v.title, assignee_id: v.assignee_id,
+        supervisor_id: v.supervisor_id ?? null,
         due_date: v.due_date, priority: v.priority, visibility: v.visibility,
+        task_type: kind,
       })
       toast.success('Task creata')
       if (!again) setAdding(false)
@@ -135,9 +176,9 @@ export function ClientAdHocTab({
     <div className="max-w-6xl space-y-4">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h2 className="text-lg font-bold text-text-primary font-heading">Task Ad Hoc</h2>
+          <h2 className="text-lg font-bold text-text-primary font-heading">{copy.title}</h2>
           <p className="text-2xs text-text-tertiary mt-0.5">
-            Attività slegate da progetti e milestone: richieste veloci, extra, favori.
+            {copy.hint}
           </p>
         </div>
         {canManage && (
@@ -173,8 +214,8 @@ export function ClientAdHocTab({
           <div className="w-12 h-12 rounded-full bg-gold-dim flex items-center justify-center mx-auto mb-3">
             <ListTodo className="w-6 h-6 text-gold-text" />
           </div>
-          <p className="text-sm text-text-secondary">Nessuna task ad hoc.</p>
-          <p className="text-2xs text-text-tertiary mt-1">Quello che non sta in un progetto, sta qui.</p>
+          <p className="text-sm text-text-secondary">{copy.empty}</p>
+          <p className="text-2xs text-text-tertiary mt-1">{copy.emptyHint}</p>
           {canManage && (
             <button onClick={() => setAdding(true)} className="text-2xs font-semibold bg-gold text-on-gold px-4 py-2 rounded-lg shadow-soft press mt-3">
               Crea la prima
@@ -212,8 +253,25 @@ export function ClientAdHocTab({
                 )}
                 {rel && <span className={`text-2xs tabular shrink-0 ${rel.tone}`}>{rel.text}</span>}
                 {p
-                  ? <span title={p.full_name} className="shrink-0"><Avatar name={p.full_name} url={p.avatar_url} size={22} /></span>
-                  : r.status !== 'completato' && <span className="text-2xs text-warning shrink-0">non assegnata</span>}
+                  ? <span title={kind === 'cliente' ? `Lato cliente: ${p.full_name}` : p.full_name} className="shrink-0">
+                      <Avatar name={p.full_name} url={p.avatar_url} size={22} />
+                    </span>
+                  : r.status !== 'completato' && (
+                      <span className="text-2xs text-warning shrink-0">
+                        {kind === 'cliente' ? 'nessun referente' : 'non assegnata'}
+                      </span>
+                    )}
+                {/* secondo livello: chi da noi presidia la task del cliente */}
+                {kind === 'cliente' && (() => {
+                  const s = person(supervisors.get(r.id) ?? null)
+                  return s
+                    ? <span title={`Presidia: ${s.full_name}`} className="shrink-0 -ml-1.5 ring-2 ring-surface rounded-full">
+                        <Avatar name={s.full_name} url={s.avatar_url} size={22} />
+                      </span>
+                    : r.status !== 'completato'
+                      ? <span className="text-2xs text-text-tertiary shrink-0">senza presidio</span>
+                      : null
+                })()}
                 <span className={`text-2xs font-semibold shrink-0 w-20 text-right ${TONE[r.status]}`}>{STATUS_LABEL[r.status] ?? r.status}</span>
                 {canManage && (
                   <button onClick={() => { if (confirm(`Eliminare "${r.title}"?`)) remove(r) }} aria-label="Elimina task"
@@ -228,8 +286,21 @@ export function ClientAdHocTab({
       )}
 
       {adding && (
-        <NewTaskModal context={clientName ? `Ad hoc · ${clientName}` : 'Task ad hoc'}
-          profiles={profiles.map(p => ({ id: p.id, full_name: p.full_name, avatar_url: p.avatar_url ?? null }))}
+        <NewTaskModal context={clientName ? `${copy.context} · ${clientName}` : copy.title}
+          clientVisibleAllowed={kind === 'ad_hoc'}
+          profiles={kind === 'cliente'
+            ? clientContacts.map(p => ({ id: p.id, full_name: p.full_name, avatar_url: p.avatar_url }))
+            : profiles.map(p => ({ id: p.id, full_name: p.full_name, avatar_url: p.avatar_url ?? null }))}
+          assigneeLabel={kind === 'cliente' ? 'Chi la deve fare, lato cliente' : 'Assegnatario'}
+          assigneeHint={kind === 'cliente'
+            ? (clientContacts.length ? 'referente registrato' : 'nessun referente registrato per questo cliente')
+            : undefined}
+          defaultAssignee={kind === 'cliente' ? defaultContact : undefined}
+          supervisor={kind === 'cliente' ? {
+            label: 'Chi la presidia, da noi',
+            hint: 'secondo livello: controlla che arrivi',
+            people: internals.map(p => ({ id: p.id, full_name: p.full_name, avatar_url: p.avatar_url })),
+          } : undefined}
           pending={pending} onClose={() => setAdding(false)} onCreate={submit} />
       )}
 

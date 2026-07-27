@@ -65,7 +65,8 @@ export async function updateTask(taskId: string, updates: {
 export async function updateTaskStatus(taskId: string, status: TaskStatusV2) {
   await requireStaff()
   const patch: Record<string, unknown> = { status }
-  if (status === 'completato') patch.completed_at = new Date().toISOString()
+  // completed_at esiste dalla migration 158; riaprire una task azzera il timestamp
+  patch.completed_at = status === 'completato' ? new Date().toISOString() : null
   const { error } = await createAdminClient().from('tasks').update(patch).eq('id', taskId)
   if (error) throw new Error(error.message)
 }

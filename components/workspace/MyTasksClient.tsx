@@ -91,9 +91,10 @@ export function MyTasksClient({
   useEffect(() => { localStorage.setItem('twobee-mytasks-group', groupBy) }, [groupBy])
 
   const person = (id: string | null) => (id ? profiles.find(p => p.id === id) ?? null : null)
-  const projLabel = (t: Task) => t.task_type === 'ad_hoc'
-    ? `Ad Hoc · ${clientName[t.client_id ?? ''] ?? 'senza cliente'}`
-    : (projectName[t.project_id ?? ''] ?? 'Progetto')
+  const projLabel = (t: Task) =>
+    t.task_type === 'ad_hoc' ? `Ad Hoc · ${clientName[t.client_id ?? ''] ?? 'senza cliente'}`
+      : t.task_type === 'cliente' ? `Al cliente · ${clientName[t.client_id ?? ''] ?? '—'}`
+      : (projectName[t.project_id ?? ''] ?? 'Progetto')
   const accentKey = (t: Task) => t.task_type === 'ad_hoc' ? `adhoc:${t.client_id}` : (t.project_id ?? '?')
 
   const projAccent = useMemo(() => {

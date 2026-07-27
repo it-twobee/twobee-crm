@@ -10,9 +10,19 @@ type Person = { id: string; full_name: string; avatar_url: string | null }
 export type NewTaskValues = {
   title: string
   assignee_id: string | null
+  /** secondo livello: chi presidia, quando la task è in carico a qualcun altro */
+  supervisor_id?: string | null
   due_date: string | null
   priority: Priority
   visibility: Visibility
+}
+
+/** Secondo assegnatario: chi controlla. Assente sulle task normali. */
+export type SupervisorConfig = {
+  label: string
+  hint?: string
+  people: Person[]
+  defaultId?: string | null
 }
 
 /**
@@ -20,7 +30,9 @@ export type NewTaskValues = {
  * già noti dal contesto: qui si sceglie solo il *cosa*, non il *dove*.
  */
 export function NewTaskModal({
-  context, profiles, pending, kind = 'task', clientVisibleAllowed = true, defaultDue, onClose, onCreate,
+  context, profiles, pending, kind = 'task', clientVisibleAllowed = true, defaultDue,
+  assigneeLabel = 'Assegnatario', assigneeHint, defaultAssignee, supervisor,
+  onClose, onCreate,
 }: {
   /** briciole di contesto mostrate in testata, es. "Progetto · Workstream · M1" */
   context: string
@@ -29,11 +41,16 @@ export function NewTaskModal({
   kind?: 'task' | 'subtask' | 'continuous'
   clientVisibleAllowed?: boolean
   defaultDue?: string | null
+  assigneeLabel?: string
+  assigneeHint?: string
+  defaultAssignee?: string | null
+  supervisor?: SupervisorConfig
   onClose: () => void
   onCreate: (v: NewTaskValues, again: boolean) => void
 }) {
   const [title, setTitle] = useState('')
-  const [assignee, setAssignee] = useState('')
+  const [assignee, setAssignee] = useState(defaultAssignee ?? '')
+  const [supervisorId, setSupervisorId] = useState(supervisor?.defaultId ?? '')
   const [due, setDue] = useState(defaultDue ?? '')
   const [priority, setPriority] = useState<Priority>('media')
   const [visibility, setVisibility] = useState<Visibility>('internal')
@@ -43,11 +60,15 @@ export function NewTaskModal({
   const label = kind === 'subtask' ? 'Nuova subtask' : kind === 'continuous' ? 'Nuova attività continuativa' : 'Nuova task'
   const Icon = kind === 'subtask' ? CornerDownRight : kind === 'continuous' ? Repeat : CheckSquare
 
+  const supPerson = supervisor?.people.find(p => p.id === supervisorId)
+
   const submit = () => {
     onCreate({
-      title: title.trim(), assignee_id: assignee || null, due_date: due || null,
-      priority, visibility,
+      title: title.trim(), assignee_id: assignee || null,
+      supervisor_id: supervisor ? (supervisorId || null) : undefined,
+      due_date: due || null, priority, visibility,
     }, again)
+    // in modalità "continua" restano assegnatario e presidio: cambia solo il cosa
     if (again) { setTitle(''); setDue(defaultDue ?? '') }
   }
 
@@ -63,10 +84,10 @@ export function NewTaskModal({
       </Field>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Assegnatario">
+        <Field label={assigneeLabel} hint={assigneeHint}>
           <div className="flex items-center gap-2">
             {person && <Avatar name={person.full_name} url={person.avatar_url} />}
-            <select value={assignee} onChange={e => setAssignee(e.target.value)} className={inputCls} aria-label="Assegnatario">
+            <select value={assignee} onChange={e => setAssignee(e.target.value)} className={inputCls} aria-label={assigneeLabel}>
               <option value="">— nessuno —</option>
               {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
             </select>
@@ -76,6 +97,19 @@ export function NewTaskModal({
           <input type="date" value={due} onChange={e => setDue(e.target.value)} className={inputCls} aria-label="Scadenza" />
         </Field>
       </div>
+
+      {supervisor && (
+        <Field label={supervisor.label} hint={supervisor.hint}>
+          <div className="flex items-center gap-2">
+            {supPerson && <Avatar name={supPerson.full_name} url={supPerson.avatar_url} />}
+            <select value={supervisorId} onChange={e => setSupervisorId(e.target.value)}
+              className={inputCls} aria-label={supervisor.label}>
+              <option value="">— nessuno —</option>
+              {supervisor.people.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+            </select>
+          </div>
+        </Field>
+      )}
 
       <Field label="Priorità">
         <Segmented ariaLabel="Priorità" value={priority} onChange={setPriority}

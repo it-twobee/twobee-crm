@@ -114,7 +114,7 @@ export function QuickCreate({ context = 'admin' }: { context?: 'admin' | 'worksp
             )}
             <MenuRow icon={<Briefcase className="w-4 h-4 text-gold-text" />} title="Nuovo progetto" hint="Con il wizard" onClick={() => start('project')} />
             <MenuRow icon={<FolderTree className="w-4 h-4 text-gold-text" />} title="Nuovo workstream" hint="In un progetto" onClick={() => start('workstream')} />
-            <MenuRow icon={<CheckSquare className="w-4 h-4 text-gold-text" />} title="Nuova task" hint="Ad hoc o in progetto" onClick={() => start('task')} />
+            <MenuRow icon={<CheckSquare className="w-4 h-4 text-gold-text" />} title="Nuova task" hint="In progetto, ad hoc o al cliente" onClick={() => start('task')} />
           </div>
         </>,
         document.body,
@@ -255,7 +255,7 @@ function TaskModal({ clients, projects, profiles, base, onClose, onDone, notify 
   clients: ClientOpt[]; projects: ProjectOpt[]; profiles: PersonOpt[]; base: string; onClose: () => void; onDone: () => void; notify: (l: string, h: string) => void
 }) {
   const [pending, start] = useTransition()
-  const [kind, setKind] = useState<'adhoc' | 'project'>('adhoc')
+  const [kind, setKind] = useState<'adhoc' | 'cliente' | 'project'>('project')
   const [q, setQ] = useState('')
   const [title, setTitle] = useState('')
   const [assignee, setAssignee] = useState('')
@@ -298,9 +298,14 @@ function TaskModal({ clients, projects, profiles, base, onClose, onDone, notify 
 
   const submit = () => start(async () => {
     try {
-      if (kind === 'adhoc') {
-        await createAdHocTask({ client_id: clientId, title, assignee_id: assignee || null, due_date: dueDate || null, priority, visibility: clientVisible ? 'client_visible' : 'internal' })
-        notify('Task ad hoc creata', `${base}/ad-hoc`)
+      if (kind !== 'project') {
+        await createAdHocTask({
+          client_id: clientId, title, assignee_id: assignee || null, due_date: dueDate || null, priority,
+          visibility: kind === 'cliente' ? 'client_visible' : (clientVisible ? 'client_visible' : 'internal'),
+          task_type: kind === 'cliente' ? 'cliente' : 'ad_hoc',
+        })
+        notify(kind === 'cliente' ? 'Task al cliente creata' : 'Task ad hoc creata',
+          kind === 'cliente' ? `${base}/clienti/${clientId}` : `${base}/ad-hoc`)
       } else {
         await createProjectTask({ client_id: projClientId, project_id: projectId, workstream_id: wsId, milestone_id: msId, title, assignee_id: assignee || null, due_date: dueDate || null, priority })
         notify('Task creata', `${base}/progetti/${projectId}/workstream/${wsId}`)
@@ -309,7 +314,7 @@ function TaskModal({ clients, projects, profiles, base, onClose, onDone, notify 
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
   })
 
-  const canSubmit = !!title.trim() && (kind === 'adhoc' ? !!clientId : (!!projectId && !!wsId && !!msId))
+  const canSubmit = !!title.trim() && (kind === 'project' ? (!!projectId && !!wsId && !!msId) : !!clientId)
   const client = clients.find(c => c.id === clientId)
   const project = projects.find(p => p.id === projectId)
   const person = profiles.find(p => p.id === assignee)
@@ -323,7 +328,7 @@ function TaskModal({ clients, projects, profiles, base, onClose, onDone, notify 
     return t ? projects.filter(p => p.name.toLowerCase().includes(t)) : projects
   }, [projects, q])
 
-  const hint = kind === 'adhoc'
+  const hint = kind !== 'project'
     ? (client?.name ?? 'Task legata al solo cliente')
     : [project?.name, ws.find(w => w.id === wsId)?.name].filter(Boolean).join(' · ') || 'Task dentro un progetto'
 
@@ -332,9 +337,18 @@ function TaskModal({ clients, projects, profiles, base, onClose, onDone, notify 
       onClose={onClose} onSubmit={submit} canSubmit={canSubmit} pending={pending}>
 
       <Segmented ariaLabel="Tipo di task" value={kind} onChange={k => { setKind(k); setQ('') }}
-        options={[{ value: 'adhoc', label: 'Ad hoc (cliente)' }, { value: 'project', label: 'In un progetto' }]} />
+        options={[
+          { value: 'project', label: 'In un progetto' },
+          { value: 'adhoc', label: 'Ad hoc (nostra)' },
+          { value: 'cliente', label: 'Al cliente' },
+        ]} />
+      <p className="text-2xs text-text-tertiary -mt-1">
+        {kind === 'project' ? 'Dentro una milestone di un progetto.'
+          : kind === 'adhoc' ? 'Fuori progetto, la facciamo noi.'
+          : 'La deve fare il cliente: compare nel suo portale.'}
+      </p>
 
-      {kind === 'adhoc' ? (
+      {kind !== 'project' ? (
         <>
           <Group label="Cliente" meta={clientId
             ? <button type="button" onClick={() => setClientId('')} className="text-2xs font-semibold text-gold-text">Cambia</button>
@@ -356,16 +370,27 @@ function TaskModal({ clients, projects, profiles, base, onClose, onDone, notify 
             )}
           </Group>
 
-          <button type="button" onClick={() => setClientVisible(v => !v)} aria-pressed={clientVisible}
-            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-colors ${
-              clientVisible ? 'border-gold bg-gold-dim' : 'border-border hover:bg-surface-hover'
-            }`}>
-            {clientVisible ? <Eye className="w-4 h-4 text-info shrink-0" /> : <EyeOff className="w-4 h-4 text-text-tertiary shrink-0" />}
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold text-text-primary">Visibile al cliente</span>
-              <span className="block text-2xs text-text-tertiary">Compare nel portale cliente tra le sue attività</span>
-            </span>
-          </button>
+          {/* per una task "al cliente" la visibilità non è una scelta: è il senso stesso */}
+          {kind === 'cliente' ? (
+            <div className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-gold bg-gold-dim">
+              <Eye className="w-4 h-4 text-info shrink-0" />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-text-primary">Visibile al cliente</span>
+                <span className="block text-2xs text-text-tertiary">Sempre: è una cosa che deve fare lui</span>
+              </span>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setClientVisible(v => !v)} aria-pressed={clientVisible}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-colors ${
+                clientVisible ? 'border-gold bg-gold-dim' : 'border-border hover:bg-surface-hover'
+              }`}>
+              {clientVisible ? <Eye className="w-4 h-4 text-info shrink-0" /> : <EyeOff className="w-4 h-4 text-text-tertiary shrink-0" />}
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-text-primary">Visibile al cliente</span>
+                <span className="block text-2xs text-text-tertiary">Compare nel portale cliente tra le sue attività</span>
+              </span>
+            </button>
+          )}
         </>
       ) : (
         <>

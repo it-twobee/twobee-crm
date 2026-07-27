@@ -207,6 +207,7 @@ export function ClientPageClient({
     { label: 'Panoramica', index: 0 },
     { label: 'Progetti', index: 2 },
     { label: 'Task Ad Hoc', index: 3 },
+    { label: 'Task al cliente', index: 4 },
     ...(canSeeAnagrafica ? [{ label: 'Anagrafica', index: 1 }] : []),
   ]
 
@@ -322,7 +323,11 @@ export function ClientPageClient({
         )}
         {activeTab === 3 && (
           <ClientAdHocTab clientId={client.id} clientName={clientName(client)}
-            profiles={allProfiles} canManage={isAdminLevel} />
+            profiles={allProfiles} canManage={isAdminLevel} kind="ad_hoc" />
+        )}
+        {activeTab === 4 && (
+          <ClientAdHocTab clientId={client.id} clientName={clientName(client)}
+            profiles={allProfiles} canManage={isAdminLevel} kind="cliente" />
         )}
       </div>
     </div>
