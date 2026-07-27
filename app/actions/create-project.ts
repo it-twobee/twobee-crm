@@ -51,13 +51,16 @@ export interface WizardWorkstreamInput {
   owner_id?: string | null
   priority?: string
   visibility?: string
+  start_date?: string | null
+  end_date?: string | null
   sort_order?: number
   milestones?: WizardMilestoneInput[]
   recurring?: WizardRecurringInput[]
 }
 export interface WizardPayload {
   project: {
-    client_id: string
+    /** null = progetto interno, senza anagrafica cliente (migration 155) */
+    client_id: string | null
     name: string
     description?: string | null
     area: string
@@ -85,7 +88,6 @@ export async function createProjectFromWizard(payload: WizardPayload): Promise<s
   const canCreate = profile?.role === 'admin' || profile?.app_role === 'manager'
   if (!canCreate) throw new Error('Permesso negato: solo admin o manager possono creare progetti')
 
-  if (!payload.project?.client_id) throw new Error('Cliente mancante')
   if (!payload.project?.name?.trim()) throw new Error('Nome progetto mancante')
 
   const { data, error } = await createAdminClient()
@@ -93,6 +95,7 @@ export async function createProjectFromWizard(payload: WizardPayload): Promise<s
   if (error) throw new Error(error.message)
 
   revalidatePath('/progetti')
-  revalidatePath(`/clienti/${payload.project.client_id}`)
+  revalidatePath('/workspace/progetti')
+  if (payload.project.client_id) revalidatePath(`/clienti/${payload.project.client_id}`)
   return data as string
 }

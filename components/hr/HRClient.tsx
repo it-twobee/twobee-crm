@@ -10,9 +10,10 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Organigramma } from '@/components/hr/Organigramma'
 import { ResourceProfilesTab } from '@/components/hr/ResourceProfilesTab'
+import { HrRequestsTab } from '@/components/hr/HrRequestsTab'
 import { EmptyState } from '@/components/shared/EmptyState'
 import type {
-  Profile, TeamLeave, PerformanceReview, LeaveType, LeaveStatus, LegacyContractType, OrgUnit, OrgMember, ResourceProfile,
+  Profile, TeamLeave, PerformanceReview, LeaveType, LeaveStatus, LegacyContractType, OrgUnit, OrgMember, ResourceProfile, HrRequest,
 } from '@/lib/types/database'
 
 interface Props {
@@ -22,11 +23,13 @@ interface Props {
   orgUnits: OrgUnit[]
   orgMembers: OrgMember[]
   resourceProfiles: ResourceProfile[]
+  /** richieste inviate dal Workspace, in attesa di decisione */
+  hrRequests: HrRequest[]
   currentUserId: string
   isAdmin: boolean
 }
 
-type Tab = 'team' | 'ferie' | 'performance' | 'organigramma' | 'risorse'
+type Tab = 'richieste' | 'team' | 'ferie' | 'performance' | 'organigramma' | 'risorse'
 
 const ic = 'w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/50'
 
@@ -237,8 +240,10 @@ function ReviewModal({ reviewee, currentUserId, quarter, existing, onClose, onSa
   )
 }
 
-export function HRClient({ profiles, leaves: initialLeaves, reviews: initialReviews, orgUnits, orgMembers, resourceProfiles, currentUserId, isAdmin }: Props) {
-  const [tab, setTab] = useState<Tab>('team')
+export function HRClient({ profiles, leaves: initialLeaves, reviews: initialReviews, orgUnits, orgMembers, resourceProfiles, hrRequests, currentUserId, isAdmin }: Props) {
+  const hrPending = hrRequests.filter(r => r.status === 'pending').length
+  // la coda delle richieste è la prima cosa da guardare quando qualcuno aspetta
+  const [tab, setTab] = useState<Tab>(hrPending > 0 ? 'richieste' : 'team')
   const [leaves, setLeaves] = useState(initialLeaves)
   const [reviews, setReviews] = useState(initialReviews)
   const [showLeaveModal, setShowLeaveModal] = useState(false)
@@ -303,6 +308,7 @@ export function HRClient({ profiles, leaves: initialLeaves, reviews: initialRevi
       {/* Tabs */}
       <div className="flex bg-surface border border-border rounded-xl p-1 gap-1 w-fit">
         {([
+          { key: 'richieste', label: `Richieste${hrPending > 0 ? ` (${hrPending})` : ''}`, icon: <ClipboardList className="w-3.5 h-3.5" /> },
           { key: 'team', label: 'Team', icon: <Users className="w-3.5 h-3.5" /> },
           { key: 'ferie', label: `Assenze${pending.length > 0 ? ` (${pending.length})` : ''}`, icon: <Calendar className="w-3.5 h-3.5" /> },
           { key: 'performance', label: 'Performance', icon: <Star className="w-3.5 h-3.5" /> },
@@ -401,6 +407,9 @@ export function HRClient({ profiles, leaves: initialLeaves, reviews: initialRevi
           })}
         </div>
       )}
+
+      {/* ── RICHIESTE DAL WORKSPACE ── */}
+      {tab === 'richieste' && <HrRequestsTab requests={hrRequests} profiles={profiles} />}
 
       {/* ── FERIE & PERMESSI ── */}
       {tab === 'ferie' && (

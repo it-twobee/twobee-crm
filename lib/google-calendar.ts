@@ -58,8 +58,12 @@ export async function syncMirrorFromGoogle(admin: Admin, profileId: string) {
     if (!start || !end) continue
 
     const { data: existing } = await admin.from('calendar_events')
-      .select('client_id, project_id').eq('profile_id', profileId).eq('external_event_id', e.id).maybeSingle()
-    const ex = existing as { client_id: string | null; project_id: string | null } | null
+      .select('client_id, project_id, kind, hr_request_id')
+      .eq('profile_id', profileId).eq('external_event_id', e.id).maybeSingle()
+    const ex = existing as {
+      client_id: string | null; project_id: string | null
+      kind: string | null; hr_request_id: string | null
+    } | null
 
     await admin.from('calendar_events').upsert({
       profile_id: profileId,
@@ -67,6 +71,10 @@ export async function syncMirrorFromGoogle(admin: Admin, profileId: string) {
       calendar_id: 'primary',
       client_id: ex?.client_id ?? null,
       project_id: ex?.project_id ?? null,
+      // un'assenza resta un'assenza anche quando torna indietro da Google:
+      // i campi Google vincono sul contenuto, non sulla natura dell'evento
+      kind: ex?.kind ?? 'evento',
+      hr_request_id: ex?.hr_request_id ?? null,
       title: e.summary ?? '(senza titolo)',
       description: e.description ?? null,
       location: e.location ?? null,
@@ -80,6 +88,74 @@ export async function syncMirrorFromGoogle(admin: Admin, profileId: string) {
       updated_at: new Date().toISOString(),
     } as never, { onConflict: 'profile_id,external_event_id' })
   }
+}
+
+/**
+ * Direzione opposta: tool → Google. Crea (o aggiorna) su Google l'evento che
+ * rappresenta un'assenza approvata e salva l'`external_event_id` sul mirror, così
+ * il webhook lo riconosce invece di duplicarlo.
+ *
+ * Non solleva: se l'utente non ha collegato Google, l'assenza resta comunque nel
+ * calendario del tool con sync_status='local'.
+ */
+export async function pushEventToGoogle(admin: Admin, eventId: string): Promise<'synced' | 'local' | 'error'> {
+  const { data: row } = await admin.from('calendar_events')
+    .select('id, profile_id, external_event_id, title, description, start_at, end_at, all_day, timezone')
+    .eq('id', eventId).maybeSingle()
+  const ev = row as {
+    id: string; profile_id: string; external_event_id: string | null
+    title: string; description: string | null
+    start_at: string | null; end_at: string | null; all_day: boolean; timezone: string
+  } | null
+  if (!ev || !ev.start_at || !ev.end_at) return 'error'
+
+  const { data: cred } = await admin.from('google_credentials')
+    .select('access_token, refresh_token').eq('profile_id', ev.profile_id).maybeSingle()
+  const c = cred as { access_token: string | null; refresh_token: string | null } | null
+  if (!c || (!c.access_token && !c.refresh_token)) {
+    await admin.from('calendar_events').update({ sync_status: 'local' } as never).eq('id', ev.id)
+    return 'local'
+  }
+
+  const cal = google.calendar({ version: 'v3', auth: oc(c.access_token, c.refresh_token, ev.profile_id, admin) })
+  // Google vuole date nude per gli all-day, e la fine è ESCLUSIVA: +1 giorno
+  const dayOf = (s: string) => s.slice(0, 10)
+  const dayPlus = (s: string) => {
+    const d = new Date(s.slice(0, 10) + 'T00:00:00Z')
+    d.setUTCDate(d.getUTCDate() + 1)
+    return d.toISOString().slice(0, 10)
+  }
+  const body = {
+    summary: ev.title,
+    description: ev.description ?? undefined,
+    start: ev.all_day ? { date: dayOf(ev.start_at) } : { dateTime: ev.start_at, timeZone: ev.timezone },
+    end: ev.all_day ? { date: dayPlus(ev.end_at) } : { dateTime: ev.end_at, timeZone: ev.timezone },
+  }
+
+  try {
+    const res = ev.external_event_id
+      ? await cal.events.update({ calendarId: 'primary', eventId: ev.external_event_id, requestBody: body })
+      : await cal.events.insert({ calendarId: 'primary', requestBody: body })
+    await admin.from('calendar_events').update({
+      external_event_id: res.data.id ?? ev.external_event_id,
+      sync_status: 'synced',
+      last_synced_at: new Date().toISOString(),
+    } as never).eq('id', ev.id)
+    return 'synced'
+  } catch {
+    await admin.from('calendar_events').update({ sync_status: 'error' } as never).eq('id', ev.id)
+    return 'error'
+  }
+}
+
+/** Rimuove da Google l'evento di un'assenza revocata. Silenzioso se non c'è. */
+export async function deleteEventFromGoogle(admin: Admin, profileId: string, externalEventId: string) {
+  const { data: cred } = await admin.from('google_credentials')
+    .select('access_token, refresh_token').eq('profile_id', profileId).maybeSingle()
+  const c = cred as { access_token: string | null; refresh_token: string | null } | null
+  if (!c || (!c.access_token && !c.refresh_token)) return
+  const cal = google.calendar({ version: 'v3', auth: oc(c.access_token, c.refresh_token, profileId, admin) })
+  try { await cal.events.delete({ calendarId: 'primary', eventId: externalEventId }) } catch { /* già sparito */ }
 }
 
 /**

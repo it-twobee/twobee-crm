@@ -42,6 +42,7 @@ interface Props {
 export function WorkspaceHR({ requests: initialRequests, profileId, vacationBalance }: Props) {
   const [requests, setRequests] = useState<HrRequest[]>(initialRequests)
   const [showForm, setShowForm] = useState(false)
+  const [filter, setFilter] = useState<'tutte' | 'pending' | 'approved'>('tutte')
   const [submitting, setSubmitting] = useState(false)
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -57,10 +58,11 @@ export function WorkspaceHR({ requests: initialRequests, profileId, vacationBala
     file: null as File | null,
   })
 
-  const needsDates = ['ferie', 'permesso', 'malattia'].includes(form.type)
+  const needsDates = ['ferie', 'permesso', 'malattia', 'documento_hr'].includes(form.type)
   const needsAmount = form.type === 'spesa'
-  const needsTime = needsDates && !form.is_full_day
-  const canUpload = form.type === 'spesa'
+  const needsTime = ['ferie', 'permesso', 'malattia'].includes(form.type) && !form.is_full_day
+  // il documento HR finisce in "Documenti personali": senza file non ci sarebbe nulla da archiviare
+  const canUpload = form.type === 'spesa' || form.type === 'documento_hr'
 
   async function uploadFile(file: File): Promise<string | null> {
     const sb = createClient()
@@ -120,8 +122,15 @@ export function WorkspaceHR({ requests: initialRequests, profileId, vacationBala
 
   const vb = vacationBalance
 
+  const counts = {
+    pending: requests.filter(r => r.status === 'pending').length,
+    approved: requests.filter(r => r.status === 'approved').length,
+    tutte: requests.length,
+  }
+  const visible = filter === 'tutte' ? requests : requests.filter(r => r.status === filter)
+
   return (
-    <div className="p-6 max-w-2xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto">
       {/* Balance cards */}
       {vb && (vb.annual_days > 0 || vb.annual_leave_hours > 0) && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
@@ -157,19 +166,35 @@ export function WorkspaceHR({ requests: initialRequests, profileId, vacationBala
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-bold text-text-primary">Richieste HR</h1>
-          <p className="text-text-tertiary text-sm mt-0.5">Ferie, permessi e note spese</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-text-primary font-heading">Richieste HR</h1>
+          <p className="text-text-secondary text-sm mt-1">
+            Ferie, permessi, malattie, note spese e documenti. Le decide un admin.
+          </p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-4 py-2 bg-gold text-on-gold text-sm font-semibold rounded-xl hover:bg-gold/90 transition-colors"
+          className="flex items-center gap-1.5 px-4 py-2.5 bg-gold text-on-gold text-sm font-semibold rounded-xl shadow-soft press shrink-0"
         >
           <Plus className="w-4 h-4" />
           Nuova richiesta
         </button>
       </div>
+
+      {requests.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap mb-4">
+          {([['tutte', 'Tutte', counts.tutte], ['pending', 'In attesa', counts.pending], ['approved', 'Approvate', counts.approved]] as const).map(([k, label, n]) => (
+            <button key={k} onClick={() => setFilter(k)} aria-pressed={filter === k}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-2xs font-semibold transition-colors',
+                filter === k ? 'border-gold bg-gold-dim text-text-primary' : 'border-border text-text-secondary hover:bg-surface-hover',
+              )}>
+              {label}<span className="tabular">{n}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {showForm && (
         <div className="mb-6 p-5 rounded-2xl bg-surface border border-border">
@@ -298,7 +323,9 @@ export function WorkspaceHR({ requests: initialRequests, profileId, vacationBala
             {/* File upload for spese */}
             {canUpload && (
               <div>
-                <label className="text-text-secondary text-xs mb-1.5 block">Allegato (foto, PDF)</label>
+                <label className="text-text-secondary text-xs mb-1.5 block">
+                  {form.type === 'documento_hr' ? 'Documento da archiviare (obbligatorio)' : 'Allegato (foto, PDF)'}
+                </label>
                 <div
                   onClick={() => fileRef.current?.click()}
                   className={cn(
@@ -368,14 +395,29 @@ export function WorkspaceHR({ requests: initialRequests, profileId, vacationBala
 
       {/* Request list */}
       {requests.length === 0 ? (
-        <div className="text-center py-16 text-text-tertiary text-sm">Nessuna richiesta</div>
+        <div className="text-center py-16 border border-dashed border-border rounded-2xl">
+          <div className="w-12 h-12 rounded-full bg-gold-dim flex items-center justify-center mx-auto mb-3">
+            <FileText className="w-6 h-6 text-gold-text" />
+          </div>
+          <p className="text-sm text-text-secondary">Nessuna richiesta inviata.</p>
+          <p className="text-2xs text-text-tertiary mt-1">Ferie, permessi, note spese e documenti passano da qui.</p>
+        </div>
+      ) : visible.length === 0 ? (
+        <div className="text-center py-10 border border-dashed border-border rounded-2xl">
+          <p className="text-sm text-text-secondary">Nessuna richiesta in questo stato.</p>
+        </div>
       ) : (
         <div className="flex flex-col gap-2">
-          {requests.map(r => {
+          {visible.map(r => {
             const meta = STATUS_META[r.status] ?? STATUS_META.pending
             const canCancel = r.status === 'pending'
+            const outcome = r.status !== 'approved' ? null
+              : r.calendar_event_id ? { label: 'Aggiunta al calendario', href: '/workspace/calendario' }
+              : r.payslip_id ? { label: 'Archiviata in Buste paga', href: '/workspace/buste-paga' }
+              : r.personal_document_id ? { label: 'Archiviato nei Documenti personali', href: '/workspace/documenti-personali' }
+              : null
             return (
-              <div key={r.id} className="flex items-start gap-4 p-4 rounded-2xl bg-surface border border-border">
+              <div key={r.id} className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl bg-surface border border-border">
                 <div className="p-2 rounded-xl bg-surface text-text-tertiary">
                   {TYPE_ICONS[r.type] ?? <FileText className="w-4 h-4" />}
                 </div>
@@ -415,6 +457,12 @@ export function WorkspaceHR({ requests: initialRequests, profileId, vacationBala
                   {r.notes && <p className="text-text-tertiary text-xs mt-0.5 truncate">{r.notes}</p>}
                   {r.review_note && (
                     <p className="text-text-secondary text-xs mt-1 italic">&ldquo;{r.review_note}&rdquo;</p>
+                  )}
+                  {outcome && (
+                    <a href={outcome.href}
+                      className="inline-flex items-center gap-1.5 text-2xs font-semibold text-success mt-1.5 hover:opacity-80">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />{outcome.label} →
+                    </a>
                   )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">

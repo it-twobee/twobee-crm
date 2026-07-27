@@ -35,7 +35,7 @@ export default async function MieAttivitaPage() {
   ;(clients ?? []).forEach(c => { clientName[c.id] = c.display_name || c.company_name })
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="max-w-6xl mx-auto p-4 sm:p-6">
       <h1 className="text-2xl font-bold text-text-primary mb-1">Le mie attività</h1>
       <p className="text-sm text-text-secondary mb-5">Task assegnate a te, da tutti i progetti e ad hoc.</p>
       <MyTasksClient

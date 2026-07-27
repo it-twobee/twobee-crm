@@ -678,6 +678,10 @@ export interface HrRequest {
   review_note: string | null
   created_at: string
   updated_at: string
+  // cosa ha prodotto l'approvazione (migration 157)
+  calendar_event_id?: string | null
+  payslip_id?: string | null
+  personal_document_id?: string | null
   // join
   profile?: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
   reviewer?: Pick<Profile, 'id' | 'full_name'> | null
@@ -744,7 +748,7 @@ export interface ServiceCatalogEntry {
 
 export interface Project {
   id: string
-  client_id: string
+  client_id: string | null
   name: string
   description: string | null
   area: ProjectArea
@@ -815,7 +819,7 @@ export interface Milestone {
 
 export interface RecurringTaskTemplate {
   id: string
-  client_id: string
+  client_id: string | null
   project_id: string | null
   workstream_id: string | null
   milestone_id: string | null
@@ -843,7 +847,7 @@ export interface RecurringTaskTemplate {
 
 export interface Task {
   id: string
-  client_id: string
+  client_id: string | null
   task_type: TaskType
   project_id: string | null
   workstream_id: string | null

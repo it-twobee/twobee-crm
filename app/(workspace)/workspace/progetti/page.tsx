@@ -1,61 +1,65 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
-import { Briefcase, FolderKanban } from 'lucide-react'
+import { ProgettiClient } from '@/components/projects/ProgettiClient'
+import type {
+  ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode,
+  ProjectWorkstream, Milestone, Task,
+} from '@/lib/types/database'
 
 export const revalidate = 0
 
-const STATUS_TONE: Record<string, string> = {
-  draft: 'text-text-tertiary', active: 'text-success', on_hold: 'text-warning',
-  completed: 'text-info', archived: 'text-text-tertiary',
-}
-
-export default async function WorkspaceProgettiPage() {
+export default async function WorkspaceProgettiPage({ searchParams }: { searchParams: { client?: string; new?: string } }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const { data: profile } = await supabase.from('profiles').select('role, app_role').eq('id', user.id).single()
   if (profile?.role !== 'team' && profile?.role !== 'admin') redirect('/workspace')
+  // stesso gate di createProjectFromWizard: niente CTA se il wizard fallirebbe a fine flusso
+  const canCreate = profile?.role === 'admin' || profile?.app_role === 'manager'
 
-  // RLS scope: team interni vedono tutti i progetti, esterni solo i propri
-  const { data: projects } = await supabase
-    .from('projects').select('id, name, status, area, service_type, client_id')
-    .is('deleted_at', null).order('created_at', { ascending: false })
-  const { data: clients } = await supabase.from('clients').select('id, company_name, display_name')
+  // RLS scope: team interni vedono tutti i progetti, esterni solo i propri.
+  // clients_workspace = VIEW senza dati economici (mrr/fiscali azzerati).
+  const [
+    { data: clients }, { data: profiles }, { data: services },
+    { data: templates }, { data: nodes }, { data: projects },
+  ] = await Promise.all([
+    supabase.from('clients_workspace').select('id, company_name, display_name').order('company_name'),
+    supabase.from('profiles').select('id, full_name, app_role, avatar_url').eq('is_active', true).order('full_name'),
+    supabase.from('service_catalog').select('*').order('area').order('sort_order'),
+    supabase.from('project_templates').select('*').order('sort_order'),
+    supabase.from('project_template_nodes').select('*').order('sort_order'),
+    supabase.from('projects').select('id, name, status, area, service_type, client_id, created_at')
+      .is('deleted_at', null).order('created_at', { ascending: false }),
+  ])
 
-  const clientName = (id: string) => {
-    const c = (clients ?? []).find(x => x.id === id)
-    return (c?.display_name || c?.company_name) ?? '—'
-  }
-  const rows = projects ?? []
+  // Dati per il calendario milestone globale: progetti in corso (esclude completati/archiviati)
+  const activeIds = (projects ?? []).filter(p => ['active', 'draft', 'on_hold'].includes(p.status)).map(p => p.id)
+  const [{ data: workstreams }, { data: milestones }, { data: calTasks }] = activeIds.length
+    ? await Promise.all([
+        supabase.from('project_workstreams').select('*').in('project_id', activeIds).order('sort_order'),
+        supabase.from('milestones').select('*').in('project_id', activeIds).order('sort_order'),
+        supabase.from('tasks').select('id, milestone_id, status, parent_task_id').in('project_id', activeIds).is('deleted_at', null),
+      ])
+    : [{ data: [] }, { data: [] }, { data: [] }]
+
+  const clientOpts = (clients ?? []).map((c: { id: string; company_name: string; display_name: string | null }) =>
+    ({ id: c.id, name: c.display_name || c.company_name }))
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold text-text-primary">Progetti</h1>
-        <p className="text-sm text-text-secondary mt-1">{rows.length} progetti</p>
-      </div>
-
-      {rows.length === 0 ? (
-        <div className="text-center py-16 border border-dashed border-border rounded-lg">
-          <FolderKanban className="w-8 h-8 text-text-tertiary mx-auto mb-3" />
-          <p className="text-sm text-text-secondary">Nessun progetto assegnato.</p>
-        </div>
-      ) : (
-        <div className="border border-border rounded-lg divide-y divide-border">
-          {rows.map(p => (
-            <Link key={p.id} href={`/workspace/progetti/${p.id}`}
-              className="flex items-center gap-3 px-4 py-3 hover:bg-surface-hover transition-colors">
-              <Briefcase className="w-4 h-4 text-gold-text shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-text-primary truncate">{p.name}</div>
-                <div className="text-2xs text-text-tertiary">{clientName(p.client_id)} · {p.area} · {p.service_type}</div>
-              </div>
-              <span className={`text-2xs font-semibold ${STATUS_TONE[p.status] ?? 'text-text-tertiary'}`}>{p.status}</span>
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
+    <ProgettiClient
+      clients={clientOpts}
+      profiles={(profiles ?? []) as { id: string; full_name: string; app_role: string | null; avatar_url: string | null }[]}
+      services={(services ?? []) as ServiceCatalogEntry[]}
+      templates={(templates ?? []) as ProjectTemplate[]}
+      nodes={(nodes ?? []) as ProjectTemplateNode[]}
+      projects={(projects ?? []) as { id: string; name: string; status: string; area: string; service_type: string; client_id: string; created_at: string }[]}
+      workstreams={(workstreams ?? []) as ProjectWorkstream[]}
+      milestones={(milestones ?? []) as Milestone[]}
+      calTasks={(calTasks ?? []) as Pick<Task, 'id' | 'milestone_id' | 'status' | 'parent_task_id'>[]}
+      basePath="/workspace/progetti"
+      canCreate={canCreate}
+      initialClientId={canCreate && searchParams.client && clientOpts.some(c => c.id === searchParams.client) ? searchParams.client : undefined}
+      openWizard={canCreate && searchParams.new === '1'}
+    />
   )
 }

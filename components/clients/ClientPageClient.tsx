@@ -200,6 +200,8 @@ export function ClientPageClient({
   // D3 (Fase 0): l'anagrafica (P.IVA/dati fiscali) è visibile SOLO ad admin.
   const canSeeAnagrafica = isAdmin
   const canSeeMrr = isAdminLevel && !hideEconomics
+  // dal workspace le rotte admin sono rimbalzate dal middleware
+  const portalBase = backHref.startsWith('/workspace') ? '/workspace' : ''
 
   const visibleTabs = [
     { label: 'Panoramica', index: 0 },
@@ -315,10 +317,12 @@ export function ClientPageClient({
           <AnagraficaTab client={client} contacts={contacts} teamMembers={teamMembers} stakeholders={stakeholders} hideEconomics={hideEconomics} />
         )}
         {activeTab === 2 && (
-          <ClientProjectsTab clientId={client.id} canCreate={isAdminLevel && !hideEconomics} />
+          <ClientProjectsTab clientId={client.id} clientName={clientName(client)}
+            canCreate={isAdminLevel} basePath={`${portalBase}/progetti`} />
         )}
         {activeTab === 3 && (
-          <ClientAdHocTab clientId={client.id} profiles={allProfiles} canManage={isAdminLevel} />
+          <ClientAdHocTab clientId={client.id} clientName={clientName(client)}
+            profiles={allProfiles} canManage={isAdminLevel} />
         )}
       </div>
     </div>

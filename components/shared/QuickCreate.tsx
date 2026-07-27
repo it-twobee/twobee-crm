@@ -1,17 +1,22 @@
 'use client'
 
-import { useState, useEffect, useRef, useTransition, useCallback } from 'react'
+import { useState, useEffect, useMemo, useRef, useTransition, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  Plus, X, Briefcase, FolderTree, CheckSquare, Users, Loader2,
+  Plus, Briefcase, FolderTree, CheckSquare, Users, Flag,
+  Wand2, AlertTriangle, Eye, EyeOff,
 } from 'lucide-react'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import { createAdHocTask } from '@/app/actions/ad-hoc-tasks'
 import { createProjectTask } from '@/app/actions/tasks'
 import { createWorkstream } from '@/app/actions/workstreams'
+import {
+  ModalShell, Group, Field, SearchInput, PickRow, Segmented, Avatar, Empty, inputCls,
+} from '@/components/shared/formkit'
+import { workstreamPrefixFromProjectName, applyWorkstreamPrefix } from '@/lib/project-naming'
 import type {
   WorkstreamType, Priority, ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode,
 } from '@/lib/types/database'
@@ -22,7 +27,7 @@ const NewClientModal = dynamic(() => import('@/components/clients/NewClientModal
 
 type ClientOpt = { id: string; name: string }
 type ProjectOpt = { id: string; name: string; client_id: string }
-type PersonOpt = { id: string; full_name: string; app_role: string | null }
+type PersonOpt = { id: string; full_name: string; app_role: string | null; avatar_url?: string | null }
 type WsOpt = { id: string; name: string }
 type MsOpt = { id: string; title: string; milestone_type: string }
 
@@ -51,7 +56,7 @@ export function QuickCreate({ context = 'admin' }: { context?: 'admin' | 'worksp
     const [c, p, pr] = await Promise.all([
       sb.from('clients').select('id, company_name, display_name').order('company_name'),
       sb.from('projects').select('id, name, client_id').is('deleted_at', null).order('created_at', { ascending: false }),
-      sb.from('profiles').select('id, full_name, app_role').eq('is_active', true).order('full_name'),
+      sb.from('profiles').select('id, full_name, app_role, avatar_url').eq('is_active', true).order('full_name'),
     ])
     setClients((c.data ?? []).map((x: { id: string; company_name: string; display_name: string | null }) => ({ id: x.id, name: x.display_name || x.company_name })))
     setProjects((p.data ?? []) as ProjectOpt[])
@@ -86,6 +91,8 @@ export function QuickCreate({ context = 'admin' }: { context?: 'admin' | 'worksp
     setOpen(o => !o)
   }
 
+  // dal workspace le rotte admin sono rimbalzate dal middleware: prefissa i link
+  const base = context === 'workspace' ? '/workspace' : ''
   const notifyCreated = (label: string, href: string) =>
     toast.success(label, { action: { label: 'Apri', onClick: () => router.push(href) } })
 
@@ -120,11 +127,11 @@ export function QuickCreate({ context = 'admin' }: { context?: 'admin' | 'worksp
           onCreated={(c) => { setMode(null); notifyCreated('Anagrafica creata', `/clienti/${c.id}`); router.refresh() }} />, document.body)}
       {mounted && mode === 'project' && wizardLoaded && createPortal(
         <ProjectWizard clients={clients} profiles={profiles} services={services} templates={templates} nodes={nodes}
-          onClose={() => setMode(null)} />, document.body)}
+          basePath={`${base}/progetti`} onClose={() => setMode(null)} />, document.body)}
       {mounted && mode === 'workstream' && createPortal(
-        <WorkstreamModal projects={projects} onClose={() => setMode(null)} onDone={() => setMode(null)} notify={notifyCreated} />, document.body)}
+        <WorkstreamModal projects={projects} base={base} onClose={() => setMode(null)} onDone={() => setMode(null)} notify={notifyCreated} />, document.body)}
       {mounted && mode === 'task' && createPortal(
-        <TaskModal clients={clients} projects={projects} profiles={profiles}
+        <TaskModal clients={clients} projects={projects} profiles={profiles} base={base}
           onClose={() => setMode(null)} onDone={() => setMode(null)} notify={notifyCreated} />, document.body)}
     </div>
   )
@@ -142,70 +149,114 @@ function MenuRow({ icon, title, hint, onClick }: { icon: React.ReactNode; title:
   )
 }
 
-function Shell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-scrim sm:p-4 animate-fade-in" onClick={onClose}>
-      <div className="bg-surface border border-border rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[92vh] flex flex-col shadow-pop animate-slide-up" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-4 pb-2 shrink-0">
-          <h3 className="text-sm font-bold text-text-primary">{title}</h3>
-          <button onClick={onClose} aria-label="Chiudi" className="text-text-tertiary hover:text-text-primary"><X className="w-4 h-4" /></button>
-        </div>
-        <div className="px-4 pb-4 pb-safe space-y-3 overflow-y-auto">{children}</div>
-      </div>
-    </div>
-  )
-}
-
-const fieldCls = 'w-full bg-background border border-border-interactive rounded-lg px-3 py-2 text-sm text-text-primary'
-
-function WorkstreamModal({ projects, onClose, onDone, notify }: { projects: ProjectOpt[]; onClose: () => void; onDone: () => void; notify: (l: string, h: string) => void }) {
+function WorkstreamModal({ projects, base, onClose, onDone, notify }: { projects: ProjectOpt[]; base: string; onClose: () => void; onDone: () => void; notify: (l: string, h: string) => void }) {
   const [pending, start] = useTransition()
   const [projectId, setProjectId] = useState('')
+  const [q, setQ] = useState('')
   const [name, setName] = useState('')
   const [type, setType] = useState<WorkstreamType>('project')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
 
+  const project = projects.find(p => p.id === projectId)
+  const filtered = useMemo(() => {
+    const t = q.trim().toLowerCase()
+    return t ? projects.filter(p => p.name.toLowerCase().includes(t)) : projects
+  }, [projects, q])
+
+  // il prefisso di convention si rilegge dal nome del progetto (Cliente · Area · Servizio)
+  const prefix = project ? workstreamPrefixFromProjectName(project.name) : null
+  const conform = prefix ? applyWorkstreamPrefix(prefix, name) : name
+  const offConvention = !!prefix && !!name.trim() && name.trim() !== conform
+
+  const badRange = !!startDate && !!endDate && endDate < startDate
+  const canSubmit = !!projectId && !!name.trim() && !badRange
+
   const submit = () => start(async () => {
     try {
-      const wsId = await createWorkstream({ project_id: projectId, name, workstream_type: type, start_date: startDate || null, end_date: endDate || null })
-      notify('Workstream creato', `/progetti/${projectId}/workstream/${wsId}`); onDone()
+      const wsId = await createWorkstream({ project_id: projectId, name: name.trim(), workstream_type: type, start_date: startDate || null, end_date: endDate || null })
+      notify('Workstream creato', `${base}/progetti/${projectId}/workstream/${wsId}`); onDone()
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
   })
 
   return (
-    <Shell title="Nuovo workstream" onClose={onClose}>
-      <Field label="Progetto">
-        <select value={projectId} onChange={e => setProjectId(e.target.value)} className={fieldCls}>
-          <option value="">— seleziona progetto —</option>
-          {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-      </Field>
-      <div className="grid grid-cols-2 gap-2">
-        <button type="button" onClick={() => setType('project')} className={`p-2.5 rounded-xl border text-left ${type === 'project' ? 'border-gold bg-surface-active' : 'border-border'}`}>
-          <div className="text-sm font-semibold text-text-primary">A termine</div><div className="text-2xs text-text-tertiary">Con date</div>
-        </button>
-        <button type="button" onClick={() => setType('recurring')} className={`p-2.5 rounded-xl border text-left ${type === 'recurring' ? 'border-gold bg-surface-active' : 'border-border'}`}>
-          <div className="text-sm font-semibold text-text-primary">Continuativa</div><div className="text-2xs text-text-tertiary">Ricorrente</div>
-        </button>
-      </div>
-      <Field label="Nome"><input value={name} onChange={e => setName(e.target.value)} autoFocus className={fieldCls} /></Field>
-      {type === 'project' && (
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="Inizio"><input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={fieldCls} /></Field>
-          <Field label="Fine"><input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={fieldCls} /></Field>
-        </div>
+    <ModalShell title="Nuovo workstream" hint={project ? project.name : 'In quale progetto?'}
+      icon={<FolderTree className="w-4 h-4 text-gold-text" />}
+      onClose={onClose} onSubmit={submit} canSubmit={canSubmit} pending={pending}>
+
+      <Group label="Progetto" meta={projectId
+        ? <button type="button" onClick={() => setProjectId('')} className="text-2xs font-semibold text-gold-text">Cambia</button>
+        : undefined}>
+        {projectId && project ? (
+          <PickRow selected onClick={() => setProjectId('')}
+            icon={<Briefcase className="w-4 h-4 text-gold-text shrink-0" />} title={project.name} />
+        ) : (
+          <div className="space-y-2">
+            <SearchInput value={q} onChange={setQ} placeholder="Cerca progetto…" autoFocus />
+            {filtered.length === 0 ? <Empty>Nessun progetto per «{q}».</Empty> : (
+              <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                {filtered.map(p => (
+                  <PickRow key={p.id} selected={false} onClick={() => { setProjectId(p.id); setQ('') }}
+                    icon={<Briefcase className="w-4 h-4 text-gold-text shrink-0" />} title={p.name} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </Group>
+
+      {projectId && (
+        <>
+          <Group label="Tipo">
+            <Segmented ariaLabel="Tipo workstream" value={type} onChange={setType}
+              options={[{ value: 'project', label: 'A termine' }, { value: 'recurring', label: 'Continuativa' }]} />
+            <p className="text-2xs text-text-tertiary mt-1.5">
+              {type === 'project'
+                ? 'Ha un inizio e una fine: compare come barra sul calendario.'
+                : 'Operatività continua: raccoglie le attività ricorrenti.'}
+            </p>
+          </Group>
+
+          <Field label="Nome">
+            <div className="flex gap-2">
+              <input value={name} onChange={e => setName(e.target.value)} className={inputCls}
+                // eslint-disable-next-line jsx-a11y/no-autofocus
+                autoFocus placeholder="Setup, Produzione, Reporting…" />
+              {offConvention && (
+                <button type="button" onClick={() => setName(conform)} title={`Riallinea a: ${conform}`}
+                  className="flex items-center gap-1.5 px-3 rounded-xl border border-border-interactive text-2xs font-semibold text-gold-text hover:bg-surface-hover shrink-0">
+                  <Wand2 className="w-3.5 h-3.5" />Convention
+                </button>
+              )}
+            </div>
+            {offConvention && <span className="block text-2xs text-text-tertiary mt-1.5 truncate">Convention: {conform}</span>}
+          </Field>
+
+          {type === 'project' && (
+            <Group label="Periodo">
+              <div className="grid grid-cols-2 gap-3">
+                <input type="date" aria-label="Inizio" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputCls} />
+                <input type="date" aria-label="Fine" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputCls} />
+              </div>
+              {badRange && (
+                <p className="flex items-center gap-1.5 text-2xs text-error mt-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5" />La fine precede l&apos;inizio.
+                </p>
+              )}
+            </Group>
+          )}
+        </>
       )}
-      <Actions pending={pending} disabled={!projectId || !name.trim()} onClose={onClose} onSubmit={submit} />
-    </Shell>
+    </ModalShell>
   )
 }
 
-function TaskModal({ clients, projects, profiles, onClose, onDone, notify }: {
-  clients: ClientOpt[]; projects: ProjectOpt[]; profiles: PersonOpt[]; onClose: () => void; onDone: () => void; notify: (l: string, h: string) => void
+function TaskModal({ clients, projects, profiles, base, onClose, onDone, notify }: {
+  clients: ClientOpt[]; projects: ProjectOpt[]; profiles: PersonOpt[]; base: string; onClose: () => void; onDone: () => void; notify: (l: string, h: string) => void
 }) {
   const [pending, start] = useTransition()
   const [kind, setKind] = useState<'adhoc' | 'project'>('adhoc')
+  const [q, setQ] = useState('')
   const [title, setTitle] = useState('')
   const [assignee, setAssignee] = useState('')
   const [priority, setPriority] = useState<Priority>('media')
@@ -249,98 +300,162 @@ function TaskModal({ clients, projects, profiles, onClose, onDone, notify }: {
     try {
       if (kind === 'adhoc') {
         await createAdHocTask({ client_id: clientId, title, assignee_id: assignee || null, due_date: dueDate || null, priority, visibility: clientVisible ? 'client_visible' : 'internal' })
-        notify('Task ad hoc creata', `/clienti/${clientId}?tab=3`)
+        notify('Task ad hoc creata', `${base}/ad-hoc`)
       } else {
         await createProjectTask({ client_id: projClientId, project_id: projectId, workstream_id: wsId, milestone_id: msId, title, assignee_id: assignee || null, due_date: dueDate || null, priority })
-        notify('Task creata', `/progetti/${projectId}/workstream/${wsId}`)
+        notify('Task creata', `${base}/progetti/${projectId}/workstream/${wsId}`)
       }
       onDone()
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
   })
 
-  const canSubmit = title.trim() && (kind === 'adhoc' ? !!clientId : (!!projectId && !!wsId && !!msId))
+  const canSubmit = !!title.trim() && (kind === 'adhoc' ? !!clientId : (!!projectId && !!wsId && !!msId))
+  const client = clients.find(c => c.id === clientId)
+  const project = projects.find(p => p.id === projectId)
+  const person = profiles.find(p => p.id === assignee)
+
+  const filteredClients = useMemo(() => {
+    const t = q.trim().toLowerCase()
+    return t ? clients.filter(c => c.name.toLowerCase().includes(t)) : clients
+  }, [clients, q])
+  const filteredProjects = useMemo(() => {
+    const t = q.trim().toLowerCase()
+    return t ? projects.filter(p => p.name.toLowerCase().includes(t)) : projects
+  }, [projects, q])
+
+  const hint = kind === 'adhoc'
+    ? (client?.name ?? 'Task legata al solo cliente')
+    : [project?.name, ws.find(w => w.id === wsId)?.name].filter(Boolean).join(' · ') || 'Task dentro un progetto'
 
   return (
-    <Shell title="Nuova task" onClose={onClose}>
-      {/* switch tipo */}
-      <div className="flex bg-surface-active rounded-lg p-0.5">
-        {([['adhoc', 'Ad hoc (cliente)'], ['project', 'In un progetto']] as const).map(([k, lab]) => (
-          <button key={k} type="button" onClick={() => setKind(k)}
-            className={`flex-1 py-1.5 rounded-md text-2xs font-semibold ${kind === k ? 'bg-surface text-text-primary shadow-soft' : 'text-text-secondary'}`}>{lab}</button>
-        ))}
-      </div>
+    <ModalShell title="Nuova task" hint={hint} icon={<CheckSquare className="w-4 h-4 text-gold-text" />}
+      onClose={onClose} onSubmit={submit} canSubmit={canSubmit} pending={pending}>
+
+      <Segmented ariaLabel="Tipo di task" value={kind} onChange={k => { setKind(k); setQ('') }}
+        options={[{ value: 'adhoc', label: 'Ad hoc (cliente)' }, { value: 'project', label: 'In un progetto' }]} />
 
       {kind === 'adhoc' ? (
         <>
-          <Field label="Cliente">
-            <select value={clientId} onChange={e => setClientId(e.target.value)} className={fieldCls}>
-              <option value="">— seleziona cliente —</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </Field>
-          <label className="flex items-center gap-2 text-2xs text-text-secondary">
-            <input type="checkbox" checked={clientVisible} onChange={e => setClientVisible(e.target.checked)} />
-            Assegna/visibile al cliente (compare tra le task cliente)
-          </label>
+          <Group label="Cliente" meta={clientId
+            ? <button type="button" onClick={() => setClientId('')} className="text-2xs font-semibold text-gold-text">Cambia</button>
+            : undefined}>
+            {clientId && client ? (
+              <PickRow selected onClick={() => setClientId('')} icon={<Avatar name={client.name} />} title={client.name} />
+            ) : (
+              <div className="space-y-2">
+                <SearchInput value={q} onChange={setQ} placeholder="Cerca cliente…" autoFocus />
+                {filteredClients.length === 0 ? <Empty>Nessun cliente per «{q}».</Empty> : (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {filteredClients.map(c => (
+                      <PickRow key={c.id} selected={false} onClick={() => { setClientId(c.id); setQ('') }}
+                        icon={<Avatar name={c.name} />} title={c.name} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </Group>
+
+          <button type="button" onClick={() => setClientVisible(v => !v)} aria-pressed={clientVisible}
+            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-colors ${
+              clientVisible ? 'border-gold bg-gold-dim' : 'border-border hover:bg-surface-hover'
+            }`}>
+            {clientVisible ? <Eye className="w-4 h-4 text-info shrink-0" /> : <EyeOff className="w-4 h-4 text-text-tertiary shrink-0" />}
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-text-primary">Visibile al cliente</span>
+              <span className="block text-2xs text-text-tertiary">Compare nel portale cliente tra le sue attività</span>
+            </span>
+          </button>
         </>
       ) : (
         <>
-          <Field label="Progetto">
-            <select value={projectId} onChange={e => setProjectId(e.target.value)} className={fieldCls}>
-              <option value="">— seleziona progetto —</option>
-              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </Field>
+          <Group label="Progetto" meta={projectId
+            ? <button type="button" onClick={() => { setProjectId(''); setWsId('') }} className="text-2xs font-semibold text-gold-text">Cambia</button>
+            : undefined}>
+            {projectId && project ? (
+              <PickRow selected onClick={() => { setProjectId(''); setWsId('') }}
+                icon={<Briefcase className="w-4 h-4 text-gold-text shrink-0" />} title={project.name} />
+            ) : (
+              <div className="space-y-2">
+                <SearchInput value={q} onChange={setQ} placeholder="Cerca progetto…" autoFocus />
+                {filteredProjects.length === 0 ? <Empty>Nessun progetto per «{q}».</Empty> : (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {filteredProjects.map(p => (
+                      <PickRow key={p.id} selected={false} onClick={() => { setProjectId(p.id); setQ('') }}
+                        icon={<Briefcase className="w-4 h-4 text-gold-text shrink-0" />} title={p.name} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </Group>
+
           {projectId && (
-            <Field label="Workstream">
-              <select value={wsId} onChange={e => setWsId(e.target.value)} disabled={loadingWs} className={fieldCls}>
-                <option value="">{loadingWs ? 'Carico…' : '— seleziona —'}</option>
-                {ws.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-              </select>
-            </Field>
+            <Group label="Workstream">
+              {loadingWs ? <Skeleton /> : ws.length === 0 ? (
+                <Empty>Questo progetto non ha ancora workstream: creane uno da «Crea → Nuovo workstream».</Empty>
+              ) : (
+                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                  {ws.map(w => (
+                    <PickRow key={w.id} selected={wsId === w.id} onClick={() => setWsId(w.id)}
+                      icon={<FolderTree className="w-4 h-4 text-gold-text shrink-0" />} title={w.name} />
+                  ))}
+                </div>
+              )}
+            </Group>
           )}
+
           {wsId && (
-            <Field label="Milestone">
-              <select value={msId} onChange={e => setMsId(e.target.value)} disabled={loadingMs} className={fieldCls}>
-                {loadingMs && <option value="">Carico…</option>}
-                {ms.map(m => <option key={m.id} value={m.id}>{m.title}{m.milestone_type === 'system' ? ' (operatività)' : ''}</option>)}
-              </select>
-            </Field>
+            <Group label="Milestone">
+              {loadingMs ? <Skeleton /> : ms.length === 0 ? (
+                <Empty>Nessuna milestone in questa workstream.</Empty>
+              ) : (
+                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                  {ms.map(m => (
+                    <PickRow key={m.id} selected={msId === m.id} onClick={() => setMsId(m.id)}
+                      icon={<Flag className={`w-4 h-4 shrink-0 ${m.milestone_type === 'system' ? 'text-text-tertiary' : 'text-info'}`} />}
+                      title={m.title}
+                      subtitle={m.milestone_type === 'system' ? 'operatività continua' : undefined} />
+                  ))}
+                </div>
+              )}
+            </Group>
           )}
         </>
       )}
 
-      <Field label="Titolo"><input value={title} onChange={e => setTitle(e.target.value)} autoFocus className={fieldCls} /></Field>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="Assegnatario">
-          <select value={assignee} onChange={e => setAssignee(e.target.value)} className={fieldCls}>
-            <option value="">—</option>
-            {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-          </select>
-        </Field>
-        <Field label="Scadenza"><input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={fieldCls} /></Field>
-      </div>
-      <Field label="Priorità">
-        <select value={priority} onChange={e => setPriority(e.target.value as Priority)} className={fieldCls}>
-          {(['alta', 'media', 'bassa'] as Priority[]).map(p => <option key={p} value={p}>{p}</option>)}
-        </select>
+      <Field label="Titolo">
+        <input value={title} onChange={e => setTitle(e.target.value)} className={inputCls}
+          placeholder="Cosa va fatto?" />
       </Field>
 
-      <Actions pending={pending} disabled={!canSubmit} onClose={onClose} onSubmit={submit} />
-    </Shell>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Assegnatario">
+          <div className="flex items-center gap-2">
+            {person && <Avatar name={person.full_name} url={person.avatar_url} />}
+            <select value={assignee} onChange={e => setAssignee(e.target.value)} className={inputCls} aria-label="Assegnatario">
+              <option value="">— nessuno —</option>
+              {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}{p.app_role ? ` · ${p.app_role}` : ''}</option>)}
+            </select>
+          </div>
+        </Field>
+        <Field label="Scadenza">
+          <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputCls} aria-label="Scadenza" />
+        </Field>
+      </div>
+
+      <Field label="Priorità">
+        <Segmented ariaLabel="Priorità" value={priority} onChange={setPriority}
+          options={[{ value: 'alta', label: 'Alta' }, { value: 'media', label: 'Media' }, { value: 'bassa', label: 'Bassa' }]} />
+      </Field>
+    </ModalShell>
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label className="block"><span className="block text-2xs font-semibold text-text-secondary mb-1">{label}</span>{children}</label>
-}
-function Actions({ pending, disabled, onClose, onSubmit }: { pending: boolean; disabled: boolean; onClose: () => void; onSubmit: () => void }) {
+function Skeleton() {
   return (
-    <div className="flex justify-end gap-2 pt-1">
-      <button onClick={onClose} className="text-2xs font-semibold text-text-secondary px-3 py-1.5">Annulla</button>
-      <button onClick={onSubmit} disabled={pending || disabled} className="flex items-center gap-1 text-2xs font-semibold bg-gold text-on-gold px-3 py-1.5 rounded-lg disabled:opacity-40">
-        {pending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}Crea
-      </button>
+    <div className="space-y-1.5">
+      {[0, 1].map(i => <div key={i} className="h-11 rounded-xl bg-surface-active animate-pulse" />)}
     </div>
   )
 }

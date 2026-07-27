@@ -67,7 +67,7 @@ export function FeedbackAdminClient({ sections, feedback, votedIds }: {
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-5 sm:space-y-6">
       <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Feedback & Idee</h1>

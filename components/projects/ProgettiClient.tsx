@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Plus, FolderKanban, Search, ChevronRight } from 'lucide-react'
 import { ProjectWizard } from './ProjectWizard'
-import { ProjectGantt } from './ProjectGantt'
+import { ProjectGantt, type GanttLane } from './ProjectGantt'
 import type {
   ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode,
   ProjectWorkstream, Milestone, Task,
@@ -30,9 +30,12 @@ const AREA_TONE: Record<string, string> = {
   marketing: 'text-accent', growth: 'text-gold-text', digital: 'text-info',
 }
 const AREAS = ['marketing', 'growth', 'digital'] as const
+// stati "in corso": una riga di calendario per ognuno, anche senza milestone datate
+const LIVE_STATUSES = ['active', 'draft', 'on_hold']
 
 export function ProgettiClient({
   clients, profiles, services, templates, nodes, projects, workstreams, milestones, calTasks, initialClientId, openWizard,
+  basePath = '/progetti', canCreate = true,
 }: {
   clients: { id: string; name: string }[]
   profiles: { id: string; full_name: string; app_role: string | null; avatar_url?: string | null }[]
@@ -45,6 +48,8 @@ export function ProgettiClient({
   calTasks?: Pick<Task, 'id' | 'milestone_id' | 'status' | 'parent_task_id'>[]
   initialClientId?: string
   openWizard?: boolean
+  basePath?: string
+  canCreate?: boolean
 }) {
   const router = useRouter()
   const [wizard, setWizard] = useState(!!initialClientId || !!openWizard)
@@ -54,22 +59,53 @@ export function ProgettiClient({
   const clientName = (id: string) => clients.find(c => c.id === id)?.name ?? '—'
   const serviceLabel = (st: string) => services.find(s => s.service_type === st)?.label ?? st
 
-  // ── Calendario milestone globale (progetti attivi) ────────────────────────
-  const projById = useMemo(() => new Map(projects.map(p => [p.id, p])), [projects])
-  const accentOf = useMemo(() => {
-    const ids = Array.from(new Set((workstreams ?? []).map(w => w.project_id)))
-    const m = new Map<string, string>()
-    ids.forEach((id, i) => m.set(id, ACCENTS[i % ACCENTS.length]))
+  // ── Calendario milestone globale: una corsia per progetto in corso ────────
+  const wsById = useMemo(() => new Map((workstreams ?? []).map(w => [w.id, w])), [workstreams])
+  const msByProject = useMemo(() => {
+    const m = new Map<string, Milestone[]>()
+    ;(milestones ?? []).forEach(ms => {
+      if (!ms.due_date) return
+      const arr = m.get(ms.project_id)
+      if (arr) arr.push(ms)
+      else m.set(ms.project_id, [ms])
+    })
+    m.forEach(arr => arr.sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1)))
     return m
-  }, [workstreams])
-  const laneSubtitle = (w: ProjectWorkstream) => {
-    const p = projById.get(w.project_id)
-    if (!p) return null
-    return `${p.name} · ${clientName(p.client_id)}`
-  }
+  }, [milestones])
+
+  // chiave d'ordinamento: milestone aperta più imminente del progetto. Le scadute
+  // hanno data nel passato, quindi salgono in cima da sole.
+  const nextDue = useMemo(() => {
+    const m = new Map<string, string>()
+    msByProject.forEach((list, pid) => {
+      const next = list.find(x => x.status !== 'completata')
+      if (next?.due_date) m.set(pid, next.due_date)
+    })
+    return m
+  }, [msByProject])
+
+  const projectLanes: GanttLane[] = useMemo(() =>
+    projects
+      .filter(p => LIVE_STATUSES.includes(p.status))
+      .sort((a, b) => {
+        // progetti senza milestone aperte (o senza milestone) in coda
+        const da = nextDue.get(a.id) ?? '9999-12-31'
+        const db = nextDue.get(b.id) ?? '9999-12-31'
+        return da === db ? a.name.localeCompare(b.name) : (da < db ? -1 : 1)
+      })
+      .map((p, i) => ({
+        id: p.id,
+        name: p.name,
+        subtitle: `${clientName(p.client_id)}${p.status === 'active' ? '' : ` · ${STATUS_LABEL[p.status] ?? p.status}`}`,
+        accent: ACCENTS[i % ACCENTS.length],
+        milestones: msByProject.get(p.id) ?? [],
+      })),
+    [projects, msByProject, nextDue]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const wsName = (m: Milestone) => wsById.get(m.workstream_id)?.name ?? null
   const openMilestone = (wsId: string, msId: string) => {
-    const w = (workstreams ?? []).find(x => x.id === wsId)
-    if (w) router.push(`/progetti/${w.project_id}/workstream/${wsId}?ms=${msId}`)
+    const w = wsById.get(wsId)
+    if (w) router.push(`${basePath}/${w.project_id}/workstream/${wsId}?ms=${msId}`)
   }
 
   const filtered = useMemo(() => projects.filter(p =>
@@ -90,26 +126,26 @@ export function ProgettiClient({
             <span className="tabular font-semibold text-success">{activeCount}</span> attivi
           </p>
         </div>
-        <button onClick={() => setWizard(true)}
-          className="flex items-center gap-1.5 text-sm font-semibold bg-gold text-on-gold px-4 py-2.5 rounded-xl shadow-soft press">
-          <Plus className="w-4 h-4" />Nuovo progetto
-        </button>
+        {canCreate && (
+          <button onClick={() => setWizard(true)}
+            className="flex items-center gap-1.5 text-sm font-semibold bg-gold text-on-gold px-4 py-2.5 rounded-xl shadow-soft press">
+            <Plus className="w-4 h-4" />Nuovo progetto
+          </button>
+        )}
       </div>
 
-      {/* Calendario milestone globale (progetti attivi) */}
-      {(milestones ?? []).some(m => m.due_date) && (
-        <ProjectGantt
-          title="Calendario milestone · progetti in corso"
-          workstreams={workstreams ?? []}
-          milestones={milestones ?? []}
-          tasks={calTasks ?? []}
-          profiles={profiles as { id: string; full_name: string; avatar_url: string | null }[]}
-          onOpenMilestone={openMilestone}
-          laneSubtitle={laneSubtitle}
-          laneAccent={(w) => accentOf.get(w.project_id)}
-          labelWidth={220}
-        />
-      )}
+      {/* Calendario milestone globale: una riga per progetto in corso */}
+      <ProjectGantt
+        title="Calendario milestone · progetti in corso"
+        lanes={projectLanes}
+        laneLabel="progetti"
+        tasks={calTasks ?? []}
+        profiles={profiles as { id: string; full_name: string; avatar_url: string | null }[]}
+        onOpenMilestone={openMilestone}
+        milestoneContext={wsName}
+        emptyHint="Nessun progetto in corso: il calendario mostra una riga per ogni progetto attivo, in bozza o in pausa."
+        labelWidth={220}
+      />
 
       {/* toolbar filtri */}
       <div className="flex items-center gap-2 flex-wrap">
@@ -132,12 +168,12 @@ export function ProgettiClient({
       {filtered.length === 0 ? (
         <div className="text-center py-16 border border-dashed border-border rounded-2xl animate-fade-in">
           <FolderKanban className="w-9 h-9 text-text-tertiary mx-auto mb-3" />
-          <p className="text-sm text-text-secondary">{projects.length === 0 ? 'Nessun progetto. Creane uno con il wizard.' : 'Nessun risultato per i filtri.'}</p>
+          <p className="text-sm text-text-secondary">{projects.length === 0 ? (canCreate ? 'Nessun progetto. Creane uno con il wizard.' : 'Nessun progetto assegnato.') : 'Nessun risultato per i filtri.'}</p>
         </div>
       ) : (
         <div className="grid gap-2.5 sm:grid-cols-2 animate-fade-in">
           {filtered.map(p => (
-            <Link key={p.id} href={`/progetti/${p.id}`}
+            <Link key={p.id} href={`${basePath}/${p.id}`}
               className="group card-interactive bg-surface border border-border rounded-2xl p-4 flex items-start gap-3 no-tap-highlight">
               <div className="w-9 h-9 rounded-xl bg-gold-dim flex items-center justify-center shrink-0">
                 <FolderKanban className="w-[18px] h-[18px] text-gold-text" />
@@ -165,6 +201,7 @@ export function ProgettiClient({
           clients={clients} profiles={profiles} services={services}
           templates={templates} nodes={nodes}
           fixedClientId={initialClientId}
+          basePath={basePath}
           onClose={() => setWizard(false)}
         />
       )}

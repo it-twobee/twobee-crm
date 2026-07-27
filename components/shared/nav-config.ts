@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Users, FolderOpen, Settings, CalendarDays, Headphones,
-  Ticket, UserCircle2, History, Lightbulb, FolderKanban, Briefcase, ListChecks,
+  Ticket, UserCircle2, History, Lightbulb, FolderKanban, Briefcase, ListChecks, ListTodo,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -29,6 +29,7 @@ export const navSections: NavSection[] = [
     items: [
       { href: '/clienti', icon: Users, label: 'Clienti' },
       { href: '/progetti', icon: Briefcase, label: 'Progetti' },
+      { href: '/ad-hoc', icon: ListTodo, label: 'Task Ad Hoc' },
       { href: '/customer-care', icon: Headphones, label: 'Customer Care' },
       { href: '/customer-care/tickets', icon: Ticket, label: 'Ticket' },
     ],

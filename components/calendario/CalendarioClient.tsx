@@ -206,12 +206,12 @@ export function CalendarioClient({
   return (
     <div className="flex h-full">
       <div className="flex-1 p-4 sm:p-6 flex flex-col min-w-0">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-4">
+        {/* Header — su schermi stretti va a capo invece di schiacciarsi */}
+        <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+          <div className="flex items-center gap-3 sm:gap-4 flex-wrap min-w-0">
             {viewMode !== 'personalizzato' ? (
               <>
-                <h1 className="text-2xl font-bold text-text-primary capitalize">{headerLabel}</h1>
+                <h1 className="text-xl sm:text-2xl font-bold text-text-primary capitalize truncate">{headerLabel}</h1>
                 <div className="flex items-center gap-1">
                   <button onClick={navPrev} className="p-1.5 rounded-lg hover:bg-overlay/[0.04] text-overlay/30 hover:text-text-primary transition-colors">
                     <ChevronLeft className="w-4 h-4" />
@@ -234,7 +234,7 @@ export function CalendarioClient({
             )}
             {loadingEvents && <Loader2 className="w-4 h-4 text-gold-text animate-spin" />}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
             {/* Search */}
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-overlay/20" />

@@ -15,7 +15,8 @@ async function requireStaff(): Promise<string> {
 }
 
 export async function createProjectTask(input: {
-  client_id: string
+  /** null sui progetti interni (migration 155) */
+  client_id: string | null
   project_id: string
   workstream_id: string
   milestone_id: string

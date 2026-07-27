@@ -8,6 +8,18 @@ import type { ProjectWorkstream, Milestone, Task } from '@/lib/types/database'
 type Person = { id: string; full_name: string; avatar_url: string | null }
 type GanttTask = Pick<Task, 'id' | 'milestone_id' | 'status' | 'parent_task_id'>
 
+/** Corsia generica: una workstream nel dettaglio progetto, un progetto nella vista globale. */
+export type GanttLane = {
+  id: string
+  name: string
+  subtitle?: string | null
+  /** classe bg del pallino d'accento */
+  accent?: string
+  /** barra di durata (solo workstream a termine) */
+  bar?: { start: string; end: string | null } | null
+  milestones: Milestone[]
+}
+
 const MS_LABEL: Record<string, string> = { da_fare: 'Da fare', in_corso: 'In corso', in_approvazione: 'In approvazione', completata: 'Completata' }
 
 const ZOOMS = { giorni: 44, settimane: 20, mesi: 9 } as const
@@ -22,11 +34,12 @@ const MONTHS = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'L
 const WEEKDAY_SHORT = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab']
 
 export function ProjectGantt({
-  workstreams, milestones, tasks, profiles, onOpenMilestone,
+  workstreams = [], milestones = [], tasks, profiles, onOpenMilestone,
   title = 'Calendario milestone', laneSubtitle, laneAccent, labelWidth = LABEL_W,
+  lanes: externalLanes, laneLabel = 'workstream', milestoneContext, emptyHint,
 }: {
-  workstreams: ProjectWorkstream[]
-  milestones: Milestone[]
+  workstreams?: ProjectWorkstream[]
+  milestones?: Milestone[]
   tasks?: GanttTask[]
   profiles?: Person[]
   onOpenMilestone?: (workstreamId: string, milestoneId: string) => void
@@ -36,26 +49,41 @@ export function ProjectGantt({
   /** classe bg per il pallino d'accento (raggruppa visivamente per progetto) */
   laneAccent?: (ws: ProjectWorkstream) => string | undefined
   labelWidth?: number
+  /** corsie pronte: bypassa la derivazione da workstreams (vista per progetto) */
+  lanes?: GanttLane[]
+  /** nome plurale della corsia, per il contatore in intestazione */
+  laneLabel?: string
+  /** testo della riga di contesto nel recap (default: nome corsia) */
+  milestoneContext?: (m: Milestone) => string | null
+  emptyHint?: string
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [zoom, setZoom] = useState<Zoom>('giorni')
-  const [hover, setHover] = useState<{ m: Milestone; wsName: string; rect: DOMRect } | null>(null)
+  const [hover, setHover] = useState<{ m: Milestone; ctx: string; rect: DOMRect } | null>(null)
   const [mounted, setMounted] = useState(false)
   useEffect(() => { setMounted(true) }, [])
   const DAY_W = ZOOMS[zoom]
   const showDays = zoom === 'giorni'
   const person = (id: string | null) => (id ? profiles?.find(p => p.id === id) ?? null : null)
 
-  const lanes = useMemo(() =>
-    workstreams
-      .map(w => ({ ws: w, ms: milestones.filter(m => m.workstream_id === w.id && m.due_date) }))
-      .filter(l => l.ms.length > 0),
-    [workstreams, milestones])
+  const lanes: GanttLane[] = useMemo(() => {
+    if (externalLanes) return externalLanes
+    return workstreams
+      .map(w => ({
+        id: w.id, name: w.name, subtitle: laneSubtitle?.(w) ?? null, accent: laneAccent?.(w),
+        bar: w.workstream_type === 'project' && w.start_date ? { start: w.start_date, end: w.end_date } : null,
+        milestones: milestones.filter(m => m.workstream_id === w.id && m.due_date),
+      }))
+      .filter(l => l.milestones.length > 0)
+  }, [externalLanes, workstreams, milestones, laneSubtitle, laneAccent])
 
   const model = useMemo(() => {
     const dates: number[] = []
-    milestones.forEach(m => { if (m.due_date) dates.push(parse(m.due_date)) })
-    workstreams.forEach(w => { if (w.start_date) dates.push(parse(w.start_date)); if (w.end_date) dates.push(parse(w.end_date)) })
+    lanes.forEach(l => {
+      l.milestones.forEach(m => { if (m.due_date) dates.push(parse(m.due_date)) })
+      if (l.bar?.start) dates.push(parse(l.bar.start))
+      if (l.bar?.end) dates.push(parse(l.bar.end))
+    })
     const todayT = parse(new Date().toISOString().slice(0, 10))
     dates.push(todayT)
     if (lanes.length === 0) return null
@@ -72,7 +100,7 @@ export function ProjectGantt({
       else monthSegs.push({ left: i * DAY_W, width: DAY_W, label })
     })
     return { min, max, totalDays, width: totalDays * DAY_W, x, days, monthSegs, todayLeft: x(todayT) }
-  }, [workstreams, milestones, lanes, DAY_W])
+  }, [lanes, DAY_W])
 
   useEffect(() => {
     if (model && scrollRef.current) scrollRef.current.scrollLeft = Math.max(0, model.todayLeft - 260)
@@ -81,7 +109,7 @@ export function ProjectGantt({
   if (!model) {
     return (
       <div className="bg-surface border border-border rounded-2xl p-6 text-center shadow-soft">
-        <p className="text-2xs text-text-tertiary">Nessuna milestone datata: aggiungi una scadenza a una milestone per vederla sul calendario.</p>
+        <p className="text-2xs text-text-tertiary">{emptyHint ?? 'Nessuna milestone datata: aggiungi una scadenza a una milestone per vederla sul calendario.'}</p>
       </div>
     )
   }
@@ -107,7 +135,7 @@ export function ProjectGantt({
     <div className="relative bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border flex-wrap">
         <span className="text-sm font-bold text-text-primary">{title}</span>
-        <span className="text-2xs text-text-tertiary">· {lanes.reduce((n, l) => n + l.ms.length, 0)} milestone · {lanes.length} workstream</span>
+        <span className="text-2xs text-text-tertiary">· {lanes.reduce((n, l) => n + l.milestones.length, 0)} milestone · {lanes.length} {laneLabel}</span>
         <div className="ml-auto flex items-center gap-2">
           <button onClick={() => { if (scrollRef.current) scrollRef.current.scrollTo({ left: Math.max(0, model.todayLeft - 260), behavior: 'smooth' }) }}
             className="text-2xs font-semibold text-gold-text hover:opacity-80 press">Oggi</button>
@@ -136,7 +164,7 @@ export function ProjectGantt({
                 </div>
                 <div className="mt-2.5 space-y-1.5">
                   <div className="flex items-center gap-2 text-2xs text-text-secondary">
-                    <FolderTree className="w-3.5 h-3.5 text-gold-text shrink-0" /><span className="truncate">{hover.wsName}</span>
+                    <FolderTree className="w-3.5 h-3.5 text-gold-text shrink-0" /><span className="truncate">{hover.ctx}</span>
                   </div>
                   <div className="flex items-center gap-2 text-2xs text-text-secondary">
                     <CalIcon className="w-3.5 h-3.5 text-text-tertiary shrink-0" /><span className="tabular">{hm.due_date}</span>
@@ -162,20 +190,16 @@ export function ProjectGantt({
         <div className="shrink-0 border-r border-border bg-surface z-10" style={{ width: labelWidth }}>
           <div className="h-7 border-b border-border/60" />
           {showDays && <div className="h-10 border-b border-border" />}
-          {lanes.map(l => {
-            const sub = laneSubtitle?.(l.ws)
-            const accent = laneAccent?.(l.ws)
-            return (
-              <div key={l.ws.id} className="border-b border-border/40 flex items-center gap-2 px-3" style={{ height: LANE_H }}>
-                {accent ? <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${accent}`} aria-hidden />
+          {lanes.map(l => (
+            <div key={l.id} className="border-b border-border/40 flex items-center gap-2 px-3" style={{ height: LANE_H }}>
+              {l.accent ? <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${l.accent}`} aria-hidden />
                         : <FolderTree className="w-3.5 h-3.5 text-gold-text shrink-0" />}
-                <div className="min-w-0">
-                  <div className="text-xs font-semibold text-text-primary truncate leading-tight">{l.ws.name}</div>
-                  {sub && <div className="text-2xs text-text-tertiary truncate leading-tight">{sub}</div>}
-                </div>
+              <div className="min-w-0">
+                <div className="text-xs font-semibold text-text-primary truncate leading-tight">{l.name}</div>
+                {l.subtitle && <div className="text-2xs text-text-tertiary truncate leading-tight">{l.subtitle}</div>}
               </div>
-            )
-          })}
+            </div>
+          ))}
         </div>
 
         {/* griglia scrollabile */}
@@ -213,22 +237,24 @@ export function ProjectGantt({
 
             {/* corsie */}
             {lanes.map(l => {
-              const w = l.ws
-              const hasBar = w.workstream_type === 'project' && w.start_date
-              const bs = hasBar ? model.x(parse(w.start_date!)) : 0
-              const be = hasBar ? (w.end_date ? model.x(parse(w.end_date)) : bs + DAY_W) : 0
+              const bs = l.bar ? model.x(parse(l.bar.start)) : 0
+              const be = l.bar ? (l.bar.end ? model.x(parse(l.bar.end)) : bs + DAY_W) : 0
               return (
-                <div key={w.id} className="relative border-b border-border/40" style={{ height: LANE_H }}>
-                  {hasBar && (
+                <div key={l.id} className="relative border-b border-border/40" style={{ height: LANE_H }}>
+                  {l.bar && (
                     <div className="absolute top-1/2 -translate-y-1/2 h-2 rounded-full bg-gold-dim border border-gold/30" style={{ left: bs + DAY_W / 2, width: Math.max(DAY_W, be - bs) }} />
                   )}
-                  {l.ms.map(m => {
+                  {l.milestones.length === 0 && (
+                    <span className="absolute top-1/2 -translate-y-1/2 text-2xs text-text-tertiary/70 whitespace-nowrap pointer-events-none"
+                      style={{ left: model.todayLeft + DAY_W / 2 + 14 }}>nessuna milestone datata</span>
+                  )}
+                  {l.milestones.map(m => {
                     const tone = msTone(m)
                     const owner = person(m.owner_id)
                     return (
                       <button key={m.id}
-                        onClick={() => onOpenMilestone?.(w.id, m.id)}
-                        onMouseEnter={e => setHover({ m, wsName: w.name, rect: e.currentTarget.getBoundingClientRect() })}
+                        onClick={() => onOpenMilestone?.(m.workstream_id, m.id)}
+                        onMouseEnter={e => setHover({ m, ctx: milestoneContext?.(m) ?? l.name, rect: e.currentTarget.getBoundingClientRect() })}
                         onMouseLeave={() => setHover(h => (h?.m.id === m.id ? null : h))}
                         aria-label={`Milestone ${m.title}`}
                         className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10" style={{ left: model.x(parse(m.due_date!)) + DAY_W / 2 }}>

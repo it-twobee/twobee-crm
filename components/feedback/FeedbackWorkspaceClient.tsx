@@ -10,6 +10,7 @@ import { getInitials } from '@/lib/utils'
 import { createFeedback, voteFeedback } from '@/app/actions/feedback'
 import { ImagePicker, AttachmentThumbs, uploadFeedbackImages, MAX_IMAGES } from './attachments'
 import { FeedbackItem, FeedbackSection, FeedbackKind, STATUS_LABELS, STATUS_STYLE, KIND_LABELS, IMPACT_LABELS } from './types'
+import { SearchInput } from '@/components/shared/formkit'
 
 type FormKind = Extract<FeedbackKind, 'improvement' | 'new_section' | 'idea'>
 
@@ -37,6 +38,8 @@ export function FeedbackWorkspaceClient({ currentUserId, sections, feedback, vot
   const [images, setImages] = useState<File[]>([])
   const [saving, setSaving] = useState(false)
   const [tab, setTab] = useState<'mie' | 'tutte'>('tutte')
+  const [q, setQ] = useState('')
+  const [sort, setSort] = useState<'voti' | 'recenti'>('voti')
   const [votedSet, setVotedSet] = useState<Set<string>>(new Set(votedIds))
   const [voting, setVoting] = useState<string | null>(null)
 
@@ -75,14 +78,22 @@ export function FeedbackWorkspaceClient({ currentUserId, sections, feedback, vot
     router.refresh()
   }
 
-  const list = feedback.filter(f => tab === 'tutte' || f.author_id === currentUserId)
+  const list = useMemo(() => {
+    const t = q.trim().toLowerCase()
+    return feedback
+      .filter(f => tab === 'tutte' || f.author_id === currentUserId)
+      .filter(f => !t || f.title.toLowerCase().includes(t) || (f.description ?? '').toLowerCase().includes(t))
+      .sort((a, b) => sort === 'voti'
+        ? (b.vote_count ?? 0) - (a.vote_count ?? 0)
+        : (a.created_at < b.created_at ? 1 : -1))
+  }, [feedback, tab, currentUserId, q, sort])
 
   const canSubmit = title.trim() && description.trim()
     && (kind !== 'improvement' || sectionKey)
     && (kind !== 'new_section' || newName.trim())
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-8">
+    <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6 sm:space-y-8">
       <header>
         <h1 className="text-2xl font-bold text-text-primary">Feedback</h1>
         <p className="text-text-secondary text-sm mt-1">
@@ -166,17 +177,29 @@ export function FeedbackWorkspaceClient({ currentUserId, sections, feedback, vot
 
       {/* Bacheca */}
       <section>
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
           <h2 className="text-sm font-bold text-text-primary">Proposte del team</h2>
-          <span className="text-2xs text-text-tertiary">{list.length}</span>
-          <div className="ml-auto flex bg-surface border border-border rounded-lg p-0.5">
+          <span className="text-2xs text-text-tertiary tabular">{list.length}</span>
+          <div className="flex bg-surface border border-border rounded-lg p-0.5 shrink-0">
             {(['tutte', 'mie'] as const).map(t => (
-              <button key={t} onClick={() => setTab(t)}
-                className={`px-3 py-1 rounded-md text-xs font-medium capitalize transition-colors ${
+              <button key={t} onClick={() => setTab(t)} aria-pressed={tab === t}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                   tab === t ? 'bg-gold text-on-gold' : 'text-text-tertiary hover:text-text-primary'}`}>
                 {t === 'tutte' ? 'Tutte' : 'Le mie'}
               </button>
             ))}
+          </div>
+          <div className="flex bg-surface border border-border rounded-lg p-0.5 shrink-0">
+            {(['voti', 'recenti'] as const).map(s => (
+              <button key={s} onClick={() => setSort(s)} aria-pressed={sort === s}
+                className={`px-3 py-1 rounded-md text-xs font-medium capitalize transition-colors ${
+                  sort === s ? 'bg-gold text-on-gold' : 'text-text-tertiary hover:text-text-primary'}`}>
+                {s === 'voti' ? 'Più votate' : 'Recenti'}
+              </button>
+            ))}
+          </div>
+          <div className="flex-1 min-w-[160px] sm:ml-auto sm:max-w-xs">
+            <SearchInput value={q} onChange={setQ} placeholder="Cerca proposta…" />
           </div>
         </div>
 

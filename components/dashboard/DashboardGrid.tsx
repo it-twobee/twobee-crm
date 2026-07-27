@@ -17,7 +17,13 @@ import { SmartInsights }    from './SmartInsights'
 import { AIDashboardChat }  from './AIDashboardChat'
 import { RecentMessages }   from './RecentMessages'
 import { KpiPerformanceWidget } from './KpiPerformanceWidget'
+import { DeliveryRadar }    from './DeliveryRadar'
+import { NextDeliveries }   from './NextDeliveries'
+import { MyDay }            from './MyDay'
 import type { KpiSnapshotRow }  from './KpiPerformanceWidget'
+import type { DeliveryStats }   from './DeliveryRadar'
+import type { DeliveryRow }     from './NextDeliveries'
+import type { MyDayRow }        from './MyDay'
 import type { FocusItem }      from './DailyFocus'
 import type { DashAlert }      from './AlertCenter'
 import type { AIContext }      from './AIDashboardChat'
@@ -39,6 +45,11 @@ export interface DashboardData {
   ticketsResolved: number
   recentMessages: (ChatMessageWithSender & { channel: Pick<ChatChannel, 'id' | 'name' | 'type'> | null })[]
   kpiSnapshot: KpiSnapshotRow[]
+  /** dimensione delivery: prima la dashboard ignorava del tutto i progetti */
+  delivery: DeliveryStats
+  nextDeliveries: DeliveryRow[]
+  myDay: MyDayRow[]
+  myOverdue: number
   isAdmin: boolean
   isSuperAdmin: boolean
   userId: string
@@ -56,7 +67,10 @@ interface WidgetDef {
 }
 
 const WIDGET_DEFS: WidgetDef[] = [
-  { id: 'metrics',  label: 'Metriche',           emoji: '📊', href: '/dashboard' },
+  { id: 'myday',    label: 'La mia giornata',    emoji: '☕', href: '/le-mie-attivita' },
+  { id: 'delivery', label: 'Delivery Radar',     emoji: '🎯', href: '/progetti' },
+  { id: 'nextdue',  label: 'Prossime consegne',  emoji: '📅', href: '/progetti' },
+  { id: 'metrics',  label: 'Metriche',           emoji: '📊', href: '/clienti' },
   { id: 'focus',    label: 'Focus di oggi',      emoji: '☀️', href: '/dashboard' },
   { id: 'alerts',   label: 'Alert',              emoji: '⚠️', href: '/dashboard' },
   { id: 'risk',     label: 'Clienti a Rischio',  emoji: '🔴', href: '/clienti' },
@@ -70,39 +84,64 @@ const WIDGET_DEFS: WidgetDef[] = [
 ]
 
 // ─── Template definitions ─────────────────────────────────────────────────────
+// Ogni template risponde a UNA domanda. Se non sai quale scegliere, "Giornata":
+// è quello che serve nove mattine su dieci.
 interface Template {
-  id: string; name: string; emoji: string; desc: string; color: string
+  id: string; name: string; emoji: string; desc: string; question: string; color: string
   widgets: string[]
 }
 
 const TEMPLATES: Template[] = [
   {
-    id: 'essenziale',
-    name: 'Essenziale',
-    emoji: '⚡',
-    desc: 'Metriche, focus, alert e clienti a rischio.',
+    id: 'giornata',
+    name: 'Giornata',
+    emoji: '☕',
+    question: 'Cosa devo fare oggi?',
+    desc: 'Le tue attività, le consegne vicine e cosa è andato storto.',
     color: 'var(--color-gold-text)',
-    widgets: ['metrics', 'focus', 'alerts', 'risk'],
+    widgets: ['myday', 'delivery', 'nextdue', 'alerts'],
+  },
+  {
+    id: 'delivery',
+    name: 'Delivery',
+    emoji: '🎯',
+    question: 'Come stanno andando i progetti?',
+    desc: 'Radar consegne, scadenze, focus e alert operativi.',
+    color: 'var(--color-info)',
+    widgets: ['delivery', 'nextdue', 'myday', 'focus', 'alerts', 'insights'],
   },
   {
     id: 'clienti',
     name: 'Clienti',
     emoji: '🏢',
-    desc: 'Tutto sul portafoglio: salute, stato, KPI e insight.',
-    color: 'var(--color-info)',
+    question: 'Come sta il portafoglio?',
+    desc: 'Salute, stato, KPI e ricavi ricorrenti.',
+    color: 'var(--color-accent)',
     widgets: ['metrics', 'risk', 'health', 'clients', 'kpiperf', 'insights'],
+  },
+  {
+    id: 'direzione',
+    name: 'Direzione',
+    emoji: '👑',
+    question: 'Come sta l\'agenzia?',
+    desc: 'Numeri commerciali e consegna nella stessa schermata.',
+    color: 'var(--color-success)',
+    widgets: ['metrics', 'delivery', 'pulse', 'risk', 'nextdue', 'insights'],
   },
   {
     id: 'full',
     name: 'Completa',
     emoji: '🗂️',
+    question: 'Voglio vedere tutto.',
     desc: 'Tutti i widget disponibili in un\'unica vista.',
-    color: 'var(--color-accent)',
+    color: 'var(--color-text-secondary)',
     widgets: WIDGET_DEFS.map(w => w.id),
   },
 ]
 
-const STORAGE_TPL = 'twobee-dash-template-v4'
+// v5: i template sono cambiati (aggiunta la dimensione delivery), la vecchia
+// scelta salvata non esiste più → chiave nuova, così nessuno resta su un id morto
+const STORAGE_TPL = 'twobee-dash-template-v5'
 
 // ─── MetricCards ──────────────────────────────────────────────────────────────
 function MetricCards({ mrr, clientsCount, clientsAtRisk, ticketsOpen }: {
@@ -215,11 +254,14 @@ function TemplatePicker({
                   background: isActive ? `color-mix(in srgb, ${t.color} 6%, transparent)` : 'var(--color-surface)',
                   border: `1px solid ${isActive ? `color-mix(in srgb, ${t.color} 25%, transparent)` : 'var(--color-border)'}`,
                 }}>
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-1">
                   <span className="text-lg">{t.emoji}</span>
                   <span className="text-sm font-black text-text-primary">{t.name}</span>
+                  <span className="text-2xs text-text-tertiary tabular">{t.widgets.length} widget</span>
                   {isActive && <Check className="w-4 h-4 ml-auto" style={{ color: t.color }} />}
                 </div>
+                {/* la domanda a cui risponde: si sceglie per bisogno, non per nome */}
+                <p className="text-xs font-semibold mb-1" style={{ color: t.color }}>{t.question}</p>
                 <p className="text-xs text-text-secondary mb-3">{t.desc}</p>
                 <div className="flex flex-wrap gap-1">
                   {t.widgets.slice(0, 8).map(wid => {
@@ -255,7 +297,8 @@ function TemplatePicker({
 // ─── DashboardGrid ────────────────────────────────────────────────────────────
 export function DashboardGrid({ data, initialConfig }: { data: DashboardData; initialConfig?: DashboardConfig | null }) {
   const [mounted, setMounted] = useState(false)
-  const [templateId, setTemplateId] = useState('essenziale')
+  // 'giornata' è il default: risponde alla domanda che ci si fa ogni mattina
+  const [templateId, setTemplateId] = useState('giornata')
   const [pickerOpen, setPickerOpen] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -306,6 +349,9 @@ export function DashboardGrid({ data, initialConfig }: { data: DashboardData; in
   ]
 
   const WIDGET_CONTENT: Record<string, React.ReactNode> = {
+    myday:    <MyDay rows={data.myDay} overdue={data.myOverdue} />,
+    delivery: <DeliveryRadar s={data.delivery} />,
+    nextdue:  <NextDeliveries rows={data.nextDeliveries} />,
     chat:     <div className="p-3 h-full"><AIDashboardChat context={data.aiContext} /></div>,
     focus:    <DailyFocus items={data.focusItems.slice(0, 5)} name={data.greetingName} />,
     alerts:   <AlertCenter alerts={data.alerts.slice(0, 8)} />,

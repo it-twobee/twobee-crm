@@ -17,7 +17,7 @@ async function requireStaff(): Promise<string> {
 const rev = (projectId: string) => { revalidatePath(`/progetti/${projectId}`); revalidatePath(`/workspace/progetti/${projectId}`) }
 
 export async function createRecurring(input: {
-  client_id: string
+  client_id: string | null
   project_id: string
   workstream_id: string
   milestone_id: string

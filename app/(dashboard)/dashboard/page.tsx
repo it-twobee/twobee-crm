@@ -72,6 +72,80 @@ export default async function DashboardPage() {
       : noop,
   ])
 
+  // ─── Delivery: progetti, milestone, task ──────────────────────────────────
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const in7Str = (() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10) })()
+
+  const [liveProjects, allMilestones, allTasks, myAssignments] = await Promise.all([
+    safeData(supabase.from('projects').select('id, name, client_id, status')
+      .in('status', ['active', 'draft', 'on_hold']).is('deleted_at', null), 'liveProjects'),
+    safeData(supabase.from('milestones')
+      .select('id, project_id, workstream_id, title, due_date, status, milestone_type'), 'milestones'),
+    safeData(supabase.from('tasks')
+      .select('id, project_id, client_id, title, status, priority, due_date, assignee_id, is_recurring_instance')
+      .is('deleted_at', null), 'tasks'),
+    safeData(supabase.from('task_assignees').select('task_id').eq('profile_id', user.id), 'myAssignments'),
+  ])
+
+  type P = { id: string; name: string; client_id: string | null; status: string }
+  type M = { id: string; project_id: string; workstream_id: string | null; title: string; due_date: string | null; status: string; milestone_type: string }
+  type T = { id: string; project_id: string | null; client_id: string | null; title: string; status: string; priority: string; due_date: string | null; assignee_id: string | null; is_recurring_instance: boolean }
+
+  const projs = liveProjects as P[]
+  const liveIds = new Set(projs.map(p => p.id))
+  const msLive = (allMilestones as M[]).filter(m => liveIds.has(m.project_id))
+  const tkLive = (allTasks as T[]).filter(t => !t.project_id || liveIds.has(t.project_id))
+  const openTk = tkLive.filter(t => t.status !== 'completato')
+
+  const lateProjectIds = new Set(
+    openTk.filter(t => t.project_id && t.due_date && t.due_date < todayStr).map(t => t.project_id as string),
+  )
+  const delivery = {
+    liveProjects: projs.length,
+    lateProjects: lateProjectIds.size,
+    milestonesSoon: msLive.filter(m => m.milestone_type === 'delivery' && m.status !== 'completata'
+      && m.due_date && m.due_date >= todayStr && m.due_date <= in7Str).length,
+    milestonesLate: msLive.filter(m => m.status !== 'completata' && m.due_date && m.due_date < todayStr).length,
+    tasksOverdue: openTk.filter(t => t.due_date && t.due_date < todayStr).length,
+    tasksUnassigned: openTk.filter(t => !t.assignee_id).length,
+    tasksOpen: openTk.length,
+    tasksDone: tkLive.length - openTk.length,
+  }
+
+  const projById = new Map(projs.map(p => [p.id, p]))
+  // il nome cliente arriva dalla lista admin: la griglia è comunque solo per loro
+  const clientNameById = new Map(
+    ((clientsResult.data ?? []) as Client[]).map(c => [c.id, c.display_name || c.company_name]),
+  )
+  const nextDeliveries = msLive
+    .filter(m => m.milestone_type === 'delivery' && m.status !== 'completata' && m.due_date)
+    .sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1))
+    .slice(0, 8)
+    .map(m => {
+      const p = projById.get(m.project_id)
+      return {
+        id: m.id, title: m.title,
+        project: p?.name ?? 'Progetto',
+        client: p?.client_id ? (clientNameById.get(p.client_id) ?? '—') : 'Interno',
+        dueDate: m.due_date!,
+        href: m.workstream_id ? `/progetti/${m.project_id}/workstream/${m.workstream_id}?ms=${m.id}` : `/progetti/${m.project_id}`,
+      }
+    })
+
+  const mineIds = new Set((myAssignments as { task_id: string }[]).map(r => r.task_id))
+  const myOpen = (allTasks as T[]).filter(t =>
+    t.status !== 'completato' && (t.assignee_id === user.id || mineIds.has(t.id)))
+  const myOverdue = myOpen.filter(t => t.due_date && t.due_date < todayStr).length
+  const myDay = myOpen
+    .filter(t => t.due_date && t.due_date <= in7Str)
+    .sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1))
+    .slice(0, 8)
+    .map(t => ({
+      id: t.id, title: t.title, dueDate: t.due_date, priority: t.priority,
+      where: t.project_id ? (projById.get(t.project_id)?.name ?? 'Progetto') : 'Task ad hoc',
+      recurring: !!t.is_recurring_instance,
+    }))
+
   // Clienti non-admin: solo quelli assegnati
   let clients: Client[] = (clientsResult.data ?? []) as Client[]
   if (!isAdminLevel && assignmentsResult.data?.length) {
@@ -129,6 +203,14 @@ export default async function DashboardPage() {
     focusItems.push({ id: 'focus-clients-risk', text: `${clientsAtRisk} client${clientsAtRisk > 1 ? 'i' : 'e'} a rischio — intervieni`, href: '/clienti', source: 'Salute clienti', priority: 'alta' })
   if (isAdminLevel && ticketsOpen > 3)
     focusItems.push({ id: 'focus-tickets', text: `${ticketsOpen} ticket aperti da smaltire`, href: '/customer-care/tickets', source: 'Customer Care', priority: 'media' })
+  if (myOverdue > 0)
+    focusItems.push({ id: 'focus-mine', text: `${myOverdue} tue attività in ritardo`, href: '/le-mie-attivita', source: 'Le mie attività', priority: 'alta' })
+  if (delivery.milestonesLate > 0)
+    focusItems.push({ id: 'focus-ms-late', text: `${delivery.milestonesLate} milestone scadute`, href: '/progetti', source: 'Delivery', priority: 'alta' })
+  else if (delivery.milestonesSoon > 0)
+    focusItems.push({ id: 'focus-ms-soon', text: `${delivery.milestonesSoon} consegne entro 7 giorni`, href: '/progetti', source: 'Delivery', priority: 'media' })
+  if (delivery.tasksUnassigned > 0)
+    focusItems.push({ id: 'focus-unassigned', text: `${delivery.tasksUnassigned} task senza assegnatario`, href: '/progetti', source: 'Delivery', priority: 'media' })
 
   const greetingName = profile.full_name.split(' ')[0]
   const hour = new Date().getHours()
@@ -140,8 +222,8 @@ export default async function DashboardPage() {
     clientsAtRisk,
     clientsLost,
     alertsCount: alerts.length,
-    tasksDueSoon: 0,
-    projectsCount: 0,
+    tasksDueSoon: delivery.tasksOverdue + delivery.milestonesSoon,
+    projectsCount: delivery.liveProjects,
     topAlerts: alerts.slice(0, 4).map(a => ({ title: a.title, severity: a.severity })),
     clients: externalClients.slice(0, 20).map(c => ({ name: c.company_name, label: c.client_label ?? 'stabile', mrr: c.mrr, type: c.client_type ?? 'growth', id: c.id })),
   }
@@ -167,6 +249,10 @@ export default async function DashboardPage() {
     ticketsResolved,
     recentMessages,
     kpiSnapshot,
+    delivery,
+    nextDeliveries,
+    myDay,
+    myOverdue,
     isAdmin: isAdminLevel,
     isSuperAdmin: isGod,
     userId: user.id,
@@ -181,9 +267,24 @@ export default async function DashboardPage() {
           <h1 className="text-2xl sm:text-3xl font-black text-text-primary font-heading tracking-tight">{greeting}, {greetingName}</h1>
           <p className="text-text-secondary text-xs mt-1">
             {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}
-            {isAdminLevel && ` · ${clients.length} clienti · ${allProfiles.length} nel team`}
+            {isAdminLevel && ` · ${clients.length} clienti · ${delivery.liveProjects} progetti in corso · ${allProfiles.length} nel team`}
             {!isAdminLevel && ` · ${clients.length} clienti assegnati`}
           </p>
+          {isAdminLevel && (
+            <p className="text-xs mt-1.5 font-semibold">
+              {myOverdue > 0 || delivery.milestonesLate > 0 ? (
+                <span className="text-error">
+                  {[myOverdue > 0 && `${myOverdue} tue attività in ritardo`,
+                    delivery.milestonesLate > 0 && `${delivery.milestonesLate} milestone scadute`]
+                    .filter(Boolean).join(' · ')}
+                </span>
+              ) : delivery.milestonesSoon > 0 ? (
+                <span className="text-warning">{delivery.milestonesSoon} consegne entro 7 giorni</span>
+              ) : (
+                <span className="text-success">Nessuna consegna in ritardo.</span>
+              )}
+            </p>
+          )}
         </div>
         {isGod && (
           <div className="flex items-center gap-1.5 bg-gold/[0.08] border border-gold/[0.15] rounded-xl px-3 py-1.5">
