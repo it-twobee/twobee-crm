@@ -10,9 +10,9 @@ import {
 } from 'lucide-react'
 import { Avatar, SearchInput, Segmented, Empty } from '@/components/shared/formkit'
 import {
-  createAdHocTask, setAdHocTaskStatus, deleteAdHocTask, updateAdHocTask,
+  setAdHocTaskStatus, deleteAdHocTask, updateAdHocTask,
 } from '@/app/actions/ad-hoc-tasks'
-import { NewAdHocModal, type AdHocValues } from './NewAdHocModal'
+import { TaskComposer } from '@/components/tasks/TaskComposer'
 import { AdHocDetailModal, type AssignablePerson, type AdHocPatch } from './AdHocDetailModal'
 import type { Priority, Visibility, TaskStatusV2 } from '@/lib/types/database'
 
@@ -142,17 +142,6 @@ export function AdHocClient({
   const filtering = filter !== 'aperte' || !!q.trim() || !!clientId || !!assigneeId
   const reset = () => { setFilter('aperte'); setQ(''); setClientId(''); setAssigneeId('') }
 
-  const create = (v: AdHocValues, again: boolean) => start(async () => {
-    try {
-      await createAdHocTask({
-        client_id: v.client_id, title: v.title, assignee_id: v.assignee_id,
-        due_date: v.due_date, priority: v.priority, visibility: v.visibility,
-      })
-      toast.success('Task creata')
-      if (!again) setAdding(false)
-      router.refresh()
-    } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
-  })
 
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-4">
@@ -277,9 +266,11 @@ export function AdHocClient({
       )}
 
       {adding && (
-        <NewAdHocModal clients={clients} profiles={profiles} pending={pending}
-          fixedClientId={clientId || undefined}
-          onClose={() => setAdding(false)} onCreate={create} />
+        <TaskComposer
+          destination={{ mode: 'pick', allow: ['ad_hoc', 'cliente'], clients, projects: [], defaultClientId: clientId || undefined }}
+          profiles={profiles}
+          onClose={() => setAdding(false)}
+          onCreated={() => router.refresh()} />
       )}
 
       {detail && (

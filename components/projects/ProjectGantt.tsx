@@ -2,7 +2,10 @@
 
 import { useMemo, useRef, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Flag, Calendar as CalIcon, User, CheckSquare, FolderTree } from 'lucide-react'
+import {
+  Flag, Calendar as CalIcon, User, CheckSquare, FolderTree,
+  ChevronRight, CheckCircle2, Repeat, ShieldCheck, CircleDot, AlertTriangle,
+} from 'lucide-react'
 import type { ProjectWorkstream, Milestone, Task } from '@/lib/types/database'
 
 type Person = { id: string; full_name: string; avatar_url: string | null }
@@ -18,7 +21,34 @@ export type GanttLane = {
   /** barra di durata (solo workstream a termine) */
   bar?: { start: string; end: string | null } | null
   milestones: Milestone[]
+  /** 0 = riga di raggruppamento (cliente), 1 = figlia (progetto) */
+  depth?: number
+  /** riga richiudibile: mostra il chevron nella colonna nomi */
+  toggle?: { expanded: boolean; onToggle: () => void }
+  /** chip a destra del nome, es. «fermo da 24g»: `title`/`detail` lo spiegano in hover */
+  badge?: { text: string; tone: string; title: string; detail?: string }
+  /** testo al posto di «nessuna milestone datata»; stringa vuota = niente */
+  emptyLabel?: string
 }
+
+/** L'icona dice che tipo di milestone è e a che punto sta, senza aprire il recap. */
+function milestoneIcon(m: Milestone, todayIso: string) {
+  if (m.status === 'completata') return CheckCircle2
+  if (m.milestone_type === 'system') return Repeat
+  if (m.status === 'in_approvazione') return ShieldCheck
+  if (m.status === 'in_corso') return CircleDot
+  if (m.due_date && m.due_date < todayIso) return AlertTriangle
+  return Flag
+}
+
+const LEGEND = [
+  { Icon: Flag, label: 'Da fare' },
+  { Icon: CircleDot, label: 'In corso' },
+  { Icon: ShieldCheck, label: 'In approvazione' },
+  { Icon: CheckCircle2, label: 'Completata' },
+  { Icon: AlertTriangle, label: 'Scaduta' },
+  { Icon: Repeat, label: 'Operatività continua' },
+]
 
 const MS_LABEL: Record<string, string> = { da_fare: 'Da fare', in_corso: 'In corso', in_approvazione: 'In approvazione', completata: 'Completata' }
 
@@ -36,7 +66,7 @@ const WEEKDAY_SHORT = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab']
 export function ProjectGantt({
   workstreams = [], milestones = [], tasks, profiles, onOpenMilestone,
   title = 'Calendario milestone', laneSubtitle, laneAccent, labelWidth = LABEL_W,
-  lanes: externalLanes, laneLabel = 'workstream', milestoneContext, emptyHint,
+  lanes: externalLanes, laneLabel = 'workstream', milestoneContext, emptyHint, headerNote, headerHint,
 }: {
   workstreams?: ProjectWorkstream[]
   milestones?: Milestone[]
@@ -56,10 +86,15 @@ export function ProjectGantt({
   /** testo della riga di contesto nel recap (default: nome corsia) */
   milestoneContext?: (m: Milestone) => string | null
   emptyHint?: string
+  /** sostituisce il contatore in intestazione (es. «6 clienti · 2 fermi») */
+  headerNote?: React.ReactNode
+  /** spiegazione in hover del contatore in intestazione */
+  headerHint?: { title: string; detail?: string }
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [zoom, setZoom] = useState<Zoom>('giorni')
   const [hover, setHover] = useState<{ m: Milestone; ctx: string; rect: DOMRect } | null>(null)
+  const [hint, setHint] = useState<{ title: string; detail?: string; rect: DOMRect } | null>(null)
   const [mounted, setMounted] = useState(false)
   useEffect(() => { setMounted(true) }, [])
   const DAY_W = ZOOMS[zoom]
@@ -135,7 +170,18 @@ export function ProjectGantt({
     <div className="relative bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border flex-wrap">
         <span className="text-sm font-bold text-text-primary">{title}</span>
-        <span className="text-2xs text-text-tertiary">· {lanes.reduce((n, l) => n + l.milestones.length, 0)} milestone · {lanes.length} {laneLabel}</span>
+        {headerNote && headerHint ? (
+          <button type="button"
+            onMouseEnter={e => setHint({ ...headerHint, rect: e.currentTarget.getBoundingClientRect() })}
+            onMouseLeave={() => setHint(null)}
+            onFocus={e => setHint({ ...headerHint, rect: e.currentTarget.getBoundingClientRect() })}
+            onBlur={() => setHint(null)}
+            className="text-2xs text-text-tertiary cursor-help text-left">{headerNote}</button>
+        ) : (
+          <span className="text-2xs text-text-tertiary">
+            {headerNote ?? <>· {lanes.reduce((n, l) => n + l.milestones.length, 0)} milestone · {lanes.length} {laneLabel}</>}
+          </span>
+        )}
         <div className="ml-auto flex items-center gap-2">
           <button onClick={() => { if (scrollRef.current) scrollRef.current.scrollTo({ left: Math.max(0, model.todayLeft - 260), behavior: 'smooth' }) }}
             className="text-2xs font-semibold text-gold-text hover:opacity-80 press">Oggi</button>
@@ -148,18 +194,39 @@ export function ProjectGantt({
         </div>
       </div>
 
+      {/* spiegazione del chip d'avviso: da solo il badge non dice cosa sta misurando */}
+      {mounted && hint && createPortal(
+        (() => {
+          const r = hint.rect
+          const above = r.top > 120
+          const half = 112
+          const left = Math.min(Math.max(r.left + r.width / 2, half + 8), window.innerWidth - half - 8)
+          return (
+            <div style={{ position: 'fixed', left, top: above ? r.top - 8 : r.bottom + 8, transform: `translate(-50%, ${above ? '-100%' : '0'})`, zIndex: 60 }}
+              className="w-56 pointer-events-none">
+              <div className="bg-surface border border-border-strong rounded-xl shadow-pop px-3 py-2 animate-fade-in">
+                <p className="text-2xs font-bold text-text-primary leading-snug">{hint.title}</p>
+                {hint.detail && <p className="text-2xs text-text-secondary leading-snug mt-0.5">{hint.detail}</p>}
+              </div>
+            </div>
+          )
+        })(),
+        document.body,
+      )}
+
       {/* recap in hover — portale su body, ancorato al marker, non tagliato dallo scroll */}
       {mounted && hm && hmTone && hover && createPortal(
         (() => {
           const r = hover.rect
           const above = r.top > 150
           const top = above ? r.top - 8 : r.bottom + 8
+          const HIcon = milestoneIcon(hm, todayIso)
           return (
             <div style={{ position: 'fixed', left: r.left + r.width / 2, top, transform: `translate(-50%, ${above ? '-100%' : '0'})`, zIndex: 60 }}
               className="w-64 pointer-events-none">
               <div className="bg-surface border border-border-strong rounded-xl shadow-pop p-3 animate-fade-in">
                 <div className="flex items-start gap-2">
-                  <Flag className={`w-4 h-4 mt-0.5 shrink-0 ${hmTone.flag}`} />
+                  <HIcon className={`w-4 h-4 mt-0.5 shrink-0 ${hmTone.flag}`} />
                   <span className="text-sm font-bold text-text-primary leading-snug">{hm.title}</span>
                 </div>
                 <div className="mt-2.5 space-y-1.5">
@@ -191,13 +258,32 @@ export function ProjectGantt({
           <div className="h-7 border-b border-border/60" />
           {showDays && <div className="h-10 border-b border-border" />}
           {lanes.map(l => (
-            <div key={l.id} className="border-b border-border/40 flex items-center gap-2 px-3" style={{ height: LANE_H }}>
+            <div key={l.id} className="border-b border-border/40 flex items-center gap-2 pr-2"
+              style={{ height: LANE_H, paddingLeft: 12 + (l.depth ?? 0) * 16 }}>
+              {l.toggle && (
+                <button onClick={l.toggle.onToggle} aria-expanded={l.toggle.expanded}
+                  aria-label={`${l.toggle.expanded ? 'Chiudi' : 'Apri'} ${l.name}`}
+                  className="shrink-0 text-text-tertiary hover:text-text-primary press">
+                  <ChevronRight className={`w-3.5 h-3.5 transition-transform ${l.toggle.expanded ? 'rotate-90' : ''}`} />
+                </button>
+              )}
               {l.accent ? <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${l.accent}`} aria-hidden />
                         : <FolderTree className="w-3.5 h-3.5 text-gold-text shrink-0" />}
-              <div className="min-w-0">
-                <div className="text-xs font-semibold text-text-primary truncate leading-tight">{l.name}</div>
+              <div className="min-w-0 flex-1">
+                <div className={`truncate leading-tight ${l.depth ? 'text-xs text-text-secondary' : 'text-xs font-semibold text-text-primary'}`}>{l.name}</div>
                 {l.subtitle && <div className="text-2xs text-text-tertiary truncate leading-tight">{l.subtitle}</div>}
               </div>
+              {l.badge && (
+                <button type="button"
+                  onMouseEnter={e => setHint({ title: l.badge!.title, detail: l.badge!.detail, rect: e.currentTarget.getBoundingClientRect() })}
+                  onMouseLeave={() => setHint(null)}
+                  onFocus={e => setHint({ title: l.badge!.title, detail: l.badge!.detail, rect: e.currentTarget.getBoundingClientRect() })}
+                  onBlur={() => setHint(null)}
+                  aria-label={`${l.badge.text}: ${l.badge.title}${l.badge.detail ? `. ${l.badge.detail}` : ''}`}
+                  className={`shrink-0 text-2xs font-semibold px-1.5 py-0.5 rounded-full border whitespace-nowrap cursor-help ${l.badge.tone}`}>
+                  {l.badge.text}
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -239,27 +325,34 @@ export function ProjectGantt({
             {lanes.map(l => {
               const bs = l.bar ? model.x(parse(l.bar.start)) : 0
               const be = l.bar ? (l.bar.end ? model.x(parse(l.bar.end)) : bs + DAY_W) : 0
+              // sulla riga cliente convergono le milestone di più progetti: quelle
+              // dello stesso giorno si sfalsano, altrimenti una copre l'altra
+              const sameDay = new Map<string, number>()
               return (
                 <div key={l.id} className="relative border-b border-border/40" style={{ height: LANE_H }}>
                   {l.bar && (
                     <div className="absolute top-1/2 -translate-y-1/2 h-2 rounded-full bg-gold-dim border border-gold/30" style={{ left: bs + DAY_W / 2, width: Math.max(DAY_W, be - bs) }} />
                   )}
-                  {l.milestones.length === 0 && (
+                  {l.milestones.length === 0 && l.emptyLabel !== '' && (
                     <span className="absolute top-1/2 -translate-y-1/2 text-2xs text-text-tertiary/70 whitespace-nowrap pointer-events-none"
-                      style={{ left: model.todayLeft + DAY_W / 2 + 14 }}>nessuna milestone datata</span>
+                      style={{ left: model.todayLeft + DAY_W / 2 + 14 }}>{l.emptyLabel ?? 'nessuna milestone datata'}</span>
                   )}
                   {l.milestones.map(m => {
                     const tone = msTone(m)
                     const owner = person(m.owner_id)
+                    const MIcon = milestoneIcon(m, todayIso)
+                    const stacked = sameDay.get(m.due_date!) ?? 0
+                    sameDay.set(m.due_date!, stacked + 1)
                     return (
                       <button key={m.id}
                         onClick={() => onOpenMilestone?.(m.workstream_id, m.id)}
                         onMouseEnter={e => setHover({ m, ctx: milestoneContext?.(m) ?? l.name, rect: e.currentTarget.getBoundingClientRect() })}
                         onMouseLeave={() => setHover(h => (h?.m.id === m.id ? null : h))}
                         aria-label={`Milestone ${m.title}`}
-                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10" style={{ left: model.x(parse(m.due_date!)) + DAY_W / 2 }}>
+                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10"
+                        style={{ left: model.x(parse(m.due_date!)) + DAY_W / 2 + stacked * 12 }}>
                         <span className={`relative w-7 h-7 rounded-full border flex items-center justify-center transition-transform hover:scale-110 ${tone.pill}`}>
-                          <Flag className={`w-3.5 h-3.5 ${tone.flag}`} />
+                          <MIcon className={`w-3.5 h-3.5 ${tone.flag}`} />
                           {owner && (
                             <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-gold border-2 border-surface overflow-hidden" aria-label={`Responsabile: ${owner.full_name}`}>
                               {owner.avatar_url && <img src={owner.avatar_url} className="w-full h-full object-cover" alt="" />}
@@ -274,6 +367,14 @@ export function ProjectGantt({
             })}
           </div>
         </div>
+      </div>
+
+      <div className="flex items-center gap-x-4 gap-y-1 flex-wrap px-4 py-2 border-t border-border">
+        {LEGEND.map(({ Icon, label }) => (
+          <span key={label} className="flex items-center gap-1 text-2xs text-text-tertiary">
+            <Icon className="w-3 h-3" aria-hidden />{label}
+          </span>
+        ))}
       </div>
     </div>
   )

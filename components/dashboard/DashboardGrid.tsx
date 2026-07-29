@@ -36,7 +36,10 @@ export interface DashboardData {
   focusItems: FocusItem[]
   greetingName: string
   alerts: DashAlert[]
+  /** già al netto di interni e persi: è la base di ogni widget statistico */
   clients: Client[]
+  /** solo per il churn del pannello rischio, fuori da ogni altro conto */
+  lostClients: Client[]
   mrr: number
   allProfiles: Profile[]
   clientsAtRisk: number
@@ -356,7 +359,7 @@ export function DashboardGrid({ data, initialConfig }: { data: DashboardData; in
     focus:    <DailyFocus items={data.focusItems.slice(0, 5)} name={data.greetingName} />,
     alerts:   <AlertCenter alerts={data.alerts.slice(0, 8)} />,
     metrics:  <MetricCards mrr={data.mrr} clientsCount={data.clients.length} clientsAtRisk={data.clientsAtRisk} ticketsOpen={data.ticketsOpen} />,
-    risk:     <ClientsRiskPanel clients={data.clients} totalMrr={data.mrr} />,
+    risk:     <ClientsRiskPanel clients={data.clients} lost={data.lostClients} totalMrr={data.mrr} />,
     health:   <ClientHealthMap clients={data.clients} />,
     clients:  <ClientsStatusTable clients={data.clients} />,
     pulse:    <CompanyPulse areas={pulseAreas} />,

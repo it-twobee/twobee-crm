@@ -6,7 +6,8 @@ import { AlertTriangle, TrendingDown, ExternalLink } from 'lucide-react'
 import type { Client } from '@/lib/types/database'
 
 interface Props {
-  clients: Client[]          // tutti i clienti (stabile + in_bilico + perso + partner)
+  clients: Client[]          // clienti attivi (stabile + in_bilico + partner), già senza persi
+  lost: Client[]             // i persi: solo churn, non entrano in nessun altro conto
   totalMrr: number           // MRR totale per calcolo churn
 }
 
@@ -24,12 +25,11 @@ function daysSince(date: string) {
   return Math.floor((Date.now() - new Date(date).getTime()) / 86400000)
 }
 
-export function ClientsRiskPanel({ clients, totalMrr }: Props) {
+export function ClientsRiskPanel({ clients, lost, totalMrr }: Props) {
   const [tab, setTab] = useState<'rischio' | 'persi'>('rischio')
 
   const atRisk = clients.filter(c => c.client_label === 'in_bilico')
-  const lost   = clients.filter(c => c.client_label === 'perso')
-  const total  = clients.length
+  const total  = clients.length + lost.length
 
   // Churn rate = clienti persi / totale clienti (inclusi persi)
   const churnRateCount  = total > 0 ? ((lost.length / total) * 100).toFixed(1) : '0.0'

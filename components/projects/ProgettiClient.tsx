@@ -33,11 +33,60 @@ const AREAS = ['marketing', 'growth', 'digital'] as const
 // stati "in corso": una riga di calendario per ognuno, anche senza milestone datate
 const LIVE_STATUSES = ['active', 'draft', 'on_hold']
 
+const INTERNAL_KEY = '__internal__'
+const FAR = '9999-12-31'
+const DAY = 86400000
+/** Sotto questa soglia il cliente è presidiato: niente badge. */
+const QUIET_DAYS = 10
+
+const isoToday = () => new Date().toISOString().slice(0, 10)
+const dayDiff = (a: string, b: string) =>
+  Math.round((new Date(a + 'T00:00:00').getTime() - new Date(b + 'T00:00:00').getTime()) / DAY)
+
+/** Prima milestone aperta: serve solo a ordinare le corsie. */
+function nextOpen(ms?: Milestone[]) {
+  return ms?.find(m => m.status !== 'completata' && m.due_date)?.due_date ?? null
+}
+
+/**
+ * Quanto è fermo: giorni dall'ultima milestone passata e giorni alla prossima.
+ * «Fermo» = nulla da almeno 10 giorni E nulla nei prossimi 10 — il caso in cui
+ * un cliente esce dal radar senza che nessuna scadenza lo riporti dentro.
+ */
+function quietInfo(ms: Milestone[]) {
+  const today = isoToday()
+  const dated = ms.map(m => m.due_date).filter((d): d is string => !!d).sort()
+  const past = dated.filter(d => d < today)
+  const future = dated.filter(d => d >= today)
+  const sinceLast = past.length ? dayDiff(today, past[past.length - 1]) : null
+  const untilNext = future.length ? dayDiff(future[0], today) : null
+  const quiet = (sinceLast === null || sinceLast >= QUIET_DAYS) && (untilNext === null || untilNext > QUIET_DAYS)
+  return { quiet, sinceLast, untilNext }
+}
+
+function quietBadge(info: ReturnType<typeof quietInfo>) {
+  if (!info.quiet) return undefined
+  const hard = info.sinceLast === null || info.sinceLast >= 30
+  const tone = hard ? 'bg-error-dim border-error/40 text-error' : 'bg-warning-dim border-warning/40 text-warning'
+  if (info.sinceLast === null) return {
+    text: 'mai',
+    tone,
+    title: 'Mai una milestone datata',
+    detail: `Nessuna scadenza né in passato né nei prossimi ${QUIET_DAYS} giorni: niente riporterà questo cliente nel calendario.`,
+  }
+  return {
+    text: `fermo ${info.sinceLast}g`,
+    tone,
+    title: 'Cliente fermo',
+    detail: `Ultima milestone ${info.sinceLast} giorni fa e ${info.untilNext === null ? 'nessuna in programma' : `la prossima tra ${info.untilNext} giorni`}: il chip compare quando non succede nulla da ${QUIET_DAYS} giorni e nulla è previsto nei prossimi ${QUIET_DAYS}.`,
+  }
+}
+
 export function ProgettiClient({
   clients, profiles, services, templates, nodes, projects, workstreams, milestones, calTasks, initialClientId, openWizard,
   basePath = '/progetti', canCreate = true,
 }: {
-  clients: { id: string; name: string }[]
+  clients: { id: string; name: string; lost?: boolean }[]
   profiles: { id: string; full_name: string; app_role: string | null; avatar_url?: string | null }[]
   services: ServiceCatalogEntry[]
   templates: ProjectTemplate[]
@@ -59,8 +108,9 @@ export function ProgettiClient({
   const clientName = (id: string) => clients.find(c => c.id === id)?.name ?? '—'
   const serviceLabel = (st: string) => services.find(s => s.service_type === st)?.label ?? st
 
-  // ── Calendario milestone globale: una corsia per progetto in corso ────────
+  // ── Calendario milestone globale: una corsia per cliente, progetti in tendina ──
   const wsById = useMemo(() => new Map((workstreams ?? []).map(w => [w.id, w])), [workstreams])
+  const [openClients, setOpenClients] = useState<Record<string, boolean>>({})
   const msByProject = useMemo(() => {
     const m = new Map<string, Milestone[]>()
     ;(milestones ?? []).forEach(ms => {
@@ -73,36 +123,84 @@ export function ProgettiClient({
     return m
   }, [milestones])
 
-  // chiave d'ordinamento: milestone aperta più imminente del progetto. Le scadute
-  // hanno data nel passato, quindi salgono in cima da sole.
-  const nextDue = useMemo(() => {
-    const m = new Map<string, string>()
-    msByProject.forEach((list, pid) => {
-      const next = list.find(x => x.status !== 'completata')
-      if (next?.due_date) m.set(pid, next.due_date)
+  // Un gruppo per ogni cliente in anagrafica, anche senza progetti: chi è fermo si
+  // vede solo se la sua riga c'è. I progetti interni stanno in un gruppo a parte.
+  const groups = useMemo(() => {
+    const live = projects.filter(p => LIVE_STATUSES.includes(p.status))
+    const byClient = new Map<string, ProjectRow[]>()
+    live.forEach(p => {
+      const key = p.client_id ?? INTERNAL_KEY
+      const arr = byClient.get(key)
+      if (arr) arr.push(p)
+      else byClient.set(key, [p])
     })
-    return m
-  }, [msByProject])
+    const build = (id: string, name: string) => {
+      const ps = (byClient.get(id) ?? []).slice()
+      const ms = ps.flatMap(p => msByProject.get(p.id) ?? []).sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1))
+      ps.sort((a, b) => (nextOpen(msByProject.get(a.id)) ?? FAR) < (nextOpen(msByProject.get(b.id)) ?? FAR) ? -1 : 1)
+      return { id, name, projects: ps, milestones: ms }
+    }
+    // i clienti persi non hanno un presidio da misurare: fuori dal calendario
+    const list = clients.filter(c => !c.lost).map(c => build(c.id, c.name))
+    if (byClient.has(INTERNAL_KEY)) list.push(build(INTERNAL_KEY, 'Progetti interni'))
+    // ordine da calendario: chi ha la prossima milestone aperta più vicina sta in cima
+    return list.sort((a, b) => {
+      const da = nextOpen(a.milestones) ?? FAR
+      const db = nextOpen(b.milestones) ?? FAR
+      return da === db ? a.name.localeCompare(b.name) : (da < db ? -1 : 1)
+    })
+  }, [projects, clients, msByProject])
 
-  const projectLanes: GanttLane[] = useMemo(() =>
-    projects
-      .filter(p => LIVE_STATUSES.includes(p.status))
-      .sort((a, b) => {
-        // progetti senza milestone aperte (o senza milestone) in coda
-        const da = nextDue.get(a.id) ?? '9999-12-31'
-        const db = nextDue.get(b.id) ?? '9999-12-31'
-        return da === db ? a.name.localeCompare(b.name) : (da < db ? -1 : 1)
-      })
-      .map((p, i) => ({
-        id: p.id,
-        name: p.name,
-        subtitle: `${clientName(p.client_id)}${p.status === 'active' ? '' : ` · ${STATUS_LABEL[p.status] ?? p.status}`}`,
+  const lanes: GanttLane[] = useMemo(() => {
+    const out: GanttLane[] = []
+    groups.forEach((g, i) => {
+      const open = !!openClients[g.id]
+      out.push({
+        id: `client:${g.id}`,
+        name: g.name,
+        subtitle: g.projects.length
+          ? `${g.projects.length} progett${g.projects.length === 1 ? 'o' : 'i'} in corso`
+          : 'nessun progetto in corso',
         accent: ACCENTS[i % ACCENTS.length],
-        milestones: msByProject.get(p.id) ?? [],
-      })),
-    [projects, msByProject, nextDue]) // eslint-disable-line react-hooks/exhaustive-deps
+        depth: 0,
+        // da chiusa la riga cliente porta le milestone di tutti i suoi progetti;
+        // da aperta le lascia alle righe figlie, per non disegnarle due volte
+        milestones: open ? [] : g.milestones,
+        toggle: g.projects.length
+          ? { expanded: open, onToggle: () => setOpenClients(o => ({ ...o, [g.id]: !o[g.id] })) }
+          : undefined,
+        badge: g.projects.length
+          ? quietBadge(quietInfo(g.milestones))
+          : {
+            text: '0 progetti', tone: 'bg-error-dim border-error/40 text-error',
+            title: 'Nessun progetto in corso',
+            detail: 'Il cliente è in anagrafica ma non ha progetti attivi, in bozza o in pausa. I progetti completati e archiviati non contano.',
+          },
+        emptyLabel: open ? '' : g.projects.length ? 'nessuna milestone datata' : 'nessun progetto in corso',
+      })
+      if (open) g.projects.forEach(p => {
+        const pms = msByProject.get(p.id) ?? []
+        out.push({
+          id: p.id,
+          name: p.name,
+          subtitle: p.status === 'active' ? serviceLabel(p.service_type) : (STATUS_LABEL[p.status] ?? p.status),
+          depth: 1,
+          milestones: pms,
+          badge: quietBadge(quietInfo(pms)),
+        })
+      })
+    })
+    return out
+  }, [groups, openClients, msByProject]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const wsName = (m: Milestone) => wsById.get(m.workstream_id)?.name ?? null
+  const quietCount = useMemo(() => groups.filter(g => !g.projects.length || quietInfo(g.milestones).quiet).length, [groups])
+  const msCount = useMemo(() => groups.reduce((n, g) => n + g.milestones.length, 0), [groups])
+
+  const wsName = (m: Milestone) => {
+    const w = wsById.get(m.workstream_id)
+    const p = projects.find(x => x.id === m.project_id)
+    return [p?.name, w?.name].filter(Boolean).join(' · ') || null
+  }
   const openMilestone = (wsId: string, msId: string) => {
     const w = wsById.get(wsId)
     if (w) router.push(`${basePath}/${w.project_id}/workstream/${wsId}?ms=${msId}`)
@@ -134,17 +232,21 @@ export function ProgettiClient({
         )}
       </div>
 
-      {/* Calendario milestone globale: una riga per progetto in corso */}
+      {/* Calendario milestone globale: una riga per cliente, progetti nella tendina */}
       <ProjectGantt
-        title="Calendario milestone · progetti in corso"
-        lanes={projectLanes}
-        laneLabel="progetti"
+        title="Calendario milestone · per cliente"
+        lanes={lanes}
+        headerNote={<>· {groups.length} clienti · {msCount} milestone{quietCount > 0 && <span className="text-warning font-semibold"> · {quietCount} fermi</span>}</>}
+        headerHint={{
+          title: 'Clienti nel calendario',
+          detail: `Ogni cliente in anagrafica ha una riga, anche senza progetti. «Fermi» sono quelli senza milestone da ${QUIET_DAYS} giorni e senza nulla in programma nei prossimi ${QUIET_DAYS}. I clienti persi non compaiono.`,
+        }}
         tasks={calTasks ?? []}
         profiles={profiles as { id: string; full_name: string; avatar_url: string | null }[]}
         onOpenMilestone={openMilestone}
         milestoneContext={wsName}
-        emptyHint="Nessun progetto in corso: il calendario mostra una riga per ogni progetto attivo, in bozza o in pausa."
-        labelWidth={220}
+        emptyHint="Nessun cliente in anagrafica: il calendario mostra una riga per cliente e i progetti in corso nella tendina."
+        labelWidth={260}
       />
 
       {/* toolbar filtri */}

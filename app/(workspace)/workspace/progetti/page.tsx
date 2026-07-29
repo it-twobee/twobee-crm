@@ -23,7 +23,7 @@ export default async function WorkspaceProgettiPage({ searchParams }: { searchPa
     { data: clients }, { data: profiles }, { data: services },
     { data: templates }, { data: nodes }, { data: projects },
   ] = await Promise.all([
-    supabase.from('clients_workspace').select('id, company_name, display_name').order('company_name'),
+    supabase.from('clients_workspace').select('id, company_name, display_name, client_label').order('company_name'),
     supabase.from('profiles').select('id, full_name, app_role, avatar_url').eq('is_active', true).order('full_name'),
     supabase.from('service_catalog').select('*').order('area').order('sort_order'),
     supabase.from('project_templates').select('*').order('sort_order'),
@@ -42,8 +42,8 @@ export default async function WorkspaceProgettiPage({ searchParams }: { searchPa
       ])
     : [{ data: [] }, { data: [] }, { data: [] }]
 
-  const clientOpts = (clients ?? []).map((c: { id: string; company_name: string; display_name: string | null }) =>
-    ({ id: c.id, name: c.display_name || c.company_name }))
+  const clientOpts = (clients ?? []).map((c: { id: string; company_name: string; display_name: string | null; client_label: string | null }) =>
+    ({ id: c.id, name: c.display_name || c.company_name, lost: c.client_label === 'perso' }))
 
   return (
     <ProgettiClient

@@ -6,19 +6,18 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  Plus, Briefcase, FolderTree, CheckSquare, Users, Flag,
-  Wand2, AlertTriangle, Eye, EyeOff,
+  Plus, Briefcase, FolderTree, CheckSquare, Users,
+  Wand2, AlertTriangle,
 } from 'lucide-react'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
-import { createAdHocTask } from '@/app/actions/ad-hoc-tasks'
-import { createProjectTask } from '@/app/actions/tasks'
 import { createWorkstream } from '@/app/actions/workstreams'
 import {
-  ModalShell, Group, Field, SearchInput, PickRow, Segmented, Avatar, Empty, inputCls,
+  ModalShell, Group, Field, SearchInput, PickRow, Segmented, Empty, inputCls,
 } from '@/components/shared/formkit'
 import { workstreamPrefixFromProjectName, applyWorkstreamPrefix } from '@/lib/project-naming'
+import { TaskComposer } from '@/components/tasks/TaskComposer'
 import type {
-  WorkstreamType, Priority, ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode,
+  WorkstreamType, ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode,
 } from '@/lib/types/database'
 
 // componenti pesanti: caricati solo all'apertura (fuori dal bundle dell'header globale)
@@ -131,8 +130,18 @@ export function QuickCreate({ context = 'admin' }: { context?: 'admin' | 'worksp
       {mounted && mode === 'workstream' && createPortal(
         <WorkstreamModal projects={projects} base={base} onClose={() => setMode(null)} onDone={() => setMode(null)} notify={notifyCreated} />, document.body)}
       {mounted && mode === 'task' && createPortal(
-        <TaskModal clients={clients} projects={projects} profiles={profiles} base={base}
-          onClose={() => setMode(null)} onDone={() => setMode(null)} notify={notifyCreated} />, document.body)}
+        <TaskComposer
+          destination={{ mode: 'pick', allow: ['project', 'ad_hoc', 'cliente'], clients, projects }}
+          profiles={profiles.map(p => ({ id: p.id, full_name: p.full_name, avatar_url: p.avatar_url ?? null, app_role: p.app_role as never }))}
+          onClose={() => setMode(null)}
+          onCreated={({ kind, clientId, projectId, workstreamId }) => {
+            setMode(null)
+            notifyCreated('Task creata',
+              kind === 'project' && projectId && workstreamId ? `${base}/progetti/${projectId}/workstream/${workstreamId}`
+                : kind === 'cliente' && clientId ? `${base}/clienti/${clientId}`
+                : `${base}/ad-hoc`)
+            router.refresh()
+          }} />, document.body)}
     </div>
   )
 }
@@ -251,236 +260,3 @@ function WorkstreamModal({ projects, base, onClose, onDone, notify }: { projects
   )
 }
 
-function TaskModal({ clients, projects, profiles, base, onClose, onDone, notify }: {
-  clients: ClientOpt[]; projects: ProjectOpt[]; profiles: PersonOpt[]; base: string; onClose: () => void; onDone: () => void; notify: (l: string, h: string) => void
-}) {
-  const [pending, start] = useTransition()
-  const [kind, setKind] = useState<'adhoc' | 'cliente' | 'project'>('project')
-  const [q, setQ] = useState('')
-  const [title, setTitle] = useState('')
-  const [assignee, setAssignee] = useState('')
-  const [priority, setPriority] = useState<Priority>('media')
-  const [dueDate, setDueDate] = useState('')
-  // ad hoc
-  const [clientId, setClientId] = useState('')
-  const [clientVisible, setClientVisible] = useState(false)
-  // progetto
-  const [projectId, setProjectId] = useState('')
-  const [wsId, setWsId] = useState('')
-  const [msId, setMsId] = useState('')
-  const [ws, setWs] = useState<WsOpt[]>([])
-  const [ms, setMs] = useState<MsOpt[]>([])
-  const [loadingWs, setLoadingWs] = useState(false)
-  const [loadingMs, setLoadingMs] = useState(false)
-
-  // cascata progetto → workstream
-  useEffect(() => {
-    if (kind !== 'project' || !projectId) { setWs([]); setWsId(''); return }
-    setLoadingWs(true)
-    createBrowserClient().from('project_workstreams').select('id, name').eq('project_id', projectId).order('sort_order')
-      .then(({ data }) => { setWs((data ?? []) as WsOpt[]); setLoadingWs(false) })
-  }, [kind, projectId])
-  // cascata workstream → milestone
-  useEffect(() => {
-    if (!wsId) { setMs([]); setMsId(''); return }
-    setLoadingMs(true)
-    createBrowserClient().from('milestones').select('id, title, milestone_type').eq('workstream_id', wsId).order('sort_order')
-      .then(({ data }) => {
-        const list = (data ?? []) as MsOpt[]
-        setMs(list)
-        // default: prima milestone di consegna, altrimenti la prima (sistema)
-        setMsId(list.find(m => m.milestone_type === 'delivery')?.id ?? list[0]?.id ?? '')
-        setLoadingMs(false)
-      })
-  }, [wsId])
-
-  const projClientId = projects.find(p => p.id === projectId)?.client_id ?? ''
-
-  const submit = () => start(async () => {
-    try {
-      if (kind !== 'project') {
-        await createAdHocTask({
-          client_id: clientId, title, assignee_id: assignee || null, due_date: dueDate || null, priority,
-          visibility: kind === 'cliente' ? 'client_visible' : (clientVisible ? 'client_visible' : 'internal'),
-          task_type: kind === 'cliente' ? 'cliente' : 'ad_hoc',
-        })
-        notify(kind === 'cliente' ? 'Task al cliente creata' : 'Task ad hoc creata',
-          kind === 'cliente' ? `${base}/clienti/${clientId}` : `${base}/ad-hoc`)
-      } else {
-        await createProjectTask({ client_id: projClientId, project_id: projectId, workstream_id: wsId, milestone_id: msId, title, assignee_id: assignee || null, due_date: dueDate || null, priority })
-        notify('Task creata', `${base}/progetti/${projectId}/workstream/${wsId}`)
-      }
-      onDone()
-    } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
-  })
-
-  const canSubmit = !!title.trim() && (kind === 'project' ? (!!projectId && !!wsId && !!msId) : !!clientId)
-  const client = clients.find(c => c.id === clientId)
-  const project = projects.find(p => p.id === projectId)
-  const person = profiles.find(p => p.id === assignee)
-
-  const filteredClients = useMemo(() => {
-    const t = q.trim().toLowerCase()
-    return t ? clients.filter(c => c.name.toLowerCase().includes(t)) : clients
-  }, [clients, q])
-  const filteredProjects = useMemo(() => {
-    const t = q.trim().toLowerCase()
-    return t ? projects.filter(p => p.name.toLowerCase().includes(t)) : projects
-  }, [projects, q])
-
-  const hint = kind !== 'project'
-    ? (client?.name ?? 'Task legata al solo cliente')
-    : [project?.name, ws.find(w => w.id === wsId)?.name].filter(Boolean).join(' · ') || 'Task dentro un progetto'
-
-  return (
-    <ModalShell title="Nuova task" hint={hint} icon={<CheckSquare className="w-4 h-4 text-gold-text" />}
-      onClose={onClose} onSubmit={submit} canSubmit={canSubmit} pending={pending}>
-
-      <Segmented ariaLabel="Tipo di task" value={kind} onChange={k => { setKind(k); setQ('') }}
-        options={[
-          { value: 'project', label: 'In un progetto' },
-          { value: 'adhoc', label: 'Ad hoc (nostra)' },
-          { value: 'cliente', label: 'Al cliente' },
-        ]} />
-      <p className="text-2xs text-text-tertiary -mt-1">
-        {kind === 'project' ? 'Dentro una milestone di un progetto.'
-          : kind === 'adhoc' ? 'Fuori progetto, la facciamo noi.'
-          : 'La deve fare il cliente: compare nel suo portale.'}
-      </p>
-
-      {kind !== 'project' ? (
-        <>
-          <Group label="Cliente" meta={clientId
-            ? <button type="button" onClick={() => setClientId('')} className="text-2xs font-semibold text-gold-text">Cambia</button>
-            : undefined}>
-            {clientId && client ? (
-              <PickRow selected onClick={() => setClientId('')} icon={<Avatar name={client.name} />} title={client.name} />
-            ) : (
-              <div className="space-y-2">
-                <SearchInput value={q} onChange={setQ} placeholder="Cerca cliente…" autoFocus />
-                {filteredClients.length === 0 ? <Empty>Nessun cliente per «{q}».</Empty> : (
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                    {filteredClients.map(c => (
-                      <PickRow key={c.id} selected={false} onClick={() => { setClientId(c.id); setQ('') }}
-                        icon={<Avatar name={c.name} />} title={c.name} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </Group>
-
-          {/* per una task "al cliente" la visibilità non è una scelta: è il senso stesso */}
-          {kind === 'cliente' ? (
-            <div className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-gold bg-gold-dim">
-              <Eye className="w-4 h-4 text-info shrink-0" />
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold text-text-primary">Visibile al cliente</span>
-                <span className="block text-2xs text-text-tertiary">Sempre: è una cosa che deve fare lui</span>
-              </span>
-            </div>
-          ) : (
-            <button type="button" onClick={() => setClientVisible(v => !v)} aria-pressed={clientVisible}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-colors ${
-                clientVisible ? 'border-gold bg-gold-dim' : 'border-border hover:bg-surface-hover'
-              }`}>
-              {clientVisible ? <Eye className="w-4 h-4 text-info shrink-0" /> : <EyeOff className="w-4 h-4 text-text-tertiary shrink-0" />}
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold text-text-primary">Visibile al cliente</span>
-                <span className="block text-2xs text-text-tertiary">Compare nel portale cliente tra le sue attività</span>
-              </span>
-            </button>
-          )}
-        </>
-      ) : (
-        <>
-          <Group label="Progetto" meta={projectId
-            ? <button type="button" onClick={() => { setProjectId(''); setWsId('') }} className="text-2xs font-semibold text-gold-text">Cambia</button>
-            : undefined}>
-            {projectId && project ? (
-              <PickRow selected onClick={() => { setProjectId(''); setWsId('') }}
-                icon={<Briefcase className="w-4 h-4 text-gold-text shrink-0" />} title={project.name} />
-            ) : (
-              <div className="space-y-2">
-                <SearchInput value={q} onChange={setQ} placeholder="Cerca progetto…" autoFocus />
-                {filteredProjects.length === 0 ? <Empty>Nessun progetto per «{q}».</Empty> : (
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                    {filteredProjects.map(p => (
-                      <PickRow key={p.id} selected={false} onClick={() => { setProjectId(p.id); setQ('') }}
-                        icon={<Briefcase className="w-4 h-4 text-gold-text shrink-0" />} title={p.name} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </Group>
-
-          {projectId && (
-            <Group label="Workstream">
-              {loadingWs ? <Skeleton /> : ws.length === 0 ? (
-                <Empty>Questo progetto non ha ancora workstream: creane uno da «Crea → Nuovo workstream».</Empty>
-              ) : (
-                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                  {ws.map(w => (
-                    <PickRow key={w.id} selected={wsId === w.id} onClick={() => setWsId(w.id)}
-                      icon={<FolderTree className="w-4 h-4 text-gold-text shrink-0" />} title={w.name} />
-                  ))}
-                </div>
-              )}
-            </Group>
-          )}
-
-          {wsId && (
-            <Group label="Milestone">
-              {loadingMs ? <Skeleton /> : ms.length === 0 ? (
-                <Empty>Nessuna milestone in questa workstream.</Empty>
-              ) : (
-                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                  {ms.map(m => (
-                    <PickRow key={m.id} selected={msId === m.id} onClick={() => setMsId(m.id)}
-                      icon={<Flag className={`w-4 h-4 shrink-0 ${m.milestone_type === 'system' ? 'text-text-tertiary' : 'text-info'}`} />}
-                      title={m.title}
-                      subtitle={m.milestone_type === 'system' ? 'operatività continua' : undefined} />
-                  ))}
-                </div>
-              )}
-            </Group>
-          )}
-        </>
-      )}
-
-      <Field label="Titolo">
-        <input value={title} onChange={e => setTitle(e.target.value)} className={inputCls}
-          placeholder="Cosa va fatto?" />
-      </Field>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Assegnatario">
-          <div className="flex items-center gap-2">
-            {person && <Avatar name={person.full_name} url={person.avatar_url} />}
-            <select value={assignee} onChange={e => setAssignee(e.target.value)} className={inputCls} aria-label="Assegnatario">
-              <option value="">— nessuno —</option>
-              {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}{p.app_role ? ` · ${p.app_role}` : ''}</option>)}
-            </select>
-          </div>
-        </Field>
-        <Field label="Scadenza">
-          <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputCls} aria-label="Scadenza" />
-        </Field>
-      </div>
-
-      <Field label="Priorità">
-        <Segmented ariaLabel="Priorità" value={priority} onChange={setPriority}
-          options={[{ value: 'alta', label: 'Alta' }, { value: 'media', label: 'Media' }, { value: 'bassa', label: 'Bassa' }]} />
-      </Field>
-    </ModalShell>
-  )
-}
-
-function Skeleton() {
-  return (
-    <div className="space-y-1.5">
-      {[0, 1].map(i => <div key={i} className="h-11 rounded-xl bg-surface-active animate-pulse" />)}
-    </div>
-  )
-}

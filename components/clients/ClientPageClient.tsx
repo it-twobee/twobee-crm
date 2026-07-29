@@ -4,7 +4,8 @@ import { useState, useRef } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Edit3, Check, X, ChevronDown, Loader2 } from 'lucide-react'
 import { formatCurrency, formatDate, getPaymentBadge } from '@/lib/utils'
-import type { Client, ClientContact, ClientKpi, Profile, ClientStakeholder, ClientInteraction } from '@/lib/types/database'
+import type { Client, ClientContact, ClientKpi, Profile, ClientStakeholder, ClientInteraction, ClientLabel } from '@/lib/types/database'
+import { setClientLabel } from '@/app/actions/clients'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { clientName } from '@/lib/utils'
 import { AnagraficaTab } from './tabs/AnagraficaTab'
@@ -99,24 +100,20 @@ function InlineBadgeSelect({ value, options, field, clientId, canEdit, badgeClas
     setOpen(false)
     if (v === current) return
     setSaving(true)
-    const sb = createBrowserClient()
-    const { error } = await sb.from('clients').update({ [field]: v }).eq('id', clientId)
-    if (error) { toast.error('Errore nel salvataggio'); setSaving(false); return }
-    // Auto-archivia tutti i canali del cliente quando diventa "perso"
-    if (field === 'client_label' && v === 'perso') {
-      await sb.from('chat_channels')
-        .update({ is_archived: true, is_read_only: true })
-        .eq('client_id', clientId)
+    try {
+      // il label passa dal server: archivia le chat e notifica la prima perdita
+      if (field === 'client_label') await setClientLabel(clientId, v as ClientLabel)
+      else {
+        const { error } = await createBrowserClient().from('clients').update({ [field]: v }).eq('id', clientId)
+        if (error) throw new Error(error.message)
+      }
+      setCurrent(v)
+      toast.success(v === 'perso' ? 'Cliente perso — chat archiviata' : 'Aggiornato')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Errore nel salvataggio')
+    } finally {
+      setSaving(false)
     }
-    // Riattiva se il cliente non è più perso
-    if (field === 'client_label' && v !== 'perso' && current === 'perso') {
-      await sb.from('chat_channels')
-        .update({ is_archived: false, is_read_only: false })
-        .eq('client_id', clientId)
-    }
-    setSaving(false)
-    setCurrent(v)
-    toast.success(v === 'perso' ? 'Cliente perso — chat archiviata' : 'Aggiornato')
   }
 
   const label = labelFn ? labelFn(current) : current.replace('_', ' ')
@@ -315,7 +312,12 @@ export function ClientPageClient({
             onTabChange={setActiveTab} hideEconomics={hideEconomics} />
         )}
         {activeTab === 1 && canSeeAnagrafica && (
-          <AnagraficaTab client={client} contacts={contacts} teamMembers={teamMembers} stakeholders={stakeholders} hideEconomics={hideEconomics} />
+          <AnagraficaTab client={client} contacts={contacts} teamMembers={teamMembers} stakeholders={stakeholders}
+            allProfiles={allProfiles} hideEconomics={hideEconomics}
+            // nel workspace la vista `clients_workspace` restituisce NULL su fiscali e note:
+            // salvare da lì cancellerebbe i dati veri
+            canEdit={isAdmin && !hideEconomics}
+            canEditContacts={isAdminLevel} />
         )}
         {activeTab === 2 && (
           <ClientProjectsTab clientId={client.id} clientName={clientName(client)}

@@ -6,9 +6,9 @@ import {
   Plus, Loader2, Trash2, Check, ListTodo, AlertTriangle, Clock, Users, Eye,
 } from 'lucide-react'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
-import { createAdHocTask, setAdHocTaskStatus, deleteAdHocTask, updateAdHocTask } from '@/app/actions/ad-hoc-tasks'
+import { setAdHocTaskStatus, deleteAdHocTask, updateAdHocTask } from '@/app/actions/ad-hoc-tasks'
 import { Avatar, SearchInput, Empty } from '@/components/shared/formkit'
-import { NewTaskModal, type NewTaskValues } from '@/components/projects/NewTaskModal'
+import { TaskComposer } from '@/components/tasks/TaskComposer'
 import { AdHocDetailModal, type AssignablePerson, type AdHocPatch } from '@/components/adhoc/AdHocDetailModal'
 import { SUPERVISOR_ROLE } from '@/lib/task-roles'
 import type { Profile, Priority, Visibility, TaskStatusV2 } from '@/lib/types/database'
@@ -116,20 +116,6 @@ export function ClientAdHocTab({
   const clientContacts = assignable.filter(p => p.client_id === clientId)
   const internals = assignable.filter(p => p.client_id !== clientId)
   const defaultContact = clientContacts[0]?.id ?? null
-
-  const submit = (v: NewTaskValues, again: boolean) => start(async () => {
-    try {
-      await createAdHocTask({
-        client_id: clientId, title: v.title, assignee_id: v.assignee_id,
-        supervisor_id: v.supervisor_id ?? null,
-        due_date: v.due_date, priority: v.priority, visibility: v.visibility,
-        task_type: kind,
-      })
-      toast.success('Task creata')
-      if (!again) setAdding(false)
-      reload()
-    } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
-  })
 
   const toggle = (r: Row) => start(async () => {
     try { await setAdHocTaskStatus(r.id, clientId, r.status === 'completato' ? 'da_fare' : 'completato'); reload() }
@@ -286,22 +272,14 @@ export function ClientAdHocTab({
       )}
 
       {adding && (
-        <NewTaskModal context={clientName ? `${copy.context} · ${clientName}` : copy.title}
-          clientVisibleAllowed={kind === 'ad_hoc'}
-          profiles={kind === 'cliente'
-            ? clientContacts.map(p => ({ id: p.id, full_name: p.full_name, avatar_url: p.avatar_url }))
-            : profiles.map(p => ({ id: p.id, full_name: p.full_name, avatar_url: p.avatar_url ?? null }))}
-          assigneeLabel={kind === 'cliente' ? 'Chi la deve fare, lato cliente' : 'Assegnatario'}
-          assigneeHint={kind === 'cliente'
-            ? (clientContacts.length ? 'referente registrato' : 'nessun referente registrato per questo cliente')
-            : undefined}
-          defaultAssignee={kind === 'cliente' ? defaultContact : undefined}
-          supervisor={kind === 'cliente' ? {
-            label: 'Chi la presidia, da noi',
-            hint: 'secondo livello: controlla che arrivi',
-            people: internals.map(p => ({ id: p.id, full_name: p.full_name, avatar_url: p.avatar_url })),
-          } : undefined}
-          pending={pending} onClose={() => setAdding(false)} onCreate={submit} />
+        <TaskComposer
+          destination={{
+            mode: 'fixed', kind, clientId,
+            context: clientName ? `${copy.context} · ${clientName}` : copy.title,
+          }}
+          profiles={assignable.map(p => ({ id: p.id, full_name: p.full_name, avatar_url: p.avatar_url, app_role: p.app_role }))}
+          onClose={() => setAdding(false)}
+          onCreated={() => reload()} />
       )}
 
       {detail && (

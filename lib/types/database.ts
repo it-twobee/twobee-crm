@@ -186,6 +186,8 @@ export interface Client {
   client_label: ClientLabel
   notes: string | null
   is_internal: boolean
+  /** §161: prima volta che il cliente è stato perso. Non si azzera se torna attivo. */
+  lost_at?: string | null
   created_at: string
   created_by: string | null
   // Obiettivi (migration 008)

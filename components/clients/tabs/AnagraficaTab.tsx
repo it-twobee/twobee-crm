@@ -1,29 +1,42 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Loader2, Trash2, Pencil, Save, X, Check, Building2, Receipt, FileText, Users2, Crown } from 'lucide-react'
 import { formatDate, getInitials } from '@/lib/utils'
-import { createClient as createSupabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import type { Client, ClientContact, Profile, ClientStakeholder, StakeholderRole, ClientPackage, PaymentStatus, ClientStatus, ClientType, ClientLabel } from '@/lib/types/database'
+import {
+  updateClientRecord, createClientContact, updateClientContact, deleteClientContact,
+  saveClientStakeholder, deleteClientStakeholder, setClientTeam,
+  type ClientPatch, type ContactInput, type StakeholderInput,
+} from '@/app/actions/clients'
+import {
+  CLIENT_PACKAGES, CLIENT_CHANNELS, INDUSTRIES,
+  CLIENT_TYPE_OPTIONS, CLIENT_LABEL_OPTIONS, PAYMENT_STATUS_OPTIONS,
+} from '@/lib/client-options'
+import type { Client, ClientContact, Profile, ClientStakeholder, StakeholderRole, ClientPackage, PaymentStatus, ClientType, ClientLabel } from '@/lib/types/database'
 
 interface Props {
   client: Client
   contacts: ClientContact[]
   teamMembers: Profile[]
   stakeholders: ClientStakeholder[]
+  allProfiles?: Profile[]
   hideEconomics?: boolean
+  /** Anagrafica, fiscali, contratto, stakeholder, team: solo admin nel portale admin. */
+  canEdit?: boolean
+  /** Referenti del cliente: anche i manager, anche dal workspace. */
+  canEditContacts?: boolean
 }
 
-const PACKAGES: ClientPackage[] = ['Worker Bee Start', 'Worker Bee Basic', 'Hive Basic', 'Hive Custom', 'Royal Queen', 'IT Digital Partner', 'Partner Quota']
-const CHANNELS = ['Meta Ads', 'Google Ads', 'SEO', 'Social Organic', 'Email Marketing', 'TikTok Ads', 'LinkedIn Ads', 'YouTube Ads', 'Copywriting', 'Web Design']
-const INDUSTRIES = [
-  'E-commerce Moda', 'E-commerce Casa & Arredo', 'E-commerce Alimentare',
-  'Servizi B2B', 'Immobiliare', 'Ristorazione', 'Salute & Benessere',
-  'Turismo & Hospitality', 'Automotive', 'Formazione & Corsi',
-  'Professionisti (avv/med/comm)', 'Tecnologia / SaaS', 'Altro',
-]
+type Section = 'azienda' | 'fiscale' | 'contratto'
+
+/** Si salva solo la sezione aperta: prima partiva l'intera riga, risk score e created_at compresi. */
+const SECTION_FIELDS: Record<Section, readonly (keyof ClientPatch)[]> = {
+  azienda: ['display_name', 'legal_name', 'phone', 'website', 'client_type', 'client_label', 'industry', 'market_area', 'notes', 'active_channels', 'is_internal'],
+  fiscale: ['piva', 'fiscal_code', 'address', 'city', 'cap', 'country', 'sdi_code', 'pec'],
+  contratto: ['package', 'mrr', 'contract_start', 'contract_end', 'payment_status'],
+}
 
 const roleLabel: Record<StakeholderRole, string> = {
   owner: 'Owner',
@@ -38,6 +51,8 @@ const roleBadge: Record<StakeholderRole, string> = {
   agenzia_supporto: 'bg-success/20 text-success',
 }
 
+const inputCls = 'w-full bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-gold/60 placeholder:text-text-secondary'
+
 function Field({ label, value, editMode, children }: { label: string; value: React.ReactNode; editMode: boolean; children: React.ReactNode }) {
   return (
     <div className={editMode ? '' : 'bg-surface rounded-lg px-3 py-2.5'}>
@@ -47,53 +62,68 @@ function Field({ label, value, editMode, children }: { label: string; value: Rea
   )
 }
 
-function Input({ value, onChange, placeholder, type = 'text' }: { value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
+function Input({ value, onChange, placeholder, type = 'text', label }: { value: string; onChange: (v: string) => void; placeholder?: string; type?: string; label?: string }) {
   return (
-    <input
-      type={type}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-gold/60 placeholder:text-text-secondary"
-    />
+    <input type={type} value={value} onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder} aria-label={label ?? placeholder} className={inputCls} />
   )
 }
 
-function Select({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
+function Select({ value, onChange, options, label }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; label?: string }) {
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-gold/60"
-    >
+    <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}
+      className={inputCls}>
       {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
   )
 }
 
-export function AnagraficaTab({ client: initialClient, contacts, teamMembers, stakeholders: initialStakeholders, hideEconomics = false }: Props) {
+function SectionCard({ children }: { children: React.ReactNode }) {
+  return <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">{children}</section>
+}
+
+function CardHead({ icon, title, action }: { icon: React.ReactNode; title: string; action?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-border">
+      <div className="flex items-center gap-2.5">
+        {icon}
+        <h3 className="text-sm font-bold text-text-primary">{title}</h3>
+      </div>
+      {action}
+    </div>
+  )
+}
+
+export function AnagraficaTab({
+  client: initialClient, contacts, teamMembers, stakeholders: initialStakeholders,
+  allProfiles = [], hideEconomics = false, canEdit = false, canEditContacts = false,
+}: Props) {
   const [client, setClient] = useState(initialClient)
   const router = useRouter()
-  const [stakeholders, setStakeholders] = useState(initialStakeholders)
   const [editAzienda, setEditAzienda] = useState(false)
   const [editFiscale, setEditFiscale] = useState(false)
   const [editContratto, setEditContratto] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [showStakeholderModal, setShowStakeholderModal] = useState(false)
   const [form, setForm] = useState(client)
 
-  const save = async (section: string) => {
+  const save = async (section: Section) => {
+    const patch: ClientPatch = {}
+    for (const k of SECTION_FIELDS[section]) (patch as Record<string, unknown>)[k] = form[k]
+
     setSaving(true)
-    const supabase = createSupabase()
-    const { error } = await supabase.from('clients').update(form).eq('id', client.id)
-    setSaving(false)
-    if (error) { toast.error('Errore nel salvataggio'); return }
-    setClient(form)
-    if (section === 'azienda') setEditAzienda(false)
-    if (section === 'fiscale') setEditFiscale(false)
-    if (section === 'contratto') setEditContratto(false)
-    toast.success('Modifiche salvate')
-    router.refresh()
+    try {
+      await updateClientRecord(client.id, patch)
+      setClient((prev) => ({ ...prev, ...patch }))
+      if (section === 'azienda') setEditAzienda(false)
+      if (section === 'fiscale') setEditFiscale(false)
+      if (section === 'contratto') setEditContratto(false)
+      toast.success('Modifiche salvate')
+      router.refresh()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Errore nel salvataggio')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const cancel = () => {
@@ -111,26 +141,17 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
     }))
   }
 
-  const deleteStakeholder = async (id: string) => {
-    const supabase = createSupabase()
-    await supabase.from('client_stakeholders').delete().eq('id', id)
-    setStakeholders((prev) => prev.filter((s) => s.id !== id))
-    toast.success('Rimosso')
-  }
-
-  const sectionIcons: Record<string, React.ReactNode> = {
+  const sectionIcons: Record<Section, React.ReactNode> = {
     azienda: <Building2 className="w-4 h-4 text-gold-text" />,
     fiscale: <Receipt className="w-4 h-4 text-info" />,
     contratto: <FileText className="w-4 h-4 text-accent" />,
   }
 
-  const SectionHeader = ({ title, section, editing }: { title: string; section: string; editing: boolean }) => (
-    <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
-      <div className="flex items-center gap-2.5">
-        {sectionIcons[section]}
-        <h3 className="text-sm font-bold text-text-primary">{title}</h3>
-      </div>
-      {editing ? (
+  const SectionHeader = ({ title, section, editing }: { title: string; section: Section; editing: boolean }) => (
+    <CardHead
+      icon={sectionIcons[section]}
+      title={title}
+      action={!canEdit ? undefined : editing ? (
         <div className="flex items-center gap-2">
           <button onClick={cancel} className="flex items-center gap-1 text-xs text-text-secondary hover:text-text-primary transition-colors">
             <X className="w-3.5 h-3.5" /> Annulla
@@ -147,51 +168,57 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
           <Pencil className="w-3.5 h-3.5" /> Modifica
         </button>
       )}
-    </div>
+    />
   )
 
   return (
     <div className="space-y-6">
 
       {/* Dati Aziendali */}
-      <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
+      <SectionCard>
         <SectionHeader title="Dati Aziendali" section="azienda" editing={editAzienda} />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {/* §24: nome visualizzato ≠ ragione sociale */}
           <Field label="Nome visualizzato" value={client.display_name ?? client.company_name} editMode={editAzienda}>
-            <Input value={form.display_name ?? form.company_name ?? ''} onChange={(v) => setForm((p) => ({ ...p, display_name: v }))} />
+            <Input label="Nome visualizzato" value={form.display_name ?? form.company_name ?? ''} onChange={(v) => setForm((p) => ({ ...p, display_name: v }))} />
           </Field>
           <Field label="Ragione Sociale" value={client.legal_name} editMode={editAzienda}>
-            <Input value={form.legal_name ?? ''} onChange={(v) => setForm((p) => ({ ...p, legal_name: v }))} placeholder="es. Seven Holding S.r.l." />
+            <Input label="Ragione sociale" value={form.legal_name ?? ''} onChange={(v) => setForm((p) => ({ ...p, legal_name: v }))} placeholder="es. Seven Holding S.r.l." />
           </Field>
           <Field label="Telefono" value={client.phone} editMode={editAzienda}>
-            <Input value={form.phone ?? ''} onChange={(v) => setForm((p) => ({ ...p, phone: v }))} placeholder="+39 ..." />
+            <Input label="Telefono" value={form.phone ?? ''} onChange={(v) => setForm((p) => ({ ...p, phone: v }))} placeholder="+39 ..." />
           </Field>
           <Field label="Sito Web" value={client.website} editMode={editAzienda}>
-            <Input value={form.website ?? ''} onChange={(v) => setForm((p) => ({ ...p, website: v }))} placeholder="https://..." />
+            <Input label="Sito web" value={form.website ?? ''} onChange={(v) => setForm((p) => ({ ...p, website: v }))} placeholder="https://..." />
           </Field>
-          <Field label="Tipo Cliente" value={(client.client_type ?? 'growth').toUpperCase()} editMode={editAzienda}>
-            <Select value={form.client_type} onChange={(v) => setForm((p) => ({ ...p, client_type: v as ClientType }))}
-              options={[{ value: 'growth', label: 'Growth' }, { value: 'digital', label: 'Digital' }]} />
+          <Field label="Tipo Cliente" value={CLIENT_TYPE_OPTIONS.find((o) => o.value === (client.client_type ?? 'growth'))?.label} editMode={editAzienda}>
+            <Select label="Tipo cliente" value={form.client_type} onChange={(v) => setForm((p) => ({ ...p, client_type: v as ClientType }))}
+              options={CLIENT_TYPE_OPTIONS} />
           </Field>
-          <Field label="Label" value={(client.client_label ?? '').replace('_', ' ')} editMode={editAzienda}>
-            <Select value={form.client_label} onChange={(v) => setForm((p) => ({ ...p, client_label: v as ClientLabel }))}
-              options={[{ value: 'stabile', label: 'Stabile' }, { value: 'in_bilico', label: 'In Bilico' }, { value: 'perso', label: 'Perso' }, { value: 'partner', label: 'Partner' }]} />
+          <Field label="Label" value={CLIENT_LABEL_OPTIONS.find((o) => o.value === client.client_label)?.label} editMode={editAzienda}>
+            <Select label="Label" value={form.client_label} onChange={(v) => setForm((p) => ({ ...p, client_label: v as ClientLabel }))}
+              options={CLIENT_LABEL_OPTIONS} />
           </Field>
           <Field label="Settore" value={client.industry} editMode={editAzienda}>
             <select value={form.industry ?? ''} onChange={(e) => setForm((p) => ({ ...p, industry: e.target.value || null }))}
-              className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-gold/60">
+              aria-label="Settore" className={inputCls}>
               <option value="">— Seleziona settore —</option>
               {INDUSTRIES.map((ind) => <option key={ind} value={ind}>{ind}</option>)}
             </select>
           </Field>
           <Field label="Area di Mercato" value={client.market_area} editMode={editAzienda}>
-            <Input value={form.market_area ?? ''} onChange={(v) => setForm((p) => ({ ...p, market_area: v }))} placeholder="es. Nord Italia, Nazionale, Europa..." />
+            <Input label="Area di mercato" value={form.market_area ?? ''} onChange={(v) => setForm((p) => ({ ...p, market_area: v }))} placeholder="es. Nord Italia, Nazionale, Europa..." />
+          </Field>
+          <Field label="Cliente interno" value={client.is_internal ? 'Sì — fuori dalle statistiche' : 'No'} editMode={editAzienda}>
+            <label className="flex items-center gap-2 h-9 cursor-pointer">
+              <input type="checkbox" checked={!!form.is_internal} onChange={(e) => setForm((p) => ({ ...p, is_internal: e.target.checked }))} className="accent-gold" />
+              <span className="text-sm text-text-secondary">Escluso da statistiche commerciali</span>
+            </label>
           </Field>
           <div className="sm:col-span-2 lg:col-span-3">
             <Field label="Note Interne" value={client.notes} editMode={editAzienda}>
               <textarea value={form.notes ?? ''} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} rows={3}
-                className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-gold/60 resize-none" />
+                aria-label="Note interne" className={`${inputCls} resize-none`} />
             </Field>
           </div>
         </div>
@@ -201,8 +228,8 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
           <p className="text-text-secondary text-xs mb-2">Canali Attivi</p>
           {editAzienda ? (
             <div className="flex gap-2 flex-wrap">
-              {CHANNELS.map((ch) => (
-                <button key={ch} onClick={() => toggleChannel(ch)}
+              {CLIENT_CHANNELS.map((ch) => (
+                <button key={ch} onClick={() => toggleChannel(ch)} aria-pressed={form.active_channels?.includes(ch)}
                   className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${form.active_channels?.includes(ch) ? 'bg-gold/20 border-gold/40 text-gold-text' : 'bg-background border-border text-text-secondary hover:border-border-strong'}`}>
                   {form.active_channels?.includes(ch) && <Check className="w-3 h-3 inline mr-1" />}{ch}
                 </button>
@@ -210,235 +237,439 @@ export function AnagraficaTab({ client: initialClient, contacts, teamMembers, st
             </div>
           ) : (
             <div className="flex gap-2 flex-wrap">
-              {client.active_channels.map((ch) => (
-                <span key={ch} className="bg-background border border-border text-text-secondary text-xs px-2.5 py-1 rounded">{ch}</span>
-              ))}
+              {client.active_channels.length === 0
+                ? <span className="text-text-secondary italic text-xs">Nessun canale attivo</span>
+                : client.active_channels.map((ch) => (
+                  <span key={ch} className="bg-background border border-border text-text-secondary text-xs px-2.5 py-1 rounded">{ch}</span>
+                ))}
             </div>
           )}
         </div>
-      </section>
+      </SectionCard>
 
-      {/* Dati Fiscali (per Aruba) */}
-      <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
-        <SectionHeader title="Dati Fiscali & Fatturazione Elettronica" section="fiscale" editing={editFiscale} />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <Field label="P.IVA" value={client.piva} editMode={editFiscale}>
-            <Input value={form.piva ?? ''} onChange={(v) => setForm((p) => ({ ...p, piva: v }))} placeholder="IT12345678901" />
-          </Field>
-          <Field label="Codice Fiscale" value={client.fiscal_code} editMode={editFiscale}>
-            <Input value={form.fiscal_code ?? ''} onChange={(v) => setForm((p) => ({ ...p, fiscal_code: v }))} />
-          </Field>
-          <Field label="Indirizzo" value={client.address} editMode={editFiscale}>
-            <Input value={form.address ?? ''} onChange={(v) => setForm((p) => ({ ...p, address: v }))} />
-          </Field>
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="CAP" value={client.cap} editMode={editFiscale}>
-              <Input value={form.cap ?? ''} onChange={(v) => setForm((p) => ({ ...p, cap: v }))} placeholder="80100" />
+      {/* Dati Fiscali — nel workspace la vista li restituisce NULL: mostrarli sarebbe una bugia */}
+      {!hideEconomics && (
+        <SectionCard>
+          <SectionHeader title="Dati Fiscali & Fatturazione Elettronica" section="fiscale" editing={editFiscale} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <Field label="P.IVA" value={client.piva} editMode={editFiscale}>
+              <Input label="P.IVA" value={form.piva ?? ''} onChange={(v) => setForm((p) => ({ ...p, piva: v }))} placeholder="IT12345678901" />
             </Field>
-            <Field label="Città" value={client.city} editMode={editFiscale}>
-              <Input value={form.city ?? ''} onChange={(v) => setForm((p) => ({ ...p, city: v }))} placeholder="Napoli" />
+            <Field label="Codice Fiscale" value={client.fiscal_code} editMode={editFiscale}>
+              <Input label="Codice fiscale" value={form.fiscal_code ?? ''} onChange={(v) => setForm((p) => ({ ...p, fiscal_code: v }))} />
+            </Field>
+            <Field label="Indirizzo" value={client.address} editMode={editFiscale}>
+              <Input label="Indirizzo" value={form.address ?? ''} onChange={(v) => setForm((p) => ({ ...p, address: v }))} />
+            </Field>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="CAP" value={client.cap} editMode={editFiscale}>
+                <Input label="CAP" value={form.cap ?? ''} onChange={(v) => setForm((p) => ({ ...p, cap: v }))} placeholder="80100" />
+              </Field>
+              <Field label="Città" value={client.city} editMode={editFiscale}>
+                <Input label="Città" value={form.city ?? ''} onChange={(v) => setForm((p) => ({ ...p, city: v }))} placeholder="Napoli" />
+              </Field>
+            </div>
+            <Field label="Paese" value={client.country} editMode={editFiscale}>
+              <Input label="Paese" value={form.country ?? ''} onChange={(v) => setForm((p) => ({ ...p, country: v }))} placeholder="Italia" />
+            </Field>
+            <Field label="Codice SDI" value={client.sdi_code} editMode={editFiscale}>
+              <Input label="Codice SDI" value={form.sdi_code ?? ''} onChange={(v) => setForm((p) => ({ ...p, sdi_code: v }))} placeholder="XXXXXXX" />
+            </Field>
+            <Field label="PEC" value={client.pec} editMode={editFiscale}>
+              <Input label="PEC" value={form.pec ?? ''} onChange={(v) => setForm((p) => ({ ...p, pec: v }))} placeholder="nome@pec.it" type="email" />
             </Field>
           </div>
-          <Field label="Codice SDI" value={client.sdi_code} editMode={editFiscale}>
-            <Input value={form.sdi_code ?? ''} onChange={(v) => setForm((p) => ({ ...p, sdi_code: v }))} placeholder="XXXXXXX" />
-          </Field>
-          <Field label="PEC" value={client.pec} editMode={editFiscale}>
-            <Input value={form.pec ?? ''} onChange={(v) => setForm((p) => ({ ...p, pec: v }))} placeholder="nome@pec.it" type="email" />
-          </Field>
-        </div>
-        {!editFiscale && !client.piva && (
-          <p className="text-xs text-text-secondary mt-3 italic">Dati fiscali non ancora inseriti — necessari per integrazione Aruba</p>
-        )}
-      </section>
+          {!editFiscale && !client.piva && (
+            <p className="text-xs text-text-secondary mt-3 italic">Dati fiscali non ancora inseriti — necessari per integrazione Aruba</p>
+          )}
+        </SectionCard>
+      )}
 
       {/* Contratto & Pagamenti — nascosto nel portale operativo (dati economici) */}
       {!hideEconomics && (
-        <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
+        <SectionCard>
           <SectionHeader title="Contratto & Pagamenti" section="contratto" editing={editContratto} />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <Field label="Pacchetto" value={client.package} editMode={editContratto}>
-              <Select value={form.package} onChange={(v) => setForm((p) => ({ ...p, package: v as ClientPackage }))}
-                options={PACKAGES.map((pk) => ({ value: pk, label: pk }))} />
+              <Select label="Pacchetto" value={form.package} onChange={(v) => setForm((p) => ({ ...p, package: v as ClientPackage }))}
+                options={CLIENT_PACKAGES.map((pk) => ({ value: pk, label: pk }))} />
             </Field>
             <Field label="MRR (€/mese)" value={`€${client.mrr.toLocaleString('it-IT')}`} editMode={editContratto}>
-              <Input type="number" value={form.mrr.toString()} onChange={(v) => setForm((p) => ({ ...p, mrr: parseFloat(v) || 0 }))} />
+              <Input label="MRR" type="number" value={form.mrr.toString()} onChange={(v) => setForm((p) => ({ ...p, mrr: parseFloat(v) || 0 }))} />
             </Field>
             <Field label="Inizio Contratto" value={formatDate(client.contract_start)} editMode={editContratto}>
-              <Input type="date" value={form.contract_start?.slice(0, 10) ?? ''} onChange={(v) => setForm((p) => ({ ...p, contract_start: v }))} />
+              <Input label="Inizio contratto" type="date" value={form.contract_start?.slice(0, 10) ?? ''} onChange={(v) => setForm((p) => ({ ...p, contract_start: v }))} />
             </Field>
             <Field label="Fine Contratto" value={formatDate(client.contract_end)} editMode={editContratto}>
-              <Input type="date" value={form.contract_end?.slice(0, 10) ?? ''} onChange={(v) => setForm((p) => ({ ...p, contract_end: v }))} />
+              <Input label="Fine contratto" type="date" value={form.contract_end?.slice(0, 10) ?? ''} onChange={(v) => setForm((p) => ({ ...p, contract_end: v }))} />
             </Field>
-            <Field label="Stato Pagamenti" value={client.payment_status} editMode={editContratto}>
-              <Select value={form.payment_status} onChange={(v) => setForm((p) => ({ ...p, payment_status: v as PaymentStatus }))}
-                options={[{ value: 'pagato', label: 'Pagato' }, { value: 'in_attesa', label: 'In Attesa' }, { value: 'scaduto', label: 'Scaduto' }]} />
+            <Field label="Stato Pagamenti" value={PAYMENT_STATUS_OPTIONS.find((o) => o.value === client.payment_status)?.label} editMode={editContratto}>
+              <Select label="Stato pagamenti" value={form.payment_status} onChange={(v) => setForm((p) => ({ ...p, payment_status: v as PaymentStatus }))}
+                options={PAYMENT_STATUS_OPTIONS} />
             </Field>
           </div>
-        </section>
+        </SectionCard>
       )}
 
-      {/* Referenti Cliente */}
-      <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
-        <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
-          <Users2 className="w-4 h-4 text-success" />
-          <h3 className="text-sm font-bold text-text-primary">Referenti Cliente</h3>
+      <ContactsSection clientId={client.id} initial={contacts} canEdit={canEditContacts} />
+
+      <StakeholdersSection clientId={client.id} initial={initialStakeholders} canEdit={canEdit} />
+
+      <TeamSection clientId={client.id} members={teamMembers} allProfiles={allProfiles} canEdit={canEdit} />
+    </div>
+  )
+}
+
+// ── Referenti del cliente ────────────────────────────────────────────────────
+
+type ContactForm = { full_name: string; email: string; phone: string; role: string; is_primary: boolean }
+const emptyContact: ContactForm = { full_name: '', email: '', phone: '', role: '', is_primary: false }
+
+function ContactsSection({ clientId, initial, canEdit }: { clientId: string; initial: ClientContact[]; canEdit: boolean }) {
+  const router = useRouter()
+  const [list, setList] = useState(initial)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
+  const [form, setForm] = useState<ContactForm>(emptyContact)
+  const [pending, start] = useTransition()
+
+  const openNew = () => { setEditingId(null); setForm(emptyContact); setAdding(true) }
+  const openEdit = (c: ClientContact) => {
+    setAdding(false)
+    setEditingId(c.id)
+    setForm({ full_name: c.full_name, email: c.email, phone: c.phone ?? '', role: c.role ?? '', is_primary: c.is_primary })
+  }
+  const close = () => { setAdding(false); setEditingId(null); setForm(emptyContact) }
+
+  const submit = () => start(async () => {
+    const input: ContactInput = { ...form }
+    try {
+      if (editingId) {
+        const saved = await updateClientContact(editingId, clientId, input)
+        setList((prev) => prev.map((c) => c.id === saved.id ? saved : form.is_primary ? { ...c, is_primary: c.id === saved.id } : c))
+        toast.success('Referente aggiornato')
+      } else {
+        const saved = await createClientContact(clientId, input)
+        setList((prev) => [...(form.is_primary ? prev.map((c) => ({ ...c, is_primary: false })) : prev), saved])
+        toast.success('Referente aggiunto')
+      }
+      close()
+      router.refresh()
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+  })
+
+  const remove = (c: ClientContact) => start(async () => {
+    try {
+      await deleteClientContact(c.id, clientId)
+      setList((prev) => prev.filter((x) => x.id !== c.id))
+      toast.success('Referente rimosso')
+      router.refresh()
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+  })
+
+  return (
+    <SectionCard>
+      <CardHead icon={<Users2 className="w-4 h-4 text-success" />} title="Referenti Cliente"
+        action={canEdit && !adding ? (
+          <button onClick={openNew} className="flex items-center gap-1 text-xs text-gold-text hover:underline">
+            <Plus className="w-3.5 h-3.5" /> Aggiungi
+          </button>
+        ) : undefined} />
+
+      {adding && (
+        <div className="mb-3">
+          <ContactFields form={form} setForm={setForm} onCancel={close} onSave={submit} pending={pending} title="Nuovo referente" />
         </div>
-        {contacts.length === 0 ? (
-          <p className="text-text-secondary text-sm">Nessun referente inserito</p>
-        ) : (
-          <div className="space-y-3">
-            {contacts.map((c) => (
-              <div key={c.id} className="flex items-start gap-3">
+      )}
+
+      {list.length === 0 && !adding ? (
+        <p className="text-text-secondary text-sm">Nessun referente inserito</p>
+      ) : (
+        <div className="space-y-3">
+          {list.map((c) => editingId === c.id ? (
+            <ContactFields key={c.id} form={form} setForm={setForm} onCancel={close} onSave={submit} pending={pending} title={`Modifica ${c.full_name}`} />
+          ) : (
+            <div key={c.id} className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold-text text-xs font-bold shrink-0">
                   {getInitials(c.full_name)}
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-text-primary">{c.full_name}</p>
-                    {c.is_primary && <span className="text-xs bg-gold/20 text-gold-text px-1.5 py-0.5 rounded">Principale</span>}
+                    <p className="text-sm font-semibold text-text-primary truncate">{c.full_name}</p>
+                    {c.is_primary && <span className="text-xs bg-gold/20 text-gold-text px-1.5 py-0.5 rounded shrink-0">Principale</span>}
                   </div>
                   {c.role && <p className="text-xs text-text-secondary">{c.role}</p>}
-                  <div className="flex gap-3 mt-0.5 text-xs text-text-secondary">
+                  <div className="flex gap-3 mt-0.5 text-xs text-text-secondary flex-wrap">
                     <a href={`mailto:${c.email}`} className="hover:text-gold-text transition-colors">{c.email}</a>
                     {c.phone && <span>{c.phone}</span>}
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </section>
+              {canEdit && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => openEdit(c)} aria-label={`Modifica ${c.full_name}`}
+                    className="text-text-secondary hover:text-gold-text transition-colors"><Pencil className="w-4 h-4" /></button>
+                  <button onClick={() => remove(c)} disabled={pending} aria-label={`Rimuovi ${c.full_name}`}
+                    className="text-text-secondary hover:text-error transition-colors disabled:opacity-50"><Trash2 className="w-4 h-4" /></button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </SectionCard>
+  )
+}
 
-      {/* Stakeholders */}
-      <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
-          <div className="flex items-center gap-2.5">
-            <Crown className="w-4 h-4 text-warning" />
-            <h3 className="text-sm font-bold text-text-primary">Owner, Stakeholder & Collaboratori</h3>
-          </div>
-          <button onClick={() => setShowStakeholderModal(true)} className="flex items-center gap-1 text-xs text-gold-text hover:underline">
-            <Plus className="w-3.5 h-3.5" /> Aggiungi
+function ContactFields({ form, setForm, onCancel, onSave, pending, title }: {
+  form: ContactForm; setForm: (f: ContactForm) => void
+  onCancel: () => void; onSave: () => void; pending: boolean; title: string
+}) {
+  const ok = form.full_name.trim() && form.email.trim()
+  return (
+    <div className="bg-background border border-border rounded-xl p-4 space-y-3">
+      <p className="text-2xs font-semibold text-text-secondary uppercase tracking-wider">{title}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <Input label="Nome referente" value={form.full_name} onChange={(v) => setForm({ ...form, full_name: v })} placeholder="Nome e cognome *" />
+        <Input label="Email referente" type="email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} placeholder="email@azienda.it *" />
+        <Input label="Telefono referente" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} placeholder="Telefono" />
+        <Input label="Ruolo referente" value={form.role} onChange={(v) => setForm({ ...form, role: v })} placeholder="Ruolo in azienda" />
+      </div>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
+          <input type="checkbox" checked={form.is_primary} onChange={(e) => setForm({ ...form, is_primary: e.target.checked })} className="accent-gold" />
+          Referente principale
+        </label>
+        <div className="flex items-center gap-2">
+          <button onClick={onCancel} className="flex items-center gap-1 text-xs text-text-secondary hover:text-text-primary transition-colors">
+            <X className="w-3.5 h-3.5" /> Annulla
+          </button>
+          <button onClick={onSave} disabled={pending || !ok}
+            className="flex items-center gap-1.5 text-xs bg-gold text-on-gold px-3 py-1 rounded-lg font-semibold hover:bg-gold/90 transition-colors disabled:opacity-50">
+            {pending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Salva
           </button>
         </div>
-        {stakeholders.length === 0 ? (
-          <p className="text-text-secondary text-sm">Nessuno stakeholder inserito</p>
-        ) : (
-          <div className="space-y-3">
-            {stakeholders.map((s) => (
-              <div key={s.id} className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-full bg-accent/20 border border-accent/30 flex items-center justify-center text-accent text-xs font-bold shrink-0">
-                    {getInitials(s.full_name)}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-text-primary">{s.full_name}</p>
-                      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${roleBadge[s.role]}`}>{roleLabel[s.role]}</span>
-                    </div>
-                    {s.company && <p className="text-xs text-text-secondary">{s.company}{s.piva ? ` · P.IVA ${s.piva}` : ''}</p>}
-                    <div className="flex gap-3 mt-0.5 text-xs text-text-secondary">
-                      <a href={`mailto:${s.email}`} className="hover:text-gold-text transition-colors">{s.email}</a>
-                      {s.phone && <span>{s.phone}</span>}
-                    </div>
-                    {s.notes && <p className="text-xs text-text-secondary mt-0.5 italic">{s.notes}</p>}
-                  </div>
-                </div>
-                <button onClick={() => deleteStakeholder(s.id)} className="text-text-secondary hover:text-error transition-colors shrink-0">
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Team TWO BEE */}
-      <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
-        <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
-          <Users2 className="w-4 h-4 text-gold-text" />
-          <h3 className="text-sm font-bold text-text-primary">Team TWO BEE Assegnato</h3>
-        </div>
-        {teamMembers.length === 0 ? (
-          <p className="text-text-secondary text-sm">Nessun membro assegnato</p>
-        ) : (
-          <div className="flex gap-3 flex-wrap">
-            {teamMembers.map((m) => (
-              <div key={m.id} className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold-text text-xs font-bold">
-                  {getInitials(m.full_name)}
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-text-primary">{m.full_name}</p>
-                  <p className="text-xs text-text-secondary capitalize">{m.role}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {showStakeholderModal && (
-        <StakeholderModal
-          clientId={client.id}
-          onClose={() => setShowStakeholderModal(false)}
-          onCreated={(s) => { setStakeholders((prev) => [...prev, s]); setShowStakeholderModal(false) }}
-        />
-      )}
+      </div>
     </div>
   )
 }
 
-function StakeholderModal({ clientId, onClose, onCreated }: { clientId: string; onClose: () => void; onCreated: (s: ClientStakeholder) => void }) {
-  const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({ full_name: '', email: '', phone: '', role: 'stakeholder' as StakeholderRole, company: '', piva: '', notes: '' })
+// ── Owner, stakeholder e collaboratori ───────────────────────────────────────
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    const supabase = createSupabase()
-    const { data, error } = await supabase.from('client_stakeholders').insert({ client_id: clientId, ...form, phone: form.phone || null, company: form.company || null, piva: form.piva || null, notes: form.notes || null }).select().single()
-    setLoading(false)
-    if (error) { toast.error('Errore'); return }
-    toast.success('Aggiunto!')
-    onCreated(data as ClientStakeholder)
+type StakeForm = { full_name: string; email: string; phone: string; role: StakeholderRole; company: string; piva: string; notes: string }
+const emptyStake: StakeForm = { full_name: '', email: '', phone: '', role: 'stakeholder', company: '', piva: '', notes: '' }
+
+function StakeholdersSection({ clientId, initial, canEdit }: { clientId: string; initial: ClientStakeholder[]; canEdit: boolean }) {
+  const router = useRouter()
+  const [list, setList] = useState(initial)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
+  const [form, setForm] = useState<StakeForm>(emptyStake)
+  const [pending, start] = useTransition()
+
+  const openNew = () => { setEditingId(null); setForm(emptyStake); setAdding(true) }
+  const openEdit = (s: ClientStakeholder) => {
+    setAdding(false)
+    setEditingId(s.id)
+    setForm({
+      full_name: s.full_name, email: s.email, phone: s.phone ?? '', role: s.role,
+      company: s.company ?? '', piva: s.piva ?? '', notes: s.notes ?? '',
+    })
   }
+  const close = () => { setAdding(false); setEditingId(null); setForm(emptyStake) }
+
+  const submit = () => start(async () => {
+    const input: StakeholderInput = { ...form }
+    try {
+      const saved = await saveClientStakeholder(clientId, input, editingId ?? undefined)
+      setList((prev) => editingId ? prev.map((s) => s.id === saved.id ? saved : s) : [...prev, saved])
+      toast.success(editingId ? 'Aggiornato' : 'Aggiunto')
+      close()
+      router.refresh()
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+  })
+
+  const remove = (s: ClientStakeholder) => start(async () => {
+    try {
+      await deleteClientStakeholder(s.id, clientId)
+      setList((prev) => prev.filter((x) => x.id !== s.id))
+      toast.success('Rimosso')
+      router.refresh()
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+  })
 
   return (
-    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-border rounded-card w-full max-w-md">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <h2 className="text-lg font-bold">Aggiungi Stakeholder</h2>
-          <button onClick={onClose} className="text-text-secondary hover:text-text-primary"><X className="w-5 h-5" /></button>
+    <SectionCard>
+      <CardHead icon={<Crown className="w-4 h-4 text-warning" />} title="Owner, Stakeholder & Collaboratori"
+        action={canEdit && !adding ? (
+          <button onClick={openNew} className="flex items-center gap-1 text-xs text-gold-text hover:underline">
+            <Plus className="w-3.5 h-3.5" /> Aggiungi
+          </button>
+        ) : undefined} />
+
+      {adding && (
+        <div className="mb-3">
+          <StakeFields form={form} setForm={setForm} onCancel={close} onSave={submit} pending={pending} title="Nuovo stakeholder" />
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="block text-xs text-text-secondary mb-1">Nome *</label><input value={form.full_name} onChange={(e) => setForm((p) => ({ ...p, full_name: e.target.value }))} required className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" /></div>
-            <div><label className="block text-xs text-text-secondary mb-1">Ruolo *</label>
-              <select value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value as StakeholderRole }))} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold">
-                <option value="owner">Owner</option>
-                <option value="stakeholder">Stakeholder</option>
-                <option value="collaboratore_esterno">Collaboratore Esterno</option>
-                <option value="agenzia_supporto">Agenzia di Supporto</option>
-              </select>
+      )}
+
+      {list.length === 0 && !adding ? (
+        <p className="text-text-secondary text-sm">Nessuno stakeholder inserito</p>
+      ) : (
+        <div className="space-y-3">
+          {list.map((s) => editingId === s.id ? (
+            <StakeFields key={s.id} form={form} setForm={setForm} onCancel={close} onSave={submit} pending={pending} title={`Modifica ${s.full_name}`} />
+          ) : (
+            <div key={s.id} className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-accent/20 border border-accent/30 flex items-center justify-center text-accent text-xs font-bold shrink-0">
+                  {getInitials(s.full_name)}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-semibold text-text-primary">{s.full_name}</p>
+                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${roleBadge[s.role]}`}>{roleLabel[s.role]}</span>
+                  </div>
+                  {s.company && <p className="text-xs text-text-secondary">{s.company}{s.piva ? ` · P.IVA ${s.piva}` : ''}</p>}
+                  <div className="flex gap-3 mt-0.5 text-xs text-text-secondary flex-wrap">
+                    <a href={`mailto:${s.email}`} className="hover:text-gold-text transition-colors">{s.email}</a>
+                    {s.phone && <span>{s.phone}</span>}
+                  </div>
+                  {s.notes && <p className="text-xs text-text-secondary mt-0.5 italic">{s.notes}</p>}
+                </div>
+              </div>
+              {canEdit && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => openEdit(s)} aria-label={`Modifica ${s.full_name}`}
+                    className="text-text-secondary hover:text-gold-text transition-colors"><Pencil className="w-4 h-4" /></button>
+                  <button onClick={() => remove(s)} disabled={pending} aria-label={`Rimuovi ${s.full_name}`}
+                    className="text-text-secondary hover:text-error transition-colors disabled:opacity-50"><Trash2 className="w-4 h-4" /></button>
+                </div>
+              )}
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="block text-xs text-text-secondary mb-1">Email *</label><input type="email" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} required className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" /></div>
-            <div><label className="block text-xs text-text-secondary mb-1">Telefono</label><input value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" /></div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="block text-xs text-text-secondary mb-1">Azienda</label><input value={form.company} onChange={(e) => setForm((p) => ({ ...p, company: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" /></div>
-            <div><label className="block text-xs text-text-secondary mb-1">P.IVA</label><input value={form.piva} onChange={(e) => setForm((p) => ({ ...p, piva: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold" /></div>
-          </div>
-          <div><label className="block text-xs text-text-secondary mb-1">Note</label><textarea value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} rows={2} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold resize-none" /></div>
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary transition-colors">Annulla</button>
-            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-gold text-on-gold font-bold rounded-lg hover:bg-gold/90 disabled:opacity-50 flex items-center justify-center gap-2">
-              {loading && <Loader2 className="w-4 h-4 animate-spin" />} Aggiungi
-            </button>
-          </div>
-        </form>
+          ))}
+        </div>
+      )}
+    </SectionCard>
+  )
+}
+
+function StakeFields({ form, setForm, onCancel, onSave, pending, title }: {
+  form: StakeForm; setForm: (f: StakeForm) => void
+  onCancel: () => void; onSave: () => void; pending: boolean; title: string
+}) {
+  const ok = form.full_name.trim() && form.email.trim()
+  return (
+    <div className="bg-background border border-border rounded-xl p-4 space-y-3">
+      <p className="text-2xs font-semibold text-text-secondary uppercase tracking-wider">{title}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <Input label="Nome stakeholder" value={form.full_name} onChange={(v) => setForm({ ...form, full_name: v })} placeholder="Nome e cognome *" />
+        <Select label="Ruolo stakeholder" value={form.role} onChange={(v) => setForm({ ...form, role: v as StakeholderRole })}
+          options={(Object.keys(roleLabel) as StakeholderRole[]).map((r) => ({ value: r, label: roleLabel[r] }))} />
+        <Input label="Email stakeholder" type="email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} placeholder="email@azienda.it *" />
+        <Input label="Telefono stakeholder" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} placeholder="Telefono" />
+        <Input label="Azienda stakeholder" value={form.company} onChange={(v) => setForm({ ...form, company: v })} placeholder="Azienda" />
+        <Input label="P.IVA stakeholder" value={form.piva} onChange={(v) => setForm({ ...form, piva: v })} placeholder="P.IVA" />
+      </div>
+      <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2}
+        aria-label="Note stakeholder" placeholder="Note" className={`${inputCls} resize-none`} />
+      <div className="flex items-center justify-end gap-2">
+        <button onClick={onCancel} className="flex items-center gap-1 text-xs text-text-secondary hover:text-text-primary transition-colors">
+          <X className="w-3.5 h-3.5" /> Annulla
+        </button>
+        <button onClick={onSave} disabled={pending || !ok}
+          className="flex items-center gap-1.5 text-xs bg-gold text-on-gold px-3 py-1 rounded-lg font-semibold hover:bg-gold/90 transition-colors disabled:opacity-50">
+          {pending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Salva
+        </button>
       </div>
     </div>
+  )
+}
+
+// ── Team TWO BEE assegnato ───────────────────────────────────────────────────
+
+function TeamSection({ clientId, members, allProfiles, canEdit }: {
+  clientId: string; members: Profile[]; allProfiles: Profile[]; canEdit: boolean
+}) {
+  const router = useRouter()
+  const [ids, setIds] = useState<string[]>(members.map((m) => m.id))
+  const [editing, setEditing] = useState(false)
+  const [pending, start] = useTransition()
+
+  const staff = allProfiles.filter((p) => (p.role === 'admin' || p.role === 'team') && p.is_active !== false)
+  const byId = new Map<string, Profile>([...staff, ...members].map((p) => [p.id, p]))
+  const selected = ids.map((id) => byId.get(id)).filter(Boolean) as Profile[]
+
+  const save = () => start(async () => {
+    try {
+      await setClientTeam(clientId, ids)
+      toast.success('Team aggiornato')
+      setEditing(false)
+      router.refresh()
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+  })
+
+  return (
+    <SectionCard>
+      <CardHead icon={<Users2 className="w-4 h-4 text-gold-text" />} title="Team TWO BEE Assegnato"
+        action={!canEdit ? undefined : editing ? (
+          <div className="flex items-center gap-2">
+            <button onClick={() => { setIds(members.map((m) => m.id)); setEditing(false) }}
+              className="flex items-center gap-1 text-xs text-text-secondary hover:text-text-primary transition-colors">
+              <X className="w-3.5 h-3.5" /> Annulla
+            </button>
+            <button onClick={save} disabled={pending}
+              className="flex items-center gap-1.5 text-xs bg-gold text-on-gold px-3 py-1 rounded-lg font-semibold hover:bg-gold/90 transition-colors disabled:opacity-50">
+              {pending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Salva
+            </button>
+          </div>
+        ) : (
+          <button onClick={() => setEditing(true)} className="flex items-center gap-1 text-xs text-text-secondary hover:text-gold-text transition-colors">
+            <Pencil className="w-3.5 h-3.5" /> Modifica
+          </button>
+        )} />
+
+      {editing ? (
+        <>
+          <p className="text-xs text-text-secondary mb-2">L&apos;assegnazione decide anche chi vede questo cliente nei portali.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-72 overflow-y-auto pr-1">
+            {staff.map((p) => {
+              const on = ids.includes(p.id)
+              return (
+                <button key={p.id} onClick={() => setIds((prev) => on ? prev.filter((x) => x !== p.id) : [...prev, p.id])}
+                  aria-pressed={on}
+                  className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left transition-colors ${on ? 'bg-gold/20 border-gold/40' : 'bg-background border-border hover:border-border-strong'}`}>
+                  <span className="w-7 h-7 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold-text text-2xs font-bold shrink-0">
+                    {getInitials(p.full_name)}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm text-text-primary truncate">{p.full_name}</span>
+                    <span className="block text-2xs text-text-secondary capitalize truncate">{p.app_role ?? p.role}</span>
+                  </span>
+                  {on && <Check className="w-3.5 h-3.5 text-gold-text ml-auto shrink-0" />}
+                </button>
+              )
+            })}
+          </div>
+        </>
+      ) : selected.length === 0 ? (
+        <p className="text-text-secondary text-sm">Nessun membro assegnato</p>
+      ) : (
+        <div className="flex gap-3 flex-wrap">
+          {selected.map((m) => (
+            <div key={m.id} className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold-text text-xs font-bold">
+                {getInitials(m.full_name)}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-text-primary">{m.full_name}</p>
+                <p className="text-xs text-text-secondary capitalize">{m.app_role ?? m.role}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </SectionCard>
   )
 }

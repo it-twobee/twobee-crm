@@ -14,7 +14,7 @@ import { createProjectTask, updateTaskStatus, deleteTask, setTaskAssignees } fro
 import { createRecurring, updateRecurring, deleteRecurring } from '@/app/actions/recurring'
 import { Avatar, Segmented, inputCls } from '@/components/shared/formkit'
 import { TaskDetailDrawer } from './TaskDetailDrawer'
-import { NewTaskModal, type NewTaskValues } from './NewTaskModal'
+import { TaskComposer } from '@/components/tasks/TaskComposer'
 import { NewMilestoneModal, type NewMilestoneValues } from './NewMilestoneModal'
 import type {
   Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate,
@@ -119,16 +119,6 @@ export function WorkstreamPageClient({
 
   const msContext = (m: Milestone) => `${ws.name} · ${m.title}`
 
-  const submitTask = (v: NewTaskValues, again: boolean) => {
-    if (!taskTarget) return
-    act(() => createProjectTask({
-      client_id: project.client_id, project_id: project.id, workstream_id: ws.id,
-      milestone_id: taskTarget.milestoneId, parent_task_id: taskTarget.parentId,
-      title: v.title, assignee_id: v.assignee_id, due_date: v.due_date,
-      priority: v.priority, visibility: v.visibility,
-    }), taskTarget.kind === 'subtask' ? 'Subtask creata' : 'Task creata')
-    if (!again) setTaskTarget(null)
-  }
 
   const submitMilestone = (v: NewMilestoneValues) => {
     act(async () => {
@@ -335,9 +325,19 @@ export function WorkstreamPageClient({
       </div>
 
       {taskTarget && (
-        <NewTaskModal context={taskTarget.context} kind={taskTarget.kind} profiles={profiles} pending={pending}
-          defaultDue={taskTarget.defaultDue} clientVisibleAllowed={!!project.client_id}
-          onClose={() => setTaskTarget(null)} onCreate={submitTask} />
+        <TaskComposer
+          destination={{
+            mode: 'fixed', kind: 'project',
+            context: taskTarget.context,
+            clientId: project.client_id,
+            projectId: project.id, workstreamId: ws.id,
+            milestoneId: taskTarget.milestoneId, parentTaskId: taskTarget.parentId,
+            variant: taskTarget.kind === 'subtask' ? 'subtask' : taskTarget.kind === 'continuous' ? 'continuous' : 'task',
+            defaultDue: taskTarget.defaultDue,
+          }}
+          profiles={profiles}
+          onClose={() => setTaskTarget(null)}
+          onCreated={() => router.refresh()} />
       )}
 
       {addingMs && (

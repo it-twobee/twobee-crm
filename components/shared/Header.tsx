@@ -21,6 +21,7 @@ interface HeaderProps { profile: Profile | null }
 const NOTIF_ICONS: Record<string, string> = {
   task_assigned: '✅', task_due: '⏰', mention: '💬',
   approval_request: '🔔', approval_resolved: '✓', invite: '✉️', new_lead: '🎯',
+  client_lost: '💔',
 }
 
 function timeAgo(date: string) {

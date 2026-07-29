@@ -1,389 +1,272 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Plus, Trash2, Loader2, ChevronRight, ChevronLeft, Target, TrendingUp, Users, ShoppingCart } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import type { Client, ClientPackage, PaymentStatus, ClientStatus, ClientType, ClientLabel } from '@/lib/types/database'
+import { Building2, ChevronDown, Plus, Trash2, Target, Landmark } from 'lucide-react'
+import { createClientRecord } from '@/app/actions/clients'
+import { ModalShell, Group, Field, Segmented, inputCls } from '@/components/shared/formkit'
+import {
+  CLIENT_PACKAGES, CLIENT_CHANNELS, INDUSTRIES, INDUSTRY_BENCHMARKS,
+  CLIENT_TYPE_OPTIONS, CLIENT_LABEL_OPTIONS, PAYMENT_STATUS_OPTIONS,
+  hasGrowth,
+} from '@/lib/client-options'
+import type { Client, ClientPackage, ClientType, ClientLabel, PaymentStatus } from '@/lib/types/database'
 
-const CHANNELS = ['Meta Ads', 'Google Ads', 'Email Marketing', 'CRM', 'WhatsApp', 'SEO', 'E-commerce', 'TikTok Ads', 'LinkedIn Ads', 'YouTube Ads', 'Copywriting', 'Web Design']
-const PACKAGES: ClientPackage[] = ['Worker Bee Start', 'Worker Bee Basic', 'Hive Basic', 'Hive Custom', 'Royal Queen', 'IT Digital Partner', 'Partner Quota']
+type Contact = { full_name: string; email: string; phone: string; role: string; is_primary: boolean }
 
-const INDUSTRY_BENCHMARKS: Record<string, { roas: number; ctr: number; cpa: number; conv_rate: number }> = {
-  'E-commerce Moda': { roas: 4.5, ctr: 1.8, cpa: 22, conv_rate: 2.1 },
-  'E-commerce Casa & Arredo': { roas: 3.8, ctr: 1.5, cpa: 35, conv_rate: 1.8 },
-  'E-commerce Alimentare': { roas: 3.2, ctr: 1.2, cpa: 18, conv_rate: 2.5 },
-  'Servizi B2B': { roas: 5.0, ctr: 2.1, cpa: 85, conv_rate: 3.2 },
-  'Immobiliare': { roas: 6.0, ctr: 1.4, cpa: 120, conv_rate: 1.2 },
-  'Ristorazione': { roas: 3.5, ctr: 1.6, cpa: 12, conv_rate: 4.0 },
-  'Salute & Benessere': { roas: 4.0, ctr: 1.9, cpa: 28, conv_rate: 2.8 },
-  'Turismo & Hospitality': { roas: 5.5, ctr: 2.0, cpa: 45, conv_rate: 2.2 },
-  'Automotive': { roas: 7.0, ctr: 1.3, cpa: 180, conv_rate: 0.8 },
-  'Formazione & Corsi': { roas: 4.2, ctr: 2.5, cpa: 38, conv_rate: 3.5 },
-  'Professionisti (avv/med/comm)': { roas: 5.5, ctr: 2.2, cpa: 65, conv_rate: 2.5 },
-  'Tecnologia / SaaS': { roas: 4.8, ctr: 2.8, cpa: 95, conv_rate: 3.8 },
-  'Altro': { roas: 4.0, ctr: 1.8, cpa: 40, conv_rate: 2.5 },
+const iso = (d: Date) => d.toISOString().slice(0, 10)
+const num = (v: string) => (v.trim() ? Number(v) : null)
+
+/** Contratto e MRR sono NOT NULL a DB: prefissiamo un anno da oggi, restano modificabili. */
+function defaultDates() {
+  const start = new Date()
+  const end = new Date(start)
+  end.setFullYear(end.getFullYear() + 1)
+  return { start: iso(start), end: iso(end) }
 }
 
-interface Contact { full_name: string; email: string; phone: string; role: string; is_primary: boolean }
-interface NewClientModalProps { onClose: () => void; onCreated: (client: Client) => void }
+export function NewClientModal({ onClose, onCreated }: { onClose: () => void; onCreated: (client: Client) => void }) {
+  const [pending, start] = useTransition()
+  const [dates] = useState(defaultDates)
 
-const STEPS = ['Anagrafica', 'Contratto', 'Obiettivi', 'Referenti']
+  const [name, setName] = useState('')
+  const [legalName, setLegalName] = useState('')
+  const [type, setType] = useState<ClientType>('growth')
+  const [label, setLabel] = useState<ClientLabel>('stabile')
+  const [isInternal, setIsInternal] = useState(false)
+  const [industry, setIndustry] = useState('')
+  const [marketArea, setMarketArea] = useState('')
+  const [channels, setChannels] = useState<string[]>([])
+  const [notes, setNotes] = useState('')
 
-export function NewClientModal({ onClose, onCreated }: NewClientModalProps) {
-  const [step, setStep] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({
-    company_name: '', package: 'Hive Basic' as ClientPackage, mrr: '', ad_budget_monthly: '',
-    contract_start: '', contract_end: '', payment_status: 'pagato' as PaymentStatus,
-    active_channels: [] as string[], client_type: 'growth' as ClientType, client_label: 'stabile' as ClientLabel,
-    is_internal: false,
-    notes: '', industry: '', market_area: '',
-    target_leads_monthly: '', target_roas: '', target_revenue_monthly: '',
-    target_cpa: '', target_followers_monthly: '', target_ctr: '', target_conv_rate: '', goals_notes: '',
-  })
+  const [pkg, setPkg] = useState<ClientPackage>('Hive Basic')
+  const [mrr, setMrr] = useState('')
+  const [adBudget, setAdBudget] = useState('')
+  const [contractStart, setContractStart] = useState(dates.start)
+  const [contractEnd, setContractEnd] = useState(dates.end)
+  const [payment, setPayment] = useState<PaymentStatus>('pagato')
+
+  const [tRoas, setTRoas] = useState('')
+  const [tCtr, setTCtr] = useState('')
+  const [tCpa, setTCpa] = useState('')
+  const [tConv, setTConv] = useState('')
+  const [tLeads, setTLeads] = useState('')
+  const [tRevenue, setTRevenue] = useState('')
+  const [tFollowers, setTFollowers] = useState('')
+  const [goalsNotes, setGoalsNotes] = useState('')
+
   const [contacts, setContacts] = useState<Contact[]>([])
 
-  const f = (field: keyof typeof form, val: string) => setForm((p) => ({ ...p, [field]: val }))
-
+  const benchmark = INDUSTRY_BENCHMARKS[industry]
   const applyBenchmark = () => {
-    const b = INDUSTRY_BENCHMARKS[form.industry]
-    if (!b) return
-    setForm((p) => ({ ...p, target_roas: b.roas.toString(), target_ctr: b.ctr.toString(), target_cpa: b.cpa.toString(), target_conv_rate: b.conv_rate.toString() }))
-    toast.success('Benchmark applicato!')
+    if (!benchmark) return
+    setTRoas(String(benchmark.roas)); setTCtr(String(benchmark.ctr))
+    setTCpa(String(benchmark.cpa)); setTConv(String(benchmark.conv_rate))
+    toast.success('Benchmark di settore applicato')
   }
 
-  const toggleChannel = (ch: string) => setForm((p) => ({
-    ...p, active_channels: p.active_channels.includes(ch) ? p.active_channels.filter((c) => c !== ch) : [...p.active_channels, ch],
-  }))
+  const toggleChannel = (ch: string) =>
+    setChannels(prev => prev.includes(ch) ? prev.filter(c => c !== ch) : [...prev, ch])
 
-  const canNext = () => {
-    if (step === 0) return form.company_name.trim().length > 0
-    if (step === 1) return !!(form.mrr && form.contract_start && form.contract_end)
-    return true
-  }
+  const patchContact = (i: number, patch: Partial<Contact>) =>
+    setContacts(prev => prev.map((c, idx) => idx === i ? { ...c, ...patch } : c))
 
-  const handleSubmit = async () => {
-    setLoading(true)
-    const supabase = createClient()
-    const { data: client, error } = await supabase.from('clients').insert({
-      company_name: form.company_name, package: form.package, mrr: parseFloat(form.mrr) || 0,
-      ad_budget_monthly: form.ad_budget_monthly ? parseFloat(form.ad_budget_monthly) : null,
-      contract_start: form.contract_start, contract_end: form.contract_end,
-      payment_status: form.payment_status, active_channels: form.active_channels,
-      client_type: form.client_type, client_label: form.client_label, is_internal: form.is_internal,
-      notes: form.notes || null, industry: form.industry || null, market_area: form.market_area || null,
-      target_leads_monthly: form.target_leads_monthly ? parseInt(form.target_leads_monthly) : null,
-      target_roas: form.target_roas ? parseFloat(form.target_roas) : null,
-      target_revenue_monthly: form.target_revenue_monthly ? parseFloat(form.target_revenue_monthly) : null,
-      target_cpa: form.target_cpa ? parseFloat(form.target_cpa) : null,
-      target_followers_monthly: form.target_followers_monthly ? parseInt(form.target_followers_monthly) : null,
-      target_ctr: form.target_ctr ? parseFloat(form.target_ctr) : null,
-      target_conv_rate: form.target_conv_rate ? parseFloat(form.target_conv_rate) : null,
-      goals_notes: form.goals_notes || null,
-    }).select().single()
-
-    if (error) { toast.error('Errore: ' + error.message); setLoading(false); return }
-
-    await Promise.all([
-      contacts.length > 0 ? supabase.from('client_contacts').insert(contacts.map((c) => ({ ...c, client_id: client.id }))) : Promise.resolve(),
-      supabase.from('chat_channels').insert([
-        { name: form.company_name.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 40), type: 'cliente', client_id: client.id },
-        { name: `cc-${form.company_name.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 37)}`, type: 'customer_care', client_id: client.id },
-      ]),
-    ])
-
-    toast.success(`"${form.company_name}" creato con canali e obiettivi!`)
-    onCreated(client as Client)
-  }
-
-  const ic = "w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-gold/50"
+  const submit = () => start(async () => {
+    try {
+      const client = await createClientRecord({
+        display_name: name, legal_name: legalName, client_type: type, client_label: label,
+        is_internal: isInternal, industry, market_area: marketArea,
+        active_channels: channels, notes,
+        package: pkg, mrr: Number(mrr) || 0, ad_budget_monthly: num(adBudget),
+        contract_start: contractStart, contract_end: contractEnd, payment_status: payment,
+        target_roas: num(tRoas), target_ctr: num(tCtr), target_cpa: num(tCpa),
+        target_conv_rate: num(tConv), target_leads_monthly: num(tLeads),
+        target_revenue_monthly: num(tRevenue), target_followers_monthly: num(tFollowers),
+        goals_notes: goalsNotes, contacts,
+      })
+      toast.success(`«${name.trim()}» in anagrafica`)
+      onCreated(client)
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+  })
 
   return (
-    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-border rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <div>
-            <h2 className="text-lg font-bold text-text-primary">Nuovo Cliente</h2>
-            <p className="text-xs text-text-secondary mt-0.5">Step {step + 1}/{STEPS.length} — {STEPS[step]}</p>
-          </div>
-          <button onClick={onClose} className="text-text-secondary hover:text-text-primary"><X className="w-5 h-5" /></button>
-        </div>
+    <ModalShell title="Nuova anagrafica" hint={name.trim() || 'Chi stiamo aggiungendo?'}
+      icon={<Building2 className="w-4 h-4 text-gold-text" />}
+      onClose={onClose} onSubmit={submit} pending={pending} canSubmit={!!name.trim()} submitLabel="Crea cliente">
 
-        {/* Progress */}
-        <div className="h-1 bg-surface">
-          <div className="h-full bg-gold transition-all duration-300" style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} />
-        </div>
+      <Field label="Nome" hint="come lo chiamiamo in TWO BEE">
+        {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+        <input value={name} onChange={e => setName(e.target.value)} autoFocus className={inputCls} placeholder="es. Seven" />
+      </Field>
 
-        {/* Step indicators */}
-        <div className="flex items-center justify-center gap-2 py-3 border-b border-border">
-          {STEPS.map((s, i) => (
-            <div key={s} className="flex items-center gap-2">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${i < step ? 'bg-gold text-on-gold' : i === step ? 'bg-gold/20 border border-gold text-gold-text' : 'bg-surface text-text-secondary'}`}>
-                {i < step ? '✓' : i + 1}
-              </div>
-              <span className={`text-xs hidden sm:block ${i === step ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>{s}</span>
-              {i < STEPS.length - 1 && <ChevronRight className="w-3 h-3 text-text-tertiary" />}
-            </div>
-          ))}
-        </div>
+      <Field label="Ragione sociale" hint="fatture e documenti fiscali">
+        <input value={legalName} onChange={e => setLegalName(e.target.value)} className={inputCls} placeholder="es. Seven Holding S.r.l." />
+      </Field>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+      <Field label="Tipo di cliente">
+        <Segmented ariaLabel="Tipo di cliente" value={type} onChange={setType} options={CLIENT_TYPE_OPTIONS} />
+      </Field>
 
-          {/* STEP 0: Anagrafica */}
-          {step === 0 && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs text-text-secondary mb-1.5">Ragione Sociale *</label>
-                <input value={form.company_name} onChange={(e) => f('company_name', e.target.value)} placeholder="TWO BEE S.R.L." className={ic} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-text-secondary mb-1.5">Tipo Cliente *</label>
-                  <select value={form.client_type} onChange={(e) => f('client_type', e.target.value as ClientType)} className={ic}>
-                    <option value="growth">🚀 Growth (marketing)</option>
-                    <option value="digital">💻 Digital (AI/IT)</option>
-                    <option value="growth_digital">🔄 Growth + Digital</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-text-secondary mb-1.5">Label</label>
-                  <select value={form.client_label} onChange={(e) => f('client_label', e.target.value as ClientLabel)} className={ic}>
-                    <option value="stabile">✅ Stabile</option>
-                    <option value="in_bilico">⚠️ In bilico</option>
-                    <option value="perso">❌ Perso</option>
-                    <option value="partner">🤝 Partner</option>
-                  </select>
-                </div>
-              </div>
-              <label className="flex items-center gap-3 bg-surface border border-border rounded-xl px-4 py-3 cursor-pointer hover:border-border-strong transition-colors">
-                <input type="checkbox" checked={form.is_internal} onChange={e => setForm(p => ({ ...p, is_internal: e.target.checked }))}
-                  className="w-4 h-4 rounded accent-gold" />
-                <div>
-                  <span className="text-sm text-text-primary font-medium">Cliente interno</span>
-                  <p className="text-2xs text-text-secondary mt-0.5">Escluso da statistiche commerciali e finanziarie (es. TwoBee, scambi merce)</p>
-                </div>
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-text-secondary mb-1.5">Settore</label>
-                  <select value={form.industry} onChange={(e) => f('industry', e.target.value)} className={ic}>
-                    <option value="">Seleziona settore...</option>
-                    {Object.keys(INDUSTRY_BENCHMARKS).map((k) => <option key={k} value={k}>{k}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-text-secondary mb-1.5">Area Geografica</label>
-                  <input value={form.market_area} onChange={(e) => f('market_area', e.target.value)} placeholder="es. Napoli, Campania, Italia" className={ic} />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs text-text-secondary mb-2">Canali Attivi</label>
-                <div className="flex flex-wrap gap-2">
-                  {CHANNELS.map((ch) => (
-                    <button key={ch} type="button" onClick={() => toggleChannel(ch)}
-                      className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${form.active_channels.includes(ch) ? 'bg-gold/20 border-gold text-gold-text font-semibold' : 'bg-background border-border text-text-secondary hover:border-border-strong'}`}>
-                      {ch}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs text-text-secondary mb-1.5">Note interne</label>
-                <textarea value={form.notes} onChange={(e) => f('notes', e.target.value)} rows={2} placeholder="Note private..." className={ic + ' resize-none'} />
-              </div>
-            </div>
-          )}
-
-          {/* STEP 1: Contratto */}
-          {step === 1 && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-text-secondary mb-1.5">Pacchetto *</label>
-                  <select value={form.package} onChange={(e) => f('package', e.target.value as ClientPackage)} className={ic}>
-                    {PACKAGES.map((p) => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-text-secondary mb-1.5">MRR (€/mese) *</label>
-                  <input type="number" value={form.mrr} onChange={(e) => f('mrr', e.target.value)} placeholder="1800" className={ic} />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs text-text-secondary mb-1.5">Budget ADV mensile cliente (€)</label>
-                <input type="number" value={form.ad_budget_monthly} onChange={(e) => f('ad_budget_monthly', e.target.value)} placeholder="Spesa pubblicitaria del cliente" className={ic} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-text-secondary mb-1.5">Inizio Contratto *</label>
-                  <input type="date" value={form.contract_start} onChange={(e) => f('contract_start', e.target.value)} className={ic} />
-                </div>
-                <div>
-                  <label className="block text-xs text-text-secondary mb-1.5">Fine Contratto *</label>
-                  <input type="date" value={form.contract_end} onChange={(e) => f('contract_end', e.target.value)} className={ic} />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs text-text-secondary mb-1.5">Stato Pagamenti</label>
-                <select value={form.payment_status} onChange={(e) => f('payment_status', e.target.value as PaymentStatus)} className={ic}>
-                  <option value="pagato">Pagato</option>
-                  <option value="in_attesa">Attesa pagamento</option>
-                  <option value="scaduto">Scaduto</option>
-                </select>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 2: Obiettivi */}
-          {step === 2 && (
-            <div className="space-y-5">
-              {form.industry && INDUSTRY_BENCHMARKS[form.industry] && (
-                <div className="bg-gold/5 border border-gold/20 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Target className="w-4 h-4 text-gold-text" />
-                    <p className="text-sm font-semibold text-gold-text">Benchmark: {form.industry}</p>
-                  </div>
-                  <p className="text-xs text-text-secondary mb-3">
-                    ROAS {INDUSTRY_BENCHMARKS[form.industry].roas}× · CTR {INDUSTRY_BENCHMARKS[form.industry].ctr}% · CPA €{INDUSTRY_BENCHMARKS[form.industry].cpa} · Conv. {INDUSTRY_BENCHMARKS[form.industry].conv_rate}%
-                  </p>
-                  <button onClick={applyBenchmark} className="text-xs bg-gold/20 border border-gold/30 text-gold-text px-3 py-1.5 rounded-lg hover:bg-gold/30 transition-colors">
-                    Applica benchmark di settore
-                  </button>
-                </div>
-              )}
-
-              {form.client_type === 'growth' && (
-                <>
-                  <div>
-                    <div className="flex items-center gap-2 mb-3"><TrendingUp className="w-4 h-4 text-gold-text" /><h3 className="text-sm font-bold text-text-primary">Performance ADV</h3></div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs text-text-secondary mb-1">ROAS Target</label>
-                        <input type="number" step="0.1" value={form.target_roas} onChange={(e) => f('target_roas', e.target.value)} placeholder="4.0" className={ic} />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-text-secondary mb-1">CTR Target (%)</label>
-                        <input type="number" step="0.1" value={form.target_ctr} onChange={(e) => f('target_ctr', e.target.value)} placeholder="2.0" className={ic} />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-text-secondary mb-1">CPA Target (€)</label>
-                        <input type="number" value={form.target_cpa} onChange={(e) => f('target_cpa', e.target.value)} placeholder="30" className={ic} />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-text-secondary mb-1">Conv. Rate Target (%)</label>
-                        <input type="number" step="0.1" value={form.target_conv_rate} onChange={(e) => f('target_conv_rate', e.target.value)} placeholder="2.5" className={ic} />
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 mb-3"><ShoppingCart className="w-4 h-4 text-info" /><h3 className="text-sm font-bold text-text-primary">Obiettivi Business</h3></div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs text-text-secondary mb-1">Lead/mese target</label>
-                        <input type="number" value={form.target_leads_monthly} onChange={(e) => f('target_leads_monthly', e.target.value)} placeholder="50" className={ic} />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-text-secondary mb-1">Revenue/mese target (€)</label>
-                        <input type="number" value={form.target_revenue_monthly} onChange={(e) => f('target_revenue_monthly', e.target.value)} placeholder="15000" className={ic} />
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 mb-3"><Users className="w-4 h-4 text-accent" /><h3 className="text-sm font-bold text-text-primary">Social Growth</h3></div>
-                    <div>
-                      <label className="block text-xs text-text-secondary mb-1">Nuovi follower/mese target</label>
-                      <input type="number" value={form.target_followers_monthly} onChange={(e) => f('target_followers_monthly', e.target.value)} placeholder="500" className={ic} />
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {form.client_type === 'digital' && (
-                <div>
-                  <div className="flex items-center gap-2 mb-3"><Target className="w-4 h-4 text-gold-text" /><h3 className="text-sm font-bold text-text-primary">Obiettivi Digital</h3></div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs text-text-secondary mb-1">Revenue/mese target (€)</label>
-                      <input type="number" value={form.target_revenue_monthly} onChange={(e) => f('target_revenue_monthly', e.target.value)} placeholder="20000" className={ic} />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-text-secondary mb-1">Lead target/mese</label>
-                      <input type="number" value={form.target_leads_monthly} onChange={(e) => f('target_leads_monthly', e.target.value)} placeholder="20" className={ic} />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs text-text-secondary mb-1.5">Note sugli obiettivi</label>
-                <textarea value={form.goals_notes} onChange={(e) => f('goals_notes', e.target.value)} rows={3}
-                  placeholder="Obiettivi specifici concordati, KPI particolari, stagionalità, vincoli di budget..."
-                  className={ic + ' resize-none'} />
-              </div>
-            </div>
-          )}
-
-          {/* STEP 3: Referenti */}
-          {step === 3 && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-text-secondary">Referenti del cliente (opzionale)</p>
-                <button type="button" onClick={() => setContacts((p) => [...p, { full_name: '', email: '', phone: '', role: '', is_primary: false }])}
-                  className="flex items-center gap-1 text-xs text-gold-text hover:underline">
-                  <Plus className="w-3.5 h-3.5" /> Aggiungi
-                </button>
-              </div>
-              {contacts.length === 0 && (
-                <div className="border border-dashed border-border rounded-xl py-10 text-center text-text-secondary text-sm">
-                  Nessun referente — puoi aggiungerli anche dopo dall'anagrafica
-                </div>
-              )}
-              {contacts.map((c, i) => (
-                <div key={i} className="bg-background border border-border rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-text-primary">Referente {i + 1}</span>
-                    <button onClick={() => setContacts((p) => p.filter((_, idx) => idx !== i))} className="text-error"><Trash2 className="w-4 h-4" /></button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input value={c.full_name} onChange={(e) => setContacts((p) => p.map((x, idx) => idx === i ? { ...x, full_name: e.target.value } : x))} placeholder="Nome *" className={ic} />
-                    <input type="email" value={c.email} onChange={(e) => setContacts((p) => p.map((x, idx) => idx === i ? { ...x, email: e.target.value } : x))} placeholder="Email *" className={ic} />
-                    <input value={c.phone} onChange={(e) => setContacts((p) => p.map((x, idx) => idx === i ? { ...x, phone: e.target.value } : x))} placeholder="Telefono" className={ic} />
-                    <input value={c.role} onChange={(e) => setContacts((p) => p.map((x, idx) => idx === i ? { ...x, role: e.target.value } : x))} placeholder="Ruolo" className={ic} />
-                  </div>
-                  <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
-                    <input type="checkbox" checked={c.is_primary} onChange={(e) => setContacts((p) => p.map((x, idx) => idx === i ? { ...x, is_primary: e.target.checked } : x))} className="accent-gold" />
-                    Referente principale
-                  </label>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center gap-3 px-6 py-4 border-t border-border">
-          {step > 0 && (
-            <button onClick={() => setStep((s) => s - 1)} className="flex items-center gap-1 px-4 py-2.5 border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary transition-colors">
-              <ChevronLeft className="w-4 h-4" /> Indietro
-            </button>
-          )}
-          <div className="flex-1" />
-          {step < STEPS.length - 1 ? (
-            <button onClick={() => setStep((s) => s + 1)} disabled={!canNext()}
-              className="flex items-center gap-1 px-6 py-2.5 bg-gold text-on-gold font-bold rounded-lg hover:bg-gold/90 disabled:opacity-40 transition-colors">
-              Avanti <ChevronRight className="w-4 h-4" />
-            </button>
-          ) : (
-            <button onClick={handleSubmit} disabled={loading}
-              className="flex items-center gap-2 px-6 py-2.5 bg-gold text-on-gold font-bold rounded-lg hover:bg-gold/90 disabled:opacity-50 transition-colors">
-              {loading && <Loader2 className="w-4 h-4 animate-spin" />} Crea Cliente
-            </button>
-          )}
-        </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Label">
+          <select value={label} onChange={e => setLabel(e.target.value as ClientLabel)} className={inputCls} aria-label="Label">
+            {CLIENT_LABEL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </Field>
+        <Field label="Settore">
+          <select value={industry} onChange={e => setIndustry(e.target.value)} className={inputCls} aria-label="Settore">
+            <option value="">— nessuno —</option>
+            {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+          </select>
+        </Field>
       </div>
+
+      <Field label="Area geografica">
+        <input value={marketArea} onChange={e => setMarketArea(e.target.value)} className={inputCls} placeholder="es. Napoli, Campania, Italia" />
+      </Field>
+
+      <button type="button" onClick={() => setIsInternal(v => !v)} aria-pressed={isInternal}
+        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-colors ${
+          isInternal ? 'border-gold bg-gold-dim' : 'border-border hover:bg-surface-hover'
+        }`}>
+        <Landmark className={`w-4 h-4 shrink-0 ${isInternal ? 'text-gold-text' : 'text-text-tertiary'}`} />
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-text-primary">Cliente interno</span>
+          <span className="block text-2xs text-text-tertiary">Fuori dalle statistiche commerciali (TwoBee, scambi merce)</span>
+        </span>
+      </button>
+
+      <Group label="Canali attivi">
+        <div className="flex flex-wrap gap-1.5">
+          {CLIENT_CHANNELS.map(ch => {
+            const on = channels.includes(ch)
+            return (
+              <button key={ch} type="button" onClick={() => toggleChannel(ch)} aria-pressed={on}
+                className={`text-2xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+                  on ? 'border-gold bg-gold-dim text-gold-text font-semibold' : 'border-border text-text-secondary hover:bg-surface-hover'
+                }`}>{ch}</button>
+            )
+          })}
+        </div>
+      </Group>
+
+      <Field label="Note interne">
+        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className={`${inputCls} resize-none`} placeholder="Contesto, storia, avvertenze…" />
+      </Field>
+
+      <Disclosure title="Contratto" hint="pacchetto, MRR, durata" defaultOpen>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Pacchetto">
+            <select value={pkg} onChange={e => setPkg(e.target.value as ClientPackage)} className={inputCls} aria-label="Pacchetto">
+              {CLIENT_PACKAGES.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </Field>
+          <Field label="MRR (€/mese)">
+            <input type="number" value={mrr} onChange={e => setMrr(e.target.value)} className={inputCls} placeholder="1800" />
+          </Field>
+          <Field label="Inizio">
+            <input type="date" value={contractStart} onChange={e => setContractStart(e.target.value)} className={inputCls} aria-label="Inizio contratto" />
+          </Field>
+          <Field label="Fine">
+            <input type="date" value={contractEnd} onChange={e => setContractEnd(e.target.value)} className={inputCls} aria-label="Fine contratto" />
+          </Field>
+          <Field label="Budget ADV (€/mese)" hint="speso dal cliente">
+            <input type="number" value={adBudget} onChange={e => setAdBudget(e.target.value)} className={inputCls} placeholder="2000" />
+          </Field>
+          <Field label="Stato pagamenti">
+            <select value={payment} onChange={e => setPayment(e.target.value as PaymentStatus)} className={inputCls} aria-label="Stato pagamenti">
+              {PAYMENT_STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </Field>
+        </div>
+      </Disclosure>
+
+      <Disclosure title="Obiettivi" hint="target concordati, anche dopo">
+        {benchmark && (
+          <div className="rounded-xl border border-gold bg-gold-dim p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <Target className="w-4 h-4 text-gold-text" />
+              <p className="text-2xs font-semibold text-gold-text">Benchmark {industry}</p>
+            </div>
+            <p className="text-2xs text-text-secondary mb-2">
+              ROAS {benchmark.roas}× · CTR {benchmark.ctr}% · CPA €{benchmark.cpa} · Conv. {benchmark.conv_rate}%
+            </p>
+            <button type="button" onClick={applyBenchmark} className="text-2xs font-semibold text-gold-text underline">
+              Applica al cliente
+            </button>
+          </div>
+        )}
+
+        {hasGrowth(type) && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="ROAS target"><input type="number" step="0.1" value={tRoas} onChange={e => setTRoas(e.target.value)} className={inputCls} placeholder="4.0" /></Field>
+            <Field label="CTR target (%)"><input type="number" step="0.1" value={tCtr} onChange={e => setTCtr(e.target.value)} className={inputCls} placeholder="2.0" /></Field>
+            <Field label="CPA target (€)"><input type="number" value={tCpa} onChange={e => setTCpa(e.target.value)} className={inputCls} placeholder="30" /></Field>
+            <Field label="Conv. rate target (%)"><input type="number" step="0.1" value={tConv} onChange={e => setTConv(e.target.value)} className={inputCls} placeholder="2.5" /></Field>
+            <Field label="Follower/mese"><input type="number" value={tFollowers} onChange={e => setTFollowers(e.target.value)} className={inputCls} placeholder="500" /></Field>
+          </div>
+        )}
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Lead/mese target"><input type="number" value={tLeads} onChange={e => setTLeads(e.target.value)} className={inputCls} placeholder="50" /></Field>
+          <Field label="Revenue/mese target (€)"><input type="number" value={tRevenue} onChange={e => setTRevenue(e.target.value)} className={inputCls} placeholder="15000" /></Field>
+        </div>
+
+        <Field label="Note sugli obiettivi">
+          <textarea value={goalsNotes} onChange={e => setGoalsNotes(e.target.value)} rows={2} className={`${inputCls} resize-none`}
+            placeholder="KPI particolari, stagionalità, vincoli di budget…" />
+        </Field>
+      </Disclosure>
+
+      <Disclosure title="Referenti" hint={contacts.length ? `${contacts.length} da creare` : 'puoi aggiungerli dopo'}>
+        {contacts.map((c, i) => (
+          <div key={i} className="rounded-xl border border-border p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-2xs font-semibold text-text-secondary">Referente {i + 1}</span>
+              <button type="button" aria-label={`Rimuovi referente ${i + 1}`}
+                onClick={() => setContacts(prev => prev.filter((_, idx) => idx !== i))}
+                className="text-text-tertiary hover:text-error transition-colors">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <input value={c.full_name} onChange={e => patchContact(i, { full_name: e.target.value })} className={inputCls} placeholder="Nome e cognome" aria-label="Nome referente" />
+              <input type="email" value={c.email} onChange={e => patchContact(i, { email: e.target.value })} className={inputCls} placeholder="email@azienda.it" aria-label="Email referente" />
+              <input value={c.phone} onChange={e => patchContact(i, { phone: e.target.value })} className={inputCls} placeholder="Telefono" aria-label="Telefono referente" />
+              <input value={c.role} onChange={e => patchContact(i, { role: e.target.value })} className={inputCls} placeholder="Ruolo" aria-label="Ruolo referente" />
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={c.is_primary} onChange={e => patchContact(i, { is_primary: e.target.checked })} />
+              <span className="text-2xs text-text-secondary">Referente principale</span>
+            </label>
+          </div>
+        ))}
+        <button type="button"
+          onClick={() => setContacts(prev => [...prev, { full_name: '', email: '', phone: '', role: '', is_primary: prev.length === 0 }])}
+          className="flex items-center gap-1.5 text-2xs font-semibold text-gold-text">
+          <Plus className="w-3.5 h-3.5" />Aggiungi referente
+        </button>
+        <p className="text-2xs text-text-tertiary">Nome ed email servono entrambi: le righe incomplete non vengono salvate.</p>
+      </Disclosure>
+    </ModalShell>
+  )
+}
+
+function Disclosure({ title, hint, defaultOpen, children }: {
+  title: string; hint?: string; defaultOpen?: boolean; children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(!!defaultOpen)
+  return (
+    <div className="border border-border rounded-xl overflow-hidden">
+      <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
+        className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-surface-hover transition-colors">
+        <ChevronDown className={`w-4 h-4 text-text-tertiary shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-text-primary">{title}</span>
+          {hint && <span className="block text-2xs text-text-tertiary truncate">{hint}</span>}
+        </span>
+      </button>
+      {open && <div className="px-3 pb-3 pt-1 space-y-3">{children}</div>}
     </div>
   )
 }

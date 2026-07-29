@@ -6,6 +6,7 @@ import type { Client, Profile, ChatMessageWithSender, ChatChannel } from '@/lib/
 import type { DashAlert, AlertSeverity } from '@/components/dashboard/AlertCenter'
 import type { FocusItem } from '@/components/dashboard/DailyFocus'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
+import { countsInStats, isLost } from '@/lib/clients'
 import { Crown } from 'lucide-react'
 
 export const revalidate = 60
@@ -168,10 +169,12 @@ export default async function DashboardPage() {
     recentMessages = (msgs ?? []) as unknown as (ChatMessageWithSender & { channel: Pick<ChatChannel, 'id' | 'name' | 'type'> | null })[]
   }
 
-  const externalClients = clients.filter(c => !c.is_internal)
+  // I persi escono da ogni conto e da ogni alert: restano solo nel churn del pannello rischio
+  const externalClients = clients.filter(countsInStats)
+  const lostClients   = clients.filter(c => !c.is_internal && isLost(c))
   const mrr           = externalClients.reduce((s, c) => s + (c.mrr ?? 0), 0)
   const clientsAtRisk = externalClients.filter(c => c.client_label === 'in_bilico').length
-  const clientsLost   = externalClients.filter(c => c.client_label === 'perso').length
+  const clientsLost   = lostClients.length
   const allProfiles   = (allProfilesResult.data ?? []) as Profile[]
 
   const ticketsAll      = ticketsResult as { status: string }[]
@@ -183,9 +186,6 @@ export default async function DashboardPage() {
   if (isAdminLevel) {
     for (const c of externalClients.filter(c => c.client_label === 'in_bilico').slice(0, 2)) {
       alerts.push({ id: `client-${c.id}`, severity: 'attenzione', icon: 'client', title: `Cliente in bilico — ${c.company_name}`, detail: `MRR a rischio: €${c.mrr?.toLocaleString('it-IT') ?? 0}/mese`, href: `/clienti/${c.id}` })
-    }
-    for (const c of externalClients.filter(c => c.client_label === 'perso').slice(0, 1)) {
-      alerts.push({ id: `lost-${c.id}`, severity: 'critico', icon: 'client', title: `Cliente perso — ${c.company_name}`, detail: `Churn: -€${c.mrr?.toLocaleString('it-IT') ?? 0}/mese`, href: `/clienti/${c.id}` })
     }
     for (const t of urgentTicketsResult.data ?? []) {
       const elapsed = (Date.now() - new Date(t.created_at).getTime()) / 3600000
@@ -240,7 +240,8 @@ export default async function DashboardPage() {
     focusItems,
     greetingName,
     alerts,
-    clients,
+    clients: externalClients,
+    lostClients,
     mrr,
     allProfiles,
     clientsAtRisk,
@@ -267,8 +268,8 @@ export default async function DashboardPage() {
           <h1 className="text-2xl sm:text-3xl font-black text-text-primary font-heading tracking-tight">{greeting}, {greetingName}</h1>
           <p className="text-text-secondary text-xs mt-1">
             {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}
-            {isAdminLevel && ` · ${clients.length} clienti · ${delivery.liveProjects} progetti in corso · ${allProfiles.length} nel team`}
-            {!isAdminLevel && ` · ${clients.length} clienti assegnati`}
+            {isAdminLevel && ` · ${externalClients.length} clienti · ${delivery.liveProjects} progetti in corso · ${allProfiles.length} nel team`}
+            {!isAdminLevel && ` · ${externalClients.length} clienti assegnati`}
           </p>
           {isAdminLevel && (
             <p className="text-xs mt-1.5 font-semibold">
