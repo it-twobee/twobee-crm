@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { TicketSystem } from '@/components/ticket/TicketSystem'
 import { SUPER_ADMIN_EMAILS, isSuperAdmin } from '@/lib/permissions'
 import type { Profile, Client } from '@/lib/types/database'
+import { PROFILE_COLUMNS } from '@/lib/profile-columns'
 
 export const revalidate = 0
 
@@ -11,7 +12,7 @@ export default async function TicketsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  const { data: profile } = await supabase.from('profiles').select(PROFILE_COLUMNS).eq('id', user.id).single()
   const canAccess = SUPER_ADMIN_EMAILS.includes(profile?.email ?? '') || ['admin', 'manager'].includes(profile?.app_role ?? '')
   if (!canAccess) redirect('/dashboard')
 

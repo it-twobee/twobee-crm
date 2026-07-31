@@ -8,6 +8,7 @@ import type { FocusItem } from '@/components/dashboard/DailyFocus'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { countsInStats, isLost } from '@/lib/clients'
 import { Crown } from 'lucide-react'
+import { PROFILE_COLUMNS } from '@/lib/profile-columns'
 
 export const revalidate = 60
 
@@ -16,7 +17,10 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  // `dashboard_config` serve solo qui: si aggiunge alla lista invece di allargare la costante
+  const { data: profile } = await supabase.from('profiles')
+    .select('id, full_name, role, app_role, avatar_url, email, phone, area, competencies, job_title, is_active, invited_by, last_seen_at, created_at, resource_type, seniority, hire_date, birth_date, contract_type, dashboard_config')
+    .eq('id', user.id).single()
   if (!profile) redirect('/login')
 
   const isGod = SUPER_ADMIN_EMAILS.includes(profile.email)
@@ -57,7 +61,7 @@ export default async function DashboardPage() {
       ? safe(supabase.from('user_client_assignments').select('client_id').eq('user_id', user.id), 'assignments')
       : noop,
     isAdminLevel
-      ? safe(supabase.from('profiles').select('*').eq('is_active', true).order('full_name'), 'allProfiles')
+      ? safe(supabase.from('profiles').select(PROFILE_COLUMNS).eq('is_active', true).order('full_name'), 'allProfiles')
       : noop,
     safe(supabase.from('channel_members').select('channel_id,last_read_at').eq('profile_id', user.id), 'memberships'),
     isAdminLevel

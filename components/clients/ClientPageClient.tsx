@@ -8,10 +8,13 @@ import type { Client, ClientContact, ClientKpi, Profile, ClientStakeholder, Clie
 import { setClientLabel } from '@/app/actions/clients'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { clientName } from '@/lib/utils'
-import { AnagraficaTab } from './tabs/AnagraficaTab'
-import { PanoramicaTab } from './tabs/PanoramicaTab'
-import { ClientProjectsTab } from './tabs/ClientProjectsTab'
-import { ClientAdHocTab } from './tabs/ClientAdHocTab'
+import dynamic from 'next/dynamic'
+// una scheda sola è a video per volta: le altre non devono pesare sul primo
+// carico. /clienti/[id] era la rotta più grossa dell'app.
+const AnagraficaTab = dynamic(() => import('./tabs/AnagraficaTab').then(m => ({ default: m.AnagraficaTab })))
+const PanoramicaTab = dynamic(() => import('./tabs/PanoramicaTab').then(m => ({ default: m.PanoramicaTab })))
+const ClientProjectsTab = dynamic(() => import('./tabs/ClientProjectsTab').then(m => ({ default: m.ClientProjectsTab })))
+const ClientAdHocTab = dynamic(() => import('./tabs/ClientAdHocTab').then(m => ({ default: m.ClientAdHocTab })))
 import { ClientAlertBanner } from './ClientAlertBanner'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -30,6 +33,8 @@ interface Props {
   /** Portale operativo: oscura MRR e pagamenti. */
   hideEconomics?: boolean
   backHref?: string
+  /** scheda Economics del cliente: la pagina la passa solo agli admin */
+  economics?: React.ReactNode
 }
 
 const labelBadge: Record<string, string> = {
@@ -190,7 +195,7 @@ function InlineNumberField({ value, field, clientId, canEdit, prefix = '', suffi
 export function ClientPageClient({
   client, contacts, kpis,
   teamMembers, stakeholders, interactions, currentProfile, allProfiles,
-  openTickets, initialTab, hideEconomics = false, backHref = '/clienti'
+  openTickets, initialTab, hideEconomics = false, backHref = '/clienti', economics,
 }: Props) {
   const isAdmin = SUPER_ADMIN_EMAILS.includes(currentProfile?.email ?? '') || currentProfile?.app_role === 'admin'
   const isAdminLevel = isAdmin || currentProfile?.app_role === 'manager'
@@ -206,6 +211,8 @@ export function ClientPageClient({
     { label: 'Task Ad Hoc', index: 3 },
     { label: 'Task al cliente', index: 4 },
     ...(canSeeAnagrafica ? [{ label: 'Anagrafica', index: 1 }] : []),
+    // Economics: dati economici aggregati, admin-only e mai nel workspace
+    ...(economics ? [{ label: 'Economics', index: 5 }] : []),
   ]
 
   // ?tab= arriva da link vecchi: fuori range mostrerebbe una pagina vuota
@@ -331,6 +338,7 @@ export function ClientPageClient({
           <ClientAdHocTab clientId={client.id} clientName={clientName(client)}
             profiles={allProfiles} canManage={isAdminLevel} kind="cliente" />
         )}
+        {activeTab === 5 && economics}
       </div>
     </div>
   )

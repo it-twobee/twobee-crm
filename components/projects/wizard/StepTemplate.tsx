@@ -1,17 +1,21 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { FileStack, Sparkles, ChevronDown, FolderTree, Flag, CheckSquare, Repeat, Pencil } from 'lucide-react'
+import { FileStack, Sparkles, ChevronDown, FolderTree, Flag, CheckSquare, Repeat, Pencil, Clock, CalendarRange } from 'lucide-react'
 import { StepHead, Empty } from '@/components/shared/formkit'
 import type { ProjectTemplate, ProjectTemplateNode } from '@/lib/types/database'
 
 function countNodes(nodes: ProjectTemplateNode[], templateId: string) {
   const own = nodes.filter(n => n.template_id === templateId)
+  const days = own.map(n => n.relative_due_days).filter((d): d is number => d != null)
   return {
     ws: own.filter(n => n.node_type === 'workstream').length,
     ms: own.filter(n => n.node_type === 'milestone').length,
     tk: own.filter(n => n.node_type === 'task').length,
     rc: own.filter(n => n.node_type === 'recurring_task').length,
+    hours: own.reduce((s, n) => s + (n.node_type === 'task' ? n.estimated_hours ?? 0 : 0), 0),
+    span: days.length ? Math.max(...days) : 0,
+    roles: Array.from(new Set(own.map(n => n.suggested_owner_role).filter((r): r is string => !!r))),
   }
 }
 
@@ -54,12 +58,17 @@ export function StepTemplate({
           )}
         </div>
         {t.description && <p className="text-2xs text-text-tertiary mt-1 line-clamp-2">{t.description}</p>}
-        <div className="flex items-center gap-3 mt-2 text-2xs text-text-secondary tabular">
-          <span className="flex items-center gap-1"><FolderTree className="w-3 h-3" />{c.ws}</span>
-          <span className="flex items-center gap-1"><Flag className="w-3 h-3" />{c.ms}</span>
-          <span className="flex items-center gap-1"><CheckSquare className="w-3 h-3" />{c.tk}</span>
-          {c.rc > 0 && <span className="flex items-center gap-1 text-success"><Repeat className="w-3 h-3" />{c.rc}</span>}
+        <div className="flex items-center gap-3 mt-2 text-2xs text-text-secondary tabular flex-wrap">
+          <span className="flex items-center gap-1" title="Workstream"><FolderTree className="w-3 h-3" />{c.ws}</span>
+          <span className="flex items-center gap-1" title="Milestone"><Flag className="w-3 h-3" />{c.ms}</span>
+          <span className="flex items-center gap-1" title="Task"><CheckSquare className="w-3 h-3" />{c.tk}</span>
+          {c.rc > 0 && <span className="flex items-center gap-1 text-success" title="Attività ricorrenti"><Repeat className="w-3 h-3" />{c.rc}</span>}
+          {c.hours > 0 && <span className="flex items-center gap-1 text-accent" title="Ore stimate"><Clock className="w-3 h-3" />{c.hours}h</span>}
+          {c.span > 0 && <span className="flex items-center gap-1 text-info" title="Durata del piano dall'avvio"><CalendarRange className="w-3 h-3" />{c.span}g</span>}
         </div>
+        {c.roles.length > 0 && (
+          <p className="text-2xs text-text-tertiary mt-1 truncate">Ruoli: {c.roles.join(' · ')}</p>
+        )}
       </button>
     )
   }
@@ -118,6 +127,17 @@ export function StepTemplate({
   )
 }
 
+/** Le ancore del template: «+14g» dall'avvio, le ore, il ruolo previsto. */
+function NodeMeta({ node }: { node: ProjectTemplateNode }) {
+  const bits: string[] = []
+  if (node.relative_due_days != null) bits.push(`+${node.relative_due_days}g`)
+  if (node.estimated_hours) bits.push(`${node.estimated_hours}h`)
+  if (node.frequency) bits.push(node.frequency)
+  if (node.suggested_owner_role) bits.push(node.suggested_owner_role)
+  if (!bits.length) return null
+  return <span className="ml-auto shrink-0 text-2xs text-text-tertiary tabular">{bits.join(' · ')}</span>
+}
+
 function TemplateTree({ nodes, templateId }: { nodes: ProjectTemplateNode[]; templateId: string }) {
   const own = nodes.filter(n => n.template_id === templateId)
   const byOrder = (a: ProjectTemplateNode, b: ProjectTemplateNode) => a.sort_order - b.sort_order
@@ -135,11 +155,14 @@ function TemplateTree({ nodes, templateId }: { nodes: ProjectTemplateNode[]; tem
                 {c.node_type === 'recurring_task'
                   ? <Repeat className="w-3 h-3 text-success shrink-0" />
                   : <Flag className="w-3 h-3 text-info shrink-0" />}
-                {c.name}
+                <span className="truncate">{c.name}</span>
+                <NodeMeta node={c} />
               </div>
               {own.filter(n => n.parent_id === c.id).sort(byOrder).map(t => (
                 <div key={t.id} className="pl-4 flex items-center gap-1.5 text-2xs text-text-tertiary">
-                  <CheckSquare className="w-3 h-3 shrink-0" />{t.name}
+                  <CheckSquare className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{t.name}</span>
+                  <NodeMeta node={t} />
                 </div>
               ))}
             </div>

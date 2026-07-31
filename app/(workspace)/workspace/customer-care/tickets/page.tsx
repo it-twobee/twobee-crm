@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { TicketSystem } from '@/components/ticket/TicketSystem'
 import { isSuperAdmin } from '@/lib/permissions'
 import type { Profile, Client } from '@/lib/types/database'
+import { PROFILE_COLUMNS } from '@/lib/profile-columns'
 
 export const revalidate = 0
 
@@ -11,7 +12,7 @@ export default async function WorkspaceTicketsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  const { data: profile } = await supabase.from('profiles').select(PROFILE_COLUMNS).eq('id', user.id).single()
 
   const [ticketRes, profilesRes, clientsRes] = await Promise.all([
     supabase.from('tickets').select(`

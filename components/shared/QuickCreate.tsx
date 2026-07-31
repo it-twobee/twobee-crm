@@ -98,7 +98,7 @@ export function QuickCreate({ context = 'admin' }: { context?: 'admin' | 'worksp
   return (
     <div className="contents">
       <button ref={btnRef} onClick={toggleMenu} aria-label="Crea" aria-expanded={open}
-        className="flex items-center gap-1.5 h-9 px-3 rounded-xl bg-gold text-on-gold text-sm font-semibold shadow-soft press no-tap-highlight">
+        className="flex items-center gap-1.5 h-9 px-3 rounded-xl bg-gold text-on-gold text-sm font-semibold press no-tap-highlight btn-gold">
         <Plus className="w-4 h-4" /><span className="hidden sm:inline">Crea</span>
       </button>
 

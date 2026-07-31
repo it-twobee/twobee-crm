@@ -38,6 +38,7 @@ const config: Config = {
         orange: "var(--color-orange)",
         "orange-dim": "var(--color-orange-dim)",
         scrim: "var(--color-scrim)",
+        "scrim-media": "var(--color-scrim-media)",
         overlay: "rgb(var(--overlay-tint) / <alpha-value>)",
       },
       fontSize: {
@@ -64,11 +65,13 @@ const config: Config = {
         "2xl": "1.25rem",
         "3xl": "1.5rem",
       },
+      // Definite per intero nei token: alla luce servono due strati, al buio uno.
+      // Una sola curva con l'alpha cambiata funziona in un tema e sbiadisce nell'altro.
       boxShadow: {
-        soft: "0 1px 2px var(--shadow-color), 0 1px 1px rgb(0 0 0 / 0.03)",
-        card: "0 4px 16px -4px var(--shadow-color)",
-        pop: "0 12px 40px -8px var(--shadow-color)",
-        drawer: "0 24px 64px -12px var(--shadow-color)",
+        soft: "var(--shadow-soft)",
+        card: "var(--shadow-card)",
+        pop: "var(--shadow-pop)",
+        drawer: "var(--shadow-drawer)",
       },
       transitionTimingFunction: {
         snap: "cubic-bezier(0.22, 1, 0.36, 1)",

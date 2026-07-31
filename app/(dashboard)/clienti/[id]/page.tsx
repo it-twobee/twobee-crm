@@ -1,7 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { ClientPageClient } from '@/components/clients/ClientPageClient'
+import { ClientEconomicsTab } from '@/components/clients/tabs/ClientEconomicsTab'
+import { DEFAULT_PL_CONFIG, kindFromClientType, type PlConfig } from '@/lib/pl'
+import { rfmRaw, type ClientInput, type ClientMonth } from '@/lib/client-economics'
+import type { RevenueStream, Installment } from '@/lib/revenue'
 import type { Client, ClientContact, ClientKpi, Profile, ClientStakeholder, ClientInteraction } from '@/lib/types/database'
+import { PROFILE_COLUMNS } from '@/lib/profile-columns'
 
 export const revalidate = 0
 
@@ -31,8 +36,8 @@ export default async function ClientePage({ params, searchParams }: Props) {
     supabase.from('client_contacts').select('*').eq('client_id', id).order('is_primary', { ascending: false }),
     supabase.from('client_assignments').select('profile_id, profiles(*)').eq('client_id', id),
     supabase.from('client_stakeholders').select('*').eq('client_id', id).order('role'),
-    supabase.from('profiles').select('*').eq('id', user!.id).single(),
-    supabase.from('profiles').select('*').order('full_name'),
+    supabase.from('profiles').select(PROFILE_COLUMNS).eq('id', user!.id).single(),
+    supabase.from('profiles').select(PROFILE_COLUMNS).order('full_name'),
     supabase.from('client_kpis').select('*').eq('client_id', id).order('month', { ascending: false }),
     supabase.from('tickets').select('*', { count: 'exact', head: true }).eq('client_id', id).in('status', ['aperto','in_lavorazione']),
   ])
@@ -44,6 +49,89 @@ export default async function ClientePage({ params, searchParams }: Props) {
     .select('*, conductor:profiles!client_interactions_conducted_by_fkey(id, full_name, avatar_url)')
     .eq('client_id', id)
     .order('date', { ascending: false })
+
+  // ── Economics del cliente: admin-only, degrada se le migration mancano ─────
+  const isAdmin = (currentProfile as { role?: string } | null)?.role === 'admin'
+  let economics: React.ReactNode = null
+
+  if (isAdmin) {
+    const [{ data: projects }, { data: streams, error: streamErr }, { data: cfg }, { data: catalog }] =
+      await Promise.all([
+        supabase.from('projects').select('id, name, status, start_date, target_end_date')
+          .eq('client_id', id).is('deleted_at', null).order('created_at', { ascending: false }),
+        supabase.from('revenue_streams').select('*').eq('client_id', id),
+        supabase.from('pl_config').select('*').eq('id', true).maybeSingle(),
+        supabase.from('service_catalog')
+          .select('service_type, service_subtype, label, standard_price').eq('is_active', true).order('sort_order'),
+      ])
+
+    const ids = (streams ?? []).map((s: { id: string }) => s.id)
+    // rate, storico del cliente e base RFM non dipendono l'una dall'altra:
+    // in serie erano tre round-trip, qui è uno
+    const [{ data: inst }, { data: plRows }, { data: allPl }] = await Promise.all([
+      ids.length
+        ? supabase.from('revenue_installments').select('*').in('stream_id', ids)
+        : Promise.resolve({ data: [] }),
+      supabase.from('pl_revenue_lines')
+        .select('amount_net, paid, pl_months!inner(month)').eq('client_id', id),
+      supabase.from('pl_revenue_lines')
+        .select('client_id, amount_net, paid, pl_months!inner(month)'),
+    ])
+
+    const byMonth = new Map<string, ClientMonth>()
+    for (const r of (plRows ?? []) as unknown as { amount_net: number; paid: boolean; pl_months: { month: string } }[]) {
+      const m = r.pl_months?.month
+      if (!m) continue
+      const cur = byMonth.get(m) ?? { month: m, amount: 0, paid: 0 }
+      cur.amount += Number(r.amount_net ?? 0)
+      if (r.paid) cur.paid += Number(r.amount_net ?? 0)
+      byMonth.set(m, cur)
+    }
+    const history = Array.from(byMonth.values()).sort((a, b) => a.month.localeCompare(b.month))
+
+    const num = (v: unknown) => Number(v ?? 0)
+    const config: PlConfig = cfg ? {
+      growth_sales_pct: num(cfg.growth_sales_pct), growth_delivery_pct: num(cfg.growth_delivery_pct),
+      digital_sales_pct: num(cfg.digital_sales_pct), digital_delivery_pct: num(cfg.digital_delivery_pct),
+      cost_target_pct: num(cfg.cost_target_pct), risk_fund_pct: num(cfg.risk_fund_pct),
+      growth_residual_to_company: cfg.growth_residual_to_company ?? true,
+      partner_share_pct: num(cfg.partner_share_pct), company_share_pct: num(cfg.company_share_pct),
+    } : DEFAULT_PL_CONFIG
+
+    const input: ClientInput = {
+      id, name: (client.display_name || client.company_name) as string,
+      contract_start: client.contract_start, contract_end: client.contract_end,
+      client_label: client.client_label, lost_at: client.lost_at ?? null,
+      risk_score: client.risk_score,
+      history,
+      streams: (streams ?? []) as RevenueStream[],
+      installments: (inst ?? []) as Installment[],
+      projects: (projects ?? []) as ClientInput['projects'],
+      lastInteraction: (intData ?? [])[0]?.date ?? null,
+    }
+
+    // RFM è relativo: serve la fotografia degli altri clienti per i quintili
+    const perClient = new Map<string, ClientMonth[]>()
+    for (const r of (allPl ?? []) as unknown as { client_id: string | null; amount_net: number; paid: boolean; pl_months: { month: string } }[]) {
+      if (!r.client_id || !r.pl_months?.month) continue
+      const arr = perClient.get(r.client_id) ?? []
+      const found = arr.find(x => x.month === r.pl_months.month)
+      if (found) { found.amount += Number(r.amount_net ?? 0); if (r.paid) found.paid += Number(r.amount_net ?? 0) }
+      else arr.push({ month: r.pl_months.month, amount: Number(r.amount_net ?? 0), paid: r.paid ? Number(r.amount_net ?? 0) : 0 })
+      perClient.set(r.client_id, arr)
+    }
+    const base = Array.from(perClient.entries()).map(([cid, hist]) =>
+      rfmRaw({ ...input, id: cid, history: hist, lastInteraction: null }))
+
+    economics = streamErr ? null : (
+      <ClientEconomicsTab
+        client={input} base={base} config={config}
+        kind={kindFromClientType(client.client_type)}
+        catalog={(catalog ?? []) as never}
+        basePath="/progetti"
+      />
+    )
+  }
 
   return (
     <ClientPageClient
@@ -57,6 +145,7 @@ export default async function ClientePage({ params, searchParams }: Props) {
       interactions={(intData ?? []) as ClientInteraction[]}
       openTickets={openTickets ?? 0}
       initialTab={tab ? parseInt(tab) : undefined}
+      economics={economics}
     />
   )
 }

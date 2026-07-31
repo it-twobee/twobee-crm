@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { ImpostazioniClient } from '@/components/impostazioni/ImpostazioniClient'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import type { Profile, RolePermission, Invitation } from '@/lib/types/database'
+import { PROFILE_COLUMNS } from '@/lib/profile-columns'
 
 export const revalidate = 0
 
@@ -11,7 +12,7 @@ export default async function ImpostazioniPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  const { data: profile } = await supabase.from('profiles').select(PROFILE_COLUMNS).eq('id', user.id).single()
   if (!profile) redirect('/login')
 
   const isAdmin = SUPER_ADMIN_EMAILS.includes(profile.email) || profile.app_role === 'admin'
@@ -23,7 +24,7 @@ export default async function ImpostazioniPage() {
     { data: invitations },
     { data: clients },
   ] = await Promise.all([
-    supabase.from('profiles').select('*').order('full_name'),
+    supabase.from('profiles').select(PROFILE_COLUMNS).order('full_name'),
     supabase.from('role_permissions').select('*').then(r => r.error ? { data: [] } : r),
     supabase.from('invitations').select('*').order('created_at', { ascending: false }).then(r => r.error ? { data: [] } : r),
     supabase.from('clients').select('id,company_name').order('company_name'),

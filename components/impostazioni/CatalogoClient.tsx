@@ -14,9 +14,10 @@ import {
   createTemplate, updateTemplate, deleteTemplate, duplicateTemplate,
   createNode, updateNode, deleteNode,
 } from '@/app/actions/project-templates'
+import { setServicePrice } from '@/app/actions/revenue'
 import type {
   ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode,
-  ProjectArea, RecurrenceFrequency, Priority, Visibility,
+  ProjectArea, RecurrenceFrequency, Priority, Visibility, WorkstreamType, MilestoneType,
 } from '@/lib/types/database'
 
 const AREAS: { key: ProjectArea; label: string }[] = [
@@ -141,6 +142,8 @@ function ServiceRow({
 }) {
   const [editing, setEditing] = useState(false)
   const [label, setLabel] = useState(s.label)
+  const [price, setPrice] = useState(s.standard_price != null ? String(s.standard_price) : '')
+  const [unit, setUnit] = useState<'mese' | 'una_tantum'>(s.price_unit === 'una_tantum' ? 'una_tantum' : 'mese')
 
   if (editing) {
     return (
@@ -160,8 +163,25 @@ function ServiceRow({
 
   return (
     <div className={`flex items-center gap-2 py-1 group ${s.is_active ? '' : 'opacity-50'}`}>
-      <span className="flex-1 text-sm text-text-primary">{s.label}</span>
-      <code className="text-2xs text-text-tertiary">{s.service_type}{s.service_subtype ? `/${s.service_subtype}` : ''}</code>
+      <span className="flex-1 min-w-0 text-sm text-text-primary truncate">{s.label}</span>
+      <code className="text-2xs text-text-tertiary hidden sm:block">{s.service_type}{s.service_subtype ? `/${s.service_subtype}` : ''}</code>
+
+      {/* listino: il default che il wizard economics propone in quotazione */}
+      <span className="flex items-center gap-1 shrink-0">
+        <input type="number" value={price} placeholder="listino" aria-label={`Prezzo di listino di ${s.label}`}
+          onChange={e => setPrice(e.target.value)}
+          onBlur={() => {
+            const v = price === '' ? null : Number(price)
+            if (v !== (s.standard_price ?? null)) run(() => setServicePrice(s.id, v, unit), 'Listino aggiornato')
+          }}
+          className="w-20 bg-background border border-border rounded px-1.5 py-1 text-2xs text-right tabular text-text-primary" />
+        <select value={unit} aria-label="Unità di prezzo"
+          onChange={e => { const u = e.target.value as 'mese' | 'una_tantum'; setUnit(u); run(() => setServicePrice(s.id, price === '' ? null : Number(price), u), 'Listino aggiornato') }}
+          className="bg-background border border-border rounded px-1 py-1 text-2xs text-text-secondary">
+          <option value="mese">/mese</option>
+          <option value="una_tantum">a corpo</option>
+        </select>
+      </span>
       <button
         onClick={() => run(() => updateService(s.id, { is_active: !s.is_active }), s.is_active ? 'Disattivato' : 'Attivato')}
         aria-label={s.is_active ? 'Disattiva' : 'Attiva'}
@@ -458,6 +478,11 @@ function NodeModal({
   onClose: () => void
 }) {
   const [name, setName] = useState(initial?.name ?? '')
+  const [description, setDescription] = useState(initial?.description ?? '')
+  // il tipo era cablato: ogni workstream nasceva 'recurring', per questo in
+  // catalogo non esisteva un solo template con un arco di consegna
+  const [wsType, setWsType] = useState<WorkstreamType>(initial?.workstream_type ?? 'project')
+  const [msType, setMsType] = useState<MilestoneType>(initial?.milestone_type ?? 'delivery')
   const [ownerRole, setOwnerRole] = useState(initial?.suggested_owner_role ?? '')
   const [priority, setPriority] = useState<Priority>(initial?.priority ?? 'media')
   const [visibility, setVisibility] = useState<Visibility>(initial?.visibility ?? 'internal')
@@ -471,9 +496,11 @@ function NodeModal({
   const isMilestone = nodeType === 'milestone'
 
   const submit = () => {
-    const base: any = { name }
+    const base: any = { name, description: description.trim() || null }
     if (initial) {
       base.suggested_owner_role = ownerRole || null
+      if (isWorkstream) base.workstream_type = wsType
+      if (isMilestone) base.milestone_type = msType
       if (isTaskish) { base.priority = priority; base.visibility = visibility; base.estimated_hours = hours ? Number(hours) : null }
       if (isRecurring) base.frequency = frequency
       if (isMilestone || isTaskish) base.relative_due_days = dueDays ? Number(dueDays) : null
@@ -484,8 +511,9 @@ function NodeModal({
         parent_id: parentId,
         node_type: nodeType,
         name,
-        workstream_type: isWorkstream ? 'recurring' : null,
-        milestone_type: isMilestone ? 'delivery' : null,
+        description: description.trim() || null,
+        workstream_type: isWorkstream ? wsType : null,
+        milestone_type: isMilestone ? msType : null,
         frequency: isRecurring ? frequency : null,
         suggested_owner_role: ownerRole || null,
         relative_due_days: dueDays ? Number(dueDays) : null,
@@ -510,6 +538,32 @@ function NodeModal({
           <input value={name} onChange={e => setName(e.target.value)} autoFocus
             className="w-full bg-background border border-border-interactive rounded px-2 py-1.5 text-sm text-text-primary" />
         </Field>
+
+        <Field label="Descrizione">
+          <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2}
+            placeholder="Cosa comprende, con quale criterio si considera chiusa"
+            className="w-full bg-background border border-border-interactive rounded px-2 py-1.5 text-sm text-text-primary resize-none" />
+        </Field>
+
+        {isWorkstream && (
+          <Field label="Tipo di workstream">
+            <select value={wsType} onChange={e => setWsType(e.target.value as WorkstreamType)}
+              className="w-full bg-background border border-border-interactive rounded px-2 py-1.5 text-sm text-text-primary">
+              <option value="project">Una tantum — arco di consegna con milestone</option>
+              <option value="recurring">Continuativa — presidio ricorrente</option>
+            </select>
+          </Field>
+        )}
+
+        {isMilestone && (
+          <Field label="Tipo di milestone">
+            <select value={msType} onChange={e => setMsType(e.target.value as MilestoneType)}
+              className="w-full bg-background border border-border-interactive rounded px-2 py-1.5 text-sm text-text-primary">
+              <option value="delivery">Consegna — ha una data e chiude qualcosa</option>
+              <option value="system">Operatività continua — contenitore senza scadenza</option>
+            </select>
+          </Field>
+        )}
 
         {isRecurring && (
           <Field label="Frequenza">

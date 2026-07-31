@@ -65,7 +65,7 @@ export function ImagePicker({ files, onChange, disabled }: {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={src} alt="" className="w-full h-full object-cover" />
           <button type="button" onClick={() => onChange(files.filter((_, idx) => idx !== i))} aria-label="Rimuovi immagine"
-            className="absolute top-0.5 right-0.5 bg-scrim/80 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            className="absolute top-0.5 right-0.5 bg-scrim-media text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
             <X className="w-3 h-3" />
           </button>
         </div>
@@ -132,7 +132,7 @@ function Lightbox({ images, index, onIndex, onClose }: {
 
   const a = images[index]
   return (
-    <div className="fixed inset-0 z-[60] bg-scrim/90 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] bg-scrim-media backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
       <button aria-label="Chiudi" onClick={onClose} className="absolute top-4 right-4 text-white/80 hover:text-white">
         <X className="w-6 h-6" />
       </button>

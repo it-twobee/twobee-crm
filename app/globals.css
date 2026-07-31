@@ -49,43 +49,76 @@
   --overlay-tint: 255,255,255;
   --shadow-color: rgba(0,0,0,0.45);
   --color-scrim: rgba(0,0,0,0.72);
+  /* Fondale del visore immagini: resta buio in entrambi i temi, perché sopra ci
+     stanno icone bianche e una foto va guardata al buio, non su carta. */
+  --color-scrim-media: rgba(0,0,0,0.90);
+
+  /* Elevazione a due strati: un contatto stretto che ancora l'elemento alla
+     superficie e un'ombra ampia che dà la distanza. Un'ombra sola sembra
+     stampata sopra, non sollevata. Al buio conta il contatto, alla luce la
+     diffusione — per questo i due temi hanno curve diverse, non solo alpha. */
+  --shadow-soft: 0 1px 2px rgba(0,0,0,0.30);
+  --shadow-card: 0 2px 6px rgba(0,0,0,0.28), 0 8px 24px -6px rgba(0,0,0,0.45);
+  --shadow-pop: 0 4px 10px rgba(0,0,0,0.30), 0 16px 48px -12px rgba(0,0,0,0.55);
+  --shadow-drawer: 0 8px 20px rgba(0,0,0,0.32), 0 32px 72px -16px rgba(0,0,0,0.60);
+  --shadow-gold: 0 2px 10px -2px rgba(255,197,1,0.30);
+  --shadow-gold-hover: 0 4px 18px -4px rgba(255,197,1,0.45);
   color-scheme: dark;
 }
 
+/* Il chiaro non è il buio invertito. Qui la profondità la fa l'ombra, non il
+   contrasto di superficie, e i grigi sono freddi: l'oro è l'unico caldo della
+   pagina e su un fondo neutro-freddo risalta invece di impastarsi. */
 [data-theme="light"] {
-  --color-background: #F4F4F2;
+  --color-background: #F1F3F6;
   --color-surface: #FFFFFF;
-  --color-surface-hover: #F0F0EE;
-  --color-surface-active: #E6E6E3;
-  --color-border: rgba(11,11,12,0.12);
-  --color-border-strong: rgba(11,11,12,0.20);
-  --color-border-interactive: rgba(11,11,12,0.46);
+  --color-surface-hover: #F4F6F9;
+  --color-surface-active: #E8EBF0;
+  --color-border: rgba(16,24,40,0.10);
+  --color-border-strong: rgba(16,24,40,0.16);
+  /* 0.50 = 3.37:1 sul bianco: sotto, il bordo di un input non è percepibile (1.4.11) */
+  --color-border-interactive: rgba(16,24,40,0.50);
 
   --color-gold: #F5BC00;
-  --color-gold-text: #6F4A00;
-  --color-gold-dim: rgba(111,74,0,0.10);
+  /* oro leggibile: 5.95:1 sul bianco, 4.90:1 anche sopra gold-dim. Il vecchio
+     #6F4A00 passava il contrasto ma leggeva marrone, non oro. */
+  --color-gold-text: #855C00;
+  /* la velatura parte dall'oro vivo, non dall'inchiostro scuro: crema, non fango */
+  --color-gold-dim: rgba(245,188,0,0.18);
   --color-on-gold: #0B0B0C;
 
-  --color-text-primary: #16161A;
-  --color-text-secondary: rgba(22,22,26,0.70);
-  --color-text-tertiary: rgba(22,22,26,0.60);
+  --color-text-primary: #101828;
+  /* 7.05:1 contro 4.61:1 del terziario: due livelli distinguibili a colpo
+     d'occhio. Prima erano 0.70 e 0.60, troppo vicini per fare gerarchia. */
+  --color-text-secondary: rgba(16,24,40,0.72);
+  --color-text-tertiary: rgba(16,24,40,0.60);
 
+  /* Inchiostro scuro per il testo, velatura viva per il chip: un chip ricavato
+     dall'inchiostro scuro diventa grigio sporco e i sei stati si somigliano. */
   --color-success: #05604A;
-  --color-success-dim: rgba(5,96,74,0.10);
-  --color-warning: #6F4A00;
-  --color-warning-dim: rgba(111,74,0,0.10);
+  --color-success-dim: rgba(16,185,129,0.16);
+  --color-warning: #7A5300;
+  --color-warning-dim: rgba(245,158,11,0.20);
   --color-error: #C0261B;
-  --color-error-dim: rgba(192,38,27,0.09);
+  --color-error-dim: rgba(239,68,68,0.14);
   --color-info: #0369A1;
-  --color-info-dim: rgba(3,105,161,0.09);
+  --color-info-dim: rgba(14,165,233,0.16);
   --color-accent: #6D28D9;
-  --color-accent-dim: rgba(109,40,217,0.09);
+  --color-accent-dim: rgba(139,92,246,0.14);
   --color-orange: #9A3412;
-  --color-orange-dim: rgba(154,52,18,0.09);
+  --color-orange-dim: rgba(249,115,22,0.16);
 
-  --overlay-tint: 11,11,12;
-  --shadow-color: rgba(20,20,20,0.10);
-  --color-scrim: rgba(28,28,26,0.55);
+  --overlay-tint: 16,24,40;
+  --shadow-color: rgba(16,24,40,0.10);
+  --color-scrim: rgba(16,24,40,0.48);
+  --color-scrim-media: rgba(8,11,20,0.88);
+
+  --shadow-soft: 0 1px 2px rgba(16,24,40,0.04), 0 1px 3px rgba(16,24,40,0.06);
+  --shadow-card: 0 1px 2px rgba(16,24,40,0.04), 0 8px 24px -6px rgba(16,24,40,0.10);
+  --shadow-pop: 0 2px 6px rgba(16,24,40,0.05), 0 16px 48px -12px rgba(16,24,40,0.16);
+  --shadow-drawer: 0 4px 12px rgba(16,24,40,0.05), 0 32px 72px -16px rgba(16,24,40,0.20);
+  --shadow-gold: 0 1px 2px rgba(16,24,40,0.06), 0 6px 16px -6px rgba(245,188,0,0.70);
+  --shadow-gold-hover: 0 2px 4px rgba(16,24,40,0.08), 0 10px 24px -8px rgba(245,188,0,0.85);
   color-scheme: light;
 }
 
@@ -147,15 +180,17 @@
     background: transparent;
   }
 
+  /* Al chiaro un pollice al 16% di nero è quasi invisibile: si cerca la barra
+     invece di trascinarla. Parte già dal livello interattivo. */
   ::-webkit-scrollbar-thumb {
-    background: var(--color-border-strong);
+    background: var(--color-border-interactive);
     border-radius: 9999px;
     border: 2px solid transparent;
     background-clip: content-box;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--color-border-interactive);
+    background: var(--color-text-tertiary);
     background-clip: content-box;
   }
 
@@ -274,13 +309,24 @@
   }
   .card-interactive:hover {
     border-color: var(--color-border-strong);
-    box-shadow: var(--shadow-color) 0 4px 16px -4px;
+    box-shadow: var(--shadow-card);
     transform: translateY(-1px);
   }
 
   /* Feedback tattile al click: leggera compressione. */
   .press { transition: transform 0.08s ease; }
   .press:active { transform: scale(0.97); }
+
+  /* Azione principale: l'oro pieno è già il colore più forte della pagina, ma
+     con un'ombra neutra resta incollato al foglio. L'ombra prende la sua stessa
+     tinta, così il pulsante sembra acceso invece che stampato. Solo sull'azione
+     che conta: se lo mettessimo su ogni chip in oro, non guiderebbe più niente. */
+  .btn-gold {
+    box-shadow: var(--shadow-gold);
+    transition: box-shadow 0.18s ease, transform 0.08s ease;
+  }
+  .btn-gold:hover { box-shadow: var(--shadow-gold-hover); }
+  .btn-gold:disabled { box-shadow: none; }
 
   /* Skeleton di caricamento (pulsazione via token). */
   .skeleton {

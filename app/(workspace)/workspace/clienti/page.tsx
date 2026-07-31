@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { ClientiList } from '@/components/clients/ClientiList'
 import type { Client, Profile } from '@/lib/types/database'
+import { PROFILE_COLUMNS } from '@/lib/profile-columns'
 
 export const revalidate = 30
 
@@ -10,7 +11,7 @@ export default async function WorkspaceClientiPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  const { data: profile } = await supabase.from('profiles').select(PROFILE_COLUMNS).eq('id', user.id).single()
   if (!profile) redirect('/login')
 
   // Solo clienti attivi (esclusi i persi). Fonte: VIEW clients_workspace (colonne

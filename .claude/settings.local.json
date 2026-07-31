@@ -256,7 +256,11 @@
       "Bash(git commit *)",
       "Bash(git merge *)",
       "Bash(python3 -)",
-      "Bash(kill 9004 9007)"
+      "Bash(kill 9004 9007)",
+      "Bash(python3 -c \"import openpyxl; print\\('openpyxl ok'\\)\")",
+      "Bash(npx tsx *)",
+      "Bash(awk 'NR>=155 && NR<=200' lib/pl.ts)",
+      "Bash(pbpaste)"
     ],
     "defaultMode": "acceptEdits"
   }

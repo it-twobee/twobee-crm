@@ -48,7 +48,7 @@ const isOverdue = (t: Task) => !!t.due_date && t.status !== 'completato' && t.du
 
 export function ProjectDetailClient({
   project, clientName, workstreams, milestones, tasks, recurring, memberIds, profiles,
-  backHref = '/progetti', canManageProject = true, canEditTasks = true, initialTab,
+  backHref = '/progetti', canManageProject = true, canEditTasks = true, initialTab, economics,
 }: {
   project: Project
   clientName: string
@@ -61,11 +61,13 @@ export function ProjectDetailClient({
   backHref?: string
   canManageProject?: boolean
   canEditTasks?: boolean
-  initialTab?: 'panoramica' | 'workstream'
+  initialTab?: 'panoramica' | 'workstream' | 'economics'
+  /** l'economics è admin-only: nel workspace la scheda non compare proprio */
+  economics?: React.ReactNode
 }) {
   const router = useRouter()
   const [pending, start] = useTransition()
-  const [tab, setTab] = useState<'panoramica' | 'workstream'>(initialTab ?? 'panoramica')
+  const [tab, setTab] = useState<'panoramica' | 'workstream' | 'economics'>(initialTab ?? 'panoramica')
   const [creatingWs, setCreatingWs] = useState(false)
   const [wsQuery, setWsQuery] = useState('')
   const [wsFilter, setWsFilter] = useState<'all' | 'late' | 'soon' | 'unassigned'>('all')
@@ -285,7 +287,10 @@ export function ProjectDetailClient({
 
       {/* tabs */}
       <div className="flex border-b border-border px-4 sm:px-6 scroll-x-touch">
-        {([['panoramica', 'Panoramica'], ['workstream', 'Workstream']] as const).map(([key, label]) => (
+        {(economics
+          ? [['panoramica', 'Panoramica'], ['workstream', 'Workstream'], ['economics', 'Economics']] as const
+          : [['panoramica', 'Panoramica'], ['workstream', 'Workstream']] as const
+        ).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`px-4 py-3.5 text-sm font-semibold border-b-2 whitespace-nowrap transition-colors ${
               tab === key ? 'border-gold text-gold-text' : 'border-transparent text-text-secondary hover:text-text-primary'
@@ -294,6 +299,8 @@ export function ProjectDetailClient({
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        {tab === 'economics' && economics}
+
         {tab === 'panoramica' && (
           <div className="space-y-4 max-w-6xl animate-fade-in">
             {/* verdetto: la prima riga da leggere */}

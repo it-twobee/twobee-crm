@@ -226,7 +226,7 @@ export function ProgettiClient({
         </div>
         {canCreate && (
           <button onClick={() => setWizard(true)}
-            className="flex items-center gap-1.5 text-sm font-semibold bg-gold text-on-gold px-4 py-2.5 rounded-xl shadow-soft press">
+            className="flex items-center gap-1.5 text-sm font-semibold bg-gold text-on-gold px-4 py-2.5 rounded-xl press btn-gold">
             <Plus className="w-4 h-4" />Nuovo progetto
           </button>
         )}

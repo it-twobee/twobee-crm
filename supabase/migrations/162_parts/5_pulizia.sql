@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.seed_project_template(JSONB)

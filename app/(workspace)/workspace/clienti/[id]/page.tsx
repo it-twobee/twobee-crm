@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import { ClientPageClient } from '@/components/clients/ClientPageClient'
 import type { Client, ClientContact, ClientKpi, Profile, ClientStakeholder, ClientInteraction } from '@/lib/types/database'
+import { PROFILE_COLUMNS } from '@/lib/profile-columns'
 
 export const revalidate = 0
 
@@ -30,8 +31,8 @@ export default async function WorkspaceClientePage({ params }: Props) {
     supabase.from('client_contacts').select('*').eq('client_id', id).order('is_primary', { ascending: false }),
     supabase.from('client_assignments').select('profile_id, profiles(*)').eq('client_id', id),
     supabase.from('client_stakeholders').select('*').eq('client_id', id).order('role'),
-    supabase.from('profiles').select('*').eq('id', user.id).single(),
-    supabase.from('profiles').select('*').order('full_name'),
+    supabase.from('profiles').select(PROFILE_COLUMNS).eq('id', user.id).single(),
+    supabase.from('profiles').select(PROFILE_COLUMNS).order('full_name'),
     supabase.from('client_kpis').select('*').eq('client_id', id).order('month', { ascending: false }),
     supabase.from('tickets').select('*', { count: 'exact', head: true }).eq('client_id', id).in('status', ['aperto', 'in_lavorazione']),
   ])

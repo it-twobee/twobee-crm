@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { ProjectDetailClient } from '@/components/projects/ProjectDetailClient'
+import { ProjectEconomics } from '@/components/projects/ProjectEconomics'
+import type { RevenueStream, Installment } from '@/lib/revenue'
 import type {
   Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate,
 } from '@/lib/types/database'
@@ -33,6 +35,19 @@ export default async function ProjectDetailPage({ params, searchParams }: { para
 
   const memberIds = (members ?? []).map(m => m.profile_id)
 
+  // Economics: solo admin, e degrada in silenzio se la 164/165 non è applicata
+  const { data: streams, error: streamErr } = await supabase
+    .from('revenue_streams').select('*').eq('project_id', params.projectId).order('created_at')
+  const { data: installments } = streamErr || !(streams ?? []).length
+    ? { data: [] }
+    : await supabase.from('revenue_installments')
+        .select('*').in('stream_id', (streams ?? []).map(s => s.id)).order('due_month')
+  const { data: services } = streamErr
+    ? { data: [] }
+    : await supabase.from('service_catalog')
+        .select('id, service_type, service_subtype, label, standard_price, price_unit')
+        .eq('is_active', true).order('area').order('sort_order')
+
   return (
     <ProjectDetailClient
       project={project as Project}
@@ -43,7 +58,20 @@ export default async function ProjectDetailPage({ params, searchParams }: { para
       recurring={(recurring ?? []) as RecurringTaskTemplate[]}
       memberIds={memberIds}
       profiles={(profiles ?? []) as { id: string; full_name: string; avatar_url: string | null }[]}
-      initialTab={searchParams.tab === 'workstream' ? 'workstream' : undefined}
+      initialTab={searchParams.tab === 'workstream' ? 'workstream' : searchParams.tab === 'economics' ? 'economics' : undefined}
+      economics={streamErr ? undefined : (
+        <ProjectEconomics
+          projectId={params.projectId}
+          projectKind={project.area === 'digital' ? 'digital' : 'growth'}
+          projectStart={project.start_date}
+          projectEnd={project.target_end_date}
+          streams={(streams ?? []) as RevenueStream[]}
+          installments={(installments ?? []) as Installment[]}
+          services={(services ?? []) as never}
+          profiles={(profiles ?? []) as { id: string; full_name: string }[]}
+          canEdit
+        />
+      )}
     />
   )
 }

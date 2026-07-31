@@ -22,7 +22,8 @@ import { StepTemplate } from './wizard/StepTemplate'
 import { StepStruttura, applyNaming, offConventionCount, spreadDueDates } from './wizard/StepStruttura'
 import { StepConferma } from './wizard/StepConferma'
 import {
-  STEPS, nk, countTree,
+  STEPS, nk, countTree, applyRelativeDates,
+  newTask, newMilestone, newRecurring, newWorkstream,
   type Person, type ClientOpt, type ClientChoice, type WsPick,
   type WWorkstream, type WMilestone, type WRecurring, type WTask,
 } from './wizard/types'
@@ -89,56 +90,70 @@ export function ProjectWizard({
   }, [profiles, team, info.managerId])
 
   // ── struttura: seed dai workstream scelti oppure espansione del template ───
-  const seedFromPicks = useCallback((): WWorkstream[] => picks.map(p => ({
-    key: nk(), name: workstreamName(ctx, p.label), workstream_type: 'project',
-    owner_id: info.managerId || null, visibility: 'internal', milestones: [], recurring: [],
-  })), [picks, ctx, info.managerId])
+  const seedFromPicks = useCallback((): WWorkstream[] => picks.map(p =>
+    newWorkstream(workstreamName(ctx, p.label), info.managerId || null),
+  ), [picks, ctx, info.managerId])
 
   const expandTemplate = useCallback((tid: string): WWorkstream[] => {
     const byOrder = (a: ProjectTemplateNode, b: ProjectTemplateNode) => a.sort_order - b.sort_order
     const wsNodes = nodes.filter(n => n.template_id === tid && !n.parent_id && n.node_type === 'workstream').sort(byOrder)
+
+    const asRecurring = (n: ProjectTemplateNode): WRecurring => ({
+      ...newRecurring(n.name, n.visibility, null),
+      frequency: n.frequency ?? 'weekly', owner_role: n.suggested_owner_role,
+      priority: n.priority ?? 'media', estimated_hours: n.estimated_hours, description: n.description,
+    })
+    const asTask = (n: ProjectTemplateNode): WTask => ({
+      ...newTask(n.name, n.visibility),
+      description: n.description, estimated_hours: n.estimated_hours,
+      priority: n.priority ?? 'media', owner_role: n.suggested_owner_role,
+      rel_days: n.relative_due_days,
+    })
+
     return wsNodes.map(w => {
       const children = nodes.filter(n => n.parent_id === w.id).sort(byOrder)
       const recurring: WRecurring[] = []
       const milestones: WMilestone[] = []
       for (const c of children) {
         if (c.node_type === 'recurring_task') {
-          recurring.push({
-            key: nk(), title: c.name, frequency: c.frequency ?? 'weekly', owner_role: c.suggested_owner_role,
-            owner_id: null, priority: c.priority ?? 'media', visibility: c.visibility, estimated_hours: c.estimated_hours,
-          })
+          recurring.push(asRecurring(c))
         } else if (c.node_type === 'milestone') {
-          const tasks = nodes.filter(n => n.parent_id === c.id && n.node_type === 'task').sort(byOrder)
-            .map(t => ({ key: nk(), title: t.name, assignee_id: null, due_date: null, visibility: t.visibility } as WTask))
+          const tasks = nodes.filter(n => n.parent_id === c.id && n.node_type === 'task').sort(byOrder).map(asTask)
           nodes.filter(n => n.parent_id === c.id && n.node_type === 'recurring_task').sort(byOrder)
-            .forEach(r => recurring.push({
-              key: nk(), title: r.name, frequency: r.frequency ?? 'weekly', owner_role: r.suggested_owner_role,
-              owner_id: null, priority: r.priority ?? 'media', visibility: r.visibility, estimated_hours: r.estimated_hours,
-            }))
+            .forEach(r => recurring.push(asRecurring(r)))
           milestones.push({
-            key: nk(), title: c.name, milestone_type: (c.milestone_type ?? 'delivery') as 'delivery' | 'system',
-            due_date: null, owner_id: null, visibility: c.visibility, tasks,
+            ...newMilestone(c.name, c.visibility, null),
+            milestone_type: (c.milestone_type ?? 'delivery') as 'delivery' | 'system',
+            description: c.description, owner_role: c.suggested_owner_role,
+            rel_days: c.relative_due_days, tasks,
           })
         } else if (c.node_type === 'task') {
-          const ms = milestones.find(m => m.title === 'Attività') ?? (() => {
-            const m: WMilestone = { key: nk(), title: 'Attività', milestone_type: 'delivery', due_date: null, owner_id: null, visibility: 'internal', tasks: [] }
-            milestones.push(m); return m
-          })()
-          ms.tasks.push({ key: nk(), title: c.name, assignee_id: null, due_date: null, visibility: c.visibility })
+          const ms = milestones.find(m => m.title === 'Attività')
+            ?? (() => { const m = newMilestone('Attività', 'internal', null); milestones.push(m); return m })()
+          ms.tasks.push(asTask(c))
         }
       }
       return {
-        key: nk(), name: w.name, workstream_type: (w.workstream_type ?? 'recurring') as 'project' | 'recurring',
-        owner_id: null, visibility: w.visibility, milestones, recurring,
+        ...newWorkstream(w.name, null),
+        workstream_type: (w.workstream_type ?? 'recurring') as 'project' | 'recurring',
+        visibility: w.visibility, description: w.description, milestones, recurring,
       }
     })
   }, [nodes])
 
   const pickTemplate = (tid: string | null) => {
     setTemplateId(tid)
-    setStructure(applyNaming(tid ? expandTemplate(tid) : seedFromPicks(), ctx))
+    const base = tid ? applyRelativeDates(expandTemplate(tid), info.startDate) : seedFromPicks()
+    setStructure(applyNaming(base, ctx))
     setStructureTouched(false)
   }
+
+  // spostare l'avvio del progetto ridatta il piano che viene dal template:
+  // le date messe a mano restano dove sono (rel_days = null)
+  useEffect(() => {
+    if (!templateId || structureTouched || !info.startDate) return
+    setStructure(s => applyRelativeDates(s, info.startDate))
+  }, [templateId, structureTouched, info.startDate])
 
   // finché non tocchi la struttura, resta agganciata ai workstream scelti
   useEffect(() => {
@@ -189,6 +204,14 @@ export function ProjectWizard({
   }), [editStructure, ctx, info.startDate, info.targetEnd, info.managerId])
 
   // ── submit ─────────────────────────────────────────────────────────────────
+  /** Data assoluta → giorni dall'avvio. Se non c'è avvio resta l'ancora del template. */
+  const relDays = (due: string | null, fallback: number | null): number | null => {
+    if (!due || !info.startDate) return fallback
+    return Math.round(
+      (new Date(due + 'T00:00:00').getTime() - new Date(info.startDate + 'T00:00:00').getTime()) / 86400000,
+    )
+  }
+
   function buildPayload(): WizardPayload {
     return {
       project: {
@@ -208,6 +231,7 @@ export function ProjectWizard({
       members: team,
       workstreams: structure.map((w, i) => ({
         name: w.name,
+        description: w.description,
         workstream_type: w.workstream_type,
         status: 'active',
         owner_id: w.owner_id,
@@ -216,15 +240,17 @@ export function ProjectWizard({
         end_date: w.workstream_type === 'project' ? info.targetEnd || null : null,
         sort_order: i * 10,
         milestones: w.milestones.map((m, j) => ({
-          title: m.title, milestone_type: m.milestone_type, owner_id: m.owner_id,
+          title: m.title, description: m.description, deliverable: m.deliverable,
+          milestone_type: m.milestone_type, owner_id: m.owner_id,
           due_date: m.due_date, visibility: m.visibility, sort_order: j * 10,
           tasks: m.tasks.map((t, k) => ({
-            title: t.title, assignee_id: t.assignee_id, due_date: t.due_date,
+            title: t.title, description: t.description, priority: t.priority,
+            estimated_hours: t.estimated_hours, assignee_id: t.assignee_id, due_date: t.due_date,
             visibility: t.visibility, sort_order: k * 10,
           })),
         })),
         recurring: w.recurring.map(r => ({
-          title: r.title, frequency: r.frequency, owner_id: r.owner_id,
+          title: r.title, description: r.description, frequency: r.frequency, owner_id: r.owner_id,
           priority: r.priority, visibility: r.visibility, estimated_hours: r.estimated_hours,
         })),
       })),
@@ -241,16 +267,28 @@ export function ProjectWizard({
             await saveWizardTemplate({
               name: saveTpl.name, service_type: primary?.service_type ?? 'custom',
               service_subtype: primary?.service_subtype ?? null,
+              // le date assolute tornano relative all'avvio: un template con
+              // dentro il 12 marzo non è riutilizzabile, «+14 giorni» sì
               workstreams: structure.map(w => ({
                 name: bareWorkstream(w.name, ctx) || w.name,
+                description: w.description,
                 workstream_type: w.workstream_type, visibility: w.visibility,
                 recurring: w.recurring.map(r => ({
-                  name: r.title, frequency: r.frequency, priority: r.priority,
+                  name: r.title, description: r.description, frequency: r.frequency, priority: r.priority,
                   visibility: r.visibility, estimated_hours: r.estimated_hours,
+                  suggested_owner_role: r.owner_role,
                 })),
                 milestones: w.milestones.map(m => ({
-                  name: bareMilestone(m.title), milestone_type: m.milestone_type, visibility: m.visibility,
-                  tasks: m.tasks.map(t => ({ name: bareTask(t.title), visibility: t.visibility })),
+                  name: bareMilestone(m.title), description: m.description,
+                  milestone_type: m.milestone_type, visibility: m.visibility,
+                  suggested_owner_role: m.owner_role,
+                  relative_due_days: relDays(m.due_date, m.rel_days),
+                  tasks: m.tasks.map(t => ({
+                    name: bareTask(t.title), description: t.description, visibility: t.visibility,
+                    priority: t.priority, estimated_hours: t.estimated_hours,
+                    suggested_owner_role: t.owner_role,
+                    relative_due_days: relDays(t.due_date, t.rel_days),
+                  })),
                 })),
               })),
             })

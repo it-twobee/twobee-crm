@@ -1,6 +1,7 @@
 import {
   LayoutDashboard, Users, FolderOpen, Settings, CalendarDays, Headphones,
   Ticket, UserCircle2, History, Lightbulb, FolderKanban, Briefcase, ListChecks, ListTodo,
+  Wallet,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -40,6 +41,11 @@ export const navSections: NavSection[] = [
       { href: '/calendario', icon: CalendarDays, label: 'Calendario' },
       { href: '/documenti', icon: FolderOpen, label: 'Documenti' },
     ],
+  },
+  {
+    label: 'Economics',
+    // dati economici: la pagina rimbalza chi non è admin, la voce non si mostra
+    items: [{ href: '/economics', icon: Wallet, label: 'Conto economico', adminOnly: true }],
   },
   {
     label: 'Team',

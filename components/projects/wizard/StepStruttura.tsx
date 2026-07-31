@@ -1,17 +1,18 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Plus, Trash2, FolderTree, Flag, CheckSquare, Repeat, ChevronDown,
-  Wand2, CalendarRange, Eye, EyeOff,
+  Wand2, CalendarRange, Eye, EyeOff, Clock, SlidersHorizontal, Package,
 } from 'lucide-react'
 import { StepHead, Segmented, inputCls, Avatar, Empty } from '@/components/shared/formkit'
 import {
   workstreamName, milestoneName, taskName, isConform, type NamingCtx,
 } from '@/lib/project-naming'
 import {
-  nk, countTree, FREQUENCIES, FREQ_LABEL,
-  type WWorkstream, type WMilestone, type WTask, type Person,
+  countTree, FREQUENCIES, FREQ_LABEL, PRIORITIES,
+  newTask, newMilestone, newRecurring, newWorkstream,
+  type WWorkstream, type WMilestone, type WTask, type Person, type Priority,
 } from './types'
 
 /** riscrive tutto l'albero secondo la convention (idempotente) */
@@ -69,6 +70,10 @@ export function StepStruttura({
 }) {
   const counts = useMemo(() => countTree(structure), [structure])
   const off = useMemo(() => offConventionCount(structure, ctx), [structure, ctx])
+  // il dettaglio si apre riga per riga: l'albero resta leggibile, la profondità
+  // c'è quando serve. Aprire tutto trasformerebbe la struttura in un modulo.
+  const [open, setOpen] = useState<Record<string, boolean>>({})
+  const toggle = (k: string) => setOpen(o => ({ ...o, [k]: !o[k] }))
 
   const updWs = (key: string, fn: (w: WWorkstream) => WWorkstream) =>
     setStructure(s => s.map(w => w.key === key ? fn(w) : w))
@@ -77,25 +82,18 @@ export function StepStruttura({
   const updTask = (wk: string, mk: string, tk: string, fn: (t: WTask) => WTask) =>
     updMs(wk, mk, m => ({ ...m, tasks: m.tasks.map(t => t.key === tk ? fn(t) : t) }))
 
-  const addWs = () => setStructure(s => [...s, {
-    key: nk(), name: workstreamName(ctx, 'Nuovo workstream'), workstream_type: 'project',
-    owner_id: null, visibility: 'internal', milestones: [], recurring: [],
-  }])
+  const addWs = () => setStructure(s => [...s, newWorkstream(workstreamName(ctx, 'Nuovo workstream'), null)])
   const addMs = (wk: string) => updWs(wk, w => ({
     ...w,
-    milestones: [...w.milestones, {
-      key: nk(), title: milestoneName(w.milestones.length, 'Nuova milestone'),
-      milestone_type: 'delivery', due_date: null, owner_id: w.owner_id, visibility: w.visibility, tasks: [],
-    }],
+    milestones: [...w.milestones, newMilestone(
+      milestoneName(w.milestones.length, 'Nuova milestone'), w.visibility, w.owner_id,
+    )],
   }))
   const addTask = (wk: string, mk: string, msIndex: number) => updMs(wk, mk, m => ({
-    ...m, tasks: [...m.tasks, { key: nk(), title: taskName(msIndex, 'Nuova task'), assignee_id: null, due_date: null, visibility: m.visibility }],
+    ...m, tasks: [...m.tasks, newTask(taskName(msIndex, 'Nuova task'), m.visibility)],
   }))
   const addRec = (wk: string) => updWs(wk, w => ({
-    ...w, recurring: [...w.recurring, {
-      key: nk(), title: 'Nuova attività ricorrente', frequency: 'weekly', owner_role: null,
-      owner_id: w.owner_id, priority: 'media', visibility: w.visibility, estimated_hours: null,
-    }],
+    ...w, recurring: [...w.recurring, newRecurring('Nuova attività ricorrente', w.visibility, w.owner_id)],
   }))
 
   const canSpread = !!startDate && !!targetEnd && targetEnd > startDate && counts.ms > 0
@@ -110,6 +108,7 @@ export function StepStruttura({
         <Stat icon={<Flag className="w-3.5 h-3.5 text-info" />} n={counts.ms} label="milestone" />
         <Stat icon={<CheckSquare className="w-3.5 h-3.5 text-text-secondary" />} n={counts.tk} label="task" />
         {counts.rc > 0 && <Stat icon={<Repeat className="w-3.5 h-3.5 text-success" />} n={counts.rc} label="ricorrenti" />}
+        {counts.hours > 0 && <Stat icon={<Clock className="w-3.5 h-3.5 text-accent" />} n={counts.hours} label="ore stimate" />}
         <div className="ml-auto flex items-center gap-1.5">
           {canSpread && (
             <button type="button" onClick={() => setStructure(s => spreadDueDates(s, startDate, targetEnd))}
@@ -161,6 +160,10 @@ export function StepStruttura({
                       </div>
                       <OwnerSelect team={team} value={w.owner_id} label="Responsabile"
                         onChange={v => updWs(w.key, x => ({ ...x, owner_id: v }))} />
+                      <input value={w.description ?? ''} placeholder="A cosa serve questo workstream"
+                        aria-label="Descrizione workstream"
+                        onChange={e => updWs(w.key, x => ({ ...x, description: e.target.value || null }))}
+                        className={`${inputCls} text-2xs flex-1 min-w-[180px]`} />
                     </div>
 
                     {w.recurring.map(r => (
@@ -190,29 +193,82 @@ export function StepStruttura({
                               className="flex-1 min-w-0 bg-transparent text-sm font-medium text-text-primary border-b border-transparent focus:border-border-interactive outline-none" />
                             {msOff && <OffBadge onFix={() => updMs(w.key, m.key, x => ({ ...x, title: milestoneName(mi, x.title) }))} />}
                             <input type="date" value={m.due_date ?? ''} aria-label="Scadenza milestone"
-                              onChange={e => updMs(w.key, m.key, x => ({ ...x, due_date: e.target.value || null }))}
+                              onChange={e => updMs(w.key, m.key, x => ({ ...x, due_date: e.target.value || null, rel_days: null }))}
                               className={`text-2xs bg-background border rounded-lg px-1.5 py-1 shrink-0 ${
                                 m.due_date ? 'border-border text-text-primary' : 'border-border-interactive text-text-tertiary'
                               }`} />
                             <OwnerSelect team={team} value={m.owner_id} label="Owner milestone" compact
                               onChange={v => updMs(w.key, m.key, x => ({ ...x, owner_id: v }))} />
+                            <DetailBtn open={!!open[m.key]} onClick={() => toggle(m.key)}
+                              filled={!!m.description || !!m.deliverable} label={`Dettagli di ${m.title}`} />
                             <button type="button" onClick={() => updWs(w.key, x => ({ ...x, milestones: x.milestones.filter(y => y.key !== m.key) }))}
                               aria-label="Elimina milestone" className="text-text-tertiary hover:text-error shrink-0"><Trash2 className="w-3 h-3" /></button>
                           </div>
 
+                          {open[m.key] && (
+                            <div className="ml-5 rounded-lg bg-surface border border-border p-2 space-y-2">
+                              <textarea value={m.description ?? ''} rows={2} placeholder="A cosa serve questa milestone, cosa la chiude"
+                                aria-label="Descrizione milestone"
+                                onChange={e => updMs(w.key, m.key, x => ({ ...x, description: e.target.value || null }))}
+                                className={`${inputCls} text-2xs resize-none`} />
+                              <label className="flex items-center gap-2">
+                                <Package className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
+                                <input value={m.deliverable ?? ''} placeholder="Consegnabile — cosa consegniamo al cliente"
+                                  aria-label="Consegnabile"
+                                  onChange={e => updMs(w.key, m.key, x => ({ ...x, deliverable: e.target.value || null }))}
+                                  className={`${inputCls} text-2xs`} />
+                              </label>
+                            </div>
+                          )}
+
                           {m.tasks.map(t => (
-                            <div key={t.key} className="flex items-center gap-2 pl-5">
-                              <CheckSquare className="w-3 h-3 text-text-tertiary shrink-0" />
-                              <input value={t.title} aria-label="Titolo task"
-                                onChange={e => updTask(w.key, m.key, t.key, x => ({ ...x, title: e.target.value }))}
-                                className="flex-1 min-w-0 bg-transparent text-sm text-text-primary border-b border-transparent focus:border-border-interactive outline-none" />
-                              <input type="date" value={t.due_date ?? ''} aria-label="Scadenza task"
-                                onChange={e => updTask(w.key, m.key, t.key, x => ({ ...x, due_date: e.target.value || null }))}
-                                className="text-2xs bg-background border border-border rounded-lg px-1.5 py-1 text-text-tertiary shrink-0" />
-                              <OwnerSelect team={team} value={t.assignee_id} label="Assegnatario" compact
-                                onChange={v => updTask(w.key, m.key, t.key, x => ({ ...x, assignee_id: v }))} />
-                              <button type="button" onClick={() => updMs(w.key, m.key, x => ({ ...x, tasks: x.tasks.filter(y => y.key !== t.key) }))}
-                                aria-label="Elimina task" className="text-text-tertiary hover:text-error shrink-0"><Trash2 className="w-3 h-3" /></button>
+                            <div key={t.key} className="pl-5 space-y-1.5">
+                              <div className="flex items-center gap-2">
+                                <CheckSquare className="w-3 h-3 text-text-tertiary shrink-0" />
+                                <input value={t.title} aria-label="Titolo task"
+                                  onChange={e => updTask(w.key, m.key, t.key, x => ({ ...x, title: e.target.value }))}
+                                  className="flex-1 min-w-0 bg-transparent text-sm text-text-primary border-b border-transparent focus:border-border-interactive outline-none" />
+                                {t.estimated_hours != null && (
+                                  <span className="flex items-center gap-0.5 text-2xs text-accent tabular shrink-0">
+                                    <Clock className="w-3 h-3" />{t.estimated_hours}h
+                                  </span>
+                                )}
+                                <input type="date" value={t.due_date ?? ''} aria-label="Scadenza task"
+                                  onChange={e => updTask(w.key, m.key, t.key, x => ({ ...x, due_date: e.target.value || null, rel_days: null }))}
+                                  className="text-2xs bg-background border border-border rounded-lg px-1.5 py-1 text-text-tertiary shrink-0" />
+                                <OwnerSelect team={team} value={t.assignee_id} label="Assegnatario" compact
+                                  onChange={v => updTask(w.key, m.key, t.key, x => ({ ...x, assignee_id: v }))} />
+                                <DetailBtn open={!!open[t.key]} onClick={() => toggle(t.key)}
+                                  filled={!!t.description || t.estimated_hours != null} label={`Dettagli di ${t.title}`} />
+                                <button type="button" onClick={() => updMs(w.key, m.key, x => ({ ...x, tasks: x.tasks.filter(y => y.key !== t.key) }))}
+                                  aria-label="Elimina task" className="text-text-tertiary hover:text-error shrink-0"><Trash2 className="w-3 h-3" /></button>
+                              </div>
+
+                              {open[t.key] && (
+                                <div className="rounded-lg bg-surface border border-border p-2 space-y-2">
+                                  <textarea value={t.description ?? ''} rows={2} placeholder="Cosa va fatto, con quale criterio è finita"
+                                    aria-label="Descrizione task"
+                                    onChange={e => updTask(w.key, m.key, t.key, x => ({ ...x, description: e.target.value || null }))}
+                                    className={`${inputCls} text-2xs resize-none`} />
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <label className="flex items-center gap-1.5">
+                                      <Clock className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
+                                      <input type="number" min="0" step="0.5" value={t.estimated_hours ?? ''} placeholder="ore"
+                                        aria-label="Ore stimate"
+                                        onChange={e => updTask(w.key, m.key, t.key, x => ({ ...x, estimated_hours: e.target.value === '' ? null : Number(e.target.value) }))}
+                                        className="w-20 bg-background border border-border rounded-lg px-1.5 py-1 text-2xs text-text-primary" />
+                                    </label>
+                                    <select value={t.priority} aria-label="Priorità task"
+                                      onChange={e => updTask(w.key, m.key, t.key, x => ({ ...x, priority: e.target.value as Priority }))}
+                                      className="bg-background border border-border rounded-lg px-1.5 py-1 text-2xs text-text-secondary">
+                                      {PRIORITIES.map(p => <option key={p} value={p}>Priorità {p}</option>)}
+                                    </select>
+                                    {t.owner_role && (
+                                      <span className="text-2xs text-text-tertiary">Ruolo suggerito: {t.owner_role}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           ))}
                           <button type="button" onClick={() => addTask(w.key, m.key, mi)}
@@ -254,6 +310,18 @@ function Stat({ icon, n, label }: { icon: React.ReactNode; n: number; label: str
     <span className="flex items-center gap-1 text-2xs text-text-secondary">
       {icon}<span className="tabular font-semibold text-text-primary">{n}</span>{label}
     </span>
+  )
+}
+
+/** Il pallino pieno dice che sotto c'è del contenuto, senza doverlo aprire. */
+function DetailBtn({ open, onClick, filled, label }: { open: boolean; onClick: () => void; filled: boolean; label: string }) {
+  return (
+    <button type="button" onClick={onClick} aria-expanded={open} aria-label={label}
+      title={filled ? 'Dettagli compilati' : 'Aggiungi descrizione, ore, priorità'}
+      className={`relative shrink-0 ${open || filled ? 'text-gold-text' : 'text-text-tertiary hover:text-text-secondary'}`}>
+      <SlidersHorizontal className="w-3.5 h-3.5" />
+      {filled && !open && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-gold" aria-hidden />}
+    </button>
   )
 }
 

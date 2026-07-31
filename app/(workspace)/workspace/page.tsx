@@ -33,7 +33,8 @@ export default async function WorkspaceDashboardPage() {
   const ids = Array.from(new Set((taRes.data ?? []).map(r => r.task_id)))
   const orFilter = ids.length ? `assignee_id.eq.${user.id},id.in.(${ids.join(',')})` : `assignee_id.eq.${user.id}`
   const { data: myTasks } = await supabase
-    .from('tasks').select('*').is('deleted_at', null).neq('status', 'completato')
+    .from('tasks').select('id, title, status, priority, due_date, assignee_id, project_id, client_id')
+    .is('deleted_at', null).neq('status', 'completato')
     .or(orFilter).order('due_date', { ascending: true, nullsFirst: false })
   const tasks = (myTasks ?? []) as Task[]
 

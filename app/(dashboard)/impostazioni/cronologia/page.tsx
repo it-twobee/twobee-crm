@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { CronologiaClient } from '@/components/impostazioni/CronologiaClient'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import type { ActivityLog, Profile } from '@/lib/types/database'
+import { PROFILE_COLUMNS } from '@/lib/profile-columns'
 
 export const revalidate = 0
 
@@ -11,7 +12,7 @@ export default async function CronologiaPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  const { data: profile } = await supabase.from('profiles').select(PROFILE_COLUMNS).eq('id', user.id).single()
   const isAdmin = SUPER_ADMIN_EMAILS.includes(profile?.email ?? '') || ['admin'].includes(profile?.app_role ?? '')
   if (!isAdmin) redirect('/dashboard')
 

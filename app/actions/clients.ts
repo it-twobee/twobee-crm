@@ -139,6 +139,7 @@ export async function createClientRecord(input: NewClientInput): Promise<Client>
 const EDITABLE = [
   'display_name', 'legal_name', 'phone', 'website', 'client_type', 'client_label',
   'industry', 'market_area', 'notes', 'active_channels', 'is_internal',
+  'sales_owner_id', 'sales_owner_name',
   'piva', 'fiscal_code', 'address', 'city', 'cap', 'country', 'sdi_code', 'pec',
   'package', 'mrr', 'contract_start', 'contract_end', 'payment_status', 'ad_budget_monthly',
   'target_leads_monthly', 'target_roas', 'target_revenue_monthly', 'target_cpa',

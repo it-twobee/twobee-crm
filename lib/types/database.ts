@@ -188,6 +188,9 @@ export interface Client {
   is_internal: boolean
   /** §161: prima volta che il cliente è stato perso. Non si azzera se torna attivo. */
   lost_at?: string | null
+  /** §166: commerciale di riferimento. Il nome libero copre chi non ha un account. */
+  sales_owner_id?: string | null
+  sales_owner_name?: string | null
   created_at: string
   created_by: string | null
   // Obiettivi (migration 008)
@@ -743,6 +746,9 @@ export interface ServiceCatalogEntry {
   service_type: string
   service_subtype: string | null
   label: string
+  /** §165: listino di vendita, punto di partenza della quotazione sul progetto */
+  standard_price?: number | null
+  price_unit?: 'mese' | 'una_tantum'
   is_active: boolean
   sort_order: number
   created_at: string

@@ -49,17 +49,26 @@ export async function createCatalogService(input: { area: ProjectArea; label: st
 }
 
 // ── 2) Struttura del wizard → nuovo template riutilizzabile ─────────────────
-export type TemplateDraftTask = { name: string; visibility: Visibility }
+export type TemplateDraftTask = {
+  name: string; visibility: Visibility
+  description?: string | null; priority?: string | null
+  estimated_hours?: number | null; suggested_owner_role?: string | null
+  relative_due_days?: number | null
+}
 export type TemplateDraftMilestone = {
   name: string; milestone_type: 'delivery' | 'system'; visibility: Visibility
+  description?: string | null; suggested_owner_role?: string | null
+  relative_due_days?: number | null
   tasks: TemplateDraftTask[]
 }
 export type TemplateDraftRecurring = {
   name: string; frequency: string; priority: string | null
   visibility: Visibility; estimated_hours: number | null
+  description?: string | null; suggested_owner_role?: string | null
 }
 export type TemplateDraftWorkstream = {
   name: string; workstream_type: 'project' | 'recurring'; visibility: Visibility
+  description?: string | null
   milestones: TemplateDraftMilestone[]
   recurring: TemplateDraftRecurring[]
 }
@@ -95,6 +104,7 @@ export async function saveWizardTemplate(input: {
       .from('project_template_nodes')
       .insert({
         template_id: tpl.id, parent_id: null, node_type: 'workstream', name: w.name,
+        description: w.description?.trim() || null,
         workstream_type: w.workstream_type, visibility: w.visibility, sort_order: i * 10,
       })
       .select('id').single()
@@ -104,8 +114,10 @@ export async function saveWizardTemplate(input: {
       const r = w.recurring[j]
       const { error: e2 } = await admin.from('project_template_nodes').insert({
         template_id: tpl.id, parent_id: wsNode.id, node_type: 'recurring_task', name: r.name,
+        description: r.description?.trim() || null,
         frequency: r.frequency, priority: r.priority, visibility: r.visibility,
-        estimated_hours: r.estimated_hours, sort_order: j * 10,
+        estimated_hours: r.estimated_hours, suggested_owner_role: r.suggested_owner_role ?? null,
+        sort_order: j * 10,
       })
       if (e2) throw new Error(e2.message)
     }
@@ -116,7 +128,11 @@ export async function saveWizardTemplate(input: {
         .from('project_template_nodes')
         .insert({
           template_id: tpl.id, parent_id: wsNode.id, node_type: 'milestone', name: m.name,
-          milestone_type: m.milestone_type, visibility: m.visibility, sort_order: j * 10,
+          description: m.description?.trim() || null,
+          milestone_type: m.milestone_type, visibility: m.visibility,
+          suggested_owner_role: m.suggested_owner_role ?? null,
+          relative_due_days: m.relative_due_days ?? null,
+          sort_order: j * 10,
         })
         .select('id').single()
       if (e3 || !msNode) throw new Error(e3?.message ?? 'Nodo milestone non creato')
@@ -125,7 +141,12 @@ export async function saveWizardTemplate(input: {
         const t = m.tasks[k]
         const { error: e4 } = await admin.from('project_template_nodes').insert({
           template_id: tpl.id, parent_id: msNode.id, node_type: 'task', name: t.name,
-          visibility: t.visibility, sort_order: k * 10,
+          description: t.description?.trim() || null,
+          visibility: t.visibility, priority: t.priority ?? null,
+          estimated_hours: t.estimated_hours ?? null,
+          suggested_owner_role: t.suggested_owner_role ?? null,
+          relative_due_days: t.relative_due_days ?? null,
+          sort_order: k * 10,
         })
         if (e4) throw new Error(e4.message)
       }

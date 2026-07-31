@@ -154,7 +154,7 @@ export function ModalShell({
             <kbd className="px-1.5 py-0.5 rounded bg-surface-active font-sans">⌘⏎</kbd> conferma
           </span>
           <button onClick={onSubmit} disabled={pending || !canSubmit}
-            className="flex items-center gap-1.5 text-sm font-semibold bg-gold text-on-gold px-4 py-2 rounded-xl disabled:opacity-40 press">
+            className="flex items-center gap-1.5 text-sm font-semibold bg-gold text-on-gold px-4 py-2 rounded-xl disabled:opacity-40 press btn-gold">
             {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
             {pending ? 'Creo…' : submitLabel}
           </button>

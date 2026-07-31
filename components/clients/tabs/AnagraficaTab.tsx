@@ -33,7 +33,7 @@ type Section = 'azienda' | 'fiscale' | 'contratto'
 
 /** Si salva solo la sezione aperta: prima partiva l'intera riga, risk score e created_at compresi. */
 const SECTION_FIELDS: Record<Section, readonly (keyof ClientPatch)[]> = {
-  azienda: ['display_name', 'legal_name', 'phone', 'website', 'client_type', 'client_label', 'industry', 'market_area', 'notes', 'active_channels', 'is_internal'],
+  azienda: ['display_name', 'legal_name', 'phone', 'website', 'client_type', 'client_label', 'industry', 'market_area', 'notes', 'active_channels', 'is_internal', 'sales_owner_id', 'sales_owner_name'],
   fiscale: ['piva', 'fiscal_code', 'address', 'city', 'cap', 'country', 'sdi_code', 'pec'],
   contratto: ['package', 'mrr', 'contract_start', 'contract_end', 'payment_status'],
 }
@@ -208,6 +208,22 @@ export function AnagraficaTab({
           </Field>
           <Field label="Area di Mercato" value={client.market_area} editMode={editAzienda}>
             <Input label="Area di mercato" value={form.market_area ?? ''} onChange={(v) => setForm((p) => ({ ...p, market_area: v }))} placeholder="es. Nord Italia, Nazionale, Europa..." />
+          </Field>
+          {/* §166: il commerciale si definisce qui, non riga per riga nel P&L */}
+          <Field label="Commerciale"
+            value={allProfiles.find((p) => p.id === client.sales_owner_id)?.full_name ?? client.sales_owner_name}
+            editMode={editAzienda}>
+            <div className="space-y-1.5">
+              <Select label="Commerciale interno" value={form.sales_owner_id ?? ''}
+                onChange={(v) => setForm((p) => ({ ...p, sales_owner_id: v || null }))}
+                options={[{ value: '', label: '— esterno o non assegnato —' },
+                  ...allProfiles.map((p) => ({ value: p.id, label: p.full_name }))]} />
+              {!form.sales_owner_id && (
+                <Input label="Commerciale esterno" value={form.sales_owner_name ?? ''}
+                  onChange={(v) => setForm((p) => ({ ...p, sales_owner_name: v || null }))}
+                  placeholder="Nome di chi ha portato il cliente" />
+              )}
+            </div>
           </Field>
           <Field label="Cliente interno" value={client.is_internal ? 'Sì — fuori dalle statistiche' : 'No'} editMode={editAzienda}>
             <label className="flex items-center gap-2 h-9 cursor-pointer">
