@@ -360,21 +360,35 @@ Le task del calendario sono personali e nascoste di default.
 | Strategic Objectives widget | Fetcha `objectives` ma no widget | ⚠️ dati ci sono |
 | AI & Automation Center | — | ❌ da costruire |
 
-## Funzionalità completate (sessione corrente)
-- Dashboard grid drag/resize con localStorage, 3 template, `CustomizePanel` (solo super_admin)
-- Clienti: Supabase Realtime (INSERT/UPDATE/DELETE), `router.refresh()` su dettaglio
-- Progetti: `project_kind (growth|digital)` su ogni progetto; CRUD completo in `PanoramicaTab` (con upload file → AI extract) e `ProgettiClient`; badge G/D su `ProgettiWidget`
-- Chat: rimossa da tab cliente, spostata in ogni progetto (tab `🗨️ Chat`) con canali `cliente_interno` (team) e `customer_care` (cliente); creazione via `ensureProjectChannels()` server action
-- CLAUDE.md aggiornato con regole caveman
+## Dove siamo — 2026-08-01
 
-## Prossimi lavori suggeriti (in ordine priorità)
-1. **Eseguire SQL migration** `project_id` su chat_channels (vedi BUG sopra)
-2. **Decision Center** — nuova tabella `decisions` + widget dashboard
-3. **AI Executive Brief** — sintesi narrativa Groq che legge dati dashboard
-4. **Margin Radar** — widget per margine per cliente (fee − costi)
-5. **Financial Control aggregato** — crediti totali, scaduti, burn rate in dashboard
-6. **Sales Pipeline widget** — i dati `deals` sono già fetchati in `page.tsx`
-7. **Strategic Objectives widget** — i dati `objectives` sono già fetchati
+Ultimo commit: `47ab365`. `main` e `origin/main` allineati; il deploy Coolify
+builda da lì. Gate del repo: `npx tsc --noEmit` (ESLint non è configurato) più i
+quattro `lib/*.check.ts`, che si lanciano con `npx tsx lib/<nome>.check.ts` e
+devono dire «Tutti i controlli passano».
+
+**Fatto in questa tornata** (migration 168→178, tutte eseguite tranne la 175):
+il dominio economico completo — contratti per progetto, piano dei costi con
+budget per area, subappalti con margine di progetto, previsionale a sei mesi,
+IVA trimestrale e sezione Fiscale, stato cliente `pending`, e la disciplina
+trasversale per cui **ogni valore economico è derivato e dichiara la sua
+provenienza** (vedi le sezioni Economics, Tipo cliente, Stato pagamenti).
+
+**Aperto, in ordine di importanza:**
+
+1. **Eseguire la `175_tax_control.sql`** — è l'unica migration davvero pendente.
+   Senza, `/economics/fiscale` mostra il SetupNotice.
+2. **I dati sono vuoti**: zero progetti vivi, zero contratti, zero righe di conto
+   economico (tutto eliminato a mano il 2026-08-01). Le derivazioni funzionano ma
+   non hanno da cui derivare: quasi ogni cliente legge «da quotare». Il tool si
+   riempie ricreando i progetti e quotandoli.
+3. **Risk score**: `compute_client_risk` (migration 014) dà ancora punti per
+   «contratto scaduto» leggendo `clients.contract_end`, che ora è derivato e può
+   essere NULL. Oggi vale 0 su tutti, quindi non si vede — ma va sistemato prima
+   di riattivare il motore.
+4. **`promoteLineToPlan`** esiste in `app/actions/costs.ts` ma non ha un pulsante
+   nell'economics del progetto: una spesa registrata a mano non si può ancora
+   promuovere a ricorrente da lì.
 
 ## Regole di risposta
 - Zero preamboli. Vai dritto a codice.
