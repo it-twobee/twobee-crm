@@ -249,6 +249,12 @@ la dichiarazione annuale), 1% di interessi sui primi tre. Il credito di un
 trimestre si riporta sul successivo — per questo il conto economico carica
 **tutto l'anno** e non solo il trimestre.
 
+**Durata del rapporto e rinnovo** (§179, `relationship()` in
+`lib/client-economics.ts`): dal **primo contratto venduto**, non da
+`clients.contract_start`. Il rinnovo è l'ultimo contratto a scadere, e se un
+canone è a tempo indeterminato non c'è nessun rinnovo da aspettare. Senza
+contratti l'indicatore dice perché, invece di mostrare mesi inventati.
+
 **Provenienza obbligatoria**: ogni punto del tool che mostra un valore
 economico passa da `lib/economics-source.ts` (`mrrOrigin`, `CONTRACT_PERIOD_HINT`,
 `PAYMENT_STATUS_HINT`, `economicsHref`). Un numero senza «da N contratti» / «da

@@ -77,21 +77,39 @@ export function billing(c: ClientInput, today = monthKey(new Date())) {
 
 /** Da quanto dura il rapporto e se è ancora vivo. */
 export function relationship(c: ClientInput, today = new Date().toISOString().slice(0, 10)) {
-  const start = c.contract_start
+  /* §179: la durata del rapporto la dice il primo contratto venduto su un
+     progetto, non la data in anagrafica — quella è un residuo che nessuno
+     scrive più e che farebbe risultare «12 mesi» un cliente mai quotato.
+     Stessa cosa per il rinnovo: è l'ultimo contratto a scadere, e se qualcuno
+     è a tempo indeterminato non c'è nessun rinnovo da aspettare. */
+  const sold = c.streams.filter(s => s.status !== 'bozza')
+  const starts = sold.map(s => s.start_date).filter((d): d is string => !!d).sort()
+  const start = starts[0] ?? null
+
   const end = c.lost_at?.slice(0, 10) ?? (c.client_label === 'perso' ? today : null)
+
+  const openEnded = sold.some(s => s.status === 'attivo' && s.billing === 'recurring' && !s.end_date)
+  const ends = sold.map(s => s.end_date).filter((d): d is string => !!d).sort()
+  const renewal = !openEnded && ends.length ? daysBetween(ends[ends.length - 1], today) : null
+
   if (!start) {
     return {
-      months: na('data di inizio contratto non compilata'),
+      months: na(sold.length
+        ? 'i contratti non hanno una data di inizio'
+        : 'nessun contratto: il rapporto si misura dal primo che vendi'),
       active: c.client_label !== 'perso' && c.client_label !== 'pending',
-      renewalInDays: null as number | null,
+      renewalInDays: renewal,
       lost: c.client_label === 'perso',
     }
   }
+
   const span = monthsBetween(start, end ?? today)
   return {
-    months: ok(Math.max(0, span), end ? `dal ${start} al ${end}` : `dal ${start}, tuttora attivo`),
+    months: ok(Math.max(0, span), end
+      ? `dal primo contratto (${start}) al ${end}`
+      : `dal primo contratto, ${start}`),
     active: c.client_label !== 'perso' && c.client_label !== 'pending',
-    renewalInDays: c.contract_end ? daysBetween(c.contract_end, today) : null,
+    renewalInDays: renewal,
     lost: c.client_label === 'perso',
   }
 }

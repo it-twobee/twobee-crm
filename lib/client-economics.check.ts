@@ -48,12 +48,31 @@ eq('da incassare', b.unpaid.value, 7000)
 eq('media mensile', b.avgMonth.value, 3500)
 eq('crescita ultimi 3 su 3 precedenti', trend(storico, TODAY).value, 0.33)
 
-console.log('\n— Durata del rapporto —')
-eq('sei mesi da gennaio', relationship(storico, '2026-07-01').months.value, 6)
-eq('senza data inizio non si calcola',
-  relationship(base({ contract_start: null }), '2026-07-01').months.ready, false)
-eq('cliente perso: rapporto chiuso',
-  relationship(base({ client_label: 'perso', lost_at: '2026-04-15' }), '2026-07-01').months.value, 3)
+console.log('\n— Durata del rapporto: la dice il primo contratto (§179) —')
+const conStorico = base({
+  streams: [S({ id: 'a', start_date: '2026-01-01' }), S({ id: 'b', start_date: '2026-04-01' })],
+})
+eq('sei mesi dal primo contratto', relationship(conStorico, '2026-07-01').months.value, 6)
+eq('senza contratti non si calcola',
+  relationship(base(), '2026-07-01').months.ready, false)
+eq('e lo dice perché', relationship(base(), '2026-07-01').months.basis,
+  'nessun contratto: il rapporto si misura dal primo che vendi')
+eq('la data in anagrafica non conta più',
+  relationship(base({ contract_start: '2020-01-01' }), '2026-07-01').months.ready, false)
+eq('una bozza non apre il rapporto',
+  relationship(base({ streams: [S({ start_date: '2026-01-01', status: 'bozza' })] }), '2026-07-01').months.ready, false)
+eq('cliente perso: rapporto chiuso alla data di perdita',
+  relationship(base({
+    streams: [S({ start_date: '2026-01-01' })], client_label: 'perso', lost_at: '2026-04-15',
+  }), '2026-07-01').months.value, 3)
+
+console.log('\n— Rinnovo: l\'ultimo contratto a scadere, se non c\'è un indeterminato —')
+eq('scadenza dal contratto',
+  relationship(base({ streams: [S({ start_date: '2026-01-01', end_date: '2026-09-30' })] }), '2026-07-01').renewalInDays, 91)
+eq('un canone indeterminato non ha rinnovo',
+  relationship(base({
+    streams: [S({ start_date: '2026-01-01', end_date: '2026-09-30' }), S({ id: 'z', start_date: '2026-02-01' })],
+  }), '2026-07-01').renewalInDays, null)
 
 console.log('\n— Previsionale: somma dei contratti, non una stima —')
 const conContratti = base({
