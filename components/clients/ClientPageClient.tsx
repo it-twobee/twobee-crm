@@ -261,10 +261,12 @@ export function ClientPageClient({
                 </Link>
               )}
 
-              {/* Date contratto */}
-              <span className="text-text-secondary text-xs" title={CONTRACT_PERIOD_HINT}>
-                {formatDate(client.contract_start)} → {client.contract_end ? formatDate(client.contract_end) : 'indeterminato'}
-              </span>
+              {/* Date contratto — §177: esistono solo se esiste un contratto */}
+              {quoted && (
+                <span className="text-text-secondary text-xs" title={CONTRACT_PERIOD_HINT}>
+                  {formatDate(client.contract_start)} → {client.contract_end ? formatDate(client.contract_end) : 'indeterminato'}
+                </span>
+              )}
 
               {/* Payment status */}
               {!hideEconomics && (

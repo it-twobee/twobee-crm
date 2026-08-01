@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Brain, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, ChevronRight, Sparkles } from 'lucide-react'
+import { hasContracts } from '@/lib/clients'
 import type { Client } from '@/lib/types/database'
 
 interface Props {
@@ -52,6 +53,7 @@ function generateInsights(clients: Client[], totalMrr: number): Insight[] {
   // ── Contratti in scadenza ────────────────────────────────────
   const expiring = clients.filter(c => {
     if (!c.contract_end) return false  // a tempo indeterminato: non scade
+    if (!hasContracts(c)) return false // §177: nessun contratto, niente scadenza
     const days = Math.round((new Date(c.contract_end).getTime() - Date.now()) / 86400000)
     return days > 0 && days < 45 && c.client_label !== 'perso' && c.client_label !== 'pending'
   })

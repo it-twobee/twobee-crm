@@ -178,10 +178,13 @@ export function PanoramicaTab({
     ? Math.round((growthHealth + digitalHealth) / 2)
     : isDigital ? digitalHealth : growthHealth
 
-  // senza scadenza il contratto è a tempo indeterminato: non sta scadendo
-  const daysToExpiry  = client.contract_end
-    ? Math.round((new Date(client.contract_end).getTime() - now.getTime()) / 86400000)
-    : null
+  /* §177: senza contratti non c'è niente che scade. Le date in anagrafica sono
+     un residuo storico: un countdown costruito su quelle manda a rincorrere un
+     rinnovo che non esiste. Senza scadenza (ma con contratti) è indeterminato. */
+  const daysToExpiry = !quoted ? null
+    : client.contract_end
+      ? Math.round((new Date(client.contract_end).getTime() - now.getTime()) / 86400000)
+      : null
   const lastInteraction = interactions[0]
   const daysSinceContact = lastInteraction
     ? Math.round((now.getTime() - new Date(lastInteraction.date).getTime()) / 86400000)
@@ -251,14 +254,19 @@ export function PanoramicaTab({
             <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold" title={CONTRACT_PERIOD_HINT}>Contratto</p>
             <div className="flex items-center gap-2 justify-center sm:justify-start">
               <span className={`text-lg font-black ${
-                daysToExpiry === null ? 'text-success' : daysToExpiry <= 0 ? 'text-error' : daysToExpiry <= 30 ? 'text-warning' : 'text-success'
+                !quoted ? 'text-warning'
+                  : daysToExpiry === null ? 'text-success'
+                  : daysToExpiry <= 0 ? 'text-error' : daysToExpiry <= 30 ? 'text-warning' : 'text-success'
               }`}>
-                {daysToExpiry === null ? 'Indeterminato' : daysToExpiry <= 0 ? 'Scaduto' : `${daysToExpiry}gg`}
+                {!quoted ? 'Da quotare'
+                  : daysToExpiry === null ? 'Indeterminato'
+                  : daysToExpiry <= 0 ? 'Scaduto' : `${daysToExpiry}gg`}
               </span>
               {daysToExpiry !== null && daysToExpiry > 0 && <span className="text-xs text-text-secondary">rimanenti</span>}
             </div>
             <div className="h-1.5 bg-surface-active rounded-full overflow-hidden mt-1">
               {(() => {
+                if (!quoted) return <div className="h-full rounded-full w-full bg-warning/30" />
                 if (daysToExpiry === null) return <div className="h-full rounded-full w-full bg-success/40" />
                 const s = new Date(client.contract_start).getTime()
                 const e = new Date(client.contract_end!).getTime()
@@ -266,12 +274,18 @@ export function PanoramicaTab({
                 return <div className="h-full rounded-full" style={{ width: `${pct}%`, background: daysToExpiry <= 0 ? 'var(--color-error)' : daysToExpiry <= 30 ? 'var(--color-gold-text)' : 'var(--color-success)' }} />
               })()}
             </div>
-            <p className="text-2xs text-text-secondary">
-              {new Date(client.contract_start).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })} →{' '}
-              {client.contract_end
-                ? new Date(client.contract_end).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })
-                : 'senza scadenza'}
-            </p>
+            {quoted ? (
+              <p className="text-2xs text-text-secondary">
+                {new Date(client.contract_start).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })} →{' '}
+                {client.contract_end
+                  ? new Date(client.contract_end).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })
+                  : 'senza scadenza'}
+              </p>
+            ) : (
+              <Link href={economicsHref(client.id)} className="text-2xs text-gold-text font-semibold hover:opacity-80">
+                Nessun contratto: quota i progetti in Economics →
+              </Link>
+            )}
           </div>
         </div>
       </div>

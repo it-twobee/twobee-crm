@@ -22,6 +22,17 @@ export const isPaused = (c: Countable) => c.client_label === 'pending'
  */
 export const countsInStats = (c: Countable) => !c.is_internal && !isLost(c) && !isPaused(c)
 
+/**
+ * §177: il cliente ha almeno un contratto venduto?
+ *
+ * `mrr_source` passa a 'contratti' solo quando esiste un contratto non in
+ * bozza (§170), quindi risponde alla domanda senza una query in più. Serve
+ * perché un cliente senza contratti **non può avere un contratto in scadenza**:
+ * le date in anagrafica sono un residuo, e un avviso costruito su un residuo
+ * manda a rincorrere un rinnovo che non esiste.
+ */
+export const hasContracts = (c: { mrr_source?: string | null }) => c.mrr_source === 'contratti'
+
 /** Da quanti giorni le lavorazioni sono ferme: è la domanda che fa alzare il telefono. */
 export function pausedDays(pausedAt: string | null | undefined, today = new Date()): number | null {
   if (!pausedAt) return null

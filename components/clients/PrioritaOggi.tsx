@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, Clock, TrendingDown, RefreshCw, ChevronRight, X } from 'lucide-react'
+import { hasContracts } from '@/lib/clients'
 import type { Client } from '@/lib/types/database'
 
 interface Alert {
@@ -20,7 +21,8 @@ function buildAlerts(clients: Client[]): Alert[] {
 
   for (const c of clients) {
     // Contratto in scadenza entro 30 giorni
-    if (c.contract_end) {
+    // §177: solo chi ha un contratto può averlo in scadenza
+    if (c.contract_end && hasContracts(c)) {
       const daysLeft = Math.round((new Date(c.contract_end).getTime() - today.getTime()) / 86400000)
       if (daysLeft <= 0) {
         alerts.push({ clientId: c.id, companyName: c.company_name, type: 'contratto', label: 'Contratto scaduto', detail: `Scaduto il ${new Date(c.contract_end).toLocaleDateString('it-IT')}`, urgency: 'alta' })

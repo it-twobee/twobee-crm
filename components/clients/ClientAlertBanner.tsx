@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { AlertTriangle, Clock, RefreshCw, TrendingDown } from 'lucide-react'
+import { hasContracts } from '@/lib/clients'
 import type { Client } from '@/lib/types/database'
 
 interface Alert {
@@ -14,7 +15,9 @@ function buildClientAlerts(client: Client, hideEconomics: boolean): Alert[] {
   const alerts: Alert[] = []
   const today = new Date()
 
-  if (client.contract_end) {
+  // §177: senza contratti non c'è niente da rinnovare. Le date in anagrafica
+  // sono un residuo storico e non devono generare scadenze inventate.
+  if (client.contract_end && hasContracts(client)) {
     const daysLeft = Math.round((new Date(client.contract_end).getTime() - today.getTime()) / 86400000)
     if (daysLeft <= 0) {
       alerts.push({ type: 'contratto', message: `Contratto scaduto il ${new Date(client.contract_end).toLocaleDateString('it-IT')} — rinnova subito`, urgency: 'alta' })
