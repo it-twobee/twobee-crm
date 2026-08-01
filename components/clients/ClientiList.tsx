@@ -359,9 +359,12 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
     () => allFiltered.reduce((s, c) => s + (economics[c.id]?.oneOff ?? 0), 0), [allFiltered, economics])
   const totalOpen = useMemo(
     () => allFiltered.reduce((s, c) => s + (economics[c.id]?.oneOffOpen ?? 0), 0), [allFiltered, economics])
-  // clienti che fatturano ma non hanno ancora un contratto: il numero da chiudere
+  /* §179: «da quotare» = nessun contratto venduto, punto. Prima il conteggio
+     richiedeva anche un MRR d'anagrafica > 0 — un residuo storico — e quindi
+     ne saltava metà: i clienti senza quel numero restavano fuori pur essendo
+     esattamente nella stessa condizione. Gli interni non si quotano. */
   const toQuote = useMemo(
-    () => allFiltered.filter(c => (economics[c.id]?.contracts ?? 0) === 0 && c.mrr > 0).length,
+    () => allFiltered.filter(c => !c.is_internal && (economics[c.id]?.contracts ?? 0) === 0).length,
     [allFiltered, economics])
 
   const handleDelete = async (id: string, name: string) => {
@@ -643,7 +646,9 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
           <h1 className="text-2xl sm:text-3xl font-black text-text-primary font-heading">Clienti</h1>
           <p className="text-text-secondary text-sm mt-0.5">
             {allFiltered.length} clienti
-            {canSeeMrr && <> · canone <span className="text-gold-text font-semibold tabular">{formatCurrency(totalMrr)}</span>/mese</>}
+            {canSeeMrr && (totalMrr > 0
+              ? <> · canone <span className="text-gold-text font-semibold tabular">{formatCurrency(totalMrr)}</span>/mese</>
+              : <> · <span className="text-text-tertiary">nessun canone a contratto</span></>)}
             {canSeeMrr && totalOneOff > 0 && (
               <> · a corpo <span className="text-accent font-semibold tabular">{formatCurrency(totalOneOff)}</span>
                 {totalOpen > 0 && <span className="text-text-tertiary"> ({formatCurrency(totalOpen)} da incassare)</span>}</>
