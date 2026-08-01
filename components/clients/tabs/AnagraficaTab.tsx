@@ -33,7 +33,7 @@ type Section = 'azienda' | 'fiscale'
 
 /** Si salva solo la sezione aperta: prima partiva l'intera riga, risk score e created_at compresi. */
 const SECTION_FIELDS: Record<Section, readonly (keyof ClientPatch)[]> = {
-  azienda: ['display_name', 'legal_name', 'phone', 'website', 'client_type', 'client_label', 'package', 'industry', 'market_area', 'notes', 'active_channels', 'is_internal', 'sales_owner_id', 'sales_owner_name'],
+  azienda: ['display_name', 'legal_name', 'phone', 'website', 'client_label', 'package', 'industry', 'market_area', 'notes', 'active_channels', 'is_internal', 'sales_owner_id', 'sales_owner_name'],
   fiscale: ['piva', 'fiscal_code', 'address', 'city', 'cap', 'country', 'sdi_code', 'pec'],
 }
 
@@ -186,10 +186,15 @@ export function AnagraficaTab({
           <Field label="Sito Web" value={client.website} editMode={editAzienda}>
             <Input label="Sito web" value={form.website ?? ''} onChange={(v) => setForm((p) => ({ ...p, website: v }))} placeholder="https://..." />
           </Field>
-          <Field label="Tipo Cliente" value={CLIENT_TYPE_OPTIONS.find((o) => o.value === (client.client_type ?? 'growth'))?.label} editMode={editAzienda}>
-            <Select label="Tipo cliente" value={form.client_type} onChange={(v) => setForm((p) => ({ ...p, client_type: v as ClientType }))}
-              options={CLIENT_TYPE_OPTIONS} />
-          </Field>
+          {/* §178: derivato dai progetti, non scelto */}
+          <div className="bg-surface rounded-lg px-3 py-2.5 border border-dashed border-border"
+            title="Growth, digital o entrambi: lo dicono i progetti del cliente">
+            <p className="text-text-secondary text-2xs uppercase tracking-wider font-semibold mb-1">Tipo Cliente</p>
+            <p className="text-text-primary text-sm font-medium">
+              {CLIENT_TYPE_OPTIONS.find((o) => o.value === (client.client_type ?? 'growth'))?.label}
+            </p>
+            <p className="text-text-tertiary text-2xs mt-0.5">dai progetti</p>
+          </div>
           <Field label="Label" value={CLIENT_LABEL_OPTIONS.find((o) => o.value === client.client_label)?.label} editMode={editAzienda}>
             <Select label="Label" value={form.client_label} onChange={(v) => setForm((p) => ({ ...p, client_label: v as ClientLabel }))}
               options={CLIENT_LABEL_OPTIONS} />

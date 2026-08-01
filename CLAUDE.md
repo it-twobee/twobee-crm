@@ -117,7 +117,7 @@ const parsed = JSON.parse((await res.json()).choices?.[0]?.message?.content?.mat
 
 ## Migration da eseguire (Supabase Dashboard → SQL Editor)
 `chat_channels.project_id` **esiste** in produzione: il vecchio "BUG NOTO" è risolto.
-Numerazione: attenzione, `080_*`, `081_*` e `092_*` compaiono due volte. Il prossimo libero è **178**.
+Numerazione: attenzione, `080_*`, `081_*` e `092_*` compaiono due volte. Il prossimo libero è **179**.
 
 | # | Cosa fa | Serve anche |
 |---|---|---|
@@ -172,6 +172,7 @@ dato economico: è sicuro anche nel workspace.
 | `175_tax_control.sql` | Sezione Fiscale: `tax_config` (IRES/IRAP/ripresa IRAP/quota accantonamento — aliquote in configurazione, non nel codice) + `tax_provisions` (quanto è stato davvero messo da parte, per IVA e imposte). RLS admin | — |
 | `176_client_pending.sql` | Terzo stato cliente: `pending` = lavorazioni sospese (CHECK esteso su `client_label`) + `clients.paused_at` (data dell'**ultima** sospensione, si azzera alla ripartenza). Fuori da MRR attivo, conto economico, alert e churn; dentro la relazione | — |
 | `177_payment_status_rule.sql` | Regola pagamenti: fattura il 1° del mese, valida 15 giorni. `pagato` = tutte le righe del mese incassate · `in_attesa` = **da pagare**, scoperto entro il 15 · `scaduto` = **non pagato**, dal 16 o con un mese passato scoperto. Lo stato lo determinano le checkbox `paid` delle righe di conto economico e delle rate | — |
+| `178_client_type_from_projects.sql` | `clients.client_type` derivato dai progetti (trigger su `projects`): solo digital → `digital`, solo growth/marketing → `growth`, misti → `growth_digital`. Contano i progetti non eliminati, in qualunque stato; senza progetti resta il valore scelto alla creazione | — |
 
 **Scorciatoia**: `supabase/APPLY_PENDING.sql` è il concatenato (081, 086–093) in
 transazione, da incollare una volta sola nel SQL Editor. Bucket privati da creare
@@ -273,6 +274,13 @@ rapporto perso.
 (esclude interni + persi + fermi), `pausedDays`. Non riscrivere il filtro
 inline: ogni `client_label !== 'perso'` sparso è un posto che dimenticherà il
 prossimo stato.
+
+## Tipo cliente (§178)
+`client_type` non si sceglie: lo dicono i progetti. Solo digital → `digital`,
+solo growth o marketing → `growth`, misti → `growth_digital`. Il trigger su
+`projects` lo riallinea a ogni creazione, spostamento o eliminazione; senza
+progetti resta quello scelto alla creazione del cliente (unico momento in cui
+la scelta a mano ha senso). In UI è un badge in sola lettura, mai una select.
 
 ## Stato pagamenti (§177)
 La fattura esce il **1° giorno utile del mese** e vale **15 giorni**. Da lì:

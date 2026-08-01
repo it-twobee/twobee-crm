@@ -43,6 +43,8 @@ interface Props {
   mrrFromContracts?: number | null
   /** §178: esistono rate o righe di conto economico da cui dedurre i pagamenti */
   hasBilling?: boolean
+  /** §178: quanti progetti determinano il tipo del cliente */
+  typeCount?: number
 }
 
 const LABEL_TEXT: Record<string, string> = {
@@ -164,7 +166,7 @@ export function ClientPageClient({
   client, contacts, kpis,
   teamMembers, stakeholders, interactions, currentProfile, allProfiles,
   openTickets, initialTab, hideEconomics = false, backHref = '/clienti', economics,
-  contractsCount = null, mrrFromContracts = null, hasBilling = false,
+  contractsCount = null, mrrFromContracts = null, hasBilling = false, typeCount = 0,
 }: Props) {
   /* §176: il canone è la somma dei contratti attivi dei progetti. L'anagrafica
      non si scrive più, quindi un numero «da anagrafica» è un residuo: meglio
@@ -223,14 +225,20 @@ export function ClientPageClient({
                 <InlineTextField value={client.display_name ?? client.company_name} field="display_name" clientId={client.id}
                   canEdit={isAdmin} className="text-2xl font-black text-text-primary" />
               </h1>
-              <InlineBadgeSelect value={client.client_type ?? 'growth'} options={['growth','digital','growth_digital']} field="client_type"
-                clientId={client.id} canEdit={isAdmin}
-                labelFn={v => v === 'growth_digital' ? 'Growth + Digital' : v}
-                badgeClass={v =>
-                  v === 'growth'         ? 'bg-gold/15 text-gold-text border-gold/30' :
-                  v === 'growth_digital' ? 'bg-accent/15 text-accent border-accent/30' :
-                                           'bg-info/15 text-info border-info/30'
-                } />
+              {/* §178: il tipo lo dicono i progetti — solo digital, solo growth,
+                  o entrambi. Sceglierlo a mano voleva dire poter scrivere
+                  «growth» su un cliente che compra solo lavori digital. */}
+              <span title={typeCount > 0
+                ? `Dai ${typeCount} progetti del cliente`
+                : 'Nessun progetto: resta il tipo scelto alla creazione'}
+                className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                  client.client_type === 'growth' ? 'bg-gold/15 text-gold-text border-gold/30' :
+                  client.client_type === 'growth_digital' ? 'bg-accent/15 text-accent border-accent/30' :
+                  'bg-info/15 text-info border-info/30'
+                }`}>
+                {client.client_type === 'growth_digital' ? 'Growth + Digital'
+                  : client.client_type === 'digital' ? 'Digital' : 'Growth'}
+              </span>
               <InlineBadgeSelect value={client.client_label ?? 'stabile'} options={labelOptions} field="client_label"
                 clientId={client.id} canEdit={isAdmin}
                 labelFn={v => LABEL_TEXT[v] ?? v}

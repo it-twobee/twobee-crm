@@ -62,6 +62,8 @@ export default async function ClientePage({ params, searchParams }: Props) {
   // deducibile — e un avviso di scaduto manderebbe a cercare una fattura
   // che nessuno ha emesso
   let hasBilling = false
+  // §178: quanti progetti determinano growth / digital / growth+digital
+  let projectCount = 0
 
   if (isAdmin) {
     const [{ data: projects }, { data: streams, error: streamErr }, { data: cfg }, { data: catalog }] =
@@ -74,6 +76,8 @@ export default async function ClientePage({ params, searchParams }: Props) {
           .select('id, service_type, service_subtype, label, standard_price, price_unit, area')
           .eq('is_active', true).order('area').order('sort_order'),
       ])
+
+    projectCount = (projects ?? []).length
 
     // §170: le bozze sono quotazioni, non contratti: non contano nell'etichetta
     if (!streamErr) {
@@ -179,6 +183,7 @@ export default async function ClientePage({ params, searchParams }: Props) {
       contractsCount={contractsCount}
       mrrFromContracts={mrrFromContracts}
       hasBilling={hasBilling}
+      typeCount={projectCount}
     />
   )
 }

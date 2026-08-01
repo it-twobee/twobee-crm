@@ -138,7 +138,8 @@ export async function createClientRecord(input: NewClientInput): Promise<Client>
 
 /** Colonne che l'anagrafica può toccare: il resto (risk_*, created_*, status) è calcolato. */
 const EDITABLE = [
-  'display_name', 'legal_name', 'phone', 'website', 'client_type', 'client_label',
+  // §178: `client_type` non c'è più — lo derivano i progetti (trigger)
+  'display_name', 'legal_name', 'phone', 'website', 'client_label',
   'industry', 'market_area', 'notes', 'active_channels', 'is_internal',
   'sales_owner_id', 'sales_owner_name',
   'piva', 'fiscal_code', 'address', 'city', 'cap', 'country', 'sdi_code', 'pec',
