@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createAdminClient, createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { SUPER_ADMIN_EMAILS, ADMIN_ROLES } from '@/lib/permissions'
 import type {
@@ -76,7 +76,8 @@ const slug = (s: string, max: number) => s.toLowerCase().replace(/[^a-z0-9]+/g, 
 
 export async function createClientRecord(input: NewClientInput): Promise<Client> {
   const uid = await requireAdmin()
-  const admin = createAdminClient()
+  // §179: la cronologia deve sapere chi ha creato il cliente, non «Sistema»
+  const admin = createActorClient(uid)
 
   const name = input.display_name.trim()
   if (!name) throw new Error('Il nome è obbligatorio')
@@ -151,16 +152,16 @@ const EDITABLE = [
 export type ClientPatch = Partial<Pick<Client, typeof EDITABLE[number]>>
 
 export async function updateClientRecord(clientId: string, patch: ClientPatch) {
-  await requireAdmin()
+  const uid = await requireAdmin()
   const clean: Record<string, unknown> = {}
   // il label ha effetti collaterali (canali, notifica di perdita): passa da applyLabelChange
   for (const k of EDITABLE) if (k in patch && k !== 'client_label') clean[k] = patch[k]
 
   if (Object.keys(clean).length) {
-    const { error } = await createAdminClient().from('clients').update(clean).eq('id', clientId)
+    const { error } = await createActorClient(uid).from('clients').update(clean).eq('id', clientId)
     if (error) throw new Error(error.message)
   }
-  if (patch.client_label) await applyLabelChange(clientId, patch.client_label)
+  if (patch.client_label) await applyLabelChange(clientId, patch.client_label, uid)
 
   revClient(clientId)
   revalidatePath('/clienti')
@@ -168,8 +169,8 @@ export async function updateClientRecord(clientId: string, patch: ClientPatch) {
 
 /** Cambio label dalla scheda cliente (badge in testata). */
 export async function setClientLabel(clientId: string, label: ClientLabel) {
-  await requireAdmin()
-  await applyLabelChange(clientId, label)
+  const uid = await requireAdmin()
+  await applyLabelChange(clientId, label, uid)
   revClient(clientId)
   revalidatePath('/clienti')
   revalidatePath('/dashboard')
@@ -180,8 +181,8 @@ export async function setClientLabel(clientId: string, label: ClientLabel) {
  * prima volta soltanto — avvisa gli admin. `lost_at` non si azzera se il cliente
  * torna attivo, così un secondo passaggio da "perso" non rinotifica.
  */
-async function applyLabelChange(clientId: string, label: ClientLabel) {
-  const admin = createAdminClient()
+async function applyLabelChange(clientId: string, label: ClientLabel, actorId: string) {
+  const admin = createActorClient(actorId)
   const COLS = 'client_label, company_name, display_name, mrr'
   // finché la 161 non è applicata si degrada: si cambia label, ma senza memoria
   // della prima perdita (quindi senza garanzia di notifica una-tantum)

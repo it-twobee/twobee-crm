@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createAdminClient, createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import type { TaskStatusV2, Priority, Visibility } from '@/lib/types/database'
 
@@ -28,7 +28,8 @@ export async function createProjectTask(input: {
   parent_task_id?: string | null
 }) {
   const uid = await requireStaff()
-  const admin = createAdminClient()
+  // §179: il trigger di cronologia legge l'attore dall'header, non da auth.uid()
+  const admin = createActorClient(uid)
   const { data, error } = await admin.from('tasks').insert({
     client_id: input.client_id, task_type: 'project',
     project_id: input.project_id, workstream_id: input.workstream_id, milestone_id: input.milestone_id,
@@ -57,23 +58,23 @@ export async function updateTask(taskId: string, updates: {
   estimated_hours?: number | null
   visibility?: Visibility
 }) {
-  await requireStaff()
-  const { error } = await createAdminClient().from('tasks').update(updates).eq('id', taskId)
+  const uid = await requireStaff()
+  const { error } = await createActorClient(uid).from('tasks').update(updates).eq('id', taskId)
   if (error) throw new Error(error.message)
 }
 
 export async function updateTaskStatus(taskId: string, status: TaskStatusV2) {
-  await requireStaff()
+  const uid = await requireStaff()
   const patch: Record<string, unknown> = { status }
   // completed_at esiste dalla migration 158; riaprire una task azzera il timestamp
   patch.completed_at = status === 'completato' ? new Date().toISOString() : null
-  const { error } = await createAdminClient().from('tasks').update(patch).eq('id', taskId)
+  const { error } = await createActorClient(uid).from('tasks').update(patch).eq('id', taskId)
   if (error) throw new Error(error.message)
 }
 
 export async function setTaskAssignees(taskId: string, profileIds: string[], primaryId?: string | null) {
-  await requireStaff()
-  const admin = createAdminClient()
+  const uid = await requireStaff()
+  const admin = createActorClient(uid)
   const { error: del } = await admin.from('task_assignees').delete().eq('task_id', taskId)
   if (del) throw new Error(del.message)
   if (profileIds.length) {
@@ -89,8 +90,8 @@ export async function setTaskAssignees(taskId: string, profileIds: string[], pri
 }
 
 export async function deleteTask(taskId: string) {
-  await requireStaff()
-  const { error } = await createAdminClient().from('tasks')
+  const uid = await requireStaff()
+  const { error } = await createActorClient(uid).from('tasks')
     .update({ deleted_at: new Date().toISOString() }).eq('id', taskId)
   if (error) throw new Error(error.message)
 }

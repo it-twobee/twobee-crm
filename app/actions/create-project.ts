@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { buildSchedule, type ScheduleSpec } from '@/lib/revenue'
@@ -126,7 +126,7 @@ export async function attachWizardEconomics(projectId: string, eco: WizardEconom
   const isAdmin = p?.role === 'admin' || SUPER_ADMIN_EMAILS.includes(p?.email ?? '')
   if (!isAdmin) throw new Error('Permesso negato: l\'economics è riservata agli admin')
 
-  const admin = createAdminClient()
+  const admin = createActorClient(user.id)
   const { data: project } = await admin.from('projects')
     .select('client_id, area, start_date, target_end_date').eq('id', projectId).single()
   if (!project?.client_id) throw new Error('L\'economics esiste solo sui progetti di un cliente')
@@ -214,7 +214,8 @@ export async function createProjectFromWizard(payload: WizardPayload): Promise<s
 
   if (!payload.project?.name?.trim()) throw new Error('Nome progetto mancante')
 
-  const { data, error } = await createAdminClient()
+  // §179: la RPC crea progetto, workstream e task — la cronologia deve saperlo da chi
+  const { data, error } = await createActorClient(user.id)
     .rpc('create_project_from_template', { p_payload: payload, p_created_by: user.id })
   if (error) throw new Error(error.message)
 

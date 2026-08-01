@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { SUPERVISOR_ROLE } from '@/lib/task-roles'
 import type { TaskStatusV2, Priority, Visibility } from '@/lib/types/database'
@@ -29,7 +29,8 @@ export async function createAdHocTask(input: {
   supervisor_id?: string | null
 }) {
   const uid = await requireStaff()
-  const admin = createAdminClient()
+  // §179: la cronologia attribuisce leggendo l'header, non auth.uid()
+  const admin = createActorClient(uid)
   const kind = input.task_type ?? 'ad_hoc'
   const { data, error } = await admin.from('tasks').insert({
     client_id: input.client_id,
@@ -71,8 +72,8 @@ function revAdHoc(clientId: string | null) {
 }
 
 export async function setAdHocTaskStatus(taskId: string, clientId: string | null, status: TaskStatusV2) {
-  await requireStaff()
-  const { error } = await createAdminClient().from('tasks').update({ status }).eq('id', taskId)
+  const uid = await requireStaff()
+  const { error } = await createActorClient(uid).from('tasks').update({ status }).eq('id', taskId)
   if (error) throw new Error(error.message)
   revAdHoc(clientId)
 }
@@ -88,8 +89,8 @@ export async function updateAdHocTask(taskId: string, clientId: string | null, u
   priority?: Priority
   visibility?: Visibility
 }) {
-  await requireStaff()
-  const admin = createAdminClient()
+  const uid = await requireStaff()
+  const admin = createActorClient(uid)
   const { assignee_id, supervisor_id, ...rest } = updates
 
   if (Object.keys(rest).length) {
@@ -136,8 +137,8 @@ export async function updateAdHocTask(taskId: string, clientId: string | null, u
 }
 
 export async function deleteAdHocTask(taskId: string, clientId: string | null) {
-  await requireStaff()
-  const { error } = await createAdminClient().from('tasks').update({ deleted_at: new Date().toISOString() }).eq('id', taskId)
+  const uid = await requireStaff()
+  const { error } = await createActorClient(uid).from('tasks').update({ deleted_at: new Date().toISOString() }).eq('id', taskId)
   if (error) throw new Error(error.message)
   revAdHoc(clientId)
 }

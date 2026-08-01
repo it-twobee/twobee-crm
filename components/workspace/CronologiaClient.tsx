@@ -25,6 +25,13 @@ function entityHref(log: ActivityLog): string | null {
   }
 }
 
+/** Giorno della settimana, data e ora: una riga letta da sola deve sapersi datare. */
+const fmtWhen = (s: string) => {
+  const d = new Date(s)
+  return `${d.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}`
+    + ` · ${d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`
+}
+
 const PERIODS = [
   { key: '7',   label: '7 giorni' },
   { key: '30',  label: '30 giorni' },
@@ -58,7 +65,7 @@ export function CronologiaClient({ logs }: { logs: ActivityLog[] }) {
     const map = new Map<string, ActivityLog[]>()
     for (const l of filtered) {
       const day = new Date(l.created_at).toLocaleDateString('it-IT', {
-        weekday: 'long', day: 'numeric', month: 'long',
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
       })
       if (!map.has(day)) map.set(day, [])
       map.get(day)!.push(l)
@@ -144,8 +151,7 @@ export function CronologiaClient({ logs }: { logs: ActivityLog[] }) {
                         {ui.label} · {l.entity_label ?? ENTITY_LABELS[l.entity_type] ?? l.entity_type}
                       </p>
                       <p className="text-2xs text-text-tertiary">
-                        {ENTITY_LABELS[l.entity_type] ?? l.entity_type} ·{' '}
-                        {new Date(l.created_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                        {ENTITY_LABELS[l.entity_type] ?? l.entity_type} · {fmtWhen(l.created_at)}
                       </p>
                     </div>
                     {href && l.action !== 'delete' && (

@@ -623,6 +623,40 @@ export interface ActivityLog {
   created_at: string
 }
 
+// ─── Versioni del TwoBee OS (§179) ───────────────────────────
+export type OsVersionStatus = 'bozza' | 'pubblicata'
+
+export interface OsVersion {
+  id: string
+  version: string
+  major: number
+  minor: number
+  patch: number
+  title: string
+  summary: string | null
+  period_start: string
+  period_end: string
+  released_at: string | null
+  status: OsVersionStatus
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface OsVersionChange {
+  id: string
+  version_id: string
+  kind: 'novita' | 'miglioramento' | 'correzione' | 'rimozione' | 'sicurezza'
+  area: string
+  title: string
+  detail: string | null
+  before_text: string | null
+  after_text: string | null
+  impact: 'alto' | 'medio' | 'basso'
+  sort_order: number
+  created_at: string
+}
+
 export interface ChatBridgeEvent {
   id: string
   source_message_id: string

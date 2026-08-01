@@ -1,27 +1,28 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import type { ProjectStatus } from '@/lib/types/database'
 
-async function requireManagerOrAdmin(projectId?: string) {
+/** Torna l'id di chi sta scrivendo: serve alla cronologia per attribuire la modifica (§179). */
+async function requireManagerOrAdmin(projectId?: string): Promise<string> {
   const sb = await createClient()
   const { data: { user } } = await sb.auth.getUser()
   if (!user) throw new Error('Non autenticato')
   const { data: p } = await sb.from('profiles').select('role, app_role').eq('id', user.id).single()
-  if (p?.role === 'admin') return
+  if (p?.role === 'admin') return user.id
   if (p?.app_role === 'manager' && projectId) {
     const { data: proj } = await sb.from('projects').select('manager_id').eq('id', projectId).single()
     const { data: mem } = await sb.from('project_members').select('profile_id').eq('project_id', projectId).eq('profile_id', user.id).maybeSingle()
-    if (proj?.manager_id === user.id || mem) return
+    if (proj?.manager_id === user.id || mem) return user.id
   }
   throw new Error('Permesso negato')
 }
 
 export async function updateProjectStatus(projectId: string, status: ProjectStatus) {
-  await requireManagerOrAdmin(projectId)
-  const { error } = await createAdminClient().from('projects').update({ status }).eq('id', projectId)
+  const uid = await requireManagerOrAdmin(projectId)
+  const { error } = await createActorClient(uid).from('projects').update({ status }).eq('id', projectId)
   if (error) throw new Error(error.message)
   revalidatePath(`/progetti/${projectId}`)
   revalidatePath('/progetti')
@@ -29,8 +30,8 @@ export async function updateProjectStatus(projectId: string, status: ProjectStat
 
 // Brief = campo description del progetto (editabile/cancellabile dalla panoramica)
 export async function updateProjectBrief(projectId: string, description: string | null) {
-  await requireManagerOrAdmin(projectId)
-  const { error } = await createAdminClient().from('projects')
+  const uid = await requireManagerOrAdmin(projectId)
+  const { error } = await createActorClient(uid).from('projects')
     .update({ description: description?.trim() || null }).eq('id', projectId)
   if (error) throw new Error(error.message)
   revalidatePath(`/progetti/${projectId}`)
@@ -45,8 +46,8 @@ export async function updateProjectBrief(projectId: string, description: string 
  * si dice cosa fare — spostare i contratti, o concluderli.
  */
 export async function deleteProject(projectId: string, clientId: string | null) {
-  await requireManagerOrAdmin(projectId)
-  const admin = createAdminClient()
+  const uid = await requireManagerOrAdmin(projectId)
+  const admin = createActorClient(uid)
   const now = new Date().toISOString()
 
   const { data: sold } = await admin.from('revenue_streams')
