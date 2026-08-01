@@ -7,6 +7,7 @@ import {
   ChevronUp, ChevronDown, ChevronsUpDown,
   Pin, GripVertical, X, SlidersHorizontal,
   LayoutGrid, List, Calendar, TrendingUp, TrendingDown, Minus, PauseCircle,
+  AlertTriangle, Loader2,
 } from 'lucide-react'
 import { formatCurrency, getPaymentBadge, clientName } from '@/lib/utils'
 import { pausedDays, paymentLabel } from '@/lib/clients'
@@ -15,7 +16,7 @@ import { toast } from 'sonner'
 import type { Client, ClientPackage, PaymentStatus, ClientType, ClientLabel, Profile } from '@/lib/types/database'
 import { NewClientModal } from './NewClientModal'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
-import { deleteClient } from '@/app/actions/delete-client'
+import { deleteClients, previewClientDeletion, type DeletionPreview } from '@/app/actions/delete-client'
 import { PrioritaOggi } from './PrioritaOggi'
 
 /**
@@ -200,6 +201,10 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
   const canSeeMrr = !hideEconomics && (!currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || ['admin', 'manager'].includes(currentProfile.app_role ?? ''))
   const canCreateClient = !hideEconomics && (!currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || ['admin', 'manager'].includes(currentProfile.app_role ?? ''))
   const showPayments = !hideEconomics
+  /* Stessa regola del server (`requireAdmin` in delete-client.ts): il manager
+     vede i clienti ma non li elimina, quindi non deve nemmeno vedere le
+     caselle — un cestino che risponde «permesso negato» è peggio di niente. */
+  const canDelete = !hideEconomics && (!currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || currentProfile.app_role === 'admin')
   const [clients, setClients] = useState(initialClients)
   const [search, setSearch] = useState('')
 
@@ -233,7 +238,11 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
   const [pinnedIds, setPinnedIds] = useState<string[]>([])
   const [pinOrder, setPinOrder] = useState<string[]>([])
   const [showModal, setShowModal] = useState(false)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  /** id in attesa di conferma: uno solo dal cestino di riga, N dalla selezione */
+  const [pendingIds, setPendingIds] = useState<string[]>([])
+  const [preview, setPreview] = useState<DeletionPreview | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [selected, setSelected] = useState<string[]>([])
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table')
   const dragRef = useRef<string | null>(null)
   const dragOverRef = useRef<string | null>(null)
@@ -367,14 +376,45 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
     () => allFiltered.filter(c => !c.is_internal && (economics[c.id]?.contracts ?? 0) === 0).length,
     [allFiltered, economics])
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Sei sicuro di voler eliminare "${name}"? L'azione è irreversibile.`)) return
-    setDeletingId(id)
-    const { error } = await deleteClient(id)
-    setDeletingId(null)
+  /* La selezione vive sugli id: se un cliente sparisce — eliminato qui, da un
+     altro admin via realtime — esce da sé invece di restare a gonfiare il
+     contatore di una barra che agisce su niente. */
+  useEffect(() => {
+    setSelected(prev => prev.filter(id => clients.some(c => c.id === id)))
+  }, [clients])
+
+  const toggleSelect = (id: string) =>
+    setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+
+  const visibleIds = useMemo(
+    () => [...pinnedClients, ...unpinnedClients].map(c => c.id), [pinnedClients, unpinnedClients])
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selected.includes(id))
+  const toggleAllVisible = () => setSelected(prev => allVisibleSelected
+    ? prev.filter(id => !visibleIds.includes(id))
+    : Array.from(new Set([...prev, ...visibleIds])))
+
+  /* Un cliente non è una riga d'anagrafica: sotto ci stanno progetti, task,
+     contratti e chat, e cascatano tutti. Prima di chiedere conferma si va a
+     contarli, così la conferma dice cosa costa davvero. */
+  const askDelete = async (ids: string[]) => {
+    if (ids.length === 0) return
+    setPendingIds(ids)
+    setPreview(null)
+    const p = await previewClientDeletion(ids)
+    if (p.error) { toast.error(p.error); setPendingIds([]); return }
+    setPreview(p)
+  }
+
+  const confirmDelete = async () => {
+    const ids = pendingIds
+    setDeleting(true)
+    const { deleted, error } = await deleteClients(ids)
+    setDeleting(false)
     if (error) { toast.error(error); return }
-    setClients((prev) => prev.filter((c) => c.id !== id))
-    toast.success(`"${name}" eliminato`)
+    setClients(prev => prev.filter(c => !ids.includes(c.id)))
+    setSelected(prev => prev.filter(id => !ids.includes(id)))
+    setPendingIds([])
+    toast.success(deleted === 1 ? 'Cliente eliminato' : `${deleted} clienti eliminati`)
   }
 
   const exportCsv = () => {
@@ -405,20 +445,27 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
     </th>
   )
 
-  const ClientCard = ({ client, canSeeMrr, pinned, onPin, onDelete, deleting }: {
+  const ClientCard = ({ client, canSeeMrr, pinned, onPin }: {
     client: Client; canSeeMrr: boolean; pinned: boolean; onPin: () => void
-    onDelete: (id: string, name: string) => void; deleting: boolean
   }) => {
     const daysLeft = client.contract_end
       ? Math.max(0, Math.round((new Date(client.contract_end).getTime() - Date.now()) / 86400000))
       : null
     const expiringSoon = daysLeft !== null && daysLeft < 30
     const eco = economics[client.id]
+    const isSelected = selected.includes(client.id)
 
     return (
-      <div className="card-interactive bg-surface border border-border rounded-2xl p-4 group flex flex-col gap-3 no-tap-highlight">
+      <div className={`card-interactive bg-surface border rounded-2xl p-4 group flex flex-col gap-3 no-tap-highlight ${
+        isSelected ? 'border-gold/50 ring-1 ring-gold/25' : 'border-border'}`}>
         {/* Top: avatar + nome + pin */}
         <div className="flex items-start gap-3">
+          {canDelete && (
+            <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(client.id)}
+              aria-label={`Seleziona ${clientName(client)}`}
+              className={`accent-gold w-3.5 h-3.5 mt-1 shrink-0 cursor-pointer transition-opacity ${
+                isSelected ? '' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'}`} />
+          )}
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gold/20 to-gold/5 border border-gold/20 flex items-center justify-center text-base font-black text-gold-text shrink-0">
             {client.company_name[0].toUpperCase()}
           </div>
@@ -508,9 +555,9 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
             className="flex items-center gap-1 text-2xs text-text-secondary hover:text-gold-text transition-colors">
             <ExternalLink className="w-3 h-3" /> Apri scheda
           </Link>
-          {!hideEconomics && (
-            <button onClick={() => onDelete(client.id, client.company_name)} disabled={deleting}
-              className="text-text-secondary hover:text-error transition-colors disabled:opacity-50 opacity-0 group-hover:opacity-100">
+          {canDelete && (
+            <button onClick={() => askDelete([client.id])} aria-label={`Elimina ${clientName(client)}`}
+              className="text-text-secondary hover:text-error transition-colors opacity-0 group-hover:opacity-100">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
@@ -528,8 +575,14 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
       onDragStart={pinned ? () => handleDragStart(client.id) : undefined}
       onDragOver={pinned ? (e) => handleDragOver(e, client.id) : undefined}
       onDrop={pinned ? handleDrop : undefined}
-      className={`border-b border-border hover:bg-overlay/3 transition-colors group ${pinned ? 'cursor-grab active:cursor-grabbing' : ''}`}
+      className={`border-b border-border hover:bg-overlay/3 transition-colors group ${pinned ? 'cursor-grab active:cursor-grabbing' : ''} ${selected.includes(client.id) ? 'bg-gold/5' : ''}`}
     >
+      {canDelete && (
+        <td className="px-3 py-3.5 w-9">
+          <input type="checkbox" checked={selected.includes(client.id)} onChange={() => toggleSelect(client.id)}
+            aria-label={`Seleziona ${clientName(client)}`} className="accent-gold w-3.5 h-3.5 cursor-pointer" />
+        </td>
+      )}
       {/* Grip + pin */}
       <td className="px-2 py-3.5 w-8">
         <div className="flex items-center gap-1">
@@ -622,10 +675,10 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
           </Link>
           {!hideEconomics && (
             <button
-              onClick={() => handleDelete(client.id, client.company_name)}
-              disabled={deletingId === client.id}
-              className="text-text-secondary hover:text-error transition-colors disabled:opacity-50"
+              onClick={() => askDelete([client.id])}
+              className="text-text-secondary hover:text-error transition-colors"
               title="Elimina cliente"
+              aria-label={`Elimina ${clientName(client)}`}
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -831,6 +884,14 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
           <table className="w-full min-w-[720px]">
             <thead>
               <tr className="border-b border-border">
+                {canDelete && (
+                  <th className="px-3 py-3 w-9">
+                    <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible}
+                      aria-label={allVisibleSelected ? 'Deseleziona tutti' : 'Seleziona tutti i clienti in lista'}
+                      title={allVisibleSelected ? 'Deseleziona tutti' : 'Seleziona tutti i clienti in lista'}
+                      className="accent-gold w-3.5 h-3.5 cursor-pointer" />
+                  </th>
+                )}
                 <th className="px-2 py-3 w-8" />
                 <ColHeader col="company_name" label="Azienda" />
                 <ColHeader col="client_type" label="Tipo" />
@@ -854,14 +915,14 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
             </thead>
             <tbody>
               {allFiltered.length === 0 && (
-                <tr><td colSpan={11} className="px-5 py-12 text-center text-text-secondary text-sm">Nessun cliente trovato</td></tr>
+                <tr><td colSpan={12} className="px-5 py-12 text-center text-text-secondary text-sm">Nessun cliente trovato</td></tr>
               )}
               {pinnedClients.map((client) => (
                 <ClientRow key={client.id} client={client} pinned />
               ))}
               {pinnedClients.length > 0 && unpinnedClients.length > 0 && (
                 <tr>
-                  <td colSpan={11} className="px-4 py-1.5 bg-surface">
+                  <td colSpan={12} className="px-4 py-1.5 bg-surface">
                     <div className="flex items-center gap-2">
                       <div className="flex-1 h-px bg-surface-hover" />
                       <span className="text-2xs text-text-secondary uppercase tracking-widest">Altri clienti</span>
@@ -888,7 +949,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
                 <Pin className="w-3 h-3 fill-gold" /> Fissati
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                {pinnedClients.map(c => <ClientCard key={c.id} client={c} canSeeMrr={canSeeMrr} pinned onPin={() => togglePin(c.id)} onDelete={handleDelete} deleting={deletingId === c.id} />)}
+                {pinnedClients.map(c => <ClientCard key={c.id} client={c} canSeeMrr={canSeeMrr} pinned onPin={() => togglePin(c.id)} />)}
               </div>
             </div>
           )}
@@ -900,14 +961,47 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
             </div>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {unpinnedClients.map(c => <ClientCard key={c.id} client={c} canSeeMrr={canSeeMrr} pinned={false} onPin={() => togglePin(c.id)} onDelete={handleDelete} deleting={deletingId === c.id} />)}
+            {unpinnedClients.map(c => <ClientCard key={c.id} client={c} canSeeMrr={canSeeMrr} pinned={false} onPin={() => togglePin(c.id)} />)}
           </div>
         </>
       )}
 
       {/* ── SEZIONE LOST ── (nascosta nel portale operativo: solo clienti attivi) */}
-      {pausedClients.length > 0 && <PausedSection clients={pausedClients} canSeeMrr={canSeeMrr} economics={economics} />}
-      {!hideEconomics && lostClients.length > 0 && <LostSection clients={lostClients} canSeeMrr={canSeeMrr} economics={economics} onDelete={handleDelete} deletingId={deletingId} />}
+      {pausedClients.length > 0 && (
+        <PausedSection clients={pausedClients} canSeeMrr={canSeeMrr} economics={economics}
+          canDelete={canDelete} selected={selected} onToggle={toggleSelect} onDelete={id => askDelete([id])} />
+      )}
+      {!hideEconomics && lostClients.length > 0 && (
+        <LostSection clients={lostClients} canSeeMrr={canSeeMrr} economics={economics}
+          canDelete={canDelete} selected={selected} onToggle={toggleSelect} onDelete={id => askDelete([id])} />
+      )}
+
+      {/* Barra della selezione multipla: sta sopra tutto, così agisce anche su
+          clienti selezionati in sezioni diverse senza doverli ritrovare */}
+      {canDelete && selected.length > 0 && (
+        <div className="fixed inset-x-4 bottom-4 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-40 flex items-center gap-3 bg-surface border border-border-strong rounded-2xl shadow-pop px-4 py-2.5 animate-slide-up">
+          <span className="text-sm font-bold text-text-primary whitespace-nowrap">
+            {selected.length} selezionat{selected.length === 1 ? 'o' : 'i'}
+          </span>
+          <button onClick={() => setSelected([])} className="text-xs text-text-secondary hover:text-text-primary transition-colors">
+            Annulla
+          </button>
+          <button onClick={() => askDelete(selected)}
+            className="ml-auto sm:ml-2 flex items-center gap-1.5 text-sm font-semibold bg-error-dim border border-error/40 text-error px-3 py-1.5 rounded-xl hover:bg-error/20 transition-colors press">
+            <Trash2 className="w-3.5 h-3.5" /> Elimina
+          </button>
+        </div>
+      )}
+
+      {pendingIds.length > 0 && (
+        <DeleteClientsModal
+          names={clients.filter(c => pendingIds.includes(c.id)).map(clientName)}
+          preview={preview}
+          pending={deleting}
+          onCancel={() => { if (!deleting) { setPendingIds([]); setPreview(null) } }}
+          onConfirm={confirmDelete}
+        />
+      )}
 
       {showModal && (
         <NewClientModal
@@ -920,12 +1014,97 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
 }
 
 /**
+ * La conferma dice cosa cade insieme al cliente, non solo che l'azione è
+ * irreversibile: progetti, task, contratti e chat spariscono con lui, e chi
+ * clicca deve vederlo prima, non scoprirlo dopo.
+ */
+function DeleteClientsModal({ names, preview, pending, onCancel, onConfirm }: {
+  names: string[]
+  preview: DeletionPreview | null
+  pending: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCancel])
+
+  const counts: [number, string, string][] = preview ? ([
+    [preview.projects, 'progetto', 'progetti'],
+    [preview.tasks, 'task', 'task'],
+    [preview.contracts, 'contratto', 'contratti'],
+    [preview.revenueLines, 'riga di conto economico', 'righe di conto economico'],
+    [preview.channels, 'canale chat', 'canali chat'],
+  ] as [number, string, string][]).filter(([n]) => n > 0) : []
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-scrim sm:p-4 animate-fade-in" onClick={onCancel}>
+      <div onClick={e => e.stopPropagation()} role="dialog" aria-label="Conferma eliminazione"
+        className="bg-surface border border-border rounded-t-2xl sm:rounded-2xl w-full max-w-md shadow-pop animate-slide-up pb-safe overflow-hidden">
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+          <span className="w-9 h-9 rounded-xl bg-error-dim flex items-center justify-center shrink-0">
+            <AlertTriangle className="w-4 h-4 text-error" />
+          </span>
+          <h2 className="text-base font-bold text-text-primary font-heading">
+            {names.length === 1 ? 'Elimina cliente' : `Elimina ${names.length} clienti`}
+          </h2>
+        </div>
+
+        <div className="p-4 space-y-3">
+          <div className="flex flex-wrap gap-1.5">
+            {names.slice(0, 8).map(n => (
+              <span key={n} className="text-2xs font-semibold bg-background border border-border text-text-primary px-2 py-0.5 rounded">{n}</span>
+            ))}
+            {names.length > 8 && <span className="text-2xs text-text-secondary self-center">+{names.length - 8} altri</span>}
+          </div>
+
+          {preview === null ? (
+            <p className="flex items-center gap-2 text-xs text-text-secondary">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Conto cosa viene eliminato…
+            </p>
+          ) : counts.length > 0 ? (
+            <div className="bg-error-dim border border-error/30 rounded-xl p-3">
+              <p className="text-2xs font-bold text-error uppercase tracking-wider mb-1.5">Sparisce anche</p>
+              <ul className="space-y-0.5">
+                {counts.map(([n, one, many]) => (
+                  <li key={many} className="text-xs text-text-primary">
+                    <span className="font-bold tabular">{n}</span> {n === 1 ? one : many}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="text-xs text-text-secondary">Nessun progetto, contratto o chat collegato: si elimina solo l&apos;anagrafica.</p>
+          )}
+
+          <p className="text-2xs text-text-tertiary">L&apos;azione è irreversibile e non passa dal cestino.</p>
+        </div>
+
+        <div className="flex items-center gap-3 px-4 py-3 border-t border-border">
+          <button onClick={onCancel} disabled={pending} className="text-sm text-text-secondary hover:text-text-primary disabled:opacity-40 press">
+            Annulla
+          </button>
+          <button onClick={onConfirm} disabled={pending || preview === null}
+            className="ml-auto flex items-center gap-1.5 text-sm font-semibold bg-error-dim border border-error/40 text-error px-4 py-2 rounded-xl hover:bg-error/20 disabled:opacity-40 press">
+            {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            {pending ? 'Elimino…' : 'Elimina'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
  * I clienti fermi. Aperto di default quando ce n'è qualcuno da più di due mesi:
  * un rapporto sospeso che nessuno guarda diventa un rapporto perso, e la
  * differenza la fa una telefonata fatta al momento giusto.
  */
-function PausedSection({ clients, canSeeMrr, economics }: {
+function PausedSection({ clients, canSeeMrr, economics, canDelete, selected, onToggle, onDelete }: {
   clients: Client[]; canSeeMrr: boolean; economics: Record<string, ClientEconomicsSummary>
+  canDelete: boolean; selected: string[]; onToggle: (id: string) => void; onDelete: (id: string) => void
 }) {
   const stale = clients.filter(c => (pausedDays(c.paused_at) ?? 0) > 60).length
   const [open, setOpen] = useState(stale > 0)
@@ -961,12 +1140,18 @@ function PausedSection({ clients, canSeeMrr, economics }: {
           {clients.map(c => {
             const d = pausedDays(c.paused_at)
             return (
-              <Link key={c.id} href={`/clienti/${c.id}`}
-                className="flex items-center gap-3 px-5 py-3 hover:bg-surface-hover transition-colors flex-wrap">
-                <div className="w-7 h-7 rounded-lg bg-surface border border-border flex items-center justify-center text-xs font-black text-text-secondary shrink-0">
-                  {c.company_name[0].toUpperCase()}
-                </div>
-                <span className="text-sm font-medium text-text-primary flex-1 min-w-[140px]">{clientName(c)}</span>
+              <div key={c.id} className={`flex items-center gap-3 px-5 py-3 transition-colors flex-wrap group ${
+                selected.includes(c.id) ? 'bg-gold/5' : 'hover:bg-surface-hover'}`}>
+                {canDelete && (
+                  <input type="checkbox" checked={selected.includes(c.id)} onChange={() => onToggle(c.id)}
+                    aria-label={`Seleziona ${clientName(c)}`} className="accent-gold w-3.5 h-3.5 cursor-pointer shrink-0" />
+                )}
+                <Link href={`/clienti/${c.id}`} className="flex items-center gap-3 flex-1 min-w-[140px] hover:text-gold-text transition-colors">
+                  <div className="w-7 h-7 rounded-lg bg-surface border border-border flex items-center justify-center text-xs font-black text-text-secondary shrink-0">
+                    {c.company_name[0].toUpperCase()}
+                  </div>
+                  <span className="text-sm font-medium text-text-primary">{clientName(c)}</span>
+                </Link>
                 <span className="text-xs text-text-secondary">{c.package}</span>
                 {canSeeMrr && (
                   (economics[c.id]?.contracts ?? 0) > 0
@@ -976,7 +1161,13 @@ function PausedSection({ clients, canSeeMrr, economics }: {
                 <span className={`text-xs ${d != null && d > 60 ? 'text-warning font-semibold' : 'text-text-tertiary'}`}>
                   {d == null ? 'da data ignota' : d === 0 ? 'da oggi' : `fermo da ${d} giorni`}
                 </span>
-              </Link>
+                {canDelete && (
+                  <button onClick={() => onDelete(c.id)} aria-label={`Elimina ${clientName(c)}`}
+                    className="text-text-secondary hover:text-error transition-colors opacity-0 group-hover:opacity-100">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             )
           })}
           <p className="px-5 py-2.5 text-2xs text-text-tertiary bg-surface">
@@ -989,10 +1180,11 @@ function PausedSection({ clients, canSeeMrr, economics }: {
   )
 }
 
-function LostSection({ clients, canSeeMrr, economics, onDelete, deletingId }: {
+function LostSection({ clients, canSeeMrr, economics, canDelete, onDelete, selected, onToggle }: {
   clients: Client[]; canSeeMrr: boolean
   economics: Record<string, ClientEconomicsSummary>
-  onDelete: (id: string, name: string) => void; deletingId: string | null
+  canDelete: boolean; onDelete: (id: string) => void
+  selected: string[]; onToggle: (id: string) => void
 }) {
   const [open, setOpen] = useState(false)
   // §176: il churn si misura su quello che fatturavano davvero, non
@@ -1022,6 +1214,7 @@ function LostSection({ clients, canSeeMrr, economics, onDelete, deletingId }: {
         <table className="w-full">
           <thead>
             <tr className="border-y border-border bg-surface">
+              {canDelete && <th className="px-3 py-2.5 w-9" />}
               <th className="text-left px-5 py-2.5 text-xs font-semibold text-text-secondary uppercase tracking-wider">Azienda</th>
               <th className="text-left px-4 py-2.5 text-xs font-semibold text-text-secondary uppercase tracking-wider">Tipo</th>
               <th className="text-left px-4 py-2.5 text-xs font-semibold text-text-secondary uppercase tracking-wider">Pacchetto</th>
@@ -1032,7 +1225,14 @@ function LostSection({ clients, canSeeMrr, economics, onDelete, deletingId }: {
           </thead>
           <tbody>
             {clients.map((c) => (
-              <tr key={c.id} className="border-b border-border hover:bg-overlay/2 transition-colors group opacity-60 hover:opacity-100">
+              <tr key={c.id} className={`border-b border-border transition-colors group hover:opacity-100 ${
+                selected.includes(c.id) ? 'bg-gold/5 opacity-100' : 'opacity-60 hover:bg-overlay/2'}`}>
+                {canDelete && (
+                  <td className="px-3 py-3 w-9">
+                    <input type="checkbox" checked={selected.includes(c.id)} onChange={() => onToggle(c.id)}
+                      aria-label={`Seleziona ${clientName(c)}`} className="accent-gold w-3.5 h-3.5 cursor-pointer" />
+                  </td>
+                )}
                 <td className="px-5 py-3">
                   <Link href={`/clienti/${c.id}`} className="flex items-center gap-2.5 hover:text-gold-text transition-colors">
                     <div className="w-7 h-7 rounded-lg bg-surface border border-border flex items-center justify-center text-xs font-black text-text-secondary shrink-0">
@@ -1062,9 +1262,9 @@ function LostSection({ clients, canSeeMrr, economics, onDelete, deletingId }: {
                     <Link href={`/clienti/${c.id}`} className="text-xs text-text-secondary hover:text-gold-text transition-colors">
                       <ExternalLink className="w-3.5 h-3.5" />
                     </Link>
-                    {canSeeMrr && (
-                      <button onClick={() => onDelete(c.id, c.company_name)} disabled={deletingId === c.id}
-                        className="text-text-secondary hover:text-error transition-colors disabled:opacity-50">
+                    {canDelete && (
+                      <button onClick={() => onDelete(c.id)} aria-label={`Elimina ${clientName(c)}`}
+                        className="text-text-secondary hover:text-error transition-colors">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     )}
