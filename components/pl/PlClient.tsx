@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import {
-  ChevronLeft, ChevronRight, Plus, Trash2, Sparkles, CopyPlus, Lock, LockOpen,
+  ChevronLeft, ChevronRight, Plus, Trash2, CopyPlus, Lock, LockOpen,
   TrendingUp, TrendingDown, Wallet, Target, ShieldAlert, Users, Building2, Info,
   Briefcase, AlertTriangle, RotateCcw, Landmark, CalendarRange,
 } from 'lucide-react'
@@ -15,7 +15,7 @@ import {
   type PlConfig, type RevenueLine, type CostLine, type Partner,
 } from '@/lib/pl'
 import {
-  generateRevenueFromClients, copyCostsFromPreviousMonth, prefillMonth, setMonthStatus, resetMonth,
+  generateRevenueFromClients, copyCostsFromPreviousMonth, setMonthStatus, resetMonth,
   addRevenueLine, updateRevenueLine, deleteRevenueLine,
   addCostLine, updateCostLine, deleteCostLine, bulkCostAction,
 } from '@/app/actions/pl'
@@ -24,6 +24,7 @@ import { currentQuarterVat, nextDue, type MonthVat } from '@/lib/vat'
 import { forecastTotals, type ForecastMonth } from '@/lib/forecast'
 import { openMonth } from '@/app/actions/pl'
 import { EconomicsNav } from '@/components/economics/EconomicsNav'
+import { PrepareMonth } from '@/components/pl/PrepareMonth'
 import { diagnose } from '@/lib/pl-health'
 import { PlHealth } from './PlHealth'
 
@@ -151,15 +152,13 @@ export function PlClient({
           </div>
           {!locked && (
             <>
-              <button onClick={() => run(() => generateRevenueFromClients(month), 'Ricavi generati dai clienti attivi')}
-                disabled={pending}
-                className="flex items-center gap-1.5 text-2xs font-semibold border border-border rounded-xl px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-surface-hover press disabled:opacity-40">
-                <Sparkles className="w-3.5 h-3.5 text-gold-text" />Genera da clienti
-              </button>
+              {/* struttura di costo dal mese scorso: serve solo quando il piano
+                  non copre una voce, quindi sta qui e non nel pannello */}
               <button onClick={() => run(() => copyCostsFromPreviousMonth(month), 'Costi copiati dal mese precedente')}
                 disabled={pending}
+                title="Riprende le voci del mese precedente col preventivato. Il piano dei costi le porta già da sé."
                 className="flex items-center gap-1.5 text-2xs font-semibold border border-border rounded-xl px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-surface-hover press disabled:opacity-40">
-                <CopyPlus className="w-3.5 h-3.5" />Copia costi
+                <CopyPlus className="w-3.5 h-3.5" />Copia dal mese scorso
               </button>
               {/* svuotare un mese cancella righe scritte a mano: si chiede due volte */}
               {(revenue.length > 0 || costs.length > 0) && (
@@ -209,24 +208,8 @@ export function PlClient({
         </div>
       )}
 
-      {/* ── mese vuoto: si precompila da solo, con l'anteprima di cosa entra ── */}
-      {!setupNeeded && empty && !locked && (
-        <div className="rounded-2xl border border-border bg-surface p-6 text-center shadow-soft">
-          <Sparkles className="w-6 h-6 text-gold-text mx-auto" />
-          <p className="text-sm font-bold text-text-primary mt-2">{monthLabel(month)} è ancora vuoto</p>
-          <p className="text-2xs text-text-secondary mt-1 max-w-md mx-auto">
-            {missingClients.length > 0
-              ? <>Ci sono <span className="font-semibold text-text-primary tabular">{missingClients.length}</span> clienti
-                  attivi e paganti per <span className="font-semibold text-text-primary tabular">{eur(missingTotal)}</span> di
-                  imponibile. {previous.exists ? 'Le voci di costo arrivano dal mese precedente.' : 'Le voci di costo partono dalla struttura standard.'}</>
-              : 'Nessun cliente attivo con un canone: aggiungi le voci a mano.'}
-          </p>
-          <button onClick={() => run(() => prefillMonth(month), 'Mese precompilato')} disabled={pending}
-            className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold bg-gold text-on-gold px-4 py-2.5 rounded-xl press btn-gold disabled:opacity-40">
-            <Sparkles className="w-4 h-4" />Precompila {monthLabel(month)}
-          </button>
-        </div>
-      )}
+      {/* ── da dove nasce il mese: quattro sorgenti, contate prima di scrivere ── */}
+      {!setupNeeded && !locked && <PrepareMonth month={month} compact={!empty} />}
 
       {/* ── scostamento fra anagrafica di oggi e mese ── */}
       {!setupNeeded && !empty && !locked && missingClients.length > 0 && (
@@ -506,7 +489,7 @@ export function PlClient({
 
         {revenue.length === 0 ? (
           <div className="p-5"><Empty>
-            Nessuna voce. Usa «Genera da clienti» per partire dai clienti attivi e paganti.
+            Nessuna entrata. «Prepara il mese» porta qui i canoni e le rate dei contratti che cadono adesso.
           </Empty></div>
         ) : (
           <div className="overflow-x-auto">
@@ -625,7 +608,7 @@ export function PlClient({
 
         {costs.length === 0 ? (
           <div className="p-5"><Empty>
-            Nessuna voce di costo. «Copia costi» riprende le voci del mese precedente col preventivato.
+            Nessuna uscita. «Prepara il mese» porta qui il piano dei costi, i subappalti e il costo dell&apos;organico.
           </Empty></div>
         ) : (
           <div className="overflow-x-auto">

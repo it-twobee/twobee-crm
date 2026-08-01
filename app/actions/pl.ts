@@ -232,14 +232,167 @@ export async function copyCostsFromPreviousMonth(month: string) {
   return rows.length
 }
 
-/** Precompila il mese in un colpo solo: ricavi dai clienti + struttura di costo. */
-export async function prefillMonth(month: string) {
+/**
+ * Cosa entrerebbe nel mese, **senza scriverlo**.
+ *
+ * Un pulsante che riempie un mese di conti senza dire prima cosa ci mette è un
+ * pulsante che nessuno preme due volte. Qui si contano le quattro sorgenti e si
+ * mostra il totale: la scrittura arriva dopo, quando chi guarda ha capito.
+ */
+export type PrefillPreview = {
+  revenue: { count: number; amount: number; fromContracts: number; fromRegistry: number }
+  plan: { count: number; amount: number }
+  subcontracts: { count: number; amount: number }
+  people: { count: number; amount: number }
+  /** già presenti nel mese: non verranno duplicate */
+  existing: { revenue: number; costs: number }
+  monthExists: boolean
+  monthLocked: boolean
+}
+
+export async function previewPrefill(month: string): Promise<PrefillPreview> {
   await requireAdmin()
-  const revenue = await generateRevenueFromClients(month)
-  let costs = 0
-  try { costs = await copyCostsFromPreviousMonth(month) } catch { /* già presenti: si tiene ciò che c'è */ }
+  const admin = createAdminClient()
+  const empty = { count: 0, amount: 0 }
+
+  const { data: monthRow } = await admin.from('pl_months').select('id, status').eq('month', month).maybeSingle()
+  const monthId = (monthRow as { id: string } | null)?.id ?? null
+
+  const [{ data: streams }, { data: items }, { data: people }, { data: prm }, { data: clients }] = await Promise.all([
+    admin.from('revenue_streams').select('*'),
+    admin.from('cost_items').select('*').eq('is_active', true),
+    admin.from('hr_people').select('*').eq('is_active', true),
+    admin.from('hr_payroll_params').select('*').eq('year', Number(month.slice(0, 4))).maybeSingle(),
+    admin.from('clients').select('id, mrr, client_label, is_internal'),
+  ])
+
+  // ── entrate: i contratti dei progetti, più chi non ne ha ancora ───────────
+  const ids = (streams ?? []).map((s: { id: string }) => s.id)
+  const { data: inst } = ids.length
+    ? await admin.from('revenue_installments').select('*').in('stream_id', ids)
+    : { data: [] }
+
+  const info = new Map((clients ?? []).map((c: Record<string, unknown>) => [String(c.id), c]))
+  const billable = (id: string | null) => {
+    const c = id ? info.get(id) : null
+    return !!c && !c.is_internal && c.client_label !== 'perso' && c.client_label !== 'pending'
+  }
+
+  const contractLines = linesForMonth((streams ?? []) as never, (inst ?? []) as never, month)
+    .filter(l => billable(l.client_id))
+  const withContract = new Set((streams ?? [])
+    .map((s: { client_id: string | null }) => s.client_id).filter(Boolean) as string[])
+  const registry = (clients ?? []).filter((c: Record<string, unknown>) =>
+    billable(String(c.id)) && !withContract.has(String(c.id)) && Number(c.mrr ?? 0) > 0)
+
+  // ── uscite: il piano, i subappalti, le persone ────────────────────────────
+  const { plannedForMonth } = await import('@/lib/costs')
+  const due = plannedForMonth((items ?? []) as never, month)
+  const plan = due.filter(i => !i.project_id)
+  const subs = due.filter(i => i.project_id)
+
+  let peopleCount = 0
+  let peopleAmount = 0
+  if ((people ?? []).length) {
+    const { personCost, DEFAULT_PAYROLL_PARAMS } = await import('@/lib/payroll')
+    const { rowToParams, rowToPerson } = await import('@/lib/payroll-map')
+    const params = prm ? rowToParams(prm as Record<string, unknown>) : DEFAULT_PAYROLL_PARAMS
+    peopleCount = (people ?? []).length
+    peopleAmount = (people ?? []).reduce((t: number, r: Record<string, unknown>) =>
+      t + personCost(rowToPerson(r), params).monthly, 0)
+  }
+
+  const [{ count: revCount }, { count: costCount }] = monthId
+    ? await Promise.all([
+        admin.from('pl_revenue_lines').select('id', { count: 'exact', head: true }).eq('month_id', monthId),
+        admin.from('pl_cost_lines').select('id', { count: 'exact', head: true }).eq('month_id', monthId),
+      ])
+    : [{ count: 0 }, { count: 0 }]
+
+  const sum = (ns: number[]) => Math.round(ns.reduce((a, b) => a + b, 0) * 100) / 100
+
+  return {
+    revenue: {
+      count: contractLines.length + registry.length,
+      amount: sum([...contractLines.map(l => l.amount_net), ...registry.map((c: Record<string, unknown>) => Number(c.mrr ?? 0))]),
+      fromContracts: contractLines.length,
+      fromRegistry: registry.length,
+    },
+    plan: plan.length ? { count: plan.length, amount: sum(plan.map(i => i.amount)) } : empty,
+    subcontracts: subs.length ? { count: subs.length, amount: sum(subs.map(i => i.amount)) } : empty,
+    people: { count: peopleCount, amount: Math.round(peopleAmount * 100) / 100 },
+    existing: { revenue: revCount ?? 0, costs: costCount ?? 0 },
+    monthExists: !!monthRow,
+    monthLocked: (monthRow as { status: string } | null)?.status === 'chiuso',
+  }
+}
+
+export type PrefillResult = {
+  revenue: number
+  plan: number
+  subcontracts: number
+  people: number
+  /** cosa non è stato possibile fare, detto invece che ingoiato */
+  skipped: string[]
+}
+
+/**
+ * Prepara il mese da quello che il tool già sa.
+ *
+ * Quattro sorgenti, una sola azione:
+ *   entrate       ← i contratti dei progetti attivi (rate e canoni che cadono qui)
+ *   uscite        ← il piano dei costi, per le voci che tornano in questo mese
+ *   subappalti    ← le lavorazioni affidate fuori, col loro progetto attaccato
+ *   persone       ← il costo dell'organico dalla sezione Personale
+ *
+ * Ogni sorgente sa già non duplicarsi, quindi rilanciare è sicuro: aggiunge
+ * quello che manca e lascia stare il resto. Se una sorgente non c'è — nessun
+ * contratto, nessuno in organico — non è un errore: si scrive nel report e si
+ * va avanti. Un mese preparato a metà è più utile di un errore.
+ */
+export async function prefillMonth(month: string): Promise<PrefillResult> {
+  await requireAdmin()
+  await ensureMonth(month)
+
+  const out: PrefillResult = { revenue: 0, plan: 0, subcontracts: 0, people: 0, skipped: [] }
+  const note = (e: unknown, what: string) => {
+    const msg = e instanceof Error ? e.message : String(e)
+    out.skipped.push(`${what}: ${msg}`)
+  }
+
+  try { out.revenue = await generateRevenueFromClients(month) } catch (e) { note(e, 'Entrate') }
+
+  /* Il piano dei costi porta con sé i subappalti: `applyPlanToMonth` scrive
+     entrambi e distingue le righe col `project_id`. Si contano dopo, sulle
+     righe scritte, invece di duplicare qui la logica delle frequenze. */
+  try {
+    const before = await countCostRows(month)
+    await applyPlanToMonth(month)
+    const after = await countCostRows(month)
+    out.plan = after.plan - before.plan
+    out.subcontracts = after.subs - before.subs
+  } catch (e) { note(e, 'Piano dei costi') }
+
+  try {
+    const { rows } = await (await import('@/app/actions/payroll')).pushToProfitLoss(month)
+    out.people = rows
+  } catch (e) { note(e, 'Personale') }
+
   revalidatePath(PATH)
-  return { revenue, costs }
+  revalidatePath('/economics/costi')
+  return out
+}
+
+/** Quante righe di costo ci sono adesso, separando il piano dai subappalti. */
+async function countCostRows(month: string) {
+  const admin = createAdminClient()
+  const { data: m } = await admin.from('pl_months').select('id').eq('month', month).maybeSingle()
+  if (!m) return { plan: 0, subs: 0 }
+  const [{ count: plan }, { count: subs }] = await Promise.all([
+    admin.from('pl_cost_lines').select('id', { count: 'exact', head: true }).eq('month_id', m.id).is('project_id', null),
+    admin.from('pl_cost_lines').select('id', { count: 'exact', head: true }).eq('month_id', m.id).not('project_id', 'is', null),
+  ])
+  return { plan: plan ?? 0, subs: subs ?? 0 }
 }
 
 // ── Righe ────────────────────────────────────────────────────────────────────
