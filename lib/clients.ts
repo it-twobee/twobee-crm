@@ -49,15 +49,10 @@ export function pausedDays(pausedAt: string | null | undefined, today = new Date
  * niente; dal 16 diventa un ritardo. I valori in colonna restano i tre storici,
  * cambia il nome con cui si presentano.
  */
-export const PAYMENT_LABEL: Record<string, string> = {
+const PAYMENT_LABEL: Record<string, string> = {
   pagato: 'Pagato',
   in_attesa: 'Da pagare',
   scaduto: 'Non pagato',
 }
 
 export const paymentLabel = (s: string | null | undefined) => PAYMENT_LABEL[s ?? ''] ?? '—'
-
-/** Quanti giorni restano per pagare la fattura del mese. Negativo = in ritardo. */
-export function daysToPay(today = new Date()): number {
-  return 15 - today.getDate()
-}

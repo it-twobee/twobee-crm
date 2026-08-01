@@ -1,7 +1,6 @@
 import type { AppRole, PermissionSection, PermissionAction, Profile, RolePermission } from './types/database'
 
 export const SUPER_ADMIN_EMAILS = ['m.lucci@twobee.it']
-export const SUPER_ADMIN_EMAIL = SUPER_ADMIN_EMAILS[0] // legacy compat
 
 export const ROLE_LABELS: Record<AppRole, string> = {
   super_admin: 'Super Admin',

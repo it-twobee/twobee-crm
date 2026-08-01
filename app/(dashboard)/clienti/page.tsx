@@ -47,20 +47,15 @@ export default async function ClientiPage() {
 
   if (isAdminLevel && clients.length) {
     const month = monthKey(new Date())
-    const [{ data: streams }, { data: monthRow }] = await Promise.all([
+    /* Le rate si filtrano per cliente attraversando il contratto, e le righe
+       del mese per la data del mese: nessuna delle due ha bisogno di sapere
+       prima gli id, quindi parte tutto insieme invece che in tre ondate. */
+    const [{ data: streams }, { data: inst }, { data: lines }] = await Promise.all([
       supabase.from('revenue_streams').select('id, client_id, amount, billing, status, project_id'),
-      supabase.from('pl_months').select('id').eq('month', month).maybeSingle(),
-    ])
-
-    const streamIds = (streams ?? []).map((x: { id: string }) => x.id)
-    const [{ data: inst }, { data: lines }] = await Promise.all([
-      streamIds.length
-        ? supabase.from('revenue_installments').select('stream_id, amount, paid').in('stream_id', streamIds)
-        : Promise.resolve({ data: [] }),
-      monthRow
-        ? supabase.from('pl_revenue_lines')
-            .select('client_id, project_id, label, amount_net, paid').eq('month_id', monthRow.id)
-        : Promise.resolve({ data: [] }),
+      supabase.from('revenue_installments').select('stream_id, amount, paid'),
+      supabase.from('pl_revenue_lines')
+        .select('client_id, project_id, label, amount_net, paid, pl_months!inner(month)')
+        .eq('pl_months.month', month),
     ])
 
     type S = { id: string; client_id: string | null; amount: unknown; billing: string; status: string }

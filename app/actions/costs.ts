@@ -413,15 +413,6 @@ export async function deleteProjectCost(id: string, projectId: string) {
   rev()
 }
 
-/** Il progetto di una singola uscita: aggancia a mano una spesa già registrata. */
-export async function setLineProject(lineId: string, projectId: string | null) {
-  await requireAdmin()
-  const { error } = await createAdminClient().from('pl_cost_lines')
-    .update({ project_id: projectId }).eq('id', lineId)
-  if (error) throw new Error(error.message)
-  rev()
-}
-
 /** L'area di una singola uscita: si corregge dal conto economico, riga per riga. */
 export async function setLineCenter(lineId: string, centerId: string | null) {
   await requireAdmin()

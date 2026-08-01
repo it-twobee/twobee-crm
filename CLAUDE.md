@@ -115,9 +115,21 @@ const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
 const parsed = JSON.parse((await res.json()).choices?.[0]?.message?.content?.match(/\{[\s\S]*\}/)?.[0] ?? '{}')
 ```
 
-## Migration da eseguire (Supabase Dashboard → SQL Editor)
+## Registro migration (Supabase Dashboard → SQL Editor)
+
+> **Da eseguire oggi: solo la `175_tax_control.sql`.** Senza, `/economics/fiscale`
+> mostra il SetupNotice e il resto funziona. Verificato sul database il
+> 2026-08-01: tutte le altre elencate qui sotto sono già applicate.
+>
+> **Non eseguire** `086_decisions`, `097_data_quality_view`, `098_time_tracking`:
+> riguardano domini demoliti nel reset del 2026-07-23 (decisions, time tracking,
+> widget salute dati) e non hanno un solo riferimento nel codice. Restano nel
+> repo come storia, non come lavoro arretrato.
+
 `chat_channels.project_id` **esiste** in produzione: il vecchio "BUG NOTO" è risolto.
 Numerazione: attenzione, `080_*`, `081_*` e `092_*` compaiono due volte. Il prossimo libero è **179**.
+
+La tabella qui sotto è il **changelog**: dice cosa fa ciascuna, non cosa manca.
 
 | # | Cosa fa | Serve anche |
 |---|---|---|

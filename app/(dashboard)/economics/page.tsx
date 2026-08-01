@@ -22,84 +22,83 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
   // n = quanti mesi guardare insieme. 1 (o assente) = il mese singolo editabile.
   const span = Math.min(24, Math.max(1, Number(searchParams.n) || 1))
 
+  /* Una sola ondata: tutto quello che non dipende da nient'altro parte
+     insieme. `pl_months` si legge una volta sola e serve a cinque cose —
+     il mese aperto, il precedente, l'elenco dei mesi noti, quelli dell'anno
+     per l'IVA e quali sono già aperti nel previsionale. Prima erano quattro
+     query separate sulla stessa tabella, in fila. */
+  const year = month.slice(0, 4)
+  const prevKey = shiftMonth(month, -1)
+
   const [
-    { data: monthRow, error: monthErr }, { data: cfg }, { data: partners },
-    { data: profiles }, { data: months }, { data: activeClients },
+    { data: allMonths, error: monthErr }, { data: cfg }, { data: partners },
+    { data: profiles }, { data: activeClients }, { data: centers },
+    { data: fcStreams }, { data: fcItems }, { data: allProjects },
   ] = await Promise.all([
-    supabase.from('pl_months').select('*').eq('month', month).maybeSingle(),
+    supabase.from('pl_months').select('*').order('month', { ascending: false }),
     supabase.from('pl_config').select('*').eq('id', true).maybeSingle(),
     supabase.from('pl_partners').select('*').eq('is_active', true).order('sort_order'),
     supabase.from('profiles').select('id, full_name').eq('is_active', true).order('full_name'),
-    supabase.from('pl_months').select('month, status').order('month', { ascending: false }).limit(24),
     // fotografia di oggi: serve a segnalare lo scostamento fra anagrafica e mese
     supabase.from('clients')
       .select('id, company_name, display_name, mrr, client_type, client_label, is_internal')
       .order('company_name'),
-  ])
-
-  // §174: l'IVA dell'anno, mese per mese. Serve tutto l'anno e non solo il
-  // trimestre: il credito di un trimestre si riporta su quello dopo, e senza i
-  // precedenti il numero da versare è sbagliato.
-  const year = month.slice(0, 4)
-  const { data: yearMonths } = await supabase.from('pl_months')
-    .select('id, month').gte('month', `${year}-01-01`).lte('month', `${year}-12-01`).order('month')
-  const yearIds = (yearMonths ?? []).map((m: { id: string }) => m.id)
-  const [{ data: yRev }, { data: yCost }] = yearIds.length
-    ? await Promise.all([
-        supabase.from('pl_revenue_lines').select('month_id, amount_net, vat_rate').in('month_id', yearIds),
-        supabase.from('pl_cost_lines').select('month_id, actual, vat_applied, vat_rate').in('month_id', yearIds),
-      ])
-    : [{ data: [] }, { data: [] }]
-
-  const vatMonths: MonthVat[] = (yearMonths ?? []).map((m: { id: string; month: string }) => ({
-    month: m.month,
-    debit: (yRev ?? [])
-      .filter((r: { month_id: string }) => r.month_id === m.id)
-      .reduce((s: number, r: { amount_net: unknown; vat_rate: unknown }) => s + Number(r.amount_net ?? 0) * Number(r.vat_rate ?? 0), 0),
-    // l'IVA sugli acquisti si scomputa solo dove è stata davvero pagata
-    credit: (yCost ?? [])
-      .filter((c: { month_id: string; vat_applied: boolean }) => c.month_id === m.id && c.vat_applied)
-      .reduce((s: number, c: { actual: unknown; vat_rate: unknown }) => s + Number(c.actual ?? 0) * Number(c.vat_rate ?? 0), 0),
-  }))
-
-  // §176: il previsionale. I mesi futuri non sono un'incognita — sono la
-  // conseguenza di quello che è già firmato: canoni, rate, subappalti.
-  const [{ data: fcStreams }, { data: fcItems }, { data: openRows }] = await Promise.all([
+    // §171: aree di spesa. Se la migration non c'è la tendina resta vuota
+    supabase.from('cost_centers').select('id, name').eq('is_active', true).order('sort_order'),
+    // §176: il previsionale nasce da quello che è già firmato
     supabase.from('revenue_streams').select('*'),
     supabase.from('cost_items').select('*').eq('is_active', true),
-    supabase.from('pl_months').select('month'),
+    supabase.from('projects').select('id, name').is('deleted_at', null),
   ])
-  const fcIds = (fcStreams ?? []).map((s: { id: string }) => s.id)
-  const { data: fcInst } = fcIds.length
-    ? await supabase.from('revenue_installments').select('*').in('stream_id', fcIds)
-    : { data: [] }
 
-  // §171: aree di spesa. Se la migration non c'è la tendina resta vuota e il
-  // conto economico funziona lo stesso — l'area è un di più, non un requisito.
-  const { data: centers } = await supabase.from('cost_centers')
-    .select('id, name').eq('is_active', true).order('sort_order')
+  type MonthRow = { id: string; month: string; status: string }
+  const monthsAll = (allMonths ?? []) as unknown as MonthRow[]
+  const monthRow = monthsAll.find(m => m.month === month) ?? null
+  const prevRow = monthsAll.find(m => m.month === prevKey) ?? null
+  const months = monthsAll.slice(0, 24)
+  const yearIds = monthsAll.filter(m => m.month.startsWith(year)).map(m => m.id)
+
+  // Seconda ondata: tutto ciò che ha bisogno degli id appena trovati.
+  const streamIds = (fcStreams ?? []).map((x: { id: string }) => x.id)
+  const [
+    { data: revenue }, { data: costs },
+    { data: prevRevenue }, { data: prevCosts },
+    { data: yRev }, { data: yCost }, { data: fcInst },
+  ] = await Promise.all([
+    monthRow ? supabase.from('pl_revenue_lines').select('*').eq('month_id', monthRow.id).order('sort_order')
+      : Promise.resolve({ data: [] }),
+    monthRow ? supabase.from('pl_cost_lines').select('*').eq('month_id', monthRow.id).order('sort_order')
+      : Promise.resolve({ data: [] }),
+    prevRow ? supabase.from('pl_revenue_lines').select('amount_net, paid').eq('month_id', prevRow.id)
+      : Promise.resolve({ data: [] }),
+    prevRow ? supabase.from('pl_cost_lines').select('actual').eq('month_id', prevRow.id)
+      : Promise.resolve({ data: [] }),
+    yearIds.length ? supabase.from('pl_revenue_lines').select('month_id, amount_net, vat_rate').in('month_id', yearIds)
+      : Promise.resolve({ data: [] }),
+    yearIds.length ? supabase.from('pl_cost_lines').select('month_id, actual, vat_applied, vat_rate').in('month_id', yearIds)
+      : Promise.resolve({ data: [] }),
+    streamIds.length ? supabase.from('revenue_installments').select('*').in('stream_id', streamIds)
+      : Promise.resolve({ data: [] }),
+  ])
+
+  // §174: l'IVA si legge su tutto l'anno perché il credito di un trimestre si
+  // riporta su quello dopo: senza i precedenti il numero da versare è sbagliato.
+  const vatMonths: MonthVat[] = monthsAll
+    .filter(m => m.month.startsWith(year))
+    .sort((a, b) => a.month.localeCompare(b.month))
+    .map(m => ({
+      month: m.month,
+      debit: (yRev ?? [])
+        .filter((r: { month_id: string }) => r.month_id === m.id)
+        .reduce((s: number, r: { amount_net: unknown; vat_rate: unknown }) => s + Number(r.amount_net ?? 0) * Number(r.vat_rate ?? 0), 0),
+      // l'IVA sugli acquisti si scomputa solo dove è stata davvero pagata
+      credit: (yCost ?? [])
+        .filter((c: { month_id: string; vat_applied: boolean }) => c.month_id === m.id && c.vat_applied)
+        .reduce((s: number, c: { actual: unknown; vat_rate: unknown }) => s + Number(c.actual ?? 0) * Number(c.vat_rate ?? 0), 0),
+    }))
 
   // 42P01 = tabella assente: la 163 non è stata eseguita. Va detto, non subito.
   const setupNeeded = monthErr?.code === '42P01'
-
-  const [{ data: revenue }, { data: costs }] = monthRow
-    ? await Promise.all([
-        supabase.from('pl_revenue_lines').select('*').eq('month_id', monthRow.id).order('sort_order'),
-        supabase.from('pl_cost_lines').select('*').eq('month_id', monthRow.id).order('sort_order'),
-      ])
-    : [{ data: [] }, { data: [] }]
-
-  // mese precedente, per leggere ogni numero come variazione e non come valore isolato
-  const prevKey = shiftMonth(month, -1)
-  const { data: prevRow } = setupNeeded
-    ? { data: null }
-    : await supabase.from('pl_months').select('id').eq('month', prevKey).maybeSingle()
-  const [{ data: prevRevenue }, { data: prevCosts }] = prevRow
-    ? await Promise.all([
-        supabase.from('pl_revenue_lines').select('amount_net, paid').eq('month_id', prevRow.id),
-        supabase.from('pl_cost_lines').select('actual').eq('month_id', prevRow.id),
-      ])
-    : [{ data: [] }, { data: [] }]
 
   const num = (v: unknown) => Number(v ?? 0)
   const config: PlConfig = cfg
@@ -124,13 +123,8 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
   }
 
   // nomi dei progetti a cui le righe sono agganciate: la tabella li mostra
-  const projectIds = Array.from(new Set((revenue ?? [])
-    .map((r: { project_id?: string | null }) => r.project_id).filter(Boolean))) as string[]
-  const { data: projRows } = projectIds.length
-    ? await supabase.from('projects').select('id, name').in('id', projectIds)
-    : { data: [] }
   const projectNames = Object.fromEntries(
-    (projRows ?? []).map((p: { id: string; name: string }) => [p.id, p.name]))
+    (allProjects ?? []).map((p: { id: string; name: string }) => [p.id, p.name]))
 
   // la riga di contratto si chiama col servizio: senza questo il cliente sparirebbe
   const clientNames = Object.fromEntries((activeClients ?? [])
@@ -238,7 +232,7 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
       clientNames={clientNames}
       forecast={forecast(month, 6,
         (fcStreams ?? []) as never, (fcInst ?? []) as never, (fcItems ?? []) as never,
-        new Set((openRows ?? []).map((m: { month: string }) => m.month)))}
+        new Set(monthsAll.map(m => m.month)))}
       vatMonths={vatMonths}
       today={new Date().toISOString().slice(0, 10)}
       centers={(centers ?? []).map((c: { id: string; name: string }) => ({ id: c.id, name: c.name }))}

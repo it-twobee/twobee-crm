@@ -138,34 +138,6 @@ export function scheduled(installments: Installment[], streamId: string): number
 
 export type InstallmentDraft = { due_month: string; label: string; amount: number }
 
-/** Rate uguali su N mesi a partire dal mese d'avvio. L'ultima assorbe l'arrotondamento. */
-export function splitEven(total: number, months: number, startMonth: string): InstallmentDraft[] {
-  if (months < 1) return []
-  const each = Math.round((total / months) * 100) / 100
-  return Array.from({ length: months }, (_, i) => ({
-    due_month: shiftMonth(startMonth, i),
-    label: `Rata ${i + 1} di ${months}`,
-    amount: i === months - 1 ? Math.round((total - each * (months - 1)) * 100) / 100 : each,
-  }))
-}
-
-/**
- * Rate a percentuali, una per tappa: `[40, 30, 30]` su tre mesi consecutivi.
- * L'ultima assorbe l'arrotondamento, così la somma fa sempre il totale.
- */
-export function splitByPercent(total: number, percents: number[], startMonth: string): InstallmentDraft[] {
-  const n = percents.length
-  if (!n) return []
-  let used = 0
-  return percents.map((p, i) => {
-    const amount = i === n - 1
-      ? Math.round((total - used) * 100) / 100
-      : Math.round(total * (p / 100) * 100) / 100
-    used += amount
-    return { due_month: shiftMonth(startMonth, i), label: `${p}%`, amount }
-  })
-}
-
 /**
  * Come si paga un lavoro a corpo. I modi veri sono pochi e si combinano:
  * un acconto alla firma, una durata, un numero di rate, oppure tranche a
@@ -238,28 +210,6 @@ export function monthSpan(start: string, end: string): number {
   const [ys, ms] = start.split('-').map(Number)
   const [ye, me] = end.split('-').map(Number)
   return Math.max(1, (ye - ys) * 12 + (me - ms) + 1)
-}
-
-/** Le rate che coprono l'intera durata del lavoro: il default sensato. */
-export function autoInstallments(s: RevenueStream): InstallmentDraft[] {
-  if (s.billing !== 'one_off' || !s.start_date) return []
-  const start = first(s.start_date)
-  const months = s.end_date ? monthSpan(start, first(s.end_date)) : 1
-  return splitEven(s.amount, months, start)
-}
-
-/**
- * La manutenzione si attiva quando il lavoro che la genera è concluso.
- * Restituisce gli id da portare in 'attivo': è una decisione, non un effetto,
- * quindi la esegue chi chiama.
- */
-export function readyToActivate(streams: RevenueStream[]): RevenueStream[] {
-  const byId = new Map(streams.map(s => [s.id, s]))
-  return streams.filter(s =>
-    s.status === 'bozza' &&
-    s.activates_after_id &&
-    byId.get(s.activates_after_id)?.status === 'concluso',
-  )
 }
 
 /** Mese corrente, per i default dell'interfaccia. */

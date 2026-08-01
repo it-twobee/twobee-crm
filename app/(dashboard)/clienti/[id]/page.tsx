@@ -31,6 +31,7 @@ export default async function ClientePage({ params, searchParams }: Props) {
     { data: allProfiles },
     { data: kpis },
     { count: openTickets },
+    { data: intData },
   ] = await Promise.all([
     supabase.from('clients').select('*').eq('id', id).single(),
     supabase.from('client_contacts').select('*').eq('client_id', id).order('is_primary', { ascending: false }),
@@ -40,15 +41,13 @@ export default async function ClientePage({ params, searchParams }: Props) {
     supabase.from('profiles').select(PROFILE_COLUMNS).order('full_name'),
     supabase.from('client_kpis').select('*').eq('client_id', id).order('month', { ascending: false }),
     supabase.from('tickets').select('*', { count: 'exact', head: true }).eq('client_id', id).in('status', ['aperto','in_lavorazione']),
+    // niente da aspettare: non dipende da nient'altro, va nella stessa ondata
+    supabase.from('client_interactions')
+      .select('*, conductor:profiles!client_interactions_conducted_by_fkey(id, full_name, avatar_url)')
+      .eq('client_id', id).order('date', { ascending: false }),
   ])
 
   if (!client) notFound()
-
-  const { data: intData } = await supabase
-    .from('client_interactions')
-    .select('*, conductor:profiles!client_interactions_conducted_by_fkey(id, full_name, avatar_url)')
-    .eq('client_id', id)
-    .order('date', { ascending: false })
 
   // ── Economics del cliente: admin-only, degrada se le migration mancano ─────
   const isAdmin = (currentProfile as { role?: string } | null)?.role === 'admin'

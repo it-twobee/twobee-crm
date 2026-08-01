@@ -145,6 +145,3 @@ export function nextDue(months: MonthVat[], today: string): QuarterVat | null {
   const all = vatByQuarter(months, today)
   return all.find(x => !x.closed && x.toPay > 0) ?? all.find(x => !x.closed) ?? null
 }
-
-/** L'IVA di un mese: quanto quel mese ha aggiunto al debito verso lo Stato. */
-export const monthBalance = (m: MonthVat) => r2(m.debit - m.credit)

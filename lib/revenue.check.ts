@@ -1,7 +1,7 @@
 /* Verifica del modello contratti. Esegui: npx tsx lib/revenue.check.ts */
 import {
-  linesForMonth, splitEven, splitByPercent, autoInstallments, monthSpan,
-  readyToActivate, activeInMonth, type RevenueStream, type Installment,
+  linesForMonth, buildSchedule, monthSpan,
+  activeInMonth, type RevenueStream, type Installment,
 } from '@/lib/revenue'
 
 let fail = 0
@@ -26,7 +26,9 @@ const digital = S({ id: 'd', label: 'Sito e-commerce', kind: 'digital', billing:
   amount: 24000, start_date: '2026-03-01', end_date: '2026-05-01', status: 'attivo' })
 const manut = S({ id: 'm', label: 'Manutenzione', kind: 'digital', amount: 500,
   start_date: '2026-06-01', status: 'bozza', activates_after_id: 'd' })
-const rate = autoInstallments(digital).map((r, k) => I({ id: `i${k}`, stream_id: 'd', ...r }))
+const rate = buildSchedule(digital.amount, {
+  mode: 'even', count: monthSpan(digital.start_date!, digital.end_date!), startMonth: digital.start_date!,
+}).map((r, k) => I({ id: `i${k}`, stream_id: 'd', ...r }))
 
 eq('il digital si spalma su 3 mesi', rate.map(r => r.amount), [8000, 8000, 8000])
 eq('febbraio: solo il canone growth',
@@ -38,10 +40,7 @@ eq('giugno: la manutenzione in bozza non entra',
   linesForMonth([growth, digital, manut], rate, '2026-06-01').map(l => l.amount_net), [3600])
 
 console.log('\n— La manutenzione si attiva a progetto concluso —')
-eq('progetto ancora attivo: niente da attivare', readyToActivate([growth, digital, manut]).length, 0)
 const chiuso = { ...digital, status: 'concluso' as const }
-eq('progetto concluso: la manutenzione è pronta',
-  readyToActivate([growth, chiuso, manut]).map(s => s.label), ['Manutenzione'])
 eq('attivata, a giugno entra',
   linesForMonth([growth, chiuso, { ...manut, status: 'attivo' as const }], rate, '2026-06-01')
     .map(l => l.amount_net), [3600, 500])
@@ -52,8 +51,9 @@ eq('saldo dopo la fine del progetto',
     .map(l => l.amount_net), [4000])
 
 console.log('\n— Piani di fatturazione —')
-eq('40/30/30 su 12.000', splitByPercent(12000, [40, 30, 30], '2026-01-01').map(r => r.amount), [4800, 3600, 3600])
-eq('somma esatta anche con arrotondamenti', splitEven(10000, 3, '2026-01-01').reduce((s, r) => s + r.amount, 0), 10000)
+eq('40/30/30 su 12.000', buildSchedule(12000, { mode: 'percent', percents: [40, 30, 30], startMonth: '2026-01-01' }).map(r => r.amount), [4800, 3600, 3600])
+eq('somma esatta anche con arrotondamenti', buildSchedule(10000, { mode: 'even', count: 3, startMonth: '2026-01-01' }).reduce((s, r) => s + r.amount, 0), 10000)
+eq('acconto 30% + 3 rate su 30.000', buildSchedule(30000, { mode: 'deposit', depositPct: 30, count: 3, startMonth: '2026-01-01' }).map(r => r.amount), [9000, 7000, 7000, 7000])
 eq('durata marzo→maggio', monthSpan('2026-03-01', '2026-05-01'), 3)
 
 console.log('\n— Confini del canone —')

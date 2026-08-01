@@ -37,24 +37,6 @@ export function timeAgo(dateStr: string): string {
   return formatDate(dateStr)
 }
 
-export function getStatusColor(status: string): string {
-  switch (status) {
-    case 'verde': return 'text-success'
-    case 'giallo': return 'text-warning'
-    case 'rosso': return 'text-error'
-    default: return 'text-text-secondary'
-  }
-}
-
-export function getStatusBg(status: string): string {
-  switch (status) {
-    case 'verde': return 'bg-success/20 text-success'
-    case 'giallo': return 'bg-warning/20 text-warning'
-    case 'rosso': return 'bg-error/20 text-error'
-    default: return 'bg-surface text-text-secondary'
-  }
-}
-
 export function getPaymentBadge(status: string): string {
   switch (status) {
     case 'pagato': return 'bg-success/20 text-success'
