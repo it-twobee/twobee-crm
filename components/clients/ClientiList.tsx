@@ -31,6 +31,8 @@ export type ClientEconomicsSummary = {
   oneOffOpen: number
   contracts: number
   quoted: number
+  /** c'è qualcosa da cui dedurre lo stato pagamenti? Senza, il badge mente */
+  hasBilling: boolean
   /** righe del mese in corso ancora scoperte: è il dettaglio per progetto */
   unpaidCount: number
   unpaidAmount: number
@@ -461,11 +463,13 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
         {/* Pacchetto + pagamento + risk */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-2xs bg-gold/10 text-gold-text border border-gold/20 px-2 py-0.5 rounded font-semibold">{client.package}</span>
-          {showPayments && (
+          {showPayments && (eco && !eco.hasBilling ? (
+            <span className="text-2xs text-text-tertiary">nessuna scadenza</span>
+          ) : (
             <span className={`text-2xs font-semibold px-2 py-0.5 rounded ${getPaymentBadge(client.payment_status)}`}>
               {paymentLabel(client.payment_status)}
             </span>
-          )}
+          ))}
           {client.risk_score != null && <RiskBadge score={client.risk_score} trend={client.risk_trend} factors={client.risk_factors} />}
         </div>
 
@@ -576,9 +580,17 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
       )}
       {showPayments && (
         <td className="px-4 py-3.5">
+          {/* §177: lo stato si deduce da rate e righe di mese. Senza nessuna
+              delle due il valore in colonna è un residuo: meglio dirlo. */}
+          {eco && !eco.hasBilling ? (
+            <span className="text-2xs text-text-tertiary" title="Nessuna rata né riga di conto economico: lo stato pagamenti non è calcolabile">
+              nessuna scadenza
+            </span>
+          ) : (
           <span className={`inline-flex items-center whitespace-nowrap text-xs font-semibold px-2 py-0.5 rounded ${getPaymentBadge(client.payment_status)}`}>
             {paymentLabel(client.payment_status)}
           </span>
+          )}
           {/* §177: su più progetti conta quale non ha pagato, non solo che
               qualcosa manca — è l'unica informazione su cui si può agire */}
           {eco && eco.unpaidCount > 0 && (
@@ -883,8 +895,8 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
       )}
 
       {/* ── SEZIONE LOST ── (nascosta nel portale operativo: solo clienti attivi) */}
-      {pausedClients.length > 0 && <PausedSection clients={pausedClients} canSeeMrr={canSeeMrr} />}
-      {!hideEconomics && lostClients.length > 0 && <LostSection clients={lostClients} canSeeMrr={canSeeMrr} onDelete={handleDelete} deletingId={deletingId} />}
+      {pausedClients.length > 0 && <PausedSection clients={pausedClients} canSeeMrr={canSeeMrr} economics={economics} />}
+      {!hideEconomics && lostClients.length > 0 && <LostSection clients={lostClients} canSeeMrr={canSeeMrr} economics={economics} onDelete={handleDelete} deletingId={deletingId} />}
 
       {showModal && (
         <NewClientModal
@@ -901,10 +913,13 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
  * un rapporto sospeso che nessuno guarda diventa un rapporto perso, e la
  * differenza la fa una telefonata fatta al momento giusto.
  */
-function PausedSection({ clients, canSeeMrr }: { clients: Client[]; canSeeMrr: boolean }) {
+function PausedSection({ clients, canSeeMrr, economics }: {
+  clients: Client[]; canSeeMrr: boolean; economics: Record<string, ClientEconomicsSummary>
+}) {
   const stale = clients.filter(c => (pausedDays(c.paused_at) ?? 0) > 60).length
   const [open, setOpen] = useState(stale > 0)
-  const pausedMrr = clients.reduce((s, c) => s + c.mrr, 0)
+  // §176: anche qui il canone è quello dei contratti, non il residuo
+  const pausedMrr = clients.reduce((s, c) => s + canone(economics[c.id], c), 0)
 
   return (
     <div className="border border-warning/30 rounded-card overflow-hidden">
@@ -917,7 +932,8 @@ function PausedSection({ clients, canSeeMrr }: { clients: Client[]; canSeeMrr: b
           <span className="text-xs bg-surface border border-border text-text-secondary px-2 py-0.5 rounded-full">{clients.length}</span>
           {canSeeMrr && (
             <span className="text-xs text-text-secondary">
-              MRR in pausa: <span className="text-warning font-semibold">{formatCurrency(pausedMrr)}</span>
+              Canone sospeso: <span className="text-warning font-semibold">{formatCurrency(pausedMrr)}</span>
+              <span className="text-text-tertiary"> (dai contratti)</span>
             </span>
           )}
           {stale > 0 && (
@@ -941,7 +957,11 @@ function PausedSection({ clients, canSeeMrr }: { clients: Client[]; canSeeMrr: b
                 </div>
                 <span className="text-sm font-medium text-text-primary flex-1 min-w-[140px]">{clientName(c)}</span>
                 <span className="text-xs text-text-secondary">{c.package}</span>
-                {canSeeMrr && <span className="text-sm font-bold text-warning tabular">{formatCurrency(c.mrr)}</span>}
+                {canSeeMrr && (
+                  (economics[c.id]?.contracts ?? 0) > 0
+                    ? <span className="text-sm font-bold text-warning tabular">{formatCurrency(canone(economics[c.id], c))}</span>
+                    : <span className="text-2xs text-text-tertiary">senza contratti</span>
+                )}
                 <span className={`text-xs ${d != null && d > 60 ? 'text-warning font-semibold' : 'text-text-tertiary'}`}>
                   {d == null ? 'da data ignota' : d === 0 ? 'da oggi' : `fermo da ${d} giorni`}
                 </span>
@@ -958,11 +978,15 @@ function PausedSection({ clients, canSeeMrr }: { clients: Client[]; canSeeMrr: b
   )
 }
 
-function LostSection({ clients, canSeeMrr, onDelete, deletingId }: {
-  clients: Client[]; canSeeMrr: boolean; onDelete: (id: string, name: string) => void; deletingId: string | null
+function LostSection({ clients, canSeeMrr, economics, onDelete, deletingId }: {
+  clients: Client[]; canSeeMrr: boolean
+  economics: Record<string, ClientEconomicsSummary>
+  onDelete: (id: string, name: string) => void; deletingId: string | null
 }) {
   const [open, setOpen] = useState(false)
-  const lostMrr = clients.reduce((s, c) => s + c.mrr, 0)
+  // §176: il churn si misura su quello che fatturavano davvero, non
+  // sull'anagrafica — un cliente perso senza contratti non ha portato via nulla
+  const lostMrr = clients.reduce((s, c) => s + canone(economics[c.id], c), 0)
 
   return (
     <div className="border border-border rounded-card overflow-hidden">
@@ -974,7 +998,10 @@ function LostSection({ clients, canSeeMrr, onDelete, deletingId }: {
           <span className="text-sm font-semibold text-text-secondary">Clienti Persi</span>
           <span className="text-xs bg-surface border border-border text-text-secondary px-2 py-0.5 rounded-full">{clients.length}</span>
           {canSeeMrr && (
-            <span className="text-xs text-text-secondary">MRR perso: <span className="text-error font-semibold">{formatCurrency(lostMrr)}</span></span>
+            <span className="text-xs text-text-secondary">
+              Canone perso: <span className="text-error font-semibold">{formatCurrency(lostMrr)}</span>
+              <span className="text-text-tertiary"> (dai contratti)</span>
+            </span>
           )}
         </div>
         <ChevronDown className={`w-4 h-4 text-text-secondary transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -1009,7 +1036,13 @@ function LostSection({ clients, canSeeMrr, onDelete, deletingId }: {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-sm text-text-secondary">{c.package}</td>
-                {canSeeMrr && <td className="px-4 py-3 text-sm text-text-secondary">{formatCurrency(c.mrr)}</td>}
+                {canSeeMrr && (
+                  <td className="px-4 py-3 text-sm text-text-secondary">
+                    {(economics[c.id]?.contracts ?? 0) > 0
+                      ? formatCurrency(canone(economics[c.id], c))
+                      : <span className="text-2xs text-text-tertiary">senza contratti</span>}
+                  </td>
+                )}
                 <td className="px-4 py-3 text-xs text-text-secondary">
                   {c.contract_end ? new Date(c.contract_end).toLocaleDateString('it-IT') : '—'}
                 </td>
