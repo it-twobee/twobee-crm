@@ -20,6 +20,7 @@ export type CostCenter = {
   id: string
   name: string
   description: string | null
+  /** @deprecated §180: il tetto è la somma delle voci. Colonna viva, non più letta. */
   monthly_budget: number
   sort_order: number
   is_active: boolean
@@ -46,6 +47,7 @@ export type CostItem = {
   note: string | null
 }
 
+/** @deprecated §180: `cost_budgets` non alimenta più nessun calcolo. */
 export type CostBudget = { id: string; center_id: string; month: string; amount: number }
 
 /** Riga di uscita già registrata in un mese di conto economico. */
@@ -103,15 +105,42 @@ export function dueInMonth(item: CostItem, month: string): boolean {
 export const plannedForMonth = (items: CostItem[], month: string) =>
   items.filter(i => dueInMonth(i, month))
 
-/** Il tetto dell'area per quel mese: l'eccezione batte l'ordinario. */
-export function budgetFor(center: CostCenter, budgets: CostBudget[], month: string): { amount: number; custom: boolean } {
-  const own = budgets.find(b => b.center_id === center.id && first(b.month) === month)
-  return own ? { amount: own.amount, custom: true } : { amount: center.monthly_budget, custom: false }
+/**
+ * Il tetto di un'area **non si digita: è la somma delle sue voci**.
+ *
+ * Prima era un numero a parte (`cost_centers.monthly_budget`, con override in
+ * `cost_budgets`) e finiva sempre per divergere dal piano: 1.085 di tetto
+ * contro 540 di voci reali non dice niente a nessuno, e nessuno si ricorda di
+ * riallinearlo quando aggiunge un abbonamento. Le due colonne restano nel
+ * database come storia, ma non le legge più nessuno.
+ *
+ * Conseguenza voluta: «usato» non è più spesa contro un tetto inventato, è
+ * **spesa contro spesa prevista** — quanto del piano di questo mese è già uscito.
+ */
+export const budgetFor = (planned: number) => planned
+
+/**
+ * Il tetto del mese intero, che è un'altra cosa: non la somma delle aree ma un
+ * **obiettivo**, il {cost_target_pct} del fatturato del mese (35% di default,
+ * la stessa quota che il piano compensi mette da parte per i costi).
+ *
+ * Senza fatturato registrato non c'è obiettivo — e va detto, non mostrato come
+ * uno zero: uno zero si legge come «non puoi spendere niente», che è falso.
+ */
+export function monthTarget(revenue: number, costTargetPct: number): {
+  target: number
+  /** false quando il mese non ha ancora ricavi: il target non è calcolabile */
+  known: boolean
+} {
+  const known = revenue > 0
+  return { target: known ? Math.round(revenue * costTargetPct * 100) / 100 : 0, known }
 }
 
 export type CenterRollup = {
   center: CostCenter
+  /** = `planned`: il tetto dell'area è la somma delle sue voci (§180) */
   budget: number
+  /** @deprecated resta per non rompere i chiamanti: nessun budget è più «custom» */
   budgetCustom: boolean
   /** quanto il piano dice che uscirà questo mese */
   planned: number
@@ -121,7 +150,7 @@ export type CenterRollup = {
   actual: number
   actualFixed: number
   actualVariable: number
-  /** positivo = spazio ancora disponibile, negativo = sforo */
+  /** positivo = del previsto deve ancora uscire, negativo = si è speso più del piano */
   left: number
   usedPct: number
   lines: number
@@ -130,25 +159,26 @@ export type CenterRollup = {
 const sum = (ns: number[]) => Math.round(ns.reduce((s, n) => s + n, 0) * 100) / 100
 
 /**
- * Un'area per riga: quanto poteva spendere, quanto ha pianificato, quanto ha
- * speso davvero. Le tre cose insieme, perché una sola non dice niente.
+ * Un'area per riga: quanto il piano dice che uscirà, e quanto è uscito davvero.
+ * Il tetto non è più un terzo numero a parte — è il primo.
  */
 export function rollup(
-  centers: CostCenter[], items: CostItem[], budgets: CostBudget[], actuals: CostActual[], month: string,
+  centers: CostCenter[], items: CostItem[], actuals: CostActual[], month: string,
 ): CenterRollup[] {
   const due = plannedForMonth(items, month)
 
   return centers.map(center => {
     const own = due.filter(i => i.center_id === center.id)
     const spent = actuals.filter(a => a.center_id === center.id)
-    const { amount, custom } = budgetFor(center, budgets, month)
+    const planned = sum(own.map(i => i.amount))
+    const amount = budgetFor(planned)
     const actual = sum(spent.map(a => a.actual))
 
     return {
       center,
       budget: amount,
-      budgetCustom: custom,
-      planned: sum(own.map(i => i.amount)),
+      budgetCustom: false,
+      planned,
       plannedFixed: sum(own.filter(i => i.cost_type === 'F').map(i => i.amount)),
       plannedVariable: sum(own.filter(i => i.cost_type === 'V').map(i => i.amount)),
       actual,
@@ -360,24 +390,28 @@ export function costInsights(
   const out: CostFinding[] = []
   const eur = (n: number) => `€${Math.round(n).toLocaleString('it-IT')}`
 
-  const over = rows.filter(r => r.budget > 0 && r.actual > r.budget)
+  /* §180: il tetto di un'area è la somma delle sue voci, quindi «oltre il
+     budget» vuol dire una cosa sola e precisa: è uscito più di quanto il piano
+     prevedesse. Non è più un tetto discutibile, è una voce che manca. */
+  const over = rows.filter(r => r.planned > 0 && r.actual > r.planned)
   if (over.length) {
-    const amount = over.reduce((s, r) => s + (r.actual - r.budget), 0)
+    const amount = over.reduce((s, r) => s + (r.actual - r.planned), 0)
     out.push({
       id: 'over-budget', severity: 'critico',
-      title: `${over.length} aree oltre il budget, ${eur(amount)} in più`,
-      detail: over.map(r => `${r.center.name} ${eur(r.actual - r.budget)}`).join(' · '),
-      action: 'O il tetto era sbagliato o la spesa è sfuggita: decidere quale delle due, e correggere quella.',
+      title: `${over.length} aree hanno speso ${eur(amount)} più del previsto`,
+      detail: over.map(r => `${r.center.name} ${eur(r.actual - r.planned)}`).join(' · '),
+      action: 'La spesa c\'è ma il piano non la conosce: aggiungi la voce mancante, o correggi l\'importo di quella che c\'è.',
     })
   }
 
-  const noBudget = rows.filter(r => r.budget === 0 && (r.planned > 0 || r.actual > 0))
-  if (noBudget.length) {
+  // spesa senza nessuna voce a piano: l'area esiste, il piano è vuoto
+  const unplanned = rows.filter(r => r.planned === 0 && r.actual > 0)
+  if (unplanned.length) {
     out.push({
       id: 'no-budget', severity: 'attenzione',
-      title: `${noBudget.length} aree spendono senza un tetto`,
-      detail: `${noBudget.map(r => r.center.name).join(', ')}: si spende, ma non c'è un limite contro cui misurare la spesa.`,
-      action: 'Metti un budget anche approssimativo: serve a far scattare l\'allarme, non a essere esatto.',
+      title: `${unplanned.length} aree spendono senza una voce a piano`,
+      detail: `${unplanned.map(r => r.center.name).join(', ')}: escono soldi che nessuna voce ricorrente aveva previsto.`,
+      action: 'Metti a piano quello che torna ogni mese: da lì in poi il tetto dell\'area si calcola da solo.',
     })
   }
 

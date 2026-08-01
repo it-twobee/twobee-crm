@@ -109,6 +109,7 @@ export async function deleteCostItem(id: string) {
 // ── Budget per mese ──────────────────────────────────────────────────────────
 
 /** Il tetto di un'area per un mese preciso. Importo a zero = si torna all'ordinario. */
+/** @deprecated §180: il tetto d'area è la somma delle sue voci; nessuna UI lo chiama più. */
 export async function setMonthBudget(centerId: string, month: string, amount: number | null) {
   await requireAdmin()
   const admin = createAdminClient()

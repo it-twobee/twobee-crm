@@ -6,19 +6,19 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import {
   ChevronLeft, ChevronRight, Plus, Trash2, Wallet, Target, TrendingDown, Layers,
-  ShieldAlert, Info, Repeat, Pin, AlertTriangle, Download, ChevronDown, Sparkles, Truck,
+  ShieldAlert, Info, Repeat, AlertTriangle, Download, ChevronDown, Sparkles, Truck,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { monthLabel, shiftMonth } from '@/lib/pl'
 import {
-  rollup, orphans, yearlyCost, plannedForMonth, nextOccurrences, costInsights,
+  rollup, orphans, yearlyCost, plannedForMonth, nextOccurrences, costInsights, monthTarget,
   SUGGESTED_CENTERS, FREQUENCY_LABEL,
-  type CostCenter, type CostItem, type CostBudget, type CostActual, type Frequency,
+  type CostCenter, type CostItem, type CostActual, type Frequency,
 } from '@/lib/costs'
 import {
   addCenter, updateCenter, deleteCenter,
   addCostItem, updateCostItem, deleteCostItem,
-  setMonthBudget, applyPlanToMonth, promoteLineToPlan,
+  applyPlanToMonth, promoteLineToPlan,
 } from '@/app/actions/costs'
 import { EconomicsNav } from '@/components/economics/EconomicsNav'
 import { Draft, Money } from '@/components/economics/fields'
@@ -29,15 +29,19 @@ const pc = (n: number) => `${Math.round(n * 100)}%`
 const FREQS: Frequency[] = ['mensile', 'bimestrale', 'trimestrale', 'semestrale', 'annuale', 'una_tantum']
 
 export function CostPlanClient({
-  month, setupNeeded, monthExists, monthLocked, centers, items, budgets, actuals, projectNames = {},
+  month, setupNeeded, monthExists, monthLocked, centers, items, actuals, projectNames = {},
+  revenue, costTargetPct,
 }: {
   month: string
   setupNeeded: boolean
   monthExists: boolean
   monthLocked: boolean
+  /** imponibile del mese dal conto economico: senza, il tetto non è calcolabile */
+  revenue: number
+  /** quota di fatturato destinata ai costi (pl_config.cost_target_pct, 35%) */
+  costTargetPct: number
   centers: CostCenter[]
   items: CostItem[]
-  budgets: CostBudget[]
   actuals: CostActual[]
   /** §173: nome del progetto per i subappalti */
   projectNames?: Record<string, string>
@@ -53,7 +57,7 @@ export function CostPlanClient({
 
   const go = (d: number) => router.push(`/economics/costi?m=${shiftMonth(month, d)}`)
 
-  const rows = useMemo(() => rollup(centers, items, budgets, actuals, month), [centers, items, budgets, actuals, month])
+  const rows = useMemo(() => rollup(centers, items, actuals, month), [centers, items, actuals, month])
   const loose = useMemo(() => orphans(items, actuals), [items, actuals])
   const due = useMemo(() => plannedForMonth(items, month), [items, month])
 
@@ -64,6 +68,12 @@ export function CostPlanClient({
     fixed: rows.reduce((s, r) => s + r.actualFixed, 0),
     variable: rows.reduce((s, r) => s + r.actualVariable, 0),
   }), [rows, loose, due])
+
+  /* §180: il tetto del mese non è la somma delle aree — quella è già
+     «Pianificato» — ma l'obiettivo: il 35% del fatturato incassabile del mese.
+     Il confronto che conta è piano contro obiettivo, non piano contro sé stesso. */
+  const goal = useMemo(() => monthTarget(revenue, costTargetPct), [revenue, costTargetPct])
+  const overGoal = goal.known && tot.planned > goal.target
 
   // le voci di piano che questo mese non ha ancora portato nel conto economico
   const missing = due.filter(i => !actuals.some(a => a.cost_item_id === i.id))
@@ -141,16 +151,24 @@ export function CostPlanClient({
 
       {/* ── quattro numeri ── */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi icon={<Target className="w-4 h-4 text-info" />} label="Budget del mese" value={eur(tot.budget)}
-          sub={`${centers.filter(c => c.is_active).length} aree con un tetto`} />
+        <Kpi icon={<Target className="w-4 h-4 text-info" />} label="Tetto del mese"
+          value={goal.known ? eur(goal.target) : '—'}
+          sub={goal.known
+            ? `${pc(costTargetPct)} di ${eur(revenue)} fatturati`
+            : 'nessun fatturato registrato: obiettivo non calcolabile'}
+          tone={overGoal ? 'error' : undefined} />
         <Kpi icon={<Layers className="w-4 h-4 text-accent" />} label="Pianificato" value={eur(tot.planned)}
-          sub={`${due.length} voci cadono in questo mese`} />
+          sub={goal.known
+            ? `${pc(tot.planned / Math.max(1, goal.target))} del tetto · ${due.length} voci`
+            : `${due.length} voci cadono in questo mese`}
+          tone={overGoal ? 'error' : undefined} />
         <Kpi icon={<Wallet className="w-4 h-4 text-gold-text" />} label="Speso davvero" value={eur(tot.actual)}
           sub={monthExists ? `${actuals.length} uscite registrate` : 'mese non ancora aperto'} />
         <Kpi icon={<TrendingDown className="w-4 h-4 text-error" />} label="Scostamento"
-          value={`${tot.budget - tot.actual >= 0 ? '' : '+'}${eur(Math.abs(tot.budget - tot.actual))}`}
-          sub={tot.budget === 0 ? 'nessun budget impostato' : tot.actual > tot.budget ? 'oltre il budget' : 'ancora disponibile'}
-          tone={tot.budget > 0 && tot.actual > tot.budget ? 'error' : 'success'} />
+          value={goal.known ? `${goal.target - tot.planned >= 0 ? '' : '+'}${eur(Math.abs(goal.target - tot.planned))}` : '—'}
+          sub={!goal.known ? 'serve il fatturato del mese'
+            : overGoal ? `oltre il ${pc(costTargetPct)} del fatturato` : 'sotto il tetto'}
+          tone={!goal.known ? undefined : overGoal ? 'error' : 'success'} />
       </div>
 
       {/* ── fisso contro variabile ── */}
@@ -205,22 +223,16 @@ export function CostPlanClient({
                       onSave={v => run(() => updateCenter(r.center.id, { name: v }))}
                       className="flex-1 min-w-[140px] bg-transparent text-sm font-semibold text-text-primary border-b border-transparent focus:border-border-interactive outline-none" />
 
-                    <span className="flex items-center gap-1" title="Tetto di spesa per questo mese">
-                      <Money value={r.budget} small
-                        onSave={v => run(() => r.budgetCustom || v !== r.center.monthly_budget
-                          ? setMonthBudget(r.center.id, month, v)
-                          : updateCenter(r.center.id, { monthly_budget: v }))} />
-                      {r.budgetCustom && (
-                        <button onClick={() => run(() => setMonthBudget(r.center.id, month, null), 'Tornato al budget ordinario')}
-                          title="Budget solo per questo mese: clicca per tornare a quello ordinario"
-                          className="text-gold-text"><Pin className="w-3 h-3" /></button>
-                      )}
+                    {/* §180: il tetto è la somma delle voci dell'area, non un numero
+                        a parte — quindi si legge, non si scrive */}
+                    <span className="text-sm tabular font-bold text-text-primary shrink-0"
+                      title={`Somma delle ${own.filter(i => due.includes(i)).length} voci che cadono in questo mese`}>
+                      {eur(r.planned)}
                     </span>
 
                     <span className={`text-2xs tabular font-semibold ${over ? 'text-error' : 'text-text-secondary'}`}>
                       {eur(r.actual)} speso
                     </span>
-                    <span className="text-2xs tabular text-text-tertiary">{eur(r.planned)} pianificato</span>
 
                     <button onClick={() => setOpen(isOpen ? null : r.center.id)} aria-expanded={isOpen}
                       className="flex items-center gap-1 text-2xs font-semibold text-gold-text hover:opacity-80">
@@ -244,11 +256,11 @@ export function CostPlanClient({
                     }} />
                   </div>
                   <p className="text-2xs text-text-tertiary mt-1">
-                    {r.budget === 0
-                      ? 'Nessun tetto: la spesa non ha un limite contro cui misurarsi'
+                    {r.planned === 0
+                      ? 'Nessuna voce cade in questo mese'
                       : over
-                        ? `Sforato di ${eur(r.actual - r.budget)}`
-                        : `Restano ${eur(r.left)} (${pc(r.usedPct)} usato)`}
+                        ? `Speso ${eur(r.actual - r.planned)} più del previsto`
+                        : `${eur(r.actual)} di ${eur(r.planned)} previsti (${pc(r.usedPct)})`}
                     {r.actual > 0 && ` · ${eur(r.actualFixed)} fisso, ${eur(r.actualVariable)} variabile`}
                   </p>
 
