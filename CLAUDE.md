@@ -117,9 +117,11 @@ const parsed = JSON.parse((await res.json()).choices?.[0]?.message?.content?.mat
 
 ## Registro migration (Supabase Dashboard → SQL Editor)
 
-> **Da eseguire oggi: solo la `175_tax_control.sql`.** Senza, `/economics/fiscale`
-> mostra il SetupNotice e il resto funziona. Verificato sul database il
-> 2026-08-01: tutte le altre elencate qui sotto sono già applicate.
+> **Niente da eseguire.** Verificato sul database il 2026-08-01: tutte quelle
+> elencate qui sotto sono applicate, `175_tax_control.sql` e `179_os_versions.sql`
+> comprese. L'attribuzione via `x-actor-id` è stata provata sul database vero:
+> con l'header la modifica prende il nome di chi l'ha fatta, senza resta
+> «Sistema», e un UPDATE che non cambia niente non scrive più una riga.
 >
 > **Non eseguire** `086_decisions`, `097_data_quality_view`, `098_time_tracking`:
 > riguardano domini demoliti nel reset del 2026-07-23 (decisions, time tracking,
@@ -127,7 +129,7 @@ const parsed = JSON.parse((await res.json()).choices?.[0]?.message?.content?.mat
 > repo come storia, non come lavoro arretrato.
 
 `chat_channels.project_id` **esiste** in produzione: il vecchio "BUG NOTO" è risolto.
-Numerazione: attenzione, `080_*`, `081_*` e `092_*` compaiono due volte. Il prossimo libero è **179**.
+Numerazione: attenzione, `080_*`, `081_*` e `092_*` compaiono due volte. Il prossimo libero è **184**.
 
 La tabella qui sotto è il **changelog**: dice cosa fa ciascuna, non cosa manca.
 
@@ -185,6 +187,11 @@ dato economico: è sicuro anche nel workspace.
 | `176_client_pending.sql` | Terzo stato cliente: `pending` = lavorazioni sospese (CHECK esteso su `client_label`) + `clients.paused_at` (data dell'**ultima** sospensione, si azzera alla ripartenza). Fuori da MRR attivo, conto economico, alert e churn; dentro la relazione | — |
 | `177_payment_status_rule.sql` | Regola pagamenti: fattura il 1° del mese, valida 15 giorni. `pagato` = tutte le righe del mese incassate · `in_attesa` = **da pagare**, scoperto entro il 15 · `scaduto` = **non pagato**, dal 16 o con un mese passato scoperto. Lo stato lo determinano le checkbox `paid` delle righe di conto economico e delle rate | — |
 | `178_client_type_from_projects.sql` | `clients.client_type` derivato dai progetti (trigger su `projects`): solo digital → `digital`, solo growth/marketing → `growth`, misti → `growth_digital`. Contano i progetti non eliminati, in qualunque stato; senza progetti resta il valore scelto alla creazione | — |
+| `180_activity_retention.sql` | Conservazione della cronologia: `activity_config.retention_days` (default **20**, 0 = per sempre) + `purge_activity_log()` e cron notturno alle 3:40. Ogni riga muore N giorni dopo **la sua** modifica, non tutte insieme. `activity_retention_status()` dice se pg_cron sta davvero girando: senza, la finestra è solo un'intenzione e la pagina lo scrive | — |
+| `181_payroll.sql` | Personale: `hr_payroll_params` (aliquote per anno, con `verified_at` — finché è NULL la sezione dichiara che stima) + `hr_people` (organico, interni ed esterni). RLS admin, ciascuno legge la propria riga. Alimenta la voce «Persone» del conto economico | — |
+| `182_payroll_ledger.sql` | Il cedolino batte la stima: `hr_payslips` (competenze/imponibili/trattenute/oneri datore, con `employer_contrib` NULL = da consulente), `hr_invoices` (imponibile, IVA detraibile o no, ritenuta, importo pagato), `hr_f24` (aggregato, `individual_detail`), `hr_tfr_movements`. Estende `hr_people` (stato, CCNL, IBAN, P.IVA, regime, netto concordato) e aggiunge socio/fornitore. Seed: organico reale + cedolini e F24 di giugno 2026 | — |
+| `183_hr_personal_data.sql` | `hr_people`: `birth_date` (l'età decide l'eleggibilità all'apprendistato, under 30), `has_children`/`children_count` (alzano la soglia dei fringe benefit esenti), `dependent_spouse`. Si registra la data, non l'età: un'età nel database invecchia male | — |
+| `179_os_versions.sql` | Cronologia: (a) `log_activity()` legge l'attore dall'header `x-actor-id` — col service role `auth.uid()` è NULL e tutto risultava «Sistema» — e non registra gli UPDATE che non cambiano niente; (b) `os_versions` + `os_version_changes`, il changelog di prodotto con un ciclo di 15 giorni dal 2026-08-01 (v1.0.0), bozze visibili ai soli admin; (c) seed della v1.0.0 con 13 voci | — |
 
 **Scorciatoia**: `supabase/APPLY_PENDING.sql` è il concatenato (081, 086–093) in
 transazione, da incollare una volta sola nel SQL Editor. Bucket privati da creare
@@ -312,6 +319,102 @@ di conto economico e delle rate. Il passaggio dal 15 al 16 lo fa il cron
 notturno: nessuno deve toccare niente perché un credito diventi scaduto.
 Etichette da `paymentLabel()` in `lib/clients.ts`, mai inline.
 
+## Cronologia e versioni (§179)
+`/impostazioni/cronologia` ha due tab.
+
+**Attività** — `activity_log`, scritta dal trigger `log_activity()` su clients,
+projects, tasks, deals, invoices, tickets, objectives, key_results. Filtri
+(persona, tipo, azione, periodo, testo) applicati **sul database**, non sulla
+pagina caricata: filtrare le ultime 200 righe su settemila è un filtro che
+mente. Il ripristino di un `update` riscrive i **valori vecchi presi dal diff**,
+non lo snapshot — lo snapshot è lo stato *dopo*, riapplicarlo non fa niente — e
+tocca solo i campi di quella modifica, per non annullare il lavoro fatto dopo da
+qualcun altro. `previewRestore` mostra prima cosa torna indietro.
+
+**Attribuzione**: il service role non ha `auth.uid()`, quindi ogni scrittura da
+server action risultava «Sistema». Le server action che toccano tabelle con
+cronologia usano `createActorClient(userId)` (`lib/supabase/admin.ts`), che
+manda l'id in `x-actor-id`; il trigger lo legge da `request.headers`. **Se
+aggiungi una scrittura su una tabella loggata, usa quello, non
+`createAdminClient()`** — altrimenti la modifica non ha un nome sopra.
+
+**Versioni** — `os_versions` + `os_version_changes`, changelog di prodotto
+scritto a mano: un changelog generato dai commit racconta i commit, non il
+prodotto. Un ciclo ogni **15 giorni** dal 2026-08-01 (v1.0.0): chiudere un ciclo
+alza la minore, una modifica sostanziale a metà ciclo alza la patch, la maggiore
+la decide una persona. `lib/os-version.ts` = calendario e numeri (puri,
+verificati da `os-version.check.ts`). Ogni voce ha tipo, area, impatto e le due
+colonne **prima/adesso**: è quello che rende leggibile il confronto con la
+versione precedente. Le bozze le vedono solo gli admin; il workspace mostra in
+sola lettura l'ultima pubblicata.
+
+## Personale (§181-182, `/economics/personale`)
+
+**La regola che tiene in piedi tutto (§182): tre valori, mai sommati fra loro.**
+- **Costo economico** — competenze + oneri datore + TFR maturato. Va nel P&L.
+- **Uscita di cassa** — netto + F24 + fatture pagate. Il TFR **non** c'è: matura
+  ora, esce alla fine del rapporto, e contarlo due volte è l'errore classico.
+- **Netto percepito** — dal cedolino. Per una P.IVA è **null**: Two Bee conosce
+  l'importo pagato, non le imposte personali di chi fattura. In UI si dice
+  «importo pagato al collaboratore», mai «netto».
+
+`monthLedger` calcola i due piani insieme e la loro differenza è per costruzione
+il solo TFR — se fosse altro, qualcosa sarebbe contato due volte.
+
+**Il documento batte la stima.** `payslipViews` legge il cedolino; `employer_contrib`
+NULL significa «non ancora avuto dal consulente», e allora si stima **dichiarandolo**
+(`estimated`). Zero e NULL sono cose diverse. `ledgerAlerts` controlla quadrature
+(netto vs cedolino, IRPEF vs F24), TFR mancante o su chi non lo matura, scostamenti
+dal netto concordato, fatture senza documento, IVA indetraibile a costo.
+
+**Si scrive il mese, non la RAL** (§183). Nessuno pensa in retribuzione annua:
+si pensa «a Michele do 1.500 al mese». Il campo dell'organico chiede il **netto
+mensile** per i dipendenti e il **compenso** per chi fattura;
+`grossFromMonthlyNet` risale alla RAL per bisezione — gli scaglioni IRPEF non si
+invertono con una formula. Prima il campo chiedeva l'annuo e chi scriveva «1300»
+pensando al mese si vedeva 108 €/mese.
+
+**Età e famiglia contano nei conti** (§183): `birth_date` decide se
+l'apprendistato è ancora possibile (fino ai 29 compiuti) e l'avviso diventa
+urgente quando mancano meno di dodici mesi; `has_children` raddoppia la soglia
+dei fringe benefit esenti, e il potenziale welfare somma le soglie vere invece
+di moltiplicare per un tetto medio.
+
+**L'F24 non si ripartisce.** `checkF24` dice se l'IRPEF dei cedolini combacia con
+l'erario del modello e quanto dell'INPS resta a carico azienda — ma quel residuo è
+aggregato: «Dato aziendale aggregato — ripartizione individuale non verificata»
+finché non arriva il prospetto individuale del consulente.
+
+Il costo vero di una persona: lordo + contributi + INAIL + TFR + ratei, che sulla
+RAL fanno un +40/45%. `lib/payroll.ts` = motore puro (verificato da
+`payroll.check.ts`, 124 controlli). Tre principi:
+
+- **Nessuna aliquota nel codice.** Stanno in `hr_payroll_params`, per anno, con
+  `verified_at`: finché è NULL la pagina dichiara che sta stimando e l'avviso
+  resta. L'INPS azienda dipende dal CCNL (29-32% nel terziario) — va confermato
+  dal consulente, non indovinato.
+- **Competenza ≠ cassa.** Il TFR matura e non esce; la tredicesima matura in
+  dodicesimi ed esce a dicembre. `personCost` dà `total` (conto economico) e
+  `cash` (conto corrente) separati.
+- **Il netto è una stima e lo dice.** Mancano familiari a carico, conguagli e le
+  addizionali del comune preciso.
+
+Otto tipologie contrattuali in `CONTRACTS` (struttura: matura TFR? quante
+mensilità?), il confronto dipendente/P.IVA **a parità di netto per la persona**
+— paragonare una RAL a una fattura è disonesto — e `payrollHints` per le leve
+legali (welfare, buoni pasto, apprendistato, premi di risultato) con i loro
+tetti e i loro rischi. «Porta nel conto economico» scrive una riga per persona
+nella voce «Persone», sostituendo le precedenti invece di sommarle.
+
+## Prepara il mese (conto economico)
+Un mese nasce da **quattro sorgenti**, e `previewPrefill` le conta prima di
+scrivere: entrate dai contratti dei progetti · costi di struttura dal piano ·
+subappalti (col progetto attaccato) · personale dall'organico. Il pannello
+`PrepareMonth` mostra quanto porterebbe ciascuna e il margine che ne uscirebbe,
+poi si preme. Ogni sorgente sa non duplicarsi: rilanciare aggiunge il mancante.
+Se una sorgente fallisce le altre proseguono e lo scarto finisce in `skipped` —
+un mese preparato a metà è più utile di un errore.
+
 ## Architettura portali
 - **Admin** (`/dashboard`, tutto): `super_admin`, `founder`, `admin`.
 - **Workspace** (`/workspace/**` e nient'altro): `manager`, `senior`, `junior`, `stage`, `freelance`, `partner`.
@@ -362,33 +465,65 @@ Le task del calendario sono personali e nascoste di default.
 
 ## Dove siamo — 2026-08-01
 
-Ultimo commit: `47ab365`. `main` e `origin/main` allineati; il deploy Coolify
+Ultimo commit: `34c23f5`. `main` e `origin/main` allineati; il deploy Coolify
 builda da lì. Gate del repo: `npx tsc --noEmit` (ESLint non è configurato) più i
-quattro `lib/*.check.ts`, che si lanciano con `npx tsx lib/<nome>.check.ts` e
+sette `lib/*.check.ts`, che si lanciano con `npx tsx lib/<nome>.check.ts` e
 devono dire «Tutti i controlli passano».
+**Non lanciare `npm run build` mentre `npm run dev` gira**: condividono `.next`,
+il dev server resta a servire chunk CSS sostituiti e la pagina si apre senza
+stili. Se succede: ferma il dev, `rm -rf .next`, riavvia.
 
-**Fatto in questa tornata** (migration 168→178, tutte eseguite tranne la 175):
-il dominio economico completo — contratti per progetto, piano dei costi con
-budget per area, subappalti con margine di progetto, previsionale a sei mesi,
-IVA trimestrale e sezione Fiscale, stato cliente `pending`, e la disciplina
-trasversale per cui **ogni valore economico è derivato e dichiara la sua
-provenienza** (vedi le sezioni Economics, Tipo cliente, Stato pagamenti).
+**Migration da eseguire: la `183_hr_personal_data.sql`.** Le altre (179-182)
+sono applicate e verificate sul database: v1.0.0 pubblicata, retention a 90
+giorni con pg_cron attivo, organico e cedolini di giugno caricati. Senza la 183
+i campi età e figli non esistono e il suggerimento sull'apprendistato resta
+generico.
+
+**Fatto finora**: il dominio economico completo (migration 168→178) — contratti
+per progetto, piano dei costi con budget per area, subappalti con margine di
+progetto, previsionale a sei mesi, IVA trimestrale e sezione Fiscale, stato
+cliente `pending`, e la disciplina trasversale per cui **ogni valore economico è
+derivato e dichiara la sua provenienza** (vedi le sezioni Economics, Tipo
+cliente, Stato pagamenti).
+
+**In coda, non ancora committato:**
+- **Eliminazione clienti** singola e multipla (`deleteClients` /
+  `previewClientDeletion`, caselle di selezione in `ClientiList`, conferma che
+  dichiara cosa cade in cascata).
+- **Cronologia rifatta** (§179): filtri sul database, statistiche esatte,
+  attribuzione via `createActorClient`, ripristino che riporta indietro davvero,
+  e il registro delle versioni con ciclo di 15 giorni. Migration già applicata.
+- **Conservazione della cronologia** (§180): 20 giorni per riga, configurabile.
+- **Budget dei costi derivato**: il tetto di un'area è la somma delle sue voci
+  (non più `monthly_budget`), e il tetto del mese è il 35% del fatturato.
+- **Sezione Personale** (§181): costo per risorsa, contratti italiani, TFR,
+  13ª/14ª, ottimizzazioni fiscali, e la voce «Persone» del conto economico.
+- **«Prepara il mese»**: una sola azione che compone contratti, piano dei costi,
+  subappalti e organico, con anteprima di cosa entra prima di scrivere.
+
+**Com'è messo il database** (2026-08-01): 12 clienti (4 stabili, 3 partner, 3
+pending, 1 in bilico, 1 perso), 11 progetti attivi — 10 con cliente, 1 interno —
+68 task, 42 voci nel piano dei costi. Ma **zero contratti, zero rate, zero righe
+di conto economico**: i tre `pl_months` aperti sono vuoti.
 
 **Aperto, in ordine di importanza:**
 
-1. **Eseguire la `175_tax_control.sql`** — è l'unica migration davvero pendente.
-   Senza, `/economics/fiscale` mostra il SetupNotice.
-2. **I dati sono vuoti**: zero progetti vivi, zero contratti, zero righe di conto
-   economico (tutto eliminato a mano il 2026-08-01). Le derivazioni funzionano ma
-   non hanno da cui derivare: quasi ogni cliente legge «da quotare». Il tool si
-   riempie ricreando i progetti e quotandoli.
-3. **Risk score**: `compute_client_risk` (migration 014) dà ancora punti per
+1. **Quotare i progetti**: i progetti sono tornati, i contratti no. Finché
+   `revenue_streams` è vuota ogni cliente legge «da quotare», il conto economico
+   non ha righe da generare e Fiscale stima su niente. È lavoro di inserimento,
+   non di codice: si fa dalla scheda Economics di ogni progetto.
+2. **Risk score**: `compute_client_risk` (migration 014) dà ancora punti per
    «contratto scaduto» leggendo `clients.contract_end`, che ora è derivato e può
    essere NULL. Oggi vale 0 su tutti, quindi non si vede — ma va sistemato prima
    di riattivare il motore.
-4. **`promoteLineToPlan`** esiste in `app/actions/costs.ts` ma non ha un pulsante
+3. **`promoteLineToPlan`** esiste in `app/actions/costs.ts` ma non ha un pulsante
    nell'economics del progetto: una spesa registrata a mano non si può ancora
    promuovere a ricorrente da lì.
+4. **Attribuzione parziale**: `createActorClient` è adottato in `clients.ts`,
+   `projects.ts`, `tasks.ts`, `ad-hoc-tasks.ts`, `create-project.ts` e
+   `delete-client.ts`. Gli altri percorsi che scrivono su tabelle loggate (deals,
+   tickets, objectives) continuano a registrare «Sistema» finché non passano
+   anche loro.
 
 ## Regole di risposta
 - Zero preamboli. Vai dritto a codice.

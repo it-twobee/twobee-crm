@@ -264,7 +264,14 @@
       "Bash(echo \"exit:$?\")",
       "Bash(python3 -c \"import openpyxl; print\\('openpyxl ok', openpyxl.__version__\\)\")",
       "Bash(echo \"TSC: $?\")",
-      "Bash(xargs '-I{}' sh -c 'test -f \"{}\" && s=$\\(wc -c < \"{}\"\\) && [ $s -gt 200000 ] && echo \"{} $s\"')"
+      "Bash(xargs '-I{}' sh -c 'test -f \"{}\" && s=$\\(wc -c < \"{}\"\\) && [ $s -gt 200000 ] && echo \"{} $s\"')",
+      "Bash(perl -pi -e 's/colSpan=\\\\{11\\\\}/colSpan={12}/g' components/clients/ClientiList.tsx)",
+      "Bash(kill 13308 13309)",
+      "Bash(md5)",
+      "Bash(md5 -q /Users/marcolucci/Claude_TwoBee_HQ_Room/supabase/migrations/181_payroll.sql)",
+      "Bash(md5 -q /Users/marcolucci/Claude_TwoBee_HQ_Room/supabase/migrations/180_activity_retention.sql)",
+      "Bash(md5 -q supabase/migrations/182_payroll_ledger.sql)",
+      "Bash(md5 -q /Users/marcolucci/Claude_TwoBee_HQ_Room/supabase/migrations/182_payroll_ledger.sql)"
     ],
     "defaultMode": "acceptEdits"
   }
