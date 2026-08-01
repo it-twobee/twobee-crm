@@ -90,8 +90,11 @@ export function ContractsPanel({
       id: p.id as string | null, name: p.name, status: p.status,
       rows: streams.filter(s => s.project_id === p.id),
     }))
+    // §178: un contratto senza progetto — o su un progetto eliminato — non
+    // entra nella marginalità di nessun lavoro. Non è una categoria, è un
+    // errore da riparare, e va in cima perché è la prima cosa da sistemare.
     const loose = streams.filter(s => !s.project_id || !known.has(s.project_id))
-    if (loose.length) out.push({ id: null, name: 'Accordi senza progetto', status: undefined, rows: loose })
+    if (loose.length) out.unshift({ id: null, name: 'Da collegare a un progetto', status: undefined, rows: loose })
     return out
   }, [byClient, projects, streams])
 
@@ -126,12 +129,28 @@ export function ContractsPanel({
             <span className="text-text-tertiary"> · tutti gli importi sono IVA esclusa</span>
           </p>
         </div>
-        {canEdit && (
+        {canEdit && (byClient ? (
+          /* §178: si quota dentro un progetto. L'accordo slegato esiste — una
+             quota partner, una consulenza — ma è l'eccezione, non la porta
+             principale: da qui esce solo se non c'è nessun progetto a cui
+             appenderlo, e lo dice. */
+          <span className="flex items-center gap-2 flex-wrap">
+            {projects.length > 0 && (
+              <span className="text-2xs text-text-tertiary">
+                Quota dentro un progetto ↓
+              </span>
+            )}
+            <button onClick={() => addFromService(null, null)} disabled={pending}
+              title="Contratto non legato a un progetto: quota partner, consulenza, retainer puro"
+              className="flex items-center gap-1.5 text-2xs font-semibold border border-border rounded-xl px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-surface-hover press disabled:opacity-40">
+              <Unlink className="w-3.5 h-3.5" />Accordo senza progetto
+            </button>
+          </span>
+        ) : (
           <Add services={services} pending={pending}
-            label={byClient ? 'Accordo senza progetto' : 'Accordo custom'}
-            selectLabel={byClient ? 'Senza progetto, da listino…' : 'Aggiungi da listino…'}
-            onAdd={svc => addFromService(svc, scope.kind === 'project' ? scope.projectId : null)} />
-        )}
+            label="Accordo custom" selectLabel="Aggiungi da listino…"
+            onAdd={svc => addFromService(svc, scope.projectId)} />
+        ))}
       </div>
 
       {groups.length === 0 ? (
@@ -148,16 +167,18 @@ export function ContractsPanel({
           {groups.map(g => (
             <div key={g.id ?? 'none'}>
               {byClient && (
-                <div className="flex items-center gap-2 px-5 py-2.5 bg-background/40 flex-wrap">
+                <div className={`flex items-center gap-2 px-5 py-2.5 flex-wrap ${
+                  g.id ? 'bg-background/40' : 'bg-warning-dim/40 border-y border-warning/30'
+                }`}>
                   {g.id ? <Briefcase className="w-3.5 h-3.5 text-gold-text shrink-0" />
-                        : <Unlink className="w-3.5 h-3.5 text-text-tertiary shrink-0" />}
+                        : <Unlink className="w-3.5 h-3.5 text-warning shrink-0" />}
                   {g.id ? (
                     <Link href={`/progetti/${g.id}?tab=economics`}
                       className="text-2xs font-semibold text-text-primary hover:text-gold-text truncate">
                       {g.name}
                     </Link>
                   ) : (
-                    <span className="text-2xs font-semibold text-text-secondary">{g.name}</span>
+                    <span className="text-2xs font-semibold text-warning">{g.name}</span>
                   )}
                   {g.status && g.status !== 'active' && (
                     <span className="text-2xs text-text-tertiary">· {PROJECT_STATUS[g.status] ?? g.status}</span>
@@ -176,6 +197,15 @@ export function ContractsPanel({
                     <span className="ml-auto">
                       <Add services={services} pending={pending} label="Accordo custom" compact
                         onAdd={svc => addFromService(svc, g.id)} />
+                    </span>
+                  )}
+                  {!g.id && (
+                    <span className="text-2xs text-text-secondary w-full mt-1">
+                      Questi contratti non appartengono a nessun progetto attivo: la marginalità non li vede e il
+                      conto economico non sa a quale lavoro riferirli.{' '}
+                      {projects.length > 0
+                        ? 'Aprili e scegli il progetto in «Dettagli».'
+                        : 'Questo cliente non ha progetti attivi: creane uno e poi collegali da «Dettagli».'}
                     </span>
                   )}
                 </div>

@@ -41,6 +41,8 @@ interface Props {
   contractsCount?: number | null
   /** §176: canone calcolato dai contratti dei progetti. null = non calcolabile qui */
   mrrFromContracts?: number | null
+  /** §178: esistono rate o righe di conto economico da cui dedurre i pagamenti */
+  hasBilling?: boolean
 }
 
 const LABEL_TEXT: Record<string, string> = {
@@ -162,7 +164,7 @@ export function ClientPageClient({
   client, contacts, kpis,
   teamMembers, stakeholders, interactions, currentProfile, allProfiles,
   openTickets, initialTab, hideEconomics = false, backHref = '/clienti', economics,
-  contractsCount = null, mrrFromContracts = null,
+  contractsCount = null, mrrFromContracts = null, hasBilling = false,
 }: Props) {
   /* §176: il canone è la somma dei contratti attivi dei progetti. L'anagrafica
      non si scrive più, quindi un numero «da anagrafica» è un residuo: meglio
@@ -203,7 +205,7 @@ export function ClientPageClient({
       </div>
 
       {/* Alert banner contestuale */}
-      <ClientAlertBanner client={client} hideEconomics={hideEconomics} />
+      <ClientAlertBanner client={client} hideEconomics={hideEconomics} hasBilling={hasBilling} />
 
       {/* Header cliente — tutto editabile per admin */}
       <div className="px-4 sm:px-6 pb-5 border-b border-border">
@@ -268,8 +270,8 @@ export function ClientPageClient({
                 </span>
               )}
 
-              {/* Payment status */}
-              {!hideEconomics && (
+              {/* Payment status — §178: solo se c'è qualcosa da incassare */}
+              {!hideEconomics && hasBilling && (
                 <span title={PAYMENT_STATUS_HINT}
                   className={`text-xs font-semibold px-2 py-0.5 rounded ${getPaymentBadge(client.payment_status)}`}>
                   {paymentLabel(client.payment_status)}

@@ -58,6 +58,10 @@ export default async function ClientePage({ params, searchParams }: Props) {
   // §176: il canone dell'intestazione è la somma dei contratti dei progetti,
   // non il residuo d'anagrafica — che non si scrive più da nessuna parte
   let mrrFromContracts: number | null = null
+  // §178: senza rate né righe di conto economico lo stato pagamenti non è
+  // deducibile — e un avviso di scaduto manderebbe a cercare una fattura
+  // che nessuno ha emesso
+  let hasBilling = false
 
   if (isAdmin) {
     const [{ data: projects }, { data: streams, error: streamErr }, { data: cfg }, { data: catalog }] =
@@ -102,6 +106,12 @@ export default async function ClientePage({ params, searchParams }: Props) {
       byMonth.set(m, cur)
     }
     const history = Array.from(byMonth.values()).sort((a, b) => a.month.localeCompare(b.month))
+
+    const soldIds = new Set((streams ?? [])
+      .filter((s: { status: string }) => s.status !== 'bozza')
+      .map((s: { id: string }) => s.id))
+    hasBilling = (plRows ?? []).length > 0
+      || (inst ?? []).some((i: { stream_id: string }) => soldIds.has(i.stream_id))
 
     const num = (v: unknown) => Number(v ?? 0)
     const config: PlConfig = cfg ? {
@@ -168,6 +178,7 @@ export default async function ClientePage({ params, searchParams }: Props) {
       economics={economics}
       contractsCount={contractsCount}
       mrrFromContracts={mrrFromContracts}
+      hasBilling={hasBilling}
     />
   )
 }

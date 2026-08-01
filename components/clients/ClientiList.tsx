@@ -346,6 +346,12 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
     [allFiltered, pinnedIds, sortKey, sortDir]
   )
 
+  // §178: chi ha davvero qualcosa da incassare — gli altri non possono essere
+  // «scaduti», e l'avviso non deve nemmeno nascere
+  const billingIds = useMemo(
+    () => new Set(Object.entries(economics).filter(([, e]) => e.hasBilling).map(([id]) => id)),
+    [economics])
+
   // §176: i totali leggono i contratti, non la colonna d'anagrafica
   const totalMrr = useMemo(
     () => allFiltered.reduce((s, c) => s + canone(economics[c.id], c), 0), [allFiltered, economics])
@@ -629,7 +635,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
 
   return (
     <div className="p-4 sm:p-6 space-y-4">
-      {!hideEconomics && <PrioritaOggi clients={clients} />}
+      {!hideEconomics && <PrioritaOggi billing={billingIds} clients={clients} />}
 
       {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap">

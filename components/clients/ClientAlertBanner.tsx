@@ -11,7 +11,7 @@ interface Alert {
   urgency: 'alta' | 'media'
 }
 
-function buildClientAlerts(client: Client, hideEconomics: boolean): Alert[] {
+function buildClientAlerts(client: Client, hideEconomics: boolean, hasBilling: boolean): Alert[] {
   const alerts: Alert[] = []
   const today = new Date()
 
@@ -26,7 +26,11 @@ function buildClientAlerts(client: Client, hideEconomics: boolean): Alert[] {
     }
   }
 
-  if (!hideEconomics && client.payment_status === 'scaduto') {
+  /* §178: un pagamento può essere scaduto solo se esiste qualcosa da pagare —
+     una rata di contratto o una riga di conto economico. Senza, il valore in
+     colonna è un residuo storico e l'avviso manda a cercare una fattura che
+     nessuno ha mai emesso. */
+  if (!hideEconomics && hasBilling && client.payment_status === 'scaduto') {
     alerts.push({ type: 'pagamento', message: 'Pagamento segnato come scaduto — verifica lo stato fatture', urgency: 'alta' })
   }
 
@@ -57,10 +61,13 @@ const urgencyStyle: Record<Alert['urgency'], string> = {
 interface Props {
   client: Client
   hideEconomics?: boolean
+  /** rate o righe di conto economico: senza, lo stato pagamenti non esiste */
+  hasBilling?: boolean
 }
 
-export function ClientAlertBanner({ client, hideEconomics = false }: Props) {
-  const alerts = useMemo(() => buildClientAlerts(client, hideEconomics), [client, hideEconomics])
+export function ClientAlertBanner({ client, hideEconomics = false, hasBilling = false }: Props) {
+  const alerts = useMemo(
+    () => buildClientAlerts(client, hideEconomics, hasBilling), [client, hideEconomics, hasBilling])
   if (alerts.length === 0) return null
 
   return (

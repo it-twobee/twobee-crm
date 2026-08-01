@@ -38,10 +38,27 @@ export async function updateProjectBrief(projectId: string, description: string 
 
 // Elimina il progetto intero (soft-delete). Le task figlie vengono soft-deleted;
 // workstream/milestone/ricorrenti restano collegati (cadono su hard-delete futuro).
+/**
+ * Eliminare un progetto che ha contratti venduti significa staccare dei ricavi
+ * dal lavoro che li genera: restano attaccati al cliente, spariscono dalla
+ * marginalità e nessuno se ne accorge finché non manca un numero. Si blocca e
+ * si dice cosa fare — spostare i contratti, o concluderli.
+ */
 export async function deleteProject(projectId: string, clientId: string | null) {
   await requireManagerOrAdmin(projectId)
   const admin = createAdminClient()
   const now = new Date().toISOString()
+
+  const { data: sold } = await admin.from('revenue_streams')
+    .select('label, status').eq('project_id', projectId).neq('status', 'bozza')
+  if (sold?.length) {
+    const nomi = sold.slice(0, 3).map((s: { label: string }) => `«${s.label}»`).join(', ')
+    throw new Error(
+      `Questo progetto ha ${sold.length} contratt${sold.length === 1 ? 'o' : 'i'} venduti (${nomi}). ` +
+      'Spostali su un altro progetto dall\'Economics del cliente, oppure portali a «concluso», ' +
+      'poi elimina il progetto: i ricavi non devono restare senza il lavoro che li ha generati.',
+    )
+  }
   // soft-delete progetto + tutte le sue task (per non lasciarle orfane nelle viste)
   const { error } = await admin.from('projects').update({ deleted_at: now }).eq('id', projectId)
   if (error) throw new Error(error.message)

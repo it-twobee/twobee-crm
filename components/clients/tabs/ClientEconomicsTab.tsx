@@ -196,11 +196,17 @@ export function ClientEconomicsTab({
         <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
           <div className="flex items-start justify-between gap-2 flex-wrap mb-1">
             <h3 className="text-sm font-bold text-text-primary">Fatturato mese per mese</h3>
-            {/* lo stato pagamenti non si spunta più a mano: lo dicono rate e mesi registrati */}
-            <span className={`text-2xs font-semibold px-2 py-0.5 rounded-full border ${PAY_TONE[paymentStatus] ?? 'bg-surface-active border-border-strong text-text-secondary'}`}
-              title={PAYMENT_STATUS_HINT}>
-              {PAY_LABEL[paymentStatus] ?? paymentStatus}
-            </span>
+            {/* §178: lo stato esiste solo se esiste qualcosa da incassare */}
+            {client.history.length > 0 || client.installments.length > 0 ? (
+              <span className={`text-2xs font-semibold px-2 py-0.5 rounded-full border ${PAY_TONE[paymentStatus] ?? 'bg-surface-active border-border-strong text-text-secondary'}`}
+                title={PAYMENT_STATUS_HINT}>
+                {PAY_LABEL[paymentStatus] ?? paymentStatus}
+              </span>
+            ) : (
+              <span className="text-2xs text-text-tertiary" title="Nessuna rata né riga di conto economico: non c'è ancora niente da incassare">
+                nessuna scadenza
+              </span>
+            )}
           </div>
           <p className="text-2xs text-text-tertiary mb-3">{b.lifetime.basis}</p>
           {client.history.length === 0 ? (

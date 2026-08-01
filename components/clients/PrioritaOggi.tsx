@@ -15,7 +15,7 @@ interface Alert {
   urgency: 'alta' | 'media'
 }
 
-function buildAlerts(clients: Client[]): Alert[] {
+function buildAlerts(clients: Client[], billing: Set<string>): Alert[] {
   const today = new Date()
   const alerts: Alert[] = []
 
@@ -32,7 +32,8 @@ function buildAlerts(clients: Client[]): Alert[] {
     }
 
     // Pagamento scaduto
-    if (c.payment_status === 'scaduto') {
+    // §178: niente scaduto senza qualcosa da incassare
+    if (c.payment_status === 'scaduto' && billing.has(c.id)) {
       alerts.push({ clientId: c.id, companyName: c.company_name, type: 'pagamento', label: 'Pagamento scaduto', detail: 'Fattura non saldata', urgency: 'alta' })
     }
 
@@ -73,9 +74,15 @@ const urgencyStyle: Record<Alert['urgency'], string> = {
   media: 'border-warning/30 bg-warning/5 text-warning',
 }
 
-export function PrioritaOggi({ clients }: { clients: Client[] }) {
+export function PrioritaOggi({ clients, billing = new Set<string>() }: {
+  clients: Client[]
+  /** id dei clienti che hanno rate o righe di conto economico: senza, niente avvisi di pagamento */
+  billing?: Set<string>
+}) {
   const [dismissed, setDismissed] = useState(false)
-  const alerts = useMemo(() => buildAlerts(clients.filter(c => c.client_label !== 'perso' && c.client_label !== 'pending')), [clients])
+  const alerts = useMemo(
+    () => buildAlerts(clients.filter(c => c.client_label !== 'perso' && c.client_label !== 'pending'), billing),
+    [clients, billing])
 
   if (dismissed || alerts.length === 0) return null
 
