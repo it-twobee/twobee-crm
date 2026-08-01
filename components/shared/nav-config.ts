@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, FolderOpen, Settings, CalendarDays, Headphones,
   Ticket, UserCircle2, History, Lightbulb, FolderKanban, Briefcase, ListChecks, ListTodo,
-  Wallet, Target, Landmark,
+  Wallet, Target, Landmark, Users2,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -48,6 +48,7 @@ export const navSections: NavSection[] = [
     items: [
       { href: '/economics', icon: Wallet, label: 'Conto economico', adminOnly: true },
       { href: '/economics/costi', icon: Target, label: 'Costi e budget', adminOnly: true },
+      { href: '/economics/personale', icon: Users2, label: 'Personale', adminOnly: true },
       { href: '/economics/fiscale', icon: Landmark, label: 'Fiscale & tasse', adminOnly: true },
     ],
   },

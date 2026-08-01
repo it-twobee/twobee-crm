@@ -1,16 +1,21 @@
 import Link from 'next/link'
-import { BookOpen, Wallet, Landmark } from 'lucide-react'
+import { BookOpen, Wallet, Landmark, Users } from 'lucide-react'
 
 /**
- * Le tre viste dell'economics: il consuntivo del mese, il piano dei costi e
- * quello che di quel margine non è tuo. Stessa materia da tre lati — quanto è
- * uscito, quanto poteva uscire, quanto ne resta allo Stato — quindi si passa
- * dall'una all'altra restando sullo stesso periodo.
+ * Le quattro viste dell'economics: il consuntivo del mese, il piano dei costi,
+ * il costo delle persone e quello che di quel margine non è tuo. Stessa materia
+ * da quattro lati — quanto è uscito, quanto poteva uscire, quanto costa chi lo
+ * produce, quanto ne resta allo Stato — quindi si passa dall'una all'altra
+ * restando sullo stesso periodo.
  */
-export function EconomicsNav({ active, month }: { active: 'conto' | 'costi' | 'fiscale'; month: string }) {
+export function EconomicsNav({ active, month }: {
+  active: 'conto' | 'costi' | 'personale' | 'fiscale'
+  month: string
+}) {
   const tabs = [
     { key: 'conto' as const, label: 'Conto economico', href: `/economics?m=${month}`, icon: BookOpen },
     { key: 'costi' as const, label: 'Costi e budget', href: `/economics/costi?m=${month}`, icon: Wallet },
+    { key: 'personale' as const, label: 'Personale', href: `/economics/personale?m=${month}`, icon: Users },
     { key: 'fiscale' as const, label: 'Fiscale & tasse', href: `/economics/fiscale?m=${month}`, icon: Landmark },
   ]
   return (
