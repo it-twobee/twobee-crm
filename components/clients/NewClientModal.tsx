@@ -17,17 +17,8 @@ type Contact = { full_name: string; email: string; phone: string; role: string; 
 const iso = (d: Date) => d.toISOString().slice(0, 10)
 const num = (v: string) => (v.trim() ? Number(v) : null)
 
-/** Contratto e MRR sono NOT NULL a DB: prefissiamo un anno da oggi, restano modificabili. */
-function defaultDates() {
-  const start = new Date()
-  const end = new Date(start)
-  end.setFullYear(end.getFullYear() + 1)
-  return { start: iso(start), end: iso(end) }
-}
-
 export function NewClientModal({ onClose, onCreated }: { onClose: () => void; onCreated: (client: Client) => void }) {
   const [pending, start] = useTransition()
-  const [dates] = useState(defaultDates)
 
   const [name, setName] = useState('')
   const [legalName, setLegalName] = useState('')
@@ -40,11 +31,7 @@ export function NewClientModal({ onClose, onCreated }: { onClose: () => void; on
   const [notes, setNotes] = useState('')
 
   const [pkg, setPkg] = useState<ClientPackage>('Hive Basic')
-  const [mrr, setMrr] = useState('')
   const [adBudget, setAdBudget] = useState('')
-  const [contractStart, setContractStart] = useState(dates.start)
-  const [contractEnd, setContractEnd] = useState(dates.end)
-  const [payment, setPayment] = useState<PaymentStatus>('pagato')
 
   const [tRoas, setTRoas] = useState('')
   const [tCtr, setTCtr] = useState('')
@@ -77,8 +64,11 @@ export function NewClientModal({ onClose, onCreated }: { onClose: () => void; on
         display_name: name, legal_name: legalName, client_type: type, client_label: label,
         is_internal: isInternal, industry, market_area: marketArea,
         active_channels: channels, notes,
-        package: pkg, mrr: Number(mrr) || 0, ad_budget_monthly: num(adBudget),
-        contract_start: contractStart, contract_end: contractEnd, payment_status: payment,
+        package: pkg, ad_budget_monthly: num(adBudget),
+        // colonne NOT NULL a DB, ma non più decisioni dell'utente: le riscrive
+        // il primo contratto venduto (§169). L'avvio è oggi, che è vero: da
+        // oggi il cliente esiste nei conti.
+        mrr: 0, contract_start: iso(new Date()), contract_end: null, payment_status: 'in_attesa',
         target_roas: num(tRoas), target_ctr: num(tCtr), target_cpa: num(tCpa),
         target_conv_rate: num(tConv), target_leads_monthly: num(tLeads),
         target_revenue_monthly: num(tRevenue), target_followers_monthly: num(tFollowers),
@@ -154,31 +144,24 @@ export function NewClientModal({ onClose, onCreated }: { onClose: () => void; on
         <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className={`${inputCls} resize-none`} placeholder="Contesto, storia, avvertenze…" />
       </Field>
 
-      <Disclosure title="Contratto" hint="pacchetto, MRR, durata" defaultOpen>
+      <Disclosure title="Inquadramento" hint="pacchetto e budget pubblicitario" defaultOpen>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Pacchetto">
             <select value={pkg} onChange={e => setPkg(e.target.value as ClientPackage)} className={inputCls} aria-label="Pacchetto">
               {CLIENT_PACKAGES.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </Field>
-          <Field label="MRR (€/mese)">
-            <input type="number" value={mrr} onChange={e => setMrr(e.target.value)} className={inputCls} placeholder="1800" />
-          </Field>
-          <Field label="Inizio">
-            <input type="date" value={contractStart} onChange={e => setContractStart(e.target.value)} className={inputCls} aria-label="Inizio contratto" />
-          </Field>
-          <Field label="Fine">
-            <input type="date" value={contractEnd} onChange={e => setContractEnd(e.target.value)} className={inputCls} aria-label="Fine contratto" />
-          </Field>
-          <Field label="Budget ADV (€/mese)" hint="speso dal cliente">
+          <Field label="Budget ADV (€/mese)" hint="speso dal cliente, non da noi">
             <input type="number" value={adBudget} onChange={e => setAdBudget(e.target.value)} className={inputCls} placeholder="2000" />
           </Field>
-          <Field label="Stato pagamenti">
-            <select value={payment} onChange={e => setPayment(e.target.value as PaymentStatus)} className={inputCls} aria-label="Stato pagamenti">
-              {PAYMENT_STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </Field>
         </div>
+        {/* §176: quota, durata e rate si decidono nel progetto, dove esiste un
+            accordo vero. Chiederle qui produceva numeri che nessun contratto
+            sosteneva, e che poi smentivano l'economics. */}
+        <p className="text-2xs text-text-tertiary mt-2">
+          Niente MRR né date qui: l&apos;accordo economico si scrive quando crei il progetto — quota, durata,
+          rate ed eventuale subappalto. Da lì tornano indietro MRR, periodo contrattuale e stato pagamenti.
+        </p>
       </Disclosure>
 
       <Disclosure title="Obiettivi" hint="target concordati, anche dopo">

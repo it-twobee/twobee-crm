@@ -53,6 +53,11 @@ export default async function ClientePage({ params, searchParams }: Props) {
   // ── Economics del cliente: admin-only, degrada se le migration mancano ─────
   const isAdmin = (currentProfile as { role?: string } | null)?.role === 'admin'
   let economics: React.ReactNode = null
+  // serve anche fuori dall'economics: l'intestazione dice da dove esce l'MRR
+  let contractsCount: number | null = null
+  // §176: il canone dell'intestazione è la somma dei contratti dei progetti,
+  // non il residuo d'anagrafica — che non si scrive più da nessuna parte
+  let mrrFromContracts: number | null = null
 
   if (isAdmin) {
     const [{ data: projects }, { data: streams, error: streamErr }, { data: cfg }, { data: catalog }] =
@@ -62,9 +67,18 @@ export default async function ClientePage({ params, searchParams }: Props) {
         supabase.from('revenue_streams').select('*').eq('client_id', id),
         supabase.from('pl_config').select('*').eq('id', true).maybeSingle(),
         supabase.from('service_catalog')
-          .select('service_type, service_subtype, label, standard_price').eq('is_active', true).order('sort_order'),
+          .select('id, service_type, service_subtype, label, standard_price, price_unit, area')
+          .eq('is_active', true).order('area').order('sort_order'),
       ])
 
+    // §170: le bozze sono quotazioni, non contratti: non contano nell'etichetta
+    if (!streamErr) {
+      const sold = (streams ?? []).filter((s: { status: string }) => s.status !== 'bozza')
+      contractsCount = sold.length
+      mrrFromContracts = sold
+        .filter((s: { status: string; billing: string }) => s.status === 'attivo' && s.billing === 'recurring')
+        .reduce((n: number, s: { amount: unknown }) => n + Number(s.amount ?? 0), 0)
+    }
     const ids = (streams ?? []).map((s: { id: string }) => s.id)
     // rate, storico del cliente e base RFM non dipendono l'una dall'altra:
     // in serie erano tre round-trip, qui è uno
@@ -129,6 +143,12 @@ export default async function ClientePage({ params, searchParams }: Props) {
         kind={kindFromClientType(client.client_type)}
         catalog={(catalog ?? []) as never}
         basePath="/progetti"
+        services={(catalog ?? []) as never}
+        profiles={(allProfiles ?? []) as { id: string; full_name: string }[]}
+        canEdit
+        mrrStored={Number(client.mrr ?? 0)}
+        mrrSource={client.mrr_source === 'contratti' ? 'contratti' : 'anagrafica'}
+        paymentStatus={String(client.payment_status ?? 'in_attesa')}
       />
     )
   }
@@ -146,6 +166,8 @@ export default async function ClientePage({ params, searchParams }: Props) {
       openTickets={openTickets ?? 0}
       initialTab={tab ? parseInt(tab) : undefined}
       economics={economics}
+      contractsCount={contractsCount}
+      mrrFromContracts={mrrFromContracts}
     />
   )
 }

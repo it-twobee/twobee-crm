@@ -1,11 +1,13 @@
 'use client'
 
+import Link from 'next/link'
 import {
   FileText, Users, MessageSquare, BarChart3,
   Phone, Users2, Mail, Presentation, MapPin, HelpCircle, Star,
-  Check, AlertCircle, Clock, AlertTriangle,
+  Check, AlertCircle, Clock, AlertTriangle, Wallet,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
+import { mrrOrigin, economicsHref, CONTRACT_PERIOD_HINT } from '@/lib/economics-source'
 import { CalendarAgenda } from '@/components/shared/CalendarAgenda'
 import type { Client, ClientKpi, Profile, ClientInteraction, InteractionType, InteractionOutcome } from '@/lib/types/database'
 
@@ -45,6 +47,8 @@ interface Props {
   onTabChange?: (tab: number) => void
   /** Portale operativo: oscura MRR e dati economici */
   hideEconomics?: boolean
+  /** quanti contratti ha il cliente: dice da dove esce il canone */
+  contractsCount?: number | null
 }
 
 function scoreChecks(checks: { actual: number | null; target: number | null; lowerIsBetter?: boolean }[]): number {
@@ -153,8 +157,14 @@ function HealthRing({ score }: { score: number }) {
   )
 }
 
-export function PanoramicaTab({ client, kpis, teamMembers, interactions, openTickets, onTabChange, hideEconomics = false }: Props) {
+export function PanoramicaTab({
+  client, kpis, teamMembers, interactions, openTickets, onTabChange,
+  hideEconomics = false, contractsCount = null,
+}: Props) {
   const now = new Date()
+  // §176: senza contratti non c'è un canone, c'è un progetto da quotare
+  const quoted = contractsCount != null && contractsCount > 0
+  const origin = mrrOrigin(quoted ? 'contratti' : 'anagrafica', contractsCount)
 
   const lastKpi = kpis[0] ?? null
 
@@ -168,17 +178,19 @@ export function PanoramicaTab({ client, kpis, teamMembers, interactions, openTic
     ? Math.round((growthHealth + digitalHealth) / 2)
     : isDigital ? digitalHealth : growthHealth
 
-  const contractEnd   = new Date(client.contract_end)
-  const daysToExpiry  = Math.round((contractEnd.getTime() - now.getTime()) / 86400000)
+  // senza scadenza il contratto è a tempo indeterminato: non sta scadendo
+  const daysToExpiry  = client.contract_end
+    ? Math.round((new Date(client.contract_end).getTime() - now.getTime()) / 86400000)
+    : null
   const lastInteraction = interactions[0]
   const daysSinceContact = lastInteraction
     ? Math.round((now.getTime() - new Date(lastInteraction.date).getTime()) / 86400000)
     : null
 
   const alerts: { level: 'error' | 'warning'; msg: string; action?: () => void; actionLabel?: string }[] = []
-  if (daysToExpiry > 0 && daysToExpiry <= 30)
+  if (daysToExpiry !== null && daysToExpiry > 0 && daysToExpiry <= 30)
     alerts.push({ level: 'warning', msg: `Contratto in scadenza tra ${daysToExpiry} giorni`, action: () => onTabChange?.(1), actionLabel: 'Anagrafica' })
-  if (daysToExpiry <= 0)
+  if (daysToExpiry !== null && daysToExpiry <= 0)
     alerts.push({ level: 'error', msg: 'Contratto scaduto' })
   if (openTickets > 2)
     alerts.push({ level: 'warning', msg: `${openTickets} ticket aperti — verifica customer care` })
@@ -216,37 +228,49 @@ export function PanoramicaTab({ client, kpis, teamMembers, interactions, openTic
             <HealthRing score={healthScore} />
           </div>
           <div className="hidden sm:block w-px bg-surface-active" />
+          {/* Il canone sta nell'intestazione della scheda, visibile da ogni tab:
+              ripeterlo qui creava due numeri da tenere d'occhio invece di uno. */}
           <div className="flex-1 flex flex-col justify-center gap-1 text-center sm:text-left">
-            {!hideEconomics && (
-              <>
-                <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold">MRR</p>
-                <p className="text-3xl font-black text-gold-text">{formatCurrency(client.mrr)}</p>
-              </>
-            )}
-            <p className="text-2xs text-text-secondary mt-1">
-              {isGrowthDigital ? '📈 Growth + 💻 Digital' : isGrowth ? '📈 Cliente Growth' : '💻 Cliente Digital'} · {client.package}
+            <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold">Profilo</p>
+            <p className="text-lg font-black text-text-primary">
+              {isGrowthDigital ? 'Growth + Digital' : isGrowth ? 'Cliente Growth' : 'Cliente Digital'}
             </p>
+            <p className="text-2xs text-text-secondary">{client.package}</p>
+            {!hideEconomics && (
+              <Link href={economicsHref(client.id)} title={origin.hint}
+                className="inline-flex items-center gap-1 text-2xs font-semibold text-gold-text hover:opacity-80 mt-1 justify-center sm:justify-start">
+                <Wallet className="w-3.5 h-3.5" />Economics{' '}
+                <span className={`font-normal ${quoted ? 'text-text-tertiary' : 'text-warning'}`}>
+                  {quoted ? `· canone ${origin.label}` : '· da quotare'}
+                </span>
+              </Link>
+            )}
           </div>
           <div className="hidden sm:block w-px bg-surface-active" />
           <div className="flex-1 flex flex-col justify-center gap-1 text-center sm:text-left">
-            <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold">Contratto</p>
+            <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold" title={CONTRACT_PERIOD_HINT}>Contratto</p>
             <div className="flex items-center gap-2 justify-center sm:justify-start">
-              <span className={`text-lg font-black ${daysToExpiry <= 0 ? 'text-error' : daysToExpiry <= 30 ? 'text-warning' : 'text-success'}`}>
-                {daysToExpiry <= 0 ? 'Scaduto' : `${daysToExpiry}gg`}
+              <span className={`text-lg font-black ${
+                daysToExpiry === null ? 'text-success' : daysToExpiry <= 0 ? 'text-error' : daysToExpiry <= 30 ? 'text-warning' : 'text-success'
+              }`}>
+                {daysToExpiry === null ? 'Indeterminato' : daysToExpiry <= 0 ? 'Scaduto' : `${daysToExpiry}gg`}
               </span>
-              {daysToExpiry > 0 && <span className="text-xs text-text-secondary">rimanenti</span>}
+              {daysToExpiry !== null && daysToExpiry > 0 && <span className="text-xs text-text-secondary">rimanenti</span>}
             </div>
             <div className="h-1.5 bg-surface-active rounded-full overflow-hidden mt-1">
               {(() => {
+                if (daysToExpiry === null) return <div className="h-full rounded-full w-full bg-success/40" />
                 const s = new Date(client.contract_start).getTime()
-                const e = contractEnd.getTime()
+                const e = new Date(client.contract_end!).getTime()
                 const pct = Math.min(100, Math.max(0, Math.round(((now.getTime() - s) / (e - s)) * 100)))
                 return <div className="h-full rounded-full" style={{ width: `${pct}%`, background: daysToExpiry <= 0 ? 'var(--color-error)' : daysToExpiry <= 30 ? 'var(--color-gold-text)' : 'var(--color-success)' }} />
               })()}
             </div>
             <p className="text-2xs text-text-secondary">
               {new Date(client.contract_start).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })} →{' '}
-              {contractEnd.toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}
+              {client.contract_end
+                ? new Date(client.contract_end).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })
+                : 'senza scadenza'}
             </p>
           </div>
         </div>

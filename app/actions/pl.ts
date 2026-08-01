@@ -4,8 +4,9 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
-import { kindFromClientType, shiftMonth, type PlConfig } from '@/lib/pl'
+import { kindFromClientType, shiftMonth, DEFAULT_VAT_RATE, type PlConfig } from '@/lib/pl'
 import { linesForMonth } from '@/lib/revenue'
+import { applyPlanToMonth } from '@/app/actions/costs'
 
 const PATH = '/economics'
 
@@ -34,11 +35,16 @@ export async function ensureMonth(month: string): Promise<string> {
 }
 
 /**
- * Popola il mese dai clienti attivi e paganti.
+ * Popola il mese dai contratti, e dall'anagrafica per chi non ne ha ancora.
  *
  * Copia, non collega: un mese chiuso deve restare quello che era anche se
  * domani l'MRR cambia. Non tocca le righe già presenti — rilanciarlo aggiunge
- * solo i clienti che mancano, così si può usare a mese iniziato.
+ * solo quello che manca, così si può usare a mese iniziato.
+ *
+ * Il ripiego sull'MRR d'anagrafica è **per cliente**, non globale: chi ha
+ * almeno un contratto passa da lì e basta, chi non ne ha ancora nessuno entra
+ * col numero dell'anagrafica. Deciderlo globalmente voleva dire che il primo
+ * contratto scritto su un cliente faceva sparire dal mese tutti gli altri.
  */
 export async function generateRevenueFromClients(month: string) {
   await requireAdmin()
@@ -46,89 +52,121 @@ export async function generateRevenueFromClients(month: string) {
   const admin = createAdminClient()
 
   const { data: existing } = await admin.from('pl_revenue_lines')
-    .select('client_id, label').eq('month_id', monthId)
-  const already = new Set((existing ?? []).map((r: { client_id: string | null; label: string }) =>
-    `${r.client_id ?? ''}|${r.label}`))
+    .select('client_id, label, stream_id, installment_id').eq('month_id', monthId)
+  // si riconosce per contratto e rata, non per testo: rinominare una riga non
+  // deve farla ricomparire in doppio al rilancio
+  const already = new Set((existing ?? []).map((r: { client_id: string | null; label: string; stream_id: string | null; installment_id: string | null }) =>
+    r.stream_id ? `s:${r.stream_id}|${r.installment_id ?? ''}` : `c:${r.client_id ?? ''}|${r.label}`))
   const base = existing?.length ?? 0
-
-  // I contratti sono la fonte giusta: un cliente può averne più d'uno, con vite
-  // diverse. Finché non ce ne sono, si ripiega sull'MRR in anagrafica, così chi
-  // non ha ancora migrato continua a generare il mese.
-  const { data: streams, error: streamErr } = await admin.from('revenue_streams').select('*')
-
-  if (!streamErr && (streams ?? []).length) {
-    const ids = (streams ?? []).map((s: { id: string }) => s.id)
-    const { data: inst } = await admin.from('revenue_installments')
-      .select('*').in('stream_id', ids)
-    const { data: clients } = await admin.from('clients')
-      .select('id, company_name, display_name, client_label, is_internal, sales_owner_id, sales_owner_name')
-
-    const info = new Map((clients ?? []).map(c => [c.id, c]))
-    // il commerciale scende a cascata: contratto → cliente. Il nome libero
-    // copre chi porta clienti senza avere un account nel tool.
-    const owner = (l: { client_id: string | null; sales_owner_id: string | null }, streamName: string | null) => {
-      const c = l.client_id ? info.get(l.client_id) : null
-      return {
-        sales_owner_id: l.sales_owner_id ?? c?.sales_owner_id ?? null,
-        sales_owner: streamName ?? c?.sales_owner_name ?? null,
-      }
-    }
-    const streamName = new Map((streams ?? []).map((x: { id: string; sales_owner_name: string | null }) =>
-      [x.id, x.sales_owner_name ?? null]))
-    const rows = linesForMonth(streams as never, (inst ?? []) as never, month)
-      .filter(l => {
-        const c = info.get(l.client_id)
-        return c && !c.is_internal && c.client_label !== 'perso'
-      })
-      .map((l, i) => ({
-        month_id: monthId,
-        client_id: l.client_id,
-        // il nome del cliente davanti: in tabella si legge di chi è la riga
-        label: `${info.get(l.client_id)?.display_name || info.get(l.client_id)?.company_name} · ${l.label}`,
-        plan_amount: l.amount_net, invoices: 1, amount_net: l.amount_net,
-        vat_rate: l.vat_rate, kind: l.kind,
-        ...owner(l, streamName.get(l.stream_id) ?? null),
-        invoice_sent: l.invoiced, paid: l.paid,
-        sort_order: (base + i) * 10,
-      }))
-      .filter(r => !already.has(`${r.client_id}|${r.label}`))
-
-    if (rows.length) {
-      const { error } = await admin.from('pl_revenue_lines').insert(rows)
-      if (error) throw new Error(error.message)
-    }
-    revalidatePath(PATH)
-    return rows.length
-  }
 
   const { data: clients } = await admin.from('clients')
     .select('id, company_name, display_name, mrr, client_type, client_label, is_internal, payment_status, sales_owner_id, sales_owner_name')
     .order('company_name')
+  const info = new Map((clients ?? []).map(c => [c.id, c]))
+  // §176: chi ha sospeso le lavorazioni non fattura. Generargli il mese
+  // significa scrivere un ricavo che nessuno emetterà.
+  const billable = (id: string | null) => {
+    const c = id ? info.get(id) : null
+    return !!c && !c.is_internal && c.client_label !== 'perso' && c.client_label !== 'pending'
+  }
 
-  const rows = (clients ?? [])
-    .filter(c => !c.is_internal && c.client_label !== 'perso' && Number(c.mrr) > 0)
-    .map((c, i) => ({
+  /**
+   * Tutte le righe hanno le stesse chiavi, comprese quelle che valgono NULL.
+   * PostgREST inserisce l'array in un colpo solo e per le chiavi che mancano
+   * in un oggetto scrive NULL invece del default della colonna: una riga
+   * d'anagrafica senza `vat_rate` faceva saltare l'intero inserimento.
+   */
+  type Row = {
+    month_id: string
+    client_id: string | null
+    project_id: string | null
+    stream_id: string | null
+    installment_id: string | null
+    origin: 'contratto' | 'anagrafica'
+    label: string
+    plan_amount: number
+    invoices: number
+    amount_net: number
+    vat_rate: number
+    kind: 'growth' | 'digital'
+    sales_owner_id: string | null
+    sales_owner: string | null
+    invoice_sent: boolean
+    paid: boolean
+  }
+  const rows: Row[] = []
+  const withContract = new Set<string>()
+
+  const { data: streams, error: streamErr } = await admin.from('revenue_streams').select('*')
+
+  if (!streamErr && (streams ?? []).length) {
+    for (const s of (streams ?? []) as { client_id: string | null }[]) {
+      if (s.client_id) withContract.add(s.client_id)
+    }
+    const ids = (streams ?? []).map((s: { id: string }) => s.id)
+    const { data: inst } = await admin.from('revenue_installments').select('*').in('stream_id', ids)
+
+    // il commerciale scende a cascata: contratto → cliente. Il nome libero
+    // copre chi porta clienti senza avere un account nel tool.
+    const streamName = new Map((streams ?? []).map((x: { id: string; sales_owner_name: string | null }) =>
+      [x.id, x.sales_owner_name ?? null]))
+
+    for (const l of linesForMonth(streams as never, (inst ?? []) as never, month)) {
+      if (!billable(l.client_id)) continue
+      const c = l.client_id ? info.get(l.client_id) : null
+      rows.push({
+        month_id: monthId,
+        client_id: l.client_id,
+        // il legame con l'origine: da qui si apre il progetto e si distingue
+        // una riga coperta da contratto da una ferma all'MRR d'anagrafica
+        project_id: l.project_id,
+        stream_id: l.stream_id,
+        installment_id: l.installment_id,
+        origin: 'contratto',
+        label: l.label,
+        plan_amount: l.amount_net, invoices: 1, amount_net: l.amount_net,
+        vat_rate: l.vat_rate ?? DEFAULT_VAT_RATE, kind: l.kind,
+        sales_owner_id: l.sales_owner_id ?? c?.sales_owner_id ?? null,
+        sales_owner: streamName.get(l.stream_id) ?? c?.sales_owner_name ?? null,
+        invoice_sent: l.invoiced, paid: l.paid,
+      })
+    }
+  }
+
+  for (const c of clients ?? []) {
+    if (!billable(c.id) || withContract.has(c.id) || Number(c.mrr) <= 0) continue
+    rows.push({
       month_id: monthId,
       client_id: c.id,
+      project_id: null,
+      stream_id: null,
+      installment_id: null,
+      origin: 'anagrafica',
       label: c.display_name || c.company_name,
       plan_amount: Number(c.mrr),
       invoices: 1,
       amount_net: Number(c.mrr),
+      vat_rate: DEFAULT_VAT_RATE,
       kind: kindFromClientType(c.client_type),
       sales_owner_id: c.sales_owner_id ?? null,
       sales_owner: c.sales_owner_name ?? null,
-      paid: c.payment_status === 'pagato',
       invoice_sent: c.payment_status !== 'in_attesa',
-      sort_order: (base + i) * 10,
-    }))
-    .filter(r => !already.has(`${r.client_id}|${r.label}`))
+      paid: c.payment_status === 'pagato',
+    })
+  }
 
-  if (rows.length) {
-    const { error } = await admin.from('pl_revenue_lines').insert(rows)
+  const fresh = rows
+    .filter(r => !already.has(r.stream_id
+      ? `s:${r.stream_id}|${r.installment_id ?? ''}`
+      : `c:${r.client_id ?? ''}|${r.label}`))
+    .map((r, i) => ({ ...r, sort_order: (base + i) * 10 }))
+
+  if (fresh.length) {
+    const { error } = await admin.from('pl_revenue_lines').insert(fresh)
     if (error) throw new Error(error.message)
   }
   revalidatePath(PATH)
-  return rows.length
+  return fresh.length
 }
 
 /**
@@ -285,6 +323,56 @@ export async function setMonthStatus(month: string, status: 'aperto' | 'chiuso')
     .eq('id', monthId)
   if (error) throw new Error(error.message)
   revalidatePath(PATH)
+}
+
+/**
+ * Apre un mese futuro e lo riempie: entrate dai contratti, uscite dal piano.
+ *
+ * È il ponte fra il previsionale e il registrato. Finché un mese non esiste, le
+ * rate che ci cadono sono una promessa; da qui in poi sono righe con le loro
+ * spunte — fattura emessa, incassato, pagato.
+ */
+export async function openMonth(month: string) {
+  await requireAdmin()
+  await ensureMonth(month)
+  const revenue = await generateRevenueFromClients(month)
+  let costs = 0
+  try { costs = await applyPlanToMonth(month) } catch { /* niente piano: il mese resta con le sole entrate */ }
+  revalidatePath(PATH)
+  return { revenue, costs }
+}
+
+/**
+ * Svuota il mese: via tutte le voci di entrata e di uscita.
+ *
+ * Serve quando la generazione è partita su dati sbagliati — un contratto
+ * prezzato male, l'MRR non ancora migrato — e correggere trenta righe a mano
+ * costa più che rifare. Il mese resta, aperto e vuoto: si rigenera da capo.
+ *
+ * Un mese chiuso non si tocca: quello è il consuntivo, e se va rifatto lo si
+ * riapre prima, esplicitamente.
+ */
+export async function resetMonth(month: string) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const { data: row } = await admin.from('pl_months').select('id, status').eq('month', month).maybeSingle()
+  if (!row) return { revenue: 0, costs: 0 }
+  if (row.status === 'chiuso') throw new Error('Il mese è chiuso: riaprilo prima di svuotarlo')
+
+  const [{ count: nRev }, { count: nCost }] = await Promise.all([
+    admin.from('pl_revenue_lines').select('id', { count: 'exact', head: true }).eq('month_id', row.id),
+    admin.from('pl_cost_lines').select('id', { count: 'exact', head: true }).eq('month_id', row.id),
+  ])
+
+  const { error: e1 } = await admin.from('pl_revenue_lines').delete().eq('month_id', row.id)
+  if (e1) throw new Error(e1.message)
+  const { error: e2 } = await admin.from('pl_cost_lines').delete().eq('month_id', row.id)
+  if (e2) throw new Error(e2.message)
+
+  revalidatePath(PATH)
+  revalidatePath('/clienti')
+  return { revenue: nRev ?? 0, costs: nCost ?? 0 }
 }
 
 export async function updatePlConfig(patch: Partial<PlConfig>) {

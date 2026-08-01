@@ -73,7 +73,7 @@ const urgencyStyle: Record<Alert['urgency'], string> = {
 
 export function PrioritaOggi({ clients }: { clients: Client[] }) {
   const [dismissed, setDismissed] = useState(false)
-  const alerts = useMemo(() => buildAlerts(clients.filter(c => c.client_label !== 'perso')), [clients])
+  const alerts = useMemo(() => buildAlerts(clients.filter(c => c.client_label !== 'perso' && c.client_label !== 'pending')), [clients])
 
   if (dismissed || alerts.length === 0) return null
 

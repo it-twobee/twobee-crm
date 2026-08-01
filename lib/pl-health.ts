@@ -56,6 +56,8 @@ export function diagnose(
   costs: CostLine[],
   config: PlConfig,
   previous?: { accrued: number; costs: number },
+  /** §174: la liquidazione IVA in arrivo — cassa già incassata che non è tua */
+  vat?: { toPay: number; deadline: string; daysLeft: number; label: string } | null,
 ): Finding[] {
   const out: Finding[] = []
   const rev = t.revenue.accrued
@@ -200,6 +202,31 @@ export function diagnose(
       detail: `${noOwner} rig${noOwner > 1 ? 'he' : 'a'} senza commerciale — clienti arrivati dalla lead generation. ${eur(t.plan.poolShare)} a testa.`,
       action: 'Se invece qualcuno li ha portati, impostalo in anagrafica cliente.',
       metric: eur(t.plan.poolShare),
+    })
+  }
+
+  // righe che vengono dall'MRR d'anagrafica: il conto economico e l'economics
+  // dei progetti restano scollegati finché non esiste il contratto
+  const noContract = revenue.filter(l => l.origin === 'anagrafica')
+  if (noContract.length > 0) {
+    const amount = noContract.reduce((s, l) => s + l.amount_net, 0)
+    out.push({
+      id: 'no-contract', severity: 'attenzione',
+      title: `${eur(amount)} di entrate senza un contratto`,
+      detail: `${noContract.length} rig${noContract.length > 1 ? 'he arrivano' : 'a arriva'} dall'MRR in anagrafica, non da un contratto di progetto: la marginalità per progetto non le vede.`,
+      action: 'Apri il progetto del cliente e aggiungi i servizi nella scheda Economics.',
+      metric: `${Math.round((amount / rev) * 100)}%`,
+    })
+  }
+
+  if (vat && vat.toPay > 0 && vat.daysLeft <= 45) {
+    const when = new Date(vat.deadline + 'T00:00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
+    out.push({
+      id: 'vat-due', severity: vat.daysLeft <= 15 ? 'critico' : 'attenzione',
+      title: `${eur(vat.toPay)} di IVA da versare il ${when}`,
+      detail: `Liquidazione del ${vat.label}${vat.daysLeft < 0 ? ' — già scaduta' : `, fra ${vat.daysLeft} giorni`}. Sono soldi già incassati dai clienti che non sono tuoi: il margine qui sopra li conta come cassa.`,
+      action: 'Mettili da parte adesso: è il modo più comune in cui un\'azienda in utile resta senza soldi.',
+      metric: `${Math.round((vat.toPay / rev) * 100)}%`,
     })
   }
 

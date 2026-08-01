@@ -6,9 +6,10 @@ import {
   Plus, Search, Download, ExternalLink, Trash2,
   ChevronUp, ChevronDown, ChevronsUpDown,
   Pin, GripVertical, X, SlidersHorizontal,
-  LayoutGrid, List, Calendar, TrendingUp, TrendingDown, Minus,
+  LayoutGrid, List, Calendar, TrendingUp, TrendingDown, Minus, PauseCircle,
 } from 'lucide-react'
 import { formatCurrency, getPaymentBadge, clientName } from '@/lib/utils'
+import { pausedDays, paymentLabel } from '@/lib/clients'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Client, ClientPackage, PaymentStatus, ClientType, ClientLabel, Profile } from '@/lib/types/database'
@@ -17,8 +18,29 @@ import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { deleteClient } from '@/app/actions/delete-client'
 import { PrioritaOggi } from './PrioritaOggi'
 
+/**
+ * §176/§177: l'economics del cliente, calcolata dai contratti dei progetti.
+ * `clients.mrr` resta in colonna ma è un residuo: qui si mostra il vero.
+ */
+export type ClientEconomicsSummary = {
+  /** somma dei canoni ricorrenti attivi */
+  recurring: number
+  /** valore dei lavori a corpo venduti */
+  oneOff: number
+  /** quanto di quei lavori deve ancora entrare */
+  oneOffOpen: number
+  contracts: number
+  quoted: number
+  /** righe del mese in corso ancora scoperte: è il dettaglio per progetto */
+  unpaidCount: number
+  unpaidAmount: number
+  unpaidLabels: string[]
+}
+
 interface ClientiListProps {
   clients: Client[]
+  /** chiave = id cliente. Vuoto per chi non vede i dati economici */
+  economics?: Record<string, ClientEconomicsSummary>
   currentProfile?: Profile
   /** Portale operativo: oscura MRR, pagamenti, export ed elimina — solo vista clienti attivi */
   hideEconomics?: boolean
@@ -31,10 +53,11 @@ const ALL = 'tutti'
 const labelBadge: Record<string, string> = {
   stabile: 'bg-success/20 text-success',
   in_bilico: 'bg-warning/20 text-warning',
+  pending: 'bg-warning/20 text-warning',
   perso: 'bg-error/20 text-error',
   partner: 'bg-gold/20 text-gold-text',
 }
-const labelIcon: Record<string, string> = { stabile: '✅', in_bilico: '⚠️', perso: '❌', partner: '🤝' }
+const labelIcon: Record<string, string> = { stabile: '✅', in_bilico: '⚠️', pending: '⏸️', perso: '❌', partner: '🤝' }
 const typeBadge: Record<string, string> = {
   growth: 'bg-gold/15 text-gold-text',
   digital: 'bg-info/15 text-info',
@@ -50,9 +73,13 @@ const PORTFOLIO_TABS: { key: PortfolioTab; label: string; emoji: string }[] = [
   { key: 'interni',        label: 'Interni',        emoji: '🏢' },
 ]
 
+/** Il canone da mostrare: i contratti se ci sono, altrimenti niente da mostrare. */
+const canone = (eco: ClientEconomicsSummary | undefined, c: Client) =>
+  eco ? (eco.contracts > 0 ? eco.recurring : 0) : c.mrr
+
 const SORT_LABELS: Record<SortKey, string> = {
   company_name: 'Nome',
-  mrr: 'Revenue (MRR)',
+  mrr: 'Canone mensile',
   client_type: 'Tipo',
   client_label: 'Label',
   payment_status: 'Pagamenti',
@@ -151,9 +178,10 @@ function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; s
     : <ChevronDown className="w-3 h-3 text-gold-text" />
 }
 
-function SortValue(c: Client, key: SortKey): string | number {
+function SortValue(c: Client, key: SortKey, eco?: ClientEconomicsSummary): string | number {
   if (key === 'company_name') return c.company_name.toLowerCase()
-  if (key === 'mrr') return c.mrr
+  // §176: si ordina per quello che si vede, cioè il canone dai contratti
+  if (key === 'mrr') return eco ? canone(eco, c) : c.mrr
   if (key === 'client_type') return c.client_type ?? ''
   if (key === 'client_label') return c.client_label ?? ''
   if (key === 'payment_status') return c.payment_status
@@ -166,7 +194,7 @@ function SortValue(c: Client, key: SortKey): string | number {
 const STORAGE_PINS = 'twobee_pinned_clients'
 const STORAGE_PIN_ORDER = 'twobee_pinned_order'
 
-export function ClientiList({ clients: initialClients, currentProfile, hideEconomics = false }: ClientiListProps) {
+export function ClientiList({ clients: initialClients, currentProfile, hideEconomics = false, economics = {} }: ClientiListProps) {
   const canSeeMrr = !hideEconomics && (!currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || ['admin', 'manager'].includes(currentProfile.app_role ?? ''))
   const canCreateClient = !hideEconomics && (!currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || ['admin', 'manager'].includes(currentProfile.app_role ?? ''))
   const showPayments = !hideEconomics
@@ -277,15 +305,16 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
     const matchPayment = filterPayment === ALL || c.payment_status === filterPayment
     const matchType = filterType === ALL || c.client_type === filterType
     const matchLabel = filterLabel === ALL || c.client_label === filterLabel
-    const matchMrrMin = filterMrrMin === '' || c.mrr >= parseFloat(filterMrrMin)
-    const matchMrrMax = filterMrrMax === '' || c.mrr <= parseFloat(filterMrrMax)
+    const mrrValue = canone(economics[c.id], c)
+    const matchMrrMin = filterMrrMin === '' || mrrValue >= parseFloat(filterMrrMin)
+    const matchMrrMax = filterMrrMax === '' || mrrValue <= parseFloat(filterMrrMax)
     const matchPortfolio = portfolioTab === 'tutti' || (portfolioTab === 'interni' ? c.is_internal : c.client_type === portfolioTab)
     return matchSearch && matchPackage && matchPayment && matchType && matchLabel && matchMrrMin && matchMrrMax && matchPortfolio
   })
 
   const applySort = (list: Client[]) => [...list].sort((a, b) => {
-    const va = SortValue(a, sortKey)
-    const vb = SortValue(b, sortKey)
+    const va = SortValue(a, sortKey, economics[a.id])
+    const vb = SortValue(b, sortKey, economics[b.id])
     const cmp = typeof va === 'number' && typeof vb === 'number'
       ? va - vb
       : String(va).localeCompare(String(vb))
@@ -294,7 +323,11 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
 
   // Clienti persi: separati, non entrano nella lista principale né negli alert
   const lostClients = useMemo(() => clients.filter((c) => c.client_label === 'perso'), [clients])
-  const activeClients = useMemo(() => clients.filter((c) => c.client_label !== 'perso'), [clients])
+  // §176: i fermi hanno il loro contenitore. Non sono persi — il rapporto è
+  // vivo — ma non fatturano, quindi fuori dalla lista che alimenta i numeri
+  const pausedClients = useMemo(() => clients.filter((c) => c.client_label === 'pending'), [clients])
+  const activeClients = useMemo(
+    () => clients.filter((c) => c.client_label !== 'perso' && c.client_label !== 'pending'), [clients])
 
   const allFiltered = useMemo(() => applyFilters(activeClients), [
     activeClients, search, filterPackage, filterPayment,
@@ -311,7 +344,17 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
     [allFiltered, pinnedIds, sortKey, sortDir]
   )
 
-  const totalMrr = useMemo(() => allFiltered.reduce((s, c) => s + c.mrr, 0), [allFiltered])
+  // §176: i totali leggono i contratti, non la colonna d'anagrafica
+  const totalMrr = useMemo(
+    () => allFiltered.reduce((s, c) => s + canone(economics[c.id], c), 0), [allFiltered, economics])
+  const totalOneOff = useMemo(
+    () => allFiltered.reduce((s, c) => s + (economics[c.id]?.oneOff ?? 0), 0), [allFiltered, economics])
+  const totalOpen = useMemo(
+    () => allFiltered.reduce((s, c) => s + (economics[c.id]?.oneOffOpen ?? 0), 0), [allFiltered, economics])
+  // clienti che fatturano ma non hanno ancora un contratto: il numero da chiudere
+  const toQuote = useMemo(
+    () => allFiltered.filter(c => (economics[c.id]?.contracts ?? 0) === 0 && c.mrr > 0).length,
+    [allFiltered, economics])
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`Sei sicuro di voler eliminare "${name}"? L'azione è irreversibile.`)) return
@@ -324,8 +367,13 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
   }
 
   const exportCsv = () => {
-    const headers = ['Azienda', 'Tipo', 'Label', 'Pacchetto', 'MRR', 'Stato', 'Pagamenti', 'Inizio', 'Fine']
-    const rows = allFiltered.map((c) => [c.company_name, c.client_type, c.client_label, c.package, c.mrr, c.status, c.payment_status, c.contract_start, c.contract_end])
+    const headers = ['Azienda', 'Tipo', 'Label', 'Pacchetto', 'Canone/mese', 'Lavori a corpo', 'Da incassare', 'Stato', 'Pagamenti', 'Inizio', 'Fine']
+    const rows = allFiltered.map((c) => {
+      const e = economics[c.id]
+      return [c.company_name, c.client_type, c.client_label, c.package,
+        canone(e, c), e?.oneOff ?? 0, e?.oneOffOpen ?? 0,
+        c.status, c.payment_status, c.contract_start, c.contract_end]
+    })
     const csv = [headers, ...rows].map((r) => r.join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
     const a = document.createElement('a')
@@ -354,6 +402,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
       ? Math.max(0, Math.round((new Date(client.contract_end).getTime() - Date.now()) / 86400000))
       : null
     const expiringSoon = daysLeft !== null && daysLeft < 30
+    const eco = economics[client.id]
 
     return (
       <div className="card-interactive bg-surface border border-border rounded-2xl p-4 group flex flex-col gap-3 no-tap-highlight">
@@ -387,8 +436,24 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
         <div className="grid grid-cols-2 gap-2">
           {canSeeMrr && (
             <div className="bg-surface rounded-lg p-2.5">
-              <p className="text-2xs text-text-secondary uppercase tracking-wider mb-0.5">MRR</p>
-              <p className="text-sm font-black text-gold-text">{formatCurrency(client.mrr)}</p>
+              <p className="text-2xs text-text-secondary uppercase tracking-wider mb-0.5">Canone</p>
+              {eco && eco.contracts === 0 ? (
+                <p className="text-sm font-black text-warning">da quotare</p>
+              ) : (
+                <p className="text-sm font-black text-gold-text">{formatCurrency(canone(eco, client))}</p>
+              )}
+              <p className="text-2xs text-text-tertiary">
+                {eco && eco.contracts > 0 ? `da ${eco.contracts} contratt${eco.contracts === 1 ? 'o' : 'i'}` : 'nessun contratto'}
+              </p>
+            </div>
+          )}
+          {canSeeMrr && eco && eco.oneOff > 0 && (
+            <div className="bg-surface rounded-lg p-2.5">
+              <p className="text-2xs text-text-secondary uppercase tracking-wider mb-0.5">A corpo</p>
+              <p className="text-sm font-black text-accent">{formatCurrency(eco.oneOff)}</p>
+              <p className="text-2xs text-text-tertiary">
+                {eco.oneOffOpen > 0 ? `${formatCurrency(eco.oneOffOpen)} da incassare` : 'tutto incassato'}
+              </p>
             </div>
           )}
         </div>
@@ -398,7 +463,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
           <span className="text-2xs bg-gold/10 text-gold-text border border-gold/20 px-2 py-0.5 rounded font-semibold">{client.package}</span>
           {showPayments && (
             <span className={`text-2xs font-semibold px-2 py-0.5 rounded ${getPaymentBadge(client.payment_status)}`}>
-              {client.payment_status === 'in_attesa' ? 'Attesa pagamento' : client.payment_status === 'pagato' ? 'Pagato' : 'Scaduto'}
+              {paymentLabel(client.payment_status)}
             </span>
           )}
           {client.risk_score != null && <RiskBadge score={client.risk_score} trend={client.risk_trend} factors={client.risk_factors} />}
@@ -441,7 +506,9 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
     )
   }
 
-  const ClientRow = ({ client, pinned }: { client: Client; pinned: boolean }) => (
+  const ClientRow = ({ client, pinned }: { client: Client; pinned: boolean }) => {
+    const eco = economics[client.id]
+    return (
     <tr
       key={client.id}
       draggable={pinned}
@@ -487,12 +554,39 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
       <td className="px-4 py-3.5">
         <span className="inline-flex whitespace-nowrap text-xs text-text-secondary bg-background px-2 py-1 rounded">{client.package}</span>
       </td>
-      {canSeeMrr && <td className="px-4 py-3.5 text-sm font-bold text-gold-text">{formatCurrency(client.mrr)}</td>}
+      {canSeeMrr && (
+        <td className="px-4 py-3.5" title={eco && eco.contracts > 0
+          ? `Somma dei canoni attivi · ${eco.contracts} contratt${eco.contracts === 1 ? 'o' : 'i'}`
+          : 'Nessun contratto nei progetti: il canone non è verificabile'}>
+          {eco && eco.contracts === 0 ? (
+            <span className="text-2xs font-semibold text-warning">da quotare</span>
+          ) : (
+            <span className="text-sm font-bold text-gold-text">{formatCurrency(canone(eco, client))}</span>
+          )}
+          {/* i lavori a corpo non sono canone: si vedono, non si sommano */}
+          {eco && eco.oneOff > 0 && (
+            <span className="block text-2xs text-accent">
+              + {formatCurrency(eco.oneOff)} a corpo
+              {eco.oneOffOpen > 0 && (
+                <span className="text-text-tertiary"> · {formatCurrency(eco.oneOffOpen)} da incassare</span>
+              )}
+            </span>
+          )}
+        </td>
+      )}
       {showPayments && (
         <td className="px-4 py-3.5">
           <span className={`inline-flex items-center whitespace-nowrap text-xs font-semibold px-2 py-0.5 rounded ${getPaymentBadge(client.payment_status)}`}>
-            {client.payment_status === 'in_attesa' ? 'Attesa pagamento' : client.payment_status === 'pagato' ? 'Pagato' : 'Scaduto'}
+            {paymentLabel(client.payment_status)}
           </span>
+          {/* §177: su più progetti conta quale non ha pagato, non solo che
+              qualcosa manca — è l'unica informazione su cui si può agire */}
+          {eco && eco.unpaidCount > 0 && (
+            <span className="block text-2xs text-text-tertiary mt-0.5" title={eco.unpaidLabels.join(' · ')}>
+              {eco.unpaidCount} progett{eco.unpaidCount === 1 ? 'o' : 'i'} scopert{eco.unpaidCount === 1 ? 'o' : 'i'}
+              {' '}· {formatCurrency(eco.unpaidAmount)}
+            </span>
+          )}
         </td>
       )}
       <td className="px-4 py-3.5">
@@ -518,7 +612,8 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
         </div>
       </td>
     </tr>
-  )
+    )
+  }
 
   return (
     <div className="p-4 sm:p-6 space-y-4">
@@ -529,7 +624,17 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-text-primary font-heading">Clienti</h1>
           <p className="text-text-secondary text-sm mt-0.5">
-            {allFiltered.length} clienti{canSeeMrr && <> · MRR totale <span className="text-gold-text font-semibold tabular">{formatCurrency(totalMrr)}</span></>}
+            {allFiltered.length} clienti
+            {canSeeMrr && <> · canone <span className="text-gold-text font-semibold tabular">{formatCurrency(totalMrr)}</span>/mese</>}
+            {canSeeMrr && totalOneOff > 0 && (
+              <> · a corpo <span className="text-accent font-semibold tabular">{formatCurrency(totalOneOff)}</span>
+                {totalOpen > 0 && <span className="text-text-tertiary"> ({formatCurrency(totalOpen)} da incassare)</span>}</>
+            )}
+            {canSeeMrr && toQuote > 0 && (
+              <span className="text-warning" title="Fatturano ma non hanno un contratto nei progetti: il canone non è verificabile">
+                {' '}· {toQuote} da quotare
+              </span>
+            )}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -614,6 +719,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
           <option value={ALL}>Tutte le label</option>
           <option value="stabile">✅ Stabile</option>
           <option value="in_bilico">⚠️ In bilico</option>
+          <option value="pending">⏸️ In pending</option>
           <option value="perso">❌ Perso</option>
           <option value="partner">🤝 Partner</option>
         </select>
@@ -665,14 +771,14 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
           {canSeeMrr && (
             <>
               <div>
-                <label className="block text-xs text-text-secondary mb-1">MRR minimo (€)</label>
+                <label className="block text-xs text-text-secondary mb-1">Canone minimo (€)</label>
                 <input
                   type="number" value={filterMrrMin} onChange={(e) => setFilterMrrMin(e.target.value)}
                   placeholder="0" className="bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/40 w-32"
                 />
               </div>
               <div>
-                <label className="block text-xs text-text-secondary mb-1">MRR massimo (€)</label>
+                <label className="block text-xs text-text-secondary mb-1">Canone massimo (€)</label>
                 <input
                   type="number" value={filterMrrMax} onChange={(e) => setFilterMrrMax(e.target.value)}
                   placeholder="∞" className="bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/40 w-32"
@@ -682,7 +788,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
           )}
           <div className="flex items-end">
             <div className="text-xs text-text-secondary bg-background border border-border rounded-lg px-3 py-2">
-              <span className="text-text-primary font-semibold">{allFiltered.length}</span> risultati{canSeeMrr && <> · MRR medio <span className="text-gold-text font-semibold">{formatCurrency(allFiltered.length ? totalMrr / allFiltered.length : 0)}</span></>}
+              <span className="text-text-primary font-semibold">{allFiltered.length}</span> risultati{canSeeMrr && <> · canone medio <span className="text-gold-text font-semibold">{formatCurrency(allFiltered.length ? totalMrr / allFiltered.length : 0)}</span></>}
             </div>
           </div>
         </div>
@@ -717,7 +823,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
                   </div>
                 </th>
                 <ColHeader col="package" label="Pacchetto" />
-                {canSeeMrr && <ColHeader col="mrr" label="MRR" />}
+                {canSeeMrr && <ColHeader col="mrr" label="Canone" />}
                 {showPayments && <ColHeader col="payment_status" label="Pagamenti" />}
                 <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Settore</th>
                 <th className="px-4 py-3 w-24" />
@@ -777,6 +883,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
       )}
 
       {/* ── SEZIONE LOST ── (nascosta nel portale operativo: solo clienti attivi) */}
+      {pausedClients.length > 0 && <PausedSection clients={pausedClients} canSeeMrr={canSeeMrr} />}
       {!hideEconomics && lostClients.length > 0 && <LostSection clients={lostClients} canSeeMrr={canSeeMrr} onDelete={handleDelete} deletingId={deletingId} />}
 
       {showModal && (
@@ -784,6 +891,68 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
           onClose={() => setShowModal(false)}
           onCreated={(client) => { setClients((prev) => [client, ...prev]); setShowModal(false) }}
         />
+      )}
+    </div>
+  )
+}
+
+/**
+ * I clienti fermi. Aperto di default quando ce n'è qualcuno da più di due mesi:
+ * un rapporto sospeso che nessuno guarda diventa un rapporto perso, e la
+ * differenza la fa una telefonata fatta al momento giusto.
+ */
+function PausedSection({ clients, canSeeMrr }: { clients: Client[]; canSeeMrr: boolean }) {
+  const stale = clients.filter(c => (pausedDays(c.paused_at) ?? 0) > 60).length
+  const [open, setOpen] = useState(stale > 0)
+  const pausedMrr = clients.reduce((s, c) => s + c.mrr, 0)
+
+  return (
+    <div className="border border-warning/30 rounded-card overflow-hidden">
+      <button onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-5 py-3.5 bg-warning-dim/40 hover:bg-warning-dim transition-colors">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+            <PauseCircle className="w-4 h-4 text-warning" />Clienti in pending
+          </span>
+          <span className="text-xs bg-surface border border-border text-text-secondary px-2 py-0.5 rounded-full">{clients.length}</span>
+          {canSeeMrr && (
+            <span className="text-xs text-text-secondary">
+              MRR in pausa: <span className="text-warning font-semibold">{formatCurrency(pausedMrr)}</span>
+            </span>
+          )}
+          {stale > 0 && (
+            <span className="text-xs text-warning font-semibold">
+              {stale} fermi da oltre due mesi
+            </span>
+          )}
+        </div>
+        <ChevronDown className={`w-4 h-4 text-text-secondary transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="divide-y divide-border border-t border-border">
+          {clients.map(c => {
+            const d = pausedDays(c.paused_at)
+            return (
+              <Link key={c.id} href={`/clienti/${c.id}`}
+                className="flex items-center gap-3 px-5 py-3 hover:bg-surface-hover transition-colors flex-wrap">
+                <div className="w-7 h-7 rounded-lg bg-surface border border-border flex items-center justify-center text-xs font-black text-text-secondary shrink-0">
+                  {c.company_name[0].toUpperCase()}
+                </div>
+                <span className="text-sm font-medium text-text-primary flex-1 min-w-[140px]">{clientName(c)}</span>
+                <span className="text-xs text-text-secondary">{c.package}</span>
+                {canSeeMrr && <span className="text-sm font-bold text-warning tabular">{formatCurrency(c.mrr)}</span>}
+                <span className={`text-xs ${d != null && d > 60 ? 'text-warning font-semibold' : 'text-text-tertiary'}`}>
+                  {d == null ? 'da data ignota' : d === 0 ? 'da oggi' : `fermo da ${d} giorni`}
+                </span>
+              </Link>
+            )
+          })}
+          <p className="px-5 py-2.5 text-2xs text-text-tertiary bg-surface">
+            Le lavorazioni sono sospese: non entrano nell&apos;MRR attivo né nel conto economico, ma il rapporto
+            resta e non conta come churn. Riportali a «stabile» quando ripartono.
+          </p>
+        </div>
       )}
     </div>
   )

@@ -6,7 +6,7 @@ import type { Client, Profile, ChatMessageWithSender, ChatChannel } from '@/lib/
 import type { DashAlert, AlertSeverity } from '@/components/dashboard/AlertCenter'
 import type { FocusItem } from '@/components/dashboard/DailyFocus'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
-import { countsInStats, isLost } from '@/lib/clients'
+import { countsInStats, isLost, isPaused, pausedDays } from '@/lib/clients'
 import { Crown } from 'lucide-react'
 import { PROFILE_COLUMNS } from '@/lib/profile-columns'
 
@@ -173,10 +173,14 @@ export default async function DashboardPage() {
     recentMessages = (msgs ?? []) as unknown as (ChatMessageWithSender & { channel: Pick<ChatChannel, 'id' | 'name' | 'type'> | null })[]
   }
 
-  // I persi escono da ogni conto e da ogni alert: restano solo nel churn del pannello rischio
+  // I persi escono da ogni conto e da ogni alert: restano solo nel churn del
+  // pannello rischio. §176: i fermi neanche — ma il loro MRR sospeso è la cosa
+  // che si recupera con una telefonata, quindi si mostra invece di sparire.
   const externalClients = clients.filter(countsInStats)
   const lostClients   = clients.filter(c => !c.is_internal && isLost(c))
+  const pausedClients = clients.filter(c => !c.is_internal && isPaused(c))
   const mrr           = externalClients.reduce((s, c) => s + (c.mrr ?? 0), 0)
+  const pausedMrr     = pausedClients.reduce((s, c) => s + (c.mrr ?? 0), 0)
   const clientsAtRisk = externalClients.filter(c => c.client_label === 'in_bilico').length
   const clientsLost   = lostClients.length
   const allProfiles   = (allProfilesResult.data ?? []) as Profile[]
@@ -190,6 +194,15 @@ export default async function DashboardPage() {
   if (isAdminLevel) {
     for (const c of externalClients.filter(c => c.client_label === 'in_bilico').slice(0, 2)) {
       alerts.push({ id: `client-${c.id}`, severity: 'attenzione', icon: 'client', title: `Cliente in bilico — ${c.company_name}`, detail: `MRR a rischio: €${c.mrr?.toLocaleString('it-IT') ?? 0}/mese`, href: `/clienti/${c.id}` })
+    }
+    for (const c of pausedClients.filter(c => (pausedDays(c.paused_at) ?? 0) > 60).slice(0, 2)) {
+      const d = pausedDays(c.paused_at)
+      alerts.push({
+        id: `paused-${c.id}`, severity: 'attenzione', icon: 'client',
+        title: `Fermo da ${d} giorni — ${c.company_name}`,
+        detail: `€${c.mrr?.toLocaleString('it-IT') ?? 0}/mese sospesi. Un rapporto che nessuno richiama diventa un rapporto perso.`,
+        href: `/clienti/${c.id}`,
+      })
     }
     for (const t of urgentTicketsResult.data ?? []) {
       const elapsed = (Date.now() - new Date(t.created_at).getTime()) / 3600000
@@ -225,6 +238,8 @@ export default async function DashboardPage() {
     clientsCount: externalClients.length,
     clientsAtRisk,
     clientsLost,
+    clientsPaused: pausedClients.length,
+    pausedMrr,
     alertsCount: alerts.length,
     tasksDueSoon: delivery.tasksOverdue + delivery.milestonesSoon,
     projectsCount: delivery.liveProjects,
@@ -246,6 +261,8 @@ export default async function DashboardPage() {
     alerts,
     clients: externalClients,
     lostClients,
+    pausedClients,
+    pausedMrr,
     mrr,
     allProfiles,
     clientsAtRisk,

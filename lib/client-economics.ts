@@ -82,7 +82,7 @@ export function relationship(c: ClientInput, today = new Date().toISOString().sl
   if (!start) {
     return {
       months: na('data di inizio contratto non compilata'),
-      active: c.client_label !== 'perso',
+      active: c.client_label !== 'perso' && c.client_label !== 'pending',
       renewalInDays: null as number | null,
       lost: c.client_label === 'perso',
     }
@@ -90,7 +90,7 @@ export function relationship(c: ClientInput, today = new Date().toISOString().sl
   const span = monthsBetween(start, end ?? today)
   return {
     months: ok(Math.max(0, span), end ? `dal ${start} al ${end}` : `dal ${start}, tuttora attivo`),
-    active: c.client_label !== 'perso',
+    active: c.client_label !== 'perso' && c.client_label !== 'pending',
     renewalInDays: c.contract_end ? daysBetween(c.contract_end, today) : null,
     lost: c.client_label === 'perso',
   }

@@ -2,10 +2,12 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import {
   ChevronLeft, ChevronRight, Plus, Trash2, Sparkles, CopyPlus, Lock, LockOpen,
   TrendingUp, TrendingDown, Wallet, Target, ShieldAlert, Users, Building2, Info,
+  Briefcase, AlertTriangle, RotateCcw, Landmark, CalendarRange,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import {
@@ -13,10 +15,15 @@ import {
   type PlConfig, type RevenueLine, type CostLine, type Partner,
 } from '@/lib/pl'
 import {
-  generateRevenueFromClients, copyCostsFromPreviousMonth, prefillMonth, setMonthStatus,
+  generateRevenueFromClients, copyCostsFromPreviousMonth, prefillMonth, setMonthStatus, resetMonth,
   addRevenueLine, updateRevenueLine, deleteRevenueLine,
   addCostLine, updateCostLine, deleteCostLine, bulkCostAction,
 } from '@/app/actions/pl'
+import { setLineCenter } from '@/app/actions/costs'
+import { currentQuarterVat, nextDue, type MonthVat } from '@/lib/vat'
+import { forecastTotals, type ForecastMonth } from '@/lib/forecast'
+import { openMonth } from '@/app/actions/pl'
+import { EconomicsNav } from '@/components/economics/EconomicsNav'
 import { diagnose } from '@/lib/pl-health'
 import { PlHealth } from './PlHealth'
 
@@ -34,6 +41,18 @@ type Props = {
   profiles: { id: string; full_name: string }[]
   revenue: RevenueLine[]
   costs: CostLine[]
+  /** aree di spesa: ogni uscita dice da quale budget esce */
+  centers: { id: string; name: string }[]
+  /** §176: i mesi che verranno, calcolati da contratti, rate e subappalti */
+  forecast: ForecastMonth[]
+  /** §174: IVA mese per mese dell'anno, per la liquidazione trimestrale */
+  vatMonths: MonthVat[]
+  /** oggi calcolato sul server: evita che client e server vedano date diverse */
+  today: string
+  /** nome del progetto per le righe che vengono da un contratto */
+  projectNames: Record<string, string>
+  /** nome del cliente: la riga di contratto porta il nome del servizio, non il suo */
+  clientNames: Record<string, string>
 }
 
 const eur = (n: number) => formatCurrency(Math.round(n))
@@ -41,10 +60,12 @@ const pc = (n: number) => `${(n * 100).toFixed(n * 100 % 1 === 0 ? 0 : 1)}%`
 
 export function PlClient({
   month, status, exists, setupNeeded, previous, missingClients,
-  knownMonths, config, partners, profiles, revenue, costs,
+  knownMonths, config, partners, profiles, revenue, costs, centers, forecast, vatMonths, today,
+  projectNames, clientNames,
 }: Props) {
   const router = useRouter()
   const [pending, start] = useTransition()
+  const [resetting, setResetting] = useState(false)
   const locked = status === 'chiuso'
   const empty = revenue.length === 0 && costs.length === 0
 
@@ -64,9 +85,17 @@ export function PlClient({
   }
   const missingTotal = missingClients.reduce((s, c) => s + c.mrr, 0)
 
+  // l'IVA del trimestre in cui cade il mese guardato; se quel trimestre è già
+  // versato si mostra la prossima scadenza aperta, che è quella che conta
+  const vat = useMemo(() => {
+    const cur = currentQuarterVat(vatMonths, month.slice(0, 10))
+    if (cur && !cur.closed) return cur
+    return nextDue(vatMonths, today) ?? cur
+  }, [vatMonths, month, today])
+
   const findings = useMemo(
-    () => diagnose(t, revenue, costs, config, previous.exists ? previous : undefined),
-    [t, revenue, costs, config, previous])
+    () => diagnose(t, revenue, costs, config, previous.exists ? previous : undefined, vat),
+    [t, revenue, costs, config, previous, vat])
 
   // selezione multipla sulle uscite: correggerne trenta a una a una è il motivo
   // per cui i consuntivi non si compilano
@@ -78,11 +107,14 @@ export function PlClient({
   const bulk = (action: 'paid' | 'unpaid' | 'align' | 'zero' | 'delete', ok: string) =>
     run(() => bulkCostAction(Array.from(picked), action).then(() => setPicked(new Set())), ok)
 
+  const fc = useMemo(() => forecastTotals(forecast), [forecast])
+
   // incidenza costi: sotto target è efficienza, sopra è erosione di margine
   const overTarget = t.costs.variance < 0
 
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-5">
+      <EconomicsNav active="conto" month={month} />
 
       {/* ── testata: mese e stato ── */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -129,6 +161,26 @@ export function PlClient({
                 className="flex items-center gap-1.5 text-2xs font-semibold border border-border rounded-xl px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-surface-hover press disabled:opacity-40">
                 <CopyPlus className="w-3.5 h-3.5" />Copia costi
               </button>
+              {/* svuotare un mese cancella righe scritte a mano: si chiede due volte */}
+              {(revenue.length > 0 || costs.length > 0) && (
+                resetting ? (
+                  <span className="flex items-center gap-1.5 border border-error/40 bg-error-dim rounded-xl px-3 py-2">
+                    <span className="text-2xs font-semibold text-text-primary">
+                      Cancello {revenue.length} entrate e {costs.length} uscite?
+                    </span>
+                    <button onClick={() => { setResetting(false); run(() => resetMonth(month), 'Mese svuotato') }}
+                      disabled={pending} className="text-2xs font-bold text-error hover:opacity-80">Svuota</button>
+                    <button onClick={() => setResetting(false)}
+                      className="text-2xs font-semibold text-text-secondary hover:text-text-primary">Annulla</button>
+                  </span>
+                ) : (
+                  <button onClick={() => setResetting(true)} disabled={pending}
+                    title="Cancella tutte le voci del mese: il mese resta, vuoto, e si rigenera da capo"
+                    className="flex items-center gap-1.5 text-2xs font-semibold border border-border rounded-xl px-3 py-2 text-text-secondary hover:text-error hover:border-error/40 press disabled:opacity-40">
+                    <RotateCcw className="w-3.5 h-3.5" />Svuota mese
+                  </button>
+                )
+              )}
             </>
           )}
           <button onClick={() => run(() => setMonthStatus(month, locked ? 'aperto' : 'chiuso'), locked ? 'Mese riaperto' : 'Mese chiuso')}
@@ -302,6 +354,147 @@ export function PlClient({
         </section>
       </div>
 
+      {/* ── previsionale: quello che è già deciso ── */}
+      {forecast.length > 0 && fc.revenue > 0 && (
+        <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
+          <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-border flex-wrap">
+            <div>
+              <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary">
+                <CalendarRange className="w-4 h-4 text-accent" />I prossimi sei mesi
+              </h2>
+              <p className="text-2xs text-text-tertiary mt-0.5">
+                Non è una previsione: è quello che i contratti firmati e i subappalti dicono già oggi. IVA esclusa
+              </p>
+            </div>
+            <div className="text-right">
+              <div className={`text-lg font-bold tabular ${fc.margin < 0 ? 'text-error' : 'text-success'}`}>
+                {eur(fc.margin)}
+              </div>
+              <div className="text-2xs text-text-tertiary">
+                {eur(fc.revenue)} − {eur(fc.cost)} di costi · {pc(fc.marginPct)}
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-2xs text-text-tertiary uppercase tracking-wider">
+                  <th className="text-left font-semibold px-4 py-2">Mese</th>
+                  <th className="text-right font-semibold px-2 py-2">Entrate</th>
+                  <th className="text-right font-semibold px-2 py-2">Costi interni</th>
+                  <th className="text-right font-semibold px-2 py-2">Subappalti</th>
+                  <th className="text-right font-semibold px-2 py-2">Margine</th>
+                  <th className="w-32" />
+                </tr>
+              </thead>
+              <tbody>
+                {forecast.map(f => (
+                  <tr key={f.month} className="border-t border-border/60 hover:bg-surface-hover">
+                    <td className="px-4 py-2">
+                      <span className="text-2xs font-semibold text-text-primary">{monthLabel(f.month)}</span>
+                      <span className="block text-2xs text-text-tertiary">
+                        {f.revenueLines} entrat{f.revenueLines === 1 ? 'a' : 'e'} · {f.costLines} uscit{f.costLines === 1 ? 'a' : 'e'}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2 text-right text-2xs tabular text-text-primary">{eur(f.revenue)}</td>
+                    <td className="px-2 py-2 text-right text-2xs tabular text-text-secondary">{eur(f.internalCost)}</td>
+                    <td className="px-2 py-2 text-right text-2xs tabular text-orange">
+                      {f.subcontractCost > 0 ? eur(f.subcontractCost) : '—'}
+                    </td>
+                    <td className={`px-2 py-2 text-right text-2xs font-bold tabular ${f.margin < 0 ? 'text-error' : 'text-text-primary'}`}>
+                      {eur(f.margin)}
+                      <span className="block text-2xs font-normal text-text-tertiary">{pc(f.marginPct)}</span>
+                    </td>
+                    <td className="px-2 py-2 text-right">
+                      {f.open ? (
+                        <Link href={`/economics?m=${f.month}`}
+                          className="text-2xs font-semibold text-text-tertiary hover:text-gold-text">aperto →</Link>
+                      ) : (
+                        <button onClick={() => run(() => openMonth(f.month), `${monthLabel(f.month)} aperto`)}
+                          disabled={pending}
+                          className="text-2xs font-semibold border border-border rounded-lg px-2 py-1 text-gold-text hover:bg-surface-hover press disabled:opacity-40">
+                          Apri il mese
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="flex items-start gap-2 text-2xs text-text-tertiary px-5 py-3 border-t border-border">
+            <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            «Apri il mese» crea le righe vere: da lì in poi metti le spunte su fattura emessa, incassato e pagato.
+            {fc.negative > 0 && (
+              <span className="text-warning font-semibold"> {fc.negative} di questi mesi chiude in perdita.</span>
+            )}
+          </p>
+        </section>
+      )}
+
+      {/* ── IVA: quella che incassi non è tua ── */}
+      {vat && (
+        <section className={`bg-surface border rounded-2xl p-5 shadow-soft ${
+          vat.daysLeft <= 15 && vat.toPay > 0 ? 'border-warning/50' : 'border-border'
+        }`}>
+          <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+            <div>
+              <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary">
+                <Landmark className="w-4 h-4 text-info" />IVA da mettere da parte
+              </h2>
+              <p className="text-2xs text-text-tertiary mt-0.5">
+                {vat.label} · liquidazione trimestrale
+                {vat.annual && ' — si chiude con la dichiarazione annuale'}
+              </p>
+            </div>
+            <div className="text-right">
+              <div className={`text-xl font-bold tabular ${vat.toPay > 0 ? 'text-text-primary' : 'text-success'}`}>
+                {vat.toPay > 0 ? eur(vat.toPay) : vat.deferred ? 'sotto il minimo' : vat.balance < 0 ? 'a credito' : 'niente da versare'}
+              </div>
+              <div className={`text-2xs font-semibold ${
+                vat.daysLeft < 0 ? 'text-error' : vat.daysLeft <= 15 ? 'text-warning' : 'text-text-tertiary'
+              }`}>
+                {vat.daysLeft < 0
+                  ? `scaduta da ${-vat.daysLeft} giorni`
+                  : `entro il ${new Date(vat.deadline + 'T00:00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })} · fra ${vat.daysLeft} giorni`}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-4">
+            <VatCell label="IVA sulle vendite" value={eur(vat.debit)} hint="incassata dai clienti" />
+            <VatCell label="IVA sugli acquisti" value={eur(vat.credit)} hint="pagata ai fornitori, si scomputa" />
+            <VatCell
+              label={vat.carried !== 0 ? (vat.carried > 0 ? 'Credito riportato' : 'Debito rinviato') : 'Saldo del trimestre'}
+              value={eur(vat.carried !== 0 ? Math.abs(vat.carried) : Math.abs(vat.balance))}
+              hint={vat.carried > 0 ? 'dal trimestre precedente, si scomputa'
+                : vat.carried < 0 ? 'dal trimestre precedente, era sotto il minimo'
+                : vat.balance < 0 ? 'a credito, va sul prossimo' : 'debito verso lo Stato'} />
+            <VatCell label="Interessi 1%" value={vat.interest > 0 ? eur(vat.interest) : '—'}
+              hint={vat.annual ? 'non dovuti sul quarto trimestre' : 'costo dell\'opzione trimestrale'} />
+          </div>
+
+          {vat.deferred && (
+            <p className="flex items-start gap-2 text-2xs text-text-secondary mt-3 pt-3 border-t border-border">
+              <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-info" />
+              Il saldo è sotto i 25,82 €: il versamento non si fa e l&apos;importo confluisce nel trimestre
+              successivo. Non è una scadenza da segnare.
+            </p>
+          )}
+
+          {vat.toPay > 0 && (
+            <p className="flex items-start gap-2 text-2xs text-text-secondary mt-3 pt-3 border-t border-border">
+              <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-warning" />
+              Questi {eur(vat.toPay)} sono già incassati e non sono tuoi: tienili da parte.
+              Il margine lordo qui sopra li conta come cassa, ed è il modo più comune in cui
+              un&apos;azienda in utile resta senza soldi. Date ordinarie: verifica proroghe col commercialista.
+            </p>
+          )}
+        </section>
+      )}
+
       {/* ── entrate ── */}
       <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-border flex-wrap">
@@ -320,7 +513,7 @@ export function PlClient({
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-2xs text-text-tertiary uppercase tracking-wider">
-                  <th className="text-left font-semibold px-4 py-2">Cliente</th>
+                  <th className="text-left font-semibold px-4 py-2">Cliente e progetto</th>
                   <th className="text-right font-semibold px-2 py-2">Piano</th>
                   <th className="text-right font-semibold px-2 py-2">Imponibile</th>
                   <th className="text-left font-semibold px-2 py-2">Tipo</th>
@@ -338,6 +531,7 @@ export function PlClient({
                     <td className="px-4 py-1.5">
                       <Text value={line.label} disabled={locked}
                         onSave={v => run(() => updateRevenueLine(line.id, { label: v }))} />
+                      <Origin line={line} projectNames={projectNames} clientNames={clientNames} />
                     </td>
                     <td className="px-2 py-1.5 text-right">
                       <Num value={line.plan_amount} disabled={locked}
@@ -446,6 +640,7 @@ export function PlClient({
                   )}
                   <th className="text-left font-semibold px-4 py-2">Categoria</th>
                   <th className="text-left font-semibold px-2 py-2">Voce</th>
+                  <th className="text-left font-semibold px-2 py-2">Area</th>
                   <th className="text-center font-semibold px-2 py-2">Tipo</th>
                   <th className="text-right font-semibold px-2 py-2">Preventivato</th>
                   <th className="text-right font-semibold px-2 py-2">Effettivo</th>
@@ -468,6 +663,18 @@ export function PlClient({
                     <td className="px-2 py-1.5">
                       <Text value={c.label} disabled={locked}
                         onSave={v => run(() => updateCostLine(c.id, { label: v }))} />
+                    </td>
+                    {/* l'area dice da quale budget esce questa spesa: senza, il
+                        piano dei costi non può misurare niente */}
+                    <td className="px-2 py-1.5">
+                      <select value={c.center_id ?? ''} disabled={locked} aria-label={`Area di ${c.label}`}
+                        onChange={e => run(() => setLineCenter(c.id, e.target.value || null))}
+                        className={`bg-background border rounded-lg px-1.5 py-1 text-2xs max-w-[130px] ${
+                          c.center_id ? 'border-border text-text-secondary' : 'border-warning/40 text-warning'
+                        }`}>
+                        <option value="">senza area</option>
+                        {centers.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+                      </select>
                     </td>
                     <td className="px-2 py-1.5 text-center">
                       <button disabled={locked}
@@ -613,6 +820,54 @@ function Num({ value, onSave, disabled, strong }: {
       className={`w-20 bg-transparent text-right tabular text-sm border-b border-transparent focus:border-border-interactive outline-none ${
         strong ? 'text-text-primary font-semibold' : 'text-text-secondary'
       }`} />
+  )
+}
+
+/**
+ * Da dove viene la riga. Una riga coperta da un contratto porta al progetto;
+ * una ferma all'MRR d'anagrafica lo dice, perché è lì che manca il contratto.
+ */
+function Origin({ line, projectNames, clientNames }: {
+  line: RevenueLine
+  projectNames: Record<string, string>
+  clientNames: Record<string, string>
+}) {
+  // il nome del cliente non sta più nella label della riga di contratto: senza
+  // questo, in tabella si leggerebbe il servizio senza sapere di chi è
+  const client = line.client_id ? clientNames[line.client_id] : null
+
+  if (line.origin === 'contratto' && line.project_id) {
+    return (
+      <Link href={`/progetti/${line.project_id}?tab=economics`}
+        className="flex items-center gap-1 text-2xs text-text-tertiary hover:text-gold-text w-fit">
+        <Briefcase className="w-3 h-3 shrink-0" />
+        <span className="truncate max-w-[280px]">
+          {client ? `${client} · ` : ''}{projectNames[line.project_id] ?? 'Progetto'}
+        </span>
+      </Link>
+    )
+  }
+  if (line.origin === 'contratto' && client) {
+    return <span className="text-2xs text-text-tertiary truncate max-w-[280px] block">{client}</span>
+  }
+  if (line.origin === 'anagrafica') {
+    return (
+      <span className="flex items-center gap-1 text-2xs text-warning w-fit"
+        title="Viene dall'MRR in anagrafica: crea il contratto nel progetto per agganciarla">
+        <AlertTriangle className="w-3 h-3 shrink-0" />senza contratto
+      </span>
+    )
+  }
+  return <span className="text-2xs text-text-tertiary">riga manuale</span>
+}
+
+function VatCell({ label, value, hint }: { label: string; value: string; hint: string }) {
+  return (
+    <div className="rounded-xl border border-border p-3">
+      <div className="text-2xs font-semibold text-text-secondary uppercase tracking-wider truncate">{label}</div>
+      <div className="text-sm font-bold text-text-primary tabular mt-0.5">{value}</div>
+      <div className="text-2xs text-text-tertiary mt-0.5">{hint}</div>
+    </div>
   )
 }
 

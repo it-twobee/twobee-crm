@@ -30,7 +30,11 @@ export type StreamStatus = 'bozza' | 'attivo' | 'sospeso' | 'concluso'
  */
 export type RevenueStream = {
   id: string
-  project_id: string
+  /**
+   * Dove si eroga. Facoltativo: una quota partner o un retainer firmato prima
+   * che il progetto esista sono ricavi veri senza un lavoro a cui appendersi.
+   */
+  project_id: string | null
   client_id: string | null
   label: string
   service_type: string | null
@@ -45,6 +49,8 @@ export type RevenueStream = {
   status: StreamStatus
   sales_owner_id: string | null
   activates_after_id: string | null
+  /** §174: metodo di pagamento concordato. È quello che il subappalto ricalca. */
+  payment_terms?: string | null
 }
 
 export type Installment = {
@@ -62,7 +68,7 @@ export type MonthLine = {
   stream_id: string
   installment_id: string | null
   client_id: string | null
-  project_id: string
+  project_id: string | null
   label: string
   kind: PlKind
   amount_net: number
@@ -158,6 +164,73 @@ export function splitByPercent(total: number, percents: number[], startMonth: st
     used += amount
     return { due_month: shiftMonth(startMonth, i), label: `${p}%`, amount }
   })
+}
+
+/**
+ * Come si paga un lavoro a corpo. I modi veri sono pochi e si combinano:
+ * un acconto alla firma, una durata, un numero di rate, oppure tranche a
+ * percentuali libere legate agli stati di avanzamento.
+ *
+ * `everyMonths` è la cadenza: 1 = mensile, 3 = trimestrale. Serve perché
+ * «tre rate» non vuol dire per forza «tre mesi di fila».
+ */
+export type ScheduleSpec = {
+  mode: 'even' | 'percent' | 'deposit'
+  /** rate da generare (even) o rate dopo l'acconto (deposit) */
+  count?: number
+  /** tranche libere: [40, 30, 30]. La somma non deve per forza fare 100 */
+  percents?: number[]
+  /** acconto alla firma, in percentuale sul totale */
+  depositPct?: number
+  everyMonths?: number
+  startMonth: string
+}
+
+/**
+ * Il piano di pagamento dalla sua descrizione. Un solo posto che sa fare i
+ * conti: l'ultima rata assorbe sempre l'arrotondamento, così la somma fa
+ * esattamente il totale del contratto e non 5.999,98.
+ */
+export function buildSchedule(total: number, spec: ScheduleSpec): InstallmentDraft[] {
+  const every = Math.max(1, spec.everyMonths ?? 1)
+  const at = (i: number) => shiftMonth(spec.startMonth, i * every)
+  const r2 = (n: number) => Math.round(n * 100) / 100
+
+  if (spec.mode === 'percent') {
+    const ps = (spec.percents ?? []).filter(p => p > 0)
+    if (!ps.length) return []
+    let used = 0
+    return ps.map((p, i) => {
+      const amount = i === ps.length - 1 ? r2(total - used) : r2(total * (p / 100))
+      used += amount
+      return { due_month: at(i), label: `${p}%`, amount }
+    })
+  }
+
+  if (spec.mode === 'deposit') {
+    const pct = Math.min(100, Math.max(0, spec.depositPct ?? 30))
+    const n = Math.max(1, spec.count ?? 3)
+    const deposit = r2(total * (pct / 100))
+    const rest = r2(total - deposit)
+    const each = r2(rest / n)
+    let used = deposit
+    const rows: InstallmentDraft[] = [{ due_month: at(0), label: `Acconto ${pct}%`, amount: deposit }]
+    for (let i = 0; i < n; i++) {
+      const amount = i === n - 1 ? r2(total - used) : each
+      used += amount
+      // le rate partono dal periodo dopo l'acconto: l'acconto è alla firma
+      rows.push({ due_month: at(i + 1), label: `Rata ${i + 1} di ${n}`, amount })
+    }
+    return rows
+  }
+
+  const n = Math.max(1, spec.count ?? 1)
+  const each = r2(total / n)
+  return Array.from({ length: n }, (_, i) => ({
+    due_month: at(i),
+    label: n === 1 ? 'Saldo unico' : `Rata ${i + 1} di ${n}`,
+    amount: i === n - 1 ? r2(total - each * (n - 1)) : each,
+  }))
 }
 
 /** Numero di mesi coperti da un contratto a termine, estremi inclusi. */

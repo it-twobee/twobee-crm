@@ -101,6 +101,8 @@ export const STEPS = [
   { key: 'team', label: 'Team', hint: 'Chi ci lavora' },
   { key: 'template', label: 'Template', hint: 'Da dove partiamo' },
   { key: 'struttura', label: 'Struttura', hint: 'L\'albero del lavoro' },
+  // solo per admin e solo con un cliente vero: il wizard lo toglie dagli altri
+  { key: 'economics', label: 'Economics', hint: 'Quota, rate, subappalto' },
   { key: 'conferma', label: 'Conferma', hint: 'Ultimo controllo' },
 ] as const
 

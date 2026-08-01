@@ -3,6 +3,8 @@ import { redirect, notFound } from 'next/navigation'
 import { ProjectDetailClient } from '@/components/projects/ProjectDetailClient'
 import { ProjectEconomics } from '@/components/projects/ProjectEconomics'
 import type { RevenueStream, Installment } from '@/lib/revenue'
+import type { CostItem, CostActual } from '@/lib/costs'
+import { monthKey } from '@/lib/pl'
 import type {
   Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate,
 } from '@/lib/types/database'
@@ -45,8 +47,47 @@ export default async function ProjectDetailPage({ params, searchParams }: { para
   const { data: services } = streamErr
     ? { data: [] }
     : await supabase.from('service_catalog')
-        .select('id, service_type, service_subtype, label, standard_price, price_unit')
+        .select('id, service_type, service_subtype, label, standard_price, price_unit, area')
         .eq('is_active', true).order('area').order('sort_order')
+
+  // §173: lavorazioni affidate fuori + quanto ne è già uscito nel mese in corso.
+  // Se la 171/173 non è applicata le query danno errore e restano liste vuote:
+  // la scheda economics funziona lo stesso, senza il blocco margine.
+  const plMonth = monthKey(new Date())
+  const [{ data: costItems }, { data: plMonthRow }] = await Promise.all([
+    supabase.from('cost_items').select('*').eq('project_id', params.projectId).order('sort_order'),
+    supabase.from('pl_months').select('id').eq('month', plMonth).maybeSingle(),
+  ])
+  const { data: costActuals } = plMonthRow
+    ? await supabase.from('pl_cost_lines')
+        .select('id, center_id, cost_item_id, project_id, category, label, cost_type, budget, actual, paid')
+        .eq('month_id', plMonthRow.id).eq('project_id', params.projectId)
+    : { data: [] }
+
+  // gli altri lavori dello stesso cliente con la loro quotazione: un progetto
+  // attivo che nessuno ha quotato non deve restare invisibile
+  const { data: others } = streamErr || !project.client_id
+    ? { data: [] }
+    : await supabase.from('projects').select('id, name, status')
+        .eq('client_id', project.client_id).is('deleted_at', null)
+        .neq('id', params.projectId).order('created_at', { ascending: false })
+  const otherIds = (others ?? []).map((p: { id: string }) => p.id)
+  const { data: otherStreams } = otherIds.length
+    ? await supabase.from('revenue_streams')
+        .select('project_id, amount, billing, status').in('project_id', otherIds)
+    : { data: [] }
+  type S = { project_id: string | null; amount: number; billing: string; status: string }
+  const siblings = (others ?? []).map((p: { id: string; name: string; status: string }) => {
+    const own = ((otherStreams ?? []) as S[]).filter(s => s.project_id === p.id)
+    return {
+      id: p.id, name: p.name, status: p.status,
+      contracts: own.length,
+      recurring: own.filter(s => s.billing === 'recurring' && s.status === 'attivo')
+        .reduce((n, s) => n + Number(s.amount ?? 0), 0),
+      oneOff: own.filter(s => s.billing === 'one_off' && s.status !== 'bozza')
+        .reduce((n, s) => n + Number(s.amount ?? 0), 0),
+    }
+  })
 
   return (
     <ProjectDetailClient
@@ -59,9 +100,12 @@ export default async function ProjectDetailPage({ params, searchParams }: { para
       memberIds={memberIds}
       profiles={(profiles ?? []) as { id: string; full_name: string; avatar_url: string | null }[]}
       initialTab={searchParams.tab === 'workstream' ? 'workstream' : searchParams.tab === 'economics' ? 'economics' : undefined}
-      economics={streamErr ? undefined : (
+      /* §176: l'economics nasce dal cliente. Un progetto interno o esterno non
+         ha un accordo economico da gestire: la scheda non compare proprio */
+      economics={streamErr || !project.client_id ? undefined : (
         <ProjectEconomics
           projectId={params.projectId}
+          clientId={project.client_id ?? null}
           projectKind={project.area === 'digital' ? 'digital' : 'growth'}
           projectStart={project.start_date}
           projectEnd={project.target_end_date}
@@ -70,6 +114,9 @@ export default async function ProjectDetailPage({ params, searchParams }: { para
           services={(services ?? []) as never}
           profiles={(profiles ?? []) as { id: string; full_name: string }[]}
           canEdit
+          siblings={siblings}
+          costItems={(costItems ?? []) as CostItem[]}
+          costActuals={(costActuals ?? []) as CostActual[]}
         />
       )}
     />

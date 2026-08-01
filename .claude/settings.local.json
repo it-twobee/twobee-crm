@@ -260,7 +260,11 @@
       "Bash(python3 -c \"import openpyxl; print\\('openpyxl ok'\\)\")",
       "Bash(npx tsx *)",
       "Bash(awk 'NR>=155 && NR<=200' lib/pl.ts)",
-      "Bash(pbpaste)"
+      "Bash(pbpaste)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(python3 -c \"import openpyxl; print\\('openpyxl ok', openpyxl.__version__\\)\")",
+      "Bash(echo \"TSC: $?\")",
+      "Bash(xargs '-I{}' sh -c 'test -f \"{}\" && s=$\\(wc -c < \"{}\"\\) && [ $s -gt 200000 ] && echo \"{} $s\"')"
     ],
     "defaultMode": "acceptEdits"
   }

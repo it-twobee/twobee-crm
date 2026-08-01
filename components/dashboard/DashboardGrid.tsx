@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   ChevronRight, Crown, Check, TrendingUp, Users, AlertTriangle,
-  Headphones, X, LayoutGrid,
+  Headphones, X, LayoutGrid, PauseCircle,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -40,6 +40,9 @@ export interface DashboardData {
   clients: Client[]
   /** solo per il churn del pannello rischio, fuori da ogni altro conto */
   lostClients: Client[]
+  /** §176: fermi — fuori dai conti, ma il loro MRR si recupera */
+  pausedClients?: Client[]
+  pausedMrr?: number
   mrr: number
   allProfiles: Profile[]
   clientsAtRisk: number
@@ -147,12 +150,19 @@ const TEMPLATES: Template[] = [
 const STORAGE_TPL = 'twobee-dash-template-v5'
 
 // ─── MetricCards ──────────────────────────────────────────────────────────────
-function MetricCards({ mrr, clientsCount, clientsAtRisk, ticketsOpen }: {
+function MetricCards({ mrr, clientsCount, clientsAtRisk, ticketsOpen, pausedCount, pausedMrr }: {
   mrr: number; clientsCount: number; clientsAtRisk: number; ticketsOpen: number
+  pausedCount: number; pausedMrr: number
 }) {
   const cards = [
     { href: '/clienti', icon: <TrendingUp className="w-4 h-4" />, iconColor: 'var(--color-gold-text)', label: 'MRR', value: formatCurrency(mrr), sub: '/mese contratti', accent: 'var(--color-gold-text)' },
     { href: '/clienti', icon: <Users className="w-4 h-4" />, iconColor: 'var(--color-info)', label: 'Clienti', value: String(clientsCount), sub: 'attivi', accent: 'var(--color-info)' },
+    // §176: l'MRR sospeso non è perso — è quello che torna con una telefonata
+    ...(pausedCount > 0 ? [{
+      href: '/clienti', icon: <PauseCircle className="w-4 h-4" />, iconColor: 'var(--color-warning)',
+      label: 'In pending', value: String(pausedCount),
+      sub: `${formatCurrency(pausedMrr)} sospesi`, accent: 'var(--color-warning)',
+    }] : []),
     { href: '/clienti', icon: <AlertTriangle className="w-4 h-4" />, iconColor: clientsAtRisk > 0 ? 'var(--color-warning)' : 'var(--color-text-tertiary)', label: 'A rischio', value: String(clientsAtRisk), sub: clientsAtRisk > 0 ? 'da presidiare' : 'tutti stabili', accent: clientsAtRisk > 0 ? 'var(--color-warning)' : 'var(--color-text-secondary)' },
     { href: '/customer-care/tickets', icon: <Headphones className="w-4 h-4" />, iconColor: ticketsOpen > 0 ? 'var(--color-error)' : 'var(--color-text-tertiary)', label: 'Ticket', value: String(ticketsOpen), sub: 'aperti', accent: ticketsOpen > 0 ? 'var(--color-error)' : 'var(--color-text-secondary)' },
   ]
@@ -358,7 +368,8 @@ export function DashboardGrid({ data, initialConfig }: { data: DashboardData; in
     chat:     <div className="p-3 h-full"><AIDashboardChat context={data.aiContext} /></div>,
     focus:    <DailyFocus items={data.focusItems.slice(0, 5)} name={data.greetingName} />,
     alerts:   <AlertCenter alerts={data.alerts.slice(0, 8)} />,
-    metrics:  <MetricCards mrr={data.mrr} clientsCount={data.clients.length} clientsAtRisk={data.clientsAtRisk} ticketsOpen={data.ticketsOpen} />,
+    metrics:  <MetricCards mrr={data.mrr} clientsCount={data.clients.length} clientsAtRisk={data.clientsAtRisk}
+                ticketsOpen={data.ticketsOpen} pausedCount={data.pausedClients?.length ?? 0} pausedMrr={data.pausedMrr ?? 0} />,
     risk:     <ClientsRiskPanel clients={data.clients} lost={data.lostClients} totalMrr={data.mrr} />,
     health:   <ClientHealthMap clients={data.clients} />,
     clients:  <ClientsStatusTable clients={data.clients} />,

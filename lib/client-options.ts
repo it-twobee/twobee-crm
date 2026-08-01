@@ -44,14 +44,15 @@ export const CLIENT_TYPE_OPTIONS: { value: ClientType; label: string }[] = [
 export const CLIENT_LABEL_OPTIONS: { value: ClientLabel; label: string }[] = [
   { value: 'stabile', label: 'Stabile' },
   { value: 'in_bilico', label: 'In bilico' },
+  { value: 'pending', label: 'In pending' },
   { value: 'perso', label: 'Perso' },
   { value: 'partner', label: 'Partner' },
 ]
 
 export const PAYMENT_STATUS_OPTIONS: { value: PaymentStatus; label: string }[] = [
   { value: 'pagato', label: 'Pagato' },
-  { value: 'in_attesa', label: 'In attesa' },
-  { value: 'scaduto', label: 'Scaduto' },
+  { value: 'in_attesa', label: 'Da pagare' },
+  { value: 'scaduto', label: 'Non pagato' },
 ]
 
 /** `growth_digital` deve vedere anche i target ADV, prima non vedeva nulla. */

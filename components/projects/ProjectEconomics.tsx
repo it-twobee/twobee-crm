@@ -1,55 +1,49 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
-import {
-  Plus, Trash2, Repeat, Package, CalendarRange, Play, Lock, Wallet, Tag, Info,
-} from 'lucide-react'
+import { useMemo } from 'react'
+import Link from 'next/link'
+import { Repeat, Package, Tag, Wallet, Info, ArrowUpRight, Briefcase, AlertTriangle } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
-import { monthLabel, shiftMonth } from '@/lib/pl'
-import {
-  linesForMonth, scheduled, currentMonth, monthSpan,
-  type RevenueStream, type Installment,
-} from '@/lib/revenue'
-import {
-  addStream, updateStream, deleteStream,
-  generateInstallments, updateInstallment, deleteInstallment, activateStream,
-} from '@/app/actions/revenue'
-
-type Service = { id: string; service_type: string; service_subtype: string | null; label: string; standard_price: number | null; price_unit: string }
+import { monthLabel } from '@/lib/pl'
+import { economicsHref } from '@/lib/economics-source'
+import { linesForMonth, currentMonth, type RevenueStream, type Installment } from '@/lib/revenue'
+import { ContractsPanel, type CatalogService } from '@/components/economics/ContractsPanel'
+import { ProjectCostsPanel } from '@/components/economics/ProjectCostsPanel'
+import { projectMargin, type CostItem, type CostActual, type MarginView } from '@/lib/costs'
 
 const eur = (n: number) => formatCurrency(Math.round(n))
 
-const STATUS_TONE: Record<string, string> = {
-  bozza: 'bg-surface-active border-border-strong text-text-secondary',
-  attivo: 'bg-success-dim border-success/40 text-success',
-  sospeso: 'bg-warning-dim border-warning/40 text-warning',
-  concluso: 'bg-info-dim border-info/40 text-info',
+/**
+ * La quotazione del progetto. È lo stesso pannello dell'economics del cliente,
+ * ristretto a questo lavoro: un contratto scritto qui compare lì, e viceversa.
+ */
+export type SiblingProject = {
+  id: string; name: string; status: string
+  recurring: number; oneOff: number; contracts: number
 }
 
 export function ProjectEconomics({
-  projectId, projectKind, projectStart, projectEnd, streams, installments, services, profiles, canEdit,
+  projectId, clientId, projectKind, projectStart, projectEnd,
+  streams, installments, services, profiles, canEdit, siblings = [],
+  costItems = [], costActuals = [],
 }: {
   projectId: string
+  clientId: string | null
   projectKind: 'growth' | 'digital'
   projectStart: string | null
   projectEnd: string | null
   streams: RevenueStream[]
   installments: Installment[]
-  services: Service[]
+  services: CatalogService[]
   profiles: { id: string; full_name: string }[]
   canEdit: boolean
+  /** gli altri lavori dello stesso cliente: da qui si vede chi è ancora da quotare */
+  siblings?: SiblingProject[]
+  /** §173: lavorazioni affidate fuori su questo progetto */
+  costItems?: CostItem[]
+  /** uscite del mese già registrate su questo progetto */
+  costActuals?: CostActual[]
 }) {
-  const router = useRouter()
-  const [pending, start] = useTransition()
-  const [open, setOpen] = useState<string | null>(null)
-
-  const run = (fn: () => Promise<unknown>, ok?: string) => start(async () => {
-    try { await fn(); if (ok) toast.success(ok); router.refresh() }
-    catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
-  })
-
   const totals = useMemo(() => {
     const rec = streams.filter(s => s.billing === 'recurring' && s.status === 'attivo')
     const one = streams.filter(s => s.billing === 'one_off')
@@ -63,25 +57,62 @@ export function ProjectEconomics({
     }
   }, [streams, installments])
 
-  const addFromService = (svc: Service | null) => {
-    const isRecurring = svc ? svc.price_unit === 'mese' : projectKind === 'growth'
-    run(() => addStream(projectId, {
-      label: svc?.label ?? 'Nuova voce',
-      service_type: svc?.service_type ?? null,
-      service_subtype: svc?.service_subtype ?? null,
-      // il prezzo di listino è un default: resta «standard» finché non lo tocchi
-      amount: svc?.standard_price ?? 0,
-      price_source: svc?.standard_price != null ? 'standard' : 'custom',
-      kind: projectKind,
-      billing: isRecurring ? 'recurring' : 'one_off',
-      start_date: projectStart,
-      end_date: isRecurring ? null : projectEnd,
-      status: 'bozza',
-    }), 'Voce aggiunta')
-  }
+  // due letture, non una: il lavoro a corpo si giudica intero (quotato meno
+  // subappalti), il canone mese per mese. Su un progetto venduto 30.000 in sei
+  // rate il margine del singolo mese non dice niente sul lavoro
+  const margin = useMemo(
+    () => projectMargin(totals.thisMonth, totals.oneOff, costItems, costActuals, currentMonth(),
+      { start: projectStart, end: projectEnd }),
+    [totals.thisMonth, totals.oneOff, costItems, costActuals, projectStart, projectEnd])
+
+  /* L'accordo raccontato in una riga. Quattro numeri in quattro card dicono
+     cosa c'è; una frase dice cos'hai venduto — ed è quella che si legge. */
+  const deal = useMemo(() => {
+    const sold = streams.filter(s => s.status !== 'bozza')
+    if (!sold.length) return null
+    const rate = installments.filter(i => sold.some(s => s.id === i.stream_id))
+    const last = rate.length ? rate.map(i => i.due_month).sort().slice(-1)[0] : null
+    const subs = costItems.filter(i => i.is_active)
+    const mirrored = subs.length > 1 && rate.length > 1 && subs.length === rate.length
+    return {
+      total: totals.oneOff + totals.mrr,
+      recurring: totals.mrr > 0,
+      rate: rate.length,
+      last,
+      subTotal: margin.work.cost || subs.reduce((n, i) => n + i.amount, 0),
+      subCount: subs.length,
+      mirrored,
+    }
+  }, [streams, installments, costItems, totals, margin])
 
   return (
     <div className="space-y-4 max-w-6xl animate-fade-in">
+
+      {deal && (
+        <section className="rounded-2xl border border-gold/30 bg-gold-dim/40 p-5">
+          <p className="text-2xs font-semibold text-gold-text uppercase tracking-wider mb-1.5">L&apos;accordo</p>
+          <p className="text-sm text-text-primary leading-relaxed">
+            <strong className="font-bold">{eur(deal.total)}</strong>
+            {deal.recurring ? ' al mese' : ''}
+            {deal.rate > 1 && (
+              <> in <strong className="font-bold">{deal.rate} scadenze</strong>
+                {deal.last ? <> fino a {monthLabel(deal.last)}</> : null}</>
+            )}
+            {deal.rate === 1 && ' in unica soluzione'}
+            {deal.subTotal > 0 ? (
+              <> · <strong className="font-bold">{eur(deal.subTotal)}</strong> di lavorazioni affidate fuori
+                {deal.mirrored ? ', con la stessa dilazione' : ''}</>
+            ) : ' · nessun costo esterno'}
+            {margin.hasWork && (
+              <> · resta <strong className={`font-bold ${margin.work.margin < 0 ? 'text-error' : 'text-success'}`}>
+                {eur(margin.work.margin)}</strong> ({Math.round(margin.work.pct * 100)}%)</>
+            )}
+          </p>
+          <p className="text-2xs text-text-tertiary mt-1.5">
+            Tutti gli importi sono IVA esclusa · l&apos;IVA si liquida in Fiscale &amp; Tasse
+          </p>
+        </section>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-4">
         <Kpi icon={<Repeat className="w-4 h-4 text-success" />} label="Canone mensile" value={eur(totals.mrr)} />
@@ -90,253 +121,138 @@ export function ProjectEconomics({
         <Kpi icon={<Wallet className="w-4 h-4 text-gold-text" />} label={`Ricavo di ${monthLabel(currentMonth())}`} value={eur(totals.thisMonth)} />
       </div>
 
-      <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
-        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-border flex-wrap">
-          <div>
-            <h3 className="text-sm font-bold text-text-primary">Servizi a contratto</h3>
-            <p className="text-2xs text-text-tertiary mt-0.5">
-              Una riga per servizio erogato: così si vede quale regge il margine
-            </p>
-          </div>
-          {canEdit && (
-            <div className="flex items-center gap-2">
-              <select value="" aria-label="Aggiungi da catalogo" disabled={pending}
-                onChange={e => { const s = services.find(x => x.id === e.target.value); if (s) addFromService(s) }}
-                className="bg-background border border-border-interactive rounded-xl px-2 py-2 text-2xs text-text-secondary max-w-[220px]">
-                <option value="">Aggiungi da catalogo…</option>
-                {services.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.label}{s.standard_price != null ? ` — ${eur(s.standard_price)}/${s.price_unit === 'mese' ? 'mese' : 'una tantum'}` : ' — senza listino'}
-                  </option>
-                ))}
-              </select>
-              <button onClick={() => addFromService(null)} disabled={pending}
-                className="flex items-center gap-1.5 text-2xs font-semibold border border-border rounded-xl px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-surface-hover press">
-                <Plus className="w-3.5 h-3.5" />Voce libera
-              </button>
-            </div>
+      {/* ── quanto resta davvero: sul lavoro intero e sul mese ── */}
+      {(margin.hasWork || margin.month.revenue > 0 || margin.month.cost > 0) && (
+        <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft space-y-4">
+          {margin.hasWork && (
+            <MarginBar
+              title="Margine sul lavoro"
+              hint={`Quotato a corpo meno le lavorazioni affidate fuori${
+                margin.workMonths > 1 ? `, ricorrenti comprese per i ${margin.workMonths} mesi del progetto` : ''
+              }: è il numero che dice se il progetto è stato venduto bene`}
+              view={margin.work} />
           )}
-        </div>
 
-        {streams.length === 0 ? (
-          <div className="p-5">
-            <div className="text-center py-8 border border-dashed border-border rounded-xl">
-              <p className="text-2xs text-text-tertiary">
-                Nessun contratto. Aggiungi i servizi da catalogo: il prezzo parte dal listino e lo correggi qui.
+          {(margin.month.revenue > 0 || margin.month.cost > 0) && (
+            <MarginBar
+              title={`Margine di ${monthLabel(currentMonth())}`}
+              hint={margin.month.onPlan && margin.month.planned > 0
+                ? 'Rata o canone del mese meno i costi esterni che cadono qui — ancora previsione: nessuna uscita registrata'
+                : 'Rata o canone del mese meno i costi esterni che cadono qui'}
+              view={margin.month} />
+          )}
+
+          <p className="flex items-start gap-2 text-2xs text-text-tertiary border-t border-border pt-3">
+            <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            Contano solo i costi <strong className="font-semibold">esterni</strong>: il tempo del team interno sta nel
+            costo del lavoro aziendale, e mescolarli darebbe un margine che nessuno può calcolare davvero.
+            {margin.openCostPerMonth > 0 && ` Ci sono anche ${eur(margin.openCostPerMonth)}/mese di lavorazioni senza una fine: non avendo un orizzonte non entrano nel totale del lavoro.`}
+            {margin.workMonths === 0 && margin.hasWork && ' Il progetto non ha una data di fine: i costi ricorrenti non si possono totalizzare.'}
+          </p>
+        </section>
+      )}
+
+      <ContractsPanel
+        scope={{ kind: 'project', projectId, clientId }}
+        streams={streams} installments={installments} services={services} profiles={profiles}
+        projects={[]} canEdit={canEdit}
+        defaultKind={projectKind} defaultStart={projectStart} defaultEnd={projectEnd}
+        subtitle="Una riga per servizio erogato: così si vede quale regge il margine"
+      />
+
+      <ProjectCostsPanel projectId={projectId} month={currentMonth()}
+        items={costItems} actuals={costActuals} canEdit={canEdit}
+        contracts={streams.filter(s => s.status !== 'bozza').map(s => ({
+          id: s.id, label: s.label, billing: s.billing,
+          terms: s.payment_terms ?? null,
+          installments: installments.filter(i => i.stream_id === s.id).length,
+        }))} />
+
+      {siblings.length > 0 && (
+        <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
+          <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-border flex-wrap">
+            <div>
+              <h3 className="text-sm font-bold text-text-primary">Gli altri lavori di questo cliente</h3>
+              <p className="text-2xs text-text-tertiary mt-0.5">
+                Ogni progetto ha la sua quotazione: da qui si vede quale non ce l&apos;ha ancora
               </p>
             </div>
+            {clientId && (
+              <Link href={economicsHref(clientId)}
+                className="flex items-center gap-1 text-2xs font-semibold text-gold-text hover:opacity-80">
+                Economics del cliente<ArrowUpRight className="w-3.5 h-3.5" />
+              </Link>
+            )}
           </div>
-        ) : (
           <div className="divide-y divide-border/60">
-            {streams.map(s => {
-              const rows = installments.filter(i => i.stream_id === s.id)
-              const planned = scheduled(installments, s.id)
-              const gap = Math.round((s.amount - planned) * 100) / 100
-              const parent = s.activates_after_id ? streams.find(x => x.id === s.activates_after_id) : null
-              const isOpen = open === s.id
-
-              return (
-                <div key={s.id} className="px-5 py-3">
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    {s.billing === 'recurring'
-                      ? <Repeat className="w-4 h-4 text-success shrink-0" />
-                      : <Package className="w-4 h-4 text-accent shrink-0" />}
-
-                    <input value={s.label} disabled={!canEdit} aria-label="Nome del servizio"
-                      onChange={e => run(() => updateStream(s.id, projectId, { label: e.target.value }))}
-                      className="flex-1 min-w-[140px] bg-transparent text-sm font-semibold text-text-primary border-b border-transparent focus:border-border-interactive outline-none" />
-
-                    <span className="flex items-center gap-1">
-                      <input type="number" value={s.amount} disabled={!canEdit} aria-label="Importo"
-                        onChange={e => run(() => updateStream(s.id, projectId, {
-                          amount: Number(e.target.value) || 0, price_source: 'custom',
-                        }))}
-                        className="w-24 bg-background border border-border rounded-lg px-2 py-1 text-sm text-right tabular text-text-primary" />
-                      <span className="text-2xs text-text-tertiary">{s.billing === 'recurring' ? '/mese' : 'totale'}</span>
-                    </span>
-
-                    {s.price_source === 'standard' && (
-                      <span className="text-2xs text-text-tertiary" title="Prezzo preso dal listino">listino</span>
+            {siblings.map(p => (
+              <Link key={p.id} href={`/progetti/${p.id}?tab=economics`}
+                className="flex items-center gap-2 px-5 py-2.5 hover:bg-surface-hover flex-wrap">
+                <Briefcase className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
+                <span className="text-2xs font-semibold text-text-primary flex-1 min-w-[140px] truncate">{p.name}</span>
+                {p.contracts === 0 ? (
+                  <span className="flex items-center gap-1 text-2xs font-semibold text-warning">
+                    <AlertTriangle className="w-3 h-3 shrink-0" />da quotare
+                  </span>
+                ) : (
+                  <>
+                    {p.recurring > 0 && <span className="text-2xs tabular text-success">{eur(p.recurring)}/mese</span>}
+                    {p.oneOff > 0 && <span className="text-2xs tabular text-accent">{eur(p.oneOff)}</span>}
+                    {p.recurring === 0 && p.oneOff === 0 && (
+                      <span className="text-2xs text-text-tertiary">solo bozze</span>
                     )}
-
-                    <select value={s.status} disabled={!canEdit} aria-label="Stato"
-                      onChange={e => run(() => updateStream(s.id, projectId, { status: e.target.value as never }))}
-                      className={`text-2xs font-semibold px-2 py-1 rounded-full border ${STATUS_TONE[s.status]}`}>
-                      <option value="bozza">bozza</option>
-                      <option value="attivo">attivo</option>
-                      <option value="sospeso">sospeso</option>
-                      <option value="concluso">concluso</option>
-                    </select>
-
-                    {canEdit && (
-                      <>
-                        <button onClick={() => setOpen(isOpen ? null : s.id)} aria-expanded={isOpen}
-                          className="text-2xs font-semibold text-gold-text hover:opacity-80">
-                          {isOpen ? 'Chiudi' : 'Dettagli'}
-                        </button>
-                        <button onClick={() => run(() => deleteStream(s.id, projectId), 'Voce eliminata')}
-                          aria-label={`Elimina ${s.label}`} className="text-text-tertiary hover:text-error">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </>
-                    )}
-                  </div>
-
-                  {/* la manutenzione aspetta la fine del lavoro che la genera */}
-                  {parent && s.status === 'bozza' && (
-                    <div className="mt-2 flex items-center gap-2 flex-wrap text-2xs">
-                      <Lock className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
-                      <span className="text-text-secondary">
-                        Si attiva alla chiusura di «{parent.label}»
-                        {parent.status === 'concluso' ? ' — concluso, è pronta' : ` — ora ${parent.status}`}
-                      </span>
-                      {parent.status === 'concluso' && canEdit && (
-                        <button onClick={() => run(() => activateStream(s.id, projectId), 'Manutenzione attivata')}
-                          className="flex items-center gap-1 font-semibold text-success border border-success/40 rounded-lg px-2 py-1">
-                          <Play className="w-3 h-3" />Attiva
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {isOpen && (
-                    <div className="mt-3 rounded-xl border border-border bg-background/40 p-3 space-y-3">
-                      <div className="grid gap-2 sm:grid-cols-4">
-                        <Field label="Tipo">
-                          <select value={s.kind} disabled={!canEdit} aria-label="Tipologia"
-                            onChange={e => run(() => updateStream(s.id, projectId, { kind: e.target.value as never }))}
-                            className={inp}>
-                            <option value="growth">Growth</option>
-                            <option value="digital">Digital</option>
-                          </select>
-                        </Field>
-                        <Field label="Fatturazione">
-                          <select value={s.billing} disabled={!canEdit} aria-label="Modalità"
-                            onChange={e => run(() => updateStream(s.id, projectId, { billing: e.target.value as never }))}
-                            className={inp}>
-                            <option value="recurring">Canone mensile</option>
-                            <option value="one_off">A corpo</option>
-                          </select>
-                        </Field>
-                        <Field label="Inizio">
-                          <input type="date" value={s.start_date ?? ''} disabled={!canEdit} aria-label="Inizio"
-                            onChange={e => run(() => updateStream(s.id, projectId, { start_date: e.target.value || null }))}
-                            className={inp} />
-                        </Field>
-                        <Field label="Fine">
-                          <input type="date" value={s.end_date ?? ''} disabled={!canEdit} aria-label="Fine"
-                            onChange={e => run(() => updateStream(s.id, projectId, { end_date: e.target.value || null }))}
-                            className={inp} />
-                        </Field>
-                        <Field label="Commerciale">
-                          <select value={s.sales_owner_id ?? ''} disabled={!canEdit} aria-label="Commerciale"
-                            onChange={e => run(() => updateStream(s.id, projectId, { sales_owner_id: e.target.value || null }))}
-                            className={inp}>
-                            <option value="">—</option>
-                            {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-                          </select>
-                        </Field>
-                        <Field label="Si attiva dopo">
-                          <select value={s.activates_after_id ?? ''} disabled={!canEdit} aria-label="Si attiva dopo"
-                            onChange={e => run(() => updateStream(s.id, projectId, { activates_after_id: e.target.value || null }))}
-                            className={inp}>
-                            <option value="">— subito —</option>
-                            {streams.filter(x => x.id !== s.id).map(x => <option key={x.id} value={x.id}>{x.label}</option>)}
-                          </select>
-                        </Field>
-                      </div>
-
-                      {s.billing === 'one_off' && (
-                        <div className="border-t border-border pt-3">
-                          <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
-                            <span className="flex items-center gap-1.5 text-2xs font-semibold text-text-secondary">
-                              <CalendarRange className="w-3.5 h-3.5" />Piano di fatturazione
-                            </span>
-                            {canEdit && (
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                {s.start_date && s.end_date && (
-                                  <Gen label={`${monthSpan(s.start_date, s.end_date)} rate uguali`}
-                                    onClick={() => run(() => generateInstallments(s.id, projectId, {
-                                      mode: 'even', count: monthSpan(s.start_date!, s.end_date!), startMonth: s.start_date!.slice(0, 8) + '01',
-                                    }), 'Piano generato')} />
-                                )}
-                                <Gen label="40/30/30" onClick={() => run(() => generateInstallments(s.id, projectId, {
-                                  mode: 'percent', percents: [40, 30, 30],
-                                  startMonth: (s.start_date ?? currentMonth()).slice(0, 8) + '01',
-                                }), 'Piano generato')} />
-                                <Gen label="Unica" onClick={() => run(() => generateInstallments(s.id, projectId, {
-                                  mode: 'percent', percents: [100],
-                                  startMonth: (s.end_date ?? s.start_date ?? currentMonth()).slice(0, 8) + '01',
-                                }), 'Piano generato')} />
-                              </div>
-                            )}
-                          </div>
-
-                          {rows.length === 0 ? (
-                            <p className="text-2xs text-text-tertiary">
-                              Nessuna rata: senza piano questo lavoro non entra in nessun mese del conto economico.
-                            </p>
-                          ) : (
-                            <div className="space-y-1">
-                              {rows.map(i => (
-                                <div key={i.id} className="flex items-center gap-2 flex-wrap">
-                                  <input type="month" value={i.due_month.slice(0, 7)} disabled={!canEdit} aria-label="Mese di competenza"
-                                    onChange={e => run(() => updateInstallment(i.id, projectId, { due_month: `${e.target.value}-01` }))}
-                                    className="bg-background border border-border rounded-lg px-2 py-1 text-2xs text-text-secondary" />
-                                  <span className="text-2xs text-text-tertiary flex-1 min-w-[60px] truncate">{i.label}</span>
-                                  <input type="number" value={i.amount} disabled={!canEdit} aria-label="Importo rata"
-                                    onChange={e => run(() => updateInstallment(i.id, projectId, { amount: Number(e.target.value) || 0 }))}
-                                    className="w-24 bg-background border border-border rounded-lg px-2 py-1 text-2xs text-right tabular text-text-primary" />
-                                  <Toggle on={i.invoiced} label="Fatturata" disabled={!canEdit}
-                                    onClick={() => run(() => updateInstallment(i.id, projectId, { invoiced: !i.invoiced }))} />
-                                  <Toggle on={i.paid} label="Pagata" disabled={!canEdit}
-                                    onClick={() => run(() => updateInstallment(i.id, projectId, { paid: !i.paid }))} />
-                                  {canEdit && (
-                                    <button onClick={() => run(() => deleteInstallment(i.id, projectId))}
-                                      aria-label="Elimina rata" className="text-text-tertiary hover:text-error">
-                                      <Trash2 className="w-3 h-3" />
-                                    </button>
-                                  )}
-                                </div>
-                              ))}
-                              {gap !== 0 && (
-                                <p className={`text-2xs font-semibold ${gap > 0 ? 'text-warning' : 'text-error'}`}>
-                                  {gap > 0
-                                    ? `Mancano ${eur(gap)} da pianificare rispetto al totale del contratto`
-                                    : `Le rate superano il contratto di ${eur(-gap)}`}
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+                  </>
+                )}
+              </Link>
+            ))}
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
-      <p className="flex items-start gap-2 text-2xs text-text-tertiary">
-        <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-        Solo i contratti <strong className="font-semibold">attivi</strong> entrano nel conto economico: una bozza è
-        quotata ma non venduta. Un canone pesa in ogni mese fra inizio e fine; un lavoro a corpo pesa attraverso
-        le rate, nel mese in cui ciascuna cade.
-      </p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <p className="flex items-start gap-2 text-2xs text-text-tertiary flex-1 min-w-[280px]">
+          <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          Solo i contratti <strong className="font-semibold">attivi</strong> entrano nel conto economico: una bozza è
+          quotata ma non venduta. Un canone pesa in ogni mese fra inizio e fine; un lavoro a corpo pesa attraverso
+          le rate, nel mese in cui ciascuna cade.
+        </p>
+        {clientId && siblings.length === 0 && (
+          <Link href={economicsHref(clientId)}
+            className="flex items-center gap-1 text-2xs font-semibold text-gold-text hover:opacity-80 shrink-0">
+            Economics del cliente<ArrowUpRight className="w-3.5 h-3.5" />
+          </Link>
+        )}
+      </div>
     </div>
   )
 }
 
-const inp = 'w-full bg-background border border-border rounded-lg px-2 py-1 text-2xs text-text-primary'
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+/** Verde quello che resta, arancione quello che esce: la proporzione si legge senza numeri. */
+function MarginBar({ title, hint, view }: { title: string; hint: string; view: MarginView }) {
+  const base = Math.max(view.revenue, view.cost, 1)
   return (
-    <label className="block">
-      <span className="block text-2xs font-semibold text-text-secondary mb-1">{label}</span>
-      {children}
-    </label>
+    <div>
+      <div className="flex items-start justify-between gap-3 flex-wrap mb-2">
+        <div className="min-w-0">
+          <h3 className="text-sm font-bold text-text-primary">{title}</h3>
+          <p className="text-2xs text-text-tertiary mt-0.5">{hint}</p>
+        </div>
+        <span className={`text-lg font-bold tabular shrink-0 ${view.margin < 0 ? 'text-error' : 'text-success'}`}>
+          {eur(view.margin)}
+          {view.revenue > 0 && (
+            <span className="text-2xs font-semibold text-text-tertiary ml-1.5">{Math.round(view.pct * 100)}%</span>
+          )}
+        </span>
+      </div>
+      <div className="flex h-3 rounded-full overflow-hidden bg-surface-active">
+        <div className="bg-success" style={{ width: `${Math.max(0, (view.margin / base) * 100)}%` }} />
+        <div className="bg-orange" style={{ width: `${Math.min(100, (view.cost / base) * 100)}%` }} />
+      </div>
+      <p className="text-2xs text-text-tertiary mt-1.5">
+        {eur(view.revenue)} di ricavo · {eur(view.cost)} di costi esterni
+        {view.revenue === 0 && view.cost > 0 && ' — esce e basta: qui non c\'è ancora ricavo'}
+      </p>
+    </div>
   )
 }
 
@@ -348,25 +264,5 @@ function Kpi({ icon, label, value }: { icon: React.ReactNode; label: string; val
       </div>
       <div className="text-lg font-bold text-text-primary tabular">{value}</div>
     </div>
-  )
-}
-
-function Gen({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick}
-      className="text-2xs font-semibold border border-border rounded-lg px-2 py-1 text-text-secondary hover:text-text-primary hover:bg-surface-hover press">
-      {label}
-    </button>
-  )
-}
-
-function Toggle({ on, onClick, label, disabled }: { on: boolean; onClick: () => void; label: string; disabled?: boolean }) {
-  return (
-    <button onClick={onClick} disabled={disabled} aria-pressed={on} title={label}
-      className={`text-2xs font-semibold px-2 py-1 rounded-lg border ${
-        on ? 'bg-success-dim border-success/40 text-success' : 'border-border text-text-tertiary hover:bg-surface-hover'
-      }`}>
-      {label}
-    </button>
   )
 }

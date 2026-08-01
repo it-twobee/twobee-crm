@@ -12,9 +12,20 @@ import {
   billing, relationship, forecast, rfmRaw, rfmScore, trend, upsell, contribution,
   type ClientInput, type RfmRaw, type Metric,
 } from '@/lib/client-economics'
+import { ContractsPanel, type CatalogService } from '@/components/economics/ContractsPanel'
+import { mrrOrigin, PAYMENT_STATUS_HINT } from '@/lib/economics-source'
 
 const eur = (n: number) => formatCurrency(Math.round(n))
 const pc = (n: number) => `${n >= 0 ? '+' : ''}${(n * 100).toFixed(0)}%`
+
+const PAY_LABEL: Record<string, string> = {
+  pagato: 'Tutto incassato', in_attesa: 'Da pagare', scaduto: 'Non pagato',
+}
+const PAY_TONE: Record<string, string> = {
+  pagato: 'bg-success-dim border-success/40 text-success',
+  in_attesa: 'bg-warning-dim border-warning/40 text-warning',
+  scaduto: 'bg-error-dim border-error/40 text-error',
+}
 
 const RFM_TONE: Record<string, string> = {
   'Campione': 'bg-success-dim border-success/40 text-success',
@@ -28,6 +39,7 @@ const RFM_TONE: Record<string, string> = {
 
 export function ClientEconomicsTab({
   client, base, config, kind, catalog, basePath,
+  services, profiles, canEdit, mrrStored, mrrSource, paymentStatus,
 }: {
   client: ClientInput
   /** RFM è relativo: serve la fotografia degli altri clienti per i quintili */
@@ -36,6 +48,14 @@ export function ClientEconomicsTab({
   kind: PlKind
   catalog: { service_type: string; service_subtype: string | null; label: string; standard_price: number | null }[]
   basePath: string
+  /** listino: alimenta gli accordi «da catalogo» */
+  services: CatalogService[]
+  profiles: { id: string; full_name: string }[]
+  canEdit: boolean
+  /** il numero che sta in anagrafica e chi l'ha scritto: i contratti o una persona */
+  mrrStored: number
+  mrrSource: 'contratti' | 'anagrafica'
+  paymentStatus: string
 }) {
   const b = useMemo(() => billing(client), [client])
   const rel = useMemo(() => relationship(client), [client])
@@ -45,9 +65,18 @@ export function ClientEconomicsTab({
   const contrib = useMemo(() => contribution(client, config, kind), [client, config, kind])
   const opportunities = useMemo(() => upsell(client, catalog), [client, catalog])
 
-  const mrr = client.streams
+  // il canone attivo è la somma dei contratti; finché non ce ne sono resta il
+  // numero d'anagrafica, e va detto da dove viene invece di mostrare zero
+  const fromContracts = client.streams
     .filter(s => s.billing === 'recurring' && s.status === 'attivo')
     .reduce((n, s) => n + s.amount, 0)
+  /* §176: il canone del cliente è la somma dei suoi contratti, punto.
+     `clients.mrr` resta solo come residuo storico di chi non ha ancora quotato,
+     e come tale si segnala — non si mostra al posto del numero vero. */
+  const sold = client.streams.filter(s => s.status !== 'bozza')
+  const derived = sold.length > 0
+  const mrr = fromContracts
+  const origin = mrrOrigin(derived ? 'contratti' : 'anagrafica', sold.length)
   const peak = Math.max(1, ...client.history.map(h => h.amount), ...fc.rows.map(r => r.amount))
   const renewal = rel.renewalInDays
 
@@ -57,13 +86,43 @@ export function ClientEconomicsTab({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi icon={<Wallet className="w-4 h-4 text-gold-text" />} label="Fatturato storico" m={b.lifetime} fmt={eur} />
         <Kpi icon={<Repeat className="w-4 h-4 text-success" />} label="Canone attivo"
-          m={{ value: mrr, ready: mrr > 0, basis: mrr > 0 ? 'somma dei contratti ricorrenti attivi' : 'nessun contratto ricorrente attivo' }}
+          m={{
+            value: mrr, ready: mrr > 0,
+            basis: derived
+              ? (mrr > 0 ? `somma dei canoni attivi · ${origin.label}` : 'nessun contratto ricorrente attivo')
+              : 'nessun contratto: quota i progetti qui sotto',
+          }}
           fmt={n => `${eur(n)}/mese`} />
         <Kpi icon={<CalendarClock className="w-4 h-4 text-info" />} label="Durata rapporto" m={rel.months}
           fmt={n => `${n} mes${n === 1 ? 'e' : 'i'}`} />
         <Kpi icon={tr.ready && tr.value < 0 ? <TrendingDown className="w-4 h-4 text-error" /> : <TrendingUp className="w-4 h-4 text-success" />}
           label="Andamento" m={tr} fmt={pc} tone={tr.ready ? (tr.value < 0 ? 'error' : 'success') : undefined} />
       </div>
+
+      {/* ── contratti: qui si quota, il resto della pagina lo legge ── */}
+      <ContractsPanel
+        scope={{ kind: 'client', clientId: client.id }}
+        streams={client.streams}
+        installments={client.installments}
+        services={services}
+        profiles={profiles}
+        projects={client.projects.map(p => ({ id: p.id, name: p.name, status: p.status }))}
+        canEdit={canEdit}
+        defaultKind={kind}
+        defaultStart={client.contract_start?.slice(0, 10) ?? null}
+        defaultEnd={client.contract_end?.slice(0, 10) ?? null}
+        title="Contratti del cliente"
+        subtitle="Accordi da listino o custom, uno per servizio. Alimentano MRR, previsionale e conto economico"
+      />
+
+      {!derived && mrrStored > 0 && (
+        <p className="flex items-start gap-2 text-2xs text-warning">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          Resta un canone storico di {eur(mrrStored)}/mese in anagrafica, senza nessun contratto dietro. Non si
+          scrive più da nessuna parte: il conto economico lo genera come riga «senza contratto» e la marginalità
+          per progetto non lo vede. Quota i progetti qui sopra e sparisce da solo.
+        </p>
+      )}
 
       {/* ── segmentazione ── */}
       <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
@@ -135,7 +194,14 @@ export function ClientEconomicsTab({
       <div className="grid gap-4 lg:grid-cols-2">
         {/* ── storico ── */}
         <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
-          <h3 className="text-sm font-bold text-text-primary mb-1">Fatturato mese per mese</h3>
+          <div className="flex items-start justify-between gap-2 flex-wrap mb-1">
+            <h3 className="text-sm font-bold text-text-primary">Fatturato mese per mese</h3>
+            {/* lo stato pagamenti non si spunta più a mano: lo dicono rate e mesi registrati */}
+            <span className={`text-2xs font-semibold px-2 py-0.5 rounded-full border ${PAY_TONE[paymentStatus] ?? 'bg-surface-active border-border-strong text-text-secondary'}`}
+              title={PAYMENT_STATUS_HINT}>
+              {PAY_LABEL[paymentStatus] ?? paymentStatus}
+            </span>
+          </div>
           <p className="text-2xs text-text-tertiary mb-3">{b.lifetime.basis}</p>
           {client.history.length === 0 ? (
             <NotReady basis="nessun mese di conto economico registrato per questo cliente"

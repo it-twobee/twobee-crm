@@ -43,6 +43,10 @@ export const DEFAULT_PL_CONFIG: PlConfig = {
   company_share_pct: 0.10,
 }
 
+/** IVA ordinaria: il default della colonna, ripetuto qui perché le righe si
+ *  inseriscono in blocco e ogni riga deve portarsi il valore per intero. */
+export const DEFAULT_VAT_RATE = 0.22
+
 export type RevenueLine = {
   id: string
   label: string
@@ -62,6 +66,10 @@ export type RevenueLine = {
    * Una riga senza commerciale è trattata come inbound comunque.
    */
   sales_origin?: 'diretto' | 'inbound' | null
+  /** da dove nasce la riga: contratto di progetto, MRR d'anagrafica, o scritta a mano */
+  origin?: 'contratto' | 'anagrafica' | 'manuale'
+  project_id?: string | null
+  stream_id?: string | null
 }
 
 /** Nessuno ha portato questo cliente: la provvigione va divisa. */
@@ -70,6 +78,8 @@ export const isInbound = (l: RevenueLine) =>
 
 export type CostLine = {
   id: string
+  /** §171: area su cui pesa la spesa — è il budget da cui esce */
+  center_id?: string | null
   category: string
   label: string
   cost_type: 'F' | 'V'

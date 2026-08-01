@@ -4,7 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
-import { splitEven, splitByPercent, type RevenueStream } from '@/lib/revenue'
+import { buildSchedule, type RevenueStream, type ScheduleSpec } from '@/lib/revenue'
+import { shiftMonth } from '@/lib/pl'
 
 /** Contratti e prezzi: dati economici, admin e basta. */
 async function requireAdmin(): Promise<string> {
@@ -17,13 +18,24 @@ async function requireAdmin(): Promise<string> {
   return user.id
 }
 
-function rev(projectId: string) {
-  revalidatePath(`/progetti/${projectId}`)
+/**
+ * Lo stesso contratto si modifica da due posti — la scheda del progetto e
+ * l'economics del cliente — e da un terzo si legge (il conto economico).
+ * Chi chiama dice da dove sta guardando, così si aggiornano tutte e tre.
+ */
+export type RevCtx = { projectId?: string | null; clientId?: string | null }
+
+function rev(ctx: RevCtx) {
+  if (ctx.projectId) revalidatePath(`/progetti/${ctx.projectId}`)
+  if (ctx.clientId) revalidatePath(`/clienti/${ctx.clientId}`)
   revalidatePath('/economics')
+  revalidatePath('/clienti')
 }
 
 export type StreamInput = {
   label: string
+  project_id?: string | null
+  client_id?: string | null
   service_type?: string | null
   service_subtype?: string | null
   price_source?: 'standard' | 'custom'
@@ -36,33 +48,41 @@ export type StreamInput = {
   status?: 'bozza' | 'attivo' | 'sospeso' | 'concluso'
   sales_owner_id?: string | null
   activates_after_id?: string | null
+  /** §174: come si paga, non solo quanto — «30gg d.f.f.m.», «40/30/30 a SAL» */
+  payment_terms?: string | null
   note?: string | null
 }
 
-export async function addStream(projectId: string, input: StreamInput) {
+export async function addStream(input: StreamInput, ctx: RevCtx) {
   const uid = await requireAdmin()
   const admin = createAdminClient()
+  // senza progetto il cliente è l'unica ancora: il trigger non ha da dove dedurlo
+  const client_id = input.project_id ? undefined : (input.client_id ?? ctx.clientId ?? null)
   const { data, error } = await admin.from('revenue_streams')
-    .insert({ project_id: projectId, created_by: uid, ...input })
+    .insert({ ...input, created_by: uid, ...(client_id !== undefined ? { client_id } : {}) })
     .select('*').single()
   if (error) throw new Error(error.message)
-  rev(projectId)
+  rev(ctx)
   return data
 }
 
-export async function updateStream(id: string, projectId: string, patch: Partial<StreamInput>) {
+export async function updateStream(id: string, patch: Partial<StreamInput>, ctx: RevCtx) {
   await requireAdmin()
+  // staccare un contratto da un progetto non deve lasciarlo senza cliente
+  const extra = patch.project_id === null && !patch.client_id && ctx.clientId
+    ? { client_id: ctx.clientId }
+    : {}
   const { error } = await createAdminClient().from('revenue_streams')
-    .update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id)
+    .update({ ...patch, ...extra, updated_at: new Date().toISOString() }).eq('id', id)
   if (error) throw new Error(error.message)
-  rev(projectId)
+  rev(ctx)
 }
 
-export async function deleteStream(id: string, projectId: string) {
+export async function deleteStream(id: string, ctx: RevCtx) {
   await requireAdmin()
   const { error } = await createAdminClient().from('revenue_streams').delete().eq('id', id)
   if (error) throw new Error(error.message)
-  rev(projectId)
+  rev(ctx)
 }
 
 /**
@@ -73,10 +93,7 @@ export async function deleteStream(id: string, projectId: string) {
  * percentuali date (40/30/30). In entrambi i casi l'ultima rata assorbe
  * l'arrotondamento, così la somma fa esattamente il totale del contratto.
  */
-export async function generateInstallments(
-  streamId: string, projectId: string,
-  opts: { mode: 'even' | 'percent'; count?: number; percents?: number[]; startMonth: string },
-) {
+export async function generateInstallments(streamId: string, spec: ScheduleSpec, ctx: RevCtx) {
   await requireAdmin()
   const admin = createAdminClient()
 
@@ -85,10 +102,8 @@ export async function generateInstallments(
   if (e0) throw new Error(e0.message)
   if (s.billing !== 'one_off') throw new Error('Le rate valgono solo sui lavori a corpo')
 
-  const total = Number(s.amount)
-  const drafts = opts.mode === 'percent'
-    ? splitByPercent(total, opts.percents ?? [100], opts.startMonth)
-    : splitEven(total, Math.max(1, opts.count ?? 1), opts.startMonth)
+  const drafts = buildSchedule(Number(s.amount), spec)
+  if (!drafts.length) throw new Error('Piano vuoto: controlla le percentuali')
 
   const { error: eDel } = await admin.from('revenue_installments').delete().eq('stream_id', streamId)
   if (eDel) throw new Error(eDel.message)
@@ -97,25 +112,50 @@ export async function generateInstallments(
     drafts.map((d, i) => ({ stream_id: streamId, ...d, sort_order: i * 10 })),
   )
   if (error) throw new Error(error.message)
-  rev(projectId)
+  rev(ctx)
   return drafts.length
 }
 
+/**
+ * Una rata in più, a mano. I piani veri non stanno sempre in uno schema: un
+ * cliente chiede di spostare un pezzo a gennaio e basta, e deve poterlo fare
+ * senza rifare tutto il piano.
+ */
+export async function addInstallment(streamId: string, ctx: RevCtx) {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const { data: rows } = await admin.from('revenue_installments')
+    .select('due_month, sort_order').eq('stream_id', streamId).order('due_month')
+  const last = rows?.[rows.length - 1]
+  const nextMonth = last
+    ? shiftMonth(last.due_month.slice(0, 8) + '01', 1)
+    : new Date().toISOString().slice(0, 8) + '01'
+
+  const { error } = await admin.from('revenue_installments').insert({
+    stream_id: streamId, due_month: nextMonth, label: 'Nuova rata', amount: 0,
+    sort_order: ((last?.sort_order ?? 0) + 10),
+  })
+  if (error) throw new Error(error.message)
+  rev(ctx)
+}
+
 export async function updateInstallment(
-  id: string, projectId: string,
+  id: string,
   patch: Partial<{ due_month: string; label: string | null; amount: number; invoiced: boolean; paid: boolean }>,
+  ctx: RevCtx,
 ) {
   await requireAdmin()
   const { error } = await createAdminClient().from('revenue_installments').update(patch).eq('id', id)
   if (error) throw new Error(error.message)
-  rev(projectId)
+  rev(ctx)
 }
 
-export async function deleteInstallment(id: string, projectId: string) {
+export async function deleteInstallment(id: string, ctx: RevCtx) {
   await requireAdmin()
   const { error } = await createAdminClient().from('revenue_installments').delete().eq('id', id)
   if (error) throw new Error(error.message)
-  rev(projectId)
+  rev(ctx)
 }
 
 /**
@@ -123,7 +163,7 @@ export async function deleteInstallment(id: string, projectId: string) {
  * Il controllo sta qui e non nel database: attivare un canone è una decisione
  * commerciale, non un effetto collaterale della chiusura di un progetto.
  */
-export async function activateStream(id: string, projectId: string) {
+export async function activateStream(id: string, ctx: RevCtx) {
   await requireAdmin()
   const admin = createAdminClient()
 
@@ -143,7 +183,7 @@ export async function activateStream(id: string, projectId: string) {
   const { error: eUp } = await admin.from('revenue_streams')
     .update({ status: 'attivo', updated_at: new Date().toISOString() }).eq('id', id)
   if (eUp) throw new Error(eUp.message)
-  rev(projectId)
+  rev(ctx)
 }
 
 /** Prezzo di listino di un servizio: alimenta il default in fase di quotazione. */

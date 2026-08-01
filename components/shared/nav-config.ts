@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, FolderOpen, Settings, CalendarDays, Headphones,
   Ticket, UserCircle2, History, Lightbulb, FolderKanban, Briefcase, ListChecks, ListTodo,
-  Wallet,
+  Wallet, Target, Landmark,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -45,7 +45,11 @@ export const navSections: NavSection[] = [
   {
     label: 'Economics',
     // dati economici: la pagina rimbalza chi non è admin, la voce non si mostra
-    items: [{ href: '/economics', icon: Wallet, label: 'Conto economico', adminOnly: true }],
+    items: [
+      { href: '/economics', icon: Wallet, label: 'Conto economico', adminOnly: true },
+      { href: '/economics/costi', icon: Target, label: 'Costi e budget', adminOnly: true },
+      { href: '/economics/fiscale', icon: Landmark, label: 'Fiscale & tasse', adminOnly: true },
+    ],
   },
   {
     label: 'Team',

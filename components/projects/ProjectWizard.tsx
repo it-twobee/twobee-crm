@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, useCallback, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { X, ChevronLeft, ChevronRight, Check, Loader2, Sparkles } from 'lucide-react'
-import { createProjectFromWizard, type WizardPayload } from '@/app/actions/create-project'
+import { createProjectFromWizard, attachWizardEconomics, type WizardPayload } from '@/app/actions/create-project'
 import { saveWizardTemplate } from '@/app/actions/wizard'
 import {
   projectName, workstreamName, bareWorkstream, bareMilestone, bareTask, type NamingCtx,
@@ -21,6 +21,7 @@ import { StepTeam } from './wizard/StepTeam'
 import { StepTemplate } from './wizard/StepTemplate'
 import { StepStruttura, applyNaming, offConventionCount, spreadDueDates } from './wizard/StepStruttura'
 import { StepConferma } from './wizard/StepConferma'
+import { StepEconomics, emptyEconomics, specOf, type EconomicsState } from './wizard/StepEconomics'
 import {
   STEPS, nk, countTree, applyRelativeDates,
   newTask, newMilestone, newRecurring, newWorkstream,
@@ -43,11 +44,22 @@ export function ProjectWizard({
   const router = useRouter()
   const [pending, start] = useTransition()
 
+  /* §176: l'economics si vede solo dal portale admin — nel workspace la rotta
+     non esiste nemmeno — e solo su un progetto di un cliente. La server action
+     ricontrolla il ruolo: questo qui è per non mostrare quello che non serve. */
+  const adminPortal = !basePath.startsWith('/workspace')
+
+  const [eco, setEco] = useState<EconomicsState>(() => emptyEconomics(new Date().toISOString().slice(0, 7)))
+
   const fixed = fixedClientId ? clients.find(c => c.id === fixedClientId) : undefined
   const [step, setStep] = useState(fixed ? 1 : 0)
   const [client, setClient] = useState<ClientChoice | null>(
     fixed ? { kind: 'client', id: fixed.id, name: fixed.name } : null,
   )
+  // l'economics ha senso solo su un cliente vero, e solo dal portale admin
+  const showEco = adminPortal && client?.kind === 'client'
+  const steps = useMemo(() => STEPS.filter(x => x.key !== 'economics' || showEco), [showEco])
+
   const [area, setArea] = useState<ProjectArea | ''>('')
   const [picks, setPicks] = useState<WsPick[]>([])
   const [info, setInfo] = useState<InfoState>({
@@ -171,14 +183,14 @@ export function ProjectWizard({
   // ── navigazione ────────────────────────────────────────────────────────────
   const minStep = fixed ? 1 : 0
   const valid = useCallback((s: number): boolean => {
-    switch (s) {
-      case 0: return client !== null
-      case 1: return !!area
-      case 2: return picks.length > 0
-      case 3: return !!info.name.trim()
+    switch (steps[s]?.key) {
+      case 'cliente': return client !== null
+      case 'area': return !!area
+      case 'workstream': return picks.length > 0
+      case 'info': return !!info.name.trim()
       default: return true
     }
-  }, [client, area, picks.length, info.name])
+  }, [steps, client, area, picks.length, info.name])
   const canNext = valid(step)
   const reachable = useCallback((s: number) => {
     for (let i = minStep; i < s; i++) if (!valid(i)) return false
@@ -186,7 +198,7 @@ export function ProjectWizard({
   }, [minStep, valid])
 
   const goTo = useCallback((s: number) => {
-    if (s >= minStep && s < STEPS.length && reachable(s)) setStep(s)
+    if (s >= minStep && s < steps.length && reachable(s)) setStep(s)
   }, [minStep, reachable])
 
   // ── quick fix richiamati dalla conferma ────────────────────────────────────
@@ -261,6 +273,30 @@ export function ProjectWizard({
     start(async () => {
       try {
         const id = await createProjectFromWizard(buildPayload())
+
+        /* L'accordo economico è una scrittura a parte: se fallisce resta il
+           progetto, e la quotazione si rifà dalla sua scheda. Meglio un
+           progetto senza numeri che nessun progetto. */
+        if (showEco && eco.enabled && eco.label.trim() && Number(eco.amount.replace(',', '.')) > 0) {
+          try {
+            await attachWizardEconomics(id, {
+              label: eco.label.trim(),
+              billing: eco.billing,
+              amount: Number(eco.amount.replace(',', '.')),
+              status: eco.status,
+              payment_terms: eco.payment_terms.trim() || null,
+              schedule: specOf(eco),
+              subcontract: eco.subOn && Number(eco.subAmount.replace(',', '.')) > 0 ? {
+                label: eco.subLabel.trim() || 'Subappalto',
+                supplier: eco.subSupplier.trim() || null,
+                amount: Number(eco.subAmount.replace(',', '.')),
+                mirror: eco.subMirror,
+              } : null,
+            })
+          } catch (e) {
+            toast.error(`Progetto creato, ma l'economics no: ${e instanceof Error ? e.message : 'errore'}`)
+          }
+        }
         if (saveTpl.on && saveTpl.name.trim() && structure.length) {
           // il template va salvato "nudo": niente prefissi di cliente o servizio
           try {
@@ -305,7 +341,7 @@ export function ProjectWizard({
     })
   }
 
-  const last = step === STEPS.length - 1
+  const last = step === steps.length - 1
   const advance = useCallback(() => { if (canNext && !last) setStep(s => s + 1) }, [canNext, last])
 
   useEffect(() => {
@@ -337,7 +373,7 @@ export function ProjectWizard({
         <div className="flex-1 flex min-h-0">
           {/* rail verticale */}
           <nav aria-label="Passaggi" className="hidden md:flex flex-col gap-0.5 w-52 shrink-0 border-r border-border p-2 overflow-y-auto">
-            {STEPS.map((s, i) => {
+            {steps.map((s, i) => {
               const done = i < step && valid(i)
               const on = i === step
               const can = reachable(i) && i >= minStep
@@ -364,40 +400,43 @@ export function ProjectWizard({
           <div className="flex-1 flex flex-col min-w-0">
             <div className="md:hidden px-4 py-2 border-b border-border shrink-0">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-2xs font-semibold text-text-primary">{step + 1}. {STEPS[step].label}</span>
-                <span className="text-2xs text-text-tertiary tabular">{step + 1}/{STEPS.length}</span>
+                <span className="text-2xs font-semibold text-text-primary">{step + 1}. {steps[step].label}</span>
+                <span className="text-2xs text-text-tertiary tabular">{step + 1}/{steps.length}</span>
               </div>
               <div className="h-1 rounded-full bg-surface-active overflow-hidden">
-                <div className="h-full bg-gold transition-all" style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} />
+                <div className="h-full bg-gold transition-all" style={{ width: `${((step + 1) / steps.length) * 100}%` }} />
               </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 sm:p-5 min-h-0">
-              {step === 0 && <StepCliente clients={clients} value={client} onChange={setClient} />}
-              {step === 1 && <StepArea value={area} onChange={a => { setArea(a); setPicks([]) }} counts={areaCounts} />}
-              {step === 2 && area && (
+              {steps[step].key === 'cliente' && <StepCliente clients={clients} value={client} onChange={setClient} />}
+              {steps[step].key === 'area' && <StepArea value={area} onChange={a => { setArea(a); setPicks([]) }} counts={areaCounts} />}
+              {steps[step].key === 'workstream' && area && (
                 <StepWorkstream area={area} services={areaServices} templates={templates}
                   picks={picks} setPicks={setPicks} canPersist />
               )}
-              {step === 3 && (
+              {steps[step].key === 'info' && (
                 <StepInfo state={info} suggestedName={suggestedName} profiles={profiles}
                   hasClient={client?.kind === 'client'}
                   patch={p => { if (p.name !== undefined) setNameTouched(true); setInfo(s => ({ ...s, ...p })) }} />
               )}
-              {step === 4 && (
+              {steps[step].key === 'team' && (
                 <StepTeam profiles={profiles} team={team} setTeam={setTeam}
                   managerId={info.managerId} canInvite />
               )}
-              {step === 5 && (
+              {steps[step].key === 'template' && (
                 <StepTemplate templates={templates} nodes={nodes}
                   serviceType={primary?.service_type ?? ''} serviceSubtype={primary?.service_subtype ?? null}
                   templateId={templateId} onPick={pickTemplate} structureTouched={structureTouched} />
               )}
-              {step === 6 && (
+              {steps[step].key === 'struttura' && (
                 <StepStruttura structure={structure} setStructure={editStructure} team={teamPeople}
                   ctx={ctx} startDate={info.startDate} targetEnd={info.targetEnd} />
               )}
-              {step === 7 && client && (
+              {steps[step].key === 'economics' && client?.kind === 'client' && (
+                <StepEconomics value={eco} onChange={setEco} clientName={client.name} />
+              )}
+              {steps[step].key === 'conferma' && client && (
                 <StepConferma
                   client={client} area={area} serviceLabel={picks.map(p => p.label).join(' · ')}
                   name={info.name} description={info.description}

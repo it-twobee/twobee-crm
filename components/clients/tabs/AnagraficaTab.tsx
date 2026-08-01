@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Loader2, Trash2, Pencil, Save, X, Check, Building2, Receipt, FileText, Users2, Crown } from 'lucide-react'
-import { formatDate, getInitials } from '@/lib/utils'
+import { Plus, Loader2, Trash2, Pencil, Save, X, Check, Building2, Receipt, Users2, Crown } from 'lucide-react'
+import { getInitials } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
   updateClientRecord, createClientContact, updateClientContact, deleteClientContact,
@@ -12,9 +12,9 @@ import {
 } from '@/app/actions/clients'
 import {
   CLIENT_PACKAGES, CLIENT_CHANNELS, INDUSTRIES,
-  CLIENT_TYPE_OPTIONS, CLIENT_LABEL_OPTIONS, PAYMENT_STATUS_OPTIONS,
+  CLIENT_TYPE_OPTIONS, CLIENT_LABEL_OPTIONS,
 } from '@/lib/client-options'
-import type { Client, ClientContact, Profile, ClientStakeholder, StakeholderRole, ClientPackage, PaymentStatus, ClientType, ClientLabel } from '@/lib/types/database'
+import type { Client, ClientContact, Profile, ClientStakeholder, StakeholderRole, ClientPackage, ClientType, ClientLabel } from '@/lib/types/database'
 
 interface Props {
   client: Client
@@ -29,13 +29,12 @@ interface Props {
   canEditContacts?: boolean
 }
 
-type Section = 'azienda' | 'fiscale' | 'contratto'
+type Section = 'azienda' | 'fiscale'
 
 /** Si salva solo la sezione aperta: prima partiva l'intera riga, risk score e created_at compresi. */
 const SECTION_FIELDS: Record<Section, readonly (keyof ClientPatch)[]> = {
-  azienda: ['display_name', 'legal_name', 'phone', 'website', 'client_type', 'client_label', 'industry', 'market_area', 'notes', 'active_channels', 'is_internal', 'sales_owner_id', 'sales_owner_name'],
+  azienda: ['display_name', 'legal_name', 'phone', 'website', 'client_type', 'client_label', 'package', 'industry', 'market_area', 'notes', 'active_channels', 'is_internal', 'sales_owner_id', 'sales_owner_name'],
   fiscale: ['piva', 'fiscal_code', 'address', 'city', 'cap', 'country', 'sdi_code', 'pec'],
-  contratto: ['package', 'mrr', 'contract_start', 'contract_end', 'payment_status'],
 }
 
 const roleLabel: Record<StakeholderRole, string> = {
@@ -102,7 +101,6 @@ export function AnagraficaTab({
   const router = useRouter()
   const [editAzienda, setEditAzienda] = useState(false)
   const [editFiscale, setEditFiscale] = useState(false)
-  const [editContratto, setEditContratto] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(client)
 
@@ -116,7 +114,6 @@ export function AnagraficaTab({
       setClient((prev) => ({ ...prev, ...patch }))
       if (section === 'azienda') setEditAzienda(false)
       if (section === 'fiscale') setEditFiscale(false)
-      if (section === 'contratto') setEditContratto(false)
       toast.success('Modifiche salvate')
       router.refresh()
     } catch (e) {
@@ -130,7 +127,6 @@ export function AnagraficaTab({
     setForm(client)
     setEditAzienda(false)
     setEditFiscale(false)
-    setEditContratto(false)
   }
 
   const toggleChannel = (ch: string) => {
@@ -144,7 +140,6 @@ export function AnagraficaTab({
   const sectionIcons: Record<Section, React.ReactNode> = {
     azienda: <Building2 className="w-4 h-4 text-gold-text" />,
     fiscale: <Receipt className="w-4 h-4 text-info" />,
-    contratto: <FileText className="w-4 h-4 text-accent" />,
   }
 
   const SectionHeader = ({ title, section, editing }: { title: string; section: Section; editing: boolean }) => (
@@ -162,7 +157,7 @@ export function AnagraficaTab({
         </div>
       ) : (
         <button
-          onClick={() => { setForm(client); if (section === 'azienda') setEditAzienda(true); if (section === 'fiscale') setEditFiscale(true); if (section === 'contratto') setEditContratto(true) }}
+          onClick={() => { setForm(client); if (section === 'azienda') setEditAzienda(true); if (section === 'fiscale') setEditFiscale(true) }}
           className="flex items-center gap-1 text-xs text-text-secondary hover:text-gold-text transition-colors"
         >
           <Pencil className="w-3.5 h-3.5" /> Modifica
@@ -198,6 +193,13 @@ export function AnagraficaTab({
           <Field label="Label" value={CLIENT_LABEL_OPTIONS.find((o) => o.value === client.client_label)?.label} editMode={editAzienda}>
             <Select label="Label" value={form.client_label} onChange={(v) => setForm((p) => ({ ...p, client_label: v as ClientLabel }))}
               options={CLIENT_LABEL_OPTIONS} />
+          </Field>
+          {/* §176: il pacchetto è un'etichetta commerciale, non un contratto:
+              resta qui anche ora che il blocco Contratto è sparito */}
+          <Field label="Pacchetto" value={client.package} editMode={editAzienda}>
+            <Select label="Pacchetto" value={form.package}
+              onChange={(v) => setForm((p) => ({ ...p, package: v as ClientPackage }))}
+              options={CLIENT_PACKAGES.map((pk) => ({ value: pk, label: pk }))} />
           </Field>
           <Field label="Settore" value={client.industry} editMode={editAzienda}>
             <select value={form.industry ?? ''} onChange={(e) => setForm((p) => ({ ...p, industry: e.target.value || null }))}
@@ -298,32 +300,6 @@ export function AnagraficaTab({
           {!editFiscale && !client.piva && (
             <p className="text-xs text-text-secondary mt-3 italic">Dati fiscali non ancora inseriti — necessari per integrazione Aruba</p>
           )}
-        </SectionCard>
-      )}
-
-      {/* Contratto & Pagamenti — nascosto nel portale operativo (dati economici) */}
-      {!hideEconomics && (
-        <SectionCard>
-          <SectionHeader title="Contratto & Pagamenti" section="contratto" editing={editContratto} />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            <Field label="Pacchetto" value={client.package} editMode={editContratto}>
-              <Select label="Pacchetto" value={form.package} onChange={(v) => setForm((p) => ({ ...p, package: v as ClientPackage }))}
-                options={CLIENT_PACKAGES.map((pk) => ({ value: pk, label: pk }))} />
-            </Field>
-            <Field label="MRR (€/mese)" value={`€${client.mrr.toLocaleString('it-IT')}`} editMode={editContratto}>
-              <Input label="MRR" type="number" value={form.mrr.toString()} onChange={(v) => setForm((p) => ({ ...p, mrr: parseFloat(v) || 0 }))} />
-            </Field>
-            <Field label="Inizio Contratto" value={formatDate(client.contract_start)} editMode={editContratto}>
-              <Input label="Inizio contratto" type="date" value={form.contract_start?.slice(0, 10) ?? ''} onChange={(v) => setForm((p) => ({ ...p, contract_start: v }))} />
-            </Field>
-            <Field label="Fine Contratto" value={formatDate(client.contract_end)} editMode={editContratto}>
-              <Input label="Fine contratto" type="date" value={form.contract_end?.slice(0, 10) ?? ''} onChange={(v) => setForm((p) => ({ ...p, contract_end: v }))} />
-            </Field>
-            <Field label="Stato Pagamenti" value={PAYMENT_STATUS_OPTIONS.find((o) => o.value === client.payment_status)?.label} editMode={editContratto}>
-              <Select label="Stato pagamenti" value={form.payment_status} onChange={(v) => setForm((p) => ({ ...p, payment_status: v as PaymentStatus }))}
-                options={PAYMENT_STATUS_OPTIONS} />
-            </Field>
-          </div>
         </SectionCard>
       )}
 

@@ -23,7 +23,7 @@ function generateInsights(clients: Client[], totalMrr: number): Insight[] {
   const insights: Insight[] = []
 
   // ── Clienti ad alto rischio AI ───────────────────────────────
-  const highRisk = clients.filter(c => (c.risk_score ?? 0) >= 60 && c.client_label !== 'perso')
+  const highRisk = clients.filter(c => (c.risk_score ?? 0) >= 60 && c.client_label !== 'perso' && c.client_label !== 'pending')
   if (highRisk.length > 0) {
     const mrrAtRisk = highRisk.reduce((s, c) => s + c.mrr, 0)
     insights.push({
@@ -51,8 +51,9 @@ function generateInsights(clients: Client[], totalMrr: number): Insight[] {
 
   // ── Contratti in scadenza ────────────────────────────────────
   const expiring = clients.filter(c => {
+    if (!c.contract_end) return false  // a tempo indeterminato: non scade
     const days = Math.round((new Date(c.contract_end).getTime() - Date.now()) / 86400000)
-    return days > 0 && days < 45 && c.client_label !== 'perso'
+    return days > 0 && days < 45 && c.client_label !== 'perso' && c.client_label !== 'pending'
   })
   if (expiring.length > 0) {
     const expiringMrr = expiring.reduce((s, c) => s + c.mrr, 0)

@@ -58,7 +58,8 @@ export type NewClientInput = {
   mrr: number
   ad_budget_monthly?: number | null
   contract_start: string
-  contract_end: string
+  /** §169: NULL = canone a tempo indeterminato. Alla creazione non si sa ancora. */
+  contract_end: string | null
   payment_status: PaymentStatus
   target_leads_monthly?: number | null
   target_roas?: number | null
@@ -191,9 +192,22 @@ async function applyLabelChange(clientId: string, label: ClientLabel) {
   if (before.client_label === label) return
 
   const firstLoss = label === 'perso' && !before.lost_at
+  // §176: la sospensione tiene l'ULTIMA data, non la prima — serve a sapere da
+  // quanto è fermo, e riparte da zero ogni volta che si ferma di nuovo
+  const pausing = label === 'pending' && before.client_label !== 'pending'
+  const resuming = label !== 'pending' && before.client_label === 'pending'
   const patch: Record<string, unknown> = { client_label: label }
   if (firstLoss && hasLostAt) patch.lost_at = new Date().toISOString()
-  const { error: eUp } = await admin.from('clients').update(patch).eq('id', clientId)
+  if (pausing) patch.paused_at = new Date().toISOString().slice(0, 10)
+  if (resuming) patch.paused_at = null
+
+  let { error: eUp } = await admin.from('clients').update(patch).eq('id', clientId)
+  // la 176 può non essere ancora eseguita: il cambio di stato deve funzionare
+  // lo stesso, si perde solo la data di sospensione
+  if (eUp && (pausing || resuming)) {
+    delete patch.paused_at
+    ;({ error: eUp } = await admin.from('clients').update(patch).eq('id', clientId))
+  }
   if (eUp) throw new Error(eUp.message)
 
   if (label === 'perso') {

@@ -8,6 +8,8 @@ import type { Client, ClientContact, ClientKpi, Profile, ClientStakeholder, Clie
 import { setClientLabel } from '@/app/actions/clients'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { clientName } from '@/lib/utils'
+import { mrrOrigin, economicsHref, CONTRACT_PERIOD_HINT, PAYMENT_STATUS_HINT } from '@/lib/economics-source'
+import { paymentLabel } from '@/lib/clients'
 import dynamic from 'next/dynamic'
 // una scheda sola è a video per volta: le altre non devono pesare sul primo
 // carico. /clienti/[id] era la rotta più grossa dell'app.
@@ -35,15 +37,24 @@ interface Props {
   backHref?: string
   /** scheda Economics del cliente: la pagina la passa solo agli admin */
   economics?: React.ReactNode
+  /** quanti contratti ha il cliente: rende esplicito da dove esce l'MRR */
+  contractsCount?: number | null
+  /** §176: canone calcolato dai contratti dei progetti. null = non calcolabile qui */
+  mrrFromContracts?: number | null
+}
+
+const LABEL_TEXT: Record<string, string> = {
+  stabile: 'Stabile', in_bilico: 'In bilico', pending: 'In pending', perso: 'Perso', partner: 'Partner',
 }
 
 const labelBadge: Record<string, string> = {
   stabile: 'border-success/30 text-success bg-success/10',
   in_bilico: 'border-warning/30 text-warning bg-warning/10',
+  pending: 'border-warning/40 text-warning bg-warning/15',
   perso: 'border-error/30 text-error bg-error/10',
   partner: 'border-gold/30 text-gold-text bg-gold/10',
 }
-const labelOptions = ['stabile', 'in_bilico', 'perso', 'partner']
+const labelOptions = ['stabile', 'in_bilico', 'pending', 'perso', 'partner']
 const packageOptions = ['Start', 'Growth', 'Pro', 'Enterprise', 'Custom'] as const
 
 // Inline text field that turns into an <input> on click
@@ -147,56 +158,18 @@ function InlineBadgeSelect({ value, options, field, clientId, canEdit, badgeClas
   )
 }
 
-// Inline number field (MRR)
-function InlineNumberField({ value, field, clientId, canEdit, prefix = '', suffix = '' }: {
-  value: number; field: string; clientId: string; canEdit: boolean; prefix?: string; suffix?: string
-}) {
-  const [editing, setEditing] = useState(false)
-  const [val, setVal] = useState(String(value))
-  const [saving, setSaving] = useState(false)
-
-  const save = async () => {
-    const num = parseFloat(val)
-    if (isNaN(num) || num === value) { setEditing(false); return }
-    setSaving(true)
-    const sb = createBrowserClient()
-    const { error } = await sb.from('clients').update({ [field]: num }).eq('id', clientId)
-    setSaving(false)
-    if (error) { toast.error('Errore'); setVal(String(value)) }
-    else toast.success('MRR aggiornato')
-    setEditing(false)
-  }
-
-  if (!canEdit) return <span className="text-gold-text font-black">{prefix}{formatCurrency(value)}{suffix}</span>
-
-  if (editing) return (
-    <span className="inline-flex items-center gap-1">
-      <span className="text-gold-text font-black">{prefix}€</span>
-      <input autoFocus value={val} onChange={e => setVal(e.target.value)} type="number"
-        onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setVal(String(value)); setEditing(false) } }}
-        className="bg-surface border border-gold/40 rounded px-2 py-0.5 outline-none text-gold-text font-black w-24" />
-      {saving
-        ? <Loader2 className="w-3 h-3 text-gold-text animate-spin" />
-        : <>
-          <button onClick={save} aria-label="Salva"><Check className="w-3 h-3 text-success" /></button>
-          <button onClick={() => { setVal(String(value)); setEditing(false) }} aria-label="Annulla"><X className="w-3 h-3 text-error" /></button>
-        </>}
-    </span>
-  )
-
-  return (
-    <span className="group/inline cursor-pointer inline-flex items-center gap-1" onClick={() => setEditing(true)}>
-      <span className="text-gold-text font-black hover:text-gold-text transition-colors">{prefix}{formatCurrency(value)}{suffix}</span>
-      <Edit3 className="w-2.5 h-2.5 text-gold-text opacity-0 group-hover/inline:opacity-60 shrink-0" />
-    </span>
-  )
-}
-
 export function ClientPageClient({
   client, contacts, kpis,
   teamMembers, stakeholders, interactions, currentProfile, allProfiles,
   openTickets, initialTab, hideEconomics = false, backHref = '/clienti', economics,
+  contractsCount = null, mrrFromContracts = null,
 }: Props) {
+  /* §176: il canone è la somma dei contratti attivi dei progetti. L'anagrafica
+     non si scrive più, quindi un numero «da anagrafica» è un residuo: meglio
+     dire «da quotare» e mandare dove si quota. */
+  const quoted = contractsCount != null && contractsCount > 0
+  const mrr = mrrFromContracts ?? client.mrr
+  const origin = mrrOrigin(quoted ? 'contratti' : 'anagrafica', contractsCount)
   const isAdmin = SUPER_ADMIN_EMAILS.includes(currentProfile?.email ?? '') || currentProfile?.app_role === 'admin'
   const isAdminLevel = isAdmin || currentProfile?.app_role === 'manager'
   // D3 (Fase 0): l'anagrafica (P.IVA/dati fiscali) è visibile SOLO ad admin.
@@ -258,6 +231,7 @@ export function ClientPageClient({
                 } />
               <InlineBadgeSelect value={client.client_label ?? 'stabile'} options={labelOptions} field="client_label"
                 clientId={client.id} canEdit={isAdmin}
+                labelFn={v => LABEL_TEXT[v] ?? v}
                 badgeClass={v => labelBadge[v] ?? 'border-border text-text-secondary bg-transparent'} />
             </div>
 
@@ -268,20 +242,35 @@ export function ClientPageClient({
                 clientId={client.id} canEdit={isAdmin}
                 badgeClass={() => 'bg-gold/20 text-gold-text border-gold/30'} />
 
-              {/* MRR */}
+              {/* §169: l'MRR è una somma di contratti, non un campo. Qui si legge
+                  e si dice da dove viene; si cambia in Economics e solo lì. */}
               {canSeeMrr && (
-                <InlineNumberField value={client.mrr} field="mrr" clientId={client.id} canEdit={isAdmin} suffix="/mese" />
+                <Link href={economicsHref(client.id)}
+                  title={quoted ? origin.hint : 'Nessun contratto: il canone si genera quotando i progetti in Economics'}
+                  className="flex items-baseline gap-1.5 group">
+                  {quoted ? (
+                    <>
+                      <span className="text-sm font-bold text-gold-text tabular">
+                        {formatCurrency(mrr)}<span className="font-semibold">/mese</span>
+                      </span>
+                      <span className="text-2xs text-text-tertiary group-hover:text-gold-text">{origin.label}</span>
+                    </>
+                  ) : (
+                    <span className="text-2xs font-semibold text-warning">da quotare</span>
+                  )}
+                </Link>
               )}
 
               {/* Date contratto */}
-              <span className="text-text-secondary text-xs">
-                {formatDate(client.contract_start)} → {formatDate(client.contract_end)}
+              <span className="text-text-secondary text-xs" title={CONTRACT_PERIOD_HINT}>
+                {formatDate(client.contract_start)} → {client.contract_end ? formatDate(client.contract_end) : 'indeterminato'}
               </span>
 
               {/* Payment status */}
               {!hideEconomics && (
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded ${getPaymentBadge(client.payment_status)}`}>
-                  {client.payment_status === 'in_attesa' ? 'Attesa pagamento' : client.payment_status === 'pagato' ? 'Pagato' : 'Scaduto'}
+                <span title={PAYMENT_STATUS_HINT}
+                  className={`text-xs font-semibold px-2 py-0.5 rounded ${getPaymentBadge(client.payment_status)}`}>
+                  {paymentLabel(client.payment_status)}
                 </span>
               )}
             </div>
@@ -316,7 +305,7 @@ export function ClientPageClient({
         {activeTab === 0 && (
           <PanoramicaTab client={client} kpis={kpis} allProfiles={allProfiles}
             teamMembers={teamMembers} interactions={interactions} isAdmin={isAdmin} openTickets={openTickets}
-            onTabChange={setActiveTab} hideEconomics={hideEconomics} />
+            onTabChange={setActiveTab} hideEconomics={hideEconomics} contractsCount={contractsCount} />
         )}
         {activeTab === 1 && canSeeAnagrafica && (
           <AnagraficaTab client={client} contacts={contacts} teamMembers={teamMembers} stakeholders={stakeholders}

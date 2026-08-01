@@ -117,7 +117,7 @@ const parsed = JSON.parse((await res.json()).choices?.[0]?.message?.content?.mat
 
 ## Migration da eseguire (Supabase Dashboard → SQL Editor)
 `chat_channels.project_id` **esiste** in produzione: il vecchio "BUG NOTO" è risolto.
-Numerazione: attenzione, `080_*`, `081_*` e `092_*` compaiono due volte. Il prossimo libero è **163**.
+Numerazione: attenzione, `080_*`, `081_*` e `092_*` compaiono due volte. Il prossimo libero è **178**.
 
 | # | Cosa fa | Serve anche |
 |---|---|---|
@@ -157,6 +157,21 @@ dato economico: è sicuro anche nel workspace.
 | `160_clients_workspace_external_scope.sql` | SEC: la VIEW `clients_workspace` è `security_invoker = false` e filtrava solo su `is_staff()`, quindi freelance/partner vedevano **tutti** i clienti. Ora gli esterni vedono solo i clienti dei progetti di cui sono membri (colonne invariate) | — |
 | `161_clients_lost_at.sql` | `clients.lost_at`: data della **prima** perdita, non si azzera se il cliente torna attivo. Serve alla notifica una-tantum di cliente perso (`applyLabelChange` in `app/actions/clients.ts`). Senza, il cambio label funziona ma la notifica può ripetersi | — |
 | `162_template_library.sql` | Libreria template: 18 nuovi `project_templates` (ogni voce di catalogo ne ha almeno uno, i principali 2-3) con arco di consegna datato via `relative_due_days`, ore stimate e ruoli suggeriti. Idempotente: salta i template già presenti per (servizio, nome) | — |
+| `163_profit_loss.sql` | Conto economico mensile (`pl_months`, `pl_revenue_lines`, `pl_cost_lines`, `pl_config`, `pl_partners`): sostituisce il foglio Excel. Righe **copiate** nel mese, non calcolate al volo: un mese chiuso resta quello che era | — |
+| `164_revenue_streams.sql` | `revenue_streams` + `revenue_installments`: un cliente ha più contratti, ognuno con la sua vita (continuativo / a termine / rateizzato). `clients.mrr` non bastava | — |
+| `165_project_economics.sql` | Correzione della 164: l'economics sta sul **progetto**, non sul cliente (`revenue_streams.project_id`). Il totale cliente è la somma dei suoi progetti | — |
+| `166_sales_owner.sql` | `clients.sales_owner_id` / `sales_owner_name`: il commerciale sta in anagrafica e può essere esterno al tool (segnalatori, partner) | — |
+| `167_sales_origin.sql` | `sales_origin`: cliente senza commerciale → il 15% growth si divide fra i soci in parti uguali, non resta in cassa | — |
+| `168_revenue_lines_origin.sql` | `pl_revenue_lines.project_id/stream_id/installment_id` + `origin (contratto\|anagrafica\|manuale)`: la riga del mese sa da dove viene, si apre il progetto dal conto economico e si distinguono le righe ancora ferme all'MRR d'anagrafica. Importi sempre copiati | — |
+| `169_client_contracts.sql` | Economics nel dominio cliente: `revenue_streams.project_id` torna **nullable** (contratto senza progetto = retainer/quota partner; CHECK: almeno cliente o progetto). `clients.mrr`, `contract_start/end` e `payment_status` diventano **derivati** dai contratti (trigger + cron notturno `sync-client-payment-status`); `clients.mrr_source` dice se il numero viene dai contratti o è ancora quello scritto a mano; `contract_end` diventa nullable (canone indeterminato) | — |
+| `170_mrr_only_from_sold.sql` | Correzione della 169: l'MRR deriva solo dai contratti **venduti** (`status <> 'bozza'`). Una quotazione in bozza non riscrive più l'anagrafica (azzerava il canone reale al primo `addStream`). Include la riparazione di Affinity - SofiA (1.800, dall'audit) | — |
+| `171_cost_plan.sql` | Piano dei costi: `cost_centers` (aree con budget mensile), `cost_items` (spese ricorrenti con frequenza, F/V, fornitore, validità), `cost_budgets` (tetto per area e mese). `pl_cost_lines` guadagna `center_id`/`cost_item_id` + indice unico (mese, voce) per la generazione idempotente. Seed 6 aree + backfill delle uscite esistenti per categoria | — |
+| `172_cost_plan_seed.sql` | Seed del piano dal foglio «P&L_Two Bee.xlsx»: 37 voci reali (preventivato 9.750 €/mese) mappate sulle 6 aree + budget di partenza = somma del piano. Correzioni dichiarate: «PC aziendali» diventa una tantum sospesa, l'outsourcing diventa variabile. Idempotente per (area, voce) | — |
+| `173_project_costs.sql` | Subappalti: `cost_items.project_id` + `pl_cost_lines.project_id`. Una lavorazione affidata fuori è una voce di piano che sa a quale progetto appartiene → margine reale per progetto (ricavo del mese − costi esterni). Nessun motore nuovo: eredita frequenze, «Porta nel mese» e budget d'area | — |
+| `174_vat_and_terms.sql` | `revenue_streams.payment_terms` + `cost_items.payment_terms` (metodo di pagamento: il subappalto ricalca quello col cliente) · `pl_config.vat_regime` + `vat_interest_pct`: liquidazione IVA trimestrale con l'1% sui primi tre trimestri | — |
+| `175_tax_control.sql` | Sezione Fiscale: `tax_config` (IRES/IRAP/ripresa IRAP/quota accantonamento — aliquote in configurazione, non nel codice) + `tax_provisions` (quanto è stato davvero messo da parte, per IVA e imposte). RLS admin | — |
+| `176_client_pending.sql` | Terzo stato cliente: `pending` = lavorazioni sospese (CHECK esteso su `client_label`) + `clients.paused_at` (data dell'**ultima** sospensione, si azzera alla ripartenza). Fuori da MRR attivo, conto economico, alert e churn; dentro la relazione | — |
+| `177_payment_status_rule.sql` | Regola pagamenti: fattura il 1° del mese, valida 15 giorni. `pagato` = tutte le righe del mese incassate · `in_attesa` = **da pagare**, scoperto entro il 15 · `scaduto` = **non pagato**, dal 16 o con un mese passato scoperto. Lo stato lo determinano le checkbox `paid` delle righe di conto economico e delle rate | — |
 
 **Scorciatoia**: `supabase/APPLY_PENDING.sql` è il concatenato (081, 086–093) in
 transazione, da incollare una volta sola nel SQL Editor. Bucket privati da creare
@@ -166,6 +181,110 @@ a mano: `payslips`, `personal-documents`, `best-ideas`. Le env Google
 Finché non le esegui l'app **non si rompe**: le pagine mostrano `SetupNotice`
 e le funzioni nuove degradano con un messaggio. I bucket vanno creati a mano
 (le migration non li creano).
+
+## Economics — una sola fonte, tre letture
+Il contratto (`revenue_streams` + `revenue_installments`) è **l'unico posto dove
+si scrive un importo**. Tutto il resto lo legge:
+
+- **Anagrafica cliente**: `mrr`, `contract_start/end`, `payment_status` sono in
+  sola lettura e li scrivono i trigger della 169. `mrr_source='anagrafica'` =
+  valore storico, nessun contratto ancora. Non riaprire quei campi in edit.
+- **Economics del cliente** (`ClientEconomicsTab`, tab 5): è il posto dove si
+  quota. Un gruppo per **ogni** progetto del cliente — anche senza contratti,
+  marcato «da quotare», con i suoi pulsanti listino/custom — più il gruppo
+  «Accordi senza progetto». Non filtrare i progetti privi di righe: sono
+  esattamente quelli da vedere.
+- **Economics del progetto** (`ProjectEconomics`): stesso pannello ristretto a
+  un lavoro. Entrambi montano `components/economics/ContractsPanel.tsx` — se
+  cambi il comportamento dei contratti, cambia lì e basta.
+- **Regola d'ingresso** (§176): l'economics **nasce dal progetto e solo se ha un
+  cliente**. Progetti interni o senza cliente non hanno la scheda. Tutti gli
+  accordi sono **IVA esclusa**: nessun campo IVA nei contratti né nei
+  subappalti, l'IVA vive solo in Fiscale & Tasse (a debito e a credito).
+- **Wizard** (`StepEconomics`): quota, modalità, rate e subappalto si decidono
+  alla creazione. Passo visibile solo dal portale admin e solo con un cliente;
+  `attachWizardEconomics` ricontrolla il ruolo lato server e fallisce da sola
+  senza travolgere la creazione del progetto.
+- **Previsionale** (`lib/forecast.ts`, in fondo al conto economico): i sei mesi
+  che verranno, calcolati da contratti, rate e subappalti. «Apri il mese» crea
+  le righe vere (`openMonth`), da lì in poi valgono le spunte fattura/incassato
+  /pagato.
+- **Costi e budget** (`/economics/costi`): il piano delle uscite — aree con
+  budget mensile, spese ricorrenti con la loro frequenza, fissi contro
+  variabili. «Porta nel mese» crea le `pl_cost_lines` dal piano (idempotente).
+  `lib/costs.ts` = calcoli puri. L'importo di una voce è quanto costa **ogni
+  volta che torna**, non la dodicesima parte: un annuale pesa tutto nel mese in
+  cui si paga. **Solo costi interni e societari**: le voci con `project_id`
+  (subappalti) sono filtrate via, altrimenti il budget di un'area si muoverebbe
+  per una lavorazione venduta al cliente.
+- **Subappalti** (§173): una voce di piano con `project_id` è una lavorazione
+  affidata fuori. Si crea dalla scheda Economics del progetto, finisce da sé
+  nell'area «Delivery & Fornitori» e dà il **margine del progetto** (ricavo del
+  mese − costi esterni). Il tempo del team interno NON va lì: sta nel costo del
+  lavoro aziendale, e mescolarli darebbe un margine che nessuno può calcolare.
+- **Conto economico** (`/economics`): `generateRevenueFromClients` copia i
+  contratti attivi nel mese (`origin='contratto'`); i clienti **senza nemmeno un
+  contratto** entrano con l'MRR d'anagrafica (`origin='anagrafica'`, segnalati
+  come «senza contratto»). Il ripiego è per cliente, mai globale.
+
+**Piani di pagamento** (`buildSchedule` in `lib/revenue.ts`, UI in
+`components/economics/CustomPlan.tsx`): acconto % + N rate, rate uguali, o
+tranche a percentuali libere, con cadenza in mesi. Un solo posto che fa i conti,
+usato sia sul contratto col cliente sia sul subappalto — l'ultima rata assorbe
+sempre l'arrotondamento. I preset sono suggerimenti, non vincoli: dopo la
+generazione ogni rata resta spostabile e se ne aggiungono a mano.
+
+**Fiscale** (`/economics/fiscale`, `lib/tax.ts`): scadenzario SRL con anno
+solare (liquidazioni IVA, LIPE, acconto IVA 27/12, saldo+1º acconto 30/06, 2º
+acconto 30/11, dichiarazioni), stima IRES/IRAP proiettata sui mesi registrati,
+accantonamenti effettivi contro quelli necessari, e `taxInsights` — regole, non
+consigli fiscali. **Ogni stima dichiara la sua assunzione**: se i costi
+effettivi non sono registrati la previsione è gonfiata e va detto prima del
+numero, non in nota.
+
+**IVA** (`lib/vat.ts`): l'IVA incassata non è cassa disponibile. Liquidazione
+trimestrale, scadenze ordinarie 16/05 · **20/08** · 16/11 · 16/03 (il quarto con
+la dichiarazione annuale), 1% di interessi sui primi tre. Il credito di un
+trimestre si riporta sul successivo — per questo il conto economico carica
+**tutto l'anno** e non solo il trimestre.
+
+**Provenienza obbligatoria**: ogni punto del tool che mostra un valore
+economico passa da `lib/economics-source.ts` (`mrrOrigin`, `CONTRACT_PERIOD_HINT`,
+`PAYMENT_STATUS_HINT`, `economicsHref`). Un numero senza «da N contratti» / «da
+anagrafica» accanto è un numero di cui nessuno si fida: non aggiungerne.
+Nessun campo economico è editabile fuori da Economics — niente inline edit
+dell'MRR in intestazione o in lista.
+
+Le server action in `app/actions/revenue.ts` prendono un `RevCtx`
+(`{ projectId, clientId }`): serve a revalidare tutte le viste che mostrano lo
+stesso contratto. Passalo sempre completo.
+
+## Stati del cliente (`client_label`)
+`stabile` · `in_bilico` · **`pending`** · `perso` · `partner`.
+
+`pending` (§176) = lavorazioni sospese temporaneamente. **Non è un perso**: non
+fattura — quindi fuori da MRR attivo, generazione del conto economico, alert e
+insight — ma il rapporto è vivo e **non conta come churn**. `paused_at` tiene
+l'ultima sospensione, così si sa da quanto è fermo: oltre i 60 giorni scatta
+l'alert in dashboard, perché un rapporto sospeso che nessuno richiama diventa un
+rapporto perso.
+
+`lib/clients.ts` è l'unica fonte: `isLost`, `isPaused`, `countsInStats`
+(esclude interni + persi + fermi), `pausedDays`. Non riscrivere il filtro
+inline: ogni `client_label !== 'perso'` sparso è un posto che dimenticherà il
+prossimo stato.
+
+## Stato pagamenti (§177)
+La fattura esce il **1° giorno utile del mese** e vale **15 giorni**. Da lì:
+`pagato` (tutto incassato) · `in_attesa` = **da pagare** (scoperto entro il 15,
+è la normalità, non accende niente) · `scaduto` = **non pagato** (dal 16, o un
+mese passato ancora scoperto). Su più progetti vale la riga più indietro; il
+dettaglio di *quale* progetto manca si legge nella lista clienti.
+
+Lo scrive `sync_client_payment_status` leggendo le checkbox `paid` delle righe
+di conto economico e delle rate. Il passaggio dal 15 al 16 lo fa il cron
+notturno: nessuno deve toccare niente perché un credito diventi scaduto.
+Etichette da `paymentLabel()` in `lib/clients.ts`, mai inline.
 
 ## Architettura portali
 - **Admin** (`/dashboard`, tutto): `super_admin`, `founder`, `admin`.

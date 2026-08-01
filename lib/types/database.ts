@@ -35,7 +35,7 @@ export type ClientPackage =
 export type PaymentStatus = 'pagato' | 'in_attesa' | 'scaduto'
 export type ClientStatus = 'verde' | 'giallo' | 'rosso'
 export type ClientType = 'growth' | 'digital' | 'growth_digital'
-export type ClientLabel = 'stabile' | 'in_bilico' | 'perso' | 'partner'
+export type ClientLabel = 'stabile' | 'in_bilico' | 'pending' | 'perso' | 'partner'
 export type StakeholderRole = 'owner' | 'stakeholder' | 'collaboratore_esterno' | 'agenzia_supporto'
 export type Priority = 'alta' | 'media' | 'bassa'
 // 'customer_care'/'cliente' esistono ancora ma la chat non li mostra più: vivono
@@ -177,8 +177,16 @@ export interface Client {
   legal_name?: string | null
   package: ClientPackage
   mrr: number
+  /**
+   * §169: chi ha scritto `mrr`, `contract_start/end` e `payment_status`.
+   * 'contratti' = derivati dai `revenue_streams` del cliente (sola lettura in
+   * anagrafica, si cambiano da Economics). 'anagrafica' = valore storico
+   * inserito a mano, in attesa che il primo contratto lo sostituisca.
+   */
+  mrr_source?: 'contratti' | 'anagrafica'
   contract_start: string
-  contract_end: string
+  /** §169: NULL = canone a tempo indeterminato, non «data mancante». */
+  contract_end: string | null
   payment_status: PaymentStatus
   active_channels: string[]
   status: ClientStatus
@@ -188,6 +196,8 @@ export interface Client {
   is_internal: boolean
   /** §161: prima volta che il cliente è stato perso. Non si azzera se torna attivo. */
   lost_at?: string | null
+  /** §176: ultima sospensione delle lavorazioni. Si azzera quando riparte. */
+  paused_at?: string | null
   /** §166: commerciale di riferimento. Il nome libero copre chi non ha un account. */
   sales_owner_id?: string | null
   sales_owner_name?: string | null
