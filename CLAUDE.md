@@ -192,7 +192,8 @@ dato economico: è sicuro anche nel workspace.
 | `182_payroll_ledger.sql` | Il cedolino batte la stima: `hr_payslips` (competenze/imponibili/trattenute/oneri datore, con `employer_contrib` NULL = da consulente), `hr_invoices` (imponibile, IVA detraibile o no, ritenuta, importo pagato), `hr_f24` (aggregato, `individual_detail`), `hr_tfr_movements`. Estende `hr_people` (stato, CCNL, IBAN, P.IVA, regime, netto concordato) e aggiunge socio/fornitore. Seed: organico reale + cedolini e F24 di giugno 2026 | — |
 | `183_hr_personal_data.sql` | `hr_people`: `birth_date` (l'età decide l'eleggibilità all'apprendistato, under 30), `has_children`/`children_count` (alzano la soglia dei fringe benefit esenti), `dependent_spouse`. Si registra la data, non l'età: un'età nel database invecchia male | — |
 | `184_hiring_incentives.sql` | **Agevolazioni**: aliquote 2026 (IRPEF 33% sul 2º scaglione, buono pasto 10 €, premi 1% entro 5.000 €), apprendistato per anno e dimensione, `hr_incentives` (catalogo esoneri con tetti e finestre), campi §184 su `hr_people` (assunzione, mai-stabile, esonero, impatriati, categoria protetta), maggiorazioni di deduzione su `tax_config`, e «Persone» → «Personale» in sola lettura dal piano dei costi | — |
-| `185_digital_split.sql` | **Spartizione digital** rifatta: quote sull'imponibile e non sul residuo — 6% commerciale · **28% ai soci** in parti uguali · **10% casse TwoBee** · 35% target costi · 10% fondo rischio · 11% margine non distribuito. `pl_config.digital_partners_pct` + `digital_company_pct`. Il commerciale è quello dell'anagrafica del cliente; se manca, il 6% si divide fra i soci | — |
+| `185_digital_split.sql` | Primo giro sulla spartizione digital (quota ai soci complessiva): **superata dalla 186**, che legge le colonne nuove. Eseguirla non fa danni, `digital_partners_pct` resta inutilizzata | — |
+| `186_digital_partner_quota.sql` | **Spartizione digital definitiva**: sul **margine** (ricavo − subappalti), **28% a ciascun socio** · 6% commerciale · 10% casse TwoBee = 100%. Fondo rischio **opzionale** sopra 20.000 € di progetto: 9% del margine, −3 punti a testa (28→25), scelta dell'admin riga per riga (`pl_revenue_lines.risk_fund`). Il digital non alimenta più target costi e fondo rischio ordinario | — |
 | `179_os_versions.sql` | Cronologia: (a) `log_activity()` legge l'attore dall'header `x-actor-id` — col service role `auth.uid()` è NULL e tutto risultava «Sistema» — e non registra gli UPDATE che non cambiano niente; (b) `os_versions` + `os_version_changes`, il changelog di prodotto con un ciclo di 15 giorni dal 2026-08-01 (v1.0.0), bozze visibili ai soli admin; (c) seed della v1.0.0 con 13 voci | — |
 
 **Scorciatoia**: `supabase/APPLY_PENDING.sql` è il concatenato (081, 086–093) in
@@ -262,12 +263,26 @@ diversi, non per incoerenza:
 - **Growth**: 15% commerciale · 30% **erogato** ai soci in parti uguali · 35%
   target costi · 10% fondo rischio · 10% residuo in cassa. Lì il lavoro lo fanno
   i soci, quindi la loro quota è erogato.
-- **Digital**: 6% commerciale · **28% ai soci** in parti uguali · **10% casse
-  TwoBee** · 35% target costi · 10% fondo rischio · **11% margine non
-  distribuito** (resta in cassa, si mostra a parte). Qui il lavoro lo fa il team
-  a stipendio, quindi ai soci va utile, non erogato. Le quote sono percentuali
-  dell'**imponibile**: «il 30% del 49%» non lo calcola nessuno a mente, e una
-  quota che non si controlla è un numero che arriva.
+- **Digital** (§186): la base è il **margine** — ricavo del mese meno i
+  subappalti di quel progetto (`pl_cost_lines.project_id`, allocati pro-quota se
+  un progetto ha più righe nel mese). Sul margine: 6% commerciale · **28% a
+  ciascun socio** · 10% casse TwoBee = **100%**, distribuito per intero. Il
+  ricavo lordo non è distribuibile perché su un lavoro affidato fuori metà è già
+  di qualcun altro; sul growth invece il costo di delivery è il tempo dei soci,
+  ed è già la loro quota.
+- **Fondo rischio digital: opzionale, e la sceglie l'admin.** Solo sopra
+  `digital_risk_threshold` (20.000 € di **valore venduto del progetto**, non
+  della rata): il 9% del margine va al fondo e ciascun socio scende dal 28% al
+  25%. La scelta sta su `pl_revenue_lines.risk_fund`, riga per riga — due lavori
+  da 30.000 nello stesso mese possono meritare risposte diverse.
+- **Conseguenza da tenere presente**: il margine digital è distribuito per
+  intero, quindi il digital **non alimenta** il 35% di target costi né il fondo
+  rischio ordinario del 10%. Struttura e personale li copre il growth, e in un
+  mese a prevalenza digital la cassa TwoBee risulta **negativa**: il tool la
+  mostra negativa perché è la verità del piano, non un errore di calcolo.
+- Con un numero di soci diverso da tre le quote non fanno 100%: `retained` lo
+  dice invece di riscalarle di nascosto (due soci → 28% non assegnato, quattro →
+  −28% di sforo).
 - **Il commerciale è quello dell'anagrafica del cliente** (`ownerOf` in
   `lib/pl.ts`): la riga del mese vince se ne porta uno — è una fotografia, e un
   mese chiuso non si riscrive perché l'anagrafica è cambiata dopo — altrimenti si
@@ -533,7 +548,8 @@ il dev server resta a servire chunk CSS sostituiti e la pagina si apre senza
 stili. Se succede: ferma il dev, `rm -rf .next`, riavvia.
 
 **Migration da eseguire: la `183_hr_personal_data.sql`, la
-`184_hiring_incentives.sql` e la `185_digital_split.sql`.** Le altre (179-182) sono applicate e verificate sul
+`184_hiring_incentives.sql` e la `186_digital_partner_quota.sql`** (la 185 è
+superata dalla 186: eseguirla è innocuo, saltarla anche). Le altre (179-182) sono applicate e verificate sul
 database: v1.0.0 pubblicata, retention a 90 giorni con pg_cron attivo, organico e
 cedolini di giugno caricati. Senza la 183 i campi età e figli non esistono e il
 suggerimento sull'apprendistato resta generico; senza la 184 il catalogo delle
@@ -571,7 +587,8 @@ cliente, Stato pagamenti).
   conteggio del costo del lavoro rimosso da «Porta nel mese» e dall'anteprima.
 - **Subappalti e costi esterni** raccolti per subappaltatore (`bySupplier`),
   sezione richiudibile, fornitori aggiungibili e rinominabili in blocco.
-- **Spartizione digital** (§185): 6% · 28% soci · 10% cassa sull'imponibile, col
+- **Spartizione digital** (§186): sul margine dopo i subappalti, 28% a ciascun
+  socio, 6% commerciale, 10% cassa, fondo rischio opzionale sopra 20.000 €, col
   commerciale letto dall'anagrafica del cliente.
 
 **Com'è messo il database** (2026-08-01): 12 clienti (4 stabili, 3 partner, 3

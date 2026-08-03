@@ -267,7 +267,8 @@ export function PlClient({
           { label: 'Fondo rischio', value: t.plan.riskFund, tone: 'bg-orange' },
           { label: 'Residuo ai soci', value: t.plan.residualToPartners, tone: 'bg-gold' },
           // §185: sul digital la quota ai soci è una percentuale dell'imponibile
-          { label: `Digital ai soci ${pc(config.digital_partners_pct)}`, value: t.plan.digitalPartners, tone: 'bg-gold' },
+          // §186: 28% del margine a ciascun socio, non da spartire
+          { label: `Digital ai soci ${pc(config.digital_partner_pct)} a testa`, value: t.plan.digitalPartners, tone: 'bg-gold' },
         ]} />
 
         <div className="grid gap-3 sm:grid-cols-3 mt-4">
@@ -275,10 +276,10 @@ export function PlClient({
           <Mini icon={<Target className="w-3.5 h-3.5 text-text-tertiary" />} label={`Target costi ${pc(config.cost_target_pct)}`} value={eur(t.costs.target)}
             extra={<span className={overTarget ? 'text-error' : 'text-success'}>{overTarget ? '−' : '+'}{eur(Math.abs(t.costs.variance))}</span>} />
           <Mini icon={<Building2 className="w-3.5 h-3.5 text-gold-text" />} label="Cassa TwoBee" value={eur(t.margin.company)}
-            extra={t.plan.digitalCompany > 0 || t.plan.digitalRetained > 0 ? (
+            extra={t.plan.digitalCompany > 0 || t.plan.digitalRiskFund > 0 ? (
               <span className="text-text-tertiary">
                 di cui {eur(t.plan.digitalCompany)} quota digital {pc(config.digital_company_pct)}
-                {t.plan.digitalRetained > 0 && ` · ${eur(t.plan.digitalRetained)} margine non distribuito`}
+                {t.plan.digitalRiskFund > 0 && ` · ${eur(t.plan.digitalRiskFund)} fondo rischio digital`}
               </span>
             ) : undefined} />
         </div>
@@ -292,10 +293,26 @@ export function PlClient({
           </h2>
           <p className="text-2xs text-text-tertiary mb-3">
             Erogato {pc(config.growth_delivery_pct)} sul growth in parti uguali ·{' '}
-            {pc(config.digital_partners_pct)} del digital diviso fra i soci
-            {t.plan.digitalShare > 0 && <> ({eur(t.plan.digitalShare)} a testa)</>}
+            {pc(config.digital_partner_pct)} del margine digital <strong className="text-text-secondary">a ciascuno</strong>
+            {t.plan.digitalShare > 0 && <> ({eur(t.plan.digitalShare)} a testa questo mese)</>}
+            {t.plan.digitalRiskFund > 0 && (
+              <> · su alcune righe {pc(config.digital_risk_cut_pct)} a testa è andato al fondo rischio</>
+            )}
             {t.plan.salesPool > 0 && <> · provvigione senza commerciale divisa fra i soci</>}
           </p>
+          {t.plan.digitalMargin > 0 && (
+            <p className="text-2xs text-text-tertiary mb-3 pb-2 border-b border-border">
+              Margine digital {eur(t.plan.digitalMargin)}
+              {t.plan.digitalExternal > 0 && <> — {eur(t.plan.digitalExternal)} di subappalti già tolti</>}:
+              è la base della spartizione, e si divide per intero.
+              {t.plan.digitalRetained !== 0 && (
+                <strong className="text-warning">
+                  {' '}Restano {eur(t.plan.digitalRetained)} non assegnati: con {t.perPartner.length} soci
+                  al {pc(config.digital_partner_pct)} le quote non fanno il 100%.
+                </strong>
+              )}
+            </p>
+          )}
           {t.perPartner.length === 0 ? (
             <Empty>Nessun socio configurato.</Empty>
           ) : (
@@ -523,7 +540,8 @@ export function PlClient({
                   <th className="text-center font-semibold px-2 py-2">Fatt.</th>
                   <th className="text-center font-semibold px-2 py-2">Pag.</th>
                   <th className="text-right font-semibold px-2 py-2">Comm.</th>
-                  <th className="text-right font-semibold px-2 py-2">Erogato</th>
+                  <th className="text-right font-semibold px-2 py-2">Ai soci</th>
+                  <th className="text-center font-semibold px-2 py-2">Rischio</th>
                   <th className="w-8" />
                 </tr>
               </thead>
@@ -570,8 +588,45 @@ export function PlClient({
                       <Check on={line.paid} disabled={locked} label="Pagato"
                         onToggle={() => run(() => updateRevenueLine(line.id, { paid: !line.paid }))} />
                     </td>
-                    <td className="px-2 py-1.5 text-right text-2xs text-info tabular">{eur(s.sales)}</td>
-                    <td className="px-2 py-1.5 text-right text-2xs text-accent tabular">{s.delivery ? eur(s.delivery) : '—'}</td>
+                    <td className="px-2 py-1.5 text-right text-2xs text-info tabular">
+                      {eur(s.sales)}
+                      {/* §186: sul digital la base è il margine, non l'imponibile.
+                          Se un subappalto ha mangiato metà del ricavo va detto
+                          qui, dove si guarda la quota. */}
+                      {s.external > 0 && (
+                        <span className="block text-2xs text-text-tertiary" title={`Subappalto ${eur(s.external)}: la spartizione parte dal margine`}>
+                          su {eur(s.margin)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5 text-right text-2xs text-accent tabular">
+                      {line.kind === 'digital'
+                        ? (s.partnerQuota > 0 ? (
+                            <>
+                              {eur(s.partnerQuota)}
+                              <span className="block text-2xs text-text-tertiary">a socio</span>
+                            </>
+                          ) : '—')
+                        : (s.delivery ? eur(s.delivery) : '—')}
+                    </td>
+                    <td className="px-2 py-1.5 text-center">
+                      {/* La scelta sul fondo rischio è dell'admin, e solo sopra
+                          soglia: sotto i 20.000 € non compare nemmeno. */}
+                      {s.riskEligible ? (
+                        <button onClick={() => run(() => updateRevenueLine(line.id, { risk_fund: !line.risk_fund }))}
+                          disabled={locked}
+                          aria-pressed={!!line.risk_fund}
+                          title={line.risk_fund
+                            ? `Fondo rischio attivo: ${pc(config.digital_risk_fund_pct)} del margine, ${pc(config.digital_risk_cut_pct)} in meno a ciascun socio`
+                            : `Progetto da ${eur(line.project_value ?? 0)}: puoi destinare ${pc(config.digital_risk_fund_pct)} al fondo rischio`}
+                          className={`text-2xs font-semibold px-1.5 py-0.5 rounded border whitespace-nowrap press disabled:opacity-40 ${
+                            line.risk_fund
+                              ? 'border-orange/40 bg-orange/15 text-orange'
+                              : 'border-border text-text-tertiary hover:text-text-secondary'}`}>
+                          {line.risk_fund ? `fondo ${pc(config.digital_risk_fund_pct)}` : 'fondo?'}
+                        </button>
+                      ) : null}
+                    </td>
                     <td className="px-2 py-1.5">
                       {!locked && (
                         <button onClick={() => run(() => deleteRevenueLine(line.id), 'Voce eliminata')}

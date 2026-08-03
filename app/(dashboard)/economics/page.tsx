@@ -113,6 +113,16 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
   }
 
   // nomi dei progetti a cui le righe sono agganciate: la tabella li mostra
+  /* §186 — valore venduto di ciascun progetto: la somma dei suoi contratti non in
+     bozza. Decide se l'opzione del fondo rischio digital è disponibile, e si
+     guarda il progetto e non la rata — un lavoro da 24.000 € pagato in sei rate
+     da 4.000 resta un lavoro da 24.000. */
+  const projectValue = new Map<string, number>()
+  for (const st of (fcStreams ?? []) as { project_id: string | null; amount: unknown; status: string }[]) {
+    if (!st.project_id || st.status === 'bozza') continue
+    projectValue.set(st.project_id, num(projectValue.get(st.project_id)) + num(st.amount))
+  }
+
   const projectNames = Object.fromEntries(
     (allProjects ?? []).map((p: { id: string; name: string }) => [p.id, p.name]))
 
@@ -235,6 +245,9 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
         origin: (r.origin as 'contratto' | 'anagrafica' | 'manuale') ?? 'manuale',
         project_id: (r.project_id as string) ?? null,
         stream_id: (r.stream_id as string) ?? null,
+        // §186: il valore venduto del progetto decide se l'opzione fondo rischio c'è
+        project_value: projectValue.get(String(r.project_id ?? '')) ?? null,
+        risk_fund: r.risk_fund === true,
       })) as RevenueLine[]}
       projectNames={projectNames}
       clientNames={clientNames}
@@ -246,6 +259,8 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
       centers={(centers ?? []).map((c: { id: string; name: string }) => ({ id: c.id, name: c.name }))}
       costs={(costs ?? []).map((c: Record<string, unknown>) => ({
         id: String(c.id), center_id: (c.center_id as string) ?? null,
+        // §186: il subappalto esce dal margine digital prima della spartizione
+        project_id: (c.project_id as string) ?? null,
         category: String(c.category), label: String(c.label),
         cost_type: (c.cost_type === 'V' ? 'V' : 'F'),
         budget: num(c.budget), actual: num(c.actual), paid: !!c.paid,

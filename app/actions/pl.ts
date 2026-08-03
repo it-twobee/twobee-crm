@@ -410,6 +410,8 @@ export type RevenuePatch = Partial<{
   amount_net: number; vat_rate: number; invoice_sent: boolean; paid: boolean
   kind: 'growth' | 'digital'; sales_owner_id: string | null; sales_owner: string | null
   note: string | null; sort_order: number
+  /** §186 — il 9% al fondo rischio invece dei 3 punti a testa ai soci */
+  risk_fund: boolean
 }>
 
 export async function addRevenueLine(month: string, input: RevenuePatch = {}) {
