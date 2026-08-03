@@ -258,12 +258,13 @@ export async function previewPrefill(month: string): Promise<PrefillPreview> {
   const { data: monthRow } = await admin.from('pl_months').select('id, status').eq('month', month).maybeSingle()
   const monthId = (monthRow as { id: string } | null)?.id ?? null
 
-  const [{ data: streams }, { data: items }, { data: people }, { data: prm }, { data: clients }] = await Promise.all([
+  const [{ data: streams }, { data: items }, { data: people }, { data: prm }, { data: clients }, { data: centers }] = await Promise.all([
     admin.from('revenue_streams').select('*'),
     admin.from('cost_items').select('*').eq('is_active', true),
     admin.from('hr_people').select('*').eq('is_active', true),
     admin.from('hr_payroll_params').select('*').eq('year', Number(month.slice(0, 4))).maybeSingle(),
     admin.from('clients').select('id, mrr, client_label, is_internal'),
+    admin.from('cost_centers').select('id, name'),
   ])
 
   // ── entrate: i contratti dei progetti, più chi non ne ha ancora ───────────
@@ -286,8 +287,15 @@ export async function previewPrefill(month: string): Promise<PrefillPreview> {
     billable(String(c.id)) && !withContract.has(String(c.id)) && Number(c.mrr ?? 0) > 0)
 
   // ── uscite: il piano, i subappalti, le persone ────────────────────────────
-  const { plannedForMonth } = await import('@/lib/costs')
+  const { plannedForMonth, isPayrollCenter } = await import('@/lib/costs')
+  /* Le voci dell'area Personale non si contano qui: la sorgente «persone» le
+     porta già, e sommarle due volte era il modo più semplice per raddoppiare il
+     costo del lavoro nell'anteprima. */
+  const payrollCenters = new Set((centers ?? [])
+    .filter((c: { name: string }) => isPayrollCenter(c.name))
+    .map((c: { id: string }) => c.id))
   const due = plannedForMonth((items ?? []) as never, month)
+    .filter(i => !i.center_id || !payrollCenters.has(i.center_id))
   const plan = due.filter(i => !i.project_id)
   const subs = due.filter(i => i.project_id)
 

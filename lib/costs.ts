@@ -106,6 +106,25 @@ export const plannedForMonth = (items: CostItem[], month: string) =>
   items.filter(i => dueInMonth(i, month))
 
 /**
+ * L'area del costo del lavoro si chiama «Personale» e **non si tocca da qui**.
+ *
+ * Prima si chiamava «Persone» e si poteva scrivere a mano come un abbonamento,
+ * mentre le stesse cifre venivano già calcolate dall'organico in
+ * `/economics/personale` — cedolini, contributi, TFR, esoneri. Due posti che
+ * scrivono la stessa riga producono sempre due numeri diversi, e quello
+ * modificabile a mano vince per sbaglio.
+ *
+ * Qui l'area resta visibile, perché è un costo di struttura e nel budget del
+ * mese ci deve stare: solo, si legge. Chi vuole cambiarla passa dalla sezione
+ * Personale, che è l'unico posto dove quel numero ha un padre.
+ */
+export const PAYROLL_CENTER = 'Personale'
+
+/** Riconosce l'area del personale anche col vecchio nome, per i mesi già scritti. */
+export const isPayrollCenter = (name: string | null | undefined) =>
+  ['personale', 'persone'].includes((name ?? '').trim().toLowerCase())
+
+/**
  * Il tetto di un'area **non si digita: è la somma delle sue voci**.
  *
  * Prima era un numero a parte (`cost_centers.monthly_budget`, con override in

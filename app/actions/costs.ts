@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
-import { plannedForMonth, type CostItem } from '@/lib/costs'
+import { plannedForMonth, isPayrollCenter, type CostItem } from '@/lib/costs'
 import { buildSchedule, type ScheduleSpec } from '@/lib/revenue'
 
 const PATH = '/economics/costi'
@@ -23,6 +23,31 @@ async function requireAdmin(): Promise<string> {
 function rev() {
   revalidatePath(PATH)
   revalidatePath('/economics')
+}
+
+/**
+ * L'area «Personale» da qui si legge e non si scrive.
+ *
+ * Quelle righe le calcola l'organico in `/economics/personale`: retribuzioni,
+ * contributi, TFR, esoneri. Se si potessero correggere anche qui, la stessa
+ * persona avrebbe due costi diversi e vincerebbe quello scritto per ultimo.
+ * L'interfaccia non mostra i pulsanti; questo controllo serve perché nascondere
+ * un pulsante non è una barriera.
+ */
+async function refusePayrollCenter(centerId: string | null | undefined) {
+  if (!centerId) return
+  const { data } = await createAdminClient()
+    .from('cost_centers').select('name').eq('id', centerId).maybeSingle()
+  if (isPayrollCenter((data as { name?: string } | null)?.name)) {
+    throw new Error('Le voci del personale si modificano dalla sezione Personale, non dal piano dei costi')
+  }
+}
+
+/** Come sopra, partendo dalla voce: serve a update e delete, che l'area non la passano. */
+async function refusePayrollItem(itemId: string) {
+  const { data } = await createAdminClient()
+    .from('cost_items').select('center_id').eq('id', itemId).maybeSingle()
+  await refusePayrollCenter((data as { center_id?: string | null } | null)?.center_id ?? null)
 }
 
 // ── Aree ─────────────────────────────────────────────────────────────────────
@@ -46,6 +71,7 @@ export async function addCenter(input: CenterInput = {}) {
 
 export async function updateCenter(id: string, patch: CenterInput) {
   await requireAdmin()
+  await refusePayrollCenter(id)
   const { error } = await createAdminClient().from('cost_centers')
     .update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id)
   if (error) throw new Error(error.message)
@@ -59,6 +85,7 @@ export async function updateCenter(id: string, patch: CenterInput) {
  */
 export async function deleteCenter(id: string) {
   await requireAdmin()
+  await refusePayrollCenter(id)
   const admin = createAdminClient()
   const { count } = await admin.from('cost_items')
     .select('id', { count: 'exact', head: true }).eq('center_id', id).eq('is_active', true)
@@ -81,6 +108,7 @@ export type ItemInput = Partial<{
 
 export async function addCostItem(input: ItemInput = {}) {
   await requireAdmin()
+  await refusePayrollCenter(input.center_id)
   const admin = createAdminClient()
   const { count } = await admin.from('cost_items').select('id', { count: 'exact', head: true })
   const { data, error } = await admin.from('cost_items')
@@ -93,6 +121,8 @@ export async function addCostItem(input: ItemInput = {}) {
 
 export async function updateCostItem(id: string, patch: ItemInput) {
   await requireAdmin()
+  await refusePayrollItem(id)
+  await refusePayrollCenter(patch.center_id)
   const { error } = await createAdminClient().from('cost_items')
     .update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id)
   if (error) throw new Error(error.message)
@@ -101,6 +131,7 @@ export async function updateCostItem(id: string, patch: ItemInput) {
 
 export async function deleteCostItem(id: string) {
   await requireAdmin()
+  await refusePayrollItem(id)
   const { error } = await createAdminClient().from('cost_items').delete().eq('id', id)
   if (error) throw new Error(error.message)
   rev()
@@ -145,10 +176,21 @@ export async function applyPlanToMonth(month: string) {
   if (!monthRow) throw new Error('Il mese non esiste ancora: aprilo dal conto economico')
   if (monthRow.status === 'chiuso') throw new Error('Il mese è chiuso: riaprilo prima di toccarne le uscite')
 
-  const { data: items, error } = await admin.from('cost_items').select('*').eq('is_active', true).order('sort_order')
+  const [{ data: items, error }, { data: centers }] = await Promise.all([
+    admin.from('cost_items').select('*').eq('is_active', true).order('sort_order'),
+    admin.from('cost_centers').select('id, name'),
+  ])
   if (error) throw new Error(error.message)
 
+  /* Il personale non entra da qui. Lo porta nel mese la sezione Personale,
+     leggendo cedolini e contratti: se lo scrivesse anche il piano, ogni persona
+     comparirebbe due volte e il costo del lavoro risulterebbe doppio. */
+  const payroll = new Set((centers ?? [])
+    .filter((c: { name: string }) => isPayrollCenter(c.name))
+    .map((c: { id: string }) => c.id))
+
   const due = plannedForMonth((items ?? []) as CostItem[], month)
+    .filter(i => !i.center_id || !payroll.has(i.center_id))
   if (!due.length) return 0
 
   const { data: existing } = await admin.from('pl_cost_lines')

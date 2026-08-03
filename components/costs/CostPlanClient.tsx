@@ -6,13 +6,13 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import {
   ChevronLeft, ChevronRight, Plus, Trash2, Wallet, Target, TrendingDown, Layers,
-  ShieldAlert, Info, Repeat, AlertTriangle, Download, ChevronDown, Sparkles, Truck,
+  ShieldAlert, Info, Repeat, AlertTriangle, Download, ChevronDown, Sparkles, Truck, Users,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { monthLabel, shiftMonth } from '@/lib/pl'
 import {
   rollup, orphans, yearlyCost, plannedForMonth, nextOccurrences, costInsights, monthTarget,
-  SUGGESTED_CENTERS, FREQUENCY_LABEL,
+  SUGGESTED_CENTERS, FREQUENCY_LABEL, isPayrollCenter,
   type CostCenter, type CostItem, type CostActual, type Frequency,
 } from '@/lib/costs'
 import {
@@ -59,6 +59,10 @@ export function CostPlanClient({
 
   const rows = useMemo(() => rollup(centers, items, actuals, month), [centers, items, actuals, month])
   const loose = useMemo(() => orphans(items, actuals), [items, actuals])
+  /* Fra le voci senza area, quelle col progetto sono subappalti: fuori dai
+     budget di struttura per disegno. Le altre sono dimenticanze. */
+  const looseSubs = useMemo(() => loose.items.filter(i => i.project_id).length, [loose])
+  const looseInternal = loose.items.length - looseSubs
   const due = useMemo(() => plannedForMonth(items, month), [items, month])
 
   const tot = useMemo(() => ({
@@ -216,12 +220,26 @@ export function CostPlanClient({
               const isOpen = open === r.center.id
               const over = r.budget > 0 && r.actual > r.budget
               const own = items.filter(i => i.center_id === r.center.id)
+              /* Il costo del lavoro lo calcola l'organico: qui si legge. Due
+                 posti che scrivono la stessa riga danno sempre due numeri. */
+              const locked = isPayrollCenter(r.center.name)
               return (
                 <div key={r.center.id} className="px-5 py-3">
                   <div className="flex items-center gap-2.5 flex-wrap">
-                    <Draft value={r.center.name} label="Nome dell'area"
-                      onSave={v => run(() => updateCenter(r.center.id, { name: v }))}
-                      className="flex-1 min-w-[140px] bg-transparent text-sm font-semibold text-text-primary border-b border-transparent focus:border-border-interactive outline-none" />
+                    {locked ? (
+                      <span className="flex-1 min-w-[140px] flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5 text-text-tertiary shrink-0" aria-hidden="true" />
+                        <span className="text-sm font-semibold text-text-primary">{r.center.name}</span>
+                        <Link href="/economics/personale"
+                          className="text-2xs font-semibold text-gold-text hover:opacity-80 whitespace-nowrap">
+                          gestisci in Personale →
+                        </Link>
+                      </span>
+                    ) : (
+                      <Draft value={r.center.name} label="Nome dell'area"
+                        onSave={v => run(() => updateCenter(r.center.id, { name: v }))}
+                        className="flex-1 min-w-[140px] bg-transparent text-sm font-semibold text-text-primary border-b border-transparent focus:border-border-interactive outline-none" />
+                    )}
 
                     {/* §180: il tetto è la somma delle voci dell'area, non un numero
                         a parte — quindi si legge, non si scrive */}
@@ -239,13 +257,15 @@ export function CostPlanClient({
                       {own.length} vo{own.length === 1 ? 'ce' : 'ci'}
                       <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                     </button>
-                    <button onClick={() => run(async () => {
-                      const { orphaned } = await deleteCenter(r.center.id)
-                      if (orphaned) toast.info(`${orphaned} voci restano senza area`)
-                    }, 'Area eliminata')}
-                      aria-label={`Elimina ${r.center.name}`} className="text-text-tertiary hover:text-error">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {!locked && (
+                      <button onClick={() => run(async () => {
+                        const { orphaned } = await deleteCenter(r.center.id)
+                        if (orphaned) toast.info(`${orphaned} voci restano senza area`)
+                      }, 'Area eliminata')}
+                        aria-label={`Elimina ${r.center.name}`} className="text-text-tertiary hover:text-error">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
 
                   {/* consumo del budget */}
@@ -266,17 +286,30 @@ export function CostPlanClient({
 
                   {isOpen && (
                     <div className="mt-3 space-y-2">
+                      {locked && (
+                        <p className="text-2xs text-text-tertiary">
+                          Queste voci le scrive l&apos;organico: retribuzioni, contributi, TFR ed esoneri
+                          arrivano dalla sezione <Link href="/economics/personale" className="font-semibold text-gold-text hover:opacity-80">Personale</Link>{' '}
+                          e da qui si leggono soltanto. Modificarle qui creerebbe un secondo numero per la stessa persona.
+                        </p>
+                      )}
                       {own.length === 0 ? (
-                        <p className="text-2xs text-text-tertiary">Nessuna voce ricorrente in quest&apos;area.</p>
+                        <p className="text-2xs text-text-tertiary">
+                          {locked
+                            ? 'Nessuna riga: porta il costo dell\'organico nel mese dalla sezione Personale.'
+                            : 'Nessuna voce ricorrente in quest\'area.'}
+                        </p>
                       ) : own.map(i => (
                         <ItemRow key={i.id} item={i} month={month} centers={centers} run={run}
-                          projectNames={projectNames} />
+                          projectNames={projectNames} locked={locked} />
                       ))}
-                      <button onClick={() => run(() => addCostItem({ center_id: r.center.id }), 'Voce aggiunta')}
-                        disabled={pending}
-                        className="flex items-center gap-1.5 text-2xs font-semibold text-gold-text hover:opacity-80">
-                        <Plus className="w-3.5 h-3.5" />Voce di spesa
-                      </button>
+                      {!locked && (
+                        <button onClick={() => run(() => addCostItem({ center_id: r.center.id }), 'Voce aggiunta')}
+                          disabled={pending}
+                          className="flex items-center gap-1.5 text-2xs font-semibold text-gold-text hover:opacity-80">
+                          <Plus className="w-3.5 h-3.5" />Voce di spesa
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -382,15 +415,32 @@ export function CostPlanClient({
         </section>
       )}
 
-      {/* ── voci senza area: non si nascondono in un totale ── */}
+      {/* ── subappalti e voci senza area: non si nascondono in un totale ──
+          Un subappalto sta fuori dai budget d'area **per scelta** (§173: è una
+          lavorazione venduta al cliente, non un costo di struttura), quindi non
+          è un errore e non prende l'icona d'allarme. Una voce interna senza area
+          invece sì: quella non pesa su nessun tetto per dimenticanza. */}
       {(loose.items.length > 0 || loose.lines > 0) && (
-        <section className="bg-surface border border-warning/40 rounded-2xl shadow-soft overflow-hidden">
+        <section className={`bg-surface border rounded-2xl shadow-soft overflow-hidden ${
+          looseInternal > 0 ? 'border-warning/40' : 'border-border'}`}>
           <div className="px-5 py-3 border-b border-border flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
+            {looseInternal > 0
+              ? <AlertTriangle className="w-4 h-4 text-warning shrink-0" aria-hidden="true" />
+              : <Truck className="w-4 h-4 text-orange shrink-0" aria-hidden="true" />}
             <div>
-              <h2 className="text-sm font-bold text-text-primary">Senza area</h2>
+              <h2 className="text-sm font-bold text-text-primary">Subappalti e costi esterni</h2>
               <p className="text-2xs text-text-tertiary">
-                {loose.items.length} voci di piano e {loose.lines} uscite del mese ({eur(loose.actual)}) non pesano su nessun budget
+                {looseSubs > 0 && (
+                  <>{looseSubs} {looseSubs === 1 ? 'lavorazione affidata fuori' : 'lavorazioni affidate fuori'}:
+                    stanno nel margine del loro progetto, non nel budget di un&apos;area</>
+                )}
+                {looseSubs > 0 && looseInternal > 0 && ' · '}
+                {looseInternal > 0 && (
+                  <span className="text-warning">
+                    {looseInternal} {looseInternal === 1 ? 'voce interna senza area' : 'voci interne senza area'}: da assegnare, così non pesa su nessun tetto
+                  </span>
+                )}
+                {loose.lines > 0 && <> · {loose.lines} uscite del mese ({eur(loose.actual)}) fuori da ogni budget</>}
               </p>
             </div>
           </div>
@@ -421,16 +471,36 @@ export function CostPlanClient({
 }
 
 /** Una spesa ricorrente: quanto, ogni quanto, da quando. */
-function ItemRow({ item, month, centers, run, projectNames }: {
+function ItemRow({ item, month, centers, run, projectNames, locked = false }: {
   item: CostItem
   month: string
   centers: CostCenter[]
   run: (fn: () => Promise<unknown>, ok?: string) => void
   projectNames: Record<string, string>
+  /** voce del personale: si legge, si cambia dalla sezione Personale */
+  locked?: boolean
 }) {
   const [more, setMore] = useState(false)
   const yearly = yearlyCost(item)
   const upcoming = nextOccurrences(item, month, 4)
+
+  if (locked) {
+    return (
+      <div className={`rounded-xl border border-border p-2.5 flex items-center gap-2 flex-wrap ${item.is_active ? '' : 'opacity-60'}`}>
+        <Users className="w-3.5 h-3.5 shrink-0 text-text-tertiary" aria-hidden="true" />
+        <span className="flex-1 min-w-[120px] text-2xs font-semibold text-text-primary truncate">{item.label}</span>
+        <span className="text-2xs tabular font-semibold text-text-primary">{eur(item.amount)}</span>
+        <span className="text-2xs text-text-tertiary">{FREQUENCY_LABEL[item.frequency]}</span>
+        <span className={`rounded-lg px-1.5 py-0.5 text-2xs font-semibold border ${
+          item.cost_type === 'F' ? 'bg-info-dim border-info/40 text-info' : 'bg-accent-dim border-accent/40 text-accent'
+        }`}>{item.cost_type === 'F' ? 'fisso' : 'variabile'}</span>
+        <Link href="/economics/personale"
+          className="text-2xs font-semibold text-gold-text hover:opacity-80 whitespace-nowrap">
+          apri in Personale →
+        </Link>
+      </div>
+    )
+  }
 
   return (
     <div className={`rounded-xl border p-2.5 ${item.is_active ? 'border-border' : 'border-dashed border-border opacity-60'}`}>
