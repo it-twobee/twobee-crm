@@ -12,7 +12,7 @@ import { formatCurrency } from '@/lib/utils'
 import { monthLabel, shiftMonth } from '@/lib/pl'
 import {
   rollup, orphans, yearlyCost, plannedForMonth, nextOccurrences, costInsights, monthTarget,
-  SUGGESTED_CENTERS, FREQUENCY_LABEL, isPayrollCenter,
+  SUGGESTED_CENTERS, FREQUENCY_LABEL, isPayrollCenter, bySupplier,
   type CostCenter, type CostItem, type CostActual, type Frequency,
 } from '@/lib/costs'
 import {
@@ -63,6 +63,9 @@ export function CostPlanClient({
      budget di struttura per disegno. Le altre sono dimenticanze. */
   const looseSubs = useMemo(() => loose.items.filter(i => i.project_id).length, [loose])
   const looseInternal = loose.items.length - looseSubs
+  /* Raccolte per subappaltatore: otto righe «Rata 3 di 6» in fila sono rumore,
+     sotto un nome sono un accordo con un fornitore e un importo. */
+  const supplierGroups = useMemo(() => bySupplier(loose.items), [loose])
   const due = useMemo(() => plannedForMonth(items, month), [items, month])
 
   const tot = useMemo(() => ({
@@ -444,10 +447,42 @@ export function CostPlanClient({
               </p>
             </div>
           </div>
-          {loose.items.length > 0 && (
-            <div className="px-5 py-3 space-y-2">
-              {loose.items.map(i => (
-                <ItemRow key={i.id} item={i} month={month} centers={centers} run={run} projectNames={projectNames} />
+          {supplierGroups.length > 0 && (
+            <div className="divide-y divide-border/60">
+              {supplierGroups.map(g => (
+                <div key={g.supplier ?? '—'} className="px-5 py-3">
+                  <div className="flex items-center gap-2 flex-wrap mb-2">
+                    {g.supplier ? (
+                      <p className="text-2xs font-bold text-text-primary">{g.supplier}</p>
+                    ) : (
+                      <p className="text-2xs font-bold text-warning">Subappaltatore da indicare</p>
+                    )}
+                    <span className="text-2xs text-text-tertiary">
+                      {g.items.length} {g.items.length === 1 ? 'voce' : 'voci'} ·{' '}
+                      <span className="tabular font-semibold text-text-secondary">{eur(g.total)}</span>
+                      {g.external && ' · costo esterno, nessun progetto'}
+                    </span>
+                    {/* su quali lavori sta: è la seconda domanda dopo «quanto» */}
+                    {g.projectIds.map(id => (
+                      <Link key={id} href={`/progetti/${id}?tab=economics`}
+                        className="flex items-center gap-1 text-2xs text-text-tertiary hover:text-gold-text max-w-[200px]">
+                        <Truck className="w-3 h-3 shrink-0" aria-hidden="true" />
+                        <span className="truncate">{projectNames[id] ?? 'Progetto'}</span>
+                      </Link>
+                    ))}
+                  </div>
+                  {!g.supplier && (
+                    <p className="text-2xs text-text-tertiary mb-2">
+                      Il nome del fornitore si scrive in <strong className="text-text-secondary">Dettagli → Fornitore</strong>:
+                      un costo esterno senza un nome sopra non si può né contestare né rinegoziare.
+                    </p>
+                  )}
+                  <div className="space-y-2">
+                    {g.items.map(i => (
+                      <ItemRow key={i.id} item={i} month={month} centers={centers} run={run} projectNames={projectNames} />
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}

@@ -247,6 +247,57 @@ export function occurrencesBetween(item: CostItem, from: string, to: string): nu
   return n
 }
 
+/**
+ * I costi esterni raccolti **per subappaltatore**.
+ *
+ * Un subappalto quotato a rate produce otto righe che dicono tutte la stessa
+ * cosa — «Subappalto — CRM — Rata 3 di 6» — e in fila diventano rumore: nessuno
+ * legge otto righe per capire che c'è un fornitore con un lavoro da 18.000 €.
+ * Raccolte sotto il nome di chi le emette si legge invece l'unica domanda utile:
+ * **a chi stiamo dando quanto, e su quali lavori.**
+ *
+ * Chi non ha il fornitore compilato finisce in un gruppo suo, per ultimo: non è
+ * un dettaglio estetico, è l'unica cosa che rende esigibile un accordo. Un costo
+ * esterno senza un nome sopra non si può né contestare né rinegoziare.
+ */
+export type SupplierGroup = {
+  /** nome del subappaltatore. null = non indicato, ed è una cosa da compilare */
+  supplier: string | null
+  items: CostItem[]
+  /** la somma degli importi del gruppo: quanto vale l'accordo, non un canone */
+  total: number
+  /** peso annuo, per i canoni ricorrenti */
+  yearly: number
+  /** i lavori toccati: un fornitore può stare su più progetti */
+  projectIds: string[]
+  /** nessuna voce ha un progetto: è un costo esterno, non un subappalto */
+  external: boolean
+}
+
+export function bySupplier(items: CostItem[]): SupplierGroup[] {
+  const key = (i: CostItem) => i.supplier?.trim() || ''
+  const names = Array.from(new Set(items.map(key)))
+
+  return names
+    .map(name => {
+      const own = items.filter(i => key(i) === name)
+      return {
+        supplier: name || null,
+        items: own,
+        total: sum(own.map(i => i.amount)),
+        yearly: sum(own.map(yearlyCost)),
+        projectIds: Array.from(new Set(own.map(i => i.project_id).filter((p): p is string => !!p))),
+        external: own.every(i => !i.project_id),
+      }
+    })
+    // i nomi in ordine, e chi non ce l'ha per ultimo: è il gruppo da sistemare
+    .sort((a, b) => {
+      if (!a.supplier) return 1
+      if (!b.supplier) return -1
+      return a.supplier.localeCompare(b.supplier, 'it')
+    })
+}
+
 export type MarginView = { revenue: number; cost: number; margin: number; pct: number }
 
 export type ProjectMargin = {

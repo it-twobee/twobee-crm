@@ -1,6 +1,6 @@
 /* Verifica del piano dei costi. Esegui: npx tsx lib/costs.check.ts */
 import {
-  rollup, monthTarget, plannedForMonth, dueInMonth, yearlyCost, costInsights,
+  rollup, monthTarget, plannedForMonth, dueInMonth, yearlyCost, costInsights, bySupplier,
   type CostCenter, type CostItem, type CostActual,
 } from '@/lib/costs'
 
@@ -87,6 +87,48 @@ is('annuale pesa tutto nel suo mese, non 1/12',
 is('mensile su base annua', yearlyCost(item({ amount: 100, frequency: 'mensile' })), 1200)
 is('voce spenta fuori dal piano',
   plannedForMonth([item({ amount: 100, is_active: false })], M).length, 0)
+
+console.log('\n— Costi esterni raccolti per subappaltatore —')
+{
+  // le voci di un subappalto: nessuna area, il progetto attaccato, rate una tantum
+  const it = (o: Partial<CostItem>) =>
+    item({ center_id: null, category: 'Delivery', cost_type: 'V', frequency: 'una_tantum',
+           start_month: '2026-03-01', ...o })
+
+  const items = [
+    it({ supplier: 'Zeta Studio', amount: 2000, project_id: 'p1' }),
+    it({ supplier: 'Alfa Dev', amount: 2466.66, project_id: 'p1' }),
+    it({ supplier: 'Alfa Dev', amount: 2672.22, project_id: 'p1' }),
+    it({ supplier: 'Alfa Dev', amount: 2672.22, project_id: 'p2' }),
+    it({ supplier: null, amount: 500, project_id: 'p3' }),
+    it({ supplier: '  ', amount: 300 }),
+  ]
+  const groups = bySupplier(items)
+  is('un gruppo per fornitore, più quello senza nome', groups.length, 3)
+  is('in ordine alfabetico', groups.map(g => g.supplier), ['Alfa Dev', 'Zeta Studio', null])
+  is('il totale del gruppo somma le rate', groups[0].total, 7811.1)
+  is('tre voci sotto Alfa Dev', groups[0].items.length, 3)
+  is('e due progetti toccati', groups[0].projectIds, ['p1', 'p2'])
+  is('un subappalto non è un costo esterno puro', groups[0].external, false)
+
+  // chi non ha il fornitore compilato sta in fondo: è il gruppo da sistemare
+  const senza = groups[groups.length - 1]
+  is('spazi bianchi contano come nessun nome', senza.supplier, null)
+  is('e ci finiscono tutte le voci senza fornitore', senza.items.length, 2)
+  is('col loro totale', senza.total, 800)
+
+  // un costo esterno senza progetto si distingue da un subappalto
+  is('senza progetto è costo esterno',
+    bySupplier([it({ supplier: 'Studio Legale', amount: 900 })])[0].external, true)
+
+  // il peso annuo segue la frequenza, il totale no: un canone mensile da 100
+  // vale 100 come importo e 1.200 come peso dell'anno
+  const canone = bySupplier([it({ supplier: 'Hosting', amount: 100, frequency: 'mensile' })])[0]
+  is('importo dell\'occorrenza', canone.total, 100)
+  is('peso annuo del canone', canone.yearly, 1200)
+
+  is('nessuna voce, nessun gruppo', bySupplier([]).length, 0)
+}
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)
