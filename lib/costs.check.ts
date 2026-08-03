@@ -130,5 +130,25 @@ console.log('\n— Costi esterni raccolti per subappaltatore —')
   is('nessuna voce, nessun gruppo', bySupplier([]).length, 0)
 }
 
+console.log('\n— Il personale non è una dimenticanza del piano —')
+{
+  const c = [center('c1', 'Personale'), center('c2', 'Struttura & Software')]
+  const acts = [
+    // righe scritte dall'organico: nessuna voce di piano, ed è giusto così
+    actual({ center_id: 'c1', category: 'Personale', label: 'Michele', cost_item_id: null, actual: 3225 }),
+    actual({ center_id: null, category: 'Personale', label: 'Sabrina', cost_item_id: null, actual: 2996 }),
+    // una spesa vera fuori piano: questa sì va segnalata
+    actual({ center_id: null, category: 'Software', label: 'Canva', cost_item_id: null, actual: 120 }),
+  ]
+  const r = rollup(c, [], acts, '2026-08-01')
+  const ids = costInsights(r, [], acts, '2026-08-01').map(f => f.id)
+  is('nessuna diagnosi «fuori piano»: la elenca la sezione, con l\'azione',
+    ids.includes('off-plan'), false)
+  is('le uscite senza area si segnalano ancora', ids.includes('loose-lines'), true)
+  // e contano solo quelle vere: 120 €, non i 2.996 del cedolino senza area
+  const loose = costInsights(r, [], acts, '2026-08-01').find(f => f.id === 'loose-lines')
+  is('il personale non gonfia le uscite senza area', loose?.title.includes('120'), true)
+}
+
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

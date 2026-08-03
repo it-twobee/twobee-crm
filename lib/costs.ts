@@ -485,7 +485,15 @@ export function costInsights(
     })
   }
 
-  const loose = actuals.filter(a => !a.center_id)
+  /* §184: le righe del personale non contano né come «senza area» né come
+     «fuori piano». Non hanno una voce di piano per disegno — le riscrive
+     l'organico ogni mese — e segnalarle come dimenticanze mandava a promuoverle
+     a spesa ricorrente, cioè a contare due volte lo stesso stipendio. */
+  const payrollIds = new Set(rows.filter(r => isPayrollCenter(r.center.name)).map(r => r.center.id))
+  const structural = actuals.filter(a =>
+    !isPayrollCenter(a.category) && !(a.center_id && payrollIds.has(a.center_id)))
+
+  const loose = structural.filter(a => !a.center_id)
   if (loose.length) {
     const amount = loose.reduce((s, a) => s + a.actual, 0)
     out.push({
@@ -496,15 +504,10 @@ export function costInsights(
     })
   }
 
-  const offPlan = actuals.filter(a => !a.cost_item_id && a.actual > 0)
-  if (offPlan.length >= 3) {
-    out.push({
-      id: 'off-plan', severity: 'attenzione',
-      title: `${offPlan.length} spese del mese non erano in piano`,
-      detail: 'Le spese vere si scoprono quasi sempre pagando, non pianificando: se tornano, il piano non le sta prevedendo.',
-      action: 'Rendi ricorrenti quelle che tornano ogni mese: il mese prossimo si popolano da sole.',
-    })
-  }
+  /* Le spese fuori piano NON hanno una segnalazione qui: le elenca già la
+     sezione «Uscite del mese fuori piano», con accanto il pulsante che le rende
+     ricorrenti. Una diagnosi che ripete la stessa frase senza l'azione è solo
+     una carta in più da leggere. */
 
   const totActual = rows.reduce((s, r) => s + r.actual, 0)
   const fixed = rows.reduce((s, r) => s + r.actualFixed, 0)
