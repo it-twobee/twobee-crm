@@ -191,6 +191,7 @@ dato economico: è sicuro anche nel workspace.
 | `181_payroll.sql` | Personale: `hr_payroll_params` (aliquote per anno, con `verified_at` — finché è NULL la sezione dichiara che stima) + `hr_people` (organico, interni ed esterni). RLS admin, ciascuno legge la propria riga. Alimenta la voce «Persone» del conto economico | — |
 | `182_payroll_ledger.sql` | Il cedolino batte la stima: `hr_payslips` (competenze/imponibili/trattenute/oneri datore, con `employer_contrib` NULL = da consulente), `hr_invoices` (imponibile, IVA detraibile o no, ritenuta, importo pagato), `hr_f24` (aggregato, `individual_detail`), `hr_tfr_movements`. Estende `hr_people` (stato, CCNL, IBAN, P.IVA, regime, netto concordato) e aggiunge socio/fornitore. Seed: organico reale + cedolini e F24 di giugno 2026 | — |
 | `183_hr_personal_data.sql` | `hr_people`: `birth_date` (l'età decide l'eleggibilità all'apprendistato, under 30), `has_children`/`children_count` (alzano la soglia dei fringe benefit esenti), `dependent_spouse`. Si registra la data, non l'età: un'età nel database invecchia male | — |
+| `184_hiring_incentives.sql` | **Agevolazioni**: aliquote 2026 (IRPEF 33% sul 2º scaglione, buono pasto 10 €, premi 1% entro 5.000 €), apprendistato per anno e dimensione, `hr_incentives` (catalogo esoneri con tetti e finestre), campi §184 su `hr_people` (assunzione, mai-stabile, esonero, impatriati, categoria protetta), maggiorazioni di deduzione su `tax_config`, e «Persone» → «Personale» in sola lettura dal piano dei costi | — |
 | `179_os_versions.sql` | Cronologia: (a) `log_activity()` legge l'attore dall'header `x-actor-id` — col service role `auth.uid()` è NULL e tutto risultava «Sistema» — e non registra gli UPDATE che non cambiano niente; (b) `os_versions` + `os_version_changes`, il changelog di prodotto con un ciclo di 15 giorni dal 2026-08-01 (v1.0.0), bozze visibili ai soli admin; (c) seed della v1.0.0 con 13 voci | — |
 
 **Scorciatoia**: `supabase/APPLY_PENDING.sql` è il concatenato (081, 086–093) in
@@ -237,6 +238,13 @@ si scrive un importo**. Tutto il resto lo legge:
   cui si paga. **Solo costi interni e societari**: le voci con `project_id`
   (subappalti) sono filtrate via, altrimenti il budget di un'area si muoverebbe
   per una lavorazione venduta al cliente.
+- **Personale, in sola lettura** (§184): l'area del costo del lavoro si chiama
+  `Personale` (`PAYROLL_CENTER` in `lib/costs.ts`) e da `/economics/costi` si
+  **legge soltanto** — nessun rinomina, nessuna voce, nessuna modifica: il
+  blocco vero è in `app/actions/costs.ts`, non nei pulsanti nascosti. Quelle
+  righe le scrive la sezione Personale leggendo cedolini e contratti, e
+  `applyPlanToMonth`/`previewPrefill` escludono l'area a monte: prima veniva
+  contata due volte, una dal piano e una dall'organico.
 - **Subappalti** (§173): una voce di piano con `project_id` è una lavorazione
   affidata fuori. Si crea dalla scheda Economics del progetto, finisce da sé
   nell'area «Delivery & Fornitori» e dà il **margine del progetto** (ricavo del
@@ -257,8 +265,9 @@ generazione ogni rata resta spostabile e se ne aggiungono a mano.
 **Fiscale** (`/economics/fiscale`, `lib/tax.ts`): scadenzario SRL con anno
 solare (liquidazioni IVA, LIPE, acconto IVA 27/12, saldo+1º acconto 30/06, 2º
 acconto 30/11, dichiarazioni), stima IRES/IRAP proiettata sui mesi registrati,
-accantonamenti effettivi contro quelli necessari, e `taxInsights` — regole, non
-consigli fiscali. **Ogni stima dichiara la sua assunzione**: se i costi
+accantonamenti effettivi contro quelli necessari, il pannello **Agevolazioni e
+regimi** (§184: cosa è in vigore, cosa è scaduto, quanto vale con i numeri che il
+tool ha già), e `taxInsights` — regole, non consigli fiscali. **Ogni stima dichiara la sua assunzione**: se i costi
 effettivi non sono registrati la previsione è gonfiata e va detto prima del
 numero, non in nota.
 
@@ -380,6 +389,33 @@ urgente quando mancano meno di dodici mesi; `has_children` raddoppia la soglia
 dei fringe benefit esenti, e il potenziale welfare somma le soglie vere invece
 di moltiplicare per un tetto medio.
 
+**Le agevolazioni si applicano, non si sperano** (§184, `lib/incentives.ts`).
+Tre leve che agiscono su tre cose diverse e **non si sommano**:
+
+- **Esoneri contributivi** → abbassano i contributi *datore*, mai l'INAIL.
+  Catalogo in `hr_incentives` (percentuale, tetto mensile *e* annuo, durata,
+  finestra delle assunzioni, requisiti): under 30 strutturale al 50% entro
+  3.000 €/anno per 36 mesi, nuovo esonero 2026 al 100% entro 650 €/mese
+  (800 in ZES) per 24 mesi, decreto Coesione a finestra chiusa, donne
+  svantaggiate, over 50, decontribuzione Sud. Il catalogo viaggia dentro
+  `PayrollParams.incentives`: si corregge un tetto in SQL, non in un deploy.
+- **Rientro dei cervelli** → abbassa l'**IRPEF della persona** e non tocca il
+  costo aziendale di un euro: 50% di reddito esente (60% con figlio minore)
+  entro 600.000 €, cinque periodi d'imposta, obbligo di restare quattro anni.
+  È la leva per rendere competitiva un'offerta a chi lavora all'estero.
+- **Maxi-deduzione e iper-ammortamento** → abbassano l'**IRES** in
+  dichiarazione (extracontabili, mai IRAP). La maxi-deduzione entra in
+  `estimateTaxes` come deduzione solo-IRES; l'IRES premiale al 20% è **finita
+  col 2025** e resta in catalogo marcata scaduta, per non rimetterla nel budget.
+
+Due regole non negoziabili: **un requisito che il tool non può verificare non
+lo dichiara vero** (l'età la sa; «disoccupato da 24 mesi», «incremento
+occupazionale netto», «decreto attuativo pubblicato» no: restano condizioni
+scritte), e **un esonero configurato senza requisiti non si applica** — il costo
+resta pieno e la riga dice perché. Un'agevolazione presa male si restituisce con
+le sanzioni: vale meno di quella non presa. Ogni esonero sa anche **quando
+finisce**, perché il mese dopo il costo risale e va visto prima.
+
 **L'F24 non si ripartisce.** `checkF24` dice se l'IRPEF dei cedolini combacia con
 l'erario del modello e quanto dell'INPS resta a carico azienda — ma quel residuo è
 aggregato: «Dato aziendale aggregato — ripartizione individuale non verificata»
@@ -473,11 +509,14 @@ devono dire «Tutti i controlli passano».
 il dev server resta a servire chunk CSS sostituiti e la pagina si apre senza
 stili. Se succede: ferma il dev, `rm -rf .next`, riavvia.
 
-**Migration da eseguire: la `183_hr_personal_data.sql`.** Le altre (179-182)
-sono applicate e verificate sul database: v1.0.0 pubblicata, retention a 90
-giorni con pg_cron attivo, organico e cedolini di giugno caricati. Senza la 183
-i campi età e figli non esistono e il suggerimento sull'apprendistato resta
-generico.
+**Migration da eseguire: la `183_hr_personal_data.sql` e la
+`184_hiring_incentives.sql`.** Le altre (179-182) sono applicate e verificate sul
+database: v1.0.0 pubblicata, retention a 90 giorni con pg_cron attivo, organico e
+cedolini di giugno caricati. Senza la 183 i campi età e figli non esistono e il
+suggerimento sull'apprendistato resta generico; senza la 184 il catalogo delle
+agevolazioni si legge ma non si può attivare niente su una persona, il costo del
+lavoro resta quello pieno, e l'area «Persone» del piano dei costi non prende il
+nuovo nome (la pagina lo dichiara, non si rompe).
 
 **Fatto finora**: il dominio economico completo (migration 168→178) — contratti
 per progetto, piano dei costi con budget per area, subappalti con margine di
@@ -500,6 +539,13 @@ cliente, Stato pagamenti).
   13ª/14ª, ottimizzazioni fiscali, e la voce «Persone» del conto economico.
 - **«Prepara il mese»**: una sola azione che compone contratti, piano dei costi,
   subappalti e organico, con anteprima di cosa entra prima di scrivere.
+- **Agevolazioni** (§184, `lib/incentives.ts` + `lib/incentives.check.ts`):
+  esoneri contributivi per persona con tetti e scadenze, rientro dei cervelli sul
+  netto, maxi-deduzione e iper-ammortamento dentro la stima IRES, aliquote 2026
+  aggiornate (IRPEF 33%, buono pasto 10 €, premi all'1%), tab «Agevolazioni» nel
+  Personale e pannello «Agevolazioni e regimi» in Fiscale.
+- **Area «Personale» in sola lettura** nel piano dei costi, con il doppio
+  conteggio del costo del lavoro rimosso da «Porta nel mese» e dall'anteprima.
 
 **Com'è messo il database** (2026-08-01): 12 clienti (4 stabili, 3 partner, 3
 pending, 1 in bilico, 1 perso), 11 progetti attivi — 10 con cliente, 1 interno —

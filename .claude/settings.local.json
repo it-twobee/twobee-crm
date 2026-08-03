@@ -271,7 +271,19 @@
       "Bash(md5 -q /Users/marcolucci/Claude_TwoBee_HQ_Room/supabase/migrations/181_payroll.sql)",
       "Bash(md5 -q /Users/marcolucci/Claude_TwoBee_HQ_Room/supabase/migrations/180_activity_retention.sql)",
       "Bash(md5 -q supabase/migrations/182_payroll_ledger.sql)",
-      "Bash(md5 -q /Users/marcolucci/Claude_TwoBee_HQ_Room/supabase/migrations/182_payroll_ledger.sql)"
+      "Bash(md5 -q /Users/marcolucci/Claude_TwoBee_HQ_Room/supabase/migrations/182_payroll_ledger.sql)",
+      "WebSearch",
+      "WebFetch(domain:www.fiscomania.com)",
+      "WebFetch(domain:www.informazionefiscale.it)",
+      "WebFetch(domain:www.fiscoetasse.com)",
+      "WebFetch(domain:www.ticonsiglio.com)",
+      "WebFetch(domain:www.fiscooggi.it)",
+      "WebFetch(domain:www.ratio.it)",
+      "WebFetch(domain:www.ratioquotidiano.it)",
+      "WebFetch(domain:www.irde.it)",
+      "WebFetch(domain:www.eclavoro.it)",
+      "WebFetch(domain:www.leggioggi.it)",
+      "WebFetch(domain:www.ecnews.it)"
     ],
     "defaultMode": "acceptEdits"
   }
