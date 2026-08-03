@@ -19,7 +19,7 @@ const rev = (o: Partial<RevenueLine>): RevenueLine => ({
 })
 const cost = (o: Partial<CostLine>): CostLine => ({
   id: 'c', category: 'x', label: 'y', cost_type: 'F', budget: 0, actual: 0,
-  paid: true, vat_applied: false, vat_rate: 0.22, ...o,
+  paid: true, vat_applied: false, vat_rate: 0.22, project_id: null, ...o,
 })
 const partners = [
   { id: '1', label: 'Marco', takes_delivery: true, takes_residual: true },
@@ -203,6 +203,54 @@ eq('maturato', np.revenue.accrued, 10000)
 eq('incassato', np.revenue.collected, 0)
 eq('da incassare', np.revenue.unpaid, 10000)
 eq('erogato comunque maturato', np.plan.delivery, 3000)
+
+console.log('\n— Ogni compenso si può aprire e torna (§186) —')
+{
+  const t = computeMonth([
+    rev({ id: 'g1', amount_net: 10000, kind: 'growth', client_id: 'c1', sales_owner: 'Walter' }),
+    rev({ id: 'd1', amount_net: 8000, kind: 'digital', client_id: 'c2', project_id: 'p1' }),
+  ], [cost({ actual: 1000, budget: 1000, project_id: 'p1' })], C, partners)
+
+  // il dettaglio di un socio deve fare esattamente il suo totale
+  for (const p of t.perPartner) {
+    const sum = p.rows.reduce((n, r) => n + r.amount, 0)
+    eq(`${p.partner.label}: il dettaglio torna col totale`, sum, p.total)
+  }
+
+  const marco = t.perPartner[0]
+  // erogato growth: 30% diviso tre = 10% di 10.000
+  const erogato = marco.rows.filter(r => r.reason === 'erogato')
+  eq('una riga di erogato', erogato.length, 1)
+  eq('al 10% (30 diviso tre soci)', erogato[0].pct * 100, 10)
+  eq('su 10.000 di imponibile growth', erogato[0].base, 10000)
+
+  // digital: 28% del margine, e il margine ha già tolto il subappalto
+  const dig = marco.rows.filter(r => r.reason === 'digital')
+  eq('una riga digital', dig.length, 1)
+  eq('base = 8.000 meno 1.000 di subappalto', dig[0].base, 7000)
+  eq('subappalto dichiarato sulla riga', dig[0].external, 1000)
+  eq('al 28%', dig[0].pct * 100, 28)
+  eq('quota', dig[0].amount, 1960)
+  is('e si sa su quale progetto', dig[0].projectId, 'p1')
+  is('e su quale cliente', dig[0].clientId, 'c2')
+
+  // la provvigione digital non ha commerciale: divisa fra i soci, 2% a testa
+  const divisa = marco.rows.filter(r => r.reason === 'provvigione-divisa')
+  eq('una riga di provvigione divisa', divisa.length, 1)
+  eq('al 2% (6 diviso tre)', divisa[0].pct * 100, 2)
+
+  // il commerciale del growth vede la sua provvigione, con cliente e riga
+  const walter = t.salesByOwner.find(o => o.label === 'Walter')!
+  eq('provvigione di Walter', walter.amount, 1500)
+  eq('una riga sola', walter.rows.length, 1)
+  eq('al 15%', walter.rows[0].pct * 100, 15)
+  is('sul suo cliente', walter.rows[0].clientId, 'c1')
+
+  // il pool mostra da quali righe arriva
+  eq('il pool ha una riga', t.plan.poolRows.length, 1)
+  is('ed è quella digital senza commerciale', t.plan.poolRows[0].lineId, 'd1')
+  eq('il totale del pool torna', t.plan.poolRows.reduce((n, r) => n + r.amount, 0), t.plan.salesPool)
+}
 
 console.log(fail === 0 ? '\nTutti i controlli passano.' : `\n${fail} controlli falliti.`)
 process.exit(fail ? 1 : 0)

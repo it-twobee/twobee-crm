@@ -5,14 +5,14 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import {
-  ChevronLeft, ChevronRight, Plus, Trash2, CopyPlus, Lock, LockOpen,
+  ChevronLeft, ChevronRight, ChevronDown, Plus, Trash2, CopyPlus, Lock, LockOpen,
   TrendingUp, TrendingDown, Wallet, Target, ShieldAlert, Users, Building2, Info,
   Briefcase, AlertTriangle, RotateCcw, Landmark, CalendarRange,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import {
   computeMonth, monthLabel, shiftMonth, pct, ownerOf,
-  type PlConfig, type RevenueLine, type CostLine, type Partner,
+  type PlConfig, type RevenueLine, type CostLine, type Partner, type QuotaRow,
 } from '@/lib/pl'
 import {
   generateRevenueFromClients, copyCostsFromPreviousMonth, setMonthStatus, resetMonth,
@@ -58,6 +58,8 @@ type Props = {
 
 const eur = (n: number) => formatCurrency(Math.round(n))
 const pc = (n: number) => `${(n * 100).toFixed(n * 100 % 1 === 0 ? 0 : 1)}%`
+/** Due decimali dove servono: il 9,33% di una quota divisa non si arrotonda a 9%. */
+const pc1 = (n: number) => `${(n * 100).toFixed(2).replace(/\.00$/, '').replace('.', ',')}%`
 
 export function PlClient({
   month, status, exists, setupNeeded, previous, missingClients,
@@ -65,6 +67,9 @@ export function PlClient({
   projectNames, clientNames,
 }: Props) {
   const router = useRouter()
+  /* Quale compenso è aperto: un numero che non si può aprire si prende per fede,
+     e un piano compensi preso per fede è un piano che nessuno controlla. */
+  const [openQuota, setOpenQuota] = useState<string | null>(null)
   const [pending, start] = useTransition()
   const [resetting, setResetting] = useState(false)
   const locked = status === 'chiuso'
@@ -318,15 +323,25 @@ export function PlClient({
           ) : (
             <div className="space-y-1.5">
               {t.perPartner.map(p => (
-                <div key={p.partner.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-border">
-                  <span className="text-sm font-semibold text-text-primary flex-1 truncate">{p.partner.label}</span>
-                  <span className="text-2xs text-text-tertiary tabular hidden sm:block">
-                    erogato {eur(p.delivery)}
-                    {p.digital > 0 && <> · digital {eur(p.digital)}</>}
-                    {p.residual > 0 && <> · residuo {eur(p.residual)}</>}
-                    {p.salesShare > 0 && <> · provvigione divisa {eur(p.salesShare)}</>}
-                  </span>
-                  <span className="text-sm font-bold text-text-primary tabular">{eur(p.total)}</span>
+                <div key={p.partner.id} className="rounded-xl border border-border overflow-hidden">
+                  <button onClick={() => setOpenQuota(openQuota === p.partner.id ? null : p.partner.id)}
+                    aria-expanded={openQuota === p.partner.id}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-hover transition-colors">
+                    <span className="text-sm font-semibold text-text-primary flex-1 truncate">{p.partner.label}</span>
+                    <span className="text-2xs text-text-tertiary tabular hidden sm:block">
+                      erogato {eur(p.delivery)}
+                      {p.digital > 0 && <> · digital {eur(p.digital)}</>}
+                      {p.residual > 0 && <> · residuo {eur(p.residual)}</>}
+                      {p.salesShare > 0 && <> · provvigione divisa {eur(p.salesShare)}</>}
+                    </span>
+                    <span className="text-sm font-bold text-text-primary tabular">{eur(p.total)}</span>
+                    <ChevronDown className={`w-3.5 h-3.5 text-text-tertiary shrink-0 transition-transform ${
+                      openQuota === p.partner.id ? 'rotate-180' : ''}`} />
+                  </button>
+                  {openQuota === p.partner.id && (
+                    <QuotaDetail rows={p.rows} total={p.total} config={config}
+                      clientNames={clientNames} projectNames={projectNames} />
+                  )}
                 </div>
               ))}
             </div>
@@ -341,14 +356,25 @@ export function PlClient({
             {pc(config.growth_sales_pct)} sul growth · {pc(config.digital_sales_pct)} sul digital
           </p>
           {t.plan.salesPool > 0 && (
-            <div className="mb-2 px-3 py-2.5 rounded-xl border border-gold bg-gold-dim">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-text-primary flex-1">Da lead generation</span>
-                <span className="text-sm font-bold text-text-primary tabular">{eur(t.plan.salesPool)}</span>
-              </div>
-              <p className="text-2xs text-text-tertiary mt-0.5">
-                Nessun commerciale, né sulla riga né in anagrafica: {eur(t.plan.poolShare)} a testa ai soci
-              </p>
+            <div className="mb-2 rounded-xl border border-gold bg-gold-dim overflow-hidden">
+              <button onClick={() => setOpenQuota(openQuota === 'pool' ? null : 'pool')}
+                aria-expanded={openQuota === 'pool'}
+                className="w-full px-3 py-2.5 text-left">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-text-primary flex-1">Da lead generation</span>
+                  <span className="text-sm font-bold text-text-primary tabular">{eur(t.plan.salesPool)}</span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-text-tertiary shrink-0 transition-transform ${
+                    openQuota === 'pool' ? 'rotate-180' : ''}`} />
+                </div>
+                <p className="text-2xs text-text-tertiary mt-0.5">
+                  Nessun commerciale, né sulla riga né in anagrafica: {eur(t.plan.poolShare)} a testa ai soci
+                </p>
+              </button>
+              {openQuota === 'pool' && (
+                <QuotaDetail rows={t.plan.poolRows} total={t.plan.salesPool} config={config}
+                  clientNames={clientNames} projectNames={projectNames}
+                  note="Sono i clienti senza commerciale: assegnarne uno in anagrafica sposta la provvigione da qui a lui." />
+              )}
             </div>
           )}
           {t.salesByOwner.length === 0 && t.plan.salesPool === 0 ? (
@@ -356,16 +382,26 @@ export function PlClient({
           ) : (
             <div className="space-y-1.5">
               {t.salesByOwner.map(s => (
-                <div key={s.label} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-border">
-                  <span className="text-sm text-text-primary flex-1 truncate">
-                    {s.label}
-                    {/* chi non ha un account nel tool esiste solo in anagrafica:
-                        dirlo evita di cercarlo fra i profili e non trovarlo */}
-                    {s.fromRegistry && (
-                      <span className="ml-1.5 text-2xs text-text-tertiary">dall&apos;anagrafica</span>
-                    )}
-                  </span>
-                  <span className="text-sm font-bold text-text-primary tabular">{eur(s.amount)}</span>
+                <div key={s.label} className="rounded-xl border border-border overflow-hidden">
+                  <button onClick={() => setOpenQuota(openQuota === `o:${s.label}` ? null : `o:${s.label}`)}
+                    aria-expanded={openQuota === `o:${s.label}`}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-hover transition-colors">
+                    <span className="text-sm text-text-primary flex-1 truncate">
+                      {s.label}
+                      {/* chi non ha un account nel tool esiste solo in anagrafica:
+                          dirlo evita di cercarlo fra i profili e non trovarlo */}
+                      {s.fromRegistry && (
+                        <span className="ml-1.5 text-2xs text-text-tertiary">dall&apos;anagrafica</span>
+                      )}
+                    </span>
+                    <span className="text-sm font-bold text-text-primary tabular">{eur(s.amount)}</span>
+                    <ChevronDown className={`w-3.5 h-3.5 text-text-tertiary shrink-0 transition-transform ${
+                      openQuota === `o:${s.label}` ? 'rotate-180' : ''}`} />
+                  </button>
+                  {openQuota === `o:${s.label}` && (
+                    <QuotaDetail rows={s.rows} total={s.amount} config={config}
+                      clientNames={clientNames} projectNames={projectNames} />
+                  )}
                 </div>
               ))}
             </div>
@@ -979,6 +1015,99 @@ function Owner({ line, profiles, locked, onPick }: {
       {o.source === null && (
         <span className="block text-2xs text-gold-text mt-0.5">quota ai soci</span>
       )}
+    </div>
+  )
+}
+
+/**
+ * Da dove viene un compenso, riga per riga.
+ *
+ * Quattro colonne e nessuna interpretazione: la voce di ricavo (con cliente e
+ * progetto), la base su cui si calcola, la percentuale applicata, l'importo. Il
+ * totale in fondo deve tornare col numero chiuso: se non torna, si vede quale
+ * riga lo rompe — che è tutto il punto di poter aprire un numero.
+ */
+function QuotaDetail({ rows, total, config, clientNames, projectNames, note }: {
+  rows: QuotaRow[]
+  total: number
+  config: PlConfig
+  clientNames: Record<string, string>
+  projectNames: Record<string, string>
+  note?: string
+}) {
+  if (!rows.length) {
+    return (
+      <p className="px-3 py-2.5 text-2xs text-text-tertiary border-t border-border">
+        Nessuna riga di ricavo alimenta questo compenso in questo mese.
+      </p>
+    )
+  }
+
+  const REASON: Record<QuotaRow['reason'], string> = {
+    erogato: 'erogato growth',
+    digital: 'quota digital',
+    residuo: 'residuo growth',
+    provvigione: 'provvigione',
+    'provvigione-divisa': 'provvigione divisa fra i soci',
+  }
+  const sum = rows.reduce((s, r) => s + r.amount, 0)
+
+  return (
+    <div className="border-t border-border bg-background/60">
+      <div className="overflow-x-auto">
+        <table className="w-full text-2xs">
+          <thead>
+            <tr className="text-text-tertiary uppercase tracking-wider">
+              <th className="text-left font-semibold px-3 py-1.5">Voce</th>
+              <th className="text-right font-semibold px-2 py-1.5">Base</th>
+              <th className="text-right font-semibold px-2 py-1.5">%</th>
+              <th className="text-right font-semibold px-3 py-1.5">Quota</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={`${r.lineId}-${r.reason}-${i}`} className="border-t border-border/60">
+                <td className="px-3 py-1.5">
+                  <span className="text-text-primary font-semibold">{r.label}</span>
+                  <span className="block text-text-tertiary">
+                    {/* cliente e progetto: senza, «Rata 3 di 6» non dice a chi */}
+                    {r.clientId && (clientNames[r.clientId] ?? 'cliente')}
+                    {r.projectId && <> · {projectNames[r.projectId] ?? 'progetto'}</>}
+                    {' · '}{r.kind}{' · '}{REASON[r.reason]}
+                  </span>
+                </td>
+                <td className="px-2 py-1.5 text-right tabular text-text-secondary">
+                  {eur(r.base)}
+                  {/* sul digital la base è il margine: si dice quanto è uscito prima */}
+                  {r.external > 0 && (
+                    <span className="block text-text-tertiary">− {eur(r.external)} subappalto</span>
+                  )}
+                </td>
+                <td className="px-2 py-1.5 text-right tabular text-text-secondary">{pc1(r.pct)}</td>
+                <td className="px-3 py-1.5 text-right tabular font-bold text-text-primary">{eur(r.amount)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t border-border">
+              <td className="px-3 py-1.5 text-text-secondary font-semibold" colSpan={3}>Totale</td>
+              <td className="px-3 py-1.5 text-right tabular font-bold text-text-primary">{eur(sum)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {Math.abs(sum - total) > 1 && (
+        <p className="px-3 py-1.5 text-2xs text-error border-t border-border">
+          Il dettaglio fa {eur(sum)} contro {eur(total)} del totale: differenza {eur(total - sum)}.
+        </p>
+      )}
+      {note && <p className="px-3 py-1.5 text-2xs text-text-tertiary border-t border-border">{note}</p>}
+      <p className="px-3 py-1.5 text-2xs text-text-tertiary border-t border-border">
+        Growth: {pc(config.growth_delivery_pct)} di erogato diviso fra i soci, {pc(config.growth_sales_pct)} di
+        provvigione. Digital: {pc(config.digital_partner_pct)} a ciascun socio e {pc(config.digital_sales_pct)} di
+        provvigione, calcolati sul <strong className="text-text-secondary">margine</strong> — ricavo meno i
+        subappalti del progetto.
+      </p>
     </div>
   )
 }

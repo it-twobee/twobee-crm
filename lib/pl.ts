@@ -312,6 +312,31 @@ export const riskFundEligible = (line: RevenueLine, c: PlConfig) =>
 export const riskFundActive = (line: RevenueLine, c: PlConfig) =>
   !!line.risk_fund && riskFundEligible(line, c)
 
+/**
+ * Una riga di giustificazione: da dove viene un euro di compenso.
+ *
+ * Serve a rendere **verificabile** un numero che altrimenti si prende per fede.
+ * «Marco: 540 €» non si può controllare; «360 dal growth di Rossi al 10% di
+ * 3.600, 180 di provvigione divisa sul digital di Bianchi» sì — e se è sbagliato
+ * si vede subito quale riga lo sbaglia.
+ */
+export type QuotaRow = {
+  lineId: string
+  label: string
+  clientId: string | null
+  projectId: string | null
+  kind: PlKind
+  /** la base su cui si applica la quota: imponibile sul growth, margine sul digital */
+  base: number
+  /** il subappalto già tolto dalla base, quando c'è */
+  external: number
+  /** la percentuale applicata a questa persona, già divisa dove va divisa */
+  pct: number
+  amount: number
+  /** perché gli spetta */
+  reason: 'erogato' | 'digital' | 'residuo' | 'provvigione' | 'provvigione-divisa'
+}
+
 export type PlTotals = ReturnType<typeof computeMonth>
 
 /**
@@ -416,14 +441,65 @@ export function computeMonth(
      fa l'84% del margine, ed è così che il piano è stato deciso. */
   const digitalShare = digitalPerPartner
 
+  /** Il pezzo comune di una riga giustificativa: chi è e su cosa si calcola. */
+  const rowOf = (
+    x: (typeof split)[number], amount: number, pct: number, reason: QuotaRow['reason'],
+  ): QuotaRow => ({
+    lineId: x.line.id, label: x.line.label,
+    clientId: x.line.client_id, projectId: x.line.project_id ?? null,
+    kind: x.line.kind,
+    base: x.line.kind === 'digital' ? x.s.margin : x.s.base,
+    external: x.s.external,
+    pct, amount: r2(amount), reason,
+  })
+
   const perPartner = eligible.map(p => {
+    const rows: QuotaRow[] = []
+
+    // erogato growth: il 30% diviso fra i soci che lo prendono
+    if (p.takes_delivery && deliveryTakers.length) {
+      for (const x of split) {
+        if (x.s.delivery <= 0) continue
+        rows.push(rowOf(x, x.s.delivery / deliveryTakers.length,
+          config.growth_delivery_pct / deliveryTakers.length, 'erogato'))
+      }
+    }
+    // residuo growth, quando i soci lo dividono invece di lasciarlo in cassa
+    if (p.takes_residual && residualTakers.length) {
+      for (const x of split) {
+        if (x.s.residualToPartners <= 0) continue
+        rows.push(rowOf(x, x.s.residualToPartners * config.partner_share_pct,
+          config.partner_share_pct, 'residuo'))
+      }
+    }
+    // §186: la quota digital è a socio, sul margine
+    for (const x of split) {
+      if (x.s.partnerQuota <= 0) continue
+      rows.push(rowOf(x, x.s.partnerQuota,
+        x.s.riskOn ? config.digital_partner_pct - config.digital_risk_cut_pct : config.digital_partner_pct,
+        'digital'))
+    }
+    // provvigione di chi non ha un commerciale: divisa fra tutti i soci
+    if (eligible.length) {
+      for (const x of split) {
+        if (x.s.sales <= 0 || !isInbound(x.line)) continue
+        rows.push(rowOf(x, x.s.sales / eligible.length,
+          pct.sales(config, x.line.kind) / eligible.length, 'provvigione-divisa'))
+      }
+    }
+
     const d = p.takes_delivery && deliveryTakers.length ? r2(delivery / deliveryTakers.length) : 0
     const q = p.takes_residual && residualTakers.length
       ? r2(residualToPartners * config.partner_share_pct)
       : 0
     const dg = digitalShare
     const sh = poolShare
-    return { partner: p, delivery: d, residual: q, digital: dg, salesShare: sh, total: r2(d + q + dg + sh) }
+    return {
+      partner: p, delivery: d, residual: q, digital: dg, salesShare: sh,
+      total: r2(d + q + dg + sh),
+      /** da dove viene, riga per riga: è quello che rende il numero verificabile */
+      rows,
+    }
   })
 
   /* Cassa TwoBee, un pezzo per volta e ognuno una volta sola:
@@ -443,18 +519,27 @@ export function computeMonth(
      cliente ha in anagrafica. Chi non ha un account nel tool — un segnalatore, un
      partner — esiste solo lì, e senza questa lettura la sua provvigione finiva
      sotto «Assegnato». */
-  const salesByOwner = new Map<string, { label: string; amount: number; fromRegistry: boolean }>()
-  for (const { line, s } of split) {
-    if (!s.sales || isInbound(line)) continue
-    const o = ownerOf(line)
+  const salesByOwner = new Map<string, {
+    label: string; amount: number; fromRegistry: boolean; rows: QuotaRow[]
+  }>()
+  for (const x of split) {
+    if (!x.s.sales || isInbound(x.line)) continue
+    const o = ownerOf(x.line)
     const key = o.id ?? o.name ?? '—'
     const cur = salesByOwner.get(key)
     salesByOwner.set(key, {
       label: cur?.label ?? o.name ?? 'Assegnato',
-      amount: r2((cur?.amount ?? 0) + s.sales),
+      amount: r2((cur?.amount ?? 0) + x.s.sales),
       fromRegistry: (cur?.fromRegistry ?? false) || o.source === 'anagrafica',
+      rows: [...(cur?.rows ?? []), rowOf(x, x.s.sales, pct.sales(config, x.line.kind), 'provvigione')],
     })
   }
+
+  /* Le righe che finiscono nel pool: quali clienti non hanno un commerciale.
+     È la lista da guardare per sistemare l'anagrafica, non solo un totale. */
+  const poolRows = split
+    .filter(x => x.s.sales > 0 && isInbound(x.line))
+    .map(x => rowOf(x, x.s.sales, pct.sales(config, x.line.kind), 'provvigione-divisa'))
 
   return {
     revenue: {
@@ -471,7 +556,7 @@ export function computeMonth(
     plan: {
       sales, delivery, riskFund, residual, residualToPartners, distributed, salesPool, poolShare,
       digitalMargin, digitalExternal, digitalPartners, digitalPerPartner,
-      digitalCompany, digitalRetained, digitalRiskFund, digitalShare,
+      digitalCompany, digitalRetained, digitalRiskFund, digitalShare, poolRows,
     },
     margin: { gross: grossMargin, net: netMargin, company },
     perPartner,
