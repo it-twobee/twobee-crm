@@ -194,6 +194,8 @@ dato economico: è sicuro anche nel workspace.
 | `184_hiring_incentives.sql` | **Agevolazioni**: aliquote 2026 (IRPEF 33% sul 2º scaglione, buono pasto 10 €, premi 1% entro 5.000 €), apprendistato per anno e dimensione, `hr_incentives` (catalogo esoneri con tetti e finestre), campi §184 su `hr_people` (assunzione, mai-stabile, esonero, impatriati, categoria protetta), maggiorazioni di deduzione su `tax_config`, e «Persone» → «Personale» in sola lettura dal piano dei costi | — |
 | `185_digital_split.sql` | Primo giro sulla spartizione digital (quota ai soci complessiva): **superata dalla 186**, che legge le colonne nuove. Eseguirla non fa danni, `digital_partners_pct` resta inutilizzata | — |
 | `186_digital_partner_quota.sql` | **Spartizione digital definitiva**: sul **margine** (ricavo − subappalti), **28% a ciascun socio** · 6% commerciale · 10% casse TwoBee = 100%. Fondo rischio **opzionale** sopra 20.000 € di progetto: 9% del margine, −3 punti a testa (28→25), scelta dell'admin riga per riga (`pl_revenue_lines.risk_fund`). Il digital non alimenta più target costi e fondo rischio ordinario | — |
+| `187_drop_client_package.sql` | Via i pacchetti («Hive Basic», «Worker Bee Start», «Partner Quota»): erano nomi di listino invecchiati e `clients.package` era `NOT NULL`, quindi bloccava ogni cliente nuovo. Ricrea `clients_workspace` senza quel campo e droppa la colonna. Cosa compra un cliente lo dicono i progetti e i contratti | — |
+| `188_contract_projects.sql` | `revenue_stream_projects`: un contratto può coprire **N progetti** (iCura paga 3.600 e dentro ci sono lead gen, social e sito), con quota per progetto perché il margine di progetto parte dal ricavo di quel progetto · `pass_through` su contratti e righe: le **partite di giro** (budget ads anticipato) entrano in fatturato e IVA e restano fuori dalle quote del piano compensi | — |
 | `179_os_versions.sql` | Cronologia: (a) `log_activity()` legge l'attore dall'header `x-actor-id` — col service role `auth.uid()` è NULL e tutto risultava «Sistema» — e non registra gli UPDATE che non cambiano niente; (b) `os_versions` + `os_version_changes`, il changelog di prodotto con un ciclo di 15 giorni dal 2026-08-01 (v1.0.0), bozze visibili ai soli admin; (c) seed della v1.0.0 con 13 voci | — |
 
 **Scorciatoia**: `supabase/APPLY_PENDING.sql` è il concatenato (081, 086–093) in
@@ -292,6 +294,23 @@ diversi, non per incoerenza:
 - `rowToPlConfig` è l'unico mapper da `pl_config`: era scritto due volte
   (economics e scheda cliente) e la seconda copia si dimenticava ogni colonna
   nuova.
+
+**Struttura e subappalti non si sommano** (§188): `costs.structural` sono i costi
+interni, `costs.external` i subappalti. Il **target del 35% riguarda solo la
+struttura** — un subappalto è già stato tolto dal margine del suo progetto, e
+contarlo anche nello scostamento lo farebbe pagare due volte alla cassa.
+`costs.actual` resta il totale uscito, che è un'altra domanda.
+
+**Partite di giro** (§188): un anticipo che torna al cliente — il budget
+pubblicitario che Two Bee spende per lui — si marca `pass_through`. Entra nel
+fatturato e nell'IVA (è fatturato) e in nient'altro: provvigione ed erogato su
+un anticipo si prenderebbero da una tasca che non esiste.
+
+**Un accordo, N progetti** (§188): `revenue_stream_projects` dice quali progetti
+copre un contratto. Con un solo progetto vale `revenue_streams.project_id`, come
+prima. Le righe di un contratto multi-progetto **non** portano un progetto: dei
+3.600 di iCura non si sa quanto sia lead generation e quanto sito web, e
+attribuirlo a uno dei tre falserebbe i margini.
 
 **Piani di pagamento** (`buildSchedule` in `lib/revenue.ts`, UI in
 `components/economics/CustomPlan.tsx`): acconto % + N rate, rate uguali, o
@@ -591,10 +610,25 @@ cliente, Stato pagamenti).
   socio, 6% commerciale, 10% cassa, fondo rischio opzionale sopra 20.000 €, col
   commerciale letto dall'anagrafica del cliente.
 
-**Com'è messo il database** (2026-08-01): 12 clienti (4 stabili, 3 partner, 3
-pending, 1 in bilico, 1 perso), 11 progetti attivi — 10 con cliente, 1 interno —
-68 task, 42 voci nel piano dei costi. Ma **zero contratti, zero rate, zero righe
-di conto economico**: i tre `pl_months` aperti sono vuoti.
+**Com'è messo il database** (2026-08-04, caricato dalle 33 fatture di
+maggio-agosto): **11 clienti** con P.IVA, sede, SDI e commerciale · **20
+progetti** dai template (73 workstream, 105 milestone, 90 task, 155 task
+ricorrenti) · **16 contratti**, di cui 3 multi-progetto · **34 righe di conto
+economico** da aprile ad agosto per **75.125 €** · **28.500 € di subappalti
+Affinity**. MRR derivato: **10.100 €**.
+
+Commerciali: Walter Giacobbe (ISF, iCura, Sartoria Condotti, Petito) · Marco
+Lucci (Affinity, Seven) · Antonio Giarletta (Fatima Leo, Plus Vending) · Josè
+Restaurant senza commerciale, quindi la provvigione si divide fra i soci. Walter
+e Antonio **non hanno un account nel tool**: esistono solo come nome in
+anagrafica, ed è il caso che §185 legge senza perdere la provvigione.
+
+Fuori dai conti per scelta: 4 fatture ISF duplicate (14.400), GAV Sistemi (giro
+di fatture, cliente interno), Gli Artigiani (stornato con nota di credito).
+
+`npx tsx scripts/verify-month.ts 2026-07-01` legge un mese dal database e lo
+passa a `computeMonth`: è il controllo della catena intera col codice che gira in
+pagina. Su luglio la quadratura chiude a zero.
 
 **Aperto, in ordine di importanza:**
 

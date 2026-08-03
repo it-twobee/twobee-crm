@@ -284,5 +284,29 @@ console.log('\n— §188: partita di giro, fatturato senza quote —')
   eq('ma il fatturato è registrato', d.revenue.accrued, 2000)
 }
 
+console.log('\n— §188: un subappalto non paga due volte —')
+{
+  /* Digital 10.000 con 4.000 di subappalto e 1.000 di software di struttura.
+     Il subappalto esce dal margine dei soci; nello scostamento dal target NON
+     deve entrare, altrimenti la cassa lo sconta una seconda volta. */
+  const t = computeMonth(
+    [rev({ id: 'd', amount_net: 10000, kind: 'digital', project_id: 'p1' }),
+     rev({ id: 'g', amount_net: 10000, kind: 'growth' })],
+    [cost({ id: 'sub', actual: 4000, budget: 4000, project_id: 'p1', cost_type: 'V' }),
+     cost({ id: 'str', actual: 1000, budget: 1000, cost_type: 'F' })],
+    C, partners)
+
+  eq('costi totali usciti', t.costs.actual, 5000)
+  eq('di struttura', t.costs.structural, 1000)
+  eq('subappalti', t.costs.external, 4000)
+  // il target è il 35% del solo growth (il digital è distribuito per intero)
+  eq('target costi', t.costs.target, 3500)
+  eq('scostamento sul solo strutturale (3.500 − 1.000)', t.costs.variance, 2500)
+  eq('margine digital al netto del subappalto', t.plan.digitalMargin, 6000)
+  eq('ai soci il 28% di 6.000', t.plan.digitalPerPartner, 1680)
+  // e il margine lordo conta tutti i costi, che è un'altra domanda
+  eq('margine lordo = ricavi meno tutti i costi', t.margin.gross, 15000)
+}
+
 console.log(fail === 0 ? '\nTutti i controlli passano.' : `\n${fail} controlli falliti.`)
 process.exit(fail ? 1 : 0)

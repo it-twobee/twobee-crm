@@ -114,7 +114,8 @@ async function main() {
   }
 
   console.log(`\n  ── costi e cassa ──`)
-  console.log(`  costi effettivi       ${eur(t.costs.actual)}   target ${eur(t.costs.target)} (${pc(config.cost_target_pct)} del growth)`)
+  console.log(`  costi effettivi       ${eur(t.costs.actual)}   struttura ${eur(t.costs.structural)} · subappalti ${eur(t.costs.external)}`)
+  console.log(`  target costi          ${eur(t.costs.target)}   (${pc(config.cost_target_pct)} del growth) → scostamento ${eur(t.costs.variance)}`)
   console.log(`  fondo rischio         ${eur(t.plan.riskFund)}`)
   console.log(`  cassa TwoBee          ${eur(t.margin.company)}`)
   console.log(`  margine lordo         ${eur(t.margin.gross)}   distribuito ${eur(t.plan.distributed)} → netto ${eur(t.margin.net)}`)
@@ -122,7 +123,7 @@ async function main() {
   /* La quadratura si fa sull'imponibile **al netto delle partite di giro**: quei
      soldi non sono ricavo di nessuno, tornano al cliente come advertising. */
   const somma = t.plan.sales + t.plan.delivery + t.plan.digitalPartners + t.margin.company
-    + t.costs.actual + t.plan.digitalExternal
+    + t.costs.structural + t.plan.digitalExternal
   const base = t.revenue.accrued - t.plan.passThrough
   console.log(`\n  quadratura su ${eur(base)} (imponibile meno le partite di giro)`)
   console.log(`  quote + costi + subappalti = ${eur(somma)} → differenza ${eur(base - somma)}\n`)

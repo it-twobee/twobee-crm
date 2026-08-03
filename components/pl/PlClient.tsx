@@ -241,6 +241,8 @@ export function PlClient({
         <Kpi icon={<TrendingUp className="w-4 h-4 text-success" />} label="Entrate maturate" value={eur(t.revenue.accrued)}
           hint={`${eur(t.revenue.collected)} incassati · ${eur(t.revenue.unpaid)} da incassare`}
           trend={delta(t.revenue.accrued, previous.accrued)} />
+        {/* §188: «effettivi» è il totale uscito; il target riguarda la struttura,
+            e i subappalti si dicono a parte perché sono già nel margine del progetto. */}
         <Kpi icon={<TrendingDown className="w-4 h-4 text-error" />} label="Costi effettivi" value={eur(t.costs.actual)}
           hint={`preventivato ${eur(t.costs.budget)}`}
           trend={delta(t.costs.actual, previous.costs)} trendGoodIsDown />
@@ -248,9 +250,10 @@ export function PlClient({
           hint={t.revenue.accrued > 0 ? `${pc(t.margin.gross / t.revenue.accrued)} sulle entrate` : '—'} />
         <Kpi icon={<Target className={`w-4 h-4 ${overTarget ? 'text-error' : 'text-success'}`} />}
           label="Incidenza costi" value={pc(t.costs.ratio)}
-          hint={overTarget
+          hint={(overTarget
             ? `${eur(-t.costs.variance)} sopra il target del ${pc(config.cost_target_pct)}`
-            : `${eur(t.costs.variance)} sotto il target del ${pc(config.cost_target_pct)}`}
+            : `${eur(t.costs.variance)} sotto il target del ${pc(config.cost_target_pct)}`)
+            + (t.costs.external > 0 ? ` · ${eur(t.costs.external)} di subappalti fuori dal target` : '')}
           tone={overTarget ? 'error' : 'success'} />
       </div>
 

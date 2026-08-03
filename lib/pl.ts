@@ -438,11 +438,21 @@ export function computeMonth(
   const costActual = r2(costs.reduce((s, c) => s + c.actual, 0))
   const costPaid = r2(costs.filter(c => c.paid).reduce((s, c) => s + c.actual, 0))
   const costActualGross = r2(costs.reduce((s, c) => s + c.actual * (c.vat_applied ? 1 + c.vat_rate : 1), 0))
-  const costFixed = r2(costs.filter(c => c.cost_type === 'F').reduce((s, c) => s + c.actual, 0))
-  const costVariable = r2(costs.filter(c => c.cost_type === 'V').reduce((s, c) => s + c.actual, 0))
+
+  /* §188 — struttura e subappalti sono due cose diverse, e confonderle conta due
+     volte gli stessi soldi. Un subappalto è già stato tolto dal margine del suo
+     progetto (§186): se entrasse anche nello scostamento dal target costi, la
+     cassa lo pagherebbe una seconda volta. Il target del 35% serve a coprire la
+     struttura — persone, software, sede — non una lavorazione venduta al cliente. */
+  const structural = costs.filter(c => !c.project_id)
+  const external = costs.filter(c => !!c.project_id)
+  const costStructural = r2(structural.reduce((s, c) => s + c.actual, 0))
+  const costExternal = r2(external.reduce((s, c) => s + c.actual, 0))
+  const costFixed = r2(structural.filter(c => c.cost_type === 'F').reduce((s, c) => s + c.actual, 0))
+  const costVariable = r2(structural.filter(c => c.cost_type === 'V').reduce((s, c) => s + c.actual, 0))
 
   // Positivo = si è speso meno del target. Non cambia le quote: va in cassa.
-  const costVariance = r2(costTarget - costActual)
+  const costVariance = r2(costTarget - costStructural)
   const costRatio = accrued > 0 ? costActual / accrued : 0
 
   // margine reale del mese: entrate maturate meno costi effettivi e compensi usciti
@@ -579,6 +589,10 @@ export function computeMonth(
     },
     costs: {
       budget: costBudget, actual: costActual, paid: costPaid, gross: costActualGross,
+      /** solo struttura: è quello che il target del 35% deve coprire */
+      structural: costStructural,
+      /** subappalti: già dentro il margine di progetto, mai nello scostamento */
+      external: costExternal,
       fixed: costFixed, variable: costVariable,
       target: costTarget, variance: costVariance, ratio: costRatio,
     },
@@ -634,6 +648,9 @@ export function aggregatePeriod(months: MonthResult[]) {
 
   const accrued = s(t => t.revenue.accrued)
   const costActual = s(t => t.costs.actual)
+  // §188: lo scostamento dal target guarda la struttura, non i subappalti
+  const costStructural = s(t => t.costs.structural)
+  const costExternal = s(t => t.costs.external)
   const costTarget = s(t => t.costs.target)
 
   const partners = new Map<string, { label: string; delivery: number; residual: number; total: number }>()
@@ -666,7 +683,8 @@ export function aggregatePeriod(months: MonthResult[]) {
     },
     costs: {
       actual: costActual, budget: s(t => t.costs.budget), target: costTarget,
-      variance: Math.round((costTarget - costActual) * 100) / 100,
+      structural: costStructural, external: costExternal,
+      variance: Math.round((costTarget - costStructural) * 100) / 100,
       ratio: accrued > 0 ? costActual / accrued : 0,
     },
     plan: {
