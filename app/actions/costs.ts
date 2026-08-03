@@ -310,6 +310,14 @@ export async function promoteLineToPlan(lineId: string, frequency: ItemInput['fr
     .select('*, pl_months!inner(month)').eq('id', lineId).single()
   if (error) throw new Error(error.message)
   if (line.cost_item_id) throw new Error('Questa uscita viene già dal piano')
+  /* §184: una riga del personale non si promuove a spesa ricorrente. Quelle le
+     scrive l'organico ogni mese leggendo cedolini e contratti; una voce di piano
+     con lo stesso nome resterebbe ferma all'importo di oggi e verrebbe contata
+     insieme a quella derivata. */
+  if (isPayrollCenter(line.category)) {
+    throw new Error('Il costo del personale lo genera la sezione Personale: non si mette in piano a mano')
+  }
+  await refusePayrollCenter(line.center_id)
 
   const month = (line.pl_months as { month: string }).month
   const { data: item, error: e2 } = await admin.from('cost_items').insert({

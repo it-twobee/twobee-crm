@@ -92,8 +92,16 @@ export function CostPlanClient({
 
   // le voci di piano che questo mese non ha ancora portato nel conto economico
   const missing = due.filter(i => !actuals.some(a => a.cost_item_id === i.id))
-  // spese pagate che il piano non prevedeva: candidate a diventare ricorrenti
-  const offPlan = useMemo(() => actuals.filter(a => !a.cost_item_id && a.actual > 0), [actuals])
+  /* Spese pagate che il piano non prevedeva: candidate a diventare ricorrenti.
+     Il personale ne resta fuori (§184): quelle righe non hanno una voce di piano
+     **per disegno** — le riscrive l'organico ogni mese — e promuoverle creerebbe
+     un doppione fermo all'importo di oggi. */
+  const payrollCenterIds = useMemo(
+    () => new Set(centers.filter(c => isPayrollCenter(c.name)).map(c => c.id)), [centers])
+  const offPlan = useMemo(() => actuals.filter(a =>
+    !a.cost_item_id && a.actual > 0
+    && !isPayrollCenter(a.category)
+    && !(a.center_id && payrollCenterIds.has(a.center_id))), [actuals, payrollCenterIds])
   const findings = useMemo(() => costInsights(rows, items, actuals, month), [rows, items, actuals, month])
   // solo le aree che non esistono già: un suggerimento già accolto è rumore
   const suggested = useMemo(() => {
