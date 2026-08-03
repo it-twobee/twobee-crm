@@ -5,12 +5,11 @@ import { toast } from 'sonner'
 import { Building2, ChevronDown, Plus, Trash2, Target, Landmark } from 'lucide-react'
 import { createClientRecord } from '@/app/actions/clients'
 import { ModalShell, Group, Field, Segmented, inputCls } from '@/components/shared/formkit'
-import {
-  CLIENT_PACKAGES, CLIENT_CHANNELS, INDUSTRIES, INDUSTRY_BENCHMARKS,
+import { CLIENT_CHANNELS, INDUSTRIES, INDUSTRY_BENCHMARKS,
   CLIENT_TYPE_OPTIONS, CLIENT_LABEL_OPTIONS, PAYMENT_STATUS_OPTIONS,
   hasGrowth,
 } from '@/lib/client-options'
-import type { Client, ClientPackage, ClientType, ClientLabel, PaymentStatus } from '@/lib/types/database'
+import type { Client, ClientType, ClientLabel, PaymentStatus } from '@/lib/types/database'
 
 type Contact = { full_name: string; email: string; phone: string; role: string; is_primary: boolean }
 
@@ -30,7 +29,6 @@ export function NewClientModal({ onClose, onCreated }: { onClose: () => void; on
   const [channels, setChannels] = useState<string[]>([])
   const [notes, setNotes] = useState('')
 
-  const [pkg, setPkg] = useState<ClientPackage>('Hive Basic')
   const [adBudget, setAdBudget] = useState('')
 
   const [tRoas, setTRoas] = useState('')
@@ -64,7 +62,7 @@ export function NewClientModal({ onClose, onCreated }: { onClose: () => void; on
         display_name: name, legal_name: legalName, client_type: type, client_label: label,
         is_internal: isInternal, industry, market_area: marketArea,
         active_channels: channels, notes,
-        package: pkg, ad_budget_monthly: num(adBudget),
+        ad_budget_monthly: num(adBudget),
         // colonne NOT NULL a DB, ma non più decisioni dell'utente: le riscrive
         // il primo contratto venduto (§169). L'avvio è oggi, che è vero: da
         // oggi il cliente esiste nei conti.
@@ -144,13 +142,8 @@ export function NewClientModal({ onClose, onCreated }: { onClose: () => void; on
         <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className={`${inputCls} resize-none`} placeholder="Contesto, storia, avvertenze…" />
       </Field>
 
-      <Disclosure title="Inquadramento" hint="pacchetto e budget pubblicitario" defaultOpen>
+      <Disclosure title="Inquadramento" hint="budget pubblicitario" defaultOpen>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Pacchetto">
-            <select value={pkg} onChange={e => setPkg(e.target.value as ClientPackage)} className={inputCls} aria-label="Pacchetto">
-              {CLIENT_PACKAGES.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </Field>
           <Field label="Budget ADV (€/mese)" hint="speso dal cliente, non da noi">
             <input type="number" value={adBudget} onChange={e => setAdBudget(e.target.value)} className={inputCls} placeholder="2000" />
           </Field>

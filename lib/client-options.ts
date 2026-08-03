@@ -1,15 +1,10 @@
-import type { ClientPackage, ClientType, ClientLabel, PaymentStatus } from '@/lib/types/database'
+import type { ClientType, ClientLabel, PaymentStatus } from '@/lib/types/database'
 
 /**
  * Sorgente unica delle tendine dell'anagrafica: creazione e scheda cliente
  * leggevano due liste diverse, così un canale scelto in creazione spariva
  * alla prima modifica e `growth_digital` veniva riscritto in `growth`.
  */
-
-export const CLIENT_PACKAGES: ClientPackage[] = [
-  'Worker Bee Start', 'Worker Bee Basic', 'Hive Basic', 'Hive Custom',
-  'Royal Queen', 'IT Digital Partner', 'Partner Quota',
-]
 
 export const CLIENT_CHANNELS = [
   'Meta Ads', 'Google Ads', 'TikTok Ads', 'LinkedIn Ads', 'YouTube Ads',

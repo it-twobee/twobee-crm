@@ -14,16 +14,6 @@ const statusIcon: Record<string, string> = {
   rosso: '🔴',
 }
 
-const packageShort: Record<string, string> = {
-  'Worker Bee Start': 'WB Start',
-  'Worker Bee Basic': 'WB Basic',
-  'Hive Basic': 'Hive Basic',
-  'Hive Custom': 'Hive Custom',
-  'Royal Queen': 'Royal Queen',
-  'IT Digital Partner': 'IT Partner',
-  'Partner Quota': 'Partner',
-}
-
 export function ClientsStatusTable({ clients }: ClientsStatusTableProps) {
   return (
     <div className="bg-surface border border-border rounded-card overflow-hidden">
@@ -59,11 +49,6 @@ export function ClientsStatusTable({ clients }: ClientsStatusTableProps) {
                   >
                     {client.company_name}
                   </Link>
-                </td>
-                <td className="px-5 py-3.5">
-                  <span className="text-xs text-text-secondary bg-background px-2 py-1 rounded">
-                    {packageShort[client.package] ?? client.package}
-                  </span>
                 </td>
                 <td className="px-5 py-3.5 text-sm font-semibold text-gold-text">
                   {formatCurrency(client.mrr)}

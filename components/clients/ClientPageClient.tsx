@@ -59,7 +59,6 @@ const labelBadge: Record<string, string> = {
   partner: 'border-gold/30 text-gold-text bg-gold/10',
 }
 const labelOptions = ['stabile', 'in_bilico', 'pending', 'perso', 'partner']
-const packageOptions = ['Start', 'Growth', 'Pro', 'Enterprise', 'Custom'] as const
 
 // Inline text field that turns into an <input> on click
 function InlineTextField({ value, field, clientId, canEdit, className = '' }: {
@@ -247,11 +246,8 @@ export function ClientPageClient({
 
             {/* Info riga */}
             <div className="flex flex-wrap items-center gap-3 text-sm">
-              {/* Pacchetto */}
-              <InlineBadgeSelect value={client.package} options={[...packageOptions]} field="package"
-                clientId={client.id} canEdit={isAdmin}
-                badgeClass={() => 'bg-gold/20 text-gold-text border-gold/30'} />
-
+              {/* §187: il pacchetto non c'è più. Cosa compra questo cliente lo
+                  dicono i suoi progetti — uno per servizio — e i contratti sopra. */}
               {/* §169: l'MRR è una somma di contratti, non un campo. Qui si legge
                   e si dice da dove viene; si cambia in Economics e solo lì. */}
               {canSeeMrr && (

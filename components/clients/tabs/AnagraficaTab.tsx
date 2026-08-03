@@ -10,11 +10,10 @@ import {
   saveClientStakeholder, deleteClientStakeholder, setClientTeam,
   type ClientPatch, type ContactInput, type StakeholderInput,
 } from '@/app/actions/clients'
-import {
-  CLIENT_PACKAGES, CLIENT_CHANNELS, INDUSTRIES,
+import { CLIENT_CHANNELS, INDUSTRIES,
   CLIENT_TYPE_OPTIONS, CLIENT_LABEL_OPTIONS,
 } from '@/lib/client-options'
-import type { Client, ClientContact, Profile, ClientStakeholder, StakeholderRole, ClientPackage, ClientType, ClientLabel } from '@/lib/types/database'
+import type { Client, ClientContact, Profile, ClientStakeholder, StakeholderRole, ClientType, ClientLabel } from '@/lib/types/database'
 
 interface Props {
   client: Client
@@ -33,7 +32,7 @@ type Section = 'azienda' | 'fiscale'
 
 /** Si salva solo la sezione aperta: prima partiva l'intera riga, risk score e created_at compresi. */
 const SECTION_FIELDS: Record<Section, readonly (keyof ClientPatch)[]> = {
-  azienda: ['display_name', 'legal_name', 'phone', 'website', 'client_label', 'package', 'industry', 'market_area', 'notes', 'active_channels', 'is_internal', 'sales_owner_id', 'sales_owner_name'],
+  azienda: ['display_name', 'legal_name', 'phone', 'website', 'client_label', 'industry', 'market_area', 'notes', 'active_channels', 'is_internal', 'sales_owner_id', 'sales_owner_name'],
   fiscale: ['piva', 'fiscal_code', 'address', 'city', 'cap', 'country', 'sdi_code', 'pec'],
 }
 
@@ -201,11 +200,6 @@ export function AnagraficaTab({
           </Field>
           {/* §176: il pacchetto è un'etichetta commerciale, non un contratto:
               resta qui anche ora che il blocco Contratto è sparito */}
-          <Field label="Pacchetto" value={client.package} editMode={editAzienda}>
-            <Select label="Pacchetto" value={form.package}
-              onChange={(v) => setForm((p) => ({ ...p, package: v as ClientPackage }))}
-              options={CLIENT_PACKAGES.map((pk) => ({ value: pk, label: pk }))} />
-          </Field>
           <Field label="Settore" value={client.industry} editMode={editAzienda}>
             <select value={form.industry ?? ''} onChange={(e) => setForm((p) => ({ ...p, industry: e.target.value || null }))}
               aria-label="Settore" className={inputCls}>

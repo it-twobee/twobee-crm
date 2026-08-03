@@ -24,14 +24,10 @@ export type ProfilePermissionKey =
   | 'can_approve_hr' | 'can_configure_workspace' | 'can_manage_partners'
 export type PermissionSection = 'clienti' | 'fatturazione' | 'task' | 'chat' | 'report' | 'customer_care' | 'impostazioni' | 'mrr' | 'anagrafica_fiscale'
 export type PermissionAction = 'view' | 'create' | 'edit' | 'delete'
-export type ClientPackage =
-  | 'Worker Bee Start'
-  | 'Worker Bee Basic'
-  | 'Hive Basic'
-  | 'Hive Custom'
-  | 'Royal Queen'
-  | 'IT Digital Partner'
-  | 'Partner Quota'
+/* §187: i pacchetti («Hive Basic», «Worker Bee Start», «Partner Quota») non
+   esistono più. Cosa compra un cliente lo dicono i progetti — uno per servizio,
+   col suo `service_type` dal catalogo — e i contratti che ci stanno sopra.
+   Un'etichetta di listino che nessuno aggiorna è una bugia ordinata. */
 export type PaymentStatus = 'pagato' | 'in_attesa' | 'scaduto'
 export type ClientStatus = 'verde' | 'giallo' | 'rosso'
 export type ClientType = 'growth' | 'digital' | 'growth_digital'
@@ -175,7 +171,6 @@ export interface Client {
   display_name?: string | null
   /** §24: ragione sociale legale — fatture, preventivi, documenti fiscali. */
   legal_name?: string | null
-  package: ClientPackage
   mrr: number
   /**
    * §169: chi ha scritto `mrr`, `contract_start/end` e `payment_status`.

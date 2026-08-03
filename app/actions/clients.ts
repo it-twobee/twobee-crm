@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { SUPER_ADMIN_EMAILS, ADMIN_ROLES } from '@/lib/permissions'
 import type {
   Client, ClientContact, ClientStakeholder, StakeholderRole,
-  ClientPackage, ClientType, ClientLabel, PaymentStatus,
+  ClientType, ClientLabel, PaymentStatus,
 } from '@/lib/types/database'
 
 /** Le policy su `clients` sono admin-only: senza questo guard il service role le scavalcherebbe. */
@@ -54,7 +54,6 @@ export type NewClientInput = {
   market_area?: string | null
   active_channels: string[]
   notes?: string | null
-  package: ClientPackage
   mrr: number
   ad_budget_monthly?: number | null
   contract_start: string
@@ -94,7 +93,6 @@ export async function createClientRecord(input: NewClientInput): Promise<Client>
     market_area: input.market_area?.trim() || null,
     active_channels: input.active_channels,
     notes: input.notes?.trim() || null,
-    package: input.package,
     mrr: input.mrr,
     ad_budget_monthly: input.ad_budget_monthly ?? null,
     contract_start: input.contract_start,
@@ -144,7 +142,7 @@ const EDITABLE = [
   'industry', 'market_area', 'notes', 'active_channels', 'is_internal',
   'sales_owner_id', 'sales_owner_name',
   'piva', 'fiscal_code', 'address', 'city', 'cap', 'country', 'sdi_code', 'pec',
-  'package', 'mrr', 'contract_start', 'contract_end', 'payment_status', 'ad_budget_monthly',
+  'mrr', 'contract_start', 'contract_end', 'payment_status', 'ad_budget_monthly',
   'target_leads_monthly', 'target_roas', 'target_revenue_monthly', 'target_cpa',
   'target_followers_monthly', 'target_ctr', 'target_conv_rate', 'goals_notes',
 ] as const

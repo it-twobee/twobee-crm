@@ -11,16 +11,6 @@ interface Props {
   totalMrr: number           // MRR totale per calcolo churn
 }
 
-const packageShort: Record<string, string> = {
-  'Worker Bee Start': 'WB Start',
-  'Worker Bee Basic': 'WB Basic',
-  'Hive Basic':       'Hive Basic',
-  'Hive Custom':      'Hive Custom',
-  'Royal Queen':      'Royal Queen',
-  'IT Digital Partner':'IT Partner',
-  'Partner Quota':    'Partner',
-}
-
 function daysSince(date: string) {
   return Math.floor((Date.now() - new Date(date).getTime()) / 86400000)
 }
@@ -151,9 +141,6 @@ export function ClientsRiskPanel({ clients, lost, totalMrr }: Props) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-bold text-text-primary truncate">{c.company_name}</p>
-                      <span className="text-2xs text-text-secondary shrink-0">
-                        {packageShort[c.package] ?? c.package}
-                      </span>
                     </div>
                     <div className="flex items-center gap-3 mt-0.5 text-2xs text-text-secondary">
                       <span className="capitalize">{c.client_type}</span>

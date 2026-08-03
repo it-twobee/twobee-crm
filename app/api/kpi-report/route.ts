@@ -274,7 +274,6 @@ function buildServiceSection(
   </div>
 
   <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
-    ${infoCard('Pacchetto', client.package ?? '—')}
     ${infoCard('Tipo servizio', CLIENT_TYPE_LABEL[client.client_type] ?? client.client_type)}
     ${infoCard('MRR', '€' + (client.mrr ?? 0).toLocaleString('it-IT'))}
   </div>

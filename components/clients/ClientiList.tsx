@@ -13,7 +13,7 @@ import { formatCurrency, getPaymentBadge, clientName } from '@/lib/utils'
 import { pausedDays, paymentLabel } from '@/lib/clients'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import type { Client, ClientPackage, PaymentStatus, ClientType, ClientLabel, Profile } from '@/lib/types/database'
+import type { Client, PaymentStatus, ClientType, ClientLabel, Profile } from '@/lib/types/database'
 import { NewClientModal } from './NewClientModal'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { deleteClients, previewClientDeletion, type DeletionPreview } from '@/app/actions/delete-client'
@@ -49,7 +49,7 @@ interface ClientiListProps {
   hideEconomics?: boolean
 }
 
-type SortKey = 'company_name' | 'mrr' | 'client_type' | 'client_label' | 'payment_status' | 'package' | 'contract_end' | 'risk_score'
+type SortKey = 'company_name' | 'mrr' | 'client_type' | 'client_label' | 'payment_status' | 'contract_end' | 'risk_score'
 type SortDir = 'asc' | 'desc'
 const ALL = 'tutti'
 
@@ -86,7 +86,6 @@ const SORT_LABELS: Record<SortKey, string> = {
   client_type: 'Tipo',
   client_label: 'Label',
   payment_status: 'Pagamenti',
-  package: 'Pacchetto',
   contract_end: 'Scadenza contratto',
   risk_score: 'AI Risk',
 }
@@ -188,7 +187,6 @@ function SortValue(c: Client, key: SortKey, eco?: ClientEconomicsSummary): strin
   if (key === 'client_type') return c.client_type ?? ''
   if (key === 'client_label') return c.client_label ?? ''
   if (key === 'payment_status') return c.payment_status
-  if (key === 'package') return c.package
   if (key === 'contract_end') return c.contract_end ?? ''
   if (key === 'risk_score') return c.risk_score ?? -1
   return ''
@@ -226,7 +224,6 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
     return () => { supabase.removeChannel(channel) }
   }, [])
   const [portfolioTab, setPortfolioTab] = useState<PortfolioTab>('tutti')
-  const [filterPackage, setFilterPackage] = useState<ClientPackage | typeof ALL>(ALL)
   const [filterPayment, setFilterPayment] = useState<PaymentStatus | typeof ALL>(ALL)
   const [filterType, setFilterType] = useState<ClientType | typeof ALL>(ALL)
   const [filterLabel, setFilterLabel] = useState<ClientLabel | typeof ALL>(ALL)
@@ -301,18 +298,17 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
 
   const activeFilters = [
     filterType !== ALL, filterLabel !== ALL,
-    filterPayment !== ALL, filterPackage !== ALL, filterMrrMin !== '', filterMrrMax !== '',
+    filterPayment !== ALL, filterMrrMin !== '', filterMrrMax !== '',
   ].filter(Boolean).length
 
   const resetFilters = () => {
     setFilterType(ALL); setFilterLabel(ALL)
-    setFilterPayment(ALL); setFilterPackage(ALL); setFilterMrrMin(''); setFilterMrrMax('')
+    setFilterPayment(ALL); setFilterMrrMin(''); setFilterMrrMax('')
     setSearch('')
   }
 
   const applyFilters = (list: Client[]) => list.filter((c) => {
     const matchSearch = c.company_name.toLowerCase().includes(search.toLowerCase())
-    const matchPackage = filterPackage === ALL || c.package === filterPackage
     const matchPayment = filterPayment === ALL || c.payment_status === filterPayment
     const matchType = filterType === ALL || c.client_type === filterType
     const matchLabel = filterLabel === ALL || c.client_label === filterLabel
@@ -320,7 +316,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
     const matchMrrMin = filterMrrMin === '' || mrrValue >= parseFloat(filterMrrMin)
     const matchMrrMax = filterMrrMax === '' || mrrValue <= parseFloat(filterMrrMax)
     const matchPortfolio = portfolioTab === 'tutti' || (portfolioTab === 'interni' ? c.is_internal : c.client_type === portfolioTab)
-    return matchSearch && matchPackage && matchPayment && matchType && matchLabel && matchMrrMin && matchMrrMax && matchPortfolio
+    return matchSearch && matchPayment && matchType && matchLabel && matchMrrMin && matchMrrMax && matchPortfolio
   })
 
   const applySort = (list: Client[]) => [...list].sort((a, b) => {
@@ -341,7 +337,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
     () => clients.filter((c) => c.client_label !== 'perso' && c.client_label !== 'pending'), [clients])
 
   const allFiltered = useMemo(() => applyFilters(activeClients), [
-    activeClients, search, filterPackage, filterPayment,
+    activeClients, search, filterPayment,
     filterType, filterLabel, filterMrrMin, filterMrrMax, portfolioTab,
   ])
 
@@ -421,7 +417,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
     const headers = ['Azienda', 'Tipo', 'Label', 'Pacchetto', 'Canone/mese', 'Lavori a corpo', 'Da incassare', 'Stato', 'Pagamenti', 'Inizio', 'Fine']
     const rows = allFiltered.map((c) => {
       const e = economics[c.id]
-      return [c.company_name, c.client_type, c.client_label, c.package,
+      return [c.company_name, c.client_type, c.client_label,
         canone(e, c), e?.oneOff ?? 0, e?.oneOffOpen ?? 0,
         c.status, c.payment_status, c.contract_start, c.contract_end]
     })
@@ -518,7 +514,6 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
 
         {/* Pacchetto + pagamento + risk */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-2xs bg-gold/10 text-gold-text border border-gold/20 px-2 py-0.5 rounded font-semibold">{client.package}</span>
           {showPayments && (eco && !eco.hasBilling ? (
             <span className="text-2xs text-text-tertiary">nessuna scadenza</span>
           ) : (
@@ -618,7 +613,6 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
         <RiskBadge score={client.risk_score} trend={client.risk_trend} factors={client.risk_factors} />
       </td>
       <td className="px-4 py-3.5">
-        <span className="inline-flex whitespace-nowrap text-xs text-text-secondary bg-background px-2 py-1 rounded">{client.package}</span>
       </td>
       {canSeeMrr && (
         <td className="px-4 py-3.5" title={eco && eco.contracts > 0
@@ -832,17 +826,6 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
         <div className="bg-surface border border-border rounded-xl p-4 flex flex-wrap gap-4">
           <div>
             <label className="block text-xs text-text-secondary mb-1">Pacchetto</label>
-            <select value={filterPackage} onChange={(e) => setFilterPackage(e.target.value as ClientPackage | typeof ALL)}
-              className="bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/40">
-              <option value={ALL}>Tutti</option>
-              <option value="Worker Bee Start">Worker Bee Start</option>
-              <option value="Worker Bee Basic">Worker Bee Basic</option>
-              <option value="Hive Basic">Hive Basic</option>
-              <option value="Hive Custom">Hive Custom</option>
-              <option value="Royal Queen">Royal Queen</option>
-              <option value="IT Digital Partner">IT Digital Partner</option>
-              <option value="Partner Quota">Partner Quota</option>
-            </select>
           </div>
           {canSeeMrr && (
             <>
@@ -906,7 +889,6 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
                     <SortIcon col="risk_score" sortKey={sortKey} sortDir={sortDir} />
                   </div>
                 </th>
-                <ColHeader col="package" label="Pacchetto" />
                 {canSeeMrr && <ColHeader col="mrr" label="Canone" />}
                 {showPayments && <ColHeader col="payment_status" label="Pagamenti" />}
                 <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Settore</th>
@@ -1152,7 +1134,6 @@ function PausedSection({ clients, canSeeMrr, economics, canDelete, selected, onT
                   </div>
                   <span className="text-sm font-medium text-text-primary">{clientName(c)}</span>
                 </Link>
-                <span className="text-xs text-text-secondary">{c.package}</span>
                 {canSeeMrr && (
                   (economics[c.id]?.contracts ?? 0) > 0
                     ? <span className="text-sm font-bold text-warning tabular">{formatCurrency(canone(economics[c.id], c))}</span>
@@ -1246,7 +1227,6 @@ function LostSection({ clients, canSeeMrr, economics, canDelete, onDelete, selec
                     {c.client_type}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-sm text-text-secondary">{c.package}</td>
                 {canSeeMrr && (
                   <td className="px-4 py-3 text-sm text-text-secondary">
                     {(economics[c.id]?.contracts ?? 0) > 0

@@ -238,7 +238,6 @@ export function PanoramicaTab({
             <p className="text-lg font-black text-text-primary">
               {isGrowthDigital ? 'Growth + Digital' : isGrowth ? 'Cliente Growth' : 'Cliente Digital'}
             </p>
-            <p className="text-2xs text-text-secondary">{client.package}</p>
             {!hideEconomics && (
               <Link href={economicsHref(client.id)} title={origin.hint}
                 className="inline-flex items-center gap-1 text-2xs font-semibold text-gold-text hover:opacity-80 mt-1 justify-center sm:justify-start">
