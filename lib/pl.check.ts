@@ -252,5 +252,37 @@ console.log('\n— Ogni compenso si può aprire e torna (§186) —')
   eq('il totale del pool torna', t.plan.poolRows.reduce((n, r) => n + r.amount, 0), t.plan.salesPool)
 }
 
+console.log('\n— §188: partita di giro, fatturato senza quote —')
+{
+  // Petito: 1.000 di fee + 500 di budget ads anticipato
+  const t = computeMonth([
+    rev({ id: 'fee', amount_net: 1000, kind: 'growth', client_id: 'p', sales_owner: 'Walter' }),
+    rev({ id: 'ads', amount_net: 500, kind: 'growth', client_id: 'p', sales_owner: 'Walter', pass_through: true }),
+  ], [], C, partners)
+
+  eq('il fatturato conta tutto', t.revenue.accrued, 1500)
+  eq('l\'IVA si paga su tutto', t.revenue.vat, 1500 * 0.22)
+  eq('di cui anticipo che torna al cliente', t.plan.passThrough, 500)
+  // 15% su 1.000 e non su 1.500: 150 e non 225
+  eq('provvigione solo sulla fee', t.plan.sales, 150)
+  eq('erogato solo sulla fee', t.plan.delivery, 300)
+  eq('target costi solo sulla fee', t.costs.target, 350)
+  eq('fondo rischio solo sulla fee', t.plan.riskFund, 100)
+  eq('al commerciale la provvigione della fee', t.salesByOwner[0].amount, 150)
+
+  const s = splitLine(rev({ amount_net: 500, kind: 'growth', pass_through: true }), C)
+  eq('sulla riga di giro non si spartisce niente', s.sales + s.delivery + s.residual, 0)
+  eq('ma l\'imponibile c\'è', s.base, 500)
+  eq('e l\'IVA anche', s.vat, 110)
+
+  // vale anche sul digital: un anticipo non genera margine da dividere
+  const d = computeMonth([
+    rev({ id: 'd', amount_net: 2000, kind: 'digital', pass_through: true }),
+  ], [], C, partners)
+  eq('digital: nessuna quota ai soci', d.plan.digitalPartners, 0)
+  eq('nessun margine da spartire', d.plan.digitalMargin, 0)
+  eq('ma il fatturato è registrato', d.revenue.accrued, 2000)
+}
+
 console.log(fail === 0 ? '\nTutti i controlli passano.' : `\n${fail} controlli falliti.`)
 process.exit(fail ? 1 : 0)

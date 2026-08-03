@@ -556,6 +556,9 @@ export function PlClient({
           <h2 className="text-sm font-bold text-text-primary">Entrate</h2>
           <span className="text-2xs text-text-tertiary tabular">
             imponibile {eur(t.revenue.accrued)} · IVA {eur(t.revenue.vat)} · totale {eur(t.revenue.grossWithVat)}
+            {t.plan.passThrough > 0 && (
+              <span className="text-info"> · di cui {eur(t.plan.passThrough)} partite di giro</span>
+            )}
           </span>
         </div>
 
@@ -596,6 +599,20 @@ export function PlClient({
                     <td className="px-2 py-1.5 text-right">
                       <Num value={line.amount_net} disabled={locked} strong
                         onSave={v => run(() => updateRevenueLine(line.id, { amount_net: v }))} />
+                      {/* §188 — anticipo che torna al cliente: si vede sulla riga,
+                          perché è la ragione per cui su questo importo non c'è
+                          nessuna quota. Si accende e si spegne da qui. */}
+                      <button onClick={() => run(() => updateRevenueLine(line.id, { pass_through: !line.pass_through }))}
+                        disabled={locked} aria-pressed={!!line.pass_through}
+                        title={line.pass_through
+                          ? 'Partita di giro: fatturata e con IVA, esclusa dalle quote del piano compensi'
+                          : 'Segna come partita di giro (budget ads anticipato per il cliente)'}
+                        className={`block ml-auto mt-0.5 text-2xs font-semibold px-1.5 py-0.5 rounded border press disabled:opacity-40 ${
+                          line.pass_through
+                            ? 'border-info/40 bg-info/15 text-info'
+                            : 'border-transparent text-text-tertiary hover:border-border'}`}>
+                        {line.pass_through ? 'partita di giro' : 'giro?'}
+                      </button>
                     </td>
                     <td className="px-2 py-1.5">
                       <select value={line.kind} disabled={locked} aria-label="Tipologia"

@@ -248,6 +248,7 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
         // §186: il valore venduto del progetto decide se l'opzione fondo rischio c'è
         project_value: projectValue.get(String(r.project_id ?? '')) ?? null,
         risk_fund: r.risk_fund === true,
+        pass_through: r.pass_through === true,
       })) as RevenueLine[]}
       projectNames={projectNames}
       clientNames={clientNames}

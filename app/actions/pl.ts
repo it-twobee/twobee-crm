@@ -93,6 +93,8 @@ export async function generateRevenueFromClients(month: string) {
     sales_owner: string | null
     invoice_sent: boolean
     paid: boolean
+    /** §188: partita di giro (budget ads anticipato): fatturato sì, quote no */
+    pass_through: boolean
   }
   const rows: Row[] = []
   const withContract = new Set<string>()
@@ -129,6 +131,7 @@ export async function generateRevenueFromClients(month: string) {
         sales_owner_id: l.sales_owner_id ?? c?.sales_owner_id ?? null,
         sales_owner: streamName.get(l.stream_id) ?? c?.sales_owner_name ?? null,
         invoice_sent: l.invoiced, paid: l.paid,
+        pass_through: !!l.pass_through,
       })
     }
   }
@@ -152,6 +155,8 @@ export async function generateRevenueFromClients(month: string) {
       sales_owner: c.sales_owner_name ?? null,
       invoice_sent: c.payment_status !== 'in_attesa',
       paid: c.payment_status === 'pagato',
+      // l'MRR d'anagrafica non distingue le partite di giro: si marcano sul contratto
+      pass_through: false,
     })
   }
 
@@ -412,6 +417,8 @@ export type RevenuePatch = Partial<{
   note: string | null; sort_order: number
   /** §186 — il 9% al fondo rischio invece dei 3 punti a testa ai soci */
   risk_fund: boolean
+  /** §188 — anticipo che torna al cliente: fuori dalle quote del piano */
+  pass_through: boolean
 }>
 
 export async function addRevenueLine(month: string, input: RevenuePatch = {}) {

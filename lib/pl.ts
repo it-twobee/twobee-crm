@@ -166,6 +166,13 @@ export type RevenueLine = {
   project_value?: number | null
   /** §186 — l'admin ha scelto di destinare il 9% al fondo rischio su questa riga */
   risk_fund?: boolean
+  /**
+   * §188 — partita di giro: un anticipo che torna al cliente, tipicamente il
+   * budget pubblicitario che Two Bee spende per lui. È fatturato e fa IVA, ma
+   * **non** è ricavo su cui spartire: provvigione ed erogato su un anticipo
+   * sarebbero prelevati da una tasca che non esiste.
+   */
+  pass_through?: boolean
 }
 
 /**
@@ -251,6 +258,21 @@ export function splitLine(line: RevenueLine, c: PlConfig, opts: SplitOpts = {}) 
   const vat = r2(base * line.vat_rate)
   const gross = r2(base * (1 + line.vat_rate))
 
+  /* §188 — partita di giro: si conta nel fatturato e nell'IVA (è fatturata) e
+     in nient'altro. Nessuna quota, nessun target costi, nessun fondo rischio:
+     quei soldi tornano al cliente sotto forma di advertising speso per lui. */
+  if (line.pass_through) {
+    return {
+      base, vat, gross,
+      external: 0, margin: 0,
+      sales: 0, delivery: 0, costTarget: 0, riskFund: 0,
+      residual: 0, residualToPartners: 0,
+      partnerQuota: 0, partnersPool: 0, companyQuota: 0, retained: 0,
+      riskOn: false, riskEligible: false,
+      passThrough: base,
+    }
+  }
+
   if (line.kind === 'digital') {
     /* §186 — la base del digital è il MARGINE: il subappaltatore si paga prima,
        e quello che resta si divide per intero. Se il costo esterno supera il
@@ -283,6 +305,7 @@ export function splitLine(line: RevenueLine, c: PlConfig, opts: SplitOpts = {}) 
       residual: 0, residualToPartners: 0,
       partnerQuota, partnersPool, companyQuota, retained,
       riskOn, riskEligible: riskFundEligible(line, c),
+      passThrough: 0,
     }
   }
 
@@ -301,6 +324,7 @@ export function splitLine(line: RevenueLine, c: PlConfig, opts: SplitOpts = {}) 
     residualToPartners: c.growth_residual_to_company ? 0 : residual,
     partnerQuota: 0, partnersPool: 0, companyQuota: 0, retained: 0,
     riskOn: false, riskEligible: false,
+    passThrough: 0,
   }
 }
 
@@ -406,6 +430,8 @@ export function computeMonth(
   const digitalCompany = sum(x => x.s.companyQuota)
   const digitalRetained = sum(x => x.s.retained)
   const digitalRiskFund = r2(split.filter(x => x.s.riskOn).reduce((n, x) => n + x.s.riskFund, 0))
+  // §188: quanto del fatturato è anticipo che torna al cliente
+  const passThrough = sum(x => x.s.passThrough)
 
   // costi: il budget è il preventivato, actual è quanto è davvero uscito
   const costBudget = r2(costs.reduce((s, c) => s + c.budget, 0))
@@ -434,6 +460,9 @@ export function computeMonth(
      Si divide fra **tutti i soci**, non solo fra quelli che prendono l'erogato:
      una provvigione non è erogato, è utile commerciale. */
   const salesPool = r2(split.filter(x => isInbound(x.line)).reduce((n, x) => n + x.s.sales, 0))
+  /* Una partita di giro ha `sales` a zero, quindi non entra nel pool da sé: non
+     serve filtrarla, e va bene così — se un giorno cambiasse, il conto resterebbe
+     corretto perché parte sempre dalle quote calcolate, non dagli importi. */
   const poolShare = eligible.length ? r2(salesPool / eligible.length) : 0
 
   /* §186: la quota digital è **a socio**, non da spartire: ciascuno prende il 28%
@@ -557,6 +586,7 @@ export function computeMonth(
       sales, delivery, riskFund, residual, residualToPartners, distributed, salesPool, poolShare,
       digitalMargin, digitalExternal, digitalPartners, digitalPerPartner,
       digitalCompany, digitalRetained, digitalRiskFund, digitalShare, poolRows,
+      passThrough,
     },
     margin: { gross: grossMargin, net: netMargin, company },
     perPartner,

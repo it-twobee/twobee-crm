@@ -51,6 +51,8 @@ export type RevenueStream = {
   activates_after_id: string | null
   /** §174: metodo di pagamento concordato. È quello che il subappalto ricalca. */
   payment_terms?: string | null
+  /** §188: anticipo che torna al cliente (budget ads): fatturato sì, quote no */
+  pass_through?: boolean
 }
 
 export type Installment = {
@@ -76,6 +78,8 @@ export type MonthLine = {
   sales_owner_id: string | null
   invoiced: boolean
   paid: boolean
+  /** §188: partita di giro, dal contratto */
+  pass_through?: boolean
 }
 
 const first = (iso: string) => iso.slice(0, 8) + '01'
@@ -110,6 +114,7 @@ export function linesForMonth(
         stream_id: s.id, installment_id: null, client_id: s.client_id, project_id: s.project_id,
         label: s.label, kind: s.kind, amount_net: s.amount, vat_rate: s.vat_rate,
         sales_owner_id: s.sales_owner_id, invoiced: false, paid: false,
+        pass_through: !!s.pass_through,
       })
     }
   }
@@ -124,6 +129,7 @@ export function linesForMonth(
       label: i.label ? `${s.label} — ${i.label}` : s.label,
       kind: s.kind, amount_net: i.amount, vat_rate: s.vat_rate,
       sales_owner_id: s.sales_owner_id, invoiced: i.invoiced, paid: i.paid,
+      pass_through: !!s.pass_through,
     })
   }
 
