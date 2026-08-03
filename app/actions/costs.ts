@@ -129,6 +129,77 @@ export async function updateCostItem(id: string, patch: ItemInput) {
   rev()
 }
 
+/**
+ * Un subappaltatore nuovo, senza passare da un progetto.
+ *
+ * I subappalti nascono di norma dall'economics del progetto, che li quota e li
+ * rateizza. Ma non tutti i costi esterni hanno un lavoro venduto dietro — uno
+ * studio legale, un consulente, un'agenzia che lavora per noi — e prima
+ * l'unico modo di registrarli era creare una voce anonima e ricordarsi di
+ * compilare il fornitore. Qui il nome viene prima, che è l'ordine giusto:
+ * l'importo si può ancora scoprire, il nome no.
+ */
+export async function addExternalSupplier(name: string) {
+  await requireAdmin()
+  const supplier = name.trim()
+  if (!supplier) throw new Error('Serve il nome del subappaltatore')
+
+  const admin = createAdminClient()
+  const { count } = await admin.from('cost_items').select('id', { count: 'exact', head: true })
+  const { data, error } = await admin.from('cost_items').insert({
+    // nessuna area: i costi esterni non pesano sul budget di struttura (§173)
+    center_id: null,
+    category: 'Delivery & Fornitori',
+    label: `Costo esterno — ${supplier}`,
+    supplier,
+    cost_type: 'V',
+    frequency: 'mensile',
+    amount: 0,
+    sort_order: (count ?? 0) * 10,
+  }).select('*').single()
+
+  if (error) throw new Error(error.message)
+  rev()
+  return data
+}
+
+/**
+ * Il nome di un fornitore si corregge una volta, non voce per voce.
+ *
+ * Un subappalto rateizzato sono otto righe: rinominare a mano significa
+ * sbagliarne una e ritrovarsi due gruppi con lo stesso fornitore scritto in due
+ * modi. Le voci dell'area Personale restano fuori per la regola di §184.
+ */
+export async function renameSupplier(from: string, to: string) {
+  await requireAdmin()
+  const before = from.trim()
+  const after = to.trim()
+  if (!before) throw new Error('Il gruppo senza fornitore si compila voce per voce')
+  if (!after) throw new Error('Serve un nome')
+  if (before === after) return 0
+
+  const admin = createAdminClient()
+  const { data: rows, error } = await admin.from('cost_items')
+    .select('id, center_id').eq('supplier', before)
+  if (error) throw new Error(error.message)
+
+  const { data: centers } = await admin.from('cost_centers').select('id, name')
+  const payroll = new Set((centers ?? [])
+    .filter((c: { name: string }) => isPayrollCenter(c.name))
+    .map((c: { id: string }) => c.id))
+
+  const ids = (rows ?? [])
+    .filter((r: { center_id: string | null }) => !r.center_id || !payroll.has(r.center_id))
+    .map((r: { id: string }) => r.id)
+  if (!ids.length) return 0
+
+  const { error: e2 } = await admin.from('cost_items')
+    .update({ supplier: after, updated_at: new Date().toISOString() }).in('id', ids)
+  if (e2) throw new Error(e2.message)
+  rev()
+  return ids.length
+}
+
 export async function deleteCostItem(id: string) {
   await requireAdmin()
   await refusePayrollItem(id)

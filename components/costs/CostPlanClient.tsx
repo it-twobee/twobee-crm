@@ -18,7 +18,7 @@ import {
 import {
   addCenter, updateCenter, deleteCenter,
   addCostItem, updateCostItem, deleteCostItem,
-  applyPlanToMonth, promoteLineToPlan,
+  applyPlanToMonth, promoteLineToPlan, addExternalSupplier, renameSupplier,
 } from '@/app/actions/costs'
 import { EconomicsNav } from '@/components/economics/EconomicsNav'
 import { Draft, Money } from '@/components/economics/fields'
@@ -49,6 +49,11 @@ export function CostPlanClient({
   const router = useRouter()
   const [pending, start] = useTransition()
   const [open, setOpen] = useState<string | null>(null)
+  // la sezione dei costi esterni si chiude: quando i subappalti sono rateizzati
+  // sono decine di righe, e chi guarda il piano di struttura non le sta cercando
+  const [externalOpen, setExternalOpen] = useState(true)
+  const [openSupplier, setOpenSupplier] = useState<string | null>(null)
+  const [newSupplier, setNewSupplier] = useState('')
 
   const run = (fn: () => Promise<unknown>, ok?: string) => start(async () => {
     try { await fn(); if (ok) toast.success(ok); router.refresh() }
@@ -66,6 +71,9 @@ export function CostPlanClient({
   /* Raccolte per subappaltatore: otto righe «Rata 3 di 6» in fila sono rumore,
      sotto un nome sono un accordo con un fornitore e un importo. */
   const supplierGroups = useMemo(() => bySupplier(loose.items), [loose])
+  const looseTotal = useMemo(() => supplierGroups.reduce((t, g) => t + g.total, 0), [supplierGroups])
+  const looseProjects = useMemo(
+    () => new Set(loose.items.map(i => i.project_id).filter(Boolean)).size, [loose])
   const due = useMemo(() => plannedForMonth(items, month), [items, month])
 
   const tot = useMemo(() => ({
@@ -418,76 +426,145 @@ export function CostPlanClient({
         </section>
       )}
 
-      {/* ── subappalti e voci senza area: non si nascondono in un totale ──
+      {/* ── subappalti e costi esterni, raccolti per chi li emette ──
           Un subappalto sta fuori dai budget d'area **per scelta** (§173: è una
           lavorazione venduta al cliente, non un costo di struttura), quindi non
           è un errore e non prende l'icona d'allarme. Una voce interna senza area
           invece sì: quella non pesa su nessun tetto per dimenticanza. */}
-      {(loose.items.length > 0 || loose.lines > 0) && (
-        <section className={`bg-surface border rounded-2xl shadow-soft overflow-hidden ${
-          looseInternal > 0 ? 'border-warning/40' : 'border-border'}`}>
-          <div className="px-5 py-3 border-b border-border flex items-center gap-2">
-            {looseInternal > 0
-              ? <AlertTriangle className="w-4 h-4 text-warning shrink-0" aria-hidden="true" />
-              : <Truck className="w-4 h-4 text-orange shrink-0" aria-hidden="true" />}
-            <div>
-              <h2 className="text-sm font-bold text-text-primary">Subappalti e costi esterni</h2>
-              <p className="text-2xs text-text-tertiary">
-                {looseSubs > 0 && (
-                  <>{looseSubs} {looseSubs === 1 ? 'lavorazione affidata fuori' : 'lavorazioni affidate fuori'}:
-                    stanno nel margine del loro progetto, non nel budget di un&apos;area</>
-                )}
-                {looseSubs > 0 && looseInternal > 0 && ' · '}
-                {looseInternal > 0 && (
-                  <span className="text-warning">
-                    {looseInternal} {looseInternal === 1 ? 'voce interna senza area' : 'voci interne senza area'}: da assegnare, così non pesa su nessun tetto
-                  </span>
-                )}
-                {loose.lines > 0 && <> · {loose.lines} uscite del mese ({eur(loose.actual)}) fuori da ogni budget</>}
+      <section className={`bg-surface border rounded-2xl shadow-soft overflow-hidden ${
+        looseInternal > 0 ? 'border-warning/40' : 'border-border'}`}>
+        <button onClick={() => setExternalOpen(o => !o)} aria-expanded={externalOpen}
+          className="w-full flex items-center gap-2 px-5 py-3 text-left hover:bg-surface-hover transition-colors">
+          {looseInternal > 0
+            ? <AlertTriangle className="w-4 h-4 text-warning shrink-0" aria-hidden="true" />
+            : <Truck className="w-4 h-4 text-orange shrink-0" aria-hidden="true" />}
+          <div className="flex-1 min-w-0">
+            <h2 className="text-sm font-bold text-text-primary">Subappalti e costi esterni</h2>
+            {/* chiusa, la riga deve bastare: quanti fornitori, quanto, su quanti lavori */}
+            <p className="text-2xs text-text-tertiary">
+              {supplierGroups.length > 0 ? (
+                <>
+                  <strong className="text-text-secondary">{supplierGroups.length}</strong>{' '}
+                  {supplierGroups.length === 1 ? 'fornitore' : 'fornitori'} ·{' '}
+                  <span className="tabular font-semibold text-text-secondary">{eur(looseTotal)}</span>
+                  {looseProjects > 0 && <> · su {looseProjects} {looseProjects === 1 ? 'progetto' : 'progetti'}</>}
+                  {looseInternal > 0 && (
+                    <span className="text-warning"> · {looseInternal} {looseInternal === 1 ? 'voce interna' : 'voci interne'} da assegnare a un'area</span>
+                  )}
+                </>
+              ) : 'Nessun costo esterno: qui finiscono i subappalti e i fornitori senza area'}
+            </p>
+          </div>
+          {loose.lines > 0 && (
+            <span className="text-2xs tabular text-text-tertiary shrink-0">{eur(loose.actual)} nel mese</span>
+          )}
+          <ChevronDown className={`w-4 h-4 text-text-tertiary shrink-0 transition-transform ${externalOpen ? 'rotate-180' : ''}`} />
+        </button>
+
+        {externalOpen && (
+          <>
+            <div className="divide-y divide-border/60 border-t border-border">
+              {supplierGroups.map(g => {
+                const key = g.supplier ?? '—'
+                const isOpen = openSupplier === key
+                return (
+                  <div key={key}>
+                    {/* la testata del fornitore: nome, quanto, su quali lavori.
+                        Le rate stanno sotto e si aprono solo se servono. */}
+                    <div className="flex items-center gap-2.5 px-5 py-2.5 flex-wrap">
+                      {g.supplier ? (
+                        <Draft value={g.supplier} label="Nome del subappaltatore"
+                          onSave={v => run(async () => {
+                            const n = await renameSupplier(g.supplier!, v)
+                            if (n > 1) toast.success(`Rinominato su ${n} voci`)
+                          })}
+                          className="min-w-[140px] bg-transparent text-2xs font-bold text-text-primary border-b border-transparent focus:border-border-interactive outline-none" />
+                      ) : (
+                        <span className="text-2xs font-bold text-warning">Subappaltatore da indicare</span>
+                      )}
+
+                      <span className="text-2xs text-text-tertiary">
+                        {g.items.length} {g.items.length === 1 ? 'voce' : 'voci'}
+                      </span>
+                      <span className="text-2xs tabular font-semibold text-text-primary">{eur(g.total)}</span>
+                      {g.yearly !== g.total && (
+                        <span className="text-2xs text-text-tertiary" title="Peso su dodici mesi, secondo la frequenza">
+                          {eur(g.yearly)}/anno
+                        </span>
+                      )}
+
+                      {/* su quali e quanti progetti è staffato */}
+                      {g.projectIds.length > 0 ? (
+                        <span className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-2xs text-text-tertiary">
+                            su {g.projectIds.length} {g.projectIds.length === 1 ? 'progetto' : 'progetti'}:
+                          </span>
+                          {g.projectIds.map(id => (
+                            <Link key={id} href={`/progetti/${id}?tab=economics`}
+                              className="flex items-center gap-1 text-2xs font-semibold text-orange hover:opacity-80 max-w-[180px]">
+                              <Truck className="w-3 h-3 shrink-0" aria-hidden="true" />
+                              <span className="truncate">{projectNames[id] ?? 'Progetto'}</span>
+                            </Link>
+                          ))}
+                        </span>
+                      ) : (
+                        <span className="text-2xs text-text-tertiary">costo esterno, nessun progetto</span>
+                      )}
+
+                      <button onClick={() => setOpenSupplier(isOpen ? null : key)} aria-expanded={isOpen}
+                        className="flex items-center gap-1 text-2xs font-semibold text-gold-text hover:opacity-80 ml-auto shrink-0">
+                        {isOpen ? 'chiudi' : 'voci'}
+                        <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                    </div>
+
+                    {isOpen && (
+                      <div className="px-5 pb-3 space-y-2">
+                        {!g.supplier && (
+                          <p className="text-2xs text-text-tertiary">
+                            Il nome si scrive in <strong className="text-text-secondary">Dettagli → Fornitore</strong>,
+                            una voce alla volta: un costo esterno senza un nome sopra non si può né contestare né
+                            rinegoziare. Da lì in poi si rinomina dall&apos;intestazione del gruppo.
+                          </p>
+                        )}
+                        {g.items.map(i => (
+                          <ItemRow key={i.id} item={i} month={month} centers={centers} run={run}
+                            projectNames={projectNames} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* aggiungere un fornitore senza passare da un progetto: il nome
+                prima dell'importo, perché l'importo si scopre e il nome no */}
+            <div className="px-5 py-3 border-t border-border flex items-center gap-2 flex-wrap">
+              <input value={newSupplier} onChange={e => setNewSupplier(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && newSupplier.trim()) {
+                    run(() => addExternalSupplier(newSupplier), 'Subappaltatore aggiunto')
+                    setNewSupplier('')
+                  }
+                }}
+                placeholder="Nome del subappaltatore o fornitore"
+                aria-label="Nome del subappaltatore da aggiungere"
+                className="flex-1 min-w-[200px] bg-background border border-border-interactive rounded-lg px-2 py-1.5 text-2xs text-text-primary focus:outline-none focus:border-gold/40" />
+              <button
+                onClick={() => { run(() => addExternalSupplier(newSupplier), 'Subappaltatore aggiunto'); setNewSupplier('') }}
+                disabled={pending || !newSupplier.trim()}
+                className="flex items-center gap-1.5 text-2xs font-semibold border border-border rounded-xl px-3 py-1.5 text-text-secondary hover:text-text-primary hover:bg-surface-hover press disabled:opacity-40">
+                <Plus className="w-3.5 h-3.5" />Subappaltatore
+              </button>
+              <p className="text-2xs text-text-tertiary basis-full">
+                I subappalti di un lavoro venduto si creano dall&apos;economics del progetto, che li quota e li
+                rateizza. Qui si aggiungono i fornitori che non hanno un progetto dietro: studi, consulenti, agenzie.
               </p>
             </div>
-          </div>
-          {supplierGroups.length > 0 && (
-            <div className="divide-y divide-border/60">
-              {supplierGroups.map(g => (
-                <div key={g.supplier ?? '—'} className="px-5 py-3">
-                  <div className="flex items-center gap-2 flex-wrap mb-2">
-                    {g.supplier ? (
-                      <p className="text-2xs font-bold text-text-primary">{g.supplier}</p>
-                    ) : (
-                      <p className="text-2xs font-bold text-warning">Subappaltatore da indicare</p>
-                    )}
-                    <span className="text-2xs text-text-tertiary">
-                      {g.items.length} {g.items.length === 1 ? 'voce' : 'voci'} ·{' '}
-                      <span className="tabular font-semibold text-text-secondary">{eur(g.total)}</span>
-                      {g.external && ' · costo esterno, nessun progetto'}
-                    </span>
-                    {/* su quali lavori sta: è la seconda domanda dopo «quanto» */}
-                    {g.projectIds.map(id => (
-                      <Link key={id} href={`/progetti/${id}?tab=economics`}
-                        className="flex items-center gap-1 text-2xs text-text-tertiary hover:text-gold-text max-w-[200px]">
-                        <Truck className="w-3 h-3 shrink-0" aria-hidden="true" />
-                        <span className="truncate">{projectNames[id] ?? 'Progetto'}</span>
-                      </Link>
-                    ))}
-                  </div>
-                  {!g.supplier && (
-                    <p className="text-2xs text-text-tertiary mb-2">
-                      Il nome del fornitore si scrive in <strong className="text-text-secondary">Dettagli → Fornitore</strong>:
-                      un costo esterno senza un nome sopra non si può né contestare né rinegoziare.
-                    </p>
-                  )}
-                  <div className="space-y-2">
-                    {g.items.map(i => (
-                      <ItemRow key={i.id} item={i} month={month} centers={centers} run={run} projectNames={projectNames} />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
+          </>
+        )}
+      </section>
 
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <p className="flex items-start gap-2 text-2xs text-text-tertiary flex-1 min-w-[280px]">
