@@ -310,7 +310,9 @@ export function PlClient({
               Margine digital {eur(t.plan.digitalMargin)}
               {t.plan.digitalExternal > 0 && <> — {eur(t.plan.digitalExternal)} di subappalti già tolti</>}:
               è la base della spartizione, e si divide per intero.
-              {t.plan.digitalRetained !== 0 && (
+              {/* Un centesimo di arrotondamento su tre soci al 28% non è un
+                  problema di piano: l'avviso scatta da un euro in su. */}
+              {Math.abs(t.plan.digitalRetained) >= 1 && (
                 <strong className="text-warning">
                   {' '}Restano {eur(t.plan.digitalRetained)} non assegnati: con {t.perPartner.length} soci
                   al {pc(config.digital_partner_pct)} le quote non fanno il 100%.

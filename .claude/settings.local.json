@@ -293,7 +293,12 @@
       "Bash(python3 -c \"import PyPDF2; print\\('PyPDF2 ok'\\)\")",
       "Bash(python3 -c \"import fitz; print\\('pymupdf ok'\\)\")",
       "Bash(python3 -c \"import Quartz; print\\('pyobjc/Quartz ok'\\)\")",
-      "Bash(python3 -c \"import json,sys; b=json.load\\(sys.stdin\\); print\\(', '.join\\(f\\\\\"{x['name']}\\({'privato' if not x['public'] else 'pubblico'}\\)\\\\\" for x in b\\) if isinstance\\(b,list\\) else b\\)\")"
+      "Bash(python3 -c \"import json,sys; b=json.load\\(sys.stdin\\); print\\(', '.join\\(f\\\\\"{x['name']}\\({'privato' if not x['public'] else 'pubblico'}\\)\\\\\" for x in b\\) if isinstance\\(b,list\\) else b\\)\")",
+      "Bash(python3 /private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/34c542f0-4fc4-4a0b-8893-3517a144eaa6/scratchpad/load.py)",
+      "Bash(python3 -c \"import json,sys; print\\(json.load\\(sys.stdin\\)['message']\\)\")",
+      "Bash(python3 /private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/34c542f0-4fc4-4a0b-8893-3517a144eaa6/scratchpad/load2.py)",
+      "Bash(python3 /private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/34c542f0-4fc4-4a0b-8893-3517a144eaa6/scratchpad/load3.py)",
+      "Bash(python3 /private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/34c542f0-4fc4-4a0b-8893-3517a144eaa6/scratchpad/load4.py)"
     ],
     "defaultMode": "acceptEdits"
   }
