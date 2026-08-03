@@ -2,12 +2,13 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import {
   ChevronLeft, ChevronRight, ChevronDown, Plus, Trash2, Users, Wallet, PiggyBank,
   Sparkles, ShieldAlert, AlertTriangle, Lightbulb, Check, Loader2, Download,
   ScrollText, SlidersHorizontal, Info, ArrowRight, BadgeCheck,
-  FileText, Receipt, Landmark, Baby, CalendarDays,
+  FileText, Receipt, Landmark, Baby, CalendarDays, Gift, Plane, Percent, Ban,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { monthLabel, shiftMonth } from '@/lib/pl'
@@ -15,10 +16,14 @@ import {
   personCost, personNet, accruals, teamTotals, payrollHints, compareEmployment,
   flatTaxNet, contractSpec, CONTRACTS, monthLedger, ledgerAlerts,
   grossFromMonthlyNet, monthlyNetFromGross, monthlyInputSpec, ageAt, eligibility, fringeCapFor,
+  incentiveOptions, appliedIncentive, employerRate, apprenticeRate, impatriateRuleOf,
   type PayrollParams, type PersonInput, type ContractKind,
   type Payslip, type CollabInvoice, type F24, type TfrMovement,
 } from '@/lib/payroll'
 import { PARAM_FIELDS, type PersonRow } from '@/lib/payroll-map'
+import {
+  COMPANY_MEASURES, IMPATRIATE_QUALIFICATION, IMPATRIATE_CONDITIONS, impatriateView,
+} from '@/lib/incentives'
 import { PayslipsTab, InvoicesTab, F24Tab, TfrTab } from '@/components/payroll/LedgerTabs'
 import {
   addPerson, updatePerson, deletePerson, updateParams, markParamsVerified, pushLedgerToProfitLoss,
@@ -41,16 +46,21 @@ const KIND_TONE: Record<string, string> = {
   autonomo: 'bg-accent/15 text-accent border-accent/30',
 }
 
-type Tab = 'organico' | 'cedolini' | 'fatture' | 'f24' | 'tfr' | 'contratti' | 'aliquote'
+type Tab = 'organico' | 'cedolini' | 'fatture' | 'f24' | 'tfr' | 'agevolazioni' | 'contratti' | 'aliquote'
 
 export function PersonaleClient({
   month, setupNeeded, ledgerMissing, monthExists, monthLocked, monthRevenue,
-  people, params, slips, yearSlips, invoices, f24, tfrMoves,
+  people, params, slips, yearSlips, invoices, f24, tfrMoves, iresPct = 0.24,
+  incentivesMissing = false,
 }: {
   month: string
+  /** aliquota IRES da `tax_config`: dice quanto vale la maxi-deduzione */
+  iresPct?: number
   setupNeeded: boolean
   /** la 182 non è stata eseguita: cedolini e fatture non hanno dove stare */
   ledgerMissing: boolean
+  /** la 184 non è stata eseguita: le agevolazioni non hanno dove stare */
+  incentivesMissing?: boolean
   monthExists: boolean
   monthLocked: boolean
   monthRevenue: number
@@ -94,7 +104,9 @@ export function PersonaleClient({
       invoice: invoices.find(i => i.personId === p.id),
     })),
     f24, params, monthRevenue), [people, slips, invoices, f24, params, monthRevenue])
-  const hints = useMemo(() => payrollHints(active, params, monthRevenue * 12, month), [active, params, monthRevenue, month])
+  const hints = useMemo(
+    () => payrollHints(active, params, monthRevenue * 12, month, iresPct),
+    [active, params, monthRevenue, month, iresPct])
   const savings = useMemo(() => hints.reduce((t, h) => t + (h.value ?? 0), 0), [hints])
 
   if (setupNeeded) {
@@ -143,7 +155,7 @@ export function PersonaleClient({
         <button
           onClick={() => run(async () => {
             const { rows, total, estimated } = await pushLedgerToProfitLoss(month)
-            toast.success(`${rows} righe in «Persone» per ${eur(total)}`)
+            toast.success(`${rows} righe in «Personale» per ${eur(total)}`)
             if (estimated > 0) {
               toast.warning(`${estimated} rig${estimated === 1 ? 'a' : 'he'} da stima: manca il documento`)
             }
@@ -151,7 +163,7 @@ export function PersonaleClient({
           disabled={pending || !monthExists || monthLocked || active.length === 0}
           title={!monthExists ? 'Apri prima il mese dal conto economico'
             : monthLocked ? 'Mese chiuso'
-            : 'Scrive una riga per persona nella voce Persone del conto economico'}
+            : 'Scrive una riga per persona nella voce Personale del conto economico'}
           className="flex items-center gap-1.5 text-2xs font-semibold bg-gold text-on-gold rounded-xl px-3 py-2 press disabled:opacity-40">
           <Download className="w-3.5 h-3.5" />Porta nel conto economico
         </button>
@@ -209,6 +221,18 @@ export function PersonaleClient({
         </div>
       )}
 
+      {incentivesMissing && (
+        <div className="rounded-2xl border border-warning/40 bg-warning-dim p-3 flex items-start gap-2">
+          <ShieldAlert className="w-3.5 h-3.5 text-warning mt-0.5 shrink-0" aria-hidden="true" />
+          <p className="text-2xs text-text-secondary">
+            Esoneri contributivi e rientro dei cervelli hanno bisogno della migration{' '}
+            <code className="px-1 rounded bg-surface border border-border">184_hiring_incentives.sql</code>.
+            Finché non la esegui il catalogo si legge ma non si può attivare niente su una persona,
+            e il costo del lavoro resta quello pieno.
+          </p>
+        </div>
+      )}
+
       {ledgerMissing && (
         <div className="rounded-2xl border border-warning/40 bg-warning-dim p-3 flex items-start gap-2">
           <ShieldAlert className="w-3.5 h-3.5 text-warning mt-0.5 shrink-0" aria-hidden="true" />
@@ -228,6 +252,7 @@ export function PersonaleClient({
           ['fatture', 'Fatture', Receipt],
           ['f24', 'F24', Landmark],
           ['tfr', 'TFR', PiggyBank],
+          ['agevolazioni', 'Agevolazioni', Gift],
           ['contratti', 'Contratti & regole', ScrollText],
           ['aliquote', 'Aliquote', SlidersHorizontal],
         ] as const).map(([k, label, Icon]) => (
@@ -338,6 +363,7 @@ export function PersonaleClient({
               <div className="divide-y divide-border/60">
                 {people.map(p => (
                   <PersonRow key={p.id} p={p} params={params} pending={pending} run={run} today={month}
+                    incentivesMissing={incentivesMissing}
                     isOpen={open === p.id} onToggle={() => setOpen(open === p.id ? null : p.id)} />
                 ))}
               </div>
@@ -369,6 +395,7 @@ export function PersonaleClient({
       {tab === 'tfr' && (
         <TfrTab people={people} yearSlips={yearSlips} moves={tfrMoves} month={month} pending={pending} run={run} />
       )}
+      {tab === 'agevolazioni' && <IncentivesGuide people={active} params={params} today={month} />}
       {tab === 'contratti' && <ContractGuide />}
       {tab === 'aliquote' && <ParamsPanel params={params} pending={pending} run={run} />}
     </div>
@@ -398,7 +425,7 @@ function Kpi({ icon, label, value, sub, tone }: {
  * arriva a quel costo. Il dettaglio è il punto della sezione — un totale senza
  * scomposizione è un numero che non si può contestare, quindi nemmeno usare.
  */
-function PersonRow({ p, params, pending, run, isOpen, onToggle, today }: {
+function PersonRow({ p, params, pending, run, isOpen, onToggle, today, incentivesMissing }: {
   p: Person
   params: PayrollParams
   pending: boolean
@@ -407,6 +434,8 @@ function PersonRow({ p, params, pending, run, isOpen, onToggle, today }: {
   onToggle: () => void
   /** la data su cui si valuta l'età: il mese guardato, non oggi */
   today: string
+  /** la 184 non è stata eseguita: niente campi che non salvano */
+  incentivesMissing?: boolean
 }) {
   const spec = contractSpec(p.kind)
   const c = personCost(p, params)
@@ -424,6 +453,15 @@ function PersonRow({ p, params, pending, run, isOpen, onToggle, today }: {
     : p.gross / 12
   const age = ageAt(p.birthDate, today)
   const elig = eligibility(p, today)
+
+  /* §184 — le agevolazioni. L'esonero configurato si applica solo se i requisiti
+     verificabili tornano; quello disponibile e non attivato è denaro che esce
+     ogni mese e non si recupera a posteriori. */
+  const options = useMemo(() => incentiveOptions(p, params, today), [p, params, today])
+  const applied = c.incentive
+  const best = options.find(o => o.eligible && o.value > 0)
+  const imp = impatriateView(n.taxableIncome, p.impatriateFrom, params.year,
+    p.impatriateChildren, impatriateRuleOf(params))
 
   return (
     <div className={`px-5 py-3 ${p.active ? '' : 'opacity-50'}`}>
@@ -446,6 +484,30 @@ function PersonRow({ p, params, pending, run, isOpen, onToggle, today }: {
             )}
             {p.status !== 'attiva' && (
               <span className="text-2xs font-semibold text-warning shrink-0">{p.status}</span>
+            )}
+            {applied?.eligible && applied.relief > 0 && (
+              <span className="flex items-center gap-1 text-2xs font-semibold text-success shrink-0"
+                title={`${applied.incentive.label}: ${eur(applied.relief)} di contributi in meno quest'anno${applied.endsOn ? `, fino a ${applied.endsOn.slice(0, 7)}` : ''}`}>
+                <Gift className="w-3 h-3" aria-hidden="true" />−{eur(applied.relief)}
+              </span>
+            )}
+            {applied && !applied.eligible && (
+              <span className="flex items-center gap-1 text-2xs font-semibold text-error shrink-0"
+                title={applied.blockers.join(' ')}>
+                <Ban className="w-3 h-3" aria-hidden="true" />esonero non spettante
+              </span>
+            )}
+            {!applied && best && (
+              <span className="flex items-center gap-1 text-2xs font-semibold text-gold-text shrink-0"
+                title={`${best.incentive.label}: circa ${eur(best.value)} l'anno di contributi in meno`}>
+                <Gift className="w-3 h-3" aria-hidden="true" />esonero disponibile
+              </span>
+            )}
+            {imp.active && (
+              <span className="flex items-center gap-1 text-2xs font-semibold text-info shrink-0"
+                title={`Regime impatriati: ${Math.round(imp.exemptPct * 100)}% di reddito esente, ultimo anno ${imp.lastYear}`}>
+                <Plane className="w-3 h-3" aria-hidden="true" />impatriati
+              </span>
             )}
           </div>
         </div>
@@ -559,11 +621,109 @@ function PersonRow({ p, params, pending, run, isOpen, onToggle, today }: {
             </Field>
           </div>
 
+          {/* §184 — agevolazioni: solo per chi ha una busta paga. Su una P.IVA
+              non c'è nessun contributo datore da esonerare. */}
+          {spec.employment === 'subordinato' && !incentivesMissing && (
+            <div className="rounded-xl border border-border bg-background p-3 space-y-2.5">
+              <div className="flex items-center gap-1.5">
+                <Gift className="w-3.5 h-3.5 text-gold-text" aria-hidden="true" />
+                <p className="text-2xs font-bold text-text-primary">Agevolazioni</p>
+                <span className="text-2xs text-text-tertiary">
+                  contributi datore pieni {pc1(employerRate(p, params))}
+                  {p.kind === 'apprendistato' && ` · apprendistato ${pc1(apprenticeRate(p, params))}`}
+                </span>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <Field label="Data di assunzione" hint="da qui corrono finestra e durata dell'esonero">
+                  <Draft value={p.hiredOn ?? ''} label="Data di assunzione" type="date"
+                    onSave={v => set({ hired_on: v || null })} className={`${input} w-full`} />
+                </Field>
+                <Field label="Mai assunto a tempo indeterminato" hint="requisito degli esoneri giovani: si dichiara">
+                  <Toggle on={p.neverStable} onChange={v => set({ never_stable: v })} disabled={pending} />
+                </Field>
+                {p.kind === 'apprendistato' && (
+                  <Field label="Anno di apprendistato" hint="l'aliquota cambia ogni anno di contratto">
+                    <select value={p.apprenticeYear} aria-label="Anno di apprendistato" disabled={pending}
+                      onChange={e => set({ apprentice_year: Number(e.target.value) })} className={`${input} w-full`}>
+                      <option value={1}>1º anno</option><option value={2}>2º anno</option><option value={3}>3º anno</option>
+                    </select>
+                  </Field>
+                )}
+                <Field label="Categoria protetta" hint="maxi-deduzione al 130% invece del 120%">
+                  <Toggle on={p.protectedCategory} onChange={v => set({ protected_category: v })} disabled={pending} />
+                </Field>
+                <Field label="Esonero contributivo"
+                  hint={applied?.eligible ? `${eur(applied.relief)} quest'anno${applied.endsOn ? `, fino a ${applied.endsOn.slice(0, 7)}` : ''}`
+                    : best ? `disponibile: ${best.incentive.label}` : 'nessuno attivo'}>
+                  <select value={p.incentiveCode ?? ''} aria-label="Esonero contributivo" disabled={pending}
+                    onChange={e => set({ incentive_code: e.target.value || null })} className={`${input} w-full`}>
+                    <option value="">— nessuno —</option>
+                    {options.map(o => (
+                      <option key={o.incentive.code} value={o.incentive.code}>
+                        {!o.eligible ? `${o.incentive.label} (non spetta)`
+                          : o.incentive.closed ? `${o.incentive.label} (finestra chiusa)`
+                          : `${o.incentive.label} · ${eur(o.value)}`}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Rientro dei cervelli" hint="primo anno di residenza fiscale in Italia">
+                  <Draft value={p.impatriateFrom ?? ''} label="Primo anno in Italia" type="date"
+                    onSave={v => set({ impatriate_from: v || null })} className={`${input} w-full`} />
+                </Field>
+                {p.impatriateFrom && (
+                  <Field label="Figlio minore" hint={`quota esente ${pc(params.impatriateChildrenPct)} invece di ${pc(params.impatriatePct)}`}>
+                    <Toggle on={p.impatriateChildren} onChange={v => set({ impatriate_children: v })} disabled={pending} />
+                  </Field>
+                )}
+              </div>
+
+              {/* perché non spetta: si dice, non si tace */}
+              {applied && !applied.eligible && (
+                <p className="text-2xs text-error">
+                  <strong>{applied.incentive.label} non applicato.</strong> {applied.blockers.join(' ')}
+                </p>
+              )}
+              {applied?.eligible && (
+                <p className="text-2xs text-text-secondary">
+                  {applied.incentive.what} {applied.months < 12 && applied.months > 0 && (
+                    <>Copre {applied.months} mes{applied.months === 1 ? 'e' : 'i'} di quest&apos;anno.</>
+                  )}{' '}
+                  {applied.incentive.conditions.length > 0 && (
+                    <span className="text-text-tertiary">Da verificare: {applied.incentive.conditions[0]}</span>
+                  )}
+                </p>
+              )}
+              {!applied && best && (
+                <p className="text-2xs text-text-secondary">
+                  <strong className="text-gold-text">{best.incentive.label}</strong> — {best.incentive.what}{' '}
+                  Vale circa {eur(best.value)} l&apos;anno. L&apos;esonero si chiede all&apos;INPS: non si applica da sé,
+                  e i mesi passati non si recuperano.
+                </p>
+              )}
+              {imp.active && (
+                <p className="text-2xs text-text-secondary">
+                  <strong className="text-info">Regime impatriati</strong> — {pc(imp.exemptPct)} del reddito
+                  fuori dalla base IRPEF ({eur(imp.exemptAmount)}), ultimo anno agevolato {imp.lastYear}.
+                  Il costo per l&apos;azienda non cambia: cambia il netto. L&apos;impegno è restare
+                  residenti in Italia {impatriateRuleOf(params).stayYears} anni.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* la scomposizione del costo */}
           <div className="grid gap-3 lg:grid-cols-2">
             <Box title="Cosa paga l'azienda" total={c.total} totalLabel="costo annuo">
               <Line label={spec.employment === 'autonomo' ? 'Compenso fatturato' : 'Retribuzione lorda'} value={c.gross} />
-              {c.inpsEmployer > 0 && <Line label="Contributi INPS" value={c.inpsEmployer} />}
+              {c.relief > 0 ? (
+                <>
+                  <Line label="Contributi INPS pieni" value={c.inpsEmployerGross} />
+                  <Line label={`Esonero ${c.incentive?.incentive.label ?? ''}`} value={-c.relief}
+                    muted={c.incentive?.endsOn ? `fino a ${c.incentive.endsOn.slice(0, 7)}` : undefined} />
+                </>
+              ) : c.inpsEmployer > 0 ? <Line label="Contributi INPS" value={c.inpsEmployer} /> : null}
               {c.inail > 0 && <Line label="INAIL" value={c.inail} />}
               {c.fixedTermExtra > 0 && <Line label="Addizionale NASpI" value={c.fixedTermExtra} />}
               {c.tfr > 0 && <Line label="TFR maturato" value={c.tfr} muted="non esce di cassa" />}
@@ -581,6 +741,10 @@ function PersonRow({ p, params, pending, run, isOpen, onToggle, today }: {
               <Box title="Cosa arriva a lui" total={n.net} totalLabel="netto annuo stimato">
                 <Line label="Lordo" value={n.gross} />
                 <Line label="Contributi a suo carico" value={-n.socialContributions} />
+                {n.exempt > 0 && (
+                  <Line label={`Quota esente impatriati (${pc(n.impatriatePct)})`} value={-n.exempt}
+                    muted="fuori dalla base IRPEF" />
+                )}
                 <Line label="IRPEF netta" value={-n.irpef} muted={n.deductions > 0 ? `dopo ${eur(n.deductions)} di detrazioni` : undefined} />
                 <Line label="Addizionali" value={-n.surcharges} />
                 <Line label={`Netto per mensilità (×${p.months})`} value={n.perMonth ?? 0} strong />
@@ -618,7 +782,7 @@ function PersonRow({ p, params, pending, run, isOpen, onToggle, today }: {
           </div>
 
           {/* ratei e confronto */}
-          {spec.employment === 'subordinato' && (
+          {spec.employment === 'subordinato' && !incentivesMissing && (
             <div className="grid gap-3 lg:grid-cols-2">
               <Box title="Cosa matura senza uscire" total={a.tfrYear + a.thirteenth + a.fourteenth} totalLabel="accantonato nell'anno">
                 <Line label="TFR nell'anno" value={a.tfrYear} muted={`${eur2(a.tfrMonth)}/mese`} />
@@ -778,6 +942,239 @@ function ContractGuide() {
 }
 
 /**
+ * Le agevolazioni, in un posto solo.
+ *
+ * Tre livelli, tenuti separati perché agiscono su tre cose diverse: gli esoneri
+ * abbassano i **contributi** (costo azienda), il rientro dei cervelli abbassa
+ * l'**IRPEF** della persona senza toccare il costo, le misure della società
+ * abbassano le **imposte** in dichiarazione. Sommarli darebbe un numero che non
+ * significa niente, quindi non si sommano.
+ */
+function IncentivesGuide({ people, params, today }: {
+  people: Person[]
+  params: PayrollParams
+  today: string
+}) {
+  const subordinati = people.filter(p => contractSpec(p.kind).employment === 'subordinato')
+
+  const attivi = subordinati
+    .map(p => ({ p, a: appliedIncentive(p, params, personCost(p, params).inpsEmployerGross) }))
+    .filter((x): x is { p: Person; a: NonNullable<ReturnType<typeof appliedIncentive>> } => !!x.a)
+
+  const disponibili = subordinati
+    .filter(p => !p.incentiveCode)
+    .map(p => ({ p, best: incentiveOptions(p, params, today).find(o => o.eligible && o.value > 0) }))
+    .filter((x): x is { p: Person; best: NonNullable<typeof x.best> } => !!x.best)
+
+  const valoreAttivo = attivi.filter(x => x.a.eligible).reduce((t, x) => t + x.a.relief, 0)
+  const valoreMancato = disponibili.reduce((t, x) => t + x.best.value, 0)
+  const rule = impatriateRuleOf(params)
+  const impatriati = subordinati.filter(p => p.impatriateFrom)
+
+  return (
+    <div className="space-y-4">
+      {/* ── quanto stiamo prendendo, quanto stiamo lasciando ── */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Kpi icon={<Gift className="w-4 h-4 text-success" />} label="Esoneri attivi"
+          value={eur(valoreAttivo)}
+          sub={attivi.length ? `${attivi.filter(x => x.a.eligible).length} rapporti agevolati quest'anno` : 'nessuno attivo'} />
+        <Kpi icon={<Gift className="w-4 h-4 text-gold-text" />} label="Esoneri non attivati"
+          value={eur(valoreMancato)}
+          sub={disponibili.length ? `${disponibili.length} person${disponibili.length === 1 ? 'a' : 'e'} ne avrebbe diritto` : 'niente da attivare'}
+          tone={valoreMancato > 0 ? 'error' : undefined} />
+        <Kpi icon={<Plane className="w-4 h-4 text-info" />} label="Regime impatriati"
+          value={impatriati.length ? `${impatriati.length}` : '—'}
+          sub={impatriati.length ? 'persone con reddito parzialmente esente' : 'nessuno: è una leva per chi assumi dall\'estero'} />
+      </div>
+
+      {/* ── chi ha cosa, e chi potrebbe averla ── */}
+      {(attivi.length > 0 || disponibili.length > 0) && (
+        <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
+          <div className="px-5 py-4 border-b border-border">
+            <h2 className="text-sm font-bold text-text-primary">Persona per persona</h2>
+            <p className="text-2xs text-text-tertiary mt-0.5">
+              Un esonero si chiede all&apos;INPS e vale dal mese in cui lo comunichi: i mesi passati non si recuperano
+            </p>
+          </div>
+          <div className="divide-y divide-border/60">
+            {attivi.map(({ p, a }) => (
+              <div key={`a-${p.id}`} className="px-5 py-3 flex items-start gap-3 flex-wrap">
+                <div className="flex-1 min-w-[200px]">
+                  <p className="text-2xs font-bold text-text-primary">{p.name}</p>
+                  <p className="text-2xs text-text-secondary mt-0.5">
+                    {a.incentive.label}
+                    {a.endsOn && <> · finisce con {a.endsOn.slice(0, 7)}</>}
+                    {a.months > 0 && a.months < 12 && <> · {a.months} mesi in quest&apos;anno</>}
+                  </p>
+                  {!a.eligible && <p className="text-2xs text-error mt-0.5">{a.blockers.join(' ')}</p>}
+                </div>
+                <span className={`text-2xs tabular font-bold shrink-0 ${a.eligible ? 'text-success' : 'text-error'}`}>
+                  {a.eligible ? `−${eur(a.relief)}` : 'non applicato'}
+                </span>
+              </div>
+            ))}
+            {disponibili.map(({ p, best }) => (
+              <div key={`d-${p.id}`} className="px-5 py-3 flex items-start gap-3 flex-wrap">
+                <div className="flex-1 min-w-[200px]">
+                  <p className="text-2xs font-bold text-text-primary">{p.name}</p>
+                  <p className="text-2xs text-text-secondary mt-0.5">
+                    Potrebbe avere <strong className="text-gold-text">{best.incentive.label}</strong>
+                    {best.monthsLeft !== null && best.monthsLeft < best.incentive.durationMonths && (
+                      <> · {best.monthsLeft} mesi ancora utilizzabili</>
+                    )}
+                  </p>
+                </div>
+                <span className="text-2xs tabular font-bold text-gold-text shrink-0">{eur(best.value)}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── il catalogo degli esoneri ── */}
+      <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-bold text-text-primary">Esoneri contributivi</h2>
+          <p className="text-2xs text-text-tertiary mt-0.5">
+            Riducono i contributi a carico azienda, non l&apos;INAIL. Le condizioni che il tool non può
+            verificare sono scritte: darle per vere è il modo di restituire un&apos;agevolazione con le sanzioni
+          </p>
+        </div>
+        <div className="divide-y divide-border/60">
+          {params.incentives.map(i => (
+            <div key={i.code} className={`px-5 py-3.5 ${i.closed ? 'opacity-60' : ''}`}>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-bold text-text-primary">{i.label}</p>
+                {i.closed && (
+                  <span className="text-2xs font-semibold px-1.5 py-0.5 rounded border border-error/30 bg-error/10 text-error">
+                    finestra chiusa
+                  </span>
+                )}
+                {i.manualOnly && (
+                  <span className="text-2xs text-text-tertiary">da valutare a mano</span>
+                )}
+                {!i.verifiedAt && (
+                  <span className="text-2xs font-semibold text-warning">numeri non verificati</span>
+                )}
+              </div>
+              <p className="text-2xs text-text-secondary mt-1">{i.what}</p>
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
+                <span className="text-2xs text-text-tertiary">
+                  <Percent className="w-3 h-3 inline" aria-hidden="true" /> {pc(i.exemptPct)} dei contributi
+                </span>
+                {i.monthlyCap != null && (
+                  <span className="text-2xs text-text-tertiary">tetto {eur(i.monthlyCap)}/mese
+                    {i.zesMonthlyCap != null && ` · ${eur(i.zesMonthlyCap)} in ZES`}</span>
+                )}
+                {i.yearlyCap != null && <span className="text-2xs text-text-tertiary">{eur(i.yearlyCap)}/anno</span>}
+                <span className="text-2xs text-text-tertiary">{i.durationMonths} mesi</span>
+                {i.maxAge != null && <span className="text-2xs text-text-tertiary">fino a {i.maxAge} anni</span>}
+                {(i.windowFrom || i.windowTo) && (
+                  <span className="text-2xs text-text-tertiary">
+                    assunzioni {i.windowFrom?.slice(0, 7) ?? '—'} → {i.windowTo?.slice(0, 7) ?? 'senza scadenza'}
+                  </span>
+                )}
+                {i.requiresNetIncrease && <span className="text-2xs text-warning">serve incremento occupazionale</span>}
+              </div>
+              <ul className="mt-1.5 space-y-0.5">
+                {i.conditions.map(c => (
+                  <li key={c} className="text-2xs text-text-tertiary flex gap-1.5"><span className="shrink-0">·</span>{c}</li>
+                ))}
+              </ul>
+              <p className="text-2xs text-text-tertiary mt-1.5">{i.legalRef}</p>
+              {i.note && <p className="text-2xs text-text-secondary mt-0.5">{i.note}</p>}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── rientro dei cervelli ── */}
+      <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="flex items-center gap-1.5 text-sm font-bold text-text-primary">
+            <Plane className="w-4 h-4 text-info" aria-hidden="true" />Rientro dei cervelli
+          </h2>
+          <p className="text-2xs text-text-tertiary mt-0.5">
+            Non è un esonero: i contributi si pagano tutti. È IRPEF che non si paga — quindi il costo azienda
+            non cambia di un euro e il netto della persona sale di migliaia
+          </p>
+        </div>
+        <div className="px-5 py-3.5">
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+            <span className="text-2xs text-text-tertiary">{pc(rule.exemptPct)} di reddito esente</span>
+            <span className="text-2xs text-text-tertiary">{pc(rule.exemptPctWithChildren)} con figlio minore</span>
+            <span className="text-2xs text-text-tertiary">entro {eur(rule.incomeCap)} l&apos;anno</span>
+            <span className="text-2xs text-text-tertiary">{rule.years} periodi d&apos;imposta</span>
+            <span className="text-2xs text-warning">obbligo di restare {rule.stayYears} anni</span>
+          </div>
+          <p className="text-2xs font-semibold text-text-secondary mt-2">Elevata qualificazione: uno dei tre</p>
+          <ul className="mt-0.5 space-y-0.5">
+            {IMPATRIATE_QUALIFICATION.map(q => (
+              <li key={q} className="text-2xs text-text-tertiary flex gap-1.5"><span className="shrink-0">·</span>{q}</li>
+            ))}
+          </ul>
+          <p className="text-2xs font-semibold text-text-secondary mt-2">Condizioni</p>
+          <ul className="mt-0.5 space-y-0.5">
+            {IMPATRIATE_CONDITIONS.map(c => (
+              <li key={c} className="text-2xs text-text-tertiary flex gap-1.5"><span className="shrink-0">·</span>{c}</li>
+            ))}
+          </ul>
+          <p className="text-2xs text-text-tertiary mt-2">{rule.legalRef}</p>
+        </div>
+      </section>
+
+      {/* ── le misure della società ── */}
+      <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-bold text-text-primary">Agevolazioni della società</h2>
+          <p className="text-2xs text-text-tertiary mt-0.5">
+            Queste non toccano i contributi: abbassano le imposte, e si applicano in dichiarazione.
+            Il posto dove si quantificano è <Link href="/economics/fiscale" className="font-semibold text-gold-text hover:opacity-80">Fiscale &amp; tasse</Link>
+          </p>
+        </div>
+        <div className="divide-y divide-border/60">
+          {COMPANY_MEASURES.map(m => (
+            <div key={m.code} className={`px-5 py-3.5 ${m.expired ? 'opacity-60' : ''}`}>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-bold text-text-primary">{m.label}</p>
+                <span className="text-2xs font-semibold px-1.5 py-0.5 rounded border border-border text-text-tertiary">
+                  {m.lever === 'ires' ? 'IRES' : m.lever === 'contributi' ? 'contributi'
+                    : m.lever === 'credito' ? 'credito d\'imposta' : m.lever === 'persona' ? 'netto della persona' : m.lever}
+                </span>
+                {m.expired && (
+                  <span className="text-2xs font-semibold px-1.5 py-0.5 rounded border border-error/30 bg-error/10 text-error">
+                    non più in vigore
+                  </span>
+                )}
+                {m.needsCheck && <span className="text-2xs text-warning">da verificare col commercialista</span>}
+              </div>
+              <p className="text-2xs text-text-secondary mt-1">{m.what}</p>
+              <p className="text-2xs text-text-secondary mt-1"><strong>Quanto vale.</strong> {m.howMuch}</p>
+              <ul className="mt-1.5 space-y-0.5">
+                {m.conditions.map(c => (
+                  <li key={c} className="text-2xs text-text-tertiary flex gap-1.5"><span className="shrink-0">·</span>{c}</li>
+                ))}
+              </ul>
+              {m.risk && <p className="text-2xs text-warning mt-1">Rischio: {m.risk}</p>}
+              <p className="text-2xs text-text-tertiary mt-1.5">
+                {m.legalRef}
+                {(m.from || m.to) && ` · ${m.from?.slice(0, 7) ?? '—'} → ${m.to?.slice(0, 7) ?? 'senza scadenza'}`}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <p className="text-2xs text-text-tertiary">
+        Sintesi operativa, non consulenza fiscale o del lavoro. Ogni misura ha requisiti che il tool non può
+        vedere — incremento occupazionale, regolarità contributiva, decreti attuativi — e un&apos;agevolazione
+        presa senza requisiti si restituisce con le sanzioni: vale meno di quella che non hai preso.
+      </p>
+    </div>
+  )
+}
+
+/**
  * Le aliquote. Sono in configurazione e non nel codice perché cambiano ogni
  * anno: finché nessuno le conferma la pagina dichiara che sta stimando, e
  * l'avviso resta lì a dare fastidio finché non si compila la data.
@@ -794,14 +1191,14 @@ function ParamsPanel({ params, pending, run }: {
     ['irpef', 'IRPEF e addizionali'],
     ['autonomi', 'Autonomi e forfettario'],
     ['welfare', 'Welfare e premi'],
+    ['agevolazioni', 'Agevolazioni e impatriati'],
   ] as const
 
   const raw = params as unknown as Record<string, unknown>
-  const valueOf = (key: string): number => {
-    // dal nome della colonna al campo del motore: snake_case → camelCase
-    const camel = key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
-    return Number(raw[camel] ?? 0)
-  }
+  // dal nome della colonna al campo del motore: snake_case → camelCase
+  const camelOf = (key: string) => key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
+  const valueOf = (key: string): number => Number(raw[camelOf(key)] ?? 0)
+  const boolOf = (key: string): boolean => raw[camelOf(key)] === true
 
   return (
     <div className="space-y-4">
@@ -849,14 +1246,21 @@ function ParamsPanel({ params, pending, run }: {
                   <p className="text-2xs text-text-tertiary mt-0.5">{f.hint}</p>
                 </div>
                 <span className="flex items-center gap-1.5 shrink-0">
-                  {f.format === 'pct' && (
-                    <span className="text-2xs tabular text-text-tertiary w-14 text-right">{pc1(valueOf(f.key))}</span>
+                  {/* «fino a 9 dipendenti» e «sede in ZES» non sono aliquote: sono
+                      due fatti, e un fatto si spunta, non si digita. */}
+                  {f.format === 'bool' ? (
+                    <Toggle on={boolOf(f.key)} disabled={pending}
+                      onChange={v => run(() => updateParams(params.year, { [f.key]: v }), 'Aggiornata')} />
+                  ) : (
+                    <>
+                      {f.format === 'pct' && (
+                        <span className="text-2xs tabular text-text-tertiary w-14 text-right">{pc1(valueOf(f.key))}</span>
+                      )}
+                      <Money value={valueOf(f.key)} small
+                        onSave={v => run(() => updateParams(params.year, { [f.key]: v }), 'Aggiornata')} />
+                      <span className="text-2xs text-text-tertiary w-3">{f.format === 'eur' ? '€' : ''}</span>
+                    </>
                   )}
-                  <Money value={valueOf(f.key)} small
-                    onSave={v => run(() => updateParams(params.year, { [f.key]: v }), 'Aggiornata')} />
-                  <span className="text-2xs text-text-tertiary w-3">
-                    {f.format === 'eur' ? '€' : f.format === 'pct' ? '' : ''}
-                  </span>
                 </span>
               </div>
             ))}

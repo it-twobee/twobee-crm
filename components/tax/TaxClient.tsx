@@ -6,13 +6,14 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import {
   ChevronLeft, ChevronRight, Landmark, PiggyBank, Scale, CalendarClock,
-  ShieldAlert, Info, Plus, Trash2, AlertTriangle, Lightbulb, Settings2, TrendingUp,
+  ShieldAlert, Info, Plus, Trash2, AlertTriangle, Lightbulb, Settings2, TrendingUp, Gift,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { monthLabel, shiftMonth } from '@/lib/pl'
 import { vatByQuarter, nextDue, type MonthVat } from '@/lib/vat'
 import {
   fiscalCalendar, estimateTaxes, setAsideStatus, taxInsights, monthsLeftInYear, upcoming,
+  maxiDeduction, taxMeasures,
   type Provision, type TaxConfig,
 } from '@/lib/tax'
 import { updateTaxConfig, addProvision, deleteProvision } from '@/app/actions/tax'
@@ -37,6 +38,8 @@ export function TaxClient({
   month, today, setupNeeded, config, provisions, vatMonths,
   revenueYtd, costsYtd, monthsBooked, costsWithVat, costsWithoutVat,
   vatOnUnpaid, q4Share, hasWelfare, hasTraining, rndSpend,
+  newHires = 0, newHiresCost = 0, protectedCost = 0,
+  contribRelief = 0, reliefAvailable = 0, impatriates = 0, investments = 0,
 }: {
   month: string
   today: string
@@ -54,6 +57,14 @@ export function TaxClient({
   hasWelfare: boolean
   hasTraining: boolean
   rndSpend: number
+  // §184 — quello che l'organico dice alle imposte
+  newHires?: number
+  newHiresCost?: number
+  protectedCost?: number
+  contribRelief?: number
+  reliefAvailable?: number
+  impatriates?: number
+  investments?: number
 }) {
   const router = useRouter()
   const [pending, start] = useTransition()
@@ -70,9 +81,19 @@ export function TaxClient({
 
   const vat = useMemo(() => vatByQuarter(vatMonths, today), [vatMonths, today])
   const next = useMemo(() => nextDue(vatMonths, today), [vatMonths, today])
+  /* §184 — la maxi-deduzione abbassa la base IRES e nient'altro: è
+     extracontabile (non tocca il margine) e non vale ai fini IRAP. Entra nella
+     stima perché una previsione che la ignora sovrastima l'imposta di migliaia. */
+  const maxi = useMemo(() => maxiDeduction({
+    newHiresCost, payrollIncrease: newHiresCost, protectedCost,
+    headcountIncrease: newHires > 0,
+    pct: config.maxi_deduction_pct, protectedPct: config.maxi_deduction_protected_pct,
+    iresPct: config.ires_pct,
+  }), [newHiresCost, protectedCost, newHires, config])
+
   const estimate = useMemo(
-    () => estimateTaxes(revenueYtd, costsYtd, monthsBooked, config, monthsLeftInYear(today)),
-    [revenueYtd, costsYtd, monthsBooked, config, today])
+    () => estimateTaxes(revenueYtd, costsYtd, monthsBooked, config, monthsLeftInYear(today), maxi.extraDeduction),
+    [revenueYtd, costsYtd, monthsBooked, config, today, maxi])
   const calendar = useMemo(() => fiscalCalendar(year, today, vat, estimate), [year, today, vat, estimate])
   const aside = useMemo(
     () => setAsideStatus(provisions, next?.toPay ?? 0, estimate.total, monthsBooked),
@@ -82,7 +103,15 @@ export function TaxClient({
     today, vat, nextVat: next, estimate, aside,
     costsWithoutVat, costsWithVat, vatOnUnpaid, q4Share,
     hasWelfare, hasTraining, rndSpend, deadlines: calendar,
-  }), [today, vat, next, estimate, aside, costsWithoutVat, costsWithVat, vatOnUnpaid, q4Share, hasWelfare, hasTraining, rndSpend, calendar])
+    iresPct: config.ires_pct,
+    newHires, newHiresCost, protectedCost, contribRelief, reliefAvailable, impatriates, investments,
+  }), [today, vat, next, estimate, aside, costsWithoutVat, costsWithVat, vatOnUnpaid, q4Share,
+    hasWelfare, hasTraining, rndSpend, calendar, config, newHires, newHiresCost, protectedCost,
+    contribRelief, reliefAvailable, impatriates, investments])
+
+  const measures = useMemo(() => taxMeasures({
+    today, newHires, impatriates, hasWelfare, rndSpend, investments, zes: false,
+  }), [today, newHires, impatriates, hasWelfare, rndSpend, investments])
 
   if (setupNeeded) {
     return (
@@ -280,6 +309,14 @@ export function TaxClient({
             <Step label="Margine a oggi" value={eur(estimate.marginYtd)} strong />
             <Step label="Proiettato su 12 mesi" value={eur(estimate.marginProjected)}
               hint={monthsBooked > 0 ? `media di ${eur(estimate.marginYtd / Math.max(1, monthsBooked))} al mese` : undefined} />
+            {estimate.extraDeductions > 0 && (
+              <>
+                <Step label="Maxi-deduzione nuove assunzioni" value={`− ${eur(estimate.extraDeductions)}`}
+                  hint={maxi.why} />
+                <Step label="Base IRES" value={eur(estimate.iresBase)}
+                  hint="la maggiorazione vale solo ai fini IRES: la base IRAP resta il margine pieno" />
+              </>
+            )}
             <Step label={`IRES ${pc(config.ires_pct)}`} value={eur(estimate.ires)} />
             {config.irap_applies && <Step label={`IRAP ${pc(config.irap_pct)}`} value={eur(estimate.irap)} />}
             <Step label="Totale stimato" value={eur(estimate.total)} strong />
@@ -300,6 +337,89 @@ export function TaxClient({
           </p>
         </section>
       </div>
+
+      {/* ── §184: le agevolazioni della società ── */}
+      <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary">
+            <Gift className="w-4 h-4 text-gold-text" aria-hidden="true" />Agevolazioni e regimi
+          </h2>
+          <p className="text-2xs text-text-tertiary mt-0.5">
+            Ordinate per quanto servono a <em>questa</em> azienda, con quello che il tool sa già.
+            Gli esoneri sul costo del lavoro stanno in{' '}
+            <Link href="/economics/personale" className="font-semibold text-gold-text hover:opacity-80">Personale</Link>:
+            qui c&apos;è quello che tocca le imposte
+          </p>
+        </div>
+
+        {(newHires > 0 || contribRelief > 0 || reliefAvailable > 0 || impatriates > 0) && (
+          <div className="px-5 py-3 border-b border-border grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {newHires > 0 && (
+              <div>
+                <p className="text-2xs text-text-tertiary">Maxi-deduzione</p>
+                <p className="text-sm tabular font-bold text-success">{eur(maxi.iresSaving)}</p>
+                <p className="text-2xs text-text-tertiary">{newHires} assunzioni, {eur(newHiresCost)} di costo</p>
+              </div>
+            )}
+            {contribRelief > 0 && (
+              <div>
+                <p className="text-2xs text-text-tertiary">Esoneri attivi</p>
+                <p className="text-sm tabular font-bold text-success">{eur(contribRelief)}</p>
+                <p className="text-2xs text-text-tertiary">contributi non versati quest&apos;anno</p>
+              </div>
+            )}
+            {reliefAvailable > 0 && (
+              <div>
+                <p className="text-2xs text-text-tertiary">Esoneri non attivati</p>
+                <p className="text-sm tabular font-bold text-error">{eur(reliefAvailable)}</p>
+                <p className="text-2xs text-text-tertiary">non si recuperano a posteriori</p>
+              </div>
+            )}
+            {impatriates > 0 && (
+              <div>
+                <p className="text-2xs text-text-tertiary">Regime impatriati</p>
+                <p className="text-sm tabular font-bold text-info">{impatriates}</p>
+                <p className="text-2xs text-text-tertiary">beneficio della persona, non della società</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="divide-y divide-border/60">
+          {measures.live.map(m => (
+            <div key={m.code} className="px-5 py-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-2xs font-bold text-text-primary">{m.label}</p>
+                <span className="text-2xs font-semibold px-1.5 py-0.5 rounded border border-border text-text-tertiary">
+                  {m.lever === 'ires' ? 'IRES' : m.lever === 'contributi' ? 'contributi'
+                    : m.lever === 'credito' ? 'credito d\'imposta' : m.lever === 'persona' ? 'netto della persona' : m.lever}
+                </span>
+                {m.needsCheck && <span className="text-2xs text-warning">da verificare</span>}
+                {m.to && <span className="text-2xs text-text-tertiary">scade {m.to.slice(0, 7)}</span>}
+              </div>
+              <p className="text-2xs text-text-secondary mt-0.5">{m.howMuch}</p>
+              {m.risk && <p className="text-2xs text-warning mt-0.5">Rischio: {m.risk}</p>}
+              <p className="text-2xs text-text-tertiary mt-0.5">{m.legalRef}</p>
+            </div>
+          ))}
+        </div>
+
+        {measures.expired.length > 0 && (
+          <div className="px-5 py-3 border-t border-border">
+            <p className="text-2xs font-semibold text-text-secondary">Non più in vigore</p>
+            {measures.expired.map(m => (
+              <p key={m.code} className="text-2xs text-text-tertiary mt-1">
+                <strong className="text-text-secondary">{m.label}</strong> — {m.conditions[0] ?? m.howMuch}
+              </p>
+            ))}
+          </div>
+        )}
+
+        <p className="px-5 py-3 text-2xs text-text-tertiary bg-background border-t border-border">
+          Segnalazioni da portare al commercialista con i numeri già fatti, non istruzioni: il tool sa cosa hai
+          speso e chi hai assunto, non la tua situazione fiscale completa.
+        </p>
+      </section>
 
       {/* ── accantonamenti ── */}
       <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">

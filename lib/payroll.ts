@@ -23,7 +23,20 @@
  *
  * Non è consulenza del lavoro. È un modello che rende visibile un ordine di
  * grandezza che senza strumento nessuno ha.
+ *
+ * Le **agevolazioni** stanno in `lib/incentives.ts`: esoneri contributivi,
+ * rientro dei cervelli, maxi-deduzione. Qui dentro si applicano — un esonero
+ * abbassa i contributi datore, il regime impatriati abbassa la base IRPEF senza
+ * toccare il costo aziendale — ma le regole di chi ne ha diritto stanno lì,
+ * perché cambiano con una frequenza tutta loro.
  */
+
+import {
+  contribRelief, coveredMonthsInYear, impatriateView, incentiveByCode, incentiveEnds,
+  checkIncentive, rankIncentives, maxiDeduction, monthsBetween,
+  HIRING_INCENTIVES, IMPATRIATE_RULE,
+  type HiringIncentive, type ImpatriateRule, type PersonFacts, type IncentiveVerdict,
+} from '@/lib/incentives'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Tipologie contrattuali
@@ -73,6 +86,7 @@ export const CONTRACTS: ContractSpec[] = [
       'Costo azienda tipico: +40/45% sulla RAL fra contributi, INAIL e TFR.',
       'La tredicesima è quasi sempre prevista; la quattordicesima dipende dal CCNL.',
       'Il preavviso e il TFR maturato restano dovuti anche in caso di dimissioni.',
+      'È l\'unico contratto che apre le agevolazioni pesanti: esonero strutturale under 30, nuovo esonero 2026, maxi-deduzione IRES del 120%.',
     ],
   },
   {
@@ -91,8 +105,10 @@ export const CONTRACTS: ContractSpec[] = [
     tfr: true, extraMonths: 2, inail: true,
     notes: [
       'È il contratto più conveniente per un ingresso junior: aliquota azienda molto più bassa.',
+      'Fino a nove dipendenti l’aliquota datore parte dal 3,11% e sale al 4,61% e all’11,61% nei tre anni; sopra i nove dipendenti è 11,61% fisso.',
+      'Anche i contributi dell’apprendista sono più bassi — 5,84% invece del 9,19% — quindi a parità di lordo il netto è più alto.',
       'Obbliga a un piano formativo individuale e a un tutor: l’agevolazione si perde se manca.',
-      'Le agevolazioni proseguono per un anno dopo la conferma in indeterminato.',
+      'Le agevolazioni proseguono per un anno dopo la conferma in indeterminato, e in quei dodici mesi si aggiunge l’esonero strutturale under 30.',
     ],
   },
   {
@@ -189,9 +205,36 @@ export type PayrollParams = {
   year: number
   /** contributi INPS a carico azienda, per tipologia */
   inpsEmployerPct: number
+  /** apprendistato oltre i nove dipendenti: aliquota unica per tutta la durata */
   inpsApprenticePct: number
+  /**
+   * Apprendistato fino a nove dipendenti: l'aliquota cambia ogni anno di
+   * contratto (1,5% · 3% · 10%, più l'1,61% di NASpI e fondi). È lo sconto più
+   * grosso che esiste sul lavoro subordinato, e vale solo per le aziende piccole
+   * — cioè quasi tutte quelle che lo userebbero.
+   */
+  inpsApprenticeY1Pct: number
+  inpsApprenticeY2Pct: number
+  inpsApprenticeY3Pct: number
   /** contributi a carico del lavoratore subordinato */
   inpsEmployeePct: number
+  /** contributi a carico dell'apprendista: più bassi, quindi netto più alto */
+  inpsApprenticeEmployeePct: number
+  /** fino a nove dipendenti: decide quale aliquota apprendistato si applica */
+  smallCompany: boolean
+  /** unità produttiva nella ZES unica Mezzogiorno: alza i tetti degli esoneri */
+  zes: boolean
+  /** rientro dei cervelli: quota esente, tetto e durata (§184) */
+  impatriatePct: number
+  impatriateChildrenPct: number
+  impatriateCap: number
+  impatriateYears: number
+  /**
+   * Il catalogo degli esoneri in vigore, letto da `hr_incentives`. Viaggia coi
+   * parametri per la stessa ragione delle aliquote: una misura cambia percentuale
+   * o finestra a metà anno, e il codice non deve essere il posto dove si corregge.
+   */
+  incentives: HiringIncentive[]
   /** INAIL: dipende dalla lavorazione, per gli uffici è basso */
   inailPct: number
   /** contributo addizionale NASpI sui contratti a termine */
@@ -255,8 +298,19 @@ export type PayrollParams = {
 export const DEFAULT_PAYROLL_PARAMS: PayrollParams = {
   year: 2026,
   inpsEmployerPct: 0.30,
-  inpsApprenticePct: 0.115,
+  inpsApprenticePct: 0.1161,
+  inpsApprenticeY1Pct: 0.0311,
+  inpsApprenticeY2Pct: 0.0461,
+  inpsApprenticeY3Pct: 0.1161,
   inpsEmployeePct: 0.0919,
+  inpsApprenticeEmployeePct: 0.0584,
+  smallCompany: true,
+  zes: false,
+  impatriatePct: IMPATRIATE_RULE.exemptPct,
+  impatriateChildrenPct: IMPATRIATE_RULE.exemptPctWithChildren,
+  impatriateCap: IMPATRIATE_RULE.incomeCap,
+  impatriateYears: IMPATRIATE_RULE.years,
+  incentives: HIRING_INCENTIVES,
   inailPct: 0.005,
   fixedTermExtraPct: 0.014,
   gestioneSeparataPct: 0.2607,
@@ -266,9 +320,12 @@ export const DEFAULT_PAYROLL_PARAMS: PayrollParams = {
   tfrFundPct: 0.005,
   tfrRevalFixedPct: 0.015,
   tfrRevalInflationShare: 0.75,
+  /* 2026: il secondo scaglione scende dal 35% al 33% (L. 199/2025). Valgono al
+     massimo 440 € l'anno di IRPEF in meno, e sopra i 200.000 € di reddito il
+     beneficio viene sterilizzato riducendo le detrazioni della stessa cifra. */
   irpef: [
     { upTo: 28000, rate: 0.23 },
-    { upTo: 50000, rate: 0.35 },
+    { upTo: 50000, rate: 0.33 },
     { upTo: null,  rate: 0.43 },
   ],
   regionalSurchargePct: 0.0173,
@@ -283,15 +340,22 @@ export const DEFAULT_PAYROLL_PARAMS: PayrollParams = {
   vatPct: 0.22,
   fringeBenefitCap: 1000,
   fringeBenefitCapChildren: 2000,
-  mealVoucherExempt: 8,
-  productivityBonusPct: 0.05,
-  productivityBonusCap: 3000,
+  // 2026: il buono pasto elettronico esente passa da 8 a 10 € al giorno
+  mealVoucherExempt: 10,
+  // 2026-2027: l'imposta sostitutiva sui premi di risultato scende all'1%, tetto 5.000 €
+  productivityBonusPct: 0.01,
+  productivityBonusCap: 5000,
   source: null,
   verifiedAt: null,
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100
 const nonNeg = (n: number) => (n > 0 ? n : 0)
+/** Percentuale leggibile: 0,0311 → «3,11», 0,30 → «30». */
+const pcOf = (n: number) => {
+  const v = n * 100
+  return (Math.round(v * 100) / 100).toString().replace('.', ',')
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // La persona
@@ -327,19 +391,130 @@ export type PersonInput = {
   /** mese di ingresso e uscita nell'anno, per chi non c'è tutto l'anno */
   fromMonth: number
   toMonth: number
+
+  // ── agevolazioni (§184) ────────────────────────────────────────────────────
+  /** data di assunzione: da qui corrono la finestra e i mesi dell'esonero */
+  hiredOn: string | null
+  /** mai assunto a tempo indeterminato da nessuno: requisito degli esoneri giovani */
+  neverStable: boolean
+  /** codice dell'esonero applicato, dal catalogo in `lib/incentives.ts` */
+  incentiveCode: string | null
+  /** anno di apprendistato in corso: 1, 2 o 3. L'aliquota cambia ogni anno */
+  apprenticeYear: number
+  /** rientro dei cervelli: primo anno di residenza fiscale italiana */
+  impatriateFrom: string | null
+  /** almeno un figlio minore: la quota esente sale dal 50% al 60% */
+  impatriateChildren: boolean
+  /** categoria meritevole di maggior tutela: maxi-deduzione al 130% */
+  protectedCategory: boolean
 }
 
 export const emptyPerson = (o: Partial<PersonInput> = {}): PersonInput => ({
   name: '', kind: 'indeterminato', gross: 0, months: 14, fte: 1,
   birthDate: null, hasChildren: false, childrenCount: 0, dependentSpouse: false,
   benefits: 0, mealDays: 0, mealValue: 0,
-  withRivalsa: false, startupRate: false, fromMonth: 1, toMonth: 12, ...o,
+  withRivalsa: false, startupRate: false, fromMonth: 1, toMonth: 12,
+  hiredOn: null, neverStable: false, incentiveCode: null, apprenticeYear: 1,
+  impatriateFrom: null, impatriateChildren: false, protectedCategory: false, ...o,
 })
+
+// ── Agevolazioni applicate a una persona ─────────────────────────────────────
+
+/** I fatti che servono al catalogo degli esoneri, presi dall'anagrafica. */
+export const incentiveFacts = (p: PersonInput, prm: PayrollParams): PersonFacts => ({
+  kind: p.kind, birthDate: p.birthDate, hiredOn: p.hiredOn,
+  neverStable: p.neverStable, zes: prm.zes,
+})
+
+/** Le regole del regime impatriati, per come sono configurate quest'anno. */
+export const impatriateRuleOf = (prm: PayrollParams): ImpatriateRule => ({
+  ...IMPATRIATE_RULE,
+  exemptPct: prm.impatriatePct,
+  exemptPctWithChildren: prm.impatriateChildrenPct,
+  incomeCap: prm.impatriateCap,
+  years: prm.impatriateYears,
+})
+
+/**
+ * L'aliquota datore per un apprendista.
+ *
+ * Fino a nove dipendenti cambia ogni anno di contratto; sopra i nove è fissa.
+ * Non è un dettaglio: fra il primo anno di una azienda piccola (3,11%) e
+ * l'aliquota ordinaria (30%) ci sono quasi ventisette punti di retribuzione.
+ */
+export function apprenticeRate(p: PersonInput, prm: PayrollParams): number {
+  if (!prm.smallCompany) return prm.inpsApprenticePct
+  const y = Math.min(3, Math.max(1, Math.round(p.apprenticeYear || 1)))
+  return y === 1 ? prm.inpsApprenticeY1Pct
+    : y === 2 ? prm.inpsApprenticeY2Pct
+    : prm.inpsApprenticeY3Pct
+}
+
+/** L'aliquota datore che si applica davvero a questa persona, esoneri esclusi. */
+export const employerRate = (p: PersonInput, prm: PayrollParams): number =>
+  p.kind === 'apprendistato' ? apprenticeRate(p, prm) : prm.inpsEmployerPct
+
+export type AppliedIncentive = {
+  incentive: HiringIncentive
+  /** euro di contributi datore che non si versano nell'anno */
+  relief: number
+  /** mesi dell'anno coperti */
+  months: number
+  /** mese in cui l'agevolazione finisce, per sapere quando il costo risale */
+  endsOn: string | null
+  /** false = configurata ma i requisiti non risultano: il tool non la applica */
+  eligible: boolean
+  blockers: string[]
+}
+
+/**
+ * L'esonero configurato su una persona, con quanto vale quest'anno.
+ *
+ * Se i requisiti che il tool può controllare non tornano, il beneficio **non si
+ * applica**: un costo abbassato da un'agevolazione che non spetta è la bugia più
+ * costosa che un piano del personale può contenere.
+ */
+export function appliedIncentive(
+  p: PersonInput, prm: PayrollParams, employerContribYear: number,
+): AppliedIncentive | null {
+  const i = incentiveByCode(p.incentiveCode, prm.incentives)
+  if (!i) return null
+
+  const v = checkIncentive(i, incentiveFacts(p, prm), `${prm.year}-12-31`)
+  const months = coveredMonthsInYear(i, p.hiredOn, prm.year, p.fromMonth, p.toMonth)
+  const present = Math.min(12, Math.max(0, p.toMonth - p.fromMonth + 1))
+  const relief = v.eligible
+    ? Math.min(employerContribYear, contribRelief(i, {
+        employerContribYear, monthsPresent: present, monthsCovered: months, zes: prm.zes,
+      }))
+    : 0
+
+  return {
+    incentive: i, relief: r2(relief), months,
+    endsOn: incentiveEnds(i, p.hiredOn),
+    eligible: v.eligible, blockers: v.blockers,
+  }
+}
+
+/** Gli esoneri possibili su questa persona, dal più conveniente. */
+export function incentiveOptions(
+  p: PersonInput, prm: PayrollParams, on = `${prm.year}-12-31`,
+): (IncentiveVerdict & { value: number })[] {
+  const gross = r2(nonNeg(p.gross) * Math.max(0, p.fte)) * employerRate(p, prm)
+  return rankIncentives(incentiveFacts(p, prm), on, gross, prm.incentives)
+}
 
 export type CostBreakdown = {
   /** la retribuzione lorda, riproporzionata a FTE e mesi di presenza */
   gross: number
+  /** contributi datore **al netto** dell'esonero: è quello che si versa */
   inpsEmployer: number
+  /** contributi datore pieni, prima dell'esonero */
+  inpsEmployerGross: number
+  /** euro di contributi che l'esonero fa risparmiare quest'anno */
+  relief: number
+  /** l'esonero applicato, con quando finisce. null = nessuno */
+  incentive: AppliedIncentive | null
   inail: number
   fixedTermExtra: number
   /** TFR maturato nell'anno, al netto del contributo al Fondo di garanzia */
@@ -387,7 +562,8 @@ export function personCost(p: PersonInput, prm: PayrollParams): CostBreakdown {
     const rivalsa = p.withRivalsa && p.kind === 'piva_ordinario' ? r2(gross * 0.04) : 0
     const total = r2(gross + rivalsa + benefits + meal)
     return {
-      gross, inpsEmployer: 0, inail: 0, fixedTermExtra: 0, tfr: 0,
+      gross, inpsEmployer: 0, inpsEmployerGross: 0, relief: 0, incentive: null,
+      inail: 0, fixedTermExtra: 0, tfr: 0,
       benefits, mealVouchers: meal,
       total, cash: total, monthly: r2(total / 12),
       loadPct: gross > 0 ? r2((total - gross) / gross) : 0,
@@ -401,7 +577,8 @@ export function personCost(p: PersonInput, prm: PayrollParams): CostBreakdown {
     const inail = spec.inail ? r2(gross * prm.inailPct) : 0
     const total = r2(gross + inps + inail + benefits + meal)
     return {
-      gross, inpsEmployer: inps, inail, fixedTermExtra: 0, tfr: 0,
+      gross, inpsEmployer: inps, inpsEmployerGross: inps, relief: 0, incentive: null,
+      inail, fixedTermExtra: 0, tfr: 0,
       benefits, mealVouchers: meal,
       total, cash: total, monthly: r2(total / 12),
       loadPct: gross > 0 ? r2((total - gross) / gross) : 0,
@@ -413,7 +590,8 @@ export function personCost(p: PersonInput, prm: PayrollParams): CostBreakdown {
     const inail = r2(gross * prm.inailPct)
     const total = r2(gross + inail + benefits + meal)
     return {
-      gross, inpsEmployer: 0, inail, fixedTermExtra: 0, tfr: 0,
+      gross, inpsEmployer: 0, inpsEmployerGross: 0, relief: 0, incentive: null,
+      inail, fixedTermExtra: 0, tfr: 0,
       benefits, mealVouchers: meal,
       total, cash: total, monthly: r2(total / 12),
       loadPct: gross > 0 ? r2((total - gross) / gross) : 0,
@@ -421,8 +599,11 @@ export function personCost(p: PersonInput, prm: PayrollParams): CostBreakdown {
   }
 
   // ── lavoro subordinato ────────────────────────────────────────────────────
-  const rate = p.kind === 'apprendistato' ? prm.inpsApprenticePct : prm.inpsEmployerPct
-  const inps = r2(gross * rate)
+  const inpsGross = r2(gross * employerRate(p, prm))
+  /* L'esonero taglia i contributi previdenziali, **non** l'INAIL: è scritto in
+     tutte le misure e cambia il conto di qualche centinaio di euro. */
+  const applied = appliedIncentive(p, prm, inpsGross)
+  const inps = r2(nonNeg(inpsGross - (applied?.relief ?? 0)))
   const inail = r2(gross * prm.inailPct)
   const extra = p.kind === 'determinato' ? r2(gross * prm.fixedTermExtraPct) : 0
   // TFR: una mensilità ogni 13,5, meno il contributo al Fondo di garanzia
@@ -433,7 +614,10 @@ export function personCost(p: PersonInput, prm: PayrollParams): CostBreakdown {
   const cash = r2(total - tfr)
 
   return {
-    gross, inpsEmployer: inps, inail, fixedTermExtra: extra, tfr,
+    gross,
+    inpsEmployer: inps, inpsEmployerGross: inpsGross,
+    relief: applied?.relief ?? 0, incentive: applied,
+    inail, fixedTermExtra: extra, tfr,
     benefits, mealVouchers: meal,
     total, cash, monthly: r2(total / 12),
     loadPct: gross > 0 ? r2((total - gross) / gross) : 0,
@@ -447,7 +631,14 @@ export function personCost(p: PersonInput, prm: PayrollParams): CostBreakdown {
 export type NetBreakdown = {
   gross: number
   socialContributions: number
+  /** imponibile fiscale prima del regime impatriati */
   taxableIncome: number
+  /** quota di reddito che il regime impatriati tiene fuori dall'IRPEF */
+  exempt: number
+  /** base IRPEF effettiva: imponibile meno la quota esente */
+  taxableAfterExempt: number
+  /** quota esente applicata: 0 quando il regime non c'è o è finito */
+  impatriatePct: number
   irpef: number
   deductions: number
   surcharges: number
@@ -490,7 +681,9 @@ export function personNet(p: PersonInput, prm: PayrollParams): NetBreakdown {
        e dalle sue deduzioni, e nessuno di questi dati è nostro. `net` resta
        null: un numero inventato qui verrebbe letto come vero. */
     return {
-      gross, socialContributions: 0, taxableIncome: gross, irpef: 0, deductions: 0,
+      gross, socialContributions: 0, taxableIncome: gross,
+      exempt: 0, taxableAfterExempt: gross, impatriatePct: 0,
+      irpef: 0, deductions: 0,
       surcharges: 0, net: null, perMonth: null, efficiency: null,
     }
   }
@@ -498,26 +691,36 @@ export function personNet(p: PersonInput, prm: PayrollParams): NetBreakdown {
   const contribPct = p.kind === 'cococo'
     ? prm.gestioneSeparataPct * (1 - prm.gestioneSeparataEmployerShare)
     : p.kind === 'tirocinio' ? 0
+    : p.kind === 'apprendistato' ? prm.inpsApprenticeEmployeePct
     : prm.inpsEmployeePct
 
   const contributions = r2(gross * contribPct)
   const taxable = r2(nonNeg(gross - contributions))
-  const grossTax = irpefOn(taxable, prm.irpef)
+
+  /* §184 — rientro dei cervelli: i contributi si pagano su tutto, l'IRPEF su
+     metà (o sul 40% con un figlio minore). Per l'azienda non cambia un euro:
+     è l'unica leva che alza il netto senza alzare il costo. */
+  const imp = impatriateView(taxable, p.impatriateFrom, prm.year, p.impatriateChildren, impatriateRuleOf(prm))
+  const base = r2(nonNeg(taxable - imp.exemptAmount))
+  const grossTax = irpefOn(base, prm.irpef)
 
   // Detrazione da lavoro dipendente: piena sotto la soglia, poi si consuma.
   const deduction = spec.employment === 'subordinato'
-    ? r2(taxable <= prm.employeeDeductionCap
+    ? r2(base <= prm.employeeDeductionCap
         ? prm.employeeDeduction
-        : nonNeg(prm.employeeDeduction * (1 - (taxable - prm.employeeDeductionCap) / prm.employeeDeductionCap)))
+        : nonNeg(prm.employeeDeduction * (1 - (base - prm.employeeDeductionCap) / prm.employeeDeductionCap)))
     : 0
 
   const netTax = r2(nonNeg(grossTax - deduction))
-  const surcharges = r2(taxable * (prm.regionalSurchargePct + prm.municipalSurchargePct))
+  // le addizionali seguono la base IRPEF: la quota esente non le paga
+  const surcharges = r2(base * (prm.regionalSurchargePct + prm.municipalSurchargePct))
   const net = r2(nonNeg(taxable - netTax - surcharges))
 
   const cost = personCost(p, prm).total
   return {
     gross, socialContributions: contributions, taxableIncome: taxable,
+    exempt: imp.exemptAmount, taxableAfterExempt: base,
+    impatriatePct: imp.active ? imp.exemptPct : 0,
     irpef: netTax, deductions: deduction, surcharges,
     net, perMonth: r2(net / monthsOf(p)),
     efficiency: cost > 0 ? r2(net / cost) : 0,
@@ -563,7 +766,7 @@ export function accruals(p: PersonInput, prm: PayrollParams): Accruals {
   const fourteenth = spec.tfr && m >= 14 ? monthly : 0
 
   // sulle mensilità aggiuntive l'azienda versa comunque i suoi contributi
-  const load = 1 + (p.kind === 'apprendistato' ? prm.inpsApprenticePct : prm.inpsEmployerPct) + prm.inailPct
+  const load = 1 + employerRate(p, prm) + prm.inailPct
 
   return {
     tfrYear, tfrMonth: r2(tfrYear / 12),
@@ -656,6 +859,10 @@ export type TeamTotals = {
   yearCash: number
   gross: number
   contributions: number
+  /** contributi risparmiati grazie agli esoneri: è costo che non c'è */
+  relief: number
+  /** quanto costerebbe l'organico senza nessuna agevolazione */
+  costBeforeRelief: number
   tfr: number
   benefits: number
   /** ripartizione per tipologia contrattuale */
@@ -681,6 +888,7 @@ export function teamTotals(people: PersonInput[], prm: PayrollParams): TeamTotal
     .filter(x => contractSpec(x.p.kind).employment === 'subordinato')
     .reduce((t, x) => t + x.c.total, 0))
 
+  const relief = s(x => x.c.relief)
   return {
     headcount: people.length,
     fte: r2(people.reduce((t, p) => t + Math.max(0, p.fte) * yearShare(p), 0)),
@@ -689,6 +897,8 @@ export function teamTotals(people: PersonInput[], prm: PayrollParams): TeamTotal
     yearCash: s(x => x.c.cash),
     gross: s(x => x.c.gross),
     contributions: s(x => x.c.inpsEmployer + x.c.inail + x.c.fixedTermExtra),
+    relief,
+    costBeforeRelief: r2(yearCost + relief),
     tfr: s(x => x.c.tfr),
     benefits: s(x => x.c.benefits + x.c.mealVouchers),
     byKind,
@@ -711,18 +921,159 @@ export type Hint = {
 }
 
 /**
+ * Gli esoneri: quelli attivi, quelli che stanno scadendo, quelli mancati.
+ *
+ * Tre domande diverse e tutte e tre urgenti. Un esonero attivo va sorvegliato
+ * (i requisiti si perdono); uno che scade è un aumento di costo con una data
+ * sopra; uno mancato è denaro lasciato sul tavolo ogni mese che passa, e non si
+ * recupera a posteriori.
+ */
+function incentiveHints(
+  people: PersonInput[], prm: PayrollParams, today: string, eur: (n: number) => string,
+): Hint[] {
+  const out: Hint[] = []
+  const subordinati = people.filter(p => contractSpec(p.kind).employment === 'subordinato')
+
+  // ── configurati ma senza requisiti: il tool non li applica e lo dice ───────
+  for (const p of subordinati) {
+    const c = personCost(p, prm)
+    const a = c.incentive
+    if (!a) continue
+
+    if (!a.eligible) {
+      out.push({
+        id: `esonero-ko-${p.name}`, severity: 'attenzione',
+        title: `${p.name}: l'esonero configurato non risulta spettante`,
+        detail: `${a.incentive.label}. ${a.blockers.join(' ')} Il costo mostrato è quello pieno: il tool non sconta un'agevolazione che non può verificare.`,
+        action: 'O si correggono i dati in anagrafica, o si toglie l\'esonero dalla persona.',
+      })
+      continue
+    }
+
+    // scadenza: il mese dopo il costo risale, e va visto prima
+    const mesiUsati = p.hiredOn ? monthsBetween(p.hiredOn, today) : null
+    const mesiRestanti = mesiUsati == null ? null : a.incentive.durationMonths - mesiUsati
+    if (mesiRestanti !== null && mesiRestanti > 0 && mesiRestanti <= 6) {
+      out.push({
+        id: `esonero-scade-${p.name}`, severity: 'attenzione',
+        title: `${p.name}: l'esonero finisce fra ${mesiRestanti} mes${mesiRestanti === 1 ? 'e' : 'i'}`,
+        detail: `${a.incentive.label} scade con ${a.endsOn?.slice(0, 7) ?? 'la fine del periodo'}. Da lì i contributi tornano pieni: circa ${eur(a.relief / Math.max(1, a.months))} in più al mese su questa persona.`,
+        action: 'Mettilo nel budget del mese in cui accade, non a consuntivo.',
+      })
+    }
+  }
+
+  // ── mancati: chi avrebbe diritto a un esonero e non ce l'ha ────────────────
+  const senza = subordinati.filter(p => !p.incentiveCode)
+  const opportunita = senza
+    .map(p => ({ p, best: incentiveOptions(p, prm, today).find(o => o.eligible && o.value > 0) }))
+    .filter((x): x is { p: PersonInput; best: IncentiveVerdict & { value: number } } => !!x.best)
+
+  if (opportunita.length) {
+    const totale = r2(opportunita.reduce((t, x) => t + x.best.value, 0))
+    const nomi = opportunita.map(x => `${x.p.name || 'senza nome'} (${x.best.incentive.label}, ${eur(x.best.value)})`)
+    out.push({
+      id: 'esonero-disponibile', severity: 'opportunita',
+      title: `${opportunita.length} person${opportunita.length === 1 ? 'a' : 'e'} con un esonero contributivo disponibile`,
+      detail: `${nomi.join(' · ')}. Sono contributi che non andrebbero versati: ${eur(totale)} l'anno ai valori attuali. `
+        + 'Quasi tutte le misure chiedono l\'incremento occupazionale netto e la regolarità contributiva, e non si recuperano a posteriori: contano dal mese in cui si comunicano.',
+      value: totale,
+      action: 'Attivalo dalla scheda della persona e fallo confermare al consulente: l\'esonero si chiede all\'INPS, non si applica da sé.',
+    })
+  }
+
+  // ── esoneri attivi: quanto stanno valendo ─────────────────────────────────
+  const attivi = subordinati
+    .map(p => personCost(p, prm))
+    .filter(c => c.incentive?.eligible && c.relief > 0)
+  if (attivi.length) {
+    const totale = r2(attivi.reduce((t, c) => t + c.relief, 0))
+    out.push({
+      id: 'esonero-attivo', severity: 'nota',
+      title: `${eur(totale)} di contributi non versati grazie agli esoneri`,
+      detail: `${attivi.length} rapport${attivi.length === 1 ? 'o' : 'i'} con un'agevolazione attiva quest'anno. È costo che non c'è — ma è anche costo che tornerà: ogni esonero ha una fine, e il piano deve sapere quando.`,
+      action: 'Tieni le comunicazioni INPS e il DURC in ordine: un\'irregolarità contributiva fa perdere l\'esonero con effetto retroattivo.',
+    })
+  }
+
+  return out
+}
+
+/**
  * Ottimizzazioni fiscali, non scorciatoie.
  *
  * Ogni voce è uno strumento previsto dalla legge — welfare, buoni pasto,
- * apprendistato, premi di risultato — con il suo tetto e la sua condizione.
- * Dove c'è un rischio, si segnala il rischio: un'agevolazione presa male
- * costa più di quella che non hai preso.
+ * apprendistato, esoneri, premi di risultato — con il suo tetto e la sua
+ * condizione. Dove c'è un rischio, si segnala il rischio: un'agevolazione presa
+ * male costa più di quella che non hai preso.
  */
-export function payrollHints(people: PersonInput[], prm: PayrollParams, revenue = 0, today = '2026-01-01'): Hint[] {
+export function payrollHints(
+  people: PersonInput[], prm: PayrollParams, revenue = 0, today = '2026-01-01',
+  /** aliquota IRES: serve a dire quanto vale la maxi-deduzione. Sta in `tax_config` */
+  iresPct = 0.24,
+): Hint[] {
   const out: Hint[] = []
   const eur = (n: number) => `€${Math.round(n).toLocaleString('it-IT')}`
   const tot = teamTotals(people, prm)
   const subordinati = people.filter(p => contractSpec(p.kind).employment === 'subordinato')
+
+  // ── esoneri contributivi: quelli attivi, quelli che scadono, quelli mancati ─
+  out.push(...incentiveHints(people, prm, today, eur))
+
+  // ── maxi-deduzione IRES sulle nuove assunzioni ─────────────────────────────
+  const year = today.slice(0, 4)
+  const nuovi = subordinati.filter(p =>
+    p.hiredOn?.slice(0, 4) === year && (p.kind === 'indeterminato' || p.kind === 'apprendistato'))
+  if (nuovi.length) {
+    const costo = r2(nuovi.reduce((t, p) => t + personCost(p, prm).total, 0))
+    const protetti = r2(nuovi.filter(p => p.protectedCategory).reduce((t, p) => t + personCost(p, prm).total, 0))
+    const md = maxiDeduction({
+      newHiresCost: costo, payrollIncrease: costo, protectedCost: protetti,
+      headcountIncrease: true, pct: 0.2, protectedPct: 0.3, iresPct,
+    })
+    out.push({
+      id: 'maxi-deduzione', severity: 'opportunita',
+      title: `Maxi-deduzione sulle ${nuovi.length} assunzion${nuovi.length === 1 ? 'e' : 'i'} del ${year}`,
+      detail: `Il costo di un nuovo assunto a tempo indeterminato si deduce maggiorato del 20% — del 30% per le categorie meritevoli di maggior tutela. Su ${eur(costo)} di costo fanno ${eur(md.extraDeduction)} di deduzione in più, cioè circa ${eur(md.iresSaving)} di IRES. `
+        + 'Il conto assume che il costo del personale complessivo sia cresciuto almeno di questa cifra e che i dipendenti a fine anno siano più della media dell\'anno prima: se non è così la deduzione non spetta.',
+      value: md.iresSaving,
+      action: 'È extracontabile: si applica in dichiarazione, non nel conto economico. Serve il conteggio dell\'incremento occupazionale, che lo fa il commercialista.',
+    })
+  }
+
+  // ── rientro dei cervelli ──────────────────────────────────────────────────
+  const impatriati = subordinati.filter(p => p.impatriateFrom)
+  if (impatriati.length) {
+    const rule = impatriateRuleOf(prm)
+    for (const p of impatriati) {
+      const n = personNet(p, prm)
+      const senza = personNet({ ...p, impatriateFrom: null }, prm)
+      const v = impatriateView(n.taxableIncome, p.impatriateFrom, prm.year, p.impatriateChildren, rule)
+      const beneficio = (senza.net ?? 0) - (n.net ?? 0)
+      out.push({
+        id: `impatriati-${p.name}`,
+        severity: v.yearsLeft !== null && v.yearsLeft <= 1 ? 'attenzione' : 'nota',
+        title: v.active
+          ? `${p.name}: regime impatriati, ${v.yearsLeft} ann${v.yearsLeft === 1 ? 'o' : 'i'} ancora`
+          : `${p.name}: il regime impatriati è finito`,
+        detail: v.active
+          ? `Il ${Math.round(v.exemptPct * 100)}% del reddito non entra nella base IRPEF: sono circa ${eur(Math.abs(beneficio))} l'anno di netto in più a costo aziendale invariato. Ultimo anno agevolato: ${v.lastYear}. `
+            + `L'impegno è restare residenti in Italia ${rule.stayYears} anni dal trasferimento: uscire prima fa restituire tutto il beneficio con gli interessi.`
+          : `L'ultimo anno agevolato era il ${v.lastYear}. Da quest'anno l'IRPEF è piena: a parità di lordo il netto scende di circa ${eur(Math.abs(beneficio))}, e se il netto era la cifra concordata il lordo va rifatto.`,
+        value: v.active ? r2(Math.abs(beneficio)) : undefined,
+        action: v.active
+          ? 'Verifica ogni anno che il lavoro resti prestato prevalentemente in Italia: è il requisito che si perde senza accorgersene.'
+          : 'Rimetti mano al lordo prima che la persona se ne accorga dalla busta.',
+      })
+    }
+  } else if (subordinati.length > 0) {
+    out.push({
+      id: 'impatriati-leva', severity: 'nota',
+      title: 'Chi assumi dall\'estero paga IRPEF su metà del reddito',
+      detail: `Il regime impatriati esenta il ${Math.round(prm.impatriatePct * 100)}% del reddito di lavoro per ${prm.impatriateYears} anni — il ${Math.round(prm.impatriateChildrenPct * 100)}% con un figlio minore — entro ${eur(prm.impatriateCap)} l'anno. Serve elevata qualificazione e tre periodi d'imposta di residenza estera, sei o sette se si rientra per lo stesso datore o gruppo.`,
+      action: 'È la leva che rende competitiva un\'offerta a chi lavora fuori: il costo aziendale non cambia, il suo netto sì.',
+    })
+  }
 
   if (!prm.verifiedAt) {
     out.push({
@@ -773,8 +1124,12 @@ export function payrollHints(people: PersonInput[], prm: PayrollParams, revenue 
     return e.age === null || e.apprentice
   })
   if (junior.length) {
+    /* L'aliquota da confrontare è quella che si applicherebbe davvero: fino a
+       nove dipendenti il primo anno di apprendistato costa il 3,11% invece del
+       30%, e con l'aliquota media il suggerimento valeva meno di metà del vero. */
+    const apprenticePct = prm.smallCompany ? prm.inpsApprenticeY1Pct : prm.inpsApprenticePct
     const risparmio = junior.reduce((t, p) =>
-      t + (p.gross * (prm.inpsEmployerPct - prm.inpsApprenticePct)), 0)
+      t + (p.gross * (prm.inpsEmployerPct - apprenticePct)), 0)
     const inScadenza = junior.filter(p => {
       const e = eligibility(p, today)
       return e.monthsLeft !== null && e.monthsLeft <= 12
@@ -785,7 +1140,7 @@ export function payrollHints(people: PersonInput[], prm: PayrollParams, revenue 
       title: inScadenza.length
         ? `${inScadenza.length} profil${inScadenza.length === 1 ? 'o' : 'i'} perde l'apprendistato entro l'anno`
         : `${junior.length} profil${junior.length === 1 ? 'o' : 'i'} junior a contribuzione piena`,
-      detail: `Fino ai ${APPRENTICE_MAX_AGE} anni compiuti l'apprendistato professionalizzante abbatte l'aliquota a carico azienda dal ${Math.round(prm.inpsEmployerPct * 100)}% al ${Math.round(prm.inpsApprenticePct * 100)}%. Su questi profili varrebbe circa ${eur(risparmio)} l'anno.`
+      detail: `Fino ai ${APPRENTICE_MAX_AGE} anni compiuti l'apprendistato professionalizzante abbatte l'aliquota a carico azienda dal ${Math.round(prm.inpsEmployerPct * 100)}% al ${pcOf(apprenticePct)}%${prm.smallCompany ? ' nel primo anno (fino a nove dipendenti)' : ''}. Su questi profili varrebbe circa ${eur(risparmio)} l'anno.`
         + (inScadenza.length ? ` ${inScadenza.map(p => p.name).filter(Boolean).join(', ')}: la finestra si chiude entro dodici mesi.` : '')
         + (senzaData ? ` ${senzaData} sen${senzaData === 1 ? 'za' : 'za'} data di nascita: l'età non è verificata.` : ''),
       value: r2(risparmio),
@@ -1363,6 +1718,12 @@ export function grossFromMonthlyNet(
   kind: ContractKind,
   prm: PayrollParams,
   fte = 1,
+  /**
+   * Il resto della persona, quando incide sul netto: il regime impatriati
+   * cambia la RAL che serve per lo stesso netto di quasi un terzo, e invertire
+   * senza saperlo produce un lordo sbagliato in modo silenzioso.
+   */
+  like: Partial<PersonInput> = {},
 ): number {
   if (monthlyNet <= 0) return 0
   const spec = contractSpec(kind)
@@ -1371,7 +1732,7 @@ export function grossFromMonthlyNet(
 
   const target = monthlyNet * Math.max(1, months)
   const netOf = (gross: number) =>
-    personNet(emptyPerson({ kind, gross, months, fte }), prm).net ?? 0
+    personNet(emptyPerson({ ...like, kind, gross, months, fte }), prm).net ?? 0
 
   let lo = 0
   let hi = Math.max(1000, target * 3)
@@ -1393,8 +1754,9 @@ export function monthlyNetFromGross(
   kind: ContractKind,
   prm: PayrollParams,
   fte = 1,
+  like: Partial<PersonInput> = {},
 ): number | null {
-  const n = personNet(emptyPerson({ kind, gross, months, fte }), prm)
+  const n = personNet(emptyPerson({ ...like, kind, gross, months, fte }), prm)
   return n.perMonth
 }
 

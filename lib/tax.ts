@@ -17,6 +17,10 @@
 
 import { shiftMonth } from '@/lib/pl'
 import type { QuarterVat } from '@/lib/vat'
+import {
+  maxiDeduction, hyperAmortization, relevantMeasures, expiredMeasures,
+  type CompanyMeasure,
+} from '@/lib/incentives'
 
 export type TaxConfig = {
   ires_pct: number
@@ -24,11 +28,24 @@ export type TaxConfig = {
   irap_applies: boolean
   set_aside_pct: number
   irap_addback_pct: number
+  /** §184 — maggiorazione della deduzione sul costo dei nuovi assunti (solo IRES) */
+  maxi_deduction_pct: number
+  maxi_deduction_protected_pct: number
+  /** iper-ammortamento 2026: maggiorazione nella prima fascia di investimento */
+  hyper_amort_pct: number
+  hyper_amort_cap: number
 }
 
+/**
+ * L'IRES resta al 24%: l'aliquota premiale al 20% valeva solo il 2025 e la legge
+ * di bilancio 2026 non l'ha prorogata. Metterla qui come default farebbe stimare
+ * imposte più basse del vero, che è il tipo di errore che si scopre a giugno.
+ */
 export const DEFAULT_TAX_CONFIG: TaxConfig = {
   ires_pct: 0.24, irap_pct: 0.039, irap_applies: true,
   set_aside_pct: 0.30, irap_addback_pct: 0,
+  maxi_deduction_pct: 0.2, maxi_deduction_protected_pct: 0.3,
+  hyper_amort_pct: 1.8, hyper_amort_cap: 2_500_000,
 }
 
 export type Provision = { id: string; month: string; kind: 'iva' | 'imposte'; amount: number; note: string | null }
@@ -120,6 +137,10 @@ export type TaxEstimate = {
   marginYtd: number
   /** margine proiettato a fine anno sulla media dei mesi registrati */
   marginProjected: number
+  /** deduzioni extracontabili che valgono solo ai fini IRES (maxi-deduzione) */
+  extraDeductions: number
+  /** base IRES: margine proiettato meno le deduzioni extracontabili */
+  iresBase: number
   ires: number
   irap: number
   total: number
@@ -137,6 +158,13 @@ export type TaxEstimate = {
  */
 export function estimateTaxes(
   revenueYtd: number, costsYtd: number, monthsBooked: number, cfg: TaxConfig, monthsLeft: number,
+  /**
+   * Deduzioni extracontabili dell'anno: la maxi-deduzione sulle nuove assunzioni
+   * e la maggiorazione da iper-ammortamento. Non passano dal conto economico —
+   * si applicano in dichiarazione — e valgono **solo ai fini IRES**: sulla base
+   * IRAP non incidono, e sommarle lì darebbe un'imposta più bassa del vero.
+   */
+  extraDeductions = 0,
 ): TaxEstimate {
   const marginYtd = Math.round((revenueYtd - costsYtd) * 100) / 100
   const projected = monthsBooked > 0
@@ -144,7 +172,9 @@ export function estimateTaxes(
     : 0
 
   const base = Math.max(0, projected)
-  const ires = Math.round(base * cfg.ires_pct)
+  const extra = Math.max(0, extraDeductions)
+  const iresBase = Math.max(0, base - extra)
+  const ires = Math.round(iresBase * cfg.ires_pct)
   // base IRAP più larga: il costo del personale non è del tutto deducibile
   const irapBase = base + Math.max(0, costsYtd) * cfg.irap_addback_pct
   const irap = cfg.irap_applies ? Math.round(irapBase * cfg.irap_pct) : 0
@@ -152,7 +182,9 @@ export function estimateTaxes(
 
   return {
     monthsBooked, revenueYtd, costsYtd, marginYtd,
-    marginProjected: projected, ires, irap, total,
+    marginProjected: projected,
+    extraDeductions: extra, iresBase,
+    ires, irap, total,
     monthlySetAside: monthsLeft > 0 ? Math.round(total / monthsLeft) : total,
   }
 }
@@ -222,6 +254,23 @@ export type TaxInput = {
   hasTraining: boolean
   rndSpend: number
   deadlines: Deadline[]
+
+  // ── §184: quello che le agevolazioni stanno già facendo (o non facendo) ─────
+  /** aliquota IRES in uso: serve a tradurre una deduzione in imposta */
+  iresPct?: number
+  /** assunzioni a tempo indeterminato dell'anno e loro costo */
+  newHires?: number
+  newHiresCost?: number
+  /** quota di quel costo che riguarda categorie meritevoli di maggior tutela */
+  protectedCost?: number
+  /** contributi non versati quest'anno grazie agli esoneri */
+  contribRelief?: number
+  /** esoneri che il tool vede disponibili e non attivati */
+  reliefAvailable?: number
+  /** persone in regime impatriati */
+  impatriates?: number
+  /** investimenti in beni strumentali registrati nell'anno */
+  investments?: number
 }
 
 /**
@@ -328,6 +377,66 @@ export function taxInsights(i: TaxInput): TaxFinding[] {
     })
   }
 
+  // ── §184: agevolazioni, quantificate con i numeri che il tool ha già ──────
+  const iresPct = i.iresPct ?? DEFAULT_TAX_CONFIG.ires_pct
+
+  if ((i.newHires ?? 0) > 0 && (i.newHiresCost ?? 0) > 0) {
+    const md = maxiDeduction({
+      newHiresCost: i.newHiresCost!, payrollIncrease: i.newHiresCost!,
+      protectedCost: i.protectedCost ?? 0, headcountIncrease: true,
+      pct: DEFAULT_TAX_CONFIG.maxi_deduction_pct,
+      protectedPct: DEFAULT_TAX_CONFIG.maxi_deduction_protected_pct,
+      iresPct,
+    })
+    out.push({
+      id: 'maxi-deduzione', severity: 'opportunità',
+      title: `${eur(md.iresSaving)} di IRES in meno per le assunzioni dell'anno`,
+      detail: `${i.newHires} assunzion${i.newHires === 1 ? 'e' : 'i'} a tempo indeterminato per ${eur(i.newHiresCost!)} di costo: la maxi-deduzione maggiora la deduzione del 20% — del 30% sulle categorie meritevoli di maggior tutela — e vale ${eur(md.extraDeduction)} di deduzione in più. `
+        + 'Vale solo ai fini IRES, non IRAP, e presuppone l\'incremento occupazionale: dipendenti a fine anno sopra la media dell\'anno prima, sia a tempo indeterminato sia in totale.',
+      action: 'Porta al commercialista l\'elenco delle assunzioni e il conteggio dell\'incremento: è una deduzione extracontabile, si applica in dichiarazione.',
+      value: md.iresSaving,
+    })
+  }
+
+  if ((i.contribRelief ?? 0) > 0) {
+    out.push({
+      id: 'esoneri-attivi', severity: 'opportunità',
+      title: `${eur(i.contribRelief!)} di contributi non versati grazie agli esoneri`,
+      detail: 'Sono nel costo del personale come minor costo, quindi alzano il margine — e con lui l\'imposta. Un esonero non è cassa in più a fine anno: è cassa in più ogni mese e imposta in più a giugno.',
+      action: 'Tienine conto nell\'accantonamento: il margine agevolato è comunque margine tassato.',
+    })
+  }
+
+  if ((i.reliefAvailable ?? 0) > 0) {
+    out.push({
+      id: 'esoneri-mancati', severity: 'attenzione',
+      title: `${eur(i.reliefAvailable!)} di esoneri contributivi non attivati`,
+      detail: 'Ci sono rapporti che avrebbero diritto a un\'agevolazione contributiva e non l\'hanno. Gli esoneri decorrono dalla comunicazione all\'INPS: i mesi passati non si recuperano.',
+      action: 'Il dettaglio per persona sta nella sezione Personale, tab Agevolazioni.',
+      value: i.reliefAvailable!,
+    })
+  }
+
+  if ((i.investments ?? 0) > 0) {
+    const h = hyperAmortization(i.investments!, iresPct)
+    out.push({
+      id: 'iper-ammortamento', severity: 'opportunità',
+      title: `Iper-ammortamento: ${eur(h.iresSaving)} di IRES sugli investimenti dell'anno`,
+      detail: `${eur(i.investments!)} di beni strumentali danno ${eur(h.extraCost)} di costo deducibile in più (maggiorazione del ${pc(h.effectivePct)}), spalmati sugli anni di ammortamento. Vale per i beni 4.0 acquistati dal 2026 al settembre 2028, e sostituisce i crediti Transizione 4.0 e 5.0.`,
+      action: 'Serve la comunicazione al GSE e l\'interconnessione del bene: senza, la maggiorazione non spetta. Verifica quali acquisti sono davvero 4.0 prima di contarci.',
+      value: h.iresSaving,
+    })
+  }
+
+  if ((i.impatriates ?? 0) > 0) {
+    out.push({
+      id: 'impatriati-fiscale', severity: 'opportunità',
+      title: `${i.impatriates} person${i.impatriates === 1 ? 'a' : 'e'} in regime impatriati`,
+      detail: 'Il beneficio è loro, non della società: il costo aziendale e la sua deducibilità non cambiano. Va sorvegliato il requisito di permanenza — quattro anni di residenza italiana — perché la decadenza è retroattiva e ricade sulla persona.',
+      action: 'Conserva la documentazione della residenza estera e della qualificazione: in verifica la chiedono a te come sostituto d\'imposta.',
+    })
+  }
+
   // ── opportunità ───────────────────────────────────────────────────────────
   if (i.rndSpend > 0) {
     out.push({
@@ -381,6 +490,31 @@ export function taxInsights(i: TaxInput): TaxFinding[] {
   const order = { critico: 0, attenzione: 1, 'opportunità': 2 }
   return out.sort((a, b) => order[a.severity] - order[b.severity] || (b.value ?? 0) - (a.value ?? 0))
 }
+
+// ── Agevolazioni della società ───────────────────────────────────────────────
+
+/**
+ * Le misure da guardare, in ordine di utilità per **questa** azienda.
+ *
+ * Il catalogo sta in `lib/incentives.ts`; qui si sceglie cosa mostrare in base a
+ * quello che il tool sa già — assunzioni fatte, welfare a piano, sviluppo
+ * interno, investimenti. Dieci agevolazioni tutte uguali non le legge nessuno,
+ * e quella che serve sta sempre in fondo.
+ */
+export function taxMeasures(f: {
+  today: string
+  newHires: number
+  impatriates: number
+  hasWelfare: boolean
+  rndSpend: number
+  investments: number
+  zes: boolean
+}): { live: CompanyMeasure[]; expired: CompanyMeasure[] } {
+  return { live: relevantMeasures(f), expired: expiredMeasures(f.today) }
+}
+
+export { maxiDeduction, hyperAmortization }
+export type { CompanyMeasure }
 
 /** I mesi che restano nell'anno, oggi compreso. */
 export const monthsLeftInYear = (today: string) => 12 - Number(today.slice(5, 7)) + 1

@@ -80,9 +80,56 @@ export default async function FiscalePage({ searchParams }: { searchParams: { m?
     .filter(i => /ai tools|claude|gpt|github|vps|hosting|repository/i.test(i.label))
     .reduce((s, i) => s + yearly(i), 0)
 
+  /* §184 — le agevolazioni: quello che il tool sa già dell'organico. Le
+     assunzioni dell'anno alimentano la maxi-deduzione, gli esoneri dicono
+     quanti contributi non stiamo versando (e quali stiamo lasciando lì). */
+  const [{ data: people }, { data: prm }, { data: incentiveRows }] = await Promise.all([
+    supabase.from('hr_people').select('*').eq('is_active', true),
+    supabase.from('hr_payroll_params').select('*').eq('year', Number(year)).maybeSingle(),
+    supabase.from('hr_incentives').select('*').order('sort_order'),
+  ])
+
+  let newHires = 0, newHiresCost = 0, protectedCost = 0, contribRelief = 0, reliefAvailable = 0, impatriates = 0
+  if ((people ?? []).length) {
+    const { personCost, incentiveOptions, contractSpec, DEFAULT_PAYROLL_PARAMS } = await import('@/lib/payroll')
+    const { rowToParams, rowToPerson, rowsToIncentives } = await import('@/lib/payroll-map')
+    const params = prm
+      ? rowToParams(prm as Record<string, unknown>, rowsToIncentives(incentiveRows as Record<string, unknown>[] | null))
+      : DEFAULT_PAYROLL_PARAMS
+
+    for (const row of (people ?? []) as Record<string, unknown>[]) {
+      const person = rowToPerson(row)
+      if (contractSpec(person.kind).employment !== 'subordinato') continue
+      const c = personCost(person, params)
+      if (person.hiredOn?.slice(0, 4) === year && (person.kind === 'indeterminato' || person.kind === 'apprendistato')) {
+        newHires++
+        newHiresCost += c.total
+        if (person.protectedCategory) protectedCost += c.total
+      }
+      contribRelief += c.relief
+      if (person.impatriateFrom) impatriates++
+      if (!person.incentiveCode) {
+        const best = incentiveOptions(person, params, `${year}-12-31`).find(o => o.eligible && o.value > 0)
+        reliefAvailable += best?.value ?? 0
+      }
+    }
+  }
+
+  // investimenti in beni strumentali registrati nel piano: alimentano l'iper-ammortamento
+  const investments = ((items ?? []) as PlanItem[])
+    .filter(i => /hardware|attrezzatur|macchinar|server|pc |computer|impiant|software gestion/i.test(i.label))
+    .reduce((s, i) => s + yearly(i), 0)
+
   return (
     <TaxClient
       month={month}
+      newHires={newHires}
+      newHiresCost={Math.round(newHiresCost)}
+      protectedCost={Math.round(protectedCost)}
+      contribRelief={Math.round(contribRelief)}
+      reliefAvailable={Math.round(reliefAvailable)}
+      impatriates={impatriates}
+      investments={Math.round(investments)}
       today={new Date().toISOString().slice(0, 10)}
       setupNeeded={setupNeeded}
       config={cfgRow ? {
@@ -90,6 +137,14 @@ export default async function FiscalePage({ searchParams }: { searchParams: { m?
         irap_applies: cfgRow.irap_applies ?? true,
         set_aside_pct: num(cfgRow.set_aside_pct),
         irap_addback_pct: num(cfgRow.irap_addback_pct),
+        maxi_deduction_pct: cfgRow.maxi_deduction_pct == null
+          ? DEFAULT_TAX_CONFIG.maxi_deduction_pct : num(cfgRow.maxi_deduction_pct),
+        maxi_deduction_protected_pct: cfgRow.maxi_deduction_protected_pct == null
+          ? DEFAULT_TAX_CONFIG.maxi_deduction_protected_pct : num(cfgRow.maxi_deduction_protected_pct),
+        hyper_amort_pct: cfgRow.hyper_amort_pct == null
+          ? DEFAULT_TAX_CONFIG.hyper_amort_pct : num(cfgRow.hyper_amort_pct),
+        hyper_amort_cap: cfgRow.hyper_amort_cap == null
+          ? DEFAULT_TAX_CONFIG.hyper_amort_cap : num(cfgRow.hyper_amort_cap),
       } as TaxConfig : DEFAULT_TAX_CONFIG}
       provisions={(provisions ?? []).map((p: Record<string, unknown>) => ({
         id: String(p.id), month: String(p.month),

@@ -48,9 +48,21 @@ console.log('\n— Apprendista: l\'aliquota è l\'unica differenza —')
 {
   const a = personCost(p({ kind: 'apprendistato', gross: 24000 }), P)
   const i = personCost(p({ kind: 'indeterminato', gross: 24000 }), P)
-  eq('INPS apprendista 11,5%', a.inpsEmployer, 2760)
-  eq('risparmio annuo contro indeterminato', i.total - a.total, 24000 * (0.30 - 0.115))
+  // §184: fino a nove dipendenti l'aliquota cambia ogni anno di contratto
+  eq('INPS apprendista 1º anno 3,11%', a.inpsEmployer, 24000 * P.inpsApprenticeY1Pct)
+  eq('risparmio annuo contro indeterminato', i.total - a.total, 24000 * (0.30 - P.inpsApprenticeY1Pct))
+  eq('2º anno 4,61%', personCost(p({ kind: 'apprendistato', gross: 24000, apprenticeYear: 2 }), P).inpsEmployer,
+    24000 * P.inpsApprenticeY2Pct)
+  eq('3º anno 11,61%', personCost(p({ kind: 'apprendistato', gross: 24000, apprenticeYear: 3 }), P).inpsEmployer,
+    24000 * P.inpsApprenticeY3Pct)
+  // oltre nove dipendenti l'aliquota è unica per tutta la durata
+  const big = { ...P, smallCompany: false }
+  eq('oltre 9 dipendenti: 11,61% dal primo anno',
+    personCost(p({ kind: 'apprendistato', gross: 24000 }), big).inpsEmployer, 24000 * P.inpsApprenticePct)
   is('l\'apprendista matura TFR', a.tfr > 0, true)
+  // e trattiene meno: 5,84% invece di 9,19%, quindi netto più alto a parità di lordo
+  const na = personNet(p({ kind: 'apprendistato', gross: 24000, months: 14 }), P)
+  eq('contributi apprendista 5,84%', na.socialContributions, 24000 * P.inpsApprenticeEmployeePct)
 }
 
 console.log('\n— Determinato: contributo addizionale NASpI —')
@@ -90,8 +102,9 @@ console.log('\n— P.IVA: il costo è la fattura —')
 console.log('\n— IRPEF a scaglioni —')
 eq('10.000 → tutto al 23%', irpefOn(10000, P.irpef), 2300)
 eq('28.000 → soglia del primo', irpefOn(28000, P.irpef), 6440)
-eq('40.000 → 23% + 35% sull\'eccedenza', irpefOn(40000, P.irpef), 6440 + 12000 * 0.35)
-eq('60.000 → tre scaglioni', irpefOn(60000, P.irpef), 6440 + 22000 * 0.35 + 10000 * 0.43)
+// 2026: il secondo scaglione è al 33%, non più al 35% (L. 199/2025)
+eq('40.000 → 23% + 33% sull\'eccedenza', irpefOn(40000, P.irpef), 6440 + 12000 * 0.33)
+eq('60.000 → tre scaglioni', irpefOn(60000, P.irpef), 6440 + 22000 * 0.33 + 10000 * 0.43)
 eq('reddito zero', irpefOn(0, P.irpef), 0)
 
 console.log('\n— Netto in busta (stima) —')
@@ -397,9 +410,12 @@ console.log('\n— Si inserisce il mese, non la RAL —')
 {
   const ral = grossFromMonthlyNet(1500, 14, 'indeterminato', P)
   is('la RAL supera il netto annuo', ral > 1500 * 14, true)
-  // l'apprendista costa meno all'azienda ma il suo netto si calcola uguale
+  /* §184: l'apprendista trattiene il 5,84% invece del 9,19%, quindi per lo
+     stesso netto serve una RAL più bassa — e il costo azienda scende due volte,
+     sul lordo e sull'aliquota datore. */
   const ralApp = grossFromMonthlyNet(1500, 14, 'apprendistato', P)
-  eq('stesso netto, stessa RAL a parità di trattenute', ralApp, ral, 1)
+  is('per lo stesso netto l\'apprendista ha una RAL più bassa', ralApp < ral, true)
+  eq('e la rileggo giusta', monthlyNetFromGross(ralApp, 14, 'apprendistato', P) ?? 0, 1500, 1)
   is('ma il costo azienda è più basso',
     personCost(p({ kind: 'apprendistato', gross: ralApp }), P).total
       < personCost(p({ kind: 'indeterminato', gross: ral }), P).total, true)
@@ -452,6 +468,93 @@ is('con figli: soglia doppia', fringeCapFor(p({ hasChildren: true }), P), P.frin
   const quasi = payrollHints([p({ name: 'Quasi', gross: 22000, birthDate: '1997-01-01' })], P, 0, '2026-08-01')
     .find(h => h.id === 'apprendistato')
   is('a un anno dal limite l\'avviso è urgente', quasi?.severity, 'attenzione')
+}
+
+console.log('\n— §184: esoneri contributivi applicati al costo —')
+{
+  /* Under 30 strutturale: metà dei contributi, ma il tetto di 250 €/mese morde
+     quasi sempre — ed è il motivo per cui «esonero al 50%» non vuol dire metà. */
+  const junior = p({
+    name: 'Junior', kind: 'indeterminato', gross: 24000, birthDate: '2000-06-01',
+    hiredOn: '2026-01-01', neverStable: true, incentiveCode: 'under30_strutturale',
+  })
+  const c = personCost(junior, P)
+  eq('contributi pieni 30%', c.inpsEmployerGross, 7200)
+  eq('esonero fermato dal tetto annuo di 3.000', c.relief, 3000)
+  eq('contributi versati', c.inpsEmployer, 4200)
+  eq('costo azienda al netto dell\'esonero', c.total, personCost({ ...junior, incentiveCode: null }, P).total - 3000)
+  is('l\'INAIL non si tocca', c.inail, personCost({ ...junior, incentiveCode: null }, P).inail)
+
+  // senza il requisito dichiarato l'esonero non si applica: mai sconti a caso
+  const senza = personCost({ ...junior, neverStable: false }, P)
+  eq('già assunto a tempo indeterminato: nessuno sconto', senza.relief, 0)
+  is('e il motivo è scritto', (senza.incentive?.blockers.length ?? 0) > 0, true)
+
+  // over 30: fuori età
+  eq('over 30: nessuno sconto',
+    personCost({ ...junior, birthDate: '1985-01-01' }, P).relief, 0)
+
+  // assunto a metà anno: l'esonero copre solo i mesi che tocca
+  const meta = personCost({ ...junior, hiredOn: '2026-07-01', fromMonth: 7, toMonth: 12 }, P)
+  eq('sei mesi: metà del tetto annuo', meta.relief, 1500)
+
+  // fuori dai 36 mesi: finito
+  eq('assunto nel 2022: i 36 mesi sono passati',
+    personCost({ ...junior, hiredOn: '2022-01-01' }, P).relief, 0)
+}
+{
+  // il nuovo esonero 2026 azzera i contributi entro 650 €/mese
+  const nuovo = p({
+    name: 'Nuovo', kind: 'indeterminato', gross: 30000,
+    hiredOn: '2026-03-01', incentiveCode: 'esonero_2026', fromMonth: 3, toMonth: 12,
+  })
+  const c = personCost(nuovo, P)
+  // 10 mesi in organico, contributi 30% su 25.000 di lordo riproporzionato
+  eq('contributi pieni sui dieci mesi', c.inpsEmployerGross, 7500)
+  eq('esonero al 100% entro 650/mese', c.relief, 6500)
+  is('fuori finestra non spetta',
+    personCost({ ...nuovo, hiredOn: '2025-03-01' }, P).relief === 0, true)
+}
+
+console.log('\n— §184: rientro dei cervelli —')
+{
+  const base = p({ kind: 'indeterminato', gross: 60000, months: 14 })
+  const imp = { ...base, impatriateFrom: '2026-01-01' }
+  const n0 = personNet(base, P)
+  const n1 = personNet(imp, P)
+  eq('metà dell\'imponibile esce dalla base IRPEF', n1.exempt, n0.taxableIncome * 0.5, 1)
+  is('IRPEF più bassa', n1.irpef < n0.irpef, true)
+  is('netto più alto', (n1.net ?? 0) > (n0.net ?? 0), true)
+  eq('i contributi restano pieni', n1.socialContributions, n0.socialContributions)
+  eq('e il costo azienda non cambia', personCost(imp, P).total, personCost(base, P).total)
+  // con figlio minore l'esenzione sale al 60%
+  eq('con figlio minore: 60%',
+    personNet({ ...imp, impatriateChildren: true }, P).exempt, n0.taxableIncome * 0.6, 1)
+  // finita la finestra dei cinque anni si torna a IRPEF piena
+  eq('sesto anno: nessuna esenzione',
+    personNet({ ...imp, impatriateFrom: '2020-01-01' }, P).exempt, 0)
+  // il tetto di 600.000 € è sul reddito agevolabile
+  const ricco = personNet({ ...imp, gross: 900000 }, P)
+  eq('oltre il tetto si tassa tutto il resto', ricco.exempt, 600000 * 0.5)
+}
+
+console.log('\n— §184: suggerimenti sulle agevolazioni —')
+{
+  const team = [p({
+    name: 'Junior', kind: 'indeterminato', gross: 24000, birthDate: '2001-01-01',
+    hiredOn: '2026-01-01', neverStable: true,
+  })]
+  const ids = payrollHints(team, P, 0, '2026-08-01').map(h => h.id)
+  is('segnala l\'esonero disponibile', ids.includes('esonero-disponibile'), true)
+  is('segnala la maxi-deduzione sulle assunzioni dell\'anno', ids.includes('maxi-deduzione'), true)
+  // attivato l'esonero, il suggerimento cambia natura
+  const conEsonero = [{ ...team[0], incentiveCode: 'under30_strutturale' }]
+  const ids2 = payrollHints(conEsonero, P, 0, '2026-08-01').map(h => h.id)
+  is('attivo: non lo propone più', ids2.includes('esonero-disponibile'), false)
+  is('e dice quanto sta valendo', ids2.includes('esonero-attivo'), true)
+  // esonero configurato ma senza requisiti: è un errore, non un consiglio
+  const ko = [{ ...conEsonero[0], neverStable: false }]
+  is('non spettante: lo dichiara', payrollHints(ko, P, 0, '2026-08-01').some(h => h.id.startsWith('esonero-ko')), true)
 }
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)

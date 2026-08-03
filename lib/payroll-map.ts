@@ -10,6 +10,7 @@ import {
   DEFAULT_PAYROLL_PARAMS, emptyPerson,
   type PayrollParams, type PersonInput, type ContractKind, type IrpefBracket,
 } from '@/lib/payroll'
+import { mergeIncentives, type HiringIncentive } from '@/lib/incentives'
 
 const num = (v: unknown, fallback = 0) => {
   const n = Number(v)
@@ -27,6 +28,9 @@ export type PersonRow = PersonInput & {
   id: string; role: string | null; tfrOpening: number; active: boolean
   agreedNet: number | null; status: 'attiva' | 'sospesa' | 'cessata'
 }
+
+/** Le colonne §184 possono non esserci ancora: `has` distingue «no» da «non c'è». */
+const flag = (v: unknown) => v === true
 
 export function rowToPerson(r: Record<string, unknown>): PersonRow {
   const kind = KINDS.includes(r.contract_kind as ContractKind)
@@ -51,6 +55,16 @@ export function rowToPerson(r: Record<string, unknown>): PersonRow {
     startupRate: !!r.startup_rate,
     fromMonth: num(r.from_month, 1),
     toMonth: num(r.to_month, 12),
+    // §184 — agevolazioni. `hired_on` cade indietro su `start_date`: chi c'era
+    // prima della 184 ha già la data d'inizio rapporto, e serve la stessa cosa.
+    hiredOn: r.hired_on ? String(r.hired_on).slice(0, 10)
+      : r.start_date ? String(r.start_date).slice(0, 10) : null,
+    neverStable: flag(r.never_stable),
+    incentiveCode: str(r.incentive_code),
+    apprenticeYear: num(r.apprentice_year, 1),
+    impatriateFrom: r.impatriate_from ? String(r.impatriate_from).slice(0, 10) : null,
+    impatriateChildren: flag(r.impatriate_children),
+    protectedCategory: flag(r.protected_category),
     id: String(r.id),
     role: str(r.role_label),
     tfrOpening: num(r.tfr_opening),
@@ -65,7 +79,11 @@ export function rowToPerson(r: Record<string, unknown>): PersonRow {
  * colonna manca perché la migration è più vecchia del codice, il calcolo non
  * diventa zero — diventa il valore noto.
  */
-export function rowToParams(r: Record<string, unknown>): PayrollParams {
+export function rowToParams(
+  r: Record<string, unknown>,
+  /** §184: il catalogo degli esoneri viaggia coi parametri, come le aliquote */
+  incentives?: HiringIncentive[],
+): PayrollParams {
   const d = DEFAULT_PAYROLL_PARAMS
   const brackets = Array.isArray(r.irpef_brackets)
     ? (r.irpef_brackets as IrpefBracket[]).filter(b => typeof b?.rate === 'number')
@@ -75,7 +93,18 @@ export function rowToParams(r: Record<string, unknown>): PayrollParams {
     year: num(r.year, d.year),
     inpsEmployerPct: num(r.inps_employer_pct, d.inpsEmployerPct),
     inpsApprenticePct: num(r.inps_apprentice_pct, d.inpsApprenticePct),
+    inpsApprenticeY1Pct: num(r.inps_apprentice_y1_pct, d.inpsApprenticeY1Pct),
+    inpsApprenticeY2Pct: num(r.inps_apprentice_y2_pct, d.inpsApprenticeY2Pct),
+    inpsApprenticeY3Pct: num(r.inps_apprentice_y3_pct, d.inpsApprenticeY3Pct),
     inpsEmployeePct: num(r.inps_employee_pct, d.inpsEmployeePct),
+    inpsApprenticeEmployeePct: num(r.inps_apprentice_employee_pct, d.inpsApprenticeEmployeePct),
+    // due fatti dell'azienda, non due aliquote: da chi dipende quale sconto spetta
+    smallCompany: r.small_company == null ? d.smallCompany : r.small_company === true,
+    zes: r.zes === true,
+    impatriatePct: num(r.impatriate_pct, d.impatriatePct),
+    impatriateChildrenPct: num(r.impatriate_children_pct, d.impatriateChildrenPct),
+    impatriateCap: num(r.impatriate_cap, d.impatriateCap),
+    impatriateYears: num(r.impatriate_years, d.impatriateYears),
     inailPct: num(r.inail_pct, d.inailPct),
     fixedTermExtraPct: num(r.fixed_term_extra_pct, d.fixedTermExtraPct),
     gestioneSeparataPct: num(r.gestione_separata_pct, d.gestioneSeparataPct),
@@ -101,9 +130,46 @@ export function rowToParams(r: Record<string, unknown>): PayrollParams {
     mealVoucherExempt: num(r.meal_voucher_exempt, d.mealVoucherExempt),
     productivityBonusPct: num(r.productivity_bonus_pct, d.productivityBonusPct),
     productivityBonusCap: num(r.productivity_bonus_cap, d.productivityBonusCap),
+    incentives: incentives ?? d.incentives,
     source: str(r.source),
     verifiedAt: str(r.verified_at),
   }
+}
+
+/**
+ * Il catalogo degli esoneri dal database.
+ *
+ * Le righe correggono i valori di partenza campo per campo (`mergeIncentives`):
+ * un tetto che cambia a metà anno si sistema in una riga di SQL, non in un
+ * deploy. Se la tabella non c'è ancora vale il catalogo del codice — e il tool
+ * continua a funzionare, come per le altre migration.
+ */
+export function rowsToIncentives(rows: Record<string, unknown>[] | null | undefined): HiringIncentive[] {
+  if (!rows?.length) return DEFAULT_PAYROLL_PARAMS.incentives
+  const list = rows.filter(r => r.active !== false).map(r => ({
+    code: String(r.code),
+    label: r.label == null ? undefined : String(r.label),
+    what: r.what == null ? undefined : String(r.what),
+    exemptPct: r.exempt_pct == null ? undefined : Number(r.exempt_pct),
+    monthlyCap: r.monthly_cap == null ? undefined : Number(r.monthly_cap),
+    yearlyCap: r.yearly_cap == null ? undefined : Number(r.yearly_cap),
+    zesMonthlyCap: r.zes_monthly_cap == null ? undefined : Number(r.zes_monthly_cap),
+    durationMonths: r.duration_months == null ? undefined : Number(r.duration_months),
+    windowFrom: r.window_from == null ? undefined : String(r.window_from).slice(0, 10),
+    windowTo: r.window_to == null ? undefined : String(r.window_to).slice(0, 10),
+    maxAge: r.max_age == null ? undefined : Number(r.max_age),
+    requiresNeverStable: r.requires_never_stable == null ? undefined : r.requires_never_stable === true,
+    requiresNetIncrease: r.requires_net_increase == null ? undefined : r.requires_net_increase === true,
+    zesOnly: r.zes_only == null ? undefined : r.zes_only === true,
+    manualOnly: r.manual_only == null ? undefined : r.manual_only === true,
+    closed: r.closed == null ? undefined : r.closed === true,
+    kinds: Array.isArray(r.kinds) ? (r.kinds as ContractKind[]) : undefined,
+    conditions: Array.isArray(r.conditions) ? (r.conditions as string[]) : undefined,
+    legalRef: r.legal_ref == null ? undefined : String(r.legal_ref),
+    verifiedAt: r.verified_at == null ? null : String(r.verified_at).slice(0, 10),
+    note: r.note == null ? null : String(r.note),
+  }))
+  return mergeIncentives(list)
 }
 
 /** I campi modificabili delle aliquote, con etichetta e formato. Guida la UI. */
@@ -111,15 +177,23 @@ export const PARAM_FIELDS: {
   key: string
   label: string
   hint: string
-  format: 'pct' | 'eur' | 'num'
-  group: 'contributi' | 'tfr' | 'irpef' | 'autonomi' | 'welfare'
+  format: 'pct' | 'eur' | 'num' | 'bool'
+  group: 'contributi' | 'tfr' | 'irpef' | 'autonomi' | 'welfare' | 'agevolazioni'
 }[] = [
   { key: 'inps_employer_pct', label: 'INPS a carico azienda', format: 'pct', group: 'contributi',
     hint: 'Dipende dal CCNL e dalla dimensione: 29-32% nel terziario. È la voce che pesa di più.' },
-  { key: 'inps_apprentice_pct', label: 'INPS apprendistato', format: 'pct', group: 'contributi',
-    hint: 'Aliquota agevolata per il contratto formativo: è la ragione per cui conviene.' },
+  { key: 'inps_apprentice_pct', label: 'INPS apprendistato oltre 9 dipendenti', format: 'pct', group: 'contributi',
+    hint: 'Aliquota unica per tutta la durata: 11,61% comprensivo di NASpI e fondi.' },
+  { key: 'inps_apprentice_y1_pct', label: 'Apprendistato 1º anno (fino a 9)', format: 'pct', group: 'contributi',
+    hint: '1,5% più 1,61% di NASpI e fondi: è lo sconto più grosso che esiste sul lavoro subordinato.' },
+  { key: 'inps_apprentice_y2_pct', label: 'Apprendistato 2º anno (fino a 9)', format: 'pct', group: 'contributi',
+    hint: 'Sale al 3% più 1,61%.' },
+  { key: 'inps_apprentice_y3_pct', label: 'Apprendistato 3º anno (fino a 9)', format: 'pct', group: 'contributi',
+    hint: 'Dal terzo anno si allinea al 10% più 1,61%.' },
   { key: 'inps_employee_pct', label: 'INPS a carico dipendente', format: 'pct', group: 'contributi',
     hint: 'Trattenuta in busta: non è un costo azienda, ma serve a calcolare il netto.' },
+  { key: 'inps_apprentice_employee_pct', label: 'INPS a carico apprendista', format: 'pct', group: 'contributi',
+    hint: '5,84% invece del 9,19%: a parità di lordo un apprendista porta a casa di più.' },
   { key: 'inail_pct', label: 'INAIL', format: 'pct', group: 'contributi',
     hint: 'Dipende dalla lavorazione assicurata: per il lavoro d\'ufficio è basso.' },
   { key: 'fixed_term_extra_pct', label: 'Addizionale NASpI (determinato)', format: 'pct', group: 'contributi',
@@ -162,6 +236,22 @@ export const PARAM_FIELDS: {
     hint: 'Al posto dell\'IRPEF ordinaria, con accordo aziendale depositato.' },
   { key: 'productivity_bonus_cap', label: 'Tetto premio di risultato', format: 'eur', group: 'welfare',
     hint: 'Oltre questa cifra il premio torna a tassazione ordinaria.' },
+
+  /* §184 — due fatti dell'azienda e le regole del rientro dei cervelli. Non
+     sono aliquote da contrattare: sono le condizioni da cui dipende quale
+     agevolazione spetta, e sbagliarle sposta il costo del lavoro di parecchio. */
+  { key: 'small_company', label: 'Fino a 9 dipendenti', format: 'bool', group: 'agevolazioni',
+    hint: 'Decide l\'aliquota dell\'apprendistato: sotto i dieci dipendenti il primo anno costa 3,11% invece di 11,61%.' },
+  { key: 'zes', label: 'Unità produttiva nella ZES Mezzogiorno', format: 'bool', group: 'agevolazioni',
+    hint: 'Alza i tetti mensili degli esoneri e apre la decontribuzione Sud.' },
+  { key: 'impatriate_pct', label: 'Impatriati: quota esente', format: 'pct', group: 'agevolazioni',
+    hint: 'Quota di reddito che non entra nella base IRPEF. Il costo aziendale non cambia: cambia il netto.' },
+  { key: 'impatriate_children_pct', label: 'Impatriati con figlio minore', format: 'pct', group: 'agevolazioni',
+    hint: 'Quota più alta con almeno un figlio minorenne, o se nasce durante il periodo agevolato.' },
+  { key: 'impatriate_cap', label: 'Impatriati: reddito agevolabile', format: 'eur', group: 'agevolazioni',
+    hint: 'Oltre questo reddito annuo si applicano le aliquote ordinarie.' },
+  { key: 'impatriate_years', label: 'Impatriati: anni agevolati', format: 'num', group: 'agevolazioni',
+    hint: 'Cinque periodi d\'imposta dal trasferimento della residenza.' },
 ]
 
 // ── §182: dai documenti veri ai tipi del motore ──────────────────────────────

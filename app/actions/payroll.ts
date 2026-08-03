@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import type { ContractKind, PayrollParams } from '@/lib/payroll'
+import { PAYROLL_CENTER } from '@/lib/costs'
 
 async function requireAdmin(): Promise<string> {
   const sb = await createClient()
@@ -46,6 +47,14 @@ export type PersonPatch = Partial<{
   is_active: boolean
   note: string | null
   profile_id: string | null
+  // §184 — agevolazioni
+  hired_on: string | null
+  never_stable: boolean
+  incentive_code: string | null
+  apprentice_year: number
+  impatriate_from: string | null
+  impatriate_children: boolean
+  protected_category: boolean
 }>
 
 export async function addPerson(input: PersonPatch = {}): Promise<string> {
@@ -116,7 +125,7 @@ export async function markParamsVerified(year: number, by: string) {
 }
 
 /**
- * Porta il costo dell'organico nella voce «Persone» del mese.
+ * Porta il costo dell'organico nella voce «Personale» del mese.
  *
  * Una riga per persona, non un totale: dal conto economico si deve poter
  * risalire a chi genera quel costo. La riga è **sostituita**, non sommata —
@@ -133,7 +142,9 @@ export async function pushToProfitLoss(month: string): Promise<{ rows: number; t
   const [{ data: people }, { data: prm }, { data: center }] = await Promise.all([
     db.from('hr_people').select('*').eq('is_active', true),
     db.from('hr_payroll_params').select('*').eq('year', Number(month.slice(0, 4))).maybeSingle(),
-    db.from('cost_centers').select('id').ilike('name', 'Persone').maybeSingle(),
+    // finché la 184 non gira l'area si chiama ancora «Persone»: si accettano
+    // entrambi i nomi, altrimenti le righe finirebbero senza area
+    db.from('cost_centers').select('id').in('name', [PAYROLL_CENTER, 'Persone']).limit(1).maybeSingle(),
   ])
   if (!people?.length) throw new Error('Nessuna persona in organico')
 
@@ -149,7 +160,7 @@ export async function pushToProfitLoss(month: string): Promise<{ rows: number; t
       center_id: (center as { id: string } | null)?.id ?? null,
       cost_item_id: null,
       project_id: null,
-      category: 'Persone',
+      category: PAYROLL_CENTER,
       label: `${p.name}${r.role_label ? ` — ${String(r.role_label)}` : ''}`,
       cost_type: 'F' as const,
       // il costo mensile di competenza: TFR e ratei inclusi, che è il punto
@@ -160,8 +171,11 @@ export async function pushToProfitLoss(month: string): Promise<{ rows: number; t
     }
   })
 
-  // sostituzione, non accumulo: si cancellano le righe generate prima
-  await db.from('pl_cost_lines').delete().eq('month_id', monthRow.id).eq('category', 'Persone').is('project_id', null)
+  /* Sostituzione, non accumulo. Si cancella anche col vecchio nome «Persone»:
+     un mese scritto prima della 184 ha ancora quella categoria, e lasciarlo
+     fuori significherebbe raddoppiare il costo del lavoro di quel mese. */
+  await db.from('pl_cost_lines').delete().eq('month_id', monthRow.id)
+    .in('category', [PAYROLL_CENTER, 'Persone']).is('project_id', null)
   const { error } = await db.from('pl_cost_lines').insert(rows)
   if (error) throw new Error(error.message)
 
@@ -262,7 +276,9 @@ export async function pushLedgerToProfitLoss(month: string): Promise<{ rows: num
     db.from('hr_payroll_params').select('*').eq('year', Number(month.slice(0, 4))).maybeSingle(),
     db.from('hr_payslips').select('*').eq('month', month),
     db.from('hr_invoices').select('*').eq('month', month),
-    db.from('cost_centers').select('id').ilike('name', 'Persone').maybeSingle(),
+    // finché la 184 non gira l'area si chiama ancora «Persone»: si accettano
+    // entrambi i nomi, altrimenti le righe finirebbero senza area
+    db.from('cost_centers').select('id').in('name', [PAYROLL_CENTER, 'Persone']).limit(1).maybeSingle(),
   ])
   if (!people?.length) throw new Error('Nessuna persona in organico')
 
@@ -300,7 +316,7 @@ export async function pushLedgerToProfitLoss(month: string): Promise<{ rows: num
       month_id: monthRow.id,
       center_id: (center as { id: string } | null)?.id ?? null,
       cost_item_id: null, project_id: null,
-      category: 'Persone',
+      category: PAYROLL_CENTER,
       label: `${p.name}${p.role ? ` — ${p.role}` : ''}`,
       cost_type: 'F' as const,
       budget: amount,
@@ -311,7 +327,11 @@ export async function pushLedgerToProfitLoss(month: string): Promise<{ rows: num
     }
   })
 
-  await db.from('pl_cost_lines').delete().eq('month_id', monthRow.id).eq('category', 'Persone').is('project_id', null)
+  /* Sostituzione, non accumulo. Si cancella anche col vecchio nome «Persone»:
+     un mese scritto prima della 184 ha ancora quella categoria, e lasciarlo
+     fuori significherebbe raddoppiare il costo del lavoro di quel mese. */
+  await db.from('pl_cost_lines').delete().eq('month_id', monthRow.id)
+    .in('category', [PAYROLL_CENTER, 'Persone']).is('project_id', null)
   const { error } = await db.from('pl_cost_lines').insert(rows)
   if (error) throw new Error(error.message)
 
