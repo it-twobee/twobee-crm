@@ -192,6 +192,7 @@ dato economico: è sicuro anche nel workspace.
 | `182_payroll_ledger.sql` | Il cedolino batte la stima: `hr_payslips` (competenze/imponibili/trattenute/oneri datore, con `employer_contrib` NULL = da consulente), `hr_invoices` (imponibile, IVA detraibile o no, ritenuta, importo pagato), `hr_f24` (aggregato, `individual_detail`), `hr_tfr_movements`. Estende `hr_people` (stato, CCNL, IBAN, P.IVA, regime, netto concordato) e aggiunge socio/fornitore. Seed: organico reale + cedolini e F24 di giugno 2026 | — |
 | `183_hr_personal_data.sql` | `hr_people`: `birth_date` (l'età decide l'eleggibilità all'apprendistato, under 30), `has_children`/`children_count` (alzano la soglia dei fringe benefit esenti), `dependent_spouse`. Si registra la data, non l'età: un'età nel database invecchia male | — |
 | `184_hiring_incentives.sql` | **Agevolazioni**: aliquote 2026 (IRPEF 33% sul 2º scaglione, buono pasto 10 €, premi 1% entro 5.000 €), apprendistato per anno e dimensione, `hr_incentives` (catalogo esoneri con tetti e finestre), campi §184 su `hr_people` (assunzione, mai-stabile, esonero, impatriati, categoria protetta), maggiorazioni di deduzione su `tax_config`, e «Persone» → «Personale» in sola lettura dal piano dei costi | — |
+| `185_digital_split.sql` | **Spartizione digital** rifatta: quote sull'imponibile e non sul residuo — 6% commerciale · **28% ai soci** in parti uguali · **10% casse TwoBee** · 35% target costi · 10% fondo rischio · 11% margine non distribuito. `pl_config.digital_partners_pct` + `digital_company_pct`. Il commerciale è quello dell'anagrafica del cliente; se manca, il 6% si divide fra i soci | — |
 | `179_os_versions.sql` | Cronologia: (a) `log_activity()` legge l'attore dall'header `x-actor-id` — col service role `auth.uid()` è NULL e tutto risultava «Sistema» — e non registra gli UPDATE che non cambiano niente; (b) `os_versions` + `os_version_changes`, il changelog di prodotto con un ciclo di 15 giorni dal 2026-08-01 (v1.0.0), bozze visibili ai soli admin; (c) seed della v1.0.0 con 13 voci | — |
 
 **Scorciatoia**: `supabase/APPLY_PENDING.sql` è il concatenato (081, 086–093) in
@@ -254,6 +255,28 @@ si scrive un importo**. Tutto il resto lo legge:
   contratti attivi nel mese (`origin='contratto'`); i clienti **senza nemmeno un
   contratto** entrano con l'MRR d'anagrafica (`origin='anagrafica'`, segnalati
   come «senza contratto»). Il ripiego è per cliente, mai globale.
+
+**Piano compensi** (`lib/pl.ts`, §185). Due formule perché sono due lavori
+diversi, non per incoerenza:
+
+- **Growth**: 15% commerciale · 30% **erogato** ai soci in parti uguali · 35%
+  target costi · 10% fondo rischio · 10% residuo in cassa. Lì il lavoro lo fanno
+  i soci, quindi la loro quota è erogato.
+- **Digital**: 6% commerciale · **28% ai soci** in parti uguali · **10% casse
+  TwoBee** · 35% target costi · 10% fondo rischio · **11% margine non
+  distribuito** (resta in cassa, si mostra a parte). Qui il lavoro lo fa il team
+  a stipendio, quindi ai soci va utile, non erogato. Le quote sono percentuali
+  dell'**imponibile**: «il 30% del 49%» non lo calcola nessuno a mente, e una
+  quota che non si controlla è un numero che arriva.
+- **Il commerciale è quello dell'anagrafica del cliente** (`ownerOf` in
+  `lib/pl.ts`): la riga del mese vince se ne porta uno — è una fotografia, e un
+  mese chiuso non si riscrive perché l'anagrafica è cambiata dopo — altrimenti si
+  legge `clients.sales_owner_name`, che spesso è un segnalatore senza account nel
+  tool. **Se non c'è da nessuna parte, la provvigione non resta in cassa: si
+  divide fra i soci in parti uguali** (5% a testa sul growth, 2% sul digital).
+- `rowToPlConfig` è l'unico mapper da `pl_config`: era scritto due volte
+  (economics e scheda cliente) e la seconda copia si dimenticava ogni colonna
+  nuova.
 
 **Piani di pagamento** (`buildSchedule` in `lib/revenue.ts`, UI in
 `components/economics/CustomPlan.tsx`): acconto % + N rate, rate uguali, o
@@ -509,8 +532,8 @@ devono dire «Tutti i controlli passano».
 il dev server resta a servire chunk CSS sostituiti e la pagina si apre senza
 stili. Se succede: ferma il dev, `rm -rf .next`, riavvia.
 
-**Migration da eseguire: la `183_hr_personal_data.sql` e la
-`184_hiring_incentives.sql`.** Le altre (179-182) sono applicate e verificate sul
+**Migration da eseguire: la `183_hr_personal_data.sql`, la
+`184_hiring_incentives.sql` e la `185_digital_split.sql`.** Le altre (179-182) sono applicate e verificate sul
 database: v1.0.0 pubblicata, retention a 90 giorni con pg_cron attivo, organico e
 cedolini di giugno caricati. Senza la 183 i campi età e figli non esistono e il
 suggerimento sull'apprendistato resta generico; senza la 184 il catalogo delle
@@ -546,6 +569,10 @@ cliente, Stato pagamenti).
   Personale e pannello «Agevolazioni e regimi» in Fiscale.
 - **Area «Personale» in sola lettura** nel piano dei costi, con il doppio
   conteggio del costo del lavoro rimosso da «Porta nel mese» e dall'anteprima.
+- **Subappalti e costi esterni** raccolti per subappaltatore (`bySupplier`),
+  sezione richiudibile, fornitori aggiungibili e rinominabili in blocco.
+- **Spartizione digital** (§185): 6% · 28% soci · 10% cassa sull'imponibile, col
+  commerciale letto dall'anagrafica del cliente.
 
 **Com'è messo il database** (2026-08-01): 12 clienti (4 stabili, 3 partner, 3
 pending, 1 in bilico, 1 perso), 11 progetti attivi — 10 con cliente, 1 interno —

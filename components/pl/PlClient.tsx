@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import {
-  computeMonth, monthLabel, shiftMonth, pct,
+  computeMonth, monthLabel, shiftMonth, pct, ownerOf,
   type PlConfig, type RevenueLine, type CostLine, type Partner,
 } from '@/lib/pl'
 import {
@@ -266,13 +266,21 @@ export function PlClient({
           { label: 'Costi effettivi', value: t.costs.actual, tone: 'bg-error' },
           { label: 'Fondo rischio', value: t.plan.riskFund, tone: 'bg-orange' },
           { label: 'Residuo ai soci', value: t.plan.residualToPartners, tone: 'bg-gold' },
+          // §185: sul digital la quota ai soci è una percentuale dell'imponibile
+          { label: `Digital ai soci ${pc(config.digital_partners_pct)}`, value: t.plan.digitalPartners, tone: 'bg-gold' },
         ]} />
 
         <div className="grid gap-3 sm:grid-cols-3 mt-4">
           <Mini icon={<ShieldAlert className="w-3.5 h-3.5 text-orange" />} label={`Fondo rischio ${pc(config.risk_fund_pct)}`} value={eur(t.plan.riskFund)} />
           <Mini icon={<Target className="w-3.5 h-3.5 text-text-tertiary" />} label={`Target costi ${pc(config.cost_target_pct)}`} value={eur(t.costs.target)}
             extra={<span className={overTarget ? 'text-error' : 'text-success'}>{overTarget ? '−' : '+'}{eur(Math.abs(t.costs.variance))}</span>} />
-          <Mini icon={<Building2 className="w-3.5 h-3.5 text-gold-text" />} label="Cassa TwoBee" value={eur(t.margin.company)} />
+          <Mini icon={<Building2 className="w-3.5 h-3.5 text-gold-text" />} label="Cassa TwoBee" value={eur(t.margin.company)}
+            extra={t.plan.digitalCompany > 0 || t.plan.digitalRetained > 0 ? (
+              <span className="text-text-tertiary">
+                di cui {eur(t.plan.digitalCompany)} quota digital {pc(config.digital_company_pct)}
+                {t.plan.digitalRetained > 0 && ` · ${eur(t.plan.digitalRetained)} margine non distribuito`}
+              </span>
+            ) : undefined} />
         </div>
       </section>
 
@@ -283,8 +291,10 @@ export function PlClient({
             <Users className="w-4 h-4 text-accent" />Compensi soci
           </h2>
           <p className="text-2xs text-text-tertiary mb-3">
-            Erogato {pc(config.growth_delivery_pct)} sul growth in parti uguali · residuo digital {pc(config.partner_share_pct)} a testa
-            {t.plan.salesPool > 0 && <> · provvigione da lead generation divisa in tre</>}
+            Erogato {pc(config.growth_delivery_pct)} sul growth in parti uguali ·{' '}
+            {pc(config.digital_partners_pct)} del digital diviso fra i soci
+            {t.plan.digitalShare > 0 && <> ({eur(t.plan.digitalShare)} a testa)</>}
+            {t.plan.salesPool > 0 && <> · provvigione senza commerciale divisa fra i soci</>}
           </p>
           {t.perPartner.length === 0 ? (
             <Empty>Nessun socio configurato.</Empty>
@@ -294,8 +304,10 @@ export function PlClient({
                 <div key={p.partner.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-border">
                   <span className="text-sm font-semibold text-text-primary flex-1 truncate">{p.partner.label}</span>
                   <span className="text-2xs text-text-tertiary tabular hidden sm:block">
-                    erogato {eur(p.delivery)} · residuo {eur(p.residual)}
-                    {p.salesShare > 0 && <> · lead gen {eur(p.salesShare)}</>}
+                    erogato {eur(p.delivery)}
+                    {p.digital > 0 && <> · digital {eur(p.digital)}</>}
+                    {p.residual > 0 && <> · residuo {eur(p.residual)}</>}
+                    {p.salesShare > 0 && <> · provvigione divisa {eur(p.salesShare)}</>}
                   </span>
                   <span className="text-sm font-bold text-text-primary tabular">{eur(p.total)}</span>
                 </div>
@@ -318,7 +330,7 @@ export function PlClient({
                 <span className="text-sm font-bold text-text-primary tabular">{eur(t.plan.salesPool)}</span>
               </div>
               <p className="text-2xs text-text-tertiary mt-0.5">
-                Nessuno li ha portati: {eur(t.plan.poolShare)} a testa ai soci
+                Nessun commerciale, né sulla riga né in anagrafica: {eur(t.plan.poolShare)} a testa ai soci
               </p>
             </div>
           )}
@@ -328,7 +340,14 @@ export function PlClient({
             <div className="space-y-1.5">
               {t.salesByOwner.map(s => (
                 <div key={s.label} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-border">
-                  <span className="text-sm text-text-primary flex-1 truncate">{s.label}</span>
+                  <span className="text-sm text-text-primary flex-1 truncate">
+                    {s.label}
+                    {/* chi non ha un account nel tool esiste solo in anagrafica:
+                        dirlo evita di cercarlo fra i profili e non trovarlo */}
+                    {s.fromRegistry && (
+                      <span className="ml-1.5 text-2xs text-text-tertiary">dall&apos;anagrafica</span>
+                    )}
+                  </span>
                   <span className="text-sm font-bold text-text-primary tabular">{eur(s.amount)}</span>
                 </div>
               ))}
@@ -533,15 +552,15 @@ export function PlClient({
                       </select>
                     </td>
                     <td className="px-2 py-1.5">
-                      <select value={line.sales_owner_id ?? ''} disabled={locked} aria-label="Commerciale"
-                        onChange={e => run(() => updateRevenueLine(line.id, {
-                          sales_owner_id: e.target.value || null,
-                          sales_owner: profiles.find(p => p.id === e.target.value)?.full_name ?? null,
-                        }))}
-                        className="bg-background border border-border rounded-lg px-1.5 py-1 text-2xs text-text-secondary max-w-[120px]">
-                        <option value="">—</option>
-                        {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-                      </select>
+                      {/* §185 — chi ha portato il cliente. La riga vince, ma se è
+                          vuota si legge il nome dell'anagrafica invece di un
+                          trattino: spesso è un segnalatore che nel tool non c'è.
+                          Se non c'è nemmeno lì, il 6% si divide fra i soci. */}
+                      <Owner line={line} profiles={profiles} locked={locked}
+                        onPick={id => run(() => updateRevenueLine(line.id, {
+                          sales_owner_id: id || null,
+                          sales_owner: profiles.find(p => p.id === id)?.full_name ?? null,
+                        }))} />
                     </td>
                     <td className="px-2 py-1.5 text-center">
                       <Check on={line.invoice_sent} disabled={locked} label="Fattura inviata"
@@ -876,6 +895,36 @@ function Check({ on, onToggle, disabled, label }: { on: boolean; onToggle: () =>
         )}
       </span>
     </button>
+  )
+}
+
+/**
+ * Il commerciale di una riga di ricavo.
+ *
+ * Tre stati e tutti e tre vanno detti: assegnato sulla riga (la tendina lo
+ * mostra), preso dall'anagrafica del cliente (nome in chiaro, perché spesso è un
+ * segnalatore che non ha un account e nella tendina non comparirebbe), o nessuno
+ * — e allora la provvigione non resta in cassa, si divide fra i soci.
+ */
+function Owner({ line, profiles, locked, onPick }: {
+  line: RevenueLine
+  profiles: { id: string; full_name: string }[]
+  locked: boolean
+  onPick: (id: string) => void
+}) {
+  const o = ownerOf(line)
+  return (
+    <div className="min-w-[110px]">
+      <select value={line.sales_owner_id ?? ''} disabled={locked} aria-label="Commerciale"
+        onChange={e => onPick(e.target.value)}
+        className="w-full bg-background border border-border rounded-lg px-1.5 py-1 text-2xs text-text-secondary max-w-[130px]">
+        <option value="">{o.source === 'anagrafica' ? `${o.name} · anagrafica` : '—'}</option>
+        {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+      </select>
+      {o.source === null && (
+        <span className="block text-2xs text-gold-text mt-0.5">quota ai soci</span>
+      )}
+    </div>
   )
 }
 

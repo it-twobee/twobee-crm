@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { PlClient } from '@/components/pl/PlClient'
 import { PlPeriod } from '@/components/pl/PlPeriod'
 import {
-  computeMonth, DEFAULT_PL_CONFIG, monthKey, shiftMonth,
+  computeMonth, DEFAULT_PL_CONFIG, rowToPlConfig, monthKey, shiftMonth,
   type PlConfig, type RevenueLine, type CostLine, type Partner,
 } from '@/lib/pl'
 import type { MonthVat } from '@/lib/vat'
@@ -41,7 +41,9 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
     supabase.from('profiles').select('id, full_name').eq('is_active', true).order('full_name'),
     // fotografia di oggi: serve a segnalare lo scostamento fra anagrafica e mese
     supabase.from('clients')
-      .select('id, company_name, display_name, mrr, client_type, client_label, is_internal')
+      // §185: sales_owner_* serve a mostrare il commerciale dell'anagrafica sulle
+      // righe che non ne portano uno, e a sapere se il 6% ha un destinatario
+      .select('id, company_name, display_name, mrr, client_type, client_label, is_internal, sales_owner_id, sales_owner_name')
       .order('company_name'),
     // §171: aree di spesa. Se la migration non c'è la tendina resta vuota
     supabase.from('cost_centers').select('id, name').eq('is_active', true).order('sort_order'),
@@ -101,19 +103,7 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
   const setupNeeded = monthErr?.code === '42P01'
 
   const num = (v: unknown) => Number(v ?? 0)
-  const config: PlConfig = cfg
-    ? {
-        growth_sales_pct: num(cfg.growth_sales_pct),
-        growth_delivery_pct: num(cfg.growth_delivery_pct),
-        digital_sales_pct: num(cfg.digital_sales_pct),
-        digital_delivery_pct: num(cfg.digital_delivery_pct),
-        cost_target_pct: num(cfg.cost_target_pct),
-        risk_fund_pct: num(cfg.risk_fund_pct),
-        growth_residual_to_company: cfg.growth_residual_to_company ?? true,
-        partner_share_pct: num(cfg.partner_share_pct),
-        company_share_pct: num(cfg.company_share_pct),
-      }
-    : DEFAULT_PL_CONFIG
+  const config: PlConfig = rowToPlConfig(cfg as Record<string, unknown> | null)
 
   const n = (v: unknown) => Number(v ?? 0)
   const prev = {
@@ -127,6 +117,15 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
     (allProjects ?? []).map((p: { id: string; name: string }) => [p.id, p.name]))
 
   // la riga di contratto si chiama col servizio: senza questo il cliente sparirebbe
+  /* §185 — il commerciale che ciascun cliente ha in anagrafica. Le righe del mese
+     ne portano una copia (la fotografia di quando sono nate); questa mappa serve
+     a chi non l'ha, così il nome si legge invece di un trattino. */
+  const clientOwner = new Map((activeClients ?? []).map((c: Record<string, unknown>) =>
+    [String(c.id), {
+      id: (c.sales_owner_id as string) ?? null,
+      name: (c.sales_owner_name as string) ?? null,
+    }]))
+
   const clientNames = Object.fromEntries((activeClients ?? [])
     .map((c: { id: string; company_name: string; display_name: string | null }) =>
       [c.id, c.display_name || c.company_name]))
@@ -149,12 +148,17 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
       ? await Promise.all([
           supabase.from('pl_revenue_lines').select('*').in('month_id', ids),
           supabase.from('pl_cost_lines').select('*').in('month_id', ids),
-          supabase.from('clients').select('id, company_name, display_name'),
+          supabase.from('clients').select('id, company_name, display_name, sales_owner_id, sales_owner_name'),
         ])
       : [{ data: [] }, { data: [] }, { data: [] }]
 
     const nameOf = new Map((clientNames ?? []).map((c: { id: string; company_name: string; display_name: string | null }) =>
       [c.id, c.display_name || c.company_name]))
+    const ownerOf = new Map((clientNames ?? []).map((c: Record<string, unknown>) =>
+      [String(c.id), {
+        id: (c.sales_owner_id as string) ?? null,
+        name: (c.sales_owner_name as string) ?? null,
+      }]))
     const asRev = (r: Record<string, unknown>): RevenueLine => ({
       id: String(r.id), label: String(r.label), client_id: (r.client_id as string) ?? null,
       plan_amount: num(r.plan_amount), invoices: num(r.invoices), amount_net: num(r.amount_net),
@@ -162,6 +166,8 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
       kind: (r.kind === 'digital' ? 'digital' : 'growth'),
       sales_owner_id: (r.sales_owner_id as string) ?? null,
       sales_owner: (r.sales_owner as string) ?? null,
+      client_sales_owner_id: ownerOf.get(String(r.client_id ?? ''))?.id ?? null,
+      client_sales_owner: ownerOf.get(String(r.client_id ?? ''))?.name ?? null,
     })
     const asCost = (c: Record<string, unknown>): CostLine => ({
       id: String(c.id), category: String(c.category), label: String(c.label),
@@ -224,6 +230,8 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
         kind: (r.kind === 'digital' ? 'digital' : 'growth'),
         sales_owner_id: (r.sales_owner_id as string) ?? null,
         sales_owner: (r.sales_owner as string) ?? null,
+        client_sales_owner_id: clientOwner.get(String(r.client_id ?? ''))?.id ?? null,
+        client_sales_owner: clientOwner.get(String(r.client_id ?? ''))?.name ?? null,
         origin: (r.origin as 'contratto' | 'anagrafica' | 'manuale') ?? 'manuale',
         project_id: (r.project_id as string) ?? null,
         stream_id: (r.stream_id as string) ?? null,

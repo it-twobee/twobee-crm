@@ -7,6 +7,11 @@ const eq = (label: string, got: number, want: number) => {
   if (!ok) fail++
   console.log(`${ok ? 'OK ' : 'NO '} ${label.padEnd(46)} ${got.toFixed(2).padStart(10)}  atteso ${want.toFixed(2)}`)
 }
+const is = (label: string, got: unknown, want: unknown) => {
+  const ok = JSON.stringify(got) === JSON.stringify(want)
+  if (!ok) fail++
+  console.log(`${ok ? 'OK ' : 'NO '} ${label.padEnd(46)} ${JSON.stringify(got)}${ok ? '' : `  atteso ${JSON.stringify(want)}`}`)
+}
 const rev = (o: Partial<RevenueLine>): RevenueLine => ({
   id: 'r', label: 'x', client_id: null, plan_amount: 0, invoices: 1, amount_net: 0,
   vat_rate: 0.22, invoice_sent: true, paid: true, kind: 'growth',
@@ -35,12 +40,22 @@ eq('fondo rischio 10%', g.riskFund, 1000)
 eq('residuo 10%', g.residual, 1000)
 eq('residuo ai soci (resta in cassa)', g.residualToPartners, 0)
 
-console.log('\n— Digital, 10.000 € imponibile —')
+console.log('\n— Digital, 10.000 € imponibile (§185) —')
 const d = splitLine(rev({ amount_net: 10000, kind: 'digital' }), C)
 eq('commerciale 6%', d.sales, 600)
 eq('erogato', d.delivery, 0)
+eq('ai soci 28% dell\'imponibile', d.partnersPool, 2800)
+eq('alle casse TwoBee 10%', d.companyQuota, 1000)
+eq('target costi 35%', d.costTarget, 3500)
+eq('fondo rischio 10%', d.riskFund, 1000)
 eq('residuo 49%', d.residual, 4900)
-eq('residuo ai soci', d.residualToPartners, 4900)
+// 49 meno 28 meno 10: margine che nessuno distribuisce e resta in cassa
+eq('margine non distribuito 11%', d.retained, 1100)
+// le quote dichiarate più costi, rischio e margine fanno l'intero
+eq('somma delle quote = imponibile',
+  d.sales + d.partnersPool + d.companyQuota + d.costTarget + d.riskFund + d.retained, 10000)
+// il vecchio meccanismo «percentuale del residuo» sul digital non si usa più
+eq('nessun residuo da ripartire col vecchio metodo', d.residualToPartners, 0)
 
 console.log('\n— Mese misto: growth 10.000 + digital 10.000, costi reali 2.800 —')
 const m = computeMonth(
@@ -58,19 +73,58 @@ eq('incidenza costi reale', m.costs.ratio * 100, 14)
 eq('margine lordo (20.000 - 2.800)', m.margin.gross, 17200)
 
 console.log('\n— Compensi per socio —')
+eq('quota digital ai soci (28% di 10.000)', m.plan.digitalPartners, 2800)
+eq('a testa, in parti uguali', m.plan.digitalShare, 933.33)
 for (const p of m.perPartner) {
-  eq(`${p.partner.label}: erogato 1.000 + residuo 1.470`, p.total, 2470)
+  eq(`${p.partner.label}: erogato 1.000 + digital 933,33`, p.total, 1933.33)
 }
-eq('residuo trattenuto (490 digital + 1000 growth)', m.margin.company - m.plan.riskFund - m.costs.variance, 1490)
-eq('cassa TwoBee (490 + 1000 growth + 2000 rischio + 4200 risparmio)', m.margin.company, 7690)
+/* Cassa TwoBee: il 10% dichiarato del digital, l'11% di margine non distribuito,
+   il residuo growth che non si divide, il fondo rischio e il risparmio sui costi.
+   La quota dei soci NON ci deve stare: sarebbe contata due volte. */
+eq('quota digital alle casse (10%)', m.plan.digitalCompany, 1000)
+eq('margine digital non distribuito (11%)', m.plan.digitalRetained, 1100)
+eq('trattenuto (1.000 + 1.100 digital + 1.000 growth)',
+  m.margin.company - m.plan.riskFund - m.costs.variance, 3100)
+eq('cassa TwoBee (3.100 + 2.000 rischio + 4.200 risparmio)', m.margin.company, 9300)
+// e la somma di quello che esce dai soci e quello che resta torna al maturato
+eq('quote distribuite (2.100 comm + 3.000 erogato + 2.800 digital)', m.plan.distributed, 7900)
 
-console.log('\n— Provvigione senza commerciale: 15% diviso in tre —')
+console.log('\n— Provvigione senza commerciale: si divide fra i soci —')
 const inb = computeMonth([rev({ amount_net: 10000, kind: 'growth', sales_owner: null })], [], C, partners)
 eq('provvigione totale (15%)', inb.plan.sales, 1500)
 eq('finita tutta nel pool da dividere', inb.plan.salesPool, 1500)
 eq('quota a testa (5% di 10.000)', inb.plan.poolShare, 500)
 eq('Marco: erogato 1.000 + provvigione 500', inb.perPartner[0].total, 1500)
 eq('nessun commerciale in classifica', inb.salesByOwner.length, 0)
+
+// §185 — sul digital vale la stessa regola: il 6% non resta in cassa
+const inbD = computeMonth([rev({ amount_net: 10000, kind: 'digital', sales_owner: null })], [], C, partners)
+eq('provvigione digital (6%)', inbD.plan.sales, 600)
+eq('tutta nel pool', inbD.plan.salesPool, 600)
+eq('2% a testa', inbD.plan.poolShare, 200)
+eq('socio: 933,33 di digital + 200 di provvigione', inbD.perPartner[0].total, 1133.33)
+
+console.log('\n— Il commerciale può stare solo in anagrafica (§185) —')
+{
+  // la riga non ha nessuno, il cliente sì: la provvigione ha un destinatario
+  const fromRegistry = computeMonth(
+    [rev({ amount_net: 10000, kind: 'digital', client_sales_owner: 'Annalisa' })], [], C, partners)
+  eq('niente da dividere fra i soci', fromRegistry.plan.salesPool, 0)
+  eq('la provvigione è sua', fromRegistry.salesByOwner[0].amount, 600)
+  is('col suo nome', fromRegistry.salesByOwner[0].label, 'Annalisa')
+  is('e si dichiara da dove viene', fromRegistry.salesByOwner[0].fromRegistry, true)
+
+  // la riga vince sull'anagrafica: un mese chiuso non si riscrive da fuori
+  const lineWins = computeMonth(
+    [rev({ amount_net: 10000, kind: 'digital', sales_owner: 'Walter', client_sales_owner: 'Annalisa' })],
+    [], C, partners)
+  is('vince il commerciale scritto sulla riga', lineWins.salesByOwner[0].label, 'Walter')
+  is('e non risulta preso dall\'anagrafica', lineWins.salesByOwner[0].fromRegistry, false)
+
+  // nessuno da nessuna parte: si divide
+  const nobody = computeMonth([rev({ amount_net: 10000, kind: 'digital' })], [], C, partners)
+  eq('senza commerciale da nessuna parte, il 6% si divide', nobody.plan.salesPool, 600)
+}
 
 const mix = computeMonth([
   rev({ id: 'x', amount_net: 10000, kind: 'growth', sales_owner: 'Walter' }),

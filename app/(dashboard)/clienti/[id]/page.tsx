@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { ClientPageClient } from '@/components/clients/ClientPageClient'
 import { ClientEconomicsTab } from '@/components/clients/tabs/ClientEconomicsTab'
-import { DEFAULT_PL_CONFIG, kindFromClientType, type PlConfig } from '@/lib/pl'
+import { kindFromClientType, rowToPlConfig, type PlConfig } from '@/lib/pl'
 import { rfmRaw, type ClientInput, type ClientMonth } from '@/lib/client-economics'
 import type { RevenueStream, Installment } from '@/lib/revenue'
 import type { Client, ClientContact, ClientKpi, Profile, ClientStakeholder, ClientInteraction } from '@/lib/types/database'
@@ -116,14 +116,7 @@ export default async function ClientePage({ params, searchParams }: Props) {
     hasBilling = (plRows ?? []).length > 0
       || (inst ?? []).some((i: { stream_id: string }) => soldIds.has(i.stream_id))
 
-    const num = (v: unknown) => Number(v ?? 0)
-    const config: PlConfig = cfg ? {
-      growth_sales_pct: num(cfg.growth_sales_pct), growth_delivery_pct: num(cfg.growth_delivery_pct),
-      digital_sales_pct: num(cfg.digital_sales_pct), digital_delivery_pct: num(cfg.digital_delivery_pct),
-      cost_target_pct: num(cfg.cost_target_pct), risk_fund_pct: num(cfg.risk_fund_pct),
-      growth_residual_to_company: cfg.growth_residual_to_company ?? true,
-      partner_share_pct: num(cfg.partner_share_pct), company_share_pct: num(cfg.company_share_pct),
-    } : DEFAULT_PL_CONFIG
+    const config: PlConfig = rowToPlConfig(cfg as Record<string, unknown> | null)
 
     const input: ClientInput = {
       id, name: (client.display_name || client.company_name) as string,

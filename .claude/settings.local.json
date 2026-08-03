@@ -283,7 +283,9 @@
       "WebFetch(domain:www.irde.it)",
       "WebFetch(domain:www.eclavoro.it)",
       "WebFetch(domain:www.leggioggi.it)",
-      "WebFetch(domain:www.ecnews.it)"
+      "WebFetch(domain:www.ecnews.it)",
+      "Bash(sed -n '/export function orphans/,/^}/p' lib/costs.ts)",
+      "Bash(sed -n '/export function costInsights/,/^}/p' lib/costs.ts)"
     ],
     "defaultMode": "acceptEdits"
   }

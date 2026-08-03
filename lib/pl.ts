@@ -7,8 +7,18 @@
  *   GROWTH   15% commerciale · 30% erogato (in parti uguali fra i soci)
  *            35% target costi · 10% fondo rischio · 10% residuo → cassa TwoBee
  *
- *   DIGITAL   6% commerciale · niente erogato
- *            35% target costi · 10% fondo rischio · 49% residuo → soci + cassa
+ *   DIGITAL   6% commerciale · 28% ai soci (in parti uguali) · 10% cassa TwoBee
+ *            35% target costi · 10% fondo rischio · 11% margine non distribuito
+ *
+ * Sul digital le quote sono **sull'imponibile, non sul residuo** (§185). Prima
+ * erano una percentuale di quel che restava — il 30% del 49% a testa — e nessuno
+ * sapeva dire a mente quanto prendeva su una fattura da 3.000 €. Adesso 28% e
+ * 10% si leggono direttamente sulla riga, e l'11% che avanza è margine che resta
+ * in cassa: dichiarato, non nascosto in un arrotondamento.
+ *
+ * Il commerciale del digital è quello **dell'anagrafica del cliente**: se il
+ * cliente non ce l'ha, il 6% non resta in cassa — si divide fra i soci in parti
+ * uguali, come sul growth.
  *
  * Il 35% è un *target*, non una quota: il compenso distribuito resta quello
  * teorico anche quando i costi reali sono più bassi. Lo scarto fra target e
@@ -27,8 +37,14 @@ export type PlConfig = {
   risk_fund_pct: number
   /** true = il residuo growth non si divide fra i soci, resta in cassa */
   growth_residual_to_company: boolean
+  /** @deprecated §185: sul digital le quote si leggono sull'imponibile. Vale solo se `growth_residual_to_company` è false. */
   partner_share_pct: number
+  /** @deprecated §185: sostituito da `digital_company_pct` sul digital. */
   company_share_pct: number
+  /** §185 — DIGITAL: quota complessiva ai soci, in parti uguali fra loro */
+  digital_partners_pct: number
+  /** §185 — DIGITAL: quota destinata alle casse TwoBee */
+  digital_company_pct: number
 }
 
 export const DEFAULT_PL_CONFIG: PlConfig = {
@@ -41,6 +57,41 @@ export const DEFAULT_PL_CONFIG: PlConfig = {
   growth_residual_to_company: true,
   partner_share_pct: 0.30,
   company_share_pct: 0.10,
+  digital_partners_pct: 0.28,
+  digital_company_pct: 0.10,
+}
+
+/**
+ * Dalla riga di `pl_config` alla configurazione del motore.
+ *
+ * Sta qui e non nelle pagine perché era scritta due volte — economics e scheda
+ * cliente — e le due copie divergevano a ogni colonna nuova: la seconda si
+ * dimenticava sempre. Le colonne assenti cadono sul default, così una migration
+ * non ancora eseguita non azzera una quota (uno zero in una quota non si vede,
+ * si legge come «non spetta niente»).
+ */
+export function rowToPlConfig(row: Record<string, unknown> | null | undefined): PlConfig {
+  if (!row) return DEFAULT_PL_CONFIG
+  const d = DEFAULT_PL_CONFIG
+  const n = (v: unknown, fb: number) => {
+    if (v == null) return fb
+    const x = Number(v)
+    return Number.isFinite(x) ? x : fb
+  }
+  return {
+    growth_sales_pct: n(row.growth_sales_pct, d.growth_sales_pct),
+    growth_delivery_pct: n(row.growth_delivery_pct, d.growth_delivery_pct),
+    digital_sales_pct: n(row.digital_sales_pct, d.digital_sales_pct),
+    digital_delivery_pct: n(row.digital_delivery_pct, d.digital_delivery_pct),
+    cost_target_pct: n(row.cost_target_pct, d.cost_target_pct),
+    risk_fund_pct: n(row.risk_fund_pct, d.risk_fund_pct),
+    growth_residual_to_company: row.growth_residual_to_company == null
+      ? d.growth_residual_to_company : row.growth_residual_to_company === true,
+    partner_share_pct: n(row.partner_share_pct, d.partner_share_pct),
+    company_share_pct: n(row.company_share_pct, d.company_share_pct),
+    digital_partners_pct: n(row.digital_partners_pct, d.digital_partners_pct),
+    digital_company_pct: n(row.digital_company_pct, d.digital_company_pct),
+  }
 }
 
 /** IVA ordinaria: il default della colonna, ripetuto qui perché le righe si
@@ -66,15 +117,45 @@ export type RevenueLine = {
    * Una riga senza commerciale è trattata come inbound comunque.
    */
   sales_origin?: 'diretto' | 'inbound' | null
+  /**
+   * §185 — il commerciale che il cliente ha in anagrafica, quando la riga non ne
+   * porta uno suo. Serve a due cose: mostrare un nome invece di un trattino, e
+   * sapere se la provvigione ha un destinatario o va divisa fra i soci. Può
+   * essere qualcuno che non ha un account nel tool: un segnalatore, un partner.
+   */
+  client_sales_owner_id?: string | null
+  client_sales_owner?: string | null
   /** da dove nasce la riga: contratto di progetto, MRR d'anagrafica, o scritta a mano */
   origin?: 'contratto' | 'anagrafica' | 'manuale'
   project_id?: string | null
   stream_id?: string | null
 }
 
-/** Nessuno ha portato questo cliente: la provvigione va divisa. */
+/**
+ * Chi ha portato questo cliente, e da dove lo sappiamo.
+ *
+ * La riga del mese vince sull'anagrafica — è una fotografia, e un mese chiuso non
+ * si riscrive perché qualcuno ha cambiato il commerciale in anagrafica dopo.
+ * Ma quando la riga è vuota il nome in anagrafica c'è ed è quello vero: mostrare
+ * un trattino al suo posto era una perdita di informazione, non una prudenza.
+ */
+export function ownerOf(l: RevenueLine): {
+  id: string | null
+  name: string | null
+  source: 'riga' | 'anagrafica' | null
+} {
+  if (l.sales_owner_id || l.sales_owner) {
+    return { id: l.sales_owner_id ?? null, name: l.sales_owner ?? null, source: 'riga' }
+  }
+  if (l.client_sales_owner_id || l.client_sales_owner) {
+    return { id: l.client_sales_owner_id ?? null, name: l.client_sales_owner ?? null, source: 'anagrafica' }
+  }
+  return { id: null, name: null, source: null }
+}
+
+/** Nessuno ha portato questo cliente: la provvigione va divisa fra i soci. */
 export const isInbound = (l: RevenueLine) =>
-  l.sales_origin === 'inbound' || (!l.sales_owner_id && !l.sales_owner)
+  l.sales_origin === 'inbound' || ownerOf(l).source === null
 
 export type CostLine = {
   id: string
@@ -102,7 +183,14 @@ export const pct = {
     1 - pct.sales(c, k) - pct.delivery(c, k) - c.cost_target_pct - c.risk_fund_pct,
 }
 
-/** Scomposizione di una singola riga di ricavo secondo il piano. */
+/**
+ * Scomposizione di una singola riga di ricavo secondo il piano.
+ *
+ * Growth e digital non si dividono allo stesso modo, e non è un'incoerenza: sul
+ * growth il lavoro lo fanno i soci e la quota è **erogato** (30% in parti
+ * uguali); sul digital lo fa il team a stipendio, quindi ai soci va una quota di
+ * **utile** — il 28% dell'imponibile — e il resto copre struttura e persone.
+ */
 export function splitLine(line: RevenueLine, c: PlConfig) {
   const base = line.amount_net
   const sales = r2(base * pct.sales(c, line.kind))
@@ -110,13 +198,25 @@ export function splitLine(line: RevenueLine, c: PlConfig) {
   const costTarget = r2(base * c.cost_target_pct)
   const riskFund = r2(base * c.risk_fund_pct)
   const residual = r2(base - sales - delivery - costTarget - riskFund)
+
+  const digital = line.kind === 'digital'
+  // §185: sul digital le due quote sono percentuali dell'imponibile, leggibili
+  // sulla riga. Sul growth restano dov'erano: erogato e residuo.
+  const partnersPool = digital ? r2(base * c.digital_partners_pct) : 0
+  const companyQuota = digital ? r2(base * c.digital_company_pct) : 0
+  /* Quello che avanza del residuo dopo soci e cassa: margine non distribuito.
+     Sta in cassa come gli altri avanzi, ma si mostra a parte — un numero che
+     nessuno sa spiegare è un numero di cui nessuno si fida. */
+  const retained = digital ? r2(residual - partnersPool - companyQuota) : 0
+
   return {
     base,
     vat: r2(base * line.vat_rate),
     gross: r2(base * (1 + line.vat_rate)),
     sales, delivery, costTarget, riskFund, residual,
     /** il residuo growth può restare in cassa invece di dividersi fra i soci */
-    residualToPartners: line.kind === 'growth' && c.growth_residual_to_company ? 0 : residual,
+    residualToPartners: digital || c.growth_residual_to_company ? 0 : residual,
+    partnersPool, companyQuota, retained,
   }
 }
 
@@ -153,6 +253,10 @@ export function computeMonth(
   const riskFund = sum(x => x.s.riskFund)
   const residual = sum(x => x.s.residual)
   const residualToPartners = sum(x => x.s.residualToPartners)
+  // §185 — le tre quote digital, lette sull'imponibile
+  const digitalPartners = sum(x => x.s.partnersPool)
+  const digitalCompany = sum(x => x.s.companyQuota)
+  const digitalRetained = sum(x => x.s.retained)
 
   // costi: il budget è il preventivato, actual è quanto è davvero uscito
   const costBudget = r2(costs.reduce((s, c) => s + c.budget, 0))
@@ -167,7 +271,7 @@ export function computeMonth(
   const costRatio = accrued > 0 ? costActual / accrued : 0
 
   // margine reale del mese: entrate maturate meno costi effettivi e compensi usciti
-  const distributed = r2(sales + delivery + residualToPartners)
+  const distributed = r2(sales + delivery + residualToPartners + digitalPartners)
   const grossMargin = r2(accrued - costActual)
   const netMargin = r2(accrued - costActual - distributed)
 
@@ -175,32 +279,50 @@ export function computeMonth(
   const deliveryTakers = partners.filter(p => p.takes_delivery)
   const residualTakers = partners.filter(p => p.takes_residual)
 
-  // Provvigione senza un commerciale (o da lead generation): non resta in cassa,
-  // si divide fra i soci in parti uguali. Sul growth il 15% diventa 5% a testa.
+  /* Provvigione senza un commerciale — né sulla riga né in anagrafica — o da
+     lead generation: non resta in cassa, si divide fra i soci in parti uguali.
+     Sul growth il 15% diventa 5% a testa, sul digital il 6% diventa 2%.
+     Si divide fra **tutti i soci**, non solo fra quelli che prendono l'erogato:
+     una provvigione non è erogato, è utile commerciale. */
   const salesPool = r2(split.filter(x => isInbound(x.line)).reduce((n, x) => n + x.s.sales, 0))
-  const poolShare = deliveryTakers.length ? r2(salesPool / deliveryTakers.length) : 0
+  const poolShare = eligible.length ? r2(salesPool / eligible.length) : 0
+
+  // §185: il 28% digital si divide fra i soci che prendono utile, in parti uguali
+  const digitalTakers = residualTakers.length ? residualTakers : eligible
+  const digitalShare = digitalTakers.length ? r2(digitalPartners / digitalTakers.length) : 0
 
   const perPartner = eligible.map(p => {
     const d = p.takes_delivery && deliveryTakers.length ? r2(delivery / deliveryTakers.length) : 0
     const q = p.takes_residual && residualTakers.length
       ? r2(residualToPartners * config.partner_share_pct)
       : 0
-    const sh = p.takes_delivery ? poolShare : 0
-    return { partner: p, delivery: d, residual: q, salesShare: sh, total: r2(d + q + sh) }
+    const dg = digitalTakers.some(x => x.id === p.id) ? digitalShare : 0
+    const sh = poolShare
+    return { partner: p, delivery: d, residual: q, digital: dg, salesShare: sh, total: r2(d + q + dg + sh) }
   })
 
-  // quota societaria del residuo + tutto ciò che i soci non prendono
+  /* Cassa TwoBee: la quota societaria più tutto ciò che i soci non prendono.
+     Il pool digital dei soci va sottratto, altrimenti gli stessi 28% starebbero
+     due volte — una nelle tasche dei soci e una in cassa. */
   const companyFromResidual = r2(residualToPartners * config.company_share_pct)
-  const companyKeepsResidual = r2(residual - residualToPartners)
+  const companyKeepsResidual = r2(residual - residualToPartners - digitalPartners)
   const company = r2(companyFromResidual + companyKeepsResidual + riskFund + costVariance)
 
-  const salesByOwner = new Map<string, { label: string; amount: number }>()
+  /* Le provvigioni per commerciale: il nome è quello della riga, o quello che il
+     cliente ha in anagrafica. Chi non ha un account nel tool — un segnalatore, un
+     partner — esiste solo lì, e senza questa lettura la sua provvigione finiva
+     sotto «Assegnato». */
+  const salesByOwner = new Map<string, { label: string; amount: number; fromRegistry: boolean }>()
   for (const { line, s } of split) {
     if (!s.sales || isInbound(line)) continue
-    const key = line.sales_owner_id ?? line.sales_owner ?? '—'
-    const label = line.sales_owner ?? 'Assegnato'
+    const o = ownerOf(line)
+    const key = o.id ?? o.name ?? '—'
     const cur = salesByOwner.get(key)
-    salesByOwner.set(key, { label: cur?.label ?? label, amount: r2((cur?.amount ?? 0) + s.sales) })
+    salesByOwner.set(key, {
+      label: cur?.label ?? o.name ?? 'Assegnato',
+      amount: r2((cur?.amount ?? 0) + s.sales),
+      fromRegistry: (cur?.fromRegistry ?? false) || o.source === 'anagrafica',
+    })
   }
 
   return {
@@ -215,7 +337,10 @@ export function computeMonth(
       fixed: costFixed, variable: costVariable,
       target: costTarget, variance: costVariance, ratio: costRatio,
     },
-    plan: { sales, delivery, riskFund, residual, residualToPartners, distributed, salesPool, poolShare },
+    plan: {
+      sales, delivery, riskFund, residual, residualToPartners, distributed, salesPool, poolShare,
+      digitalPartners, digitalCompany, digitalRetained, digitalShare,
+    },
     margin: { gross: grossMargin, net: netMargin, company },
     perPartner,
     salesByOwner: Array.from(salesByOwner.values()).sort((a, b) => b.amount - a.amount),
