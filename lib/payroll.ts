@@ -525,18 +525,27 @@ export type CostBreakdown = {
   total: number
   /** quello che esce davvero dal conto corrente nell'anno (il TFR resta dentro) */
   cash: number
-  /** costo mensile medio di competenza */
+  /**
+   * Costo di **un mese in cui la persona c'è**, non l'annuo diviso dodici: chi
+   * entra a giugno costa sette dodicesimi all'anno, ma nei mesi in cui lavora
+   * costa quanto gli altri. Diviso per dodici, un tirocinante entrato a giugno
+   * risultava costare 467 € invece di 800, e la riga del conto economico di
+   * ottobre nasceva sbagliata.
+   */
   monthly: number
   /** quanto costa in più della sola retribuzione */
   loadPct: number
 }
 
-/** Quota dell'anno effettivamente coperta: chi entra a settembre non costa 12 mesi. */
-const yearShare = (p: PersonInput) => {
+/** Quanti mesi dell'anno la persona e' in organico. */
+const monthsPresent = (p: PersonInput) => {
   const from = Math.min(Math.max(1, p.fromMonth), 12)
   const to = Math.min(Math.max(from, p.toMonth), 12)
-  return (to - from + 1) / 12
+  return to - from + 1
 }
+
+/** Quota dell'anno effettivamente coperta: chi entra a settembre non costa 12 mesi. */
+const yearShare = (p: PersonInput) => monthsPresent(p) / 12
 
 /** Quante mensilità l'anno: serve a leggere «quanto prende al mese». */
 export const monthsOf = (p: PersonInput) => Math.max(1, p.months)
@@ -565,7 +574,7 @@ export function personCost(p: PersonInput, prm: PayrollParams): CostBreakdown {
       gross, inpsEmployer: 0, inpsEmployerGross: 0, relief: 0, incentive: null,
       inail: 0, fixedTermExtra: 0, tfr: 0,
       benefits, mealVouchers: meal,
-      total, cash: total, monthly: r2(total / 12),
+      total, cash: total, monthly: r2(total / monthsPresent(p)),
       loadPct: gross > 0 ? r2((total - gross) / gross) : 0,
     }
   }
@@ -580,7 +589,7 @@ export function personCost(p: PersonInput, prm: PayrollParams): CostBreakdown {
       gross, inpsEmployer: inps, inpsEmployerGross: inps, relief: 0, incentive: null,
       inail, fixedTermExtra: 0, tfr: 0,
       benefits, mealVouchers: meal,
-      total, cash: total, monthly: r2(total / 12),
+      total, cash: total, monthly: r2(total / monthsPresent(p)),
       loadPct: gross > 0 ? r2((total - gross) / gross) : 0,
     }
   }
@@ -593,7 +602,7 @@ export function personCost(p: PersonInput, prm: PayrollParams): CostBreakdown {
       gross, inpsEmployer: 0, inpsEmployerGross: 0, relief: 0, incentive: null,
       inail, fixedTermExtra: 0, tfr: 0,
       benefits, mealVouchers: meal,
-      total, cash: total, monthly: r2(total / 12),
+      total, cash: total, monthly: r2(total / monthsPresent(p)),
       loadPct: gross > 0 ? r2((total - gross) / gross) : 0,
     }
   }
@@ -619,7 +628,7 @@ export function personCost(p: PersonInput, prm: PayrollParams): CostBreakdown {
     relief: applied?.relief ?? 0, incentive: applied,
     inail, fixedTermExtra: extra, tfr,
     benefits, mealVouchers: meal,
-    total, cash, monthly: r2(total / 12),
+    total, cash, monthly: r2(total / monthsPresent(p)),
     loadPct: gross > 0 ? r2((total - gross) / gross) : 0,
   }
 }

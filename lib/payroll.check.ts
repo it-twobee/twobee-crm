@@ -34,6 +34,16 @@ console.log('\n— Dipendente indeterminato, RAL 30.000 —')
   eq('ricarico sul lordo ~37%', c.loadPct * 100, 37.2, 0.6)
 }
 
+console.log('\n— Il mensile è il costo di un mese in cui la persona c\'è —')
+{
+  const pieno = personCost(p({ gross: 24000, months: 12 }), P)
+  const dagiugno = personCost(p({ gross: 24000, months: 12, fromMonth: 6, toMonth: 12 }), P)
+  eq('anno pieno: annuo diviso dodici', pieno.monthly, pieno.total / 12)
+  eq('sette mesi: costa come gli altri nei mesi in cui c\'è', dagiugno.monthly, pieno.monthly, 1)
+  is('ma sull\'anno pesa meno', dagiugno.total < pieno.total, true)
+  eq('e l\'anno è sette dodicesimi', dagiugno.total, pieno.total * 7 / 12, 1)
+}
+
 console.log('\n— Part time e mesi parziali —')
 {
   const full = personCost(p({ gross: 30000 }), P).total

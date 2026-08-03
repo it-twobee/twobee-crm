@@ -5,7 +5,9 @@ import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { FileText, Plus, X, Loader2, Trash2, AlertTriangle, CheckCircle2, Clock, Download, Paperclip } from 'lucide-react'
 import { docState, DOC_TYPES, type DocStatus } from '@/lib/personal-documents'
-import { upsertPersonalDoc, getPersonalDocUrl, deletePersonalDoc } from '@/app/actions/personal-documents'
+import {
+  upsertPersonalDoc, getPersonalDocUrl, deletePersonalDoc, attachPersonalDocFile,
+} from '@/app/actions/personal-documents'
 import type { PersonalDocument } from '@/lib/types/database'
 
 const STATUS_UI: Record<DocStatus, { label: string; cls: string; Icon: typeof CheckCircle2 }> = {
@@ -22,6 +24,9 @@ export function PersonalDocsClient({ documents, profileId }: {
   const router = useRouter()
   const [showNew, setShowNew] = useState(false)
   const [downloading, setDownloading] = useState<string | null>(null)
+  // quale scheda sta aspettando un allegato: una scadenza si registra prima di
+  // avere la scansione, e il file deve poter arrivare dopo
+  const [attaching, setAttaching] = useState<string | null>(null)
 
   const withState = documents.map(d => ({ doc: d, state: docState(d) }))
   const urgent = withState.filter(x => x.state.status === 'scaduto' || x.state.status === 'in_scadenza')
@@ -32,6 +37,17 @@ export function PersonalDocsClient({ documents, profileId }: {
     setDownloading(null)
     if ('error' in res) { toast.error(res.error); return }
     window.open(res.url, '_blank', 'noopener,noreferrer')
+  }
+
+  const attach = async (id: string, file: File) => {
+    setAttaching(id)
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await attachPersonalDocFile(id, fd)
+    setAttaching(null)
+    if ('error' in res) { toast.error(res.error); return }
+    toast.success('File allegato')
+    router.refresh()
   }
 
   const remove = async (id: string) => {
@@ -100,7 +116,7 @@ export function PersonalDocsClient({ documents, profileId }: {
                     ? `Scaduto da ${Math.abs(state.daysLeft)} gg`
                     : ui.label}
               </span>
-              {doc.file_path && (
+              {doc.file_path ? (
                 <button onClick={() => download(doc)} disabled={downloading === doc.id}
                   aria-label={`Scarica ${doc.label}`}
                   className="p-2 rounded-lg text-text-tertiary hover:text-gold-text hover:bg-surface-hover transition-colors shrink-0 disabled:opacity-50">
@@ -108,6 +124,19 @@ export function PersonalDocsClient({ documents, profileId }: {
                     ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
                     : <Download className="w-4 h-4" aria-hidden="true" />}
                 </button>
+              ) : (
+                /* Scheda senza file: si allega qui, senza cancellare e rifare
+                   la riga — rifarla perderebbe rilascio, scadenza e promemoria. */
+                <label className={`p-2 rounded-lg text-text-tertiary hover:text-gold-text hover:bg-surface-hover transition-colors shrink-0 cursor-pointer ${
+                  attaching === doc.id ? 'opacity-50 pointer-events-none' : ''}`}
+                  title="Allega il file a questo documento">
+                  {attaching === doc.id
+                    ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                    : <Paperclip className="w-4 h-4" aria-hidden="true" />}
+                  <span className="sr-only">Allega un file a {doc.label}</span>
+                  <input type="file" className="hidden" disabled={attaching === doc.id}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) attach(doc.id, f); e.target.value = '' }} />
+                </label>
               )}
               <button onClick={() => remove(doc.id)} aria-label={`Elimina ${doc.label}`}
                 className="p-2 rounded-lg text-text-tertiary hover:text-error hover:bg-error-dim transition-colors shrink-0">

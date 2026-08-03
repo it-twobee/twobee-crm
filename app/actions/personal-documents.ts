@@ -72,6 +72,52 @@ export async function upsertPersonalDoc(formData: FormData): Promise<{ ok: true 
   return { ok: true }
 }
 
+/**
+ * Allega il file a un documento già registrato.
+ *
+ * Serviva: la scheda si poteva creare senza file — è utile, una scadenza si
+ * registra prima di avere la scansione — ma poi non c'era modo di attaccarlo.
+ * L'unica strada era cancellare la riga e rifarla, perdendo data di rilascio,
+ * scadenza e promemoria. Se un file c'era già viene sostituito e il vecchio
+ * cancellato: due file per lo stesso documento non servono a nessuno.
+ */
+export async function attachPersonalDocFile(
+  id: string, formData: FormData,
+): Promise<{ ok: true } | { error: string }> {
+  const actor = await currentActor()
+  if (!actor) return { error: 'Non autenticato' }
+
+  const admin = createAdminClient()
+  const { data: row } = await admin.from('personal_documents')
+    .select('profile_id, file_path').eq('id', id).single()
+  if (!row) return { error: 'Documento non trovato' }
+  if (row.profile_id !== actor.userId && !actor.isAdmin) return { error: 'Non autorizzato' }
+
+  const file = formData.get('file')
+  if (!(file instanceof File) || file.size === 0) return { error: 'Nessun file selezionato' }
+
+  const key = buildObjectKey('personal', file.name, row.profile_id as string)
+  try {
+    await putObject(key, Buffer.from(await file.arrayBuffer()), file.type || 'application/octet-stream')
+  } catch (e) {
+    return { error: `Upload fallito: ${(e as Error).message}` }
+  }
+
+  const { error } = await admin.from('personal_documents')
+    .update({ file_path: key, file_name: file.name, updated_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) {
+    try { await deleteObject(key) } catch {}
+    return { error: error.message }
+  }
+
+  // il file precedente si cancella solo dopo che il nuovo è agganciato
+  if (row.file_path) { try { await deleteObject(row.file_path as string) } catch {} }
+
+  revalidatePath('/workspace/documenti-personali')
+  return { ok: true }
+}
+
 /** URL del proxy di download (se il documento ha un file). Owner o admin. */
 export async function getPersonalDocUrl(id: string): Promise<{ url: string } | { error: string }> {
   const actor = await currentActor()
