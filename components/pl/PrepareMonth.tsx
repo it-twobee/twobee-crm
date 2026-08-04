@@ -201,6 +201,29 @@ export function PrepareMonth({ month, compact = false }: { month: string; compac
             </p>
           )}
 
+          {/* §197 — il pezzo che mancava per far tornare i due numeri: una rata che
+              cade qui ma è già registrata altrove non manca, sta nel posto sbagliato.
+              Non si può aggiungere — una rata vive in un mese solo — quindi va
+              spostata, e finché non lo si fa i conti dei due mesi sono entrambi falsi. */}
+          {(pv.elsewhere.revenue > 0 || pv.elsewhere.costs > 0) && (
+            <p className="text-2xs text-warning flex items-start gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden="true" />
+              <span>
+                {pv.elsewhere.revenue > 0 && (
+                  <>{eur(pv.elsewhere.revenueAmount)} di rate ({pv.elsewhere.revenue}){' '}</>
+                )}
+                {pv.elsewhere.revenue > 0 && pv.elsewhere.costs > 0 && 'e '}
+                {pv.elsewhere.costs > 0 && (
+                  <>{eur(pv.elsewhere.costsAmount)} di subappalti ({pv.elsewhere.costs}){' '}</>
+                )}
+                cadono in questo mese ma sono <strong>già registrati in un altro</strong>: non
+                mancano, stanno nel posto sbagliato. Una rata vive in un mese solo, quindi
+                «Prepara» non li aggiunge — vanno spostati dalla scheda del progetto o dal mese
+                in cui sono finiti, altrimenti i conti di entrambi i mesi sono falsi.
+              </span>
+            </p>
+          )}
+
           {pv.monthLocked ? (
             <p className="text-2xs text-warning flex items-center gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />Il mese è chiuso: riaprilo per modificarlo.

@@ -260,6 +260,14 @@ export type PrefillPreview = {
   revenue: { count: number; amount: number; fromContracts: number; fromRegistry: number }
   plan: { count: number; amount: number }
   subcontracts: { count: number; amount: number }
+  /**
+   * §197 — quello che cade in questo mese ma è **già registrato in un altro**.
+   * Non è né presente né mancante: è nel posto sbagliato, e senza dirlo i due
+   * numeri del pannello non si riconciliavano — «30.725 in entrata» accanto a
+   * «27.725 già nel mese» faceva sparire 3.000 € senza spiegazione. Non si può
+   * aggiungere (una rata vive in un mese solo, §193): si sposta.
+   */
+  elsewhere: { revenue: number; revenueAmount: number; costs: number; costsAmount: number }
   people: { count: number; amount: number }
   /** già presenti nel mese: non verranno duplicate — con quanto valgono */
   existing: { revenue: number; costs: number; revenueAmount: number; costsAmount: number }
@@ -298,6 +306,18 @@ export async function previewPrefill(month: string): Promise<PrefillPreview> {
 
   const contractLines = linesForMonth((streams ?? []) as never, (inst ?? []) as never, month)
     .filter(l => billable(l.client_id))
+
+  /* §197 — le rate già materializzate, in qualunque mese. Una rata vive in un mese
+     solo: se è altrove non manca, sta nel posto sbagliato — e va detto, perché
+     sommarla a quello che manca è il modo di far tornare un conto sbagliato. */
+  const { data: instTaken } = await admin.from('pl_revenue_lines')
+    .select('installment_id, month_id').not('installment_id', 'is', null)
+  const instElsewhere = new Set(((instTaken ?? []) as { installment_id: string; month_id: string }[])
+    .filter(r => r.month_id !== monthId).map(r => r.installment_id))
+  const { data: itemTaken } = await admin.from('pl_cost_lines')
+    .select('cost_item_id, month_id').not('cost_item_id', 'is', null)
+  const itemElsewhere = new Set(((itemTaken ?? []) as { cost_item_id: string; month_id: string }[])
+    .filter(r => r.month_id !== monthId).map(r => r.cost_item_id))
   const withContract = new Set((streams ?? [])
     .map((s: { client_id: string | null }) => s.client_id).filter(Boolean) as string[])
   const registry = (clients ?? []).filter((c: Record<string, unknown>) =>
@@ -315,6 +335,11 @@ export async function previewPrefill(month: string): Promise<PrefillPreview> {
     .filter(i => !i.center_id || !payrollCenters.has(i.center_id))
   const plan = due.filter(i => !i.project_id)
   const subs = due.filter(i => i.project_id)
+  // una tantum atterrata in un altro mese: non manca, è nel posto sbagliato
+  const subsElsewhere = subs.filter(i => i.frequency === 'una_tantum' && itemElsewhere.has(i.id))
+  const subsMissing = subs.filter(i => !subsElsewhere.includes(i))
+  const revElsewhere = contractLines.filter(l => l.installment_id && instElsewhere.has(l.installment_id))
+  const revMissing = contractLines.filter(l => !revElsewhere.includes(l))
 
   let peopleCount = 0
   let peopleAmount = 0
@@ -346,13 +371,18 @@ export async function previewPrefill(month: string): Promise<PrefillPreview> {
 
   return {
     revenue: {
-      count: contractLines.length + registry.length,
-      amount: sum([...contractLines.map(l => l.amount_net), ...registry.map((c: Record<string, unknown>) => Number(c.mrr ?? 0))]),
-      fromContracts: contractLines.length,
+      count: revMissing.length + registry.length,
+      amount: sum([...revMissing.map(l => l.amount_net), ...registry.map((c: Record<string, unknown>) => Number(c.mrr ?? 0))]),
+      fromContracts: revMissing.length,
       fromRegistry: registry.length,
     },
     plan: plan.length ? { count: plan.length, amount: sum(plan.map(i => i.amount)) } : empty,
-    subcontracts: subs.length ? { count: subs.length, amount: sum(subs.map(i => i.amount)) } : empty,
+    subcontracts: subsMissing.length
+      ? { count: subsMissing.length, amount: sum(subsMissing.map(i => i.amount)) } : empty,
+    elsewhere: {
+      revenue: revElsewhere.length, revenueAmount: sum(revElsewhere.map(l => l.amount_net)),
+      costs: subsElsewhere.length, costsAmount: sum(subsElsewhere.map(i => i.amount)),
+    },
     people: { count: peopleCount, amount: Math.round(peopleAmount * 100) / 100 },
     existing: {
       revenue: revCount, costs: costCount,
