@@ -59,6 +59,10 @@ type Props = {
 }
 
 const eur = (n: number) => formatCurrency(Math.round(n))
+/** Con i centesimi: su una riga di costo 2.672,22 non è 2.672 */
+const eur2 = (n: number) =>
+  Number.isInteger(n) ? formatCurrency(n)
+    : `${n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
 const pc = (n: number) => `${(n * 100).toFixed(n * 100 % 1 === 0 ? 0 : 1)}%`
 /** Due decimali dove servono: il 9,33% di una quota divisa non si arrotonda a 9%. */
 const pc1 = (n: number) => `${(n * 100).toFixed(2).replace(/\.00$/, '').replace('.', ',')}%`
@@ -836,16 +840,33 @@ function Text({ value, onSave, disabled }: { value: string; onSave: (v: string) 
   )
 }
 
-function Num({ value, onSave, disabled, strong }: {
-  value: number; onSave: (v: number) => void; disabled?: boolean; strong?: boolean
+/**
+ * Un importo modificabile.
+ *
+ * Con `money` si legge formattato — «2.767,31 €» — e si modifica in chiaro:
+ * fuori dalla modifica un numero va letto, non decifrato, e i separatori delle
+ * migliaia sono metà del lavoro. `null` nello stato significa «non in modifica»,
+ * così il valore mostrato resta quello del server anche dopo un salvataggio.
+ */
+function Num({ value, onSave, disabled, strong, money, full }: {
+  value: number; onSave: (v: number) => void
+  disabled?: boolean; strong?: boolean; money?: boolean; full?: boolean
 }) {
-  const [v, setV] = useState(String(value))
+  const [draft, setDraft] = useState<string | null>(null)
+  const shown = draft ?? (money ? eur2(value) : String(value))
   return (
-    <input value={v} disabled={disabled} inputMode="decimal" aria-label="Importo"
-      onChange={e => setV(e.target.value)}
-      onBlur={() => { const n = Number(v.replace(',', '.')); if (!Number.isNaN(n) && n !== value) onSave(n); else setV(String(value)) }}
+    <input value={shown} disabled={disabled} inputMode="decimal" aria-label="Importo"
+      onFocus={() => setDraft(String(value))}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={() => {
+        const n = Number((draft ?? '').replace(/\./g, '').replace(',', '.'))
+        if (draft !== null && !Number.isNaN(n) && n !== value) onSave(n)
+        setDraft(null)
+      }}
       onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
-      className={`w-20 bg-transparent text-right tabular text-sm border-b border-transparent focus:border-border-interactive outline-none ${
+      className={`${full ? 'w-full' : 'w-20'} bg-transparent text-right tabular text-sm rounded
+                  border-b border-transparent focus:border-border-interactive outline-none
+                  disabled:cursor-default ${
         strong ? 'text-text-primary font-semibold' : 'text-text-secondary'
       }`} />
   )
@@ -1344,16 +1365,25 @@ function CostSection({
         </Empty></div>
       ) : (
         <div>
-          {!locked && (
-            <div className="flex items-center gap-2 px-5 py-2 border-b border-border/60">
-              <Check on={allPicked} label="Seleziona tutte"
-                onToggle={() => setPicked(allPicked ? new Set() : new Set(costs.map(c => c.id)))} />
-              <span className="text-2xs text-text-tertiary">tutte</span>
-              <span className="ml-auto text-2xs text-text-tertiary hidden sm:block">
-                preventivato · effettivo · pagato
-              </span>
+          {/* Intestazione, gruppi e righe condividono COST_GRID: colonne diverse
+              per tipo di riga sono colonne che non si possono confrontare, ed è
+              esattamente il confronto che questa tabella serve a rendere possibile. */}
+          <div style={COST_GRID}
+            className="grid items-center gap-x-2 px-4 py-2 border-b border-border/60
+                       text-2xs text-text-tertiary uppercase tracking-wider">
+            <div className="flex justify-center">
+              {!locked && (
+                <Check on={allPicked} label="Seleziona tutte le voci"
+                  onToggle={() => setPicked(allPicked ? new Set() : new Set(costs.map(c => c.id)))} />
+              )}
             </div>
-          )}
+            <span className="truncate">Voce</span>
+            <span className="text-center" title="Fisso o variabile">F/V</span>
+            <span className="text-right">Preventivato</span>
+            <span className="text-right">Effettivo</span>
+            <span className="text-center">Pagato</span>
+            <span />
+          </div>
 
           {groups.map(g => {
             const open = !closed.has(g.id)
@@ -1366,27 +1396,42 @@ function CostSection({
                     if (n.has(g.id)) n.delete(g.id); else n.add(g.id)
                     setClosed(n)
                   }}
-                  className={`w-full flex items-center gap-2.5 px-5 py-2.5 text-left hover:bg-surface-hover ${
+                  style={COST_GRID}
+                  className={`w-full grid items-center gap-x-2 px-4 py-2.5 text-left hover:bg-surface-hover ${
                     g.id === '' ? 'bg-warning-dim' : 'bg-background'}`}>
-                  <ChevronDown className={`w-3.5 h-3.5 text-text-tertiary shrink-0 transition-transform ${
-                    open ? '' : '-rotate-90'}`} aria-hidden="true" />
-                  <span className={`text-2xs font-bold truncate ${
-                    g.id === '' ? 'text-warning' : 'text-text-primary'}`}>{g.label}</span>
-                  <span className="text-2xs text-text-tertiary shrink-0">{g.rows.length}</span>
-                  {g.unpaid > 0 && (
-                    <span className="text-2xs text-warning shrink-0 hidden sm:inline">
-                      {eur(g.unpaid)} da pagare
+                  <span className="flex justify-center">
+                    <ChevronDown className={`w-4 h-4 text-text-tertiary transition-transform ${
+                      open ? '' : '-rotate-90'}`} aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex items-baseline gap-2">
+                    <span className={`text-sm font-bold truncate ${
+                      g.id === '' ? 'text-warning' : 'text-text-primary'}`}>{g.label}</span>
+                    <span className="text-2xs text-text-tertiary shrink-0">
+                      {g.rows.length} {g.rows.length === 1 ? 'voce' : 'voci'}
                     </span>
-                  )}
-                  <span className="ml-auto text-2xs text-text-tertiary tabular shrink-0">{eur(g.budget)}</span>
-                  <span className="text-sm font-bold text-text-primary tabular shrink-0 w-24 text-right">
-                    {eur(g.actual)}
+                    {g.unpaid > 0 && (
+                      <span className="text-2xs text-warning shrink-0 hidden sm:inline">
+                        {eur(g.unpaid)} da pagare
+                      </span>
+                    )}
                   </span>
-                  <span className={`text-2xs tabular shrink-0 w-16 text-right ${
-                    Math.abs(delta) < 1 ? 'text-text-tertiary'
-                      : delta > 0 ? 'text-error' : 'text-success'}`}>
-                    {Math.abs(delta) < 1 ? '—' : `${delta > 0 ? '+' : '−'}${eur(Math.abs(delta))}`}
+                  <span />
+                  <span className="text-2xs text-text-tertiary tabular text-right">{eur(g.budget)}</span>
+                  <span className="text-right">
+                    <span className="block text-sm font-bold text-text-primary tabular">{eur(g.actual)}</span>
+                    {Math.abs(delta) >= 1 && (
+                      <span className={`block text-2xs tabular ${delta > 0 ? 'text-error' : 'text-success'}`}>
+                        {delta > 0 ? '+' : '−'}{eur(Math.abs(delta))}
+                      </span>
+                    )}
                   </span>
+                  <span className="flex justify-center">
+                    {g.paid && (
+                      <span className="text-success text-2xs font-bold" title="Tutte pagate"
+                        aria-label="Tutte pagate">✓</span>
+                    )}
+                  </span>
+                  <span />
                 </button>
 
                 {open && (
@@ -1395,29 +1440,23 @@ function CostSection({
                       const origin = originOf(c)
                       const scarto = r2c(c.actual - c.budget)
                       return (
-                        <li key={c.id}
-                          className={`group flex items-center gap-2 px-5 py-1.5 border-t border-border/40
+                        <li key={c.id} style={COST_GRID}
+                          className={`group grid items-center gap-x-2 px-4 py-1.5 border-t border-border/40
                                       hover:bg-surface-hover ${picked.has(c.id) ? 'bg-gold-dim' : ''}`}>
-                          {!locked && (
-                            <Check on={picked.has(c.id)} label={`Seleziona ${c.label}`} onToggle={() => toggle(c.id)} />
-                          )}
+                          <div className="flex justify-center">
+                            {!locked && (
+                              <Check on={picked.has(c.id)} label={`Seleziona ${c.label}`}
+                                onToggle={() => toggle(c.id)} />
+                            )}
+                          </div>
 
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
-                              <Text value={c.label} disabled={locked || !!origin}
-                                onSave={v => onUpdate(c.id, { label: v })} />
-                              <button type="button" disabled={locked}
-                                onClick={() => onUpdate(c.id, { cost_type: c.cost_type === 'F' ? 'V' : 'F' })}
-                                title={c.cost_type === 'F' ? 'Costo fisso: c\'è comunque' : 'Costo variabile: segue il lavoro venduto'}
-                                className="shrink-0 text-2xs font-bold px-1 rounded text-text-tertiary
-                                           hover:text-text-primary disabled:hover:text-text-tertiary">
-                                {c.cost_type}
-                              </button>
-                            </div>
-                            <div className="flex items-center gap-1.5 mt-0.5">
+                          <div className="min-w-0">
+                            <Text value={c.label} disabled={locked || !!origin}
+                              onSave={v => onUpdate(c.id, { label: v })} />
+                            <div className="flex items-center gap-1.5 -mt-0.5">
                               <span className="text-2xs text-text-tertiary truncate">{c.category}</span>
                               {origin && (
-                                <Link href={origin.href}
+                                <Link href={origin.href} title={`Il preventivato viene ${origin.label}: si corregge lì`}
                                   className="text-2xs text-info hover:underline shrink-0 flex items-center gap-0.5">
                                   <Lock className="w-2.5 h-2.5" aria-hidden="true" />{origin.label}
                                 </Link>
@@ -1426,7 +1465,7 @@ function CostSection({
                                 <select value={c.center_id ?? ''} aria-label={`Area di ${c.label}`}
                                   onChange={e => onCenter(c.id, e.target.value || null)}
                                   className={`bg-transparent border-0 text-2xs max-w-[130px] cursor-pointer
-                                              focus:bg-background rounded ${
+                                              focus:bg-background rounded py-0 ${
                                     c.center_id
                                       ? 'text-text-tertiary opacity-0 group-hover:opacity-100 focus:opacity-100'
                                       : 'text-warning font-semibold'}`}>
@@ -1437,21 +1476,30 @@ function CostSection({
                             </div>
                           </div>
 
+                          <button type="button" disabled={locked}
+                            onClick={() => onUpdate(c.id, { cost_type: c.cost_type === 'F' ? 'V' : 'F' })}
+                            title={c.cost_type === 'F' ? 'Costo fisso: c\'è comunque' : 'Costo variabile: segue il lavoro venduto'}
+                            className="text-2xs font-bold text-text-tertiary hover:text-text-primary
+                                       disabled:hover:text-text-tertiary">
+                            {c.cost_type}
+                          </button>
+
                           {/* Preventivato: bloccato dove lo scrive la sua fonte */}
-                          <div className="shrink-0 w-24 text-right">
+                          <div className="text-right">
                             {origin ? (
-                              <span className="text-2xs text-text-tertiary tabular" title={`Il preventivato viene ${origin.label}: si corregge lì`}>
-                                {eur(c.budget)}
+                              <span className="text-2xs text-text-tertiary tabular"
+                                title={`Il preventivato viene ${origin.label}: si corregge lì`}>
+                                {eur2(c.budget)}
                               </span>
                             ) : (
-                              <Num value={c.budget} disabled={locked}
+                              <Num value={c.budget} disabled={locked} money full
                                 onSave={v => onUpdate(c.id, { budget: v })} />
                             )}
                           </div>
 
                           {/* Effettivo: sempre scrivibile, è il fatto */}
-                          <div className="shrink-0 w-24 text-right">
-                            <Num value={c.actual} disabled={locked} strong
+                          <div className="text-right">
+                            <Num value={c.actual} disabled={locked} strong money full
                               onSave={v => onUpdate(c.id, { actual: v })} />
                             {c.actual === 0 && c.budget > 0 && !locked ? (
                               <button onClick={() => onUpdate(c.id, { actual: c.budget })}
@@ -1465,16 +1513,17 @@ function CostSection({
                             ) : null}
                           </div>
 
-                          <div className="shrink-0 w-8 flex justify-center">
+                          <div className="flex justify-center">
                             <Check on={c.paid} disabled={locked} label={`${c.label} pagato`}
                               onToggle={() => onUpdate(c.id, { paid: !c.paid })} />
                           </div>
 
-                          <div className="shrink-0 w-6">
+                          <div className="flex justify-center">
                             {!locked && (
                               <button onClick={() => onDelete(c.id, c.label)}
                                 aria-label={`Elimina ${c.label}`}
-                                className="text-text-tertiary hover:text-error opacity-0 group-hover:opacity-100 focus:opacity-100">
+                                className="text-text-tertiary hover:text-error opacity-0
+                                           group-hover:opacity-100 focus:opacity-100">
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             )}
@@ -1512,3 +1561,15 @@ function CostSection({
 }
 
 const r2c = (n: number) => Math.round(n * 100) / 100
+
+/**
+ * Le colonne delle uscite, una volta sola.
+ *
+ * Selezione · voce · F/V · preventivato · effettivo · pagato · elimina. La usano
+ * l'intestazione, le righe di gruppo e le righe di voce: se ognuna avesse le sue
+ * larghezze i numeri non starebbero incolonnati, e due numeri che non si toccano
+ * non si confrontano.
+ */
+const COST_GRID = {
+  gridTemplateColumns: '2rem minmax(0,1fr) 1.5rem 6.5rem 7rem 2.25rem 1.5rem',
+} as const
