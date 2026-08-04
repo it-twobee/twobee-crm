@@ -119,6 +119,33 @@ export async function addCostItem(input: ItemInput = {}) {
   return data
 }
 
+
+/**
+ * Il patto cambia: le occorrenze non ancora pagate lo seguono.
+ *
+ * §201 — Un subappalto quotato 2.100 e poi corretto a 2.450 lasciava nel mese la
+ * riga vecchia, e il margine del progetto continuava a sottrarre l'importo di
+ * prima: la scheda del progetto diceva una cosa e il conto economico un'altra. Il
+ * preventivato viene sempre dal patto, e **l'effettivo finché nessuno l'ha
+ * pagato**: una riga non pagata non ha una verità sua, la prende dal patto.
+ *
+ * Una riga **pagata** non si tocca mai: quello è un fatto, l'importo l'ha visto
+ * qualcuno su una fattura. Resta segnalata come «scostata», che è l'informazione
+ * giusta — il fornitore ha chiesto un altro numero.
+ */
+async function propagateAmount(itemId: string, amount: number | undefined) {
+  if (amount === undefined || !Number.isFinite(amount)) return
+  const admin = createAdminClient()
+  const { error } = await admin.from('pl_cost_lines')
+    .update({ budget: amount, actual: amount })
+    .eq('cost_item_id', itemId).eq('paid', false)
+  if (error) throw new Error(error.message)
+  // il preventivato segue il patto anche dove la spesa è già uscita
+  const { error: e2 } = await admin.from('pl_cost_lines')
+    .update({ budget: amount }).eq('cost_item_id', itemId).eq('paid', true)
+  if (e2) throw new Error(e2.message)
+}
+
 export async function updateCostItem(id: string, patch: ItemInput) {
   await requireAdmin()
   await refusePayrollItem(id)
@@ -126,6 +153,7 @@ export async function updateCostItem(id: string, patch: ItemInput) {
   const { error } = await createAdminClient().from('cost_items')
     .update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id)
   if (error) throw new Error(error.message)
+  await propagateAmount(id, patch.amount)
   rev()
 }
 
@@ -549,7 +577,12 @@ export async function updateProjectCost(id: string, projectId: string, patch: It
   const { error } = await createAdminClient().from('cost_items')
     .update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id)
   if (error) throw new Error(error.message)
+  /* §201 — il conto economico segue il patto: senza questo, correggere l'importo
+     qui lasciava nel mese la riga vecchia e il margine del progetto sottraeva
+     ancora la cifra di prima. */
+  await propagateAmount(id, patch.amount)
   revalidatePath(`/progetti/${projectId}`)
+  revalidatePath('/economics')
   rev()
 }
 
