@@ -3,7 +3,9 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { Loader2, Eye, EyeOff, User, Mail, Lock, CheckCircle2, ArrowLeft } from 'lucide-react'
+import { Suspense } from 'react'
+import { Loader2, Eye, EyeOff, User, Mail, Lock, CheckCircle2 } from 'lucide-react'
+import { BackLink } from '@/components/shared/BackLink'
 import type { Profile } from '@/lib/types/database'
 import Link from 'next/link'
 import { SUPER_ADMIN_EMAILS, ROLE_LABELS } from '@/lib/permissions'
@@ -73,9 +75,10 @@ export function ProfiloClient({ profile, userEmail }: Props) {
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
-        <Link href="/impostazioni" className="text-text-secondary hover:text-text-primary">
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
+        <Suspense fallback={null}>
+          <BackLink fallback="/impostazioni" label="Impostazioni"
+            className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary w-fit" />
+        </Suspense>
         <div>
           <h1 className="text-2xl font-black text-text-primary">Il mio profilo</h1>
           <p className="text-text-secondary text-sm">{userEmail}</p>

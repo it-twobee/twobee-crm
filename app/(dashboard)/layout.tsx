@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/shared/Sidebar'
 import { Header } from '@/components/shared/Header'
 import type { Profile } from '@/lib/types/database'
+import { Suspense } from 'react'
+import { NavMemory } from '@/components/shared/BackLink'
 
 export default async function DashboardLayout({
   children,
@@ -34,6 +36,7 @@ export default async function DashboardLayout({
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <Header profile={profile as Profile | null} />
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
+          <Suspense fallback={null}><NavMemory /></Suspense>
           {children}
         </main>
       </div>

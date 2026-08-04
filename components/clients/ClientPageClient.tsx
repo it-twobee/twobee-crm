@@ -2,7 +2,9 @@
 
 import { useState, useRef } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Edit3, Check, X, ChevronDown, Loader2 } from 'lucide-react'
+import { Suspense } from 'react'
+import { Edit3, Check, X, ChevronDown, Loader2 } from 'lucide-react'
+import { BackLink } from '@/components/shared/BackLink'
 import { formatCurrency, formatDate, getPaymentBadge } from '@/lib/utils'
 import type { Client, ClientContact, ClientKpi, Profile, ClientStakeholder, ClientInteraction, ClientLabel } from '@/lib/types/database'
 import { setClientLabel } from '@/app/actions/clients'
@@ -203,11 +205,11 @@ export function ClientPageClient({
        lasciava scorrere una finestrella. Qui si scorre tutto, e restano attaccate
        in alto solo le tab — che servono per navigare, non per essere guardate. */
     <div className="flex flex-col min-h-full">
-      {/* Back */}
+      {/* Back — dove eri, non dove il link è stato scritto */}
       <div className="px-4 sm:px-6 pt-5 pb-3">
-        <Link href={backHref} className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors w-fit">
-          <ArrowLeft className="w-4 h-4" /> Tutti i clienti
-        </Link>
+        <Suspense fallback={null}>
+          <BackLink fallback={backHref} label="Tutti i clienti" />
+        </Suspense>
       </div>
 
       {/* Alert banner contestuale */}

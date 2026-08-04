@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  ArrowLeft, Plus, Flag, Trash2, Repeat, Check, CornerDownRight,
+  Plus, Flag, Trash2, Repeat, Check, CornerDownRight,
   Calendar, Pencil, AlertTriangle, Clock, Users, ListChecks, EyeOff, RotateCcw,
 } from 'lucide-react'
 import { createMilestone, updateMilestone, deleteMilestone } from '@/app/actions/milestones'
@@ -20,6 +20,8 @@ import type {
   Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate,
   WorkstreamStatus, MilestoneStatus, RecurrenceFrequency,
 } from '@/lib/types/database'
+import { Suspense } from 'react'
+import { BackLink } from '@/components/shared/BackLink'
 
 type Person = { id: string; full_name: string; avatar_url: string | null }
 
@@ -132,12 +134,14 @@ export function WorkstreamPageClient({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col min-h-full">
       {/* header */}
       <div className="px-4 sm:px-6 pt-5 pb-4 border-b border-border">
-        <Link href={`${backHref}?tab=workstream`} className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary w-fit press mb-3">
-          <ArrowLeft className="w-4 h-4" />{project.name}
-        </Link>
+        {/* il nome del progetto quando sei arrivato da lì, altrimenti dove eri */}
+        <Suspense fallback={null}>
+          <BackLink fallback={`${backHref}?tab=workstream`} label={project.name}
+            className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary w-fit press mb-3" />
+        </Suspense>
         <div className="flex items-start gap-4 flex-wrap max-w-5xl">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1.5">
@@ -250,7 +254,7 @@ export function WorkstreamPageClient({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="p-4 sm:p-6">
         <div className="max-w-5xl space-y-6 animate-fade-in">
           {/* ricorrenti */}
           {ws.workstream_type === 'recurring' && (

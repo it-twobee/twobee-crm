@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  ArrowLeft, FolderTree, Flag, Repeat, ChevronRight,
+  FolderTree, Flag, Repeat, ChevronRight,
   Calendar, ListChecks, AlertTriangle, CheckSquare, Users, Clock, Plus, Pencil, Check, Trash2,
   MoreHorizontal, TrendingUp, ShieldCheck, Gauge, Wand2, SlidersHorizontal, RotateCcw,
 } from 'lucide-react'
@@ -21,6 +21,8 @@ import { ProjectGantt } from './ProjectGantt'
 import type {
   Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate, ProjectStatus, WorkstreamType,
 } from '@/lib/types/database'
+import { Suspense } from 'react'
+import { BackLink } from '@/components/shared/BackLink'
 
 type Person = { id: string; full_name: string; avatar_url: string | null }
 
@@ -249,9 +251,10 @@ export function ProjectDetailClient({
        l'intestazione e lasciava scorrere una finestrella. */
     <div className="flex flex-col min-h-full">
       <div className="px-4 sm:px-6 pt-5 pb-3">
-        <Link href={backHref} className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary w-fit press">
-          <ArrowLeft className="w-4 h-4" />Tutti i progetti
-        </Link>
+        <Suspense fallback={null}>
+          <BackLink fallback={backHref} label="Tutti i progetti"
+            className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary w-fit press" />
+        </Suspense>
       </div>
 
       {/* header */}

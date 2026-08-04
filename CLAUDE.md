@@ -70,6 +70,25 @@ Verifica: apri la pagina, cambia tema, e controlla il contrasto sul DOM renderiz
 (gli screenshot mentono; le transizioni CSS falsano `getComputedStyle` — disabilitale
 con `*{transition:none!important}` prima di misurare).
 
+## Navigazione: «indietro» torna dove eri (§195)
+`components/shared/BackLink.tsx`. Un link fisso a `/clienti` è giusto una volta su
+due: se arrivi sulla scheda di un cliente **dal conto economico**, perché una rata
+è sbagliata, la freccia ti riportava all'elenco clienti e per tornare al mese
+dovevi ricominciare. Tre sorgenti in ordine: `?from=` nell'indirizzo (lo scrivono i
+link che vogliono un ritorno preciso, e sopravvive a un ricarico) · la pagina
+precedente registrata da **`NavMemory`**, montato nel layout della dashboard —
+salva `path?query`, quindi torna al **mese giusto** · il `fallback` del chiamante.
+
+Non si usa `router.back()`: dopo un `router.refresh()` o un cambio di tab che ha
+scritto nella cronologia, «indietro» torna alla stessa pagina e sembra rotto.
+L'etichetta viene da `labelOf()`: dice **dove** si torna, non «Indietro».
+
+**Lo scroll è della pagina.** `main` del layout è già il contenitore scorrevole:
+una pagina che aggiunge `h-full` + `flex-1 overflow-y-auto` crea uno scroll dentro
+lo scroll, blocca intestazione e avvisi a occupare mezzo schermo e lascia scorrere
+una striscia. Usa `min-h-full` e, se serve tenere le tab a portata di mano,
+`sticky top-0 z-20`.
+
 ## Convenzioni codice
 - Nessun commento salvo WHY non ovvi
 - Cast join Supabase: `as unknown as Type[]`
