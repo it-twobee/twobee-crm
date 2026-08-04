@@ -278,337 +278,7 @@ export function PlClient({
       {!setupNeeded && !empty && <PlHealth findings={findings} />}
 
       {/* ── dove vanno i soldi ── */}
-      <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
-        <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-          <h2 className="text-sm font-bold text-text-primary">Ripartizione del maturato</h2>
-          <span className="text-2xs text-text-tertiary">
-            growth {eur(t.revenue.growth)} · digital {eur(t.revenue.digital)}
-          </span>
-        </div>
-
-        {/* La barra deve **chiudere** sull'imponibile, e per chiudere le voci non
-            possono sovrapporsi. «Costi effettivi» comprendeva i subappalti, che il
-            margine digital ha già tolto prima di distribuirlo: contati anche qui,
-            la somma delle voci superava il maturato di tutta la cifra affidata
-            fuori — ed è quello che si vedeva come voci duplicate. Le componenti
-            sono le stesse della quadratura di `verify-month`: struttura e
-            subappalti separati, e la cassa che assorbe lo scostamento dal target. */}
-        <Waterfall total={r2c(t.revenue.accrued - t.plan.passThrough)} rows={[
-          { label: 'Commerciale', value: t.plan.sales, tone: 'bg-info' },
-          { label: 'Erogato growth ai soci', value: t.plan.delivery, tone: 'bg-accent' },
-          { label: 'Residuo ai soci', value: t.plan.residualToPartners, tone: 'bg-accent' },
-          // §186: 28% del margine a ciascun socio, non una quota da spartire
-          { label: `Digital ai soci ${pc(config.digital_partner_pct)} a testa`,
-            value: t.plan.digitalPartners, tone: 'bg-gold' },
-          { label: 'Subappalti', value: t.costs.external, tone: 'bg-orange' },
-          { label: 'Costi di struttura', value: t.costs.structural, tone: 'bg-error' },
-          { label: 'Cassa TwoBee', value: t.margin.company, tone: 'bg-success' },
-        ]} />
-        <p className="text-2xs text-text-tertiary mt-2">
-          Le sette voci chiudono sull&apos;imponibile
-          {t.plan.passThrough > 0 && <> al netto di {eur(t.plan.passThrough)} di partite di giro</>}.
-          Il fondo rischio {pc(config.risk_fund_pct)} ({eur(t.plan.riskFund)}) e il target costi
-          stanno dentro «Cassa TwoBee»: sono destinazioni di quello che resta, non prelievi in più.
-          {' '}<Link href="/economics/banca" className="text-info hover:underline">
-            Il cumulato e il ponte col saldo in banca
-          </Link> stanno nella sezione Banca: là c&apos;è quanto è rimasto per davvero
-        </p>
-
-        {/* §198 — quanto ciascun lato mette per la struttura, e cosa resta davvero.
-            Le percentuali dicono come si divide; questi tre numeri dicono quanto
-            resta in cassa, che è la domanda vera. */}
-        <div className="grid gap-3 sm:grid-cols-3 mt-4">
-          <Mini icon={<ShieldAlert className="w-3.5 h-3.5 text-orange" />} label={`Fondo rischio ${pc(config.risk_fund_pct)}`} value={eur(t.plan.riskFund)} />
-          <Mini icon={<Target className="w-3.5 h-3.5 text-text-tertiary" />}
-            label={`Target costi ${pc(config.cost_target_pct)} growth + ${pc(config.digital_cost_target_pct)} margine digital`}
-            value={eur(t.costs.target)}
-            extra={<span className={overTarget ? 'text-error' : 'text-success'}>{overTarget ? '−' : '+'}{eur(Math.abs(t.costs.variance))}</span>} />
-          <Mini icon={<Building2 className="w-3.5 h-3.5 text-gold-text" />} label="Cassa TwoBee" value={eur(t.margin.company)}
-            extra={t.plan.digitalCompany > 0 || t.plan.digitalRiskFund > 0 ? (
-              <span className="text-text-tertiary">
-                di cui {eur(t.plan.digitalCompany)} quota digital {pc(config.digital_company_pct)}
-                {t.plan.digitalRiskFund > 0 && ` · ${eur(t.plan.digitalRiskFund)} fondo rischio digital`}
-              </span>
-            ) : undefined} />
-        </div>
-      </section>
-
-      {/* ── compensi ── */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
-          <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary mb-1">
-            <Users className="w-4 h-4 text-accent" />Compensi soci
-          </h2>
-          <p className="text-2xs text-text-tertiary mb-3">
-            Erogato {pc(config.growth_delivery_pct)} sul growth in parti uguali ·{' '}
-            {pc(config.digital_partner_pct)} del margine digital <strong className="text-text-secondary">a ciascuno</strong>
-            {t.plan.digitalShare > 0 && <> ({eur(t.plan.digitalShare)} a testa questo mese)</>}
-            {t.plan.digitalRiskFund > 0 && (
-              <> · su alcune righe {pc(config.digital_risk_cut_pct)} a testa è andato al fondo rischio</>
-            )}
-            {t.plan.salesPool > 0 && <> · provvigione senza commerciale divisa fra i soci</>}
-          </p>
-          {t.plan.digitalMargin > 0 && (
-            <p className="text-2xs text-text-tertiary mb-3 pb-2 border-b border-border">
-              Margine digital {eur(t.plan.digitalMargin)}
-              {t.plan.digitalExternal > 0 && <> — {eur(t.plan.digitalExternal)} di subappalti già tolti</>}:
-              è la base della spartizione, e si divide per intero.
-              {/* Un centesimo di arrotondamento su tre soci al 28% non è un
-                  problema di piano: l'avviso scatta da un euro in su. */}
-              {Math.abs(t.plan.digitalRetained) >= 1 && (
-                <strong className="text-warning">
-                  {' '}Restano {eur(t.plan.digitalRetained)} non assegnati: con {t.perPartner.length} soci
-                  al {pc(config.digital_partner_pct)} le quote non fanno il 100%.
-                </strong>
-              )}
-            </p>
-          )}
-          {t.perPartner.length === 0 ? (
-            <Empty>Nessun socio configurato.</Empty>
-          ) : (
-            <div className="space-y-1.5">
-              {t.perPartner.map(p => (
-                <div key={p.partner.id} className="rounded-xl border border-border overflow-hidden">
-                  <button onClick={() => setOpenQuota(openQuota === p.partner.id ? null : p.partner.id)}
-                    aria-expanded={openQuota === p.partner.id}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-hover transition-colors">
-                    <span className="text-sm font-semibold text-text-primary flex-1 truncate">{p.partner.label}</span>
-                    <span className="text-2xs text-text-tertiary tabular hidden sm:block">
-                      erogato {eur(p.delivery)}
-                      {p.digital > 0 && <> · digital {eur(p.digital)}</>}
-                      {p.residual > 0 && <> · residuo {eur(p.residual)}</>}
-                      {p.salesShare > 0 && <> · provvigione divisa {eur(p.salesShare)}</>}
-                    </span>
-                    {/* §191 — se ha già speso col sottoconto, il numero grosso è
-                        quello che gli resta in denaro: versare il totale
-                        significherebbe pagare due volte lo stesso compenso. */}
-                    {p.spent > 0 ? (
-                      <span className="text-right shrink-0">
-                        <span className="block text-sm font-bold text-text-primary tabular">{eur(p.cash)}</span>
-                        <span className="block text-2xs text-text-tertiary tabular">
-                          {eur(p.total)} − {eur(p.spent)} già spesi
-                        </span>
-                      </span>
-                    ) : (
-                      <span className="text-sm font-bold text-text-primary tabular">{eur(p.total)}</span>
-                    )}
-                    <ChevronDown className={`w-3.5 h-3.5 text-text-tertiary shrink-0 transition-transform ${
-                      openQuota === p.partner.id ? 'rotate-180' : ''}`} />
-                  </button>
-                  {openQuota === p.partner.id && (
-                    <>
-                      <QuotaDetail rows={p.rows} total={p.total} config={config}
-                        clientNames={clientNames} projectNames={projectNames} />
-                      <PayoutPanel p={p} month={month} />
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
-          <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary mb-1">
-            <Users className="w-4 h-4 text-info" />Provvigioni commerciali
-          </h2>
-          <p className="text-2xs text-text-tertiary mb-3">
-            {pc(config.growth_sales_pct)} sul growth · {pc(config.digital_sales_pct)} sul digital
-          </p>
-          {t.plan.salesPool > 0 && (
-            <div className="mb-2 rounded-xl border border-gold bg-gold-dim overflow-hidden">
-              <button onClick={() => setOpenQuota(openQuota === 'pool' ? null : 'pool')}
-                aria-expanded={openQuota === 'pool'}
-                className="w-full px-3 py-2.5 text-left">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-text-primary flex-1">Da lead generation</span>
-                  <span className="text-sm font-bold text-text-primary tabular">{eur(t.plan.salesPool)}</span>
-                  <ChevronDown className={`w-3.5 h-3.5 text-text-tertiary shrink-0 transition-transform ${
-                    openQuota === 'pool' ? 'rotate-180' : ''}`} />
-                </div>
-                <p className="text-2xs text-text-tertiary mt-0.5">
-                  Nessun commerciale, né sulla riga né in anagrafica: {eur(t.plan.poolShare)} a testa ai soci
-                </p>
-              </button>
-              {openQuota === 'pool' && (
-                <QuotaDetail rows={t.plan.poolRows} total={t.plan.salesPool} config={config}
-                  clientNames={clientNames} projectNames={projectNames}
-                  note="Sono i clienti senza commerciale: assegnarne uno in anagrafica sposta la provvigione da qui a lui." />
-              )}
-            </div>
-          )}
-          {t.salesByOwner.length === 0 && t.plan.salesPool === 0 ? (
-            <Empty>Nessuna provvigione: assegna un commerciale alle voci di ricavo.</Empty>
-          ) : (
-            <div className="space-y-1.5">
-              {t.salesByOwner.map(s => (
-                <div key={s.label} className="rounded-xl border border-border overflow-hidden">
-                  <button onClick={() => setOpenQuota(openQuota === `o:${s.label}` ? null : `o:${s.label}`)}
-                    aria-expanded={openQuota === `o:${s.label}`}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-hover transition-colors">
-                    <span className="text-sm text-text-primary flex-1 truncate">
-                      {s.label}
-                      {/* chi non ha un account nel tool esiste solo in anagrafica:
-                          dirlo evita di cercarlo fra i profili e non trovarlo */}
-                      {s.fromRegistry && (
-                        <span className="ml-1.5 text-2xs text-text-tertiary">dall&apos;anagrafica</span>
-                      )}
-                    </span>
-                    <span className="text-sm font-bold text-text-primary tabular">{eur(s.amount)}</span>
-                    <ChevronDown className={`w-3.5 h-3.5 text-text-tertiary shrink-0 transition-transform ${
-                      openQuota === `o:${s.label}` ? 'rotate-180' : ''}`} />
-                  </button>
-                  {openQuota === `o:${s.label}` && (
-                    <QuotaDetail rows={s.rows} total={s.amount} config={config}
-                      clientNames={clientNames} projectNames={projectNames} />
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
-
-      {/* ── previsionale: quello che è già deciso ── */}
-      {forecast.length > 0 && fc.revenue > 0 && (
-        <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
-          <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-border flex-wrap">
-            <div>
-              <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary">
-                <CalendarRange className="w-4 h-4 text-accent" />I prossimi sei mesi
-              </h2>
-              <p className="text-2xs text-text-tertiary mt-0.5">
-                Non è una previsione: è quello che i contratti firmati e i subappalti dicono già oggi. IVA esclusa
-              </p>
-            </div>
-            <div className="text-right">
-              <div className={`text-lg font-bold tabular ${fc.margin < 0 ? 'text-error' : 'text-success'}`}>
-                {eur(fc.margin)}
-              </div>
-              <div className="text-2xs text-text-tertiary">
-                {eur(fc.revenue)} − {eur(fc.cost)} di costi · {pc(fc.marginPct)}
-              </div>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-2xs text-text-tertiary uppercase tracking-wider">
-                  <th className="text-left font-semibold px-4 py-2">Mese</th>
-                  <th className="text-right font-semibold px-2 py-2">Entrate</th>
-                  <th className="text-right font-semibold px-2 py-2">Costi interni</th>
-                  <th className="text-right font-semibold px-2 py-2">Subappalti</th>
-                  <th className="text-right font-semibold px-2 py-2">Margine</th>
-                  <th className="w-32" />
-                </tr>
-              </thead>
-              <tbody>
-                {forecast.map(f => (
-                  <tr key={f.month} className="border-t border-border/60 hover:bg-surface-hover">
-                    <td className="px-4 py-2">
-                      <span className="text-2xs font-semibold text-text-primary">{monthLabel(f.month)}</span>
-                      <span className="block text-2xs text-text-tertiary">
-                        {f.revenueLines} entrat{f.revenueLines === 1 ? 'a' : 'e'} · {f.costLines} uscit{f.costLines === 1 ? 'a' : 'e'}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2 text-right text-2xs tabular text-text-primary">{eur(f.revenue)}</td>
-                    <td className="px-2 py-2 text-right text-2xs tabular text-text-secondary">{eur(f.internalCost)}</td>
-                    <td className="px-2 py-2 text-right text-2xs tabular text-orange">
-                      {f.subcontractCost > 0 ? eur(f.subcontractCost) : '—'}
-                    </td>
-                    <td className={`px-2 py-2 text-right text-2xs font-bold tabular ${f.margin < 0 ? 'text-error' : 'text-text-primary'}`}>
-                      {eur(f.margin)}
-                      <span className="block text-2xs font-normal text-text-tertiary">{pc(f.marginPct)}</span>
-                    </td>
-                    <td className="px-2 py-2 text-right">
-                      {f.open ? (
-                        <Link href={`/economics?m=${f.month}`}
-                          className="text-2xs font-semibold text-text-tertiary hover:text-gold-text">aperto →</Link>
-                      ) : (
-                        <button onClick={() => run(() => openMonth(f.month), `${monthLabel(f.month)} aperto`)}
-                          disabled={pending}
-                          className="text-2xs font-semibold border border-border rounded-lg px-2 py-1 text-gold-text hover:bg-surface-hover press disabled:opacity-40">
-                          Apri il mese
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <p className="flex items-start gap-2 text-2xs text-text-tertiary px-5 py-3 border-t border-border">
-            <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-            «Apri il mese» crea le righe vere: da lì in poi metti le spunte su fattura emessa, incassato e pagato.
-            {fc.negative > 0 && (
-              <span className="text-warning font-semibold"> {fc.negative} di questi mesi chiude in perdita.</span>
-            )}
-          </p>
-        </section>
-      )}
-
-      {/* ── IVA: quella che incassi non è tua ── */}
-      {vat && (
-        <section className={`bg-surface border rounded-2xl p-5 shadow-soft ${
-          vat.daysLeft <= 15 && vat.toPay > 0 ? 'border-warning/50' : 'border-border'
-        }`}>
-          <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
-            <div>
-              <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary">
-                <Landmark className="w-4 h-4 text-info" />IVA da mettere da parte
-              </h2>
-              <p className="text-2xs text-text-tertiary mt-0.5">
-                {vat.label} · liquidazione trimestrale
-                {vat.annual && ' — si chiude con la dichiarazione annuale'}
-              </p>
-            </div>
-            <div className="text-right">
-              <div className={`text-xl font-bold tabular ${vat.toPay > 0 ? 'text-text-primary' : 'text-success'}`}>
-                {vat.toPay > 0 ? eur(vat.toPay) : vat.deferred ? 'sotto il minimo' : vat.balance < 0 ? 'a credito' : 'niente da versare'}
-              </div>
-              <div className={`text-2xs font-semibold ${
-                vat.daysLeft < 0 ? 'text-error' : vat.daysLeft <= 15 ? 'text-warning' : 'text-text-tertiary'
-              }`}>
-                {vat.daysLeft < 0
-                  ? `scaduta da ${-vat.daysLeft} giorni`
-                  : `entro il ${new Date(vat.deadline + 'T00:00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })} · fra ${vat.daysLeft} giorni`}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-4">
-            <VatCell label="IVA sulle vendite" value={eur(vat.debit)} hint="incassata dai clienti" />
-            <VatCell label="IVA sugli acquisti" value={eur(vat.credit)} hint="pagata ai fornitori, si scomputa" />
-            <VatCell
-              label={vat.carried !== 0 ? (vat.carried > 0 ? 'Credito riportato' : 'Debito rinviato') : 'Saldo del trimestre'}
-              value={eur(vat.carried !== 0 ? Math.abs(vat.carried) : Math.abs(vat.balance))}
-              hint={vat.carried > 0 ? 'dal trimestre precedente, si scomputa'
-                : vat.carried < 0 ? 'dal trimestre precedente, era sotto il minimo'
-                : vat.balance < 0 ? 'a credito, va sul prossimo' : 'debito verso lo Stato'} />
-            <VatCell label="Interessi 1%" value={vat.interest > 0 ? eur(vat.interest) : '—'}
-              hint={vat.annual ? 'non dovuti sul quarto trimestre' : 'costo dell\'opzione trimestrale'} />
-          </div>
-
-          {vat.deferred && (
-            <p className="flex items-start gap-2 text-2xs text-text-secondary mt-3 pt-3 border-t border-border">
-              <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-info" />
-              Il saldo è sotto i 25,82 €: il versamento non si fa e l&apos;importo confluisce nel trimestre
-              successivo. Non è una scadenza da segnare.
-            </p>
-          )}
-
-          {vat.toPay > 0 && (
-            <p className="flex items-start gap-2 text-2xs text-text-secondary mt-3 pt-3 border-t border-border">
-              <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-warning" />
-              Questi {eur(vat.toPay)} sono già incassati e non sono tuoi: tienili da parte.
-              Il margine lordo qui sopra li conta come cassa, ed è il modo più comune in cui
-              un&apos;azienda in utile resta senza soldi. Date ordinarie: verifica proroghe col commercialista.
-            </p>
-          )}
-        </section>
-      )}
+      <Distribution t={t} config={config} />
 
       {/* ── entrate ── */}
       <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
@@ -827,83 +497,20 @@ function Kpi({ icon, label, value, hint, tone, trend, trendGoodIsDown }: {
   )
 }
 
+/**
+ * Un numero con la sua etichetta. L'etichetta **non si taglia**: «Target costi 35%
+ * growth + …» non dice niente, e un'etichetta illeggibile vale meno di una riga in
+ * più di altezza.
+ */
 function Mini({ icon, label, value, extra }: { icon: React.ReactNode; label: string; value: string; extra?: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-border">
-      {icon}
-      <span className="text-2xs text-text-secondary flex-1 truncate">{label}</span>
-      <span className="text-sm font-semibold text-text-primary tabular">{value}</span>
-      {extra && <span className="text-2xs font-semibold tabular">{extra}</span>}
-    </div>
-  )
-}
-
-/** Una barra sola: le quote si leggono come parti di ciò che è entrato. */
-/**
- * Dove va il maturato, in una barra che **non può mentire**.
- *
- * Due regole. Le voci non si sovrappongono — se una comprende l'altra la somma
- * supera il totale e la barra sfora senza dirlo. E quando quello che è stato
- * destinato **supera** il maturato, il caso non si nasconde filtrando il valore
- * negativo: la barra si allunga e una tacca dice dove finisce il maturato. Un mese
- * a prevalenza digital è così per costruzione — il margine si distribuisce per
- * intero, e la struttura la copre il growth — e vederlo è il punto.
- */
-function Waterfall({ total, rows }: { total: number; rows: { label: string; value: number; tone: string }[] }) {
-  const shown = rows.filter(r => r.value > 0)
-  const negative = rows.filter(r => r.value < 0)
-  const used = shown.reduce((s, r) => s + r.value, 0)
-  // la scala è il più grande fra maturato e destinato: così la barra sta dentro
-  const scale = Math.max(total, used, 1)
-  const rest = Math.max(0, total - used)
-  const over = Math.max(0, used - total)
-  const w = (v: number) => `${(v / scale) * 100}%`
-
-  return (
-    <div>
-      <div className="relative flex h-3 rounded-full overflow-hidden bg-surface-active gap-px">
-        {shown.map(r => (
-          <div key={r.label} className={r.tone} style={{ width: w(r.value) }}
-            title={`${r.label}: ${eur(r.value)}`} />
-        ))}
-        {rest > 0 && <div className="bg-success" style={{ width: w(rest) }} title={`Resta: ${eur(rest)}`} />}
-        {over > 0 && (
-          <span aria-hidden="true"
-            title={`Qui finisce il maturato: oltre questa tacca ci sono ${eur(over)} scoperti`}
-            className="absolute top-0 bottom-0 w-0.5 bg-text-primary"
-            style={{ left: w(total) }} />
-        )}
-      </div>
-
-      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2.5">
-        {shown.map(r => (
-          <span key={r.label} className="flex items-center gap-1.5 text-2xs text-text-secondary">
-            <span className={`w-2 h-2 rounded-sm ${r.tone}`} aria-hidden />
-            {r.label} <span className="tabular font-semibold text-text-primary">{eur(r.value)}</span>
-            {total > 0 && <span className="text-text-tertiary">({pc(r.value / total)})</span>}
-          </span>
-        ))}
-        {rest > 0 && (
-          <span className="flex items-center gap-1.5 text-2xs text-text-secondary">
-            <span className="w-2 h-2 rounded-sm bg-success" aria-hidden />
-            Resta in cassa <span className="tabular font-semibold text-text-primary">{eur(rest)}</span>
-          </span>
-        )}
-        {negative.map(r => (
-          <span key={r.label} className="flex items-center gap-1.5 text-2xs text-error">
-            <span className="w-2 h-2 rounded-sm border border-error" aria-hidden />
-            {r.label} <span className="tabular font-semibold">{eur(r.value)}</span>
-          </span>
-        ))}
-      </div>
-
-      {over > 0 && (
-        <p className="text-2xs text-error mt-1.5">
-          Destinato {eur(used)} su {eur(total)} di maturato: <strong>{eur(over)} scoperti</strong>.
-          La tacca nella barra segna dove finisce il maturato — non è un errore di calcolo, è un mese
-          in cui il margine digital è distribuito per intero e la struttura la deve coprire il growth.
-        </p>
-      )}
+    <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl border border-border">
+      <span className="shrink-0 mt-0.5">{icon}</span>
+      <span className="text-2xs text-text-secondary flex-1 leading-snug">{label}</span>
+      <span className="text-right shrink-0">
+        <span className="block text-sm font-semibold text-text-primary tabular">{value}</span>
+        {extra && <span className="block text-2xs font-semibold tabular">{extra}</span>}
+      </span>
     </div>
   )
 }
@@ -1943,4 +1550,241 @@ function SubBadge({ status }: { status: 'pianificato' | 'nel mese' | 'pagato' | 
     orfano: { t: 'senza patto', c: 'bg-error/15 text-error' },
   }[status]
   return <span className={`shrink-0 px-1.5 py-0.5 rounded font-semibold ${ui.c}`}>{ui.t}</span>
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// §202 — Ripartizione del maturato
+// ═══════════════════════════════════════════════════════════════════════════
+
+type Slice = {
+  key: string
+  label: string
+  value: number
+  /** il colore, come classe di sfondo */
+  tone: string
+  /** una riga sola che dice cos'è. Non due, non un paragrafo */
+  hint: string
+}
+
+/**
+ * Dove vanno i soldi del mese, in tre letture.
+ *
+ * Prima era una barra con la legenda a capo e sotto due paragrafi rossi: le
+ * percentuali c'erano, ma per capire *cosa* fosse una voce bisognava sapere già la
+ * risposta. Qui ogni voce ha **una riga di spiegazione**, e le tre viste
+ * rispondono a tre domande diverse:
+ *
+ *   · **tutto** — come si chiude l'imponibile del mese. Sette voci che non si
+ *     sovrappongono e fanno il totale: è la vista che dimostra che i conti tornano.
+ *   · **growth** — come il piano divide l'imponibile growth: 15/30/35/10/10, e
+ *     chiude al 100% da sola.
+ *   · **digital** — prima il subappalto, poi il margine diviso fra commerciale,
+ *     soci, struttura e cassa. Anche questa chiude da sola.
+ *
+ * Passare il mouse su una voce la accende nella barra e spegne le altre: è il modo
+ * più corto di rispondere a «quale pezzo è questo».
+ */
+function Distribution({ t, config }: { t: PlTotals; config: PlConfig }) {
+  const [view, setView] = useState<'tutto' | 'growth' | 'digital'>('tutto')
+  const [hover, setHover] = useState<string | null>(null)
+
+  const k = useMemo(() => {
+    const of = (kind: 'growth' | 'digital') => {
+      const own = t.lines.filter(x => x.line.kind === kind)
+      const s = (f: (x: (typeof own)[number]) => number) =>
+        r2c(own.reduce((n, x) => n + f(x), 0))
+      return {
+        base: s(x => x.s.base), external: s(x => x.s.external), margin: s(x => x.s.margin),
+        sales: s(x => x.s.sales), delivery: s(x => x.s.delivery),
+        costTarget: s(x => x.s.costTarget), riskFund: s(x => x.s.riskFund),
+        residual: s(x => x.s.residual), residualToPartners: s(x => x.s.residualToPartners),
+        partnersPool: s(x => x.s.partnersPool), companyQuota: s(x => x.s.companyQuota),
+        retained: s(x => x.s.retained),
+      }
+    }
+    return { growth: of('growth'), digital: of('digital') }
+  }, [t])
+
+  const { total, slices, note } = useMemo(() => {
+    if (view === 'growth') {
+      const g = k.growth
+      return {
+        total: g.base,
+        note: 'Le cinque quote fanno il 100% dell’imponibile growth: è il piano, non un consuntivo.',
+        slices: [
+          { key: 'g-sales', label: 'Commerciale', value: g.sales, tone: 'bg-info',
+            hint: `${pc(config.growth_sales_pct)} a chi ha portato il cliente. Senza commerciale si divide fra i soci.` },
+          { key: 'g-erog', label: 'Erogato ai soci', value: g.delivery, tone: 'bg-accent',
+            hint: `${pc(config.growth_delivery_pct)} in parti uguali: sul growth il lavoro lo fanno i soci.` },
+          { key: 'g-target', label: 'Target costi', value: g.costTarget, tone: 'bg-error',
+            hint: `${pc(config.cost_target_pct)} stanziato per persone, software e sede. È un obiettivo, non una spesa.` },
+          { key: 'g-risk', label: 'Fondo rischio', value: g.riskFund, tone: 'bg-orange',
+            hint: `${pc(config.risk_fund_pct)} messo da parte per i mesi che vanno male.` },
+          { key: 'g-res', label: 'Residuo', value: g.residual, tone: 'bg-success',
+            hint: config.growth_residual_to_company
+              ? 'Resta in cassa TwoBee.' : 'Si divide fra i soci.' },
+        ].filter(x => x.value > 0) as Slice[],
+      }
+    }
+    if (view === 'digital') {
+      const d = k.digital
+      return {
+        total: d.base,
+        note: 'Prima si paga chi ha erogato, poi si divide quello che resta: il ricavo lordo non è distribuibile.',
+        slices: [
+          { key: 'd-ext', label: 'Subappalti', value: d.external, tone: 'bg-orange',
+            hint: 'Il lavoro affidato fuori: esce dal margine prima di ogni quota, perché è già di qualcun altro.' },
+          { key: 'd-sales', label: 'Commerciale', value: d.sales, tone: 'bg-info',
+            hint: `${pc(config.digital_sales_pct)} del margine.` },
+          { key: 'd-partners', label: 'Ai soci', value: d.partnersPool, tone: 'bg-gold',
+            hint: `${pc(config.digital_partner_pct)} del margine a ciascuno, non da spartire.` },
+          { key: 'd-target', label: 'Struttura', value: d.costTarget, tone: 'bg-error',
+            hint: `${pc(config.digital_cost_target_pct)} del margine per coprire persone, software e sede.` },
+          { key: 'd-company', label: 'Cassa TwoBee', value: d.companyQuota, tone: 'bg-success',
+            hint: `${pc(config.digital_company_pct)} del margine che resta all’azienda.` },
+          { key: 'd-risk', label: 'Fondo rischio', value: d.riskFund, tone: 'bg-orange',
+            hint: `Attivo su alcune righe: ${pc(config.digital_risk_fund_pct)} del margine, ${pc(config.digital_risk_cut_pct)} in meno a ciascun socio.` },
+          { key: 'd-retained', label: 'Non assegnato', value: d.retained, tone: 'bg-border-strong',
+            hint: 'Le quote non fanno 100%: succede con un numero di soci diverso da tre.' },
+        ].filter(x => x.value > 0) as Slice[],
+      }
+    }
+    return {
+      total: r2c(t.revenue.accrued - t.plan.passThrough),
+      note: 'Sette voci che non si sovrappongono e fanno l’imponibile: è la vista che dimostra che i conti tornano.',
+      slices: [
+        { key: 'sales', label: 'Commerciale', value: t.plan.sales, tone: 'bg-info',
+          hint: `${pc(config.growth_sales_pct)} sul growth e ${pc(config.digital_sales_pct)} sul margine digital, a chi ha portato il cliente.` },
+        { key: 'erog', label: 'Erogato growth ai soci', value: t.plan.delivery, tone: 'bg-accent',
+          hint: `${pc(config.growth_delivery_pct)} dell’imponibile growth, in parti uguali.` },
+        { key: 'res', label: 'Residuo ai soci', value: t.plan.residualToPartners, tone: 'bg-accent',
+          hint: 'Il residuo growth quando i soci lo dividono invece di lasciarlo in cassa.' },
+        { key: 'dig', label: 'Digital ai soci', value: t.plan.digitalPartners, tone: 'bg-gold',
+          hint: `${pc(config.digital_partner_pct)} del margine a ciascun socio — margine, non ricavo.` },
+        { key: 'ext', label: 'Subappalti', value: t.costs.external, tone: 'bg-orange',
+          hint: 'Lavori affidati fuori: già tolti dal margine dei loro progetti.' },
+        { key: 'struct', label: 'Costi di struttura', value: t.costs.structural, tone: 'bg-error',
+          hint: 'Persone, software, sede: quello che c’è comunque, venduto o non venduto.' },
+        { key: 'cassa', label: 'Cassa TwoBee', value: t.margin.company, tone: 'bg-success',
+          hint: 'Quello che resta. Ci stanno dentro il fondo rischio e lo scostamento dal target costi.' },
+      ].filter(x => x.value !== 0) as Slice[],
+    }
+  }, [view, k, t, config])
+
+  const positives = slices.filter(x => x.value > 0)
+  const negatives = slices.filter(x => x.value < 0)
+  const used = r2c(positives.reduce((n, x) => n + x.value, 0))
+  const scale = Math.max(total, used, 1)
+  const rest = Math.max(0, r2c(total - used))
+  const over = Math.max(0, r2c(used - total))
+  const w = (v: number) => `${(v / scale) * 100}%`
+  const dim = (key: string) => (hover && hover !== key ? 'opacity-30' : 'opacity-100')
+
+  return (
+    <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
+      <div className="flex items-end justify-between gap-3 mb-3 flex-wrap">
+        <div>
+          <h2 className="text-sm font-bold text-text-primary">Ripartizione del maturato</h2>
+          <p className="text-2xs text-text-tertiary mt-0.5">{note}</p>
+        </div>
+        {/* tre domande diverse, tre viste: ognuna chiude sulla sua base */}
+        <div className="flex gap-1 bg-background border border-border rounded-xl p-1 shrink-0">
+          {([
+            ['tutto', 'Tutto', r2c(t.revenue.accrued - t.plan.passThrough)],
+            ['growth', 'Growth', k.growth.base],
+            ['digital', 'Digital', k.digital.base],
+          ] as const).map(([v, lab, amount]) => (
+            <button key={v} onClick={() => { setView(v); setHover(null) }} aria-pressed={view === v}
+              disabled={amount <= 0}
+              className={`px-2.5 py-1 rounded-lg text-2xs font-semibold press disabled:opacity-30 ${
+                view === v ? 'bg-gold text-on-gold' : 'text-text-secondary hover:bg-surface-hover'}`}>
+              {lab} <span className={view === v ? 'opacity-80' : 'text-text-tertiary'}>{eur(amount)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* la barra: passando sopra una voce si accende solo quella */}
+      <div className="relative flex h-4 rounded-full overflow-hidden bg-surface-active gap-px">
+        {positives.map(x => (
+          <button key={x.key} type="button"
+            onMouseEnter={() => setHover(x.key)} onMouseLeave={() => setHover(null)}
+            onFocus={() => setHover(x.key)} onBlur={() => setHover(null)}
+            aria-label={`${x.label}: ${eur(x.value)}`}
+            className={`${x.tone} ${dim(x.key)} transition-opacity`}
+            style={{ width: w(x.value) }} />
+        ))}
+        {rest > 0 && (
+          <span className={`bg-success ${dim('rest')} transition-opacity`} style={{ width: w(rest) }}
+            title={`Resta: ${eur(rest)}`} />
+        )}
+        {over > 0 && (
+          <span aria-hidden="true" className="absolute top-0 bottom-0 w-0.5 bg-text-primary"
+            style={{ left: w(total) }}
+            title={`Qui finisce il maturato: oltre la tacca ci sono ${eur(over)} scoperti`} />
+        )}
+      </div>
+
+      {/* le voci: una riga ciascuna, con una riga di spiegazione */}
+      <ul className="mt-3 divide-y divide-border/50">
+        {[...positives, ...negatives].map(x => (
+          <li key={x.key}
+            onMouseEnter={() => setHover(x.key)} onMouseLeave={() => setHover(null)}
+            className={`flex items-start gap-2.5 py-1.5 rounded-lg px-1 -mx-1 transition-colors ${
+              hover === x.key ? 'bg-surface-hover' : ''}`}>
+            <span className={`w-2.5 h-2.5 rounded-sm shrink-0 mt-1 ${
+              x.value < 0 ? 'border border-error' : x.tone}`} aria-hidden="true" />
+            <span className="min-w-0 flex-1">
+              <span className="text-2xs font-semibold text-text-primary">{x.label}</span>
+              <span className="block text-2xs text-text-tertiary leading-snug">{x.hint}</span>
+            </span>
+            <span className="text-right shrink-0">
+              <span className={`block text-2xs font-bold tabular ${
+                x.value < 0 ? 'text-error' : 'text-text-primary'}`}>{eur(x.value)}</span>
+              {total > 0 && (
+                <span className="block text-2xs text-text-tertiary tabular">{pc(x.value / total)}</span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      {over > 0 && (
+        <p className="text-2xs text-error mt-2.5 flex items-start gap-1.5">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
+          <span>
+            Destinato {eur(used)} su {eur(total)}: <strong>{eur(over)} scoperti</strong>. La tacca
+            segna dove finisce il maturato — il margine digital è distribuito per intero e la
+            struttura la deve coprire il growth.
+          </span>
+        </p>
+      )}
+
+      {view === 'tutto' && (
+        <div className="grid gap-3 sm:grid-cols-3 mt-4">
+          <Mini icon={<ShieldAlert className="w-3.5 h-3.5 text-orange" />}
+            label={`Fondo rischio ${pc(config.risk_fund_pct)} del growth`} value={eur(t.plan.riskFund)} />
+          <Mini icon={<Target className="w-3.5 h-3.5 text-text-tertiary" />}
+            label={`Target costi · ${pc(config.cost_target_pct)} del growth + ${pc(config.digital_cost_target_pct)} del margine digital`}
+            value={eur(t.costs.target)}
+            extra={<span className={t.costs.variance < 0 ? 'text-error' : 'text-success'}>
+              {t.costs.variance < 0 ? '−' : '+'}{eur(Math.abs(t.costs.variance))}
+            </span>} />
+          <Mini icon={<Building2 className="w-3.5 h-3.5 text-gold-text" />}
+            label="Cassa TwoBee del mese" value={eur(t.margin.company)}
+            extra={t.plan.digitalCompany > 0
+              ? <span className="text-text-tertiary">di cui {eur(t.plan.digitalCompany)} dal digital</span>
+              : undefined} />
+        </div>
+      )}
+
+      <p className="text-2xs text-text-tertiary mt-3">
+        Il fondo rischio e lo scostamento dal target stanno dentro «Cassa TwoBee»: sono destinazioni
+        di quello che resta, non prelievi in più.{' '}
+        <Link href="/economics/banca" className="text-info hover:underline">
+          Il cumulato e il ponte col saldo in banca
+        </Link>{' '}dicono quanto è rimasto per davvero.
+      </p>
+    </section>
+  )
 }
