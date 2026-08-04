@@ -66,6 +66,13 @@ export function ProjectCostsPanel({
           <p className="text-2xs text-text-tertiary mt-0.5">
             Fornitori e professionisti esterni su questo progetto: è quello che toglie margine · importi IVA esclusa
           </p>
+          {/* §192 — la gerarchia, dichiarata dove si scrive: questa è la sorgente */}
+          <p className="text-2xs text-text-tertiary mt-0.5">
+            <strong className="text-text-secondary">Questa è la sorgente</strong>: importo, fornitore e
+            frequenza si scrivono qui. Nel{' '}
+            <Link href="/economics" className="text-info hover:underline">conto economico</Link>{' '}
+            atterra l&apos;occorrenza del mese, e lì si registra quanto è uscito davvero
+          </p>
         </div>
         {canEdit && (
           <div className="flex items-center gap-2 flex-wrap">
@@ -143,13 +150,17 @@ export function ProjectCostsPanel({
                   )}
                 </div>
 
-                <p className="text-2xs text-text-tertiary mt-1">
-                  {i.frequency === 'una_tantum'
-                    ? (i.start_month ? `Cade a ${monthLabel(i.start_month)}` : 'Senza mese: non entra in nessun conto economico')
-                    : `${eur(yearlyCost(i))} l'anno`}
-                  {paid.length > 0 && ` · ${eur(paid.reduce((s, a) => s + a.actual, 0))} già registrati questo mese`}
-                  {upcoming.length > 0 && i.frequency !== 'una_tantum' && ` · prossime: ${upcoming.map(m => monthLabel(m)).join(', ')}`}
-                </p>
+                <div className="flex items-center gap-2 flex-wrap mt-1">
+                  {/* Dov'è arrivata questa lavorazione: senza saperlo, il margine del
+                      progetto sembra giusto anche quando l'occorrenza non è mai atterrata. */}
+                  <Stato item={i} lines={paid} month={month} />
+                  <p className="text-2xs text-text-tertiary">
+                    {i.frequency === 'una_tantum'
+                      ? (i.start_month ? `Cade a ${monthLabel(i.start_month)}` : 'Senza mese: non entra in nessun conto economico')
+                      : `${eur(yearlyCost(i))} l'anno`}
+                    {upcoming.length > 0 && i.frequency !== 'una_tantum' && ` · prossime: ${upcoming.map(m => monthLabel(m)).join(', ')}`}
+                  </p>
+                </div>
 
                 {isOpen && (
                   <div className="mt-3 grid gap-2 sm:grid-cols-4 rounded-xl border border-border bg-background/40 p-3">
@@ -252,5 +263,35 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="block text-2xs font-semibold text-text-secondary mb-1">{label}</span>
       {children}
     </label>
+  )
+}
+
+/**
+ * Dove è arrivata questa lavorazione: patto, mese, pagata.
+ *
+ * È il pezzo che mancava. Un subappalto può esistere come patto e non essere mai
+ * atterrato in un conto economico: il margine del progetto sembra giusto, il mese
+ * non lo conosce, e la differenza salta fuori mesi dopo quando il fornitore
+ * fattura. Qui si vede in una parola, con lo stesso vocabolario del conto
+ * economico — «da portare», «nel mese», «pagato», «scostato».
+ */
+function Stato({ item, lines, month }: {
+  item: CostItem
+  lines: CostActual[]
+  month: string
+}) {
+  const booked = lines.reduce((s, a) => s + (a.actual > 0 ? a.actual : a.budget), 0)
+  const nelMese = lines.length > 0
+  const pagata = nelMese && lines.every(a => a.paid)
+  const scarto = Math.round((booked - item.amount) * 100) / 100
+
+  const ui = !item.is_active ? { t: 'sospesa', c: 'bg-surface-active text-text-tertiary' }
+    : !nelMese ? { t: `da portare in ${monthLabel(month)}`, c: 'bg-surface-active text-text-tertiary' }
+    : Math.abs(scarto) >= 0.01 ? { t: `nel mese ${eur(booked)}, scostata`, c: 'bg-warning-dim text-warning' }
+    : pagata ? { t: `pagata ${eur(booked)}`, c: 'bg-success-dim text-success' }
+    : { t: `nel mese ${eur(booked)}, da pagare`, c: 'bg-info-dim text-info' }
+
+  return (
+    <span className={`shrink-0 text-2xs font-semibold px-2 py-0.5 rounded ${ui.c}`}>{ui.t}</span>
   )
 }

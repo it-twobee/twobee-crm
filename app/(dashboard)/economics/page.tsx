@@ -50,7 +50,7 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
     // §176: il previsionale nasce da quello che è già firmato
     supabase.from('revenue_streams').select('*'),
     supabase.from('cost_items').select('*').eq('is_active', true),
-    supabase.from('projects').select('id, name').is('deleted_at', null),
+    supabase.from('projects').select('id, name, client_id').is('deleted_at', null),
   ])
 
   type MonthRow = { id: string; month: string; status: string }
@@ -125,6 +125,24 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
 
   const projectNames = Object.fromEntries(
     (allProjects ?? []).map((p: { id: string; name: string }) => [p.id, p.name]))
+  /* §192 — di chi è un progetto. Il subappalto sta sul progetto, ma il margine
+     che erode è quello di un cliente: senza questa mappa nel conto economico si
+     legge il nome del lavoro e non si sa a chi appartiene. */
+  const clientOfProject = Object.fromEntries(
+    (allProjects ?? []).filter((p: { client_id: string | null }) => !!p.client_id)
+      .map((p: { id: string; client_id: string }) => [p.id, p.client_id]))
+  // le sorgenti dei subappalti: la voce di piano che sta sul progetto
+  const subItems = (fcItems ?? [])
+    .filter((i: Record<string, unknown>) => !!i.project_id)
+    .map((i: Record<string, unknown>) => ({
+      id: String(i.id), label: String(i.label),
+      supplier: (i.supplier as string) ?? null,
+      amount: num(i.amount), frequency: String(i.frequency),
+      is_active: i.is_active !== false,
+      project_id: (i.project_id as string) ?? null,
+      start_month: (i.start_month as string) ?? null,
+      end_month: (i.end_month as string) ?? null,
+    }))
 
   // la riga di contratto si chiama col servizio: senza questo il cliente sparirebbe
   /* §185 — il commerciale che ciascun cliente ha in anagrafica. Le righe del mese
@@ -257,6 +275,8 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
       })) as RevenueLine[]}
       projectNames={projectNames}
       clientNames={clientNames}
+      clientOfProject={clientOfProject}
+      subItems={subItems}
       forecast={forecast(month, 6,
         (fcStreams ?? []) as never, (fcInst ?? []) as never, (fcItems ?? []) as never,
         new Set(monthsAll.map(m => m.month)))}

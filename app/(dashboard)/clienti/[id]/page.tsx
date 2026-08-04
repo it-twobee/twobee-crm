@@ -4,6 +4,7 @@ import { ClientPageClient } from '@/components/clients/ClientPageClient'
 import { ClientEconomicsTab } from '@/components/clients/tabs/ClientEconomicsTab'
 import { kindFromClientType, rowToPlConfig, type PlConfig } from '@/lib/pl'
 import { rfmRaw, type ClientInput, type ClientMonth } from '@/lib/client-economics'
+import type { SubItem } from '@/lib/subcontracts'
 import type { RevenueStream, Installment } from '@/lib/revenue'
 import type { Client, ClientContact, ClientKpi, Profile, ClientStakeholder, ClientInteraction } from '@/lib/types/database'
 import { PROFILE_COLUMNS } from '@/lib/profile-columns'
@@ -63,6 +64,8 @@ export default async function ClientePage({ params, searchParams }: Props) {
   let hasBilling = false
   // §178: quanti progetti determinano growth / digital / growth+digital
   let projectCount = 0
+  let subItems: SubItem[] = []
+  let projectNames: Record<string, string> = {}
 
   if (isAdmin) {
     const [{ data: projects }, { data: streams, error: streamErr }, { data: cfg }, { data: catalog }] =
@@ -77,6 +80,27 @@ export default async function ClientePage({ params, searchParams }: Props) {
       ])
 
     projectCount = (projects ?? []).length
+
+    /* §192 — i lavori affidati fuori sui progetti di questo cliente. Servono qui
+       perché il margine è del cliente, anche se il subappalto sta sul progetto:
+       senza, la scheda dice quanto paga e non quanto resta. */
+    const projectIds = (projects ?? []).map((p: { id: string }) => p.id)
+    const { data: subRows } = projectIds.length
+      ? await supabase.from('cost_items')
+          .select('id, label, supplier, amount, frequency, is_active, project_id, start_month, end_month')
+          .in('project_id', projectIds)
+      : { data: [] }
+    subItems = (subRows ?? []).map((i: Record<string, unknown>) => ({
+      id: String(i.id), label: String(i.label),
+      supplier: (i.supplier as string) ?? null,
+      amount: Number(i.amount ?? 0), frequency: String(i.frequency),
+      is_active: i.is_active !== false,
+      project_id: (i.project_id as string) ?? null,
+      start_month: (i.start_month as string) ?? null,
+      end_month: (i.end_month as string) ?? null,
+    }))
+    projectNames = Object.fromEntries(
+      (projects ?? []).map((p: { id: string; name: string }) => [p.id, p.name]))
 
     // §170: le bozze sono quotazioni, non contratti: non contano nell'etichetta
     if (!streamErr) {
@@ -155,6 +179,8 @@ export default async function ClientePage({ params, searchParams }: Props) {
         mrrStored={Number(client.mrr ?? 0)}
         mrrSource={client.mrr_source === 'contratti' ? 'contratti' : 'anagrafica'}
         paymentStatus={String(client.payment_status ?? 'in_attesa')}
+        subItems={subItems}
+        projectNames={projectNames}
       />
     )
   }

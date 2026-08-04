@@ -462,6 +462,11 @@ export function CostPlanClient({
                 </>
               ) : 'Nessun costo esterno: qui finiscono i subappalti e i fornitori senza area'}
             </p>
+            {/* §192 — la gerarchia, scritta dove serve: qui si legge e si raggruppa */}
+            <p className="text-2xs text-text-tertiary mt-0.5">
+              L&apos;importo di un subappalto si cambia <strong className="text-text-secondary">sul
+              progetto</strong>; qui si raggruppa per subappaltatore e si rinominano i fornitori
+            </p>
           </div>
           {loose.lines > 0 && (
             <span className="text-2xs tabular text-text-tertiary shrink-0">{eur(loose.actual)} nel mese</span>
@@ -604,19 +609,34 @@ function ItemRow({ item, month, centers, run, projectNames, locked = false }: {
   const yearly = yearlyCost(item)
   const upcoming = nextOccurrences(item, month, 4)
 
-  if (locked) {
+  /* §192 — un subappalto si scrive sul **progetto**, non qui. Qui si legge e si
+     raggruppa per subappaltatore, che è la domanda di questa pagina («quanto do a
+     chi»). Lasciarlo modificabile in due posti creava due importi per lo stesso
+     patto, e il margine del progetto seguiva quello sbagliato. */
+  const fromProject = !!item.project_id
+  if (locked || fromProject) {
+    const where = fromProject
+      ? { href: `/progetti/${item.project_id}?tab=economics`, label: 'apri nel progetto →' }
+      : { href: '/economics/personale', label: 'apri in Personale →' }
     return (
       <div className={`rounded-xl border border-border p-2.5 flex items-center gap-2 flex-wrap ${item.is_active ? '' : 'opacity-60'}`}>
-        <Users className="w-3.5 h-3.5 shrink-0 text-text-tertiary" aria-hidden="true" />
+        {fromProject
+          ? <Truck className="w-3.5 h-3.5 shrink-0 text-orange" aria-hidden="true" />
+          : <Users className="w-3.5 h-3.5 shrink-0 text-text-tertiary" aria-hidden="true" />}
         <span className="flex-1 min-w-[120px] text-2xs font-semibold text-text-primary truncate">{item.label}</span>
+        {fromProject && item.project_id && (
+          <span className="text-2xs text-text-tertiary truncate max-w-[150px]">
+            {projectNames[item.project_id] ?? 'Progetto'}
+          </span>
+        )}
         <span className="text-2xs tabular font-semibold text-text-primary">{eur(item.amount)}</span>
         <span className="text-2xs text-text-tertiary">{FREQUENCY_LABEL[item.frequency]}</span>
         <span className={`rounded-lg px-1.5 py-0.5 text-2xs font-semibold border ${
           item.cost_type === 'F' ? 'bg-info-dim border-info/40 text-info' : 'bg-accent-dim border-accent/40 text-accent'
         }`}>{item.cost_type === 'F' ? 'fisso' : 'variabile'}</span>
-        <Link href="/economics/personale"
+        <Link href={where.href}
           className="text-2xs font-semibold text-gold-text hover:opacity-80 whitespace-nowrap">
-          apri in Personale →
+          {where.label}
         </Link>
       </div>
     )

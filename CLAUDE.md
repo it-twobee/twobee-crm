@@ -262,6 +262,30 @@ si scrive un importo**. Tutto il resto lo legge:
   righe le scrive la sezione Personale leggendo cedolini e contratti, e
   `applyPlanToMonth`/`previewPrefill` escludono l'area a monte: prima veniva
   contata due volte, una dal piano e una dall'organico.
+**Il subappalto ha una gerarchia, e sta scritta in ogni sezione** (§192,
+`lib/subcontracts.ts`). Un lavoro affidato fuori è **un fatto solo visto da quattro
+posti**, e finché ognuno se lo raccontava a modo suo i conti non tornavano:
+
+1. **Sorgente — la scheda Economics del progetto.** Importo, fornitore, frequenza,
+   finestra: si scrivono lì e solo lì. Ogni voce mostra dov'è arrivata («da
+   portare», «nel mese», «pagata», «scostata»), col vocabolario del conto economico.
+2. **Atterraggio — il conto economico.** «Porta nel mese» crea l'occorrenza; lì si
+   scrive **quanto è uscito davvero** e **se è pagato**, mai il pattuito. La
+   sezione «Lavori affidati fuori» mostra ogni riga con fornitore, progetto e
+   cliente cliccabili, il margine per progetto (ricavo − esterni) e cosa non
+   torna: `subcontractFindings` segnala le **orfane** (riga con progetto e senza
+   voce di piano: il margine la paga e la scheda progetto non la vede), gli
+   scostamenti, i fornitori senza nome, i margini negativi e i mesi in cui il
+   costo cade e la rata no.
+3. **Lettura — Costi & budget e la scheda cliente.** Raggruppano e sommano; il
+   primo per subappaltatore (lì si rinominano i fornitori, che è un'operazione
+   trasversale), il secondo per capire quanto di un cliente esce verso qualcun
+   altro. **L'importo non è modificabile in nessuno dei due**: la riga porta il
+   link al progetto.
+
+In una riga: **il patto si scrive sul progetto, il fatto nel mese, tutto il resto
+legge.**
+
 - **Subappalti** (§173): una voce di piano con `project_id` è una lavorazione
   affidata fuori. Si crea dalla scheda Economics del progetto, finisce da sé
   nell'area «Delivery & Fornitori» e dà il **margine del progetto** (ricavo del

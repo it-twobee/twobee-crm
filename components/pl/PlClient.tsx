@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import {
   ChevronLeft, ChevronRight, ChevronDown, Plus, Trash2, CopyPlus, Lock, LockOpen,
   TrendingUp, TrendingDown, Wallet, Target, ShieldAlert, Users, Building2, Info,
-  Briefcase, AlertTriangle, RotateCcw, Landmark, CalendarRange, Receipt, Loader2,
+  Briefcase, AlertTriangle, RotateCcw, Landmark, CalendarRange, Receipt, Loader2, Truck,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import {
@@ -21,6 +21,9 @@ import {
   addCostLine, updateCostLine, deleteCostLine, bulkCostAction,
 } from '@/app/actions/pl'
 import { setLineCenter, syncBudgetsFromPlan } from '@/app/actions/costs'
+import {
+  subcontractViews, bySupplierView, byProjectMargin, subcontractFindings, type SubItem,
+} from '@/lib/subcontracts'
 import { registerPartnerInvoice } from '@/app/actions/bank'
 import { currentQuarterVat, nextDue, type MonthVat } from '@/lib/vat'
 import { forecastTotals, type ForecastMonth } from '@/lib/forecast'
@@ -56,6 +59,10 @@ type Props = {
   projectNames: Record<string, string>
   /** nome del cliente: la riga di contratto porta il nome del servizio, non il suo */
   clientNames: Record<string, string>
+  /** §192 — progetto → cliente: il subappalto sta sul progetto, il margine è del cliente */
+  clientOfProject?: Record<string, string>
+  /** §192 — le sorgenti dei subappalti: la voce di piano che vive sul progetto */
+  subItems?: SubItem[]
 }
 
 const eur = (n: number) => formatCurrency(Math.round(n))
@@ -70,7 +77,7 @@ const pc1 = (n: number) => `${(n * 100).toFixed(2).replace(/\.00$/, '').replace(
 export function PlClient({
   month, status, exists, setupNeeded, previous, missingClients,
   knownMonths, config, partners, profiles, revenue, costs, centers, forecast, vatMonths, today,
-  projectNames, clientNames,
+  projectNames, clientNames, clientOfProject = {}, subItems = [],
 }: Props) {
   const router = useRouter()
   /* Quale compenso è aperto: un numero che non si può aprire si prende per fede,
@@ -749,6 +756,11 @@ export function PlClient({
             `${r.righe} preventivati riallineati · ${r.variazione > 0 ? '+' : '−'}${eur(Math.abs(r.variazione))}`,
             { description: r.cambi.slice(0, 4).map(c => `${c.label}: ${eur(c.da)} → ${eur(c.a)}`).join(' · ') })
         })} />
+
+      {/* ── §192 · i lavori affidati fuori: qui atterra tutto ── */}
+      <SubcontractSection
+        month={month} costs={costs} revenue={revenue} subItems={subItems}
+        projectNames={projectNames} clientNames={clientNames} clientOfProject={clientOfProject} />
 
       <p className="flex items-start gap-2 text-2xs text-text-tertiary">
         <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
@@ -1573,3 +1585,227 @@ const r2c = (n: number) => Math.round(n * 100) / 100
 const COST_GRID = {
   gridTemplateColumns: '2rem minmax(0,1fr) 1.5rem 6.5rem 7rem 2.25rem 1.5rem',
 } as const
+
+// ═══════════════════════════════════════════════════════════════════════════
+// §192 — Lavori affidati fuori
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * I subappalti del mese: chi, per quale progetto, di quale cliente.
+ *
+ * È la sezione dove **tutto atterra**, e serve perché prima nel conto economico si
+ * leggeva «Subappalto — Rata 2 di 6» senza sapere di quale lavoro né a chi
+ * andasse. Un subappalto è un solo fatto visto da quattro posti, e la gerarchia è
+ * questa: **il patto si scrive sul progetto, il fatto qui, tutto il resto legge.**
+ *
+ * Perciò da qui si scrive solo l'effettivo e il pagato — che sono fatti, e li
+ * conosce chi ha visto la fattura — mentre importo, fornitore e frequenza si
+ * cambiano nella scheda del progetto, che ogni riga linka.
+ */
+function SubcontractSection({
+  month, costs, revenue, subItems, projectNames, clientNames, clientOfProject,
+}: {
+  month: string
+  costs: CostLine[]
+  revenue: RevenueLine[]
+  subItems: SubItem[]
+  projectNames: Record<string, string>
+  clientNames: Record<string, string>
+  clientOfProject: Record<string, string>
+}) {
+  const [tab, setTab] = useState<'progetto' | 'fornitore'>('progetto')
+
+  const views = useMemo(() => subcontractViews(
+    subItems,
+    costs.filter(c => !!c.project_id).map(c => ({
+      id: c.id, label: c.label, budget: c.budget, actual: c.actual, paid: c.paid,
+      project_id: c.project_id ?? null, cost_item_id: c.cost_item_id ?? null,
+      center_id: c.center_id ?? null,
+    })),
+    month,
+    { project: projectNames, client: clientNames, clientOf: clientOfProject },
+  ), [subItems, costs, month, projectNames, clientNames, clientOfProject])
+
+  const revByProject = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const r of revenue) {
+      if (!r.project_id || r.pass_through) continue
+      map[r.project_id] = r2c((map[r.project_id] ?? 0) + r.amount_net)
+    }
+    return map
+  }, [revenue])
+
+  const margins = useMemo(() => byProjectMargin(views, revByProject), [views, revByProject])
+  const suppliers = useMemo(() => bySupplierView(views), [views])
+  const findings = useMemo(() => subcontractFindings(views, margins), [views, margins])
+
+  if (!views.length && !Object.keys(revByProject).length) return null
+
+  const external = views.reduce((n, v) => n + (v.booked > 0 ? v.booked : v.planned), 0)
+  const pagato = views.reduce((n, v) => n + v.paid, 0)
+
+  return (
+    <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
+      <div className="flex items-end justify-between gap-3 px-5 py-4 border-b border-border flex-wrap">
+        <div>
+          <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary">
+            <Truck className="w-4 h-4 text-orange" aria-hidden="true" />Lavori affidati fuori
+          </h2>
+          <p className="text-2xs text-text-tertiary mt-0.5">
+            Il patto si scrive sulla scheda del progetto, il fatto qui: da questa tabella si
+            correggono <strong className="text-text-secondary">effettivo</strong> e{' '}
+            <strong className="text-text-secondary">pagato</strong>, l&apos;importo pattuito si
+            cambia sul progetto
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-xl font-bold text-text-primary tabular">{eur(external)}</p>
+          <p className="text-2xs text-text-tertiary">
+            {views.length} voci · pagato {eur(pagato)}
+            {external > pagato && <span className="text-warning"> · {eur(external - pagato)} da pagare</span>}
+          </p>
+        </div>
+      </div>
+
+      {findings.length > 0 && (
+        <ul className="divide-y divide-border/60 bg-background">
+          {findings.map(f => (
+            <li key={f.id} className="flex items-start gap-2.5 px-5 py-2.5">
+              <AlertTriangle className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${
+                f.severity === 'critico' ? 'text-error'
+                  : f.severity === 'attenzione' ? 'text-warning' : 'text-text-tertiary'}`}
+                aria-hidden="true" />
+              <div className="min-w-0 flex-1">
+                <p className="text-2xs font-bold text-text-primary">{f.title}</p>
+                <p className="text-2xs text-text-secondary mt-0.5">{f.detail}</p>
+                {f.action && (
+                  <p className="text-2xs text-gold-text font-semibold mt-0.5">
+                    {f.href ? <Link href={f.href} className="hover:underline">{f.action}</Link> : f.action}
+                  </p>
+                )}
+              </div>
+              {f.value ? (
+                <span className="text-2xs tabular font-bold text-text-primary shrink-0">{eur(f.value)}</span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex gap-1 px-5 py-2.5 border-b border-border">
+        {(['progetto', 'fornitore'] as const).map(t => (
+          <button key={t} onClick={() => setTab(t)} aria-pressed={tab === t}
+            className={`text-2xs font-semibold px-3 py-1.5 rounded-lg press ${
+              tab === t ? 'bg-gold text-on-gold' : 'text-text-secondary hover:bg-surface-hover'}`}>
+            {t === 'progetto' ? 'Per progetto e margine' : 'Per subappaltatore'}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'progetto' ? (
+        <ul className="divide-y divide-border/60">
+          {margins.map(m => (
+            <li key={m.projectId ?? 'none'} className="px-5 py-3">
+              <div className="flex items-baseline gap-2 flex-wrap">
+                {m.projectId ? (
+                  <Link href={`/progetti/${m.projectId}?tab=economics`}
+                    className="text-sm font-bold text-text-primary hover:text-gold-text truncate">
+                    {m.projectName ?? 'Progetto'}
+                  </Link>
+                ) : (
+                  <span className="text-sm font-bold text-text-primary">Senza progetto</span>
+                )}
+                {m.clientId && (
+                  <Link href={`/clienti/${m.clientId}?tab=economics`}
+                    className="text-2xs text-info hover:underline shrink-0">
+                    {m.clientName ?? 'cliente'}
+                  </Link>
+                )}
+                <span className="ml-auto text-2xs text-text-tertiary tabular shrink-0">
+                  ricavo {eur(m.revenue)} − fuori {eur(m.external)} =
+                </span>
+                <span className={`text-sm font-bold tabular shrink-0 ${
+                  m.margin < 0 ? 'text-error' : 'text-success'}`}>
+                  {eur(m.margin)}
+                </span>
+                <span className="text-2xs text-text-tertiary tabular shrink-0 w-12 text-right">
+                  {m.revenue > 0 ? `${Math.round(m.pct * 100)}%` : '—'}
+                </span>
+              </div>
+              {m.rows.length > 0 && (
+                <ul className="mt-1.5 space-y-1">
+                  {m.rows.map(r => (
+                    <li key={r.lineId ?? r.itemId} className="flex items-baseline gap-2 text-2xs">
+                      <SubBadge status={r.status} />
+                      <span className="truncate text-text-secondary">{r.label}</span>
+                      <span className={`shrink-0 ${r.supplier ? 'text-text-tertiary' : 'text-warning font-semibold'}`}>
+                        {r.supplier ?? 'fornitore da scrivere'}
+                      </span>
+                      <span className="ml-auto tabular text-text-tertiary shrink-0">{eur(r.planned)}</span>
+                      <span className="tabular font-bold text-text-primary shrink-0 w-20 text-right">
+                        {eur(r.booked)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <ul className="divide-y divide-border/60">
+          {suppliers.map(g => (
+            <li key={g.supplier ?? 'none'} className="px-5 py-3">
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span className={`text-sm font-bold ${g.supplier ? 'text-text-primary' : 'text-warning'}`}>
+                  {g.supplier ?? 'Senza subappaltatore'}
+                </span>
+                <span className="text-2xs text-text-tertiary">
+                  {g.projects} {g.projects === 1 ? 'progetto' : 'progetti'} · {g.rows.length} voci
+                </span>
+                <span className="ml-auto text-2xs text-text-tertiary tabular">pattuito {eur(g.planned)}</span>
+                <span className="text-sm font-bold text-text-primary tabular w-24 text-right">{eur(g.booked)}</span>
+                <span className={`text-2xs tabular w-24 text-right ${
+                  g.paid < g.booked ? 'text-warning' : 'text-success'}`}>
+                  {g.paid < g.booked ? `${eur(g.booked - g.paid)} da pagare` : 'tutto pagato'}
+                </span>
+              </div>
+              <ul className="mt-1.5 space-y-1">
+                {g.rows.map(r => (
+                  <li key={r.lineId ?? r.itemId} className="flex items-baseline gap-2 text-2xs">
+                    <SubBadge status={r.status} />
+                    <span className="truncate text-text-secondary">{r.label}</span>
+                    {r.href && (
+                      <Link href={r.href} className="text-info hover:underline shrink-0">
+                        {r.projectName ?? 'progetto'}
+                      </Link>
+                    )}
+                    {r.clientName && <span className="text-text-tertiary shrink-0">{r.clientName}</span>}
+                    <span className="ml-auto tabular font-bold text-text-primary shrink-0">{eur(r.booked)}</span>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <p className="px-5 py-3 border-t border-border text-2xs text-text-tertiary">
+        Il margine è ricavo del mese meno i lavori affidati fuori. Il tempo del team interno non c&apos;è
+        per scelta: sta nel costo del lavoro aziendale, e mescolarli darebbe un margine che nessuno può
+        calcolare. Sul digital è questo margine la base della spartizione fra i soci
+      </p>
+    </section>
+  )
+}
+
+function SubBadge({ status }: { status: 'pianificato' | 'nel mese' | 'pagato' | 'orfano' | 'scostato' }) {
+  const ui = {
+    pagato: { t: 'pagato', c: 'bg-success-dim text-success' },
+    'nel mese': { t: 'nel mese', c: 'bg-info-dim text-info' },
+    pianificato: { t: 'da portare', c: 'bg-surface-active text-text-tertiary' },
+    scostato: { t: 'scostato', c: 'bg-warning-dim text-warning' },
+    orfano: { t: 'senza patto', c: 'bg-error/15 text-error' },
+  }[status]
+  return <span className={`shrink-0 px-1.5 py-0.5 rounded font-semibold ${ui.c}`}>{ui.t}</span>
+}
