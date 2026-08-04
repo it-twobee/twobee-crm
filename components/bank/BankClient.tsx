@@ -20,9 +20,11 @@ import {
 } from '@/lib/bank'
 import {
   importBankCsv, reconcile, unreconcile, markNoMatch, addManualTx, deleteTx,
-  pushPartnerSpend, setAllowance, updateAccount,
+  pushPartnerSpend, setAllowance, updateAccount, pushAccountSpend,
 } from '@/app/actions/bank'
-import { spendSplit, CHECK_FAMILIES } from '@/lib/bank-import'
+import {
+  spendSplit, CHECK_FAMILIES, DEDUCTIBILITY, merchant, FAMILY_LABEL as FAMILY_LABEL_UI,
+} from '@/lib/bank-import'
 import { EconomicsNav } from '@/components/economics/EconomicsNav'
 import {
   RevenueCostChart, TrendChart, DonutChart, SplitBar, Sparkline,
@@ -383,6 +385,11 @@ export function BankClient({
         <FundingPanel account={account} accounts={accounts} balance={bal.real}
           items={spendItems[account.id] ?? []} txs={ownTxs} allTxs={txs}
           today={today} month={month} />
+      )}
+
+      {/* ══ le spese che il piano non prevede: costi della società, non erogato ══ */}
+      {!account.parent_id && (
+        <OffPlanSpend account={account} txs={ownTxs} month={month} />
       )}
 
       {/* ══ §191 · le tasche dei soci: erogato che esce come spesa ══ */}
@@ -1260,6 +1267,123 @@ function PocketsPanel({ parent, pockets, txs, month }: {
           </div>
         </>
       )}
+    </section>
+  )
+}
+
+/**
+ * Le spese del mese che il piano non prevede.
+ *
+ * Il piano conosce i canoni; non conosce la cena col cliente di giovedì, il pieno
+ * per andare a Salerno, la risma di carta. Sono **costi della società** come gli
+ * altri: se non entrano nel conto economico non si deducono e la loro IVA non si
+ * recupera — e restano lì, uscite di cassa che nessun numero racconta.
+ *
+ * Non sono erogato di nessuno. Una cena aziendale con un cliente è lavoro fatto
+ * per l'azienda: attribuirla a un socio gli abbasserebbe il compenso per averlo
+ * fatto. L'erogato passa dai sottoconti, e la differenza è il conto da cui il
+ * denaro esce.
+ */
+function OffPlanSpend({ account, txs, month }: {
+  account: BankAccount; txs: BankTx[]; month: string
+}) {
+  const router = useRouter()
+  const [busy, start] = useTransition()
+  const [ufficio, setUfficio] = useState(false)
+
+  const righe = useMemo(() => {
+    const fuori = [...CHECK_FAMILIES, 'ufficio' as const]
+    const map = new Map<string, { label: string; total: number; count: number; pct: number; vat: number }>()
+    for (const t of txs) {
+      if (t.amount >= 0 || t.kind === 'giroconto' || t.booked_on.slice(0, 7) !== month.slice(0, 7)) continue
+      const m = merchant(t.counterparty ?? t.description)
+      /* La rimappa vale per le due famiglie che il descrittore della carta sbaglia
+         più spesso: un supermercato e un negozio di elettronica possono essere
+         materiale d'ufficio, e lo sa una persona. */
+      const fam = ufficio && (m.family === 'spesa' || m.family === 'hardware') ? 'ufficio' : m.family
+      if (!fuori.includes(fam as typeof fuori[number])) continue
+      const d = DEDUCTIBILITY[fam]
+      const cur = map.get(fam) ?? { label: FAMILY_LABEL_UI[fam], total: 0, count: 0, pct: d.cost, vat: d.vat }
+      cur.total = Math.round((cur.total + Math.abs(t.amount)) * 100) / 100
+      cur.count += 1
+      map.set(fam, cur)
+    }
+    return Array.from(map.values()).sort((a, b) => b.total - a.total)
+  }, [txs, month, ufficio])
+
+  if (!righe.length) return null
+
+  const totale = righe.reduce((n, r) => n + r.total, 0)
+  const deducibile = righe.reduce((n, r) => n + r.total * r.pct, 0)
+  const iva = righe.reduce((n, r) => n + (r.total * 0.22 / 1.22) * r.vat, 0)
+
+  return (
+    <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
+      <div className="px-5 py-4 border-b border-border">
+        <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary">
+          <Receipt className="w-4 h-4 text-orange" aria-hidden="true" />
+          Spese fuori piano di {monthLabel(month)} · {eur2(totale)}
+        </h2>
+        <p className="text-2xs text-text-tertiary mt-0.5">
+          Costi della società che il piano non prevede: cene con clienti, trasferte, materiale.
+          Finché non entrano nel conto economico non si deducono e la loro IVA non si recupera.
+          Ads, software e hosting non sono qui: hanno già la loro riga a piano
+        </p>
+      </div>
+
+      <ul className="divide-y divide-border/60">
+        {righe.map(r => (
+          <li key={r.label} className="flex items-baseline gap-3 px-5 py-2.5">
+            <span className="text-2xs text-text-primary font-semibold flex-1 truncate">{r.label}</span>
+            <span className="text-2xs text-text-tertiary tabular shrink-0">{r.count}×</span>
+            <span className="text-2xs text-text-tertiary shrink-0 w-28 text-right">
+              deducibile {Math.round(r.pct * 100)}% · IVA {Math.round(r.vat * 100)}%
+            </span>
+            <span className="text-2xs font-bold text-text-primary tabular shrink-0 w-20 text-right">
+              {eur2(r.total)}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <div className="px-5 py-4 border-t border-border space-y-3">
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input type="checkbox" checked={ufficio} onChange={e => setUfficio(e.target.checked)}
+            className="mt-0.5 accent-gold" />
+          <span className="text-2xs text-text-secondary">
+            Supermercato ed elettronica erano <strong className="text-text-primary">materiale
+            d&apos;ufficio</strong>: deducibili per intero, IVA detraibile. Il descrittore della
+            carta non lo può sapere — lo dice chi ha fatto la spesa
+          </span>
+        </label>
+
+        <div className="flex items-end justify-between gap-3 flex-wrap">
+          <p className="text-2xs text-text-secondary">
+            Deducibile <strong className="text-text-primary">{eur2(deducibile)}</strong> su {eur2(totale)}
+            {iva > 0 && <> · IVA a credito {eur2(iva)}</>}
+            {deducibile < totale && (
+              <> · <span className="text-warning">{eur2(totale - deducibile)} su cui si pagano le
+                imposte pur avendo speso</span></>
+            )}
+          </p>
+          <button type="button" disabled={busy}
+            onClick={() => start(async () => {
+              try {
+                const r = await pushAccountSpend(account.id, month,
+                  ufficio ? { from: ['spesa', 'hardware'], to: 'ufficio' } : undefined)
+                toast.success(`${r.righe} righe · ${eur2(r.totale)} nel conto economico`, {
+                  description: `Deducibile ${eur2(r.deducibile)} · IVA a credito ${eur2(r.iva)}`,
+                })
+                router.refresh()
+              } catch (e) { toast.error((e as Error).message) }
+            })}
+            className="px-4 py-2 rounded-xl bg-gold text-on-gold text-2xs font-bold
+                       hover:opacity-90 disabled:opacity-50 flex items-center gap-2">
+            {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight className="w-3.5 h-3.5" />}
+            Porta nel conto economico
+          </button>
+        </div>
+      </div>
     </section>
   )
 }

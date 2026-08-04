@@ -98,6 +98,13 @@ console.log('\n— I fornitori delle carte, ricondotti al loro nome —')
   is('elettronica', merchant('EURONICS GRUPPO TUFANO, NAPOLI, IT'), { name: 'Elettronica', family: 'hardware' })
   is('carburante', merchant('STAZIONE DI SERVIZIO DI, QUARTO, IT'), { name: 'Carburante e viaggi', family: 'carburante' })
   is('un ristorante', merchant('LA SCOGLIERA, TORRE DEL GRE, IT'), { name: 'Ristoranti', family: 'rappresentanza' })
+  is('la cartoleria è materiale d\'ufficio',
+    merchant('BUFFETTI NAPOLI, NAPOLI, IT'), { name: "Materiale d'ufficio", family: 'ufficio' })
+  /* Un supermercato resta un supermercato: che quella volta fossero fogli e
+     detersivo per l'ufficio lo sa una persona, e lo si corregge sulla riga di
+     costo. Indovinarlo qui vorrebbe dire dedurre la spesa di casa. */
+  is('un supermercato no', merchant('CONAD SUPERMERCATO CONA, NAPOLI, IT').family, 'spesa')
+  eq('e il materiale d\'ufficio è deducibile per intero', treatment("Materiale d'ufficio").cost, 1)
   is('un altro ristorante', merchant('IL CAVATAPPI, SAN GIORGIO A, IT'), { name: 'Ristoranti', family: 'rappresentanza' })
   // senza regola: si ripulisce città, paese e codice
   is('fornitore sconosciuto, ripulito',

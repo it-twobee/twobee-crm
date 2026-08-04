@@ -3,11 +3,15 @@
  *
  *   npx tsx scripts/split-partner-spend.ts 2026-07-01 [--dry]
  *
- * Serve per quello che è uscito **prima** che i sottoconti esistessero: a luglio
- * cene con clienti e carburante sono passati dal conto operativo, e senza un nome
- * sopra non si deducono. Dall'agosto in poi la strada normale è il sottoconto e il
- * pulsante «Porta queste spese nel conto economico»: questo script è la
- * riparazione dello storico, non un secondo modo di lavorare.
+ * **Da usare solo per l'erogato.** Una cena aziendale con un cliente, il pieno per
+ * andarci, la carta per la stampante sono costi della **società**: attribuirli a un
+ * socio gli abbasserebbe il compenso per un lavoro fatto per l'azienda. Quelli si
+ * portano dentro col pulsante «Porta nel conto economico» in Banca, che li
+ * registra come spese fuori piano e non tocca le quote di nessuno.
+ *
+ * Questo script serve al caso opposto: la quota personale di un socio uscita da un
+ * conto che non è il suo sottoconto — perché il sottoconto non esisteva ancora, o
+ * perché ha pagato lui per tutti e tre.
  *
  * Divide in parti uguali fra i soci attivi, raggruppa per famiglia di spesa —
  * che è il livello a cui cambia il trattamento fiscale — e marca i movimenti come

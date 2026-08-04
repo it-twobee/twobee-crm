@@ -5,7 +5,10 @@ import { createAdminClient, createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { classify, type TxKind } from '@/lib/bank'
-import { parseStatement, merchant, treatment, FAMILY_LABEL, type SpendFamily } from '@/lib/bank-import'
+import {
+  parseStatement, merchant, treatment, FAMILY_LABEL, CHECK_FAMILIES, DEDUCTIBILITY,
+  type SpendFamily,
+} from '@/lib/bank-import'
 
 const PATH = '/economics/banca'
 
@@ -573,4 +576,129 @@ export async function registerPartnerInvoice(
   if (error) throw new Error(error.message)
   revalidatePath('/economics'); rev()
   return { id: (ins as { id: string }).id, amount }
+}
+
+/**
+ * Porta nel conto economico le spese di un conto che il piano non prevede.
+ *
+ * Il piano dei costi conosce i canoni: ads, software, hosting. Non conosce la cena
+ * col cliente di giovedì, il pieno per andare a Salerno, la risma di carta — e
+ * quelle sono **costi della società** come gli altri: se non entrano nel conto
+ * economico non si deducono e la loro IVA non si recupera.
+ *
+ * Perciò si portano dentro solo le famiglie **fuori piano** (`CHECK_FAMILIES` +
+ * materiale d'ufficio): advertising, software e hosting hanno già la loro riga a
+ * piano, e aggiungerne una seconda dal movimento bancario conterebbe due volte
+ * lo stesso costo. Quelle si riconciliano, non si duplicano.
+ *
+ * **Non sono erogato dei soci.** Una cena aziendale con un cliente è un costo
+ * dell'azienda, e attribuirla a un socio gli abbasserebbe il compenso per un
+ * lavoro che ha fatto per l'azienda. L'erogato passa dai sottoconti dedicati
+ * (`pushPartnerSpend`), e la differenza è il conto da cui il denaro esce.
+ *
+ * `overrides` rimappa una famiglia su un'altra quando il descrittore della carta
+ * mente: «CONAD» dice supermercato, ma quella volta erano fogli e toner. Lo dice
+ * una persona — indovinarlo qui vorrebbe dire dedurre la spesa di casa.
+ */
+export async function pushAccountSpend(accountId: string, month: string, overrides?: {
+  from: SpendFamily[]; to: SpendFamily
+}): Promise<{
+  righe: number; nuove: number; totale: number; deducibile: number; iva: number
+  movimenti: number; gruppi: { label: string; total: number; pct: number }[]
+}> {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const first = `${month.slice(0, 7)}-01`
+  const { data: mese } = await admin.from('pl_months').select('id').eq('month', first).maybeSingle()
+  if (!mese) throw new Error(`Il mese ${first} non è ancora aperto nel conto economico`)
+  const monthId = (mese as { id: string }).id
+
+  const last = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)
+  const to = `${month.slice(0, 7)}-${String(last.getDate()).padStart(2, '0')}`
+  const { data: txRows } = await admin.from('bank_transactions')
+    .select('id, amount, counterparty, description, kind')
+    .eq('account_id', accountId).gte('booked_on', first).lte('booked_on', to).lt('amount', 0)
+
+  const fuoriPiano: SpendFamily[] = [...CHECK_FAMILIES, 'ufficio']
+  const remap = (f: SpendFamily): SpendFamily =>
+    overrides && overrides.from.includes(f) ? overrides.to : f
+
+  const groups = new Map<SpendFamily, {
+    total: number; count: number; cost: number; vat: number; why: string
+  }>()
+  const usati: string[] = []
+  for (const t of ((txRows ?? []) as {
+    id: string; amount: number; counterparty: string | null; description: string; kind: string
+  }[])) {
+    if (t.kind === 'giroconto') continue
+    const tr: { family: SpendFamily; cost: number; vat: number; why: string } =
+      treatment(t.counterparty ?? t.description)
+    const family = remap(tr.family)
+    if (!fuoriPiano.includes(family)) continue
+    const reg = DEDUCTIBILITY[family]
+    const cur = groups.get(family)
+      ?? { total: 0, count: 0, cost: reg.cost, vat: reg.vat, why: reg.why }
+    cur.total = Math.round((cur.total + Math.abs(t.amount)) * 100) / 100
+    cur.count += 1
+    groups.set(family, cur)
+    usati.push(t.id)
+  }
+  if (!groups.size) throw new Error('Nessuna spesa fuori piano in questo mese')
+
+  const { data: centro } = await admin.from('cost_centers')
+    .select('id').ilike('name', 'Sede & Overhead').maybeSingle()
+  const centerId = (centro as { id: string } | null)?.id ?? null
+
+  const { data: esistenti } = await admin.from('pl_cost_lines')
+    .select('id, label, actual').eq('month_id', monthId).is('partner_id', null)
+  const have = new Map(((esistenti ?? []) as { id: string; label: string; actual: number }[])
+    .map(r => [r.label, r]))
+
+  let righe = 0, nuove = 0, totale = 0, deducibile = 0, iva = 0
+  const gruppi: { label: string; total: number; pct: number }[] = []
+
+  for (const family of Array.from(groups.keys())) {
+    const g = groups.get(family)!
+    const label = FAMILY_LABEL[family]
+    totale += g.total
+    deducibile += Math.round(g.total * g.cost * 100) / 100
+    // l'IVA sta dentro l'importo pagato con la carta: si scorpora
+    iva += Math.round((g.total * 0.22 / 1.22) * g.vat * 100) / 100
+    gruppi.push({ label, total: g.total, pct: g.cost })
+
+    const found = have.get(label)
+    if (found) {
+      if (Math.abs(Number(found.actual) - g.total) > 0.01) {
+        await admin.from('pl_cost_lines').update({ actual: g.total, budget: g.total }).eq('id', found.id)
+      }
+      righe++
+      continue
+    }
+    const { error } = await admin.from('pl_cost_lines').insert({
+      month_id: monthId, center_id: centerId, category: 'Spese fuori piano',
+      label, cost_type: 'V', budget: g.total, actual: g.total, paid: true,
+      vat_applied: g.vat > 0, vat_rate: 0.22,
+      deductible_pct: g.cost, vat_deductible_pct: g.vat,
+      note: `${g.count} movimenti dal conto. ${g.why}`,
+    })
+    if (error) throw new Error(error.message)
+    righe++; nuove++
+  }
+
+  // i movimenti sono contabilizzati in aggregato: non restano «da riconciliare»
+  if (usati.length) {
+    await admin.from('bank_transactions')
+      .update({ no_match_needed: true }).in('id', usati)
+  }
+
+  revalidatePath('/economics')
+  rev()
+  return {
+    righe, nuove, movimenti: usati.length,
+    totale: Math.round(totale * 100) / 100,
+    deducibile: Math.round(deducibile * 100) / 100,
+    iva: Math.round(iva * 100) / 100,
+    gruppi: gruppi.sort((a, b) => b.total - a.total),
+  }
 }

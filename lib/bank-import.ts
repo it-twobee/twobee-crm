@@ -152,7 +152,7 @@ export function parseStatement(csv: string): ParseResult {
 
 export type SpendFamily =
   | 'advertising' | 'software' | 'hosting' | 'rappresentanza'
-  | 'carburante' | 'hardware' | 'spesa' | 'banca' | 'altro'
+  | 'carburante' | 'hardware' | 'ufficio' | 'spesa' | 'banca' | 'altro'
 
 export const FAMILY_LABEL: Record<SpendFamily, string> = {
   advertising: 'Advertising',
@@ -161,6 +161,7 @@ export const FAMILY_LABEL: Record<SpendFamily, string> = {
   rappresentanza: 'Ristoranti e rappresentanza',
   carburante: 'Carburante e viaggi',
   hardware: 'Hardware ed elettronica',
+  ufficio: 'Materiale d\'ufficio',
   spesa: 'Spesa e alimentari',
   banca: 'Banca e cashback',
   altro: 'Altro',
@@ -194,6 +195,7 @@ const CANONICAL: Record<string, SpendFamily> = {
   'google cloud': 'hosting', ovhcloud: 'hosting', aruba: 'hosting', hosting: 'hosting',
   'vivid money': 'banca',
   supermercato: 'spesa', elettronica: 'hardware',
+  "materiale d'ufficio": 'ufficio',
   'carburante e viaggi': 'carburante', ristoranti: 'rappresentanza',
 }
 
@@ -220,6 +222,7 @@ export function merchant(raw: string): { name: string; family: SpendFamily } {
     [/aruba/, 'Aruba', 'hosting'],
     [/hetzner|digitalocean|vercel|netlify/, 'Hosting', 'hosting'],
     [/vivid money/, 'Vivid Money', 'banca'],
+    [/buffetti|cartoler|cancelleria|toner|staples|viking/, "Materiale d'ufficio", 'ufficio'],
     [/conad|lidl|carrefour|esselunga|supermerc/, 'Supermercato', 'spesa'],
     [/euronics|mediaworld|unieuro|apple store|amazon/, 'Elettronica', 'hardware'],
     [/stazione di servizio|eni |q8|ip |tamoil|esso|benzina|autostrad|telepass|trenitalia|italo|ryanair|easyjet|ita airways/,
@@ -333,6 +336,10 @@ export const DEDUCTIBILITY: Record<SpendFamily, {
   hardware: {
     cost: 1, vat: 1,
     why: 'Bene strumentale: interamente deducibile sotto 516,46 €, sopra si ammortizza',
+  },
+  ufficio: {
+    cost: 1, vat: 1,
+    why: 'Materiale di consumo per l\'ufficio: interamente deducibile, IVA detraibile',
   },
   advertising: { cost: 1, vat: 1, why: 'Pubblicità: interamente deducibile' },
   software: { cost: 1, vat: 1, why: 'Servizi: interamente deducibili' },

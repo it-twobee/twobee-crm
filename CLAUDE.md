@@ -547,6 +547,15 @@ dice quando, l'altro dice di chi. La sezione li tiene agganciati.
   vietate: hanno deducibilità limitata e vanno attaccate a una ragione. Il conto
   dice quanto pesano, non se erano inerenti — e senza la famiglia non si vede,
   perché ogni singola spesa sembra piccola.
+- **Spesa aziendale ≠ erogato, e li distingue il conto** (§191): una cena con un
+  cliente, la trasferta per andarci, il materiale d'ufficio sono costi della
+  **società** — attribuirli a un socio gli abbasserebbe il compenso per un lavoro
+  fatto per l'azienda. `pushAccountSpend` li porta nel mese come «Spese fuori
+  piano» **senza** `partner_id`, e solo per le famiglie che il piano non prevede:
+  ads, software e hosting hanno già la loro riga a piano e si riconciliano, non si
+  duplicano. L'erogato è quello che esce dai **sottoconti dei soci**
+  (`pushPartnerSpend`): la regola è il conto da cui il denaro esce, non il tipo di
+  spesa.
 - **Due strade per l'erogato, da decidere ogni mese** (§191): la **spesa dal
   sottoconto** porta a costo quello che si sarebbe speso comunque, ma con la
   deducibilità della sua famiglia (un pranzo vale il 75% e non recupera IVA); la
