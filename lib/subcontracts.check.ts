@@ -1,6 +1,6 @@
 /* Verifica del subappalto. Esegui: npx tsx lib/subcontracts.check.ts */
 import {
-  fallsIn, subcontractViews, bySupplierView, byProjectMargin, subcontractFindings,
+  fallsIn, subcontractViews, bySupplierView, byProjectMargin, subcontractFindings, projectDeal,
   type SubItem, type SubLine,
 } from '@/lib/subcontracts'
 
@@ -168,6 +168,42 @@ console.log('\n— §193 · Una una tantum in un mese che non è il suo —')
     [item({ frequency: 'mensile', start_month: '2026-01-01' })],
     [line({})], '2026-07-01', NAMES)
   is('un ricorrente non ha mese sbagliato', canone[0].wrongMonth, null)
+}
+
+console.log('\n— Il patto: venduto contro affidato fuori —')
+{
+  const d = projectDeal(
+    [{ amount: 10000, billing: 'one_off', status: 'attivo' },
+     { amount: 3600, billing: 'recurring', status: 'attivo' },
+     { amount: 5000, billing: 'one_off', status: 'bozza' }],
+    [item({ frequency: 'una_tantum', amount: 7500 }),
+     item({ id: 'i2', frequency: 'mensile', amount: 900, supplier: 'Affinity' })])
+  eq('venduto a corpo', d.sold, 10000)
+  eq('canone', d.recurring, 3600)
+  eq('la bozza non è venduto', d.draft, 5000)
+  eq('affidato fuori a corpo', d.external, 7500)
+  eq('e a canone', d.recurringExternal, 900)
+  eq('margine del lavoro', d.margin, 2500)
+  eq('in percentuale', d.pct, 0.25)
+  eq('margine del canone, al mese', d.monthlyMargin, 2700)
+  is('è quotato', d.quoted, true)
+  is('e sa chi lo eroga', d.suppliers, ['Affinity'])
+}
+{
+  /* A corpo e a canone non si sommano: un canone non ha un totale finché non si
+     sa quanto dura, e inventarne uno darebbe una percentuale scelta a caso. */
+  const d = projectDeal([{ amount: 1500, billing: 'recurring', status: 'attivo' }], [])
+  eq('senza venduto a corpo la percentuale è zero', d.pct, 0)
+  eq('ma il canone c\'è', d.recurring, 1500)
+  is('e il progetto è quotato', d.quoted, true)
+
+  const vuoto = projectDeal([], [])
+  is('nessun contratto: da quotare', vuoto.quoted, false)
+  eq('e margine zero, non negativo', vuoto.margin, 0)
+
+  const soloBozza = projectDeal([{ amount: 8000, billing: 'one_off', status: 'bozza' }], [])
+  is('una quotazione in bozza non è un venduto', soloBozza.quoted, false)
+  eq('e non entra nel margine', soloBozza.sold, 0)
 }
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)

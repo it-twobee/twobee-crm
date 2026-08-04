@@ -629,11 +629,17 @@ export function PlClient({
                       <Origin line={line} projectNames={projectNames} clientNames={clientNames} />
                     </td>
                     <td className="px-2 py-1.5 text-right">
-                      <Num value={line.plan_amount} disabled={locked}
+                      <Num value={line.plan_amount} disabled={locked || line.origin === 'contratto'}
+                        money={line.origin === 'contratto'}
                         onSave={v => run(() => updateRevenueLine(line.id, { plan_amount: v }))} />
                     </td>
                     <td className="px-2 py-1.5 text-right">
-                      <Num value={line.amount_net} disabled={locked} strong
+                      {/* §194 — l'importo di una riga da contratto lo scrive il contratto.
+                          Cambiarlo qui creerebbe un secondo numero per la stessa rata, e
+                          da quel momento nessuno dei due sarebbe affidabile: si corregge
+                          nell'economics del cliente, che è la sezione madre. */}
+                      <Num value={line.amount_net} disabled={locked || line.origin === 'contratto'}
+                        strong money={line.origin === 'contratto'}
                         onSave={v => run(() => updateRevenueLine(line.id, { amount_net: v }))} />
                       {/* §188 — anticipo che torna al cliente: si vede sulla riga,
                           perché è la ragione per cui su questo importo non c'è
@@ -897,15 +903,27 @@ function Origin({ line, projectNames, clientNames }: {
   // questo, in tabella si leggerebbe il servizio senza sapere di chi è
   const client = line.client_id ? clientNames[line.client_id] : null
 
+  /* §194 — dove si modifica, non solo da dove viene: chi guarda una riga sbagliata
+     deve sapere in quale pagina si corregge, senza cercarla. */
   if (line.origin === 'contratto' && line.project_id) {
     return (
-      <Link href={`/progetti/${line.project_id}?tab=economics`}
-        className="flex items-center gap-1 text-2xs text-text-tertiary hover:text-gold-text w-fit">
-        <Briefcase className="w-3 h-3 shrink-0" />
-        <span className="truncate max-w-[280px]">
-          {client ? `${client} · ` : ''}{projectNames[line.project_id] ?? 'Progetto'}
-        </span>
-      </Link>
+      <span className="flex items-center gap-1.5 flex-wrap">
+        <Link href={`/progetti/${line.project_id}?tab=economics`}
+          className="flex items-center gap-1 text-2xs text-text-tertiary hover:text-gold-text w-fit">
+          <Briefcase className="w-3 h-3 shrink-0" />
+          <span className="truncate max-w-[240px]">
+            {client ? `${client} · ` : ''}{projectNames[line.project_id] ?? 'Progetto'}
+          </span>
+        </Link>
+        {/* la sezione madre: importo, rate e scadenze si cambiano lì */}
+        {line.client_id && (
+          <Link href={`/clienti/${line.client_id}?tab=economics`}
+            title="L'importo e la scadenza di questa rata si cambiano nell'economics del cliente"
+            className="flex items-center gap-0.5 text-2xs text-info hover:underline shrink-0">
+            <Lock className="w-2.5 h-2.5" aria-hidden="true" />modifica l&apos;accordo
+          </Link>
+        )}
+      </span>
     )
   }
   if (line.origin === 'contratto' && client) {

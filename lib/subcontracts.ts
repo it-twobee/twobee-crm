@@ -266,6 +266,60 @@ export function byProjectMargin(
   }).sort((a, b) => b.external - a.external || b.revenue - a.revenue)
 }
 
+/**
+ * Il patto di un lavoro: quanto è stato venduto e quanto se ne dà via.
+ *
+ * È la vista che serve **mentre si quota**, e non è la stessa del mese: qui conta
+ * il lavoro intero — 10.000 € di CRM contro 7.500 € di subappalto — perché la
+ * domanda è «questo prezzo regge?», non «cosa è uscito a luglio».
+ *
+ * A corpo e a canone si tengono separati e non si sommano: un canone non ha un
+ * totale finché non si sa quanto dura, e inventargliene uno darebbe un margine
+ * percentuale che dipende da un orizzonte scelto a caso.
+ */
+export type DealView = {
+  /** venduto a corpo: contratti one_off non in bozza */
+  sold: number
+  /** canone mensile venduto */
+  recurring: number
+  /** affidato fuori a corpo */
+  external: number
+  /** affidato fuori a canone, al mese */
+  recurringExternal: number
+  /** sold − external */
+  margin: number
+  /** margine in percentuale sul venduto a corpo */
+  pct: number
+  /** margine del canone, al mese */
+  monthlyMargin: number
+  /** ha almeno un contratto venduto: senza, il progetto è «da quotare» */
+  quoted: boolean
+  /** quotazioni ancora in bozza: valgono zero e vanno viste */
+  draft: number
+  suppliers: string[]
+}
+
+export function projectDeal(
+  streams: { amount: number; billing: string; status: string }[],
+  items: SubItem[],
+): DealView {
+  const venduti = streams.filter(s => s.status !== 'bozza')
+  const sold = sum(venduti.filter(s => s.billing !== 'recurring').map(s => s.amount))
+  const recurring = sum(venduti.filter(s => s.billing === 'recurring' && s.status === 'attivo').map(s => s.amount))
+  const attivi = items.filter(i => i.is_active)
+  const external = sum(attivi.filter(i => i.frequency === 'una_tantum').map(i => i.amount))
+  const recurringExternal = sum(attivi.filter(i => i.frequency !== 'una_tantum').map(i => i.amount))
+  const margin = r2(sold - external)
+  return {
+    sold, recurring, external, recurringExternal, margin,
+    pct: sold > 0 ? margin / sold : 0,
+    monthlyMargin: r2(recurring - recurringExternal),
+    quoted: venduti.length > 0,
+    draft: sum(streams.filter(s => s.status === 'bozza').map(s => s.amount)),
+    suppliers: Array.from(new Set(attivi.map(i => i.supplier).filter((x): x is string => !!x))),
+  }
+}
+
 export type SubFinding = {
   id: string
   severity: 'critico' | 'attenzione' | 'nota'

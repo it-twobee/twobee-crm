@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import Link from 'next/link'
 import {
   Wallet, TrendingUp, TrendingDown, CalendarClock, Target, Sparkles,
-  Repeat, Package, AlertTriangle, Info, Briefcase, Clock, Truck,
+  Repeat, Package, AlertTriangle, Info, Briefcase, Clock,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { monthLabel, type PlConfig, type PlKind } from '@/lib/pl'
@@ -12,9 +12,11 @@ import {
   billing, relationship, forecast, rfmRaw, rfmScore, trend, upsell, contribution,
   type ClientInput, type RfmRaw, type Metric,
 } from '@/lib/client-economics'
-import { ContractsPanel, type CatalogService } from '@/components/economics/ContractsPanel'
+import { type CatalogService } from '@/components/economics/ContractsPanel'
+import { ClientDealsPanel } from '@/components/economics/ClientDealsPanel'
+import type { CostActual } from '@/lib/costs'
 import { mrrOrigin, PAYMENT_STATUS_HINT } from '@/lib/economics-source'
-import { fallsIn, type SubItem } from '@/lib/subcontracts'
+import type { SubItem } from '@/lib/subcontracts'
 
 const eur = (n: number) => formatCurrency(Math.round(n))
 const pc = (n: number) => `${n >= 0 ? '+' : ''}${(n * 100).toFixed(0)}%`
@@ -41,7 +43,7 @@ const RFM_TONE: Record<string, string> = {
 export function ClientEconomicsTab({
   client, base, config, kind, catalog, basePath,
   services, profiles, canEdit, mrrStored, mrrSource, paymentStatus,
-  subItems = [], projectNames = {},
+  subItems = [], actuals = [], month,
 }: {
   client: ClientInput
   /** RFM è relativo: serve la fotografia degli altri clienti per i quintili */
@@ -60,32 +62,11 @@ export function ClientEconomicsTab({
   paymentStatus: string
   /** §192 — i lavori affidati fuori sui progetti di questo cliente */
   subItems?: SubItem[]
-  projectNames?: Record<string, string>
+  /** le righe di costo del mese su quei lavori: dicono cosa è già atterrato */
+  actuals?: CostActual[]
+  /** il mese che il conto economico sta guardando */
+  month: string
 }) {
-  /* §192 — quanto di questo cliente esce verso qualcun altro. Il subappalto sta
-     sul progetto ma il margine è del cliente: senza questo blocco la scheda dice
-     quanto paga e non quanto resta, ed è la differenza che decide se un cliente
-     conviene. Si legge e non si modifica: il patto si cambia sul progetto. */
-  const sub = useMemo(() => {
-    const mese = new Date().toISOString().slice(0, 7) + '-01'
-    const attivi = (subItems ?? []).filter(i => i.is_active)
-    const perProgetto = new Map<string, { name: string; monthly: number; items: SubItem[] }>()
-    for (const i of attivi) {
-      if (!i.project_id) continue
-      const cur = perProgetto.get(i.project_id)
-        ?? { name: (projectNames ?? {})[i.project_id] ?? 'Progetto', monthly: 0, items: [] }
-      if (fallsIn(i, mese)) cur.monthly = Math.round((cur.monthly + i.amount) * 100) / 100
-      cur.items.push(i)
-      perProgetto.set(i.project_id, cur)
-    }
-    const monthly = Array.from(perProgetto.values()).reduce((n, p) => n + p.monthly, 0)
-    return {
-      rows: Array.from(perProgetto, ([id, v]) => ({ id, ...v })).sort((a, b) => b.monthly - a.monthly),
-      monthly: Math.round(monthly * 100) / 100,
-      suppliers: Array.from(new Set(attivi.map(i => i.supplier).filter(Boolean))) as string[],
-    }
-  }, [subItems, projectNames])
-
   const b = useMemo(() => billing(client), [client])
   const rel = useMemo(() => relationship(client), [client])
   const fc = useMemo(() => forecast(client, 6), [client])
@@ -128,77 +109,23 @@ export function ClientEconomicsTab({
           label="Andamento" m={tr} fmt={pc} tone={tr.ready ? (tr.value < 0 ? 'error' : 'success') : undefined} />
       </div>
 
-      {/* ── contratti: qui si quota, il resto della pagina lo legge ── */}
-      <ContractsPanel
-        scope={{ kind: 'client', clientId: client.id }}
+      {/* ── §194 · un posto solo dove si quota: per lavoro ── */}
+      <ClientDealsPanel
+        clientId={client.id}
+        clientName={client.name}
+        projects={client.projects.map(p => ({ id: p.id, name: p.name, status: p.status }))}
         streams={client.streams}
         installments={client.installments}
+        subItems={subItems}
+        actuals={actuals}
         services={services}
         profiles={profiles}
-        projects={client.projects.map(p => ({ id: p.id, name: p.name, status: p.status }))}
         canEdit={canEdit}
         defaultKind={kind}
         defaultStart={client.contract_start?.slice(0, 10) ?? null}
         defaultEnd={client.contract_end?.slice(0, 10) ?? null}
-        title="Contratti del cliente"
-        subtitle="Accordi da listino o custom, uno per servizio. Alimentano MRR, previsionale e conto economico"
+        month={month}
       />
-
-      {/* ── §192 · quanto di questo cliente esce verso qualcun altro ── */}
-      {sub.rows.length > 0 && (
-        <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
-          <div className="flex items-end justify-between gap-3 px-5 py-4 border-b border-border flex-wrap">
-            <div>
-              <h3 className="flex items-center gap-2 text-sm font-bold text-text-primary">
-                <Truck className="w-4 h-4 text-orange" aria-hidden="true" />Lavori affidati fuori
-              </h3>
-              <p className="text-2xs text-text-tertiary mt-0.5">
-                {sub.suppliers.length > 0
-                  ? <>Subappaltatori su questo cliente: {sub.suppliers.join(', ')}</>
-                  : 'Nessun subappaltatore ha un nome: si scrive nella scheda del progetto'}
-                {' '}· si legge, si modifica sul progetto
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-xl font-bold text-text-primary tabular">{eur(sub.monthly)}</p>
-              <p className="text-2xs text-text-tertiary">al mese, contro {eur(mrr)} di canone</p>
-            </div>
-          </div>
-          <ul className="divide-y divide-border/60">
-            {sub.rows.map(r => (
-              <li key={r.id} className="px-5 py-2.5">
-                <div className="flex items-baseline gap-2 flex-wrap">
-                  <Link href={`/progetti/${r.id}?tab=economics`}
-                    className="text-2xs font-bold text-text-primary hover:text-gold-text truncate">
-                    {r.name}
-                  </Link>
-                  <span className="text-2xs text-text-tertiary">
-                    {r.items.length} {r.items.length === 1 ? 'lavorazione' : 'lavorazioni'}
-                  </span>
-                  <span className="ml-auto text-2xs tabular font-semibold text-text-primary">
-                    {r.monthly > 0 ? `${eur(r.monthly)} questo mese` : 'niente questo mese'}
-                  </span>
-                </div>
-                <ul className="mt-1 space-y-0.5">
-                  {r.items.map(i => (
-                    <li key={i.id} className="flex items-baseline gap-2 text-2xs">
-                      <span className="truncate text-text-secondary">{i.label}</span>
-                      <span className={`shrink-0 ${i.supplier ? 'text-text-tertiary' : 'text-warning font-semibold'}`}>
-                        {i.supplier ?? 'fornitore da scrivere'}
-                      </span>
-                      <span className="ml-auto tabular text-text-tertiary shrink-0">{eur(i.amount)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ul>
-          <p className="px-5 py-3 border-t border-border text-2xs text-text-tertiary">
-            Il margine del mese lo calcola il <Link href="/economics" className="text-info hover:underline">conto
-            economico</Link>, progetto per progetto: è la sezione dove ogni subappalto atterra
-          </p>
-        </section>
-      )}
 
       {!derived && mrrStored > 0 && (
         <p className="flex items-start gap-2 text-2xs text-warning">

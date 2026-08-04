@@ -218,11 +218,23 @@ si scrive un importo**. Tutto il resto lo legge:
 - **Anagrafica cliente**: `mrr`, `contract_start/end`, `payment_status` sono in
   sola lettura e li scrivono i trigger della 169. `mrr_source='anagrafica'` =
   valore storico, nessun contratto ancora. Non riaprire quei campi in edit.
-- **Economics del cliente** (`ClientEconomicsTab`, tab 5): è il posto dove si
-  quota. Un gruppo per **ogni** progetto del cliente — anche senza contratti,
-  marcato «da quotare», con i suoi pulsanti listino/custom — più il gruppo
-  «Accordi senza progetto». Non filtrare i progetti privi di righe: sono
-  esattamente quelli da vedere.
+- **Economics del cliente** (§194, `ClientDealsPanel` dentro `ClientEconomicsTab`):
+  **l'unico posto dove si quota**, organizzato per **lavoro**. Un riquadro per
+  progetto — anche senza contratti, marcato «da quotare» — e dentro ciascuno le
+  due metà del patto: `ContractsPanel` (quanto paga il cliente) e
+  `ProjectCostsPanel` (quanto si dà via), col margine del lavoro in testata.
+  Prima c'erano due posti dove scrivere lo stesso accordo, cliente e progetto, e
+  il conto economico lo contava due volte. In fondo gli «Accordi senza progetto»
+  (quota partner, retainer) con scritto che **non entrano nel margine di nessun
+  lavoro**. Non filtrare i progetti privi di righe: sono esattamente quelli da
+  vedere. **Solo super admin e admin**: il gate è `isAdminRole(app_role)`, non
+  `role === 'admin'` — quello è la mappatura grossolana per le RLS e ci farebbe
+  cadere dentro chiunque sia stato promosso admin di ruolo.
+- **Sola lettura a valle**: nel conto economico l'importo di una riga
+  `origin='contratto'` non è modificabile e la riga porta due link — il progetto
+  e «modifica l'accordo», che apre l'economics del cliente. Lo stesso per i
+  costi: preventivato bloccato, lucchetto che linka la fonte. **Quando cade una
+  rata, quanto vale e chi la eroga si decide in un posto solo.**
 - **Economics del progetto** (`ProjectEconomics`): stesso pannello ristretto a
   un lavoro. Entrambi montano `components/economics/ContractsPanel.tsx` — se
   cambi il comportamento dei contratti, cambia lì e basta.

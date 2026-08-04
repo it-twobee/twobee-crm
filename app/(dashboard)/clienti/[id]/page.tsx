@@ -5,6 +5,8 @@ import { ClientEconomicsTab } from '@/components/clients/tabs/ClientEconomicsTab
 import { kindFromClientType, rowToPlConfig, type PlConfig } from '@/lib/pl'
 import { rfmRaw, type ClientInput, type ClientMonth } from '@/lib/client-economics'
 import type { SubItem } from '@/lib/subcontracts'
+import { isAdminRole, isSuperAdminRaw } from '@/lib/permissions'
+import type { CostActual } from '@/lib/costs'
 import type { RevenueStream, Installment } from '@/lib/revenue'
 import type { Client, ClientContact, ClientKpi, Profile, ClientStakeholder, ClientInteraction } from '@/lib/types/database'
 import { PROFILE_COLUMNS } from '@/lib/profile-columns'
@@ -50,8 +52,14 @@ export default async function ClientePage({ params, searchParams }: Props) {
 
   if (!client) notFound()
 
-  // ── Economics del cliente: admin-only, degrada se le migration mancano ─────
-  const isAdmin = (currentProfile as { role?: string } | null)?.role === 'admin'
+  /* ── Economics: super admin e admin, e nessun altro ────────────────────────
+     §194 — qui si scrive quanto vale un cliente e quanto se ne dà via. Il
+     controllo passa da `isAdminRole` su `app_role`, che è l'unica fonte dei
+     gruppi di ruolo: `role === 'admin'` è la mappatura grossolana per le RLS e
+     ci fa cadere dentro chiunque sia stato promosso ad admin di ruolo, non solo
+     i soci. Il gate vero è questo, e la pagina non monta nemmeno il componente. */
+  const prof = currentProfile as { role?: string; app_role?: string; email?: string } | null
+  const isAdmin = isAdminRole(prof?.app_role) || isSuperAdminRaw(prof?.email, prof?.app_role)
   let economics: React.ReactNode = null
   // serve anche fuori dall'economics: l'intestazione dice da dove esce l'MRR
   let contractsCount: number | null = null
@@ -65,7 +73,10 @@ export default async function ClientePage({ params, searchParams }: Props) {
   // §178: quanti progetti determinano growth / digital / growth+digital
   let projectCount = 0
   let subItems: SubItem[] = []
-  let projectNames: Record<string, string> = {}
+  /* le righe di costo del mese sui lavori del cliente: dicono cosa è già
+     atterrato nel conto economico, che è l'unica cosa che questa pagina non sa */
+  let actuals: CostActual[] = []
+  const month = `${new Date().toISOString().slice(0, 7)}-01`
 
   if (isAdmin) {
     const [{ data: projects }, { data: streams, error: streamErr }, { data: cfg }, { data: catalog }] =
@@ -99,8 +110,12 @@ export default async function ClientePage({ params, searchParams }: Props) {
       start_month: (i.start_month as string) ?? null,
       end_month: (i.end_month as string) ?? null,
     }))
-    projectNames = Object.fromEntries(
-      (projects ?? []).map((p: { id: string; name: string }) => [p.id, p.name]))
+    const { data: actualRows } = projectIds.length
+      ? await supabase.from('pl_cost_lines')
+          .select('id, center_id, cost_item_id, project_id, category, label, cost_type, budget, actual, paid, vat_applied, vat_rate, note')
+          .in('project_id', projectIds)
+      : { data: [] }
+    actuals = (actualRows ?? []) as unknown as CostActual[]
 
     // §170: le bozze sono quotazioni, non contratti: non contano nell'etichetta
     if (!streamErr) {
@@ -180,7 +195,8 @@ export default async function ClientePage({ params, searchParams }: Props) {
         mrrSource={client.mrr_source === 'contratti' ? 'contratti' : 'anagrafica'}
         paymentStatus={String(client.payment_status ?? 'in_attesa')}
         subItems={subItems}
-        projectNames={projectNames}
+        actuals={actuals}
+        month={month}
       />
     )
   }
