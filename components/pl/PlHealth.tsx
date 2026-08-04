@@ -26,9 +26,14 @@ const TONE: Record<Severity, { chip: string; icon: React.ReactNode; ring: string
  * La diagnosi in testa alla pagina: un voto, e sotto solo le cose su cui si può
  * fare qualcosa. Le note positive stanno chiuse: servono a confermare, non a
  * occupare spazio.
+ *
+ * Nasce **chiusa**. La riga da sola dice già quello che serve — il voto e quante
+ * cose ci sono da guardare — e chi apre la pagina nove volte su dieci sta cercando
+ * i numeri del mese, non la lista dei difetti: aperta li spingeva sotto la piega
+ * ogni volta. Si apre quando la si vuole.
  */
 export function PlHealth({ findings }: { findings: Finding[] }) {
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
   const score = healthScore(findings)
   const tone = TONE[score.severity]
   const actionable = findings.filter(f => f.severity !== 'buono')
