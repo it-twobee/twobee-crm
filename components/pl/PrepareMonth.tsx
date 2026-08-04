@@ -190,8 +190,14 @@ export function PrepareMonth({ month, compact = false }: { month: string; compac
           {(pv.existing.revenue > 0 || pv.existing.costs > 0) && (
             <p className="text-2xs text-text-tertiary flex items-start gap-1.5">
               <Check className="w-3 h-3 mt-0.5 shrink-0 text-success" aria-hidden="true" />
-              Nel mese ci sono già {pv.existing.revenue} entrate e {pv.existing.costs} uscite: rilanciare
-              aggiunge solo quello che manca, non duplica niente.
+              {/* Con gli importi: i numeri qui sopra sono quello che **manca**, quelli
+                  del conto economico sono quello che **c'è**. Senza gli importi
+                  accanto le due letture sembrano contraddirsi. */}
+              Nel mese ci sono già <strong className="text-text-secondary">
+                {eur(pv.existing.revenueAmount)} di entrate</strong> ({pv.existing.revenue} righe) e{' '}
+              <strong className="text-text-secondary">
+                {eur(pv.existing.costsAmount)} di uscite</strong> ({pv.existing.costs} righe).
+              Qui sopra c&apos;è quello che manca: rilanciare aggiunge solo quello, non duplica niente.
             </p>
           )}
 

@@ -261,8 +261,8 @@ export type PrefillPreview = {
   plan: { count: number; amount: number }
   subcontracts: { count: number; amount: number }
   people: { count: number; amount: number }
-  /** già presenti nel mese: non verranno duplicate */
-  existing: { revenue: number; costs: number }
+  /** già presenti nel mese: non verranno duplicate — con quanto valgono */
+  existing: { revenue: number; costs: number; revenueAmount: number; costsAmount: number }
   monthExists: boolean
   monthLocked: boolean
 }
@@ -327,14 +327,22 @@ export async function previewPrefill(month: string): Promise<PrefillPreview> {
       t + personCost(rowToPerson(r), params).monthly, 0)
   }
 
-  const [{ count: revCount }, { count: costCount }] = monthId
-    ? await Promise.all([
-        admin.from('pl_revenue_lines').select('id', { count: 'exact', head: true }).eq('month_id', monthId),
-        admin.from('pl_cost_lines').select('id', { count: 'exact', head: true }).eq('month_id', monthId),
-      ])
-    : [{ count: 0 }, { count: 0 }]
-
   const sum = (ns: number[]) => Math.round(ns.reduce((a, b) => a + b, 0) * 100) / 100
+
+  /* Non solo quante righe ci sono già, anche **quanto valgono**: senza gli importi
+     il pannello mostra quello che porterebbe dentro accanto a un conto economico
+     che dice un altro numero, e i due sembrano contraddirsi invece di essere due
+     cose diverse — quello che c'è e quello che manca. */
+  const [{ data: revNow }, { data: costNow }] = monthId
+    ? await Promise.all([
+        admin.from('pl_revenue_lines').select('amount_net').eq('month_id', monthId),
+        admin.from('pl_cost_lines').select('actual').eq('month_id', monthId),
+      ])
+    : [{ data: [] }, { data: [] }]
+  const revCount = (revNow ?? []).length
+  const costCount = (costNow ?? []).length
+  const revAmount = sum((revNow ?? []).map((r: { amount_net: unknown }) => Number(r.amount_net ?? 0)))
+  const costAmount = sum((costNow ?? []).map((r: { actual: unknown }) => Number(r.actual ?? 0)))
 
   return {
     revenue: {
@@ -346,7 +354,10 @@ export async function previewPrefill(month: string): Promise<PrefillPreview> {
     plan: plan.length ? { count: plan.length, amount: sum(plan.map(i => i.amount)) } : empty,
     subcontracts: subs.length ? { count: subs.length, amount: sum(subs.map(i => i.amount)) } : empty,
     people: { count: peopleCount, amount: Math.round(peopleAmount * 100) / 100 },
-    existing: { revenue: revCount ?? 0, costs: costCount ?? 0 },
+    existing: {
+      revenue: revCount, costs: costCount,
+      revenueAmount: revAmount, costsAmount: costAmount,
+    },
     monthExists: !!monthRow,
     monthLocked: (monthRow as { status: string } | null)?.status === 'chiuso',
   }

@@ -1404,9 +1404,18 @@ function CostSection({
       <div className="flex items-end justify-between gap-3 px-5 py-4 border-b border-border flex-wrap">
         <div>
           <h2 className="text-sm font-bold text-text-primary">Uscite</h2>
+          {/* I pezzi devono fare il totale. «fissi + variabili» conta solo la
+              struttura — i subappalti stanno fuori dal target del 35% (§188) e il
+              personale ha la sua sezione — quindi da soli non arrivavano al numero
+              grosso, e la differenza sembrava un errore invece di una scelta. */}
           <p className="text-2xs text-text-tertiary mt-0.5">
-            {costs.length} voci · fissi {eur(totals.fixed)} · variabili {eur(totals.variable)} ·
-            con IVA {eur(totals.gross)}
+            {costs.length} voci · struttura {eur(totals.structural)}{' '}
+            <span className="text-text-tertiary">
+              ({eur(totals.fixed)} fissi + {eur(totals.variable)} variabili)
+            </span>
+            {totals.external > 0 && <> · subappalti {eur(totals.external)}</>}
+            {totals.partners > 0 && <> · spese soci {eur(totals.partners)}</>}
+            {' '}· con IVA {eur(totals.gross)}
           </p>
         </div>
         <div className="text-right">
