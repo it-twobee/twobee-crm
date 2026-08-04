@@ -197,6 +197,8 @@ dato economico: è sicuro anche nel workspace.
 | `187_drop_client_package.sql` | Via i pacchetti («Hive Basic», «Worker Bee Start», «Partner Quota»): erano nomi di listino invecchiati e `clients.package` era `NOT NULL`, quindi bloccava ogni cliente nuovo. Ricrea `clients_workspace` senza quel campo e droppa la colonna. Cosa compra un cliente lo dicono i progetti e i contratti | — |
 | `188_contract_projects.sql` | `revenue_stream_projects`: un contratto può coprire **N progetti** (iCura paga 3.600 e dentro ci sono lead gen, social e sito), con quota per progetto perché il margine di progetto parte dal ricavo di quel progetto · `pass_through` su contratti e righe: le **partite di giro** (budget ads anticipato) entrano in fatturato e IVA e restano fuori dalle quote del piano compensi | — |
 | `179_os_versions.sql` | Cronologia: (a) `log_activity()` legge l'attore dall'header `x-actor-id` — col service role `auth.uid()` è NULL e tutto risultava «Sistema» — e non registra gli UPDATE che non cambiano niente; (b) `os_versions` + `os_version_changes`, il changelog di prodotto con un ciclo di 15 giorni dal 2026-08-01 (v1.0.0), bozze visibili ai soli admin; (c) seed della v1.0.0 con 13 voci | — |
+| `189_bank.sql` | Conto corrente: `bank_accounts` + `bank_transactions` (sorgente `banca`/`derivato`/`manuale`), trigger `bank_sync_revenue_line`/`bank_sync_cost_line` (spuntare «incassato» crea il movimento dichiarato) e `bank_on_match` (riconciliare un movimento vero spegne il dichiarato e marca la riga pagata). RLS admin | — |
+| `190_bank_vivid.sql` | Secondo conto: `transfer_pair_id`/`transfer_account_id` (i due lati di un giroconto sono un fatto solo), `funding_*` (provvista ricorrente) e `bank_account_centers` (quali aree di costo paga un conto → fabbisogno del bonifico). Seed del conto Vivid collegato a Marketing TwoBee e Struttura & Software | — |
 
 **Scorciatoia**: `supabase/APPLY_PENDING.sql` è il concatenato (081, 086–093) in
 transazione, da incollare una volta sola nel SQL Editor. Bucket privati da creare
@@ -507,6 +509,44 @@ subappalti (col progetto attaccato) · personale dall'organico. Il pannello
 poi si preme. Ogni sorgente sa non duplicarsi: rilanciare aggiunge il mancante.
 Se una sorgente fallisce le altre proseguono e lo scarto finisce in `skipped` —
 un mese preparato a metà è più utile di un errore.
+
+## Banca (§189-190, `/economics/banca`)
+Il conto corrente e il conto economico sono la stessa cosa vista due volte: uno
+dice quando, l'altro dice di chi. La sezione li tiene agganciati.
+
+- **Tre sorgenti per un movimento**: `banca` è la verità (viene dall'estratto
+  conto e **non si cancella**: se è sbagliato si corregge la categoria o si
+  rifà l'import), `derivato` nasce da una spunta «incassato/pagato» ed è una
+  dichiarazione, `manuale` è contante o carta di un socio. Perciò il saldo si
+  legge due volte: **reale** (solo `banca`) e **dichiarato** (tutto). La loro
+  differenza è quanto il tool crede senza avere una prova.
+- **Riconciliare non è automatico** (`matchCandidates`): il punteggio somma
+  numero documento, importo lordo esatto, nome cliente e controparte, ma
+  l'aggancio lo conferma una persona. Un abbinamento sbagliato dichiara incassata
+  una fattura che nessuno ha pagato, ed è un errore che poi nessuno cerca.
+- **Import** (`lib/bank-import.ts`): il **dialetto si riconosce
+  dall'intestazione** (home banking italiano con la virgola decimale · Vivid col
+  punto e la controparte in chiaro), non dal nome del file, e le righe illeggibili
+  finiscono in `skipped` con la ragione. `merchant()` riconduce le descrizioni
+  delle carte al fornitore vero — ventisei codici `FACEBK *…` sono «Meta Ads» — ed
+  è **idempotente**, perché si applica all'import e poi rileggendo dal database.
+- **Giroconti fra conti propri**: `pairTransfers` appaia i due lati per importo
+  opposto e data vicina. Senza, la liquidità totale sembra scendere e la lista da
+  riconciliare chiede due volte lo stesso fatto.
+- **Provvista** (`fundingNeed`): il fabbisogno di un conto spese non è una stima,
+  è la somma delle voci di piano delle aree che quel conto paga
+  (`bank_account_centers`). Se il bonifico ricorrente è più basso, si può dire
+  adesso quanti mesi regge invece di scoprirlo da una carta rifiutata.
+- **Cosa è passato davvero** (`spendSplit`): le uscite divise fra operativo e
+  `CHECK_FAMILIES` (ristoranti, spesa, carburante, elettronica). Non sono spese
+  vietate: hanno deducibilità limitata e vanno attaccate a una ragione. Il conto
+  dice quanto pesano, non se erano inerenti — e senza la famiglia non si vede,
+  perché ogni singola spesa sembra piccola.
+- **Il previsionale non si salva**: `forecast` lo ricalcola dalle scadenze aperte
+  ogni volta. Un previsionale scritto in tabella è vecchio il giorno dopo.
+- I grafici stanno in `components/charts/Charts.tsx` e valgono per tutto
+  l'economics: la parte piena della barra dei ricavi è incassato, quella smorzata
+  è credito. Zero è sempre visibile e il numero sta scritto accanto al pixel.
 
 ## Architettura portali
 - **Admin** (`/dashboard`, tutto): `super_admin`, `founder`, `admin`.

@@ -20,6 +20,7 @@ import {
 import {
   importBankCsv, reconcile, unreconcile, markNoMatch, addManualTx, deleteTx,
 } from '@/app/actions/bank'
+import { spendSplit, CHECK_FAMILIES } from '@/lib/bank-import'
 import { EconomicsNav } from '@/components/economics/EconomicsNav'
 import {
   RevenueCostChart, TrendChart, DonutChart, SplitBar, Sparkline,
@@ -355,7 +356,7 @@ export function BankClient({
       {/* ══ il bonifico ricorrente che alimenta questo conto ══ */}
       {(account.funding_from_id || (spendItems[account.id] ?? []).length > 0) && (
         <FundingPanel account={account} accounts={accounts} balance={bal.real}
-          items={spendItems[account.id] ?? []} />
+          items={spendItems[account.id] ?? []} txs={ownTxs} />
       )}
 
       {/* ══ da riconciliare ══ */}
@@ -706,15 +707,17 @@ export function BankClient({
  * quella differenza ogni mese — e il numero di mesi che resta si può dire adesso,
  * invece di scoprirlo da una carta rifiutata di sabato.
  */
-function FundingPanel({ account, accounts, balance, items }: {
+function FundingPanel({ account, accounts, balance, items, txs }: {
   account: BankAccount
   accounts: BankAccount[]
   balance: number
   items: { label: string; amount: number; center_id: string | null; centerName: string | null }[]
+  txs: BankTx[]
 }) {
   const need = fundingNeed(account, items, balance)
   const from = accounts.find(a => a.id === account.funding_from_id)
   const short = need.gap > 0
+  const spesa = useMemo(() => spendSplit(txs.filter(t => t.kind !== 'giroconto')), [txs])
 
   return (
     <section className={`bg-surface border rounded-2xl shadow-soft overflow-hidden ${
@@ -752,11 +755,52 @@ function FundingPanel({ account, accounts, balance, items }: {
 
       {items.length > 0 && (
         <div className="px-5 pb-5">
+          <p className="text-2xs text-text-tertiary mb-2">Le voci di piano che questo conto paga</p>
           <SplitBar segments={need.items.slice(0, 6).map((i, n) => ({
             label: i.label, value: i.amount,
             color: ['var(--color-gold)', 'var(--color-info)', 'var(--color-accent)',
               'var(--color-orange)', 'var(--color-success)', 'var(--color-border-strong)'][n % 6],
           }))} />
+        </div>
+      )}
+
+      {/* Il piano dice cosa dovrebbe passare; questo dice cosa è passato. */}
+      {spesa.total > 0 && (
+        <div className="px-5 pb-5 border-t border-border pt-4">
+          <div className="flex items-baseline justify-between gap-3 mb-2.5">
+            <p className="text-2xs font-bold text-text-primary">Cosa è passato davvero</p>
+            <p className="text-2xs text-text-tertiary">
+              {eur2(spesa.operativo)} operativo · <span className={spesa.share > 0.25 ? 'text-warning font-semibold' : ''}>
+                {eur2(spesa.daGiustificare)} da giustificare</span>
+            </p>
+          </div>
+          <SplitBar segments={spesa.families.map(f => ({
+            label: f.label, value: f.total,
+            color: CHECK_FAMILIES.includes(f.family) ? 'var(--color-warning)' : 'var(--color-info)',
+          }))} />
+          <ul className="mt-3 grid gap-1.5 sm:grid-cols-2">
+            {spesa.families.map(f => {
+              const check = CHECK_FAMILIES.includes(f.family)
+              return (
+                <li key={f.family} className="flex items-center gap-2 text-2xs">
+                  <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{ background: check ? 'var(--color-warning)' : 'var(--color-info)' }} />
+                  <span className={`truncate ${check ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
+                    {f.label}
+                  </span>
+                  <span className="ml-auto tabular text-text-tertiary shrink-0">{f.count}×</span>
+                  <span className="tabular font-bold text-text-primary shrink-0 w-20 text-right">{eur2(f.total)}</span>
+                </li>
+              )
+            })}
+          </ul>
+          {spesa.share > 0.25 && (
+            <p className="text-2xs text-text-secondary mt-3">
+              <strong className="text-warning">{Math.round(spesa.share * 100)}% delle uscite</strong> non è
+              né advertising né software: ristoranti, spesa, carburante ed elettronica hanno deducibilità
+              limitata e vanno attaccati a una ragione. Il conto può dire quanto pesano, non se erano inerenti.
+            </p>
+          )}
         </div>
       )}
     </section>

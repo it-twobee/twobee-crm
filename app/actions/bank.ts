@@ -5,6 +5,7 @@ import { createAdminClient, createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { classify, type TxKind } from '@/lib/bank'
+import { parseStatement, merchant } from '@/lib/bank-import'
 
 const PATH = '/economics/banca'
 
@@ -40,61 +41,39 @@ function rev() {
  * decimale, date in gg/mm/aaaa, importo firmato in un solo campo.
  */
 export async function importBankCsv(accountId: string, csv: string): Promise<{
-  letti: number; nuovi: number; duplicati: number; dal: string | null; al: string | null
+  letti: number; nuovi: number; duplicati: number; scartati: number
+  dal: string | null; al: string | null; dialetto: string
 }> {
   await requireAdmin()
   const admin = createAdminClient()
 
-  const lines = csv.split(/\r?\n/).filter(l => l.trim())
-  if (!lines.length) throw new Error('Il file è vuoto')
+  const { dialect, rows: parsed, skipped } = parseStatement(csv)
+  if (!parsed.length) throw new Error('Nessun movimento riconosciuto nel file')
 
-  const cell = (l: string) => l.split(';').map(c => c.replace(/^"|"$/g, '').trim())
-  const head = cell(lines[0]).map(h => h.toLowerCase())
-  const idx = {
-    booked: head.findIndex(h => h.includes('contabile')),
-    value: head.findIndex(h => h.includes('valuta')),
-    amount: head.findIndex(h => h.includes('importo')),
-    causal: head.findIndex(h => h.includes('causale')),
-    desc: head.findIndex(h => h.includes('descrizione')),
-    channel: head.findIndex(h => h.includes('canale')),
-  }
-  if (idx.booked < 0 || idx.amount < 0 || idx.desc < 0) {
-    throw new Error('Colonne non riconosciute: servono «Data contabile», «Importo» e «Descrizione»')
-  }
+  const rows = parsed.map((p, i) => {
+    /* Due sorgenti di verità sul «chi»: la banca che lo mette in chiaro (Vivid) e
+       la descrizione da cui va estratto (home banking). Dove c'è il nome in chiaro
+       si passa da `merchant`, che riconduce ventisei codici FACEBK a «Meta Ads». */
+    const auto = classify(p.description, p.amount, p.causal_code)
+    const named = p.counterparty_raw ? merchant(p.counterparty_raw) : null
+    const counterparty = named?.name ?? auto.counterparty
+    /* Un accredito dal proprio conto è un giroconto, non un incasso: senza questo
+       la provvista di un conto spese risulterebbe fatturato. */
+    const isOwnTransfer = /two bee/i.test(p.counterparty_raw ?? p.description)
+    const kind: TxKind = isOwnTransfer ? 'giroconto'
+      : named?.family === 'banca' ? 'commissione'
+      : auto.kind
 
-  const iso = (d: string) => {
-    const [g, m, a] = d.split('/')
-    return g && m && a ? `${a}-${m.padStart(2, '0')}-${g.padStart(2, '0')}` : null
-  }
-  const num = (v: string) => Number(v.replace(/\./g, '').replace(',', '.'))
-
-  type Row = {
-    account_id: string; booked_on: string; value_on: string | null; amount: number
-    causal_code: string | null; description: string; channel: string | null
-    counterparty: string | null; kind: TxKind; doc_ref: string | null
-    source: 'banca'; import_hash: string
-  }
-  const rows: Row[] = []
-  for (let i = 1; i < lines.length; i++) {
-    const c = cell(lines[i])
-    const booked = iso(c[idx.booked] ?? '')
-    const amount = num(c[idx.amount] ?? '')
-    const desc = c[idx.desc] ?? ''
-    if (!booked || !Number.isFinite(amount) || !desc) continue
-
-    const causal = idx.causal >= 0 ? c[idx.causal] || null : null
-    const { kind, counterparty, docRef } = classify(desc, amount, causal)
-    rows.push({
-      account_id: accountId, booked_on: booked,
-      value_on: idx.value >= 0 ? iso(c[idx.value] ?? '') : booked,
-      amount, causal_code: causal, description: desc,
-      channel: idx.channel >= 0 ? c[idx.channel] || null : null,
-      counterparty, kind, doc_ref: docRef, source: 'banca',
-      // l'indice di riga rende distinguibili due movimenti identici nello stesso giorno
-      import_hash: `${accountId}|${booked}|${amount.toFixed(2)}|${causal ?? ''}|${desc.slice(0, 80)}|${i}`,
-    })
-  }
-  if (!rows.length) throw new Error('Nessun movimento riconosciuto nel file')
+    return {
+      account_id: accountId, booked_on: p.booked_on, value_on: p.value_on,
+      amount: p.amount, causal_code: p.causal_code, description: p.description,
+      channel: p.channel, counterparty, kind, doc_ref: auto.docRef,
+      source: 'banca' as const,
+      no_match_needed: isOwnTransfer || named?.family === 'banca',
+      // l'indice di riga distingue due movimenti identici nello stesso giorno
+      import_hash: `${accountId}|${p.booked_on}|${p.amount.toFixed(2)}|${p.causal_code ?? ''}|${p.description.slice(0, 80)}|${i + 1}`,
+    }
+  })
 
   const { data: have } = await admin.from('bank_transactions')
     .select('import_hash').eq('account_id', accountId).not('import_hash', 'is', null)
@@ -110,8 +89,57 @@ export async function importBankCsv(accountId: string, csv: string): Promise<{
   rev()
   return {
     letti: rows.length, nuovi: nuovi.length, duplicati: rows.length - nuovi.length,
+    scartati: skipped.length, dialetto: dialect,
     dal: date[0] ?? null, al: date.at(-1) ?? null,
   }
+}
+
+/**
+ * Appaia i due lati di un giroconto fra conti propri.
+ *
+ * Il bonifico esce da un conto ed entra nell'altro: sono due movimenti dello
+ * stesso fatto. Appaiarli serve a due cose — la liquidità totale non sembra
+ * scendere, e la lista dei «da riconciliare» non li chiede entrambi. Si abbinano
+ * per importo opposto e data vicina, che su un giroconto interno bastano: non
+ * capita di girare la stessa cifra due volte nello stesso giorno fra gli stessi
+ * due conti, e se capita si vede e si corregge a mano.
+ */
+export async function pairTransfers(days = 4): Promise<{ coppie: number }> {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const { data: txs } = await admin.from('bank_transactions')
+    .select('id, account_id, booked_on, amount, kind, transfer_pair_id, transfer_account_id')
+    .eq('kind', 'giroconto').is('transfer_pair_id', null)
+
+  const list = (txs ?? []) as {
+    id: string; account_id: string; booked_on: string; amount: number
+    transfer_pair_id: string | null; transfer_account_id: string | null
+  }[]
+  const uscite = list.filter(t => t.amount < 0)
+  const entrate = list.filter(t => t.amount > 0)
+  const distanza = (a: string, b: string) =>
+    Math.abs(new Date(a).getTime() - new Date(b).getTime()) / 86400000
+
+  let coppie = 0
+  const usate = new Set<string>()
+  for (const u of uscite) {
+    const match = entrate.find(e =>
+      !usate.has(e.id) && e.account_id !== u.account_id
+      && Math.abs(e.amount + u.amount) < 0.01 && distanza(e.booked_on, u.booked_on) <= days)
+    if (!match) continue
+    usate.add(match.id)
+    await admin.from('bank_transactions').update({
+      transfer_pair_id: match.id, transfer_account_id: match.account_id, no_match_needed: true,
+    }).eq('id', u.id)
+    await admin.from('bank_transactions').update({
+      transfer_pair_id: u.id, transfer_account_id: u.account_id, no_match_needed: true,
+    }).eq('id', match.id)
+    coppie++
+  }
+
+  rev()
+  return { coppie }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

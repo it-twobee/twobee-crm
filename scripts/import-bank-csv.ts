@@ -9,6 +9,7 @@
  */
 import { readFileSync } from 'fs'
 import { classify } from '@/lib/bank'
+import { parseStatement, merchant, byFamily } from '@/lib/bank-import'
 
 const env = Object.fromEntries(
   readFileSync(`${process.cwd()}/.env.local`, 'utf8').split('\n')
@@ -41,45 +42,24 @@ async function main() {
     : accounts[0]
   if (!account) throw new Error(`conto «${wanted}» non trovato fra: ${accounts.map(a => a.label).join(', ')}`)
 
-  const csv = readFileSync(file, 'utf8')
-  const lines = csv.split(/\r?\n/).filter(l => l.trim())
-  const cell = (l: string) => l.split(';').map(c => c.replace(/^"|"$/g, '').trim())
-  const head = cell(lines[0]).map(h => h.toLowerCase())
-  const col = {
-    booked: head.findIndex(h => h.includes('contabile')),
-    value: head.findIndex(h => h.includes('valuta')),
-    amount: head.findIndex(h => h.includes('importo')),
-    causal: head.findIndex(h => h.includes('causale')),
-    desc: head.findIndex(h => h.includes('descrizione')),
-    channel: head.findIndex(h => h.includes('canale')),
-  }
-  if (col.booked < 0 || col.amount < 0 || col.desc < 0) {
-    throw new Error('colonne non riconosciute: servono «Data contabile», «Importo», «Descrizione»')
-  }
+  const { dialect, rows: parsed, skipped } = parseStatement(readFileSync(file, 'utf8'))
+  if (!parsed.length) throw new Error('nessun movimento riconosciuto')
 
-  const iso = (d: string) => {
-    const [g, m, a] = d.split('/')
-    return g && m && a ? `${a}-${m.padStart(2, '0')}-${g.padStart(2, '0')}` : null
-  }
-  const num = (v: string) => Number(v.replace(/\./g, '').replace(',', '.'))
-
-  const rows = lines.slice(1).map((l, i) => {
-    const c = cell(l)
-    const booked = iso(c[col.booked] ?? '')
-    const amount = num(c[col.amount] ?? '')
-    const desc = c[col.desc] ?? ''
-    if (!booked || !Number.isFinite(amount) || !desc) return null
-    const causal = col.causal >= 0 ? c[col.causal] || null : null
-    const { kind, counterparty, docRef } = classify(desc, amount, causal)
+  const rows = parsed.map((p, i) => {
+    const auto = classify(p.description, p.amount, p.causal_code)
+    const named = p.counterparty_raw ? merchant(p.counterparty_raw) : null
+    const isOwnTransfer = /two bee/i.test(p.counterparty_raw ?? p.description)
     return {
-      account_id: account.id, booked_on: booked,
-      value_on: col.value >= 0 ? iso(c[col.value] ?? '') : booked,
-      amount, causal_code: causal, description: desc,
-      channel: col.channel >= 0 ? c[col.channel] || null : null,
-      counterparty, kind, doc_ref: docRef, source: 'banca' as const,
-      import_hash: `${account.id}|${booked}|${amount.toFixed(2)}|${causal ?? ''}|${desc.slice(0, 80)}|${i + 1}`,
+      account_id: account.id, booked_on: p.booked_on, value_on: p.value_on,
+      amount: p.amount, causal_code: p.causal_code, description: p.description,
+      channel: p.channel,
+      counterparty: named?.name ?? auto.counterparty,
+      kind: isOwnTransfer ? 'giroconto' : named?.family === 'banca' ? 'commissione' : auto.kind,
+      doc_ref: auto.docRef, source: 'banca' as const,
+      no_match_needed: isOwnTransfer || named?.family === 'banca',
+      import_hash: `${account.id}|${p.booked_on}|${p.amount.toFixed(2)}|${p.causal_code ?? ''}|${p.description.slice(0, 80)}|${i + 1}`,
     }
-  }).filter(Boolean) as NonNullable<ReturnType<typeof Object>>[]
+  })
 
   const have = await api<{ import_hash: string }[]>(
     `bank_transactions?select=import_hash&account_id=eq.${account.id}`)
@@ -90,8 +70,11 @@ async function main() {
     await api('bank_transactions', { method: 'POST', body: JSON.stringify(nuovi.slice(i, i + 100)) })
   }
 
-  console.log(`\n${account.label}`)
-  console.log(`  ${nuovi.length} movimenti importati su ${rows.length} letti · ${rows.length - nuovi.length} già presenti`)
+  console.log(`\n${account.label} · dialetto ${dialect}`)
+  console.log(`  ${nuovi.length} movimenti importati su ${rows.length} letti`
+    + ` · ${rows.length - nuovi.length} già presenti`
+    + (skipped.length ? ` · ${skipped.length} scartati` : ''))
+  for (const s2 of skipped.slice(0, 5)) console.log(`    scartata ${s2}`)
 
   const all = await api<{ amount: number; kind: string; counterparty: string | null; doc_ref: string | null }[]>(
     `bank_transactions?select=amount,kind,counterparty,doc_ref&account_id=eq.${account.id}`)
@@ -103,8 +86,19 @@ async function main() {
   const perKind: Record<string, number> = {}
   for (const t of all) perKind[t.kind] = (perKind[t.kind] ?? 0) + 1
   console.log('  per tipo:', Object.entries(perKind).map(([k, v]) => `${k} ${v}`).join(' · '))
-  console.log(`  numero fattura riconosciuto su ${all.filter(t => t.doc_ref).length} movimenti`)
-  console.log(`  controparte riconosciuta su ${all.filter(t => t.counterparty).length} di ${all.length}\n`)
+  console.log(`  controparte riconosciuta su ${all.filter(t => t.counterparty).length} di ${all.length}`)
+
+  // le famiglie di spesa: dicono se il conto fa il lavoro per cui è stato aperto
+  const full = await api<{ amount: number; counterparty: string | null; description: string }[]>(
+    `bank_transactions?select=amount,counterparty,description&account_id=eq.${account.id}`)
+  const fam = byFamily(full)
+  if (fam.length) {
+    console.log('\n  uscite per famiglia di spesa:')
+    for (const f of fam) {
+      console.log(`    ${f.label.padEnd(28)} ${eur(f.total).padStart(10)}  ${f.count}×  ${f.names.slice(0, 3).join(', ')}`)
+    }
+  }
+  console.log()
 }
 
 main().catch(e => { console.error(e.message); process.exit(1) })
