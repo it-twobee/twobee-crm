@@ -197,7 +197,12 @@ export function ClientPageClient({
   )
 
   return (
-    <div className="flex flex-col h-full">
+    /* Lo scroll è quello della pagina, non un riquadro dentro la pagina. Il layout
+       della dashboard ha già `main` come contenitore scorrevole: aggiungerne un
+       secondo qui bloccava intestazione e avvisi a occupare mezzo schermo, e
+       lasciava scorrere una finestrella. Qui si scorre tutto, e restano attaccate
+       in alto solo le tab — che servono per navigare, non per essere guardate. */
+    <div className="flex flex-col min-h-full">
       {/* Back */}
       <div className="px-4 sm:px-6 pt-5 pb-3">
         <Link href={backHref} className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors w-fit">
@@ -296,8 +301,9 @@ export function ClientPageClient({
         </div>
       </div>
 
-      {/* Tab nav */}
-      <div className="flex border-b border-border px-4 sm:px-6 scroll-x-touch">
+      {/* Tab nav — resta a portata di mano mentre il resto scorre */}
+      <div className="flex border-b border-border px-4 sm:px-6 scroll-x-touch
+                      sticky top-0 z-20 bg-background/95 backdrop-blur-sm">
         {visibleTabs.map(({ label, index }) => (
           <button key={label} onClick={() => setActiveTab(index)}
             className={`px-4 py-3.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
@@ -309,7 +315,7 @@ export function ClientPageClient({
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="p-4 sm:p-6">
         {activeTab === 0 && (
           <PanoramicaTab client={client} kpis={kpis} allProfiles={allProfiles}
             teamMembers={teamMembers} interactions={interactions} isAdmin={isAdmin} openTickets={openTickets}

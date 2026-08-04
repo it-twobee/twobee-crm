@@ -244,7 +244,10 @@ export function ProjectDetailClient({
   const filtering = wsFilter !== 'all' || !!wsQuery.trim()
 
   return (
-    <div className="flex flex-col h-full">
+    /* Come nella scheda cliente: lo scroll è della pagina. `main` del layout è già
+       il contenitore scorrevole, e un secondo scroll qui dentro bloccava
+       l'intestazione e lasciava scorrere una finestrella. */
+    <div className="flex flex-col min-h-full">
       <div className="px-4 sm:px-6 pt-5 pb-3">
         <Link href={backHref} className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary w-fit press">
           <ArrowLeft className="w-4 h-4" />Tutti i progetti
@@ -285,8 +288,9 @@ export function ProjectDetailClient({
         </div>
       </div>
 
-      {/* tabs */}
-      <div className="flex border-b border-border px-4 sm:px-6 scroll-x-touch">
+      {/* tabs — restano raggiungibili mentre il resto scorre */}
+      <div className="flex border-b border-border px-4 sm:px-6 scroll-x-touch
+                      sticky top-0 z-20 bg-background/95 backdrop-blur-sm">
         {(economics
           ? [['panoramica', 'Panoramica'], ['workstream', 'Workstream'], ['economics', 'Economics']] as const
           : [['panoramica', 'Panoramica'], ['workstream', 'Workstream']] as const
@@ -298,7 +302,7 @@ export function ProjectDetailClient({
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="p-4 sm:p-6">
         {tab === 'economics' && economics}
 
         {tab === 'panoramica' && (

@@ -69,7 +69,9 @@ const eur = (n: number) => formatCurrency(Math.round(n))
 /** Con i centesimi: su una riga di costo 2.672,22 non è 2.672 */
 const eur2 = (n: number) =>
   Number.isInteger(n) ? formatCurrency(n)
-    : `${n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+    : `${n.toLocaleString('it-IT', {
+        minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true,
+      })} €`
 const pc = (n: number) => `${(n * 100).toFixed(n * 100 % 1 === 0 ? 0 : 1)}%`
 /** Due decimali dove servono: il 9,33% di una quota divisa non si arrotonda a 9%. */
 const pc1 = (n: number) => `${(n * 100).toFixed(2).replace(/\.00$/, '').replace('.', ',')}%`

@@ -11,6 +11,11 @@ export function formatCurrency(value: number): string {
     currency: 'EUR',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
+    /* L'italiano di CLDR raggruppa solo da cinque cifre: 7500 resta «7500 €» e
+       10000 diventa «10.000 €». Accanto, in una tabella di importi, sembra un
+       errore di battitura — e il punto delle migliaia è metà del lavoro che fa
+       un numero leggibile. Qui si raggruppa sempre. */
+    useGrouping: 'always',
   }).format(value)
 }
 

@@ -14,6 +14,8 @@ import type { RevenueStream, Installment } from '@/lib/revenue'
 import type { CostItem, CostActual } from '@/lib/costs'
 
 const eur = (n: number) => formatCurrency(Math.round(n))
+/** «a Affinity» non si scrive: davanti a vocale la preposizione prende la d. */
+const aOrAd = (name: string) => (/^[aeiouàèéìòù]/i.test(name.trim()) ? 'ad' : 'a')
 
 /**
  * L'economics del cliente, organizzata per **lavoro**.
@@ -193,7 +195,9 @@ export function ClientDealsPanel({
                       {deal.external > 0 && (
                         <span className="text-orange"> · {eur(deal.external)} affidati fuori</span>
                       )}
-                      {deal.suppliers.length > 0 && <> a {deal.suppliers.join(', ')}</>}
+                      {deal.suppliers.length > 0 && (
+                        <> {aOrAd(deal.suppliers[0])} {deal.suppliers.join(', ')}</>
+                      )}
                     </>
                   ) : (
                     <span className="text-warning font-semibold">
