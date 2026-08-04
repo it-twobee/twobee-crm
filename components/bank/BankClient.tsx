@@ -772,6 +772,13 @@ function FundingPanel({ account, accounts, balance, items, txs, allTxs, today, m
   const from = accounts.find(a => a.id === account.funding_from_id)
   const short = need.gap > 0
   const spesa = useMemo(() => spendSplit(txs.filter(t => t.kind !== 'giroconto')), [txs])
+  /* §205 — le famiglie di spesa contano anche i movimenti a mano, ed è giusto: una
+     spesa fatta con la carta di un socio è una spesa. Ma il **saldo** conta solo i
+     movimenti della banca, quindi i due numeri non possono coincidere e va detto:
+     senza, sembra che il conto abbia speso soldi che non aveva. */
+  const dimano = useMemo(() => Math.abs(txs
+    .filter(t => t.source === 'manuale' && t.amount < 0 && t.kind !== 'giroconto')
+    .reduce((n, t) => n + t.amount, 0)), [txs])
 
   /* Le tasche dei soci passano da qui prima di scendere: il bonifico che alimenta
      il conto operativo deve coprire anche le loro quote, altrimenti il primo
@@ -907,6 +914,15 @@ function FundingPanel({ account, accounts, balance, items, txs, allTxs, today, m
               )
             })}
           </ul>
+          {dimano > 0 && (
+            <p className="text-2xs text-text-secondary mt-2">
+              Di questi, <strong className="text-text-primary">{eur2(dimano)}</strong> sono movimenti
+              registrati a mano: contante o la carta di un socio. Contano come spesa — lo sono — ma
+              non nel <em>saldo reale</em>, che conta solo quello che il conto prova. Restano nel
+              saldo dichiarato, e la differenza fra i due è esattamente questo.
+            </p>
+          )}
+
           {spesa.share > 0.25 && (
             <p className="text-2xs text-text-secondary mt-3">
               <strong className="text-warning">{Math.round(spesa.share * 100)}% delle uscite</strong> non è
