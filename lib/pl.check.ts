@@ -1,5 +1,8 @@
 /* Verifica del piano compensi. Esegui: npx tsx lib/pl.check.ts */
-import { computeMonth, splitLine, pct, DEFAULT_PL_CONFIG as C, type RevenueLine, type CostLine } from '@/lib/pl'
+import {
+  computeMonth, splitLine, pct, rowToPlConfig, DEFAULT_PL_CONFIG as C,
+  type RevenueLine, type CostLine,
+} from '@/lib/pl'
 
 let fail = 0
 const eq = (label: string, got: number, want: number) => {
@@ -386,6 +389,25 @@ console.log('\n— §191 · Le due forme dell\'erogato non si sommano due volte 
   eq('nessuna delle due entra nella struttura', t.costs.structural, 0)
   eq('e stanno tutte nel secchio dei soci', t.costs.partners, 1400)
   eq('non deducibile: solo il 25% della cena', t.costs.nonDeductible, 100)
+}
+
+console.log('\n— §198 · la quota struttura e quella dei soci non si mescolano —')
+{
+  /* Una riga di configurazione scritta prima della §198 ha la quota socio e non la
+     colonna del target: prendere il 30% dal default accanto al 28% della riga
+     farebbe 130% del margine, e il piano distribuirebbe più di quanto esiste. */
+  const vecchia = rowToPlConfig({ digital_partner_pct: 0.28 })
+  eq('riga vecchia: nessun target digital', vecchia.digital_cost_target_pct, 0)
+  eq('e la quota socio resta la sua', vecchia.digital_partner_pct, 0.28)
+  eq('il margine si distribuisce per intero', 0.06 + 0.28 * 3 + vecchia.digital_cost_target_pct + 0.10, 1)
+
+  const nuova = rowToPlConfig({ digital_partner_pct: 0.18, digital_cost_target_pct: 0.30 })
+  eq('riga nuova: il target c\'è', nuova.digital_cost_target_pct, 0.30)
+  eq('e le quote fanno ancora 100%', 0.06 + 0.18 * 3 + 0.30 + 0.10, 1)
+
+  // nessuna riga: vale il piano inteso, quello nuovo
+  eq('senza configurazione vale il default', rowToPlConfig(null).digital_cost_target_pct, 0.30)
+  eq('col suo 18% a socio', rowToPlConfig(null).digital_partner_pct, 0.18)
 }
 
 console.log(fail === 0 ? '\nTutti i controlli passano.' : `\n${fail} controlli falliti.`)

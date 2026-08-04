@@ -131,7 +131,14 @@ export function rowToPlConfig(row: Record<string, unknown> | null | undefined): 
     company_share_pct: n(row.company_share_pct, d.company_share_pct),
     digital_partner_pct: n(row.digital_partner_pct, d.digital_partner_pct),
     digital_company_pct: n(row.digital_company_pct, d.digital_company_pct),
-    digital_cost_target_pct: n(row.digital_cost_target_pct, d.digital_cost_target_pct),
+    /* §198 — le due colonne sono una cosa sola e non si mescolano. Una riga che
+       ha la quota socio ma **non** la colonna del target è una riga scritta prima
+       della migration: lì il margine si distribuiva per intero, e prendere il 30%
+       dal default accanto al 28% della riga farebbe 130% del margine. Finché la
+       migration non gira, il piano resta quello di prima. */
+    digital_cost_target_pct: row.digital_cost_target_pct == null
+      ? (row.digital_partner_pct == null ? d.digital_cost_target_pct : 0)
+      : n(row.digital_cost_target_pct, d.digital_cost_target_pct),
     digital_risk_fund_pct: n(row.digital_risk_fund_pct, d.digital_risk_fund_pct),
     digital_risk_cut_pct: n(row.digital_risk_cut_pct, d.digital_risk_cut_pct),
     digital_risk_threshold: n(row.digital_risk_threshold, d.digital_risk_threshold),

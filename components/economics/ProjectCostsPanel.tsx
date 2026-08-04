@@ -284,9 +284,16 @@ function Stato({ item, lines, month }: {
   const nelMese = lines.length > 0
   const pagata = nelMese && lines.every(a => a.paid)
   const scarto = Math.round((booked - item.amount) * 100) / 100
+  /* §200 — una una tantum che cade in questo mese e non ha la sua riga qui può
+     essere atterrata altrove: il margine del mese non la sottrae, e senza dirlo
+     sembra netto quando non lo è. */
+  const cadeQui = item.frequency === 'una_tantum'
+    ? (item.start_month ?? '').slice(0, 7) === month.slice(0, 7)
+    : true
 
   const ui = !item.is_active ? { t: 'sospesa', c: 'bg-surface-active text-text-tertiary' }
-    : !nelMese ? { t: `da portare in ${monthLabel(month)}`, c: 'bg-surface-active text-text-tertiary' }
+    : !nelMese && cadeQui ? { t: `da portare in ${monthLabel(month)}`, c: 'bg-warning-dim text-warning' }
+    : !nelMese ? { t: `cade a ${item.start_month ? monthLabel(item.start_month) : 'un altro mese'}`, c: 'bg-surface-active text-text-tertiary' }
     : Math.abs(scarto) >= 0.01 ? { t: `nel mese ${eur(booked)}, scostata`, c: 'bg-warning-dim text-warning' }
     : pagata ? { t: `pagata ${eur(booked)}`, c: 'bg-success-dim text-success' }
     : { t: `nel mese ${eur(booked)}, da pagare`, c: 'bg-info-dim text-info' }

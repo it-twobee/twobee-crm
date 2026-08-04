@@ -110,10 +110,15 @@ export default async function ClientePage({ params, searchParams }: Props) {
       start_month: (i.start_month as string) ?? null,
       end_month: (i.end_month as string) ?? null,
     }))
-    const { data: actualRows } = projectIds.length
+    /* Solo le righe **di questo mese**: senza il filtro il pannello del progetto
+       diceva «nel mese 650 €» leggendo una riga di agosto, e da lì sembrava che il
+       margine di luglio fosse già netto quando non lo era. */
+    const { data: monthRow } = await supabase.from('pl_months')
+      .select('id').eq('month', month).maybeSingle()
+    const { data: actualRows } = projectIds.length && monthRow
       ? await supabase.from('pl_cost_lines')
           .select('id, center_id, cost_item_id, project_id, category, label, cost_type, budget, actual, paid, vat_applied, vat_rate, note')
-          .in('project_id', projectIds)
+          .in('project_id', projectIds).eq('month_id', (monthRow as { id: string }).id)
       : { data: [] }
     actuals = (actualRows ?? []) as unknown as CostActual[]
 
