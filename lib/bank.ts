@@ -43,6 +43,14 @@ export type BankAccount = {
   opening_balance: number
   opening_date: string
   is_primary: boolean
+  /** §190 — a cosa serve questo conto: un conto senza scopo scritto raccoglie tutto */
+  purpose?: string | null
+  /** il bonifico ricorrente che lo alimenta: da dove, che giorno, quanto */
+  funding_from_id?: string | null
+  funding_day?: number | null
+  funding_amount?: number | null
+  /** le aree del piano dei costi che questo conto paga */
+  centerIds?: string[]
 }
 
 export type BankTx = {
@@ -65,6 +73,9 @@ export type BankTx = {
   matched_at: string | null
   no_match_needed: boolean
   note?: string | null
+  /** §190 — l'altro lato dello stesso giroconto, e il conto di destinazione */
+  transfer_pair_id?: string | null
+  transfer_account_id?: string | null
 }
 
 /** Una riga del conto economico, per la riconciliazione e la previsione. */
@@ -562,6 +573,79 @@ export function bankInsights(i: {
 
   const order = { critico: 0, attenzione: 1, nota: 2 }
   return out.sort((a, b) => order[a.severity] - order[b.severity] || (b.value ?? 0) - (a.value ?? 0))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Più conti: liquidità totale e conto delle spese (§190)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * La liquidità dell'azienda, che non è il saldo di un conto.
+ *
+ * Somma i saldi di tutti i conti. I giroconti fra conti propri non la muovono per
+ * costruzione — escono da uno ed entrano nell'altro — quindi non serve escluderli:
+ * serve solo che **entrambi i lati siano registrati**. Se ne manca uno la
+ * liquidità risulta più bassa del vero, e `pendingTransfers` dice di quanto.
+ */
+export function liquidity(
+  accounts: { id: string; opening_balance: number }[], txs: BankTx[],
+): {
+  total: number
+  perAccount: { id: string; real: number; declared: number }[]
+  /** giroconti usciti da un conto e non ancora arrivati sull'altro */
+  pendingTransfers: number
+} {
+  const perAccount = accounts.map(a => {
+    const own = txs.filter(t => t.account_id === a.id)
+    const b = balance(a, own)
+    return { id: a.id, real: b.real, declared: b.declared }
+  })
+  /* Un giroconto in uscita che dichiara una destinazione ma non ha il lato in
+     entrata: i soldi ci sono, sono solo invisibili al conto che li ha ricevuti. */
+  const pending = txs.filter(t =>
+    t.source === 'banca' && t.amount < 0 && t.transfer_account_id && !t.transfer_pair_id)
+  return {
+    total: r2(perAccount.reduce((s, a) => s + a.real, 0)),
+    perAccount,
+    pendingTransfers: Math.abs(sum(pending.map(t => t.amount))),
+  }
+}
+
+export type FundingNeed = {
+  /** quanto costano nel mese le aree che questo conto paga */
+  monthly: number
+  /** il bonifico ricorrente dichiarato */
+  configured: number | null
+  /** positivo = il bonifico non copre le spese */
+  gap: number
+  /** le voci che lo compongono, per poterlo controllare */
+  items: { label: string; amount: number; center: string | null }[]
+  /** saldo del conto: con questo passo, quanti mesi regge senza provvista */
+  monthsCovered: number | null
+}
+
+/**
+ * Quanto serve girare ogni mese sul conto delle spese.
+ *
+ * È la somma delle voci di piano delle aree che quel conto paga — non una media,
+ * non una stima: le stesse righe che il conto economico userà. Se il bonifico
+ * ricorrente è più basso, il conto si svuota, e la data in cui accade si può
+ * calcolare prima invece di scoprirla da una carta rifiutata.
+ */
+export function fundingNeed(
+  account: Pick<BankAccount, 'funding_amount'>,
+  items: { label: string; amount: number; center_id: string | null; centerName?: string | null }[],
+  currentBalance: number,
+): FundingNeed {
+  const monthly = sum(items.map(i => i.amount))
+  const configured = account.funding_amount ?? null
+  const gap = configured === null ? monthly : r2(monthly - configured)
+  return {
+    monthly, configured, gap,
+    items: items.map(i => ({ label: i.label, amount: i.amount, center: i.centerName ?? null }))
+      .sort((a, b) => b.amount - a.amount),
+    monthsCovered: monthly > 0 ? Math.floor((currentBalance / monthly) * 10) / 10 : null,
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

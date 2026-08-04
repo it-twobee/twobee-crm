@@ -13,7 +13,7 @@ import { monthLabel } from '@/lib/pl'
 import {
   balance, runningBalance, buckets, bucketLabel, compare, matchCandidates,
   unreconciled, forecast, bankInsights, byCounterparty, byKind, daysToCash,
-  grossOf, isStructural,
+  grossOf, isStructural, liquidity, fundingNeed,
   type BankAccount, type BankTx, type PlLineRef, type Expected,
   type Granularity, type TxKind,
 } from '@/lib/bank'
@@ -21,6 +21,9 @@ import {
   importBankCsv, reconcile, unreconcile, markNoMatch, addManualTx, deleteTx,
 } from '@/app/actions/bank'
 import { EconomicsNav } from '@/components/economics/EconomicsNav'
+import {
+  RevenueCostChart, TrendChart, DonutChart, SplitBar, Sparkline,
+} from '@/components/charts/Charts'
 
 const eur = (n: number) => formatCurrency(Math.round(n))
 const eur2 = (n: number) => formatCurrency(n)
@@ -54,22 +57,32 @@ type PlMonth = {
 }
 
 export function BankClient({
-  month, today, setupNeeded, account, txs, openLines, expected, months, plByMonth, clientNames,
+  month, today, setupNeeded, accounts, txs, openLines, expected, months, plByMonth,
+  clientNames, spendItems,
 }: {
   month: string
   today: string
   setupNeeded: boolean
-  account: BankAccount | null
+  accounts: BankAccount[]
   txs: BankTx[]
   openLines: PlLineRef[]
   expected: Expected[]
   months: string[]
   plByMonth: PlMonth[]
   clientNames: Record<string, string>
+  /** §190 — le voci di piano che ciascun conto paga, per il fabbisogno del bonifico */
+  spendItems: Record<string, { label: string; amount: number; center_id: string | null; centerName: string | null }[]>
 }) {
   const router = useRouter()
   const [pending, start] = useTransition()
   const fileRef = useRef<HTMLInputElement>(null)
+
+  /* Il conto scelto. La liquidità totale sta sopra e non cambia: quella è
+     dell'azienda, il saldo è del conto. */
+  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '')
+  const account = accounts.find(a => a.id === accountId) ?? accounts[0] ?? null
+  const ownTxs = useMemo(() => txs.filter(t => t.account_id === account?.id), [txs, account])
+  const liq = useMemo(() => liquidity(accounts, txs), [accounts, txs])
 
   const [gran, setGran] = useState<Granularity>('month')
   const [q, setQ] = useState('')
@@ -95,11 +108,11 @@ export function BankClient({
   })
 
   // ── i numeri ───────────────────────────────────────────────────────────────
-  const bal = useMemo(() => balance(account ?? { opening_balance: 0 }, txs), [account, txs])
+  const bal = useMemo(() => balance(account ?? { opening_balance: 0 }, ownTxs), [account, ownTxs])
   const curve = useMemo(() => runningBalance(
-    account ?? { opening_balance: 0, opening_date: today }, txs), [account, txs, today])
-  const periods = useMemo(() => buckets(txs, gran,
-    { balance: account?.opening_balance ?? 0, complete: true }), [txs, gran, account])
+    account ?? { opening_balance: 0, opening_date: today }, ownTxs), [account, ownTxs, today])
+  const periods = useMemo(() => buckets(ownTxs, gran,
+    { balance: account?.opening_balance ?? 0, complete: true }), [ownTxs, gran, account])
   const fc = useMemo(() => forecast(today, bal.real, expected, 90), [today, bal.real, expected])
 
   const overdueIn = useMemo(() => openLines
@@ -110,31 +123,31 @@ export function BankClient({
     .reduce((s, l) => s + grossOf(l), 0), [openLines, today])
 
   const findings = useMemo(() => bankInsights({
-    today, bal, txs, fc, overdueIn, overdueOut,
-  }), [today, bal, txs, fc, overdueIn, overdueOut])
+    today, bal, txs: ownTxs, fc, overdueIn, overdueOut,
+  }), [today, bal, ownTxs, fc, overdueIn, overdueOut])
 
-  const open = useMemo(() => unreconciled(txs), [txs])
-  const kinds = useMemo(() => byKind(txs), [txs])
-  const topIn = useMemo(() => byCounterparty(txs, 'in').slice(0, 6), [txs])
-  const topOut = useMemo(() => byCounterparty(txs, 'out').slice(0, 6), [txs])
+  const open = useMemo(() => unreconciled(ownTxs), [ownTxs])
+  const kinds = useMemo(() => byKind(ownTxs), [ownTxs])
+  const topIn = useMemo(() => byCounterparty(ownTxs, 'in').slice(0, 6), [ownTxs])
+  const topOut = useMemo(() => byCounterparty(ownTxs, 'out').slice(0, 6), [ownTxs])
 
   /* Giorni per farsi pagare: dal mese di competenza al bonifico. Si calcola solo
      sui movimenti riconciliati — sugli altri non si sa a cosa appartengono. */
   const dtc = useMemo(() => {
-    const pairs = txs.filter(t => t.source === 'banca' && t.amount > 0 && t.revenue_line_id)
+    const pairs = ownTxs.filter(t => t.source === 'banca' && t.amount > 0 && t.revenue_line_id)
       .map(t => ({ month: t.booked_on.slice(0, 8) + '01', bookedOn: t.booked_on }))
     return daysToCash(pairs)
-  }, [txs])
+  }, [ownTxs])
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
-    return txs.filter(t => {
+    return ownTxs.filter(t => {
       if (kindFilter !== 'tutti' && t.kind !== kindFilter) return false
       if (!needle) return true
       return [t.description, t.counterparty ?? '', t.doc_ref ?? '', String(t.amount)]
         .join(' ').toLowerCase().includes(needle)
     })
-  }, [txs, q, kindFilter])
+  }, [ownTxs, q, kindFilter])
 
   const byDay = useMemo(() => {
     const m = new Map<string, BankTx[]>()
@@ -166,6 +179,43 @@ export function BankClient({
     <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-5">
       <EconomicsNav active="banca" month={month} />
 
+      {/* ══ la liquidità dell'azienda, che non è il saldo di un conto ══ */}
+      {accounts.length > 1 && (
+        <section className="bg-surface border border-border rounded-2xl p-4 shadow-soft">
+          <div className="flex items-end justify-between gap-4 flex-wrap">
+            <div>
+              <p className="text-2xs font-semibold text-text-tertiary uppercase tracking-wider">
+                Liquidità totale · {accounts.length} conti
+              </p>
+              <p className="text-2xl font-bold text-text-primary tabular mt-0.5">{eur2(liq.total)}</p>
+              {liq.pendingTransfers > 0 && (
+                <p className="text-2xs text-warning mt-0.5">
+                  {eur(liq.pendingTransfers)} di giroconti usciti da un conto e non ancora registrati
+                  sull&apos;altro: la liquidità vera è più alta di così
+                </p>
+              )}
+            </div>
+            <div className="flex gap-1 bg-background border border-border rounded-xl p-1">
+              {accounts.map(a => {
+                const b = liq.perAccount.find(x => x.id === a.id)
+                return (
+                  <button key={a.id} onClick={() => setAccountId(a.id)} aria-pressed={a.id === account.id}
+                    className={`px-3 py-1.5 rounded-lg text-left ${
+                      a.id === account.id ? 'bg-gold text-on-gold' : 'hover:bg-surface-hover'}`}>
+                    <span className={`block text-2xs font-bold ${a.id === account.id ? '' : 'text-text-primary'}`}>
+                      {a.label.split('—')[0].trim()}
+                    </span>
+                    <span className={`block text-2xs tabular ${a.id === account.id ? 'opacity-80' : 'text-text-tertiary'}`}>
+                      {eur(b?.real ?? 0)}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ══ il saldo, come lo mostrerebbe la banca ══ */}
       <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
         <div className="p-5 sm:p-6 flex items-start justify-between gap-4 flex-wrap">
@@ -184,6 +234,9 @@ export function BankClient({
                 ? `saldo all'ultimo movimento registrato, ${new Date(bal.lastBookedOn).toLocaleDateString('it-IT')}`
                 : 'nessun movimento caricato'}
             </p>
+            {account.purpose && (
+              <p className="text-2xs text-text-secondary mt-1.5 max-w-md">{account.purpose}</p>
+            )}
             {Math.abs(bal.pending) > 0 && (
               <p className="text-2xs text-info mt-1.5">
                 {eur2(bal.declared)} contando {eur(Math.abs(bal.pending))} già{' '}
@@ -244,18 +297,24 @@ export function BankClient({
           </div>
         )}
 
-        {/* la curva del saldo, e da oggi in poi la previsione */}
-        <BalanceChart curve={curve} forecastCurve={fc.curve} today={today} />
+        {/* la curva del saldo, e da oggi in poi la previsione tratteggiata */}
+        <div className="px-5 pb-5">
+          <TrendChart
+            history={curve.map(p => ({ date: p.date, value: p.balance }))}
+            forecast={fc.curve.map(p => ({ date: p.date, value: p.balance }))}
+            todayLabel={new Date(today).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}
+            height={180} />
+        </div>
       </section>
 
       {/* ══ i numeri del periodo ══ */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi label="Entrate registrate" value={eur(bal.inflow)}
           icon={<ArrowDownLeft className="w-4 h-4 text-success" />}
-          sub={`${txs.filter(t => t.source === 'banca' && t.amount > 0).length} accrediti`} />
+          sub={`${ownTxs.filter(t => t.source === 'banca' && t.amount > 0).length} accrediti`} />
         <Kpi label="Uscite registrate" value={eur(Math.abs(bal.outflow))}
           icon={<ArrowUpRight className="w-4 h-4 text-error" />}
-          sub={`${txs.filter(t => t.source === 'banca' && t.amount < 0).length} addebiti`} />
+          sub={`${ownTxs.filter(t => t.source === 'banca' && t.amount < 0).length} addebiti`} />
         <Kpi label="Crediti scaduti" value={eur(overdueIn)}
           icon={<AlertTriangle className={`w-4 h-4 ${overdueIn > 0 ? 'text-warning' : 'text-text-tertiary'}`} />}
           sub={overdueIn > bal.real ? 'più del saldo attuale' : 'fatture emesse e non incassate'}
@@ -291,6 +350,12 @@ export function BankClient({
             ))}
           </div>
         </section>
+      )}
+
+      {/* ══ il bonifico ricorrente che alimenta questo conto ══ */}
+      {(account.funding_from_id || (spendItems[account.id] ?? []).length > 0) && (
+        <FundingPanel account={account} accounts={accounts} balance={bal.real}
+          items={spendItems[account.id] ?? []} />
       )}
 
       {/* ══ da riconciliare ══ */}
@@ -463,6 +528,12 @@ export function BankClient({
             Quello che conta non è il totale, è il punto più basso
           </p>
         </div>
+        {/* la curva della cassa attesa: il punto più basso è cerchiato */}
+        {fc.curve.length > 1 && (
+          <div className="px-5 pt-4">
+            <TrendChart history={fc.curve.map(p => ({ date: p.date, value: p.balance }))} height={150} />
+          </div>
+        )}
         <div className="grid gap-3 sm:grid-cols-3 p-5">
           <Mini label="Da incassare" value={eur(fc.incoming)} tone="success" />
           <Mini label="Da pagare" value={eur(Math.abs(fc.outgoing))} tone="error" />
@@ -627,67 +698,68 @@ export function BankClient({
   )
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Il grafico del saldo: SVG inline, nessuna libreria, due temi
-// ═══════════════════════════════════════════════════════════════════════════
-
 /**
- * La curva del saldo, col futuro tratteggiato.
+ * Il conto delle spese e il bonifico che lo tiene in piedi.
  *
- * Un grafico a linea e non a barre perché la domanda è «dove sta andando», non
- * «quanto è entrato»: il saldo è una posizione, non un flusso. Il tratteggio dopo
- * oggi dice che quella parte non è ancora accaduta — senza, un previsionale
- * disegnato pieno si legge come storia.
+ * Il fabbisogno non è una stima: è la somma delle voci di piano delle aree che
+ * questo conto paga. Se il bonifico ricorrente è più basso, il conto si eroda di
+ * quella differenza ogni mese — e il numero di mesi che resta si può dire adesso,
+ * invece di scoprirlo da una carta rifiutata di sabato.
  */
-function BalanceChart({ curve, forecastCurve, today }: {
-  curve: { date: string; balance: number }[]
-  forecastCurve: { date: string; balance: number }[]
-  today: string
+function FundingPanel({ account, accounts, balance, items }: {
+  account: BankAccount
+  accounts: BankAccount[]
+  balance: number
+  items: { label: string; amount: number; center_id: string | null; centerName: string | null }[]
 }) {
-  const pts = [...curve, ...forecastCurve.slice(1)]
-  if (pts.length < 2) return null
-
-  const W = 800, H = 140, P = 4
-  const xs = pts.map(p => new Date(p.date).getTime())
-  const ys = pts.map(p => p.balance)
-  const minX = Math.min(...xs), maxX = Math.max(...xs)
-  const minY = Math.min(0, ...ys), maxY = Math.max(...ys, 1)
-  const x = (t: number) => P + ((t - minX) / Math.max(1, maxX - minX)) * (W - P * 2)
-  const y = (v: number) => H - P - ((v - minY) / Math.max(1, maxY - minY)) * (H - P * 2)
-
-  const real = curve.map(p => `${x(new Date(p.date).getTime())},${y(p.balance)}`).join(' ')
-  const fut = forecastCurve.map(p => `${x(new Date(p.date).getTime())},${y(p.balance)}`).join(' ')
-  const zeroY = y(0)
-  const area = curve.length
-    ? `${P},${zeroY} ${real} ${x(new Date(curve.at(-1)!.date).getTime())},${zeroY}`
-    : ''
+  const need = fundingNeed(account, items, balance)
+  const from = accounts.find(a => a.id === account.funding_from_id)
+  const short = need.gap > 0
 
   return (
-    <div className="px-5 pb-5">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-32" role="img"
-        aria-label="Andamento del saldo, con la previsione dei prossimi novanta giorni">
-        {/* lo zero: sotto quella linea il conto è scoperto */}
-        <line x1={P} y1={zeroY} x2={W - P} y2={zeroY} stroke="var(--color-border-strong)"
-          strokeWidth="1" strokeDasharray="2 3" />
-        {area && <polyline points={area} fill="var(--color-gold)" opacity="0.10" stroke="none" />}
-        <polyline points={real} fill="none" stroke="var(--color-gold)" strokeWidth="2"
-          strokeLinejoin="round" strokeLinecap="round" />
-        {forecastCurve.length > 1 && (
-          <polyline points={fut} fill="none" stroke="var(--color-info)" strokeWidth="1.5"
-            strokeDasharray="4 3" strokeLinejoin="round" />
-        )}
-      </svg>
-      <div className="flex items-center gap-4 mt-1">
-        <span className="flex items-center gap-1.5 text-2xs text-text-tertiary">
-          <span className="w-3 h-0.5 rounded" style={{ background: 'var(--color-gold)' }} />saldo registrato
-        </span>
-        <span className="flex items-center gap-1.5 text-2xs text-text-tertiary">
-          <span className="w-3 h-0.5 rounded" style={{
-            background: 'repeating-linear-gradient(to right, var(--color-info) 0 3px, transparent 3px 6px)' }} />
-          previsione da {new Date(today).toLocaleDateString('it-IT')}
-        </span>
+    <section className={`bg-surface border rounded-2xl shadow-soft overflow-hidden ${
+      short ? 'border-warning/40' : 'border-border'}`}>
+      <div className="px-5 py-4 border-b border-border">
+        <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary">
+          <Repeat className="w-4 h-4 text-info" aria-hidden="true" />Provvista del conto
+        </h2>
+        <p className="text-2xs text-text-tertiary mt-0.5">
+          {from
+            ? `Bonifico ricorrente da «${from.label.split('—')[0].trim()}»${account.funding_day ? `, il ${account.funding_day} del mese` : ''}`
+            : 'Nessun conto di provvista collegato'}
+        </p>
       </div>
-    </div>
+
+      <div className="grid gap-3 sm:grid-cols-3 p-5">
+        <Mini label="Spese del mese a piano" value={eur(need.monthly)} />
+        <Mini label="Bonifico ricorrente"
+          value={need.configured !== null ? eur(need.configured) : 'da definire'}
+          tone={need.configured === null ? 'warning' : undefined} />
+        <Mini label={short ? 'Manca ogni mese' : 'Margine del bonifico'}
+          value={eur(Math.abs(need.gap))} tone={short ? 'error' : 'success'} />
+      </div>
+
+      {need.monthsCovered !== null && (
+        <p className="px-5 pb-3 text-2xs text-text-secondary">
+          Col saldo attuale di {eur(balance)} il conto regge{' '}
+          <strong className="text-text-primary">{need.monthsCovered} mesi</strong> di spese
+          {short && need.configured !== null && (
+            <> — e ogni mese il bonifico ne copre {eur(need.configured)} su {eur(need.monthly)},
+              quindi la differenza la mangia dal saldo</>
+          )}.
+        </p>
+      )}
+
+      {items.length > 0 && (
+        <div className="px-5 pb-5">
+          <SplitBar segments={need.items.slice(0, 6).map((i, n) => ({
+            label: i.label, value: i.amount,
+            color: ['var(--color-gold)', 'var(--color-info)', 'var(--color-accent)',
+              'var(--color-orange)', 'var(--color-success)', 'var(--color-border-strong)'][n % 6],
+          }))} />
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -741,6 +813,42 @@ function PlByPeriod({ months, gran }: { months: PlMonth[]; gran: Granularity }) 
           {(gran === 'day' || gran === 'week') && ' Per settimana non esiste: il conto economico è mensile per natura, e la settimana si guarda sulla cassa.'}
         </p>
       </div>
+      {/* il grafico prima della tabella: la direzione si prende dalla forma, il
+          numero dalla riga */}
+      <div className="px-5 pt-4">
+        <RevenueCostChart height={210} data={[...rows].reverse().map(r => ({
+          key: r.key, label: r.label, revenue: r.accrued, costs: r.costs,
+          margin: r.margin, collected: r.collected,
+        }))} />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2 px-5 py-4 border-b border-border">
+        <div>
+          <p className="text-2xs font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+            Growth e digital sul totale
+          </p>
+          <DonutChart caption="fatturato" slices={[
+            { label: 'Growth', value: rows.reduce((s, r) => s + r.growth, 0), color: 'var(--color-gold)' },
+            { label: 'Digital', value: rows.reduce((s, r) => s + r.digital, 0), color: 'var(--color-info)' },
+          ]} />
+        </div>
+        <div>
+          <p className="text-2xs font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+            Di cento euro fatturati, dove vanno
+          </p>
+          <SplitBar segments={[
+            { label: 'distribuito', value: rows.reduce((s, r) => s + r.distributed, 0), color: 'var(--color-accent)' },
+            { label: 'costi', value: rows.reduce((s, r) => s + r.costs, 0), color: 'var(--color-error)' },
+            { label: 'cassa TwoBee', value: rows.reduce((s, r) => s + r.company, 0), color: 'var(--color-gold)' },
+          ]} />
+          <p className="text-2xs text-text-tertiary mt-2">
+            Quote ai soci e provvigioni, costi effettivi e quello che resta in azienda. Sono le tre
+            destinazioni di ogni euro fatturato, e la somma non torna al fatturato solo per le
+            partite di giro.
+          </p>
+        </div>
+      </div>
+
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>

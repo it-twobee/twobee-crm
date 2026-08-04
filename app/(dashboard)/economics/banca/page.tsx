@@ -25,28 +25,56 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
 
   const month = /^\d{4}-\d{2}-01$/.test(searchParams.m ?? '') ? searchParams.m! : monthKey(new Date())
 
-  const { data: accounts, error: setupErr } = await supabase.from('bank_accounts')
+  const { data: accountRows, error: setupErr } = await supabase.from('bank_accounts')
     .select('*').eq('is_active', true).order('is_primary', { ascending: false })
 
   const setupNeeded = setupErr?.code === '42P01' || setupErr?.code === 'PGRST205'
-  const account = (accounts ?? [])[0] as BankAccount | undefined
+  const first = (accountRows ?? [])[0] as BankAccount | undefined
 
-  if (setupNeeded || !account) {
-    return <BankClient month={month} setupNeeded account={null} txs={[]} openLines={[]}
-      expected={[]} months={[]} plByMonth={[]} clientNames={{}} today={new Date().toISOString().slice(0, 10)} />
+  if (setupNeeded || !first) {
+    return <BankClient month={month} setupNeeded accounts={[]} txs={[]} openLines={[]}
+      expected={[]} months={[]} plByMonth={[]} clientNames={{}} spendItems={{}}
+      today={new Date().toISOString().slice(0, 10)} />
   }
 
   const num = (v: unknown) => Number(v ?? 0)
 
   const [{ data: txRows }, { data: plMonths }, { data: cfgRow }, { data: partnerRows }, { data: clients }] =
     await Promise.all([
-      supabase.from('bank_transactions').select('*').eq('account_id', account.id)
-        .order('booked_on', { ascending: false }).limit(2000),
+      // tutti i conti insieme: la liquidità è la somma, e i giroconti vanno visti da entrambi i lati
+      supabase.from('bank_transactions').select('*')
+        .order('booked_on', { ascending: false }).limit(4000),
       supabase.from('pl_months').select('id, month, status').order('month'),
       supabase.from('pl_config').select('*').eq('id', true).maybeSingle(),
       supabase.from('pl_partners').select('*').eq('is_active', true).order('sort_order'),
       supabase.from('clients').select('id, company_name, display_name'),
     ])
+
+  /* §190 — quali aree paga ciascun conto, e quali voci di piano ci cadono: è il
+     fabbisogno del bonifico ricorrente, e restringe i candidati della
+     riconciliazione a quel conto. */
+  const { data: coverRows } = await supabase.from('bank_account_centers').select('account_id, center_id')
+  const { data: centerRows } = await supabase.from('cost_centers').select('id, name')
+  const { data: itemRows } = await supabase.from('cost_items')
+    .select('label, amount, frequency, center_id, project_id, is_active')
+    .eq('is_active', true).is('project_id', null)
+
+  const centerName = new Map((centerRows ?? []).map((c: { id: string; name: string }) => [c.id, c.name]))
+  const coverage = new Map<string, string[]>()
+  for (const r of (coverRows ?? []) as { account_id: string; center_id: string }[]) {
+    coverage.set(r.account_id, [...(coverage.get(r.account_id) ?? []), r.center_id])
+  }
+  const spendItems: Record<string, { label: string; amount: number; center_id: string | null; centerName: string | null }[]> =
+    Object.fromEntries((accountRows ?? []).map((a: Record<string, unknown>) => {
+      const centers = coverage.get(String(a.id)) ?? []
+      const own = (itemRows ?? []).filter((i: Record<string, unknown>) =>
+        i.center_id && centers.includes(String(i.center_id)) && i.frequency === 'mensile')
+      return [String(a.id), own.map((i: Record<string, unknown>) => ({
+        label: String(i.label), amount: num(i.amount),
+        center_id: (i.center_id as string) ?? null,
+        centerName: centerName.get(String(i.center_id)) ?? null,
+      }))]
+    }))
 
   const monthIds = (plMonths ?? []).map((m: { id: string }) => m.id)
   const [{ data: revRows }, { data: costRows }, { data: streams }, { data: inst }, { data: items }] =
@@ -83,6 +111,8 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
     matched_at: (t.matched_at as string) ?? null,
     no_match_needed: t.no_match_needed === true,
     note: (t.note as string) ?? null,
+    transfer_pair_id: (t.transfer_pair_id as string) ?? null,
+    transfer_account_id: (t.transfer_account_id as string) ?? null,
   }))
 
   /* Le righe aperte: crediti e debiti che aspettano un movimento. Sono i
@@ -196,12 +226,24 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
     }
   })
 
+  const accounts: BankAccount[] = (accountRows ?? []).map((a: Record<string, unknown>) => ({
+    id: String(a.id), label: String(a.label), bank_name: (a.bank_name as string) ?? null,
+    currency: String(a.currency ?? 'EUR'), opening_balance: num(a.opening_balance),
+    opening_date: String(a.opening_date).slice(0, 10), is_primary: a.is_primary === true,
+    purpose: (a.purpose as string) ?? null,
+    funding_from_id: (a.funding_from_id as string) ?? null,
+    funding_day: a.funding_day == null ? null : Number(a.funding_day),
+    funding_amount: a.funding_amount == null ? null : num(a.funding_amount),
+    centerIds: coverage.get(String(a.id)) ?? [],
+  }))
+
   return (
     <BankClient
       month={month}
       today={today}
       setupNeeded={false}
-      account={account}
+      accounts={accounts}
+      spendItems={spendItems}
       txs={txs}
       openLines={openLines}
       expected={expected}

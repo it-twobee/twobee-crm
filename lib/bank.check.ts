@@ -2,7 +2,7 @@
 import {
   classify, balance, runningBalance, buckets, bucketKey, bucketLabel, weekStart,
   compare, matchCandidates, unreconciled, forecast, bankInsights, byCounterparty,
-  byKind, daysToCash, grossOf, isStructural,
+  byKind, daysToCash, grossOf, isStructural, liquidity, fundingNeed,
   type BankTx, type PlLineRef, type Expected,
 } from '@/lib/bank'
 
@@ -297,6 +297,58 @@ console.log('\n— Giorni per farsi pagare —')
   eq('il peggiore', d.worst ?? -1, 20)
   is('quanti ne ha contati', d.count, 2)
   is('senza dati non si inventa una media', daysToCash([]).avg, null)
+}
+
+console.log('\n— §190: più conti, e il conto delle spese —')
+{
+  const principale = { id: 'p', opening_balance: 0 }
+  const vivid = { id: 'v', opening_balance: 0 }
+  const txs = [
+    tx({ account_id: 'p', amount: 10000, booked_on: '2026-07-01' }),
+    // il bonifico ricorrente: esce dal principale, entra su Vivid
+    tx({ account_id: 'p', amount: -1000, booked_on: '2026-07-14', kind: 'giroconto',
+         transfer_account_id: 'v', transfer_pair_id: 'in1' }),
+    tx({ id: 'in1', account_id: 'v', amount: 1000, booked_on: '2026-07-14', kind: 'giroconto',
+         transfer_account_id: 'p', transfer_pair_id: 'out1' }),
+    tx({ account_id: 'v', amount: -304.9, booked_on: '2026-07-19', kind: 'pagamento', counterparty: 'Asana' }),
+  ]
+  const l = liquidity([principale, vivid], txs)
+  eq('il principale', l.perAccount[0].real, 9000)
+  eq('Vivid', l.perAccount[1].real, 695.1)
+  /* Il giroconto non muove la liquidità: esce da un conto ed entra nell'altro.
+     9.000 + 695,10 = 9.695,10 = 10.000 incassati meno 304,90 spesi. */
+  eq('liquidità totale', l.total, 9695.1)
+  eq('nessun giroconto in sospeso', l.pendingTransfers, 0)
+
+  // se manca il lato in entrata, la liquidità sembra più bassa: si dichiara
+  const mancante = liquidity([principale, vivid], [
+    tx({ account_id: 'p', amount: 10000 }),
+    tx({ account_id: 'p', amount: -1000, kind: 'giroconto', transfer_account_id: 'v' }),
+  ])
+  eq('liquidità apparente', mancante.total, 9000)
+  eq('e il giroconto in sospeso lo spiega', mancante.pendingTransfers, 1000)
+}
+
+console.log('\n— Il fabbisogno del bonifico ricorrente —')
+{
+  const spese = [
+    { label: 'Asana', amount: 90.66, center_id: 'c1', centerName: 'Struttura & Software' },
+    { label: 'Google Cloud', amount: 37.05, center_id: 'c1', centerName: 'Struttura & Software' },
+    { label: 'Advertising TwoBee', amount: 400, center_id: 'c2', centerName: 'Marketing TwoBee' },
+  ]
+  const n = fundingNeed({ funding_amount: 500 }, spese, 695.1)
+  eq('le spese del mese', n.monthly, 527.71)
+  eq('il bonifico dichiarato', n.configured ?? 0, 500)
+  // 527,71 di spese contro 500 di provvista: 27,71 al mese di erosione
+  eq('lo scarto è un ammanco', n.gap, 27.71)
+  is('la voce più grossa in cima', n.items[0].label, 'Advertising TwoBee')
+  eq('col saldo attuale regge poco più di un mese', n.monthsCovered ?? 0, 1.3)
+
+  // senza un bonifico dichiarato, il fabbisogno è tutto da coprire
+  eq('bonifico non configurato: serve tutto', fundingNeed({ funding_amount: null }, spese, 0).gap, 527.71)
+  is('e non si inventa un valore', fundingNeed({ funding_amount: null }, spese, 0).configured, null)
+  // nessuna spesa collegata: nessun fabbisogno, e nessuna divisione per zero
+  is('nessuna spesa, nessun mese calcolabile', fundingNeed({ funding_amount: 500 }, [], 300).monthsCovered, null)
 }
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
