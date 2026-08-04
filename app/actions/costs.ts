@@ -283,12 +283,19 @@ export async function applyPlanToMonth(month: string) {
   const giàAltrove = new Set((taken ?? [])
     .map((r: { cost_item_id: string }) => r.cost_item_id))
 
+  /* Un subappalto senza area finiva «senza area» nel conto economico, in giallo:
+     l'area delivery non esisteva quando quelle voci sono nate. Qui si ripara a
+     valle, così una voce vecchia non trascina il difetto in ogni mese nuovo. */
+  const { data: delivery } = await admin.from('cost_centers')
+    .select('id').eq('name', DELIVERY_AREA).maybeSingle()
+  const deliveryId = (delivery as { id: string } | null)?.id ?? null
+
   const rows = due
     .filter(i => !already.has(i.id))
     .filter(i => !(i.frequency === 'una_tantum' && giàAltrove.has(i.id)))
     .map((i, n) => ({
     month_id: monthRow.id,
-    center_id: i.center_id,
+    center_id: i.center_id ?? (i.project_id ? deliveryId : null),
     // il subappalto porta con sé il progetto: è così che la marginalità resta
     // leggibile anche a mese chiuso
     project_id: i.project_id ?? null,

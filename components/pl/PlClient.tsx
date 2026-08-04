@@ -286,16 +286,30 @@ export function PlClient({
           </span>
         </div>
 
-        <Waterfall total={t.revenue.accrued} rows={[
+        {/* La barra deve **chiudere** sull'imponibile, e per chiudere le voci non
+            possono sovrapporsi. «Costi effettivi» comprendeva i subappalti, che il
+            margine digital ha già tolto prima di distribuirlo: contati anche qui,
+            la somma delle voci superava il maturato di tutta la cifra affidata
+            fuori — ed è quello che si vedeva come voci duplicate. Le componenti
+            sono le stesse della quadratura di `verify-month`: struttura e
+            subappalti separati, e la cassa che assorbe lo scostamento dal target. */}
+        <Waterfall total={r2c(t.revenue.accrued - t.plan.passThrough)} rows={[
           { label: 'Commerciale', value: t.plan.sales, tone: 'bg-info' },
-          { label: 'Erogato ai soci', value: t.plan.delivery, tone: 'bg-accent' },
-          { label: 'Costi effettivi', value: t.costs.actual, tone: 'bg-error' },
-          { label: 'Fondo rischio', value: t.plan.riskFund, tone: 'bg-orange' },
-          { label: 'Residuo ai soci', value: t.plan.residualToPartners, tone: 'bg-gold' },
-          // §185: sul digital la quota ai soci è una percentuale dell'imponibile
-          // §186: 28% del margine a ciascun socio, non da spartire
-          { label: `Digital ai soci ${pc(config.digital_partner_pct)} a testa`, value: t.plan.digitalPartners, tone: 'bg-gold' },
+          { label: 'Erogato growth ai soci', value: t.plan.delivery, tone: 'bg-accent' },
+          { label: 'Residuo ai soci', value: t.plan.residualToPartners, tone: 'bg-accent' },
+          // §186: 28% del margine a ciascun socio, non una quota da spartire
+          { label: `Digital ai soci ${pc(config.digital_partner_pct)} a testa`,
+            value: t.plan.digitalPartners, tone: 'bg-gold' },
+          { label: 'Subappalti', value: t.costs.external, tone: 'bg-orange' },
+          { label: 'Costi di struttura', value: t.costs.structural, tone: 'bg-error' },
+          { label: 'Cassa TwoBee', value: t.margin.company, tone: 'bg-success' },
         ]} />
+        <p className="text-2xs text-text-tertiary mt-2">
+          Le sette voci chiudono sull&apos;imponibile
+          {t.plan.passThrough > 0 && <> al netto di {eur(t.plan.passThrough)} di partite di giro</>}.
+          Il fondo rischio {pc(config.risk_fund_pct)} ({eur(t.plan.riskFund)}) e il target costi
+          stanno dentro «Cassa TwoBee»: sono destinazioni di quello che resta, non prelievi in più
+        </p>
 
         <div className="grid gap-3 sm:grid-cols-3 mt-4">
           <Mini icon={<ShieldAlert className="w-3.5 h-3.5 text-orange" />} label={`Fondo rischio ${pc(config.risk_fund_pct)}`} value={eur(t.plan.riskFund)} />
@@ -819,17 +833,42 @@ function Mini({ icon, label, value, extra }: { icon: React.ReactNode; label: str
 }
 
 /** Una barra sola: le quote si leggono come parti di ciò che è entrato. */
+/**
+ * Dove va il maturato, in una barra che **non può mentire**.
+ *
+ * Due regole. Le voci non si sovrappongono — se una comprende l'altra la somma
+ * supera il totale e la barra sfora senza dirlo. E quando quello che è stato
+ * destinato **supera** il maturato, il caso non si nasconde filtrando il valore
+ * negativo: la barra si allunga e una tacca dice dove finisce il maturato. Un mese
+ * a prevalenza digital è così per costruzione — il margine si distribuisce per
+ * intero, e la struttura la copre il growth — e vederlo è il punto.
+ */
 function Waterfall({ total, rows }: { total: number; rows: { label: string; value: number; tone: string }[] }) {
   const shown = rows.filter(r => r.value > 0)
+  const negative = rows.filter(r => r.value < 0)
   const used = shown.reduce((s, r) => s + r.value, 0)
+  // la scala è il più grande fra maturato e destinato: così la barra sta dentro
+  const scale = Math.max(total, used, 1)
   const rest = Math.max(0, total - used)
-  const w = (v: number) => (total > 0 ? `${(v / total) * 100}%` : '0%')
+  const over = Math.max(0, used - total)
+  const w = (v: number) => `${(v / scale) * 100}%`
+
   return (
     <div>
-      <div className="flex h-3 rounded-full overflow-hidden bg-surface-active gap-px">
-        {shown.map(r => <div key={r.label} className={r.tone} style={{ width: w(r.value) }} title={`${r.label}: ${eur(r.value)}`} />)}
+      <div className="relative flex h-3 rounded-full overflow-hidden bg-surface-active gap-px">
+        {shown.map(r => (
+          <div key={r.label} className={r.tone} style={{ width: w(r.value) }}
+            title={`${r.label}: ${eur(r.value)}`} />
+        ))}
         {rest > 0 && <div className="bg-success" style={{ width: w(rest) }} title={`Resta: ${eur(rest)}`} />}
+        {over > 0 && (
+          <span aria-hidden="true"
+            title={`Qui finisce il maturato: oltre questa tacca ci sono ${eur(over)} scoperti`}
+            className="absolute top-0 bottom-0 w-0.5 bg-text-primary"
+            style={{ left: w(total) }} />
+        )}
       </div>
+
       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2.5">
         {shown.map(r => (
           <span key={r.label} className="flex items-center gap-1.5 text-2xs text-text-secondary">
@@ -844,7 +883,21 @@ function Waterfall({ total, rows }: { total: number; rows: { label: string; valu
             Resta in cassa <span className="tabular font-semibold text-text-primary">{eur(rest)}</span>
           </span>
         )}
+        {negative.map(r => (
+          <span key={r.label} className="flex items-center gap-1.5 text-2xs text-error">
+            <span className="w-2 h-2 rounded-sm border border-error" aria-hidden />
+            {r.label} <span className="tabular font-semibold">{eur(r.value)}</span>
+          </span>
+        ))}
       </div>
+
+      {over > 0 && (
+        <p className="text-2xs text-error mt-1.5">
+          Destinato {eur(used)} su {eur(total)} di maturato: <strong>{eur(over)} scoperti</strong>.
+          La tacca nella barra segna dove finisce il maturato — non è un errore di calcolo, è un mese
+          in cui il margine digital è distribuito per intero e la struttura la deve coprire il growth.
+        </p>
+      )}
     </div>
   )
 }
@@ -1056,10 +1109,23 @@ function QuotaDetail({ rows, total, config, clientNames, projectNames, note }: {
             {rows.map((r, i) => (
               <tr key={`${r.lineId}-${r.reason}-${i}`} className="border-t border-border/60">
                 <td className="px-3 py-1.5">
-                  <span className="text-text-primary font-semibold">{r.label}</span>
+                  {/* il nome porta al lavoro da cui quella quota nasce: è lì che si
+                      cambia l'importo o la scadenza, non qui */}
+                  {r.projectId ? (
+                    <Link href={`/progetti/${r.projectId}?tab=economics`}
+                      className="text-text-primary font-semibold hover:text-gold-text">
+                      {r.label}
+                    </Link>
+                  ) : (
+                    <span className="text-text-primary font-semibold">{r.label}</span>
+                  )}
                   <span className="block text-text-tertiary">
                     {/* cliente e progetto: senza, «Rata 3 di 6» non dice a chi */}
-                    {r.clientId && (clientNames[r.clientId] ?? 'cliente')}
+                    {r.clientId && (
+                      <Link href={`/clienti/${r.clientId}?tab=economics`} className="hover:text-gold-text">
+                        {clientNames[r.clientId] ?? 'cliente'}
+                      </Link>
+                    )}
                     {r.projectId && <> · {projectNames[r.projectId] ?? 'progetto'}</>}
                     {' · '}{r.kind}{' · '}{REASON[r.reason]}
                   </span>
@@ -1090,6 +1156,12 @@ function QuotaDetail({ rows, total, config, clientNames, projectNames, note }: {
         </p>
       )}
       {note && <p className="px-3 py-1.5 text-2xs text-text-tertiary border-t border-border">{note}</p>}
+      <p className="px-3 py-1.5 text-2xs text-text-tertiary border-t border-border">
+        {/* da dove nasce: le righe del mese, che nascono dai contratti dei progetti */}
+        Calcolato sulle <strong className="text-text-secondary">{rows.length} righe di ricavo
+        di questo mese</strong>, che nascono dagli accordi dei progetti: si cambiano lì, e questa
+        tabella si aggiorna.
+      </p>
       <p className="px-3 py-1.5 text-2xs text-text-tertiary border-t border-border">
         Growth: {pc(config.growth_delivery_pct)} di erogato diviso fra i soci, {pc(config.growth_sales_pct)} di
         provvigione. Digital: {pc(config.digital_partner_pct)} a ciascun socio e {pc(config.digital_sales_pct)} di
