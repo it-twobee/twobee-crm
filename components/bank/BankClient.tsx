@@ -25,6 +25,7 @@ import {
 import {
   spendSplit, CHECK_FAMILIES, DEDUCTIBILITY, merchant, FAMILY_LABEL as FAMILY_LABEL_UI,
 } from '@/lib/bank-import'
+import { cashBridge } from '@/lib/cash-bridge'
 import { EconomicsNav } from '@/components/economics/EconomicsNav'
 import {
   RevenueCostChart, TrendChart, DonutChart, SplitBar, Sparkline,
@@ -59,6 +60,8 @@ type PlMonth = {
   growth: number; digital: number
   costs: number; structural: number; external: number
   margin: number; company: number; distributed: number; passThrough: number
+  /** §199 — quello che serve al ponte col saldo */
+  costsPaid?: number; costsVatPaid?: number
 }
 
 export function BankClient({
@@ -390,6 +393,13 @@ export function BankClient({
       {/* ══ le spese che il piano non prevede: costi della società, non erogato ══ */}
       {!account.parent_id && (
         <OffPlanSpend account={account} txs={ownTxs} month={month} />
+      )}
+
+      {/* ══ §199 · dal conto economico al saldo, e il cumulato ══ */}
+      {plByMonth.length > 0 && (
+        <CashBridgePanel plByMonth={plByMonth} txs={txs}
+          opening={accounts.reduce((n, a) => n + a.opening_balance, 0)}
+          balance={liq.total} />
       )}
 
       {/* ══ §191 · le tasche dei soci: erogato che esce come spesa ══ */}
@@ -1384,6 +1394,142 @@ function OffPlanSpend({ account, txs, month }: {
           </button>
         </div>
       </div>
+    </section>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// §199 — Dal conto economico al saldo
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Il cumulato, e perché non fa il saldo in banca.
+ *
+ * Sono due letture della stessa azienda: il conto economico dice **quando il
+ * lavoro è stato fatto**, la banca **quando i soldi si sono mossi**. Non possono
+ * coincidere, e chiedere che coincidano è chiedere la cosa sbagliata. Quello che
+ * si può chiedere — e che questa vista fa — è che **ogni euro di differenza abbia
+ * un nome**: IVA, crediti, debiti, compensi non ancora usciti, conferimenti,
+ * imposte, oneri.
+ *
+ * Il numero che conta è l'ultimo: il **residuo**. L'identità è esatta, quindi un
+ * residuo diverso da zero non è un arrotondamento — è un movimento in banca che
+ * nessuna riga giustifica, o una spunta «pagato» su qualcosa che non è uscito.
+ */
+function CashBridgePanel({ plByMonth, txs, opening, balance }: {
+  plByMonth: PlMonth[]
+  txs: BankTx[]
+  opening: number
+  balance: number
+}) {
+  const [open, setOpen] = useState(false)
+
+  const bridge = useMemo(() => cashBridge(
+    plByMonth.map(m => ({
+      month: m.month, accrued: m.accrued, collected: m.collected, vat: m.vat,
+      costs: m.costs, costsPaid: m.costsPaid ?? 0, costsVatPaid: m.costsVatPaid ?? 0,
+      distributed: m.distributed, companyPlan: m.company,
+    })),
+    txs.map(t => ({ booked_on: t.booked_on, amount: t.amount, kind: t.kind, source: t.source })),
+    opening,
+  ), [plByMonth, txs, opening])
+
+  const last = bridge.rows.at(-1)
+  const quadra = Math.abs(bridge.residual) < 1
+
+  return (
+    <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
+      <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-surface-hover">
+        <Landmark className="w-4 h-4 text-gold-text shrink-0" aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-bold text-text-primary">Dal conto economico al saldo</h2>
+          <p className="text-2xs text-text-tertiary mt-0.5">
+            {last ? (
+              <>Cassa cumulata del piano {eur2(last.cumPlan)} · saldo vero {eur2(balance)} ·
+                {' '}{bridge.items.length} poste spiegano la differenza</>
+            ) : 'Nessun mese registrato'}
+          </p>
+        </div>
+        <span className={`text-2xs font-bold px-2 py-1 rounded-lg shrink-0 ${
+          quadra ? 'bg-success-dim text-success' : 'bg-error/15 text-error'}`}>
+          {quadra ? 'quadra' : `${eur2(bridge.residual)} non spiegati`}
+        </span>
+        <ChevronDown className={`w-4 h-4 text-text-tertiary shrink-0 transition-transform ${
+          open ? 'rotate-180' : ''}`} aria-hidden="true" />
+      </button>
+
+      {open && (
+        <>
+          {/* mese per mese: competenza contro cassa, e i due cumulati */}
+          <div className="overflow-x-auto border-t border-border">
+            <table className="w-full text-2xs">
+              <thead>
+                <tr className="text-text-tertiary uppercase tracking-wider">
+                  <th className="text-left font-semibold px-4 py-2">Mese</th>
+                  <th className="text-right font-semibold px-2 py-2">Maturato</th>
+                  <th className="text-right font-semibold px-2 py-2">Costi</th>
+                  <th className="text-right font-semibold px-2 py-2">Cassa del piano</th>
+                  <th className="text-right font-semibold px-2 py-2">Cassa vera</th>
+                  <th className="text-right font-semibold px-2 py-2">Cumulato piano</th>
+                  <th className="text-right font-semibold px-4 py-2">Cumulato cassa</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bridge.rows.map(r => (
+                  <tr key={r.month} className="border-t border-border/60">
+                    <td className="px-4 py-1.5 text-text-primary font-semibold">{monthLabel(r.month)}</td>
+                    <td className="px-2 py-1.5 text-right tabular text-text-secondary">{eur(r.accrued)}</td>
+                    <td className="px-2 py-1.5 text-right tabular text-text-secondary">{eur(r.costs)}</td>
+                    <td className={`px-2 py-1.5 text-right tabular font-semibold ${
+                      r.companyPlan < 0 ? 'text-error' : 'text-text-primary'}`}>{eur(r.companyPlan)}</td>
+                    <td className={`px-2 py-1.5 text-right tabular ${
+                      r.cashNet < 0 ? 'text-error' : 'text-success'}`}>{eur(r.cashNet)}</td>
+                    <td className={`px-2 py-1.5 text-right tabular ${
+                      r.cumPlan < 0 ? 'text-error' : 'text-text-secondary'}`}>{eur(r.cumPlan)}</td>
+                    <td className="px-4 py-1.5 text-right tabular font-bold text-text-primary">{eur(r.cumCash)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* il ponte: ogni differenza col suo nome */}
+          <div className="border-t border-border px-5 py-4">
+            <div className="flex items-baseline justify-between gap-3 pb-2 border-b border-border">
+              <span className="text-2xs font-bold text-text-primary">Cassa cumulata del piano</span>
+              <span className={`text-sm font-bold tabular ${
+                bridge.planCum < 0 ? 'text-error' : 'text-text-primary'}`}>{eur2(bridge.planCum)}</span>
+            </div>
+            <ul className="divide-y divide-border/60">
+              {bridge.items.map(i => (
+                <li key={i.label} className="py-2">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-2xs text-text-secondary">{i.label}</span>
+                    <span className={`text-2xs tabular font-semibold shrink-0 ${
+                      i.amount < 0 ? 'text-error' : 'text-success'}`}>
+                      {i.amount > 0 ? '+' : '−'}{eur2(Math.abs(i.amount))}
+                    </span>
+                  </div>
+                  <p className="text-2xs text-text-tertiary mt-0.5">{i.why}</p>
+                </li>
+              ))}
+            </ul>
+            <div className="flex items-baseline justify-between gap-3 pt-2.5 border-t border-border">
+              <span className="text-2xs font-bold text-text-primary">Saldo vero sui conti</span>
+              <span className="text-sm font-bold tabular text-text-primary">{eur2(bridge.balance)}</span>
+            </div>
+            {!quadra && (
+              <p className="text-2xs text-error mt-2">
+                Restano <strong>{eur2(bridge.residual)}</strong> che nessuna posta spiega.
+                L&apos;identità è esatta, quindi non è un arrotondamento: c&apos;è un movimento in
+                banca senza una riga che lo giustifichi, o una spunta «pagato» su qualcosa che non è
+                uscito dal conto. Si trova nella lista dei movimenti da riconciliare.
+              </p>
+            )}
+          </div>
+        </>
+      )}
     </section>
   )
 }

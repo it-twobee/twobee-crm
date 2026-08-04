@@ -38,6 +38,7 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
   }
 
   const num = (v: unknown) => Number(v ?? 0)
+  const r2 = (n: number) => Math.round(n * 100) / 100
 
   const [{ data: txRows }, { data: plMonths }, { data: cfgRow }, { data: partnerRows }, { data: clients }] =
     await Promise.all([
@@ -226,6 +227,11 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
       costs: t.costs.actual, structural: t.costs.structural, external: t.costs.external,
       margin: t.margin.gross, company: t.margin.company,
       distributed: t.plan.distributed, passThrough: t.plan.passThrough,
+      /* §199 — servono al ponte fra conto economico e saldo: l'IVA uscita coi
+         costi pagati e quanto dei costi è davvero uscito dal conto. */
+      costsPaid: t.costs.paid,
+      costsVatPaid: r2(costs.filter(c => c.paid && c.vat_applied)
+        .reduce((n, c) => n + c.actual * c.vat_rate, 0)),
     }
   })
 

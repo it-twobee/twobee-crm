@@ -31,8 +31,8 @@ console.log('\n— Quote da contratto —')
 eq('growth: residuo', pct.residual(C, 'growth'), 0.10)
 // §186: il margine digital si distribuisce per intero, un residuo non esiste
 eq('digital: nessun residuo', pct.residual(C, 'digital'), 0)
-eq('digital: ai soci con tre soci al 28%', pct.digitalPartners(C, 3), 0.84)
-eq('col fondo rischio scendono a 25%', pct.digitalPartners(C, 3, true), 0.75)
+eq('digital: ai soci con tre soci al 18%', pct.digitalPartners(C, 3), 0.54)
+eq('col fondo rischio scendono a 15%', pct.digitalPartners(C, 3, true), 0.45)
 
 console.log('\n— Growth, 10.000 € imponibile —')
 const g = splitLine(rev({ amount_net: 10000, kind: 'growth' }), C)
@@ -46,14 +46,14 @@ eq('residuo ai soci (resta in cassa)', g.residualToPartners, 0)
 console.log('\n— Digital, 10.000 € di margine, tre soci (§186) —')
 const d = splitLine(rev({ amount_net: 10000, kind: 'digital' }), C, { partners: 3 })
 eq('commerciale 6%', d.sales, 600)
-eq('a ciascun socio 28%', d.partnerQuota, 2800)
-eq('ai soci in tutto (tre × 28%)', d.partnersPool, 8400)
+eq('a ciascun socio 18%', d.partnerQuota, 1800)
+eq('ai soci in tutto (tre × 18%)', d.partnersPool, 5400)
 eq('alle casse TwoBee 10%', d.companyQuota, 1000)
-eq('nessun target costi: il margine è distribuito per intero', d.costTarget, 0)
+eq('il digital stanzia il 30% del margine per la struttura', d.costTarget, 3000)
 eq('nessun fondo rischio senza l\'opzione', d.riskFund, 0)
 // 6 + 84 + 10 = 100: non avanza niente, e se avanzasse si vedrebbe
 eq('niente di non assegnato', d.retained, 0)
-eq('somma delle quote = margine', d.sales + d.partnersPool + d.companyQuota, 10000)
+eq('somma delle quote = margine', d.sales + d.partnersPool + d.companyQuota + d.costTarget, 10000)
 
 console.log('\n— Il margine è al netto dei subappalti —')
 {
@@ -62,7 +62,7 @@ console.log('\n— Il margine è al netto dei subappalti —')
   eq('subappalto fuori dal margine', sub.external, 12000)
   eq('base della spartizione', sub.margin, 12000)
   eq('commerciale 6% del margine', sub.sales, 720)
-  eq('a socio 28% del margine', sub.partnerQuota, 3360)
+  eq('a socio 18% del margine', sub.partnerQuota, 2160)
   eq('cassa 10% del margine', sub.companyQuota, 1200)
   eq('e non avanza niente', sub.retained, 0)
   // il costo esterno non può superare il ricavo: il margine si ferma a zero
@@ -76,21 +76,22 @@ console.log('\n— Fondo rischio: opzionale, e solo sopra i 20.000 —')
   const small = rev({ amount_net: 10000, kind: 'digital', project_value: 12000, risk_fund: true })
   const sSmall = splitLine(small, C, { partners: 3 })
   eq('sotto soglia non si attiva', sSmall.riskFund, 0)
-  eq('e i soci restano al 28%', sSmall.partnerQuota, 2800)
+  eq('e i soci restano al 18%', sSmall.partnerQuota, 1800)
 
   const big = rev({ amount_net: 10000, kind: 'digital', project_value: 24000, risk_fund: true })
   const sBig = splitLine(big, C, { partners: 3 })
   eq('sopra soglia il fondo prende il 9%', sBig.riskFund, 900)
-  eq('e ciascun socio scende al 25%', sBig.partnerQuota, 2500)
-  eq('ai soci in tutto il 75%', sBig.partnersPool, 7500)
+  eq('e ciascun socio scende al 15%', sBig.partnerQuota, 1500)
+  eq('ai soci in tutto il 45%', sBig.partnersPool, 4500)
   eq('la cassa non cambia', sBig.companyQuota, 1000)
-  eq('e il conto torna ancora', sBig.sales + sBig.partnersPool + sBig.companyQuota + sBig.riskFund, 10000)
+  eq('e il conto torna ancora',
+    sBig.sales + sBig.partnersPool + sBig.companyQuota + sBig.costTarget + sBig.riskFund, 10000)
 
   // sopra soglia ma non scelto: resta 28% a testa, e l'opzione si dichiara
   const off = rev({ amount_net: 10000, kind: 'digital', project_value: 24000 })
   const sOff = splitLine(off, C, { partners: 3 })
   eq('non scelto: nessun fondo', sOff.riskFund, 0)
-  eq('soci al 28%', sOff.partnerQuota, 2800)
+  eq('soci al 18%', sOff.partnerQuota, 1800)
   is('ma l\'opzione è disponibile', sOff.riskEligible, true)
   is('e sotto soglia no', sSmall.riskEligible, false)
 }
@@ -98,11 +99,11 @@ console.log('\n— Fondo rischio: opzionale, e solo sopra i 20.000 —')
 console.log('\n— Con un numero di soci diverso da tre le quote non tornano —')
 {
   const two = splitLine(rev({ amount_net: 10000, kind: 'digital' }), C, { partners: 2 })
-  eq('due soci: 56% invece dell\'84%', two.partnersPool, 5600)
+  eq('due soci: 36% invece del 54%', two.partnersPool, 3600)
   // non si riscala di nascosto: l'avanzo si mostra
-  eq('e restano 2.800 non assegnati', two.retained, 2800)
+  eq('e restano 1.800 non assegnati', two.retained, 1800)
   const four = splitLine(rev({ amount_net: 10000, kind: 'digital' }), C, { partners: 4 })
-  eq('quattro soci: le quote sforano', four.retained, -2800)
+  eq('quattro soci: le quote sforano', four.retained, -1800)
 }
 
 console.log('\n— Mese misto: growth 10.000 + digital 10.000, costi reali 2.800 —')
@@ -119,16 +120,18 @@ eq('erogato totale (solo growth)', m.plan.delivery, 3000)
    digital è distribuito per intero, e non ne mette. È la conseguenza voluta del
    piano nuovo: struttura e persone le copre il growth. */
 eq('fondo rischio (10% dei soli 10.000 growth)', m.plan.riskFund, 1000)
-eq('target costi (35% dei soli 10.000 growth)', m.costs.target, 3500)
-eq('scostamento costi (3.500 - 2.800)', m.costs.variance, 700)
+/* §198 — il target è 35% del growth **più** il 30% del margine digital: adesso
+   anche il digital paga la struttura. */
+eq('target costi: 35% del growth + 30% del margine digital', m.costs.target, 3500 + 3000)
+eq('scostamento costi (6.500 - 2.800)', m.costs.variance, 3700)
 eq('incidenza costi reale', m.costs.ratio * 100, 14)
 eq('margine lordo (20.000 - 2.800)', m.margin.gross, 17200)
 
 console.log('\n— Compensi per socio —')
-eq('a ciascun socio il 28% del margine digital', m.plan.digitalPerPartner, 2800)
-eq('ai soci in tutto', m.plan.digitalPartners, 8400)
+eq('a ciascun socio il 18% del margine digital', m.plan.digitalPerPartner, 1800)
+eq('ai soci in tutto', m.plan.digitalPartners, 5400)
 for (const p of m.perPartner) {
-  eq(`${p.partner.label}: erogato 1.000 + digital 2.800`, p.total, 3800)
+  eq(`${p.partner.label}: erogato 1.000 + digital 1.800`, p.total, 2800)
 }
 /* Cassa TwoBee: il 10% del margine digital, il residuo growth che non si divide,
    il fondo rischio (solo growth, qui) e il risparmio sui costi. La quota dei
@@ -138,14 +141,14 @@ eq('niente margine non assegnato', m.plan.digitalRetained, 0)
 /* Il target costi arriva dal solo growth (3.500): il digital è distribuito per
    intero, quindi non ne mette. Con 2.800 di costi effettivi lo scostamento è
    +700 — e sarebbe negativo in un mese a prevalenza digital, che è il punto. */
-eq('target costi: solo growth', m.costs.target, 3500)
-eq('scostamento (3.500 - 2.800)', m.costs.variance, 700)
+eq('target costi: growth più la quota digital', m.costs.target, 6500)
+eq('scostamento (6.500 - 2.800)', m.costs.variance, 3700)
 eq('fondo rischio: solo growth', m.plan.riskFund, 1000)
 eq('trattenuto (1.000 digital + 1.000 growth)',
   m.margin.company - m.plan.riskFund - m.costs.variance, 2000)
-eq('cassa TwoBee (2.000 + 1.000 rischio + 700 risparmio)', m.margin.company, 3700)
+eq('cassa TwoBee (2.000 + 1.000 rischio + 3.700 risparmio)', m.margin.company, 6700)
 // quello che esce: provvigioni, erogato growth, quote digital ai soci
-eq('quote distribuite (2.100 comm + 3.000 erogato + 8.400 digital)', m.plan.distributed, 13500)
+eq('quote distribuite (2.100 comm + 3.000 erogato + 5.400 digital)', m.plan.distributed, 10500)
 
 console.log('\n— Provvigione senza commerciale: si divide fra i soci —')
 const inb = computeMonth([rev({ amount_net: 10000, kind: 'growth', sales_owner: null })], [], C, partners)
@@ -160,7 +163,7 @@ const inbD = computeMonth([rev({ amount_net: 10000, kind: 'digital', sales_owner
 eq('provvigione digital (6%)', inbD.plan.sales, 600)
 eq('tutta nel pool', inbD.plan.salesPool, 600)
 eq('2% a testa', inbD.plan.poolShare, 200)
-eq('socio: 2.800 di digital + 200 di provvigione', inbD.perPartner[0].total, 3000)
+eq('socio: 1.800 di digital + 200 di provvigione', inbD.perPartner[0].total, 2000)
 
 console.log('\n— Il commerciale può stare solo in anagrafica (§185) —')
 {
@@ -229,8 +232,8 @@ console.log('\n— Ogni compenso si può aprire e torna (§186) —')
   eq('una riga digital', dig.length, 1)
   eq('base = 8.000 meno 1.000 di subappalto', dig[0].base, 7000)
   eq('subappalto dichiarato sulla riga', dig[0].external, 1000)
-  eq('al 28%', dig[0].pct * 100, 28)
-  eq('quota', dig[0].amount, 1960)
+  eq('al 18%', dig[0].pct * 100, 18)
+  eq('quota', dig[0].amount, 1260)
   is('e si sa su quale progetto', dig[0].projectId, 'p1')
   is('e su quale cliente', dig[0].clientId, 'c2')
 
@@ -299,11 +302,13 @@ console.log('\n— §188: un subappalto non paga due volte —')
   eq('costi totali usciti', t.costs.actual, 5000)
   eq('di struttura', t.costs.structural, 1000)
   eq('subappalti', t.costs.external, 4000)
-  // il target è il 35% del solo growth (il digital è distribuito per intero)
-  eq('target costi', t.costs.target, 3500)
-  eq('scostamento sul solo strutturale (3.500 − 1.000)', t.costs.variance, 2500)
+  /* §198 — il target è il 35% del growth più il 30% del margine digital: il
+     subappalto è già uscito dal margine, quindi quello che il digital stanzia per
+     la struttura si calcola su quello che resta. */
+  eq('target costi: 3.500 growth + 1.800 digital', t.costs.target, 3500 + 1800)
+  eq('scostamento sul solo strutturale (5.300 − 1.000)', t.costs.variance, 4300)
   eq('margine digital al netto del subappalto', t.plan.digitalMargin, 6000)
-  eq('ai soci il 28% di 6.000', t.plan.digitalPerPartner, 1680)
+  eq('ai soci il 18% di 6.000', t.plan.digitalPerPartner, 1080)
   // e il margine lordo conta tutti i costi, che è un'altra domanda
   eq('margine lordo = ricavi meno tutti i costi', t.margin.gross, 15000)
 }

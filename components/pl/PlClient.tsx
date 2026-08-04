@@ -308,12 +308,20 @@ export function PlClient({
           Le sette voci chiudono sull&apos;imponibile
           {t.plan.passThrough > 0 && <> al netto di {eur(t.plan.passThrough)} di partite di giro</>}.
           Il fondo rischio {pc(config.risk_fund_pct)} ({eur(t.plan.riskFund)}) e il target costi
-          stanno dentro «Cassa TwoBee»: sono destinazioni di quello che resta, non prelievi in più
+          stanno dentro «Cassa TwoBee»: sono destinazioni di quello che resta, non prelievi in più.
+          {' '}<Link href="/economics/banca" className="text-info hover:underline">
+            Il cumulato e il ponte col saldo in banca
+          </Link> stanno nella sezione Banca: là c&apos;è quanto è rimasto per davvero
         </p>
 
+        {/* §198 — quanto ciascun lato mette per la struttura, e cosa resta davvero.
+            Le percentuali dicono come si divide; questi tre numeri dicono quanto
+            resta in cassa, che è la domanda vera. */}
         <div className="grid gap-3 sm:grid-cols-3 mt-4">
           <Mini icon={<ShieldAlert className="w-3.5 h-3.5 text-orange" />} label={`Fondo rischio ${pc(config.risk_fund_pct)}`} value={eur(t.plan.riskFund)} />
-          <Mini icon={<Target className="w-3.5 h-3.5 text-text-tertiary" />} label={`Target costi ${pc(config.cost_target_pct)}`} value={eur(t.costs.target)}
+          <Mini icon={<Target className="w-3.5 h-3.5 text-text-tertiary" />}
+            label={`Target costi ${pc(config.cost_target_pct)} growth + ${pc(config.digital_cost_target_pct)} margine digital`}
+            value={eur(t.costs.target)}
             extra={<span className={overTarget ? 'text-error' : 'text-success'}>{overTarget ? '−' : '+'}{eur(Math.abs(t.costs.variance))}</span>} />
           <Mini icon={<Building2 className="w-3.5 h-3.5 text-gold-text" />} label="Cassa TwoBee" value={eur(t.margin.company)}
             extra={t.plan.digitalCompany > 0 || t.plan.digitalRiskFund > 0 ? (

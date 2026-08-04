@@ -219,6 +219,7 @@ dato economico: è sicuro anche nel workspace.
 | `189_bank.sql` | Conto corrente: `bank_accounts` + `bank_transactions` (sorgente `banca`/`derivato`/`manuale`), trigger `bank_sync_revenue_line`/`bank_sync_cost_line` (spuntare «incassato» crea il movimento dichiarato) e `bank_on_match` (riconciliare un movimento vero spegne il dichiarato e marca la riga pagata). RLS admin | — |
 | `190_bank_vivid.sql` | Secondo conto: `transfer_pair_id`/`transfer_account_id` (i due lati di un giroconto sono un fatto solo), `funding_*` (provvista ricorrente) e `bank_account_centers` (quali aree di costo paga un conto → fabbisogno del bonifico). Seed del conto Vivid collegato a Marketing TwoBee e Struttura & Software | — |
 | `193_one_fact_one_line.sql` | **Una rata, una riga**: indice unico su `pl_revenue_lines.installment_id` (l'economics del cliente e quella del progetto leggono lo stesso contratto: due generazioni creavano due ricavi) + trigger `pl_cost_one_shot_guard` — una lavorazione «una tantum» atterra in un mese solo, e serve un trigger perché la frequenza sta su `cost_items` e un indice vieterebbe anche i canoni. Ripulisce prima di vincolare | — |
+| `194_digital_pays_structure.sql` | **Il digital paga la struttura**: `pl_config.digital_cost_target_pct` (30% del margine nel target costi) e `digital_partner_pct` da 28% a **18%**. Il margine si distribuisce ancora per intero — 6 commerciale · 18×3 soci · 30 struttura · 10 cassa — ma cambia a chi va: prima il digital non pagava un euro di persone e sede | — |
 | `191_bank_partner_pockets.sql` | Sottoconti dei soci: `bank_accounts.parent_id`/`owner_partner_id`/`allowance_amount`, `pl_cost_lines.partner_id` + `deductible_pct`/`vat_deductible_pct`, area «Spese soci», Klaviyo a 0 (piano gratuito). I 500 €/mese a socio **sono erogato**, non un costo in più: escono come spesa della società per recuperarne IVA e deducibilità | — |
 
 **Scorciatoia**: `supabase/APPLY_PENDING.sql` è il concatenato (081, 086–093) in
@@ -343,10 +344,13 @@ diversi, non per incoerenza:
 - **Growth**: 15% commerciale · 30% **erogato** ai soci in parti uguali · 35%
   target costi · 10% fondo rischio · 10% residuo in cassa. Lì il lavoro lo fanno
   i soci, quindi la loro quota è erogato.
-- **Digital** (§186): la base è il **margine** — ricavo del mese meno i
+- **Digital** (§186, §198): la base è il **margine** — ricavo del mese meno i
   subappalti di quel progetto (`pl_cost_lines.project_id`, allocati pro-quota se
-  un progetto ha più righe nel mese). Sul margine: 6% commerciale · **28% a
-  ciascun socio** · 10% casse TwoBee = **100%**, distribuito per intero. Il
+  un progetto ha più righe nel mese). Sul margine: 6% commerciale ·
+  **18% a ciascun socio** · **30% a coprire la struttura** · 10% casse TwoBee =
+  **100%**, distribuito per intero. Il 30% entra nel **target costi** accanto al
+  35% del growth: prima il digital non pagava un euro di persone, software e sede,
+  e in un mese a prevalenza digital la cassa era negativa per costruzione. Il
   ricavo lordo non è distribuibile perché su un lavoro affidato fuori metà è già
   di qualcun altro; sul growth invece il costo di delivery è il tempo dei soci,
   ed è già la loro quota.
@@ -589,6 +593,23 @@ subappalti (col progetto attaccato) · personale dall'organico. Il pannello
 poi si preme. Ogni sorgente sa non duplicarsi: rilanciare aggiunge il mancante.
 Se una sorgente fallisce le altre proseguono e lo scarto finisce in `skipped` —
 un mese preparato a metà è più utile di un errore.
+
+## Dal conto economico al saldo (§199, `lib/cash-bridge.ts`)
+Il conto economico dice **quando il lavoro è stato fatto**, la banca **quando i
+soldi si sono mossi**: non possono coincidere, e chiederlo è chiedere la cosa
+sbagliata. Quello che si può pretendere è che **ogni euro di differenza abbia un
+nome**, e l'identità è esatta:
+
+    saldo = cassa cumulata del piano + IVA incassata − IVA pagata − crediti
+          + debiti + (compensi maturati − erogato pagato) + conferimenti
+          − imposte − oneri + apertura
+
+Si dimostra sostituendo `piano = maturato − distribuito − costi`. Perciò il
+**residuo diverso da zero non è un arrotondamento**: è un movimento in banca che
+nessuna riga giustifica, o una spunta «pagato» su qualcosa che non è uscito. Il
+pannello sta in Banca — dove vive il saldo vero — e porta anche il **cumulato mese
+per mese** delle due letture affiancate. I movimenti `derivato` non fanno cassa:
+contarli farebbe quadrare il ponte grazie a quello che il ponte deve verificare.
 
 ## Banca (§189-190, `/economics/banca`)
 Il conto corrente e il conto economico sono la stessa cosa vista due volte: uno

@@ -58,6 +58,17 @@ export type PlConfig = {
   /** §185 — DIGITAL: quota del margine destinata alle casse TwoBee */
   digital_company_pct: number
   /**
+   * §198 — DIGITAL: quota del margine destinata a **coprire la struttura**.
+   *
+   * Prima il margine digital si distribuiva per intero, quindi il digital non
+   * contribuiva di un euro a persone, software e sede: la struttura la pagava
+   * solo il growth col suo 35%, e in un mese a prevalenza digital la cassa
+   * risultava negativa per costruzione. Questa quota entra nel **target costi**
+   * accanto al 35% del growth: non è utile trattenuto, è copertura di un costo
+   * che esiste comunque.
+   */
+  digital_cost_target_pct: number
+  /**
    * §186 — Fondo rischio digital: opzionale, e la scelta è dell'admin riga per
    * riga. Non è automatico perché su un progetto grosso può convenire tenere il
    * margine liquido, e quella decisione la prende una persona.
@@ -79,8 +90,12 @@ export const DEFAULT_PL_CONFIG: PlConfig = {
   growth_residual_to_company: true,
   partner_share_pct: 0.30,
   company_share_pct: 0.10,
-  digital_partner_pct: 0.28,
+  digital_partner_pct: 0.18,
   digital_company_pct: 0.10,
+  /* §198 — 30% del margine a coprire la struttura. Vicino al 35% del growth, ma
+     non uguale: sul digital il costo di delivery è già uscito prima (i subappalti
+     sono fuori dal margine), quindi la struttura da coprire è quella residua. */
+  digital_cost_target_pct: 0.30,
   digital_risk_fund_pct: 0.09,
   digital_risk_cut_pct: 0.03,
   digital_risk_threshold: 20000,
@@ -116,6 +131,7 @@ export function rowToPlConfig(row: Record<string, unknown> | null | undefined): 
     company_share_pct: n(row.company_share_pct, d.company_share_pct),
     digital_partner_pct: n(row.digital_partner_pct, d.digital_partner_pct),
     digital_company_pct: n(row.digital_company_pct, d.digital_company_pct),
+    digital_cost_target_pct: n(row.digital_cost_target_pct, d.digital_cost_target_pct),
     digital_risk_fund_pct: n(row.digital_risk_fund_pct, d.digital_risk_fund_pct),
     digital_risk_cut_pct: n(row.digital_risk_cut_pct, d.digital_risk_cut_pct),
     digital_risk_threshold: n(row.digital_risk_threshold, d.digital_risk_threshold),
@@ -295,17 +311,19 @@ export function splitLine(line: RevenueLine, c: PlConfig, opts: SplitOpts = {}) 
     const partnersPool = r2(partnerQuota * partners)
     const sales = r2(margin * c.digital_sales_pct)
     const companyQuota = r2(margin * c.digital_company_pct)
+    // §198 — la quota che il digital mette per coprire la struttura
+    const costTarget = r2(margin * c.digital_cost_target_pct)
     const riskFund = riskOn ? r2(margin * c.digital_risk_fund_pct) : 0
-    /* Con tre soci al 28% le quote fanno esattamente il margine e questo è zero.
-       Se i soci diventano due o quattro non torna più, e il numero lo dice
+    /* Con tre soci le quote più struttura e cassa fanno il margine e questo è
+       zero. Se i soci diventano due o quattro non torna più, e il numero lo dice
        invece di riscalare le quote di nascosto. */
-    const retained = r2(margin - sales - partnersPool - companyQuota - riskFund)
+    const retained = r2(margin - sales - partnersPool - companyQuota - costTarget - riskFund)
 
     return {
       base, vat, gross,
       /** quanto va al subappaltatore: non è distribuibile, è già di qualcun altro */
       external, margin,
-      sales, delivery: 0, costTarget: 0, riskFund,
+      sales, delivery: 0, costTarget, riskFund,
       /* Nessun «residuo» sul digital: il margine è distribuito per intero, e
          quello che avanza ha un nome — `retained`, e con tre soci è zero. */
       residual: 0, residualToPartners: 0,
