@@ -339,13 +339,57 @@ export function PlClient({
                       {p.residual > 0 && <> · residuo {eur(p.residual)}</>}
                       {p.salesShare > 0 && <> · provvigione divisa {eur(p.salesShare)}</>}
                     </span>
-                    <span className="text-sm font-bold text-text-primary tabular">{eur(p.total)}</span>
+                    {/* §191 — se ha già speso col sottoconto, il numero grosso è
+                        quello che gli resta in denaro: versare il totale
+                        significherebbe pagare due volte lo stesso compenso. */}
+                    {p.spent > 0 ? (
+                      <span className="text-right shrink-0">
+                        <span className="block text-sm font-bold text-text-primary tabular">{eur(p.cash)}</span>
+                        <span className="block text-2xs text-text-tertiary tabular">
+                          {eur(p.total)} − {eur(p.spent)} già spesi
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-sm font-bold text-text-primary tabular">{eur(p.total)}</span>
+                    )}
                     <ChevronDown className={`w-3.5 h-3.5 text-text-tertiary shrink-0 transition-transform ${
                       openQuota === p.partner.id ? 'rotate-180' : ''}`} />
                   </button>
                   {openQuota === p.partner.id && (
-                    <QuotaDetail rows={p.rows} total={p.total} config={config}
-                      clientNames={clientNames} projectNames={projectNames} />
+                    <>
+                      <QuotaDetail rows={p.rows} total={p.total} config={config}
+                        clientNames={clientNames} projectNames={projectNames} />
+                      {(p.spent > 0 || p.overspent > 0) && (
+                        <div className="border-t border-border bg-background px-3 py-2.5">
+                          <p className="text-2xs font-bold text-text-primary">
+                            Già uscito come spesa dal sottoconto
+                          </p>
+                          <ul className="mt-1.5 space-y-1">
+                            {p.spendRows.map(r => (
+                              <li key={r.id} className="flex items-baseline gap-2 text-2xs">
+                                <span className="truncate text-text-secondary">{r.label}</span>
+                                <span className="text-text-tertiary shrink-0">
+                                  deducibile {Math.round(r.deductiblePct * 100)}%
+                                </span>
+                                <span className="ml-auto tabular text-text-primary shrink-0">{eur(r.amount)}</span>
+                              </li>
+                            ))}
+                          </ul>
+                          <p className="text-2xs text-text-secondary mt-2 pt-2 border-t border-border">
+                            {p.overspent > 0 ? (
+                              <>Ha speso <strong className="text-error">{eur(p.overspent)}</strong> più di
+                                quanto gli spetta questo mese: è un anticipo, si recupera dall&apos;erogato
+                                del mese prossimo.</>
+                            ) : (
+                              <>Restano <strong className="text-text-primary">{eur(p.cash)}</strong> da
+                                versare in denaro. Non è un costo in più: la società ha già pagato
+                                {' '}{eur(p.spent)} di quel compenso sotto forma di spesa, portandola a
+                                costo e recuperandone l&apos;IVA dove spetta.</>
+                            )}
+                          </p>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               ))}

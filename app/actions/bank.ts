@@ -5,7 +5,7 @@ import { createAdminClient, createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { classify, type TxKind } from '@/lib/bank'
-import { parseStatement, merchant } from '@/lib/bank-import'
+import { parseStatement, merchant, treatment, FAMILY_LABEL, type SpendFamily } from '@/lib/bank-import'
 
 const PATH = '/economics/banca'
 
@@ -244,9 +244,164 @@ export async function deleteTx(txId: string) {
 export async function updateAccount(id: string, patch: Partial<{
   label: string; bank_name: string | null; iban_last4: string | null
   opening_balance: number; opening_date: string; note: string | null
+  /** §191 — il bonifico ricorrente, quando si accetta quello suggerito */
+  funding_amount: number | null; funding_day: number | null
 }>) {
   await requireAdmin()
   const { error } = await createAdminClient().from('bank_accounts').update(patch).eq('id', id)
+  if (error) throw new Error(error.message)
+  rev()
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// §191 — Le spese dei soci diventano costi del mese
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Porta nel conto economico quello che i soci hanno speso dai loro sottoconti.
+ *
+ * È il passaggio che rende reale il vantaggio: finché la spesa sta solo sul
+ * conto, la società non la porta a costo e non ne detrae l'IVA. Qui diventa una
+ * riga di conto economico con `partner_id`, quindi:
+ *
+ *   · **non** entra fra i costi di struttura — quei soldi erano già stanziati nel
+ *     30% di erogato, contarli anche lì li pagherebbe due volte;
+ *   · **si sottrae** dall'erogato in denaro del socio;
+ *   · porta la sua deducibilità e la sua IVA detraibile, per famiglia di spesa.
+ *
+ * Una riga per **socio e famiglia**, non per movimento: il trattamento fiscale è
+ * per famiglia, e trentadue righe «Meta Ads» in un conto economico non si leggono.
+ *
+ * Idempotente e **non distruttiva**: se la riga c'è già ne aggiorna l'importo e
+ * lascia stare le percentuali. Un admin che ha corretto a mano la deducibilità di
+ * un pranzo — perché quella volta la fattura c'era — non se la vede riscrivere.
+ */
+export async function pushPartnerSpend(month: string): Promise<{
+  righe: number; nuove: number; totale: number; movimenti: number
+  perSocio: { label: string; spent: number; deducibile: number; iva: number }[]
+  skipped: string[]
+}> {
+  await requireAdmin()
+  const admin = createAdminClient()
+  const first = `${month.slice(0, 7)}-01`
+  const skipped: string[] = []
+
+  const { data: mese } = await admin.from('pl_months').select('id').eq('month', first).maybeSingle()
+  if (!mese) throw new Error(`Il mese ${first} non è ancora aperto nel conto economico`)
+  const monthId = (mese as { id: string }).id
+
+  const { data: subs } = await admin.from('bank_accounts')
+    .select('id, label, owner_partner_id, owner_label, allowance_amount')
+    .not('owner_partner_id', 'is', null).eq('is_active', true)
+  const pockets = (subs ?? []) as {
+    id: string; label: string; owner_partner_id: string
+    owner_label: string | null; allowance_amount: number | null
+  }[]
+  if (!pockets.length) throw new Error('Nessun sottoconto socio: esegui la 191')
+
+  const { data: centro } = await admin.from('cost_centers')
+    .select('id').ilike('name', 'Spese soci').maybeSingle()
+  const centerId = (centro as { id: string } | null)?.id ?? null
+  if (!centerId) skipped.push('area «Spese soci» assente: le righe restano senza area')
+
+  const last = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)
+  const to = `${month.slice(0, 7)}-${String(last.getDate()).padStart(2, '0')}`
+  const { data: txRows } = await admin.from('bank_transactions')
+    .select('id, account_id, amount, counterparty, description, kind')
+    .in('account_id', pockets.map(p => p.id))
+    .gte('booked_on', first).lte('booked_on', to).lt('amount', 0)
+
+  const txs = (txRows ?? []) as {
+    id: string; account_id: string; amount: number
+    counterparty: string | null; description: string; kind: string
+  }[]
+
+  const { data: esistenti } = await admin.from('pl_cost_lines')
+    .select('id, label, actual, partner_id').eq('month_id', monthId).not('partner_id', 'is', null)
+  const have = new Map(((esistenti ?? []) as { id: string; label: string; actual: number }[])
+    .map(r => [r.label, r]))
+
+  let nuove = 0, righe = 0, totale = 0, movimenti = 0
+  const perSocio: { label: string; spent: number; deducibile: number; iva: number }[] = []
+
+  for (const pocket of pockets) {
+    const mine = txs.filter(t => t.account_id === pocket.id && t.kind !== 'giroconto')
+    const who = pocket.owner_label ?? pocket.label
+    if (!mine.length) { perSocio.push({ label: who, spent: 0, deducibile: 0, iva: 0 }); continue }
+
+    // per famiglia: è il livello a cui il trattamento fiscale cambia
+    const groups = new Map<SpendFamily, { total: number; ids: string[]; why: string; cost: number; vat: number }>()
+    for (const t of mine) {
+      const tr: { family: SpendFamily; cost: number; vat: number; why: string } =
+        treatment(t.counterparty ?? t.description)
+      const cur = groups.get(tr.family)
+        ?? { total: 0, ids: [], why: tr.why, cost: tr.cost, vat: tr.vat }
+      cur.total = Math.round((cur.total + Math.abs(t.amount)) * 100) / 100
+      cur.ids.push(t.id)
+      groups.set(tr.family, cur)
+    }
+
+    let spent = 0, deducibile = 0, iva = 0
+    for (const family of Array.from(groups.keys())) {
+      const g = groups.get(family)!
+      const label = `${who} · ${FAMILY_LABEL[family]}`
+      const found = have.get(label)
+      spent += g.total
+      deducibile += Math.round(g.total * g.cost * 100) / 100
+      iva += Math.round((g.total * 0.22 / 1.22) * g.vat * 100) / 100
+      movimenti += g.ids.length
+
+      if (found) {
+        // solo l'importo: le percentuali possono essere state corrette a mano
+        if (Math.abs(Number(found.actual) - g.total) > 0.01) {
+          await admin.from('pl_cost_lines').update({ actual: g.total, budget: g.total }).eq('id', found.id)
+        }
+        await admin.from('bank_transactions').update({ cost_line_id: found.id }).in('id', g.ids)
+        righe++
+        continue
+      }
+
+      const { data: ins, error } = await admin.from('pl_cost_lines').insert({
+        month_id: monthId, center_id: centerId, partner_id: pocket.owner_partner_id,
+        category: 'Spese soci', label, cost_type: 'V',
+        budget: g.total, actual: g.total, paid: true,
+        vat_applied: g.vat > 0, vat_rate: 0.22,
+        deductible_pct: g.cost, vat_deductible_pct: g.vat,
+        note: `${g.ids.length} movimenti dal sottoconto. ${g.why}`,
+      }).select('id').single()
+      if (error) { skipped.push(`${label}: ${error.message}`); continue }
+
+      await admin.from('bank_transactions')
+        .update({ cost_line_id: (ins as { id: string }).id }).in('id', g.ids)
+      righe++; nuove++
+    }
+
+    totale += spent
+    perSocio.push({
+      label: who,
+      spent: Math.round(spent * 100) / 100,
+      deducibile: Math.round(deducibile * 100) / 100,
+      iva: Math.round(iva * 100) / 100,
+    })
+  }
+
+  revalidatePath('/economics')
+  rev()
+  return {
+    righe, nuove, movimenti, skipped,
+    totale: Math.round(totale * 100) / 100,
+    perSocio: perSocio.sort((a, b) => b.spent - a.spent),
+  }
+}
+
+/** La quota mensile di un socio: è erogato, non un costo in più. */
+export async function setAllowance(accountId: string, amount: number | null) {
+  await requireAdmin()
+  if (amount !== null && (!Number.isFinite(amount) || amount < 0)) {
+    throw new Error('La quota non può essere negativa')
+  }
+  const { error } = await createAdminClient().from('bank_accounts')
+    .update({ allowance_amount: amount, funding_amount: amount }).eq('id', accountId)
   if (error) throw new Error(error.message)
   rev()
 }

@@ -36,7 +36,7 @@ const KIND_TONE: Record<string, string> = {
 
 export function TaxClient({
   month, today, setupNeeded, config, provisions, vatMonths,
-  revenueYtd, costsYtd, monthsBooked, costsWithVat, costsWithoutVat,
+  revenueYtd, costsYtd, nonDeductibleYtd, monthsBooked, costsWithVat, costsWithoutVat,
   vatOnUnpaid, q4Share, hasWelfare, hasTraining, rndSpend,
   newHires = 0, newHiresCost = 0, protectedCost = 0,
   contribRelief = 0, reliefAvailable = 0, impatriates = 0, investments = 0,
@@ -49,6 +49,8 @@ export function TaxClient({
   vatMonths: MonthVat[]
   revenueYtd: number
   costsYtd: number
+  /** §191 — la parte dei costi che non abbassa l'imponibile */
+  nonDeductibleYtd?: number
   monthsBooked: number
   costsWithVat: number
   costsWithoutVat: number
@@ -92,8 +94,9 @@ export function TaxClient({
   }), [newHiresCost, protectedCost, newHires, config])
 
   const estimate = useMemo(
-    () => estimateTaxes(revenueYtd, costsYtd, monthsBooked, config, monthsLeftInYear(today), maxi.extraDeduction),
-    [revenueYtd, costsYtd, monthsBooked, config, today, maxi])
+    () => estimateTaxes(revenueYtd, costsYtd, monthsBooked, config, monthsLeftInYear(today),
+      maxi.extraDeduction, nonDeductibleYtd ?? 0),
+    [revenueYtd, costsYtd, nonDeductibleYtd, monthsBooked, config, today, maxi])
   const calendar = useMemo(() => fiscalCalendar(year, today, vat, estimate), [year, today, vat, estimate])
   const aside = useMemo(
     () => setAsideStatus(provisions, next?.toPay ?? 0, estimate.total, monthsBooked),
@@ -306,6 +309,11 @@ export function TaxClient({
           <div className="space-y-1.5">
             <Step label={`Ricavi di ${monthsBooked} mes${monthsBooked === 1 ? 'e' : 'i'}`} value={eur(estimate.revenueYtd)} />
             <Step label="Costi effettivi" value={`− ${eur(estimate.costsYtd)}`} />
+            {estimate.nonDeductibleCosts > 0 && (
+              <Step label="di cui non deducibile, riaggiunto"
+                value={`+ ${eur(estimate.nonDeductibleCosts)}`}
+                hint="Pasti al 25%, carburante a uso promiscuo all'80%, spese non inerenti: già uscite dalla cassa, non abbassano l'imponibile" />
+            )}
             <Step label="Margine a oggi" value={eur(estimate.marginYtd)} strong />
             <Step label="Proiettato su 12 mesi" value={eur(estimate.marginProjected)}
               hint={monthsBooked > 0 ? `media di ${eur(estimate.marginYtd / Math.max(1, monthsBooked))} al mese` : undefined} />

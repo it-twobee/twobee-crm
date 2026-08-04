@@ -210,6 +210,8 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
       .map((c: Record<string, unknown>) => ({
         id: String(c.id), center_id: (c.center_id as string) ?? null,
         project_id: (c.project_id as string) ?? null,
+        partner_id: (c.partner_id as string) ?? null,
+        deductible_pct: c.deductible_pct == null ? 1 : num(c.deductible_pct),
         category: String(c.category), label: String(c.label),
         cost_type: c.cost_type === 'V' ? 'V' : 'F',
         budget: num(c.budget), actual: num(c.actual), paid: c.paid === true,
@@ -234,6 +236,11 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
     funding_from_id: (a.funding_from_id as string) ?? null,
     funding_day: a.funding_day == null ? null : Number(a.funding_day),
     funding_amount: a.funding_amount == null ? null : num(a.funding_amount),
+    // §191 — sottoconti dei soci: il padre li mostra insieme, la quota è erogato
+    parent_id: (a.parent_id as string) ?? null,
+    owner_partner_id: (a.owner_partner_id as string) ?? null,
+    owner_label: (a.owner_label as string) ?? null,
+    allowance_amount: a.allowance_amount == null ? null : num(a.allowance_amount),
     centerIds: coverage.get(String(a.id)) ?? [],
   }))
 

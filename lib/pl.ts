@@ -207,6 +207,10 @@ export type CostLine = {
   center_id?: string | null
   /** §173: se c'è, è un subappalto di quel progetto — e §186 lo toglie dal margine */
   project_id?: string | null
+  /** §191: spesa fatta da un socio col suo sottoconto — è erogato, non struttura */
+  partner_id?: string | null
+  /** §191: la parte deducibile (0,75 sui pasti, 0,20 sul carburante a uso promiscuo) */
+  deductible_pct?: number
   category: string
   label: string
   cost_type: 'F' | 'V'
@@ -444,12 +448,23 @@ export function computeMonth(
      progetto (§186): se entrasse anche nello scostamento dal target costi, la
      cassa lo pagherebbe una seconda volta. Il target del 35% serve a coprire la
      struttura — persone, software, sede — non una lavorazione venduta al cliente. */
-  const structural = costs.filter(c => !c.project_id)
-  const external = costs.filter(c => !!c.project_id)
+  /* §191 — e per lo stesso motivo ne sta fuori la spesa di un socio col suo
+     sottoconto: quei soldi erano già stanziati nel 30% di erogato. Chiamarli
+     struttura li farebbe pagare due volte, una al fornitore e una al socio. */
+  const partnerLines = costs.filter(c => !!c.partner_id)
+  const structural = costs.filter(c => !c.project_id && !c.partner_id)
+  const external = costs.filter(c => !!c.project_id && !c.partner_id)
   const costStructural = r2(structural.reduce((s, c) => s + c.actual, 0))
   const costExternal = r2(external.reduce((s, c) => s + c.actual, 0))
+  const costPartners = r2(partnerLines.reduce((s, c) => s + c.actual, 0))
   const costFixed = r2(structural.filter(c => c.cost_type === 'F').reduce((s, c) => s + c.actual, 0))
   const costVariable = r2(structural.filter(c => c.cost_type === 'V').reduce((s, c) => s + c.actual, 0))
+  /* Quanto di tutti i costi del mese NON è deducibile: pasti al 75%, carburante
+     al 20%, alimentari a zero finché nessuno ne scrive la ragione. È la parte su
+     cui la società paga le imposte pur avendo speso, e va detta prima della
+     dichiarazione, non dopo. */
+  const costNonDeductible = r2(costs.reduce(
+    (s, c) => s + c.actual * (1 - Math.min(1, Math.max(0, c.deductible_pct ?? 1))), 0))
 
   // Positivo = si è speso meno del target. Non cambia le quote: va in cassa.
   const costVariance = r2(costTarget - costStructural)
@@ -533,9 +548,30 @@ export function computeMonth(
       : 0
     const dg = digitalShare
     const sh = poolShare
+    const total = r2(d + q + dg + sh)
+
+    /* §191 — quello che il socio ha già speso col suo sottoconto: è erogato uscito
+       in forma di costo della società. Va **sottratto** da quello in denaro,
+       altrimenti la società paga due volte lo stesso compenso: una al fornitore
+       del socio e una al socio. */
+    const spendLines = partnerLines.filter(c => c.partner_id === p.id)
+    const spent = r2(spendLines.reduce((n, c) => n + c.actual, 0))
+
     return {
       partner: p, delivery: d, residual: q, digital: dg, salesShare: sh,
-      total: r2(d + q + dg + sh),
+      total,
+      /** già uscito come spesa sul sottoconto */
+      spent,
+      /** quello che resta da versare in denaro */
+      cash: r2(Math.max(0, total - spent)),
+      /** ha speso più di quanto gli spetta: la differenza è un anticipo da recuperare */
+      overspent: r2(Math.max(0, spent - total)),
+      /** le spese, una per una: un netto senza il dettaglio non si controlla */
+      spendRows: spendLines.map(c => ({
+        id: c.id, label: c.label, amount: c.actual,
+        deductible: r2(c.actual * Math.min(1, Math.max(0, c.deductible_pct ?? 1))),
+        deductiblePct: c.deductible_pct ?? 1,
+      })).sort((a, b) => b.amount - a.amount),
       /** da dove viene, riga per riga: è quello che rende il numero verificabile */
       rows,
     }
@@ -593,6 +629,10 @@ export function computeMonth(
       structural: costStructural,
       /** subappalti: già dentro il margine di progetto, mai nello scostamento */
       external: costExternal,
+      /** §191: spese dei soci sui sottoconti — erogato in forma di costo */
+      partners: costPartners,
+      /** la parte che le imposte non riconoscono, su tutti i costi del mese */
+      nonDeductible: costNonDeductible,
       fixed: costFixed, variable: costVariable,
       target: costTarget, variance: costVariance, ratio: costRatio,
     },
@@ -653,15 +693,22 @@ export function aggregatePeriod(months: MonthResult[]) {
   const costExternal = s(t => t.costs.external)
   const costTarget = s(t => t.costs.target)
 
-  const partners = new Map<string, { label: string; delivery: number; residual: number; total: number }>()
+  const partners = new Map<string, {
+    label: string; delivery: number; residual: number; total: number; spent: number; cash: number
+  }>()
   for (const m of months) {
     for (const p of m.t.perPartner) {
-      const cur = partners.get(p.partner.id) ?? { label: p.partner.label, delivery: 0, residual: 0, total: 0 }
+      const cur = partners.get(p.partner.id)
+        ?? { label: p.partner.label, delivery: 0, residual: 0, total: 0, spent: 0, cash: 0 }
       partners.set(p.partner.id, {
         label: cur.label,
-        delivery: Math.round((cur.delivery + p.delivery) * 100) / 100,
-        residual: Math.round((cur.residual + p.residual) * 100) / 100,
-        total: Math.round((cur.total + p.total) * 100) / 100,
+        delivery: r2(cur.delivery + p.delivery),
+        residual: r2(cur.residual + p.residual),
+        total: r2(cur.total + p.total),
+        spent: r2(cur.spent + p.spent),
+        // il netto si somma mese per mese: un mese in cui ha speso più del dovuto
+        // non si compensa con uno in cui ha speso meno
+        cash: r2(cur.cash + p.cash),
       })
     }
   }
@@ -684,7 +731,8 @@ export function aggregatePeriod(months: MonthResult[]) {
     costs: {
       actual: costActual, budget: s(t => t.costs.budget), target: costTarget,
       structural: costStructural, external: costExternal,
-      variance: Math.round((costTarget - costStructural) * 100) / 100,
+      partners: s(t => t.costs.partners), nonDeductible: s(t => t.costs.nonDeductible),
+      variance: r2(costTarget - costStructural),
       ratio: accrued > 0 ? costActual / accrued : 0,
     },
     plan: {

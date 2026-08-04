@@ -3,6 +3,7 @@ import {
   classify, balance, runningBalance, buckets, bucketKey, bucketLabel, weekStart,
   compare, matchCandidates, unreconciled, forecast, bankInsights, byCounterparty,
   byKind, daysToCash, grossOf, isStructural, liquidity, fundingNeed,
+  allowanceView, suggestFunding,
   type BankTx, type PlLineRef, type Expected,
 } from '@/lib/bank'
 
@@ -349,6 +350,83 @@ console.log('\n— Il fabbisogno del bonifico ricorrente —')
   is('e non si inventa un valore', fundingNeed({ funding_amount: null }, spese, 0).configured, null)
   // nessuna spesa collegata: nessun fabbisogno, e nessuna divisione per zero
   is('nessuna spesa, nessun mese calcolabile', fundingNeed({ funding_amount: 500 }, [], 300).monthsCovered, null)
+}
+
+console.log('\n— §191 · La quota del socio nel mese —')
+{
+  const acc = { id: 'sub', owner_label: 'Marco', allowance_amount: 500 }
+  const txs = [
+    tx({ account_id: 'sub', booked_on: '2026-08-03', amount: -120, kind: 'pagamento' }),
+    tx({ account_id: 'sub', booked_on: '2026-08-11', amount: -80, kind: 'pagamento' }),
+    // il giroconto che alimenta il sottoconto non è una spesa
+    tx({ account_id: 'sub', booked_on: '2026-08-01', amount: 500, kind: 'giroconto' }),
+    // un mese diverso non conta
+    tx({ account_id: 'sub', booked_on: '2026-07-20', amount: -300, kind: 'pagamento' }),
+    // e nemmeno il conto di un altro socio
+    tx({ account_id: 'altro', booked_on: '2026-08-05', amount: -400, kind: 'pagamento' }),
+  ]
+  const v = allowanceView(acc, txs, '2026-08-01')
+  eq('speso nel mese', v.spent, 200)
+  eq('residuo', v.residual!, 300)
+  eq('niente sforo', v.over, 0)
+  eq('due movimenti', v.count, 2)
+  eq('quota consumata', v.share!, 0.4)
+
+  const sforato = allowanceView(acc, [
+    tx({ account_id: 'sub', booked_on: '2026-08-03', amount: -700, kind: 'pagamento' }),
+  ], '2026-08-01')
+  eq('speso più del tetto: residuo a zero', sforato.residual!, 0)
+  eq('e lo sforo è dichiarato', sforato.over, 200)
+
+  const senzaTetto = allowanceView({ id: 'sub', owner_label: 'x', allowance_amount: null }, txs, '2026-08-01')
+  is('senza quota non si inventa un residuo', senzaTetto.residual, null)
+  is('né una percentuale', senzaTetto.share, null)
+}
+
+console.log('\n— §191 · Il bonifico suggerito —')
+{
+  const storia = [
+    { month: '2026-06-01', outflow: 1200 },
+    { month: '2026-07-01', outflow: 1600 },
+    { month: '2026-08-01', outflow: 90 },   // mese in corso: non fa media
+  ]
+  const s1 = suggestFunding({
+    plan: 1395, allowances: 1500, balance: 14, configured: 1500,
+    outflowsByMonth: storia, today: '2026-08-04',
+  })
+  eq('due mesi completi di storico', s1.months, 2)
+  eq('media dello storico', s1.history!, 1400)
+  eq('il piano più le quote batte lo storico', s1.base, 2895)
+  is('e lo dichiara', s1.basis, 'piano')
+  // 2895 − 14 = 2881 → 2900
+  eq('bonifico suggerito, arrotondato ai 50', s1.amount, 2900)
+  is('la ragione nomina lo storico', s1.reason.includes('storico'), true)
+
+  // quando lo storico è più alto del piano, vince lo storico
+  const s2 = suggestFunding({
+    plan: 400, allowances: 0, balance: 0, configured: null,
+    outflowsByMonth: [{ month: '2026-06-01', outflow: 900 }, { month: '2026-07-01', outflow: 1100 }],
+    today: '2026-08-04',
+  })
+  eq('base dallo storico', s2.base, 1000)
+  is('dichiarato', s2.basis, 'storico')
+  eq('e il bonifico lo segue', s2.amount, 1000)
+
+  // il saldo che c'è già non si bonifica due volte
+  const s3 = suggestFunding({
+    plan: 1000, allowances: 0, balance: 950, configured: 1000,
+    outflowsByMonth: [], today: '2026-08-04',
+  })
+  eq('serve solo la differenza', s3.amount, 50)
+  is('senza storico vale il piano', s3.basis, 'piano')
+  is('e lo dice', s3.reason.includes('nessun mese completo'), true)
+
+  // un conto già coperto non chiede niente, invece di chiedere un numero negativo
+  const s4 = suggestFunding({
+    plan: 500, allowances: 0, balance: 900, configured: 500,
+    outflowsByMonth: [], today: '2026-08-04',
+  })
+  eq('niente da bonificare', s4.amount, 0)
 }
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)

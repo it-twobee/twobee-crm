@@ -30,23 +30,39 @@ export default async function FiscalePage({ searchParams }: { searchParams: { m?
   const [{ data: rev }, { data: cost }] = ids.length
     ? await Promise.all([
         supabase.from('pl_revenue_lines').select('month_id, amount_net, vat_rate, paid').in('month_id', ids),
-        supabase.from('pl_cost_lines').select('month_id, actual, vat_applied, vat_rate, category, label').in('month_id', ids),
+        supabase.from('pl_cost_lines').select('month_id, actual, vat_applied, vat_rate, category, label, deductible_pct, vat_deductible_pct').in('month_id', ids),
       ])
     : [{ data: [] }, { data: [] }]
 
   const num = (v: unknown) => Number(v ?? 0)
+  /* Percentuale di deducibilità: assente = piena. Una colonna che non c'è ancora
+     (migration non eseguita) non deve azzerare un costo: lo zero si legge come
+     «non deducibile» e cambierebbe l'imposta. */
+  const pctOf = (v: unknown) => {
+    if (v == null) return 1
+    const x = Number(v)
+    return Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 1
+  }
 
   const vatMonths: MonthVat[] = (months ?? []).map((m: { id: string; month: string }) => ({
     month: m.month,
     debit: (rev ?? []).filter((r: { month_id: string }) => r.month_id === m.id)
       .reduce((s: number, r: Record<string, unknown>) => s + num(r.amount_net) * num(r.vat_rate), 0),
+    /* §191 — l'IVA a credito è quella **detraibile**: su un pranzo con lo
+       scontrino è zero, sul carburante a uso promiscuo è il 40%. Contarla per
+       intero gonfierebbe il credito e la liquidazione arriverebbe più alta. */
     credit: (cost ?? []).filter((c: { month_id: string; vat_applied: boolean }) => c.month_id === m.id && c.vat_applied)
-      .reduce((s: number, c: Record<string, unknown>) => s + num(c.actual) * num(c.vat_rate), 0),
+      .reduce((s: number, c: Record<string, unknown>) =>
+        s + num(c.actual) * num(c.vat_rate) * pctOf(c.vat_deductible_pct), 0),
   }))
 
   // ── i numeri dell'anno che alimentano stime e diagnosi ────────────────────
+
   const revenueYtd = (rev ?? []).reduce((s: number, r: Record<string, unknown>) => s + num(r.amount_net), 0)
   const costsYtd = (cost ?? []).reduce((s: number, c: Record<string, unknown>) => s + num(c.actual), 0)
+  // §191 — quanto di quei costi non abbassa l'imponibile: va riaggiunto alla base
+  const nonDeductibleYtd = (cost ?? []).reduce((s: number, c: Record<string, unknown>) =>
+    s + num(c.actual) * (1 - pctOf(c.deductible_pct)), 0)
   const monthsBooked = (months ?? []).filter((m: { id: string }) =>
     (rev ?? []).some((r: { month_id: string }) => r.month_id === m.id)).length
 
@@ -154,6 +170,7 @@ export default async function FiscalePage({ searchParams }: { searchParams: { m?
       vatMonths={vatMonths}
       revenueYtd={revenueYtd}
       costsYtd={costsYtd}
+      nonDeductibleYtd={nonDeductibleYtd}
       monthsBooked={monthsBooked}
       costsWithVat={costsWithVat}
       costsWithoutVat={costsWithoutVat}

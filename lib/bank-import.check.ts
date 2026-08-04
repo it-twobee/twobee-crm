@@ -1,5 +1,5 @@
 /* Verifica dell'import bancario. Esegui: npx tsx lib/bank-import.check.ts */
-import { parseStatement, detectDialect, merchant, byFamily, spendSplit } from '@/lib/bank-import'
+import { parseStatement, detectDialect, merchant, byFamily, spendSplit, treatment } from '@/lib/bank-import'
 
 let fail = 0
 const is = (label: string, got: unknown, want: unknown) => {
@@ -178,6 +178,21 @@ console.log('\n— Operativo contro «da giustificare» —')
   const s = spendSplit([{ amount: 500, counterparty: 'x', description: '' }])
   eq('nessuna uscita: quota zero', s.share, 0)
   eq('e totale zero', s.total, 0)
+}
+
+console.log('\n— Deducibilità: il trattamento parte dalla famiglia —')
+{
+  const pranzo = treatment('LA SCOGLIERA, TORRE DEL GRE, IT')
+  eq('un pranzo è deducibile al 75%', pranzo.cost, 0.75)
+  eq('e la sua IVA non è detraibile con lo scontrino', pranzo.vat, 0)
+  const gasolio = treatment('STAZIONE DI SERVIZIO DI, QUARTO, IT')
+  eq('carburante a uso promiscuo: costo 20%', gasolio.cost, 0.2)
+  eq('e IVA 40%', gasolio.vat, 0.4)
+  eq('la spesa al supermercato non è inerente', treatment('CONAD SUPERMERCATO CONA, NAPOLI, IT').cost, 0)
+  eq('l\'advertising sì, per intero', treatment('FACEBK *69RNPVDF92, Dublin, IE').cost, 1)
+  is('e ogni trattamento dice perché', treatment('IL CAVATAPPI, SAN GIORGIO A, IT').why.length > 20, true)
+  // stesso esito su un nome già normalizzato: `merchant` è idempotente
+  is('vale anche sul nome pulito', treatment('Ristoranti').cost === 0.75, true)
 }
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)

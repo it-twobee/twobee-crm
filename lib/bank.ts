@@ -23,6 +23,12 @@
  */
 
 const r2 = (n: number) => Math.round(n * 100) / 100
+
+const nonNeg = (n: number) => (Number.isFinite(n) && n > 0 ? n : 0)
+
+/** Solo per i messaggi di questo modulo: la UI ha il suo formatter. */
+const eur = (n: number) =>
+  `${n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €`
 const sum = (ns: number[]) => r2(ns.reduce((a, b) => a + b, 0))
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -51,6 +57,17 @@ export type BankAccount = {
   funding_amount?: number | null
   /** le aree del piano dei costi che questo conto paga */
   centerIds?: string[]
+  /** §191 — sottoconto: il conto di cui questo è una tasca */
+  parent_id?: string | null
+  /** §191 — di chi sono le spese che passano da qui */
+  owner_partner_id?: string | null
+  owner_label?: string | null
+  /**
+   * §191 — quota mensile dell'**erogato** spendibile da questo sottoconto. Non è
+   * un costo in più: è una forma di pagamento del compenso già stanziato, e va
+   * sottratta dall'erogato in denaro.
+   */
+  allowance_amount?: number | null
 }
 
 export type BankTx = {
@@ -608,6 +625,108 @@ export function liquidity(
     total: r2(perAccount.reduce((s, a) => s + a.real, 0)),
     perAccount,
     pendingTransfers: Math.abs(sum(pending.map(t => t.amount))),
+  }
+}
+
+/**
+ * La quota di un socio nel mese: quanto gli spetta, quanto ha già speso.
+ *
+ * Il residuo è il tetto che gli resta, non un premio: superarlo non è vietato ma
+ * diventa un anticipo da recuperare dall'erogato in denaro, e va visto prima di
+ * fine mese — non dopo, quando i soldi sono usciti.
+ */
+export function allowanceView(
+  account: Pick<BankAccount, 'id' | 'owner_label' | 'allowance_amount'>,
+  txs: BankTx[], month: string,
+): {
+  allowance: number | null; spent: number; residual: number | null
+  over: number; share: number | null; count: number
+} {
+  const from = month.slice(0, 7)
+  const own = txs.filter(t =>
+    t.account_id === account.id && t.booked_on.slice(0, 7) === from
+    && t.amount < 0 && t.kind !== 'giroconto')
+  const spent = Math.abs(sum(own.map(t => t.amount)))
+  const allowance = account.allowance_amount ?? null
+  return {
+    allowance, spent, count: own.length,
+    residual: allowance === null ? null : r2(Math.max(0, allowance - spent)),
+    over: allowance === null ? 0 : r2(Math.max(0, spent - allowance)),
+    share: allowance && allowance > 0 ? spent / allowance : null,
+  }
+}
+
+export type FundingSuggestion = {
+  /** quanto bonificare questo mese, arrotondato ai 50 € */
+  amount: number
+  /** il fabbisogno da piano: le voci delle aree che il conto paga */
+  plan: number
+  /** le quote dei sottoconti, che passano da qui prima di scendere */
+  allowances: number
+  /** media delle uscite dei mesi **completi**: il mese in corso non fa media */
+  history: number | null
+  months: number
+  /** la base scelta e perché: `piano` o `storico` */
+  base: number
+  basis: 'piano' | 'storico'
+  balance: number
+  configured: number | null
+  /** una frase che dice come è venuto il numero, per non prenderlo per fede */
+  reason: string
+}
+
+/**
+ * Quanto bonificare sul conto spese questo mese.
+ *
+ * Tre fatti, non una stima: quello che il piano dice che verrà addebitato, quello
+ * che lo storico dice che viene addebitato davvero, e quello che c'è già sul
+ * conto. **Vince il più alto fra piano e storico** — il piano è ottimista per
+ * costruzione (elenca i canoni, non gli imprevisti), lo storico è incompleto
+ * quando un canone annuale non è ancora passato — e da lì si sottrae il saldo,
+ * perché quello che è già lì non va bonificato due volte.
+ *
+ * Il mese in corso non entra nella media: un mese a metà dimezzerebbe il
+ * fabbisogno proprio nel momento in cui serve saperlo.
+ *
+ * L'arrotondamento ai 50 € è dichiarato e non nascosto: un bonifico ricorrente si
+ * imposta in cifra tonda, e cinquanta euro di margine costano meno di una carta
+ * rifiutata.
+ */
+export function suggestFunding(opts: {
+  plan: number
+  allowances: number
+  balance: number
+  configured: number | null
+  /** uscite per mese (positive), giroconti esclusi, mese in corso incluso: lo esclude lui */
+  outflowsByMonth: { month: string; outflow: number }[]
+  today: string
+}): FundingSuggestion {
+  const current = opts.today.slice(0, 7)
+  const complete = opts.outflowsByMonth.filter(m => m.month.slice(0, 7) < current)
+  const history = complete.length
+    ? r2(sum(complete.map(m => m.outflow)) / complete.length)
+    : null
+
+  const need = r2(nonNeg(opts.plan) + nonNeg(opts.allowances))
+  const base = history !== null && history > need ? history : need
+  const basis: 'piano' | 'storico' = base === need ? 'piano' : 'storico'
+  const netto = Math.max(0, r2(base - nonNeg(opts.balance)))
+  const amount = Math.ceil(netto / 50) * 50
+
+  const parti = [`piano ${eur(opts.plan)}`]
+  if (opts.allowances > 0) parti.push(`quote soci ${eur(opts.allowances)}`)
+  const storico = history === null
+    ? 'nessun mese completo di storico, quindi vale il piano'
+    : `lo storico dice ${eur(history)} su ${complete.length} ${complete.length === 1 ? 'mese' : 'mesi'}`
+      + (basis === 'storico' ? ' — più del piano, quindi vince lui' : ' — meno del piano')
+
+  return {
+    amount, plan: r2(nonNeg(opts.plan)), allowances: r2(nonNeg(opts.allowances)),
+    history, months: complete.length, base, basis,
+    balance: r2(opts.balance), configured: opts.configured,
+    reason: `${parti.join(' + ')} = ${eur(need)}; ${storico}. `
+      + `Sul conto ci sono già ${eur(opts.balance)}, quindi ne servono ${eur(netto)}`
+      + (amount !== netto ? `, arrotondati a ${eur(amount)}` : ''),
   }
 }
 

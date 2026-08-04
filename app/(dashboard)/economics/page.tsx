@@ -181,6 +181,10 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
     })
     const asCost = (c: Record<string, unknown>): CostLine => ({
       id: String(c.id), category: String(c.category), label: String(c.label),
+      project_id: (c.project_id as string) ?? null,
+      // §191: spesa di un socio col suo sottoconto — erogato, non struttura
+      partner_id: (c.partner_id as string) ?? null,
+      deductible_pct: c.deductible_pct == null ? 1 : num(c.deductible_pct),
       cost_type: (c.cost_type === 'V' ? 'V' : 'F'),
       budget: num(c.budget), actual: num(c.actual), paid: !!c.paid,
       vat_applied: !!c.vat_applied, vat_rate: num(c.vat_rate),
@@ -262,6 +266,8 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
         id: String(c.id), center_id: (c.center_id as string) ?? null,
         // §186: il subappalto esce dal margine digital prima della spartizione
         project_id: (c.project_id as string) ?? null,
+        partner_id: (c.partner_id as string) ?? null,
+        deductible_pct: c.deductible_pct == null ? 1 : num(c.deductible_pct),
         category: String(c.category), label: String(c.label),
         cost_type: (c.cost_type === 'V' ? 'V' : 'F'),
         budget: num(c.budget), actual: num(c.actual), paid: !!c.paid,

@@ -7,18 +7,20 @@ import {
   ArrowDownLeft, ArrowUpRight, Banknote, Upload, Search, Link2, Link2Off, Check,
   AlertTriangle, TrendingUp, TrendingDown, Loader2, ChevronDown, ShieldAlert,
   Receipt, Landmark, Users, Repeat, CircleSlash, Sparkles, CalendarClock, Plus,
+  Wallet, ArrowRight,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { monthLabel } from '@/lib/pl'
 import {
   balance, runningBalance, buckets, bucketLabel, compare, matchCandidates,
   unreconciled, forecast, bankInsights, byCounterparty, byKind, daysToCash,
-  grossOf, isStructural, liquidity, fundingNeed,
+  grossOf, isStructural, liquidity, fundingNeed, allowanceView, suggestFunding,
   type BankAccount, type BankTx, type PlLineRef, type Expected,
   type Granularity, type TxKind,
 } from '@/lib/bank'
 import {
   importBankCsv, reconcile, unreconcile, markNoMatch, addManualTx, deleteTx,
+  pushPartnerSpend, setAllowance, updateAccount,
 } from '@/app/actions/bank'
 import { spendSplit, CHECK_FAMILIES } from '@/lib/bank-import'
 import { EconomicsNav } from '@/components/economics/EconomicsNav'
@@ -196,22 +198,45 @@ export function BankClient({
                 </p>
               )}
             </div>
-            <div className="flex gap-1 bg-background border border-border rounded-xl p-1">
-              {accounts.map(a => {
-                const b = liq.perAccount.find(x => x.id === a.id)
-                return (
-                  <button key={a.id} onClick={() => setAccountId(a.id)} aria-pressed={a.id === account.id}
-                    className={`px-3 py-1.5 rounded-lg text-left ${
-                      a.id === account.id ? 'bg-gold text-on-gold' : 'hover:bg-surface-hover'}`}>
-                    <span className={`block text-2xs font-bold ${a.id === account.id ? '' : 'text-text-primary'}`}>
-                      {a.label.split('—')[0].trim()}
-                    </span>
-                    <span className={`block text-2xs tabular ${a.id === account.id ? 'opacity-80' : 'text-text-tertiary'}`}>
-                      {eur(b?.real ?? 0)}
-                    </span>
-                  </button>
-                )
-              })}
+            {/* i conti sopra, le tasche dei soci sotto: sono soldi della società
+                ma con un nome già attaccato, e mescolarli nella stessa fila
+                farebbe sembrare quattro conti quello che è un conto con tre tasche */}
+            <div className="space-y-1.5">
+              <div className="flex gap-1 bg-background border border-border rounded-xl p-1">
+                {accounts.filter(a => !a.parent_id).map(a => {
+                  const b = liq.perAccount.find(x => x.id === a.id)
+                  return (
+                    <button key={a.id} onClick={() => setAccountId(a.id)} aria-pressed={a.id === account.id}
+                      className={`px-3 py-1.5 rounded-lg text-left ${
+                        a.id === account.id ? 'bg-gold text-on-gold' : 'hover:bg-surface-hover'}`}>
+                      <span className={`block text-2xs font-bold ${a.id === account.id ? '' : 'text-text-primary'}`}>
+                        {a.label.split('—')[0].trim()}
+                      </span>
+                      <span className={`block text-2xs tabular ${a.id === account.id ? 'opacity-80' : 'text-text-tertiary'}`}>
+                        {eur(b?.real ?? 0)}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              {accounts.some(a => a.parent_id) && (
+                <div className="flex gap-1 flex-wrap justify-end">
+                  {accounts.filter(a => a.parent_id).map(a => {
+                    const b = liq.perAccount.find(x => x.id === a.id)
+                    return (
+                      <button key={a.id} onClick={() => setAccountId(a.id)} aria-pressed={a.id === account.id}
+                        className={`px-2.5 py-1 rounded-lg border text-2xs flex items-center gap-1.5 ${
+                          a.id === account.id
+                            ? 'border-gold bg-gold/10 text-text-primary font-bold'
+                            : 'border-border text-text-secondary hover:bg-surface-hover'}`}>
+                        <Wallet className="w-3 h-3 text-info" aria-hidden="true" />
+                        {a.owner_label ?? a.label}
+                        <span className="tabular text-text-tertiary">{eur(b?.real ?? 0)}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -356,7 +381,14 @@ export function BankClient({
       {/* ══ il bonifico ricorrente che alimenta questo conto ══ */}
       {(account.funding_from_id || (spendItems[account.id] ?? []).length > 0) && (
         <FundingPanel account={account} accounts={accounts} balance={bal.real}
-          items={spendItems[account.id] ?? []} txs={ownTxs} />
+          items={spendItems[account.id] ?? []} txs={ownTxs} allTxs={txs}
+          today={today} month={month} />
+      )}
+
+      {/* ══ §191 · le tasche dei soci: erogato che esce come spesa ══ */}
+      {accounts.some(a => a.parent_id === account.id) && (
+        <PocketsPanel parent={account} pockets={accounts.filter(a => a.parent_id === account.id)}
+          txs={txs} month={month} />
       )}
 
       {/* ══ da riconciliare ══ */}
@@ -707,17 +739,47 @@ export function BankClient({
  * quella differenza ogni mese — e il numero di mesi che resta si può dire adesso,
  * invece di scoprirlo da una carta rifiutata di sabato.
  */
-function FundingPanel({ account, accounts, balance, items, txs }: {
+function FundingPanel({ account, accounts, balance, items, txs, allTxs, today, month }: {
   account: BankAccount
   accounts: BankAccount[]
   balance: number
   items: { label: string; amount: number; center_id: string | null; centerName: string | null }[]
   txs: BankTx[]
+  allTxs: BankTx[]
+  today: string
+  month: string
 }) {
+  const router = useRouter()
+  const [busy, start] = useTransition()
   const need = fundingNeed(account, items, balance)
   const from = accounts.find(a => a.id === account.funding_from_id)
   const short = need.gap > 0
   const spesa = useMemo(() => spendSplit(txs.filter(t => t.kind !== 'giroconto')), [txs])
+
+  /* Le tasche dei soci passano da qui prima di scendere: il bonifico che alimenta
+     il conto operativo deve coprire anche le loro quote, altrimenti il primo
+     giroconto verso un socio lo svuota. */
+  const pockets = useMemo(() => accounts.filter(a => a.parent_id === account.id), [accounts, account.id])
+  const allowances = pockets.reduce((n, p) => n + (p.allowance_amount ?? 0), 0)
+
+  /* Lo storico: uscite per mese del conto **e delle sue tasche**, giroconti
+     esclusi da entrambi i lati — un giroconto interno non è una spesa, e
+     contarlo raddoppierebbe il fabbisogno. */
+  const suggestion = useMemo(() => {
+    const ids = new Set([account.id, ...pockets.map(p => p.id)])
+    const perMonth = new Map<string, number>()
+    for (const t of allTxs) {
+      if (!ids.has(t.account_id) || t.amount >= 0 || t.kind === 'giroconto') continue
+      const k = `${t.booked_on.slice(0, 7)}-01`
+      perMonth.set(k, Math.round(((perMonth.get(k) ?? 0) + Math.abs(t.amount)) * 100) / 100)
+    }
+    return suggestFunding({
+      plan: need.monthly, allowances, balance,
+      configured: account.funding_amount ?? null,
+      outflowsByMonth: Array.from(perMonth, ([m, outflow]) => ({ month: m, outflow })),
+      today,
+    })
+  }, [allTxs, account.id, account.funding_amount, pockets, need.monthly, allowances, balance, today])
 
   return (
     <section className={`bg-surface border rounded-2xl shadow-soft overflow-hidden ${
@@ -763,6 +825,40 @@ function FundingPanel({ account, accounts, balance, items, txs }: {
           }))} />
         </div>
       )}
+
+      {/* ── Quanto bonificare questo mese ─────────────────────────────────── */}
+      <div className="px-5 pb-5 border-t border-border pt-4">
+        <div className="flex items-end justify-between gap-3 flex-wrap">
+          <div>
+            <p className="text-2xs font-bold text-text-primary">Bonifico consigliato questo mese</p>
+            <p className="text-3xl font-bold text-text-primary tabular mt-0.5">{eur2(suggestion.amount)}</p>
+          </div>
+          {suggestion.amount !== (account.funding_amount ?? -1) && (
+            <button type="button" disabled={busy}
+              onClick={() => start(async () => {
+                try {
+                  await updateAccount(account.id, { funding_amount: suggestion.amount })
+                  toast.success(`Provvista aggiornata a ${eur2(suggestion.amount)}`)
+                  router.refresh()
+                } catch (e) { toast.error((e as Error).message) }
+              })}
+              className="px-3 py-2 rounded-xl bg-gold text-on-gold text-2xs font-bold
+                         hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5">
+              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Repeat className="w-3.5 h-3.5" />}
+              Imposta come ricorrente
+            </button>
+          )}
+        </div>
+        <p className="text-2xs text-text-secondary mt-2">{suggestion.reason}.</p>
+        <div className="grid gap-2 sm:grid-cols-4 mt-3">
+          <Mini label="Piano del mese" value={eur2(suggestion.plan)} />
+          <Mini label={`Quote soci · ${pockets.length}`} value={eur2(suggestion.allowances)} />
+          <Mini label={`Storico · ${suggestion.months} mesi`}
+            value={suggestion.history === null ? '—' : eur2(suggestion.history)}
+            tone={suggestion.basis === 'storico' ? 'warning' : undefined} />
+          <Mini label="Già sul conto" value={eur2(suggestion.balance)} />
+        </div>
+      </div>
 
       {/* Il piano dice cosa dovrebbe passare; questo dice cosa è passato. */}
       {spesa.total > 0 && (
@@ -1021,6 +1117,148 @@ function TopList({ title, rows, kind }: {
             </div>
           ))}
         </div>
+      )}
+    </section>
+  )
+}
+
+/**
+ * Le tasche dei soci: quanto spetta a ciascuno e quanto ha già speso.
+ *
+ * Quei 500 € al mese non sono un costo in più — sono la parte dell'erogato che
+ * esce come spesa della società, così la spesa si porta a costo e l'IVA si
+ * recupera dove spetta. Perciò la domanda che questo pannello risponde non è
+ * «quanto abbiamo speso» ma «quanto di quello che gli spetta ha già preso in
+ * questa forma»: il resto glielo si versa in denaro, e versarlo tutto sarebbe
+ * pagarlo due volte.
+ *
+ * Il residuo non è un premio da consumare. È il tetto oltre il quale la spesa
+ * diventa un anticipo da recuperare, e va visto prima della fine del mese.
+ */
+function PocketsPanel({ parent, pockets, txs, month }: {
+  parent: BankAccount; pockets: BankAccount[]; txs: BankTx[]; month: string
+}) {
+  const router = useRouter()
+  const [busy, start] = useTransition()
+  const [open, setOpen] = useState(true)
+
+  const views = pockets.map(p => ({ p, v: allowanceView(p, txs, month), fam: spendSplit(
+    txs.filter(t => t.account_id === p.id && t.booked_on.slice(0, 7) === month.slice(0, 7)
+      && t.kind !== 'giroconto')) }))
+  const totale = views.reduce((n, x) => n + x.v.spent, 0)
+  const quote = views.reduce((n, x) => n + (x.v.allowance ?? 0), 0)
+
+  return (
+    <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
+      <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
+        className="w-full px-5 py-4 border-b border-border flex items-center gap-2 text-left hover:bg-surface-hover">
+        <Wallet className="w-4 h-4 text-info shrink-0" aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-bold text-text-primary">
+            Quote dei soci · {eur2(totale)} spesi su {eur2(quote)}
+          </h2>
+          <p className="text-2xs text-text-tertiary mt-0.5">
+            Non è un costo in più: è la parte dell&apos;erogato che esce come spesa della
+            società, per portarla a costo e recuperarne l&apos;IVA dove spetta
+          </p>
+        </div>
+        <ChevronDown className={`w-4 h-4 text-text-tertiary shrink-0 transition-transform ${
+          open ? 'rotate-180' : ''}`} aria-hidden="true" />
+      </button>
+
+      {open && (
+        <>
+          <div className="grid gap-3 sm:grid-cols-3 p-5">
+            {views.map(({ p, v, fam }) => {
+              const quota = v.allowance ?? 0
+              const usato = quota > 0 ? Math.min(1, v.spent / quota) : 0
+              return (
+                <div key={p.id} className={`rounded-xl border p-3.5 ${
+                  v.over > 0 ? 'border-error/40 bg-error/5' : 'border-border bg-background'}`}>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="text-2xs font-bold text-text-primary">{p.owner_label ?? p.label}</p>
+                    <p className="text-2xs text-text-tertiary tabular">{v.count} mov.</p>
+                  </div>
+                  <p className="text-xl font-bold text-text-primary tabular mt-1">{eur2(v.spent)}</p>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-2xs text-text-tertiary">su</span>
+                    <label className="sr-only" htmlFor={`q-${p.id}`}>
+                      Quota mensile di {p.owner_label ?? p.label}
+                    </label>
+                    <input id={`q-${p.id}`} type="number" min={0} step={50} defaultValue={quota}
+                      onBlur={e => {
+                        const val = Number(e.target.value)
+                        if (!Number.isFinite(val) || val === quota) return
+                        start(async () => {
+                          try {
+                            await setAllowance(p.id, val)
+                            toast.success(`Quota di ${p.owner_label ?? p.label} a ${eur2(val)}`)
+                            router.refresh()
+                          } catch (err) { toast.error((err as Error).message) }
+                        })
+                      }}
+                      className="w-20 bg-surface border border-border-interactive rounded-lg px-1.5 py-0.5
+                                 text-2xs tabular text-text-primary" />
+                    <span className="text-2xs text-text-tertiary">di quota</span>
+                  </div>
+
+                  <div className="mt-2 h-1.5 rounded-full bg-surface-active overflow-hidden">
+                    <div className="h-full rounded-full transition-all" style={{
+                      width: `${Math.max(2, usato * 100)}%`,
+                      background: v.over > 0 ? 'var(--color-error)'
+                        : usato > 0.8 ? 'var(--color-warning)' : 'var(--color-info)',
+                    }} />
+                  </div>
+
+                  <p className={`text-2xs mt-1.5 ${v.over > 0 ? 'text-error font-semibold' : 'text-text-secondary'}`}>
+                    {v.over > 0
+                      ? `${eur2(v.over)} oltre la quota: anticipo da recuperare dall'erogato`
+                      : `${eur2(v.residual ?? 0)} ancora disponibili`}
+                  </p>
+
+                  {fam.families.length > 0 && (
+                    <ul className="mt-2.5 space-y-1 border-t border-border pt-2">
+                      {fam.families.slice(0, 4).map(f => (
+                        <li key={f.family} className="flex items-baseline gap-2 text-2xs">
+                          <span className="truncate text-text-secondary">{f.label}</span>
+                          <span className="ml-auto tabular text-text-primary shrink-0">{eur2(f.total)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="px-5 pb-5">
+            <button type="button" disabled={busy || totale === 0}
+              onClick={() => start(async () => {
+                try {
+                  const r = await pushPartnerSpend(month)
+                  toast.success(
+                    `${r.righe} righe nel conto economico · ${eur2(r.totale)} da ${r.movimenti} movimenti`,
+                    { description: r.perSocio.filter(p => p.spent > 0)
+                        .map(p => `${p.label}: ${eur2(p.spent)}, deducibile ${eur2(p.deducibile)}, IVA ${eur2(p.iva)}`)
+                        .join(' · ') })
+                  if (r.skipped.length) toast.warning(r.skipped.join(' · '))
+                  router.refresh()
+                } catch (e) { toast.error((e as Error).message) }
+              })}
+              className="w-full px-4 py-2.5 rounded-xl bg-gold text-on-gold text-2xs font-bold
+                         hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
+              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight className="w-3.5 h-3.5" />}
+              Porta queste spese nel conto economico di {monthLabel(month)}
+            </button>
+            <p className="text-2xs text-text-tertiary mt-2">
+              Una riga per socio e per famiglia di spesa, con la sua deducibilità: i pasti al 75%
+              e senza IVA detraibile, il carburante al 20% con IVA al 40%, la spesa non inerente a
+              zero. Le righe restano fuori dal target costi del 35% — quei soldi erano già erogato —
+              e si sottraggono dall&apos;erogato in denaro. Rilanciarlo aggiorna gli importi e non
+              tocca le percentuali corrette a mano
+            </p>
+          </div>
+        </>
       )}
     </section>
   )

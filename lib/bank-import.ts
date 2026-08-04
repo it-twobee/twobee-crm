@@ -298,3 +298,56 @@ export function spendSplit(
     families,
   }
 }
+
+/**
+ * Deducibilità e IVA per famiglia di spesa: le regole, non un consiglio fiscale.
+ *
+ * Servono perché §191 fa uscire parte dell'erogato dei soci come spesa della
+ * società: se quelle righe entrassero nel conto economico al 100% la stima IRES
+ * sarebbe più bassa del vero, e l'IVA risulterebbe recuperata dove non spetta.
+ * Un'IVA detratta senza diritto si restituisce con le sanzioni: vale meno di
+ * quella non detratta.
+ *
+ * Sono **valori di partenza**, non verdetti: la percentuale sta sulla riga di
+ * costo e si corregge una per una. Il tool sa che famiglia è, non se la spesa era
+ * inerente — e l'inerenza è esattamente ciò da cui dipende il trattamento.
+ */
+export const DEDUCTIBILITY: Record<SpendFamily, {
+  cost: number; vat: number; why: string
+}> = {
+  rappresentanza: {
+    cost: 0.75, vat: 0,
+    why: 'Pasti e rappresentanza: costo deducibile al 75%, e nei limiti di ricavo. '
+      + 'IVA indetraibile con lo scontrino: serve la fattura intestata e l\'inerenza',
+  },
+  carburante: {
+    cost: 0.20, vat: 0.40,
+    why: 'Veicolo a uso promiscuo: costo al 20%, IVA al 40%. Solo con uso esclusivo '
+      + 'aziendale dimostrabile si sale al 100%',
+  },
+  spesa: {
+    cost: 0, vat: 0,
+    why: 'Alimentari: non inerente finché non è scritta la ragione aziendale. '
+      + 'Portarla a costo senza quella è un rischio, non un risparmio',
+  },
+  hardware: {
+    cost: 1, vat: 1,
+    why: 'Bene strumentale: interamente deducibile sotto 516,46 €, sopra si ammortizza',
+  },
+  advertising: { cost: 1, vat: 1, why: 'Pubblicità: interamente deducibile' },
+  software: { cost: 1, vat: 1, why: 'Servizi: interamente deducibili' },
+  hosting: { cost: 1, vat: 1, why: 'Servizi: interamente deducibili' },
+  banca: { cost: 1, vat: 0, why: 'Commissioni bancarie: costo pieno, operazione esente IVA' },
+  altro: {
+    cost: 1, vat: 1,
+    why: 'Da classificare: vale il trattamento ordinario finché non si dice altro',
+  },
+}
+
+/** Il trattamento di una spesa, dal nome del fornitore. */
+export function treatment(counterparty: string): {
+  family: SpendFamily; name: string; cost: number; vat: number; why: string
+} {
+  const m = merchant(counterparty)
+  return { family: m.family, name: m.name, ...DEDUCTIBILITY[m.family] }
+}

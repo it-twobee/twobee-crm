@@ -199,6 +199,7 @@ dato economico: è sicuro anche nel workspace.
 | `179_os_versions.sql` | Cronologia: (a) `log_activity()` legge l'attore dall'header `x-actor-id` — col service role `auth.uid()` è NULL e tutto risultava «Sistema» — e non registra gli UPDATE che non cambiano niente; (b) `os_versions` + `os_version_changes`, il changelog di prodotto con un ciclo di 15 giorni dal 2026-08-01 (v1.0.0), bozze visibili ai soli admin; (c) seed della v1.0.0 con 13 voci | — |
 | `189_bank.sql` | Conto corrente: `bank_accounts` + `bank_transactions` (sorgente `banca`/`derivato`/`manuale`), trigger `bank_sync_revenue_line`/`bank_sync_cost_line` (spuntare «incassato» crea il movimento dichiarato) e `bank_on_match` (riconciliare un movimento vero spegne il dichiarato e marca la riga pagata). RLS admin | — |
 | `190_bank_vivid.sql` | Secondo conto: `transfer_pair_id`/`transfer_account_id` (i due lati di un giroconto sono un fatto solo), `funding_*` (provvista ricorrente) e `bank_account_centers` (quali aree di costo paga un conto → fabbisogno del bonifico). Seed del conto Vivid collegato a Marketing TwoBee e Struttura & Software | — |
+| `191_bank_partner_pockets.sql` | Sottoconti dei soci: `bank_accounts.parent_id`/`owner_partner_id`/`allowance_amount`, `pl_cost_lines.partner_id` + `deductible_pct`/`vat_deductible_pct`, area «Spese soci», Klaviyo a 0 (piano gratuito). I 500 €/mese a socio **sono erogato**, non un costo in più: escono come spesa della società per recuperarne IVA e deducibilità | — |
 
 **Scorciatoia**: `supabase/APPLY_PENDING.sql` è il concatenato (081, 086–093) in
 transazione, da incollare una volta sola nel SQL Editor. Bucket privati da creare
@@ -284,6 +285,10 @@ diversi, non per incoerenza:
   rischio ordinario del 10%. Struttura e personale li copre il growth, e in un
   mese a prevalenza digital la cassa TwoBee risulta **negativa**: il tool la
   mostra negativa perché è la verità del piano, non un errore di calcolo.
+- **L'erogato ha due forme** (§191): quello in denaro e quello già uscito come
+  spesa dal sottoconto del socio. `perPartner` dà `total` (quanto gli spetta),
+  `spent` (già uscito) e `cash` (da versare) — e `overspent` quando ha speso più
+  del dovuto, che è un anticipo sul mese dopo, non un errore.
 - Con un numero di soci diverso da tre le quote non fanno 100%: `retained` lo
   dice invece di riscalarle di nascosto (due soci → 28% non assegnato, quattro →
   −28% di sforo).
@@ -542,6 +547,27 @@ dice quando, l'altro dice di chi. La sezione li tiene agganciati.
   vietate: hanno deducibilità limitata e vanno attaccate a una ragione. Il conto
   dice quanto pesano, non se erano inerenti — e senza la famiglia non si vede,
   perché ogni singola spesa sembra piccola.
+- **Le tasche dei soci** (§191): un sottoconto per socio con una quota mensile.
+  Quei soldi **sono erogato**, non un costo in più: il socio invece di prenderli
+  in denaro li spende in nome della società, che porta la spesa a costo e ne
+  recupera l'IVA dove spetta. Da qui due regole che il codice rispetta o il conto
+  si sballa — le righe con `partner_id` **restano fuori dal target del 35%**
+  (erano già nel 30% di erogato, come i subappalti della §188), e **l'erogato in
+  denaro è netto di quanto il socio ha già speso**, altrimenti la società paga
+  due volte lo stesso compenso. Speso oltre la quota = anticipo da recuperare,
+  non buco. `allowanceView` dà quota, speso e residuo del mese.
+- **Deducibilità dichiarata** (`DEDUCTIBILITY` in `lib/bank-import.ts`): pasti al
+  75% con IVA indetraibile senza fattura intestata, carburante a uso promiscuo al
+  20% con IVA al 40%, alimentari a zero finché nessuno ne scrive la ragione.
+  Sono **valori di partenza per famiglia**, correggibili riga per riga: il tool sa
+  che tipo di spesa è, non se era inerente — ed è l'inerenza a decidere. La parte
+  non deducibile torna nella base IRES (`estimateTaxes`, ultimo parametro):
+  senza, la stima promette un'imposta più bassa di quella che arriva.
+- **Quanto bonificare** (`suggestFunding`): vince il più alto fra il piano — che
+  è ottimista, elenca i canoni e non gli imprevisti — e la media delle uscite dei
+  mesi **completi**; da lì si toglie il saldo, perché quello che c'è già non si
+  bonifica due volte, e si arrotonda ai 50 €. Il mese in corso non fa media: a
+  metà mese dimezzerebbe il fabbisogno proprio quando serve saperlo.
 - **Il previsionale non si salva**: `forecast` lo ricalcola dalle scadenze aperte
   ogni volta. Un previsionale scritto in tabella è vecchio il giorno dopo.
 - I grafici stanno in `components/charts/Charts.tsx` e valgono per tutto

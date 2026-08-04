@@ -308,5 +308,56 @@ console.log('\n— §188: un subappalto non paga due volte —')
   eq('margine lordo = ricavi meno tutti i costi', t.margin.gross, 15000)
 }
 
+console.log('\n— §191 · La spesa del socio è erogato, non struttura —')
+{
+  const P = [
+    { id: 'm', label: 'Marco', takes_delivery: true, takes_residual: true },
+    { id: 't', label: 'Toto', takes_delivery: true, takes_residual: true },
+    { id: 'w', label: 'Walter', takes_delivery: true, takes_residual: true },
+  ]
+  const r = [rev({ id: 'a', amount_net: 10000, kind: 'growth', sales_owner: 'Walter' })]
+  const c = [
+    cost({ id: 'c1', label: 'Software', actual: 1000 }),
+    cost({ id: 'c2', label: 'Pranzi Marco', actual: 300, partner_id: 'm', deductible_pct: 0.75 }),
+    cost({ id: 'c3', label: 'Carburante Toto', actual: 100, partner_id: 't', deductible_pct: 0.20 }),
+  ]
+  const t = computeMonth(r, c, C, P)
+
+  eq('la struttura resta 1.000', t.costs.structural, 1000)
+  eq('le spese dei soci sono un secchio a parte', t.costs.partners, 400)
+  eq('il totale uscito le comprende tutte', t.costs.actual, 1400)
+  /* Il target del 35% copre la struttura: se contasse anche la spesa del socio,
+     quei 400 sarebbero pagati due volte — una al fornitore e una nell'erogato. */
+  eq('lo scostamento guarda solo la struttura', t.costs.variance, 10000 * 0.35 - 1000)
+
+  const erogato = 10000 * 0.30 / 3
+  const marco = t.perPartner.find(p => p.partner.id === 'm')!
+  eq('a Marco spetta un terzo del 30%', marco.total, erogato)
+  eq('ne ha già spesi 300', marco.spent, 300)
+  eq('quindi in denaro gliene restano meno', marco.cash, erogato - 300)
+  eq('nessun anticipo da recuperare', marco.overspent, 0)
+  is('e la spesa è elencata', marco.spendRows.map(x => x.label), ['Pranzi Marco'])
+  eq('col suo deducibile', marco.spendRows[0].deductible, 225)
+
+  const walter = t.perPartner.find(p => p.partner.id === 'w')!
+  eq('chi non ha speso prende tutto in denaro', walter.cash, walter.total)
+
+  // 300×25% + 100×80% = 75 + 80
+  eq('la parte non deducibile è dichiarata', t.costs.nonDeductible, 155)
+}
+{
+  // ha speso più di quanto gli spettava: diventa un anticipo, non un buco
+  const P = [{ id: 'm', label: 'Marco', takes_delivery: true, takes_residual: true }]
+  const t = computeMonth(
+    [rev({ id: 'a', amount_net: 1000, kind: 'growth', sales_owner: 'x' })],
+    [cost({ id: 'c', label: 'Spese Marco', actual: 500, partner_id: 'm' })],
+    C, P)
+  const m = t.perPartner[0]
+  eq('erogato del mese', m.total, 300)
+  eq('speso', m.spent, 500)
+  eq('in denaro non gli spetta niente', m.cash, 0)
+  eq('e 200 sono un anticipo da recuperare', m.overspent, 200)
+}
+
 console.log(fail === 0 ? '\nTutti i controlli passano.' : `\n${fail} controlli falliti.`)
 process.exit(fail ? 1 : 0)

@@ -299,7 +299,8 @@
       "Bash(python3 /private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/34c542f0-4fc4-4a0b-8893-3517a144eaa6/scratchpad/load2.py)",
       "Bash(python3 /private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/34c542f0-4fc4-4a0b-8893-3517a144eaa6/scratchpad/load3.py)",
       "Bash(python3 /private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/34c542f0-4fc4-4a0b-8893-3517a144eaa6/scratchpad/load4.py)",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(awk '/FUNCTION public.bank_on_match/,/^\\\\$\\\\$;/' supabase/migrations/189_bank.sql)"
     ],
     "defaultMode": "acceptEdits"
   }

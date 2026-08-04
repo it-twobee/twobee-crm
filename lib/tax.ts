@@ -135,6 +135,8 @@ export type TaxEstimate = {
   revenueYtd: number
   costsYtd: number
   marginYtd: number
+  /** §191 — quanto dei costi non abbassa l'imponibile */
+  nonDeductibleCosts: number
   /** margine proiettato a fine anno sulla media dei mesi registrati */
   marginProjected: number
   /** deduzioni extracontabili che valgono solo ai fini IRES (maxi-deduzione) */
@@ -165,8 +167,17 @@ export function estimateTaxes(
    * IRAP non incidono, e sommarle lì darebbe un'imposta più bassa del vero.
    */
   extraDeductions = 0,
+  /**
+   * §191 — la parte dei costi che le imposte non riconoscono: il 25% dei pasti, il
+   * 80% del carburante a uso promiscuo, la spesa non inerente. È già uscita dalla
+   * cassa ma non abbassa l'imponibile, quindi va **riaggiunta** al margine prima
+   * di proiettarlo: senza, la stima promette un'imposta più bassa di quella che
+   * arriverà, ed è il tipo di sorpresa che si scopre a giugno.
+   */
+  nonDeductibleCosts = 0,
 ): TaxEstimate {
-  const marginYtd = Math.round((revenueYtd - costsYtd) * 100) / 100
+  const deducible = Math.round((costsYtd - Math.max(0, nonDeductibleCosts)) * 100) / 100
+  const marginYtd = Math.round((revenueYtd - deducible) * 100) / 100
   const projected = monthsBooked > 0
     ? Math.round((marginYtd / monthsBooked) * 12 * 100) / 100
     : 0
@@ -176,12 +187,13 @@ export function estimateTaxes(
   const iresBase = Math.max(0, base - extra)
   const ires = Math.round(iresBase * cfg.ires_pct)
   // base IRAP più larga: il costo del personale non è del tutto deducibile
-  const irapBase = base + Math.max(0, costsYtd) * cfg.irap_addback_pct
+  const irapBase = base + Math.max(0, deducible) * cfg.irap_addback_pct
   const irap = cfg.irap_applies ? Math.round(irapBase * cfg.irap_pct) : 0
   const total = ires + irap
 
   return {
     monthsBooked, revenueYtd, costsYtd, marginYtd,
+    nonDeductibleCosts: Math.max(0, nonDeductibleCosts),
     marginProjected: projected,
     extraDeductions: extra, iresBase,
     ires, irap, total,
