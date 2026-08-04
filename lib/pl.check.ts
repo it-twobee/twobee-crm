@@ -340,7 +340,7 @@ console.log('\n— §191 · La spesa del socio è erogato, non struttura —')
   eq('col suo deducibile', marco.spendRows[0].deductible, 225)
 
   const walter = t.perPartner.find(p => p.partner.id === 'w')!
-  eq('chi non ha speso prende tutto in denaro', walter.cash, walter.total)
+  eq('chi non ha speso deve ancora farlo uscire tutto', walter.cash, walter.total)
 
   // 300×25% + 100×80% = 75 + 80
   eq('la parte non deducibile è dichiarata', t.costs.nonDeductible, 155)
@@ -357,6 +357,30 @@ console.log('\n— §191 · La spesa del socio è erogato, non struttura —')
   eq('speso', m.spent, 500)
   eq('in denaro non gli spetta niente', m.cash, 0)
   eq('e 200 sono un anticipo da recuperare', m.overspent, 200)
+}
+
+console.log('\n— §191 · Le due forme dell\'erogato non si sommano due volte —')
+{
+  const P = [{ id: 'm', label: 'Marco', takes_delivery: true, takes_residual: true }]
+  const t = computeMonth(
+    [rev({ id: 'a', amount_net: 10000, kind: 'growth', sales_owner: 'x' })],
+    [
+      cost({ id: 'c1', label: 'Marco · Ristoranti', category: 'Spese soci',
+        actual: 400, partner_id: 'm', deductible_pct: 0.75 }),
+      cost({ id: 'c2', label: 'Marco · Compenso fatturato', category: 'Compenso soci',
+        actual: 1000, partner_id: 'm', deductible_pct: 1 }),
+    ], C, P)
+  const m = t.perPartner[0]
+  eq('erogato del mese', m.total, 3000)
+  eq('uscito come spesa', m.viaSpend, 400)
+  eq('uscito come fattura', m.viaInvoice, 1000)
+  eq('in totale già uscito', m.spent, 1400)
+  eq('resta da far uscire', m.cash, 1600)
+  is('e la riga sa che forma ha', m.spendRows.map(r => r.invoice).sort(), [false, true])
+  // la fattura del socio non è struttura più di quanto lo sia la cena
+  eq('nessuna delle due entra nella struttura', t.costs.structural, 0)
+  eq('e stanno tutte nel secchio dei soci', t.costs.partners, 1400)
+  eq('non deducibile: solo il 25% della cena', t.costs.nonDeductible, 100)
 }
 
 console.log(fail === 0 ? '\nTutti i controlli passano.' : `\n${fail} controlli falliti.`)

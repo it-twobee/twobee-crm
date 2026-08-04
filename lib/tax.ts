@@ -261,6 +261,12 @@ export type TaxInput = {
   vatOnUnpaid: number
   /** quota del fatturato dell'anno concentrata nell'ultimo trimestre */
   q4Share: number
+  /**
+   * §191 — spese di rappresentanza dell'anno (già ridotte al 75%): hanno un tetto
+   * proporzionale ai ricavi, ed è il vincolo che decide quanto dell'erogato dei
+   * soci conviene far uscire come cena e quanto come fattura.
+   */
+  entertainmentYtd?: number
   /** voci di piano che parlano di formazione, welfare, R&D */
   hasWelfare: boolean
   hasTraining: boolean
@@ -293,8 +299,55 @@ export type TaxInput = {
  * segnalazioni da portare al commercialista, non istruzioni: il tool sa cosa
  * hai speso, non conosce la tua situazione fiscale completa.
  */
+/**
+ * Il tetto annuo delle spese di rappresentanza: 1,5% dei ricavi fino a 10 milioni.
+ *
+ * È la percentuale che nessuno guarda finché non è tardi. Una cena con un cliente
+ * è deducibile al 75%, sì — ma **entro questo tetto**, e su ricavi da 150.000 € il
+ * tetto è 2.250 € all'anno. Sistematizzare 1.500 €/mese di spese soci in
+ * ristoranti significherebbe portarne a costo poco più di un mese su dodici.
+ */
+export function entertainmentCap(revenueYear: number): number {
+  const r = Math.max(0, revenueYear)
+  const primo = Math.min(r, 10_000_000) * 0.015
+  const secondo = Math.min(Math.max(0, r - 10_000_000), 40_000_000) * 0.006
+  const terzo = Math.max(0, r - 50_000_000) * 0.004
+  return Math.round((primo + secondo + terzo) * 100) / 100
+}
+
 export function taxInsights(i: TaxInput): TaxFinding[] {
   const out: TaxFinding[] = []
+
+  /* §191 — rappresentanza contro il suo tetto. Va detto **prima** di spendere: a
+     consuntivo la parte oltre il tetto è già uscita di cassa e non torna. */
+  const rappr = i.entertainmentYtd ?? 0
+  if (rappr > 0) {
+    const annuo = i.estimate.monthsBooked > 0
+      ? (rappr / i.estimate.monthsBooked) * 12
+      : rappr
+    // il tetto segue i ricavi dell'anno: proiettati come tutto il resto
+    const ricaviAnno = i.estimate.monthsBooked > 0
+      ? (i.estimate.revenueYtd / i.estimate.monthsBooked) * 12
+      : i.estimate.revenueYtd
+    const cap = entertainmentCap(ricaviAnno)
+    if (annuo > cap) {
+      const perso = Math.round((annuo - cap) * 100) / 100
+      out.push({
+        id: 'entertainment-cap', severity: 'critico',
+        title: 'Le spese di rappresentanza superano il tetto deducibile',
+        detail: `Al ritmo attuale l'anno chiude con ${eur(annuo)} di rappresentanza (cene con clienti, ospitalità) contro un tetto di ${eur(cap)}, che è l'1,5% dei ricavi. Oltre il tetto la spesa è uscita di cassa e non abbassa l'imponibile: su ${eur(perso)} si pagano le imposte per intero.`,
+        action: 'Sposta la parte eccedente su forme senza tetto: rimborso chilometrico documentato, vitto e alloggio in trasferta, o la fattura del socio, che è deducibile al 100%.',
+        value: perso,
+      })
+    } else if (annuo > cap * 0.7) {
+      out.push({
+        id: 'entertainment-near-cap', severity: 'attenzione',
+        title: `Rappresentanza al ${pc(annuo / cap)} del tetto annuo`,
+        detail: `${eur(rappr)} finora, ${eur(annuo)} proiettati contro un tetto di ${eur(cap)}. Il tetto è l'1,5% dei ricavi: cresce se cresce il fatturato, ma sulle cene già fatte non si torna indietro.`,
+        action: 'Da qui in poi conviene far uscire l\'erogato dei soci come fattura o come rimborso chilometrico.',
+      })
+    }
+  }
 
   // ── attendibilità della stima: prima del numero, non dopo ─────────────────
   // Una previsione d'imposta costruita su costi non ancora registrati è più

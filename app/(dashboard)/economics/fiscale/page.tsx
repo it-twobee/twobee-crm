@@ -30,7 +30,7 @@ export default async function FiscalePage({ searchParams }: { searchParams: { m?
   const [{ data: rev }, { data: cost }] = ids.length
     ? await Promise.all([
         supabase.from('pl_revenue_lines').select('month_id, amount_net, vat_rate, paid').in('month_id', ids),
-        supabase.from('pl_cost_lines').select('month_id, actual, vat_applied, vat_rate, category, label, deductible_pct, vat_deductible_pct').in('month_id', ids),
+        supabase.from('pl_cost_lines').select('month_id, actual, vat_applied, vat_rate, category, label, deductible_pct, vat_deductible_pct, partner_id').in('month_id', ids),
       ])
     : [{ data: [] }, { data: [] }]
 
@@ -63,6 +63,13 @@ export default async function FiscalePage({ searchParams }: { searchParams: { m?
   // §191 — quanto di quei costi non abbassa l'imponibile: va riaggiunto alla base
   const nonDeductibleYtd = (cost ?? []).reduce((s: number, c: Record<string, unknown>) =>
     s + num(c.actual) * (1 - pctOf(c.deductible_pct)), 0)
+  /* §191 — la rappresentanza ha un tetto annuo proporzionale ai ricavi, e si
+     riconosce dal trattamento: 75% deducibile e IVA indetraibile è la firma dei
+     pasti e dell'ospitalità. Leggerla dall'etichetta sarebbe più fragile: le
+     etichette le scrive una persona, le percentuali le scrive il motore. */
+  const entertainmentYtd = (cost ?? []).filter((c: Record<string, unknown>) =>
+    Math.abs(pctOf(c.deductible_pct) - 0.75) < 0.001)
+    .reduce((s: number, c: Record<string, unknown>) => s + num(c.actual), 0)
   const monthsBooked = (months ?? []).filter((m: { id: string }) =>
     (rev ?? []).some((r: { month_id: string }) => r.month_id === m.id)).length
 
@@ -171,6 +178,7 @@ export default async function FiscalePage({ searchParams }: { searchParams: { m?
       revenueYtd={revenueYtd}
       costsYtd={costsYtd}
       nonDeductibleYtd={nonDeductibleYtd}
+      entertainmentYtd={entertainmentYtd}
       monthsBooked={monthsBooked}
       costsWithVat={costsWithVat}
       costsWithoutVat={costsWithoutVat}

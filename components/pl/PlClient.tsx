@@ -7,12 +7,13 @@ import { toast } from 'sonner'
 import {
   ChevronLeft, ChevronRight, ChevronDown, Plus, Trash2, CopyPlus, Lock, LockOpen,
   TrendingUp, TrendingDown, Wallet, Target, ShieldAlert, Users, Building2, Info,
-  Briefcase, AlertTriangle, RotateCcw, Landmark, CalendarRange,
+  Briefcase, AlertTriangle, RotateCcw, Landmark, CalendarRange, Receipt, Loader2,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import {
   computeMonth, monthLabel, shiftMonth, pct, ownerOf,
   type PlConfig, type RevenueLine, type CostLine, type Partner, type QuotaRow,
+  type PlTotals,
 } from '@/lib/pl'
 import {
   generateRevenueFromClients, copyCostsFromPreviousMonth, setMonthStatus, resetMonth,
@@ -20,6 +21,7 @@ import {
   addCostLine, updateCostLine, deleteCostLine, bulkCostAction,
 } from '@/app/actions/pl'
 import { setLineCenter } from '@/app/actions/costs'
+import { registerPartnerInvoice } from '@/app/actions/bank'
 import { currentQuarterVat, nextDue, type MonthVat } from '@/lib/vat'
 import { forecastTotals, type ForecastMonth } from '@/lib/forecast'
 import { openMonth } from '@/app/actions/pl'
@@ -359,36 +361,7 @@ export function PlClient({
                     <>
                       <QuotaDetail rows={p.rows} total={p.total} config={config}
                         clientNames={clientNames} projectNames={projectNames} />
-                      {(p.spent > 0 || p.overspent > 0) && (
-                        <div className="border-t border-border bg-background px-3 py-2.5">
-                          <p className="text-2xs font-bold text-text-primary">
-                            Già uscito come spesa dal sottoconto
-                          </p>
-                          <ul className="mt-1.5 space-y-1">
-                            {p.spendRows.map(r => (
-                              <li key={r.id} className="flex items-baseline gap-2 text-2xs">
-                                <span className="truncate text-text-secondary">{r.label}</span>
-                                <span className="text-text-tertiary shrink-0">
-                                  deducibile {Math.round(r.deductiblePct * 100)}%
-                                </span>
-                                <span className="ml-auto tabular text-text-primary shrink-0">{eur(r.amount)}</span>
-                              </li>
-                            ))}
-                          </ul>
-                          <p className="text-2xs text-text-secondary mt-2 pt-2 border-t border-border">
-                            {p.overspent > 0 ? (
-                              <>Ha speso <strong className="text-error">{eur(p.overspent)}</strong> più di
-                                quanto gli spetta questo mese: è un anticipo, si recupera dall&apos;erogato
-                                del mese prossimo.</>
-                            ) : (
-                              <>Restano <strong className="text-text-primary">{eur(p.cash)}</strong> da
-                                versare in denaro. Non è un costo in più: la società ha già pagato
-                                {' '}{eur(p.spent)} di quel compenso sotto forma di spesa, portandola a
-                                costo e recuperandone l&apos;IVA dove spetta.</>
-                            )}
-                          </p>
-                        </div>
-                      )}
+                      <PayoutPanel p={p} month={month} />
                     </>
                   )}
                 </div>
@@ -1182,6 +1155,138 @@ function Empty({ children }: { children: React.ReactNode }) {
   return (
     <div className="text-center py-8 border border-dashed border-border rounded-xl">
       <p className="text-2xs text-text-tertiary">{children}</p>
+    </div>
+  )
+}
+
+/**
+ * Come far uscire l'erogato di un socio: spesa o fattura.
+ *
+ * È una decisione da prendere ogni mese, e le due strade non sono equivalenti.
+ * La **spesa dal sottoconto** porta a costo quello che comunque si sarebbe speso
+ * — la cena col cliente, il carburante per andarci — ma con la deducibilità della
+ * sua famiglia: un pranzo vale il 75% e non recupera IVA. La **fattura del socio**
+ * è deducibile per intero e l'IVA si detrae tutta, ma sposta l'imposta sulla
+ * persona, che su quell'importo paga le sue.
+ *
+ * Il pannello non sceglie: mostra i due numeri, quanto è già uscito in ciascuna
+ * forma e quanto resta. L'unica cosa che impedisce è farlo uscire due volte.
+ */
+function PayoutPanel({ p, month }: {
+  p: PlTotals['perPartner'][number]
+  month: string
+}) {
+  const router = useRouter()
+  const [busy, start] = useTransition()
+  const [amount, setAmount] = useState<string>('')
+  const [ref, setRef] = useState('')
+
+  const residuo = p.cash
+  const spese = p.spendRows.filter(r => !r.invoice)
+  const fatture = p.spendRows.filter(r => r.invoice)
+  const deducibile = p.spendRows.reduce((n, r) => n + r.deductible, 0)
+
+  return (
+    <div className="border-t border-border bg-background px-3 py-3 space-y-3">
+      <div className="grid gap-2 sm:grid-cols-3">
+        <MiniBox label="Spesa dal sottoconto" value={eur(p.viaSpend)}
+          hint={spese.length ? `${spese.length} voci · deducibile ${eur(deducibile)}` : 'niente ancora'} />
+        <MiniBox label="Fattura del socio" value={eur(p.viaInvoice)}
+          hint={fatture.length ? 'deducibile al 100%, IVA detraibile' : 'nessuna fattura registrata'} />
+        <MiniBox label={p.overspent > 0 ? 'Uscito in eccesso' : 'Ancora da far uscire'}
+          value={eur(p.overspent > 0 ? p.overspent : residuo)}
+          tone={p.overspent > 0 ? 'error' : residuo > 0 ? 'warning' : 'success'} />
+      </div>
+
+      {p.spendRows.length > 0 && (
+        <ul className="space-y-1">
+          {p.spendRows.map(r => (
+            <li key={r.id} className="flex items-baseline gap-2 text-2xs">
+              <span className={`shrink-0 px-1.5 py-0.5 rounded ${
+                r.invoice ? 'bg-info-dim text-info' : 'bg-surface-active text-text-tertiary'}`}>
+                {r.invoice ? 'fattura' : 'spesa'}
+              </span>
+              <span className="truncate text-text-secondary">{r.label}</span>
+              <span className="text-text-tertiary shrink-0">
+                deducibile {Math.round(r.deductiblePct * 100)}%
+              </span>
+              <span className="ml-auto tabular text-text-primary shrink-0">{eur(r.amount)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {p.overspent > 0 ? (
+        <p className="text-2xs text-text-secondary">
+          È uscito <strong className="text-error">{eur(p.overspent)}</strong> più di quanto gli spetta
+          questo mese: è un anticipo, si recupera dall&apos;erogato del mese prossimo.
+        </p>
+      ) : residuo > 0 ? (
+        <div className="flex items-end gap-2 flex-wrap">
+          <div>
+            <label className="block text-2xs text-text-tertiary mb-1" htmlFor={`inv-${p.partner.id}`}>
+              Fattura per il compenso
+            </label>
+            <input id={`inv-${p.partner.id}`} type="number" min={0} step={50}
+              value={amount} onChange={e => setAmount(e.target.value)}
+              placeholder={String(Math.round(residuo))}
+              className="w-28 bg-surface border border-border-interactive rounded-lg px-2 py-1.5
+                         text-2xs tabular text-text-primary" />
+          </div>
+          <div>
+            <label className="block text-2xs text-text-tertiary mb-1" htmlFor={`ref-${p.partner.id}`}>
+              Numero
+            </label>
+            <input id={`ref-${p.partner.id}`} value={ref} onChange={e => setRef(e.target.value)}
+              placeholder="opzionale"
+              className="w-28 bg-surface border border-border-interactive rounded-lg px-2 py-1.5
+                         text-2xs text-text-primary" />
+          </div>
+          <button type="button" disabled={busy}
+            onClick={() => start(async () => {
+              const val = Number(amount || residuo)
+              if (!Number.isFinite(val) || val <= 0) { toast.error('Serve un importo'); return }
+              if (val > residuo + 0.01) {
+                toast.error(`Restano solo ${eur(residuo)} da far uscire: il resto è già uscito come spesa`)
+                return
+              }
+              try {
+                await registerPartnerInvoice(month, p.partner.id, val, ref || null)
+                toast.success(`Fattura di ${p.partner.label} registrata: ${eur(val)}`)
+                setAmount(''); setRef('')
+                router.refresh()
+              } catch (e) { toast.error((e as Error).message) }
+            })}
+            className="px-3 py-1.5 rounded-lg bg-gold text-on-gold text-2xs font-bold
+                       hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5">
+            {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Receipt className="w-3.5 h-3.5" />}
+            Registra
+          </button>
+          <p className="text-2xs text-text-tertiary basis-full">
+            La spesa dal sottoconto porta a costo quello che si sarebbe speso comunque, ma con la
+            deducibilità della sua famiglia. La fattura è deducibile per intero e l&apos;IVA si detrae
+            tutta, però sposta l&apos;imposta sulla persona. Sopra i due numeri per decidere
+          </p>
+        </div>
+      ) : (
+        <p className="text-2xs text-success">
+          Erogato del mese tutto uscito: {eur(p.viaSpend)} come spesa, {eur(p.viaInvoice)} come fattura.
+        </p>
+      )}
+    </div>
+  )
+}
+
+function MiniBox({ label, value, hint, tone }: {
+  label: string; value: string; hint?: string; tone?: 'error' | 'warning' | 'success'
+}) {
+  const cls = tone === 'error' ? 'text-error' : tone === 'warning' ? 'text-warning'
+    : tone === 'success' ? 'text-success' : 'text-text-primary'
+  return (
+    <div className="rounded-lg border border-border bg-surface px-2.5 py-2">
+      <p className="text-2xs text-text-tertiary">{label}</p>
+      <p className={`text-sm font-bold tabular ${cls}`}>{value}</p>
+      {hint && <p className="text-2xs text-text-tertiary mt-0.5">{hint}</p>}
     </div>
   )
 }

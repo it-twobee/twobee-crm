@@ -547,6 +547,18 @@ dice quando, l'altro dice di chi. La sezione li tiene agganciati.
   vietate: hanno deducibilità limitata e vanno attaccate a una ragione. Il conto
   dice quanto pesano, non se erano inerenti — e senza la famiglia non si vede,
   perché ogni singola spesa sembra piccola.
+- **Due strade per l'erogato, da decidere ogni mese** (§191): la **spesa dal
+  sottoconto** porta a costo quello che si sarebbe speso comunque, ma con la
+  deducibilità della sua famiglia (un pranzo vale il 75% e non recupera IVA); la
+  **fattura del socio** (`category='Compenso soci'`) è deducibile per intero con
+  IVA tutta detraibile, ma sposta l'imposta sulla persona. Il pannello in
+  `PlClient` mostra i due numeri e registra la scelta; l'unica cosa che impedisce
+  è farlo uscire due volte — `registerPartnerInvoice` non supera il residuo.
+- **Il tetto della rappresentanza** (`entertainmentCap` in `lib/tax.ts`): 1,5% dei
+  ricavi fino a 10 milioni. È il vincolo che decide il mix: su 150.000 € di
+  ricavi sono 2.250 €/anno, quindi 1.500 €/mese di quote soci non possono andare
+  in cene. Oltre il tetto la spesa è uscita di cassa e non abbassa l'imponibile.
+  `taxInsights` proietta entrambi sui mesi registrati e avvisa al 70%.
 - **Le tasche dei soci** (§191): un sottoconto per socio con una quota mensile.
   Quei soldi **sono erogato**, non un costo in più: il socio invece di prenderli
   in denaro li spende in nome della società, che porta la spesa a costo e ne

@@ -405,3 +405,172 @@ export async function setAllowance(accountId: string, amount: number | null) {
   if (error) throw new Error(error.message)
   rev()
 }
+
+/**
+ * Divide una spesa fra più soci.
+ *
+ * Serve per quello che è uscito **prima** che i sottoconti esistessero, e per le
+ * spese comuni: una cena con un cliente a cui c'erano tutti e tre non è di
+ * nessuno in particolare. L'importo si divide in parti uguali e diventa una riga
+ * di costo per ciascuno, con la deducibilità della sua famiglia.
+ *
+ * I movimenti divisi **non si agganciano** a una riga sola: `cost_line_id` è un
+ * legame uno-a-uno, e puntarne uno di tre direbbe una cosa falsa. Si marcano
+ * «niente da riconciliare» con scritto fra chi sono stati divisi, che è quello
+ * che effettivamente è successo.
+ */
+export async function splitSpendToPartners(
+  txIds: string[], partnerIds: string[], month: string,
+): Promise<{ righe: number; totale: number; perSocio: { label: string; amount: number }[] }> {
+  await requireAdmin()
+  const admin = createAdminClient()
+  if (!txIds.length) throw new Error('Nessun movimento selezionato')
+  if (!partnerIds.length) throw new Error('Nessun socio selezionato')
+
+  const first = `${month.slice(0, 7)}-01`
+  const { data: mese } = await admin.from('pl_months').select('id').eq('month', first).maybeSingle()
+  if (!mese) throw new Error(`Il mese ${first} non è ancora aperto nel conto economico`)
+  const monthId = (mese as { id: string }).id
+
+  const { data: soci } = await admin.from('pl_partners').select('id, label').in('id', partnerIds)
+  const partners = (soci ?? []) as { id: string; label: string }[]
+  if (partners.length !== partnerIds.length) throw new Error('Qualche socio non esiste più')
+
+  const { data: txRows } = await admin.from('bank_transactions')
+    .select('id, amount, counterparty, description').in('id', txIds).lt('amount', 0)
+  const txs = (txRows ?? []) as {
+    id: string; amount: number; counterparty: string | null; description: string
+  }[]
+  if (!txs.length) throw new Error('I movimenti selezionati non sono uscite')
+
+  const { data: centro } = await admin.from('cost_centers')
+    .select('id').ilike('name', 'Spese soci').maybeSingle()
+  const centerId = (centro as { id: string } | null)?.id ?? null
+
+  /* Quota per socio e famiglia. L'ultimo prende il resto dell'arrotondamento:
+     tre parti da 174,00 su 522,00 tornano, ma su 91,00 no — e la differenza deve
+     stare da qualche parte, non sparire. */
+  const perGroup = new Map<string, {
+    partner: { id: string; label: string }; family: SpendFamily
+    total: number; cost: number; vat: number; why: string; count: number
+  }>()
+  for (const t of txs) {
+    const tr: { family: SpendFamily; cost: number; vat: number; why: string } =
+      treatment(t.counterparty ?? t.description)
+    const importo = Math.abs(t.amount)
+    const quota = Math.round((importo / partners.length) * 100) / 100
+    partners.forEach((p, i) => {
+      const share = i === partners.length - 1
+        ? Math.round((importo - quota * (partners.length - 1)) * 100) / 100
+        : quota
+      const key = `${p.id}|${tr.family}`
+      const cur = perGroup.get(key)
+        ?? { partner: p, family: tr.family, total: 0, cost: tr.cost, vat: tr.vat, why: tr.why, count: 0 }
+      cur.total = Math.round((cur.total + share) * 100) / 100
+      cur.count += 1
+      perGroup.set(key, cur)
+    })
+  }
+
+  const { data: esistenti } = await admin.from('pl_cost_lines')
+    .select('id, label, actual').eq('month_id', monthId).not('partner_id', 'is', null)
+  const have = new Map(((esistenti ?? []) as { id: string; label: string; actual: number }[])
+    .map(r => [r.label, r]))
+
+  let righe = 0, totale = 0
+  const perSocio = new Map<string, number>()
+  for (const key of Array.from(perGroup.keys())) {
+    const g = perGroup.get(key)!
+    const label = `${g.partner.label} · ${FAMILY_LABEL[g.family]}`
+    const found = have.get(label)
+    totale += g.total
+    perSocio.set(g.partner.label, Math.round(((perSocio.get(g.partner.label) ?? 0) + g.total) * 100) / 100)
+
+    if (found) {
+      await admin.from('pl_cost_lines')
+        .update({ actual: g.total, budget: g.total }).eq('id', found.id)
+    } else {
+      await admin.from('pl_cost_lines').insert({
+        month_id: monthId, center_id: centerId, partner_id: g.partner.id,
+        category: 'Spese soci', label, cost_type: 'V',
+        budget: g.total, actual: g.total, paid: true,
+        vat_applied: g.vat > 0, vat_rate: 0.22,
+        deductible_pct: g.cost, vat_deductible_pct: g.vat,
+        note: `Quota di ${g.count} spese divise fra ${partners.map(p => p.label).join(', ')}. ${g.why}`,
+      })
+    }
+    righe++
+  }
+
+  await admin.from('bank_transactions').update({
+    no_match_needed: true,
+    note: `Divisa fra ${partners.map(p => p.label).join(', ')}`,
+  }).in('id', txs.map(t => t.id))
+
+  revalidatePath('/economics')
+  rev()
+  return {
+    righe, totale: Math.round(totale * 100) / 100,
+    perSocio: Array.from(perSocio, ([label, amount]) => ({ label, amount })),
+  }
+}
+
+/**
+ * La fattura del socio per la parte di erogato che non è uscita come spesa.
+ *
+ * Le due strade non sono equivalenti e la scelta va fatta ogni mese. La spesa dal
+ * sottoconto porta a costo quello che comunque si sarebbe speso, ma **con la
+ * deducibilità della sua famiglia**: un pranzo vale il 75% e non recupera IVA. La
+ * fattura del socio è deducibile per intero e l'IVA si detrae tutta, ma sposta
+ * l'imposta sulla persona, che su quell'importo paga le sue.
+ *
+ * Il tool non sceglie: mostra i due numeri e registra la decisione. Quello che
+ * impedisce è pagare due volte — la fattura copre solo quello che **non** è già
+ * uscito come spesa.
+ */
+export async function registerPartnerInvoice(
+  month: string, partnerId: string, amount: number, ref?: string | null,
+): Promise<{ id: string; amount: number }> {
+  await requireAdmin()
+  const admin = createAdminClient()
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('Serve un importo maggiore di zero')
+
+  const first = `${month.slice(0, 7)}-01`
+  const { data: mese } = await admin.from('pl_months').select('id').eq('month', first).maybeSingle()
+  if (!mese) throw new Error(`Il mese ${first} non è ancora aperto nel conto economico`)
+  const monthId = (mese as { id: string }).id
+
+  const { data: socio } = await admin.from('pl_partners').select('label').eq('id', partnerId).single()
+  const label = `${(socio as { label: string }).label} · Compenso fatturato`
+
+  const { data: centro } = await admin.from('cost_centers')
+    .select('id').ilike('name', 'Spese soci').maybeSingle()
+
+  const { data: found } = await admin.from('pl_cost_lines')
+    .select('id').eq('month_id', monthId).eq('label', label).maybeSingle()
+
+  const row = {
+    month_id: monthId, center_id: (centro as { id: string } | null)?.id ?? null,
+    /* Categoria diversa dalla spesa: sono due modi di far uscire lo stesso
+       erogato, con due trattamenti fiscali diversi, e vanno letti separati. */
+    partner_id: partnerId, category: 'Compenso soci', label, cost_type: 'F' as const,
+    budget: amount, actual: amount, paid: false,
+    // compenso professionale: deducibile per intero, IVA interamente detraibile
+    vat_applied: true, vat_rate: 0.22, deductible_pct: 1, vat_deductible_pct: 1,
+    note: ref ? `Fattura ${ref}` : 'Compenso soci, fattura da ricevere',
+  }
+
+  if (found) {
+    const id = (found as { id: string }).id
+    const { error } = await admin.from('pl_cost_lines')
+      .update({ budget: amount, actual: amount, note: row.note }).eq('id', id)
+    if (error) throw new Error(error.message)
+    revalidatePath('/economics'); rev()
+    return { id, amount }
+  }
+
+  const { data: ins, error } = await admin.from('pl_cost_lines').insert(row).select('id').single()
+  if (error) throw new Error(error.message)
+  revalidatePath('/economics'); rev()
+  return { id: (ins as { id: string }).id, amount }
+}

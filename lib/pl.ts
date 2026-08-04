@@ -550,25 +550,36 @@ export function computeMonth(
     const sh = poolShare
     const total = r2(d + q + dg + sh)
 
-    /* §191 — quello che il socio ha già speso col suo sottoconto: è erogato uscito
-       in forma di costo della società. Va **sottratto** da quello in denaro,
-       altrimenti la società paga due volte lo stesso compenso: una al fornitore
-       del socio e una al socio. */
+    /* §191 — l'erogato esce in due forme, e ogni mese si decide il mix:
+         · **spesa dal sottoconto** — porta a costo quello che si sarebbe speso
+           comunque, ma con la deducibilità della sua famiglia (un pranzo vale il
+           75% e non recupera IVA);
+         · **fattura del socio** — deducibile per intero, IVA tutta detraibile,
+           ma sposta l'imposta sulla persona.
+       Entrambe sono erogato già uscito: vanno sottratte da quello ancora da far
+       uscire, o la società pagherebbe due volte lo stesso compenso. */
     const spendLines = partnerLines.filter(c => c.partner_id === p.id)
+    const isInvoice = (c: CostLine) => c.category === 'Compenso soci'
     const spent = r2(spendLines.reduce((n, c) => n + c.actual, 0))
+    const viaSpend = r2(spendLines.filter(c => !isInvoice(c)).reduce((n, c) => n + c.actual, 0))
+    const viaInvoice = r2(spendLines.filter(isInvoice).reduce((n, c) => n + c.actual, 0))
 
     return {
       partner: p, delivery: d, residual: q, digital: dg, salesShare: sh,
       total,
-      /** già uscito come spesa sul sottoconto */
+      /** già uscito, in una delle due forme */
       spent,
-      /** quello che resta da versare in denaro */
+      /** di cui: spese dal sottoconto */
+      viaSpend,
+      /** di cui: fatturato dal socio */
+      viaInvoice,
+      /** quello che resta da far uscire, in una delle due forme */
       cash: r2(Math.max(0, total - spent)),
-      /** ha speso più di quanto gli spetta: la differenza è un anticipo da recuperare */
+      /** è uscito più di quanto gli spetta: la differenza è un anticipo da recuperare */
       overspent: r2(Math.max(0, spent - total)),
-      /** le spese, una per una: un netto senza il dettaglio non si controlla */
+      /** riga per riga: un netto senza il dettaglio non si controlla */
       spendRows: spendLines.map(c => ({
-        id: c.id, label: c.label, amount: c.actual,
+        id: c.id, label: c.label, amount: c.actual, invoice: isInvoice(c),
         deductible: r2(c.actual * Math.min(1, Math.max(0, c.deductible_pct ?? 1))),
         deductiblePct: c.deductible_pct ?? 1,
       })).sort((a, b) => b.amount - a.amount),

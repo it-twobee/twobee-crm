@@ -36,7 +36,7 @@ const KIND_TONE: Record<string, string> = {
 
 export function TaxClient({
   month, today, setupNeeded, config, provisions, vatMonths,
-  revenueYtd, costsYtd, nonDeductibleYtd, monthsBooked, costsWithVat, costsWithoutVat,
+  revenueYtd, costsYtd, nonDeductibleYtd, entertainmentYtd, monthsBooked, costsWithVat, costsWithoutVat,
   vatOnUnpaid, q4Share, hasWelfare, hasTraining, rndSpend,
   newHires = 0, newHiresCost = 0, protectedCost = 0,
   contribRelief = 0, reliefAvailable = 0, impatriates = 0, investments = 0,
@@ -51,6 +51,8 @@ export function TaxClient({
   costsYtd: number
   /** §191 — la parte dei costi che non abbassa l'imponibile */
   nonDeductibleYtd?: number
+  /** §191 — spese di rappresentanza dell'anno, per il confronto col tetto */
+  entertainmentYtd?: number
   monthsBooked: number
   costsWithVat: number
   costsWithoutVat: number
@@ -106,10 +108,11 @@ export function TaxClient({
     today, vat, nextVat: next, estimate, aside,
     costsWithoutVat, costsWithVat, vatOnUnpaid, q4Share,
     hasWelfare, hasTraining, rndSpend, deadlines: calendar,
+    entertainmentYtd: entertainmentYtd ?? 0,
     iresPct: config.ires_pct,
     newHires, newHiresCost, protectedCost, contribRelief, reliefAvailable, impatriates, investments,
   }), [today, vat, next, estimate, aside, costsWithoutVat, costsWithVat, vatOnUnpaid, q4Share,
-    hasWelfare, hasTraining, rndSpend, calendar, config, newHires, newHiresCost, protectedCost,
+    hasWelfare, hasTraining, rndSpend, calendar, config, entertainmentYtd, newHires, newHiresCost, protectedCost,
     contribRelief, reliefAvailable, impatriates, investments])
 
   const measures = useMemo(() => taxMeasures({
