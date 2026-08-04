@@ -91,6 +91,14 @@ export function PlClient({
   const empty = revenue.length === 0 && costs.length === 0
 
   const t = useMemo(() => computeMonth(revenue, costs, config, partners), [revenue, costs, config, partners])
+  /* §204 — la stessa ripartizione sulle **sole righe con la spunta**: entrate
+     incassate e costi pagati. Il motore è puro, quindi basta chiamarlo con gli
+     array filtrati — nessuna formula duplicata, nessun rischio che le due letture
+     divergano. Serve perché una voce che si chiama «Cassa TwoBee» e non si muove
+     quando spunti «pagato» è un numero che non risponde alla sua domanda. */
+  const tCash = useMemo(
+    () => computeMonth(revenue.filter(r => r.paid), costs.filter(c => c.paid), config, partners),
+    [revenue, costs, config, partners])
 
   const run = (fn: () => Promise<unknown>, ok?: string) => start(async () => {
     try { await fn(); if (ok) toast.success(ok); router.refresh() }
@@ -278,7 +286,7 @@ export function PlClient({
       {!setupNeeded && !empty && <PlHealth findings={findings} />}
 
       {/* ── dove vanno i soldi ── */}
-      <Distribution t={t} config={config} />
+      <Distribution t={t} tCash={tCash} config={config} />
 
       {/* ── compensi ── */}
       <div className="grid gap-4 lg:grid-cols-2">
@@ -1933,9 +1941,14 @@ type Slice = {
  * Passare il mouse su una voce la accende nella barra e spegne le altre: è il modo
  * più corto di rispondere a «quale pezzo è questo».
  */
-function Distribution({ t, config }: { t: PlTotals; config: PlConfig }) {
+function Distribution({ t: accrual, tCash, config }: {
+  t: PlTotals; tCash: PlTotals; config: PlConfig
+}) {
   const [view, setView] = useState<'tutto' | 'growth' | 'digital'>('tutto')
+  const [mode, setMode] = useState<'maturato' | 'incassato'>('maturato')
   const [hover, setHover] = useState<string | null>(null)
+  // tutta la sezione legge da qui: cambiare lettura cambia ogni numero, non uno
+  const t = mode === 'incassato' ? tCash : accrual
 
   const k = useMemo(() => {
     const of = (kind: 'growth' | 'digital') => {
@@ -2019,12 +2032,14 @@ function Distribution({ t, config }: { t: PlTotals; config: PlConfig }) {
         { key: 'struct', label: 'Costi di struttura', value: t.costs.structural, tone: 'bg-error',
           hint: 'Persone, software, sede: quello che c’è comunque, venduto o non venduto.' },
         { key: 'cassa', label: 'Cassa TwoBee', value: t.margin.company, tone: 'bg-success',
-          hint: 'Quello che resta. Ci stanno dentro il fondo rischio e lo scostamento dal target costi.' },
+          hint: mode === 'incassato'
+            ? 'Quello che resta di quanto è davvero entrato, meno quanto è davvero uscito: si muove con le spunte «pagato».'
+            : 'Quello che resta sul maturato. Ci stanno dentro il fondo rischio e lo scostamento dal target costi.' },
         { key: 'giro', label: 'Partite di giro', value: t.plan.passThrough, tone: 'bg-info-dim',
           hint: 'Anticipo che torna al cliente — il budget pubblicitario: è fatturato e fa IVA, ma su di esso non si prende nessuna quota.' },
       ].filter(x => x.value !== 0) as Slice[],
     }
-  }, [view, k, t, config])
+  }, [view, k, t, config, mode])
 
   const positives = slices.filter(x => x.value > 0)
   const negatives = slices.filter(x => x.value < 0)
@@ -2042,8 +2057,24 @@ function Distribution({ t, config }: { t: PlTotals; config: PlConfig }) {
           <h2 className="text-sm font-bold text-text-primary">Ripartizione del maturato</h2>
           <p className="text-2xs text-text-tertiary mt-0.5">{note}</p>
         </div>
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
+        {/* §204 — competenza o cassa: la seconda si muove con le spunte «pagato» */}
+        <div className="flex gap-1 bg-background border border-border rounded-xl p-1">
+          {([
+            ['maturato', 'Maturato', 'Tutto quello che il mese ha prodotto, incassato o no: è la base dei compensi'],
+            ['incassato', 'Incassato', 'Solo le righe spuntate: entrate incassate e costi pagati. Si muove quando spunti «pagato»'],
+          ] as const).map(([m, lab, why]) => (
+            <button key={m} onClick={() => { setMode(m); setHover(null) }} aria-pressed={mode === m}
+              title={why}
+              className={`px-2.5 py-1 rounded-lg text-2xs font-semibold press ${
+                mode === m ? 'bg-text-primary text-background' : 'text-text-secondary hover:bg-surface-hover'}`}>
+              {lab}
+            </button>
+          ))}
+        </div>
+
         {/* tre domande diverse, tre viste: ognuna chiude sulla sua base */}
-        <div className="flex gap-1 bg-background border border-border rounded-xl p-1 shrink-0">
+        <div className="flex gap-1 bg-background border border-border rounded-xl p-1">
           {([
             ['tutto', 'Tutto', t.revenue.accrued],
             ['growth', 'Growth', k.growth.base],
@@ -2057,7 +2088,17 @@ function Distribution({ t, config }: { t: PlTotals; config: PlConfig }) {
             </button>
           ))}
         </div>
+        </div>
       </div>
+
+      {mode === 'incassato' && (
+        <p className="text-2xs text-text-secondary bg-info-dim border border-info/30 rounded-xl px-3 py-2 mb-3">
+          Stai leggendo <strong>solo le righe spuntate</strong>: {' '}
+          {eur(tCash.revenue.accrued)} di entrate incassate su {eur(accrual.revenue.accrued)} e{' '}
+          {eur(tCash.costs.actual)} di costi pagati su {eur(accrual.costs.actual)}. I compensi veri
+          restano quelli del maturato — chi ha lavorato ha lavorato — ma la cassa è questa.
+        </p>
+      )}
 
       {/* §203 — il margine, dove è la cosa che conta: sul digital è la base di ogni
           quota, e senza vederlo le percentuali sotto non si possono controllare. */}

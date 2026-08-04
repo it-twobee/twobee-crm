@@ -381,6 +381,15 @@ diversi, non per incoerenza:
   (economics e scheda cliente) e la seconda copia si dimenticava ogni colonna
   nuova.
 
+**Due letture della ripartizione** (§204): la sezione «Ripartizione del maturato»
+ha un selettore **maturato / incassato**. La seconda chiama lo stesso
+`computeMonth` sulle **sole righe con la spunta** — entrate incassate e costi
+pagati — quindi «Cassa TwoBee» si muove quando spunti «pagato», che è la domanda
+che quel nome fa venire in mente. Il motore è puro, quindi non c'è una seconda
+formula da tenere allineata. I **compensi** restano quelli del maturato: chi ha
+lavorato ha lavorato, e un cliente lento non azzera il compenso di chi ha già
+consegnato.
+
 **Struttura e subappalti non si sommano** (§188): `costs.structural` sono i costi
 interni, `costs.external` i subappalti. Il **target del 35% riguarda solo la
 struttura** — un subappalto è già stato tolto dal margine del suo progetto, e
