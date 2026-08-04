@@ -152,5 +152,23 @@ console.log('\n— Cosa non torna —')
   is('nessun avviso su un mese in ordine', f.length, 0)
 }
 
+console.log('\n— §193 · Una una tantum in un mese che non è il suo —')
+{
+  const acconto = item({ frequency: 'una_tantum', start_month: '2026-06-01', amount: 2250 })
+  const fuori = subcontractViews([acconto], [line({ budget: 2250, actual: 2250 })], '2026-07-01', NAMES)
+  is('la riga dichiara il mese giusto', fuori[0].wrongMonth, '2026-06')
+  const f = subcontractFindings(fuori, byProjectMargin(fuori, { p1: 4000 }))
+  is('ed è un avviso critico', f.some(x => x.id.startsWith('mese-sbagliato-') && x.severity === 'critico'), true)
+
+  const dentro = subcontractViews([acconto], [line({ budget: 2250, actual: 2250 })], '2026-06-01', NAMES)
+  is('nel suo mese non si dice niente', dentro[0].wrongMonth, null)
+
+  // un canone torna ogni mese: per lui non esiste un mese sbagliato
+  const canone = subcontractViews(
+    [item({ frequency: 'mensile', start_month: '2026-01-01' })],
+    [line({})], '2026-07-01', NAMES)
+  is('un ricorrente non ha mese sbagliato', canone[0].wrongMonth, null)
+}
+
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

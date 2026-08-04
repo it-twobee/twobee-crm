@@ -59,6 +59,16 @@ export async function generateRevenueFromClients(month: string) {
     r.stream_id ? `s:${r.stream_id}|${r.installment_id ?? ''}` : `c:${r.client_id ?? ''}|${r.label}`))
   const base = existing?.length ?? 0
 
+  /* §193 — una rata è una fattura, e una fattura sta in un mese solo. La chiave
+     per mese non basta: l'economics del cliente e quella del progetto leggono lo
+     stesso contratto, quindi una rata già materializzata altrove tornerebbe qui
+     come riga nuova e il fatturato del mese risulterebbe più alto del vero. Un
+     canone invece torna ogni mese, e la sua chiave resta col mese. */
+  const { data: instTaken } = await admin.from('pl_revenue_lines')
+    .select('installment_id').not('installment_id', 'is', null)
+  const rateGiaAltrove = new Set((instTaken ?? [])
+    .map((r: { installment_id: string }) => r.installment_id))
+
   const { data: clients } = await admin.from('clients')
     .select('id, company_name, display_name, mrr, client_type, client_label, is_internal, payment_status, sales_owner_id, sales_owner_name')
     .order('company_name')
@@ -115,6 +125,7 @@ export async function generateRevenueFromClients(month: string) {
 
     for (const l of linesForMonth(streams as never, (inst ?? []) as never, month)) {
       if (!billable(l.client_id)) continue
+      if (l.installment_id && rateGiaAltrove.has(l.installment_id)) continue
       const c = l.client_id ? info.get(l.client_id) : null
       rows.push({
         month_id: monthId,

@@ -199,6 +199,7 @@ dato economico: è sicuro anche nel workspace.
 | `179_os_versions.sql` | Cronologia: (a) `log_activity()` legge l'attore dall'header `x-actor-id` — col service role `auth.uid()` è NULL e tutto risultava «Sistema» — e non registra gli UPDATE che non cambiano niente; (b) `os_versions` + `os_version_changes`, il changelog di prodotto con un ciclo di 15 giorni dal 2026-08-01 (v1.0.0), bozze visibili ai soli admin; (c) seed della v1.0.0 con 13 voci | — |
 | `189_bank.sql` | Conto corrente: `bank_accounts` + `bank_transactions` (sorgente `banca`/`derivato`/`manuale`), trigger `bank_sync_revenue_line`/`bank_sync_cost_line` (spuntare «incassato» crea il movimento dichiarato) e `bank_on_match` (riconciliare un movimento vero spegne il dichiarato e marca la riga pagata). RLS admin | — |
 | `190_bank_vivid.sql` | Secondo conto: `transfer_pair_id`/`transfer_account_id` (i due lati di un giroconto sono un fatto solo), `funding_*` (provvista ricorrente) e `bank_account_centers` (quali aree di costo paga un conto → fabbisogno del bonifico). Seed del conto Vivid collegato a Marketing TwoBee e Struttura & Software | — |
+| `193_one_fact_one_line.sql` | **Una rata, una riga**: indice unico su `pl_revenue_lines.installment_id` (l'economics del cliente e quella del progetto leggono lo stesso contratto: due generazioni creavano due ricavi) + trigger `pl_cost_one_shot_guard` — una lavorazione «una tantum» atterra in un mese solo, e serve un trigger perché la frequenza sta su `cost_items` e un indice vieterebbe anche i canoni. Ripulisce prima di vincolare | — |
 | `191_bank_partner_pockets.sql` | Sottoconti dei soci: `bank_accounts.parent_id`/`owner_partner_id`/`allowance_amount`, `pl_cost_lines.partner_id` + `deductible_pct`/`vat_deductible_pct`, area «Spese soci», Klaviyo a 0 (piano gratuito). I 500 €/mese a socio **sono erogato**, non un costo in più: escono come spesa della società per recuperarne IVA e deducibilità | — |
 
 **Scorciatoia**: `supabase/APPLY_PENDING.sql` è il concatenato (081, 086–093) in
@@ -285,6 +286,15 @@ posti**, e finché ognuno se lo raccontava a modo suo i conti non tornavano:
 
 In una riga: **il patto si scrive sul progetto, il fatto nel mese, tutto il resto
 legge.**
+
+**Un fatto, una riga** (§193). L'economics del cliente e quella del progetto sono
+la stessa tabella vista da due punti: senza un vincolo, generare il mese da tutte
+e due creava **due ricavi per la stessa fattura** — sui 10.000 € del CRM di
+Industrial Service faceva 6.500 € di fatturato inventato. Ora è il database a
+impedirlo: indice unico su `installment_id`, e un trigger per le lavorazioni «una
+tantum», che atterrano in un mese solo. `subcontractFindings` segnala anche le
+righe rimaste nel **mese sbagliato**: due mesi che pagano lo stesso acconto hanno
+entrambi un margine falso.
 
 - **Subappalti** (§173): una voce di piano con `project_id` è una lavorazione
   affidata fuori. Si crea dalla scheda Economics del progetto, finisce da sé

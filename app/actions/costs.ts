@@ -275,7 +275,18 @@ export async function applyPlanToMonth(month: string) {
     .select('id', { count: 'exact', head: true }).eq('month_id', monthRow.id)
   const base = count ?? 0
 
-  const rows = due.filter(i => !already.has(i.id)).map((i, n) => ({
+  /* §193 — una lavorazione «una tantum» atterra in un mese solo. Senza questo, il
+     subappalto di un acconto ricompariva ogni volta che si preparava un mese
+     diverso, e il margine di quel progetto lo pagava due volte. */
+  const { data: taken } = await admin.from('pl_cost_lines')
+    .select('cost_item_id').not('cost_item_id', 'is', null)
+  const giàAltrove = new Set((taken ?? [])
+    .map((r: { cost_item_id: string }) => r.cost_item_id))
+
+  const rows = due
+    .filter(i => !already.has(i.id))
+    .filter(i => !(i.frequency === 'una_tantum' && giàAltrove.has(i.id)))
+    .map((i, n) => ({
     month_id: monthRow.id,
     center_id: i.center_id,
     // il subappalto porta con sé il progetto: è così che la marginalità resta

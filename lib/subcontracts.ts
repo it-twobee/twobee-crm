@@ -84,6 +84,8 @@ export type SubcontractView = {
   status: SubStatus
   /** dove si modifica: sempre il progetto */
   href: string | null
+  /** §193 — il mese in cui il patto la mette, quando non è questo */
+  wrongMonth?: string | null
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100
@@ -159,6 +161,11 @@ export function subcontractViews(
        «Porta nel mese» ci ha scritto. Una riga senza né l'una né l'altra è una
        riga di cui non si sa a chi è andato il denaro. */
     const supplier = item?.supplier ?? (l.note?.trim() || null)
+    /* Una una tantum ha un mese suo: se la riga sta altrove, due mesi pagano lo
+       stesso acconto. I ricorrenti tornano, quindi per loro non c'è mese sbagliato. */
+    const wrongMonth = item && item.frequency === 'una_tantum' && item.start_month
+      && item.start_month.slice(0, 7) !== month.slice(0, 7)
+      ? item.start_month.slice(0, 7) : null
     out.push({
       itemId: item?.id ?? null, lineId: l.id,
       label: item?.label ?? l.label, supplier,
@@ -168,6 +175,7 @@ export function subcontractViews(
         : Math.abs(drift) >= 0.01 ? 'scostato'
         : l.paid ? 'pagato' : 'nel mese',
       href: l.project_id ? `/progetti/${l.project_id}?tab=economics` : null,
+      wrongMonth,
     })
   }
 
@@ -338,6 +346,21 @@ export function subcontractFindings(
       action: 'Allinea le due scadenze, o accetta lo sfasamento sapendo che è tuo.',
       href: m.projectId ? `/progetti/${m.projectId}?tab=economics` : null,
       value: m.external,
+    })
+  }
+
+  /* §193 — una lavorazione una tantum atterrata in un mese che non è il suo. Il
+     database ora lo impedisce, ma le righe scritte prima restano: il margine di
+     due mesi diversi paga lo stesso acconto. */
+  for (const v of views.filter(x => x.status === 'nel mese' || x.status === 'scostato')) {
+    if (!v.itemId || !v.wrongMonth) continue
+    out.push({
+      id: `mese-sbagliato-${v.lineId}`, severity: 'critico',
+      title: `«${v.label}» è nel mese sbagliato`,
+      detail: `Il patto la mette a ${v.wrongMonth}, la riga sta qui: due mesi diversi pagano `
+        + 'lo stesso acconto, e il margine di entrambi è falso.',
+      action: 'Sposta la riga nel mese giusto, o correggi la data sul progetto.',
+      href: v.href, value: v.booked,
     })
   }
 
