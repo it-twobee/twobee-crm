@@ -1031,20 +1031,32 @@ function QuotaDetail({ rows, total, config, clientNames, projectNames, note }: {
                       cambia l'importo o la scadenza, non qui */}
                   {r.projectId ? (
                     <Link href={`/progetti/${r.projectId}?tab=economics`}
-                      className="text-text-primary font-semibold hover:text-gold-text">
+                      title="Apri l'economics del progetto: importo e scadenza si cambiano lì"
+                      className="text-text-primary font-semibold hover:text-gold-text hover:underline
+                                 decoration-dotted underline-offset-2">
                       {r.label}
                     </Link>
                   ) : (
                     <span className="text-text-primary font-semibold">{r.label}</span>
                   )}
                   <span className="block text-text-tertiary">
-                    {/* cliente e progetto: senza, «Rata 3 di 6» non dice a chi */}
+                    {/* Cliente e progetto: senza, «Rata 3 di 6» non dice a chi. E
+                        sono entrambi link, perché da una quota che non torna si va
+                        a vedere l'accordo che l'ha generata — che è la domanda
+                        successiva nove volte su dieci. */}
                     {r.clientId && (
-                      <Link href={`/clienti/${r.clientId}?tab=economics`} className="hover:text-gold-text">
+                      <Link href={`/clienti/${r.clientId}?tab=economics`}
+                        className="text-info hover:underline">
                         {clientNames[r.clientId] ?? 'cliente'}
                       </Link>
                     )}
-                    {r.projectId && <> · {projectNames[r.projectId] ?? 'progetto'}</>}
+                    {r.projectId && (
+                      <> · <Link href={`/progetti/${r.projectId}?tab=economics`}
+                        title="Apri l'economics di questo lavoro"
+                        className="text-info hover:underline">
+                        {projectNames[r.projectId] ?? 'progetto'}
+                      </Link></>
+                    )}
                     {' · '}{r.kind}{' · '}{REASON[r.reason]}
                   </span>
                 </td>
