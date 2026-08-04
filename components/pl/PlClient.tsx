@@ -280,6 +280,283 @@ export function PlClient({
       {/* ── dove vanno i soldi ── */}
       <Distribution t={t} config={config} />
 
+      {/* ── compensi ── */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
+          <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary mb-1">
+            <Users className="w-4 h-4 text-accent" />Compensi soci
+          </h2>
+          <p className="text-2xs text-text-tertiary mb-3">
+            Erogato {pc(config.growth_delivery_pct)} sul growth in parti uguali ·{' '}
+            {pc(config.digital_partner_pct)} del margine digital <strong className="text-text-secondary">a ciascuno</strong>
+            {t.plan.digitalShare > 0 && <> ({eur(t.plan.digitalShare)} a testa questo mese)</>}
+            {t.plan.digitalRiskFund > 0 && (
+              <> · su alcune righe {pc(config.digital_risk_cut_pct)} a testa è andato al fondo rischio</>
+            )}
+            {t.plan.salesPool > 0 && <> · provvigione senza commerciale divisa fra i soci</>}
+          </p>
+          {t.plan.digitalMargin > 0 && (
+            <p className="text-2xs text-text-tertiary mb-3 pb-2 border-b border-border">
+              Margine digital {eur(t.plan.digitalMargin)}
+              {t.plan.digitalExternal > 0 && <> — {eur(t.plan.digitalExternal)} di subappalti già tolti</>}:
+              è la base della spartizione, e si divide per intero.
+              {/* Un centesimo di arrotondamento su tre soci al 28% non è un
+                  problema di piano: l'avviso scatta da un euro in su. */}
+              {Math.abs(t.plan.digitalRetained) >= 1 && (
+                <strong className="text-warning">
+                  {' '}Restano {eur(t.plan.digitalRetained)} non assegnati: con {t.perPartner.length} soci
+                  al {pc(config.digital_partner_pct)} le quote non fanno il 100%.
+                </strong>
+              )}
+            </p>
+          )}
+          {t.perPartner.length === 0 ? (
+            <Empty>Nessun socio configurato.</Empty>
+          ) : (
+            <div className="space-y-1.5">
+              {t.perPartner.map(p => (
+                <div key={p.partner.id} className="rounded-xl border border-border overflow-hidden">
+                  <button onClick={() => setOpenQuota(openQuota === p.partner.id ? null : p.partner.id)}
+                    aria-expanded={openQuota === p.partner.id}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-hover transition-colors">
+                    <span className="text-sm font-semibold text-text-primary flex-1 truncate">{p.partner.label}</span>
+                    <span className="text-2xs text-text-tertiary tabular hidden sm:block">
+                      erogato {eur(p.delivery)}
+                      {p.digital > 0 && <> · digital {eur(p.digital)}</>}
+                      {p.residual > 0 && <> · residuo {eur(p.residual)}</>}
+                      {p.salesShare > 0 && <> · provvigione divisa {eur(p.salesShare)}</>}
+                    </span>
+                    {/* §191 — se ha già speso col sottoconto, il numero grosso è
+                        quello che gli resta in denaro: versare il totale
+                        significherebbe pagare due volte lo stesso compenso. */}
+                    {p.spent > 0 ? (
+                      <span className="text-right shrink-0">
+                        <span className="block text-sm font-bold text-text-primary tabular">{eur(p.cash)}</span>
+                        <span className="block text-2xs text-text-tertiary tabular">
+                          {eur(p.total)} − {eur(p.spent)} già spesi
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-sm font-bold text-text-primary tabular">{eur(p.total)}</span>
+                    )}
+                    <ChevronDown className={`w-3.5 h-3.5 text-text-tertiary shrink-0 transition-transform ${
+                      openQuota === p.partner.id ? 'rotate-180' : ''}`} />
+                  </button>
+                  {openQuota === p.partner.id && (
+                    <>
+                      <QuotaDetail rows={p.rows} total={p.total} config={config}
+                        clientNames={clientNames} projectNames={projectNames} />
+                      <PayoutPanel p={p} month={month} />
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
+          <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary mb-1">
+            <Users className="w-4 h-4 text-info" />Provvigioni commerciali
+          </h2>
+          <p className="text-2xs text-text-tertiary mb-3">
+            {pc(config.growth_sales_pct)} sul growth · {pc(config.digital_sales_pct)} sul digital
+          </p>
+          {t.plan.salesPool > 0 && (
+            <div className="mb-2 rounded-xl border border-gold bg-gold-dim overflow-hidden">
+              <button onClick={() => setOpenQuota(openQuota === 'pool' ? null : 'pool')}
+                aria-expanded={openQuota === 'pool'}
+                className="w-full px-3 py-2.5 text-left">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-text-primary flex-1">Da lead generation</span>
+                  <span className="text-sm font-bold text-text-primary tabular">{eur(t.plan.salesPool)}</span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-text-tertiary shrink-0 transition-transform ${
+                    openQuota === 'pool' ? 'rotate-180' : ''}`} />
+                </div>
+                <p className="text-2xs text-text-tertiary mt-0.5">
+                  Nessun commerciale, né sulla riga né in anagrafica: {eur(t.plan.poolShare)} a testa ai soci
+                </p>
+              </button>
+              {openQuota === 'pool' && (
+                <QuotaDetail rows={t.plan.poolRows} total={t.plan.salesPool} config={config}
+                  clientNames={clientNames} projectNames={projectNames}
+                  note="Sono i clienti senza commerciale: assegnarne uno in anagrafica sposta la provvigione da qui a lui." />
+              )}
+            </div>
+          )}
+          {t.salesByOwner.length === 0 && t.plan.salesPool === 0 ? (
+            <Empty>Nessuna provvigione: assegna un commerciale alle voci di ricavo.</Empty>
+          ) : (
+            <div className="space-y-1.5">
+              {t.salesByOwner.map(s => (
+                <div key={s.label} className="rounded-xl border border-border overflow-hidden">
+                  <button onClick={() => setOpenQuota(openQuota === `o:${s.label}` ? null : `o:${s.label}`)}
+                    aria-expanded={openQuota === `o:${s.label}`}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-hover transition-colors">
+                    <span className="text-sm text-text-primary flex-1 truncate">
+                      {s.label}
+                      {/* chi non ha un account nel tool esiste solo in anagrafica:
+                          dirlo evita di cercarlo fra i profili e non trovarlo */}
+                      {s.fromRegistry && (
+                        <span className="ml-1.5 text-2xs text-text-tertiary">dall&apos;anagrafica</span>
+                      )}
+                    </span>
+                    <span className="text-sm font-bold text-text-primary tabular">{eur(s.amount)}</span>
+                    <ChevronDown className={`w-3.5 h-3.5 text-text-tertiary shrink-0 transition-transform ${
+                      openQuota === `o:${s.label}` ? 'rotate-180' : ''}`} />
+                  </button>
+                  {openQuota === `o:${s.label}` && (
+                    <QuotaDetail rows={s.rows} total={s.amount} config={config}
+                      clientNames={clientNames} projectNames={projectNames} />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* ── previsionale: quello che è già deciso ── */}
+      {forecast.length > 0 && fc.revenue > 0 && (
+        <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
+          <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-border flex-wrap">
+            <div>
+              <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary">
+                <CalendarRange className="w-4 h-4 text-accent" />I prossimi sei mesi
+              </h2>
+              <p className="text-2xs text-text-tertiary mt-0.5">
+                Non è una previsione: è quello che i contratti firmati e i subappalti dicono già oggi. IVA esclusa
+              </p>
+            </div>
+            <div className="text-right">
+              <div className={`text-lg font-bold tabular ${fc.margin < 0 ? 'text-error' : 'text-success'}`}>
+                {eur(fc.margin)}
+              </div>
+              <div className="text-2xs text-text-tertiary">
+                {eur(fc.revenue)} − {eur(fc.cost)} di costi · {pc(fc.marginPct)}
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-2xs text-text-tertiary uppercase tracking-wider">
+                  <th className="text-left font-semibold px-4 py-2">Mese</th>
+                  <th className="text-right font-semibold px-2 py-2">Entrate</th>
+                  <th className="text-right font-semibold px-2 py-2">Costi interni</th>
+                  <th className="text-right font-semibold px-2 py-2">Subappalti</th>
+                  <th className="text-right font-semibold px-2 py-2">Margine</th>
+                  <th className="w-32" />
+                </tr>
+              </thead>
+              <tbody>
+                {forecast.map(f => (
+                  <tr key={f.month} className="border-t border-border/60 hover:bg-surface-hover">
+                    <td className="px-4 py-2">
+                      <span className="text-2xs font-semibold text-text-primary">{monthLabel(f.month)}</span>
+                      <span className="block text-2xs text-text-tertiary">
+                        {f.revenueLines} entrat{f.revenueLines === 1 ? 'a' : 'e'} · {f.costLines} uscit{f.costLines === 1 ? 'a' : 'e'}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2 text-right text-2xs tabular text-text-primary">{eur(f.revenue)}</td>
+                    <td className="px-2 py-2 text-right text-2xs tabular text-text-secondary">{eur(f.internalCost)}</td>
+                    <td className="px-2 py-2 text-right text-2xs tabular text-orange">
+                      {f.subcontractCost > 0 ? eur(f.subcontractCost) : '—'}
+                    </td>
+                    <td className={`px-2 py-2 text-right text-2xs font-bold tabular ${f.margin < 0 ? 'text-error' : 'text-text-primary'}`}>
+                      {eur(f.margin)}
+                      <span className="block text-2xs font-normal text-text-tertiary">{pc(f.marginPct)}</span>
+                    </td>
+                    <td className="px-2 py-2 text-right">
+                      {f.open ? (
+                        <Link href={`/economics?m=${f.month}`}
+                          className="text-2xs font-semibold text-text-tertiary hover:text-gold-text">aperto →</Link>
+                      ) : (
+                        <button onClick={() => run(() => openMonth(f.month), `${monthLabel(f.month)} aperto`)}
+                          disabled={pending}
+                          className="text-2xs font-semibold border border-border rounded-lg px-2 py-1 text-gold-text hover:bg-surface-hover press disabled:opacity-40">
+                          Apri il mese
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="flex items-start gap-2 text-2xs text-text-tertiary px-5 py-3 border-t border-border">
+            <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            «Apri il mese» crea le righe vere: da lì in poi metti le spunte su fattura emessa, incassato e pagato.
+            {fc.negative > 0 && (
+              <span className="text-warning font-semibold"> {fc.negative} di questi mesi chiude in perdita.</span>
+            )}
+          </p>
+        </section>
+      )}
+
+      {/* ── IVA: quella che incassi non è tua ── */}
+      {vat && (
+        <section className={`bg-surface border rounded-2xl p-5 shadow-soft ${
+          vat.daysLeft <= 15 && vat.toPay > 0 ? 'border-warning/50' : 'border-border'
+        }`}>
+          <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+            <div>
+              <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary">
+                <Landmark className="w-4 h-4 text-info" />IVA da mettere da parte
+              </h2>
+              <p className="text-2xs text-text-tertiary mt-0.5">
+                {vat.label} · liquidazione trimestrale
+                {vat.annual && ' — si chiude con la dichiarazione annuale'}
+              </p>
+            </div>
+            <div className="text-right">
+              <div className={`text-xl font-bold tabular ${vat.toPay > 0 ? 'text-text-primary' : 'text-success'}`}>
+                {vat.toPay > 0 ? eur(vat.toPay) : vat.deferred ? 'sotto il minimo' : vat.balance < 0 ? 'a credito' : 'niente da versare'}
+              </div>
+              <div className={`text-2xs font-semibold ${
+                vat.daysLeft < 0 ? 'text-error' : vat.daysLeft <= 15 ? 'text-warning' : 'text-text-tertiary'
+              }`}>
+                {vat.daysLeft < 0
+                  ? `scaduta da ${-vat.daysLeft} giorni`
+                  : `entro il ${new Date(vat.deadline + 'T00:00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })} · fra ${vat.daysLeft} giorni`}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-4">
+            <VatCell label="IVA sulle vendite" value={eur(vat.debit)} hint="incassata dai clienti" />
+            <VatCell label="IVA sugli acquisti" value={eur(vat.credit)} hint="pagata ai fornitori, si scomputa" />
+            <VatCell
+              label={vat.carried !== 0 ? (vat.carried > 0 ? 'Credito riportato' : 'Debito rinviato') : 'Saldo del trimestre'}
+              value={eur(vat.carried !== 0 ? Math.abs(vat.carried) : Math.abs(vat.balance))}
+              hint={vat.carried > 0 ? 'dal trimestre precedente, si scomputa'
+                : vat.carried < 0 ? 'dal trimestre precedente, era sotto il minimo'
+                : vat.balance < 0 ? 'a credito, va sul prossimo' : 'debito verso lo Stato'} />
+            <VatCell label="Interessi 1%" value={vat.interest > 0 ? eur(vat.interest) : '—'}
+              hint={vat.annual ? 'non dovuti sul quarto trimestre' : 'costo dell\'opzione trimestrale'} />
+          </div>
+
+          {vat.deferred && (
+            <p className="flex items-start gap-2 text-2xs text-text-secondary mt-3 pt-3 border-t border-border">
+              <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-info" />
+              Il saldo è sotto i 25,82 €: il versamento non si fa e l&apos;importo confluisce nel trimestre
+              successivo. Non è una scadenza da segnare.
+            </p>
+          )}
+
+          {vat.toPay > 0 && (
+            <p className="flex items-start gap-2 text-2xs text-text-secondary mt-3 pt-3 border-t border-border">
+              <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-warning" />
+              Questi {eur(vat.toPay)} sono già incassati e non sono tuoi: tienili da parte.
+              Il margine lordo qui sopra li conta come cassa, ed è il modo più comune in cui
+              un&apos;azienda in utile resta senza soldi. Date ordinarie: verifica proroghe col commercialista.
+            </p>
+          )}
+        </section>
+      )}
+
       {/* ── entrate ── */}
       <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-border flex-wrap">
@@ -1446,7 +1723,11 @@ function SubcontractSection({
 
       {tab === 'progetto' ? (
         <ul className="divide-y divide-border/60">
-          {margins.map(m => (
+          {/* Solo i lavori che hanno un subappalto: un progetto senza niente affidato
+              fuori ha margine uguale al ricavo, non aggiunge informazione e riempie
+              la lista di righe che dicono «100%». Il margine di quei lavori si legge
+              nella scheda del cliente. */}
+          {margins.filter(m => m.rows.length > 0).map(m => (
             <li key={m.projectId ?? 'none'} className="px-5 py-3">
               <div className="flex items-baseline gap-2 flex-wrap">
                 {m.projectId ? (
@@ -1650,8 +1931,12 @@ function Distribution({ t, config }: { t: PlTotals; config: PlConfig }) {
       }
     }
     return {
-      total: r2c(t.revenue.accrued - t.plan.passThrough),
-      note: 'Sette voci che non si sovrappongono e fanno l’imponibile: è la vista che dimostra che i conti tornano.',
+      /* La base è l'imponibile **intero**, lo stesso numero della scorecard: prima
+         era al netto delle partite di giro e i due non si trovavano. L'anticipo
+         non è distribuibile, ma non per questo va sottratto in silenzio: diventa
+         una fetta col suo nome, e la barra chiude sul totale vero. */
+      total: t.revenue.accrued,
+      note: 'Le voci non si sovrappongono e fanno l’imponibile: è la vista che dimostra che i conti tornano.',
       slices: [
         { key: 'sales', label: 'Commerciale', value: t.plan.sales, tone: 'bg-info',
           hint: `${pc(config.growth_sales_pct)} sul growth e ${pc(config.digital_sales_pct)} sul margine digital, a chi ha portato il cliente.` },
@@ -1667,6 +1952,8 @@ function Distribution({ t, config }: { t: PlTotals; config: PlConfig }) {
           hint: 'Persone, software, sede: quello che c’è comunque, venduto o non venduto.' },
         { key: 'cassa', label: 'Cassa TwoBee', value: t.margin.company, tone: 'bg-success',
           hint: 'Quello che resta. Ci stanno dentro il fondo rischio e lo scostamento dal target costi.' },
+        { key: 'giro', label: 'Partite di giro', value: t.plan.passThrough, tone: 'bg-info-dim',
+          hint: 'Anticipo che torna al cliente — il budget pubblicitario: è fatturato e fa IVA, ma su di esso non si prende nessuna quota.' },
       ].filter(x => x.value !== 0) as Slice[],
     }
   }, [view, k, t, config])
@@ -1690,7 +1977,7 @@ function Distribution({ t, config }: { t: PlTotals; config: PlConfig }) {
         {/* tre domande diverse, tre viste: ognuna chiude sulla sua base */}
         <div className="flex gap-1 bg-background border border-border rounded-xl p-1 shrink-0">
           {([
-            ['tutto', 'Tutto', r2c(t.revenue.accrued - t.plan.passThrough)],
+            ['tutto', 'Tutto', t.revenue.accrued],
             ['growth', 'Growth', k.growth.base],
             ['digital', 'Digital', k.digital.base],
           ] as const).map(([v, lab, amount]) => (
