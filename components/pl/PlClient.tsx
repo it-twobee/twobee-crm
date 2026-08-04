@@ -684,12 +684,10 @@ export function PlClient({
                       {/* §185 — chi ha portato il cliente. La riga vince, ma se è
                           vuota si legge il nome dell'anagrafica invece di un
                           trattino: spesso è un segnalatore che nel tool non c'è.
-                          Se non c'è nemmeno lì, il 6% si divide fra i soci. */}
-                      <Owner line={line} profiles={profiles} locked={locked}
-                        onPick={id => run(() => updateRevenueLine(line.id, {
-                          sales_owner_id: id || null,
-                          sales_owner: profiles.find(p => p.id === id)?.full_name ?? null,
-                        }))} />
+                          Se non c'è nemmeno lì, il 6% si divide fra i soci.
+                          §196 — in sola lettura: si cambia in anagrafica, che è
+                          l'unico posto dove il commerciale di un cliente esiste. */}
+                      <Owner line={line} clientNames={clientNames} />
                     </td>
                     <td className="px-2 py-1.5 text-center">
                       <Check on={line.invoice_sent} disabled={locked} label="Fattura inviata"
@@ -1033,29 +1031,57 @@ function Check({ on, onToggle, disabled, label }: { on: boolean; onToggle: () =>
 /**
  * Il commerciale di una riga di ricavo.
  *
- * Tre stati e tutti e tre vanno detti: assegnato sulla riga (la tendina lo
- * mostra), preso dall'anagrafica del cliente (nome in chiaro, perché spesso è un
- * segnalatore che non ha un account e nella tendina non comparirebbe), o nessuno
- * — e allora la provvigione non resta in cassa, si divide fra i soci.
+ * Si **legge**, non si scrive: il commerciale di un cliente sta in anagrafica, ed
+ * è lì che si cambia. La tendina su ogni riga era un secondo posto dove scriverlo
+ * — quindi due nomi possibili per lo stesso cliente nello stesso mese, e la
+ * provvigione seguiva quello che qualcuno aveva toccato per ultimo.
+ *
+ * Tre stati, e tutti e tre vanno detti:
+ *
+ *   · **dall'anagrafica** — il caso normale. Spesso è un segnalatore senza account
+ *     nel tool, e per questo si mostra il nome in chiaro e non un profilo;
+ *   · **sulla riga** — una fotografia scattata quando la riga è nata. Non si
+ *     riscrive: un mese chiuso non cambia commerciale perché l'anagrafica è
+ *     cambiata dopo, ed è il motivo per cui la riga se lo porta dietro;
+ *   · **nessuno** — la provvigione non resta in cassa, si divide fra i soci.
  */
-function Owner({ line, profiles, locked, onPick }: {
+function Owner({ line, clientNames }: {
   line: RevenueLine
-  profiles: { id: string; full_name: string }[]
-  locked: boolean
-  onPick: (id: string) => void
+  clientNames: Record<string, string>
 }) {
   const o = ownerOf(line)
+  const href = line.client_id ? `/clienti/${line.client_id}?tab=anagrafica` : null
+
+  if (!o.name) {
+    return (
+      <div className="min-w-[110px]">
+        <span className="text-2xs text-text-tertiary">—</span>
+        <span className="block text-2xs text-gold-text">quota ai soci</span>
+        {href && (
+          <Link href={href} className="block text-2xs text-info hover:underline">
+            assegnalo in anagrafica
+          </Link>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="min-w-[110px]">
-      <select value={line.sales_owner_id ?? ''} disabled={locked} aria-label="Commerciale"
-        onChange={e => onPick(e.target.value)}
-        className="w-full bg-background border border-border rounded-lg px-1.5 py-1 text-2xs text-text-secondary max-w-[130px]">
-        <option value="">{o.source === 'anagrafica' ? `${o.name} · anagrafica` : '—'}</option>
-        {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-      </select>
-      {o.source === null && (
-        <span className="block text-2xs text-gold-text mt-0.5">quota ai soci</span>
+      {href ? (
+        <Link href={href} title="Il commerciale si cambia nell'anagrafica del cliente"
+          className="text-2xs font-semibold text-text-primary hover:text-gold-text flex items-center gap-1">
+          <Lock className="w-2.5 h-2.5 shrink-0 text-text-tertiary" aria-hidden="true" />
+          <span className="truncate max-w-[120px]">{o.name}</span>
+        </Link>
+      ) : (
+        <span className="text-2xs font-semibold text-text-primary">{o.name}</span>
       )}
+      <span className="block text-2xs text-text-tertiary">
+        {o.source === 'anagrafica'
+          ? 'dall\'anagrafica'
+          : `fotografia della riga${line.client_id && clientNames[line.client_id] ? '' : ''}`}
+      </span>
     </div>
   )
 }
