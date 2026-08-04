@@ -220,6 +220,7 @@ dato economico: è sicuro anche nel workspace.
 | `190_bank_vivid.sql` | Secondo conto: `transfer_pair_id`/`transfer_account_id` (i due lati di un giroconto sono un fatto solo), `funding_*` (provvista ricorrente) e `bank_account_centers` (quali aree di costo paga un conto → fabbisogno del bonifico). Seed del conto Vivid collegato a Marketing TwoBee e Struttura & Software | — |
 | `193_one_fact_one_line.sql` | **Una rata, una riga**: indice unico su `pl_revenue_lines.installment_id` (l'economics del cliente e quella del progetto leggono lo stesso contratto: due generazioni creavano due ricavi) + trigger `pl_cost_one_shot_guard` — una lavorazione «una tantum» atterra in un mese solo, e serve un trigger perché la frequenza sta su `cost_items` e un indice vieterebbe anche i canoni. Ripulisce prima di vincolare | — |
 | `194_digital_pays_structure.sql` | **Il digital paga la struttura**: `pl_config.digital_cost_target_pct` (30% del margine nel target costi) e `digital_partner_pct` da 28% a **18%**. Il margine si distribuisce ancora per intero — 6 commerciale · 18×3 soci · 30 struttura · 10 cassa — ma cambia a chi va: prima il digital non pagava un euro di persone e sede | — |
+| `196_digital_partner_back_to_28.sql` | **Annulla la 194**: la quota digital di ciascun socio torna al **28%** (25% col fondo emergenza) e `digital_cost_target_pct` a **0**. Il 28% è una decisione presa, non la variabile da cui prendere per far contribuire il digital alla struttura: quella la copre il growth, e la cassa negativa in un mese digital è la conseguenza, non un errore | — |
 | `191_bank_partner_pockets.sql` | Sottoconti dei soci: `bank_accounts.parent_id`/`owner_partner_id`/`allowance_amount`, `pl_cost_lines.partner_id` + `deductible_pct`/`vat_deductible_pct`, area «Spese soci», Klaviyo a 0 (piano gratuito). I 500 €/mese a socio **sono erogato**, non un costo in più: escono come spesa della società per recuperarne IVA e deducibilità | — |
 
 **Scorciatoia**: `supabase/APPLY_PENDING.sql` è il concatenato (081, 086–093) in
@@ -344,13 +345,14 @@ diversi, non per incoerenza:
 - **Growth**: 15% commerciale · 30% **erogato** ai soci in parti uguali · 35%
   target costi · 10% fondo rischio · 10% residuo in cassa. Lì il lavoro lo fanno
   i soci, quindi la loro quota è erogato.
-- **Digital** (§186, §198): la base è il **margine** — ricavo del mese meno i
+- **Digital** (§186): la base è il **margine** — ricavo del mese meno i
   subappalti di quel progetto (`pl_cost_lines.project_id`, allocati pro-quota se
-  un progetto ha più righe nel mese). Sul margine: 6% commerciale ·
-  **18% a ciascun socio** · **30% a coprire la struttura** · 10% casse TwoBee =
-  **100%**, distribuito per intero. Il 30% entra nel **target costi** accanto al
-  35% del growth: prima il digital non pagava un euro di persone, software e sede,
-  e in un mese a prevalenza digital la cassa era negativa per costruzione. Il
+  un progetto ha più righe nel mese). Sul margine: 6% commerciale · **28% a
+  ciascun socio** · 10% casse TwoBee = **100%**, distribuito per intero.
+  `digital_cost_target_pct` esiste e **vale zero** (§206): far contribuire il
+  digital alla struttura è una leva disponibile, ma la quota dei soci non è la
+  variabile da cui prendere — la struttura la copre il growth, e la cassa negativa
+  in un mese a prevalenza digital è la conseguenza aritmetica, non un errore. Il
   ricavo lordo non è distribuibile perché su un lavoro affidato fuori metà è già
   di qualcun altro; sul growth invece il costo di delivery è il tempo dei soci,
   ed è già la loro quota.

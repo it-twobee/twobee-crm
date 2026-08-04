@@ -60,12 +60,13 @@ export type PlConfig = {
   /**
    * §198 — DIGITAL: quota del margine destinata a **coprire la struttura**.
    *
-   * Prima il margine digital si distribuiva per intero, quindi il digital non
-   * contribuiva di un euro a persone, software e sede: la struttura la pagava
-   * solo il growth col suo 35%, e in un mese a prevalenza digital la cassa
-   * risultava negativa per costruzione. Questa quota entra nel **target costi**
-   * accanto al 35% del growth: non è utile trattenuto, è copertura di un costo
-   * che esiste comunque.
+   * **Vale zero nel piano attuale** (§206): il margine digital si distribuisce per
+   * intero fra commerciale, soci e cassa, e la quota dei soci non è una variabile
+   * da cui prendere. Il campo resta perché la leva esiste e un giorno può servire:
+   * la percentuale scritta qui entra nel **target costi** accanto al 35% del
+   * growth, come copertura di un costo che esiste comunque e non come utile
+   * trattenuto. Finché è zero, la struttura la copre il growth — ed è il motivo
+   * per cui in un mese a prevalenza digital la cassa risulta negativa.
    */
   digital_cost_target_pct: number
   /**
@@ -90,12 +91,14 @@ export const DEFAULT_PL_CONFIG: PlConfig = {
   growth_residual_to_company: true,
   partner_share_pct: 0.30,
   company_share_pct: 0.10,
-  digital_partner_pct: 0.18,
+  digital_partner_pct: 0.28,
   digital_company_pct: 0.10,
-  /* §198 — 30% del margine a coprire la struttura. Vicino al 35% del growth, ma
-     non uguale: sul digital il costo di delivery è già uscito prima (i subappalti
-     sono fuori dal margine), quindi la struttura da coprire è quella residua. */
-  digital_cost_target_pct: 0.30,
+  /* §206 — **zero per scelta**: sul digital il margine si distribuisce per intero
+     (6 + 28×3 + 10 = 100%), e la quota dei soci è una decisione presa, non una
+     variabile da cui prendere. Il meccanismo resta — chi volesse far contribuire il
+     digital alla struttura scrive una percentuale qui — ma il piano non lo fa, e la
+     conseguenza è che la struttura la copre il growth. */
+  digital_cost_target_pct: 0,
   digital_risk_fund_pct: 0.09,
   digital_risk_cut_pct: 0.03,
   digital_risk_threshold: 20000,
@@ -131,14 +134,7 @@ export function rowToPlConfig(row: Record<string, unknown> | null | undefined): 
     company_share_pct: n(row.company_share_pct, d.company_share_pct),
     digital_partner_pct: n(row.digital_partner_pct, d.digital_partner_pct),
     digital_company_pct: n(row.digital_company_pct, d.digital_company_pct),
-    /* §198 — le due colonne sono una cosa sola e non si mescolano. Una riga che
-       ha la quota socio ma **non** la colonna del target è una riga scritta prima
-       della migration: lì il margine si distribuiva per intero, e prendere il 30%
-       dal default accanto al 28% della riga farebbe 130% del margine. Finché la
-       migration non gira, il piano resta quello di prima. */
-    digital_cost_target_pct: row.digital_cost_target_pct == null
-      ? (row.digital_partner_pct == null ? d.digital_cost_target_pct : 0)
-      : n(row.digital_cost_target_pct, d.digital_cost_target_pct),
+    digital_cost_target_pct: n(row.digital_cost_target_pct, d.digital_cost_target_pct),
     digital_risk_fund_pct: n(row.digital_risk_fund_pct, d.digital_risk_fund_pct),
     digital_risk_cut_pct: n(row.digital_risk_cut_pct, d.digital_risk_cut_pct),
     digital_risk_threshold: n(row.digital_risk_threshold, d.digital_risk_threshold),
