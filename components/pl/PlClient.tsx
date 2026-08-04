@@ -286,15 +286,26 @@ export function PlClient({
           <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary mb-1">
             <Users className="w-4 h-4 text-accent" />Compensi soci
           </h2>
-          <p className="text-2xs text-text-tertiary mb-3">
-            Erogato {pc(config.growth_delivery_pct)} sul growth in parti uguali ·{' '}
-            {pc(config.digital_partner_pct)} del margine digital <strong className="text-text-secondary">a ciascuno</strong>
-            {t.plan.digitalShare > 0 && <> ({eur(t.plan.digitalShare)} a testa questo mese)</>}
-            {t.plan.digitalRiskFund > 0 && (
-              <> · su alcune righe {pc(config.digital_risk_cut_pct)} a testa è andato al fondo rischio</>
+          {/* le regole in tre chip invece di un paragrafo: si leggono in un colpo */}
+          <div className="flex items-center gap-1.5 flex-wrap mb-3">
+            <span className="text-2xs px-2 py-0.5 rounded-lg bg-background border border-border text-text-secondary">
+              erogato <strong className="text-text-primary">{pc(config.growth_delivery_pct)}</strong> del growth, in parti uguali
+            </span>
+            <span className="text-2xs px-2 py-0.5 rounded-lg bg-background border border-border text-text-secondary">
+              digital <strong className="text-text-primary">{pc(config.digital_partner_pct)}</strong> del margine <em>a ciascuno</em>
+              {t.plan.digitalShare > 0 && <> · {eur(t.plan.digitalShare)} a testa</>}
+            </span>
+            {t.plan.salesPool > 0 && (
+              <span className="text-2xs px-2 py-0.5 rounded-lg bg-gold-dim border border-gold/30 text-text-secondary">
+                provvigione senza commerciale divisa fra i soci
+              </span>
             )}
-            {t.plan.salesPool > 0 && <> · provvigione senza commerciale divisa fra i soci</>}
-          </p>
+            {t.plan.digitalRiskFund > 0 && (
+              <span className="text-2xs px-2 py-0.5 rounded-lg bg-orange/15 border border-orange/30 text-orange">
+                fondo rischio attivo: −{pc(config.digital_risk_cut_pct)} a testa su alcune righe
+              </span>
+            )}
+          </div>
           {t.plan.digitalMargin > 0 && (
             <p className="text-2xs text-text-tertiary mb-3 pb-2 border-b border-border">
               Margine digital {eur(t.plan.digitalMargin)}
@@ -314,33 +325,77 @@ export function PlClient({
             <Empty>Nessun socio configurato.</Empty>
           ) : (
             <div className="space-y-1.5">
-              {t.perPartner.map(p => (
-                <div key={p.partner.id} className="rounded-xl border border-border overflow-hidden">
-                  <button onClick={() => setOpenQuota(openQuota === p.partner.id ? null : p.partner.id)}
-                    aria-expanded={openQuota === p.partner.id}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-hover transition-colors">
-                    <span className="text-sm font-semibold text-text-primary flex-1 truncate">{p.partner.label}</span>
-                    <span className="text-2xs text-text-tertiary tabular hidden sm:block">
-                      erogato {eur(p.delivery)}
-                      {p.digital > 0 && <> · digital {eur(p.digital)}</>}
-                      {p.residual > 0 && <> · residuo {eur(p.residual)}</>}
-                      {p.salesShare > 0 && <> · provvigione divisa {eur(p.salesShare)}</>}
-                    </span>
-                    {/* §191 — se ha già speso col sottoconto, il numero grosso è
-                        quello che gli resta in denaro: versare il totale
-                        significherebbe pagare due volte lo stesso compenso. */}
-                    {p.spent > 0 ? (
-                      <span className="text-right shrink-0">
-                        <span className="block text-sm font-bold text-text-primary tabular">{eur(p.cash)}</span>
-                        <span className="block text-2xs text-text-tertiary tabular">
-                          {eur(p.total)} − {eur(p.spent)} già spesi
+              {t.perPartner.map(p => {
+                const aperto = openQuota === p.partner.id
+                /* Le componenti come voci separate e non come una frase: «erogato
+                   1.173 · digital 1.366 · provvigione 60» su una riga sola andava a
+                   competere col nome per lo spazio, e il nome perdeva — «M…», «W…».
+                   Un nome tagliato in un pannello di compensi è la cosa peggiore che
+                   possa succedere qui. */
+                const parti = [
+                  p.delivery > 0 && { k: 'erogato', v: p.delivery },
+                  p.digital > 0 && { k: 'digital', v: p.digital },
+                  p.residual > 0 && { k: 'residuo', v: p.residual },
+                  p.salesShare > 0 && { k: 'provvigione divisa', v: p.salesShare },
+                ].filter(Boolean) as { k: string; v: number }[]
+
+                return (
+                <div key={p.partner.id}
+                  className={`rounded-xl border overflow-hidden transition-colors ${
+                    aperto ? 'border-gold/50 bg-gold-dim/30' : 'border-border'}`}>
+                  <button onClick={() => setOpenQuota(aperto ? null : p.partner.id)}
+                    aria-expanded={aperto}
+                    className="w-full px-3.5 py-3 text-left hover:bg-surface-hover transition-colors">
+                    {/* prima riga: il nome per intero e il numero che conta */}
+                    <div className="flex items-baseline gap-3">
+                      <span className="text-sm font-bold text-text-primary">{p.partner.label}</span>
+                      <span className="flex-1" />
+                      {p.spent > 0 ? (
+                        <span className="text-right shrink-0">
+                          <span className="block text-base font-bold text-text-primary tabular leading-tight">
+                            {eur(p.cash)}
+                          </span>
+                          <span className="block text-2xs text-text-tertiary tabular">
+                            in denaro, su {eur(p.total)}
+                          </span>
                         </span>
+                      ) : (
+                        <span className="text-base font-bold text-text-primary tabular shrink-0">
+                          {eur(p.total)}
+                        </span>
+                      )}
+                      <ChevronDown className={`w-4 h-4 text-text-tertiary shrink-0 transition-transform ${
+                        aperto ? 'rotate-180' : ''}`} aria-hidden="true" />
+                    </div>
+
+                    {/* seconda riga: da cosa è fatto, in voci che si contano a occhio */}
+                    <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                      {parti.map(x => (
+                        <span key={x.k}
+                          className="inline-flex items-baseline gap-1 text-2xs px-2 py-0.5 rounded-lg
+                                     bg-background border border-border">
+                          <span className="text-text-tertiary">{x.k}</span>
+                          <span className="tabular font-semibold text-text-primary">{eur(x.v)}</span>
+                        </span>
+                      ))}
+                      {p.spent > 0 && (
+                        <span className="inline-flex items-baseline gap-1 text-2xs px-2 py-0.5 rounded-lg
+                                         bg-info-dim border border-info/30">
+                          <span className="text-info">già speso</span>
+                          <span className="tabular font-semibold text-info">{eur(p.spent)}</span>
+                        </span>
+                      )}
+                      {p.overspent > 0 && (
+                        <span className="inline-flex items-baseline gap-1 text-2xs px-2 py-0.5 rounded-lg
+                                         bg-error/15 border border-error/30">
+                          <span className="text-error">anticipo</span>
+                          <span className="tabular font-semibold text-error">{eur(p.overspent)}</span>
+                        </span>
+                      )}
+                      <span className="ml-auto text-2xs text-text-tertiary">
+                        {aperto ? 'chiudi il dettaglio' : `${p.rows.length} righe di ricavo`}
                       </span>
-                    ) : (
-                      <span className="text-sm font-bold text-text-primary tabular">{eur(p.total)}</span>
-                    )}
-                    <ChevronDown className={`w-3.5 h-3.5 text-text-tertiary shrink-0 transition-transform ${
-                      openQuota === p.partner.id ? 'rotate-180' : ''}`} />
+                    </div>
                   </button>
                   {openQuota === p.partner.id && (
                     <>
@@ -350,7 +405,8 @@ export function PlClient({
                     </>
                   )}
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </section>
