@@ -20,7 +20,7 @@ import {
   addRevenueLine, updateRevenueLine, deleteRevenueLine,
   addCostLine, updateCostLine, deleteCostLine, bulkCostAction,
 } from '@/app/actions/pl'
-import { setLineCenter } from '@/app/actions/costs'
+import { setLineCenter, syncBudgetsFromPlan } from '@/app/actions/costs'
 import { registerPartnerInvoice } from '@/app/actions/bank'
 import { currentQuarterVat, nextDue, type MonthVat } from '@/lib/vat'
 import { forecastTotals, type ForecastMonth } from '@/lib/forecast'
@@ -112,8 +112,11 @@ export function PlClient({
     const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n
   })
   const allPicked = costs.length > 0 && picked.size === costs.length
-  const bulk = (action: 'paid' | 'unpaid' | 'align' | 'zero' | 'delete', ok: string) =>
-    run(() => bulkCostAction(Array.from(picked), action).then(() => setPicked(new Set())), ok)
+  /* Gli id si passano espliciti e non si leggono da `picked`: `setPicked` è
+     asincrono, e un pulsante che seleziona e agisce nello stesso click agirebbe
+     sulla selezione di prima. */
+  const bulk = (action: 'paid' | 'unpaid' | 'align' | 'zero' | 'delete', ok: string, ids?: string[]) =>
+    run(() => bulkCostAction(ids ?? Array.from(picked), action).then(() => setPicked(new Set())), ok)
 
   const fc = useMemo(() => forecastTotals(forecast), [forecast])
 
@@ -727,128 +730,21 @@ export function PlClient({
       </section>
 
       {/* ── uscite ── */}
-      <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
-        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-border flex-wrap">
-          <h2 className="text-sm font-bold text-text-primary">Uscite</h2>
-          <span className="text-2xs text-text-tertiary tabular">
-            fissi {eur(t.costs.fixed)} · variabili {eur(t.costs.variable)} · con IVA {eur(t.costs.gross)}
-          </span>
-        </div>
-
-        {!locked && picked.size > 0 && (
-          <div className="flex items-center gap-2 flex-wrap px-5 py-2.5 bg-gold-dim border-b border-gold/30">
-            <span className="text-2xs font-semibold text-text-primary">
-              {picked.size} selezionat{picked.size > 1 ? 'e' : 'a'}
-            </span>
-            <button onClick={() => bulk('align', 'Consuntivo allineato al preventivato')} disabled={pending}
-              className={bulkBtn}>Allinea al preventivato</button>
-            <button onClick={() => bulk('paid', 'Segnate come pagate')} disabled={pending} className={bulkBtn}>Segna pagate</button>
-            <button onClick={() => bulk('unpaid', 'Segnate come non pagate')} disabled={pending} className={bulkBtn}>Non pagate</button>
-            <button onClick={() => bulk('zero', 'Consuntivo azzerato')} disabled={pending} className={bulkBtn}>Azzera spesa</button>
-            <button onClick={() => { if (confirm(`Eliminare ${picked.size} voci?`)) bulk('delete', 'Voci eliminate') }}
-              disabled={pending} className="text-2xs font-semibold text-error border border-error/40 rounded-lg px-2.5 py-1.5 hover:bg-surface press">
-              Elimina
-            </button>
-            <button onClick={() => setPicked(new Set())} className="ml-auto text-2xs font-semibold text-text-secondary hover:text-text-primary">
-              Deseleziona
-            </button>
-          </div>
-        )}
-
-        {costs.length === 0 ? (
-          <div className="p-5"><Empty>
-            Nessuna uscita. «Prepara il mese» porta qui il piano dei costi, i subappalti e il costo dell&apos;organico.
-          </Empty></div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-2xs text-text-tertiary uppercase tracking-wider">
-                  {!locked && (
-                    <th className="w-10 px-2 py-2">
-                      <Check on={allPicked} label="Seleziona tutte"
-                        onToggle={() => setPicked(allPicked ? new Set() : new Set(costs.map(c => c.id)))} />
-                    </th>
-                  )}
-                  <th className="text-left font-semibold px-4 py-2">Categoria</th>
-                  <th className="text-left font-semibold px-2 py-2">Voce</th>
-                  <th className="text-left font-semibold px-2 py-2">Area</th>
-                  <th className="text-center font-semibold px-2 py-2">Tipo</th>
-                  <th className="text-right font-semibold px-2 py-2">Preventivato</th>
-                  <th className="text-right font-semibold px-2 py-2">Effettivo</th>
-                  <th className="text-center font-semibold px-2 py-2">Pagato</th>
-                  <th className="w-8" />
-                </tr>
-              </thead>
-              <tbody>
-                {costs.map(c => (
-                  <tr key={c.id} className={`border-t border-border/60 hover:bg-surface-hover ${picked.has(c.id) ? 'bg-gold-dim' : ''}`}>
-                    {!locked && (
-                      <td className="px-2 py-1.5">
-                        <Check on={picked.has(c.id)} label={`Seleziona ${c.label}`} onToggle={() => toggle(c.id)} />
-                      </td>
-                    )}
-                    <td className="px-4 py-1.5">
-                      <Text value={c.category} disabled={locked}
-                        onSave={v => run(() => updateCostLine(c.id, { category: v }))} />
-                    </td>
-                    <td className="px-2 py-1.5">
-                      <Text value={c.label} disabled={locked}
-                        onSave={v => run(() => updateCostLine(c.id, { label: v }))} />
-                    </td>
-                    {/* l'area dice da quale budget esce questa spesa: senza, il
-                        piano dei costi non può misurare niente */}
-                    <td className="px-2 py-1.5">
-                      <select value={c.center_id ?? ''} disabled={locked} aria-label={`Area di ${c.label}`}
-                        onChange={e => run(() => setLineCenter(c.id, e.target.value || null))}
-                        className={`bg-background border rounded-lg px-1.5 py-1 text-2xs max-w-[130px] ${
-                          c.center_id ? 'border-border text-text-secondary' : 'border-warning/40 text-warning'
-                        }`}>
-                        <option value="">senza area</option>
-                        {centers.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
-                      </select>
-                    </td>
-                    <td className="px-2 py-1.5 text-center">
-                      <button disabled={locked}
-                        onClick={() => run(() => updateCostLine(c.id, { cost_type: c.cost_type === 'F' ? 'V' : 'F' }))}
-                        title={c.cost_type === 'F' ? 'Costo fisso' : 'Costo variabile'}
-                        className="text-2xs font-bold text-text-secondary hover:text-text-primary">{c.cost_type}</button>
-                    </td>
-                    <td className="px-2 py-1.5 text-right">
-                      <Num value={c.budget} disabled={locked}
-                        onSave={v => run(() => updateCostLine(c.id, { budget: v }))} />
-                    </td>
-                    <td className="px-2 py-1.5 text-right">
-                      <Num value={c.actual} disabled={locked} strong
-                        onSave={v => run(() => updateCostLine(c.id, { actual: v }))} />
-                    </td>
-                    <td className="px-2 py-1.5 text-center">
-                      <Check on={c.paid} disabled={locked} label="Pagato"
-                        onToggle={() => run(() => updateCostLine(c.id, { paid: !c.paid }))} />
-                    </td>
-                    <td className="px-2 py-1.5">
-                      {!locked && (
-                        <button onClick={() => run(() => deleteCostLine(c.id), 'Voce eliminata')}
-                          aria-label={`Elimina ${c.label}`}
-                          className="text-text-tertiary hover:text-error"><Trash2 className="w-3.5 h-3.5" /></button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {!locked && (
-          <div className="px-4 py-3 border-t border-border">
-            <button onClick={() => run(() => addCostLine(month), 'Voce aggiunta')} disabled={pending}
-              className="flex items-center gap-1.5 text-2xs font-semibold text-gold-text hover:opacity-80">
-              <Plus className="w-3.5 h-3.5" />Voce di costo
-            </button>
-          </div>
-        )}
-      </section>
+      <CostSection
+        costs={costs} centers={centers} locked={locked} pending={pending}
+        picked={picked} setPicked={setPicked} totals={t.costs}
+        onUpdate={(id, patch) => run(() => updateCostLine(id, patch))}
+        onCenter={(id, v) => run(() => setLineCenter(id, v))}
+        onDelete={(id, label) => run(() => deleteCostLine(id), `«${label}» eliminata`)}
+        onAdd={() => run(() => addCostLine(month), 'Voce aggiunta')}
+        onBulk={bulk}
+        onSyncPlan={() => run(async () => {
+          const r = await syncBudgetsFromPlan(month)
+          if (!r.righe) { toast.info('I preventivati sono già quelli del piano'); return }
+          toast.success(
+            `${r.righe} preventivati riallineati · ${r.variazione > 0 ? '+' : '−'}${eur(Math.abs(r.variazione))}`,
+            { description: r.cambi.slice(0, 4).map(c => `${c.label}: ${eur(c.da)} → ${eur(c.a)}`).join(' · ') })
+        })} />
 
       <p className="flex items-start gap-2 text-2xs text-text-tertiary">
         <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
@@ -1290,3 +1186,329 @@ function MiniBox({ label, value, hint, tone }: {
     </div>
   )
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Uscite del mese
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Dove il preventivato di una voce è già stato deciso altrove.
+ *
+ * Una riga nata dal piano dei costi, dall'organico o da un movimento bancario ha
+ * un preventivato **derivato**: riscriverlo qui creerebbe un secondo numero che
+ * dice un'altra cosa, e da quel momento nessuno dei due sarebbe affidabile. Si
+ * corregge alla fonte, e il lucchetto dice quale è.
+ *
+ * L'effettivo invece resta sempre scrivibile: quello è il fatto, e il fatto lo
+ * conosce solo chi ha visto la fattura.
+ */
+function originOf(c: CostLine): { label: string; href: string } | null {
+  if (c.partner_id || c.category === 'Spese soci' || c.category === 'Compenso soci') {
+    return { label: 'dai sottoconti', href: '/economics/banca' }
+  }
+  if (c.category === 'Spese fuori piano') return { label: 'dai movimenti', href: '/economics/banca' }
+  if (c.category === 'Personale' || c.category === 'Persone') {
+    return { label: "dall'organico", href: '/economics/personale' }
+  }
+  if (c.project_id) return { label: 'dal subappalto', href: '/economics/costi' }
+  if (c.cost_item_id) return { label: 'dal piano', href: '/economics/costi' }
+  return null
+}
+
+/**
+ * Le uscite del mese, raggruppate per area.
+ *
+ * Ventisei righe piatte non si leggono: la domanda che uno si fa davanti a questa
+ * tabella non è «quanto costa Slack» ma «quanto pesa la struttura, quanto le
+ * persone, quanto i lavori affidati fuori». L'area è il livello a cui esiste un
+ * budget, quindi è il livello a cui ha senso sommare — e il confronto
+ * preventivato/effettivo si legge per gruppo prima che per riga.
+ *
+ * «senza area» sta in cima e resta segnalata: una spesa senza area non pesa su
+ * nessun budget, e un budget che non misura niente è un budget che mente.
+ */
+function CostSection({
+  costs, centers, locked, pending, picked, setPicked, totals,
+  onUpdate, onCenter, onDelete, onAdd, onBulk, onSyncPlan,
+}: {
+  costs: CostLine[]
+  centers: { id: string; name: string }[]
+  locked: boolean
+  pending: boolean
+  picked: Set<string>
+  setPicked: (s: Set<string>) => void
+  totals: PlTotals['costs']
+  onUpdate: (id: string, patch: Partial<{ label: string; category: string; budget: number; actual: number; paid: boolean; cost_type: 'F' | 'V' }>) => void
+  onCenter: (id: string, centerId: string | null) => void
+  onDelete: (id: string, label: string) => void
+  onAdd: () => void
+  onBulk: (action: 'align' | 'paid' | 'unpaid' | 'zero' | 'delete', msg: string, ids?: string[]) => void
+  onSyncPlan: () => void
+}) {
+  const [closed, setClosed] = useState<Set<string>>(new Set())
+  const name = useMemo(() => new Map(centers.map(c => [c.id, c.name])), [centers])
+
+  const groups = useMemo(() => {
+    const map = new Map<string, CostLine[]>()
+    for (const c of costs) {
+      const k = c.center_id ?? ''
+      map.set(k, [...(map.get(k) ?? []), c])
+    }
+    return Array.from(map, ([id, rows]) => ({
+      id,
+      label: id ? (name.get(id) ?? 'Area rimossa') : 'senza area',
+      rows: rows.slice().sort((a, b) => b.actual - a.actual || b.budget - a.budget),
+      budget: r2c(rows.reduce((n, c) => n + c.budget, 0)),
+      actual: r2c(rows.reduce((n, c) => n + c.actual, 0)),
+      paid: rows.every(c => c.paid),
+      unpaid: r2c(rows.filter(c => !c.paid).reduce((n, c) => n + c.actual, 0)),
+    })).sort((a, b) => (a.id === '' ? -1 : b.id === '' ? 1 : b.actual - a.actual))
+  }, [costs, name])
+
+  // le righe rimaste a zero col preventivato pieno: è l'errore che gonfia il margine
+  const daAllineare = costs.filter(c => c.actual === 0 && c.budget > 0)
+  const allPicked = costs.length > 0 && picked.size === costs.length
+  const toggle = (id: string) => {
+    const next = new Set(picked)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    setPicked(next)
+  }
+
+  return (
+    <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
+      <div className="flex items-end justify-between gap-3 px-5 py-4 border-b border-border flex-wrap">
+        <div>
+          <h2 className="text-sm font-bold text-text-primary">Uscite</h2>
+          <p className="text-2xs text-text-tertiary mt-0.5">
+            {costs.length} voci · fissi {eur(totals.fixed)} · variabili {eur(totals.variable)} ·
+            con IVA {eur(totals.gross)}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-xl font-bold text-text-primary tabular">{eur(totals.actual)}</p>
+          <p className="text-2xs text-text-tertiary">
+            preventivato {eur(totals.budget)}
+            {Math.abs(totals.actual - totals.budget) >= 1 && (
+              <span className={totals.actual > totals.budget ? 'text-error' : 'text-success'}>
+                {' '}· {totals.actual > totals.budget ? '+' : '−'}{eur(Math.abs(totals.actual - totals.budget))}
+              </span>
+            )}
+          </p>
+        </div>
+      </div>
+
+      {/* Un effettivo a zero su un preventivato pieno non è «non speso»: è «non
+          ancora guardato», e a fine mese si legge come un costo che non c'è stato. */}
+      {!locked && daAllineare.length > 0 && (
+        <div className="flex items-center gap-3 px-5 py-2.5 bg-warning-dim border-b border-warning/30 flex-wrap">
+          <AlertTriangle className="w-3.5 h-3.5 text-warning shrink-0" aria-hidden="true" />
+          <p className="text-2xs text-text-secondary flex-1 min-w-[200px]">
+            <strong className="text-text-primary">{daAllineare.length} voci</strong> hanno il
+            preventivato ma non l&apos;effettivo, per {eur(daAllineare.reduce((n, c) => n + c.budget, 0))}:
+            finché restano a zero il margine del mese risulta più alto del vero
+          </p>
+          <button onClick={() => onBulk('align', `${daAllineare.length} voci allineate al preventivato`,
+              daAllineare.map(c => c.id))}
+            disabled={pending}
+            className="text-2xs font-bold px-3 py-1.5 rounded-lg bg-gold text-on-gold hover:opacity-90 press disabled:opacity-50">
+            Allineale al preventivato
+          </button>
+        </div>
+      )}
+
+      {!locked && picked.size > 0 && (
+        <div className="flex items-center gap-2 flex-wrap px-5 py-2.5 bg-gold-dim border-b border-gold/30">
+          <span className="text-2xs font-semibold text-text-primary">
+            {picked.size} selezionat{picked.size > 1 ? 'e' : 'a'}
+          </span>
+          <button onClick={() => onBulk('align', 'Effettivo allineato al preventivato')} disabled={pending} className={bulkBtn}>
+            = preventivato
+          </button>
+          <button onClick={() => onBulk('paid', 'Segnate come pagate')} disabled={pending} className={bulkBtn}>Segna pagate</button>
+          <button onClick={() => onBulk('unpaid', 'Segnate come non pagate')} disabled={pending} className={bulkBtn}>Non pagate</button>
+          <button onClick={() => onBulk('zero', 'Effettivo azzerato')} disabled={pending} className={bulkBtn}>Azzera</button>
+          <button onClick={() => { if (confirm(`Eliminare ${picked.size} voci?`)) onBulk('delete', 'Voci eliminate') }}
+            disabled={pending}
+            className="text-2xs font-semibold text-error border border-error/40 rounded-lg px-2.5 py-1.5 hover:bg-surface press">
+            Elimina
+          </button>
+          <button onClick={() => setPicked(new Set())} className="ml-auto text-2xs font-semibold text-text-secondary hover:text-text-primary">
+            Deseleziona
+          </button>
+        </div>
+      )}
+
+      {costs.length === 0 ? (
+        <div className="p-5"><Empty>
+          Nessuna uscita. «Prepara il mese» porta qui il piano dei costi, i subappalti e il costo dell&apos;organico.
+        </Empty></div>
+      ) : (
+        <div>
+          {!locked && (
+            <div className="flex items-center gap-2 px-5 py-2 border-b border-border/60">
+              <Check on={allPicked} label="Seleziona tutte"
+                onToggle={() => setPicked(allPicked ? new Set() : new Set(costs.map(c => c.id)))} />
+              <span className="text-2xs text-text-tertiary">tutte</span>
+              <span className="ml-auto text-2xs text-text-tertiary hidden sm:block">
+                preventivato · effettivo · pagato
+              </span>
+            </div>
+          )}
+
+          {groups.map(g => {
+            const open = !closed.has(g.id)
+            const delta = r2c(g.actual - g.budget)
+            return (
+              <div key={g.id || 'none'} className="border-b border-border/60 last:border-b-0">
+                <button type="button" aria-expanded={open}
+                  onClick={() => {
+                    const n = new Set(closed)
+                    if (n.has(g.id)) n.delete(g.id); else n.add(g.id)
+                    setClosed(n)
+                  }}
+                  className={`w-full flex items-center gap-2.5 px-5 py-2.5 text-left hover:bg-surface-hover ${
+                    g.id === '' ? 'bg-warning-dim' : 'bg-background'}`}>
+                  <ChevronDown className={`w-3.5 h-3.5 text-text-tertiary shrink-0 transition-transform ${
+                    open ? '' : '-rotate-90'}`} aria-hidden="true" />
+                  <span className={`text-2xs font-bold truncate ${
+                    g.id === '' ? 'text-warning' : 'text-text-primary'}`}>{g.label}</span>
+                  <span className="text-2xs text-text-tertiary shrink-0">{g.rows.length}</span>
+                  {g.unpaid > 0 && (
+                    <span className="text-2xs text-warning shrink-0 hidden sm:inline">
+                      {eur(g.unpaid)} da pagare
+                    </span>
+                  )}
+                  <span className="ml-auto text-2xs text-text-tertiary tabular shrink-0">{eur(g.budget)}</span>
+                  <span className="text-sm font-bold text-text-primary tabular shrink-0 w-24 text-right">
+                    {eur(g.actual)}
+                  </span>
+                  <span className={`text-2xs tabular shrink-0 w-16 text-right ${
+                    Math.abs(delta) < 1 ? 'text-text-tertiary'
+                      : delta > 0 ? 'text-error' : 'text-success'}`}>
+                    {Math.abs(delta) < 1 ? '—' : `${delta > 0 ? '+' : '−'}${eur(Math.abs(delta))}`}
+                  </span>
+                </button>
+
+                {open && (
+                  <ul>
+                    {g.rows.map(c => {
+                      const origin = originOf(c)
+                      const scarto = r2c(c.actual - c.budget)
+                      return (
+                        <li key={c.id}
+                          className={`group flex items-center gap-2 px-5 py-1.5 border-t border-border/40
+                                      hover:bg-surface-hover ${picked.has(c.id) ? 'bg-gold-dim' : ''}`}>
+                          {!locked && (
+                            <Check on={picked.has(c.id)} label={`Seleziona ${c.label}`} onToggle={() => toggle(c.id)} />
+                          )}
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <Text value={c.label} disabled={locked || !!origin}
+                                onSave={v => onUpdate(c.id, { label: v })} />
+                              <button type="button" disabled={locked}
+                                onClick={() => onUpdate(c.id, { cost_type: c.cost_type === 'F' ? 'V' : 'F' })}
+                                title={c.cost_type === 'F' ? 'Costo fisso: c\'è comunque' : 'Costo variabile: segue il lavoro venduto'}
+                                className="shrink-0 text-2xs font-bold px-1 rounded text-text-tertiary
+                                           hover:text-text-primary disabled:hover:text-text-tertiary">
+                                {c.cost_type}
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-2xs text-text-tertiary truncate">{c.category}</span>
+                              {origin && (
+                                <Link href={origin.href}
+                                  className="text-2xs text-info hover:underline shrink-0 flex items-center gap-0.5">
+                                  <Lock className="w-2.5 h-2.5" aria-hidden="true" />{origin.label}
+                                </Link>
+                              )}
+                              {!locked && (
+                                <select value={c.center_id ?? ''} aria-label={`Area di ${c.label}`}
+                                  onChange={e => onCenter(c.id, e.target.value || null)}
+                                  className={`bg-transparent border-0 text-2xs max-w-[130px] cursor-pointer
+                                              focus:bg-background rounded ${
+                                    c.center_id
+                                      ? 'text-text-tertiary opacity-0 group-hover:opacity-100 focus:opacity-100'
+                                      : 'text-warning font-semibold'}`}>
+                                  <option value="">senza area</option>
+                                  {centers.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+                                </select>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Preventivato: bloccato dove lo scrive la sua fonte */}
+                          <div className="shrink-0 w-24 text-right">
+                            {origin ? (
+                              <span className="text-2xs text-text-tertiary tabular" title={`Il preventivato viene ${origin.label}: si corregge lì`}>
+                                {eur(c.budget)}
+                              </span>
+                            ) : (
+                              <Num value={c.budget} disabled={locked}
+                                onSave={v => onUpdate(c.id, { budget: v })} />
+                            )}
+                          </div>
+
+                          {/* Effettivo: sempre scrivibile, è il fatto */}
+                          <div className="shrink-0 w-24 text-right">
+                            <Num value={c.actual} disabled={locked} strong
+                              onSave={v => onUpdate(c.id, { actual: v })} />
+                            {c.actual === 0 && c.budget > 0 && !locked ? (
+                              <button onClick={() => onUpdate(c.id, { actual: c.budget })}
+                                className="block ml-auto text-2xs text-gold-text hover:underline">
+                                = {eur(c.budget)}
+                              </button>
+                            ) : Math.abs(scarto) >= 1 ? (
+                              <span className={`block text-2xs tabular ${scarto > 0 ? 'text-error' : 'text-success'}`}>
+                                {scarto > 0 ? '+' : '−'}{eur(Math.abs(scarto))}
+                              </span>
+                            ) : null}
+                          </div>
+
+                          <div className="shrink-0 w-8 flex justify-center">
+                            <Check on={c.paid} disabled={locked} label={`${c.label} pagato`}
+                              onToggle={() => onUpdate(c.id, { paid: !c.paid })} />
+                          </div>
+
+                          <div className="shrink-0 w-6">
+                            {!locked && (
+                              <button onClick={() => onDelete(c.id, c.label)}
+                                aria-label={`Elimina ${c.label}`}
+                                className="text-text-tertiary hover:text-error opacity-0 group-hover:opacity-100 focus:opacity-100">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {!locked && (
+        <div className="px-5 py-3 border-t border-border flex items-center gap-4 flex-wrap">
+          <button onClick={onAdd} disabled={pending}
+            className="flex items-center gap-1.5 text-2xs font-semibold text-gold-text hover:opacity-80">
+            <Plus className="w-3.5 h-3.5" />Voce di costo
+          </button>
+          <button onClick={onSyncPlan} disabled={pending}
+            className="flex items-center gap-1.5 text-2xs font-semibold text-text-secondary hover:text-text-primary">
+            <RotateCcw className="w-3.5 h-3.5" />Riallinea i preventivati al piano
+          </button>
+          <p className="text-2xs text-text-tertiary basis-full">
+            Le voci col lucchetto hanno il preventivato scritto dalla loro fonte — piano dei costi,
+            organico, movimenti — e si correggono lì, poi si riallinea. L&apos;effettivo si scrive
+            sempre qui: quello lo sa solo chi ha visto la fattura
+          </p>
+        </div>
+      )}
+    </section>
+  )
+}
+
+const r2c = (n: number) => Math.round(n * 100) / 100

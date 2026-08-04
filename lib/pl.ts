@@ -205,6 +205,8 @@ export type CostLine = {
   id: string
   /** §171: area su cui pesa la spesa — è il budget da cui esce */
   center_id?: string | null
+  /** §171: la voce di piano da cui nasce. Se c'è, il preventivato non si scrive qui */
+  cost_item_id?: string | null
   /** §173: se c'è, è un subappalto di quel progetto — e §186 lo toglie dal margine */
   project_id?: string | null
   /** §191: spesa fatta da un socio col suo sottoconto — è erogato, non struttura */

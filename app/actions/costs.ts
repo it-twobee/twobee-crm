@@ -233,8 +233,11 @@ export async function setMonthBudget(centerId: string, month: string, amount: nu
 /**
  * Porta nel mese le voci di piano che ci cadono.
  *
- * Il preventivato lo scrive il piano, la spesa reale no: quella è il consuntivo
- * e la si registra guardando l'estratto conto. Idempotente per costruzione —
+ * Il preventivato lo scrive il piano; l'effettivo **nasce uguale** e si corregge
+ * dove differisce. Un effettivo a zero non vuol dire «non speso», vuol dire
+ * «nessuno l'ha ancora guardato» — e a fine mese si legge come un costo che non
+ * c'è stato, che è il modo più semplice di credersi più ricchi. Idempotente per
+ * costruzione —
  * l'indice unico su (mese, voce di piano) impedisce il doppione, e qui si
  * saltano a monte quelle già presenti, così rilanciarlo aggiunge soltanto ciò
  * che manca (una spesa nuova aggiunta a metà mese).
@@ -283,7 +286,12 @@ export async function applyPlanToMonth(month: string) {
     label: i.label,
     cost_type: i.cost_type,
     budget: Number(i.amount),
-    actual: 0,
+    /* L'effettivo nasce uguale al preventivato: una voce a piano si paga quasi
+       sempre per quanto dice il piano, e uno zero non significa «non speso» —
+       significa «nessuno l'ha ancora toccata», che a fine mese si legge come un
+       costo che non c'è stato e gonfia il margine. Si corregge dove differisce,
+       che sono poche righe. */
+    actual: Number(i.amount),
     paid: false,
     vat_applied: i.vat_applied,
     vat_rate: Number(i.vat_rate),
@@ -542,4 +550,58 @@ export async function setLineCenter(lineId: string, centerId: string | null) {
     .update({ center_id: centerId }).eq('id', lineId)
   if (error) throw new Error(error.message)
   rev()
+}
+
+/**
+ * Riallinea i preventivati del mese al piano dei costi.
+ *
+ * Serve perché nel conto economico il preventivato di una voce a piano è in sola
+ * lettura: se non ci fosse un modo di aggiornarlo, un canone che cambia — o un
+ * abbonamento che diventa gratis — resterebbe sbagliato per sempre nei mesi già
+ * aperti. Il lucchetto ha senso solo se la fonte può spingere le sue correzioni.
+ *
+ * Tocca **solo** il preventivato, e solo dove differisce. L'effettivo è un fatto
+ * registrato da una persona e non si riscrive da un piano: chi ha visto la
+ * fattura sa più del piano.
+ */
+export async function syncBudgetsFromPlan(month: string): Promise<{
+  righe: number; variazione: number
+  cambi: { label: string; da: number; a: number }[]
+}> {
+  await requireAdmin()
+  const admin = createAdminClient()
+  const first = `${month.slice(0, 7)}-01`
+
+  const { data: monthRow } = await admin.from('pl_months').select('id').eq('month', first).maybeSingle()
+  if (!monthRow) throw new Error(`Il mese ${first} non esiste`)
+
+  const { data: lines } = await admin.from('pl_cost_lines')
+    .select('id, label, budget, cost_item_id').eq('month_id', (monthRow as { id: string }).id)
+    .not('cost_item_id', 'is', null)
+  const rows = (lines ?? []) as { id: string; label: string; budget: number; cost_item_id: string }[]
+  if (!rows.length) return { righe: 0, variazione: 0, cambi: [] }
+
+  const { data: items } = await admin.from('cost_items')
+    .select('id, amount, is_active').in('id', rows.map(r => r.cost_item_id))
+  const amount = new Map(((items ?? []) as { id: string; amount: number; is_active: boolean }[])
+    // una voce disattivata vale zero nel mese, non il suo vecchio importo
+    .map(i => [i.id, i.is_active ? Number(i.amount) : 0]))
+
+  const cambi: { label: string; da: number; a: number }[] = []
+  let variazione = 0
+  for (const r of rows) {
+    const nuovo = amount.get(r.cost_item_id)
+    if (nuovo === undefined || Math.abs(Number(r.budget) - nuovo) < 0.01) continue
+    await admin.from('pl_cost_lines').update({ budget: nuovo }).eq('id', r.id)
+    cambi.push({ label: r.label, da: Number(r.budget), a: nuovo })
+    variazione += nuovo - Number(r.budget)
+  }
+
+  revalidatePath('/economics')
+  rev()
+  return {
+    righe: cambi.length,
+    variazione: Math.round(variazione * 100) / 100,
+    cambi: cambi.sort((a, b) => Math.abs(b.a - b.da) - Math.abs(a.a - a.da)),
+  }
 }

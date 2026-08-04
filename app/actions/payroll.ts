@@ -165,7 +165,10 @@ export async function pushToProfitLoss(month: string): Promise<{ rows: number; t
       cost_type: 'F' as const,
       // il costo mensile di competenza: TFR e ratei inclusi, che è il punto
       budget: c.monthly,
-      actual: 0,
+      /* L'effettivo parte dalla stima: uno stipendio si paga, e lasciarlo a zero
+         faceva sparire novemila euro di costo dal mese. Il cedolino, quando
+         arriva, lo corregge — è per questo che «Porta i cedolini» esiste. */
+      actual: c.monthly,
       paid: false,
       sort_order: (i + 1) * 10,
     }

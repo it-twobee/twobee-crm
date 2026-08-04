@@ -237,6 +237,16 @@ si scrive un importo**. Tutto il resto lo legge:
   che verranno, calcolati da contratti, rate e subappalti. «Apri il mese» crea
   le righe vere (`openMonth`), da lì in poi valgono le spunte fattura/incassato
   /pagato.
+- **Preventivato derivato, effettivo scrivibile**: nel conto economico il
+  preventivato di una riga nata dal piano, dall'organico o da un movimento è in
+  **sola lettura** — riscriverlo creerebbe un secondo numero che dice un'altra
+  cosa. Il lucchetto linka la fonte, e `syncBudgetsFromPlan` spinge nel mese le
+  correzioni del piano (solo il preventivato: l'effettivo l'ha registrato una
+  persona che ha visto la fattura). L'effettivo **nasce uguale al preventivato**:
+  uno zero non significa «non speso» ma «nessuno l'ha guardato», e a fine mese si
+  legge come un costo che non c'è stato — novemila euro di stipendi sparivano così.
+  Le righe rimaste a zero col preventivato pieno sono segnalate in cima con un
+  pulsante che le allinea.
 - **Costi e budget** (`/economics/costi`): il piano delle uscite — aree con
   budget mensile, spese ricorrenti con la loro frequenza, fissi contro
   variabili. «Porta nel mese» crea le `pl_cost_lines` dal piano (idempotente).

@@ -222,7 +222,8 @@ export async function copyCostsFromPreviousMonth(month: string) {
     ? src.map((c, i) => ({
         month_id: monthId,
         category: c.category, label: c.label, cost_type: c.cost_type,
-        budget: c.budget, actual: 0, paid: false,
+        // l'effettivo nasce uguale al preventivato, non a zero: vedi `applyPlanToMonth`
+        budget: c.budget, actual: c.budget, paid: false,
         vat_applied: c.vat_applied, vat_rate: c.vat_rate,
         sort_order: i * 10,
       }))

@@ -209,6 +209,7 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
     const costs: CostLine[] = (costRows ?? []).filter((c: Record<string, unknown>) => c.month_id === m.id)
       .map((c: Record<string, unknown>) => ({
         id: String(c.id), center_id: (c.center_id as string) ?? null,
+        cost_item_id: (c.cost_item_id as string) ?? null,
         project_id: (c.project_id as string) ?? null,
         partner_id: (c.partner_id as string) ?? null,
         deductible_pct: c.deductible_pct == null ? 1 : num(c.deductible_pct),

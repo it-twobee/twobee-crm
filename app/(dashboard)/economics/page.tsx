@@ -181,6 +181,7 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
     })
     const asCost = (c: Record<string, unknown>): CostLine => ({
       id: String(c.id), category: String(c.category), label: String(c.label),
+      cost_item_id: (c.cost_item_id as string) ?? null,
       project_id: (c.project_id as string) ?? null,
       // §191: spesa di un socio col suo sottoconto — erogato, non struttura
       partner_id: (c.partner_id as string) ?? null,
@@ -264,6 +265,8 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
       centers={(centers ?? []).map((c: { id: string; name: string }) => ({ id: c.id, name: c.name }))}
       costs={(costs ?? []).map((c: Record<string, unknown>) => ({
         id: String(c.id), center_id: (c.center_id as string) ?? null,
+        // se c'è la voce di piano, il preventivato lo scrive il piano e non questa pagina
+        cost_item_id: (c.cost_item_id as string) ?? null,
         // §186: il subappalto esce dal margine digital prima della spartizione
         project_id: (c.project_id as string) ?? null,
         partner_id: (c.partner_id as string) ?? null,
