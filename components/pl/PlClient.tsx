@@ -2003,6 +2003,25 @@ function Distribution({ t, config }: { t: PlTotals; config: PlConfig }) {
         </div>
       </div>
 
+      {/* §203 — il margine, dove è la cosa che conta: sul digital è la base di ogni
+          quota, e senza vederlo le percentuali sotto non si possono controllare. */}
+      {view === 'digital' && k.digital.base > 0 && (
+        <div className="rounded-xl border border-border bg-background px-3.5 py-2.5 mb-3">
+          <p className="text-2xs text-text-secondary">
+            Margine{' '}
+            <strong className="text-sm text-text-primary tabular">{eur(k.digital.margin)}</strong>
+            {' '}= ricavo {eur(k.digital.base)}
+            {k.digital.external > 0 && <> − {eur(k.digital.external)} di subappalti</>}
+            {' '}· è la base di ogni quota qui sotto
+            {k.digital.base > 0 && (
+              <span className="text-text-tertiary">
+                {' '}({Math.round((k.digital.margin / k.digital.base) * 100)}% del ricavo)
+              </span>
+            )}
+          </p>
+        </div>
+      )}
+
       {/* la barra: passando sopra una voce si accende solo quella */}
       <div className="relative flex h-4 rounded-full overflow-hidden bg-surface-active gap-px">
         {positives.map(x => (
@@ -2060,7 +2079,7 @@ function Distribution({ t, config }: { t: PlTotals; config: PlConfig }) {
       )}
 
       {view === 'tutto' && (
-        <div className="grid gap-3 sm:grid-cols-3 mt-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mt-4">
           <Mini icon={<ShieldAlert className="w-3.5 h-3.5 text-orange" />}
             label={`Fondo rischio ${pc(config.risk_fund_pct)} del growth`} value={eur(t.plan.riskFund)} />
           <Mini icon={<Target className="w-3.5 h-3.5 text-text-tertiary" />}
@@ -2069,6 +2088,14 @@ function Distribution({ t, config }: { t: PlTotals; config: PlConfig }) {
             extra={<span className={t.costs.variance < 0 ? 'text-error' : 'text-success'}>
               {t.costs.variance < 0 ? '−' : '+'}{eur(Math.abs(t.costs.variance))}
             </span>} />
+          <Mini icon={<Wallet className="w-3.5 h-3.5 text-gold-text" />}
+            label="Margine lordo · maturato meno tutti i costi usciti"
+            value={eur(t.margin.gross)}
+            extra={t.revenue.accrued > 0
+              ? <span className={t.margin.gross < 0 ? 'text-error' : 'text-success'}>
+                  {pc(t.margin.gross / t.revenue.accrued)} sulle entrate
+                </span>
+              : undefined} />
           <Mini icon={<Building2 className="w-3.5 h-3.5 text-gold-text" />}
             label="Cassa TwoBee del mese" value={eur(t.margin.company)}
             extra={t.plan.digitalCompany > 0
