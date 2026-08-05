@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, Clock, TrendingDown, RefreshCw, ChevronRight, X } from 'lucide-react'
 import { hasContracts } from '@/lib/clients'
+import type { RiskResult } from '@/lib/risk'
 import type { Client } from '@/lib/types/database'
 
 interface Alert {
@@ -15,7 +16,7 @@ interface Alert {
   urgency: 'alta' | 'media'
 }
 
-function buildAlerts(clients: Client[], billing: Set<string>): Alert[] {
+function buildAlerts(clients: Client[], billing: Set<string>, risks: Record<string, RiskResult>): Alert[] {
   const today = new Date()
   const alerts: Alert[] = []
 
@@ -44,9 +45,18 @@ function buildAlerts(clients: Client[], billing: Set<string>): Alert[] {
       alerts.push({ clientId: c.id, companyName: c.company_name, type: 'stato', label: 'Cliente in bilico', detail: 'Stato giallo + label in bilico', urgency: 'media' })
     }
 
-    // Risk score alto
-    if (c.risk_score != null && c.risk_score >= 60) {
-      alerts.push({ clientId: c.id, companyName: c.company_name, type: 'rischio', label: `Risk score alto (${c.risk_score})`, detail: c.risk_trend === 'peggiora' ? 'In peggioramento' : 'Monitorare', urgency: c.risk_score >= 75 ? 'alta' : 'media' })
+    /* §197: il rischio arriva da `lib/risk.ts`, non da `clients.risk_score`.
+       E il dettaglio non è «Monitorare»: è il segnale che pesa più di tutti,
+       perché un avviso che non dice cosa guardare non fa fare niente. */
+    const risk = risks[c.id]
+    if (risk?.score != null && risk.score >= 60) {
+      const worst = [...risk.factors].sort((a, b) => b.score - a.score)[0]
+      alerts.push({
+        clientId: c.id, companyName: c.company_name, type: 'rischio',
+        label: `Rischio ${risk.score}/100${risk.trend === 'peggiora' ? ', in peggioramento' : ''}`,
+        detail: worst?.msg ?? 'più segnali insieme',
+        urgency: risk.score >= 75 ? 'alta' : 'media',
+      })
     }
   }
 
@@ -74,15 +84,17 @@ const urgencyStyle: Record<Alert['urgency'], string> = {
   media: 'border-warning/30 bg-warning/5 text-warning',
 }
 
-export function PrioritaOggi({ clients, billing = new Set<string>() }: {
+export function PrioritaOggi({ clients, billing = new Set<string>(), risks = {} }: {
   clients: Client[]
   /** id dei clienti che hanno rate o righe di conto economico: senza, niente avvisi di pagamento */
   billing?: Set<string>
+  /** §197: rischio calcolato dal server, per id cliente */
+  risks?: Record<string, RiskResult>
 }) {
   const [dismissed, setDismissed] = useState(false)
   const alerts = useMemo(
-    () => buildAlerts(clients.filter(c => c.client_label !== 'perso' && c.client_label !== 'pending'), billing),
-    [clients, billing])
+    () => buildAlerts(clients.filter(c => c.client_label !== 'perso' && c.client_label !== 'pending'), billing, risks),
+    [clients, billing, risks])
 
   if (dismissed || alerts.length === 0) return null
 

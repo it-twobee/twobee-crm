@@ -220,7 +220,9 @@ dato economico: è sicuro anche nel workspace.
 | `190_bank_vivid.sql` | Secondo conto: `transfer_pair_id`/`transfer_account_id` (i due lati di un giroconto sono un fatto solo), `funding_*` (provvista ricorrente) e `bank_account_centers` (quali aree di costo paga un conto → fabbisogno del bonifico). Seed del conto Vivid collegato a Marketing TwoBee e Struttura & Software | — |
 | `193_one_fact_one_line.sql` | **Una rata, una riga**: indice unico su `pl_revenue_lines.installment_id` (l'economics del cliente e quella del progetto leggono lo stesso contratto: due generazioni creavano due ricavi) + trigger `pl_cost_one_shot_guard` — una lavorazione «una tantum» atterra in un mese solo, e serve un trigger perché la frequenza sta su `cost_items` e un indice vieterebbe anche i canoni. Ripulisce prima di vincolare | — |
 | `194_digital_pays_structure.sql` | **Il digital paga la struttura**: `pl_config.digital_cost_target_pct` (30% del margine nel target costi) e `digital_partner_pct` da 28% a **18%**. Il margine si distribuisce ancora per intero — 6 commerciale · 18×3 soci · 30 struttura · 10 cassa — ma cambia a chi va: prima il digital non pagava un euro di persone e sede | — |
+| `195_manual_movements_pay.sql` | `bank_on_match` usciva su tutto ciò che non era `banca`, quindi agganciare un movimento **manuale** (contante, carta di un socio) a una fattura non marcava niente: la riga restava da incassare e il gemello dichiarato raddoppiava l'uscita. La regola è una sola — `derivato` è una dichiarazione, `banca` e `manuale` sono fatti — e un fatto marca la riga pagata e spegne la dichiarazione. Il saldo **reale** continua a contare solo `banca` | — |
 | `196_digital_partner_back_to_28.sql` | **Annulla la 194**: la quota digital di ciascun socio torna al **28%** (25% col fondo emergenza) e `digital_cost_target_pct` a **0**. Il 28% è una decisione presa, non la variabile da cui prendere per far contribuire il digital alla struttura: quella la copre il growth, e la cassa negativa in un mese digital è la conseguenza, non un errore | — |
+| `197_client_risk_rewrite.sql` | **Il rischio cliente si calcola, non si conserva**: droppa `clients.risk_score`, `prev_risk_score`, `risk_factors`, `risk_trend`, `risk_updated_at` (più `compute_client_risk`, `trigger_update_risk` e i quattro trigger della 014, dove sono sopravvissuti) e ricrea `clients_workspace` senza quelle colonne. Il motore è `lib/risk.ts`, in lettura. Non è un prerequisito: senza, l'app funziona già — le colonne restano lì e nessuno le legge | — |
 | `191_bank_partner_pockets.sql` | Sottoconti dei soci: `bank_accounts.parent_id`/`owner_partner_id`/`allowance_amount`, `pl_cost_lines.partner_id` + `deductible_pct`/`vat_deductible_pct`, area «Spese soci», Klaviyo a 0 (piano gratuito). I 500 €/mese a socio **sono erogato**, non un costo in più: escono come spesa della società per recuperarne IVA e deducibilità | — |
 
 **Scorciatoia**: `supabase/APPLY_PENDING.sql` è il concatenato (081, 086–093) in
@@ -462,6 +464,58 @@ rapporto perso.
 (esclude interni + persi + fermi), `pausedDays`. Non riscrivere il filtro
 inline: ogni `client_label !== 'perso'` sparso è un posto che dimenticherà il
 prossimo stato.
+
+## Rischio cliente (§197, `lib/risk.ts`)
+`compute_client_risk` (migration 014) leggeva fatture, KPI e ticket. La **146**
+l'ha droppata nel reset insieme alla tabella `invoices`, e `client_kpis`/`tickets`
+sono rimaste vuote: da allora nessuno scriveva più `clients.risk_score`, e tutti
+gli undici clienti erano fermi a **0** — compresi i quattro `scaduto`. Il badge
+diceva «Basso rischio» a chi non pagava da mesi. **Uno zero che nessuno aggiorna
+è peggio di un campo vuoto: il vuoto lo si nota, lo zero lo si crede.**
+
+Il motore nuovo è puro e **non scrive in tabella**: le pagine che mostrano il
+rischio caricano già le sue sorgenti, un punteggio in colonna invecchia fra due
+ricalcoli, e un ricalcolo notturno riempirebbe `activity_log` (§179) di modifiche
+che nessuna persona ha fatto. `risksFor(rows)` è l'unico mappatore dalle righe
+del database ai punteggi — lista clienti, scheda e dashboard passano da lì, o
+sarebbero tre posti dove dimenticare una colonna.
+
+Cinque segnali, tutti su sorgenti vive: **insoluto** (0–35, pesa *da quanto* il
+più vecchio scoperto è lì — e §177 esclude il mese in corso, che vale fino al 15)
+· **fatturato** (0–25, tre mesi contro tre) · **copertura contrattuale** (0–20;
+un canone a tempo indeterminato è la copertura migliore, non un dato mancante)
+· **sospensione** (0–20, §176) · **etichetta** (10 se `in_bilico`). Bande: <35
+basso, <60 medio, oltre alto.
+
+Tre regole non negoziabili, ognuna nata da un numero sbagliato visto sul database
+vero:
+
+- **Un segnale che non si può calcolare non vale zero.** Finisce in `unknown` con
+  scritto perché, e sotto **due** segnali leggibili non esce nessun numero
+  (`ready: false`, il badge dice «n/d»). Un punteggio costruito su un indizio ha
+  la stessa faccia di uno costruito su cinque.
+- **La crescita non compensa un insoluto.** Il bonus del fatturato in crescita
+  (−5) vale solo se non c'è nient'altro che non va: su Industrial Service portava
+  35 («medio») a 30 («basso») con 3.500 € scoperti e i contratti in scadenza fra
+  26 giorni. Quando non si applica, la riga resta e dice «non compensa il resto».
+- **Il confronto a tre mesi vuole due mesi pieni su tre.** Con uno solo misura
+  l'inizio dello storico, non l'andamento: un cliente registrato da aprile
+  leggeva «+461%», e quel bonus abbassava il rischio di chi non paga.
+- **Le rate contano quanto le righe** (§177) ma non si sommano alle righe dello
+  stesso mese (§193): si guardano le rate scadute dei mesi **mai aperti**, dove
+  la riga non esiste. Senza, chi non paga da marzo risulta in regola perché
+  marzo non è mai stato preparato.
+
+Il tempo è un parametro, e da lì viene il trend: `withTrend` riesegue lo stesso
+calcolo **trenta giorni indietro** sugli stessi dati. «Sta peggiorando?» si
+risponde con due letture della stessa realtà, non confrontando oggi con un numero
+rimasto in colonna. Banda morta di 5 punti, perché un'icona che oscilla non si
+guarda più. Perso, partner e interno non hanno un punteggio: il perso è già
+andato, e un badge lì copre i clienti veri.
+
+`npx tsx scripts/verify-risk.ts [data]` legge gli undici clienti dal database e
+li passa a `risksFor`: è il controllo della catena col codice che gira in pagina.
+Il gate è `lib/risk.check.ts` (72 controlli).
 
 ## Tipo cliente (§178)
 `client_type` non si sceglie: lo dicono i progetti. Solo digital → `digital`,
@@ -750,25 +804,30 @@ Le task del calendario sono personali e nascoste di default.
 | Strategic Objectives widget | Fetcha `objectives` ma no widget | ⚠️ dati ci sono |
 | AI & Automation Center | — | ❌ da costruire |
 
-## Dove siamo — 2026-08-01
+## Dove siamo — 2026-08-05
 
-Ultimo commit: `34c23f5`. `main` e `origin/main` allineati; il deploy Coolify
-builda da lì. Gate del repo: `npx tsc --noEmit` (ESLint non è configurato) più i
-sette `lib/*.check.ts`, che si lanciano con `npx tsx lib/<nome>.check.ts` e
-devono dire «Tutti i controlli passano».
+Ultimo commit: `f7a1782`. **`main` è 52 commit avanti a `origin/main`**, fermo a
+`34c23f5`: il deploy Coolify builda da `origin/main`, quindi su os.twobee.it non
+c'è niente di tutto quello che segue — banca, personale, agevolazioni,
+ripartizione. Finché non si pusha, il tool in produzione e il tool in locale sono
+due prodotti diversi. Gate del repo: `npx tsc --noEmit` (ESLint non è
+configurato) più i **quattordici** `lib/*.check.ts`, che si lanciano con
+`npx tsx lib/<nome>.check.ts` e devono dire «Tutti i controlli passano».
 **Non lanciare `npm run build` mentre `npm run dev` gira**: condividono `.next`,
 il dev server resta a servire chunk CSS sostituiti e la pagina si apre senza
 stili. Se succede: ferma il dev, `rm -rf .next`, riavvia.
 
-**Migration da eseguire: la `183_hr_personal_data.sql`, la
-`184_hiring_incentives.sql` e la `186_digital_partner_quota.sql`** (la 185 è
-superata dalla 186: eseguirla è innocuo, saltarla anche). Le altre (179-182) sono applicate e verificate sul
-database: v1.0.0 pubblicata, retention a 90 giorni con pg_cron attivo, organico e
-cedolini di giugno caricati. Senza la 183 i campi età e figli non esistono e il
-suggerimento sull'apprendistato resta generico; senza la 184 il catalogo delle
-agevolazioni si legge ma non si può attivare niente su una persona, il costo del
-lavoro resta quello pieno, e l'area «Persone» del piano dei costi non prende il
-nuovo nome (la pagina lo dichiara, non si rompe).
+**Da eseguire: la `197_client_risk_rewrite.sql`** — cleanup, non prerequisito:
+droppa le cinque colonne di rischio che nessuno legge più e ricrea
+`clients_workspace` senza di loro. Finché non la esegui l'app funziona
+identica, le colonne restano lì a zero e nessun codice le guarda.
+
+Tutto il resto è già applicato. Verificato sul database il 2026-08-05,
+colonna per colonna: 183→196 sono tutte applicate (`hr_people.birth_date` e
+`hired_on`, `hr_incentives`, `pl_revenue_lines.risk_fund` e `pass_through`,
+`revenue_stream_projects`, le tre tabelle di banca, `pl_cost_lines.partner_id`,
+`clients.package` droppata). `pl_config` legge la 196: `digital_partner_pct`
+**0,28** e `digital_cost_target_pct` **0**.
 
 **Fatto finora**: il dominio economico completo (migration 168→178) — contratti
 per progetto, piano dei costi con budget per area, subappalti con margine di
@@ -777,7 +836,7 @@ cliente `pending`, e la disciplina trasversale per cui **ogni valore economico �
 derivato e dichiara la sua provenienza** (vedi le sezioni Economics, Tipo
 cliente, Stato pagamenti).
 
-**In coda, non ancora committato:**
+**Committato in locale, mai arrivato in produzione** (i 52 commit di cui sopra):
 - **Eliminazione clienti** singola e multipla (`deleteClients` /
   `previewClientDeletion`, caselle di selezione in `ClientiList`, conferma che
   dichiara cosa cade in cascata).
@@ -803,13 +862,26 @@ cliente, Stato pagamenti).
 - **Spartizione digital** (§186): sul margine dopo i subappalti, 28% a ciascun
   socio, 6% commerciale, 10% cassa, fondo rischio opzionale sopra 20.000 €, col
   commerciale letto dall'anagrafica del cliente.
+- **Via i pacchetti** (187) e **un accordo, N progetti** (188): contratti
+  multi-progetto con quota, e le partite di giro fuori dalle quote.
+- **Banca** (189-191): due conti, import per dialetto, giroconti appaiati,
+  provvista, `spendSplit`, sottoconti dei soci e le due strade per l'erogato.
+- **Ponte conto economico → saldo** (§199, `lib/cash-bridge.ts`): l'identità è
+  esatta, quindi un residuo diverso da zero è un movimento senza una riga che lo
+  giustifichi, non un arrotondamento.
+- **Un fatto, una riga** (193) e **un movimento a mano paga** (195).
+- **Ripartizione maturato / incassato** (§204): stesso `computeMonth` sulle sole
+  righe spuntate, così «Cassa TwoBee» si muove quando spunti «pagato».
+- **Quota digital tornata al 28%** (196), che annulla la 194.
+- **Rischio cliente riscritto** (§197, `lib/risk.ts` + `risk.check.ts`): motore
+  puro sulle sorgenti vive, «n/d» invece di uno zero inventato, trend da due
+  letture della stessa realtà, e le cinque colonne morte droppate.
 
-**Com'è messo il database** (2026-08-04, caricato dalle 33 fatture di
-maggio-agosto): **11 clienti** con P.IVA, sede, SDI e commerciale · **20
-progetti** dai template (73 workstream, 105 milestone, 90 task, 155 task
-ricorrenti) · **16 contratti**, di cui 3 multi-progetto · **34 righe di conto
-economico** da aprile ad agosto per **75.125 €** · **28.500 € di subappalti
-Affinity**. MRR derivato: **10.100 €**.
+**Com'è messo il database** (letto il 2026-08-05): **11 clienti** con P.IVA,
+sede, SDI e commerciale · **21 progetti** dai template · **15 contratti** con 16
+rate, di cui 3 multi-progetto · **5 mesi** aperti con **41 righe di ricavo** e
+**89 di costo** · **47 voci** di piano · **173 movimenti** di banca · **5
+persone** in organico. Nessun cliente ha più `package`.
 
 Commerciali: Walter Giacobbe (ISF, iCura, Sartoria Condotti, Petito) · Marco
 Lucci (Affinity, Seven) · Antonio Giarletta (Fatima Leo, Plus Vending) · Josè
@@ -822,18 +894,16 @@ di fatture, cliente interno), Gli Artigiani (stornato con nota di credito).
 
 `npx tsx scripts/verify-month.ts 2026-07-01` legge un mese dal database e lo
 passa a `computeMonth`: è il controllo della catena intera col codice che gira in
-pagina. Su luglio la quadratura chiude a zero.
+pagina. Su luglio la quadratura chiude a zero — 32.225 € di imponibile, 500 € di
+partite di giro, quote + costi + subappalti = 31.725 €, differenza 0,00.
 
 **Aperto, in ordine di importanza:**
 
-1. **Quotare i progetti**: i progetti sono tornati, i contratti no. Finché
-   `revenue_streams` è vuota ogni cliente legge «da quotare», il conto economico
-   non ha righe da generare e Fiscale stima su niente. È lavoro di inserimento,
-   non di codice: si fa dalla scheda Economics di ogni progetto.
-2. **Risk score**: `compute_client_risk` (migration 014) dà ancora punti per
-   «contratto scaduto» leggendo `clients.contract_end`, che ora è derivato e può
-   essere NULL. Oggi vale 0 su tutti, quindi non si vede — ma va sistemato prima
-   di riattivare il motore.
+1. **Pushare**: 52 commit fermi in locale. È il punto uno perché tutto il resto
+   di questa sezione descrive un tool che gli utenti non hanno.
+2. **Quotare i progetti che mancano**: 15 contratti su 21 progetti. Chi non ne ha
+   legge «da quotare», non genera righe nel mese e non entra nella stima fiscale.
+   È lavoro di inserimento, non di codice: si fa dalla scheda Economics.
 3. **`promoteLineToPlan`** esiste in `app/actions/costs.ts` ma non ha un pulsante
    nell'economics del progetto: una spesa registrata a mano non si può ancora
    promuovere a ricorrente da lì.

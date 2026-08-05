@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { AlertTriangle, Clock, RefreshCw, TrendingDown } from 'lucide-react'
 import { hasContracts } from '@/lib/clients'
+import type { RiskResult } from '@/lib/risk'
 import type { Client } from '@/lib/types/database'
 
 interface Alert {
@@ -11,7 +12,7 @@ interface Alert {
   urgency: 'alta' | 'media'
 }
 
-function buildClientAlerts(client: Client, hideEconomics: boolean, hasBilling: boolean): Alert[] {
+function buildClientAlerts(client: Client, hideEconomics: boolean, hasBilling: boolean, risk?: RiskResult): Alert[] {
   const alerts: Alert[] = []
   const today = new Date()
 
@@ -38,9 +39,16 @@ function buildClientAlerts(client: Client, hideEconomics: boolean, hasBilling: b
     alerts.push({ type: 'stato', message: 'Cliente in stato critico — verifica la situazione e aggiorna le note', urgency: 'alta' })
   }
 
-  if (client.risk_score != null && client.risk_score >= 60) {
-    const trend = client.risk_trend === 'peggiora' ? ' e in peggioramento' : ''
-    alerts.push({ type: 'rischio', message: `AI Risk Score alto: ${client.risk_score}/100${trend}`, urgency: client.risk_score >= 75 ? 'alta' : 'media' })
+  /* §197: dal motore, non dalla colonna. E l'avviso porta con sé i segnali che
+     lo hanno acceso: «rischio alto» senza il perché non dice cosa fare. */
+  if (risk?.score != null && risk.score >= 60) {
+    const trend = risk.trend === 'peggiora' ? ' e in peggioramento' : ''
+    const why = risk.factors.filter(f => f.score > 0).sort((a, b) => b.score - a.score).map(f => f.msg).join(' · ')
+    alerts.push({
+      type: 'rischio',
+      message: `Rischio ${risk.score}/100${trend}${why ? ` — ${why}` : ''}`,
+      urgency: risk.score >= 75 ? 'alta' : 'media',
+    })
   }
 
   return alerts
@@ -63,11 +71,13 @@ interface Props {
   hideEconomics?: boolean
   /** rate o righe di conto economico: senza, lo stato pagamenti non esiste */
   hasBilling?: boolean
+  /** §197: rischio calcolato dal server */
+  risk?: RiskResult
 }
 
-export function ClientAlertBanner({ client, hideEconomics = false, hasBilling = false }: Props) {
+export function ClientAlertBanner({ client, hideEconomics = false, hasBilling = false, risk }: Props) {
   const alerts = useMemo(
-    () => buildClientAlerts(client, hideEconomics, hasBilling), [client, hideEconomics, hasBilling])
+    () => buildClientAlerts(client, hideEconomics, hasBilling, risk), [client, hideEconomics, hasBilling, risk])
   if (alerts.length === 0) return null
 
   return (

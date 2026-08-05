@@ -18,7 +18,7 @@ const S = (o: Partial<RevenueStream>): RevenueStream => ({
 })
 const base = (o: Partial<ClientInput> = {}): ClientInput => ({
   id: 'c', name: 'Test', contract_start: '2026-01-01', contract_end: null, client_label: 'stabile',
-  risk_score: null, history: [], streams: [], installments: [], projects: [], lastInteraction: null, ...o,
+  history: [], streams: [], installments: [], projects: [], lastInteraction: null, ...o,
 })
 const TODAY = '2026-07-01'
 

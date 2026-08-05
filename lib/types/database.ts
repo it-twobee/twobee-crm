@@ -222,12 +222,9 @@ export interface Client {
   email_pec: string | null
   phone: string | null
   website: string | null
-  // AI Risk Engine (migration 014)
-  risk_score:      number | null
-  prev_risk_score: number | null
-  risk_factors:    Record<string, { score: number; msg: string }> | null
-  risk_trend:      'migliora' | 'stabile' | 'peggiora' | null
-  risk_updated_at: string | null
+  /* §197: le cinque colonne di rischio della 014 non ci sono più. Il punteggio
+     lo calcola `lib/risk.ts` in lettura e viaggia a parte (`RiskResult`), perché
+     un numero conservato invecchia fra due ricalcoli e non sa dire da quanto. */
 }
 
 export interface ClientStakeholder {

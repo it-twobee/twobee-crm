@@ -5,6 +5,7 @@ import type { Client, Profile } from '@/lib/types/database'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { PROFILE_COLUMNS } from '@/lib/profile-columns'
 import { monthKey } from '@/lib/pl'
+import { risksFor, type RiskResult } from '@/lib/risk'
 import type { ClientEconomicsSummary } from '@/components/clients/ClientiList'
 
 export const revalidate = 30
@@ -44,33 +45,40 @@ export default async function ClientiPage() {
      sono un'altra cosa ancora e vanno visti a parte, non sommati al canone.
      Tutto calcolato qui, in due query, invece che riga per riga. */
   const eco: Record<string, ClientEconomicsSummary> = {}
+  let risks: Record<string, RiskResult> = {}
 
   if (isAdminLevel && clients.length) {
     const month = monthKey(new Date())
     /* Le rate si filtrano per cliente attraversando il contratto, e le righe
-       del mese per la data del mese: nessuna delle due ha bisogno di sapere
-       prima gli id, quindi parte tutto insieme invece che in tre ondate. */
+       per il cliente: nessuna delle due ha bisogno di sapere prima gli id,
+       quindi parte tutto insieme invece che in tre ondate.
+       Le righe arrivano di **tutti** i mesi, non solo del corrente: il rischio
+       si legge sullo storico — tre mesi contro tre, e da quanto un credito è
+       scoperto — e su 41 righe filtrare qui costa meno di una query in più. */
     const [{ data: streams }, { data: inst }, { data: lines }] = await Promise.all([
-      supabase.from('revenue_streams').select('id, client_id, amount, billing, status, project_id'),
-      supabase.from('revenue_installments').select('stream_id, amount, paid'),
+      supabase.from('revenue_streams').select('id, client_id, amount, billing, status, project_id, end_date'),
+      supabase.from('revenue_installments').select('stream_id, amount, paid, due_month'),
       supabase.from('pl_revenue_lines')
-        .select('client_id, project_id, label, amount_net, paid, pl_months!inner(month)')
-        .eq('pl_months.month', month),
+        .select('client_id, project_id, label, amount_net, paid, pl_months!inner(month)'),
     ])
 
-    type S = { id: string; client_id: string | null; amount: unknown; billing: string; status: string }
+    type S = { id: string; client_id: string | null; amount: unknown; billing: string; status: string; end_date: string | null }
+    type L = { client_id: string | null; label: string; amount_net: unknown; paid: boolean; pl_months: { month: string } }
+    type I = { stream_id: string; amount: unknown; paid: boolean; due_month: string }
     const byStream = new Map((streams ?? []).map((x: S) => [x.id, x]))
     const n = (v: unknown) => Number(v ?? 0)
+    const allLines = (lines ?? []) as unknown as L[]
+
+    risks = risksFor({ clients, streams: (streams ?? []) as S[], installments: (inst ?? []) as I[], lines: allLines })
 
     for (const c of clients) {
       const own = ((streams ?? []) as S[]).filter(x => x.client_id === c.id)
       const sold = own.filter(x => x.status !== 'bozza')
-      const openInst = ((inst ?? []) as { stream_id: string; amount: unknown; paid: boolean }[])
+      const openInst = ((inst ?? []) as I[])
         .filter(i => !i.paid && byStream.get(i.stream_id)?.client_id === c.id)
-      const ownLines = ((lines ?? []) as { client_id: string | null; label: string; amount_net: unknown; paid: boolean }[])
-        .filter(l => l.client_id === c.id)
+      const ownLines = allLines.filter(l => l.client_id === c.id && l.pl_months?.month === month)
       const unpaid = ownLines.filter(l => !l.paid)
-      const ownInst = ((inst ?? []) as { stream_id: string }[])
+      const ownInst = ((inst ?? []) as I[])
         .filter(i => byStream.get(i.stream_id)?.client_id === c.id)
 
       eco[c.id] = {
@@ -90,5 +98,5 @@ export default async function ClientiPage() {
     }
   }
 
-  return <ClientiList clients={clients} currentProfile={profile as Profile} economics={eco} />
+  return <ClientiList clients={clients} currentProfile={profile as Profile} economics={eco} risks={risks} />
 }

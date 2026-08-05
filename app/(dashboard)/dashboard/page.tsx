@@ -7,6 +7,7 @@ import type { DashAlert, AlertSeverity } from '@/components/dashboard/AlertCente
 import type { FocusItem } from '@/components/dashboard/DailyFocus'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { countsInStats, isLost, isPaused, pausedDays } from '@/lib/clients'
+import { risksFor, type RiskResult, type RiskRows } from '@/lib/risk'
 import { Crown } from 'lucide-react'
 import { PROFILE_COLUMNS } from '@/lib/profile-columns'
 
@@ -81,7 +82,7 @@ export default async function DashboardPage() {
   const todayStr = new Date().toISOString().slice(0, 10)
   const in7Str = (() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10) })()
 
-  const [liveProjects, allMilestones, allTasks, myAssignments] = await Promise.all([
+  const [liveProjects, allMilestones, allTasks, myAssignments, riskStreams, riskInst, riskLines] = await Promise.all([
     safeData(supabase.from('projects').select('id, name, client_id, status')
       .in('status', ['active', 'draft', 'on_hold']).is('deleted_at', null), 'liveProjects'),
     safeData(supabase.from('milestones')
@@ -90,6 +91,13 @@ export default async function DashboardPage() {
       .select('id, project_id, client_id, title, status, priority, due_date, assignee_id, is_recurring_instance')
       .is('deleted_at', null), 'tasks'),
     safeData(supabase.from('task_assignees').select('task_id').eq('profile_id', user.id), 'myAssignments'),
+    /* §197: il rischio cliente si calcola qui e non si legge da
+       `clients.risk_score`, ferma a zero da quando la 146 ha droppato il
+       motore. Tre letture piccole nella stessa ondata: senza, gli insight
+       «alto rischio» e «in deterioramento» non si accendono mai. */
+    isAdminLevel ? safeData(supabase.from('revenue_streams').select('id, client_id, status, end_date'), 'riskStreams') : Promise.resolve([]),
+    isAdminLevel ? safeData(supabase.from('revenue_installments').select('stream_id, amount, paid, due_month'), 'riskInst') : Promise.resolve([]),
+    isAdminLevel ? safeData(supabase.from('pl_revenue_lines').select('client_id, amount_net, paid, pl_months!inner(month)'), 'riskLines') : Promise.resolve([]),
   ])
 
   type P = { id: string; name: string; client_id: string | null; status: string }
@@ -182,6 +190,15 @@ export default async function DashboardPage() {
   const mrr           = externalClients.reduce((s, c) => s + (c.mrr ?? 0), 0)
   const pausedMrr     = pausedClients.reduce((s, c) => s + (c.mrr ?? 0), 0)
   const clientsAtRisk = externalClients.filter(c => c.client_label === 'in_bilico').length
+
+  /* §197: un punteggio per cliente, dalle stesse quattro tabelle che legge la
+     lista clienti — così i due posti non possono dire numeri diversi. */
+  const risks = risksFor({
+    clients: [...externalClients, ...pausedClients] as RiskRows['clients'],
+    streams: riskStreams as RiskRows['streams'],
+    installments: riskInst as RiskRows['installments'],
+    lines: riskLines as unknown as RiskRows['lines'],
+  })
   const clientsLost   = lostClients.length
   const allProfiles   = (allProfilesResult.data ?? []) as Profile[]
 
@@ -267,6 +284,7 @@ export default async function DashboardPage() {
     allProfiles,
     clientsAtRisk,
     clientsLost,
+    risks,
     ticketsOpen,
     ticketsResolved,
     recentMessages,

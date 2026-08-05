@@ -4,11 +4,14 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Brain, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, ChevronRight, Sparkles } from 'lucide-react'
 import { hasContracts } from '@/lib/clients'
+import type { RiskResult } from '@/lib/risk'
 import type { Client } from '@/lib/types/database'
 
 interface Props {
   clients: Client[]
   totalMrr: number
+  /** §197: rischio per id cliente. Vuoto = nessun insight sul rischio, non «tutti sani» */
+  risks?: Record<string, RiskResult>
 }
 
 interface Insight {
@@ -20,25 +23,30 @@ interface Insight {
   confidence: number   // 0-100
 }
 
-function generateInsights(clients: Client[], totalMrr: number): Insight[] {
+function generateInsights(clients: Client[], totalMrr: number, risks: Record<string, RiskResult>): Insight[] {
   const insights: Insight[] = []
+  const scoreOf = (c: Client) => risks[c.id]?.score ?? null
+  const trendOf = (c: Client) => risks[c.id]?.trend ?? null
 
-  // ── Clienti ad alto rischio AI ───────────────────────────────
-  const highRisk = clients.filter(c => (c.risk_score ?? 0) >= 60 && c.client_label !== 'perso' && c.client_label !== 'pending')
+  // ── Clienti ad alto rischio ──────────────────────────────────
+  const highRisk = clients.filter(c => (scoreOf(c) ?? 0) >= 60 && c.client_label !== 'perso' && c.client_label !== 'pending')
   if (highRisk.length > 0) {
     const mrrAtRisk = highRisk.reduce((s, c) => s + c.mrr, 0)
+    /* Il segnale che pesa più di tutti, non «segnali critici»: un insight che
+       non dice cosa guardare non fa aprire la scheda. */
+    const worst = [...(risks[highRisk[0].id]?.factors ?? [])].sort((a, b) => b.score - a.score)[0]
     insights.push({
       id: 'high-risk',
       type: 'risk',
       title: `${highRisk.length} client${highRisk.length > 1 ? 'i' : 'e'} ad alto rischio`,
-      detail: `€${mrrAtRisk.toLocaleString('it-IT')} MRR potenzialmente a rischio. ${highRisk[0].company_name}${highRisk.length > 1 ? ` e altri ${highRisk.length - 1}` : ''} mostrano segnali critici.`,
+      detail: `€${mrrAtRisk.toLocaleString('it-IT')} MRR esposto. ${highRisk[0].company_name}${highRisk.length > 1 ? ` e altri ${highRisk.length - 1}` : ''}${worst ? `: ${worst.msg}` : ''}.`,
       href: '/clienti',
       confidence: 85,
     })
   }
 
   // ── Trend risk in peggioramento ──────────────────────────────
-  const worsening = clients.filter(c => c.risk_trend === 'peggiora' && (c.risk_score ?? 0) >= 30)
+  const worsening = clients.filter(c => trendOf(c) === 'peggiora' && (scoreOf(c) ?? 0) >= 30)
   if (worsening.length >= 2) {
     insights.push({
       id: 'worsening',
@@ -70,7 +78,7 @@ function generateInsights(clients: Client[], totalMrr: number): Insight[] {
   }
 
   // ── Opportunità: clienti in miglioramento ────────────────────
-  const improving = clients.filter(c => c.risk_trend === 'migliora' && (c.risk_score ?? 0) < 30)
+  const improving = clients.filter(c => trendOf(c) === 'migliora' && (scoreOf(c) ?? 0) < 30)
   if (improving.length >= 2) {
     insights.push({
       id: 'improving',
@@ -96,16 +104,23 @@ function generateInsights(clients: Client[], totalMrr: number): Insight[] {
     })
   }
 
-  // ── Clienti senza KPI aggiornato ────────────────────────────
-  const noKpi = clients.filter(c => c.risk_factors?.kpi?.msg?.includes('nessun KPI'))
-  if (noKpi.length > 0) {
+  /* ── Clienti di cui il rischio non si può calcolare ──────────
+     Prima qui c'era «senza KPI recenti», che leggeva un fattore prodotto dal
+     motore droppato dalla 146: la chiave non esisteva più e l'insight non si
+     accendeva mai. La domanda utile è un'altra e il motore la risponde da sé:
+     su chi non abbiamo abbastanza dati per dire se è a rischio. */
+  const blind = clients.filter(c => {
+    const r = risks[c.id]
+    return r && !r.ready && r.unknown.length > 0
+  })
+  if (blind.length > 0) {
     insights.push({
-      id: 'no-kpi',
+      id: 'risk-blind',
       type: 'opportunity',
-      title: `${noKpi.length} client${noKpi.length > 1 ? 'i' : 'e'} senza KPI recenti`,
-      detail: `Aggiorna i dati di performance per ${noKpi[0].company_name}${noKpi.length > 1 ? ` e altri ${noKpi.length - 1}` : ''} per una valutazione accurata.`,
-      href: '/report',
-      confidence: 70,
+      title: `${blind.length} client${blind.length > 1 ? 'i' : 'e'} non valutabil${blind.length > 1 ? 'i' : 'e'}`,
+      detail: `Manca lo storico per dire se sono a rischio: ${blind[0].company_name}${blind.length > 1 ? ` e altri ${blind.length - 1}` : ''} — ${risks[blind[0].id]?.unknown[0]?.msg ?? 'dati insufficienti'}.`,
+      href: '/clienti',
+      confidence: 90,
     })
   }
 
@@ -120,9 +135,9 @@ const insightConfig = {
   positive:    { icon: CheckCircle2,   color: 'text-success',  bg: 'bg-success/5 border-success/15' },
 }
 
-export function SmartInsights({ clients, totalMrr }: Props) {
+export function SmartInsights({ clients, totalMrr, risks = {} }: Props) {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
-  const insights = generateInsights(clients, totalMrr).filter(i => !dismissed.has(i.id))
+  const insights = generateInsights(clients, totalMrr, risks).filter(i => !dismissed.has(i.id))
 
   if (insights.length === 0) {
     return (

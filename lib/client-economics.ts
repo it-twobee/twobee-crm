@@ -34,7 +34,6 @@ export type ClientInput = {
   contract_end: string | null
   client_label: string | null
   lost_at?: string | null
-  risk_score: number | null
   /** righe di conto economico già filtrate su questo cliente, un record per mese */
   history: ClientMonth[]
   streams: RevenueStream[]

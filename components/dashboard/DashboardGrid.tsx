@@ -14,6 +14,7 @@ import { ClientHealthMap }  from './ClientHealthMap'
 import { ClientsStatusTable } from './ClientsStatusTable'
 import { CompanyPulse }     from './CompanyPulse'
 import { SmartInsights }    from './SmartInsights'
+import type { RiskResult }  from '@/lib/risk'
 import { AIDashboardChat }  from './AIDashboardChat'
 import { RecentMessages }   from './RecentMessages'
 import { KpiPerformanceWidget } from './KpiPerformanceWidget'
@@ -46,6 +47,8 @@ export interface DashboardData {
   mrr: number
   allProfiles: Profile[]
   clientsAtRisk: number
+  /** §197: rischio per id cliente, calcolato dal server (`lib/risk.ts`) */
+  risks?: Record<string, RiskResult>
   clientsLost: number
   ticketsOpen: number
   ticketsResolved: number
@@ -374,7 +377,7 @@ export function DashboardGrid({ data, initialConfig }: { data: DashboardData; in
     health:   <ClientHealthMap clients={data.clients} />,
     clients:  <ClientsStatusTable clients={data.clients} />,
     pulse:    <CompanyPulse areas={pulseAreas} />,
-    insights: <SmartInsights clients={data.clients} totalMrr={data.mrr} />,
+    insights: <SmartInsights clients={data.clients} totalMrr={data.mrr} risks={data.risks ?? {}} />,
     messages: <RecentMessages messages={data.recentMessages} />,
     kpiperf:  <KpiPerformanceWidget kpiSnapshot={data.kpiSnapshot} />,
   }

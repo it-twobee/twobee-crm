@@ -4,6 +4,7 @@ import { ClientPageClient } from '@/components/clients/ClientPageClient'
 import { ClientEconomicsTab } from '@/components/clients/tabs/ClientEconomicsTab'
 import { kindFromClientType, rowToPlConfig, type PlConfig } from '@/lib/pl'
 import { rfmRaw, type ClientInput, type ClientMonth } from '@/lib/client-economics'
+import { risksFor, type RiskResult, type RiskRows } from '@/lib/risk'
 import type { SubItem } from '@/lib/subcontracts'
 import { isAdminRole, isSuperAdminRaw } from '@/lib/permissions'
 import type { CostActual } from '@/lib/costs'
@@ -72,6 +73,10 @@ export default async function ClientePage({ params, searchParams }: Props) {
   let hasBilling = false
   // §178: quanti progetti determinano growth / digital / growth+digital
   let projectCount = 0
+  /* §197: il rischio si calcola qui, dagli stessi dati che l'economics ha già
+     caricato — storico dei mesi, contratti, rate. `clients.risk_score` è ferma
+     a zero da quando la 146 ha droppato il motore, e non si legge più. */
+  let risk: RiskResult | undefined
   let subItems: SubItem[] = []
   /* le righe di costo del mese sui lavori del cliente: dicono cosa è già
      atterrato nel conto economico, che è l'unica cosa che questa pagina non sa */
@@ -138,7 +143,8 @@ export default async function ClientePage({ params, searchParams }: Props) {
         ? supabase.from('revenue_installments').select('*').in('stream_id', ids)
         : Promise.resolve({ data: [] }),
       supabase.from('pl_revenue_lines')
-        .select('amount_net, paid, pl_months!inner(month)').eq('client_id', id),
+        // `client_id` serve a `risksFor`, che raggruppa lo storico per cliente
+        .select('client_id, amount_net, paid, pl_months!inner(month)').eq('client_id', id),
       supabase.from('pl_revenue_lines')
         .select('client_id, amount_net, paid, pl_months!inner(month)'),
     ])
@@ -166,13 +172,19 @@ export default async function ClientePage({ params, searchParams }: Props) {
       id, name: (client.display_name || client.company_name) as string,
       contract_start: client.contract_start, contract_end: client.contract_end,
       client_label: client.client_label, lost_at: client.lost_at ?? null,
-      risk_score: client.risk_score,
       history,
       streams: (streams ?? []) as RevenueStream[],
       installments: (inst ?? []) as Installment[],
       projects: (projects ?? []) as ClientInput['projects'],
       lastInteraction: (intData ?? [])[0]?.date ?? null,
     }
+
+    risk = risksFor({
+      clients: [client as RiskRows['clients'][number]],
+      streams: (streams ?? []) as RiskRows['streams'],
+      installments: (inst ?? []) as RiskRows['installments'],
+      lines: (plRows ?? []) as unknown as RiskRows['lines'],
+    })[id]
 
     // RFM è relativo: serve la fotografia degli altri clienti per i quintili
     const perClient = new Map<string, ClientMonth[]>()
@@ -223,6 +235,7 @@ export default async function ClientePage({ params, searchParams }: Props) {
       mrrFromContracts={mrrFromContracts}
       hasBilling={hasBilling}
       typeCount={projectCount}
+      risk={risk}
     />
   )
 }

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { formatCurrency, getPaymentBadge, clientName } from '@/lib/utils'
 import { pausedDays, paymentLabel } from '@/lib/clients'
+import type { RiskResult } from '@/lib/risk'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Client, PaymentStatus, ClientType, ClientLabel, Profile } from '@/lib/types/database'
@@ -44,6 +45,13 @@ interface ClientiListProps {
   clients: Client[]
   /** chiave = id cliente. Vuoto per chi non vede i dati economici */
   economics?: Record<string, ClientEconomicsSummary>
+  /**
+   * §197: il rischio arriva calcolato dal server (`lib/risk.ts`), non dalla
+   * colonna `clients.risk_score` — quella è ferma a zero da quando la 146 ha
+   * droppato il motore. Tenerlo fuori dalla riga lo protegge anche dal
+   * realtime, che fa `{...c, ...payload.new}` e riporterebbe il NULL.
+   */
+  risks?: Record<string, RiskResult>
   currentProfile?: Profile
   /** Portale operativo: oscura MRR, pagamenti, export ed elimina — solo vista clienti attivi */
   hideEconomics?: boolean
@@ -87,7 +95,7 @@ const SORT_LABELS: Record<SortKey, string> = {
   client_label: 'Label',
   payment_status: 'Pagamenti',
   contract_end: 'Scadenza contratto',
-  risk_score: 'AI Risk',
+  risk_score: 'Rischio',
 }
 
 function RiskInfoTooltip() {
@@ -123,20 +131,37 @@ function RiskInfoTooltip() {
   )
 }
 
-function RiskBadge({ score, trend, factors }: {
-  score: number | null
-  trend?: string | null
-  factors?: Record<string, { score: number; msg: string }> | null
-}) {
-  if (score == null) return null
-  const color = score >= 60 ? 'text-error bg-error/10 border-error/20'
-    : score >= 35 ? 'text-warning bg-warning/10 border-warning/20'
+/**
+ * §197: un punteggio si mostra solo se il motore ha avuto abbastanza segnali.
+ * Quando non li ha, il badge non sparisce e non scrive zero — dice «n/d» e nel
+ * tooltip elenca cosa gli manca. Un cliente senza storico e un cliente in
+ * regola non devono avere la stessa faccia.
+ */
+function RiskBadge({ risk }: { risk?: RiskResult }) {
+  if (!risk || risk.score == null) {
+    if (!risk || (!risk.unknown.length && !risk.factors.length)) return null
+    return (
+      <span className="relative group/risk inline-flex items-center">
+        <span className="inline-flex items-center gap-1 text-2xs font-bold px-1.5 py-0.5 rounded border cursor-default text-text-tertiary bg-surface-hover border-border">
+          n/d
+        </span>
+        <span className="pointer-events-none absolute left-0 bottom-full mb-2 w-60 bg-surface border border-border rounded-xl p-3 shadow-2xl opacity-0 group-hover/risk:opacity-100 transition-opacity z-[999] text-left">
+          <span className="block text-2xs font-bold text-text-primary mb-1.5">Rischio non valutabile</span>
+          <span className="block text-2xs text-text-secondary">{risk.basis}</span>
+        </span>
+      </span>
+    )
+  }
+
+  const score = risk.score
+  const color = risk.band === 'alto' ? 'text-error bg-error/10 border-error/20'
+    : risk.band === 'medio' ? 'text-warning bg-warning/10 border-warning/20'
     : 'text-success bg-success/10 border-success/20'
-  const levelLabel = score >= 60 ? 'Alto rischio' : score >= 35 ? 'Rischio medio' : 'Basso rischio'
+  const levelLabel = risk.band === 'alto' ? 'Alto rischio' : risk.band === 'medio' ? 'Rischio medio' : 'Basso rischio'
+  const trend = risk.trend
   const TrendIcon = trend === 'peggiora' ? TrendingUp : trend === 'migliora' ? TrendingDown : Minus
   const trendColor = trend === 'peggiora' ? 'text-error' : trend === 'migliora' ? 'text-success' : 'text-text-secondary'
   const trendLabel = trend === 'peggiora' ? '↑ in peggioramento' : trend === 'migliora' ? '↓ in miglioramento' : '→ stabile'
-  const factorEntries = factors ? Object.entries(factors) : []
 
   return (
     <span className="relative group/risk inline-flex items-center">
@@ -145,29 +170,32 @@ function RiskBadge({ score, trend, factors }: {
         <TrendIcon className={`w-2.5 h-2.5 ${trendColor}`} />
       </span>
       {/* Tooltip per riga */}
-      <span className="pointer-events-none absolute left-0 bottom-full mb-2 w-56 bg-surface border border-border rounded-xl p-3 shadow-2xl opacity-0 group-hover/risk:opacity-100 transition-opacity z-[999] text-left">
+      <span className="pointer-events-none absolute left-0 bottom-full mb-2 w-64 bg-surface border border-border rounded-xl p-3 shadow-2xl opacity-0 group-hover/risk:opacity-100 transition-opacity z-[999] text-left">
         <div className="flex items-center justify-between mb-2">
-          <span className={`text-2xs font-bold ${score >= 60 ? 'text-error' : score >= 35 ? 'text-warning' : 'text-success'}`}>{levelLabel}</span>
+          <span className={`text-2xs font-bold ${risk.band === 'alto' ? 'text-error' : risk.band === 'medio' ? 'text-warning' : 'text-success'}`}>{levelLabel}</span>
           <span className={`text-2xs ${trendColor}`}>{trendLabel}</span>
         </div>
-        {factorEntries.length > 0 ? (
-          <div className="space-y-1.5">
-            {factorEntries.map(([key, f]) => (
-              <div key={key} className="flex items-center justify-between gap-2">
-                <span className="text-2xs text-text-secondary truncate">{f.msg}</span>
-                <span className={`text-2xs font-bold shrink-0 ${f.score > 0 ? 'text-error' : 'text-success'}`}>
-                  {f.score > 0 ? `+${f.score}` : f.score}
-                </span>
-              </div>
-            ))}
-            <div className="border-t border-border pt-1.5 flex items-center justify-between">
-              <span className="text-2xs text-text-secondary">Score totale</span>
-              <span className="text-2xs font-black text-text-primary">{score}/100</span>
+        <div className="space-y-1.5">
+          {risk.factors.map(f => (
+            <div key={f.key} className="flex items-center justify-between gap-2">
+              <span className="text-2xs text-text-secondary truncate" title={f.msg}>{f.msg}</span>
+              <span className={`text-2xs font-bold shrink-0 ${f.score > 0 ? 'text-error' : f.score < 0 ? 'text-success' : 'text-text-tertiary'}`}>
+                {f.score > 0 ? `+${f.score}` : f.score}
+              </span>
             </div>
+          ))}
+          <div className="border-t border-border pt-1.5 flex items-center justify-between">
+            <span className="text-2xs text-text-secondary">Score totale</span>
+            <span className="text-2xs font-black text-text-primary">{score}/100</span>
           </div>
-        ) : (
-          <p className="text-2xs text-text-secondary">Nessun fattore di rischio rilevato.</p>
-        )}
+          {/* Quello che il motore non ha potuto guardare pesa quanto quello che ha guardato */}
+          {risk.unknown.map(un => (
+            <div key={un.key} className="flex items-center justify-between gap-2">
+              <span className="text-2xs text-text-tertiary truncate" title={un.msg}>{un.msg}</span>
+              <span className="text-2xs font-bold shrink-0 text-text-tertiary">n/d</span>
+            </div>
+          ))}
+        </div>
       </span>
     </span>
   )
@@ -180,7 +208,7 @@ function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; s
     : <ChevronDown className="w-3 h-3 text-gold-text" />
 }
 
-function SortValue(c: Client, key: SortKey, eco?: ClientEconomicsSummary): string | number {
+function SortValue(c: Client, key: SortKey, eco?: ClientEconomicsSummary, risk?: RiskResult): string | number {
   if (key === 'company_name') return c.company_name.toLowerCase()
   // §176: si ordina per quello che si vede, cioè il canone dai contratti
   if (key === 'mrr') return eco ? canone(eco, c) : c.mrr
@@ -188,14 +216,14 @@ function SortValue(c: Client, key: SortKey, eco?: ClientEconomicsSummary): strin
   if (key === 'client_label') return c.client_label ?? ''
   if (key === 'payment_status') return c.payment_status
   if (key === 'contract_end') return c.contract_end ?? ''
-  if (key === 'risk_score') return c.risk_score ?? -1
+  if (key === 'risk_score') return risk?.score ?? -1
   return ''
 }
 
 const STORAGE_PINS = 'twobee_pinned_clients'
 const STORAGE_PIN_ORDER = 'twobee_pinned_order'
 
-export function ClientiList({ clients: initialClients, currentProfile, hideEconomics = false, economics = {} }: ClientiListProps) {
+export function ClientiList({ clients: initialClients, currentProfile, hideEconomics = false, economics = {}, risks = {} }: ClientiListProps) {
   const canSeeMrr = !hideEconomics && (!currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || ['admin', 'manager'].includes(currentProfile.app_role ?? ''))
   const canCreateClient = !hideEconomics && (!currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || ['admin', 'manager'].includes(currentProfile.app_role ?? ''))
   const showPayments = !hideEconomics
@@ -320,8 +348,8 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
   })
 
   const applySort = (list: Client[]) => [...list].sort((a, b) => {
-    const va = SortValue(a, sortKey, economics[a.id])
-    const vb = SortValue(b, sortKey, economics[b.id])
+    const va = SortValue(a, sortKey, economics[a.id], risks[a.id])
+    const vb = SortValue(b, sortKey, economics[b.id], risks[b.id])
     const cmp = typeof va === 'number' && typeof vb === 'number'
       ? va - vb
       : String(va).localeCompare(String(vb))
@@ -521,7 +549,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
               {paymentLabel(client.payment_status)}
             </span>
           ))}
-          {client.risk_score != null && <RiskBadge score={client.risk_score} trend={client.risk_trend} factors={client.risk_factors} />}
+          <RiskBadge risk={risks[client.id]} />
         </div>
 
         {/* Contratto */}
@@ -610,7 +638,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
         </span>
       </td>
       <td className="px-4 py-3.5">
-        <RiskBadge score={client.risk_score} trend={client.risk_trend} factors={client.risk_factors} />
+        <RiskBadge risk={risks[client.id]} />
       </td>
       <td className="px-4 py-3.5">
       </td>
@@ -685,7 +713,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
 
   return (
     <div className="p-4 sm:p-6 space-y-4">
-      {!hideEconomics && <PrioritaOggi billing={billingIds} clients={clients} />}
+      {!hideEconomics && <PrioritaOggi billing={billingIds} clients={clients} risks={risks} />}
 
       {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap">

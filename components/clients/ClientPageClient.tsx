@@ -20,6 +20,7 @@ const PanoramicaTab = dynamic(() => import('./tabs/PanoramicaTab').then(m => ({ 
 const ClientProjectsTab = dynamic(() => import('./tabs/ClientProjectsTab').then(m => ({ default: m.ClientProjectsTab })))
 const ClientAdHocTab = dynamic(() => import('./tabs/ClientAdHocTab').then(m => ({ default: m.ClientAdHocTab })))
 import { ClientAlertBanner } from './ClientAlertBanner'
+import type { RiskResult } from '@/lib/risk'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 
@@ -47,6 +48,8 @@ interface Props {
   hasBilling?: boolean
   /** §178: quanti progetti determinano il tipo del cliente */
   typeCount?: number
+  /** §197: rischio calcolato dal server (`lib/risk.ts`), non da `clients.risk_score` */
+  risk?: RiskResult
 }
 
 const LABEL_TEXT: Record<string, string> = {
@@ -167,7 +170,7 @@ export function ClientPageClient({
   client, contacts, kpis,
   teamMembers, stakeholders, interactions, currentProfile, allProfiles,
   openTickets, initialTab, hideEconomics = false, backHref = '/clienti', economics,
-  contractsCount = null, mrrFromContracts = null, hasBilling = false, typeCount = 0,
+  contractsCount = null, mrrFromContracts = null, hasBilling = false, typeCount = 0, risk,
 }: Props) {
   /* §176: il canone è la somma dei contratti attivi dei progetti. L'anagrafica
      non si scrive più, quindi un numero «da anagrafica» è un residuo: meglio
@@ -213,7 +216,7 @@ export function ClientPageClient({
       </div>
 
       {/* Alert banner contestuale */}
-      <ClientAlertBanner client={client} hideEconomics={hideEconomics} hasBilling={hasBilling} />
+      <ClientAlertBanner client={client} hideEconomics={hideEconomics} hasBilling={hasBilling} risk={risk} />
 
       {/* Header cliente — tutto editabile per admin */}
       <div className="px-4 sm:px-6 pb-5 border-b border-border">
