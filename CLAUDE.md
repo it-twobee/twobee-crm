@@ -460,14 +460,34 @@ diversi, non per incoerenza:
   (economics e scheda cliente) e la seconda copia si dimenticava ogni colonna
   nuova.
 
-**Due letture della ripartizione** (§204): la sezione «Ripartizione del maturato»
-ha un selettore **maturato / incassato**. La seconda chiama lo stesso
+**Due letture della ripartizione** (§204): la seconda lettura chiama lo stesso
 `computeMonth` sulle **sole righe con la spunta** — entrate incassate e costi
 pagati — quindi «Cassa TwoBee» si muove quando spunti «pagato», che è la domanda
 che quel nome fa venire in mente. Il motore è puro, quindi non c'è una seconda
 formula da tenere allineata. I **compensi** restano quelli del maturato: chi ha
 lavorato ha lavorato, e un cliente lento non azzera il compenso di chi ha già
 consegnato.
+
+**La lettura è della pagina, non di un riquadro** (§210, `BasisSwitch` in
+`PlClient`). Il selettore della §204 stava dentro «Ripartizione»: cambiava sette
+numeri su quaranta, e i **quattro in cima** — quelli che si guardano per primi —
+restavano sul maturato. Due letture della stessa sezione che non concordano sono
+peggio di una sola, perché chi legge non sa quale delle due sta guardando. Adesso
+i due tasti macro stanno **sopra le scorecard** e `basis` governa ogni totale:
+entrate, costi, margine, incidenza e ripartizione. Tre regole:
+
+- **Il selettore dichiara cosa esclude**, prima che uno prema: quante righe sono
+  spuntate su quante, e quanti euro restano fuori. Un selettore che non lo dice
+  fa credere che il numero più basso sia il numero vero.
+- **Zero spuntate non è zero euro**: se nessuno ha ancora messo una spunta,
+  l'incassato vale zero e la pagina lo scrive invece di mostrare un mese vuoto.
+- **I compensi non seguono la lettura** (§204 resta), ma diventano dinamici lo
+  stesso: sotto ogni socio e ogni commerciale compare **quanto ne copre
+  l'incassato** di quel mese. La quota non cala perché un cliente è in ritardo;
+  quello che cambia è quanta ne è già in cassa.
+
+Le righe di entrata e uscita non si filtrano mai: sono i fatti, e sono anche il
+posto dove si spunta. La leva e il risultato devono stare nella stessa schermata.
 
 **Struttura e subappalti non si sommano** (§188): `costs.structural` sono i costi
 interni, `costs.external` i subappalti. Il **target del 35% riguarda solo la

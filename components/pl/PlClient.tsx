@@ -8,6 +8,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, Plus, Trash2, CopyPlus, Lock, LockOpen,
   TrendingUp, TrendingDown, Wallet, Target, ShieldAlert, Users, Building2, Info,
   Briefcase, AlertTriangle, RotateCcw, Landmark, CalendarRange, Receipt, Loader2, Truck,
+  FileText, BadgeEuro, CheckCircle2,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import {
@@ -104,6 +105,29 @@ export function PlClient({
     () => computeMonth(revenue.filter(r => r.paid), costs.filter(c => c.paid), config, partners),
     [revenue, costs, config, partners])
 
+  /* §210 — la lettura è una scelta della **pagina**, non di un riquadro.
+     Il selettore stava dentro «Ripartizione»: cambiava sette numeri su quaranta,
+     e i quattro in cima — quelli che si guardano per primi — restavano sul
+     maturato. Due letture della stessa sezione che non concordano sono peggio di
+     una sola: chi legge non sa quale delle due sta guardando.
+
+     Adesso `basis` governa tutto ciò che è un **totale**, e `tv` è l'unico
+     oggetto da cui i riquadri leggono. Le righe di entrata e uscita restano
+     quelle che sono — sono i fatti, e sono anche il posto dove si spunta. */
+  const [basis, setBasis] = useState<'maturato' | 'incassato'>('maturato')
+  const cash = basis === 'incassato'
+  const tv = cash ? tCash : t
+
+  /* I compensi non seguono la lettura, e non è una dimenticanza (§204): chi ha
+     lavorato ha lavorato, e un cliente lento non azzera il compenso di chi ha già
+     consegnato. Quello che cambia è **quanto di quel compenso è già coperto**
+     dall'incassato — che è la domanda vera quando si guarda la cassa. */
+  const covered = useMemo(() => ({
+    partner: new Map(tCash.perPartner.map(p => [p.partner.id, p.total])),
+    sales: new Map(tCash.salesByOwner.map(s => [s.label, s.amount])),
+    pool: tCash.plan.salesPool,
+  }), [tCash])
+
   const run = (fn: () => Promise<unknown>, ok?: string) => start(async () => {
     try { await fn(); if (ok) toast.success(ok); router.refresh() }
     catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
@@ -146,7 +170,7 @@ export function PlClient({
   const fc = useMemo(() => forecastTotals(forecast), [forecast])
 
   // incidenza costi: sotto target è efficienza, sopra è erosione di margine
-  const overTarget = t.costs.variance < 0
+  const overTarget = tv.costs.variance < 0
 
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-5">
@@ -266,31 +290,43 @@ export function PlClient({
         </div>
       )}
 
+      {/* ── su cosa si sta leggendo tutta la sezione ── */}
+      <BasisSwitch basis={basis} onChange={setBasis} t={t} tCash={tCash}
+        rows={{ revenue: revenue.length, paidRevenue: revenue.filter(r => r.paid).length,
+                costs: costs.length, paidCosts: costs.filter(c => c.paid).length }} />
+
       {/* ── i quattro numeri che contano ── */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi icon={<TrendingUp className="w-4 h-4 text-success" />} label="Entrate maturate" value={eur(t.revenue.accrued)}
-          hint={`${eur(t.revenue.collected)} incassati · ${eur(t.revenue.unpaid)} da incassare`}
-          trend={delta(t.revenue.accrued, previous.accrued)} />
+        <Kpi icon={<TrendingUp className="w-4 h-4 text-success" />}
+          label={cash ? 'Entrate incassate' : 'Entrate maturate'} value={eur(tv.revenue.accrued)}
+          hint={cash
+            ? `${eur(t.revenue.unpaid)} del maturato ancora scoperti`
+            : `${eur(t.revenue.collected)} incassati · ${eur(t.revenue.unpaid)} da incassare`}
+          trend={cash ? undefined : delta(t.revenue.accrued, previous.accrued)} />
         {/* §188: «effettivi» è il totale uscito; il target riguarda la struttura,
             e i subappalti si dicono a parte perché sono già nel margine del progetto. */}
-        <Kpi icon={<TrendingDown className="w-4 h-4 text-error" />} label="Costi effettivi" value={eur(t.costs.actual)}
-          hint={`preventivato ${eur(t.costs.budget)}`}
-          trend={delta(t.costs.actual, previous.costs)} trendGoodIsDown />
-        <Kpi icon={<Wallet className="w-4 h-4 text-gold-text" />} label="Margine lordo" value={eur(t.margin.gross)}
-          hint={t.revenue.accrued > 0 ? `${pc(t.margin.gross / t.revenue.accrued)} sulle entrate` : '—'} />
+        <Kpi icon={<TrendingDown className="w-4 h-4 text-error" />}
+          label={cash ? 'Costi pagati' : 'Costi effettivi'} value={eur(tv.costs.actual)}
+          hint={cash
+            ? `${eur(t.costs.actual - tCash.costs.actual)} registrati ma non ancora usciti`
+            : `preventivato ${eur(t.costs.budget)}`}
+          trend={cash ? undefined : delta(t.costs.actual, previous.costs)} trendGoodIsDown />
+        <Kpi icon={<Wallet className="w-4 h-4 text-gold-text" />}
+          label={cash ? 'Margine di cassa' : 'Margine lordo'} value={eur(tv.margin.gross)}
+          hint={tv.revenue.accrued > 0 ? `${pc(tv.margin.gross / tv.revenue.accrued)} sulle entrate` : '—'} />
         <Kpi icon={<Target className={`w-4 h-4 ${overTarget ? 'text-error' : 'text-success'}`} />}
-          label="Incidenza costi" value={pc(t.costs.ratio)}
-          hint={(overTarget
-            ? `${eur(-t.costs.variance)} sopra il target del ${pc(config.cost_target_pct)}`
-            : `${eur(t.costs.variance)} sotto il target del ${pc(config.cost_target_pct)}`)
-            + (t.costs.external > 0 ? ` · ${eur(t.costs.external)} di subappalti fuori dal target` : '')}
-          tone={overTarget ? 'error' : 'success'} />
+          label="Incidenza costi" value={pc(tv.costs.ratio)}
+          hint={(tv.costs.variance < 0
+            ? `${eur(-tv.costs.variance)} sopra il target del ${pc(config.cost_target_pct)}`
+            : `${eur(tv.costs.variance)} sotto il target del ${pc(config.cost_target_pct)}`)
+            + (tv.costs.external > 0 ? ` · ${eur(tv.costs.external)} di subappalti fuori dal target` : '')}
+          tone={tv.costs.variance < 0 ? 'error' : 'success'} />
       </div>
 
       {!setupNeeded && !empty && <PlHealth findings={findings} />}
 
       {/* ── dove vanno i soldi ── */}
-      <Distribution t={t} tCash={tCash} config={config} />
+      <Distribution t={t} tCash={tCash} config={config} mode={basis} />
 
       {/* ── compensi ── */}
       <div className="grid gap-4 lg:grid-cols-2">
@@ -298,6 +334,14 @@ export function PlClient({
           <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary mb-1">
             <Users className="w-4 h-4 text-accent" />Compensi soci
           </h2>
+          {/* §204 — il compenso matura sul lavoro consegnato e non segue la
+              lettura: quello che cambia è quanto ne è già coperto dall'incassato. */}
+          {cash && (
+            <p className="text-2xs text-text-secondary mb-2">
+              Restano quelli del <strong className="text-text-primary">maturato</strong>: chi ha lavorato
+              ha lavorato. Sotto ciascuno c&apos;è quanto ne copre l&apos;incassato di questo mese.
+            </p>
+          )}
           {/* le regole in tre chip invece di un paragrafo: si leggono in un colpo */}
           <div className="flex items-center gap-1.5 flex-wrap mb-3">
             <span className="text-2xs px-2 py-0.5 rounded-lg bg-background border border-border text-text-secondary">
@@ -404,6 +448,16 @@ export function PlClient({
                           <span className="tabular font-semibold text-error">{eur(p.overspent)}</span>
                         </span>
                       )}
+                      {cash && (
+                        <span className="inline-flex items-baseline gap-1 text-2xs px-2 py-0.5 rounded-lg
+                                         bg-success-dim border border-success/30"
+                          title="Quota calcolata sulle sole righe incassate: il resto matura ma non è ancora in cassa">
+                          <span className="text-success">coperto</span>
+                          <span className="tabular font-semibold text-success">
+                            {eur(covered.partner.get(p.partner.id) ?? 0)}
+                          </span>
+                        </span>
+                      )}
                       <span className="ml-auto text-2xs text-text-tertiary">
                         {aperto ? 'chiudi il dettaglio' : `${p.rows.length} righe di ricavo`}
                       </span>
@@ -443,6 +497,7 @@ export function PlClient({
                 </div>
                 <p className="text-2xs text-text-tertiary mt-0.5">
                   Nessun commerciale, né sulla riga né in anagrafica: {eur(t.plan.poolShare)} a testa ai soci
+                  {cash && <> · {eur(covered.pool)} coperti dall&apos;incassato</>}
                 </p>
               </button>
               {openQuota === 'pool' && (
@@ -469,7 +524,14 @@ export function PlClient({
                         <span className="ml-1.5 text-2xs text-text-tertiary">dall&apos;anagrafica</span>
                       )}
                     </span>
-                    <span className="text-sm font-bold text-text-primary tabular">{eur(s.amount)}</span>
+                    <span className="text-right shrink-0">
+                      <span className="block text-sm font-bold text-text-primary tabular leading-tight">{eur(s.amount)}</span>
+                      {cash && (
+                        <span className="block text-2xs text-success tabular">
+                          {eur(covered.sales.get(s.label) ?? 0)} coperti
+                        </span>
+                      )}
+                    </span>
                     <ChevronDown className={`w-3.5 h-3.5 text-text-tertiary shrink-0 transition-transform ${
                       openQuota === `o:${s.label}` ? 'rotate-180' : ''}`} />
                   </button>
@@ -880,6 +942,92 @@ export function PlClient({
 }
 
 // ── pezzi ────────────────────────────────────────────────────────────────────
+
+/**
+ * §210 — le due letture del mese, in cima e non dentro un riquadro.
+ *
+ * **Maturato** è quello che il mese ha prodotto: il lavoro consegnato, la fattura
+ * emessa, incassata o no. **Incassato** sono le sole righe con la spunta —
+ * entrate incassate e costi pagati — cioè quello che è davvero passato dal conto.
+ *
+ * I due tasti non sono un filtro estetico: cambiano ogni totale della sezione, e
+ * per questo dichiarano **quanto** stanno lasciando fuori prima che uno prema.
+ * Un selettore che non dice cosa esclude fa credere che il numero più basso sia
+ * il numero vero.
+ *
+ * La leva sono le spunte nelle tabelle qui sotto: si spunta «incassato» su
+ * un'entrata o «pagato» su un'uscita, e questi numeri si muovono. È l'unico modo
+ * di far reagire la sezione — non c'è un secondo posto dove scrivere la cassa.
+ */
+function BasisSwitch({ basis, onChange, t, tCash, rows }: {
+  basis: 'maturato' | 'incassato'
+  onChange: (b: 'maturato' | 'incassato') => void
+  t: PlTotals; tCash: PlTotals
+  rows: { revenue: number; paidRevenue: number; costs: number; paidCosts: number }
+}) {
+  const opts = [
+    {
+      key: 'maturato' as const, label: 'Maturato', icon: <FileText className="w-4 h-4" />,
+      value: t.revenue.accrued,
+      desc: 'Quello che il mese ha prodotto, incassato o no',
+      side: `${rows.revenue} entrate · ${rows.costs} uscite`,
+    },
+    {
+      key: 'incassato' as const, label: 'Incassato', icon: <BadgeEuro className="w-4 h-4" />,
+      value: tCash.revenue.accrued,
+      desc: 'Solo le righe spuntate: entrate incassate e costi pagati',
+      side: `${rows.paidRevenue} su ${rows.revenue} incassate · ${rows.paidCosts} su ${rows.costs} pagate`,
+    },
+  ]
+  const nothingTicked = basis === 'incassato' && rows.paidRevenue === 0 && rows.paidCosts === 0 && rows.revenue > 0
+
+  return (
+    <section aria-label="Base di lettura del mese"
+      className="bg-surface border border-border rounded-2xl p-3 shadow-soft">
+      <div className="grid gap-2 sm:grid-cols-2">
+        {opts.map(o => {
+          const on = basis === o.key
+          return (
+            <button key={o.key} onClick={() => onChange(o.key)} aria-pressed={on}
+              className={`text-left rounded-xl border p-3 transition-colors press ${
+                on ? 'border-gold bg-gold-dim' : 'border-border hover:bg-surface-hover'
+              }`}>
+              <div className="flex items-center gap-2">
+                <span className={on ? 'text-gold-text' : 'text-text-tertiary'}>{o.icon}</span>
+                <span className="text-sm font-bold text-text-primary flex-1">{o.label}</span>
+                {on && <CheckCircle2 className="w-4 h-4 text-gold-text shrink-0" aria-hidden="true" />}
+                <span className="text-base font-bold text-text-primary tabular">{eur(o.value)}</span>
+              </div>
+              <p className="text-2xs text-text-secondary mt-1">{o.desc}</p>
+              <p className="text-2xs text-text-tertiary mt-0.5 tabular">{o.side}</p>
+            </button>
+          )
+        })}
+      </div>
+      <p className="flex items-start gap-2 text-2xs text-text-tertiary mt-2 px-1">
+        <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+        {nothingTicked ? (
+          <span className="text-warning">
+            Nessuna riga è ancora spuntata: sull&apos;incassato questo mese vale zero. Metti le spunte
+            «incassato» sulle entrate e «pagato» sulle uscite qui sotto e i numeri si muovono.
+          </span>
+        ) : basis === 'incassato' ? (
+          <span>
+            Tutti i totali di questa pagina leggono le sole righe spuntate. Restano fuori{' '}
+            <strong className="text-text-secondary tabular">{eur(t.revenue.unpaid)}</strong> di entrate
+            e <strong className="text-text-secondary tabular">{eur(t.costs.actual - tCash.costs.actual)}</strong> di
+            costi non ancora usciti. I compensi restano quelli del maturato: chi ha lavorato ha lavorato.
+          </span>
+        ) : (
+          <span>
+            Tutti i totali di questa pagina leggono il maturato. Passa a «Incassato» per vedere gli stessi
+            numeri sulle sole righe spuntate — è lì che «Cassa TwoBee» si muove quando spunti «pagato».
+          </span>
+        )}
+      </p>
+    </section>
+  )
+}
 
 function Kpi({ icon, label, value, hint, tone, trend, trendGoodIsDown }: {
   icon: React.ReactNode; label: string; value: string; hint?: string
@@ -2088,13 +2236,15 @@ type Slice = {
  * Passare il mouse su una voce la accende nella barra e spegne le altre: è il modo
  * più corto di rispondere a «quale pezzo è questo».
  */
-function Distribution({ t: accrual, tCash, config }: {
+function Distribution({ t: accrual, tCash, config, mode }: {
   t: PlTotals; tCash: PlTotals; config: PlConfig
+  /* §210 — la lettura non si sceglie più qui: è quella della pagina. Due
+     selettori per la stessa domanda davano due risposte contemporaneamente, e
+     dai quattro numeri in cima non si capiva quale delle due stessero seguendo. */
+  mode: 'maturato' | 'incassato'
 }) {
   const [view, setView] = useState<'tutto' | 'growth' | 'digital'>('tutto')
-  const [mode, setMode] = useState<'maturato' | 'incassato'>('maturato')
   const [hover, setHover] = useState<string | null>(null)
-  // tutta la sezione legge da qui: cambiare lettura cambia ogni numero, non uno
   const t = mode === 'incassato' ? tCash : accrual
 
   const k = useMemo(() => {
@@ -2201,25 +2351,12 @@ function Distribution({ t: accrual, tCash, config }: {
     <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
       <div className="flex items-end justify-between gap-3 mb-3 flex-wrap">
         <div>
-          <h2 className="text-sm font-bold text-text-primary">Ripartizione del maturato</h2>
+          <h2 className="text-sm font-bold text-text-primary">
+            Ripartizione dell&apos;{mode === 'incassato' ? 'incassato' : 'imponibile maturato'}
+          </h2>
           <p className="text-2xs text-text-tertiary mt-0.5">{note}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap shrink-0">
-        {/* §204 — competenza o cassa: la seconda si muove con le spunte «pagato» */}
-        <div className="flex gap-1 bg-background border border-border rounded-xl p-1">
-          {([
-            ['maturato', 'Maturato', 'Tutto quello che il mese ha prodotto, incassato o no: è la base dei compensi'],
-            ['incassato', 'Incassato', 'Solo le righe spuntate: entrate incassate e costi pagati. Si muove quando spunti «pagato»'],
-          ] as const).map(([m, lab, why]) => (
-            <button key={m} onClick={() => { setMode(m); setHover(null) }} aria-pressed={mode === m}
-              title={why}
-              className={`px-2.5 py-1 rounded-lg text-2xs font-semibold press ${
-                mode === m ? 'bg-text-primary text-background' : 'text-text-secondary hover:bg-surface-hover'}`}>
-              {lab}
-            </button>
-          ))}
-        </div>
-
         {/* tre domande diverse, tre viste: ognuna chiude sulla sua base */}
         <div className="flex gap-1 bg-background border border-border rounded-xl p-1">
           {([
