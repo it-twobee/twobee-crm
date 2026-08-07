@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { Organigramma } from '@/components/hr/Organigramma'
 import { ResourceProfilesTab } from '@/components/hr/ResourceProfilesTab'
 import { HrRequestsTab } from '@/components/hr/HrRequestsTab'
+import { FerieCalendar } from '@/components/hr/FerieCalendar'
 import { EmptyState } from '@/components/shared/EmptyState'
 import type {
   Profile, TeamLeave, PerformanceReview, LeaveType, LeaveStatus, LegacyContractType, OrgUnit, OrgMember, ResourceProfile, HrRequest,
@@ -413,7 +414,24 @@ export function HRClient({ profiles, leaves: initialLeaves, reviews: initialRevi
 
       {/* ── FERIE & PERMESSI ── */}
       {tab === 'ferie' && (
-        <div className="space-y-3">
+        <div className="space-y-4">
+          {/* §223 — il calendario prima dell'elenco: «chi manca insieme a chi» e
+              «quando arriva il buco» sono domande che una lista cronologica non
+              risponde. L'elenco resta sotto, perché è lì che si approva. */}
+          <FerieCalendar
+            requests={hrRequests.map(r => ({
+              id: r.id, profile_id: r.profile_id, type: r.type, status: r.status,
+              start_date: r.start_date, end_date: r.end_date, notes: r.notes,
+            }))}
+            leaves={leaves.map(l => ({
+              id: l.id, user_id: l.user_id, type: l.type, status: l.status,
+              start_date: l.start_date, end_date: l.end_date, notes: l.notes,
+            }))}
+            profiles={profiles}
+            today={new Date().toISOString().slice(0, 10)}
+          />
+
+          <h3 className="text-sm font-bold text-text-primary pt-1">Registro assenze</h3>
           {leaves.length === 0 && (
             <EmptyState
               icon={<Calendar className="w-5 h-5" />}

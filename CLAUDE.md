@@ -973,6 +973,37 @@ cosa e l'altra, e ogni volta serve sapere dove si era arrivati.
   senza cliente stanno in fondo ma **ci sono**: sono quelle che di solito si
   buttano, e nasconderle fa chiudere Asana con dentro roba mai guardata.
 
+## Ferie e assenze (§223, `lib/leave-calendar.ts`)
+Le assenze vivono in **due tabelle che non si parlano**: `hr_requests` è quello
+che la persona chiede dal Workspace (stati in inglese, e comprende tipi che
+assenze non sono — una nota spesa, un documento), `team_leaves` è il registro che
+l'admin tiene a mano (stati in italiano). Approvare una richiesta scrive in
+`calendar_events`, **non** in `team_leaves`: sono indipendenti. `normalize()` le
+fa diventare una lista sola, perché «chi manca il 12 agosto?» non può avere due
+risposte a seconda di quale tabella si guarda.
+
+Cosa resta fuori **si dichiara**, non si filtra in silenzio: `spesa` e
+`documento_hr` (hanno una data, ma nessuno manca dall'ufficio), le righe senza
+date, e gli **intervalli rovesciati** — sul database ce n'è uno vero, dal 24
+agosto al 31 luglio. Non si aggiusta scambiando le date: non si sa quale delle
+due sia giusta, quindi si scarta e si conta, e la pagina lo scrive.
+
+- **L'avviso a dieci giorni** (`upcoming`) è la finestra in cui una consegna si
+  può ancora spostare. Include **chi è già via**, con i giorni negativi: la
+  domanda vera non è «chi parte» ma «su chi non posso contare», e una persona
+  partita ieri non c'è esattamente come una che parte domani.
+- **Nel calendario il colore dice il tipo e il tratteggio dice lo stato**: due
+  informazioni su due canali, così una ferie da approvare non si confonde con un
+  permesso approvato. I giorni degli altri mesi ci sono: un'assenza che comincia
+  il 31 e finisce il 3 si legge solo se si vedono le due estremità.
+- **Il countdown del workspace** (`countdown`) guarda **solo le ferie
+  approvate**: metterlo su una richiesta che può essere rifiutata è il modo più
+  veloce di far arrabbiare qualcuno. Sparisce quando non c'è niente da contare —
+  un riquadro che dice «nessuna ferie» è una presa in giro — e il conteggio si fa
+  **sul server**, perché nel browser darebbe giorni diversi a seconda del fuso.
+
+Gate: `npx tsx lib/leave-calendar.check.ts` (42 controlli sulle righe vere).
+
 ## Architettura portali
 - **Admin** (`/dashboard`, tutto): `super_admin`, `founder`, `admin`.
 - **Workspace** (`/workspace/**` e nient'altro): `manager`, `senior`, `junior`, `stage`, `freelance`, `partner`.

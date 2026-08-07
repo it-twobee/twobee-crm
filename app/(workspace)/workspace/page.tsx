@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionProfile } from '@/lib/auth'
+import { VacationCountdown } from '@/components/workspace/VacationCountdown'
 import Link from 'next/link'
 import {
   Clock, Calendar, ArrowRight, Users, Headphones, ListChecks,
@@ -26,13 +27,20 @@ export default async function WorkspaceDashboardPage() {
   // I contatori chiedono un numero, non le righe: `head` non trasferisce niente
   // e `count: 'exact'` lo fa contare al database. Prima arrivavano tutti i
   // clienti e tutti i ticket aperti solo per leggerne `.length`.
-  const [hrRes, clientsRes, ticketsRes, taRes, pmRes] = await Promise.all([
+  const [hrRes, clientsRes, ticketsRes, taRes, pmRes, ferieRes] = await Promise.all([
     supabase.from('hr_requests').select('id', { count: 'exact', head: true })
       .eq('profile_id', userId).eq('status', 'pending'),
     supabase.from('clients_workspace').select('id', { count: 'exact', head: true }).neq('client_label', 'perso'),
     supabase.from('tickets').select('id', { count: 'exact', head: true }).in('status', ['aperto', 'in_lavorazione']),
     supabase.from('task_assignees').select('task_id').eq('profile_id', userId),
     supabase.from('project_members').select('project_id').eq('profile_id', userId),
+    /* §223 — le proprie ferie approvate ancora da fare. Il conteggio si fa qui e
+       non nel browser: nel browser darebbe giorni diversi a seconda del fuso, e
+       un giorno di differenza su questo lo si nota. */
+    supabase.from('hr_requests')
+      .select('id, profile_id, type, status, start_date, end_date, notes')
+      .eq('profile_id', userId).eq('type', 'ferie').eq('status', 'approved')
+      .gte('end_date', today()).order('start_date').limit(3),
   ])
 
   // task assegnate (primario o multi-assegnatario), non completate
@@ -90,6 +98,14 @@ export default async function WorkspaceDashboardPage() {
           </a>
         </div>
       )}
+
+      {/* §223 — le ferie stanno in cima, sopra le scadenze: è l'unico riquadro
+          che non serve a lavorare, ed è esattamente il motivo per cui sta lì.
+          Sparisce da solo per chi non ha ferie approvate — un riquadro che dice
+          «nessuna ferie» sarebbe una presa in giro. */}
+      <div className="mb-5">
+        <VacationCountdown requests={ferieRes.data ?? []} profileId={userId} today={t} />
+      </div>
 
       {/* Stat operative personali */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5 animate-fade-in">
