@@ -926,6 +926,17 @@ cosa e l'altra, e ogni volta serve sapere dove si era arrivati.
   smette di decidere per paura di sbagliare. Le decise spariscono dalla lista di
   default — il senso è che si accorci mentre ci lavori — e una barra dice quanto
   manca, che è la sola cosa che rende finito un lavoro che sembra infinito.
+- **Ad hoc è la destinazione giusta** (§220). Le 106 task con un proprietario
+  stanno su ventisei board diverse — «Contratto Icura e acconto», «Aggiornare
+  Centro Contatti Meta», «Organizzare strategia commerciale per neve»: non sono
+  passi di una consegna, sono cose da fare per un cliente, che è la definizione
+  di ad hoc. `importAsanaAdHoc` chiede **solo** il cliente (dal nome della board)
+  e la risorsa (dall'email): niente milestone da scegliere, quindi niente da
+  sbagliare. Costringerle in un workstream avrebbe voluto dire inventare
+  centoquattro volte una struttura che su Asana non c'era. Una task **senza
+  cliente non si crea** e torna indietro col nome della sua board: `client_id` è
+  ciò che ancora una ad hoc a qualcuno, e senza finisce in un elenco che nessuno
+  apre.
 - **La struttura si guarda per cliente**, non in ordine alfabetico: «Icura - META
   ADS» e «Ad Hoc - Icura» sono lo stesso cliente e si decidono insieme. Le board
   senza cliente stanno in fondo ma **ci sono**: sono quelle che di solito si

@@ -6,7 +6,7 @@ import {
   Download, RefreshCw, AlertTriangle, CheckCircle2, Loader2, Search, Info, ExternalLink,
   Users, ArrowRight, Check, FolderTree,
 } from 'lucide-react'
-import { scanAsana, importAsanaTasks, setTriage, type AsanaScan } from '@/app/actions/asana'
+import { scanAsana, importAsanaTasks, importAsanaAdHoc, setTriage, type AsanaScan } from '@/app/actions/asana'
 import type { BoardKind, Decision } from '@/lib/asana'
 
 const DECISION_LABEL: Record<Decision, string> = {
@@ -56,6 +56,10 @@ export function AsanaClient({ projects, workstreams, milestones }: {
   const [wsId, setWsId] = useState('')
   const [msId, setMsId] = useState('')
   const [keepAssignee, setKeepAssignee] = useState(true)
+  /* §220 — dove atterrano. «Ad hoc» è il default perché è il caso vero: 106 task
+     sparse su 26 board non sono i passi di una consegna, sono cose da fare per
+     un cliente. Il progetto serve quando la struttura su Asana c'era davvero. */
+  const [dest, setDest] = useState<'adhoc' | 'progetto'>('adhoc')
 
   const wsOf = useMemo(() => workstreams.filter(w => w.project_id === projectId), [workstreams, projectId])
   const msOf = useMemo(() => milestones.filter(m => m.workstream_id === wsId), [milestones, wsId])
@@ -111,11 +115,33 @@ export function AsanaClient({ projects, workstreams, milestones }: {
 
   const migrate = () => {
     if (!scan) return
-    const payload = scan.rows.filter(r => picked.has(r.gid)).map(r => ({
+    const sel = scan.rows.filter(r => picked.has(r.gid))
+    const payload = sel.map(r => ({
       gid: r.gid, title: r.name, notes: r.notes, dueOn: r.dueOn, assigneeEmail: r.assigneeEmail,
     }))
     start(async () => {
       try {
+        if (dest === 'adhoc') {
+          const res = await importAsanaAdHoc(sel.map(r => ({
+            gid: r.gid, title: r.name, notes: r.notes, dueOn: r.dueOn,
+            assigneeEmail: r.assigneeEmail, clientId: r.clientId, boardName: r.board.name,
+          })))
+          toast.success(`${res.created} task ad hoc create`, {
+            description: [
+              res.skipped ? `${res.skipped} già dentro` : '',
+              res.noClient.length ? `${res.noClient.length} senza cliente in anagrafica, saltate` : '',
+              res.noAssignee ? `${res.noAssignee} senza risorsa riconosciuta` : '',
+            ].filter(Boolean).join(' · ') || undefined,
+          })
+          if (res.noClient.length) {
+            toast.warning('Serve il cliente in anagrafica', {
+              description: Array.from(new Set(res.noClient.map(x => x.board))).slice(0, 6).join(' · '),
+            })
+          }
+          setPicked(new Set())
+          setScan(await scanAsana(mode))
+          return
+        }
         const res = await importAsanaTasks(payload, { projectId, workstreamId: wsId, milestoneId: msId, keepAssignee })
         toast.success(`${res.created} task migrate`, {
           description: [
@@ -388,7 +414,28 @@ export function AsanaClient({ projects, workstreams, milestones }: {
 
           {/* ── Dove finiscono ── */}
           <section className="bg-surface border border-border rounded-2xl p-4">
-            <h2 className="text-sm font-bold text-text-primary mb-1">Porta in TwoBee</h2>
+            <h2 className="text-sm font-bold text-text-primary mb-2">Porta in TwoBee</h2>
+            <div className="grid gap-2 sm:grid-cols-2 mb-3">
+              {([
+                ['adhoc', 'Task Ad Hoc', 'Cliente dalla board, risorsa dall\u2019email. Niente altro da scegliere.'],
+                ['progetto', 'Dentro un progetto', 'Serve progetto, workstream e milestone: usalo dove la struttura c\u2019era davvero.'],
+              ] as const).map(([d, lab, why]) => (
+                <button key={d} onClick={() => setDest(d)} aria-pressed={dest === d}
+                  className={`text-left rounded-xl border p-3 press ${
+                    dest === d ? 'border-gold bg-gold-dim' : 'border-border hover:bg-surface-hover'}`}>
+                  <span className="block text-2xs font-bold text-text-primary">{lab}</span>
+                  <span className="block text-2xs text-text-tertiary mt-0.5">{why}</span>
+                </button>
+              ))}
+            </div>
+            {dest === 'adhoc' ? (
+              <p className="text-2xs text-text-tertiary">
+                Ogni task diventa una <strong>Task Ad Hoc</strong> del suo cliente, assegnata alla
+                persona che ce l&apos;ha su Asana. Quelle su una board il cui cliente non è in
+                anagrafica <strong>non si creano</strong>: senza cliente una ad hoc finisce in un
+                elenco che nessuno apre — te le riporta indietro col nome della board.
+              </p>
+            ) : (<>
             <p className="text-2xs text-text-tertiary mb-3">
               Progetto e workstream esistenti. La <strong>milestone è obbligatoria</strong>: una task
               senza milestone non compare nel board del progetto — importata e invisibile è peggio di
@@ -414,21 +461,22 @@ export function AsanaClient({ projects, workstreams, milestones }: {
                 Questo workstream non ha milestone: creane una prima di migrare.
               </p>
             )}
+            <label className="flex items-center gap-2 text-2xs text-text-secondary cursor-pointer mt-3">
+              <input type="checkbox" checked={keepAssignee} onChange={e => setKeepAssignee(e.target.checked)}
+                className="accent-gold" />
+              Mantieni l&apos;assegnatario di Asana, dove l&apos;email combacia
+            </label>
+            </>)}
             <div className="flex items-center gap-3 mt-3 flex-wrap">
-              <label className="flex items-center gap-2 text-2xs text-text-secondary cursor-pointer">
-                <input type="checkbox" checked={keepAssignee} onChange={e => setKeepAssignee(e.target.checked)}
-                  className="accent-gold" />
-                Mantieni l&apos;assegnatario di Asana, dove l&apos;email combacia
-              </label>
               <span className="flex-1" />
-              {!msId && picked.size > 0 && (
+              {dest === 'progetto' && !msId && picked.size > 0 && (
                 <span className="text-2xs text-warning">scegli progetto, workstream e milestone</span>
               )}
               <span className="text-2xs text-text-tertiary tabular">{picked.size} selezionate</span>
-              <button onClick={migrate} disabled={pending || !picked.size || !msId}
+              <button onClick={migrate} disabled={pending || !picked.size || (dest === 'progetto' && !msId)}
                 className="flex items-center gap-1.5 text-2xs font-semibold bg-gold text-on-gold rounded-xl px-3 py-2 press disabled:opacity-40">
                 {pending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight className="w-3.5 h-3.5" />}
-                Migra {picked.size || ''}
+                {dest === 'adhoc' ? 'Crea ad hoc' : 'Migra'} {picked.size || ''}
               </button>
             </div>
           </section>

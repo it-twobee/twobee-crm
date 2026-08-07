@@ -8,6 +8,7 @@ import {
   type AsanaTask, type AsanaUser, type Board, type TaskRow, type ResourceView,
   type Decision, type ClientGroup,
 } from '@/lib/asana'
+import { ASANA_DELETE_BATCH } from '@/lib/asana'
 import { createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 
@@ -225,6 +226,84 @@ export async function scanAsana(mode: 'attive' | 'tutto' = 'attive'): Promise<As
 }
 
 /**
+ * §219 — **Eliminare davvero su Asana.** Distruttivo, su un servizio di terzi,
+ * quindi con tre paletti dichiarati:
+ *
+ *  · **Non è un effetto collaterale.** Segnare «da eliminare» non cancella
+ *    niente: è una decisione. Cancellare è un secondo gesto, con la sua
+ *    conferma. Un pulsante che marca e cancella insieme trasforma un
+ *    ripensamento in un danno.
+ *  · **A lotti, non tutto insieme.** Mille task sono mille chiamate: una sola
+ *    richiesta andrebbe in timeout a metà, lasciando cancellato un pezzo e
+ *    nessuno che sa quale. Il chiamante cicla e vede l'avanzamento.
+ *  · **404 non è un errore.** Una task già sparita è il risultato che volevamo:
+ *    si conta a parte, non fa fallire il lotto.
+ *
+ * `DELETE /tasks/{gid}` su Asana **non distrugge**: sposta nel cestino di chi
+ * cancella, dove resta 30 giorni e si può ripristinare. È il motivo per cui
+ * questa operazione è accettabile senza una copia di sicurezza — ma i 30 giorni
+ * sono un limite vero, non un «per sempre».
+ */
+export type DeleteResult = {
+  deleted: number
+  alreadyGone: number
+  failed: { gid: string; reason: string }[]
+}
+
+export async function deleteOnAsana(gids: string[]): Promise<DeleteResult> {
+  await requireAdmin()
+  const profile = await getSessionProfile()
+  if (!profile) throw new Error('Non autenticato')
+  const token = process.env.ASANA_PAT
+  if (!token) throw new Error('ASANA_PAT non configurato.')
+  if (!gids.length) throw new Error('Nessuna task selezionata.')
+  if (gids.length > ASANA_DELETE_BATCH) {
+    throw new Error(`Massimo ${ASANA_DELETE_BATCH} per volta: il chiamante deve dividere in lotti.`)
+  }
+
+  const res: DeleteResult = { deleted: 0, alreadyGone: 0, failed: [] }
+
+  await pool(gids, 4, async gid => {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const r = await fetch(`${API}/tasks/${gid}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      })
+      if (r.status === 429) {
+        const wait = Number(r.headers.get('Retry-After') ?? 5)
+        await new Promise(x => setTimeout(x, (wait + 1) * 1000))
+        continue
+      }
+      if (r.ok) { res.deleted++; return }
+      // già sparita: è il risultato che volevamo, non un fallimento
+      if (r.status === 404) { res.alreadyGone++; return }
+      res.failed.push({ gid, reason: `Asana ${r.status}: ${(await r.text()).slice(0, 120)}` })
+      return
+    }
+    res.failed.push({ gid, reason: 'Asana continua a rispondere 429' })
+  })
+
+  /* Il registro si aggiorna solo per quelle andate: una task che non si è
+     riusciti a cancellare deve restare nella lista, o la si perde di vista. */
+  const gone = gids.filter(g => !res.failed.some(f => f.gid === g))
+  if (gone.length) {
+    const stamp = new Date().toISOString().slice(0, 10)
+    const admin = createActorClient(profile.id)
+    // best effort: la cancellazione su Asana è già avvenuta, e non si annulla
+    // perché il registro non ha risposto.
+    await admin.from('asana_triage').upsert(
+      gone.map(gid => ({
+        gid, decision: 'elimina' as const, note: `eliminata su Asana il ${stamp}`,
+        decided_by: profile.id, decided_at: new Date().toISOString(),
+      })), { onConflict: 'gid' })
+  }
+
+  revalidatePath('/asana')
+  return res
+}
+
+/**
  * §217 — La decisione presa su un gruppo di task, in un colpo solo.
  *
  * Passare in rassegna 146 board una riga alla volta non si fa: si filtra per
@@ -252,6 +331,102 @@ export async function setTriage(gids: string[], decision: Decision | null): Prom
   if (error) throw new Error(error.message)
   revalidatePath('/asana')
   return gids.length
+}
+
+// ── Il travaso in Task Ad Hoc ───────────────────────────────────────────────
+
+export type AdHocResult = {
+  created: number
+  skipped: number
+  /** senza cliente non si crea: la task ad hoc è ancorata a un cliente */
+  noClient: { title: string; board: string }[]
+  noAssignee: number
+}
+
+/**
+ * §220 — **Ad hoc, non progetto.** È il travaso giusto per il lavoro sparso.
+ *
+ * Le 106 task con un proprietario stanno su ventisei board diverse: «Contratto
+ * Icura e acconto», «Aggiornare Centro Contatti Meta», «Organizzare strategia
+ * commerciale per neve». Non sono passi di una consegna, sono cose da fare per
+ * un cliente — che è esattamente la definizione di ad hoc. Costringerle in un
+ * workstream e una milestone avrebbe voluto dire inventare una struttura che su
+ * Asana non c'era, e inventarla per centoquattro volte.
+ *
+ * Serve solo **il cliente** — che si ricava dal nome della board — e la
+ * **risorsa**, dall'email. Niente milestone da scegliere, quindi niente da
+ * sbagliare.
+ *
+ * Una task senza cliente **non si crea**: `tasks.client_id` è ciò che ancora una
+ * ad hoc a qualcuno, e senza finirebbe in un elenco che nessuno apre. Torna
+ * indietro col suo titolo e la sua board, così si capisce se manca l'anagrafica
+ * (OSM, Sea Power, Ceramiche Martinelli non ci sono) o è roba interna.
+ */
+export async function importAsanaAdHoc(tasks: (ImportPayload & {
+  clientId: string | null; boardName: string
+})[]): Promise<AdHocResult> {
+  await requireAdmin()
+  const profile = await getSessionProfile()
+  if (!profile) throw new Error('Non autenticato')
+  if (!tasks.length) throw new Error('Nessuna task selezionata.')
+
+  const admin = createActorClient(profile.id)
+
+  const gids = tasks.map(t => t.gid)
+  const present = new Set<string>()
+  for (let i = 0; i < gids.length; i += 200) {
+    const { data } = await admin.from('tasks').select('asana_gid').in('asana_gid', gids.slice(i, i + 200))
+    ;(data ?? []).forEach(r => present.add(r.asana_gid as string))
+  }
+
+  const fresh = tasks.filter(t => !present.has(t.gid))
+  const noClient = fresh.filter(t => !t.clientId).map(t => ({ title: t.title, board: t.boardName }))
+  const usable = fresh.filter(t => t.clientId)
+  if (!usable.length) {
+    return { created: 0, skipped: tasks.length - fresh.length, noClient, noAssignee: 0 }
+  }
+
+  const emails = Array.from(new Set(usable.map(t => t.assigneeEmail).filter(Boolean) as string[]))
+  const { data: people } = emails.length
+    ? await admin.from('profiles').select('id, email').in('email', emails)
+    : { data: [] }
+  const byEmail = new Map((people ?? []).map(p => [(p.email as string).toLowerCase(), p.id as string]))
+
+  const { data: made, error } = await admin.from('tasks').insert(
+    usable.map(t => ({
+      client_id: t.clientId,
+      task_type: 'ad_hoc' as const,
+      title: t.title.trim().slice(0, 300) || 'Senza titolo',
+      description: t.notes?.trim() || null,
+      status: 'da_fare' as const,
+      priority: 'media' as const,
+      due_date: t.dueOn || null,
+      visibility: 'internal' as const,
+      asana_gid: t.gid,
+      created_by: profile.id,
+    })),
+  ).select('id, asana_gid')
+  if (error) throw new Error(error.message)
+
+  /* L'assegnatario passa da `task_assignees`: è la sorgente canonica dei 0..N,
+     e il trigger tiene allineato `tasks.assignee_id`. */
+  let noAssignee = 0
+  const byGid = new Map(usable.map(t => [t.gid, t]))
+  const links = (made ?? []).flatMap(m => {
+    const src = byGid.get(m.asana_gid as string)
+    const pid = src?.assigneeEmail ? byEmail.get(src.assigneeEmail.toLowerCase()) : undefined
+    if (!pid) { noAssignee++; return [] }
+    return [{ task_id: m.id as string, profile_id: pid, is_primary_owner: true }]
+  })
+  if (links.length) {
+    const { error: e2 } = await admin.from('task_assignees').insert(links)
+    if (e2) throw new Error(`Task create, ma gli assegnatari no: ${e2.message}`)
+  }
+
+  revalidatePath('/ad-hoc')
+  revalidatePath('/workspace/ad-hoc')
+  revalidatePath('/asana')
+  return { created: made?.length ?? 0, skipped: tasks.length - fresh.length, noClient, noAssignee }
 }
 
 // ── Il travaso vero ─────────────────────────────────────────────────────────

@@ -192,6 +192,16 @@ export function summarize(rows: TaskRow[]) {
   }
 }
 
+/**
+ * §219 — Quante task si cancellano su Asana in una sola chiamata.
+ *
+ * Mille task sono mille richieste HTTP: in una server action sola andrebbe in
+ * timeout a metà, lasciando cancellato un pezzo e nessuno che sa quale. Il
+ * chiamante cicla su lotti di questa misura e mostra l'avanzamento — quaranta
+ * sta comodamente dentro il tempo di una richiesta anche col 429 di mezzo.
+ */
+export const ASANA_DELETE_BATCH = 40
+
 // ── Il triage ───────────────────────────────────────────────────────────────
 
 /** Tre risposte, e nessuna è «forse»: chi resta senza riga è ancora da decidere. */
