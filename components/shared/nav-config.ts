@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, FolderOpen, Settings, CalendarDays, Headphones,
   Ticket, UserCircle2, History, Lightbulb, FolderKanban, Briefcase, ListChecks, ListTodo,
-  Wallet, Target, Landmark, Users2, Banknote, FileText,
+  Wallet, Target, Landmark, Users2, Banknote, FileText, Share2,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -62,6 +62,15 @@ export const navSections: NavSection[] = [
   {
     label: 'Team',
     items: [{ href: '/hr', icon: UserCircle2, label: 'HR & Team' }],
+  },
+  {
+    /* §215 — sezione TEMPORANEA per il travaso da Asana. Va tolta, con la
+       pagina e `lib/asana.ts`, quando il lavoro è dentro: una voce di menu che
+       resta dopo che è servita diventa una cosa che nessuno sa più cosa fa. */
+    label: 'Migrazione',
+    items: [
+      { href: '/asana', icon: Share2, label: 'Asana', adminOnly: true },
+    ],
   },
   {
     label: 'Sistema',

@@ -851,6 +851,34 @@ dice quando, l'altro dice di chi. La sezione li tiene agganciati.
   l'economics: la parte piena della barra dei ricavi è incassato, quella smorzata
   è credito. Zero è sempre visibile e il numero sta scritto accanto al pixel.
 
+## Asana — sezione temporanea (§215)
+`/asana`, voce «Migrazione» nella sidebar admin. Serve a portare dentro il lavoro
+che vive ancora sul workspace `twobee.it`, e **va tolta quando il travaso è
+finito** — pagina, `lib/asana.ts`, voce di menu. Una sezione temporanea che resta
+diventa una cosa che nessuno sa più cosa fa.
+
+**Non scrive niente**, né su Asana né sul database: legge, incrocia, e dice cosa
+non torna. Il file CSV si scarica e si guarda prima di decidere.
+
+**La gerarchia sta nei nomi delle board, non nell'API**: i portfolio del PAT sono
+zero e Asana vieta di listare quelli altrui (403). Il trattino da solo non basta —
+`"Josè Restaurant - Tenuta Villa Guerra"` è un cliente, `"Elettra -GOOGLE ADS"` è
+un servizio — quindi decide il **vocabolario dei servizi** (`SERVICES`): se la
+coda è un servizio noto è una checklist, altrimenti il trattino fa parte del nome.
+L'ordine dei controlli in `classify` è una regola, non uno stile: `Prospect - Sea
+Power` va riconosciuto prima di `master`, perché Sea Power è anche cliente vero e
+il suo lavoro commerciale finirebbe fra le consegne.
+
+I refusi del workspace (`Sartoria Cpndotti`, `Propsect -`, `Plusvending`) si
+mappano in `TYPOS`, non si correggono su Asana: là romperebbero i preferiti delle
+persone. **Ogni riga che non passerebbe dice perché** invece di sparire — è la
+lista da guardare per capire se manca un'anagrafica o è solo un nome scritto
+male. Gate: `npx tsx lib/asana.check.ts` (45 controlli su nomi veri).
+
+Rate limit: le board si leggono a gruppi di cinque e il 429 si rispetta
+(`Retry-After`). Un travaso a cui mancano trenta board in silenzio è peggio di
+un'attesa.
+
 ## Architettura portali
 - **Admin** (`/dashboard`, tutto): `super_admin`, `founder`, `admin`.
 - **Workspace** (`/workspace/**` e nient'altro): `manager`, `senior`, `junior`, `stage`, `freelance`, `partner`.
