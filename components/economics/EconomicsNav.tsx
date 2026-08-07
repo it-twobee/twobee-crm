@@ -1,18 +1,20 @@
 import Link from 'next/link'
-import { BookOpen, Wallet, Landmark, Users, Banknote } from 'lucide-react'
+import { BookOpen, Wallet, Landmark, Users, Banknote, FileText } from 'lucide-react'
 
 /**
- * Le cinque viste dell'economics: il consuntivo del mese, il piano dei costi, il
- * costo delle persone, quello che di quel margine non è tuo, e il conto corrente
- * — che è l'unico posto dove i numeri sono già accaduti. Stessa materia da cinque
- * lati, quindi si passa dall'una all'altra restando sullo stesso periodo.
+ * Le sei viste dell'economics: il consuntivo del mese, i documenti che lo
+ * provano, il piano dei costi, il costo delle persone, quello che di quel
+ * margine non è tuo, e il conto corrente — che è l'unico posto dove i numeri
+ * sono già accaduti. Stessa materia da sei lati, quindi si passa dall'una
+ * all'altra restando sullo stesso periodo.
  */
 export function EconomicsNav({ active, month }: {
-  active: 'conto' | 'banca' | 'costi' | 'personale' | 'fiscale'
+  active: 'conto' | 'fatture' | 'banca' | 'costi' | 'personale' | 'fiscale'
   month: string
 }) {
   const tabs = [
     { key: 'conto' as const, label: 'Conto economico', href: `/economics?m=${month}`, icon: BookOpen },
+    { key: 'fatture' as const, label: 'Fatturazione', href: `/economics/fatturazione?m=${month}`, icon: FileText },
     { key: 'banca' as const, label: 'Banca', href: `/economics/banca?m=${month}`, icon: Banknote },
     { key: 'costi' as const, label: 'Costi e budget', href: `/economics/costi?m=${month}`, icon: Wallet },
     { key: 'personale' as const, label: 'Personale', href: `/economics/personale?m=${month}`, icon: Users },

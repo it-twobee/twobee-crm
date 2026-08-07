@@ -331,6 +331,81 @@ tantum», che atterrano in un mese solo. `subcontractFindings` segnala anche le
 righe rimaste nel **mese sbagliato**: due mesi che pagano lo stesso acconto hanno
 entrambi un margine falso.
 
+**La riga copia il contratto, e il contratto può cambiare dopo** (§207,
+`contractDrift` in `lib/revenue.ts` + `lib/pl-realign.ts`). Il conto economico non
+rilegge l'accordo: se lo copia quando il mese si prepara. Per i **fatti del mese**
+è giusto — fatturata, incassata, chi era il commerciale allora — ma il **Tipo** non
+è un fatto del mese: è growth o digital, e decide il **15% sull'imponibile** o il
+**6% sul margine**. Correggerlo sul contratto lasciava indietro i mesi già
+preparati, che continuavano a pagare la percentuale di un altro mestiere: sui
+1.625 € di una rata di Fatima Leo, 243,75 invece di 97,50, senza un numero che lo
+dicesse. Da qui tre regole:
+
+- **`updateStream` riallinea da sé** i mesi **aperti**. Un mese chiuso è una
+  fotografia e non si aggiorna perché la realtà è cambiata dopo.
+- **Si riallinea l'accordo, non il mese**: tipo, progetto, IVA e partita di giro.
+  Gli importi no — un canone partito a metà mese vale mezzo canone, e quella è
+  una decisione presa da una persona guardando quel mese.
+- **Il Tipo di una riga da contratto è in sola lettura** nel conto economico, col
+  lucchetto che linka l'accordo e la percentuale scritta sotto. Finché era una
+  select c'erano due risposte alla stessa domanda e niente diceva quale valeva.
+
+Le righe rimaste indietro le mostra un avviso in cima alle Entrate con «Allinea ai
+contratti»; `npx tsx scripts/verify-month.ts <mese>` lo dice dalla riga di comando.
+Serve perché **la quadratura chiude a zero anche sui numeri sbagliati**: le quote
+tornano lo stesso, solo prese dalla tasca di qualcun altro.
+
+**Un accordo su N progetti, in codice** (§207). La 188 era solo tabella: nessuno
+leggeva `revenue_stream_projects`, quindi una riga si prendeva il primo dei tre
+progetti. Adesso `coveredProjects` decide — un progetto solo → la riga lo porta;
+più d'uno → **non ne porta nessuno** (§188) ma li conosce tutti, e il margine
+digital toglie i subappalti di **tutti quelli coperti**: senza, la quota si
+prenderebbe su un ricavo di cui una parte è già del fornitore. Dove il ricavo non
+è attribuibile il margine di progetto dice **n/d** invece di un negativo, e
+`subcontractFindings` non manda a cercare una rata che è al posto suo.
+
+**Spostare la scadenza sposta il mese** (§209, `lib/pl-realign.ts`). Il conto
+economico **materializza** rate e lavorazioni: una volta scritte, cambiare il
+piano non le muoveva, e sbagliare il mese sbaglia **due** mesi — quello che
+perde il fatto continua a contarlo, quello che lo riceve non lo vede. Sul digital
+il danno è doppio, perché il margine è ricavo meno subappalti *dello stesso mese*.
+Adesso:
+
+- `updateInstallment({ due_month })` sposta la riga di ricavo (creando il mese di
+  destinazione se non c'è); `{ amount }` ne aggiorna l'importo.
+- `deleteInstallment` e `generateInstallments` **tolgono** le righe delle rate che
+  spariscono: `installment_id` è `ON DELETE SET NULL`, quindi restavano a
+  fatturare senza più un contratto dietro, invisibili a ogni controllo.
+- `updateCostItem`/`updateProjectCost` spostano l'occorrenza di una **una tantum**
+  (§193: vive in un mese solo). Le ricorrenti no: hanno un'occorrenza per mese e
+  cambiare la finestra non dice quale mese debba emigrare dove.
+- Rateizzare una lavorazione già portata nel mese toglieva… niente: restava il
+  costo intero **più** le tranche. Ora le occorrenze non pagate spariscono con la
+  voce, e se una è **pagata** l'operazione si rifiuta dicendo in quale mese.
+
+**I mesi chiusi non si toccano**, né in uscita né in entrata. E i **compensi non
+si riallineano**: non sono scritti da nessuna parte, si ricalcolano a ogni lettura
+dalle righe — è il motivo per cui basta mettere la riga nel mese giusto perché
+provvigioni, erogato e quote digital tornino da sé.
+
+**Il netto digital si fa mese per mese** (§208). La base delle percentuali è
+**la rata di quel mese meno il subappalto che cade in quel mese**, mai il totale
+del progetto e mai una quota spalmata: 6.500 in 4 rate con 650 di grafico pagati
+ad agosto fanno agosto 1.625 − 650 = 975 (6% = 58,50 · 28% = 273 a socio) e gli
+altri tre mesi 1.625 pieni. Vale identico se il subappalto è una tantum o
+rateizzato (conta l'occorrenza del mese), se il cliente paga a corpo o a rate, e
+se più rate dello stesso progetto cadono insieme (il costo si spartisce fra loro
+in proporzione). Finché l'effettivo non è scritto vale il preventivato, altrimenti
+si distribuirebbe un margine che il fornitore si porta via il mese dopo.
+
+**Il tetto a zero non è un silenzio**: se il subappalto supera la rata, il margine
+si ferma a zero — una quota negativa non si eroga — ma la differenza è uscita di
+cassa che **non ha ridotto nessuna quota**. Ogni mese torna lo stesso, e sulla
+vita del progetto commerciale e soci hanno preso su una base più alta del margine
+vero: per questo `plan.digitalExcess` la conta, la riga scrive «+X oltre la rata»
+e la diagnosi la segnala. Il caso gemello — costo in un mese dove quel progetto
+non ha rata — lo dice `subcontractFindings` con «nessun ricavo nel mese».
+
 - **Subappalti** (§173): una voce di piano con `project_id` è una lavorazione
   affidata fuori. Si crea dalla scheda Economics del progetto, finisce da sé
   nell'area «Delivery & Fornitori» e dà il **margine del progetto** (ricavo del

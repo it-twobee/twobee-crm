@@ -5,7 +5,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { buildSchedule, type RevenueStream, type ScheduleSpec } from '@/lib/revenue'
+import {
+  realignLines, moveInstallmentLine, syncInstallmentAmount, dropInstallmentLines,
+} from '@/lib/pl-realign'
 import { shiftMonth } from '@/lib/pl'
+
+const PL_PATH = '/economics'
 
 /** Contratti e prezzi: dati economici, admin e basta. */
 async function requireAdmin(): Promise<string> {
@@ -75,7 +80,16 @@ export async function updateStream(id: string, patch: Partial<StreamInput>, ctx:
   const { error } = await createAdminClient().from('revenue_streams')
     .update({ ...patch, ...extra, updated_at: new Date().toISOString() }).eq('id', id)
   if (error) throw new Error(error.message)
+
+  /* §207 — il conto economico non rilegge il contratto: se lo è copiato quando
+     il mese è stato preparato. Portare «Tipo» da growth a digital senza toccare
+     i mesi già aperti lascia in giro righe che pagano il 15% su un lavoro al 6%,
+     e la pagina che le mostra ha un lucchetto che rimanda proprio a qui. I mesi
+     chiusi restano come sono: sono una fotografia. */
+  const realigned = await realignLines({ streamIds: [id] })
+
   rev(ctx)
+  return { realigned }
 }
 
 export async function deleteStream(id: string, ctx: RevCtx) {
@@ -104,6 +118,14 @@ export async function generateInstallments(streamId: string, spec: ScheduleSpec,
 
   const drafts = buildSchedule(Number(s.amount), spec)
   if (!drafts.length) throw new Error('Piano vuoto: controlla le percentuali')
+
+  /* §209 — un piano di fatturazione si rifà intero, e le righe già materializzate
+     dalle rate vecchie devono sparire con loro: `installment_id` è SET NULL,
+     quindi resterebbero nel mese come ricavo senza contratto, sommate a quelle
+     nuove. Il mese fatturerebbe due volte lo stesso lavoro. */
+  const { data: old } = await admin.from('revenue_installments')
+    .select('id').eq('stream_id', streamId)
+  await dropInstallmentLines(((old ?? []) as { id: string }[]).map(i => i.id))
 
   const { error: eDel } = await admin.from('revenue_installments').delete().eq('stream_id', streamId)
   if (eDel) throw new Error(eDel.message)
@@ -148,14 +170,28 @@ export async function updateInstallment(
   await requireAdmin()
   const { error } = await createAdminClient().from('revenue_installments').update(patch).eq('id', id)
   if (error) throw new Error(error.message)
+
+  /* §209 — la riga del conto economico segue la rata. Spostare la scadenza e
+     lasciare la riga dov'era sbaglia **due** mesi: quello che la perde continua
+     a contarla, quello che la riceve non la vede. E sul digital sposta anche il
+     margine, perché il subappalto si toglie dalla rata dello stesso mese. */
+  const moved = patch.due_month ? await moveInstallmentLine(id) : null
+  if (patch.amount !== undefined) await syncInstallmentAmount(id, patch.amount)
+
   rev(ctx)
+  if (moved?.moved) revalidatePath(PL_PATH)
+  return moved
 }
 
 export async function deleteInstallment(id: string, ctx: RevCtx) {
   await requireAdmin()
+  // prima la riga del mese: il vincolo è SET NULL, e una riga senza più la sua
+  // rata resterebbe a fatturare nel conto economico senza che nessuno la trovi
+  await dropInstallmentLines([id])
   const { error } = await createAdminClient().from('revenue_installments').delete().eq('id', id)
   if (error) throw new Error(error.message)
   rev(ctx)
+  revalidatePath(PL_PATH)
 }
 
 /**

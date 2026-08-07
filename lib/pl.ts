@@ -175,6 +175,13 @@ export type RevenueLine = {
   /** da dove nasce la riga: contratto di progetto, MRR d'anagrafica, o scritta a mano */
   origin?: 'contratto' | 'anagrafica' | 'manuale'
   project_id?: string | null
+  /**
+   * §207 — i progetti che l'accordo copre. Con uno solo è `[project_id]` e non
+   * cambia niente. Con più d'uno la riga non porta un progetto (§188) ma il
+   * margine digital deve comunque togliere i subappalti di **tutti**: senza,
+   * la quota si prende su un ricavo di cui una parte è già del fornitore.
+   */
+  project_ids?: string[]
   stream_id?: string | null
   /**
    * §186 — valore venduto del progetto: somma dei contratti non in bozza. Decide
@@ -247,6 +254,10 @@ export type Partner = { id: string; label: string; takes_delivery: boolean; take
 const r2 = (n: number) => Math.round(n * 100) / 100
 const nonNeg = (n: number) => (n > 0 ? n : 0)
 
+/** I progetti su cui pesa una riga: quelli dell'accordo, o il suo, o nessuno. */
+export const covered = (l: RevenueLine): string[] =>
+  l.project_ids?.length ? l.project_ids : l.project_id ? [l.project_id] : []
+
 export const pct = {
   sales: (c: PlConfig, k: PlKind) => (k === 'growth' ? c.growth_sales_pct : c.digital_sales_pct),
   delivery: (c: PlConfig, k: PlKind) => (k === 'growth' ? c.growth_delivery_pct : c.digital_delivery_pct),
@@ -289,7 +300,7 @@ export function splitLine(line: RevenueLine, c: PlConfig, opts: SplitOpts = {}) 
   if (line.pass_through) {
     return {
       base, vat, gross,
-      external: 0, margin: 0,
+      external: 0, margin: 0, excess: 0,
       sales: 0, delivery: 0, costTarget: 0, riskFund: 0,
       residual: 0, residualToPartners: 0,
       partnerQuota: 0, partnersPool: 0, companyQuota: 0, retained: 0,
@@ -303,7 +314,15 @@ export function splitLine(line: RevenueLine, c: PlConfig, opts: SplitOpts = {}) 
        e quello che resta si divide per intero. Se il costo esterno supera il
        ricavo del mese il margine è zero, non negativo: una quota negativa non
        vuol dire niente, e la perdita si legge nel margine di progetto. */
-    const external = Math.min(nonNeg(opts.external ?? 0), base)
+    const wanted = nonNeg(opts.external ?? 0)
+    const external = Math.min(wanted, base)
+    /* §208 — quello che non è entrato nella rata del mese. Il tetto è giusto (una
+       quota negativa non si eroga) ma **taceva**: su 2.000 € di subappalto contro
+       una rata da 1.625 il margine è zero e 375 € escono dalla cassa senza aver
+       ridotto niente. Sulla vita del progetto le quote si prendono così su una
+       base più alta del margine vero, e il conto non lo scopre nessuno perché
+       ogni singolo mese torna. Qui il residuo ha un numero e un nome. */
+    const excess = r2(nonNeg(wanted - external))
     const margin = r2(nonNeg(base - external))
     const partners = Math.max(0, opts.partners ?? 0)
 
@@ -326,6 +345,8 @@ export function splitLine(line: RevenueLine, c: PlConfig, opts: SplitOpts = {}) 
       base, vat, gross,
       /** quanto va al subappaltatore: non è distribuibile, è già di qualcun altro */
       external, margin,
+      /** §208 — subappalto del mese che la rata non ha assorbito */
+      excess,
       sales, delivery: 0, costTarget, riskFund,
       /* Nessun «residuo» sul digital: il margine è distribuito per intero, e
          quello che avanza ha un nome — `retained`, e con tre soci è zero. */
@@ -345,7 +366,7 @@ export function splitLine(line: RevenueLine, c: PlConfig, opts: SplitOpts = {}) 
 
   return {
     base, vat, gross,
-    external: 0, margin: base,
+    external: 0, margin: base, excess: 0,
     sales, delivery, costTarget, riskFund, residual,
     /** il residuo growth può restare in cassa invece di dividersi fra i soci */
     residualToPartners: c.growth_residual_to_company ? 0 : residual,
@@ -428,16 +449,25 @@ export function computeMonth(
      altrimenti la prima riga si mangerebbe tutto il subappalto. */
   const digitalByProject = new Map<string, number>()
   for (const l of revenue) {
-    if (l.kind !== 'digital' || !l.project_id) continue
-    digitalByProject.set(l.project_id, r2((digitalByProject.get(l.project_id) ?? 0) + l.amount_net))
+    if (l.kind !== 'digital') continue
+    for (const p of covered(l)) {
+      digitalByProject.set(p, r2((digitalByProject.get(p) ?? 0) + l.amount_net))
+    }
   }
 
   const partnerCount = partners.filter(p => p.takes_delivery || p.takes_residual).length
 
   const split = revenue.map(l => {
-    const projectTotal = l.project_id ? digitalByProject.get(l.project_id) ?? 0 : 0
-    const external = l.kind === 'digital' && l.project_id && projectTotal > 0
-      ? r2((externalByProject.get(l.project_id) ?? 0) * (l.amount_net / projectTotal))
+    /* §207 — la stessa quota, su tutti i progetti che l'accordo copre. Con un
+       progetto solo il conto è identico a prima: la riga prende la sua fetta
+       del subappalto in proporzione a quanto pesa sul ricavo digital di quel
+       progetto. Con tre, prende la sua fetta di ciascuno dei tre. */
+    const external = l.kind === 'digital'
+      ? r2(covered(l).reduce((n, p) => {
+          const total = digitalByProject.get(p) ?? 0
+          if (total <= 0) return n
+          return n + (externalByProject.get(p) ?? 0) * (l.amount_net / total)
+        }, 0))
       : 0
     return { line: l, s: splitLine(l, config, { external, partners: partnerCount }) }
   })
@@ -452,6 +482,14 @@ export function computeMonth(
   // §186 — le quote digital, lette sul margine dopo i subappalti
   const digitalMargin = r2(split.filter(x => x.line.kind === 'digital').reduce((n, x) => n + x.s.margin, 0))
   const digitalExternal = r2(split.reduce((n, x) => n + x.s.external, 0))
+  /* §208 — il subappalto che **supera la rata del mese**. Il margine si ferma a
+     zero (una quota negativa non si eroga) ma la differenza è uscita di cassa
+     che non ha ridotto nessuna quota: sulla vita del progetto si distribuisce
+     così su una base più alta del margine vero, e ogni singolo mese torna lo
+     stesso — ed è il motivo per cui non se ne accorge nessuno. Un numero, non
+     un silenzio. Il caso opposto — costo in un mese senza rata — lo dice già
+     `subcontractFindings` con «nessun ricavo nel mese». */
+  const digitalExcess = r2(split.reduce((n, x) => n + x.s.excess, 0))
   const digitalPartners = sum(x => x.s.partnersPool)
   const digitalPerPartner = sum(x => x.s.partnerQuota)
   const digitalCompany = sum(x => x.s.companyQuota)
@@ -672,7 +710,7 @@ export function computeMonth(
     },
     plan: {
       sales, delivery, riskFund, residual, residualToPartners, distributed, salesPool, poolShare,
-      digitalMargin, digitalExternal, digitalPartners, digitalPerPartner,
+      digitalMargin, digitalExternal, digitalExcess, digitalPartners, digitalPerPartner,
       digitalCompany, digitalRetained, digitalRiskFund, digitalShare, poolRows,
       passThrough,
     },

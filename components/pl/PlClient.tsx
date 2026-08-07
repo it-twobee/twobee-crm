@@ -19,7 +19,9 @@ import {
   generateRevenueFromClients, copyCostsFromPreviousMonth, setMonthStatus, resetMonth,
   addRevenueLine, updateRevenueLine, deleteRevenueLine,
   addCostLine, updateCostLine, deleteCostLine, bulkCostAction,
+  realignMonthFromContracts,
 } from '@/app/actions/pl'
+import { DRIFT_LABEL, type ContractDrift } from '@/lib/revenue'
 import { setLineCenter, syncBudgetsFromPlan } from '@/app/actions/costs'
 import {
   subcontractViews, bySupplierView, byProjectMargin, subcontractFindings, type SubItem,
@@ -63,6 +65,8 @@ type Props = {
   clientOfProject?: Record<string, string>
   /** §192 — le sorgenti dei subappalti: la voce di piano che vive sul progetto */
   subItems?: SubItem[]
+  /** §207 — righe che non dicono più quello che dice il contratto da cui nascono */
+  drift?: ContractDrift[]
 }
 
 const eur = (n: number) => formatCurrency(Math.round(n))
@@ -79,7 +83,7 @@ const pc1 = (n: number) => `${(n * 100).toFixed(2).replace(/\.00$/, '').replace(
 export function PlClient({
   month, status, exists, setupNeeded, previous, missingClients,
   knownMonths, config, partners, profiles, revenue, costs, centers, forecast, vatMonths, today,
-  projectNames, clientNames, clientOfProject = {}, subItems = [],
+  projectNames, clientNames, clientOfProject = {}, subItems = [], drift = [],
 }: Props) {
   const router = useRouter()
   /* Quale compenso è aperto: un numero che non si può aprire si prende per fede,
@@ -633,6 +637,49 @@ export function PlClient({
           </span>
         </div>
 
+        {/* §207 — la riga si è copiata il contratto quando il mese è stato
+            preparato: se l'accordo è cambiato dopo, qui resta la versione
+            vecchia. Il tipo di lavoro decide il 15% o il 6% di provvigione,
+            quindi una riga rimasta indietro paga la percentuale di un altro
+            mestiere e nessun numero lo dice da solo. */}
+        {!locked && drift.length > 0 && (
+          <div className="mx-5 mt-4 rounded-xl border border-warning/40 bg-warning/10 p-3">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="min-w-0">
+                <p className="flex items-center gap-1.5 text-2xs font-bold text-warning">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  {drift.length === 1
+                    ? 'Una riga non dice più quello che dice il suo contratto'
+                    : `${drift.length} righe non dicono più quello che dicono i loro contratti`}
+                </p>
+                <ul className="mt-1.5 space-y-0.5">
+                  {drift.map(d => (
+                    <li key={d.lineId} className="text-2xs text-text-secondary truncate">
+                      <span className="font-semibold text-text-primary">{d.label}</span>
+                      {' — '}{d.fields.map(f => DRIFT_LABEL[f]).join(', ')}
+                      {d.patch.kind && (
+                        <span className="text-warning">
+                          {' '}· la provvigione è al {pc(pct.sales(config, d.patch.kind === 'digital' ? 'growth' : 'digital'))}
+                          {' '}invece che al {pc(pct.sales(config, d.patch.kind))}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <button onClick={() => run(() => realignMonthFromContracts(month), 'Righe riallineate ai contratti')}
+                disabled={pending}
+                className="text-2xs font-semibold px-3 py-1.5 rounded-lg bg-gold text-on-gold press disabled:opacity-40 shrink-0">
+                Allinea ai contratti
+              </button>
+            </div>
+            <p className="text-2xs text-text-tertiary mt-2">
+              Importi e spunte non si toccano: si riallineano tipo, progetto, IVA e partita di giro,
+              che sono decisioni dell&apos;accordo e non fatti del mese.
+            </p>
+          </div>
+        )}
+
         {revenue.length === 0 ? (
           <div className="p-5"><Empty>
             Nessuna entrata. «Prepara il mese» porta qui i canoni e le rate dei contratti che cadono adesso.
@@ -692,12 +739,21 @@ export function PlClient({
                       </button>
                     </td>
                     <td className="px-2 py-1.5">
-                      <select value={line.kind} disabled={locked} aria-label="Tipologia"
-                        onChange={e => run(() => updateRevenueLine(line.id, { kind: e.target.value as 'growth' | 'digital' }))}
-                        className="bg-background border border-border rounded-lg px-1.5 py-1 text-2xs text-text-secondary">
-                        <option value="growth">Growth</option>
-                        <option value="digital">Digital</option>
-                      </select>
+                      {/* §207 — growth o digital non è un fatto del mese: è il
+                          lavoro che si è venduto, e decide il 15% o il 6% di
+                          provvigione. Su una riga da contratto lo dice il
+                          contratto, altrimenti si finisce con due risposte alla
+                          stessa domanda e nessun modo di sapere quale vale. */}
+                      {line.origin === 'contratto' ? (
+                        <Kind kind={line.kind} clientId={line.client_id} config={config} />
+                      ) : (
+                        <select value={line.kind} disabled={locked} aria-label="Tipologia"
+                          onChange={e => run(() => updateRevenueLine(line.id, { kind: e.target.value as 'growth' | 'digital' }))}
+                          className="bg-background border border-border rounded-lg px-1.5 py-1 text-2xs text-text-secondary">
+                          <option value="growth">Growth</option>
+                          <option value="digital">Digital</option>
+                        </select>
+                      )}
                     </td>
                     <td className="px-2 py-1.5">
                       {/* §185 — chi ha portato il cliente. La riga vince, ma se è
@@ -724,6 +780,15 @@ export function PlClient({
                       {s.external > 0 && (
                         <span className="block text-2xs text-text-tertiary" title={`Subappalto ${eur(s.external)}: la spartizione parte dal margine`}>
                           su {eur(s.margin)}
+                        </span>
+                      )}
+                      {/* §208 — quello che la rata non ha assorbito. Il margine si
+                          ferma a zero, ma il costo è uscito: senza questo numero
+                          il mese torna e il progetto no. */}
+                      {s.excess > 0 && (
+                        <span className="block text-2xs text-warning font-semibold"
+                          title="Il subappalto di questo mese supera la rata: questa parte non ha ridotto nessuna quota">
+                          +{eur(s.excess)} oltre la rata
                         </span>
                       )}
                     </td>
@@ -843,15 +908,31 @@ function Kpi({ icon, label, value, hint, tone, trend, trendGoodIsDown }: {
  * growth + …» non dice niente, e un'etichetta illeggibile vale meno di una riga in
  * più di altezza.
  */
-function Mini({ icon, label, value, extra }: { icon: React.ReactNode; label: string; value: string; extra?: React.ReactNode }) {
+function Mini({ icon, label, hint, value, negative, extra }: {
+  icon: React.ReactNode
+  /** cosa è, in due parole: è la riga che si cerca con l'occhio */
+  label: string
+  /** come si ottiene: la formula, non il nome ripetuto */
+  hint?: string
+  value: string
+  /** il numero è una cifra negativa e va letta come tale, non solo col segno */
+  negative?: boolean
+  /** la qualifica del numero: dice sempre *di cosa* parla, mai un valore nudo */
+  extra?: React.ReactNode
+}) {
   return (
-    <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl border border-border">
-      <span className="shrink-0 mt-0.5">{icon}</span>
-      <span className="text-2xs text-text-secondary flex-1 leading-snug">{label}</span>
-      <span className="text-right shrink-0">
-        <span className="block text-sm font-semibold text-text-primary tabular">{value}</span>
-        {extra && <span className="block text-2xs font-semibold tabular">{extra}</span>}
+    <div className="h-full flex flex-col px-3 py-2.5 rounded-xl border border-border">
+      <span className="flex items-center gap-1.5 min-w-0">
+        <span className="shrink-0">{icon}</span>
+        <span className="text-2xs font-semibold text-text-secondary truncate">{label}</span>
       </span>
+      <span className={`mt-1.5 text-base font-bold tabular ${negative ? 'text-error' : 'text-text-primary'}`}>
+        {value}
+      </span>
+      {extra && <span className="text-2xs font-semibold leading-snug">{extra}</span>}
+      {/* la spiegazione in fondo e allineata fra le schede: si legge quando serve,
+          e non spinge il numero — che è la cosa per cui la scheda esiste — in basso */}
+      {hint && <span className="mt-auto pt-1.5 text-2xs text-text-tertiary leading-snug">{hint}</span>}
     </div>
   )
 }
@@ -1001,6 +1082,44 @@ function Check({ on, onToggle, disabled, label }: { on: boolean; onToggle: () =>
  *     cambiata dopo, ed è il motivo per cui la riga se lo porta dietro;
  *   · **nessuno** — la provvigione non resta in cassa, si divide fra i soci.
  */
+/**
+ * §207 — il tipo di lavoro di una riga nata da un contratto, in sola lettura.
+ *
+ * Non è un dettaglio di presentazione: growth e digital hanno due piani
+ * compensi diversi — 15% sull'imponibile contro 6% sul margine — e finché il
+ * campo era modificabile qui esistevano due risposte alla stessa domanda, una
+ * sul contratto e una sulla riga, senza niente che dicesse quale valeva. La
+ * percentuale sta scritta accanto al tipo perché è il motivo per cui conta.
+ */
+function Kind({ kind, clientId, config }: {
+  kind: 'growth' | 'digital'
+  clientId: string | null
+  config: PlConfig
+}) {
+  const body = (
+    <>
+      <Lock className="w-2.5 h-2.5 shrink-0 text-text-tertiary" aria-hidden="true" />
+      {kind === 'digital' ? 'Digital' : 'Growth'}
+    </>
+  )
+  const cls = 'flex items-center gap-1 text-2xs font-semibold text-text-secondary'
+  return (
+    <div className="min-w-[74px]">
+      {clientId ? (
+        <Link href={`/clienti/${clientId}?tab=economics`} className={`${cls} hover:text-gold-text`}
+          title="Il tipo di lavoro lo decide il contratto: si cambia nell'economics del cliente">
+          {body}
+        </Link>
+      ) : (
+        <span className={cls}>{body}</span>
+      )}
+      <span className="block text-2xs text-text-tertiary">
+        provvigione {pc(pct.sales(config, kind))}
+      </span>
+    </div>
+  )
+}
+
 function Owner({ line, clientNames }: {
   line: RevenueLine
   clientNames: Record<string, string>
@@ -1730,7 +1849,20 @@ function SubcontractSection({
     return map
   }, [revenue])
 
-  const margins = useMemo(() => byProjectMargin(views, revByProject), [views, revByProject])
+  /* §207 — i lavori il cui ricavo del mese sta su un accordo che ne copre altri.
+     Non hanno un margine calcolabile, e mostrargliene uno negativo perché il
+     ricavo è su un'altra riga manderebbe a cercare una rata che non manca. */
+  const sharedProjects = useMemo(() => {
+    const s = new Set<string>()
+    for (const r of revenue) {
+      if (r.pass_through || (r.project_ids?.length ?? 0) < 2) continue
+      for (const p of r.project_ids!) s.add(p)
+    }
+    return s
+  }, [revenue])
+
+  const margins = useMemo(
+    () => byProjectMargin(views, revByProject, sharedProjects), [views, revByProject, sharedProjects])
   const suppliers = useMemo(() => bySupplierView(views), [views])
   const findings = useMemo(() => subcontractFindings(views, margins), [views, margins])
 
@@ -1820,16 +1952,31 @@ function SubcontractSection({
                     {m.clientName ?? 'cliente'}
                   </Link>
                 )}
-                <span className="ml-auto text-2xs text-text-tertiary tabular shrink-0">
-                  ricavo {eur(m.revenue)} − fuori {eur(m.external)} =
-                </span>
-                <span className={`text-sm font-bold tabular shrink-0 ${
-                  m.margin < 0 ? 'text-error' : 'text-success'}`}>
-                  {eur(m.margin)}
-                </span>
-                <span className="text-2xs text-text-tertiary tabular shrink-0 w-12 text-right">
-                  {m.revenue > 0 ? `${Math.round(m.pct * 100)}%` : '—'}
-                </span>
+                {m.sharedRevenue ? (
+                  <>
+                    <span className="ml-auto text-2xs text-text-tertiary tabular shrink-0">
+                      fuori {eur(m.external)} · ricavo su un accordo condiviso
+                    </span>
+                    <span className="text-sm font-bold tabular shrink-0 text-text-tertiary"
+                      title="Il contratto copre più lavori e non dice quanto spetta a ciascuno: un margine di progetto qui sarebbe inventato">
+                      n/d
+                    </span>
+                    <span className="text-2xs text-text-tertiary tabular shrink-0 w-12 text-right">—</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="ml-auto text-2xs text-text-tertiary tabular shrink-0">
+                      ricavo {eur(m.revenue)} − fuori {eur(m.external)} =
+                    </span>
+                    <span className={`text-sm font-bold tabular shrink-0 ${
+                      m.margin < 0 ? 'text-error' : 'text-success'}`}>
+                      {eur(m.margin)}
+                    </span>
+                    <span className="text-2xs text-text-tertiary tabular shrink-0 w-12 text-right">
+                      {m.revenue > 0 ? `${Math.round(m.pct * 100)}%` : '—'}
+                    </span>
+                  </>
+                )}
               </div>
               {m.rows.length > 0 && (
                 <ul className="mt-1.5 space-y-1">
@@ -2175,26 +2322,44 @@ function Distribution({ t: accrual, tCash, config }: {
         </p>
       )}
 
+      {/* Quattro numeri, e ognuno risponde a una domanda diversa: quanto metto da
+          parte, quanto potevo spendere, quanto è rimasto lordo, quanto resta
+          all'azienda. Prima l'etichetta portava anche la formula e in una colonna
+          stretta andava a capo una parola per riga, spingendo il numero — la
+          ragione per cui la scheda esiste — in fondo a una scheda mezza vuota. */}
       {view === 'tutto' && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mt-4">
           <Mini icon={<ShieldAlert className="w-3.5 h-3.5 text-orange" />}
-            label={`Fondo rischio ${pc(config.risk_fund_pct)} del growth`} value={eur(t.plan.riskFund)} />
+            label="Fondo rischio" value={eur(t.plan.riskFund)}
+            hint={`${pc(config.risk_fund_pct)} del growth, messi da parte`} />
+
           <Mini icon={<Target className="w-3.5 h-3.5 text-text-tertiary" />}
-            label={`Target costi · ${pc(config.cost_target_pct)} del growth + ${pc(config.digital_cost_target_pct)} del margine digital`}
-            value={eur(t.costs.target)}
+            label="Target costi" value={eur(t.costs.target)}
+            hint={`${pc(config.cost_target_pct)} del growth${
+              config.digital_cost_target_pct > 0
+                ? ` + ${pc(config.digital_cost_target_pct)} del margine digital` : ''}`}
+            /* «−8.593 €» da solo non dice di cosa parla: sforato o risparmiato è
+               la differenza fra un allarme e una buona notizia. */
             extra={<span className={t.costs.variance < 0 ? 'text-error' : 'text-success'}>
-              {t.costs.variance < 0 ? '−' : '+'}{eur(Math.abs(t.costs.variance))}
+              {t.costs.variance < 0
+                ? `sforato di ${eur(-t.costs.variance)}`
+                : `${eur(t.costs.variance)} sotto il target`}
             </span>} />
+
           <Mini icon={<Wallet className="w-3.5 h-3.5 text-gold-text" />}
-            label="Margine lordo · maturato meno tutti i costi usciti"
-            value={eur(t.margin.gross)}
+            label="Margine lordo" value={eur(t.margin.gross)} negative={t.margin.gross < 0}
+            hint="maturato meno tutti i costi usciti"
             extra={t.revenue.accrued > 0
               ? <span className={t.margin.gross < 0 ? 'text-error' : 'text-success'}>
                   {pc(t.margin.gross / t.revenue.accrued)} sulle entrate
                 </span>
               : undefined} />
+
           <Mini icon={<Building2 className="w-3.5 h-3.5 text-gold-text" />}
-            label="Cassa TwoBee del mese" value={eur(t.margin.company)}
+            label="Cassa TwoBee" value={eur(t.margin.company)} negative={t.margin.company < 0}
+            hint={t.margin.company < 0
+              ? 'quello che resta del mese: qui è scoperto'
+              : 'quello che resta del mese'}
             extra={t.plan.digitalCompany > 0
               ? <span className="text-text-tertiary">di cui {eur(t.plan.digitalCompany)} dal digital</span>
               : undefined} />

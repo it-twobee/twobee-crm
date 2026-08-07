@@ -415,5 +415,91 @@ console.log('\n— §206 · il margine digital si distribuisce per intero —')
   eq('e nessun target digital', rowToPlConfig(null).digital_cost_target_pct, 0)
 }
 
+console.log('\n— §207: un accordo su più progetti toglie i subappalti di tutti —')
+{
+  /* Un contratto digital da 10.000 che copre tre lavori: la riga non porta un
+     progetto (attribuirle uno dei tre falserebbe due margini), ma i subappalti
+     dei tre escono comunque dal margine prima delle quote. Senza, la
+     provvigione si prenderebbe su un ricavo di cui 3.000 sono già del
+     fornitore. */
+  const t = computeMonth(
+    [rev({ id: 'd', amount_net: 10000, kind: 'digital', project_ids: ['p1', 'p2', 'p3'] })],
+    [cost({ id: 's1', actual: 2000, budget: 2000, project_id: 'p1' }),
+     cost({ id: 's2', actual: 1000, budget: 1000, project_id: 'p2' }),
+     cost({ id: 's3', actual: 0, budget: 0, project_id: 'p3' })],
+    C, partners)
+
+  eq('margine = 10.000 meno i 3.000 dei due subappalti', t.plan.digitalMargin, 7000)
+  eq('provvigione: 6% del margine, non del ricavo', t.lines[0].s.sales, 420)
+  eq('subappalto di un progetto non coperto resta fuori',
+    computeMonth([rev({ id: 'd', amount_net: 10000, kind: 'digital', project_ids: ['p1'] })],
+      [cost({ id: 'x', actual: 2000, budget: 2000, project_id: 'p9' })], C, partners).plan.digitalMargin,
+    10000)
+}
+{
+  /* Due righe sullo stesso progetto continuano a spartirselo in proporzione:
+     il caso di prima non deve essersi rotto per far posto al nuovo. */
+  const t = computeMonth(
+    [rev({ id: 'a', amount_net: 6000, kind: 'digital', project_id: 'p1' }),
+     rev({ id: 'b', amount_net: 2000, kind: 'digital', project_id: 'p1' })],
+    [cost({ id: 's', actual: 4000, budget: 4000, project_id: 'p1' })], C, partners)
+  is('il subappalto si divide 3/4 e 1/4', t.lines.map(l => l.s.external), [3000, 1000])
+  eq('e in totale esce una volta sola', t.plan.digitalMargin, 4000)
+}
+
+console.log('\n— §208: il netto si fa mese per mese, sulla rata di quel mese —')
+{
+  /* 6.500 in 4 rate da 1.625. Il subappalto non si spalma sulle rate: cade nel
+     suo mese e si toglie **da quella** rata, poi valgono le percentuali. */
+  const rata = (ext: number) => computeMonth(
+    [rev({ id: 'r', amount_net: 1625, kind: 'digital', project_id: 'pj', sales_owner: 'Antonio' })],
+    ext ? [cost({ id: 's', actual: ext, budget: ext, project_id: 'pj' })] : [],
+    C, partners).lines[0].s
+
+  eq('mese col subappalto una tantum: 1.625 − 650', rata(650).margin, 975)
+  eq('  provvigione 6% del margine', rata(650).sales, 58.5)
+  eq('  a ciascun socio 28% del margine', rata(650).partnerQuota, 273)
+  eq('mese col subappalto rateizzato (162,50)', rata(162.5).margin, 1462.5)
+  eq('mese senza subappalto: la rata intera', rata(0).margin, 1625)
+  eq('  e la provvigione è piena', rata(0).sales, 97.5)
+  /* Il conto del progetto: quattro mesi, un solo subappalto. Il totale che si
+     distribuisce è il margine vero — 6.500 − 650 — non il ricavo lordo. */
+  eq('sui quattro mesi si distribuisce 6.500 − 650',
+    rata(650).margin + rata(0).margin * 3, 5850)
+  eq('e la provvigione totale è il 6% di quello',
+    rata(650).sales + rata(0).sales * 3, 351)
+}
+{
+  // pagamento unico invece che rateizzato: stessa regola, un mese solo
+  const s = computeMonth(
+    [rev({ id: 'r', amount_net: 6500, kind: 'digital', project_id: 'pj' })],
+    [cost({ id: 's', actual: 650, budget: 650, project_id: 'pj' })], C, partners).lines[0].s
+  eq('a corpo in un\'unica soluzione: 6.500 − 650', s.margin, 5850)
+  eq('  stessa provvigione del rateizzato', s.sales, 351)
+}
+{
+  // il preventivato vale finché l'effettivo non è stato scritto (§186)
+  const p = computeMonth(
+    [rev({ id: 'r', amount_net: 1625, kind: 'digital', project_id: 'pj' })],
+    [cost({ id: 's', actual: 0, budget: 650, project_id: 'pj' })], C, partners).lines[0].s
+  eq('subappalto previsto e non ancora registrato: conta lo stesso', p.margin, 975)
+}
+{
+  /* §208 — il subappalto più grande della rata. Il margine si ferma a zero, ma
+     la differenza è uscita: senza dichiararla, ogni mese torna e il progetto no. */
+  const t = computeMonth(
+    [rev({ id: 'r', amount_net: 1625, kind: 'digital', project_id: 'pj' })],
+    [cost({ id: 's', actual: 2000, budget: 2000, project_id: 'pj' })], C, partners)
+  eq('margine a zero, non negativo', t.lines[0].s.margin, 0)
+  eq('nessuna quota su un margine che non c\'è', t.lines[0].s.partnerQuota, 0)
+  eq('e i 375 che la rata non assorbe hanno un numero', t.plan.digitalExcess, 375)
+  eq('quando la rata basta, il residuo è zero',
+    computeMonth([rev({ id: 'r', amount_net: 1625, kind: 'digital', project_id: 'pj' })],
+      [cost({ id: 's', actual: 650, budget: 650, project_id: 'pj' })], C, partners).plan.digitalExcess, 0)
+  eq('sul growth il subappalto non tocca la base', computeMonth(
+    [rev({ id: 'r', amount_net: 1625, kind: 'growth', project_id: 'pj' })],
+    [cost({ id: 's', actual: 2000, budget: 2000, project_id: 'pj' })], C, partners).plan.digitalExcess, 0)
+}
+
 console.log(fail === 0 ? '\nTutti i controlli passano.' : `\n${fail} controlli falliti.`)
 process.exit(fail ? 1 : 0)

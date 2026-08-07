@@ -144,6 +144,15 @@ console.log('\n— Cosa non torna —')
   const views = subcontractViews([item({})], [line({})], '2026-07-01', NAMES)
   const f = subcontractFindings(views, byProjectMargin(views, {}))
   is('lo sfasamento si dichiara', f.some(x => x.id.startsWith('senza-ricavo-')), true)
+
+  /* §207 — se il ricavo sta su un accordo che copre più lavori la rata non
+     manca: è su un'altra riga, e non se ne può attribuire una quota. */
+  const cond = byProjectMargin(views, {}, new Set(['p1']))
+  is('ricavo condiviso: nessun margine inventato', cond[0].sharedRevenue, true)
+  is('e nessuna caccia alla rata mancante',
+    subcontractFindings(views, cond).some(x => x.id.startsWith('senza-ricavo-')), false)
+  is('ma con una rata sua il margine si legge',
+    byProjectMargin(views, { p1: 4000 }, new Set(['p1']))[0].sharedRevenue, false)
 }
 {
   // niente da dire quando tutto torna

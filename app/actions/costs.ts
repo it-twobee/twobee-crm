@@ -6,6 +6,11 @@ import { revalidatePath } from 'next/cache'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { plannedForMonth, isPayrollCenter, type CostItem } from '@/lib/costs'
 import { buildSchedule, type ScheduleSpec } from '@/lib/revenue'
+import { moveOneShotCostLine, dropCostItemLines } from '@/lib/pl-realign'
+
+/** «2026-08-01» → «agosto 2026»: un messaggio d'errore si legge, non si decodifica. */
+const monthName = (iso: string) =>
+  new Date(`${iso.slice(0, 7)}-01T00:00:00`).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })
 
 const PATH = '/economics/costi'
 
@@ -146,6 +151,19 @@ async function propagateAmount(itemId: string, amount: number | undefined) {
   if (e2) throw new Error(e2.message)
 }
 
+/**
+ * §209 — spostare la scadenza sposta il mese.
+ *
+ * Una «una tantum» vive in un mese solo: se il piano la sposta ad agosto e la
+ * riga resta a luglio, luglio continua a togliere quel costo dal margine e
+ * agosto non lo toglie. Sul digital significa due margini falsi e due
+ * ripartizioni sbagliate, e ogni mese preso da solo torna lo stesso.
+ */
+async function propagateMonth(itemId: string, patch: ItemInput) {
+  if (patch.start_month === undefined && patch.frequency === undefined) return
+  await moveOneShotCostLine(itemId)
+}
+
 export async function updateCostItem(id: string, patch: ItemInput) {
   await requireAdmin()
   await refusePayrollItem(id)
@@ -154,6 +172,7 @@ export async function updateCostItem(id: string, patch: ItemInput) {
     .update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id)
   if (error) throw new Error(error.message)
   await propagateAmount(id, patch.amount)
+  await propagateMonth(id, patch)
   rev()
 }
 
@@ -561,6 +580,19 @@ async function materializeCostPlan(
     sort_order: (Number(item.sort_order) || 0) + n,
   }))
 
+  /* §209 — la voce sparisce, e con lei le occorrenze che aveva già nel conto
+     economico: il vincolo è SET NULL, quindi resterebbero come costo intero
+     accanto alle tranche appena create. Se una è già **pagata** non si cancella
+     — quel denaro è uscito — e allora non si rateizza affatto: si direbbe al
+     mese che il costo è ancora da sostenere. */
+  const { paid } = await dropCostItemLines(item.id as string)
+  if (paid.length) {
+    const dove = paid.map(p => monthName(p.month)).join(', ')
+    throw new Error(
+      `Questa lavorazione è già uscita in ${dove}: rateizzarla adesso creerebbe un secondo costo. `
+      + 'Correggi la riga del mese, oppure crea le tranche che restano come voce nuova.')
+  }
+
   const { error: e1 } = await admin.from('cost_items').insert(rows)
   if (e1) throw new Error(e1.message)
   const { error: e2 } = await admin.from('cost_items').delete().eq('id', item.id as string)
@@ -579,8 +611,9 @@ export async function updateProjectCost(id: string, projectId: string, patch: It
   if (error) throw new Error(error.message)
   /* §201 — il conto economico segue il patto: senza questo, correggere l'importo
      qui lasciava nel mese la riga vecchia e il margine del progetto sottraeva
-     ancora la cifra di prima. */
+     ancora la cifra di prima. §209: e lo stesso vale per **quando**. */
   await propagateAmount(id, patch.amount)
+  await propagateMonth(id, patch)
   revalidatePath(`/progetti/${projectId}`)
   revalidatePath('/economics')
   rev()

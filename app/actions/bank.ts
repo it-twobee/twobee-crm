@@ -35,13 +35,18 @@ function rev() {
 /**
  * Legge il CSV della banca e ne scrive i movimenti.
  *
- * Idempotente per **impronta**: data, importo, causale, descrizione e posizione
- * nel file. Due bonifici identici nello stesso giorno esistono davvero — due rate
- * uguali a due fornitori diversi — quindi l'impronta include l'ordine di comparsa,
+ * Idempotente per **impronta**: conto, data, importo, causale e descrizione.
+ * Due bonifici identici nello stesso giorno esistono davvero — due rate uguali a
+ * due fornitori diversi — quindi l'impronta porta anche **quale occorrenza è**,
  * altrimenti il secondo verrebbe scartato come doppione.
  *
- * Il formato è quello dell'home banking italiano: punto e virgola, virgola
- * decimale, date in gg/mm/aaaa, importo firmato in un solo campo.
+ * §210 — quel numero era la **posizione nel file**, e trasformava l'import in
+ * un'operazione da fare una volta sola con attenzione: riscaricare un periodo
+ * sovrapposto — «gli ultimi 90 giorni» ogni lunedì — dava a ogni movimento una
+ * posizione diversa, quindi una impronta diversa, quindi un duplicato. Il saldo
+ * si allontanava da quello vero proprio mentre lo si aggiornava. Adesso conta
+ * **quante volte quel movimento esiste già**: il file può sovrapporsi quanto
+ * vuole, entra solo quello che manca.
  */
 export async function importBankCsv(accountId: string, csv: string): Promise<{
   letti: number; nuovi: number; duplicati: number; scartati: number
@@ -53,7 +58,21 @@ export async function importBankCsv(accountId: string, csv: string): Promise<{
   const { dialect, rows: parsed, skipped } = parseStatement(csv)
   if (!parsed.length) throw new Error('Nessun movimento riconosciuto nel file')
 
-  const rows = parsed.map((p, i) => {
+  /* Le impronte già in archivio, contate per movimento. L'ultimo campo è il
+     numero di occorrenza, quindi il taglio è all'ultima barra — e regge anche se
+     la descrizione ne contiene una. */
+  const { data: have } = await admin.from('bank_transactions')
+    .select('import_hash').eq('account_id', accountId).not('import_hash', 'is', null)
+  const esistenti = (have ?? []).map((r: { import_hash: string }) => r.import_hash)
+  const impronte = new Set(esistenti)
+  const inArchivio = new Map<string, number>()
+  for (const h of esistenti) {
+    const fp = h.slice(0, h.lastIndexOf('|'))
+    inArchivio.set(fp, (inArchivio.get(fp) ?? 0) + 1)
+  }
+
+  const consumate = new Map<string, number>()
+  const rows = parsed.map(p => {
     /* Due sorgenti di verità sul «chi»: la banca che lo mette in chiaro (Vivid) e
        la descrizione da cui va estratto (home banking). Dove c'è il nome in chiaro
        si passa da `merchant`, che riconduce ventisei codici FACEBK a «Meta Ads». */
@@ -67,21 +86,32 @@ export async function importBankCsv(accountId: string, csv: string): Promise<{
       : named?.family === 'banca' ? 'commissione'
       : auto.kind
 
+    const fp = `${accountId}|${p.booked_on}|${p.amount.toFixed(2)}|${p.causal_code ?? ''}|${p.description.slice(0, 80)}`
+    const vista = (consumate.get(fp) ?? 0) + 1
+    consumate.set(fp, vista)
+    // già in archivio tante volte quante ne ho viste finora: è la stessa, non una nuova
+    const doppione = vista <= (inArchivio.get(fp) ?? 0)
+
+    /* Il numero libero, non `vista`: le righe importate prima del §210 portano
+       ancora la posizione nel file, e `fp|2` potrebbe essere occupato da un
+       movimento diverso. Cercarlo evita di sbattere contro il vincolo unico. */
+    let n = vista
+    while (!doppione && impronte.has(`${fp}|${n}`)) n++
+    const import_hash = `${fp}|${n}`
+    if (!doppione) impronte.add(import_hash)
+
     return {
       account_id: accountId, booked_on: p.booked_on, value_on: p.value_on,
       amount: p.amount, causal_code: p.causal_code, description: p.description,
       channel: p.channel, counterparty, kind, doc_ref: auto.docRef,
       source: 'banca' as const,
       no_match_needed: isOwnTransfer || named?.family === 'banca',
-      // l'indice di riga distingue due movimenti identici nello stesso giorno
-      import_hash: `${accountId}|${p.booked_on}|${p.amount.toFixed(2)}|${p.causal_code ?? ''}|${p.description.slice(0, 80)}|${i + 1}`,
+      import_hash,
+      doppione,
     }
   })
 
-  const { data: have } = await admin.from('bank_transactions')
-    .select('import_hash').eq('account_id', accountId).not('import_hash', 'is', null)
-  const già = new Set((have ?? []).map((r: { import_hash: string }) => r.import_hash))
-  const nuovi = rows.filter(r => !già.has(r.import_hash))
+  const nuovi = rows.filter(r => !r.doppione).map(({ doppione: _, ...r }) => r)
 
   for (let i = 0; i < nuovi.length; i += 100) {
     const { error } = await admin.from('bank_transactions').insert(nuovi.slice(i, i + 100))

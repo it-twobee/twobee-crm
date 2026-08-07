@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { kindFromClientType, shiftMonth, DEFAULT_VAT_RATE, type PlConfig } from '@/lib/pl'
 import { linesForMonth } from '@/lib/revenue'
+import { loadCoverage, realignLines } from '@/lib/pl-realign'
 import { applyPlanToMonth } from '@/app/actions/costs'
 
 const PATH = '/economics'
@@ -116,14 +117,18 @@ export async function generateRevenueFromClients(month: string) {
       if (s.client_id) withContract.add(s.client_id)
     }
     const ids = (streams ?? []).map((s: { id: string }) => s.id)
-    const { data: inst } = await admin.from('revenue_installments').select('*').in('stream_id', ids)
+    const [{ data: inst }, coverage] = await Promise.all([
+      admin.from('revenue_installments').select('*').in('stream_id', ids),
+      // §188: un accordo su tre progetti non ne attribuisce nessuno alla riga
+      loadCoverage(admin, ids),
+    ])
 
     // il commerciale scende a cascata: contratto → cliente. Il nome libero
     // copre chi porta clienti senza avere un account nel tool.
     const streamName = new Map((streams ?? []).map((x: { id: string; sales_owner_name: string | null }) =>
       [x.id, x.sales_owner_name ?? null]))
 
-    for (const l of linesForMonth(streams as never, (inst ?? []) as never, month)) {
+    for (const l of linesForMonth(streams as never, (inst ?? []) as never, month, coverage)) {
       if (!billable(l.client_id)) continue
       if (l.installment_id && rateGiaAltrove.has(l.installment_id)) continue
       const c = l.client_id ? info.get(l.client_id) : null
@@ -304,8 +309,9 @@ export async function previewPrefill(month: string): Promise<PrefillPreview> {
     return !!c && !c.is_internal && c.client_label !== 'perso' && c.client_label !== 'pending'
   }
 
-  const contractLines = linesForMonth((streams ?? []) as never, (inst ?? []) as never, month)
-    .filter(l => billable(l.client_id))
+  const contractLines = linesForMonth(
+    (streams ?? []) as never, (inst ?? []) as never, month, await loadCoverage(admin, ids),
+  ).filter(l => billable(l.client_id))
 
   /* §197 — le rate già materializzate, in qualunque mese. Una rata vive in un mese
      solo: se è altrove non manca, sta nel posto sbagliato — e va detto, perché
@@ -486,6 +492,20 @@ export async function addRevenueLine(month: string, input: RevenuePatch = {}) {
   if (error) throw new Error(error.message)
   revalidatePath(PATH)
   return data
+}
+
+/**
+ * §207 — riporta le righe del mese a quello che dicono i contratti.
+ *
+ * Serve per le righe preparate **prima** di una correzione sull'accordo: da
+ * adesso `updateStream` riallinea da sé, ma un mese già scritto resta com'era e
+ * continua a pagare la provvigione sbagliata finché qualcuno non lo dice.
+ */
+export async function realignMonthFromContracts(month: string) {
+  await requireAdmin()
+  const n = await realignLines({ month })
+  revalidatePath(PATH)
+  return n
 }
 
 export async function updateRevenueLine(id: string, patch: RevenuePatch) {

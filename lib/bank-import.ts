@@ -15,7 +15,8 @@
  * se un conto sta facendo il lavoro per cui è stato aperto.
  */
 
-export type Dialect = 'valsabbina' | 'vivid'
+/** `italiano` = tracciato dell'home banking italiano (BPM, Valsabbina, e simili). */
+export type Dialect = 'italiano' | 'vivid'
 
 export type ParsedTx = {
   booked_on: string
@@ -55,9 +56,26 @@ function detectSep(header: string): string {
 export function detectDialect(header: string[]): Dialect | null {
   const h = header.map(x => x.toLowerCase())
   const has = (s: string) => h.some(x => x.includes(s))
-  if (has('data contabile') && has('importo')) return 'valsabbina'
   if (has('completed date') && has('payment amount')) return 'vivid'
+  /* Le banche italiane scrivono la stessa cosa in cinque modi: «Data contabile»
+     o «Data operazione», l'importo in una colonna firmata oppure spezzato in
+     dare/avere. Riconoscerne uno solo — quello della banca che avevamo quando
+     è stato scritto il parser — significa che cambiare banca rompe l'import,
+     ed è successo: BPM esporta «Data operazione» e non «Data contabile». */
+  const hasDate = has('data contabile') || has('data operazione') || has('data valuta')
+  if (hasDate && (has('importo') || twoColumnAmount(h))) return 'italiano'
   return null
+}
+
+/**
+ * L'importo spezzato in due colonne: uscite a sinistra, entrate a destra.
+ * È il tracciato di mezza Italia, e senza questo il file non si legge affatto.
+ */
+function twoColumnAmount(h: string[]): { out: number; in: number } | null {
+  const find = (...names: string[]) => h.findIndex(x => names.some(n => x.includes(n)))
+  const out = find('dare', 'addebit', 'uscite', 'importo negativo')
+  const inn = find('avere', 'accredit', 'entrate', 'importo positivo')
+  return out >= 0 && inn >= 0 ? { out, in: inn } : null
 }
 
 /** «03/08/2026» o «03.08.2026» → «2026-08-03». */
@@ -98,16 +116,21 @@ export function parseStatement(csv: string): ParseResult {
   const dialect = detectDialect(header)
   if (!dialect) {
     throw new Error(
-      'Formato non riconosciuto. Servono le colonne «Data contabile / Importo / Descrizione» '
-      + `(home banking italiano) o «Completed date / Payment amount» (Vivid). Trovate: ${header.join(', ')}`)
+      'Formato non riconosciuto. Servono una data («Data contabile», «Data operazione») e un importo '
+      + '(«Importo», oppure «Dare»/«Avere»), o il tracciato Vivid («Completed date», «Payment amount»). '
+      + `Trovate: ${header.join(', ')}`)
   }
 
   const h = header.map(x => x.toLowerCase())
   const at = (...names: string[]) => h.findIndex(x => names.some(n => x.includes(n)))
-  const col = dialect === 'valsabbina'
+  const split = dialect === 'italiano' ? twoColumnAmount(h) : null
+  const col = dialect === 'italiano'
     ? {
-        booked: at('data contabile'), value: at('data valuta'), amount: at('importo'),
-        desc: at('descrizione'), causal: at('causale'), channel: at('canale'), party: -1,
+        booked: at('data contabile', 'data operazione', 'data valuta'),
+        value: at('data valuta'), amount: at('importo'),
+        desc: at('descrizione', 'causale allargata', 'dettagli', 'operazione'),
+        causal: at('causale abi', 'cod. causale', 'causale'),
+        channel: at('canale'), party: -1,
       }
     : {
         booked: at('completed date'), value: at('started date'), amount: at('payment amount'),
@@ -120,7 +143,18 @@ export function parseStatement(csv: string): ParseResult {
   for (let i = 1; i < lines.length; i++) {
     const c = cells(lines[i], sep)
     const booked = isoDate(c[col.booked] ?? '')
-    const amount = parseAmount(c[col.amount] ?? '')
+    /* Dare e Avere: una sola delle due è compilata, e il segno lo dà la colonna.
+       Se per sbaglio ci sono entrambe vince la differenza, che è l'unica lettura
+       che non inventa niente. */
+    const amount = split
+      ? (() => {
+          const out = parseAmount(c[split.out] ?? '')
+          const inn = parseAmount(c[split.in] ?? '')
+          const o = Number.isFinite(out) ? Math.abs(out) : 0
+          const n = Number.isFinite(inn) ? Math.abs(inn) : 0
+          return o === 0 && n === 0 ? NaN : r2(n - o)
+        })()
+      : parseAmount(c[col.amount] ?? '')
     const party = col.party >= 0 ? (c[col.party] || null) : null
     const ref = col.desc >= 0 ? (c[col.desc] || '') : ''
     /* Su Vivid la descrizione utile è il nome della controparte: il campo

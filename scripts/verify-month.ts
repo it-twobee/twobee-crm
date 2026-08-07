@@ -9,6 +9,7 @@
  */
 import { readFileSync } from 'fs'
 import { computeMonth, rowToPlConfig, type RevenueLine, type CostLine, type Partner } from '@/lib/pl'
+import { contractDrift, coveredProjects, DRIFT_LABEL } from '@/lib/revenue'
 
 const env = Object.fromEntries(
   readFileSync(`${process.cwd()}/.env.local`, 'utf8').split('\n')
@@ -40,6 +41,11 @@ async function main() {
       'clients?select=id,display_name,company_name,sales_owner_id,sales_owner_name'),
     get<{ id: string; amount: number; status: string; project_id: string | null }[]>('revenue_streams?select=id,amount,status,project_id'),
   ])
+  // §207: quali progetti copre un accordo. Senza, il margine digital di un
+  // contratto multi-progetto non toglierebbe i subappalti e questo controllo
+  // direbbe che tutto torna proprio dove il tool sbaglia.
+  const bridge = await get<{ stream_id: string; project_id: string }[]>(
+    'revenue_stream_projects?select=stream_id,project_id')
   if (!months.length) throw new Error(`il mese ${month} non esiste`)
   const monthId = months[0].id
 
@@ -58,6 +64,19 @@ async function main() {
     projectValue.set(s.project_id, (projectValue.get(s.project_id) ?? 0) + num(s.amount))
   }
 
+  const streamById = new Map(streams.map(s => [s.id, s]))
+  const coverage = new Map<string, string[]>()
+  for (const b of bridge) coverage.set(b.stream_id, [...(coverage.get(b.stream_id) ?? []), b.project_id])
+  const projectsOf = (streamId: string | null): string[] => {
+    const s = streamId ? streamById.get(streamId) : null
+    return s ? coveredProjects(s as never, coverage) : []
+  }
+  const soldValue = (ids: string[], fallback: string | null) => {
+    const from = ids.length ? ids : fallback ? [fallback] : []
+    const total = from.reduce((n, p) => n + (projectValue.get(p) ?? 0), 0)
+    return total > 0 ? total : null
+  }
+
   const revenue: RevenueLine[] = revRows.map(r => ({
     id: String(r.id), label: String(r.label), client_id: (r.client_id as string) ?? null,
     plan_amount: num(r.plan_amount), invoices: num(r.invoices), amount_net: num(r.amount_net),
@@ -68,7 +87,9 @@ async function main() {
     client_sales_owner_id: owner.get(String(r.client_id))?.sales_owner_id ?? null,
     client_sales_owner: owner.get(String(r.client_id))?.sales_owner_name ?? null,
     project_id: (r.project_id as string) ?? null,
-    project_value: projectValue.get(String(r.project_id ?? '')) ?? null,
+    project_ids: projectsOf((r.stream_id as string) ?? null),
+    stream_id: (r.stream_id as string) ?? null,
+    project_value: soldValue(projectsOf((r.stream_id as string) ?? null), (r.project_id as string) ?? null),
     risk_fund: r.risk_fund === true,
     pass_through: r.pass_through === true,
   }))
@@ -127,6 +148,28 @@ async function main() {
   const base = t.revenue.accrued - t.plan.passThrough
   console.log(`\n  quadratura su ${eur(base)} (imponibile meno le partite di giro)`)
   console.log(`  quote + costi + subappalti = ${eur(somma)} → differenza ${eur(base - somma)}\n`)
+
+  /* §207 — la quadratura può chiudere a zero su numeri sbagliati: se una riga
+     dice growth e il contratto dice digital, i conti tornano lo stesso e la
+     provvigione è il 15% di un lavoro al 6%. Va confrontato con la sorgente. */
+  const full = await get<Record<string, unknown>[]>('revenue_streams?select=*')
+  const drift = contractDrift(
+    revRows.map(r => ({
+      id: String(r.id), label: String(r.label), stream_id: (r.stream_id as string) ?? null,
+      kind: r.kind === 'digital' ? 'digital' : 'growth',
+      project_id: (r.project_id as string) ?? null,
+      vat_rate: num(r.vat_rate), pass_through: r.pass_through === true,
+    })),
+    full as never, coverage)
+
+  if (!drift.length) console.log('  ✓ ogni riga dice quello che dice il suo contratto\n')
+  else {
+    console.log(`  ⚠ ${drift.length} righe non dicono più quello che dice il contratto:`)
+    for (const d of drift) {
+      console.log(`     ${d.label.slice(0, 48).padEnd(50)} ${d.fields.map(f => DRIFT_LABEL[f]).join(', ')}`)
+    }
+    console.log('     → «Allinea ai contratti» nel conto economico\n')
+  }
 }
 
 main().catch(e => { console.error(e.message); process.exit(1) })

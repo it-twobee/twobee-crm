@@ -145,6 +145,26 @@ export function diagnose(
     })
   }
 
+  /* §208 — il subappalto che la rata del mese non ha assorbito.
+     Il netto si fa mese per mese: la rata di agosto meno il costo che cade in
+     agosto, e sul resto le percentuali. Quando il costo è più grande della rata
+     il margine si ferma a zero — giusto, una quota negativa non si eroga — ma la
+     differenza è uscita davvero. Il mese torna lo stesso, e sulla vita del
+     progetto le quote si sono prese su una base più alta del margine vero. */
+  if (t.plan.digitalExcess > 0) {
+    out.push({
+      id: 'sub-oltre-rata',
+      severity: t.plan.digitalExcess > rev * 0.02 ? 'critico' : 'attenzione',
+      title: `${eur(t.plan.digitalExcess)} di subappalto oltre la rata del mese`,
+      detail: 'Il costo esterno supera il ricavo digital che cade in questo mese: il margine si ferma a zero '
+        + 'e quella differenza esce di cassa senza aver ridotto nessuna quota. Su tutto il progetto '
+        + 'commerciale e soci stanno prendendo su una base più alta del margine vero.',
+      action: 'Sposta la rata o il pagamento del subappaltatore nello stesso mese, oppure accetta lo '
+        + 'sfasamento sapendo quanto vale.',
+      metric: eur(t.plan.digitalExcess),
+    })
+  }
+
   // ── costo del lavoro ──────────────────────────────────────────────────────
   const hr = costs.filter(c => HR_CATEGORIES.includes(c.category)).reduce((s, c) => s + c.actual, 0)
   if (hr > 0 && hr / rev > THRESHOLDS.hrShare) {

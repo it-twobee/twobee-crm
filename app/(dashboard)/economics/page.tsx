@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { PlClient } from '@/components/pl/PlClient'
 import { PlPeriod } from '@/components/pl/PlPeriod'
@@ -8,14 +9,17 @@ import {
 } from '@/lib/pl'
 import type { MonthVat } from '@/lib/vat'
 import { forecast } from '@/lib/forecast'
+import {
+  contractDrift, coveredProjects, type Coverage, type RevenueStream,
+} from '@/lib/revenue'
 
 export const revalidate = 0
 
 export default async function EconomicsPage({ searchParams }: { searchParams: { m?: string; n?: string } }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const supabase = await createClient()
+  const profile = await getSessionProfile()
   if (profile?.role !== 'admin') redirect('/dashboard')
 
   const month = /^\d{4}-\d{2}-01$/.test(searchParams.m ?? '') ? searchParams.m! : monthKey(new Date())
@@ -33,7 +37,7 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
   const [
     { data: allMonths, error: monthErr }, { data: cfg }, { data: partners },
     { data: profiles }, { data: activeClients }, { data: centers },
-    { data: fcStreams }, { data: fcItems }, { data: allProjects },
+    { data: fcStreams }, { data: fcItems }, { data: allProjects }, { data: streamProjects },
   ] = await Promise.all([
     supabase.from('pl_months').select('*').order('month', { ascending: false }),
     supabase.from('pl_config').select('*').eq('id', true).maybeSingle(),
@@ -51,6 +55,9 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
     supabase.from('revenue_streams').select('*'),
     supabase.from('cost_items').select('*').eq('is_active', true),
     supabase.from('projects').select('id, name, client_id').is('deleted_at', null),
+    // §188: quali progetti copre un accordo. Se la 188 non c'è, resta vuoto e
+    // vale `revenue_streams.project_id`, cioè come funzionava prima.
+    supabase.from('revenue_stream_projects').select('stream_id, project_id'),
   ])
 
   type MonthRow = { id: string; month: string; status: string }
@@ -122,6 +129,28 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
     if (!st.project_id || st.status === 'bozza') continue
     projectValue.set(st.project_id, num(projectValue.get(st.project_id)) + num(st.amount))
   }
+  /* §207 — quanto vale il lavoro che una riga paga. Con un accordo su più
+     progetti la soglia del fondo rischio guarda l'insieme: è quello che è stato
+     venduto, e prenderne uno dei tre lo farebbe sembrare un lavoro piccolo. */
+  const soldValue = (ids: string[], fallback: string | null): number | null => {
+    const from = ids.length ? ids : fallback ? [fallback] : []
+    if (!from.length) return null
+    const total = from.reduce((s, p) => s + (projectValue.get(p) ?? 0), 0)
+    return total > 0 ? total : null
+  }
+
+  /* §188 — i progetti coperti da ciascun accordo. La riga del mese ne porta uno
+     solo quando ce n'è uno solo; con tre non ne porta nessuno, ma il margine
+     digital deve togliere i subappalti di tutti e tre. */
+  const coverage: Coverage = new Map()
+  for (const r of (streamProjects ?? []) as { stream_id: string; project_id: string }[]) {
+    coverage.set(r.stream_id, [...(coverage.get(r.stream_id) ?? []), r.project_id])
+  }
+  const streamById = new Map((fcStreams ?? []).map((s: Record<string, unknown>) => [String(s.id), s]))
+  const projectsOfStream = (id: string | null): string[] => {
+    const s = id ? streamById.get(id) : null
+    return s ? coveredProjects(s as unknown as RevenueStream, coverage) : []
+  }
 
   const projectNames = Object.fromEntries(
     (allProjects ?? []).map((p: { id: string; name: string }) => [p.id, p.name]))
@@ -157,6 +186,25 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
   const clientNames = Object.fromEntries((activeClients ?? [])
     .map((c: { id: string; company_name: string; display_name: string | null }) =>
       [c.id, c.display_name || c.company_name]))
+
+  /* §207 — le righe che non dicono più quello che dice il loro contratto. Sono
+     le righe preparate prima di una correzione: il tipo di lavoro decide il 15%
+     o il 6% di provvigione, e una riga rimasta indietro paga la percentuale di
+     un altro mestiere senza che niente lo segnali. Un mese chiuso non si
+     confronta: è una fotografia. */
+  const drift = (monthRow?.status ?? 'aperto') === 'aperto'
+    ? contractDrift(
+        (revenue ?? []).map((r: Record<string, unknown>) => ({
+          id: String(r.id), label: String(r.label),
+          stream_id: (r.stream_id as string) ?? null,
+          kind: (r.kind === 'digital' ? 'digital' : 'growth') as 'growth' | 'digital',
+          project_id: (r.project_id as string) ?? null,
+          vat_rate: num(r.vat_rate), pass_through: r.pass_through === true,
+        })),
+        (fcStreams ?? []) as unknown as RevenueStream[],
+        coverage,
+      )
+    : []
 
   // clienti che oggi fatturerebbero ma non sono in questo mese
   const inMonth = new Set((revenue ?? []).map((r: { client_id: string | null }) => r.client_id).filter(Boolean))
@@ -196,6 +244,19 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
       sales_owner: (r.sales_owner as string) ?? null,
       client_sales_owner_id: ownerOf.get(String(r.client_id ?? ''))?.id ?? null,
       client_sales_owner: ownerOf.get(String(r.client_id ?? ''))?.name ?? null,
+      /* §207 — la vista di periodo chiama lo **stesso** motore del mese singolo,
+         e senza questi campi lo chiamava con righe mutilate: i subappalti non
+         uscivano dal margine, le partite di giro entravano nelle quote e la
+         scelta sul fondo rischio spariva. Stesse righe, due risposte diverse a
+         seconda di quanti mesi si guardano — e quella sbagliata era sempre la
+         più generosa. */
+      origin: (r.origin as 'contratto' | 'anagrafica' | 'manuale') ?? 'manuale',
+      stream_id: (r.stream_id as string) ?? null,
+      project_id: (r.project_id as string) ?? null,
+      project_ids: projectsOfStream((r.stream_id as string) ?? null),
+      project_value: soldValue(projectsOfStream((r.stream_id as string) ?? null), r.project_id as string | null),
+      risk_fund: r.risk_fund === true,
+      pass_through: r.pass_through === true,
     })
     const asCost = (c: Record<string, unknown>): CostLine => ({
       id: String(c.id), category: String(c.category), label: String(c.label),
@@ -267,15 +328,18 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
         client_sales_owner: clientOwner.get(String(r.client_id ?? ''))?.name ?? null,
         origin: (r.origin as 'contratto' | 'anagrafica' | 'manuale') ?? 'manuale',
         project_id: (r.project_id as string) ?? null,
+        // §207: i progetti dell'accordo, non solo quello scritto sulla riga
+        project_ids: projectsOfStream((r.stream_id as string) ?? null),
         stream_id: (r.stream_id as string) ?? null,
         // §186: il valore venduto del progetto decide se l'opzione fondo rischio c'è
-        project_value: projectValue.get(String(r.project_id ?? '')) ?? null,
+        project_value: soldValue(projectsOfStream((r.stream_id as string) ?? null), r.project_id as string | null),
         risk_fund: r.risk_fund === true,
         pass_through: r.pass_through === true,
       })) as RevenueLine[]}
       projectNames={projectNames}
       clientNames={clientNames}
       clientOfProject={clientOfProject}
+      drift={drift}
       subItems={subItems}
       forecast={forecast(month, 6,
         (fcStreams ?? []) as never, (fcInst ?? []) as never, (fcItems ?? []) as never,

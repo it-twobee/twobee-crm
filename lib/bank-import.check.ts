@@ -15,7 +15,7 @@ const eq = (label: string, got: number, want: number, tol = 0.01) => {
 
 console.log('\n— Il dialetto si riconosce dall\'intestazione —')
 is('home banking italiano',
-  detectDialect(['Data contabile', 'Data valuta', 'Importo', 'Divisa', 'Causale', 'Descrizione']), 'valsabbina')
+  detectDialect(['Data contabile', 'Data valuta', 'Importo', 'Divisa', 'Causale', 'Descrizione']), 'italiano')
 is('Vivid',
   detectDialect(['Completed date', 'Counterparty name', 'Reference', 'Payment amount', 'Payment currency']), 'vivid')
 is('un formato sconosciuto non si indovina', detectDialect(['Date', 'Value', 'Blah']), null)
@@ -29,7 +29,7 @@ console.log('\n— Valsabbina: virgola decimale, date con le barre —')
     '"19/06/2026";"17/06/2026";"-685,97";"EUR";"198";"i24 agenzia entrate";""',
   ].join('\n')
   const r = parseStatement(csv)
-  is('dialetto', r.dialect, 'valsabbina')
+  is('dialetto', r.dialect, 'italiano')
   is('tre righe', r.rows.length, 3)
   is('data normalizzata', r.rows[0].booked_on, '2026-08-03')
   eq('importo con la virgola', r.rows[0].amount, 3812.5)
@@ -200,6 +200,30 @@ console.log('\n— Deducibilità: il trattamento parte dalla famiglia —')
   is('e ogni trattamento dice perché', treatment('IL CAVATAPPI, SAN GIORGIO A, IT').why.length > 20, true)
   // stesso esito su un nome già normalizzato: `merchant` è idempotente
   is('vale anche sul nome pulito', treatment('Ristoranti').cost === 0.75, true)
+}
+
+console.log('\n— §210: le banche scrivono la stessa cosa in cinque modi —')
+is('BPM: «Data operazione» invece di «Data contabile»',
+  detectDialect(['Data operazione', 'Data valuta', 'Importo', 'Descrizione']), 'italiano')
+is('importo spezzato in Dare e Avere',
+  detectDialect(['Data contabile', 'Descrizione', 'Dare', 'Avere']), 'italiano')
+is('Addebiti/Accrediti',
+  detectDialect(['Data operazione', 'Causale', 'Addebiti', 'Accrediti']), 'italiano')
+is('senza importo non è un estratto conto',
+  detectDialect(['Data contabile', 'Descrizione', 'Divisa']), null)
+{
+  const csv = [
+    'Data operazione;Data valuta;Descrizione;Dare;Avere',
+    '03/08/2026;03/08/2026;bonifico da leo fatima;;3.812,50',
+    '30/07/2026;30/07/2026;comm.su bonifici;1,50;',
+    '19/06/2026;17/06/2026;i24 agenzia entrate;685,97;',
+  ].join('\n')
+  const r = parseStatement(csv)
+  is('tre righe lette', r.rows.length, 3)
+  eq('l\'avere è positivo', r.rows[0].amount, 3812.5)
+  eq('il dare è negativo', r.rows[1].amount, -1.5)
+  eq('e l\'ordine di grandezza regge', r.rows[2].amount, -685.97)
+  is('data da «Data operazione»', r.rows[0].booked_on, '2026-08-03')
 }
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)

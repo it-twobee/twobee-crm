@@ -71,6 +71,8 @@ export type MonthLine = {
   installment_id: string | null
   client_id: string | null
   project_id: string | null
+  /** §207 — tutti i progetti coperti dall'accordo, anche quando sono più d'uno */
+  project_ids: string[]
   label: string
   kind: PlKind
   amount_net: number
@@ -95,6 +97,30 @@ export function activeInMonth(s: RevenueStream, month: string): boolean {
 }
 
 /**
+ * §188 — quali progetti copre un accordo, letti da `revenue_stream_projects`.
+ * Con un progetto solo vale `revenue_streams.project_id`, come sempre.
+ */
+export type Coverage = Map<string, string[]>
+
+/**
+ * I progetti di un contratto, e quale di essi finisce sulla riga del mese.
+ *
+ * §188 — con più progetti la riga **non ne porta nessuno**: dei 3.600 di iCura
+ * non si sa quanto sia lead generation e quanto sito web, e attribuirli a uno
+ * dei tre falserebbe due margini su tre. I progetti restano però noti, perché
+ * il margine digital deve togliere i subappalti di **tutti** quelli coperti:
+ * senza, la quota si prenderebbe su un ricavo che il fornitore si porta via.
+ */
+export function coveredProjects(s: RevenueStream, coverage?: Coverage): string[] {
+  const listed = coverage?.get(s.id) ?? []
+  if (listed.length > 1) return listed
+  return s.project_id ? [s.project_id] : []
+}
+
+/** Il progetto da scrivere sulla riga: uno solo, oppure nessuno. */
+const singleProject = (ids: string[]) => (ids.length === 1 ? ids[0] : null)
+
+/**
  * Le righe di un mese: canoni attivi + rate in scadenza.
  *
  * Le rate si contano anche quando il contratto è 'concluso': un lavoro finito
@@ -104,14 +130,17 @@ export function linesForMonth(
   streams: RevenueStream[],
   installments: Installment[],
   month: string,
+  coverage?: Coverage,
 ): MonthLine[] {
   const out: MonthLine[] = []
 
   for (const s of streams) {
     if (s.billing === 'recurring') {
       if (!activeInMonth(s, month) || s.amount === 0) continue
+      const projects = coveredProjects(s, coverage)
       out.push({
-        stream_id: s.id, installment_id: null, client_id: s.client_id, project_id: s.project_id,
+        stream_id: s.id, installment_id: null, client_id: s.client_id,
+        project_id: singleProject(projects), project_ids: projects,
         label: s.label, kind: s.kind, amount_net: s.amount, vat_rate: s.vat_rate,
         sales_owner_id: s.sales_owner_id, invoiced: false, paid: false,
         pass_through: !!s.pass_through,
@@ -124,13 +153,103 @@ export function linesForMonth(
     if (first(i.due_month) !== month) continue
     const s = byId.get(i.stream_id)
     if (!s || s.status === 'bozza' || s.status === 'sospeso') continue
+    const projects = coveredProjects(s, coverage)
     out.push({
-      stream_id: s.id, installment_id: i.id, client_id: s.client_id, project_id: s.project_id,
+      stream_id: s.id, installment_id: i.id, client_id: s.client_id,
+      project_id: singleProject(projects), project_ids: projects,
       label: i.label ? `${s.label} — ${i.label}` : s.label,
       kind: s.kind, amount_net: i.amount, vat_rate: s.vat_rate,
       sales_owner_id: s.sales_owner_id, invoiced: i.invoiced, paid: i.paid,
       pass_through: !!s.pass_through,
     })
+  }
+
+  return out
+}
+
+/* ── §207 — quello che la riga ha copiato dal contratto, e non è più vero ──── */
+
+/**
+ * Una riga di conto economico nata da un contratto **copia** il contratto nel
+ * momento in cui il mese si prepara: da lì in poi vive per conto suo. È giusto
+ * per i fatti del mese — fatturata, incassata, chi era il commerciale allora —
+ * ed è sbagliato per le **decisioni dell'accordo**: se il Tipo passa a digital
+ * il mese già preparato continua a pagare il 15% invece del 6%, e nessuna
+ * pagina lo dice. Un lucchetto che rimanda a una sezione che non cambia niente
+ * è peggio di un campo modificabile.
+ *
+ * Qui si dice cosa non combacia più. `patch` contiene **solo** i campi
+ * scostati, quindi si può scrivere così com'è.
+ */
+export type LineFacts = {
+  id: string
+  label: string
+  stream_id: string | null
+  kind: PlKind
+  project_id: string | null
+  vat_rate: number
+  pass_through?: boolean
+}
+
+export type DriftField = 'kind' | 'project_id' | 'vat_rate' | 'pass_through'
+
+export type ContractDrift = {
+  lineId: string
+  label: string
+  streamId: string
+  fields: DriftField[]
+  patch: Partial<Pick<LineFacts, 'kind' | 'project_id' | 'vat_rate' | 'pass_through'>>
+}
+
+/** Come si legge uno scostamento, in italiano e senza gergo di colonna. */
+export const DRIFT_LABEL: Record<DriftField, string> = {
+  kind: 'tipo',
+  project_id: 'progetto',
+  vat_rate: 'aliquota IVA',
+  pass_through: 'partita di giro',
+}
+
+/**
+ * `amount_net` non è qui di proposito: il preventivato di un mese può essere
+ * stato ridotto a mano — un canone partito a metà mese vale mezzo canone — e
+ * riallinearlo d'ufficio riscriverebbe una decisione presa da una persona.
+ * Il tipo, il progetto, l'IVA e la partita di giro invece non sono decisioni
+ * del mese: sono l'accordo, e l'accordo sta in un posto solo.
+ */
+export function contractDrift(
+  lines: LineFacts[],
+  streams: RevenueStream[],
+  coverage?: Coverage,
+): ContractDrift[] {
+  const byId = new Map(streams.map(s => [s.id, s]))
+  const out: ContractDrift[] = []
+
+  for (const l of lines) {
+    if (!l.stream_id) continue
+    const s = byId.get(l.stream_id)
+    if (!s) continue
+
+    const want = {
+      kind: s.kind,
+      project_id: singleProject(coveredProjects(s, coverage)),
+      vat_rate: s.vat_rate,
+      pass_through: !!s.pass_through,
+    }
+    const fields: DriftField[] = []
+    const patch: ContractDrift['patch'] = {}
+
+    if (l.kind !== want.kind) { fields.push('kind'); patch.kind = want.kind }
+    if ((l.project_id ?? null) !== want.project_id) {
+      fields.push('project_id'); patch.project_id = want.project_id
+    }
+    if (Math.abs(l.vat_rate - want.vat_rate) > 0.0001) {
+      fields.push('vat_rate'); patch.vat_rate = want.vat_rate
+    }
+    if (!!l.pass_through !== want.pass_through) {
+      fields.push('pass_through'); patch.pass_through = want.pass_through
+    }
+
+    if (fields.length) out.push({ lineId: l.id, label: l.label, streamId: s.id, fields, patch })
   }
 
   return out

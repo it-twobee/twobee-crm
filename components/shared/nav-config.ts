@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, FolderOpen, Settings, CalendarDays, Headphones,
   Ticket, UserCircle2, History, Lightbulb, FolderKanban, Briefcase, ListChecks, ListTodo,
-  Wallet, Target, Landmark, Users2, Banknote,
+  Wallet, Target, Landmark, Users2, Banknote, FileText,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -47,7 +47,12 @@ export const navSections: NavSection[] = [
     // dati economici: la pagina rimbalza chi non è admin, la voce non si mostra
     items: [
       { href: '/economics', icon: Wallet, label: 'Conto economico', adminOnly: true },
-      // subito sotto il conto economico: è la stessa materia vista dalla cassa
+      /* §211 — fra il conto economico e la banca, perché è quello che sta in
+         mezzo: il conto economico dice di chi è un ricavo e a quale mese
+         appartiene, la banca quando i soldi si sono mossi, la fattura è il
+         documento che lega le due cose e l'unico che vale davanti all'erario. */
+      { href: '/economics/fatturazione', icon: FileText, label: 'Fatturazione', adminOnly: true },
+      // subito sotto: è la stessa materia vista dalla cassa
       { href: '/economics/banca', icon: Banknote, label: 'Banca', adminOnly: true },
       { href: '/economics/costi', icon: Target, label: 'Costi e budget', adminOnly: true },
       { href: '/economics/personale', icon: Users2, label: 'Personale', adminOnly: true },

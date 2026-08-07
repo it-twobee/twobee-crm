@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  ArrowDownLeft, ArrowUpRight, Banknote, Upload, Search, Link2, Link2Off, Check,
+  ArrowDownLeft, ArrowUpRight, Banknote, Upload, ClipboardPaste, Search, Link2, Link2Off, Check,
   AlertTriangle, TrendingUp, TrendingDown, Loader2, ChevronDown, ShieldAlert,
   Receipt, Landmark, Users, Repeat, CircleSlash, Sparkles, CalendarClock, Plus,
   Wallet, ArrowRight,
@@ -98,6 +98,10 @@ export function BankClient({
   const [openTx, setOpenTx] = useState<string | null>(null)
   const [showAllTx, setShowAllTx] = useState(false)
   const [manual, setManual] = useState(false)
+  /* §210 — incollare è più veloce di scaricare: dalla tabella dell'home banking
+     si selezionano le righe e si incollano qui. Arrivano separate da tabulazioni,
+     che il parser riconosce già: nessun formato nuovo, un ingresso in più. */
+  const [paste, setPaste] = useState<string | null>(null)
   const [mForm, setMForm] = useState({ booked_on: today, amount: '', description: '' })
 
   const run = (fn: () => Promise<unknown>, ok?: string) => start(async () => {
@@ -105,14 +109,19 @@ export function BankClient({
     catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
   })
 
-  const upload = (file: File) => start(async () => {
+  const ingest = (text: string) => start(async () => {
     try {
-      const text = await file.text()
       const r = await importBankCsv(account!.id, text)
       toast.success(`${r.nuovi} movimenti nuovi su ${r.letti} letti`
-        + (r.duplicati ? ` · ${r.duplicati} già presenti` : ''))
+        + (r.duplicati ? ` · ${r.duplicati} già presenti` : '')
+        + (r.scartati ? ` · ${r.scartati} righe illeggibili` : ''))
+      setPaste(null)
       router.refresh()
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Import fallito') }
+  })
+  const upload = (file: File) => start(async () => {
+    try { ingest(await file.text()) }
+    catch { toast.error('Non riesco a leggere il file') }
   })
 
   // ── i numeri ───────────────────────────────────────────────────────────────
@@ -278,12 +287,17 @@ export function BankClient({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden"
+            <input ref={fileRef} type="file" accept=".csv,.txt,.tsv,text/csv,text/plain" className="hidden"
               onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }} />
             <button onClick={() => fileRef.current?.click()} disabled={pending}
               className="flex items-center gap-1.5 text-2xs font-bold bg-gold text-on-gold rounded-xl px-3 py-2 press disabled:opacity-40">
               {pending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
               Importa estratto conto
+            </button>
+            <button onClick={() => setPaste(p => (p === null ? '' : null))}
+              title="Seleziona le righe dall'home banking e incollale: stesso lettore del file"
+              className="flex items-center gap-1.5 text-2xs font-semibold border border-border rounded-xl px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-surface-hover press">
+              <ClipboardPaste className="w-3.5 h-3.5" />Incolla righe
             </button>
             <button onClick={() => setManual(m => !m)}
               className="flex items-center gap-1.5 text-2xs font-semibold border border-border rounded-xl px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-surface-hover press">
@@ -291,6 +305,31 @@ export function BankClient({
             </button>
           </div>
         </div>
+
+        {paste !== null && (
+          <div className="px-5 pb-4 border-t border-border pt-4">
+            <p className="text-2xs text-text-tertiary mb-2">
+              Incolla le righe copiate dall&apos;home banking, <strong className="font-semibold text-text-secondary">
+              intestazione compresa</strong>. Vanno bene tabulazioni, punto e virgola o virgole; l&apos;importo
+              può essere in una colonna sola o spezzato in Dare/Avere. Reincollare lo stesso periodo non
+              duplica niente.
+            </p>
+            <textarea value={paste} onChange={e => setPaste(e.target.value)} rows={6}
+              aria-label="Righe dell'estratto conto"
+              placeholder={'Data operazione\tDescrizione\tDare\tAvere\n03/08/2026\tbonifico da…\t\t3.812,50'}
+              className="w-full bg-background border border-border-interactive rounded-lg px-3 py-2 text-2xs text-text-primary font-mono" />
+            <div className="flex items-center gap-2 mt-2">
+              <button onClick={() => paste.trim() && ingest(paste)} disabled={pending || !paste.trim()}
+                className="text-2xs font-bold bg-gold text-on-gold rounded-lg px-3 py-1.5 press disabled:opacity-40">
+                {pending ? 'Leggo…' : 'Importa le righe'}
+              </button>
+              <button onClick={() => setPaste(null)}
+                className="text-2xs font-semibold text-text-tertiary hover:text-text-primary press">
+                Annulla
+              </button>
+            </div>
+          </div>
+        )}
 
         {manual && (
           <div className="px-5 pb-4 flex items-end gap-2 flex-wrap border-t border-border pt-4">

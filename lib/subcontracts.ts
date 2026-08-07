@@ -227,6 +227,14 @@ export type ProjectMarginRow = {
   margin: number
   pct: number
   rows: SubcontractView[]
+  /**
+   * §207 — il ricavo di questo lavoro sta su un accordo che ne copre altri, e
+   * quanto ne spetti a lui **non si sa**: dei 3.600 di iCura nessuno sa quanto
+   * sia sito e quanto lead generation. Il margine qui non si può calcolare, e
+   * mostrarne uno negativo perché il ricavo è finito altrove sarebbe peggio di
+   * non mostrarlo: manderebbe a cercare una rata che è al posto giusto.
+   */
+  sharedRevenue: boolean
 }
 
 /**
@@ -243,6 +251,8 @@ export type ProjectMarginRow = {
 export function byProjectMargin(
   views: SubcontractView[],
   revenueByProject: Record<string, number>,
+  /** §207 — progetti il cui ricavo del mese vive su un accordo condiviso */
+  sharedRevenue: Set<string> = new Set(),
 ): ProjectMarginRow[] {
   const ids = Array.from(new Set([
     ...views.map(v => v.projectId).filter((x): x is string => !!x),
@@ -254,6 +264,9 @@ export function byProjectMargin(
     const external = sum(rows.map(r => (r.booked > 0 ? r.booked : r.planned)))
     const revenue = r2(revenueByProject[id] ?? 0)
     const margin = r2(revenue - external)
+    // condiviso solo se il ricavo non è già suo per altra via: un progetto con
+    // una sua rata nel mese ha un margine leggibile, accordo condiviso o no
+    const shared = sharedRevenue.has(id) && revenue === 0
     return {
       projectId: id,
       projectName: rows[0]?.projectName ?? null,
@@ -262,6 +275,7 @@ export function byProjectMargin(
       revenue, external, margin,
       pct: revenue > 0 ? margin / revenue : 0,
       rows,
+      sharedRevenue: shared,
     }
   }).sort((a, b) => b.external - a.external || b.revenue - a.revenue)
 }
@@ -391,7 +405,10 @@ export function subcontractFindings(
     })
   }
 
-  for (const m of margins.filter(x => x.external > 0 && x.revenue === 0)) {
+  /* §207 — «nessun ricavo nel mese» è vero solo se il ricavo non c'è. Se sta su
+     un accordo che copre più lavori la rata è al posto suo, e mandare a
+     cercarla sarebbe una caccia a un errore che non esiste. */
+  for (const m of margins.filter(x => x.external > 0 && x.revenue === 0 && !x.sharedRevenue)) {
     out.push({
       id: `senza-ricavo-${m.projectId}`, severity: 'attenzione',
       title: `${m.projectName ?? 'Progetto'}: ${eur(m.external)} di subappalti e nessun ricavo nel mese`,
