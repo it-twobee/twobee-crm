@@ -5,6 +5,8 @@ node_modules/
 
 # next.js
 .next/
+# build fuori dal dev: NEXT_BUILD_DIR (vedi next.config.mjs)
+.next-build/
 out/
 
 # env

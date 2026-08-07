@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { ProgettiClient } from '@/components/projects/ProgettiClient'
 import type {
@@ -9,13 +10,12 @@ import type {
 export const revalidate = 0
 
 export default async function WorkspaceProgettiPage({ searchParams }: { searchParams: { client?: string; new?: string } }) {
+  const profile = await getSessionProfile()
+  if (!profile) redirect('/login')
+  if (profile.role !== 'team' && profile.role !== 'admin') redirect('/workspace')
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-  const { data: profile } = await supabase.from('profiles').select('role, app_role').eq('id', user.id).single()
-  if (profile?.role !== 'team' && profile?.role !== 'admin') redirect('/workspace')
   // stesso gate di createProjectFromWizard: niente CTA se il wizard fallirebbe a fine flusso
-  const canCreate = profile?.role === 'admin' || profile?.app_role === 'manager'
+  const canCreate = profile.role === 'admin' || profile.app_role === 'manager'
 
   // RLS scope: team interni vedono tutti i progetti, esterni solo i propri.
   // clients_workspace = VIEW senza dati economici (mrr/fiscali azzerati).

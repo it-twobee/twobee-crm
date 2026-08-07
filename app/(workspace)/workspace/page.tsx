@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getSessionProfile } from '@/lib/auth'
 import Link from 'next/link'
 import {
   Clock, Calendar, ArrowRight, Users, Headphones, ListChecks,
@@ -17,37 +18,43 @@ const today = () => new Date().toISOString().slice(0, 10)
 const inDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10) }
 
 export default async function WorkspaceDashboardPage() {
+  const profile = await getSessionProfile()
+  if (!profile) redirect('/login')
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const userId = profile.id
 
-  const [hrRes, { data: profile }, clientsRes, ticketsRes, taRes] = await Promise.all([
-    supabase.from('hr_requests').select('id, status').eq('profile_id', user.id).eq('status', 'pending'),
-    supabase.from('profiles').select('full_name, app_role, email, google_connected').eq('id', user.id).single(),
-    supabase.from('clients_workspace').select('id').neq('client_label', 'perso'),
-    supabase.from('tickets').select('id').in('status', ['aperto', 'in_lavorazione']),
-    supabase.from('task_assignees').select('task_id').eq('profile_id', user.id),
+  // I contatori chiedono un numero, non le righe: `head` non trasferisce niente
+  // e `count: 'exact'` lo fa contare al database. Prima arrivavano tutti i
+  // clienti e tutti i ticket aperti solo per leggerne `.length`.
+  const [hrRes, clientsRes, ticketsRes, taRes, pmRes] = await Promise.all([
+    supabase.from('hr_requests').select('id', { count: 'exact', head: true })
+      .eq('profile_id', userId).eq('status', 'pending'),
+    supabase.from('clients_workspace').select('id', { count: 'exact', head: true }).neq('client_label', 'perso'),
+    supabase.from('tickets').select('id', { count: 'exact', head: true }).in('status', ['aperto', 'in_lavorazione']),
+    supabase.from('task_assignees').select('task_id').eq('profile_id', userId),
+    supabase.from('project_members').select('project_id').eq('profile_id', userId),
   ])
 
   // task assegnate (primario o multi-assegnatario), non completate
   const ids = Array.from(new Set((taRes.data ?? []).map(r => r.task_id)))
-  const orFilter = ids.length ? `assignee_id.eq.${user.id},id.in.(${ids.join(',')})` : `assignee_id.eq.${user.id}`
-  const { data: myTasks } = await supabase
-    .from('tasks').select('id, title, status, priority, due_date, assignee_id, project_id, client_id')
-    .is('deleted_at', null).neq('status', 'completato')
-    .or(orFilter).order('due_date', { ascending: true, nullsFirst: false })
+  const orFilter = ids.length ? `assignee_id.eq.${userId},id.in.(${ids.join(',')})` : `assignee_id.eq.${userId}`
+  // I progetti gestiti non dipendono dalle task: parte insieme, non dopo.
+  const [{ data: myTasks }, { data: mgr }] = await Promise.all([
+    supabase.from('tasks').select('id, title, status, priority, due_date, assignee_id, project_id, client_id')
+      .is('deleted_at', null).neq('status', 'completato')
+      .or(orFilter).order('due_date', { ascending: true, nullsFirst: false }),
+    supabase.from('projects').select('id, name, status, area, client_id').eq('manager_id', userId).is('deleted_at', null),
+  ])
   const tasks = (myTasks ?? []) as Task[]
 
   // progetti dove sono coinvolto
-  const { data: pm } = await supabase.from('project_members').select('project_id').eq('profile_id', user.id)
   const projectIds = Array.from(new Set([
-    ...(pm ?? []).map(r => r.project_id),
+    ...(pmRes.data ?? []).map(r => r.project_id),
     ...tasks.map(t => t.project_id).filter(Boolean) as string[],
-  ]))
-  const [{ data: myProjects }, { data: mgr }] = await Promise.all([
-    projectIds.length ? supabase.from('projects').select('id, name, status, area, client_id').in('id', projectIds).is('deleted_at', null) : Promise.resolve({ data: [] }),
-    supabase.from('projects').select('id, name, status, area, client_id').eq('manager_id', user.id).is('deleted_at', null),
-  ])
+  ])).filter(id => !(mgr ?? []).some(p => p.id === id))
+  const { data: myProjects } = projectIds.length
+    ? await supabase.from('projects').select('id, name, status, area, client_id').in('id', projectIds).is('deleted_at', null)
+    : { data: [] }
   const projMap = new Map<string, { id: string; name: string; status: string; area: string; client_id: string }>()
   ;[...(myProjects ?? []), ...(mgr ?? [])].forEach(p => projMap.set(p.id, p))
   const projects = Array.from(projMap.values()).filter(p => p.status === 'active').slice(0, 6)
@@ -59,8 +66,8 @@ export default async function WorkspaceDashboardPage() {
   const overdue = tasks.filter(x => x.due_date && x.due_date < t).length
   const upcoming = tasks.filter(x => x.due_date).slice(0, 6)
 
-  const googleConnected = Boolean((profile as { google_connected?: boolean } | null)?.google_connected)
-  const name = profile?.full_name?.split(' ')[0] ?? 'ciao'
+  const googleConnected = Boolean(profile.google_connected)
+  const name = profile.full_name?.split(' ')[0] ?? 'ciao'
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto">
@@ -149,12 +156,12 @@ export default async function WorkspaceDashboardPage() {
 
       {/* riga inferiore: stat generali + HR */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mt-5">
-        <StatCard href="/workspace/clienti" label="Clienti attivi" value={clientsRes.data?.length ?? 0} icon={<Users className="w-4 h-4 text-info" />} />
-        <StatCard href="/workspace/customer-care/tickets" label="Ticket aperti" value={ticketsRes.data?.length ?? 0} icon={<Headphones className="w-4 h-4 text-gold-text" />} />
-        {(hrRes.data?.length ?? 0) > 0 && (
+        <StatCard href="/workspace/clienti" label="Clienti attivi" value={clientsRes.count ?? 0} icon={<Users className="w-4 h-4 text-info" />} />
+        <StatCard href="/workspace/customer-care/tickets" label="Ticket aperti" value={ticketsRes.count ?? 0} icon={<Headphones className="w-4 h-4 text-gold-text" />} />
+        {(hrRes.count ?? 0) > 0 && (
           <Link href="/workspace/hr" className="card-interactive bg-surface border border-gold/20 rounded-2xl p-4 flex items-center gap-3 no-tap-highlight">
             <Clock className="w-4 h-4 text-gold-text shrink-0" />
-            <span className="text-sm text-gold-text flex-1">{hrRes.data!.length} richiesta HR in attesa</span>
+            <span className="text-sm text-gold-text flex-1">{hrRes.count} richiesta HR in attesa</span>
             <ArrowRight className="w-3.5 h-3.5 text-gold-text" />
           </Link>
         )}

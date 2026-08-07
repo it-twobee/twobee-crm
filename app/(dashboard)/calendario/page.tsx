@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { CalendarioClient } from '@/components/calendario/CalendarioClient'
 import type { Profile } from '@/lib/types/database'
@@ -6,15 +7,14 @@ import type { Profile } from '@/lib/types/database'
 export const revalidate = 0
 
 export default async function CalendarioPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
+  const supabase = await createClient()
 
   // Verità unica: profiles.google_connected (i token stanno in google_credentials).
   // Niente fallback al metadata: darebbe "connesso" a chi ha token vecchi lì ma
   // nessuna credenziale valida, e il calendario non sincronizzerebbe.
-  const { data: meProfile } = await supabase
-    .from('profiles').select('google_connected').eq('id', user.id).maybeSingle()
+  const meProfile = await getSessionProfile()
   const isGoogleConnected = Boolean(meProfile?.google_connected)
 
   const [meetingsRes, profilesRes] = await Promise.all([

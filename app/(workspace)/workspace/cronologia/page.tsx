@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { CronologiaClient } from '@/components/workspace/CronologiaClient'
 import { VersionNews } from '@/components/workspace/VersionNews'
@@ -7,9 +8,9 @@ import type { ActivityLog, OsVersion, OsVersionChange } from '@/lib/types/databa
 export const revalidate = 0
 
 export default async function CronologiaPage() {
-  const sb = await createClient()
-  const { data: { user } } = await sb.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
+  const sb = await createClient()
 
   // Solo le proprie attività. Riusa activity_log (esiste già, usata dalla
   // cronologia admin): niente tabella nuova.

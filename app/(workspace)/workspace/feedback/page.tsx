@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { FeedbackWorkspaceClient } from '@/components/feedback/FeedbackWorkspaceClient'
 import { attachSubmittedImages } from '@/lib/feedback-attachments'
@@ -7,9 +8,9 @@ import type { FeedbackItem, FeedbackSection } from '@/components/feedback/types'
 export const revalidate = 0
 
 export default async function WorkspaceFeedbackPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
+  const supabase = await createClient()
 
   const [sectionsRes, feedbackRes, votesRes] = await Promise.all([
     supabase.from('workspace_sections').select('key, label').eq('is_active', true).order('sort_order'),

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { PersonaleClient } from '@/components/payroll/PersonaleClient'
 import { monthKey } from '@/lib/pl'
@@ -11,10 +12,10 @@ import { DEFAULT_PAYROLL_PARAMS } from '@/lib/payroll'
 export const revalidate = 0
 
 export default async function PersonalePage({ searchParams }: { searchParams: { m?: string } }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const supabase = await createClient()
+  const profile = await getSessionProfile()
   if (profile?.role !== 'admin') redirect('/dashboard')
 
   const month = /^\d{4}-\d{2}-01$/.test(searchParams.m ?? '') ? searchParams.m! : monthKey(new Date())

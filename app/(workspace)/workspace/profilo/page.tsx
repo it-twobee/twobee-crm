@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { ProfiloClient } from '@/components/workspace/ProfiloClient'
 import type { Profile } from '@/lib/types/database'
@@ -6,23 +6,11 @@ import type { Profile } from '@/lib/types/database'
 export const revalidate = 0
 
 export default async function ProfiloPage() {
-  const sb = await createClient()
-  const { data: { user } } = await sb.auth.getUser()
-  if (!user) redirect('/login')
-
-  // Colonne esplicite: `select('*')` porterebbe monthly_cost fino al client.
-  const { data: profile } = await sb
-    .from('profiles')
-    .select('id, full_name, role, app_role, avatar_url, email, phone, area, competencies, job_title, is_active, invited_by, last_seen_at, created_at, resource_type, seniority, hire_date, birth_date, contract_type')
-    .eq('id', user.id)
-    .single()
+  // Una lettura sola, già fatta dal layout: colonne esplicite (`select('*')`
+  // porterebbe monthly_cost fino al client) e dentro c'è google_connected — i
+  // token veri stanno in google_credentials, deny-all, e qui basta il flag.
+  const profile = await getSessionProfile()
   if (!profile) redirect('/login')
 
-  // I token stanno in google_credentials (deny-all): qui basta il flag pubblico.
-  // Nessun fallback al metadata: rispecchia solo credenziali realmente presenti.
-  const { data: flag } = await sb
-    .from('profiles').select('google_connected').eq('id', user.id).maybeSingle()
-  const googleConnected = Boolean(flag?.google_connected)
-
-  return <ProfiloClient profile={profile as Profile} googleConnected={googleConnected} />
+  return <ProfiloClient profile={profile as Profile} googleConnected={Boolean(profile.google_connected)} />
 }

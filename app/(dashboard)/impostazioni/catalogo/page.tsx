@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { isSuperAdminRaw } from '@/lib/permissions'
 import { CatalogoClient } from '@/components/impostazioni/CatalogoClient'
@@ -7,12 +8,11 @@ import type { ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode } from '
 export const revalidate = 0
 
 export default async function CatalogoPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
+  const supabase = await createClient()
 
-  const { data: profile } = await supabase
-    .from('profiles').select('email, app_role').eq('id', user.id).single()
+  const profile = await getSessionProfile()
   if (!isSuperAdminRaw(profile?.email, profile?.app_role)) redirect('/dashboard')
 
   const [{ data: services }, { data: templates }, { data: nodes }] = await Promise.all([

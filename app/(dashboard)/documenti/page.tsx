@@ -1,13 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { DocumentiClient } from '@/components/documenti/DocumentiClient'
 
 export const revalidate = 0
 
 export default async function DocumentiPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
+  const supabase = await createClient()
 
   const [docsRes, clientsRes] = await Promise.all([
     supabase.from('documents').select(`

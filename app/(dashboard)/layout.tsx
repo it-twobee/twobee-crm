@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { headers } from 'next/headers'
+import { getViewer } from '@/lib/auth'
 import { Sidebar } from '@/components/shared/Sidebar'
 import { Header } from '@/components/shared/Header'
 import type { Profile } from '@/lib/types/database'
@@ -11,24 +12,19 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
-
-  // Timeout di 8s — se Supabase non risponde, redirect al login invece di bloccare
-  const authResult = await Promise.race([
-    supabase.auth.getUser(),
-    new Promise<{ data: { user: null } }>((res) =>
-      setTimeout(() => res({ data: { user: null } }), 8000)
-    ),
-  ])
-
-  const user = authResult.data.user
+  // Identità e profilo in una lettura sola, riusata dalla pagina figlia.
+  // `select('*')` portava anche monthly_cost fino all'Header, che è un client
+  // component: il costo di una risorsa finiva nel browser di chi apriva il tool.
+  const { user, profile, isWorkspace } = await getViewer()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  // Il gate non sta solo nel middleware: lì il ruolo è tenuto in memoria per
+  // mezzo minuto, qui si rilegge dal database a ogni caricamento. Chi viene
+  // retrocesso a workspace non entra nel tool admin nemmeno in quella finestra.
+  // Il proprio profilo resta raggiungibile: è l'unica pagina di questo gruppo
+  // che la sidebar del workspace linka, e il middleware la lascia passare.
+  const pathname = (await headers()).get('x-pathname') ?? ''
+  if (isWorkspace && pathname !== '/impostazioni/profilo') redirect('/workspace')
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">

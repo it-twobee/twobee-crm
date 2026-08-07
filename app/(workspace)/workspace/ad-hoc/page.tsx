@@ -1,15 +1,15 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { AdHocClient, type AdHocRow } from '@/components/adhoc/AdHocClient'
 
 export const revalidate = 0
 
 export default async function WorkspaceAdHocPage() {
+  const profile = await getSessionProfile()
+  if (!profile) redirect('/login')
+  if (profile.role !== 'team' && profile.role !== 'admin') redirect('/workspace')
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-  const { data: profile } = await supabase.from('profiles').select('role, app_role').eq('id', user.id).single()
-  if (profile?.role !== 'team' && profile?.role !== 'admin') redirect('/workspace')
 
   // clients_workspace = VIEW senza dati economici; le task le filtra la RLS
   const [{ data: tasks }, { data: clients }, { data: profiles }, { data: assignments }] = await Promise.all([

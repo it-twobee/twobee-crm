@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { MyTasksClient } from '@/components/workspace/MyTasksClient'
 import type { Task } from '@/lib/types/database'
@@ -6,10 +7,10 @@ import type { Task } from '@/lib/types/database'
 export const revalidate = 0
 
 export default async function LeMieAttivitaPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const supabase = await createClient()
+  const profile = await getSessionProfile()
   if (profile?.role !== 'admin') redirect('/dashboard')
 
   // task assegnate a me (primario via assignee_id o multi-assegnatario)

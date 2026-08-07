@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { isAdminRole, isSuperAdminRaw } from '@/lib/permissions'
 import { FeedbackAdminClient } from '@/components/feedback/FeedbackAdminClient'
@@ -8,11 +9,11 @@ import type { FeedbackItem, FeedbackSection } from '@/components/feedback/types'
 export const revalidate = 0
 
 export default async function AdminFeedbackPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
+  const supabase = await createClient()
 
-  const { data: me } = await supabase.from('profiles').select('app_role, email').eq('id', user.id).single()
+  const me = await getSessionProfile()
   if (!isAdminRole(me?.app_role) && !isSuperAdminRaw(me?.email, me?.app_role)) redirect('/dashboard')
 
   const [sectionsRes, feedbackRes, votesRes] = await Promise.all([

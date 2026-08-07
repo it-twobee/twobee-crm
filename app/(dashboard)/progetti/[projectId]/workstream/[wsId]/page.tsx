@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect, notFound } from 'next/navigation'
 import { WorkstreamPageClient } from '@/components/projects/WorkstreamPageClient'
 import type { Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate } from '@/lib/types/database'
@@ -11,10 +12,10 @@ export default async function WorkstreamPage({
   params: { projectId: string; wsId: string }
   searchParams: { ms?: string }
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const supabase = await createClient()
+  const profile = await getSessionProfile()
   if (profile?.role !== 'admin') redirect('/dashboard')
 
   const { data: ws } = await supabase.from('project_workstreams').select('*').eq('id', params.wsId).single()

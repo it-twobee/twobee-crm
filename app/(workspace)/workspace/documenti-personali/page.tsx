@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { PersonalDocsClient } from '@/components/workspace/personal/PersonalDocsClient'
 import { SetupNotice } from '@/components/workspace/SetupNotice'
@@ -7,9 +8,9 @@ import type { PersonalDocument } from '@/lib/types/database'
 export const revalidate = 0
 
 export default async function DocumentiPersonaliPage() {
-  const sb = await createClient()
-  const { data: { user } } = await sb.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
+  const sb = await createClient()
 
   // Owner-only: mai i documenti di un collega, nemmeno per un admin che passa di qui.
   const { data, error } = await sb

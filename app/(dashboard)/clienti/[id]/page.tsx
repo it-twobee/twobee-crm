@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionProfile } from '@/lib/auth'
 import { notFound } from 'next/navigation'
 import { ClientPageClient } from '@/components/clients/ClientPageClient'
 import { ClientEconomicsTab } from '@/components/clients/tabs/ClientEconomicsTab'
@@ -22,16 +23,15 @@ interface Props {
 export default async function ClientePage({ params, searchParams }: Props) {
   const { id } = await params
   const { tab } = await searchParams
+  // Il profilo di chi guarda è già stato letto dal layout: qui si ricicla.
+  const currentProfile = await getSessionProfile()
   const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
 
   const [
     { data: client },
     { data: contacts },
     { data: assignments },
     { data: stakeholders },
-    { data: currentProfile },
     { data: allProfiles },
     { data: kpis },
     { count: openTickets },
@@ -41,10 +41,9 @@ export default async function ClientePage({ params, searchParams }: Props) {
     supabase.from('client_contacts').select('*').eq('client_id', id).order('is_primary', { ascending: false }),
     supabase.from('client_assignments').select('profile_id, profiles(*)').eq('client_id', id),
     supabase.from('client_stakeholders').select('*').eq('client_id', id).order('role'),
-    supabase.from('profiles').select(PROFILE_COLUMNS).eq('id', user!.id).single(),
     supabase.from('profiles').select(PROFILE_COLUMNS).order('full_name'),
     supabase.from('client_kpis').select('*').eq('client_id', id).order('month', { ascending: false }),
-    supabase.from('tickets').select('*', { count: 'exact', head: true }).eq('client_id', id).in('status', ['aperto','in_lavorazione']),
+    supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('client_id', id).in('status', ['aperto','in_lavorazione']),
     // niente da aspettare: non dipende da nient'altro, va nella stessa ondata
     supabase.from('client_interactions')
       .select('*, conductor:profiles!client_interactions_conducted_by_fkey(id, full_name, avatar_url)')

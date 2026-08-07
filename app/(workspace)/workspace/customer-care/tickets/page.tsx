@@ -1,18 +1,16 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { TicketSystem } from '@/components/ticket/TicketSystem'
 import { isSuperAdmin } from '@/lib/permissions'
 import type { Profile, Client } from '@/lib/types/database'
-import { PROFILE_COLUMNS } from '@/lib/profile-columns'
 
 export const revalidate = 0
 
 export default async function WorkspaceTicketsPage() {
+  const profile = await getSessionProfile()
+  if (!profile) redirect('/login')
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: profile } = await supabase.from('profiles').select(PROFILE_COLUMNS).eq('id', user.id).single()
 
   const [ticketRes, profilesRes, clientsRes] = await Promise.all([
     supabase.from('tickets').select(`
@@ -37,7 +35,7 @@ export default async function WorkspaceTicketsPage() {
         tickets={(ticketRes.data ?? []) as any[]}
         profiles={(profilesRes.data ?? []) as Profile[]}
         clients={(clientsRes.data ?? []) as Pick<Client, 'id' | 'company_name'>[]}
-        currentUserId={user.id}
+        currentUserId={profile.id}
         isSuperAdmin={isSuperAdmin(profile as any)}
       />
     </div>

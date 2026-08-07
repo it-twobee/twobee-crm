@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { ClientiList } from '@/components/clients/ClientiList'
 import type { Client, Profile } from '@/lib/types/database'
@@ -11,11 +12,11 @@ import type { ClientEconomicsSummary } from '@/components/clients/ClientiList'
 export const revalidate = 30
 
 export default async function ClientiPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
+  const supabase = await createClient()
 
-  const { data: profile } = await supabase.from('profiles').select(PROFILE_COLUMNS).eq('id', user.id).single()
+  const profile = await getSessionProfile()
   if (!profile) redirect('/login')
 
   const isAdminLevel = SUPER_ADMIN_EMAILS.includes(profile.email) || ['admin', 'manager'].includes(profile.app_role ?? '')

@@ -1,7 +1,18 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { cache } from 'react'
 
-export async function createClient() {
+/**
+ * Un client per richiesta, non uno per chiamata.
+ *
+ * Layout, pagina e componenti annidati chiamavano `createClient()` ciascuno per
+ * conto suo: ogni chiamata rileggeva i cookie e costruiva un client nuovo, con
+ * la sua coda di refresh del token. `cache()` di React memoizza per singola
+ * richiesta — dentro lo stesso render tutti ottengono la stessa istanza, e fra
+ * richieste diverse non si condivide niente (nessuna sessione che sfugge a un
+ * altro utente).
+ */
+export const createClient = cache(async () => {
   const cookieStore = await cookies()
 
   return createServerClient(
@@ -24,4 +35,4 @@ export async function createClient() {
       },
     }
   )
-}
+})

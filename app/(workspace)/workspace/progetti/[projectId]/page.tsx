@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionProfile } from '@/lib/auth'
 import { redirect, notFound } from 'next/navigation'
 import { ProjectDetailClient } from '@/components/projects/ProjectDetailClient'
 import type {
@@ -8,22 +9,22 @@ import type {
 export const revalidate = 0
 
 export default async function WorkspaceProjectDetailPage({ params, searchParams }: { params: { projectId: string }; searchParams: { tab?: string } }) {
+  const profile = await getSessionProfile()
+  if (!profile) redirect('/login')
+  if (profile.role !== 'team' && profile.role !== 'admin') redirect('/workspace')
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-  const { data: profile } = await supabase.from('profiles').select('role, app_role').eq('id', user.id).single()
-  if (profile?.role !== 'team' && profile?.role !== 'admin') redirect('/workspace')
+  const userId = profile.id
 
+  // Il cliente arriva in join col progetto, così l'intera pagina è un solo
+  // giro: prima il progetto si leggeva da solo e tutto il resto aspettava.
   // RLS: se l'utente non può vederlo, single() torna vuoto → 404
-  const { data: project } = await supabase
-    .from('projects').select('*').eq('id', params.projectId).is('deleted_at', null).single()
-  if (!project) notFound()
-
   const [
-    { data: client }, { data: workstreams }, { data: milestones },
+    { data: project }, { data: workstreams }, { data: milestones },
     { data: tasks }, { data: recurring }, { data: members }, { data: profiles },
   ] = await Promise.all([
-    supabase.from('clients').select('id, company_name, display_name').eq('id', project.client_id).maybeSingle(),
+    supabase.from('projects')
+      .select('*, client:clients(id, company_name, display_name)')
+      .eq('id', params.projectId).is('deleted_at', null).maybeSingle(),
     supabase.from('project_workstreams').select('*').eq('project_id', params.projectId).order('sort_order'),
     supabase.from('milestones').select('*').eq('project_id', params.projectId).order('sort_order'),
     supabase.from('tasks').select('*').eq('project_id', params.projectId).is('deleted_at', null).order('created_at'),
@@ -32,10 +33,13 @@ export default async function WorkspaceProjectDetailPage({ params, searchParams 
     supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true),
   ])
 
+  if (!project) notFound()
+  const client = (project as { client?: { company_name: string; display_name: string | null } | null }).client ?? null
+
   const memberIds = (members ?? []).map(m => m.profile_id)
-  const isMemberManager = (members ?? []).some(m => m.profile_id === user.id && m.role_in_project === 'manager')
-  const canManageProject = profile?.role === 'admin'
-    || (profile?.app_role === 'manager' && (project.manager_id === user.id || isMemberManager))
+  const isMemberManager = (members ?? []).some(m => m.profile_id === userId && m.role_in_project === 'manager')
+  const canManageProject = profile.role === 'admin'
+    || (profile.app_role === 'manager' && (project.manager_id === userId || isMemberManager))
 
   return (
     <ProjectDetailClient

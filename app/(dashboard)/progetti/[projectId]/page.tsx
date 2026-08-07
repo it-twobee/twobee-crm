@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect, notFound } from 'next/navigation'
 import { ProjectDetailClient } from '@/components/projects/ProjectDetailClient'
 import { ProjectEconomics } from '@/components/projects/ProjectEconomics'
@@ -12,10 +13,10 @@ import type {
 export const revalidate = 0
 
 export default async function ProjectDetailPage({ params, searchParams }: { params: { projectId: string }; searchParams: { tab?: string } }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const supabase = await createClient()
+  const profile = await getSessionProfile()
   if (profile?.role !== 'admin') redirect('/dashboard')
 
   const { data: project } = await supabase

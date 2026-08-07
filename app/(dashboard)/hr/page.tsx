@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { HRClient } from '@/components/hr/HRClient'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
@@ -8,11 +9,11 @@ import { PROFILE_COLUMNS } from '@/lib/profile-columns'
 export const revalidate = 0
 
 export default async function HRPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
+  const supabase = await createClient()
 
-  const { data: profile } = await supabase.from('profiles').select(PROFILE_COLUMNS).eq('id', user.id).single()
+  const profile = await getSessionProfile()
   const isAdmin = SUPER_ADMIN_EMAILS.includes(profile?.email ?? '') || ['admin', 'manager'].includes(profile?.app_role ?? '')
   if (!isAdmin) redirect('/dashboard')
 

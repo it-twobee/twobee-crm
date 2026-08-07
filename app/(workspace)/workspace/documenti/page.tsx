@@ -1,13 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { DocumentiClient } from '@/components/documenti/DocumentiClient'
 
 export const revalidate = 0
 
 export default async function WorkspaceDocumentiPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
+  const supabase = await createClient()
 
   // RLS filtra automaticamente per visibility (operations_visible, client_visible, shared_in_report)
   const [docsRes, clientsRes] = await Promise.all([

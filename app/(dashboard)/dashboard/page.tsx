@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid'
 import type { DashboardData } from '@/components/dashboard/DashboardGrid'
@@ -14,14 +15,11 @@ import { PROFILE_COLUMNS } from '@/lib/profile-columns'
 export const revalidate = 60
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
+  const supabase = await createClient()
 
-  // `dashboard_config` serve solo qui: si aggiunge alla lista invece di allargare la costante
-  const { data: profile } = await supabase.from('profiles')
-    .select('id, full_name, role, app_role, avatar_url, email, phone, area, competencies, job_title, is_active, invited_by, last_seen_at, created_at, resource_type, seniority, hire_date, birth_date, contract_type, dashboard_config')
-    .eq('id', user.id).single()
+  const profile = await getSessionProfile()
   if (!profile) redirect('/login')
 
   const isGod = SUPER_ADMIN_EMAILS.includes(profile.email)
@@ -54,6 +52,7 @@ export default async function DashboardPage() {
     ticketsResult,
     urgentTicketsResult,
     kpiSnapshotResult,
+    gridConfigResult,
   ] = await Promise.all([
     isAdminLevel
       ? safe(supabase.from('clients').select('*').order('company_name'), 'clients')
@@ -76,6 +75,10 @@ export default async function DashboardPage() {
           .select('client_id,month,mer,revenue_attributed,organic_sessions,uptime,leads_generated')
           .gte('month', twoMonthsAgo).order('month', { ascending: false }), 'kpiSnapshot')
       : noop,
+    // La configurazione della griglia serve solo a questa pagina: si chiede qui
+    // dentro, nel giro già parallelo, invece di allargare SESSION_PROFILE_COLUMNS
+    // e portarla in ogni pagina del tool.
+    safe(supabase.from('profiles').select('dashboard_config').eq('id', user.id).maybeSingle(), 'gridConfig'),
   ])
 
   // ─── Delivery: progetti, milestone, task ──────────────────────────────────
@@ -335,7 +338,7 @@ export default async function DashboardPage() {
       </div>
 
       {isAdminLevel
-        ? <DashboardGrid data={dashboardData} initialConfig={profile.dashboard_config as import('@/components/dashboard/DashboardGrid').DashboardConfig | null} />
+        ? <DashboardGrid data={dashboardData} initialConfig={(gridConfigResult?.data?.dashboard_config ?? null) as import('@/components/dashboard/DashboardGrid').DashboardConfig | null} />
         : (
           <div className="bg-surface border border-border rounded-2xl p-8 text-center">
             <p className="text-sm text-text-secondary">

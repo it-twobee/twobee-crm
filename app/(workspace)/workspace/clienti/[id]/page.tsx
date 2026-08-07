@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionProfile } from '@/lib/auth'
 import { notFound, redirect } from 'next/navigation'
 import { ClientPageClient } from '@/components/clients/ClientPageClient'
 import type { Client, ClientContact, ClientKpi, Profile, ClientStakeholder, ClientInteraction } from '@/lib/types/database'
@@ -12,38 +13,37 @@ interface Props {
 
 export default async function WorkspaceClientePage({ params }: Props) {
   const { id } = await params
+  const currentProfile = await getSessionProfile()
+  if (!currentProfile) redirect('/login')
+
   const supabase = await createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
+  // Le interazioni non dipendono dalle altre letture: erano un ottavo giro in
+  // fila dopo che tutto il resto era già arrivato.
   const [
     { data: client },
     { data: contacts },
     { data: assignments },
     { data: stakeholders },
-    { data: currentProfile },
     { data: allProfiles },
     { data: kpis },
     { count: openTickets },
+    { data: intData },
   ] = await Promise.all([
     supabase.from('clients_workspace').select('*').eq('id', id).single(),
     supabase.from('client_contacts').select('*').eq('client_id', id).order('is_primary', { ascending: false }),
     supabase.from('client_assignments').select('profile_id, profiles(*)').eq('client_id', id),
     supabase.from('client_stakeholders').select('*').eq('client_id', id).order('role'),
-    supabase.from('profiles').select(PROFILE_COLUMNS).eq('id', user.id).single(),
     supabase.from('profiles').select(PROFILE_COLUMNS).order('full_name'),
     supabase.from('client_kpis').select('*').eq('client_id', id).order('month', { ascending: false }),
-    supabase.from('tickets').select('*', { count: 'exact', head: true }).eq('client_id', id).in('status', ['aperto', 'in_lavorazione']),
+    supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('client_id', id).in('status', ['aperto', 'in_lavorazione']),
+    supabase.from('client_interactions')
+      .select('*, conductor:profiles!client_interactions_conducted_by_fkey(id, full_name, avatar_url)')
+      .eq('client_id', id)
+      .order('date', { ascending: false }),
   ])
 
   if (!client) notFound()
-
-  const { data: intData } = await supabase
-    .from('client_interactions')
-    .select('*, conductor:profiles!client_interactions_conducted_by_fkey(id, full_name, avatar_url)')
-    .eq('client_id', id)
-    .order('date', { ascending: false })
 
   return (
     <ClientPageClient

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { WorkspaceHR } from '@/components/workspace/WorkspaceHR'
 import type { HrRequest, VacationBalance } from '@/lib/types/database'
@@ -6,9 +7,9 @@ import type { HrRequest, VacationBalance } from '@/lib/types/database'
 export const revalidate = 0
 
 export default async function WorkspaceHRPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
+  const supabase = await createClient()
 
   const [{ data: requests }, { data: balanceRows }] = await Promise.all([
     supabase

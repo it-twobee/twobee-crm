@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getViewer } from '@/lib/auth'
 import { WorkspaceSidebar } from '@/components/workspace/WorkspaceSidebar'
 import { WorkspaceMobileNav } from '@/components/workspace/WorkspaceMobileNav'
 import { Logo } from '@/components/shared/Logo'
@@ -8,7 +9,7 @@ import { QuickCreate } from '@/components/shared/QuickCreate'
 import Link from 'next/link'
 import { GlobalSearch } from '@/components/shared/GlobalSearch'
 import { workspaceSearch } from '@/app/actions/global-search'
-import { isSuperAdminRaw, isAdminRole, isWorkspaceRole } from '@/lib/permissions'
+import { isAdminRole, isWorkspaceRole } from '@/lib/permissions'
 import type { AppRole } from '@/lib/types/database'
 
 // group_key/group_order arrivano dalla migration 087: opzionali finché non è
@@ -19,18 +20,11 @@ type WorkspaceSectionRow = {
 }
 
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
+  // getViewer è memoizzato per richiesta: la pagina figlia ricicla questa
+  // lettura invece di richiedere identità e profilo una seconda volta.
+  const { user, profile, isSuperAdmin } = await getViewer()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id, full_name, avatar_url, app_role, email')
-    .eq('id', user.id)
-    .single()
-
-  const isSuperAdmin = isSuperAdminRaw(profile?.email, profile?.app_role)
   const isAdminLevel = isSuperAdmin || isAdminRole(profile?.app_role)
   const isWorkspaceUser = isWorkspaceRole(profile?.app_role)
 
@@ -38,7 +32,10 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     redirect('/dashboard')
   }
 
+  const supabase = await createClient()
   const [sectionsRes, permsRes] = await Promise.all([
+    // `*` di proposito: group_key/group_order arrivano dalla 087 e un elenco
+    // esplicito fallirebbe dove non fosse applicata. Sono quindici righe.
     supabase.from('workspace_sections').select('*').eq('is_active', true).order('sort_order'),
     isAdminLevel
       ? supabase.from('workspace_section_permissions').select('section_id, can_view').eq('can_view', true)

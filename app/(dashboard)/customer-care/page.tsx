@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { CustomerCareClient } from '@/components/customer-care/CustomerCareClient'
 import type { Profile, ChatChannel } from '@/lib/types/database'
@@ -7,21 +8,19 @@ import { PROFILE_COLUMNS } from '@/lib/profile-columns'
 export const revalidate = 0
 
 export default async function CustomerCarePage() {
+  const profile = await getSessionProfile()
+  if (!profile) redirect('/login')
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
 
-  const [{ data: profile }, { data: allProfiles }] = await Promise.all([
-    supabase.from('profiles').select(PROFILE_COLUMNS).eq('id', user.id).single(),
-    supabase.from('profiles').select(PROFILE_COLUMNS).order('full_name'),
-  ])
-
+  // Colleghi e clienti non si aspettano a vicenda: erano tre giri in fila.
   // Il Customer Care è ancorato al cliente: un canale `customer_care` per cliente.
-  const { data: clients } = await supabase
-    .from('clients')
-    .select('id, company_name, display_name, client_label')
-    .neq('client_label', 'perso')
-    .order('company_name')
+  const [{ data: allProfiles }, { data: clients }] = await Promise.all([
+    supabase.from('profiles').select(PROFILE_COLUMNS).order('full_name'),
+    supabase.from('clients')
+      .select('id, company_name, display_name, client_label')
+      .neq('client_label', 'perso')
+      .order('company_name'),
+  ])
 
   const clientList = (clients ?? []) as Array<{
     id: string; company_name: string; display_name: string | null; client_label: string

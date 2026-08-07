@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { ProgettiClient } from '@/components/projects/ProgettiClient'
 import type {
@@ -9,10 +10,10 @@ import type {
 export const revalidate = 0
 
 export default async function ProgettiPage({ searchParams }: { searchParams: { client?: string; new?: string } }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const supabase = await createClient()
+  const profile = await getSessionProfile()
   if (profile?.role !== 'admin') redirect('/dashboard')
 
   const [

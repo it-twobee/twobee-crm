@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { CronologiaClient } from '@/components/impostazioni/CronologiaClient'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
@@ -12,11 +13,11 @@ const DAY = 86_400_000
 const iso = (ms: number) => new Date(ms).toISOString()
 
 export default async function CronologiaPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
+  const supabase = await createClient()
 
-  const { data: profile } = await supabase.from('profiles').select(PROFILE_COLUMNS).eq('id', user.id).single()
+  const profile = await getSessionProfile()
   const isAdmin = SUPER_ADMIN_EMAILS.includes(profile?.email ?? '') || profile?.app_role === 'admin'
   if (!isAdmin) redirect('/dashboard')
 
