@@ -97,6 +97,8 @@ export type AsanaScan = {
   progress: ReturnType<typeof triageProgress>
   /** i clienti visti sulle board, per il filtro */
   clientNames: string[]
+  /** §218 — la 201 non è applicata: le decisioni non hanno dove essere scritte */
+  triageMissing: boolean
 }
 
 /**
@@ -192,7 +194,11 @@ export async function scanAsana(mode: 'attive' | 'tutto' = 'attive'): Promise<As
     already.push(...(data ?? []).map(r => r.asana_gid as string))
   }
 
-  const { data: triage } = await sb.from('asana_triage').select('gid, decision')
+  /* Senza la 201 la tabella non c'è. Il resto della pagina funziona lo stesso —
+     leggere Asana non dipende da lei — quindi non si fallisce: si dichiara, e la
+     pagina spegne i pulsanti che scriverebbero nel vuoto. */
+  const { data: triage, error: triageErr } = await sb.from('asana_triage').select('gid, decision')
+  const triageMissing = triageErr?.code === 'PGRST205' || triageErr?.code === '42P01'
   const decisions = new Map<string, Decision>(
     (triage ?? []).map(t => [t.gid as string, t.decision as Decision]))
   /* Le già importate contano come decise: non c'è più niente da scegliere su
@@ -214,6 +220,7 @@ export async function scanAsana(mode: 'attive' | 'tutto' = 'attive'): Promise<As
     groups: groupByClient(rows, decidedSet),
     progress: triageProgress(rows, decidedSet),
     clientNames: Array.from(new Set(rows.map(r => r.board.clientName).filter(Boolean) as string[])).sort(),
+    triageMissing,
   }
 }
 

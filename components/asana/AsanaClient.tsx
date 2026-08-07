@@ -233,6 +233,22 @@ export function AsanaClient({ projects, workstreams, milestones }: {
               hint={scan.failed.length ? `${scan.failed.length} in errore` : 'nessun errore'} />
           </div>
 
+          {scan.triageMissing && (
+            <div className="rounded-2xl border border-warning/40 bg-warning-dim p-4 flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-text-primary">Migration da eseguire</p>
+                <p className="text-2xs text-text-secondary mt-1">
+                  Le decisioni («da tenere», «da eliminare») non hanno dove essere scritte finché non
+                  esegui{' '}
+                  <code className="px-1 py-0.5 rounded bg-surface border border-border">supabase/migrations/201_asana_triage.sql</code>{' '}
+                  nel SQL Editor di Supabase. Leggere Asana e migrare le task funziona lo stesso: è
+                  solo il registro di cosa hai già deciso che manca.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* §217 — quanto manca: la sola cosa che rende finito un lavoro che
               sembra infinito. Senza, si smette di decidere dopo il terzo cliente. */}
           <section className="bg-surface border border-border rounded-2xl p-4">
@@ -405,6 +421,9 @@ export function AsanaClient({ projects, workstreams, milestones }: {
                 Mantieni l&apos;assegnatario di Asana, dove l&apos;email combacia
               </label>
               <span className="flex-1" />
+              {!msId && picked.size > 0 && (
+                <span className="text-2xs text-warning">scegli progetto, workstream e milestone</span>
+              )}
               <span className="text-2xs text-text-tertiary tabular">{picked.size} selezionate</span>
               <button onClick={migrate} disabled={pending || !picked.size || !msId}
                 className="flex items-center gap-1.5 text-2xs font-semibold bg-gold text-on-gold rounded-xl px-3 py-2 press disabled:opacity-40">
@@ -451,15 +470,17 @@ export function AsanaClient({ projects, workstreams, milestones }: {
                 className="text-2xs font-semibold text-text-secondary hover:text-text-primary">deseleziona</button>
               <span className="flex-1" />
               {/* Decidere per blocco è il punto: riga per riga non si finisce. */}
-              <button onClick={() => decide('tieni')} disabled={pending}
+              <button onClick={() => decide('tieni')} disabled={pending || scan.triageMissing}
+                title={scan.triageMissing ? 'Esegui la migration 201: le decisioni non hanno dove essere scritte' : undefined}
                 className="text-2xs font-semibold border border-info/50 text-info rounded-xl px-3 py-2 hover:bg-surface-hover press disabled:opacity-40">
                 Da tenere
               </button>
-              <button onClick={() => decide('elimina')} disabled={pending}
+              <button onClick={() => decide('elimina')} disabled={pending || scan.triageMissing}
+                title={scan.triageMissing ? 'Esegui la migration 201: le decisioni non hanno dove essere scritte' : undefined}
                 className="text-2xs font-semibold border border-error/50 text-error rounded-xl px-3 py-2 hover:bg-surface-hover press disabled:opacity-40">
                 Da eliminare
               </button>
-              <button onClick={() => decide(null)} disabled={pending}
+              <button onClick={() => decide(null)} disabled={pending || scan.triageMissing}
                 title="Un ripensamento deve costare quanto la scelta"
                 className="text-2xs font-semibold border border-border rounded-xl px-3 py-2 text-text-secondary hover:text-text-primary press disabled:opacity-40">
                 Annulla decisione

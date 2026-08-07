@@ -348,7 +348,12 @@
       "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'clients?select=company_name,is_internal,workspace_hidden&order=company_name')",
       "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'clients?select=company_name&workspace_hidden=eq.true')",
       "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'revenue_installments?select=id,invoice_id&limit=1')",
-      "Bash(echo \"ahead/behind: $\\(git rev-list --left-right --count origin/main...main\\)\")"
+      "Bash(echo \"ahead/behind: $\\(git rev-list --left-right --count origin/main...main\\)\")",
+      "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'asana_triage?select=gid&limit=1')",
+      "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'projects?select=id,name,status,project_workstreams\\(id,name,milestones\\(id,name\\)\\)&deleted_at=is.null&status=in.\\(active,draft,on_hold\\)')",
+      "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'projects?select=id,name,status&deleted_at=is.null&status=in.\\(active,draft,on_hold\\)&order=name')",
+      "Bash($SP/q.sh milestones?select=id,workstream_id,name&limit=3 *)",
+      "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'milestones?select=*&limit=1')"
     ],
     "defaultMode": "acceptEdits"
   }

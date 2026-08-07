@@ -26,7 +26,13 @@ export default async function AsanaPage() {
     sb.from('projects').select('id, name, client_id, status').is('deleted_at', null)
       .in('status', ['active', 'draft', 'on_hold']).order('name'),
     sb.from('project_workstreams').select('id, project_id, name').order('sort_order'),
-    sb.from('milestones').select('id, workstream_id, name').order('sort_order'),
+    /* §218 — `milestones` ha `title`, non `name`: `project_workstreams` ha
+       `name`, e la somiglianza fra le due tabelle mi ha fatto scrivere la
+       colonna sbagliata. La select falliva, `milestones` tornava null, la
+       tendina restava vuota e il pulsante «Migra» non si accendeva mai — senza
+       che niente lo dicesse. Una select rotta qui è muta: `{ data }` senza
+       `error` non ha modo di lamentarsi. */
+    sb.from('milestones').select('id, workstream_id, title').order('sort_order'),
     sb.from('clients').select('id, company_name, display_name'),
   ])
 
@@ -38,7 +44,9 @@ export default async function AsanaPage() {
         id: p.id, name: p.name, client: p.client_id ? clientName.get(p.client_id) ?? null : null,
       }))}
       workstreams={(workstreams ?? []) as { id: string; project_id: string; name: string }[]}
-      milestones={(milestones ?? []) as { id: string; workstream_id: string; name: string }[]}
+      milestones={(milestones ?? []).map(m => ({
+        id: m.id as string, workstream_id: m.workstream_id as string, name: m.title as string,
+      }))}
     />
   )
 }
