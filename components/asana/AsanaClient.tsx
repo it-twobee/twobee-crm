@@ -4,9 +4,12 @@ import { useMemo, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import {
   Download, RefreshCw, AlertTriangle, CheckCircle2, Loader2, Search, Info, ExternalLink,
-  Users, ArrowRight, Check, FolderTree,
+  Users, ArrowRight, Check, FolderTree, Trash2,
 } from 'lucide-react'
-import { scanAsana, importAsanaTasks, importAsanaAdHoc, setTriage, type AsanaScan } from '@/app/actions/asana'
+import {
+  scanAsana, importAsanaTasks, importAsanaAdHoc, setTriage, deleteOnAsana, type AsanaScan,
+} from '@/app/actions/asana'
+import { ASANA_DELETE_BATCH } from '@/lib/asana'
 import type { BoardKind, Decision } from '@/lib/asana'
 
 const DECISION_LABEL: Record<Decision, string> = {
@@ -60,6 +63,11 @@ export function AsanaClient({ projects, workstreams, milestones }: {
      sparse su 26 board non sono i passi di una consegna, sono cose da fare per
      un cliente. Il progetto serve quando la struttura su Asana c'era davvero. */
   const [dest, setDest] = useState<'adhoc' | 'progetto'>('adhoc')
+  /* §219 — la cancellazione su Asana ha uno stato suo, fuori dalla transizione:
+     l'avanzamento deve aggiornarsi mentre gira, e dentro `useTransition` React
+     lo rimanderebbe alla fine — cioè quando non serve più. */
+  const [confirmDel, setConfirmDel] = useState(false)
+  const [deleting, setDeleting] = useState<{ done: number; total: number } | null>(null)
 
   const wsOf = useMemo(() => workstreams.filter(w => w.project_id === projectId), [workstreams, projectId])
   const msOf = useMemo(() => milestones.filter(m => m.workstream_id === wsId), [milestones, wsId])
@@ -155,6 +163,48 @@ export function AsanaClient({ projects, workstreams, milestones }: {
         toast.error(e instanceof Error ? e.message : 'Errore')
       }
     })
+  }
+
+  /**
+   * §219 — Cancella davvero su Asana, a lotti.
+   *
+   * Non passa da `useTransition`: mille cancellazioni sono un minuto abbondante,
+   * e l'unica cosa che rende sopportabile un minuto è vedere il contatore
+   * muoversi. Ogni lotto che torna aggiorna lo stato, così se qualcosa si rompe
+   * a metà si sa **quanto** è andato — non «forse tutto, forse niente».
+   */
+  const removeFromAsana = async () => {
+    setConfirmDel(false)
+    const gids = pickedList
+    setDeleting({ done: 0, total: gids.length })
+    let deleted = 0, gone = 0
+    const failed: { gid: string; reason: string }[] = []
+    try {
+      for (let i = 0; i < gids.length; i += ASANA_DELETE_BATCH) {
+        const chunk = gids.slice(i, i + ASANA_DELETE_BATCH)
+        const r = await deleteOnAsana(chunk)
+        deleted += r.deleted; gone += r.alreadyGone; failed.push(...r.failed)
+        setDeleting({ done: Math.min(i + chunk.length, gids.length), total: gids.length })
+      }
+      toast.success(`${deleted} eliminate su Asana`, {
+        description: [
+          gone ? `${gone} non c'erano già più` : '',
+          failed.length ? `${failed.length} non sono passate` : '',
+          'Restano nel cestino di Asana per 30 giorni',
+        ].filter(Boolean).join(' · '),
+      })
+      if (failed.length) {
+        toast.error(`${failed.length} non eliminate`, { description: failed[0].reason })
+      }
+      setPicked(new Set())
+      setScan(await scanAsana(mode))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Errore', {
+        description: `${deleted} erano già state eliminate prima dell'interruzione`,
+      })
+    } finally {
+      setDeleting(null)
+    }
   }
 
   /** Le azioni massive: si decide per blocco, non riga per riga. */
@@ -510,11 +560,27 @@ export function AsanaClient({ projects, workstreams, milestones }: {
             </div>
           </div>
 
-          {picked.size > 0 && (
+          {deleting && (
+            <div className="sticky bottom-3 z-30 bg-surface border border-border-strong rounded-2xl shadow-pop p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-error" />
+                <span className="text-2xs font-bold text-text-primary flex-1">
+                  Elimino su Asana… {deleting.done} di {deleting.total}
+                </span>
+                <span className="text-2xs text-text-tertiary">non chiudere la pagina</span>
+              </div>
+              <div className="h-1.5 bg-surface-active rounded-full overflow-hidden">
+                <div className="h-full bg-error rounded-full transition-all"
+                  style={{ width: `${Math.round((deleting.done / Math.max(1, deleting.total)) * 100)}%` }} />
+              </div>
+            </div>
+          )}
+
+          {picked.size > 0 && !deleting && (
             <div className="sticky bottom-3 z-30 flex items-center gap-2 flex-wrap
                             bg-surface border border-border-strong rounded-2xl shadow-pop p-3">
               <span className="text-2xs font-bold text-text-primary">{picked.size} selezionate</span>
-              <button onClick={() => setPicked(new Set())}
+              <button onClick={() => { setPicked(new Set()); setConfirmDel(false) }}
                 className="text-2xs font-semibold text-text-secondary hover:text-text-primary">deseleziona</button>
               <span className="flex-1" />
               {/* Decidere per blocco è il punto: riga per riga non si finisce. */}
@@ -533,6 +599,27 @@ export function AsanaClient({ projects, workstreams, milestones }: {
                 className="text-2xs font-semibold border border-border rounded-xl px-3 py-2 text-text-secondary hover:text-text-primary press disabled:opacity-40">
                 Annulla decisione
               </button>
+
+              {/* §219 — due passi, e il secondo dice il numero. Cancellare su un
+                  servizio di terzi non può essere un click distratto: la conferma
+                  ripete quante ne stai togliendo e dove finiscono. */}
+              {confirmDel ? (
+                <span className="flex items-center gap-2 border border-error/50 bg-error-dim rounded-xl px-3 py-2">
+                  <span className="text-2xs font-semibold text-text-primary">
+                    Elimino {picked.size} task da Asana? Vanno nel cestino, 30 giorni per ripristinarle.
+                  </span>
+                  <button onClick={removeFromAsana}
+                    className="text-2xs font-bold text-error hover:opacity-80">Elimina</button>
+                  <button onClick={() => setConfirmDel(false)}
+                    className="text-2xs font-semibold text-text-secondary hover:text-text-primary">Annulla</button>
+                </span>
+              ) : (
+                <button onClick={() => setConfirmDel(true)} disabled={pending}
+                  title="Cancella davvero le task su Asana. Finiscono nel cestino, non distrutte."
+                  className="flex items-center gap-1.5 text-2xs font-semibold border border-error/50 text-error rounded-xl px-3 py-2 hover:bg-error-dim press disabled:opacity-40">
+                  <Trash2 className="w-3.5 h-3.5" />Elimina su Asana
+                </button>
+              )}
             </div>
           )}
 

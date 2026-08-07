@@ -937,6 +937,19 @@ cosa e l'altra, e ogni volta serve sapere dove si era arrivati.
   cliente non si crea** e torna indietro col nome della sua board: `client_id` è
   ciò che ancora una ad hoc a qualcuno, e senza finisce in un elenco che nessuno
   apre.
+- **Cancellare su Asana è un secondo gesto** (§219, `deleteOnAsana`). Segnare
+  «da eliminare» non cancella niente: è una decisione, e un pulsante che marca e
+  cancella insieme trasforma un ripensamento in un danno — con mille righe già
+  marcate, il danno è mille. La conferma è a due passi e il secondo ripete
+  **quante** e **dove finiscono**. Va a lotti di `ASANA_DELETE_BATCH` (40) perché
+  mille richieste in una server action sola andrebbero in timeout a metà,
+  lasciando cancellato un pezzo e nessuno che sa quale: il contatore avanza lotto
+  per lotto, e se si rompe si sa quanto è passato. Un **404 non è un errore** —
+  la task già sparita è il risultato voluto, si conta a parte. `DELETE` su Asana
+  **sposta nel cestino**: 30 giorni per ripristinare, il che rende l'operazione
+  accettabile senza backup — ma 30 giorni è un limite vero, non «per sempre».
+  Il registro si aggiorna **solo per quelle andate**: una che non è passata deve
+  restare in lista, o la si perde di vista.
 - **La struttura si guarda per cliente**, non in ordine alfabetico: «Icura - META
   ADS» e «Ad Hoc - Icura» sono lo stesso cliente e si decidono insieme. Le board
   senza cliente stanno in fondo ma **ci sono**: sono quelle che di solito si
