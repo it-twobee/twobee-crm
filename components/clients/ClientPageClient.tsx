@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { Edit3, Check, X, ChevronDown, Loader2 } from 'lucide-react'
@@ -120,6 +120,15 @@ function InlineBadgeSelect({ value, options, field, clientId, canEdit, badgeClas
   const [saving, setSaving] = useState(false)
   const [current, setCurrent] = useState(value)
 
+  // Esc chiude: un menu che si chiude solo cliccando fuori è un menu che
+  // qualcuno lascia aperto e poi seleziona per sbaglio scorrendo.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
+
   const select = async (v: string) => {
     setOpen(false)
     if (v === current) return
@@ -145,17 +154,27 @@ function InlineBadgeSelect({ value, options, field, clientId, canEdit, badgeClas
   return (
     <div className="relative inline-block">
       <button onClick={() => canEdit && setOpen(o => !o)}
+        aria-haspopup={canEdit ? 'menu' : undefined} aria-expanded={canEdit ? open : undefined}
         className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded border capitalize transition-colors ${badgeClass(current)} ${canEdit ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}>
         {saving ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : label}
         {canEdit && <ChevronDown className="w-2.5 h-2.5 opacity-60" />}
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute top-full left-0 mt-1 bg-surface border border-border rounded-lg shadow-xl z-20 min-w-[120px] overflow-hidden">
+          {/* §214 — la barra delle tab è `sticky z-20` con `backdrop-blur`: sta
+              dopo nel DOM, quindi allo stesso livello vinceva lei e passava sopra
+              il menu. Il `bg-background/95` non copre nemmeno del tutto, così le
+              voci di mezzo si leggevano attraverso «Task Ad Hoc». Il menu esce
+              sopra tutto, e lo sfondo è pieno perché un menu semitrasparente su
+              testo è illeggibile comunque vada. */}
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div role="menu"
+            className="absolute top-full left-0 mt-1 bg-surface border border-border-strong rounded-xl shadow-pop z-50 min-w-[150px] overflow-hidden p-1 animate-scale-in">
             {options.map(opt => (
-              <button key={opt} onClick={() => select(opt)}
-                className={`w-full text-left px-3 py-2 text-xs capitalize hover:bg-surface-hover transition-colors ${opt === current ? 'text-gold-text font-bold' : 'text-text-primary'}`}>
+              <button key={opt} role="menuitem" onClick={() => select(opt)}
+                className={`w-full flex items-center gap-2 text-left px-2.5 py-1.5 rounded-lg text-xs capitalize transition-colors ${
+                  opt === current ? 'bg-gold-dim text-gold-text font-bold' : 'text-text-primary hover:bg-surface-hover'}`}>
+                <Check className={`w-3 h-3 shrink-0 ${opt === current ? 'opacity-100' : 'opacity-0'}`} aria-hidden="true" />
                 {labelFn ? labelFn(opt) : opt.replace('_', ' ')}
               </button>
             ))}
@@ -186,12 +205,17 @@ export function ClientPageClient({
   // dal workspace le rotte admin sono rimbalzate dal middleware
   const portalBase = backHref.startsWith('/workspace') ? '/workspace' : ''
 
+  /* §214 — Anagrafica sta dopo Panoramica, non in fondo. Era la quinta voce,
+     dietro tre tab di task: su uno schermo stretto finiva fuori campo, e lì
+     dentro c'è chi è il cliente — ragione sociale, P.IVA, commerciale, e ora
+     anche se il team operativo lo vede. Le task si raggiungono comunque, i dati
+     d'identità no se non sai che la barra scorre. */
   const visibleTabs = [
     { label: 'Panoramica', index: 0 },
+    ...(canSeeAnagrafica ? [{ label: 'Anagrafica', index: 1 }] : []),
     { label: 'Progetti', index: 2 },
     { label: 'Task Ad Hoc', index: 3 },
     { label: 'Task al cliente', index: 4 },
-    ...(canSeeAnagrafica ? [{ label: 'Anagrafica', index: 1 }] : []),
     // Economics: dati economici aggregati, admin-only e mai nel workspace
     ...(economics ? [{ label: 'Economics', index: 5 }] : []),
   ]
