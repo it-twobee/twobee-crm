@@ -344,7 +344,11 @@
       "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'clients?select=id,company_name,display_name,is_internal,client_label&order=company_name')",
       "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'projects?select=id,name,status&client_id=eq.2bb19366-d0f8-4f91-9e17-407a6a8fc96a&deleted_at=is.null')",
       "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'tasks?select=id,title&client_id=eq.2bb19366-d0f8-4f91-9e17-407a6a8fc96a&deleted_at=is.null&limit=5')",
-      "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'revenue_streams?select=id,label,amount,status&client_id=eq.2bb19366-d0f8-4f91-9e17-407a6a8fc96a')"
+      "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'revenue_streams?select=id,label,amount,status&client_id=eq.2bb19366-d0f8-4f91-9e17-407a6a8fc96a')",
+      "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'clients?select=company_name,is_internal,workspace_hidden&order=company_name')",
+      "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'clients?select=company_name&workspace_hidden=eq.true')",
+      "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'revenue_installments?select=id,invoice_id&limit=1')",
+      "Bash(echo \"ahead/behind: $\\(git rev-list --left-right --count origin/main...main\\)\")"
     ],
     "defaultMode": "acceptEdits"
   }
