@@ -248,6 +248,11 @@ export function PanoramicaTab({
               </Link>
             )}
           </div>
+          {/* §211 — nel workspace il contratto non esiste: `contractsCount` non
+              arriva, quindi la scheda diceva «Da quotare» a chiunque e offriva un
+              link a Economics che quel ruolo non può aprire. Un vicolo cieco che
+              parla di soldi è la peggiore delle due cose insieme. */}
+          {!hideEconomics && <>
           <div className="hidden sm:block w-px bg-surface-active" />
           <div className="flex-1 flex flex-col justify-center gap-1 text-center sm:text-left">
             <p className="text-2xs text-text-secondary uppercase tracking-wider font-bold" title={CONTRACT_PERIOD_HINT}>Contratto</p>
@@ -286,6 +291,7 @@ export function PanoramicaTab({
               </Link>
             )}
           </div>
+          </>}
         </div>
       </div>
 

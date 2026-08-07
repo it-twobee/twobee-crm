@@ -19,7 +19,13 @@ export default async function WorkspaceClientiPage() {
     .neq('client_label', 'perso')
     .order('company_name')
 
-  const clients = (data ?? []) as Client[]
+  /* §211 — la VIEW azzera canone e dati fiscali (migration 100), ma continua a
+     portare stato pagamenti e date di contratto: la lista li nasconde con
+     `hideEconomics`, e allora non devono nemmeno partire. Quello che non arriva
+     al browser non si legge dal pannello di rete. */
+  const clients = (data ?? []).map(c => ({
+    ...c, payment_status: null, contract_start: null, contract_end: null,
+  })) as unknown as Client[]
 
   return (
     <ClientiList

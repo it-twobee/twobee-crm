@@ -50,11 +50,26 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     const permMap = new Map((permsRes.data ?? []).map((p: { section_id: string; can_view: boolean }) => [p.section_id, p.can_view]))
     visibleSections = (sectionsRes.data ?? []).filter((s: { id: string }) => permMap.get(s.id) === true)
 
-    // Sezioni universali: ogni membro deve vedere il proprio Profilo, anche se
-    // in tabella mancano i permessi (la 079 non li ha seminati per 'profilo').
+    /* §211 — le sezioni personali non passano dai permessi.
+       La 079 ha seminato i permessi per manager, senior, junior, stage e
+       freelance: `partner` è arrivato dopo e `viewer` non c'è mai stato, quindi
+       entravano nel portale e trovavano una sola voce — Profilo — con tutto il
+       resto invisibile. Ogni sezione qui sotto mostra **soltanto i dati di chi
+       guarda**, e a garantirlo è la RLS, non il menu: buste paga e documenti
+       personali sono owner-only in tabella, le richieste HR e la cronologia
+       sono le proprie, le attività sono quelle assegnate.
+       Nascondere la voce non avrebbe protetto niente — avrebbe solo reso il
+       portale inutilizzabile a chi non era nella lista giusta.
+       Restano ai permessi le sezioni che parlano di **altri**: clienti,
+       progetti, customer care, ticket, documenti condivisi, task ad hoc. */
+    const PERSONAL_KEYS = [
+      'dashboard', 'mie_attivita', 'profilo', 'hr', 'calendario',
+      'buste_paga', 'documenti_personali', 'cronologia', 'feedback',
+    ]
     const present = new Set((visibleSections ?? []).map((s: { key: string }) => s.key))
-    const universal = (sectionsRes.data ?? []).filter((s: { key: string }) => ['profilo'].includes(s.key) && !present.has(s.key))
+    const universal = (sectionsRes.data ?? []).filter((s: { key: string }) => PERSONAL_KEYS.includes(s.key) && !present.has(s.key))
     visibleSections = [...(visibleSections ?? []), ...universal]
+      .sort((a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order)
   }
 
   // Sezioni senza pagina dopo il reset del dominio progetto: la 146 le disattiva

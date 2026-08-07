@@ -864,6 +864,42 @@ una barriera. I gruppi di ruolo stanno in `lib/permissions.ts`
 Solo il super admin vede `PortalSwitcher` e può entrare in `/portale` (in anteprima,
 scegliendo il cliente da `?client=<id>`).
 
+Il gate del gruppo `(dashboard)` non era un gate: il layout leggeva il profilo e
+non guardava il ruolo, quindi l'unica barriera era il middleware. Ora rilegge il
+ruolo dal database a ogni caricamento e rimanda a `/workspace` chi è workspace —
+il percorso gli arriva in `x-pathname`, scritto dal middleware, perché
+`/impostazioni/profilo` deve restare aperta: è l'unica pagina di quel gruppo che
+la sidebar del workspace linka.
+
+### Il workspace è usabile o non è (§211)
+Tre difetti che rendevano il portale un vicolo cieco, e le regole che li chiudono:
+
+- **Le sezioni personali non passano dai permessi.** La 079 ha seminato
+  `workspace_section_permissions` per manager, senior, junior, stage e freelance:
+  `partner` è arrivato dopo, `viewer` non c'è mai stato, e chi non era in quella
+  lista entrava e trovava **una voce sola**. Dashboard, attività, profilo,
+  richieste HR, calendario, buste paga, documenti personali, cronologia e
+  feedback ora sono universali: mostrano **solo i dati di chi guarda**, e a
+  garantirlo è la RLS — owner-only in tabella — non il menu. Nascondere la voce
+  non proteggeva niente, rendeva solo il portale inutilizzabile. Restano ai
+  permessi le sezioni che parlano di **altri**: clienti, progetti, customer care,
+  ticket, documenti condivisi, task ad hoc.
+- **Un link che rimbalza è peggio di un link assente.** Dal workspace ogni rotta
+  admin la respinge il middleware: le rotte si costruiscono da una `base` sola
+  (`ClientiList`, `ClientPageClient.portalBase`, `basePath`/`clientBase`), mai
+  scritte a mano riga per riga. Le due sezioni in fondo alla lista clienti —
+  sospesi e persi — se l'erano dimenticata, e un cliente sospeso che non si apre
+  è esattamente la voce che serve di più a chi deve richiamarlo.
+- **Niente economics, e non per convenzione.** Tre strati indipendenti:
+  `clients_workspace` azzera canone e dati fiscali **in tabella** (100/197);
+  `hideEconomics` spegne MRR, pagamenti, anagrafica fiscale, export ed elimina;
+  la scheda Economics del progetto e del cliente **non viene montata**. In più
+  quello che nessun riquadro mostra non parte nemmeno: stato pagamenti e date di
+  contratto si azzerano prima di finire nel payload, perché una cosa nascosta
+  nella UI si legge lo stesso dal pannello di rete. Le pagine del workspace
+  leggono `clients_workspace`, **mai** `clients`, anche quando servono i soli
+  nomi — è la sorgente che la RLS garantisce a tutto lo staff.
+
 ## Chat — quattro gruppi
 `Team` (canali `type='team'`: `team-intern`, `angolo-informativo`, `best-ideas`) ·
 `Progetti` (un solo canale interno per progetto) · `Messaggi diretti` (`type='dm'`,

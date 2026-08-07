@@ -227,6 +227,12 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
   const canSeeMrr = !hideEconomics && (!currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || ['admin', 'manager'].includes(currentProfile.app_role ?? ''))
   const canCreateClient = !hideEconomics && (!currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || ['admin', 'manager'].includes(currentProfile.app_role ?? ''))
   const showPayments = !hideEconomics
+  /* §211 — una base sola per tutte le rotte della lista. Erano scritte a mano
+     riga per riga, e le due sezioni in fondo — sospesi e persi — se l'erano
+     dimenticata: dal workspace il link portava a /clienti, che il middleware
+     rimbalza a /workspace. Un cliente sospeso che non si apre è la voce che
+     serve di più a chi deve richiamarlo. */
+  const base = hideEconomics ? '/workspace' : ''
   /* Stessa regola del server (`requireAdmin` in delete-client.ts): il manager
      vede i clienti ma non li elimina, quindi non deve nemmeno vedere le
      caselle — un cestino che risponde «permesso negato» è peggio di niente. */
@@ -494,7 +500,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
             {client.company_name[0].toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <Link href={hideEconomics ? `/workspace/clienti/${client.id}` : `/clienti/${client.id}`} className="font-bold text-text-primary hover:text-gold-text transition-colors text-sm leading-tight block truncate">
+            <Link href={`${base}/clienti/${client.id}`} className="font-bold text-text-primary hover:text-gold-text transition-colors text-sm leading-tight block truncate">
               {clientName(client)}
             </Link>
             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
@@ -574,7 +580,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
 
         {/* Footer azioni */}
         <div className="flex items-center justify-between pt-1 border-t border-border mt-auto">
-          <Link href={hideEconomics ? `/workspace/clienti/${client.id}` : `/clienti/${client.id}`}
+          <Link href={`${base}/clienti/${client.id}`}
             className="flex items-center gap-1 text-2xs text-text-secondary hover:text-gold-text transition-colors">
             <ExternalLink className="w-3 h-3" /> Apri scheda
           </Link>
@@ -622,7 +628,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
       <td className="px-4 py-3.5">
         <div className="flex items-center gap-2">
           {pinned && <span className="text-2xs text-gold-text bg-gold/10 border border-gold/20 px-1.5 py-0.5 rounded font-semibold">FISSATO</span>}
-          <Link href={hideEconomics ? `/workspace/clienti/${client.id}` : `/clienti/${client.id}`} className="font-semibold text-text-primary hover:text-gold-text transition-colors text-sm">
+          <Link href={`${base}/clienti/${client.id}`} className="font-semibold text-text-primary hover:text-gold-text transition-colors text-sm">
             {clientName(client)}
           </Link>
         </div>
@@ -692,7 +698,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
       </td>
       <td className="px-4 py-3.5">
         <div className="flex items-center gap-3">
-          <Link href={hideEconomics ? `/workspace/clienti/${client.id}` : `/clienti/${client.id}`} className="flex items-center gap-1 text-xs text-text-secondary hover:text-gold-text transition-colors">
+          <Link href={`${base}/clienti/${client.id}`} className="flex items-center gap-1 text-xs text-text-secondary hover:text-gold-text transition-colors">
             <ExternalLink className="w-3.5 h-3.5" /> Apri
           </Link>
           {!hideEconomics && (
@@ -978,11 +984,11 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
 
       {/* ── SEZIONE LOST ── (nascosta nel portale operativo: solo clienti attivi) */}
       {pausedClients.length > 0 && (
-        <PausedSection clients={pausedClients} canSeeMrr={canSeeMrr} economics={economics}
+        <PausedSection clients={pausedClients} canSeeMrr={canSeeMrr} economics={economics} base={base}
           canDelete={canDelete} selected={selected} onToggle={toggleSelect} onDelete={id => askDelete([id])} />
       )}
       {!hideEconomics && lostClients.length > 0 && (
-        <LostSection clients={lostClients} canSeeMrr={canSeeMrr} economics={economics}
+        <LostSection clients={lostClients} canSeeMrr={canSeeMrr} economics={economics} base={base}
           canDelete={canDelete} selected={selected} onToggle={toggleSelect} onDelete={id => askDelete([id])} />
       )}
 
@@ -1112,7 +1118,8 @@ function DeleteClientsModal({ names, preview, pending, onCancel, onConfirm }: {
  * un rapporto sospeso che nessuno guarda diventa un rapporto perso, e la
  * differenza la fa una telefonata fatta al momento giusto.
  */
-function PausedSection({ clients, canSeeMrr, economics, canDelete, selected, onToggle, onDelete }: {
+function PausedSection({ clients, canSeeMrr, economics, canDelete, selected, onToggle, onDelete, base }: {
+  base: string
   clients: Client[]; canSeeMrr: boolean; economics: Record<string, ClientEconomicsSummary>
   canDelete: boolean; selected: string[]; onToggle: (id: string) => void; onDelete: (id: string) => void
 }) {
@@ -1156,7 +1163,7 @@ function PausedSection({ clients, canSeeMrr, economics, canDelete, selected, onT
                   <input type="checkbox" checked={selected.includes(c.id)} onChange={() => onToggle(c.id)}
                     aria-label={`Seleziona ${clientName(c)}`} className="accent-gold w-3.5 h-3.5 cursor-pointer shrink-0" />
                 )}
-                <Link href={`/clienti/${c.id}`} className="flex items-center gap-3 flex-1 min-w-[140px] hover:text-gold-text transition-colors">
+                <Link href={`${base}/clienti/${c.id}`} className="flex items-center gap-3 flex-1 min-w-[140px] hover:text-gold-text transition-colors">
                   <div className="w-7 h-7 rounded-lg bg-surface border border-border flex items-center justify-center text-xs font-black text-text-secondary shrink-0">
                     {c.company_name[0].toUpperCase()}
                   </div>
@@ -1189,7 +1196,8 @@ function PausedSection({ clients, canSeeMrr, economics, canDelete, selected, onT
   )
 }
 
-function LostSection({ clients, canSeeMrr, economics, canDelete, onDelete, selected, onToggle }: {
+function LostSection({ clients, canSeeMrr, economics, canDelete, onDelete, selected, onToggle, base }: {
+  base: string
   clients: Client[]; canSeeMrr: boolean
   economics: Record<string, ClientEconomicsSummary>
   canDelete: boolean; onDelete: (id: string) => void
@@ -1243,7 +1251,7 @@ function LostSection({ clients, canSeeMrr, economics, canDelete, onDelete, selec
                   </td>
                 )}
                 <td className="px-5 py-3">
-                  <Link href={`/clienti/${c.id}`} className="flex items-center gap-2.5 hover:text-gold-text transition-colors">
+                  <Link href={`${base}/clienti/${c.id}`} className="flex items-center gap-2.5 hover:text-gold-text transition-colors">
                     <div className="w-7 h-7 rounded-lg bg-surface border border-border flex items-center justify-center text-xs font-black text-text-secondary shrink-0">
                       {c.company_name[0].toUpperCase()}
                     </div>
@@ -1267,7 +1275,7 @@ function LostSection({ clients, canSeeMrr, economics, canDelete, onDelete, selec
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Link href={`/clienti/${c.id}`} className="text-xs text-text-secondary hover:text-gold-text transition-colors">
+                    <Link href={`${base}/clienti/${c.id}`} className="text-xs text-text-secondary hover:text-gold-text transition-colors">
                       <ExternalLink className="w-3.5 h-3.5" />
                     </Link>
                     {canDelete && (

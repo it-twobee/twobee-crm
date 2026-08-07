@@ -30,7 +30,10 @@ export default async function MieAttivitaPage() {
 
   const [{ data: projects }, { data: clients }] = await Promise.all([
     projectIds.length ? supabase.from('projects').select('id, name').in('id', projectIds) : Promise.resolve({ data: [] }),
-    clientIds.length ? supabase.from('clients').select('id, company_name, display_name').in('id', clientIds) : Promise.resolve({ data: [] }),
+    // §211 — `clients_workspace`, non `clients`: è la sorgente del portale
+    // operativo (economici e fiscali azzerati in tabella) ed è quella che la
+    // RLS garantisce leggibile a tutto lo staff. Qui servono solo i nomi.
+    clientIds.length ? supabase.from('clients_workspace').select('id, company_name, display_name').in('id', clientIds) : Promise.resolve({ data: [] }),
   ])
 
   const projectName: Record<string, string> = {}

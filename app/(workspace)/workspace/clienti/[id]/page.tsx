@@ -45,9 +45,14 @@ export default async function WorkspaceClientePage({ params }: Props) {
 
   if (!client) notFound()
 
+  /* §211 — come nella lista: stato pagamenti e date di contratto non li mostra
+     nessuno di questi riquadri (`contractsCount` e `hasBilling` non arrivano
+     apposta), quindi non viaggiano nemmeno nel payload. */
+  const safeClient = { ...client, payment_status: null, contract_start: null, contract_end: null }
+
   return (
     <ClientPageClient
-      client={client as Client}
+      client={safeClient as unknown as Client}
       contacts={(contacts ?? []) as ClientContact[]}
       kpis={(kpis ?? []) as ClientKpi[]}
       teamMembers={(assignments ?? []).map((a: { profiles: unknown }) => a.profiles).filter(Boolean) as Profile[]}

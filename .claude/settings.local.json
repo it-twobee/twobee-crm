@@ -329,7 +329,13 @@
       "Bash(bash /private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/585576e6-d00d-41ca-9b49-a4c542cc22df/scratchpad/q.sh 'pl_revenue_lines?select=label,invoices\\(number,counterparty_name\\)&invoice_id=not.is.null')",
       "Bash(echo \"EXIT $?\")",
       "Bash(NEXT_BUILD_DIR=.next-build npx next build)",
-      "Bash(git reset *)"
+      "Bash(git reset *)",
+      "Bash(awk 'NR>=1140 && NR<=1165' components/clients/ClientiList.tsx)",
+      "Bash(awk 'NR<=1159 && /^function |^const .* = \\\\\\(/ {l=NR\": \"$0} END{}' components/clients/ClientiList.tsx)",
+      "Bash(awk -F: '$1<1250')",
+      "Bash(awk -F: '$1>400 && $1<720')",
+      "Bash(awk 'NR>=226 && NR<=720 && /^\\\\s{0,2}\\(function|const [A-Z][A-Za-z]* =\\)/ {print NR\": \"$0}' components/clients/ClientiList.tsx)",
+      "Bash(git diff *)"
     ],
     "defaultMode": "acceptEdits"
   }
