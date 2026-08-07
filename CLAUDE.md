@@ -934,9 +934,20 @@ cosa e l'altra, e ogni volta serve sapere dove si era arrivati.
   e la risorsa (dall'email): niente milestone da scegliere, quindi niente da
   sbagliare. Costringerle in un workstream avrebbe voluto dire inventare
   centoquattro volte una struttura che su Asana non c'era. Una task **senza
-  cliente non si crea** e torna indietro col nome della sua board: `client_id` è
-  ciò che ancora una ad hoc a qualcuno, e senza finisce in un elenco che nessuno
-  apre.
+  cliente si crea lo stesso** (§221) e lo dice: rifiutarla sembrava prudente e
+  non lo era — costringeva a inventare un'anagrafica prima di sapere se serve.
+  Nasce con `client_id` nullo e **l'avviso in cima alla descrizione**, dove lo
+  legge chi apre la task fra due settimane, non in un messaggio che sparisce dopo
+  tre secondi. Non toglie visibilità a nessuno: una ad hoc senza progetto la
+  vedono già solo admin e assegnatario (RLS della 094).
+- **Il cliente si cerca in due passaggi** (§221, `matchClient`): nome esatto, poi
+  **prefisso** — la board «Industrial Service and Facility» è il cliente
+  «Industrial Service» scritto per esteso, e senza questo finiva orfana con
+  l'unica alternativa di creare un doppione. Il prefisso vale **solo se il
+  candidato è uno**: «Fatima Leo» e «Fatima Leo Academy» non si scelgono da sole,
+  perché indovinare male attacca il lavoro al cliente sbagliato, che è peggio di
+  lasciarlo orfano. L'esito viaggia con la riga (`esatto`/`prefisso`) e in tabella
+  un abbinamento dedotto lo dichiara.
 - **Cancellare su Asana è un secondo gesto** (§219, `deleteOnAsana`). Segnare
   «da eliminare» non cancella niente: è una decisione, e un pulsante che marca e
   cancella insieme trasforma un ripensamento in un danno — con mille righe già

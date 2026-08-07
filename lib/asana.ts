@@ -139,10 +139,41 @@ export type TaskRow = AsanaTask & {
   board: BoardView
   /** l'id del cliente TwoBee, quando il nome combacia */
   clientId: string | null
+  /** §221 — come si è arrivati a quel cliente: un prefisso va controllato */
+  clientMatch: 'esatto' | 'prefisso' | null
   /** l'id del profilo TwoBee, quando l'email combacia */
   profileId: string | null
   /** cosa impedisce di portarla dentro così com'è */
   blockers: string[]
+}
+
+/**
+ * §221 — Il cliente della board, cercato in due passaggi.
+ *
+ * Prima il nome esatto. Poi, solo se non c'è, il **prefisso**: la board
+ * «Industrial Service and Facility» è il cliente «Industrial Service», scritto
+ * per esteso da chi l'ha creata. Senza questo passaggio finiva fra le orfane, e
+ * l'unica alternativa sarebbe stata creare un secondo cliente uguale.
+ *
+ * Il prefisso si applica **solo se il candidato è uno**: due clienti che
+ * cominciano allo stesso modo — «Fatima Leo» e «Fatima Leo Academy» — non si
+ * scelgono da soli, perché indovinare male attacca il lavoro al cliente
+ * sbagliato, che è peggio di lasciarlo orfano. E l'esito viaggia con la riga
+ * (`esatto` / `prefisso`), così un abbinamento dedotto si può controllare invece
+ * di scoprirlo dopo.
+ */
+export function matchClient(
+  name: string | null,
+  byName: Map<string, string>,
+): { id: string | null; how: 'esatto' | 'prefisso' | null } {
+  if (!name) return { id: null, how: null }
+  const exact = byName.get(name)
+  if (exact) return { id: exact, how: 'esatto' }
+
+  const cands = Array.from(byName.entries()).filter(([k]) =>
+    k !== name && (name.startsWith(k + ' ') || k.startsWith(name + ' ')))
+  const ids = Array.from(new Set(cands.map(([, v]) => v)))
+  return ids.length === 1 ? { id: ids[0], how: 'prefisso' } : { id: null, how: null }
 }
 
 /**
@@ -162,7 +193,7 @@ export function mapTasks(
 
   return tasks.map(t => {
     const board = byGid.get(t.boardGid) ?? boardView({ gid: t.boardGid, name: '—' })
-    const clientId = board.clientName ? clientByName.get(board.clientName) ?? null : null
+    const { id: clientId, how: clientMatch } = matchClient(board.clientName, clientByName)
     const profileId = t.assigneeEmail ? profileByEmail.get(t.assigneeEmail.toLowerCase()) ?? null : null
 
     const blockers: string[] = []
@@ -172,7 +203,7 @@ export function mapTasks(
     if (t.assigneeEmail && !profileId) blockers.push(`«${t.assigneeEmail}» non ha un profilo`)
     if (!t.assigneeEmail) blockers.push('nessun assegnatario')
 
-    return { ...t, board, clientId, profileId, blockers }
+    return { ...t, board, clientId, clientMatch, profileId, blockers }
   })
 }
 

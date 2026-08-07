@@ -6,7 +6,7 @@
  */
 import {
   classify, clientOf, boardView, mapTasks, summarize, toCsv, norm, resourceViews,
-  groupByClient, triageProgress, type AsanaTask,
+  groupByClient, triageProgress, matchClient, type AsanaTask,
 } from './asana'
 
 let ok = 0
@@ -126,6 +126,28 @@ eq('le orfane hanno una riga loro', { n: res[2].name, t: res[2].tasks }, { n: 'N
 eq('risorsa senza email non assorbe le orfane', res[3].tasks, 0)
 // la somma delle risorse deve fare il totale, o qualcosa è sparito per strada
 eq('somma = totale', res.reduce((n, r) => n + r.tasks, 0), rows.length)
+
+// ── matchClient ─────────────────────────────────────────────────────────────
+const cmap = new Map([
+  ['industrial service', 'c-is'],
+  ['fatima leo', 'c-fl'],
+  ['fatima leo academy', 'c-fla'],
+  ['seven', 'c-sv'],
+])
+eq('nome esatto', matchClient('seven', cmap), { id: 'c-sv', how: 'esatto' })
+/* La board «Industrial Service and Facility» è il cliente «Industrial Service»
+   scritto per esteso: senza il prefisso finiva orfana, e l'unica alternativa
+   era creare un secondo cliente uguale. */
+eq('prefisso: la board dice di più', matchClient('industrial service and facility', cmap),
+   { id: 'c-is', how: 'prefisso' })
+/* Ambiguo = nessuno. Indovinare male attacca il lavoro al cliente sbagliato,
+   che è peggio di lasciarlo orfano. */
+eq('due candidati non si scelgono da soli', matchClient('fatima leo academy corsi', cmap),
+   { id: null, how: null })
+eq('nessun cliente', matchClient('ceramiche martinelli', cmap), { id: null, how: null })
+eq('board senza nome cliente', matchClient(null, cmap), { id: null, how: null })
+// il prefisso richiede il confine di parola: «sevenup» non è «seven»
+eq('non è un contains', matchClient('sevenup', cmap), { id: null, how: null })
 
 // ── groupByClient / triageProgress ──────────────────────────────────────────
 const gRows = mapTasks(

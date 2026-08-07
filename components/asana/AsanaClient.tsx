@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import {
   Download, RefreshCw, AlertTriangle, CheckCircle2, Loader2, Search, Info, ExternalLink,
@@ -63,6 +64,10 @@ export function AsanaClient({ projects, workstreams, milestones }: {
      sparse su 26 board non sono i passi di una consegna, sono cose da fare per
      un cliente. Il progetto serve quando la struttura su Asana c'era davvero. */
   const [dest, setDest] = useState<'adhoc' | 'progetto'>('adhoc')
+  /* §221 — creare comunque è il default. Rifiutare sembrava prudente e non lo
+     era: costringeva a inventare un'anagrafica prima di sapere se serve. */
+  const [withoutClient, setWithoutClient] = useState(true)
+  const [missing, setMissing] = useState<string[]>([])
   /* §219 — la cancellazione su Asana ha uno stato suo, fuori dalla transizione:
      l'avanzamento deve aggiornarsi mentre gira, e dentro `useTransition` React
      lo rimanderebbe alla fine — cioè quando non serve più. */
@@ -132,20 +137,17 @@ export function AsanaClient({ projects, workstreams, milestones }: {
         if (dest === 'adhoc') {
           const res = await importAsanaAdHoc(sel.map(r => ({
             gid: r.gid, title: r.name, notes: r.notes, dueOn: r.dueOn,
-            assigneeEmail: r.assigneeEmail, clientId: r.clientId, boardName: r.board.name,
-          })))
+            assigneeEmail: r.assigneeEmail, clientId: r.clientId,
+            boardName: r.board.name, clientName: r.board.clientName,
+          })), withoutClient)
           toast.success(`${res.created} task ad hoc create`, {
             description: [
               res.skipped ? `${res.skipped} già dentro` : '',
-              res.noClient.length ? `${res.noClient.length} senza cliente in anagrafica, saltate` : '',
+              res.orphaned ? `${res.orphaned} senza cliente, con l'avviso in descrizione` : '',
               res.noAssignee ? `${res.noAssignee} senza risorsa riconosciuta` : '',
             ].filter(Boolean).join(' · ') || undefined,
           })
-          if (res.noClient.length) {
-            toast.warning('Serve il cliente in anagrafica', {
-              description: Array.from(new Set(res.noClient.map(x => x.board))).slice(0, 6).join(' · '),
-            })
-          }
+          setMissing(res.missingClients)
           setPicked(new Set())
           setScan(await scanAsana(mode))
           return
@@ -308,6 +310,28 @@ export function AsanaClient({ projects, workstreams, milestones }: {
             <Stat label="Board lette" value={scan.boards}
               hint={scan.failed.length ? `${scan.failed.length} in errore` : 'nessun errore'} />
           </div>
+
+          {missing.length > 0 && (
+            <div className="rounded-2xl border border-warning/40 bg-warning-dim p-4">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-text-primary">
+                    {missing.length} client{missing.length > 1 ? 'i' : 'e'} non {missing.length > 1 ? 'sono' : 'è'} in anagrafica
+                  </p>
+                  <p className="text-2xs text-text-secondary mt-1 capitalize">{missing.join(' · ')}</p>
+                  <p className="text-2xs text-text-tertiary mt-1">
+                    Le task sono state create lo stesso, con l&apos;avviso in descrizione. Admin e super
+                    admin possono creare l&apos;anagrafica e poi agganciarle dalla scheda cliente.
+                  </p>
+                </div>
+                <Link href="/clienti"
+                  className="text-2xs font-semibold border border-warning/50 text-warning rounded-xl px-3 py-2 hover:bg-surface press shrink-0">
+                  Vai ai clienti
+                </Link>
+              </div>
+            </div>
+          )}
 
           {scan.triageMissing && (
             <div className="rounded-2xl border border-warning/40 bg-warning-dim p-4 flex items-start gap-2.5">
@@ -479,12 +503,24 @@ export function AsanaClient({ projects, workstreams, milestones }: {
               ))}
             </div>
             {dest === 'adhoc' ? (
-              <p className="text-2xs text-text-tertiary">
-                Ogni task diventa una <strong>Task Ad Hoc</strong> del suo cliente, assegnata alla
-                persona che ce l&apos;ha su Asana. Quelle su una board il cui cliente non è in
-                anagrafica <strong>non si creano</strong>: senza cliente una ad hoc finisce in un
-                elenco che nessuno apre — te le riporta indietro col nome della board.
-              </p>
+              <>
+                <p className="text-2xs text-text-tertiary">
+                  Ogni task diventa una <strong>Task Ad Hoc</strong> del suo cliente, assegnata alla
+                  persona che ce l&apos;ha su Asana.
+                </p>
+                <label className="flex items-start gap-2 text-2xs text-text-secondary cursor-pointer mt-2">
+                  <input type="checkbox" checked={withoutClient}
+                    onChange={e => setWithoutClient(e.target.checked)} className="accent-gold mt-0.5" />
+                  <span>
+                    Crea anche quelle il cui cliente non è in anagrafica
+                    <span className="block text-2xs text-text-tertiary mt-0.5">
+                      Nascono senza cliente e con l&apos;avviso scritto in cima alla descrizione — dove
+                      lo legge chi apre la task, non in un messaggio che sparisce. Un admin può creare
+                      l&apos;anagrafica dopo e agganciarle.
+                    </span>
+                  </span>
+                </label>
+              </>
             ) : (<>
             <p className="text-2xs text-text-tertiary mb-3">
               Progetto e workstream esistenti. La <strong>milestone è obbligatoria</strong>: una task
@@ -670,6 +706,12 @@ export function AsanaClient({ projects, workstreams, milestones }: {
                         <span className={r.clientId ? 'text-text-primary' : 'text-warning'}>
                           {r.board.clientName ?? '—'}
                         </span>
+                        {/* §221 — un abbinamento dedotto si dichiara: «Industrial
+                            Service and Facility» → «Industrial Service» è quasi
+                            sempre giusto, ma quasi non è sempre. */}
+                        {r.clientMatch === 'prefisso' && (
+                          <span className="block text-2xs text-info normal-case">abbinato per prefisso</span>
+                        )}
                       </td>
                       <td className="px-2 py-2 text-2xs">
                         <span className={r.profileId ? 'text-text-primary' : 'text-text-tertiary'}>

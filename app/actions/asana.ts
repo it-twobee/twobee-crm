@@ -338,8 +338,10 @@ export async function setTriage(gids: string[], decision: Decision | null): Prom
 export type AdHocResult = {
   created: number
   skipped: number
-  /** senza cliente non si crea: la task ad hoc è ancorata a un cliente */
-  noClient: { title: string; board: string }[]
+  /** create senza cliente: portano l'avviso nella descrizione */
+  orphaned: number
+  /** i clienti che mancano in anagrafica, per nome di board */
+  missingClients: string[]
   noAssignee: number
 }
 
@@ -357,14 +359,21 @@ export type AdHocResult = {
  * **risorsa**, dall'email. Niente milestone da scegliere, quindi niente da
  * sbagliare.
  *
- * Una task senza cliente **non si crea**: `tasks.client_id` è ciò che ancora una
- * ad hoc a qualcuno, e senza finirebbe in un elenco che nessuno apre. Torna
- * indietro col suo titolo e la sua board, così si capisce se manca l'anagrafica
- * (OSM, Sea Power, Ceramiche Martinelli non ci sono) o è roba interna.
+ * §221 — **Una task senza cliente si crea lo stesso**, e lo dice. Rifiutarla
+ * sembrava prudente e non lo era: la task esiste, il lavoro va fatto, e l'unico
+ * effetto era costringere a creare un'anagrafica prima ancora di sapere se
+ * serve. Adesso nasce con `client_id` nullo e con **l'avviso scritto in cima
+ * alla descrizione** — dove lo legge chi apre la task, non in un messaggio che
+ * sparisce dopo tre secondi.
+ *
+ * Resta visibile a chi la deve fare: una ad hoc senza progetto la vedono già
+ * solo l'admin e l'assegnatario (RLS della 094), quindi il cliente nullo non
+ * toglie niente a nessuno. Quando l'anagrafica esiste, si aggancia dalla scheda.
  */
-export async function importAsanaAdHoc(tasks: (ImportPayload & {
-  clientId: string | null; boardName: string
-})[]): Promise<AdHocResult> {
+export async function importAsanaAdHoc(
+  tasks: (ImportPayload & { clientId: string | null; boardName: string; clientName: string | null })[],
+  allowWithoutClient = true,
+): Promise<AdHocResult> {
   await requireAdmin()
   const profile = await getSessionProfile()
   if (!profile) throw new Error('Non autenticato')
@@ -380,10 +389,14 @@ export async function importAsanaAdHoc(tasks: (ImportPayload & {
   }
 
   const fresh = tasks.filter(t => !present.has(t.gid))
-  const noClient = fresh.filter(t => !t.clientId).map(t => ({ title: t.title, board: t.boardName }))
-  const usable = fresh.filter(t => t.clientId)
+  const orphans = fresh.filter(t => !t.clientId)
+  const missingClients = Array.from(new Set(orphans.map(t => t.clientName ?? t.boardName))).sort()
+  const usable = allowWithoutClient ? fresh : fresh.filter(t => t.clientId)
   if (!usable.length) {
-    return { created: 0, skipped: tasks.length - fresh.length, noClient, noAssignee: 0 }
+    return {
+      created: 0, skipped: tasks.length - fresh.length,
+      orphaned: 0, missingClients, noAssignee: 0,
+    }
   }
 
   const emails = Array.from(new Set(usable.map(t => t.assigneeEmail).filter(Boolean) as string[]))
@@ -392,12 +405,21 @@ export async function importAsanaAdHoc(tasks: (ImportPayload & {
     : { data: [] }
   const byEmail = new Map((people ?? []).map(p => [(p.email as string).toLowerCase(), p.id as string]))
 
+  /* L'avviso sta in cima alla descrizione, non in un toast: un toast lo legge
+     chi ha premuto il pulsante, la descrizione la legge chi apre la task fra due
+     settimane — ed è quello che deve sapere perché il cliente manca. */
+  const warn = (t: typeof usable[number]) => {
+    const who = t.clientName ?? t.boardName
+    return `⚠️ Cliente non in anagrafica: «${who}» (da Asana, board «${t.boardName}»).\n`
+      + 'Un admin o super admin può crearlo in Clienti → Nuova anagrafica, poi agganciare questa task.\n\n'
+  }
+
   const { data: made, error } = await admin.from('tasks').insert(
     usable.map(t => ({
       client_id: t.clientId,
       task_type: 'ad_hoc' as const,
       title: t.title.trim().slice(0, 300) || 'Senza titolo',
-      description: t.notes?.trim() || null,
+      description: (t.clientId ? '' : warn(t)) + (t.notes?.trim() || '') || null,
       status: 'da_fare' as const,
       priority: 'media' as const,
       due_date: t.dueOn || null,
@@ -426,7 +448,13 @@ export async function importAsanaAdHoc(tasks: (ImportPayload & {
   revalidatePath('/ad-hoc')
   revalidatePath('/workspace/ad-hoc')
   revalidatePath('/asana')
-  return { created: made?.length ?? 0, skipped: tasks.length - fresh.length, noClient, noAssignee }
+  return {
+    created: made?.length ?? 0,
+    skipped: tasks.length - fresh.length,
+    orphaned: usable.filter(t => !t.clientId).length,
+    missingClients,
+    noAssignee,
+  }
 }
 
 // ── Il travaso vero ─────────────────────────────────────────────────────────
