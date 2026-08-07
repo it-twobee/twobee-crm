@@ -189,6 +189,10 @@ export interface Client {
   client_label: ClientLabel
   notes: string | null
   is_internal: boolean
+  /** §213: fuori dal portale operativo. Diverso da `is_internal`, che riguarda
+   *  le statistiche: qui si decide chi lo **vede**, non se conta nei numeri.
+   *  Opzionale finché la 200 non è applicata. */
+  workspace_hidden?: boolean
   /** §161: prima volta che il cliente è stato perso. Non si azzera se torna attivo. */
   lost_at?: string | null
   /** §176: ultima sospensione delle lavorazioni. Si azzera quando riparte. */

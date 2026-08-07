@@ -139,7 +139,7 @@ export async function createClientRecord(input: NewClientInput): Promise<Client>
 const EDITABLE = [
   // §178: `client_type` non c'è più — lo derivano i progetti (trigger)
   'display_name', 'legal_name', 'phone', 'website', 'client_label',
-  'industry', 'market_area', 'notes', 'active_channels', 'is_internal',
+  'industry', 'market_area', 'notes', 'active_channels', 'is_internal', 'workspace_hidden',
   'sales_owner_id', 'sales_owner_name',
   'piva', 'fiscal_code', 'address', 'city', 'cap', 'country', 'sdi_code', 'pec',
   'mrr', 'contract_start', 'contract_end', 'payment_status', 'ad_budget_monthly',
@@ -163,6 +163,9 @@ export async function updateClientRecord(clientId: string, patch: ClientPatch) {
 
   revClient(clientId)
   revalidatePath('/clienti')
+  /* §213 — `workspace_hidden` cambia cosa vede un altro portale: senza questa
+     la lista operativa continuava a mostrarlo fino alla scadenza della cache. */
+  revalidatePath('/workspace/clienti')
 }
 
 /** Cambio label dalla scheda cliente (badge in testata). */

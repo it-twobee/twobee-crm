@@ -871,6 +871,21 @@ il percorso gli arriva in `x-pathname`, scritto dal middleware, perché
 `/impostazioni/profilo` deve restare aperta: è l'unica pagina di quel gruppo che
 la sidebar del workspace linka.
 
+**Nascondere un cliente al workspace** (§213, `clients.workspace_hidden`).
+GAV Sistemi non è un cliente: è un giro di fatture fra società collegate, e nel
+portale operativo compariva in elenco, nella ricerca, nel selettore delle task ad
+hoc e nel customer care. Il flag è **separato da `is_internal`** perché sono due
+domande diverse: `is_internal` dice «non conta nelle statistiche» e riguarda i
+**numeri**, `workspace_hidden` dice «il team non lo vede» e riguarda le
+**persone** — un cliente interno può avere lavorazioni vere, e un cliente vero
+può essere riservato senza uscire dai conti. Il filtro sta **nella VIEW**, non
+nelle pagine: `clients_workspace` è già l'unica porta (§211), quindi vale per
+tutte insieme e non si può dimenticare in una pagina nuova. Non nasconde il
+**lavoro**: progetti e task assegnate restano visibili a chi le ha in carico, e
+la UI lo dichiara — far sparire un'attività dalla lista di qualcuno senza dirglielo
+è il modo peggiore di far perdere una consegna. Si tocca dall'anagrafica (admin),
+e in lista un badge dice chi è fuori.
+
 ### Il workspace è usabile o non è (§211)
 Tre difetti che rendevano il portale un vicolo cieco, e le regole che li chiudono:
 

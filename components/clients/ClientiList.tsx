@@ -7,7 +7,7 @@ import {
   ChevronUp, ChevronDown, ChevronsUpDown,
   Pin, GripVertical, X, SlidersHorizontal,
   LayoutGrid, List, Calendar, TrendingUp, TrendingDown, Minus, PauseCircle,
-  AlertTriangle, Loader2,
+  AlertTriangle, Loader2, EyeOff,
 } from 'lucide-react'
 import { formatCurrency, getPaymentBadge, clientName } from '@/lib/utils'
 import { pausedDays, paymentLabel } from '@/lib/clients'
@@ -512,6 +512,14 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
               </span>
               {client.is_internal && (
                 <span className="inline-flex items-center whitespace-nowrap text-2xs font-semibold px-1.5 py-0.5 rounded bg-info/15 text-info">interno</span>
+              )}
+              {/* §213 — chi è fuori dal portale operativo si vede da qui: senza
+                  badge bisognava aprire la scheda per sapere chi il team vede. */}
+              {client.workspace_hidden && !hideEconomics && (
+                <span title="Nascosto al portale operativo: non compare in elenco, ricerca, ad hoc, customer care né ticket"
+                  className="inline-flex items-center gap-1 whitespace-nowrap text-2xs font-semibold px-1.5 py-0.5 rounded bg-surface-active text-text-secondary border border-border">
+                  <EyeOff className="w-3 h-3" />fuori dal workspace
+                </span>
               )}
             </div>
           </div>

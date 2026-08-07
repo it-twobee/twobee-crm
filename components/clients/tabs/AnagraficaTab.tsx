@@ -32,7 +32,7 @@ type Section = 'azienda' | 'fiscale'
 
 /** Si salva solo la sezione aperta: prima partiva l'intera riga, risk score e created_at compresi. */
 const SECTION_FIELDS: Record<Section, readonly (keyof ClientPatch)[]> = {
-  azienda: ['display_name', 'legal_name', 'phone', 'website', 'client_label', 'industry', 'market_area', 'notes', 'active_channels', 'is_internal', 'sales_owner_id', 'sales_owner_name'],
+  azienda: ['display_name', 'legal_name', 'phone', 'website', 'client_label', 'industry', 'market_area', 'notes', 'active_channels', 'is_internal', 'workspace_hidden', 'sales_owner_id', 'sales_owner_name'],
   fiscale: ['piva', 'fiscal_code', 'address', 'city', 'cap', 'country', 'sdi_code', 'pec'],
 }
 
@@ -230,6 +230,25 @@ export function AnagraficaTab({
             <label className="flex items-center gap-2 h-9 cursor-pointer">
               <input type="checkbox" checked={!!form.is_internal} onChange={(e) => setForm((p) => ({ ...p, is_internal: e.target.checked }))} className="accent-gold" />
               <span className="text-sm text-text-secondary">Escluso da statistiche commerciali</span>
+            </label>
+          </Field>
+          {/* §213 — due domande diverse, e vanno tenute separate: «interno»
+              riguarda i numeri, «nascosto» riguarda le persone. GAV Sistemi è
+              un giro di fatture: nel portale operativo non deve esistere. */}
+          <Field label="Visibile al workspace"
+            value={client.workspace_hidden ? 'No — nascosto al team operativo' : 'Sì'}
+            editMode={editAzienda}>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input type="checkbox" checked={!!form.workspace_hidden}
+                onChange={(e) => setForm((p) => ({ ...p, workspace_hidden: e.target.checked }))}
+                className="accent-gold mt-1" />
+              <span className="text-sm text-text-secondary">
+                Nascondi al portale operativo
+                <span className="block text-2xs text-text-tertiary mt-0.5">
+                  Sparisce da elenco, ricerca, task ad hoc, customer care e ticket.
+                  I progetti e le task già assegnate restano visibili a chi le ha in carico.
+                </span>
+              </span>
             </label>
           </Field>
           <div className="sm:col-span-2 lg:col-span-3">
