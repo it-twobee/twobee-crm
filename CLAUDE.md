@@ -136,6 +136,13 @@ const parsed = JSON.parse((await res.json()).choices?.[0]?.message?.content?.mat
 
 ## Registro migration (Supabase Dashboard → SQL Editor)
 
+> **§222 — attenzione al registro.** «Applicata» non vuol dire «c'è ancora».
+> Le migration **003** e **113** avevano aggiunto `tasks.asana_gid` e
+> `projects.asana_gid`; il reset del 2026-07-23 (**146**) ha ricreato entrambe le
+> tabelle e se le è portate via, ma nel registro restano elencate come applicate
+> — perché applicate lo erano, prima. La **202** le rimette. Prima di dare per
+> esistente una colonna aggiunta prima della 146, **verificala sul database**.
+>
 > **Niente da eseguire.** Verificato sul database il 2026-08-01: tutte quelle
 > elencate qui sotto sono applicate, `175_tax_control.sql` e `179_os_versions.sql`
 > comprese. L'attribuzione via `x-actor-id` è stata provata sul database vero:

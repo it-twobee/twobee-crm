@@ -333,6 +333,23 @@ export function AsanaClient({ projects, workstreams, milestones }: {
             </div>
           )}
 
+          {scan.gidMissing && (
+            <div className="rounded-2xl border border-error/40 bg-error-dim p-4 flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-error shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-text-primary">Migration da eseguire prima di migrare</p>
+                <p className="text-2xs text-text-secondary mt-1">
+                  Manca <code className="px-1 py-0.5 rounded bg-surface border border-border">tasks.asana_gid</code>:
+                  l&apos;avevano aggiunta le migration 003 e 113, il reset del dominio progetto ha ricreato le
+                  tabelle e se l&apos;è portata via. Esegui{' '}
+                  <code className="px-1 py-0.5 rounded bg-surface border border-border">supabase/migrations/202_asana_gid_restore.sql</code>.
+                  Senza, il travaso non saprebbe quali task ha già portato dentro e le duplicherebbe
+                  a ogni rilancio — per questo è bloccato, non è un dettaglio.
+                </p>
+              </div>
+            </div>
+          )}
+
           {scan.triageMissing && (
             <div className="rounded-2xl border border-warning/40 bg-warning-dim p-4 flex items-start gap-2.5">
               <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
@@ -559,7 +576,9 @@ export function AsanaClient({ projects, workstreams, milestones }: {
                 <span className="text-2xs text-warning">scegli progetto, workstream e milestone</span>
               )}
               <span className="text-2xs text-text-tertiary tabular">{picked.size} selezionate</span>
-              <button onClick={migrate} disabled={pending || !picked.size || (dest === 'progetto' && !msId)}
+              <button onClick={migrate}
+                disabled={pending || !picked.size || scan.gidMissing || (dest === 'progetto' && !msId)}
+                title={scan.gidMissing ? 'Esegui la migration 202: senza asana_gid il travaso duplicherebbe a ogni rilancio' : undefined}
                 className="flex items-center gap-1.5 text-2xs font-semibold bg-gold text-on-gold rounded-xl px-3 py-2 press disabled:opacity-40">
                 {pending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight className="w-3.5 h-3.5" />}
                 {dest === 'adhoc' ? 'Crea ad hoc' : 'Migra'} {picked.size || ''}

@@ -354,7 +354,9 @@
       "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'projects?select=id,name,status&deleted_at=is.null&status=in.\\(active,draft,on_hold\\)&order=name')",
       "Bash($SP/q.sh milestones?select=id,workstream_id,name&limit=3 *)",
       "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'milestones?select=*&limit=1')",
-      "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh asana_triage?select=decision)"
+      "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh asana_triage?select=decision)",
+      "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'tasks?select=id,asana_gid&limit=1')",
+      "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'projects?select=id,asana_gid&limit=1')"
     ],
     "defaultMode": "acceptEdits"
   }

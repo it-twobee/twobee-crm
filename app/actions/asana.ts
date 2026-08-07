@@ -24,6 +24,18 @@ import { revalidatePath } from 'next/cache'
 
 const API = 'https://app.asana.com/api/1.0'
 
+/**
+ * §222 — `asana_gid` è caduta col reset del 2026-07-23: le migration 003 e 113
+ * l'avevano aggiunta, la 146 ha ricreato le tabelle. Senza, PostgREST risponde
+ * «Could not find the 'asana_gid' column», che non dice a nessuno cosa fare.
+ */
+const GID_MISSING = "Manca `asana_gid` su `tasks`: esegui supabase/migrations/"
+  + '202_asana_gid_restore.sql nel SQL Editor. Senza, il travaso non saprebbe '
+  + 'quali task ha già portato dentro e le duplicherebbe a ogni rilancio.'
+
+const isMissingGid = (e: { code?: string; message?: string } | null) =>
+  Boolean(e && (e.code === 'PGRST204' || e.code === '42703') && e.message?.includes('asana_gid'))
+
 async function requireAdmin() {
   const profile = await getSessionProfile()
   const isAdmin = isSuperAdminRaw(profile?.email, profile?.app_role)
@@ -100,6 +112,8 @@ export type AsanaScan = {
   clientNames: string[]
   /** §218 — la 201 non è applicata: le decisioni non hanno dove essere scritte */
   triageMissing: boolean
+  /** §222 — la 202 non è applicata: senza `asana_gid` il travaso duplicherebbe */
+  gidMissing: boolean
 }
 
 /**
@@ -190,8 +204,10 @@ export async function scanAsana(mode: 'attive' | 'tutto' = 'attive'): Promise<As
      travaso è ripetibile — ma dirlo prima è meglio che scoprirlo dal conteggio. */
   const gids = rows.map(r => r.gid)
   const already: string[] = []
+  let gidMissing = false
   for (let i = 0; i < gids.length; i += 200) {
-    const { data } = await sb.from('tasks').select('asana_gid').in('asana_gid', gids.slice(i, i + 200))
+    const { data, error: e } = await sb.from('tasks').select('asana_gid').in('asana_gid', gids.slice(i, i + 200))
+    if (isMissingGid(e)) { gidMissing = true; break }
     already.push(...(data ?? []).map(r => r.asana_gid as string))
   }
 
@@ -222,6 +238,7 @@ export async function scanAsana(mode: 'attive' | 'tutto' = 'attive'): Promise<As
     progress: triageProgress(rows, decidedSet),
     clientNames: Array.from(new Set(rows.map(r => r.board.clientName).filter(Boolean) as string[])).sort(),
     triageMissing,
+    gidMissing,
   }
 }
 
@@ -320,7 +337,8 @@ export async function setTriage(gids: string[], decision: Decision | null): Prom
   const admin = createActorClient(profile.id)
   if (decision === null) {
     const { error } = await admin.from('asana_triage').delete().in('gid', gids)
-    if (error) throw new Error(error.message)
+    if (isMissingGid(error)) throw new Error(GID_MISSING)
+  if (error) throw new Error(error.message)
     return gids.length
   }
 
@@ -328,6 +346,7 @@ export async function setTriage(gids: string[], decision: Decision | null): Prom
     gid, decision, decided_by: profile.id, decided_at: new Date().toISOString(),
   }))
   const { error } = await admin.from('asana_triage').upsert(rows, { onConflict: 'gid' })
+  if (isMissingGid(error)) throw new Error(GID_MISSING)
   if (error) throw new Error(error.message)
   revalidatePath('/asana')
   return gids.length
@@ -384,7 +403,8 @@ export async function importAsanaAdHoc(
   const gids = tasks.map(t => t.gid)
   const present = new Set<string>()
   for (let i = 0; i < gids.length; i += 200) {
-    const { data } = await admin.from('tasks').select('asana_gid').in('asana_gid', gids.slice(i, i + 200))
+    const { data, error: e } = await admin.from('tasks').select('asana_gid').in('asana_gid', gids.slice(i, i + 200))
+    if (isMissingGid(e)) throw new Error(GID_MISSING)
     ;(data ?? []).forEach(r => present.add(r.asana_gid as string))
   }
 
@@ -428,6 +448,7 @@ export async function importAsanaAdHoc(
       created_by: profile.id,
     })),
   ).select('id, asana_gid')
+  if (isMissingGid(error)) throw new Error(GID_MISSING)
   if (error) throw new Error(error.message)
 
   /* L'assegnatario passa da `task_assignees`: è la sorgente canonica dei 0..N,
@@ -514,7 +535,8 @@ export async function importAsanaTasks(
   const gids = tasks.map(t => t.gid)
   const present = new Set<string>()
   for (let i = 0; i < gids.length; i += 200) {
-    const { data } = await admin.from('tasks').select('asana_gid').in('asana_gid', gids.slice(i, i + 200))
+    const { data, error: e } = await admin.from('tasks').select('asana_gid').in('asana_gid', gids.slice(i, i + 200))
+    if (isMissingGid(e)) throw new Error(GID_MISSING)
     ;(data ?? []).forEach(r => present.add(r.asana_gid as string))
   }
   const fresh = tasks.filter(t => !present.has(t.gid))
@@ -543,6 +565,7 @@ export async function importAsanaTasks(
   }))
 
   const { data: made, error } = await admin.from('tasks').insert(rows).select('id, asana_gid')
+  if (isMissingGid(error)) throw new Error(GID_MISSING)
   if (error) throw new Error(error.message)
 
   /* Gli assegnatari passano da `task_assignees`: è la sorgente canonica, e il
