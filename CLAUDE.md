@@ -879,6 +879,32 @@ Rate limit: le board si leggono a gruppi di cinque e il 429 si rispetta
 (`Retry-After`). Un travaso a cui mancano trenta board in silenzio è peggio di
 un'attesa.
 
+**Si parte dalle persone** (§216). «Cosa ha in mano Michele» è la domanda con cui
+si decide cosa spostare, non «quali task esistono»: le sette risorse del workspace
+arrivano dall'API — non dedotte dalle task, così chi ne ha zero compare lo stesso
+invece di sembrare non letto — con quante ne ha e quante sono pronte, e il filtro
+confronta l'**email**, perché lo stesso nome su Asana si scrive in tre modi.
+Le task senza assegnatario hanno una riga loro: la somma delle risorse fa il
+totale, o qualcosa è sparito per strada. Una risorsa Asana **senza email** non
+eredita le orfane — sono due vuoti diversi, e confonderli le contava due volte
+(bug trovato dal gate, non in pagina).
+
+**Il travaso** (`importAsanaTasks`) aggancia le task selezionate a un progetto e
+a un workstream **che esistono già**. Tre regole:
+
+- **La milestone è obbligatoria**: senza `milestone_id` la task non compare nel
+  board del progetto — importata e invisibile è peggio di non importata.
+- **Si può rilanciare**: `tasks.asana_gid` è unico (003), le già presenti si
+  saltano contandole invece di far fallire il lotto sulla prima. Chi è già
+  dentro lo dice anche in elenco, prima di premere.
+- **Il bersaglio si rilegge dal database**, non si crede al client: progetto,
+  workstream e milestone devono esistere e appartenersi, o la task finisce in un
+  board dove nessuno la cerca.
+
+Gli assegnatari passano da `task_assignees` (sorgente canonica, il trigger
+allinea `tasks.assignee_id`), e «seleziona tutto» significa **tutto quello che è
+filtrato**, mai le righe nascoste da un filtro dimenticato.
+
 ## Architettura portali
 - **Admin** (`/dashboard`, tutto): `super_admin`, `founder`, `admin`.
 - **Workspace** (`/workspace/**` e nient'altro): `manager`, `senior`, `junior`, `stage`, `freelance`, `partner`.

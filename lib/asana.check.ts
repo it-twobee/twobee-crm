@@ -4,7 +4,7 @@
  *
  *   npx tsx lib/asana.check.ts
  */
-import { classify, clientOf, boardView, mapTasks, summarize, toCsv, norm, type AsanaTask } from './asana'
+import { classify, clientOf, boardView, mapTasks, summarize, toCsv, norm, resourceViews, type AsanaTask } from './asana'
 
 let ok = 0
 const fails: string[] = []
@@ -100,6 +100,29 @@ eq('bloccate', s.blocked, 3)
 eq('conteggio per tipo', s.byKind, [
   { kind: 'servizio', count: 2 }, { kind: 'prospect', count: 1 }, { kind: 'interna', count: 1 },
 ])
+
+// ── resourceViews ───────────────────────────────────────────────────────────
+const users = [
+  { gid: 'u1', name: 'Marco Cristallo', email: 'M.Cristallo@twobee.it' },
+  { gid: 'u2', name: 'Chi non lavora qui', email: 'ignoto@altro.it' },
+  { gid: 'u3', name: 'Senza email', email: null },
+]
+const res = resourceViews(users, rows, profiles)
+// a parità di carico l'ordine è alfabetico, così la lista non balla fra due letture
+eq('ordinate per carico', res.map(r => r.name), [
+  'Marco Cristallo', 'Chi non lavora qui', 'Nessun assegnatario', 'Senza email',
+])
+eq('profilo agganciato per email, maiuscole a parte', res[0].profileId, 'p-mc')
+eq('carico contato', { tasks: res[0].tasks, ready: res[0].ready }, { tasks: 2, ready: 1 })
+/* Chi non ha un profilo resta in elenco: sparire sarebbe il modo di non
+   accorgersi che a qualcuno mancano venti task. */
+eq('senza profilo resta, con le sue task', { p: res[1].profileId, t: res[1].tasks }, { p: null, t: 1 })
+eq('le orfane hanno una riga loro', { n: res[2].name, t: res[2].tasks }, { n: 'Nessun assegnatario', t: 1 })
+/* Una risorsa Asana senza email non eredita le task senza assegnatario: sono
+   due vuoti diversi, e confonderli le contava due volte. */
+eq('risorsa senza email non assorbe le orfane', res[3].tasks, 0)
+// la somma delle risorse deve fare il totale, o qualcosa è sparito per strada
+eq('somma = totale', res.reduce((n, r) => n + r.tasks, 0), rows.length)
 
 // ── CSV ─────────────────────────────────────────────────────────────────────
 const csv = toCsv([{ ...rows[0], name: 'Copy, "completo"\nsito', notes: 'a\nb' }])

@@ -190,6 +190,66 @@ export function summarize(rows: TaskRow[]) {
   }
 }
 
+// ── Le risorse ──────────────────────────────────────────────────────────────
+
+export type AsanaUser = { gid: string; name: string; email: string | null }
+
+export type ResourceView = {
+  gid: string
+  name: string
+  email: string | null
+  /** il profilo TwoBee, quando l'email combacia */
+  profileId: string | null
+  /** quante task attive ha addosso, e quante di quelle sono pronte */
+  tasks: number
+  ready: number
+}
+
+/**
+ * Le persone prima delle task, perché è da lì che si guarda una migrazione:
+ * «cosa ha in mano Michele» è la domanda con cui si decide cosa spostare, non
+ * «quali task esistono». Chi non ha un profilo TwoBee resta in elenco con zero
+ * al posto dell'aggancio — sparire sarebbe il modo di non accorgersi che a
+ * qualcuno mancano venti task.
+ */
+export function resourceViews(
+  users: AsanaUser[],
+  rows: TaskRow[],
+  profiles: { id: string; email: string }[],
+): ResourceView[] {
+  const byEmail = new Map(profiles.map(p => [p.email.toLowerCase(), p.id]))
+  const counted = new Map<string, { tasks: number; ready: number }>()
+  for (const r of rows) {
+    const k = (r.assigneeEmail ?? '').toLowerCase()
+    const cur = counted.get(k) ?? { tasks: 0, ready: 0 }
+    counted.set(k, { tasks: cur.tasks + 1, ready: cur.ready + (r.blockers.length === 0 ? 1 : 0) })
+  }
+
+  const views = users.map(u => {
+    const k = (u.email ?? '').toLowerCase()
+    /* Una risorsa Asana senza email non è «la persona a cui vanno le task senza
+       assegnatario»: sono due vuoti diversi. Confonderli faceva contare due
+       volte le orfane — una qui e una nella riga apposta — e la somma delle
+       risorse non tornava col totale. */
+    const c = (k ? counted.get(k) : undefined) ?? { tasks: 0, ready: 0 }
+    return {
+      gid: u.gid, name: u.name, email: u.email,
+      profileId: k ? byEmail.get(k) ?? null : null,
+      tasks: c.tasks, ready: c.ready,
+    }
+  })
+
+  /* Le task senza assegnatario non appartengono a nessuno ma esistono: una riga
+     apposta, altrimenti la somma delle risorse non fa il totale e non si capisce
+     dove siano finite. */
+  const orphan = counted.get('')
+  if (orphan) {
+    views.push({ gid: '', name: 'Nessun assegnatario', email: null, profileId: null, ...orphan })
+  }
+
+  return views.sort((a, b) => b.tasks - a.tasks || a.name.localeCompare(b.name))
+}
+
 // ── CSV ─────────────────────────────────────────────────────────────────────
 
 const CSV_HEADERS = [

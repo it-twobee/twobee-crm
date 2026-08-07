@@ -3,7 +3,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSessionProfile } from '@/lib/auth'
 import { isAdminRole, isSuperAdminRaw } from '@/lib/permissions'
-import { boardView, mapTasks, summarize, toCsv, type AsanaTask, type Board, type TaskRow } from '@/lib/asana'
+import {
+  boardView, mapTasks, summarize, toCsv, resourceViews,
+  type AsanaTask, type AsanaUser, type Board, type TaskRow, type ResourceView,
+} from '@/lib/asana'
+import { createActorClient } from '@/lib/supabase/admin'
+import { revalidatePath } from 'next/cache'
 
 /**
  * §215 — Il travaso da Asana, in **sola lettura**.
@@ -77,10 +82,14 @@ export type AsanaScan = {
   workspace: string
   boards: number
   rows: TaskRow[]
+  /** le persone prima delle task: è da lì che si guarda una migrazione */
+  resources: ResourceView[]
   summary: ReturnType<typeof summarize>
   csv: string
   /** board che hanno risposto con un errore: dirlo, non farle sparire */
   failed: { name: string; reason: string }[]
+  /** i gid già dentro TwoBee: rileggere non li ripropone */
+  imported: string[]
 }
 
 export async function scanAsana(includeCommercial = false): Promise<AsanaScan> {
@@ -140,13 +149,146 @@ export async function scanAsana(includeCommercial = false): Promise<AsanaScan> {
     return Array.from(new Set(names)).map(name => ({ id: c.id, name }))
   })
 
-  const rows = mapTasks(tasks, boards, clientNames, (profiles ?? []) as { id: string; email: string }[])
+  const prof = (profiles ?? []) as { id: string; email: string }[]
+  const rows = mapTasks(tasks, boards, clientNames, prof)
+
+  /* Le risorse arrivano dall'API, non dedotte dalle task: chi ha zero task
+     attive deve comparire lo stesso, altrimenti «non ha niente da migrare» e
+     «non l'abbiamo letto» hanno la stessa faccia. */
+  const users = await all<{ gid: string; name: string; email?: string | null }>(
+    `users?workspace=${ws.gid}&opt_fields=name,email`, token)
+  const resources = resourceViews(
+    users.map<AsanaUser>(u => ({ gid: u.gid, name: u.name, email: u.email ?? null })),
+    rows, prof)
+
+  /* Quali sono già dentro: `tasks.asana_gid` è unico (migration 003), quindi il
+     travaso è ripetibile — ma dirlo prima è meglio che scoprirlo dal conteggio. */
+  const gids = rows.map(r => r.gid)
+  const already: string[] = []
+  for (let i = 0; i < gids.length; i += 200) {
+    const { data } = await sb.from('tasks').select('asana_gid').in('asana_gid', gids.slice(i, i + 200))
+    already.push(...(data ?? []).map(r => r.asana_gid as string))
+  }
+
   return {
     workspace: ws.name,
     boards: wanted.length,
     rows,
+    resources,
     summary: summarize(rows),
     csv: toCsv(rows),
     failed,
+    imported: already,
   }
+}
+
+// ── Il travaso vero ─────────────────────────────────────────────────────────
+
+export type ImportTarget = {
+  projectId: string
+  workstreamId: string
+  milestoneId: string
+  /** l'assegnatario di Asana diventa quello di TwoBee, dove l'email combacia */
+  keepAssignee: boolean
+}
+
+export type ImportPayload = {
+  gid: string
+  title: string
+  notes: string | null
+  dueOn: string | null
+  assigneeEmail: string | null
+}
+
+export type ImportResult = { created: number; skipped: number; noAssignee: number }
+
+/**
+ * §216 — Porta dentro le task scelte, agganciandole a un progetto e a un
+ * workstream **che esistono già**. Tre cose che il codice garantisce:
+ *
+ *  · **La milestone è obbligatoria.** Una task senza `milestone_id` non compare
+ *    nel board del progetto: sarebbe importata e invisibile, che è peggio di
+ *    non importarla.
+ *  · **Si può rilanciare.** `tasks.asana_gid` è unico (003) e le già presenti si
+ *    saltano contandole, invece di far fallire tutto il lotto sulla prima.
+ *  · **Il bersaglio si rilegge dal database**, non si crede al client: progetto,
+ *    workstream e milestone devono esistere e appartenersi, altrimenti la task
+ *    finisce in un board dove nessuno la cerca.
+ */
+export async function importAsanaTasks(
+  tasks: ImportPayload[], target: ImportTarget,
+): Promise<ImportResult> {
+  await requireAdmin()
+  const profile = await getSessionProfile()
+  if (!profile) throw new Error('Non autenticato')
+  if (!tasks.length) throw new Error('Nessuna task selezionata.')
+
+  const sb = await createClient()
+  const [{ data: project }, { data: ws }, { data: ms }] = await Promise.all([
+    sb.from('projects').select('id, client_id').eq('id', target.projectId).is('deleted_at', null).maybeSingle(),
+    sb.from('project_workstreams').select('id, project_id').eq('id', target.workstreamId).maybeSingle(),
+    sb.from('milestones').select('id, workstream_id, project_id').eq('id', target.milestoneId).maybeSingle(),
+  ])
+  if (!project) throw new Error('Il progetto non esiste più.')
+  if (!ws || ws.project_id !== project.id) throw new Error('Il workstream non appartiene a quel progetto.')
+  if (!ms || ms.workstream_id !== ws.id) throw new Error('La milestone non appartiene a quel workstream.')
+
+  const admin = createActorClient(profile.id)
+
+  // già dentro: si saltano, non fanno fallire il lotto
+  const gids = tasks.map(t => t.gid)
+  const present = new Set<string>()
+  for (let i = 0; i < gids.length; i += 200) {
+    const { data } = await admin.from('tasks').select('asana_gid').in('asana_gid', gids.slice(i, i + 200))
+    ;(data ?? []).forEach(r => present.add(r.asana_gid as string))
+  }
+  const fresh = tasks.filter(t => !present.has(t.gid))
+  if (!fresh.length) return { created: 0, skipped: tasks.length, noAssignee: 0 }
+
+  const emails = Array.from(new Set(fresh.map(t => t.assigneeEmail).filter(Boolean) as string[]))
+  const { data: people } = emails.length
+    ? await admin.from('profiles').select('id, email').in('email', emails)
+    : { data: [] }
+  const byEmail = new Map((people ?? []).map(p => [(p.email as string).toLowerCase(), p.id as string]))
+
+  const rows = fresh.map(t => ({
+    client_id: project.client_id,
+    task_type: 'project' as const,
+    project_id: project.id,
+    workstream_id: ws.id,
+    milestone_id: ms.id,
+    title: t.title.trim().slice(0, 300) || 'Senza titolo',
+    description: t.notes?.trim() || null,
+    status: 'da_fare' as const,
+    priority: 'media' as const,
+    due_date: t.dueOn || null,
+    visibility: 'internal' as const,
+    asana_gid: t.gid,
+    created_by: profile.id,
+  }))
+
+  const { data: made, error } = await admin.from('tasks').insert(rows).select('id, asana_gid')
+  if (error) throw new Error(error.message)
+
+  /* Gli assegnatari passano da `task_assignees`: è la sorgente canonica, e il
+     trigger tiene allineato `tasks.assignee_id`. Scriverlo a mano lascerebbe le
+     due cose a raccontare storie diverse. */
+  let noAssignee = 0
+  if (target.keepAssignee) {
+    const byGid = new Map(fresh.map(t => [t.gid, t]))
+    const links = (made ?? []).flatMap(m => {
+      const src = byGid.get(m.asana_gid as string)
+      const pid = src?.assigneeEmail ? byEmail.get(src.assigneeEmail.toLowerCase()) : undefined
+      if (!pid) { noAssignee++; return [] }
+      return [{ task_id: m.id as string, profile_id: pid, is_primary_owner: true }]
+    })
+    if (links.length) {
+      const { error: e2 } = await admin.from('task_assignees').insert(links)
+      if (e2) throw new Error(`Task create, ma gli assegnatari no: ${e2.message}`)
+    }
+  }
+
+  revalidatePath(`/progetti/${project.id}`)
+  revalidatePath('/asana')
+  return { created: made?.length ?? 0, skipped: tasks.length - fresh.length, noAssignee }
 }
