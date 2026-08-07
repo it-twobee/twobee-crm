@@ -4,7 +4,10 @@
  *
  *   npx tsx lib/asana.check.ts
  */
-import { classify, clientOf, boardView, mapTasks, summarize, toCsv, norm, resourceViews, type AsanaTask } from './asana'
+import {
+  classify, clientOf, boardView, mapTasks, summarize, toCsv, norm, resourceViews,
+  groupByClient, triageProgress, type AsanaTask,
+} from './asana'
 
 let ok = 0
 const fails: string[] = []
@@ -67,9 +70,9 @@ const clients = [
 ]
 const profiles = [{ id: 'p-mc', email: 'M.Cristallo@twobee.it' }]
 
-const t = (gid: string, boardGid: string, assigneeEmail: string | null): AsanaTask => ({
+const t = (gid: string, boardGid: string, assigneeEmail: string | null, completed = false): AsanaTask => ({
   gid, name: `task ${gid}`, boardGid, section: null, assigneeEmail,
-  dueOn: null, notes: null, isMilestone: false,
+  dueOn: null, notes: null, isMilestone: false, completed,
 })
 
 const rows = mapTasks(
@@ -124,9 +127,40 @@ eq('risorsa senza email non assorbe le orfane', res[3].tasks, 0)
 // la somma delle risorse deve fare il totale, o qualcosa è sparito per strada
 eq('somma = totale', res.reduce((n, r) => n + r.tasks, 0), rows.length)
 
+// ── groupByClient / triageProgress ──────────────────────────────────────────
+const gRows = mapTasks(
+  [t('g1', 'b1', 'm.cristallo@twobee.it'), t('g2', 'b1', null, true),
+   t('g3', 'b3', null), t('g4', 'b4', null), t('g5', 'b2', null)],
+  boards, clients, profiles,
+)
+const decided = new Set(['g1'])
+const groups = groupByClient(gRows, decided)
+
+/* Il gruppo senza cliente va in fondo, ma **c'è**: sono le board interne e
+   commerciali, cioè quelle che di solito si buttano. Nasconderle farebbe
+   chiudere Asana con dentro roba mai guardata. */
+eq('ultimo gruppo = senza cliente', groups[groups.length - 1].clientName, null)
+eq('gruppi per cliente', groups.filter(g => g.clientName).map(g => g.clientName),
+   ['fatima leo', 'sartoria condotti', 'sea power'])
+
+const fatima = groups.find(g => g.clientName === 'fatima leo')!
+eq('totale del cliente', fatima.total, 2)
+// una delle due è completata: «aperte» non è «tutte»
+eq('aperte del cliente', fatima.open, 1)
+eq('decise del cliente', fatima.decided, 1)
+eq('board dentro il gruppo', fatima.boards.length, 1)
+eq('id cliente propagato al gruppo', fatima.clientId, 'c-fatima')
+
+const p = triageProgress(gRows, decided)
+eq('avanzamento', { total: p.total, done: p.done, left: p.left, pct: p.pct },
+   { total: 5, done: 1, left: 4, pct: 20 })
+eq('niente da decidere = finito', triageProgress([], new Set()).pct, 100)
+
 // ── CSV ─────────────────────────────────────────────────────────────────────
 const csv = toCsv([{ ...rows[0], name: 'Copy, "completo"\nsito', notes: 'a\nb' }])
 eq('intestazione', csv.split('\n')[0].startsWith('﻿board,tipo,cliente'), true)
+eq('la decisione presa finisce nel file',
+   toCsv([rows[0]], new Map([[rows[0].gid, 'elimina' as const]])).includes(',elimina,'), true)
 eq('virgolette raddoppiate', csv.includes('"Copy, ""completo""'), true)
 eq('a capo nelle note collassati', csv.includes(',a b,'), true)
 eq('BOM presente', csv.charCodeAt(0), 0xfeff)

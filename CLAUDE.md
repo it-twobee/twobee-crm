@@ -905,6 +905,32 @@ Gli assegnatari passano da `task_assignees` (sorgente canonica, il trigger
 allinea `tasks.assignee_id`), e «seleziona tutto» significa **tutto quello che è
 filtrato**, mai le righe nascoste da un filtro dimenticato.
 
+**Chiudere Asana è un lavoro a strappi** (§217, migration 201). Passare in
+rassegna 146 board e qualche centinaio di task non è un pomeriggio: si fa fra una
+cosa e l'altra, e ogni volta serve sapere dove si era arrivati.
+
+- **Due modalità.** `attive` = il lavoro non chiuso sulle board di consegna, la
+  vista per migrare. `tutto` = ogni board (commerciali e interne comprese) e ogni
+  task, **anche completata** — la vista per chiudere: quello che non si guarda
+  resta lì dentro quando si spegne la luce.
+- **`asana_triage`** tiene la decisione presa su ogni `gid`: `tieni`, `elimina`,
+  `migrata`. Chiave = gid di Asana, **nessuna FK verso `tasks`** perché quasi
+  nessuna di queste entrerà in TwoBee. Nel browser sarebbe costato zero ed era il
+  posto sbagliato: una cache svuotata e tre giorni di decisioni spariscono senza
+  che nessuno se ne accorga. Non c'è uno stato «forse» — chi resta senza riga è
+  ancora da decidere, e un quarto stato avrebbe fatto sembrare deciso quello che
+  non lo è. Le già importate contano come decise: su una task che è dentro non
+  c'è più niente da scegliere.
+- **Si decide per blocco**, non riga per riga: si filtra per cliente o per
+  persona e si segna tutta la selezione. Annullare costa quanto scegliere, o si
+  smette di decidere per paura di sbagliare. Le decise spariscono dalla lista di
+  default — il senso è che si accorci mentre ci lavori — e una barra dice quanto
+  manca, che è la sola cosa che rende finito un lavoro che sembra infinito.
+- **La struttura si guarda per cliente**, non in ordine alfabetico: «Icura - META
+  ADS» e «Ad Hoc - Icura» sono lo stesso cliente e si decidono insieme. Le board
+  senza cliente stanno in fondo ma **ci sono**: sono quelle che di solito si
+  buttano, e nasconderle fa chiudere Asana con dentro roba mai guardata.
+
 ## Architettura portali
 - **Admin** (`/dashboard`, tutto): `super_admin`, `founder`, `admin`.
 - **Workspace** (`/workspace/**` e nient'altro): `manager`, `senior`, `junior`, `stage`, `freelance`, `partner`.

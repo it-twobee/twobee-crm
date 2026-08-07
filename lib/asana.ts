@@ -131,6 +131,8 @@ export type AsanaTask = {
   dueOn: string | null
   notes: string | null
   isMilestone: boolean
+  /** §217 — chiudere Asana vuol dire guardare anche quelle chiuse */
+  completed: boolean
 }
 
 export type TaskRow = AsanaTask & {
@@ -188,6 +190,70 @@ export function summarize(rows: TaskRow[]) {
       .filter(x => x.count > 0),
     reasons: Array.from(reasons, ([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count),
   }
+}
+
+// ── Il triage ───────────────────────────────────────────────────────────────
+
+/** Tre risposte, e nessuna è «forse»: chi resta senza riga è ancora da decidere. */
+export type Decision = 'tieni' | 'elimina' | 'migrata'
+
+/**
+ * La struttura vista per cliente: è così che si decide cosa buttare.
+ *
+ * Guardare 146 board in ordine alfabetico non aiuta — «Icura - META ADS» e
+ * «Ad Hoc - Icura» sono lo stesso cliente e si decidono insieme. Raggruppare per
+ * cliente mette davanti la domanda vera: *di questo cliente, cosa resta da fare?*
+ *
+ * Le board senza cliente (interne, commerciali) finiscono in un gruppo apposta e
+ * non spariscono: sono esattamente quelle che di solito si buttano, e una lista
+ * che le nasconde fa chiudere Asana con dentro roba mai guardata.
+ */
+export type ClientGroup = {
+  clientName: string | null
+  clientId: string | null
+  boards: {
+    board: BoardView
+    total: number
+    open: number
+    decided: number
+  }[]
+  total: number
+  open: number
+  decided: number
+}
+
+export function groupByClient(rows: TaskRow[], decided: Set<string>): ClientGroup[] {
+  const groups = new Map<string, ClientGroup>()
+  for (const r of rows) {
+    const key = r.board.clientName ?? '\u0000senza'
+    let g = groups.get(key)
+    if (!g) {
+      g = { clientName: r.board.clientName, clientId: r.clientId, boards: [], total: 0, open: 0, decided: 0 }
+      groups.set(key, g)
+    }
+    // l'id del cliente lo porta la prima riga che ce l'ha: alcune board dello
+    // stesso cliente non lo agganciano (refusi già corretti a monte, non tutti)
+    if (!g.clientId && r.clientId) g.clientId = r.clientId
+    let b = g.boards.find(x => x.board.gid === r.board.gid)
+    if (!b) { b = { board: r.board, total: 0, open: 0, decided: 0 }; g.boards.push(b) }
+    const isDecided = decided.has(r.gid)
+    b.total++; g.total++
+    if (!r.completed) { b.open++; g.open++ }
+    if (isDecided) { b.decided++; g.decided++ }
+  }
+  Array.from(groups.values()).forEach(g => g.boards.sort((a, b) => b.open - a.open || a.board.name.localeCompare(b.board.name)))
+  return Array.from(groups.values()).sort((a, b) => {
+    // Il gruppo senza cliente per ultimo: è quello che si guarda alla fine.
+    if (!a.clientName !== !b.clientName) return a.clientName ? -1 : 1
+    return b.open - a.open || (a.clientName ?? '').localeCompare(b.clientName ?? '')
+  })
+}
+
+/** Quanto manca: è la sola cosa che rende finito un lavoro che sembra infinito. */
+export function triageProgress(rows: TaskRow[], decided: Set<string>) {
+  const total = rows.length
+  const done = rows.filter(r => decided.has(r.gid)).length
+  return { total, done, left: total - done, pct: total ? Math.round((done / total) * 100) : 100 }
 }
 
 // ── Le risorse ──────────────────────────────────────────────────────────────
@@ -254,7 +320,8 @@ export function resourceViews(
 
 const CSV_HEADERS = [
   'board', 'tipo', 'cliente', 'cliente_id', 'servizio', 'sezione',
-  'task', 'assegnatario', 'profilo_id', 'scadenza', 'milestone', 'note', 'blocchi', 'asana_gid',
+  'task', 'assegnatario', 'profilo_id', 'scadenza', 'milestone', 'completata',
+  'decisione', 'note', 'blocchi', 'asana_gid',
 ] as const
 
 /** Le virgolette si raddoppiano: un titolo con un apice spaccava la colonna. */
@@ -263,13 +330,14 @@ const cell = (v: unknown) => {
   return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 
-export function toCsv(rows: TaskRow[]): string {
+export function toCsv(rows: TaskRow[], decisions: Map<string, Decision> = new Map()): string {
   const lines = [CSV_HEADERS.join(',')]
   for (const r of rows) {
     lines.push([
       r.board.name, r.board.kind, r.board.clientName ?? '', r.clientId ?? '',
       r.board.service ?? '', r.section ?? '', r.name, r.assigneeEmail ?? '',
       r.profileId ?? '', r.dueOn ?? '', r.isMilestone ? 'sì' : '',
+      r.completed ? 'sì' : '', decisions.get(r.gid) ?? '',
       (r.notes ?? '').replace(/\s+/g, ' ').slice(0, 500),
       r.blockers.join(' · '), r.gid,
     ].map(cell).join(','))

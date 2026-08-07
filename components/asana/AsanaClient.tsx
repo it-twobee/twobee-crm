@@ -4,10 +4,19 @@ import { useMemo, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import {
   Download, RefreshCw, AlertTriangle, CheckCircle2, Loader2, Search, Info, ExternalLink,
-  Users, ArrowRight, Check,
+  Users, ArrowRight, Check, FolderTree,
 } from 'lucide-react'
-import { scanAsana, importAsanaTasks, type AsanaScan } from '@/app/actions/asana'
-import type { BoardKind } from '@/lib/asana'
+import { scanAsana, importAsanaTasks, setTriage, type AsanaScan } from '@/app/actions/asana'
+import type { BoardKind, Decision } from '@/lib/asana'
+
+const DECISION_LABEL: Record<Decision, string> = {
+  tieni: 'da tenere', elimina: 'da eliminare', migrata: 'già in TwoBee',
+}
+const DECISION_TONE: Record<Decision, string> = {
+  tieni: 'bg-info-dim text-info border-info/30',
+  elimina: 'bg-error-dim text-error border-error/30',
+  migrata: 'bg-success-dim text-success border-success/30',
+}
 
 type Project = { id: string; name: string; client: string | null }
 type Workstream = { id: string; project_id: string; name: string }
@@ -32,7 +41,9 @@ export function AsanaClient({ projects, workstreams, milestones }: {
   projects: Project[]; workstreams: Workstream[]; milestones: Milestone[]
 }) {
   const [scan, setScan] = useState<AsanaScan | null>(null)
-  const [commercial, setCommercial] = useState(false)
+  const [mode, setMode] = useState<'attive' | 'tutto'>('attive')
+  const [client, setClient] = useState<string | null>(null)
+  const [showDecided, setShowDecided] = useState(false)
   const [q, setQ] = useState('')
   const [only, setOnly] = useState<'tutte' | 'pronte' | 'bloccate'>('tutte')
   const [pending, start] = useTransition()
@@ -49,10 +60,11 @@ export function AsanaClient({ projects, workstreams, milestones }: {
   const wsOf = useMemo(() => workstreams.filter(w => w.project_id === projectId), [workstreams, projectId])
   const msOf = useMemo(() => milestones.filter(m => m.workstream_id === wsId), [milestones, wsId])
   const done = useMemo(() => new Set(scan?.imported ?? []), [scan])
+  const decisions = useMemo(() => new Map(scan?.decisions ?? []), [scan])
 
   const run = () => start(async () => {
     try {
-      const r = await scanAsana(commercial)
+      const r = await scanAsana(mode)
       setScan(r)
       setPicked(new Set())
       toast.success(`${r.rows.length} task da ${r.boards} board · ${r.resources.length} risorse`)
@@ -72,15 +84,20 @@ export function AsanaClient({ projects, workstreams, milestones }: {
          assegnatario» ha la chiave vuota, ed è quella che serve per trovare le
          task che nessuno si è preso. */
       if (resource !== null && (r.assigneeEmail ?? '').toLowerCase() !== resource) return false
+      if (client !== null && r.board.clientName !== client) return false
+      /* Le già decise si nascondono di default: il senso di questa pagina è che
+         la lista si accorci mentre ci lavori, non che resti lunga uguale. */
+      if (!showDecided && decisions.has(r.gid)) return false
       if (!term) return true
       return [r.name, r.board.name, r.board.clientName, r.assigneeEmail, r.section]
         .some(v => v?.toLowerCase().includes(term))
     })
-  }, [scan, q, only, resource])
+  }, [scan, q, only, resource, client, showDecided, decisions])
 
   /* Si migra quello che si vede: selezionare tutto significa «tutto quello che
      ho filtrato», mai le righe nascoste da un filtro che ho dimenticato. */
   const selectable = useMemo(() => shown.filter(r => !done.has(r.gid)), [shown, done])
+  const pickedList = useMemo(() => Array.from(picked), [picked])
   const allPicked = selectable.length > 0 && selectable.every(r => picked.has(r.gid))
   const toggleAll = () => setPicked(p => {
     const n = new Set(p)
@@ -107,13 +124,24 @@ export function AsanaClient({ projects, workstreams, milestones }: {
           ].filter(Boolean).join(' · ') || undefined,
         })
         setPicked(new Set())
-        const r = await scanAsana(commercial)
-        setScan(r)
+        setScan(await scanAsana(mode))
       } catch (e) {
         toast.error(e instanceof Error ? e.message : 'Errore')
       }
     })
   }
+
+  /** Le azioni massive: si decide per blocco, non riga per riga. */
+  const decide = (d: Decision | null) => start(async () => {
+    try {
+      const n = await setTriage(pickedList, d)
+      toast.success(d === null ? `${n} decisioni annullate` : `${n} segnate «${DECISION_LABEL[d]}»`)
+      setPicked(new Set())
+      setScan(await scanAsana(mode))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Errore')
+    }
+  })
 
   const download = () => {
     if (!scan) return
@@ -167,12 +195,24 @@ export function AsanaClient({ projects, workstreams, milestones }: {
         </div>
       </div>
 
-      <label className="flex items-center gap-2 text-2xs text-text-secondary cursor-pointer">
-        <input type="checkbox" checked={commercial} onChange={e => setCommercial(e.target.checked)}
-          className="accent-gold" />
-        Leggi anche le board commerciali e interne
-        <span className="text-text-tertiary">(~40 board in più, righe comunque bloccate)</span>
-      </label>
+      {/* §217 — quanto si guarda. «Tutto» è la vista per chiudere Asana: quello
+          che non si guarda resta lì dentro quando si spegne la luce. */}
+      <div className="flex gap-2 flex-wrap">
+        {([
+          ['attive', 'Solo attive', 'Il lavoro non chiuso sulle board di consegna: la vista per migrare'],
+          ['tutto', 'Tutta la struttura', 'Ogni board e ogni task, chiuse e commerciali comprese: la vista per chiudere Asana'],
+        ] as const).map(([m, lab, why]) => (
+          <button key={m} onClick={() => setMode(m)} aria-pressed={mode === m} title={why}
+            className={`text-left rounded-xl border px-3 py-2 press ${
+              mode === m ? 'border-gold bg-gold-dim' : 'border-border hover:bg-surface-hover'}`}>
+            <span className="block text-2xs font-bold text-text-primary">{lab}</span>
+            <span className="block text-2xs text-text-tertiary">{why}</span>
+          </button>
+        ))}
+        {scan && mode !== 'attive' && (
+          <span className="self-center text-2xs text-text-tertiary">premi «Rileggi» per applicare</span>
+        )}
+      </div>
 
       {!scan && !pending && (
         <div className="rounded-2xl border border-border bg-surface p-8 text-center">
@@ -192,6 +232,22 @@ export function AsanaClient({ projects, workstreams, milestones }: {
             <Stat label="Board lette" value={scan.boards}
               hint={scan.failed.length ? `${scan.failed.length} in errore` : 'nessun errore'} />
           </div>
+
+          {/* §217 — quanto manca: la sola cosa che rende finito un lavoro che
+              sembra infinito. Senza, si smette di decidere dopo il terzo cliente. */}
+          <section className="bg-surface border border-border rounded-2xl p-4">
+            <div className="flex items-baseline gap-2 mb-2">
+              <h2 className="text-sm font-bold text-text-primary flex-1">Da decidere</h2>
+              <span className="text-sm font-bold text-text-primary tabular">{scan.progress.left}</span>
+              <span className="text-2xs text-text-tertiary">su {scan.progress.total}</span>
+            </div>
+            <div className="h-1.5 bg-surface-active rounded-full overflow-hidden">
+              <div className="h-full bg-success rounded-full transition-all" style={{ width: `${scan.progress.pct}%` }} />
+            </div>
+            <p className="text-2xs text-text-tertiary mt-1.5">
+              {scan.progress.done} già decise ({scan.progress.pct}%). Le decisioni restano: si riprende da dove si era.
+            </p>
+          </section>
 
           {scan.summary.reasons.length > 0 && (
             <section className="bg-surface border border-border rounded-2xl p-4">
@@ -216,6 +272,64 @@ export function AsanaClient({ projects, workstreams, milestones }: {
               </ul>
             </section>
           )}
+
+          {/* ── La struttura per cliente: da qui si decide cosa buttare ── */}
+          <section className="bg-surface border border-border rounded-2xl p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <FolderTree className="w-4 h-4 text-gold-text" />
+              <h2 className="text-sm font-bold text-text-primary flex-1">Struttura per cliente</h2>
+              {client !== null && (
+                <button onClick={() => setClient(null)}
+                  className="text-2xs font-semibold text-gold-text hover:opacity-80">mostra tutti</button>
+              )}
+            </div>
+            <p className="text-2xs text-text-tertiary mb-3">
+              «Icura - META ADS» e «Ad Hoc - Icura» sono lo stesso cliente e si decidono insieme.
+              Le board senza cliente stanno in fondo: sono quelle che di solito si buttano, e una
+              lista che le nasconde fa chiudere Asana con dentro roba mai guardata.
+            </p>
+            <div className="space-y-1.5">
+              {scan.groups.map(g => {
+                const key = g.clientName ?? ''
+                const on = client === g.clientName
+                return (
+                  <div key={key || 'senza'} className={`rounded-xl border ${on ? 'border-gold bg-gold-dim' : 'border-border'}`}>
+                    <button onClick={() => setClient(on ? null : g.clientName)} aria-pressed={on}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-surface-hover rounded-xl transition-colors">
+                      <span className={`text-2xs font-bold capitalize flex-1 truncate ${
+                        g.clientName ? 'text-text-primary' : 'text-text-secondary'}`}>
+                        {g.clientName ?? 'Senza cliente — interne e commerciali'}
+                      </span>
+                      {g.clientId
+                        ? <span className="text-2xs text-success shrink-0">in anagrafica</span>
+                        : g.clientName && <span className="text-2xs text-warning shrink-0">non in anagrafica</span>}
+                      <span className="text-2xs text-text-tertiary shrink-0 tabular">
+                        {g.boards.length} board · {g.open} aperte su {g.total}
+                      </span>
+                      <span className="text-2xs font-bold text-text-primary shrink-0 tabular">
+                        {g.total - g.decided}
+                      </span>
+                    </button>
+                    {on && (
+                      <div className="px-3 pb-2 space-y-0.5">
+                        {g.boards.map(b => (
+                          <div key={b.board.gid} className="flex items-center gap-2 text-2xs">
+                            <span className={`px-1.5 py-0.5 rounded border shrink-0 ${KIND_TONE[b.board.kind]}`}>
+                              {KIND_LABEL[b.board.kind]}
+                            </span>
+                            <span className="text-text-secondary flex-1 truncate">{b.board.name}</span>
+                            <span className="text-text-tertiary tabular shrink-0">
+                              {b.open} aperte · {b.total - b.decided} da decidere
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </section>
 
           {/* ── Le risorse: da qui si parte ── */}
           <section className="bg-surface border border-border rounded-2xl p-4">
@@ -307,6 +421,17 @@ export function AsanaClient({ projects, workstreams, milestones }: {
                 aria-label="Cerca fra le task"
                 className="w-full h-9 pl-9 pr-3 rounded-xl bg-surface border border-border-interactive text-sm text-text-primary placeholder:text-text-tertiary" />
             </div>
+            <select value={client ?? ''} onChange={e => setClient(e.target.value || null)}
+              aria-label="Filtra per cliente"
+              className="h-9 px-2 rounded-xl bg-surface border border-border-interactive text-2xs text-text-primary capitalize">
+              <option value="">Tutti i clienti</option>
+              {scan.clientNames.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <label className="flex items-center gap-1.5 text-2xs text-text-secondary cursor-pointer whitespace-nowrap">
+              <input type="checkbox" checked={showDecided} onChange={e => setShowDecided(e.target.checked)}
+                className="accent-gold" />
+              mostra le già decise
+            </label>
             <div className="flex gap-1 bg-surface border border-border rounded-xl p-1">
               {(['tutte', 'pronte', 'bloccate'] as const).map(k => (
                 <button key={k} onClick={() => setOnly(k)} aria-pressed={only === k}
@@ -317,6 +442,30 @@ export function AsanaClient({ projects, workstreams, milestones }: {
               ))}
             </div>
           </div>
+
+          {picked.size > 0 && (
+            <div className="sticky bottom-3 z-30 flex items-center gap-2 flex-wrap
+                            bg-surface border border-border-strong rounded-2xl shadow-pop p-3">
+              <span className="text-2xs font-bold text-text-primary">{picked.size} selezionate</span>
+              <button onClick={() => setPicked(new Set())}
+                className="text-2xs font-semibold text-text-secondary hover:text-text-primary">deseleziona</button>
+              <span className="flex-1" />
+              {/* Decidere per blocco è il punto: riga per riga non si finisce. */}
+              <button onClick={() => decide('tieni')} disabled={pending}
+                className="text-2xs font-semibold border border-info/50 text-info rounded-xl px-3 py-2 hover:bg-surface-hover press disabled:opacity-40">
+                Da tenere
+              </button>
+              <button onClick={() => decide('elimina')} disabled={pending}
+                className="text-2xs font-semibold border border-error/50 text-error rounded-xl px-3 py-2 hover:bg-surface-hover press disabled:opacity-40">
+                Da eliminare
+              </button>
+              <button onClick={() => decide(null)} disabled={pending}
+                title="Un ripensamento deve costare quanto la scelta"
+                className="text-2xs font-semibold border border-border rounded-xl px-3 py-2 text-text-secondary hover:text-text-primary press disabled:opacity-40">
+                Annulla decisione
+              </button>
+            </div>
+          )}
 
           <section className="bg-surface border border-border rounded-2xl overflow-hidden">
             <div className="overflow-x-auto">
@@ -353,6 +502,7 @@ export function AsanaClient({ projects, workstreams, milestones }: {
                           {r.name}<ExternalLink className="w-3 h-3 opacity-50 shrink-0" />
                         </a>
                         {r.section && <span className="block text-2xs text-text-tertiary">{r.section}</span>}
+                        {r.completed && <span className="block text-2xs text-text-tertiary">completata su Asana</span>}
                       </td>
                       <td className="px-2 py-2">
                         <span className={`inline-flex text-2xs font-semibold px-1.5 py-0.5 rounded border ${KIND_TONE[r.board.kind]}`}>
@@ -372,7 +522,11 @@ export function AsanaClient({ projects, workstreams, milestones }: {
                       </td>
                       <td className="px-2 py-2 text-2xs tabular text-text-secondary">{r.dueOn ?? '—'}</td>
                       <td className="px-2 py-2">
-                        {done.has(r.gid) ? (
+                        {decisions.get(r.gid) ? (
+                          <span className={`inline-flex items-center gap-1 text-2xs font-semibold px-1.5 py-0.5 rounded border ${DECISION_TONE[decisions.get(r.gid)!]}`}>
+                            {DECISION_LABEL[decisions.get(r.gid)!]}
+                          </span>
+                        ) : done.has(r.gid) ? (
                           <span className="inline-flex items-center gap-1 text-2xs text-success">
                             <CheckCircle2 className="w-3 h-3" />già in TwoBee
                           </span>

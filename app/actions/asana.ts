@@ -4,8 +4,9 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionProfile } from '@/lib/auth'
 import { isAdminRole, isSuperAdminRaw } from '@/lib/permissions'
 import {
-  boardView, mapTasks, summarize, toCsv, resourceViews,
+  boardView, mapTasks, summarize, toCsv, resourceViews, groupByClient, triageProgress,
   type AsanaTask, type AsanaUser, type Board, type TaskRow, type ResourceView,
+  type Decision, type ClientGroup,
 } from '@/lib/asana'
 import { createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
@@ -73,7 +74,7 @@ async function pool<T, R>(items: T[], size: number, fn: (x: T) => Promise<R>): P
 
 type RawTask = {
   gid: string; name: string; due_on: string | null; notes: string | null
-  resource_subtype: string
+  resource_subtype: string; completed?: boolean
   assignee: { email?: string | null } | null
   memberships: { section?: { name?: string } | null }[]
 }
@@ -90,9 +91,25 @@ export type AsanaScan = {
   failed: { name: string; reason: string }[]
   /** i gid già dentro TwoBee: rileggere non li ripropone */
   imported: string[]
+  /** §217 — cosa si è già deciso, per non ripassare due volte sulle stesse */
+  decisions: [string, Decision][]
+  groups: ClientGroup[]
+  progress: ReturnType<typeof triageProgress>
+  /** i clienti visti sulle board, per il filtro */
+  clientNames: string[]
 }
 
-export async function scanAsana(includeCommercial = false): Promise<AsanaScan> {
+/**
+ * §217 — `mode` decide **quanto** si guarda.
+ *
+ *  · `attive` — solo il lavoro non chiuso, sulle board di consegna. È la vista
+ *    per migrare: poche righe, tutte utili.
+ *  · `tutto` — ogni board (commerciali e interne comprese) e ogni task, anche
+ *    completata. È la vista per **chiudere Asana**: quello che non si guarda
+ *    resta lì dentro quando si spegne la luce.
+ */
+export async function scanAsana(mode: 'attive' | 'tutto' = 'attive'): Promise<AsanaScan> {
+  const includeCommercial = mode === 'tutto'
   await requireAdmin()
   const token = process.env.ASANA_PAT
   if (!token) throw new Error('ASANA_PAT non configurato: senza token non c’è niente da leggere.')
@@ -115,8 +132,12 @@ export async function scanAsana(includeCommercial = false): Promise<AsanaScan> {
   const failed: { name: string; reason: string }[] = []
   const fetched = await pool(wanted, 5, async (b): Promise<AsanaTask[]> => {
     try {
+      /* `completed_since=now` è il modo di Asana per dire «solo le aperte».
+         Togliendolo arriva tutto, chiuse comprese — che è il punto della
+         modalità «tutto»: non si chiude un workspace guardando metà roba. */
       const raw = await all<RawTask>(
-        `tasks?project=${b.gid}&completed_since=now&opt_fields=name,due_on,notes,resource_subtype,assignee.email,memberships.section.name`,
+        `tasks?project=${b.gid}${mode === 'attive' ? '&completed_since=now' : ''}`
+        + `&opt_fields=name,due_on,notes,completed,resource_subtype,assignee.email,memberships.section.name`,
         token)
       return raw.map(t => ({
         gid: t.gid,
@@ -127,6 +148,7 @@ export async function scanAsana(includeCommercial = false): Promise<AsanaScan> {
         dueOn: t.due_on,
         notes: t.notes,
         isMilestone: t.resource_subtype === 'milestone',
+        completed: Boolean(t.completed),
       }))
     } catch (e) {
       failed.push({ name: b.name, reason: e instanceof Error ? e.message : 'errore' })
@@ -170,16 +192,59 @@ export async function scanAsana(includeCommercial = false): Promise<AsanaScan> {
     already.push(...(data ?? []).map(r => r.asana_gid as string))
   }
 
+  const { data: triage } = await sb.from('asana_triage').select('gid, decision')
+  const decisions = new Map<string, Decision>(
+    (triage ?? []).map(t => [t.gid as string, t.decision as Decision]))
+  /* Le già importate contano come decise: non c'è più niente da scegliere su
+     una task che è già dentro, e lasciarle nel conto farebbe sembrare il lavoro
+     più lungo di quanto è. */
+  already.forEach(g => { if (!decisions.has(g)) decisions.set(g, 'migrata') })
+  const decidedSet = new Set(decisions.keys())
+
   return {
     workspace: ws.name,
     boards: wanted.length,
     rows,
     resources,
     summary: summarize(rows),
-    csv: toCsv(rows),
+    csv: toCsv(rows, decisions),
     failed,
     imported: already,
+    decisions: Array.from(decisions),
+    groups: groupByClient(rows, decidedSet),
+    progress: triageProgress(rows, decidedSet),
+    clientNames: Array.from(new Set(rows.map(r => r.board.clientName).filter(Boolean) as string[])).sort(),
   }
+}
+
+/**
+ * §217 — La decisione presa su un gruppo di task, in un colpo solo.
+ *
+ * Passare in rassegna 146 board una riga alla volta non si fa: si filtra per
+ * cliente o per persona, si guarda il blocco, e si decide per tutto il blocco.
+ * `null` cancella la decisione — un ripensamento deve costare quanto la scelta,
+ * o si smette di decidere per paura di sbagliare.
+ */
+export async function setTriage(gids: string[], decision: Decision | null): Promise<number> {
+  await requireAdmin()
+  const profile = await getSessionProfile()
+  if (!profile) throw new Error('Non autenticato')
+  if (!gids.length) throw new Error('Nessuna task selezionata.')
+
+  const admin = createActorClient(profile.id)
+  if (decision === null) {
+    const { error } = await admin.from('asana_triage').delete().in('gid', gids)
+    if (error) throw new Error(error.message)
+    return gids.length
+  }
+
+  const rows = gids.map(gid => ({
+    gid, decision, decided_by: profile.id, decided_at: new Date().toISOString(),
+  }))
+  const { error } = await admin.from('asana_triage').upsert(rows, { onConflict: 'gid' })
+  if (error) throw new Error(error.message)
+  revalidatePath('/asana')
+  return gids.length
 }
 
 // ── Il travaso vero ─────────────────────────────────────────────────────────
