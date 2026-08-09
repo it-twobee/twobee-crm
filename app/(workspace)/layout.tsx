@@ -10,6 +10,8 @@ import Link from 'next/link'
 import { GlobalSearch } from '@/components/shared/GlobalSearch'
 import { workspaceSearch } from '@/app/actions/global-search'
 import { isAdminRole, isWorkspaceRole } from '@/lib/permissions'
+import { Suspense } from 'react'
+import { NavMemory } from '@/components/shared/BackLink'
 import type { AppRole } from '@/lib/types/database'
 
 // group_key/group_order arrivano dalla migration 087: opzionali finché non è
@@ -98,7 +100,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
           <Link href="/workspace" aria-label="TwoBee — workspace" className="lg:hidden flex items-center">
             <Logo variant="mark" className="w-6 h-6" priority />
           </Link>
-          {isSuperAdmin && <PortalSwitcher />}
+          {isAdminLevel && <PortalSwitcher />}
           <div className="flex-1 max-w-md">
             <GlobalSearch
               search={workspaceSearch}
@@ -109,6 +111,10 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
           <QuickCreate context="workspace" />
         </header>
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
+          {/* §234 — la memoria del percorso c'era solo nel portale admin, quindi
+              qui ogni «indietro» cadeva sul fallback. Adesso c'è anche qui, e
+              `samePortal` garantisce che quello che registra resti dentro. */}
+          <Suspense fallback={null}><NavMemory /></Suspense>
           {children}
         </main>
       </div>

@@ -31,6 +31,7 @@
  * perché cambiano con una frequenza tutta loro.
  */
 
+import { eur } from '@/lib/money'
 import {
   contribRelief, coveredMonthsInYear, impatriateView, incentiveByCode, incentiveEnds,
   checkIncentive, rankIncentives, maxiDeduction, monthsBetween,
@@ -537,6 +538,27 @@ export type CostBreakdown = {
   loadPct: number
 }
 
+/**
+ * §233 — una persona costa **dal mese in cui è entrata**, non da sempre.
+ *
+ * «Porta nel conto economico» leggeva l'organico di oggi e lo scriveva in
+ * qualunque mese si stesse preparando: maggio 2026 si è ritrovato il costo di
+ * Agostino, entrato il 5 giugno, e di chi è arrivato dopo di lui. Non è un
+ * dettaglio di quel mese — quelle righe restano scoperte, si trascinano negli
+ * arretrati e la tenuta di cassa le conta come uscite da fare.
+ *
+ * Il confronto è **fra mesi**, non fra giorni: chi entra il 20 costa quel mese,
+ * perché il cedolino di quel mese esiste. Chi non ha una data di assunzione si
+ * considera in forza — l'assenza di un dato non è una data, e togliere un costo
+ * vero è peggio che tenerne uno da correggere.
+ */
+export function inForce(p: { hiredOn?: string | null; endsOn?: string | null }, month: string): boolean {
+  const m = month.slice(0, 7)
+  if (p.hiredOn && p.hiredOn.slice(0, 7) > m) return false
+  if (p.endsOn && p.endsOn.slice(0, 7) < m) return false
+  return true
+}
+
 /** Quanti mesi dell'anno la persona e' in organico. */
 const monthsPresent = (p: PersonInput) => {
   const from = Math.min(Math.max(1, p.fromMonth), 12)
@@ -1022,7 +1044,6 @@ export function payrollHints(
   iresPct = 0.24,
 ): Hint[] {
   const out: Hint[] = []
-  const eur = (n: number) => `€${Math.round(n).toLocaleString('it-IT')}`
   const tot = teamTotals(people, prm)
   const subordinati = people.filter(p => contractSpec(p.kind).employment === 'subordinato')
 
@@ -1330,7 +1351,15 @@ export type ThreeViews = {
  * dichiarata è utile; una stima travestita da consuntivo è una bugia che si
  * scopre a fine anno.
  */
-export function payslipViews(s: Payslip, kind: ContractKind, prm: PayrollParams): ThreeViews {
+export function payslipViews(
+  s: Payslip, kind: ContractKind, prm: PayrollParams,
+  /**
+   * §235 — i contributi datore ricavati dall'F24 del mese (`splitEmployer`).
+   * Il cedolino non li porta e l'aliquota di listino è una supposizione: dove
+   * il modello c'è, il numero vero è quello, e `documented` lo dichiara.
+   */
+  employerOverride?: { amount: number; documented: boolean },
+): ThreeViews {
   const spec = contractSpec(kind)
 
   const rate = kind === 'apprendistato' ? prm.inpsApprenticePct
@@ -1339,9 +1368,10 @@ export function payslipViews(s: Payslip, kind: ContractKind, prm: PayrollParams)
   /* «Stimato» solo dove ci sarebbe qualcosa da stimare: su un tirocinio gli
      oneri datoriali sono zero per legge, e uno zero certo non è una stima. */
   const hasEmployerCharges = rate > 0 || spec.inail
-  const estimated = hasEmployerCharges && (s.employerContrib == null || s.inail == null)
+  const employerKnown = employerOverride?.documented ?? (s.employerContrib != null)
+  const estimated = hasEmployerCharges && (!employerKnown || s.inail == null)
 
-  const employer = s.employerContrib ?? r2(s.contributoryBase * rate)
+  const employer = employerOverride?.amount ?? s.employerContrib ?? r2(s.contributoryBase * rate)
   const inail = s.inail ?? (spec.inail ? r2(s.contributoryBase * prm.inailPct) : 0)
 
   /* L'arrotondamento è denaro che esce davvero: sta nel netto ma non nelle
@@ -1535,7 +1565,6 @@ export function ledgerAlerts(
   revenue = 0,
 ): Hint[] {
   const out: Hint[] = []
-  const eur = (n: number) => `€${n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   const near = (a: number, b: number, tol = 0.01) => Math.abs(a - b) <= tol
 
   for (const { person, slip, invoice } of rows) {

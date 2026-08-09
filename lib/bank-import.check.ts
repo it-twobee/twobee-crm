@@ -226,5 +226,33 @@ is('senza importo non è un estratto conto',
   is('data da «Data operazione»', r.rows[0].booked_on, '2026-08-03')
 }
 
+console.log('\n— §277: le virgolette tengono insieme il campo —')
+/* Vivid mette le virgolette perché i nomi contengono virgole: «ASANA.COM,
+   DUBLIN, IE» è **una** cella con due virgole dentro. Spezzandola, l'importo
+   finiva nella colonna della valuta e la riga veniva scartata come «importo
+   illeggibile»: su un estratto conto vero, 43 righe su 49. */
+{
+  const r = parseStatement([
+    'Completed date,Counterparty name,Reference,Payment amount,Payment currency',
+    '16.07.2026,"ASANA.COM, DUBLIN, IE","ASANA.COM, DUBLIN, IE",-304.9,EUR',
+    '17.07.2026,"SOCIETA\' A RESPONSABILITA\'",rif. 12,1000,EUR',
+  ].join('\n'))
+  is('le virgole dentro le virgolette non spezzano la riga', r.rows.length, 2)
+  eq('e l\'importo resta nella sua colonna', r.rows[0].amount, -304.9)
+  is('niente scartato', r.skipped.length, 0)
+  is('la controparte arriva intera', r.rows[0].counterparty_raw, 'ASANA.COM, DUBLIN, IE')
+}
+{
+  // stesso caso con l'altro separatore: il punto e virgola dentro la descrizione
+  const r = parseStatement([
+    '"Data contabile";"Data valuta";"Importo";"Divisa";"Causale";"Descrizione";"Canale"',
+    '"07/08/2026";"07/08/2026";"7930,00";"EUR";"480";"bon.da seven srl; fattura fpr 43/26";""',
+  ].join('\n'))
+  is('il punto e virgola dentro le virgolette non spezza', r.rows.length, 1)
+  eq('e l\'importo è quello', r.rows[0].amount, 7930)
+  is('la descrizione arriva intera',
+    r.rows[0].description.includes('fattura fpr 43/26'), true)
+}
+
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

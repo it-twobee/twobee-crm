@@ -22,13 +22,14 @@
  *    futuro, e quando le rate cambiano nessuno riscrive la copia.
  */
 
+import { eur } from '@/lib/money'
+
 const r2 = (n: number) => Math.round(n * 100) / 100
 
 const nonNeg = (n: number) => (Number.isFinite(n) && n > 0 ? n : 0)
 
 /** Solo per i messaggi di questo modulo: la UI ha il suo formatter. */
-const eur = (n: number) =>
-  `${n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €`
+
 const sum = (ns: number[]) => r2(ns.reduce((a, b) => a + b, 0))
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -507,7 +508,6 @@ export function bankInsights(i: {
   vatDue?: number
 }): BankFinding[] {
   const out: BankFinding[] = []
-  const eur = (n: number) => `€${Math.round(n).toLocaleString('it-IT')}`
 
   // ── il saldo è aggiornato? ────────────────────────────────────────────────
   if (i.bal.lastBookedOn) {
@@ -781,13 +781,46 @@ export type Counterparty = {
 }
 
 /** Con chi girano i soldi: dieci nomi dicono più di ottanta movimenti. */
+/**
+ * §252 — La stessa persona scritta in due modi.
+ *
+ * L'estratto conto non ha un'anagrafica: la controparte è il testo che la banca
+ * ha messo nella causale, e cambia col tipo di operazione. Walter compare come
+ * **«Walter»** sulle disposizioni e come **«Giacobbe Walter»** su altre due —
+ * 8.990 € e 4.200 € in due righe diverse della stessa classifica, che lette una
+ * sotto l'altra sembrano due fornitori. Non è un dettaglio estetico: «a chi
+ * escono i soldi» è la domanda per cui quella lista esiste, e spaccata in due
+ * dà la risposta sbagliata su tutte e due le righe.
+ *
+ * L'alias si scrive qui e non nel database: il nome sul movimento è **quello che
+ * la banca ha scritto** e non va riscritto — se domani si scopre che erano due
+ * persone davvero, si toglie una riga da questa mappa e i dati sono intatti.
+ * Vale la stessa regola di `merchant()` per le carte (§189).
+ */
+export const PERSON_ALIASES: Record<string, string> = {
+  'giacobbe walter': 'Walter',
+  'walter giacobbe': 'Walter',
+  'lucci marco': 'Marco',
+  'marco lucci': 'Marco',
+  'salvatore piacente': 'Toto',
+  'piacente salvatore': 'Toto',
+  's. piacente': 'Toto',
+}
+
+/** Il nome vero della controparte, se è uno di quelli che la banca scrive in due modi. */
+export const personName = (raw: string | null | undefined): string => {
+  const t = (raw ?? '').trim()
+  if (!t) return '(senza nome)'
+  return PERSON_ALIASES[t.toLowerCase()] ?? t
+}
+
 export function byCounterparty(txs: BankTx[], direction?: 'in' | 'out'): Counterparty[] {
   const map = new Map<string, Counterparty>()
   for (const t of txs) {
     if (t.source !== 'banca') continue
     if (direction === 'in' && t.amount <= 0) continue
     if (direction === 'out' && t.amount >= 0) continue
-    const name = t.counterparty ?? '(non riconosciuto)'
+    const name = t.counterparty ? personName(t.counterparty) : '(non riconosciuto)'
     const cur = map.get(name) ?? { name, inflow: 0, outflow: 0, net: 0, count: 0, lastOn: t.booked_on }
     map.set(name, {
       name,

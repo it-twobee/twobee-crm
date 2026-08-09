@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { useState, useCallback, useEffect } from 'react'
 import { usePermissions } from '@/lib/hooks/usePermissions'
-import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
+import { SUPER_ADMIN_EMAILS, isAdminRole } from '@/lib/permissions'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { Logo } from '@/components/shared/Logo'
 import { navSections as sections, type NavItem } from '@/components/shared/nav-config'
@@ -30,7 +30,9 @@ export function Sidebar() {
   useEffect(() => { setCollapsedSections(readCollapsed()) }, [])
   const { profile } = usePermissions()
   const isSuperAdmin = SUPER_ADMIN_EMAILS.includes(profile?.email ?? '')
-  const isAdmin = isSuperAdmin || profile?.app_role === 'admin'
+  /* §234 — «admin» è ADMIN_ROLES, non la stringa 'admin': un founder è
+     admin di funzione e restava fuori da mezza sidebar. */
+  const isAdmin = isSuperAdmin || isAdminRole(profile?.app_role)
 
   const toggleSection = useCallback((label: string) => {
     setCollapsedSections(prev => {

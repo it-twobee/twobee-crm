@@ -12,6 +12,7 @@
  */
 
 import { shiftMonth } from '@/lib/pl'
+import { eur } from '@/lib/money'
 
 export type Frequency = 'mensile' | 'bimestrale' | 'trimestrale' | 'semestrale' | 'annuale' | 'una_tantum'
 export type CostType = 'F' | 'V'
@@ -458,7 +459,6 @@ export function costInsights(
   rows: CenterRollup[], items: CostItem[], actuals: CostActual[], month: string,
 ): CostFinding[] {
   const out: CostFinding[] = []
-  const eur = (n: number) => `€${Math.round(n).toLocaleString('it-IT')}`
 
   /* §180: il tetto di un'area è la somma delle sue voci, quindi «oltre il
      budget» vuol dire una cosa sola e precisa: è uscito più di quanto il piano

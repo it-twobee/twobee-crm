@@ -58,6 +58,26 @@ const INTEREST = 0.01
  */
 const MIN_PAYMENT = 25.82
 
+/**
+ * §242 — la liquidazione **vera**, dal modello F24 del commercialista.
+ *
+ * Tutto il resto di questo file è una stima costruita sulle righe registrate:
+ * utile per sapere quanto mettere da parte, e inevitabilmente diversa dal
+ * modello, perché il registro IVA del commercialista contiene fatture che il
+ * conto economico non ha ancora. Quando il documento arriva, il documento
+ * vince — è la stessa regola dei cedolini (§182) — e la differenza **non si
+ * nasconde**: dice quanto fatturato manca al conto economico, ed è l'unico
+ * posto in cui quel buco si vede senza andarlo a cercare.
+ */
+export type VatActual = {
+  quarter: Quarter
+  /** quello che il modello chiede, interessi compresi */
+  toPay: number
+  /** riferimento del documento: serve a ritrovarlo */
+  docRef?: string | null
+  paidOn?: string | null
+}
+
 export type QuarterVat = {
   quarter: Quarter
   label: string
@@ -81,6 +101,14 @@ export type QuarterVat = {
   /** giorni alla scadenza: negativo = già passata */
   daysLeft: number
   closed: boolean
+  /** §242 — `f24` quando c'è il modello, `stima` quando è calcolata dalle righe */
+  source: 'f24' | 'stima'
+  /** §242 — quanto la stima sbagliava: positivo = il modello chiede di più */
+  gap: number
+  /** il numero che il motore avrebbe detto da solo, per poterlo confrontare */
+  estimated: number
+  docRef: string | null
+  paidOn: string | null
 }
 
 const days = (from: string, to: string) =>
@@ -93,7 +121,13 @@ const r2 = (n: number) => Math.round(n * 100) / 100
  * riporta da uno all'altro. Il riporto è la parte che nessun foglio Excel fa e
  * che cambia il numero da versare.
  */
-export function vatByQuarter(months: MonthVat[], today: string): QuarterVat[] {
+export function vatByQuarter(
+  months: MonthVat[],
+  today: string,
+  /** §242 — i modelli F24 già arrivati: dove c'è, vince sul calcolo */
+  actuals: VatActual[] = [],
+): QuarterVat[] {
+  const actualOf = new Map(actuals.map(a => [`${a.quarter.year}-${a.quarter.q}`, a]))
   const byQuarter = new Map<string, MonthVat[]>()
   for (const m of months) {
     const q = quarterOf(m.month)
@@ -122,7 +156,13 @@ export function vatByQuarter(months: MonthVat[], today: string): QuarterVat[] {
     // non come credito — per questo `carried` ha un segno
     const deferred = balance > 0 && balance < MIN_PAYMENT
     const interest = balance > 0 && !annual && !deferred ? r2(balance * INTEREST) : 0
-    const toPay = deferred || balance <= 0 ? 0 : r2(balance + interest)
+    const estimated = deferred || balance <= 0 ? 0 : r2(balance + interest)
+
+    /* Il modello vince, ma **non riscrive il riporto**: quello che si porta al
+       trimestre dopo nasce dal saldo calcolato, e sostituirlo con un numero che
+       il documento non contiene sposterebbe l'errore avanti invece di mostrarlo. */
+    const actual = actualOf.get(key)
+    const toPay = actual ? r2(actual.toPay) : estimated
     carried = balance < 0 ? -balance : deferred ? -balance : 0
 
     return {
@@ -130,18 +170,23 @@ export function vatByQuarter(months: MonthVat[], today: string): QuarterVat[] {
       debit, credit, balance, carried: incoming, deferred, interest, toPay,
       deadline: date, annual, daysLeft: days(today, date),
       closed: days(today, date) < 0,
+      source: actual ? 'f24' : 'stima',
+      gap: actual ? r2(actual.toPay - estimated) : 0,
+      estimated,
+      docRef: actual?.docRef ?? null,
+      paidOn: actual?.paidOn ?? null,
     }
   })
 }
 
 /** Il trimestre in cui cade oggi, con quello che c'è da versare. */
-export function currentQuarterVat(months: MonthVat[], today: string): QuarterVat | null {
+export function currentQuarterVat(months: MonthVat[], today: string, actuals: VatActual[] = []): QuarterVat | null {
   const q = quarterOf(today)
-  return vatByQuarter(months, today).find(x => x.quarter.year === q.year && x.quarter.q === q.q) ?? null
+  return vatByQuarter(months, today, actuals).find(x => x.quarter.year === q.year && x.quarter.q === q.q) ?? null
 }
 
 /** La prossima scadenza che non è ancora passata, con quanto si porta dietro. */
-export function nextDue(months: MonthVat[], today: string): QuarterVat | null {
-  const all = vatByQuarter(months, today)
+export function nextDue(months: MonthVat[], today: string, actuals: VatActual[] = []): QuarterVat | null {
+  const all = vatByQuarter(months, today, actuals)
   return all.find(x => !x.closed && x.toPay > 0) ?? all.find(x => !x.closed) ?? null
 }

@@ -1,21 +1,13 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
+import { requireEconomicsAdmin as requireAdmin } from '@/lib/economics-guard'
 import type { ContractKind, PayrollParams } from '@/lib/payroll'
 import { PAYROLL_CENTER } from '@/lib/costs'
 
-async function requireAdmin(): Promise<string> {
-  const sb = await createClient()
-  const { data: { user } } = await sb.auth.getUser()
-  if (!user) throw new Error('Non autenticato')
-  const { data: p } = await sb.from('profiles').select('role, email').eq('id', user.id).single()
-  const ok = p?.role === 'admin' || SUPER_ADMIN_EMAILS.includes(p?.email ?? '')
-  if (!ok) throw new Error('Le retribuzioni le gestiscono solo gli admin')
-  return user.id
-}
+
+const str = (v: unknown) => (v == null ? null : String(v).slice(0, 10))
 
 function rev() {
   revalidatePath('/economics/personale')
@@ -148,11 +140,16 @@ export async function pushToProfitLoss(month: string): Promise<{ rows: number; t
   ])
   if (!people?.length) throw new Error('Nessuna persona in organico')
 
-  const { personCost, DEFAULT_PAYROLL_PARAMS, emptyPerson } = await import('@/lib/payroll')
+  const { personCost, DEFAULT_PAYROLL_PARAMS, emptyPerson, inForce } = await import('@/lib/payroll')
   const { rowToParams, rowToPerson } = await import('@/lib/payroll-map')
   const params = prm ? rowToParams(prm as Record<string, unknown>) : DEFAULT_PAYROLL_PARAMS
 
-  const rows = (people as Record<string, unknown>[]).map((r, i) => {
+  /* §233 — chi non era ancora in forza non costa quel mese. Senza il filtro
+     l'organico di oggi finiva in ogni mese che si prepara, e quelle righe non
+     restano lì: si trascinano fra gli arretrati della tenuta di cassa. */
+  const rows = (people as Record<string, unknown>[])
+    .filter(r => inForce({ hiredOn: str(r.hired_on) ?? str(r.start_date), endsOn: str(r.end_date) }, month))
+    .map((r, i) => {
     const p = rowToPerson(r) ?? emptyPerson()
     const c = personCost(p, params)
     return {
@@ -274,7 +271,7 @@ export async function pushLedgerToProfitLoss(month: string): Promise<{ rows: num
   if (!monthRow) throw new Error('Apri prima il mese dal conto economico')
   if (monthRow.status === 'chiuso') throw new Error('Il mese è chiuso: non si riscrive')
 
-  const [{ data: people }, { data: prm }, { data: slips }, { data: invoices }, { data: center }] = await Promise.all([
+  const [{ data: people }, { data: prm }, { data: slips }, { data: invoices }, { data: center }, { data: f24row }] = await Promise.all([
     db.from('hr_people').select('*').eq('is_active', true),
     db.from('hr_payroll_params').select('*').eq('year', Number(month.slice(0, 4))).maybeSingle(),
     db.from('hr_payslips').select('*').eq('month', month),
@@ -282,18 +279,44 @@ export async function pushLedgerToProfitLoss(month: string): Promise<{ rows: num
     // finché la 184 non gira l'area si chiama ancora «Persone»: si accettano
     // entrambi i nomi, altrimenti le righe finirebbero senza area
     db.from('cost_centers').select('id').in('name', [PAYROLL_CENTER, 'Persone']).limit(1).maybeSingle(),
+    db.from('hr_f24').select('*').eq('month', month).maybeSingle(),
   ])
   if (!people?.length) throw new Error('Nessuna persona in organico')
 
-  const { personCost, payslipViews, invoiceViews, DEFAULT_PAYROLL_PARAMS } = await import('@/lib/payroll')
-  const { rowToParams, rowToPerson, rowToPayslip, rowToInvoice } = await import('@/lib/payroll-map')
+  const { personCost, payslipViews, invoiceViews, DEFAULT_PAYROLL_PARAMS, inForce, apprenticeRate } =
+    await import('@/lib/payroll')
+  const { rowToParams, rowToPerson, rowToPayslip, rowToInvoice, rowToF24 } = await import('@/lib/payroll-map')
+  const { splitEmployer } = await import('@/lib/payroll-ceiling')
   const params = prm ? rowToParams(prm as Record<string, unknown>) : DEFAULT_PAYROLL_PARAMS
 
   const slipBy = new Map((slips ?? []).map(r => [String(r.person_id), rowToPayslip(r as Record<string, unknown>)]))
   const invBy = new Map((invoices ?? []).map(r => [String(r.person_id), rowToInvoice(r as Record<string, unknown>)]))
 
+  /* §235 — i contributi datore veri, ricavati dall'F24 del mese. Il cedolino non
+     li porta: senza questo passaggio la riga del conto economico usava
+     l'aliquota di configurazione (30%) dove il modello dice 29,57% per un
+     dipendente ordinario e 3,11% per l'apprendista — su Sabrina erano quasi
+     quattrocento euro al mese di contributi che nessuno versa. */
+  const persons = (people as Record<string, unknown>[]).map(r => rowToPerson(r))
+  const split = splitEmployer({
+    slips: Array.from(slipBy.values()),
+    kinds: new Map(persons.map(x => [x.id, x.kind])),
+    apprenticeRates: new Map(persons.filter(x => x.kind === 'apprendistato')
+      .map(x => [x.id, apprenticeRate(x, params)])),
+    f24: f24row ? rowToF24(f24row as Record<string, unknown>) : null,
+    params,
+  })
+  const employerBy = new Map(split.people.map(x =>
+    [x.personId, { amount: x.employer, documented: x.source !== 'listino' }]))
+
   let estimated = 0
-  const rows = (people as Record<string, unknown>[]).map((r, i) => {
+  const rows = (people as Record<string, unknown>[])
+    /* §233 — chi non era in forza non costa quel mese, ma **il documento batte
+       l'anagrafica** (§182): se per quel mese esiste un cedolino o una fattura,
+       la persona ha lavorato e la data di assunzione è quella sbagliata. */
+    .filter(r => inForce({ hiredOn: str(r.hired_on) ?? str(r.start_date), endsOn: str(r.end_date) }, month)
+      || slipBy.has(String(r.id)) || invBy.has(String(r.id)))
+    .map((r, i) => {
     const p = rowToPerson(r)
     const slip = slipBy.get(p.id)
     const invoice = invBy.get(p.id)
@@ -301,7 +324,7 @@ export async function pushLedgerToProfitLoss(month: string): Promise<{ rows: num
     let amount: number
     let source: string
     if (slip) {
-      const v = payslipViews(slip, p.kind, params)
+      const v = payslipViews(slip, p.kind, params, employerBy.get(p.id))
       amount = v.economic
       source = v.estimated ? 'cedolino, oneri datore stimati' : 'cedolino'
       if (v.estimated) estimated++

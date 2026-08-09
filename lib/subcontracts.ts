@@ -28,6 +28,8 @@
  * tutto il resto legge.**
  */
 
+import { eur } from '@/lib/money'
+
 export type SubItem = {
   id: string
   label: string
@@ -451,5 +453,4 @@ export function subcontractFindings(
   return out.sort((a, b) => ordine[a.severity] - ordine[b.severity] || (b.value ?? 0) - (a.value ?? 0))
 }
 
-const eur = (n: number) =>
-  `${n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €`
+

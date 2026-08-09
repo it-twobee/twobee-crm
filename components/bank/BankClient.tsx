@@ -7,8 +7,10 @@ import {
   ArrowDownLeft, ArrowUpRight, Banknote, Upload, ClipboardPaste, Search, Link2, Link2Off, Check,
   AlertTriangle, TrendingUp, TrendingDown, Loader2, ChevronDown, ShieldAlert,
   Receipt, Landmark, Users, Repeat, CircleSlash, Sparkles, CalendarClock, Plus,
-  Wallet, ArrowRight,
+  Wallet, ArrowRight, CheckCircle2,
 } from 'lucide-react'
+import { createCostFromTx, groupCommissions, confirmSureMatches } from '@/app/actions/reconcile'
+import { sureMatches } from '@/lib/auto-match'
 import { formatCurrency } from '@/lib/utils'
 import { monthLabel } from '@/lib/pl'
 import {
@@ -66,7 +68,7 @@ type PlMonth = {
 
 export function BankClient({
   month, today, setupNeeded, accounts, txs, openLines, expected, months, plByMonth,
-  clientNames, spendItems,
+  clientNames, spendItems, centers = [],
 }: {
   month: string
   today: string
@@ -78,6 +80,8 @@ export function BankClient({
   months: string[]
   plByMonth: PlMonth[]
   clientNames: Record<string, string>
+  /** §255 — le aree di costo, per dire dove finisce una voce creata dal movimento */
+  centers?: string[]
   /** §190 — le voci di piano che ciascun conto paga, per il fabbisogno del bonifico */
   spendItems: Record<string, { label: string; amount: number; center_id: string | null; centerName: string | null }[]>
 }) {
@@ -112,9 +116,26 @@ export function BankClient({
   const ingest = (text: string) => start(async () => {
     try {
       const r = await importBankCsv(account!.id, text)
-      toast.success(`${r.nuovi} movimenti nuovi su ${r.letti} letti`
-        + (r.duplicati ? ` · ${r.duplicati} già presenti` : '')
-        + (r.scartati ? ` · ${r.scartati} righe illeggibili` : ''))
+      /* §277 — «0 nuovi» non è un errore, ed è la risposta più frequente: si
+         riscarica l'estratto conto ogni settimana e le righe vecchie ci sono
+         già. Detto come «0 movimenti nuovi su 89 letti» si legge come un
+         fallimento, e infatti è stato letto così. */
+      const gg = (iso: string) => new Date(iso + 'T00:00:00')
+        .toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
+      const periodo = r.dal && r.al ? ` (${gg(r.dal)} → ${gg(r.al)})` : ''
+      if (!r.nuovi) {
+        toast.info(r.duplicati
+          ? `Nessun movimento nuovo: tutti e ${r.duplicati} erano già in archivio${periodo}`
+          : `Nessun movimento riconosciuto nel file${periodo}`)
+      } else {
+        toast.success(`${r.nuovi} movimenti nuovi su ${r.letti} letti${periodo}`
+          + (r.duplicati ? ` · ${r.duplicati} già presenti` : ''))
+      }
+      /* Le righe illeggibili hanno un avviso loro, con la ragione: un contatore
+         accanto al successo si legge come un dettaglio, e non lo guarda nessuno. */
+      if (r.scartati) {
+        toast.warning(`${r.scartati} righe non lette · ${r.motivi.join(' · ')}`, { duration: 9000 })
+      }
       setPaste(null)
       router.refresh()
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Import fallito') }
@@ -144,6 +165,10 @@ export function BankClient({
   }), [today, bal, ownTxs, fc, overdueIn, overdueOut])
 
   const open = useMemo(() => unreconciled(ownTxs), [ownTxs])
+  /* §276 — gli abbinamenti in cui non c'è niente da giudicare: importo lordo
+     esatto, nome che torna, e nessuna ambiguità nei due sensi. Restano una
+     conferma umana — una sola invece di venti. */
+  const sure = useMemo(() => sureMatches(txs, openLines), [txs, openLines])
   const kinds = useMemo(() => byKind(ownTxs), [ownTxs])
   const topIn = useMemo(() => byCounterparty(ownTxs, 'in').slice(0, 6), [ownTxs])
   const topOut = useMemo(() => byCounterparty(ownTxs, 'out').slice(0, 6), [ownTxs])
@@ -156,9 +181,30 @@ export function BankClient({
     return daysToCash(pairs)
   }, [ownTxs])
 
+  /* §249 — un «dichiarato» non è un movimento.
+     `derivato` nasce da una spunta «pagato» nel conto economico: non è passato
+     da nessun conto, non ha una data della banca e non ha una controparte. In
+     mezzo all'estratto conto si legge come tutti gli altri — «Pagamento
+     dichiarato — Gabriele Saraiello» accanto a un bonifico vero — e da lì in poi
+     nessuno sa più quale delle due righe sia successa. Qui si vedono i **fatti**:
+     `banca` e `manuale` (contante o carta di un socio, §195). Le dichiarazioni
+     restano dove servono: nel conto economico, che è dove si spuntano, e nel
+     saldo dichiarato, che esiste apposta per misurarle. */
+  const declared = useMemo(() => ownTxs.filter(t => t.source === 'derivato'), [ownTxs])
+
+  /* §255 — quante commissioni e imposte del mese guardato non sono ancora in
+     nessuna voce. Sono la parte del conto che non arriverà mai al conto
+     economico da sola: a piano non ci sono e non ci saranno. */
+  const daRaggruppare = useMemo(() => txs.filter(t =>
+    (t.source === 'banca' || t.source === 'manuale')
+    && (t.kind === 'commissione' || t.kind === 'imposta')
+    && t.amount < 0 && !t.cost_line_id && !t.revenue_line_id
+    && t.booked_on.slice(0, 7) === month.slice(0, 7)).length, [txs, month])
+
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
     return ownTxs.filter(t => {
+      if (t.source === 'derivato') return false
       if (kindFilter !== 'tutti' && t.kind !== kindFilter) return false
       if (!needle) return true
       return [t.description, t.counterparty ?? '', t.doc_ref ?? '', String(t.amount)]
@@ -447,6 +493,55 @@ export function BankClient({
           txs={txs} month={month} />
       )}
 
+      {/* ══ §276 · quelli su cui non c'è niente da decidere ══ */}
+      {sure.pairs.length > 0 && (
+        <section className="bg-surface border border-success/40 rounded-2xl shadow-soft overflow-hidden">
+          <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3 flex-wrap">
+            <div className="min-w-0">
+              <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary">
+                <CheckCircle2 className="w-4 h-4 text-success" aria-hidden="true" />
+                {sure.pairs.length} movimenti riconoscibili al centesimo
+              </h2>
+              <p className="text-2xs text-text-tertiary mt-0.5 max-w-2xl">
+                Importo lordo esatto, nome che torna, e una sola riga possibile per ciascuno:
+                qui non c&apos;è niente da decidere. Resta una conferma tua — una sola invece
+                di {sure.pairs.length}. Tutto il resto resta da guardare a mano.
+              </p>
+            </div>
+            <button onClick={() => run(async () => {
+              const r = await confirmSureMatches()
+              toast[r.fatti ? 'success' : 'info'](r.fatti
+                ? `${r.fatti} agganciati · ${formatCurrency(r.importo)}`
+                  + (r.saltati ? ` · ${r.saltati} non più validi` : '')
+                : 'Nessuno più valido: qualcuno li ha già agganciati')
+            })} disabled={pending}
+              className="text-2xs font-bold bg-gold text-on-gold rounded-xl px-3 py-2 press disabled:opacity-40 shrink-0">
+              Conferma tutti e {sure.pairs.length}
+            </button>
+          </div>
+          <ul className="divide-y divide-border/60">
+            {sure.pairs.map(p => (
+              <li key={p.txId} className="px-5 py-2 flex items-baseline gap-3 flex-wrap">
+                <span className="text-2xs text-text-tertiary tabular shrink-0 w-20">{p.date.slice(8)}/{p.date.slice(5, 7)}</span>
+                <span className={`text-2xs font-bold tabular shrink-0 w-24 text-right ${
+                  p.amount > 0 ? 'text-success' : 'text-error'}`}>{formatCurrency(Math.abs(p.amount))}</span>
+                <span className="text-2xs text-text-primary flex-1 min-w-[180px] truncate">
+                  {p.who} <span className="text-text-tertiary">→ {p.label}</span>
+                </span>
+                <span className="text-2xs text-text-tertiary shrink-0">{p.why}</span>
+              </li>
+            ))}
+          </ul>
+          {sure.ambiguous.length > 0 && (
+            <p className="px-5 py-3 border-t border-border text-2xs text-text-tertiary">
+              Altri <strong className="text-text-secondary">{sure.ambiguous.length}</strong> hanno
+              l&apos;importo giusto ma più di una risposta possibile — {sure.ambiguous[0].why} —
+              e restano nell&apos;elenco qui sotto, dove si scelgono uno per uno.
+            </p>
+          )}
+        </section>
+      )}
+
       {/* ══ da riconciliare ══ */}
       {open.length > 0 && (
         <section className="bg-surface border border-gold/40 rounded-2xl shadow-soft overflow-hidden">
@@ -667,7 +762,17 @@ export function BankClient({
       {/* ══ i movimenti, come li mostra la banca ══ */}
       <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
         <div className="px-5 py-4 border-b border-border flex items-center gap-3 flex-wrap">
-          <h2 className="text-sm font-bold text-text-primary flex-1">Movimenti</h2>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-sm font-bold text-text-primary">Movimenti</h2>
+            <p className="text-2xs text-text-tertiary mt-0.5">
+              Solo quello che è passato davvero: estratto conto e movimenti a mano
+              {declared.length > 0 && (
+                <> · {declared.length} pagament{declared.length === 1 ? 'o' : 'i'} dichiarat
+                  {declared.length === 1 ? 'o' : 'i'} nel conto economico non compaiono qui, perché da
+                  nessun conto sono usciti</>
+              )}
+            </p>
+          </div>
           <div className="flex items-center gap-1.5 bg-background border border-border-interactive rounded-xl px-2.5 py-1.5">
             <Search className="w-3.5 h-3.5 text-text-tertiary" aria-hidden="true" />
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="cerca cliente, fattura, importo"
@@ -680,6 +785,23 @@ export function BankClient({
             <option value="tutti">Tutti i tipi</option>
             {kinds.map(k => <option key={k.kind} value={k.kind}>{KIND_UI[k.kind].label} ({k.count})</option>)}
           </select>
+          {/* §255 — un bonifico costa un euro e mezzo, e in cinque mesi sono
+              trentaquattro addebiti: uno per uno non li aggancia nessuno, e
+              insieme fanno un numero vero che al conto economico manca. */}
+          {daRaggruppare > 0 && (
+            <button
+              onClick={() => run(async () => {
+                const r = await groupCommissions(month)
+                toast.success(r.movimenti
+                  ? `${r.movimenti} addebiti in una voce sola · ${eur(r.importo)}`
+                  : 'Erano già tutti raggruppati')
+              })}
+              disabled={pending}
+              title="Crea una voce sola nell'area Banca con tutti gli addebiti e i bolli del mese"
+              className="flex items-center gap-1.5 text-2xs font-semibold border border-border rounded-xl px-3 py-1.5 text-text-secondary hover:text-text-primary hover:bg-surface-hover press disabled:opacity-40">
+              <Receipt className="w-3.5 h-3.5" />Raggruppa {daRaggruppare} commissioni
+            </button>
+          )}
         </div>
 
         {byDay.length === 0 ? (
@@ -752,6 +874,16 @@ export function BankClient({
                                 rimetti fra i da riconciliare
                               </button>
                             ) : null}
+                            {/* §254/3 — la voce che non esiste ancora. Commissioni,
+                                bolli, un addebito che nessuno aveva previsto: a piano
+                                non ci sono e non ci saranno, e finché l'unico modo di
+                                agganciarli era trovare una riga esistente restavano
+                                scoperti per sempre. Qui la riga nasce **dal movimento**,
+                                quindi con l'importo giusto per definizione. */}
+                            {!t.revenue_line_id && !t.cost_line_id && t.amount < 0
+                              && (t.source === 'banca' || t.source === 'manuale') && (
+                              <CreateCost tx={t} centers={centers} pending={pending} run={run} />
+                            )}
                             {t.source !== 'banca' && (
                               <button onClick={() => run(() => deleteTx(t.id), 'Movimento rimosso')} disabled={pending}
                                 className="text-2xs font-semibold text-text-tertiary hover:text-error">
@@ -1586,5 +1718,48 @@ function CashBridgePanel({ plByMonth, txs, opening, balance }: {
         </>
       )}
     </section>
+  )
+}
+
+/**
+ * §255 — La voce creata dal movimento, con la sua area.
+ *
+ * Senza la scelta finiva tutto in «Spese fuori piano», e una lettura per area
+ * con dentro trentaquattro commissioni da un euro e mezzo è una lettura che
+ * nessuno apre più. L'area si sceglie qui, sul movimento, dove si sa che cosa
+ * era: chi crea la voce ha davanti la causale, chi la legge un mese dopo no.
+ *
+ * Il valore di partenza lo suggerisce il **tipo**: un addebito classificato
+ * `commissione` o `imposta` va in «Banca», tutto il resto in «Spese fuori
+ * piano». Un default giusto nove volte su dieci vale più di un menu vuoto.
+ */
+function CreateCost({ tx, centers, pending, run }: {
+  tx: BankTx
+  centers: string[]
+  pending: boolean
+  run: (fn: () => Promise<unknown>, ok?: string) => void
+}) {
+  const suggerita = tx.kind === 'commissione' || tx.kind === 'imposta' ? 'Banca' : 'Spese fuori piano'
+  const [area, setArea] = useState(suggerita)
+  const lista = centers.length ? centers : [suggerita]
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <select value={area} onChange={e => setArea(e.target.value)} aria-label="Area della nuova voce"
+        className="bg-background border border-border-interactive rounded-lg px-1.5 py-0.5 text-2xs text-text-secondary">
+        {Array.from(new Set([suggerita, ...lista])).map(c => <option key={c} value={c}>{c}</option>)}
+      </select>
+      <button
+        onClick={() => run(async () => {
+          const r = await createCostFromTx({
+            txIds: [tx.id], month: `${tx.booked_on.slice(0, 7)}-01`, category: area,
+          })
+          toast.success(`Voce creata in «${area}» per ${eur(r.importo)} e agganciata`)
+        })}
+        disabled={pending}
+        title="Crea nel conto economico una voce di costo con questo importo, e le aggancia il movimento"
+        className="flex items-center gap-1 text-2xs font-semibold text-gold-text hover:opacity-80 disabled:opacity-40">
+        <Plus className="w-3 h-3" />crea la voce
+      </button>
+    </span>
   )
 }

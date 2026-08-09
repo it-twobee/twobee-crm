@@ -79,6 +79,18 @@ export type PlConfig = {
   digital_risk_cut_pct: number
   /** valore del progetto oltre il quale l'opzione si può attivare */
   digital_risk_threshold: number
+  /**
+   * §230 — **il consolidato**: primo mese che si conta. Prima di questa data i
+   * conti sono chiusi, e vale per tre cose che sembravano diverse e sono la
+   * stessa — i compensi che i soci si sono erogati sono liquidati, le spunte
+   * che nessun movimento certifica sono accettate, l'organico di quei mesi non
+   * si rincorre (i mesi vecchi sono stati preparati con l'organico di oggi).
+   *
+   * È una **decisione**, non un dato che si deduce: dedurla dai mesi chiusi la
+   * faceva spostare da sola il giorno in cui se ne chiudeva uno, facendo sparire
+   * dal registro compensi che nessuno aveva erogato. `null` = si conta da sempre.
+   */
+  settled_from: string | null
 }
 
 export const DEFAULT_PL_CONFIG: PlConfig = {
@@ -102,6 +114,7 @@ export const DEFAULT_PL_CONFIG: PlConfig = {
   digital_risk_fund_pct: 0.09,
   digital_risk_cut_pct: 0.03,
   digital_risk_threshold: 20000,
+  settled_from: null,
 }
 
 /**
@@ -138,6 +151,12 @@ export function rowToPlConfig(row: Record<string, unknown> | null | undefined): 
     digital_risk_fund_pct: n(row.digital_risk_fund_pct, d.digital_risk_fund_pct),
     digital_risk_cut_pct: n(row.digital_risk_cut_pct, d.digital_risk_cut_pct),
     digital_risk_threshold: n(row.digital_risk_threshold, d.digital_risk_threshold),
+    /* Una data, non un numero: `n()` la trasformerebbe in NaN e poi nel default.
+       Si legge anche col vecchio nome (§227, prima della 205), o eseguire le
+       migration in ordine diverso azzererebbe il consolidato senza dirlo. */
+    settled_from: typeof row.settled_from === 'string' ? row.settled_from.slice(0, 10)
+      : typeof row.payout_from === 'string' ? row.payout_from.slice(0, 10)
+      : d.settled_from,
   }
 }
 
@@ -199,6 +218,18 @@ export type RevenueLine = {
    * sarebbero prelevati da una tasca che non esiste.
    */
   pass_through?: boolean
+  /**
+   * §224 — il mese di **competenza** della riga. Le righe del mese aperto ce
+   * l'hanno uguale al mese guardato; serve a quelle trascinate da prima, che
+   * devono poter dire da dove vengono. Vedi `lib/cash-calendar.ts`.
+   */
+  month?: string
+  /** §224 — quando l'incasso è passato dal conto: decide su che mese fa cassa */
+  paid_on?: string | null
+  /** §224 — scadenza scritta a mano, quando la regola non va bene */
+  due_date?: string | null
+  /** §224 — accordo di pagamento; null = lo decide la natura della voce */
+  terms?: string | null
 }
 
 /**
@@ -247,6 +278,12 @@ export type CostLine = {
   paid: boolean
   vat_applied: boolean
   vat_rate: number
+  /** §224 — mese di competenza: le righe trascinate da prima devono dirlo */
+  month?: string
+  /** §224 — quando il pagamento è uscito: lo stipendio di luglio esce ad agosto */
+  paid_on?: string | null
+  due_date?: string | null
+  terms?: string | null
 }
 
 export type Partner = { id: string; label: string; takes_delivery: boolean; takes_residual: boolean }
@@ -424,6 +461,27 @@ export function computeMonth(
   costs: CostLine[],
   config: PlConfig,
   partners: Partner[],
+  /**
+   * §232 — i costi da usare **solo** per il margine digital, quando non sono
+   * quelli dei totali. Serve alla lettura di cassa e nasce da un numero
+   * sbagliato visto in pagina: su luglio l'erogato ai soci risultava **più
+   * alto** in cassa che in competenza, il che è impossibile — la cassa è un
+   * sottoinsieme.
+   *
+   * Succedeva perché il filtro «mosso in questo mese» si applicava a tutte e
+   * due le gambe del margine: entravano quattro rate incassate e **due soli**
+   * subappalti su quattro, perché gli altri due non erano ancora stati pagati.
+   * Il margine digital saliva da 10.944 a 12.566 e la quota del 28% con lui.
+   *
+   * Ma il margine digital è un rapporto fra il ricavo di un progetto e i
+   * subappalti **di quel progetto e di quel mese** (§208): filtrarne una gamba
+   * sola lo rompe. Si incassa la rata a luglio, si paga il fornitore ad agosto,
+   * e a luglio si distribuirebbe una quota calcolata sul ricavo lordo — soldi
+   * che sono già di qualcun altro. Perciò in cassa i subappalti restano quelli
+   * di **competenza** delle righe che si stanno contando: cambia chi ha pagato,
+   * non quanto vale il lavoro.
+   */
+  marginCosts: CostLine[] = costs,
 ) {
   const accrued = r2(revenue.reduce((s, l) => s + l.amount_net, 0))
   const collected = r2(revenue.filter(l => l.paid).reduce((s, l) => s + l.amount_net, 0))
@@ -438,7 +496,7 @@ export function computeMonth(
      finché non lo è, quello che il piano prevede — altrimenti si distribuirebbe
      un margine che il subappaltatore si porterà via il mese prossimo. */
   const externalByProject = new Map<string, number>()
-  for (const c of costs) {
+  for (const c of marginCosts) {
     if (!c.project_id) continue
     const amount = c.actual > 0 ? c.actual : c.budget
     externalByProject.set(c.project_id, r2((externalByProject.get(c.project_id) ?? 0) + amount))

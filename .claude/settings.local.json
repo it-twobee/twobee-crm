@@ -357,7 +357,11 @@
       "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh asana_triage?select=decision)",
       "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'tasks?select=id,asana_gid&limit=1')",
       "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'projects?select=id,asana_gid&limit=1')",
-      "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'asana_triage?select=decision&limit=1')"
+      "Bash(/private/tmp/claude-501/-Users-marcolucci-Claude-TwoBee-HQ-Room/41d39b95-c8cf-459e-8926-40b3475bf15e/scratchpad/q.sh 'asana_triage?select=decision&limit=1')",
+      "Bash(sed -n '/^export type CostItem = {/,/^}/p' lib/costs.ts)",
+      "Bash(sed -n '/export const plannedForMonth/,/^$/p' lib/costs.ts)",
+      "Bash(kill 904 979)",
+      "Bash(kill 30240 30274)"
     ],
     "defaultMode": "acceptEdits"
   }

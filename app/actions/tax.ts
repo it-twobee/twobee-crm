@@ -1,23 +1,12 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
+import { requireEconomicsAdmin as requireAdmin } from '@/lib/economics-guard'
 import type { TaxConfig } from '@/lib/tax'
 
 const PATH = '/economics/fiscale'
 
-/** Aliquote e accantonamenti: il dato più sensibile che c'è. Admin e basta. */
-async function requireAdmin(): Promise<string> {
-  const sb = await createClient()
-  const { data: { user } } = await sb.auth.getUser()
-  if (!user) throw new Error('Non autenticato')
-  const { data: p } = await sb.from('profiles').select('role, email').eq('id', user.id).single()
-  const ok = p?.role === 'admin' || SUPER_ADMIN_EMAILS.includes(p?.email ?? '')
-  if (!ok) throw new Error('Permesso negato: la sezione fiscale è riservata agli admin')
-  return user.id
-}
 
 export async function updateTaxConfig(patch: Partial<TaxConfig> & { note?: string | null }) {
   await requireAdmin()

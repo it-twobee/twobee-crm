@@ -501,5 +501,39 @@ console.log('\n— §208: il netto si fa mese per mese, sulla rata di quel mese 
     [cost({ id: 's', actual: 2000, budget: 2000, project_id: 'pj' })], C, partners).plan.digitalExcess, 0)
 }
 
+{
+  /* §232 — la cassa è un sottoinsieme della competenza, e deve comportarsi come
+     tale. Il numero visto in pagina: su luglio l'erogato ai soci risultava più
+     **alto** in cassa. Succedeva perché il filtro «mosso nel mese» si applicava
+     a tutte e due le gambe del margine digital — entravano le rate incassate e
+     non i subappalti non ancora pagati — e il margine saliva. Il margine è un
+     rapporto fra il ricavo di un progetto e i subappalti di quel progetto:
+     filtrarne una gamba sola lo rompe. */
+  const righe = [
+    rev({ id: 'r1', amount_net: 6000, kind: 'digital', project_id: 'p1', paid: true }),
+    rev({ id: 'r2', amount_net: 1000, kind: 'digital', project_id: 'p1', paid: false }),
+  ]
+  const costi = [
+    cost({ id: 'c1', actual: 3000, budget: 3000, project_id: 'p1', paid: true }),
+    cost({ id: 'c2', actual: 3000, budget: 3000, project_id: 'p1', paid: false }),
+  ]
+  const comp = computeMonth(righe, costi, C, partners)
+  const ingenua = computeMonth(righe.filter(r => r.paid), costi.filter(c => c.paid), C, partners)
+  const giusta = computeMonth(righe.filter(r => r.paid), costi.filter(c => c.paid), C, partners, costi)
+
+  is('la cassa ingenua superava la competenza (il difetto)',
+    ingenua.perPartner[0].total > comp.perPartner[0].total, true)
+  is('coi subappalti di competenza non la supera più',
+    giusta.perPartner[0].total <= comp.perPartner[0].total, true)
+  /* 7.000 di rate contro 6.000 di subappalto: il margine vero è 1.000. La cassa
+     ingenua ne vedeva 3.000 — più del triplo — perché contava metà del costo.
+     6.000 incassati contro 6.000 di subappalto del progetto: margine zero.
+     Distribuire il 28% di 3.000 vorrebbe dire erogare soldi che sono già del
+     fornitore, solo perché non gli abbiamo ancora bonificato. */
+  eq('e il margine di cassa è quello vero', giusta.plan.digitalMargin, 0)
+  eq('mentre quella ingenua ne inventava tremila', ingenua.plan.digitalMargin, 3000)
+  eq('i costi del mese restano quelli usciti', giusta.costs.actual, 3000)
+}
+
 console.log(fail === 0 ? '\nTutti i controlli passano.' : `\n${fail} controlli falliti.`)
 process.exit(fail ? 1 : 0)

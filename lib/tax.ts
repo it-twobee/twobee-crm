@@ -17,6 +17,7 @@
 
 import { shiftMonth } from '@/lib/pl'
 import type { QuarterVat } from '@/lib/vat'
+import { eur } from '@/lib/money'
 import {
   maxiDeduction, hyperAmortization, relevantMeasures, expiredMeasures,
   type CompanyMeasure,
@@ -245,7 +246,7 @@ export type TaxFinding = {
   value?: number
 }
 
-const eur = (n: number) => `€${Math.round(n).toLocaleString('it-IT')}`
+
 const pc = (n: number) => `${Math.round(n * 100)}%`
 
 export type TaxInput = {

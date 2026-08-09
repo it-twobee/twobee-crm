@@ -18,6 +18,8 @@
  * posto dove si applica il segno, così nessun totale se ne dimentica.
  */
 
+import { eur } from '@/lib/money'
+
 const r2 = (n: number) => Math.round(n * 100) / 100
 const sum = (ns: number[]) => r2(ns.reduce((a, b) => a + b, 0))
 
@@ -40,7 +42,20 @@ export type Invoice = {
   dueDate: string | null
   paidOn: string | null
   warnings?: string[]
+  /** §250 — il documento allegato: PDF o immagine, su storage privato */
+  pdfPath?: string | null
+  /**
+   * §281 — perché questa fattura è **fuori dai conti**: duplicata, stornata,
+   * giro fra società collegate. Se c'è, non è un credito da incassare — nessuno
+   * telefonerà mai per averla — e non deve stare né fra gli scaduti né fra gli
+   * attesi. Non si cancella: esiste, è passata dallo SDI, e il perché sta
+   * scritto accanto invece che nella memoria di chi l'ha decisa.
+   */
+  excludedReason?: string | null
 }
+
+/** §281 — dentro i conti: quelle senza una ragione di esclusione. */
+export const managed = (i: Pick<Invoice, 'excludedReason'>) => !i.excludedReason
 
 /** L'importo col segno del documento: una nota di credito toglie. */
 export const signed = (i: Pick<Invoice, 'sign' | 'taxable'>) => r2(i.sign * i.taxable)
@@ -72,8 +87,11 @@ export type Totals = {
  * conto corrente.
  */
 export function totals(invoices: Invoice[], today: string): Totals {
-  const paid = invoices.filter(i => i.paidOn)
-  const open = invoices.filter(i => !i.paidOn)
+  /* §281 — quelle fuori dai conti non sono crediti: tenerle fra gli scoperti
+     gonfiava lo scaduto di 42.456 € e mandava a inseguire soldi che nessuno
+     deve. Restano nel conteggio dei documenti, che è un'altra domanda. */
+  const paid = invoices.filter(i => i.paidOn && managed(i))
+  const open = invoices.filter(i => !i.paidOn && managed(i))
   return {
     count: invoices.length,
     credits: invoices.filter(i => i.sign === -1).length,
@@ -121,6 +139,112 @@ export function byMonth(invoices: Invoice[]): MonthRow[] {
       net: r2(sum(em.map(signed)) - sum(ri.map(signed))),
       issuedCount: em.length, receivedCount: ri.length,
       vatDebit: sum(em.map(signedVat)), vatCredit: sum(ri.map(signedVat)),
+    })
+    cur.setMonth(cur.getMonth() + 1)
+  }
+  return out
+}
+
+/**
+ * §278 — La serie del fatturato: emesso, incassato, in attesa, previsto.
+ *
+ * `byMonth` mette a confronto i **due versi** — emesse contro ricevute — che è
+ * la domanda dell'archivio. Questa è l'altra: di quello che abbiamo emesso,
+ * quanto è **rientrato**, quanto è ancora **credito**, e quanto ne emetteremo
+ * da qui a fine anno. Sono le tre cose che si guardano prima di decidere se un
+ * mese regge, ed erano leggibili solo sommando a mano tre riquadri diversi.
+ *
+ * Due regole:
+ *
+ * **Emesso = incassato + in attesa + stornato, sempre.** La barra si legge come
+ * una quantità sola divisa in parti, non come tre da sommare a mente: pieno =
+ * rientrato, smorzato = credito ancora aperto, grigio = annullato.
+ *
+ * **§281 — e nemmeno una fattura fuori dai conti.** Una ISF duplicata o una
+ * Tailors emessa due volte non è un credito: nessuno telefonerà mai per averla.
+ * Esce dal netto e dall'atteso come una nota di credito, e per la stessa
+ * ragione — con la differenza che il perché lo scrive una persona.
+ *
+ * **§279 — una nota di credito non è credito in attesa.** Ha segno negativo e
+ * scalava l'emesso, il che è giusto in dichiarazione ma qui produceva un
+ * «fatturato in attesa» negativo: una fattura stornata non è un incasso che
+ * deve ancora arrivare, è un incasso che **non arriverà mai** — e le due cose
+ * chiedono due azioni diverse, telefonare al cliente o non fare niente.
+ * Adesso lo storno ha una parte sua: `credited`, che si vede e non si insegue.
+ *
+ * **Il previsionale non si mescola col fatto.** Un mese futuro non ha documenti:
+ * ha rate firmate, e il grafico le disegna in un'altra forma. Un previsionale
+ * pieno accanto a uno storico pieno si legge come storia — è il modo più facile
+ * di prendere una previsione per un incasso.
+ */
+export type BillingPoint = {
+  month: string
+  /** emesso **netto**: le fatture meno le note di credito, come in dichiarazione */
+  issued: number
+  /** §279 — quello che è stato emesso prima degli storni: è l'altezza della barra */
+  gross: number
+  /** §279 — annullato da una nota di credito: non è credito, non si insegue */
+  credited: number
+  /** §281 — fuori dai conti per scelta: duplicate, giri fra società collegate */
+  unmanaged: number
+  /** quelle con una data di pagamento: sono rientrate */
+  collected: number
+  /** emesso lordo meno incassato e meno stornato: credito ancora aperto */
+  pending: number
+  /** quante fatture ci sono dietro */
+  count: number
+  /** §176 — quello che i contratti dicono di emettere in un mese futuro */
+  forecast: number
+  /** true = mese non ancora arrivato: qui vale `forecast`, non `issued` */
+  future: boolean
+}
+
+export function billingSeries(
+  invoices: Invoice[],
+  today: string,
+  /** dai contratti firmati: quanto si emetterà, mese per mese */
+  forecast: { month: string; amount: number }[] = [],
+  /** da quando: default il primo mese con un documento */
+  from?: string,
+): BillingPoint[] {
+  const emesse = invoices.filter(i => i.direction === 'emessa')
+  const mesiDoc = emesse.map(i => monthOf(i.issuedOn))
+  const mesiFc = forecast.map(f => monthOf(f.month))
+  if (!mesiDoc.length && !mesiFc.length) return []
+
+  const start = from ?? [...mesiDoc, ...mesiFc].sort()[0]
+  /* Fino a **fine anno** del mese più avanti che si conosce: è la domanda
+     («quanto fattureremo entro dicembre»), e fermarsi all'ultimo contratto
+     nasconderebbe i mesi vuoti, che sono l'informazione. */
+  const ultimo = [...mesiDoc, ...mesiFc, monthOf(today)].sort().at(-1)!
+  const end = `${ultimo.slice(0, 4)}-12-01`
+  const now = monthOf(today)
+  const fcOf = new Map<string, number>()
+  for (const f of forecast) fcOf.set(monthOf(f.month), r2((fcOf.get(monthOf(f.month)) ?? 0) + f.amount))
+
+  const out: BillingPoint[] = []
+  const cur = new Date(`${start}T00:00:00`)
+  const stop = new Date(`${end}T00:00:00`)
+  while (cur <= stop) {
+    const key = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-01`
+    const own = emesse.filter(i => monthOf(i.issuedOn) === key)
+    const gross = sum(own.filter(i => i.sign > 0).map(i => i.taxable))
+    const credited = sum(own.filter(i => i.sign < 0).map(i => i.taxable))
+    /* §281 — fuori dai conti: non sono fatturato e non sono credito. Escono dal
+       netto come le note di credito, e per la stessa ragione. */
+    const unmanaged = sum(own.filter(i => i.sign > 0 && !managed(i)).map(i => i.taxable))
+    const collected = sum(own.filter(i => i.sign > 0 && managed(i) && !!i.paidOn).map(i => i.taxable))
+    /* Il resto è quello che si può ancora incassare. Se lo storno supera lo
+       scoperto la differenza non è un credito negativo: è una nota che annulla
+       una fattura già incassata, e la parte in attesa è semplicemente zero. */
+    const pending = r2(Math.max(0, gross - credited - unmanaged - collected))
+    out.push({
+      month: key, issued: r2(gross - credited - unmanaged), gross, credited, unmanaged,
+      collected, pending, count: own.length,
+      forecast: fcOf.get(key) ?? 0,
+      /* Il mese in corso non è futuro: ha già dei documenti, e quello che manca
+         è credito da incassare, non previsione. */
+      future: key > now,
     })
     cur.setMonth(cur.getMonth() + 1)
   }
@@ -595,7 +719,7 @@ export type InvoiceFinding = {
   refs?: string[]
 }
 
-const eur = (n: number) => `€${Math.round(Math.abs(n)).toLocaleString('it-IT')}`
+
 
 /**
  * Le tre domande che il collegamento fra le sezioni deve saper reggere.

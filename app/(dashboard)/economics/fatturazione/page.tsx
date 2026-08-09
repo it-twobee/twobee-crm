@@ -2,7 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { InvoicesClient } from '@/components/invoices/InvoicesClient'
-import { monthKey } from '@/lib/pl'
+import { monthKey, shiftMonth } from '@/lib/pl'
+import { linesForMonth, type Installment, type RevenueStream } from '@/lib/revenue'
+import { billingSeries } from '@/lib/invoices'
 import type { Invoice, LineRef, TxRef } from '@/lib/invoices'
 
 export const revalidate = 0
@@ -32,8 +34,8 @@ export default async function FatturePage({ searchParams }: { searchParams: { m?
   // 42P01 = la 198 non è stata eseguita. Va detto, non fatto fallire.
   const setupNeeded = error?.code === '42P01'
 
-  const [{ data: rev }, { data: cost }, { data: txs }] = setupNeeded
-    ? [{ data: [] }, { data: [] }, { data: [] }]
+  const [{ data: rev }, { data: cost }, { data: txs }, { data: streams }, { data: inst }] = setupNeeded
+    ? [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }]
     : await Promise.all([
         supabase.from('pl_revenue_lines')
           .select('id, label, client_id, amount_net, vat_rate, invoice_id, pl_months!inner(month)'),
@@ -42,6 +44,10 @@ export default async function FatturePage({ searchParams }: { searchParams: { m?
         supabase.from('bank_transactions')
           .select('id, booked_on, amount, description, counterparty, invoice_id')
           .order('booked_on', { ascending: false }),
+        /* §278 — il previsionale di fatturato non si inventa: sono i contratti
+           già firmati, gli stessi che alimentano il conto economico (§176). */
+        supabase.from('revenue_streams').select('*'),
+        supabase.from('revenue_installments').select('*'),
       ])
 
   const n = (v: unknown) => Number(v ?? 0)
@@ -59,6 +65,9 @@ export default async function FatturePage({ searchParams }: { searchParams: { m?
     sign: r.sign === -1 ? -1 : 1,
     dueDate: (r.due_date as string) ?? null,
     paidOn: (r.paid_on as string) ?? null,
+    pdfPath: (r.pdf_path as string) ?? null,
+    // §281 — se c'è, la fattura è fuori dai conti e il testo dice perché
+    excludedReason: (r.excluded_reason as string) ?? null,
     warnings: (r.warnings as string[]) ?? undefined,
   }))
 
@@ -85,11 +94,24 @@ export default async function FatturePage({ searchParams }: { searchParams: { m?
     invoiceId: (t.invoice_id as string) ?? null,
   }))
 
+  /* Da questo mese a dicembre: la domanda è «quanto fattureremo entro fine
+     anno», e un previsionale che si ferma all'ultima rata firmata nasconde
+     proprio i mesi vuoti, che sono l'informazione. */
+  const today = new Date().toISOString().slice(0, 10)
+  const nowM = monthKey(new Date(today))
+  const forecast: { month: string; amount: number }[] = []
+  for (let m = nowM; m <= `${nowM.slice(0, 4)}-12-01`; m = shiftMonth(m, 1)) {
+    const righe = linesForMonth(
+      (streams ?? []) as unknown as RevenueStream[], (inst ?? []) as unknown as Installment[], m)
+    forecast.push({ month: m, amount: Math.round(righe.reduce((s2, l) => s2 + l.amount_net, 0) * 100) / 100 })
+  }
+
   return (
     <InvoicesClient
+      series={billingSeries(invoices, today, forecast)}
       month={month}
       setupNeeded={setupNeeded}
-      today={new Date().toISOString().slice(0, 10)}
+      today={today}
       invoices={invoices}
       lines={lines}
       txs={transactions}

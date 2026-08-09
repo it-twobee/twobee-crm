@@ -1,9 +1,8 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient, createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
+import { requireEconomicsAdmin as requireAdmin } from '@/lib/economics-guard'
 import { classify, type TxKind } from '@/lib/bank'
 import {
   parseStatement, merchant, treatment, FAMILY_LABEL, CHECK_FAMILIES, DEDUCTIBILITY,
@@ -12,16 +11,6 @@ import {
 
 const PATH = '/economics/banca'
 
-/** Il conto corrente è il dato più sensibile che ci sia: admin e basta. */
-async function requireAdmin(): Promise<string> {
-  const sb = await createClient()
-  const { data: { user } } = await sb.auth.getUser()
-  if (!user) throw new Error('Non autenticato')
-  const { data: p } = await sb.from('profiles').select('role, email').eq('id', user.id).single()
-  const ok = p?.role === 'admin' || SUPER_ADMIN_EMAILS.includes(p?.email ?? '')
-  if (!ok) throw new Error('Permesso negato: il conto corrente è riservato agli admin')
-  return user.id
-}
 
 function rev() {
   revalidatePath(PATH)
@@ -51,6 +40,8 @@ function rev() {
 export async function importBankCsv(accountId: string, csv: string): Promise<{
   letti: number; nuovi: number; duplicati: number; scartati: number
   dal: string | null; al: string | null; dialetto: string
+  /** §277 — perché una riga è stata scartata: il conteggio da solo non si corregge */
+  motivi: string[]
 }> {
   await requireAdmin()
   const admin = createAdminClient()
@@ -124,6 +115,7 @@ export async function importBankCsv(accountId: string, csv: string): Promise<{
     letti: rows.length, nuovi: nuovi.length, duplicati: rows.length - nuovi.length,
     scartati: skipped.length, dialetto: dialect,
     dal: date[0] ?? null, al: date.at(-1) ?? null,
+    motivi: skipped.slice(0, 3),
   }
 }
 

@@ -1,9 +1,8 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
+import { requireEconomicsAdmin as requireAdmin } from '@/lib/economics-guard'
 import { kindFromClientType, shiftMonth, DEFAULT_VAT_RATE, type PlConfig } from '@/lib/pl'
 import { linesForMonth } from '@/lib/revenue'
 import { loadCoverage, realignLines } from '@/lib/pl-realign'
@@ -11,16 +10,6 @@ import { applyPlanToMonth } from '@/app/actions/costs'
 
 const PATH = '/economics'
 
-/** Il P&L è il dato più sensibile che c'è: admin e basta. */
-async function requireAdmin(): Promise<string> {
-  const sb = await createClient()
-  const { data: { user } } = await sb.auth.getUser()
-  if (!user) throw new Error('Non autenticato')
-  const { data: p } = await sb.from('profiles').select('role, email').eq('id', user.id).single()
-  const ok = p?.role === 'admin' || SUPER_ADMIN_EMAILS.includes(p?.email ?? '')
-  if (!ok) throw new Error('Permesso negato: il conto economico è riservato agli admin')
-  return user.id
-}
 
 export async function ensureMonth(month: string): Promise<string> {
   const uid = await requireAdmin()
@@ -350,11 +339,19 @@ export async function previewPrefill(month: string): Promise<PrefillPreview> {
   let peopleCount = 0
   let peopleAmount = 0
   if ((people ?? []).length) {
-    const { personCost, DEFAULT_PAYROLL_PARAMS } = await import('@/lib/payroll')
+    const { personCost, DEFAULT_PAYROLL_PARAMS, inForce } = await import('@/lib/payroll')
     const { rowToParams, rowToPerson } = await import('@/lib/payroll-map')
     const params = prm ? rowToParams(prm as Record<string, unknown>) : DEFAULT_PAYROLL_PARAMS
-    peopleCount = (people ?? []).length
-    peopleAmount = (people ?? []).reduce((t: number, r: Record<string, unknown>) =>
+    /* §233 — solo chi era in forza in quel mese: l'anteprima deve dire quello
+       che «Porta nel mese» scriverà davvero, o il pannello promette un numero
+       e ne registra un altro. */
+    const inMonth = (people ?? []).filter((r: Record<string, unknown>) => inForce({
+      hiredOn: r.hired_on ? String(r.hired_on).slice(0, 10)
+        : r.start_date ? String(r.start_date).slice(0, 10) : null,
+      endsOn: r.end_date ? String(r.end_date).slice(0, 10) : null,
+    }, month))
+    peopleCount = inMonth.length
+    peopleAmount = inMonth.reduce((t: number, r: Record<string, unknown>) =>
       t + personCost(rowToPerson(r), params).monthly, 0)
   }
 
@@ -478,6 +475,12 @@ export type RevenuePatch = Partial<{
   risk_fund: boolean
   /** §188 — anticipo che torna al cliente: fuori dalle quote del piano */
   pass_through: boolean
+  /** §224 — quando l'incasso è passato dal conto */
+  paid_on: string | null
+  /** §224 — scadenza scritta a mano */
+  due_date: string | null
+  /** §224 — accordo di pagamento; null = lo decide la natura della voce */
+  terms: string | null
 }>
 
 export async function addRevenueLine(month: string, input: RevenuePatch = {}) {
@@ -526,6 +529,10 @@ export type CostPatch = Partial<{
   category: string; label: string; cost_type: 'F' | 'V'
   budget: number; actual: number; paid: boolean
   vat_applied: boolean; vat_rate: number; note: string | null; sort_order: number
+  /** §224 — quando il pagamento è uscito dal conto */
+  paid_on: string | null
+  due_date: string | null
+  terms: string | null
 }>
 
 export async function addCostLine(month: string, input: CostPatch = {}) {

@@ -1,9 +1,8 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
+import { requireEconomicsAdmin as requireAdmin } from '@/lib/economics-guard'
 import { plannedForMonth, isPayrollCenter, type CostItem } from '@/lib/costs'
 import { buildSchedule, type ScheduleSpec } from '@/lib/revenue'
 import { moveOneShotCostLine, dropCostItemLines } from '@/lib/pl-realign'
@@ -14,16 +13,6 @@ const monthName = (iso: string) =>
 
 const PATH = '/economics/costi'
 
-/** Budget e struttura di costo: admin e basta, come il resto dell'economics. */
-async function requireAdmin(): Promise<string> {
-  const sb = await createClient()
-  const { data: { user } } = await sb.auth.getUser()
-  if (!user) throw new Error('Non autenticato')
-  const { data: p } = await sb.from('profiles').select('role, email').eq('id', user.id).single()
-  const ok = p?.role === 'admin' || SUPER_ADMIN_EMAILS.includes(p?.email ?? '')
-  if (!ok) throw new Error('Permesso negato: i costi aziendali sono riservati agli admin')
-  return user.id
-}
 
 function rev() {
   revalidatePath(PATH)

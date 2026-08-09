@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
+import { requireEconomicsAdmin } from '@/lib/economics-guard'
 import { buildSchedule, type ScheduleSpec } from '@/lib/revenue'
 
 export interface WizardTaskInput {
@@ -119,12 +119,9 @@ export interface WizardEconomics {
  * senza quotazione che nessun progetto.
  */
 export async function attachWizardEconomics(projectId: string, eco: WizardEconomics) {
-  const sb = await createClient()
-  const { data: { user } } = await sb.auth.getUser()
-  if (!user) throw new Error('Non autenticato')
-  const { data: p } = await sb.from('profiles').select('role, email').eq('id', user.id).single()
-  const isAdmin = p?.role === 'admin' || SUPER_ADMIN_EMAILS.includes(p?.email ?? '')
-  if (!isAdmin) throw new Error('Permesso negato: l\'economics è riservata agli admin')
+  // §234 — la stessa porta del resto del dominio economico: era una copia in
+  // più della domanda, e chiedeva `role` invece di `app_role`.
+  const user = { id: await requireEconomicsAdmin() }
 
   const admin = createActorClient(user.id)
   const { data: project } = await admin.from('projects')

@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import { Menu, X, Crown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { usePermissions } from '@/lib/hooks/usePermissions'
-import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
+import { SUPER_ADMIN_EMAILS, isAdminRole } from '@/lib/permissions'
 import { Logo } from '@/components/shared/Logo'
 import { navSections, type NavItem } from '@/components/shared/nav-config'
 
@@ -15,7 +15,7 @@ export function MobileNav() {
   const [open, setOpen] = useState(false)
   const { profile } = usePermissions()
   const isSuperAdmin = SUPER_ADMIN_EMAILS.includes(profile?.email ?? '')
-  const isAdmin = isSuperAdmin || profile?.app_role === 'admin'
+  const isAdmin = isSuperAdmin || isAdminRole(profile?.app_role)
 
   // chiudi al cambio rotta
   useEffect(() => { setOpen(false) }, [pathname])

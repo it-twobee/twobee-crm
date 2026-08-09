@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, FolderOpen, Settings, CalendarDays, Headphones,
   Ticket, UserCircle2, History, Lightbulb, FolderKanban, Briefcase, ListChecks, ListTodo,
-  Wallet, Target, Landmark, Users2, Banknote, FileText, Share2,
+  Wallet, Target, Landmark, Users2, Banknote, FileText, Share2, Table2,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -47,6 +47,11 @@ export const navSections: NavSection[] = [
     // dati economici: la pagina rimbalza chi non è admin, la voce non si mostra
     items: [
       { href: '/economics', icon: Wallet, label: 'Conto economico', adminOnly: true },
+      /* §239 — subito sotto il conto economico: è la stessa materia con la lente
+         allargata. Il conto dice com'è andato **questo** mese riga per riga, il
+         prospetto dove vanno i soldi per macro categoria e come cambia la
+         proporzione — e mette accanto quello che la banca ha davvero mosso. */
+      { href: '/economics/prospetto', icon: Table2, label: 'Prospetto', adminOnly: true },
       /* §211 — fra il conto economico e la banca, perché è quello che sta in
          mezzo: il conto economico dice di chi è un ricavo e a quale mese
          appartiene, la banca quando i soldi si sono mossi, la fattura è il

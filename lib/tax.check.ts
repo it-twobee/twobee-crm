@@ -1,5 +1,6 @@
 /* Verifica della stima fiscale. Esegui: npx tsx lib/tax.check.ts */
 import { estimateTaxes, entertainmentCap, taxInsights, DEFAULT_TAX_CONFIG as C, type TaxInput } from '@/lib/tax'
+import { vatByQuarter } from '@/lib/vat'
 
 let fail = 0
 const eq = (label: string, got: number, want: number, tol = 0.5) => {
@@ -77,6 +78,35 @@ console.log('\n— §191 · L\'avviso scatta prima di spendere, non dopo —')
   const senza = taxInsights(base(0, 75125, 6))
   is('senza rappresentanza non si dice niente',
     senza.some(f => f.id.startsWith('entertainment')), false)
+}
+
+console.log('\n— §242 · Il modello F24 batte la stima —')
+{
+  /* La stima nasce dalle righe registrate e sarà sempre diversa dal modello: il
+     registro IVA del commercialista contiene fatture che il conto economico non
+     ha ancora. Quando il documento arriva vince lui, e **la differenza resta
+     scritta** — è l'unico posto in cui quel buco si vede senza cercarlo. */
+  const MESI = [
+    { month: '2026-04-01', debit: 3000, credit: 200 },
+    { month: '2026-05-01', debit: 3000, credit: 300 },
+    { month: '2026-06-01', debit: 3108, credit: 291.30 },
+  ]
+  const stima = vatByQuarter(MESI, '2026-08-09')[0]
+  is('senza modello è una stima', stima.source, 'stima')
+  is('e non c\'è nessuno scarto da dichiarare', stima.gap, 0)
+
+  const conF24 = vatByQuarter(MESI, '2026-08-09', [
+    { quarter: { year: 2026, q: 2 }, toPay: 9669.33, docRef: 'F24 20/08/2026' },
+  ])[0]
+  is('col modello vince il modello', { s: conF24.source, p: conF24.toPay }, { s: 'f24', p: 9669.33 })
+  is('la stima resta accanto', conF24.estimated, stima.toPay)
+  is('e lo scarto è dichiarato', conF24.gap, Math.round((9669.33 - stima.toPay) * 100) / 100)
+  is('il riferimento si ritrova', conF24.docRef, 'F24 20/08/2026')
+  /* Il riporto al trimestre dopo nasce dal saldo **calcolato**: sostituirlo con
+     un numero che il documento non contiene sposterebbe l'errore avanti invece
+     di mostrarlo. */
+  is('ma il riporto resta quello del calcolo', conF24.carried, stima.carried)
+  is('e debito e credito pure', { d: conF24.debit, c: conF24.credit }, { d: stima.debit, c: stima.credit })
 }
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)

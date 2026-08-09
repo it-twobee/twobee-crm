@@ -11,6 +11,7 @@
  */
 
 import type { PlConfig, PlTotals, RevenueLine, CostLine } from '@/lib/pl'
+import { eur } from '@/lib/money'
 
 export type Severity = 'critico' | 'attenzione' | 'buono'
 
@@ -44,7 +45,7 @@ export const THRESHOLDS = {
 
 const HR_CATEGORIES = ['HR', 'Outsourcing']
 const pc = (n: number) => `${(n * 100).toFixed(0)}%`
-const eur = (n: number) => `€${Math.round(n).toLocaleString('it-IT')}`
+
 
 /**
  * Diagnosi di un mese (o di un periodo aggregato: i totali hanno la stessa forma).
@@ -58,6 +59,8 @@ export function diagnose(
   previous?: { accrued: number; costs: number },
   /** §174: la liquidazione IVA in arrivo — cassa già incassata che non è tua */
   vat?: { toPay: number; deadline: string; daysLeft: number; label: string } | null,
+  /** §224: quello che è maturato prima e non si è ancora mosso (`summarize`) */
+  arrears?: { count: number; amount: number; oldest: number } | null,
 ): Finding[] {
   const out: Finding[] = []
   const rev = t.revenue.accrued
@@ -124,6 +127,26 @@ export function diagnose(
         metric: pc(share),
       })
     }
+  }
+
+  /* §224 — gli arretrati: quello che è maturato **prima** di questo mese e non
+     si è ancora mosso. È diverso dal non incassato del mese, che è normale
+     finché la fattura è nei termini: qui la scadenza è passata, e più è vecchio
+     più è un credito da recuperare che un ritardo. Un arretrato non compare
+     nei totali del mese, quindi senza una riga che lo dica non lo guarda
+     nessuno — ed è esattamente il modo in cui un credito si perde. */
+  if (arrears && arrears.count > 0) {
+    const grave = arrears.oldest > 45
+    out.push({
+      id: 'arretrati',
+      severity: grave || arrears.amount > rev * 0.25 ? 'critico' : 'attenzione',
+      title: `${eur(arrears.amount)} in ritardo da mesi precedenti`,
+      detail: `${arrears.count} ${arrears.count === 1 ? 'riga scoperta' : 'righe scoperte'} oltre la scadenza`
+        + (arrears.oldest > 0 ? `, la più vecchia da ${arrears.oldest} giorni.` : '.')
+        + (grave ? ' Oltre i quarantacinque giorni non è più un ritardo: è un credito da recuperare.' : ''),
+      action: 'In fondo a Entrate e Uscite, «Da mesi precedenti»: spuntarne una la porta nella cassa di questo mese.',
+      metric: eur(arrears.amount),
+    })
   }
 
   // ── incassato contro maturato ─────────────────────────────────────────────

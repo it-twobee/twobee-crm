@@ -28,8 +28,51 @@ import { ArrowLeft } from 'lucide-react'
 
 const KEY = 'twobee-nav-prev'
 
+/**
+ * §234 — un «indietro» non attraversa il confine fra i due portali.
+ *
+ * Le sorgenti del ritorno sono due indirizzi che arrivano da fuori: `?from=`,
+ * che chiunque può scrivere nella barra, e la pagina precedente registrata in
+ * sessione. Un admin che apre il workspace ci arriva con la memoria del tool
+ * admin addosso, e la freccia della scheda cliente lo riportava a `/clienti` —
+ * fuori dal portale in cui stava lavorando, senza averlo chiesto. Per chi è
+ * confinato al workspace è peggio: il link non riporta da nessuna parte, perché
+ * il middleware lo rimbalza a `/workspace` e l'app sembra rotta.
+ *
+ * La regola è simmetrica e vale per tutti: **si torna dentro il proprio
+ * dominio**. Quello che sta fuori non è un errore da segnalare, è
+ * semplicemente un ritorno che non vale, e allora vale il `fallback` — che il
+ * chiamante costruisce già sulla `base` giusta (§211).
+ *
+ * `/impostazioni/profilo` è l'unica eccezione, ed è una porta che esiste: è la
+ * sola pagina del gruppo admin che la sidebar del workspace linka e che il
+ * middleware lascia passare.
+ */
+const NEUTRAL = ['/impostazioni/profilo', '/onboarding']
+
+export const inWorkspace = (href: string) => {
+  const p = href.split('?')[0]
+  return p === '/workspace' || p.startsWith('/workspace/')
+}
+
+export function samePortal(here: string, target: string): boolean {
+  const p = target.split('?')[0]
+  if (NEUTRAL.some(n => p === n || p.startsWith(`${n}/`))) return true
+  return inWorkspace(here) === inWorkspace(target)
+}
+
 /** Come si chiama una pagina, per scriverlo nella freccia. */
 const LABELS: [RegExp, string][] = [
+  [/^\/workspace\/clienti$/, 'Clienti'],
+  [/^\/workspace\/clienti\/[^/]+$/, 'Scheda cliente'],
+  [/^\/workspace\/progetti$/, 'Progetti'],
+  [/^\/workspace\/progetti\/[^/]+\/workstream/, 'Workstream'],
+  [/^\/workspace\/progetti\/[^/]+$/, 'Scheda progetto'],
+  [/^\/workspace\/attivita$/, 'Le mie attività'],
+  [/^\/workspace\/ad-hoc$/, 'Task ad hoc'],
+  [/^\/workspace\/customer-care/, 'Customer care'],
+  [/^\/workspace\/calendario$/, 'Calendario'],
+  [/^\/workspace\/?$/, 'Workspace'],
   [/^\/dashboard$/, 'Dashboard'],
   [/^\/clienti$/, 'Tutti i clienti'],
   [/^\/clienti\/[^/]+\/progetto\//, 'Progetto del cliente'],
@@ -46,7 +89,6 @@ const LABELS: [RegExp, string][] = [
   [/^\/chat/, 'Chat'],
   [/^\/customer-care/, 'Customer care'],
   [/^\/impostazioni/, 'Impostazioni'],
-  [/^\/workspace\/?$/, 'Workspace'],
 ]
 
 export function labelOf(href: string): string {
@@ -91,6 +133,7 @@ export function BackLink({ fallback, label, className }: {
 }) {
   const router = useRouter()
   const params = useSearchParams()
+  const pathname = usePathname()
   const [prev, setPrev] = useState<string | null>(null)
 
   // il `from` è sincrono, la memoria di sessione no: si legge dopo il montaggio
@@ -99,11 +142,17 @@ export function BackLink({ fallback, label, className }: {
   }, [])
 
   const target = useMemo(() => {
+    const here = pathname ?? fallback
+    /* Un ritorno vale solo se resta nel portale in cui si sta lavorando, e
+       `//host` non è un percorso interno: `startsWith('/')` da solo lascerebbe
+       passare un indirizzo protocol-relative verso un altro sito. */
+    const ok = (href: string | null | undefined) =>
+      !!href && href.startsWith('/') && !href.startsWith('//') && samePortal(here, href)
     const from = params?.get('from')
-    if (from && from.startsWith('/')) return from
-    if (prev) return prev
+    if (ok(from)) return from as string
+    if (ok(prev)) return prev as string
     return fallback
-  }, [params, prev, fallback])
+  }, [params, prev, fallback, pathname])
 
   const text = target === fallback ? (label ?? labelOf(fallback)) : labelOf(target)
 

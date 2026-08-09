@@ -3,7 +3,7 @@ import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { TaxClient } from '@/components/tax/TaxClient'
 import { monthKey } from '@/lib/pl'
-import type { MonthVat } from '@/lib/vat'
+import type { MonthVat, VatActual } from '@/lib/vat'
 import { DEFAULT_TAX_CONFIG, type Provision, type TaxConfig } from '@/lib/tax'
 
 export const revalidate = 0
@@ -55,6 +55,19 @@ export default async function FiscalePage({ searchParams }: { searchParams: { m?
     credit: (cost ?? []).filter((c: { month_id: string; vat_applied: boolean }) => c.month_id === m.id && c.vat_applied)
       .reduce((s: number, c: Record<string, unknown>) =>
         s + num(c.actual) * num(c.vat_rate) * pctOf(c.vat_deductible_pct), 0),
+  }))
+
+  /* §242 — i modelli F24 già arrivati. Dove c'è il documento, il documento
+     vince: la stima resta accanto e la differenza dice quanto fatturato manca
+     al conto economico. Se la 206 non è stata eseguita la query fallisce e la
+     pagina continua a stimare, come prima. */
+  const { data: settlementRows } = await supabase
+    .from('vat_settlements').select('year, quarter, to_pay, doc_ref, paid_on')
+  const vatActuals: VatActual[] = (settlementRows ?? []).map((r: Record<string, unknown>) => ({
+    quarter: { year: Number(r.year), q: Number(r.quarter) as 1 | 2 | 3 | 4 },
+    toPay: num(r.to_pay),
+    docRef: (r.doc_ref as string) ?? null,
+    paidOn: r.paid_on ? String(r.paid_on).slice(0, 10) : null,
   }))
 
   // ── i numeri dell'anno che alimentano stime e diagnosi ────────────────────
@@ -176,6 +189,7 @@ export default async function FiscalePage({ searchParams }: { searchParams: { m?
         amount: num(p.amount), note: (p.note as string) ?? null,
       })) as Provision[]}
       vatMonths={vatMonths}
+      vatActuals={vatActuals}
       revenueYtd={revenueYtd}
       costsYtd={costsYtd}
       nonDeductibleYtd={nonDeductibleYtd}

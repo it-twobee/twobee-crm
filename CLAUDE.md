@@ -155,7 +155,7 @@ const parsed = JSON.parse((await res.json()).choices?.[0]?.message?.content?.mat
 > repo come storia, non come lavoro arretrato.
 
 `chat_channels.project_id` **esiste** in produzione: il vecchio "BUG NOTO" è risolto.
-Numerazione: attenzione, `080_*`, `081_*` e `092_*` compaiono due volte. Il prossimo libero è **184**.
+Numerazione: attenzione, `080_*`, `081_*` e `092_*` compaiono due volte. Il prossimo libero è **206**.
 
 La tabella qui sotto è il **changelog**: dice cosa fa ciascuna, non cosa manca.
 
@@ -231,6 +231,11 @@ dato economico: è sicuro anche nel workspace.
 | `196_digital_partner_back_to_28.sql` | **Annulla la 194**: la quota digital di ciascun socio torna al **28%** (25% col fondo emergenza) e `digital_cost_target_pct` a **0**. Il 28% è una decisione presa, non la variabile da cui prendere per far contribuire il digital alla struttura: quella la copre il growth, e la cassa negativa in un mese digital è la conseguenza, non un errore | — |
 | `197_client_risk_rewrite.sql` | **Il rischio cliente si calcola, non si conserva**: droppa `clients.risk_score`, `prev_risk_score`, `risk_factors`, `risk_trend`, `risk_updated_at` (più `compute_client_risk`, `trigger_update_risk` e i quattro trigger della 014, dove sono sopravvissuti) e ricrea `clients_workspace` senza quelle colonne. Il motore è `lib/risk.ts`, in lettura. Non è un prerequisito: senza, l'app funziona già — le colonne restano lì e nessuno le legge | — |
 | `191_bank_partner_pockets.sql` | Sottoconti dei soci: `bank_accounts.parent_id`/`owner_partner_id`/`allowance_amount`, `pl_cost_lines.partner_id` + `deductible_pct`/`vat_deductible_pct`, area «Spese soci», Klaviyo a 0 (piano gratuito). I 500 €/mese a socio **sono erogato**, non un costo in più: escono come spesa della società per recuperarne IVA e deducibilità | — |
+| `207_payout_lines.sql` | **§243 — da eseguire.** `pl_payouts`: i compensi a soci e commerciali come righe spuntabili. Importo copiato dal piano, maturazione nel mese e uscita in quello dopo (`due_month`), `paid_on` scritto dal trigger con la data di oggi. Senza, la sezione Compensi resta in sola lettura come prima | — |
+| `206_vat_settlements.sql` | **§242 — da eseguire.** `vat_settlements`: la liquidazione IVA come la dice il modello F24. Dove c'è, vince sulla stima di `lib/vat.ts`; la differenza resta visibile e dice quanto fatturato manca al conto economico. Seed del 2º trimestre 2026: 9.669,33 contro gli 8.399,87 stimati | — |
+| `205_settled_from.sql` | **§230 — da eseguire.** Rinomina `payout_from` in **`settled_from`**: la linea del consolidato è una sola e vale per tre cose — compensi liquidati, spunte non certificate accettate, organico dei mesi vecchi non rincorso. Una colonna che dice meno del suo contenuto è il modo in cui il prossimo se ne inventa un altro uso | — |
+| `204_payout_from.sql` | **§227 — applicata il 2026-08-08.** `pl_config.payout_from` (seed 2026-07-01): da quale mese si contano i compensi maturati verso soci e commerciali. Prima è liquidato. Senza, il registro conta da sempre e mostra a ciascuno un anticipo che non esiste | — |
+| `203_cash_calendar.sql` | **§224 — applicata il 2026-08-08.** `terms`/`due_date`/`paid_on` su `pl_revenue_lines` e `pl_cost_lines` + trigger che scrive la data di oggi quando si spunta «pagato». Backfill delle righe già spuntate **alla loro scadenza**: il costo del lavoro di giugno smette di pesare su giugno e passa a luglio. Senza, l'app funziona identica e la cassa resta quella di prima | — |
 
 **Scorciatoia**: `supabase/APPLY_PENDING.sql` è il concatenato (081, 086–093) in
 transazione, da incollare una volta sola nel SQL Editor. Bucket privati da creare
@@ -423,6 +428,243 @@ non ha rata — lo dice `subcontractFindings` con «nessun ricavo nel mese».
   contratto** entrano con l'MRR d'anagrafica (`origin='anagrafica'`, segnalati
   come «senza contratto»). Il ripiego è per cliente, mai globale.
 
+**Il prospetto** (§239, `/economics/prospetto`, `lib/pl-aggregate.ts`). Il conto
+economico risponde a «com'è andato **questo** mese», riga per riga, ed è il posto
+dove si spunta. Il prospetto risponde all'altra domanda — **dove vanno i soldi**,
+in che proporzione, e se sta cambiando — con le righe aggregate in **macro
+categorie** e i mesi in colonna. Con quaranta righe di ricavo e novanta di costo
+su cinque mesi quella risposta non c'era, e leggerla scorrendo cinque pagine
+significa non leggerla.
+
+- **Competenza e cassa sono due griglie, non due colonne accanto.** Lo stipendio
+  di luglio sta in luglio sulla prima e in agosto sulla seconda (§224); metterli
+  sulla stessa riga vorrebbe dire scegliere quale delle due domande tradire. In
+  cassa una riga **non pagata non c'è**: raccontarla come fatto sarebbe peggio di
+  non mostrarla.
+- **Le macro non sono etichette libere**: `Personale` lo scrive l'organico (§184)
+  e `Lavori affidati fuori` è già uscito dal margine del suo progetto (§188) —
+  tenerli dentro un'area del piano fa sembrare struttura una cosa venduta al
+  cliente. Le partite di giro stanno in riga loro (§188). Il resto tiene il nome
+  della sua area, ordinato per peso: quello che costa di più si legge per primo.
+- **La quota accanto al totale**: 8.899 € non dicono niente, «il 58% di quello
+  che esce» sì. È la ragione per cui si guarda una tabella così.
+- **Il prospetto è netto, la banca è lorda**, e l'IVA sta **in riga**: è l'unico
+  modo di passare dall'uno all'altra senza barare. Il blocco «e in banca» mette
+  sotto entrato/uscito/saldo dei soli movimenti veri (§189) e, mese per mese, la
+  **differenza col prospetto**: se non è zero è una spunta senza movimento o un
+  movimento senza riga, e il ponte in Banca (§199) dice quale.
+- **Quale mese è chiuso si legge nell'intestazione**: una fotografia e un mese in
+  corso non si confrontano, e l'ultima colonna è quasi sempre incompleta.
+
+**I compensi stanno fra le uscite, ma non sono costi** (§240). Dal conto escono
+come tutto il resto, quindi si vedono lì; ma non sono righe di conto economico —
+non si scrivono, si ricalcolano (§227) — e sommarli ai costi darebbe un margine
+diverso da quello del conto economico **con lo stesso nome**. Perciò la colonna
+ha due totali: `Margine` (entrate − costi, lo stesso numero del conto economico)
+e `Resta alla società` (dopo i compensi). In competenza sono due righe, perché si
+sa a chi spettano; in **cassa una sola**, perché un bonifico a un socio che è
+anche commerciale non dice quale dei due lavori sta pagando (§226). Le quote di
+riga si leggono sul totale che esce, compensi compresi: tenerli fuori dal
+denominatore farebbe sembrare il personale più pesante di quanto è.
+
+**Un mese solo: le due letture affiancate** (§240). Su più mesi competenza e
+cassa sono due griglie e si sceglie col selettore; su **un** mese la domanda
+cambia — non è come si muove una proporzione, è «cosa il mese ha prodotto, cosa
+si è mosso, e quanto manca fra le due» — e con un selettore quel «quanto manca»
+te lo ricordi a mente da una schermata all'altra, che è il modo in cui non lo
+guarda nessuno. La sezione si apre da **quello che c'è sul conto**: saldo a
+inizio periodo, entrato, uscito, saldo adesso.
+
+**Il compenso diventa una riga che si può spuntare** (§243, `pl_payouts`,
+migration 207). I compensi si ricalcolano a ogni lettura (§227) — è la ragione
+per cui basta mettere una rata nel mese giusto perché provvigioni ed erogato
+tornino da soli — ed è anche la ragione per cui non si potevano **spuntare**:
+non c'era niente su cui mettere la spunta, e «quanto è uscito» si poteva solo
+dedurre dai bonifici, che non dicono se stanno pagando la quota di socio o la
+provvigione (a una persona sola si bonifica una volta, §226).
+
+- **L'importo si copia**, come per le entrate: un mese chiuso resta quello che
+  era anche se domani una rata si sposta. Rigenerare aggiorna solo le righe
+  **non pagate** — quello che è uscito è un fatto, e non si riscrive perché la
+  base di calcolo è cambiata dopo.
+- **Matura in un mese ed esce in quello dopo**, come il costo del lavoro (§224):
+  le retribuzioni di luglio, l'erogato ai soci e le provvigioni di luglio si
+  pagano ad agosto. `due_month` lo scrive la generazione, `paid_on` la spunta —
+  e la data la mette il trigger con **oggi**, perché chiederla a mano significa
+  averla sbagliata la metà delle volte.
+- **La spunta sta sulla riga della persona**, accanto al numero, e da lì il
+  prospetto sa in cassa anche **per quale dei due lavori** il compenso è uscito
+  — cosa che un bonifico non dice. Senza righe materializzate la cassa torna al
+  ripiego di prima: il totale dei movimenti `finanziamento` del mese, in una
+  riga sola.
+
+**Due regole imparate al primo uso** (§244):
+
+- **La riga si ritrova per nome, non per chiave.** `mergePeople` fonde socio e
+  commerciale in una persona sola e le dà la chiave del socio (`p:<id>`);
+  `materializePayouts` scrive la provvigione con quella del commerciale
+  (`o:<nome>`). Due spazi di chiavi diversi, e l'effetto era che la spunta
+  compariva **solo** su chi è commerciale e basta — Antonio sì, Walter e Marco
+  no. Il nome ce l'hanno tutte e due ed è quello che si legge sullo schermo; la
+  chiave resta come ripiego.
+- **La spunta resta viva a mese chiuso**, ed è l'unico posto in cui succede. Il
+  compenso di luglio si eroga ad agosto: se chiudere luglio spegnesse la
+  casella, la funzione sarebbe inutilizzabile proprio quando serve. Stessa regola
+  degli arretrati (§224) — spuntare registra la data di oggi e non riapre il
+  mese, perché il bonifico è un fatto di adesso.
+
+E in testata la sezione dice **a che punto è**: «2 su 3 pagati · restano 3.367 €»,
+con «Segna N pagati» accanto. Segnare dieci righe una a una è il motivo per cui
+non le segna nessuno.
+
+Gate: `npx tsx lib/pl-aggregate.check.ts` (47 controlli).
+
+**Il piano di cassa del mese** (§262, `lib/cash-plan.ts`, in cima al prospetto).
+La tenuta di cassa (§225) dice **se** un mese regge; questa dice **da cosa
+dipende**. Ogni fatto atteso è una riga con la sua data e la sua provenienza —
+righe registrate, contratti, piano dei costi, organico, IVA, compensi — e ogni
+riga si può **spegnere**. Spegnere non cancella niente: dice «e se questo non
+succedesse», e il saldo di fine mese si muove mentre si sceglie, trascinandosi
+dietro i mesi dopo. Il mese sta **nel titolo** ed è una tendina, coi mesi mai
+aperti compresi: è lì che serve guardare.
+
+- **Un mese aperto si legge dalle righe, uno mai aperto dal contratto e dal
+  piano.** Sommarli conterebbe due volte lo stesso canone.
+- **Si parte dal saldo vero della banca** (§263): il mese in corso apre con
+  **quello che c'è sul conto adesso** — 30.876,09 € al 9 agosto, lo stesso
+  numero di `verify-bank.ts` — non con un'apertura ricostruita dalle righe.
+  Quel saldo contiene anche i movimenti che nessuna riga giustifica, ed è
+  esattamente il motivo per cui è quello giusto. Da lì si somma solo quello che
+  deve ancora succedere: le righe già mosse restano in elenco (`inBalance`,
+  «già nel saldo», con una spunta e non una casella) ma non muovono il totale,
+  o il mese conterebbe due volte incassi che ha già avuto. Un mese passato apre
+  col saldo che aveva a inizio mese, perché lì è già successo tutto.
+- **Gli arretrati pesano sul primo mese**, non sul loro: una fattura di maggio
+  scoperta è una telefonata di adesso.
+- **Il costo del lavoro si stima solo se il mese prima non è aperto** (§224:
+  esce il 20 del mese dopo). Senza la regola settembre lo contava due volte —
+  le righe di agosto in scadenza il 20 **più** la stima.
+- **I compensi dei mesi futuri si stimano dal contratto**, con lo stesso
+  `computeMonth`: dal primo mese non registrato in poi sparivano, e sono la
+  seconda uscita del mese.
+- **Una sola voce è spostabile: i compensi** (§237). L'IVA ha una data, i
+  fornitori pure, gli stipendi sono un patto — e il modello lo dice invece di
+  lasciar credere che tutto sia comprimibile.
+- **Il primo consiglio è il verdetto**, coi tre esiti: un saldo positivo non
+  dice su cosa poggia. Agosto 2026 chiude a **+306 €** ma solo perché rientrano
+  **12.688 €** di crediti scaduti — «regge» e «chiude solo se rientrano gli
+  arretrati» sono due situazioni che vogliono due azioni diverse.
+
+- **L'appartenenza è quella del conto economico** (§264): una riga di agosto è
+  di agosto, **pagata o no**, e i totali «di competenza» combaciano riga per
+  riga con quella pagina — su agosto 2026: 7 righe di entrata per 24.064,50 € e
+  21 di uscita per 16.334,13 €, identiche. La cassa è l'altro numero e non ci
+  somiglia: comprende gli arretrati di luglio e **non** comprende le
+  retribuzioni di agosto, che escono il 20 settembre. Ogni riga dichiara quale
+  delle due cose è («di questo mese, esce settembre» · «matura 2026-07, si
+  muove adesso»). IVA e compensi non sono righe di conto economico: escono dal
+  conto ma restano fuori dal totale che deve combaciare.
+- **L'elenco è quello che resta da fare** (§266): di default si vedono solo le
+  voci che devono ancora muoversi in questo mese, **ritardi compresi**. Le altre
+  — già in banca, o in scadenza il mese prossimo — stanno dietro una riga che
+  dice quante sono e perché. I totali non si alleggeriscono mai: quello di
+  competenza deve continuare a confermare il conto economico.
+- **Il riscontro con la banca sta dentro la sezione** (§265). Erano due blocchi
+  a parte — quattro tile e la tabella «E in banca» — che calcolavano il saldo
+  sulla sola finestra del prospetto: dicevano «saldo a inizio mese **0 €**» e
+  «sul conto adesso **10.568 €**» mentre in banca ce n'erano 30.876. Due numeri
+  con lo stesso nome sono peggio di un numero solo, quindi sono stati tolti e il
+  loro contenuto utile — entrato/uscito davvero e la differenza con quello che
+  le spunte dicono — vive dove c'è il saldo vero, col link al ponte (§199).
+
+- **Quello che si è già mosso ha una data, e quella data è il suo mese** (§267).
+  Lo spostamento sul primo mese della catena vale **solo per gli scoperti**:
+  applicarlo anche ai fatti chiusi trascinava dentro agosto ogni incasso di
+  maggio e giugno — venticinque righe da «già nel saldo» che nessuno doveva più
+  guardare. E quello che è già nel saldo **non si mostra**: è un fatto chiuso,
+  non si può spegnere, e resta solo nei totali.
+
+**Il report per il consiglio** (§268, `/api/prospetto?m=<mese>`,
+`lib/prospetto-report.ts`). Una riunione di soci non si fa scorrendo una pagina
+web: si fa su un foglio che si stampa, si allega a un verbale e si rilegge fra
+sei mesi. HTML autonomo A4 col pulsante che apre la stampa del browser, come
+`kpi-report`: il PDF lo fa il browser, e il documento è identico su ogni
+macchina senza portarsi dietro un motore di stampa.
+
+- **Risponde in ordine alle domande che vengono fatte**, non elenca quello che
+  il tool sa: il verdetto in una frase · il mese ha prodotto margine
+  (competenza) · da dove vengono e dove vanno i soldi · cosa deve ancora
+  succedere (cassa) · le leve · come prosegue il conto.
+- **Due pagine, e la divisione non è tipografica** (§269). La prima è quella che
+  si proietta: sette numeri e tre frasi. La seconda si allega al verbale e si
+  rilegge quando qualcuno chiede «e questi 5.772 da dove vengono» — ogni riga di
+  entrata e di uscita col suo imponibile, la sua IVA, la sua scadenza e il suo
+  stato. Metterle insieme voleva dire perdere la prima; toglierne una, non poter
+  rispondere alla domanda che arriva sempre.
+- **I compensi hanno una sezione loro, con due colonne che non si sommano**
+  (§270): il **maturato** — quello che spetta per il lavoro consegnato — e
+  quanto di quel maturato l'**incassato** copre davvero (`computeMonth` sulle
+  sole righe spuntate, §232). Un socio che è anche commerciale compare **una
+  volta sola** (`mergePeople`, §226): «Walter» in `pl_partners` e «Walter
+  Giacobbe» in anagrafica erano due righe con lo stesso destinatario, e chi le
+  legge cerca due bonifici che non esistono.
+- **§274/§275 — l'erogato si emette sull'incassato, e «incassato» ha una sola
+  definizione.** La sezione compensi mostra **solo** quello che si eroga: niente
+  colonna del maturato e niente scoperto, che sul foglio di chi deve bonificare
+  sono rumore. La base è **quello che si è mosso nel mese prima** — `movedIn`
+  (§224), gli incassi *di* luglio di qualunque fattura — non «le righe di luglio
+  che risultano pagate»: sono due insiemi diversi e davano 3.595,94 € a socio
+  contro i **3.530,94** che la pagina Ripartizione mostra a schermo. Due numeri
+  diversi sullo stesso compenso sono il modo più veloce per non fidarsi di
+  nessuno dei due. Su luglio: 24.100 € rientrati → erogato 860 + digital
+  2.610,94 + 60 da lead generation = 3.530,94 a socio, provvigioni 1.143 e
+  589,67, **totale da erogare 12.325,49 €**. Chi non ha visto rientrare le sue
+  fatture resta in tabella con scritto perché, invece di sparire.
+- **I compensi che escono in un mese sono maturati in quello prima** (§271),
+  come il costo del lavoro (§224): il foglio calcolava il maturato di agosto e
+  lo intitolava «compensi di agosto», mentre la sezione di cassa contava —
+  giustamente — quelli di luglio. **Due numeri con lo stesso nome nello stesso
+  documento**, che in riunione diventano una discussione su chi ha ragione. Ora
+  la tabella guarda il mese prima e lo dice nel titolo; e siccome le righe
+  preparate portano l'importo copiato quando il mese è stato preparato (§243),
+  la differenza col ricalcolo è **scritta** invece di far tornare i conti a
+  mano: maturato a luglio 18.947,51 €, in uscita ad agosto 14.844,41 €.
+- **Dove il mese di competenza non è quello di cassa, il foglio lo scrive**:
+  «Persone · maturate a luglio 2026», «Compensi · maturati a luglio 2026», e su
+  ogni subappalto «si paga quando incassiamo dal cliente» (§224, `a_incasso`) —
+  altrimenti quella scadenza sembra arbitraria e quei totali sembrano contati
+  due volte.
+- **§273 — la tabella delle Uscite elenca quello che il mese paga.** Le
+  retribuzioni di agosto sono competenza di agosto e cassa di settembre:
+  elencarle lì, con scadenza 20 settembre, faceva leggere come «uscite di
+  agosto» dei soldi che ad agosto non escono. Al loro posto ci sono le buste di
+  **luglio** — 6.698 €, in scadenza il 20 — e ogni riga dice di che mese è. Il
+  legame col conto economico non si perde, si **scrive**: `13.570,73 − 6.698,00
+  + 8.191,51 = 15.064,24`, che è il costo di agosto.
+- **§272 — una copia mutilata delle righe dà numeri plausibili e sbagliati.**
+  `loadProspetto` restituiva le righe **senza `project_value`**, che è il valore
+  venduto del lavoro e decide se il fondo rischio digital è disponibile (§186:
+  sopra i 20.000 € ciascun socio scende dal 28% al 25%). Senza, nessuna riga
+  risultava eleggibile e il report dava **4.340,78 € a socio invece di
+  4.045,94** — un numero credibile, che nessuno avrebbe controllato. Le righe
+  escono anche col **commerciale dell'anagrafica** (`client_sales_owner`), o
+  `ownerOf` le legge come inbound e divide ogni provvigione fra i soci. Il
+  riscontro è `npx tsx scripts/verify-month.ts <mese>`: se il report non dice i
+  suoi stessi numeri, è il report a sbagliare.
+- **Competenza e cassa stanno scritte**, non sottintese: è il punto in cui ogni
+  consiglio si perde, e un numero di cui nessuno sa la provenienza diventa una
+  discussione su chi ha ragione. Il primo blocco è imponibile, il terzo è lordo,
+  e ognuno lo dichiara.
+- **Il caricamento è uno solo** (`lib/prospetto-load.ts`): pagina e report
+  leggono gli stessi numeri, o la riunione si apre con due fogli che non tornano.
+- `npx tsx scripts/report-prospetto.ts <mese> [file.html]` lo genera su file:
+  serve a **guardarlo** senza autenticarsi, perché una colonna che va a capo o
+  un numero vuoto si notano sul foglio, non compilando.
+
+Gate: `npx tsx lib/cash-plan.check.ts` (57 controlli) ·
+`npx tsx scripts/verify-plan.ts <mese>` stampa il piano dal database e
+**confronta le voci del mese col conto economico**, riga per riga.
+
 **Piano compensi** (`lib/pl.ts`, §185). Due formule perché sono due lavori
 diversi, non per incoerenza:
 
@@ -467,6 +709,26 @@ diversi, non per incoerenza:
   (economics e scheda cliente) e la seconda copia si dimenticava ogni colonna
   nuova.
 
+**Una pagina lunga si usa se si sa dove sono le cose** (§237, `PlNav` in
+`PlClient`). Il conto economico è dodici sezioni in fila: per arrivare alle
+uscite si scorreva mezzo schermo tre volte, e per tornare al numero appena letto
+altrettanto. La barra in cima è appiccicata e fa due cose diverse:
+
+- **dove vado** — un salto per sezione **col numero di quella sezione accanto**,
+  nell'ordine in cui la pagina scorre. Così non è solo navigazione: è già un
+  riassunto, e spesso la risposta è lì senza scendere. Una barra che elenca in un
+  ordine e una pagina che scorre in un altro fa cercare due volte la stessa cosa.
+- **cosa devo fare** — «N da fare»: clienti fuori dal mese, righe che non dicono
+  più quello che dice il contratto, arretrati scaduti, effettivi a zero, spunte
+  che nessun movimento conferma, compensi da erogare, mesi futuri in cui esce più
+  di quanto entra. Non duplica i pannelli: **porta** al pannello dove sta la
+  leva, perché una leva lontana dal suo risultato non la usa nessuno.
+
+E in testata restano le azioni di tutti i giorni: «Copia dal mese scorso» e
+«Svuota mese» sono in un menu, perché erano grandi quanto «Chiudi mese» e quattro
+pulsanti che competono si leggono tutti, ogni volta. La conferma a due passi
+dello svuotamento è dentro il menu, non è sparita.
+
 **Due letture della ripartizione** (§204): la seconda lettura chiama lo stesso
 `computeMonth` sulle **sole righe con la spunta** — entrate incassate e costi
 pagati — quindi «Cassa TwoBee» si muove quando spunti «pagato», che è la domanda
@@ -495,6 +757,274 @@ entrate, costi, margine, incidenza e ripartizione. Tre regole:
 
 Le righe di entrata e uscita non si filtrano mai: sono i fatti, e sono anche il
 posto dove si spunta. La leva e il risultato devono stare nella stessa schermata.
+
+**Competenza e cassa sono due mesi diversi** (§224, `lib/cash-calendar.ts`, migration
+203). Il conto economico sapeva **in che mese il lavoro è stato fatto**. Non sapeva
+**quando i soldi si muovono**, e sono due domande: lo stipendio di luglio esce il
+20 agosto, il subappalto si paga quando ha pagato il cliente, una fattura emessa il
+1° vale quindici giorni. Con una sola spunta booleana la cassa di un mese conteneva
+le sole righe di quel mese: agosto non vedeva un euro dello stipendio che stava
+pagando, e luglio se lo teneva come se fosse uscito lì.
+
+Tre colonne su `pl_revenue_lines` e `pl_cost_lines`, e nessuna è l'altra:
+`terms` (l'accordo; NULL = lo decide la **natura** della voce) · `due_date` (la
+scadenza scritta a mano, un'eccezione che vince sulla regola) · `paid_on` (quando i
+soldi si sono mossi — **l'unico che fa cassa**, e lo riempie un trigger con la data
+di oggi quando si spunta). Le regole stanno **solo** in `lib/cash-calendar.ts`,
+mai in SQL: due copie e la seconda dimentica sempre un caso. Tre eccezioni alla
+regola «entro il mese», e nessuna è un'opzione — costo del lavoro `mese_succ_20`,
+subappalto `a_incasso`, entrata `giorni_15` (§177).
+
+- **La cassa di un mese sono i fatti di quel mese**, di qualunque competenza
+  (`movedIn`). Non ci si mette dentro niente di atteso: un totale che mescola quello
+  che è successo con quello che dovrebbe succedere non risponde a nessuna delle due
+  domande. Il selettore si chiama **Competenza / Cassa** e dichiara cosa entra e
+  cosa esce prima che uno prema.
+- **I compensi seguono la lettura.** In competenza sono quelli maturati — chi ha
+  lavorato ha lavorato; in cassa sono quelli che il denaro passato copre davvero,
+  che è la domanda a cui si risponde quando si decide quanto versare. Il maturato
+  resta scritto accanto: un commerciale il cui cliente non ha pagato mostra **zero
+  su X maturati**, non sparisce. (Supera §204, che li teneva fermi al maturato.)
+- **Quello che non si è mosso si trascina** (`openAt`), e va visto **dove si
+  spunta**: il blocco «Da mesi precedenti» sta dentro Entrate e Uscite, non in un
+  riquadro altrove — una leva lontana dal suo risultato non la usa nessuno.
+  Spuntare un arretrato registra **la data di oggi** e non riapre il suo mese, nemmeno
+  se è chiuso: il movimento è un fatto di adesso. E la contropartita ha una riga
+  anche lei — «passati in questo mese» — o la cassa avrebbe un numero senza niente
+  dietro.
+- **Il ritardo si legge, non si conta a mente**: bande a 15 e 45 giorni (`LATE_BANDS`),
+  colore *e* parola («in ritardo di 3 giorni» e «di 54» sono due fatti diversi, un
+  rosso solo li appiattisce). La riga in ritardo è **tinta**, e il pallino sta accanto
+  al nome, dove l'occhio scorre. Oltre i 45 giorni non è un ritardo: è un credito da
+  recuperare, e `diagnose` lo dice fra i problemi del mese.
+- **In scadenza non è in ritardo**: lo stipendio di luglio, ad agosto, è il
+  pagamento di agosto. Colorarlo di rosso insegnerebbe a ignorare il rosso.
+- **Backfill dichiarato**: le righe già spuntate non avevano una data, e la 203
+  assume **la scadenza**. Sposta l'attribuzione di cassa dei mesi già registrati, ed
+  è quello che deve succedere. Senza la 203 l'app non si rompe: le colonne mancano,
+  ogni riga resta nel suo mese (`assumed`) e la pagina lo dichiara invece di
+  spostare numeri su una data che non esiste.
+
+**Chi legge il calendario**: il conto economico (righe, arretrati, ripartizione),
+la scorecard «Uscita di cassa» del Personale, il **previsionale** — che adesso ha
+una colonna `Cassa` accanto a `Margine`, perché un canone di giugno pagato a 30
+giorni è margine di giugno e soldi di luglio — e la **curva della Banca**, dove le
+scadenze attese non sono più tutte datate al primo del mese. Manca la
+Fatturazione. Chi aggiunge una lettura chiama `dueOf`, non riscrive la regola.
+
+**Tenuta di cassa** (§225, `lib/cash-runway.ts`, in cima al conto economico). Il
+margine e i soldi sul conto sono due domande: il primo è **imponibile e di
+competenza**, i secondi sono **lordi e con una data**. Un mese può chiudere in
+utile e lasciarti a secco il 20. La sezione mette i due mondi nella stessa
+schermata, e sono **scenari, non una previsione**: lo stesso saldo con dentro
+cose diverse. Ognuno dichiara il suo delta, perché un numero solo non si
+controlla.
+
+**La scala ha due metà, e non sono simmetriche** (§233). Prima tutto quello che
+esce comunque — uscite scoperte, IVA, compensi maturati — e sotto quello che
+*potrebbe* entrare. Le uscite sono certe, gli incassi no, e mescolarli in
+un'unica sequenza faceva sembrare un fatto una speranza. Da qui i **tre esiti**
+in testa, che sono la sola cosa che si guarda per prima:
+
+- **Se non incassi niente** (`floor`) — dopo uscite, IVA e compensi. È l'unico
+  numero che dipende da te, e prima stava in fondo alla lista indistinguibile
+  dagli altri.
+- **Se pagano i puntuali** (`expected`) — le fatture ancora nei termini. Chi
+  paga di solito paga: è la parte credibile.
+- **Se rientrano gli arretrati** (`best`) — quelli scaduti, col ritardo del più
+  vecchio scritto accanto. Non arrivano da soli: è una telefonata, non una
+  previsione, e sommarli agli altri incassi li prometteva uguali.
+
+Il verdetto ne discende, e distingue tre modi di essere in bilico: `negativo`
+(non ci arrivi nemmeno incassando tutto) · `stretto` con `expected ≥ 0` (dipendi
+dai clienti) · `stretto` con `expected < 0` (**dipendi da chi non ti ha
+pagato**, che è un'altra cosa e vuole un'altra azione) · `regge`.
+
+- **L'IVA è la leva, e va detta.** L'IVA che i clienti pagano entra in banca e
+  finanzia fornitori e stipendi fino alla liquidazione: è legittimo e lo fanno
+  tutti, ma non è capitale — è un debito con una data. `vatHeld` non è una nota a
+  piè di pagina: è la quota del saldo che non è tua, e l'ultimo scenario è l'unico
+  che dice se il mese regge davvero. Un'azienda in utile che resta senza soldi ha
+  quasi sempre contato l'IVA due volte, una come cassa e una come margine.
+- **I compensi sono l'ultimo gradino e l'unico con un interruttore** (§237).
+  L'IVA ha una data, le fatture dei fornitori pure; i compensi no — «la
+  decisione è quando, non se». Il tasto sta **sulla riga**, dove il numero
+  cambia, e i tre esiti si spostano insieme: la domanda che si fa ogni mese è
+  *quanto respiro dà rimandarli*, e senza il secondo numero quel respiro te lo
+  calcoli a mente. Spenti, la riga scrive che restano da erogare: si spostano,
+  non si tolgono. Con niente da erogare l'interruttore non c'è — uno che non
+  cambia niente è peggio di uno assente.
+- **L'IVA dichiara se scade in questo mese** (§233, `vatDueInMonth`). Si toglie
+  sempre — non sono soldi tuoi nemmeno il giorno prima — ma ad agosto è un
+  bonifico da fare il 20 e a settembre è un fondo da non toccare, e chiamarli
+  con lo stesso nome fa preparare il bonifico sbagliato.
+- **Il saldo è quello vero** — solo movimenti `banca` (§189). Contare i
+  `derivato` farebbe quadrare la tenuta di cassa grazie alle spunte che la
+  tenuta di cassa serve a verificare.
+- **Il rotolo dei mesi** dice *quando* si rompe, non *se*: mesi già aperti →
+  righe registrate; mesi chiusi → contratti e piano (sommarli entrambi
+  conterebbe due volte lo stesso canone). Gli scoperti scaduti pesano sul
+  **primo** mese: nella curva servono lì, non nel mese in cui erano attesi.
+- **Una stima si dichiara sulla riga.** Il piano dei costi non contiene l'area
+  Personale (§184: la scrive l'organico), quindi ogni mese futuro sembrerebbe
+  costare novemila euro in meno. `payroll` la stima uguale a questo mese e la
+  riga scrive «di cui X stimati» — e **solo** dai mesi che seguono uno non
+  aperto, perché il costo del lavoro di un mese esce in quello dopo e dove le
+  righe ci sono è già contato.
+- **Il maturato si conta su tutti i mesi** (§233), non sulle righe che il mese
+  guardato si trascina: un bonifico non sa di che mese è, e prendere i soli
+  arretrati di cassa dava allo stesso registro 18.749 € su luglio e 25.557 € su
+  agosto. `npx tsx scripts/verify-cash.ts <mese>` legge la sezione dal database
+  e la stampa: gradini, esiti e registro dei compensi persona per persona.
+- **«Mai un bonifico» guarda tutti i movimenti, non la finestra** (§233). Col
+  consolidato a luglio i bonifici di giugno restano fuori dal conteggio, e
+  `paid === 0` marcava «mai pagato» anche Marco, che ne ha ricevuti 6.165 € —
+  quelli hanno chiuso i mesi prima della linea, ed è la ragione per cui la
+  finestra esiste (§228). La stessa frase detta a due situazioni opposte è
+  peggio di nessuna frase.
+
+**Una persona costa dal mese in cui è entrata** (§233, `inForce` in
+`lib/payroll.ts`). «Porta nel conto economico» scriveva l'organico di **oggi**
+in qualunque mese si stesse preparando: maggio 2026 si è ritrovato il costo di
+chi è arrivato a giugno, e quelle righe non restano ferme lì — sono scoperte, si
+trascinano fra gli arretrati e la tenuta di cassa le conta come uscite da fare.
+
+- **L'organico è uno solo e vale per tutti i mesi.** In quali mesi una persona
+  pesa lo dice `hired_on` (con `end_date` dall'altro capo); il pagamento è il 20
+  del mese dopo e discende dalla natura della voce (`mese_succ_20`), non si
+  configura. L'unico modo che restava per togliere qualcuno da **un** mese era
+  eliminarlo dall'organico — che lo toglie da tutti e si porta via cedolini e
+  fatture col CASCADE. È successo davvero, il 9 agosto 2026:
+  `supabase/RESTORE_HR_PEOPLE.sql` è il ripristino.
+- **La riga resta visibile e lo dice**: chi non era ancora in forza compare in
+  organico con «entra a giugno», fuori dai totali del mese. Una persona che
+  sparisce dall'elenco è una persona che qualcuno riaggiunge.
+- **Il confronto è fra mesi, non fra giorni**: chi entra il 20 costa quel mese,
+  perché il cedolino di quel mese esiste. Senza data di assunzione si è in
+  forza: l'assenza di un dato non è una data, e togliere un costo vero è peggio
+  che tenerne uno da correggere. Nel consuntivo (`pushLedgerToProfitLoss`) il
+  **documento batte l'anagrafica** (§182): se per quel mese c'è un cedolino o
+  una fattura, la persona ha lavorato e la data sbagliata è l'altra.
+
+**L'estratto conto certifica le spunte** (§226, `lib/cash-certify.ts`,
+`scripts/certify-cash.ts`). Una spunta «pagato» è un'**opinione** finché un
+movimento non la conferma, e per mesi le due cose si sono lette identiche. Sul
+database vero, all'8 agosto: 24 righe certificate dalla banca e **58 dichiarate
+per 70.835 €** che nessun movimento dimostra. Quattro stati, e la differenza fra
+il secondo e il terzo è tutto il punto:
+
+- **certificata** — movimento agganciato, data che combacia.
+- **da datare** — il movimento c'è, la data no. Si corregge da sé, perché il
+  giorno lo dice l'estratto conto e non chi ha spuntato. Ne sono state corrette
+  **21**, con uno scarto medio di 13 giorni: iCura di maggio risultava incassata
+  il 15 maggio e la banca dice **9 giugno**, Affinity di giugno il 15 giugno e la
+  banca dice **6 agosto**. Quattro cambiavano mese di cassa.
+- **dichiarata** — spuntata, nessun movimento la conferma. **Non si sbianchetta
+  mai**: l'assenza di prova non è prova dell'assenza — può essere un conto non
+  caricato o del contante — e cancellare l'incasso di un cliente che ha pagato
+  davvero è un danno peggiore del dubbio. Si marca e si conta.
+- **sospetta** — agganciata a un movimento **precedente al suo mese**. La rata
+  di luglio di Josè era attaccata a un bonifico del 15 maggio: prendere quella
+  data avrebbe peggiorato il dato invece di certificarlo. Si segnala, non si tocca.
+
+Solo i movimenti `banca` certificano: un `derivato` nasce dalla spunta che si sta
+verificando, e usarlo sarebbe far confermare a un'affermazione se stessa.
+
+**L'erogato esiste solo in banca** (§226, `payoutsFromBank`). Il piano dice
+quanto **spetta**; nessuna riga dice quanto è **uscito** — l'erogato non si
+scrive, si ricalcola — e finché il confronto non c'è, un socio pagato per intero
+e uno che non ha mai preso un euro si leggono uguali. Sul conto vero: Marco
+6.165 · Toto 6.030 · Walter 8.990 · **Antonio Giarletta zero**, con provvigioni
+maturate da mesi. Il pannello «Uscito davvero» sta nel conto economico, sotto i
+compensi. Tre regole:
+
+- **Il maturato si somma su tutti i mesi**, perché un bonifico non sa di che mese
+  è: confrontarlo con un mese solo darebbe a chiunque uno scoperto o un anticipo
+  enormi, e nessuno dei due vero.
+- **Un socio che è anche commerciale è una persona sola** (`mergePeople`):
+  erogato e provvigione arrivano sullo stesso conto. Tenerli separati spezzava
+  il dovuto in due voci e non trovava nessuno dei due bonifici, perché due nomi
+  corrispondevano allo stesso movimento e l'abbinamento si rifiutava
+  (giustamente) di indovinare.
+- **Il nome non basta: decide la classificazione.** Alla stessa persona si
+  bonifica per ragioni diverse — a Walter sono usciti 3.000 € che pagano una
+  fattura di GAV Sistemi, giro fra società collegate fuori dalle statistiche, e
+  contarli come compenso gli avrebbe chiuso uno scoperto che invece esiste. Un
+  compenso è un `finanziamento`; un movimento già agganciato a una riga è il
+  pagamento di quella riga. Se una è classificata male si corregge la categoria
+  in Banca (§189), non si aggiunge un'eccezione nel codice.
+
+**I compensi non sono righe di costo, e per questo mancavano** (§227,
+`lib/cash-runway.ts` + `payoutSchedule`, migration 204). La tenuta di cassa
+diceva «resta un margine di 15.205 €» a un mese che doveva ancora erogare
+**22.237 €** ai soci e ai commerciali: «se paghi tutto» pagava fornitori,
+stipendi e subappalti e non chi aveva lavorato. Il motivo è strutturale — i
+compensi non si scrivono da nessuna parte, si ricalcolano — quindi nessun costo
+li conteneva e nessuno se ne accorgeva.
+
+- **Un quinto gradino**, dopo l'IVA: «e poi eroghi i compensi maturati». Il
+  verdetto lo guarda, ma quando è **solo** quello a far cadere il conto lo dice
+  in chiaro — «regge fino all'IVA, sono i compensi a portarlo sotto» — perché
+  un «negativo» secco farebbe cercare un problema che non c'è. E dichiara la
+  differenza con l'IVA: i compensi **non hanno una scadenza**, la scelta è
+  quando, non se.
+- **Escono nel mese dopo** quello in cui maturano, come il costo del lavoro:
+  il conto economico non può dire che il compenso di luglio è in ritardo il 2
+  luglio. Nel rotolo dei mesi ogni quota cade dove è attesa, non tutta sul primo.
+- **I bonifici si imputano dal più vecchio** (FIFO): un pagamento chiude
+  l'arretrato più antico, che è l'unico ordine che una persona userebbe e
+  l'unico che fa emergere un debito che si trascina.
+- **Da quando si conta è una decisione, non un'inferenza** (`pl_config.payout_from`,
+  default 2026-07-01: fino a giugno è tutto liquidato). Dedurlo dai mesi chiusi
+  sembrava elegante e non lo era: il giorno in cui si è chiuso luglio la linea
+  si è spostata da sola ad agosto e i compensi di luglio sono spariti dal
+  registro senza che nessuno lo avesse deciso. **Una regola che cambia
+  significato per un gesto che parla d'altro è peggio di nessuna regola.**
+  `null` = si conta da sempre, come prima della 204.
+- **§230 — la linea è una sola e vale per tutto** (`pl_config.settled_from`).
+  Non riguarda solo i compensi: prima di luglio 2026 le **spunte** che nessun
+  movimento certifica non sono lavoro arretrato (58 righe per 70.835 €, che
+  segnalate per sempre insegnano solo a ignorare le segnalazioni) e l'**organico**
+  di maggio-giugno contiene persone che allora non erano in forza, perché quei
+  mesi sono stati preparati con l'organico di oggi. `certify` le marca
+  `consolidata`: niente glifo, niente conteggio, e la testata scrive «mese
+  consolidato». Dopo la linea si verifica come sempre — il consolidato è una
+  data, non un interruttore che spegne i controlli.
+- **§228 — la liquidazione è un fatto per persona, non una data per tutti**
+  (`payoutLedger`). La linea vale per chi è stato pagato: i tre soci hanno
+  bonifici fino a giugno, quindi da luglio ripartono da zero. **Antonio
+  Giarletta non ha mai ricevuto un bonifico**, e a chi non ha mai preso niente
+  non si può dire che fino a giugno è a posto: per lui si conta da sempre —
+  1.860 € invece di 645 — e la riga scrive perché. La regola sbaglia in una
+  direzione sola, ed è quella giusta: a chi è stato pagato in contanti mostra
+  uno scoperto che non ha, che è un allarme falso e non una rassicurazione
+  falsa, e si spegne registrando il movimento.
+
+**La cassa è un sottoinsieme, e deve comportarsi come tale** (§232). Su luglio
+l'erogato ai soci risultava **più alto** in cassa che in competenza — 4.588
+contro 4.234 — il che è impossibile. Il filtro «mosso in questo mese» si
+applicava a **tutte e due le gambe** del margine digital: entravano quattro rate
+incassate e due soli subappalti su quattro, perché gli altri due non erano
+ancora usciti. Il margine saliva da 10.944 a 12.566 e la quota del 28% con lui.
+
+Ma il margine digital è un rapporto fra il ricavo di un progetto e i subappalti
+**di quel progetto e di quel mese** (§208): filtrarne una gamba sola lo rompe.
+Si incassa la rata a luglio, si paga il fornitore ad agosto, e a luglio si
+distribuirebbe una quota calcolata sul ricavo lordo — soldi che sono già di
+qualcun altro. Perciò `computeMonth` prende un quinto parametro, `marginCosts`:
+in cassa i subappalti restano quelli **di competenza** delle righe che si stanno
+contando. Cambia chi ha pagato, non quanto vale il lavoro. Il gate lo blocca con
+il caso vero: cassa ≤ competenza, sempre.
+
+**Un numero si scrive in un modo solo** (§231, `lib/money.ts`). L'helper `eur`
+esisteva in **nove copie**, e ognuna sbagliava a modo suo: chi metteva l'euro
+davanti (`€2.673`) e chi dietro, chi raggruppava le migliaia e chi no. Il
+motivo non era distrazione: l'italiano di CLDR ha `minimumGroupingDigits: 2` e
+**non raggruppa i numeri di quattro cifre**, quindi 2673 restava «2673» accanto
+a «12.673» nella stessa colonna. Adesso c'è un modulo solo, il punto si mette a
+mano — `Intl` dipende dai dati ICU con cui è compilato Node, e un motore puro
+che scrive un messaggio diverso fra il gate e la pagina non è verificabile — e
+l'euro sta sempre dopo.
 
 **Struttura e subappalti non si sommano** (§188): `costs.structural` sono i costi
 interni, `costs.external` i subappalti. Il **target del 35% riguarda solo la
@@ -528,6 +1058,91 @@ regimi** (§184: cosa è in vigore, cosa è scaduto, quanto vale con i numeri ch
 tool ha già), e `taxInsights` — regole, non consigli fiscali. **Ogni stima dichiara la sua assunzione**: se i costi
 effettivi non sono registrati la previsione è gonfiata e va detto prima del
 numero, non in nota.
+
+**Due trimestri, due domande** (§238). «Quanto sta maturando il trimestre di
+questo mese» e «quanto esce alla prossima scadenza» non sono la stessa cosa: ad
+agosto 2026 sono il 3º (9.250 €, 16 novembre) e il 2º (8.400 €, 20 agosto). Il
+riquadro IVA mostrava il primo col titolo «IVA da mettere da parte» e la Tenuta
+di cassa toglieva il secondo, mezzo schermo più su: due numeri diversi sotto la
+stessa parola, e non si crede più a nessuno dei due. Adesso il riquadro li porta
+entrambi con un selettore, si apre sulla **scadenza** — la domanda di cassa, la
+stessa della sezione sopra — e scrive perché sono diversi. La diagnosi e la barra
+in cima leggono la scadenza.
+
+**Il modello F24 batte la stima** (§242, `vat_settlements`, migration 206).
+`lib/vat.ts` stima l'IVA dalle righe registrate — debito meno credito, più l'1%
+dell'opzione trimestrale — ed è la stima giusta per sapere quanto mettere da
+parte. Sarà **sempre** diversa dal modello: il registro IVA del commercialista
+contiene fatture che il conto economico non ha ancora. Sul 2º trimestre 2026 il
+tool dice 8.399,87 e il modello del 20 agosto chiede **9.669,33** (cod. 6032).
+
+- **Quando il documento arriva, vince il documento**, come per i cedolini (§182).
+- **La differenza resta scritta**, e non è rumore: il 22% dei ricavi registrati è
+  un numero esatto (9.108,00 di debito), quindi lo scarto di 1.269,46 è
+  **fatturato del trimestre che il conto economico non ha**. È l'unico posto in
+  cui quel buco si vede senza andarlo a cercare.
+- **Il riporto al trimestre dopo nasce dal saldo calcolato**: sostituirlo con un
+  numero che il modello non contiene sposterebbe l'errore avanti invece di
+  mostrarlo. Debito, credito e riporto restano quelli del motore; cambia solo
+  quello che si versa.
+- Lo leggono **tutte e due** le sezioni — Fiscale e il conto economico — o
+  tornerebbero a dire due numeri diversi con lo stesso nome (§238). Nello stesso
+  F24 ci sono anche ritenute, crediti e INPS: quelli sono costo del lavoro e
+  stanno in `hr_f24`, non qui. Sommarli farebbe costare diecimila euro un mese di
+  stipendi.
+
+**Il fatturato nel tempo** (§278, `billingSeries` in `lib/invoices.ts`,
+`components/charts/BillingChart.tsx`, in cima a Fatturazione). Emesso, rientrato,
+in attesa e previsionale erano quattro numeri in quattro riquadri, e la domanda
+«come andiamo» bisognava comporla a mente. Una forma sola, due letture — barre
+per «quanto in ciascun mese», linea per «come si sta muovendo» — e il selettore
+cambia la **forma, mai i numeri**: un grafico che cambia i totali quando cambi
+vista è un grafico di cui non ci si fida più.
+
+- **La barra è una divisa in parti**, non tre barre da sommare: pieno =
+  rientrato, smorzato = credito aperto, grigio = stornato. Stessa convenzione
+  delle altre barre dell'economics.
+- **§279 — una nota di credito non è credito in attesa.** Scalava l'emesso —
+  giusto in dichiarazione — ma produceva un «in attesa» negativo: una fattura
+  stornata non è un incasso che deve ancora arrivare, è un incasso che **non
+  arriverà mai**, e le due cose chiedono due azioni diverse (telefonare, o non
+  fare niente). `credited` è una grandezza sua e `pending` non scende mai sotto
+  zero. Sui dati veri: 98.550 € emessi lordi, di cui **10.500 stornati**
+  (7.200 a maggio, 3.300 ad agosto).
+- **§280 — nel grafico stanno solo tre cose: netto, rientrato, in attesa.**
+  L'altezza della barra è il **fatturato netto**, e lo stornato non è una terza
+  parte — disegnarlo alzerebbe una barra che il fatturato non ha. Resta scritto
+  nel riquadro del mese, dove spiega perché il netto è più basso dell'emesso.
+- **§281 — una fattura può non essere né incassata né da incassare**
+  (`invoices.excluded_reason`, migration **210**). L'archivio conosceva due
+  stati; sui dati veri ne servivano tre, e il terzo vale **nove documenti su
+  trentanove**: le ISF duplicate con le loro note di credito, la Gli Artigiani
+  stornata, la Tailors emessa due volte. Non sono crediti — nessuno telefonerà
+  mai per averli — e fra gli «in attesa» gonfiavano lo scaduto. Non si
+  cancellano: esistono, sono passate dallo SDI. Si dichiarano fuori **col
+  perché accanto**, perché un'esclusione senza ragione fra sei mesi non si
+  distingue da una dimenticanza — per questo la colonna è di testo e non un
+  booleano. Escono dal netto e dall'atteso come le note di credito; restano nel
+  conteggio dei documenti, che è un'altra domanda. Lo stato vero dell'archivio
+  lo scrive `supabase/FIX_INVOICES_STATE.sql`, e **le date vengono
+  dall'estratto conto**: dove il movimento non è unico la fattura resta in
+  attesa, che è meglio di una data inventata.
+- **Sotto il grafico, le fatture che devono rientrare** (§280,
+  `PendingInvoices`): un totale non si insegue, si insegue una fattura con un
+  nome. In ordine di **ritardo** — 14 aperte per 47.732,50 €, la più vecchia da
+  86 giorni — e con le due strade che sono due fatti diversi: **il movimento
+  c'è già** (candidati da `txCandidates`, un clic e la data è quella del
+  movimento) oppure **deve ancora arrivare**, e allora l'unica cosa vera da
+  scrivere è **quando** (`setInvoiceDue`). Senza una data una fattura non è né
+  scaduta né attesa: sparisce dalle telefonate da fare. La terza strada —
+  «segnala incassata» — resta per il contante, e dichiara di essere una spunta
+  che nessun movimento dimostra (§226).
+- **Il previsionale ha un'altra forma**, tratteggiata, e viene dai contratti
+  firmati (`linesForMonth`, §176): 76.850 € da settembre a dicembre. Disegnarlo
+  pieno accanto allo storico lo farebbe leggere come un fatto.
+- **Il pallino porta il numero**: il riquadro sul mese dà i quattro valori e la
+  quota rientrata, e l'asse resta pulito. Dal grafico si prende la direzione,
+  dal numero la decisione.
 
 **IVA** (`lib/vat.ts`): l'IVA incassata non è cassa disponibile. Liquidazione
 trimestrale, scadenze ordinarie 16/05 · **20/08** · 16/11 · 16/03 (il quarto con
@@ -726,10 +1341,76 @@ resta pieno e la riga dice perché. Un'agevolazione presa male si restituisce co
 le sanzioni: vale meno di quella non presa. Ogni esonero sa anche **quando
 finisce**, perché il mese dopo il costo risale e va visto prima.
 
-**L'F24 non si ripartisce.** `checkF24` dice se l'IRPEF dei cedolini combacia con
-l'erario del modello e quanto dell'INPS resta a carico azienda — ma quel residuo è
-aggregato: «Dato aziendale aggregato — ripartizione individuale non verificata»
-finché non arriva il prospetto individuale del consulente.
+**L'F24 non si ripartisce, ma può confermare una ripartizione** (§235,
+`splitEmployer` in `lib/payroll-ceiling.ts`). Il modello è aggregato e non nomina
+nessuno: `checkF24` dice solo se l'IRPEF dei cedolini combacia con l'erario. Però
+il DM10 è la somma di quattro pezzi di cui tre si conoscono — le trattenute dei
+lavoratori, i contributi dell'apprendista (aliquota **di legge** per anno, 3,11%
+il primo) e lo zero dei tirocini — e quello che resta, diviso l'imponibile degli
+ordinari, è l'aliquota vera: a giugno 2026 **29,57%**, dove la configurazione
+diceva 30%. Due regole:
+
+- **Il numero ricavato per differenza assorbe tutto quello che c'è dentro.** Se
+  l'aliquota che ne esce sta fuori dalla banda 24–36% il modello contiene altro
+  (conguagli, rate, sanzioni) e la ripartizione **non si fa**: si torna al
+  listino e la riga lo scrive. Senza il controllo, la sanzione di un ritardato
+  versamento diventerebbe il costo di una persona.
+- **«Di legge» non è «stimato».** Il 3,11% dell'apprendista e lo zero del
+  tirocinio sono fatti; marcarli come stime manderebbe a chiedere al consulente
+  una conferma che non serve. La supposizione vera è una sola: l'aliquota
+  ordinaria presa dal parametro invece che dal modello.
+
+**Quanto costa davvero una persona al mese** (§235, `monthlyCeiling`). Non la
+media del contratto — che non sa delle trasferte, non sa che l'apprendista paga
+il 3,11% e non sa che a dicembre esce una mensilità in più — ma quello che dicono
+il cedolino e l'F24. Tre numeri, tre domande:
+
+- **ordinario** — il mese normale, quello che il cedolino descrive.
+- **punta** — il mese con la mensilità aggiuntiva. Un budget costruito
+  sull'ordinario salta proprio a dicembre, che è quando salta anche la cassa.
+- **tetto** — l'annuo diviso dodici: il numero da mettere a budget, perché
+  dodici tetti fanno esattamente quello che uscirà. Sui tre dipendenti:
+  **5.392 €/mese** (8.192 € con le due P.IVA), punta 8.754 € nel mese delle
+  tredicesime, contro i 6.573 € che la pagina mostrava leggendo RAL scritte a
+  mano.
+
+**Il costo del lavoro di un mese non pesa su quel mese** (§224): esce il 20 di
+quello dopo. Perciò correggere agosto **non cambia la tenuta di cassa di
+agosto** — nella sua finestra c'è il costo di luglio — e si vede dal mese dopo:
+da settembre l'area Personale pesa 1.182 € in meno, 7.091 € sul semestre. È la
+stessa ragione per cui un consuntivo di luglio non si sostituisce con una stima:
+quei numeri sono già usciti.
+
+Tre cose che il tetto tiene separate, e ognuna nasce da un numero sbagliato visto
+sul LUL vero:
+
+- **Le mensilità aggiuntive si contano dai ratei, non dal contratto.** Se il
+  cedolino porta un rateo di quattordicesima quella mensilità è **già** dentro
+  l'imponibile di ogni mese; quelle che il contratto prevede e il cedolino non
+  ratealizza escono in un mese solo e valgono **dodici volte il rateo** — che è
+  come le calcola il consulente. Contare due volte la quattordicesima sarebbe un
+  errore da 1.500 € l'anno a testa.
+- **Le trasferte non sono un extra: sono lo strumento** (§236). Su Michele e
+  Sabrina bonus e trasferte servono ad arrivare al **netto concordato** — 1.500
+  e 1.600 — e a giugno Michele ci arriva esatto *grazie* ai 57 € di trasferta:
+  senza, la busta ne farebbe 1.443. Chiamarle «parte variabile» faceva sembrare
+  comprimibile la parte che tiene in piedi il patto. Il tetto le divide in tre:
+  quelle **a copertura** del netto (struttura), quelle **oltre** (le sole
+  comprimibili — oggi zero su tutti e tre) e quanto **manca ancora**. Sabrina si
+  ferma a 1.568: i 32 € scoperti entrano nel tetto, perché una promessa scoperta
+  non è una spesa da decidere. Il pavimento è `hr_people.agreed_net`, che è il
+  netto **promesso** e non quello uscito — scriverci 1.568 farebbe sparire lo
+  scostamento invece di segnalarlo.
+- **L'indennità L. 207/2024 non è un costo**: esce in busta e rientra come
+  credito nell'F24 (75,25 + 31,79 = 107,04, ed è esattamente il credito del
+  modello di giugno). Contarla gonfia il conto economico di soldi che tornano
+  indietro il mese dopo.
+
+**La retribuzione non è l'imponibile previdenziale**: su un tirocinio
+l'imponibile è zero e l'indennità è ottocento euro. Il tetto parte dal totale
+delle competenze e toglie quello che competenze non è — rimborsi e partite di
+giro — e sui tre cedolini di giugno torna al centesimo con l'imponibile di chi ce
+l'ha.
 
 Il costo vero di una persona: lordo + contributi + INAIL + TFR + ratei, che sulla
 RAL fanno un +40/45%. `lib/payroll.ts` = motore puro (verificato da
@@ -792,6 +1473,34 @@ dice quando, l'altro dice di chi. La sezione li tiene agganciati.
   numero documento, importo lordo esatto, nome cliente e controparte, ma
   l'aggancio lo conferma una persona. Un abbinamento sbagliato dichiara incassata
   una fattura che nessuno ha pagato, ed è un errore che poi nessuno cerca.
+- **§276 — una conferma sola invece di venti** (`lib/auto-match.ts`,
+  `confirmSureMatches`). La regola resta quella: nessun aggancio automatico. Ma
+  fra i movimenti importati ce ne sono in cui **non c'è niente da giudicare** —
+  importo lordo esatto al centesimo, nome che torna (o numero del documento
+  nell'etichetta) e **una sola riga possibile in entrambi i sensi** — e
+  chiederne venti conferme separate è il modo in cui non se ne conferma nessuna.
+  Il pannello in Banca li elenca prima, con la ragione riga per riga, e un
+  pulsante li conferma in blocco. L'**uno a uno** è la condizione che rende
+  sicuro il resto: un movimento che potrebbe essere due righe, o una riga
+  contesa da due movimenti, resta a mano e la pagina dice perché. L'azione
+  **ricalcola la regola dal database**, non si fida dell'elenco che il browser
+  ha visto: chi arriva secondo non deve poter disfare il lavoro del primo.
+  Provata contro le decisioni già prese da una persona sui 115 movimenti
+  agganciati a mano: **9 riproposti come certi, 9 d'accordo, 0 in disaccordo**,
+  3 lasciati a mano perché ambigui. `npx tsx scripts/verify-match.ts` li stampa
+  senza scrivere niente.
+- **§277 — le virgolette tengono insieme il campo.** `split(sep)` va bene finché
+  nessun campo contiene il separatore, e su Vivid non è così: `"ASANA.COM,
+  DUBLIN, IE"` è **una** cella con due virgole dentro. Spezzandola, l'importo
+  finiva nella colonna della valuta e la riga veniva scartata come «importo
+  illeggibile» — sull'estratto conto vero **43 righe su 49**, quasi tutto, e il
+  totale letto non lo diceva. Ora `cells` rispetta le virgolette (e il `""`
+  interno, che è un apice). Nella stessa riparazione l'esito dell'import si dice
+  com'è: **«0 nuovi» non è un errore** ed è la risposta più frequente — si
+  riscarica l'estratto ogni settimana e le righe vecchie ci sono già — quindi
+  diventa «Nessun movimento nuovo: tutti e 89 erano già in archivio (11 maggio →
+  7 agosto)», e le righe scartate hanno un avviso loro **con la ragione**, che
+  un contatore accanto al successo non lo guarda nessuno.
 - **Import** (`lib/bank-import.ts`): il **dialetto si riconosce
   dall'intestazione** (home banking italiano con la virgola decimale · Vivid col
   punto e la controparte in chiaro), non dal nome del file, e le righe illeggibili
@@ -1014,8 +1723,46 @@ Il gate è in `middleware.ts` **e** nei layout: nascondere una voce di menu non 
 una barriera. I gruppi di ruolo stanno in `lib/permissions.ts`
 (`ADMIN_ROLES` / `WORKSPACE_ROLES`), unica fonte di verità: non riscriverli inline.
 
-Solo il super admin vede `PortalSwitcher` e può entrare in `/portale` (in anteprima,
-scegliendo il cliente da `?client=<id>`).
+**Fra i due portali si muovono admin e super admin** (§234), e nessun altro:
+`PortalSwitcher` compare quando `isAdminRole(app_role) || isSuperAdmin`, in
+testata e nel workspace. A chi è confinato non si mostra un selettore che il
+middleware rimbalzerebbe — un link che rimbalza è peggio di un link assente
+(§211). In `/portale` (anteprima cliente, `?client=<id>`) entra solo il super
+admin.
+
+**I breadcrumb non attraversano il confine** (§234, `samePortal` in
+`BackLink.tsx`). Le due sorgenti del ritorno arrivano da fuori: `?from=`, che
+chiunque può scrivere nella barra, e la pagina precedente in sessione. Un admin
+che apre il workspace ci arriva con la memoria del portale admin addosso, e la
+freccia della scheda cliente lo riportava a `/clienti`, fuori dal portale in cui
+stava lavorando; per chi è confinato al workspace il link non porta da nessuna
+parte, perché il middleware lo rimbalza. La regola è simmetrica: **si torna
+dentro il proprio dominio**, altrimenti vale il `fallback`, che il chiamante
+costruisce già sulla `base` giusta. `/impostazioni/profilo` è l'unica eccezione,
+ed è una porta che esiste davvero. `NavMemory` adesso è montato in **tutti e
+due** i layout: nel workspace non c'era, e ogni «indietro» cadeva sul fallback.
+
+**Il dominio economico è chiuso in un posto solo** (§234, `lib/economics-guard.ts`
++ `canSeeEconomics`). Nascondere una voce di menu non è una barriera, e nemmeno
+nascondere un riquadro: un file `'use server'` **esporta endpoint**, e chi ha il
+codice davanti — cioè chiunque abbia accesso al repository — ne conosce i nomi.
+L'unica difesa che regge è il controllo dentro l'azione.
+
+- `requireEconomicsAdmin()` è **uno**, e ci passano `pl`, `revenue`, `costs`,
+  `payroll`, `bank`, `tax`, `invoices`. Prima erano sette copie della stessa
+  funzione: sette posti dove dimenticarla, e infatti `ownVat` non ce l'aveva.
+- Guarda `app_role`, non `role`: `role='admin'` è la mappatura grossolana per la
+  RLS e ci cade dentro chiunque sia stato promosso admin di ruolo. Il dominio
+  economico è l'ultimo posto dove essere generosi.
+- Tre strati, e ognuno risponde a una domanda diversa: il **middleware** instrada
+  per portale (col ruolo in memoria per mezzo minuto), il layout `(dashboard)`
+  rimanda al workspace chi è workspace, il layout **`economics/`** rilegge dal
+  database e chiede `canSeeEconomics`. «Non è workspace» non vuol dire «può
+  vedere i numeri». Chi non passa torna alla dashboard, non a una pagina
+  d'errore — che confermerebbe l'esistenza della sezione.
+- Nel workspace i numeri non partono nemmeno: `clients_workspace` li azzera in
+  tabella (100/197/213), `hideEconomics` spegne MRR, pagamenti e anagrafica
+  fiscale, e la scheda Economics non viene montata (§211).
 
 Il gate del gruppo `(dashboard)` non era un gate: il layout leggeva il profilo e
 non guardava il ruolo, quindi l'unica barriera era il middleware. Ora rilegge il
@@ -1103,23 +1850,78 @@ Le task del calendario sono personali e nascoste di default.
 | Strategic Objectives widget | Fetcha `objectives` ma no widget | ⚠️ dati ci sono |
 | AI & Automation Center | — | ❌ da costruire |
 
-## Dove siamo — 2026-08-05
+## Dove siamo — 2026-08-09
 
-Ultimo commit: `f7a1782`. **`main` è 52 commit avanti a `origin/main`**, fermo a
-`34c23f5`: il deploy Coolify builda da `origin/main`, quindi su os.twobee.it non
-c'è niente di tutto quello che segue — banca, personale, agevolazioni,
-ripartizione. Finché non si pusha, il tool in produzione e il tool in locale sono
-due prodotti diversi. Gate del repo: `npx tsc --noEmit` (ESLint non è
-configurato) più i **quattordici** `lib/*.check.ts`, che si lanciano con
-`npx tsx lib/<nome>.check.ts` e devono dire «Tutti i controlli passano».
+**Da eseguire subito, e non è una migration**: `supabase/RESTORE_HR_PEOPLE.sql`.
+Il 9 agosto quattro persone su cinque sono state eliminate da `hr_people` per
+togliere il loro costo dal solo mese di maggio; il CASCADE si è portato via
+anche i tre cedolini di giugno. Lo script rimette persone (stessi id), cedolini,
+la fattura di Annalisa e le date di assunzione — Gabriele da aprile, Annalisa da
+giugno — e da lì in poi `inForce` (§233) fa il lavoro che si voleva: la persona
+resta in organico e pesa solo dai mesi in cui era in forza.
+
+**Da eseguire: la `210_invoice_unmanaged.sql`** (§281) — la colonna
+`invoices.excluded_reason`: nove documenti su trentanove non sono né incassati
+né da incassare, e finché non c'è quella colonna restano fra i crediti da
+inseguire. Subito dopo, `supabase/FIX_INVOICES_STATE.sql` scrive lo stato vero.
+
+**Verificato sul database il 2026-08-09, colonna per colonna**: 203, 204, 205,
+206, 207, 208, 209 e 197 sono **applicate** — il registro le dava ancora per
+mancanti. `pl_config.settled_from` c'è (quindi 204+205 sono passate),
+`vat_settlements`, `pl_payouts`, `invoices.pdf_path`, `bank_tx_lines` ci sono, e
+`clients.risk_score` è stata droppata come voleva la 197. L'unica che manca è la
+**210**.
+
+**Da eseguire**: `supabase/FIX_PAYSLIPS_FROM_LUL.sql` (§235) — i tre cedolini di
+giugno trascritti dal LUL voce per voce (il seed della 182 aveva i totali giusti
+e le scomposizioni no: l'imponibile previdenziale conteneva trasferte e indennità
+esenti), l'F24 di luglio in scadenza il 20 agosto, e le RAL allineate ai
+documenti. Senza, la pagina calcola i contributi su una base più alta del vero e
+i tre dipendenti costano 6.573 €/mese invece di 5.360.
+
+**Da eseguire, quando si vuole**: `supabase/FIX_ADS_FROM_BANK.sql` — la
+pubblicità allineata al conto Vivid (Meta comincia il 25 luglio: 211,64 a
+luglio, 109,12 ad agosto, zero prima). Senza, maggio porta 900 € di uscita
+scoperta per una campagna mai partita e la tenuta di cassa la conta.
+
+Ultimo commit: `5102698` (ferie e assenze, §223). **`main` è allineato a
+`origin/main`**: i 52 commit fermi in locale sono stati pushati, quindi su
+os.twobee.it c'è banca, personale, agevolazioni, ripartizione, Asana e ferie.
+Gate del repo: `npx tsc --noEmit` (ESLint non è configurato) più i **ventitré**
+`lib/*.check.ts` (gli ultimi sono `payroll-ceiling.check.ts` §235 e
+`pl-aggregate.check.ts` §239), che si lanciano con `npx tsx lib/<nome>.check.ts` e devono
+dire «Tutti i controlli passano».
 **Non lanciare `npm run build` mentre `npm run dev` gira**: condividono `.next`,
 il dev server resta a servire chunk CSS sostituiti e la pagina si apre senza
 stili. Se succede: ferma il dev, `rm -rf .next`, riavvia.
 
-**Da eseguire: la `197_client_risk_rewrite.sql`** — cleanup, non prerequisito:
-droppa le cinque colonne di rischio che nessuno legge più e ricrea
-`clients_workspace` senza di loro. Finché non la esegui l'app funziona
-identica, le colonne restano lì a zero e nessun codice le guarda.
+**Luglio 2026 è chiuso** (2026-08-09). La quadratura chiude a zero — 31.725 € di
+imponibile, quote + costi + subappalti = 31.725, differenza 0,00 — e ogni riga
+dice quello che dice il suo contratto. Quello che è stato **congelato con dentro**,
+e che va guardato prima di fidarsi dei numeri di cassa di luglio:
+
+- **19 spunte «dichiarate» per 31.622 €** che nessun movimento di banca dimostra
+  (§226). Non sono soldi mancanti — a luglio dal conto sono entrati 28.859 € —
+  sono spunte non agganciate al loro movimento.
+- **2 righe sospette**: due canoni agganciati a bonifici *precedenti* al loro
+  mese (uno di agosto attaccato al 17 luglio, uno di luglio al 15 maggio).
+  Datarli dalla banca sposterebbe il mese di cassa: si segnalano, non si toccano.
+- **Il ponte non quadra: −18.930 €** (§199). L'identità è esatta, quindi non è
+  un arrotondamento: è un movimento in banca che nessuna riga giustifica, o una
+  spunta su qualcosa che dal conto non è uscito. Da guardare con
+  `npx tsx scripts/verify-bank.ts`.
+- **L'IVA del 2º trimestre**: il tool stima 8.400 €, il modello F24 del 20/08 ne
+  chiede **9.669,33**. Lo scarto (1.269 €) sta tutto sul debito: il 22% dei
+  ricavi registrati fa 9.108 €, e il modello parte da più in alto. C'è
+  fatturato del trimestre che il conto economico non ha.
+- **2 giroconti spaiati** del 4 agosto (±550 €) e **un possibile doppione**:
+  1.300 € a Gabriele Saraiello il 15 maggio, due volte.
+
+**La `203_cash_calendar.sql` è applicata** (2026-08-08): le righe del conto
+economico hanno la **data del movimento**, e da lì lo stipendio di luglio pesa
+sulla cassa di agosto.
+
+**La `204_payout_from.sql` è applicata** (2026-08-08).
 
 Tutto il resto è già applicato. Verificato sul database il 2026-08-05,
 colonna per colonna: 183→196 sono tutte applicate (`hr_people.birth_date` e
@@ -1191,6 +1993,23 @@ anagrafica, ed è il caso che §185 legge senza perdere la provvigione.
 Fuori dai conti per scelta: 4 fatture ISF duplicate (14.400), GAV Sistemi (giro
 di fatture, cliente interno), Gli Artigiani (stornato con nota di credito).
 
+`npx tsx scripts/certify-cash.ts` confronta ogni spunta con l'estratto conto e
+dice cosa non torna; con `--apply` scrive **solo** le date dei movimenti già
+agganciati e le spunte che la banca dimostra — non toglie mai una spunta.
+
+`npx tsx scripts/verify-invoices.ts` incrocia le tre fonti: archivio fatture
+(emesse e ricevute per mese), conti BPM e Vivid (in e out per mese), e chi è
+agganciato a chi. Cerca anche i **pagamenti cumulativi** — un bonifico che copre
+due fatture aperte — e gli **anticipi di tasca propria**, che se non sono
+registrati come movimento `manuale` per il tool non esistono (§195).
+
+`npx tsx scripts/verify-bank.ts [mese]` passa i movimenti ai motori veri: saldo
+per conto, **il ponte** (§199), certificazione delle spunte, giroconti spaiati,
+movimenti senza una riga dietro, duplicati e categorie mancanti. Sola lettura.
+
+`npx tsx scripts/verify-cash.ts <mese>` fa lo stesso con la tenuta di cassa:
+gradini, esiti e registro dei compensi persona per persona.
+
 `npx tsx scripts/verify-month.ts 2026-07-01` legge un mese dal database e lo
 passa a `computeMonth`: è il controllo della catena intera col codice che gira in
 pagina. Su luglio la quadratura chiude a zero — 32.225 € di imponibile, 500 € di
@@ -1198,15 +2017,21 @@ partite di giro, quote + costi + subappalti = 31.725 €, differenza 0,00.
 
 **Aperto, in ordine di importanza:**
 
-1. **Pushare**: 52 commit fermi in locale. È il punto uno perché tutto il resto
-   di questa sezione descrive un tool che gli utenti non hanno.
-2. **Quotare i progetti che mancano**: 15 contratti su 21 progetti. Chi non ne ha
+1. **Fatturazione al calendario della cassa** (§224): è l'ultima sezione che non
+   legge `dueOf` — previsionale, Banca, Personale e conto economico ci passano già.
+   È una lettura, non una scrittura. Nella stessa riga: il **previsionale del
+   costo del lavoro** è una stima (§225, uguale a questo mese) perché il piano dei
+   costi non contiene l'area Personale; farlo derivare dall'organico come fa
+   `pushPayrollToMonth` toglierebbe l'unica assunzione rimasta nella tenuta di cassa.
+2. **Chiudere il travaso Asana** (§215-221): il codice c'è tutto, restano da passare
+   in rassegna le 146 board — e poi si toglie la sezione, che è dichiarata temporanea.
+3. **Quotare i progetti che mancano**: 15 contratti su 21 progetti. Chi non ne ha
    legge «da quotare», non genera righe nel mese e non entra nella stima fiscale.
    È lavoro di inserimento, non di codice: si fa dalla scheda Economics.
-3. **`promoteLineToPlan`** esiste in `app/actions/costs.ts` ma non ha un pulsante
+4. **`promoteLineToPlan`** esiste in `app/actions/costs.ts` ma non ha un pulsante
    nell'economics del progetto: una spesa registrata a mano non si può ancora
    promuovere a ricorrente da lì.
-4. **Attribuzione parziale**: `createActorClient` è adottato in `clients.ts`,
+5. **Attribuzione parziale**: `createActorClient` è adottato in `clients.ts`,
    `projects.ts`, `tasks.ts`, `ad-hoc-tasks.ts`, `create-project.ts` e
    `delete-client.ts`. Gli altri percorsi che scrivono su tabelle loggate (deals,
    tickets, objectives) continuano a registrare «Sistema» finché non passano

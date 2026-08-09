@@ -429,5 +429,37 @@ console.log('\n— §191 · Il bonifico suggerito —')
   eq('niente da bonificare', s4.amount, 0)
 }
 
+console.log('\n— §252 · La stessa persona scritta in due modi —')
+{
+  /* L'estratto conto non ha un'anagrafica: la controparte è il testo che la
+     banca ha messo nella causale, e cambia col tipo di operazione. Walter era
+     8.990 € su una riga e 4.200 € su un'altra, e «a chi escono i soldi» dava la
+     risposta sbagliata su tutte e due. */
+  const t = (counterparty: string, amount: number, booked_on: string): BankTx => ({
+    id: `${counterparty}-${amount}`, account_id: 'a', booked_on, value_on: booked_on,
+    amount, currency: 'EUR', causal_code: null, description: '', channel: null,
+    counterparty, kind: 'finanziamento', doc_ref: null, source: 'banca',
+    revenue_line_id: null, cost_line_id: null, matched_at: null,
+    no_match_needed: false, note: null, transfer_pair_id: null,
+  } as BankTx)
+  const rows = byCounterparty([
+    t('Walter', -5610, '2026-06-04'),
+    t('Giacobbe Walter', -3000, '2026-08-07'),
+    t('Marco', -3165, '2026-06-01'),
+    t('Lucci Marco', -3000, '2026-07-10'),
+    t('Salvatore Piacente', -3030, '2026-05-30'),
+    t('Affinity', -2100, '2026-07-01'),
+  ], 'out')
+  const by = new Map(rows.map(r => [r.name, r]))
+  is('Walter è una persona sola', by.get('Walter')?.count, 2)
+  is('e il suo totale è la somma dei due nomi', by.get('Walter')?.net, -8610)
+  is('Marco pure', by.get('Marco')?.net, -6165)
+  is('e Salvatore Piacente è Toto', by.get('Toto')?.net, -3030)
+  /* Un fornitore che si chiama in un modo solo non deve essere toccato: la mappa
+     vale per le persone note, non è una normalizzazione fuzzy. */
+  is('un fornitore resta com\'è', by.get('Affinity')?.net, -2100)
+  is('e la classifica non ha più due righe per Walter', rows.filter(r => /walter/i.test(r.name)).length, 1)
+}
+
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

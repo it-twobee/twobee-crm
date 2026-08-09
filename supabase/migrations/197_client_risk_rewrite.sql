@@ -69,6 +69,12 @@ SELECT
   NULL::text               AS goals_notes
 FROM public.clients c
 WHERE public.is_staff()
+  /* §213 — la 197 è stata scritta prima della 200 e ricreava la VIEW senza
+     questo filtro: eseguirla adesso rimetterebbe GAV Sistemi (e chiunque sia
+     marcato riservato) davanti a tutto il portale operativo, in silenzio.
+     Una VIEW ricreata da una migration vecchia riporta indietro anche quello
+     che quella migration non sapeva di dover proteggere. */
+  AND NOT c.workspace_hidden
   AND (
     NOT public.is_external_resource()
     OR c.id IN (

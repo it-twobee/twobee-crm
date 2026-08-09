@@ -6,19 +6,22 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import {
   FileText, Upload, AlertTriangle, Search, Link2, Link2Off, Check, Loader2,
-  ArrowDownLeft, ArrowUpRight, Info, Landmark, BookOpen, Trash2,
+  ArrowDownLeft, ArrowUpRight, Info, Landmark, BookOpen, Trash2, Plus, CalendarClock,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { EconomicsNav } from '@/components/economics/EconomicsNav'
 import { DOC_TYPES } from '@/lib/fattura-xml'
 import {
-  totals, byMonth, byParty, aging, paymentDays, reconciliation, vatByQuarter, coverage,
+  totals, byMonth, byParty, aging, paymentDays, reconciliation, vatByQuarter, coverage, managed,
+  type BillingPoint,
   lineCandidates, txCandidates, signed, signedTotal, daysBetween,
   type Invoice, type LineRef, type TxRef, type InvoiceDirection, type CoverageRow,
 } from '@/lib/invoices'
+import { BillingChart } from '@/components/charts/BillingChart'
 import {
-  importInvoices, linkInvoiceToLine, unlinkInvoiceFromLine,
-  linkInvoiceToTx, setInvoicePaid, deleteInvoice,
+  importInvoices, addInvoiceManually, attachInvoicePdf, removeInvoicePdf,
+  linkInvoiceToLine, unlinkInvoiceFromLine,
+  linkInvoiceToTx, setInvoicePaid, setInvoiceDue, setInvoiceUnmanaged, deleteInvoice,
 } from '@/app/actions/invoices'
 
 const eur = (n: number) => formatCurrency(Math.round(n))
@@ -32,11 +35,13 @@ const monthName = (iso: string) =>
 type Tab = 'panoramica' | 'elenco' | 'riconcilia'
 
 export function InvoicesClient({
-  month, setupNeeded, today, invoices, lines, txs, clients,
+  month, setupNeeded, today, invoices, lines, txs, clients, series = [],
 }: {
   month: string
   setupNeeded: boolean
   today: string
+  /** §278 — emesso, incassato, in attesa e previsionale, mese per mese */
+  series?: BillingPoint[]
   invoices: Invoice[]
   lines: LineRef[]
   txs: TxRef[]
@@ -51,6 +56,8 @@ export function InvoicesClient({
   const [state, setState] = useState<'tutte' | 'aperte' | 'scadute' | 'pagate'>('tutte')
   const [open, setOpen] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  /* §247 — la porta che mancava: il documento che non c'è ancora si scrive. */
+  const [manual, setManual] = useState(false)
 
   const run = (fn: () => Promise<unknown>, ok?: string) => start(async () => {
     try { await fn(); if (ok) toast.success(ok); router.refresh() }
@@ -156,6 +163,13 @@ export function InvoicesClient({
           </select>
           <input ref={fileRef} type="file" accept=".xml,text/xml,application/xml" multiple className="hidden"
             onChange={e => { const f = e.target.files; if (f?.length) upload(f); e.target.value = '' }} />
+          {/* §247 — l'XML resta la strada giusta, ma arriva quando arriva: senza
+              una seconda porta, un costo già uscito dal conto non aveva un
+              documento con cui riconciliarsi. */}
+          <button onClick={() => setManual(m => !m)} disabled={pending}
+            className="flex items-center gap-1.5 text-2xs font-semibold border border-border rounded-xl px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-surface-hover press disabled:opacity-40">
+            <Plus className="w-3.5 h-3.5" />A mano
+          </button>
           <button onClick={() => fileRef.current?.click()} disabled={pending}
             className="flex items-center gap-1.5 text-2xs font-bold bg-gold text-on-gold rounded-xl px-3 py-2 press disabled:opacity-40">
             {pending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
@@ -163,6 +177,12 @@ export function InvoicesClient({
           </button>
         </div>
       </header>
+
+      {manual && (
+        <ManualForm dir={dir} clients={clients} pending={pending}
+          onCancel={() => setManual(false)}
+          onDone={v => { setManual(false); run(() => addInvoiceManually(v), 'Fattura aggiunta') }} />
+      )}
 
       {/* ── i quattro numeri che si guardano per primi ── */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -189,6 +209,28 @@ export function InvoicesClient({
             ? <span className="text-warning">{eur(tRi.overdue)} oltre la scadenza</span>
             : <span className="text-success">tutto nei termini</span>} />
       </div>
+
+      {/* ── §278 · il fatturato nel tempo: la forma che risponde a «come andiamo» ── */}
+      {series.length > 0 && (
+        <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
+          <div className="flex items-baseline justify-between gap-3 flex-wrap mb-1">
+            <h2 className="text-sm font-bold text-text-primary">Fatturato nel tempo</h2>
+            <span className="text-2xs text-text-tertiary tabular">
+              {eur(series.filter(p => !p.future).reduce((s2, p) => s2 + p.gross, 0))} emessi ·{' '}
+              {eur(series.filter(p => !p.future).reduce((s2, p) => s2 + p.collected, 0))} rientrati ·{' '}
+              {eur(series.filter(p => !p.future).reduce((s2, p) => s2 + p.pending, 0))} in attesa
+              {series.some(p => p.credited > 0) && <> ·{' '}
+                {eur(series.reduce((s2, p) => s2 + p.credited, 0))} stornati</>} ·{' '}
+              {eur(series.filter(p => p.future).reduce((s2, p) => s2 + p.forecast, 0))} previsti entro dicembre
+            </span>
+          </div>
+          <BillingChart data={series} today={today} />
+          {/* §280 — la leva sta sotto il suo risultato: la barra smorzata dice
+              «in attesa», e qui sotto ci sono le fatture che la compongono, una
+              per una, col gesto per chiuderle. */}
+          <PendingInvoices invoices={invoices} txs={txs} today={today} pending={pending} run={run} />
+        </section>
+      )}
 
       {/* ── cosa non combacia: prima di ogni analisi ── */}
       {findings.length > 0 && (
@@ -396,6 +438,12 @@ export function InvoicesClient({
                         <span className="block text-2xs text-text-tertiary">
                           {day(i.issuedOn)}
                           {i.docType !== 'TD01' && ` · ${DOC_TYPES[i.docType] ?? i.docType}`}
+                        </span>
+                        {/* §250 — il documento sta accanto al numero, dove lo si
+                            cerca: una fattura senza il suo PDF si ritrova solo
+                            aprendo la cartella download di qualcuno. */}
+                        <span className="mt-1 inline-block">
+                          <PdfCell id={i.id} path={i.pdfPath} pending={pending} run={run} />
                         </span>
                       </td>
                       <td className="px-2 py-2">
@@ -645,6 +693,201 @@ function MonthChart({ rows }: { rows: ReturnType<typeof byMonth> }) {
   )
 }
 
+/**
+ * §280 — Le fatture che devono ancora rientrare, sotto il grafico.
+ *
+ * La parte smorzata della barra è un totale, e un totale non si insegue: si
+ * insegue una fattura, con un nome e un cliente da chiamare. Qui sotto ci sono
+ * quelle, in ordine di **ritardo** — chi aspetta da più tempo per primo, che è
+ * l'unico ordine che una persona userebbe.
+ *
+ * Due strade per chiuderne una, e sono due fatti diversi:
+ *
+ *   · **il movimento c'è già** — l'estratto conto è stato caricato e il bonifico
+ *     è lì: si aggancia, e da quel momento la fattura è incassata con la data
+ *     del movimento, non con quella di oggi.
+ *   · **deve ancora arrivare** — allora l'unica cosa vera che si può scrivere è
+ *     **quando**. Senza una data una fattura non è né scaduta né attesa: sparisce
+ *     dalle telefonate da fare e da ogni previsione di cassa.
+ *
+ * La terza — «segnala incassata» a mano — resta per il contante e per il conto
+ * che nessuno ha ancora caricato, e dichiara quello che è: una spunta senza un
+ * movimento che la dimostri (§226).
+ */
+function PendingInvoices({ invoices, txs, today, pending, run }: {
+  invoices: Invoice[]
+  txs: TxRef[]
+  today: string
+  pending: boolean
+  run: (fn: () => Promise<unknown>, ok?: string) => void
+}) {
+  const [open, setOpen] = useState<string | null>(null)
+  const fuori = useMemo(() => invoices.filter(i =>
+    i.direction === 'emessa' && i.sign > 0 && !managed(i)), [invoices])
+  const attesa = useMemo(() => invoices
+    /* §281 — quelle fuori dai conti non sono crediti: qui si elenca chi va
+       chiamato, e chiamare per una fattura duplicata è il modo di non essere
+       più creduti. */
+    .filter(i => i.direction === 'emessa' && i.sign > 0 && !i.paidOn && managed(i))
+    .map(i => ({
+      i,
+      /* Senza scadenza non è in ritardo: è una fattura di cui non sappiamo
+         quando è attesa, ed è un'altra cosa da dire. */
+      late: i.dueDate && i.dueDate < today ? daysBetween(i.dueDate, today) : 0,
+    }))
+    .sort((a, b) => b.late - a.late || (a.i.dueDate ?? '9999').localeCompare(b.i.dueDate ?? '9999')),
+    [invoices, today])
+
+  const fuoriBlock = fuori.length > 0 ? (
+    <div className="mt-2 rounded-xl border border-border bg-surface-hover/40 px-3 py-2">
+      <p className="text-2xs text-text-tertiary">
+        <strong className="text-text-secondary">{fuori.length} fuori dai conti</strong> per
+        {' '}{eur2(fuori.reduce((s2, i) => s2 + signedTotal(i), 0))}: non sono crediti e non si inseguono.
+      </p>
+      <ul className="mt-1 space-y-0.5">
+        {fuori.map(i => (
+          <li key={i.id} className="flex items-baseline gap-2 text-2xs">
+            <span className="font-semibold text-text-secondary">{i.number}</span>
+            <span className="text-text-tertiary truncate flex-1">{i.excludedReason}</span>
+            <span className="tabular text-text-tertiary">{eur2(signedTotal(i))}</span>
+            <button disabled={pending} onClick={() => run(() => setInvoiceUnmanaged(i.id, null), 'Rimessa nei conti')}
+              className="text-text-tertiary hover:text-text-secondary underline shrink-0">rimetti</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  ) : null
+
+  if (!attesa.length) {
+    return (
+      <div className="mt-4 pt-3 border-t border-border">
+        <p className="flex items-center gap-2 text-2xs text-success">
+          <Check className="w-3.5 h-3.5" />Nessuna fattura in attesa: tutto quello che è stato emesso è rientrato.
+        </p>
+        {fuoriBlock}
+      </div>
+    )
+  }
+
+  const tot = attesa.reduce((s2, x) => s2 + signedTotal(x.i), 0)
+  const scadute = attesa.filter(x => x.late > 0)
+  const senzaData = attesa.filter(x => !x.i.dueDate)
+
+  return (
+    <div className="mt-4 pt-3 border-t border-border">
+      <div className="flex items-baseline justify-between gap-3 flex-wrap mb-2">
+        <h3 className="text-2xs font-bold uppercase tracking-wider text-text-secondary">
+          Da incassare · {attesa.length} fattur{attesa.length === 1 ? 'a' : 'e'}
+        </h3>
+        <span className="text-2xs text-text-tertiary tabular">
+          {eur2(tot)} lordi
+          {scadute.length > 0 && (
+            <span className="text-error"> · {scadute.length} oltre la scadenza per {eur2(scadute.reduce((s2, x) => s2 + signedTotal(x.i), 0))}</span>
+          )}
+          {senzaData.length > 0 && (
+            <span className="text-warning"> · {senzaData.length} senza una data attesa</span>
+          )}
+        </span>
+      </div>
+
+      <ul className="divide-y divide-border/60 rounded-xl border border-border overflow-hidden">
+        {attesa.map(({ i, late }) => {
+          const cand = txCandidates(i, txs).slice(0, 3)
+          const aperto = open === i.id
+          return (
+            <li key={i.id} className={aperto ? 'bg-surface-hover/50' : ''}>
+              <div className="flex items-baseline gap-3 px-3 py-2 flex-wrap">
+                <span className="text-2xs font-bold text-text-primary shrink-0">{i.number}</span>
+                <span className="text-2xs text-text-secondary flex-1 min-w-[140px] truncate">
+                  {i.counterpartyName}
+                </span>
+                <span className="text-2xs text-text-tertiary shrink-0">
+                  {i.dueDate
+                    ? late > 0
+                      ? <span className="text-error font-semibold">in ritardo di {late} giorni</span>
+                      : <>attesa il {day(i.dueDate)}</>
+                    : <span className="text-warning">senza data attesa</span>}
+                </span>
+                <span className="text-2xs font-bold tabular text-text-primary shrink-0 w-24 text-right">
+                  {eur2(signedTotal(i))}
+                </span>
+                <button onClick={() => setOpen(aperto ? null : i.id)} aria-expanded={aperto}
+                  className="text-2xs font-semibold text-gold-text hover:underline shrink-0">
+                  {cand.length > 0 ? `${cand.length} movimenti` : 'chiudi la partita'}
+                </button>
+              </div>
+
+              {aperto && (
+                <div className="px-3 pb-3 grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-lg border border-border/60 p-2">
+                    <p className="flex items-center gap-1.5 text-2xs font-semibold text-text-tertiary mb-1">
+                      <Landmark className="w-3 h-3" />Il movimento c&apos;è già
+                    </p>
+                    {cand.length === 0 ? (
+                      <p className="text-2xs text-text-tertiary">
+                        Nessun movimento con questo importo lordo. Se il bonifico è arrivato su un conto
+                        che non è ancora stato caricato, importa l&apos;estratto conto in Banca.
+                      </p>
+                    ) : cand.map(c => (
+                      <button key={c.item.id} disabled={pending}
+                        onClick={() => run(() => linkInvoiceToTx(i.id, c.item.id), 'Agganciata al movimento')}
+                        className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-surface-hover press disabled:opacity-40">
+                        <span className="block text-2xs text-text-primary">
+                          {day(c.item.bookedOn)} · <span className="tabular font-semibold">{eur2(c.item.amount)}</span>
+                          {' '}· {c.item.counterparty ?? c.item.description.slice(0, 28)}
+                        </span>
+                        <span className="block text-2xs text-text-tertiary">{c.why.join(' · ')}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="rounded-lg border border-border/60 p-2">
+                    <p className="flex items-center gap-1.5 text-2xs font-semibold text-text-tertiary mb-1">
+                      <CalendarClock className="w-3 h-3" />Deve ancora arrivare
+                    </p>
+                    <label className="flex items-center gap-2">
+                      <span className="text-2xs text-text-secondary">Attesa il</span>
+                      <input type="date" defaultValue={i.dueDate ?? ''} disabled={pending}
+                        onChange={e => run(() => setInvoiceDue(i.id, e.target.value || null),
+                          e.target.value ? 'Scadenza aggiornata' : 'Scadenza tolta')}
+                        className="bg-background border border-border-interactive rounded-lg px-2 py-1 text-2xs text-text-primary" />
+                    </label>
+                    <p className="text-2xs text-text-tertiary mt-1.5">
+                      Senza una data non è né scaduta né attesa: sparisce dalle telefonate da fare.
+                    </p>
+                    <button disabled={pending}
+                      onClick={() => run(() => setInvoicePaid(i.id, today), 'Segnata incassata oggi')}
+                      className="mt-2 text-2xs font-semibold text-text-secondary hover:text-text-primary underline">
+                      Oppure segnala incassata oggi
+                    </button>
+                    <p className="text-2xs text-text-tertiary">
+                      Per il contante o un conto non caricato: resta una spunta che nessun movimento dimostra.
+                    </p>
+                    {/* §281 — la terza risposta: non è un credito. Duplicata,
+                        stornata, giro fra società collegate — e il perché si
+                        scrive, o fra sei mesi nessuno sa se era una scelta. */}
+                    <button disabled={pending}
+                      onClick={() => {
+                        const why = window.prompt(
+                          `Perché ${i.number} non è da incassare?\n`
+                          + 'Es: duplicata di FPR 10/26 · stornata con nota di credito · giro fra società collegate')
+                        if (why?.trim()) run(() => setInvoiceUnmanaged(i.id, why), 'Tolta dai conti')
+                      }}
+                      className="mt-2 block text-2xs font-semibold text-text-tertiary hover:text-text-secondary underline">
+                      Non è da incassare
+                    </button>
+                  </div>
+                </div>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      {fuoriBlock}
+    </div>
+  )
+}
+
 /** Una fattura da agganciare, coi suoi candidati su entrambi i lati. */
 function Reconcile({ invoice, lines, txs, pending, run }: {
   invoice: Invoice
@@ -778,5 +1021,184 @@ function Detail({ invoice, onClose, onDelete }: {
         </p>
       )}
     </div>
+  )
+}
+
+/**
+ * §247 — La fattura scritta a mano.
+ *
+ * L'import legge l'XML dello SdI ed è la strada giusta: il documento è quello
+ * che vale davanti all'erario. Ma il file arriva quando arriva — dal
+ * commercialista, dal fornitore, a volte mai — e nel frattempo il costo è già
+ * uscito dal conto. Finché l'unica porta era l'XML, una spesa senza documento
+ * restava invisibile qui dentro e il conto economico non aveva niente con cui
+ * riconciliarla: su luglio erano 61 movimenti e zero agganciati.
+ *
+ * Il modulo chiede **sei campi**, non trenta: chi, quando, numero, imponibile,
+ * IVA, scadenza. Tutto il resto lo porta l'XML quando arriva — e quando arriva
+ * l'import la riconosce come duplicato, perché la chiave è la stessa.
+ */
+function ManualForm({ dir, prefill, clients, onDone, onCancel, pending }: {
+  dir: InvoiceDirection
+  prefill?: { name?: string; taxable?: number; issuedOn?: string; note?: string }
+  clients: { id: string; name: string }[]
+  onDone: (v: {
+    direction: InvoiceDirection; number: string; issuedOn: string
+    counterpartyName: string; counterpartyVat: string | null; clientId: string | null
+    taxable: number; vatAmount: number; dueDate: string | null; credit: boolean; notes: string | null
+  }) => void
+  onCancel: () => void
+  pending: boolean
+}) {
+  const [name, setName] = useState(prefill?.name ?? '')
+  const [vat, setVat] = useState('')
+  const [clientId, setClientId] = useState('')
+  const [number, setNumber] = useState('')
+  const [issuedOn, setIssuedOn] = useState(prefill?.issuedOn ?? new Date().toISOString().slice(0, 10))
+  const [taxable, setTaxable] = useState(prefill?.taxable ? String(prefill.taxable) : '')
+  const [rate, setRate] = useState('22')
+  const [dueDate, setDueDate] = useState('')
+  const [credit, setCredit] = useState(false)
+
+  const imp = Number(taxable.replace(',', '.')) || 0
+  const iva = Math.round(imp * (Number(rate) / 100) * 100) / 100
+  const tot = Math.round((imp + iva) * 100) / 100
+  const input = 'w-full bg-background border border-border-interactive rounded-lg px-2.5 py-1.5 text-2xs text-text-primary'
+
+  return (
+    <div className="rounded-2xl border border-border-strong bg-surface p-4 space-y-3">
+      <div>
+        <h3 className="text-sm font-bold text-text-primary">
+          Aggiungi a mano una fattura {dir === 'emessa' ? 'emessa' : 'ricevuta'}
+        </h3>
+        <p className="text-2xs text-text-tertiary mt-0.5">
+          Sei campi. Quando l&apos;XML arriva, l&apos;import la riconosce dalla stessa chiave —
+          fornitore, numero, data — e non ne crea una seconda.
+        </p>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="block">
+          <span className="text-2xs text-text-tertiary">
+            {dir === 'emessa' ? 'Cliente' : 'Fornitore'}
+          </span>
+          <input value={name} onChange={e => setName(e.target.value)} className={input}
+            placeholder={dir === 'emessa' ? 'iCura Impresa' : 'Affinity S.r.l.'} />
+        </label>
+        <label className="block">
+          <span className="text-2xs text-text-tertiary">Partita IVA (se la sai)</span>
+          <input value={vat} onChange={e => setVat(e.target.value)} className={input} placeholder="IT01234567890" />
+        </label>
+        <label className="block">
+          <span className="text-2xs text-text-tertiary">Numero</span>
+          <input value={number} onChange={e => setNumber(e.target.value)} className={input} placeholder="2026/128" />
+        </label>
+        <label className="block">
+          <span className="text-2xs text-text-tertiary">Data</span>
+          <input type="date" value={issuedOn} onChange={e => setIssuedOn(e.target.value)} className={input} />
+        </label>
+        <label className="block">
+          <span className="text-2xs text-text-tertiary">Imponibile</span>
+          <input value={taxable} onChange={e => setTaxable(e.target.value)} className={input} placeholder="2450" inputMode="decimal" />
+        </label>
+        <label className="block">
+          <span className="text-2xs text-text-tertiary">IVA %</span>
+          <select value={rate} onChange={e => setRate(e.target.value)} className={input}>
+            {['22', '10', '5', '4', '0'].map(r => <option key={r} value={r}>{r}%</option>)}
+          </select>
+        </label>
+        <label className="block">
+          <span className="text-2xs text-text-tertiary">Scadenza (facoltativa)</span>
+          <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={input} />
+        </label>
+        {dir === 'emessa' && clients.length > 0 && (
+          <label className="block">
+            <span className="text-2xs text-text-tertiary">Cliente in anagrafica</span>
+            <select value={clientId} onChange={e => setClientId(e.target.value)} className={input}>
+              <option value="">— nessuno</option>
+              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
+
+      <label className="flex items-center gap-2 text-2xs text-text-secondary">
+        <input type="checkbox" checked={credit} onChange={e => setCredit(e.target.checked)} />
+        È una nota di credito (toglie invece di aggiungere)
+      </label>
+
+      <div className="flex items-center justify-between gap-3 flex-wrap pt-1 border-t border-border">
+        <p className="text-2xs text-text-tertiary">
+          Totale <strong className="text-text-primary tabular">{eur(tot)}</strong> ={' '}
+          {eur(imp)} + {eur(iva)} di IVA
+        </p>
+        <div className="flex items-center gap-2">
+          <button onClick={onCancel} className="text-2xs font-semibold text-text-secondary hover:text-text-primary px-3 py-2">
+            Annulla
+          </button>
+          <button
+            disabled={pending || !name.trim() || !number.trim() || imp === 0}
+            onClick={() => onDone({
+              direction: dir, number, issuedOn,
+              counterpartyName: name, counterpartyVat: vat.trim() || null,
+              clientId: clientId || null, taxable: imp, vatAmount: iva,
+              dueDate: dueDate || null, credit, notes: prefill?.note ?? null,
+            })}
+            className="text-2xs font-semibold bg-gold text-on-gold rounded-xl px-3 py-2 press disabled:opacity-40">
+            Aggiungi
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * §250 — Il documento allegato.
+ *
+ * L'XML vale davanti all'erario ma non è quello che si guarda; e per le fatture
+ * che un XML non ce l'hanno — un fornitore estero, una ricevuta, Google Cloud —
+ * il PDF **è** il documento. Il download passa dal proxy autenticato: un link
+ * firmato che finisce in una chat resta valido finché non scade, e qui dentro ci
+ * sono nomi, importi e partite IVA.
+ */
+function PdfCell({ id, path, pending, run }: {
+  id: string
+  path: string | null | undefined
+  pending: boolean
+  run: (fn: () => Promise<unknown>, ok?: string) => void
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  return (
+    <span className="inline-flex items-center gap-1">
+      <input ref={ref} type="file" accept=".pdf,image/png,image/jpeg" className="hidden"
+        onChange={e => {
+          const f = e.target.files?.[0]
+          if (f) { const fd = new FormData(); fd.set('file', f); run(() => attachInvoicePdf(id, fd), 'Documento allegato') }
+          e.target.value = ''
+        }} />
+      {path ? (
+        <>
+          <a href={`/api/invoices/${id}/download`} target="_blank" rel="noreferrer"
+            title="Apri il documento"
+            className="inline-flex items-center gap-1 text-2xs font-semibold rounded-lg px-1.5 py-0.5
+                       border border-success/40 bg-success-dim text-success press">
+            <FileText className="w-3 h-3" aria-hidden="true" />PDF
+          </a>
+          <button onClick={() => run(() => removeInvoicePdf(id), 'Documento tolto')} disabled={pending}
+            aria-label="Togli il documento"
+            className="text-text-tertiary hover:text-error press disabled:opacity-40">
+            <Trash2 className="w-3 h-3" />
+          </button>
+        </>
+      ) : (
+        <button onClick={() => ref.current?.click()} disabled={pending}
+          title="Allega il PDF o una foto del documento"
+          className="inline-flex items-center gap-1 text-2xs font-semibold rounded-lg px-1.5 py-0.5
+                     border border-border bg-background text-text-tertiary hover:text-text-primary press disabled:opacity-40">
+          <Upload className="w-3 h-3" aria-hidden="true" />PDF
+        </button>
+      )}
+    </span>
   )
 }

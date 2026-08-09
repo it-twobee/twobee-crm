@@ -5,6 +5,7 @@ import { BankClient } from '@/components/bank/BankClient'
 import { monthKey } from '@/lib/pl'
 import { rowToPlConfig, computeMonth, type RevenueLine, type CostLine, type Partner } from '@/lib/pl'
 import type { BankAccount, BankTx, PlLineRef, Expected } from '@/lib/bank'
+import { dueOf, collectionIndex } from '@/lib/cash-calendar'
 
 export const revalidate = 0
 
@@ -139,14 +140,39 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
   // ── le scadenze future: rate firmate e costi a piano ──────────────────────
   const today = new Date().toISOString().slice(0, 10)
   const streamById = new Map((streams ?? []).map((s: Record<string, unknown>) => [String(s.id), s]))
+  /* §224 — quando una riga aperta è attesa in banca lo dice `dueOf`, non il
+     primo del suo mese: lo stipendio di luglio esce il 20 agosto e il subappalto
+     quando ha pagato il cliente. Datarle tutte al primo del mese ammassava sul
+     giorno 1 quello che nella realtà è distribuito, e la curva scendeva sotto
+     zero in un giorno in cui non ci scende. */
+  const dueIndex = collectionIndex((revRows ?? []).map((r: Record<string, unknown>) => ({
+    id: String(r.id), side: 'entrata' as const,
+    month: monthOf.get(String(r.month_id)) ?? today,
+    amount: num(r.amount_net), paid: r.paid === true,
+    paid_on: (r.paid_on as string) ?? null,
+    due_date: (r.due_date as string) ?? null, terms: (r.terms as string) ?? null,
+    project_id: (r.project_id as string) ?? null,
+  })))
+  const dueOfLine = (l: PlLineRef, row: Record<string, unknown>): string => dueOf({
+    id: l.id, side: l.direction === 'in' ? 'entrata' : 'uscita', month: l.month,
+    amount: l.net, paid: false,
+    due_date: (row.due_date as string) ?? null, terms: (row.terms as string) ?? null,
+    category: (row.category as string) ?? null,
+    project_id: (row.project_id as string) ?? null,
+  }, { collection: dueIndex })
+  const rowById = new Map<string, Record<string, unknown>>([
+    ...(revRows ?? []).map((r: Record<string, unknown>) => [String(r.id), r] as const),
+    ...(costRows ?? []).map((c: Record<string, unknown>) => [String(c.id), c] as const),
+  ])
+
   const expected: Expected[] = [
     // quello che è già a conto economico e non è ancora passato dal conto
     ...openLines.map(l => ({
-      date: l.month, label: l.label,
+      date: dueOfLine(l, rowById.get(l.id) ?? {}), label: l.label,
       amount: l.direction === 'in' ? Math.round(l.net * (1 + l.vatRate) * 100) / 100
         : -Math.round(l.net * (1 + l.vatRate) * 100) / 100,
       kind: (l.direction === 'in' ? 'credito' : 'debito') as 'credito' | 'debito',
-      overdue: l.month < today, source: 'riga' as const,
+      overdue: dueOfLine(l, rowById.get(l.id) ?? {}) < today, source: 'riga' as const,
     })),
     // le rate dei contratti che non hanno ancora una riga di mese
     ...(inst ?? []).filter((i: Record<string, unknown>) => {
@@ -261,6 +287,11 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
       spendItems={spendItems}
       txs={txs}
       openLines={openLines}
+      /* §255 — le aree di costo: servono a dire **dove** finisce una voce creata
+         da un movimento. Senza la scelta finivano tutte in «Spese fuori piano»,
+         e una lettura per area con dentro trentaquattro commissioni non la apre
+         più nessuno. */
+      centers={(centerRows ?? []).map((c: { id: string; name: string }) => c.name)}
       expected={expected}
       months={(plMonths ?? []).map((m: { month: string }) => m.month)}
       plByMonth={plByMonth}

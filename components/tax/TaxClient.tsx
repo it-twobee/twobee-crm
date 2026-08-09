@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { monthLabel, shiftMonth } from '@/lib/pl'
-import { vatByQuarter, nextDue, type MonthVat } from '@/lib/vat'
+import { vatByQuarter, nextDue, type MonthVat, type VatActual } from '@/lib/vat'
 import {
   fiscalCalendar, estimateTaxes, setAsideStatus, taxInsights, monthsLeftInYear, upcoming,
   maxiDeduction, taxMeasures,
@@ -35,7 +35,7 @@ const KIND_TONE: Record<string, string> = {
 }
 
 export function TaxClient({
-  month, today, setupNeeded, config, provisions, vatMonths,
+  month, today, setupNeeded, config, provisions, vatMonths, vatActuals = [],
   revenueYtd, costsYtd, nonDeductibleYtd, entertainmentYtd, monthsBooked, costsWithVat, costsWithoutVat,
   vatOnUnpaid, q4Share, hasWelfare, hasTraining, rndSpend,
   newHires = 0, newHiresCost = 0, protectedCost = 0,
@@ -47,6 +47,8 @@ export function TaxClient({
   config: TaxConfig
   provisions: Provision[]
   vatMonths: MonthVat[]
+  /** §242 — i modelli F24 arrivati: dove c'è, vince sulla stima */
+  vatActuals?: VatActual[]
   revenueYtd: number
   costsYtd: number
   /** §191 — la parte dei costi che non abbassa l'imponibile */
@@ -83,8 +85,8 @@ export function TaxClient({
   const year = Number(month.slice(0, 4))
   const go = (d: number) => router.push(`/economics/fiscale?m=${shiftMonth(month, d * 12)}`)
 
-  const vat = useMemo(() => vatByQuarter(vatMonths, today), [vatMonths, today])
-  const next = useMemo(() => nextDue(vatMonths, today), [vatMonths, today])
+  const vat = useMemo(() => vatByQuarter(vatMonths, today, vatActuals), [vatMonths, today, vatActuals])
+  const next = useMemo(() => nextDue(vatMonths, today, vatActuals), [vatMonths, today, vatActuals])
   /* §184 — la maxi-deduzione abbassa la base IRES e nient'altro: è
      extracontabile (non tocca il margine) e non vale ai fini IRAP. Entra nella
      stima perché una previsione che la ignora sovrastima l'imposta di migliaia. */
@@ -283,20 +285,50 @@ export function TaxClient({
           ) : (
             <div className="space-y-2">
               {vat.map(q => (
-                <div key={q.label} className="flex items-center gap-2 flex-wrap border-b border-border/60 pb-2 last:border-0">
-                  <span className="text-2xs font-semibold text-text-primary flex-1 min-w-[120px]">{q.label}</span>
-                  <span className="text-2xs text-text-tertiary tabular">
-                    {eur(q.debit)} − {eur(q.credit)}
-                    {q.carried !== 0 && (q.carried > 0 ? ` − ${eur(q.carried)}` : ` + ${eur(-q.carried)}`)}
-                  </span>
-                  <span className={`text-2xs font-bold tabular ${
-                    q.toPay > 0 ? 'text-text-primary' : q.balance < 0 ? 'text-success' : 'text-text-tertiary'
-                  }`}>
-                    {q.toPay > 0 ? eur(q.toPay) : q.deferred ? 'sotto il minimo' : q.balance < 0 ? 'a credito' : '—'}
-                  </span>
-                  <span className={`text-2xs ${q.closed ? 'text-text-tertiary' : 'text-text-secondary'}`}>
-                    {fmtDate(q.deadline)}
-                  </span>
+                <div key={q.label} className="border-b border-border/60 pb-2 last:border-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-2xs font-semibold text-text-primary flex-1 min-w-[120px]">
+                      {q.label}
+                      {/* §242 — il documento batte la stima, e si vede da qui:
+                          senza l'etichetta due numeri diversi nella stessa
+                          colonna sembrano un errore di calcolo. */}
+                      {q.source === 'f24' && (
+                        <span className="ml-1.5 text-2xs font-bold text-success border border-success/40 bg-success-dim rounded px-1">
+                          F24
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-2xs text-text-tertiary tabular">
+                      {eur(q.debit)} − {eur(q.credit)}
+                      {q.carried !== 0 && (q.carried > 0 ? ` − ${eur(q.carried)}` : ` + ${eur(-q.carried)}`)}
+                    </span>
+                    <span className={`text-2xs font-bold tabular ${
+                      q.toPay > 0 ? 'text-text-primary' : q.balance < 0 ? 'text-success' : 'text-text-tertiary'
+                    }`}>
+                      {q.toPay > 0 ? eur(q.toPay) : q.deferred ? 'sotto il minimo' : q.balance < 0 ? 'a credito' : '—'}
+                    </span>
+                    <span className={`text-2xs ${q.closed ? 'text-text-tertiary' : 'text-text-secondary'}`}>
+                      {fmtDate(q.deadline)}
+                    </span>
+                  </div>
+                  {/* La differenza fra modello e stima non è rumore: il 22% dei
+                      ricavi registrati è un numero esatto, quindi lo scarto è
+                      fatturato che il conto economico non ha. */}
+                  {q.source === 'f24' && Math.abs(q.gap) >= 1 && (
+                    <p className="text-2xs text-text-tertiary mt-1">
+                      Dal modello{q.docRef ? ` (${q.docRef})` : ''}. Il conto economico ne stimava{' '}
+                      <span className="tabular">{eur(q.estimated)}</span>:{' '}
+                      <strong className={q.gap > 0 ? 'text-warning' : 'text-text-secondary'}>
+                        {q.gap > 0 ? `${eur(q.gap)} in più` : `${eur(-q.gap)} in meno`}
+                      </strong>
+                      {q.gap > 0
+                        ? ' — è fatturato del trimestre che le righe non hanno.'
+                        : ' — ci sono righe nel mese che il registro IVA non conta.'}
+                    </p>
+                  )}
+                  {q.paidOn && (
+                    <p className="text-2xs text-success mt-0.5">versato il {fmtDate(q.paidOn)}</p>
+                  )}
                 </div>
               ))}
             </div>

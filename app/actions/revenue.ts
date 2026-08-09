@@ -1,9 +1,8 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
+import { requireEconomicsAdmin as requireAdmin } from '@/lib/economics-guard'
 import { buildSchedule, type RevenueStream, type ScheduleSpec } from '@/lib/revenue'
 import {
   realignLines, moveInstallmentLine, syncInstallmentAmount, dropInstallmentLines,
@@ -12,16 +11,6 @@ import { shiftMonth } from '@/lib/pl'
 
 const PL_PATH = '/economics'
 
-/** Contratti e prezzi: dati economici, admin e basta. */
-async function requireAdmin(): Promise<string> {
-  const sb = await createClient()
-  const { data: { user } } = await sb.auth.getUser()
-  if (!user) throw new Error('Non autenticato')
-  const { data: p } = await sb.from('profiles').select('role, email').eq('id', user.id).single()
-  const ok = p?.role === 'admin' || SUPER_ADMIN_EMAILS.includes(p?.email ?? '')
-  if (!ok) throw new Error('Permesso negato: l\'economics è riservata agli admin')
-  return user.id
-}
 
 /**
  * Lo stesso contratto si modifica da due posti — la scheda del progetto e

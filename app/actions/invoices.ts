@@ -1,23 +1,13 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
+import { requireEconomicsAdmin as requireAdmin } from '@/lib/economics-guard'
 import { parseFattura, invoiceKey, invoiceWarnings, type ParsedInvoice } from '@/lib/fattura-xml'
+import { putObject, deleteObject } from '@/lib/storage/s3'
 
 const PATH = '/economics/fatturazione'
 
-/** Le fatture sono il documento fiscale: admin e basta, come tutto l'economics. */
-async function requireAdmin(): Promise<string> {
-  const sb = await createClient()
-  const { data: { user } } = await sb.auth.getUser()
-  if (!user) throw new Error('Non autenticato')
-  const { data: p } = await sb.from('profiles').select('role, email').eq('id', user.id).single()
-  const ok = p?.role === 'admin' || SUPER_ADMIN_EMAILS.includes(p?.email ?? '')
-  if (!ok) throw new Error('Permesso negato: le fatture sono riservate agli admin')
-  return user.id
-}
 
 function rev() {
   revalidatePath(PATH)
@@ -33,6 +23,10 @@ function rev() {
  * un errore che si scopre solo guardando i totali, quando l'archivio è già dentro.
  */
 export async function ownVat(): Promise<string> {
+  // §234 — era l'unica azione di questo file senza gate: un file `use server`
+  // esporta endpoint, e sette copie del controllo sono sette posti dove
+  // dimenticarlo. Adesso la porta è una sola e ci passano tutte.
+  await requireAdmin()
   const admin = createAdminClient()
   const { data } = await admin.from('pl_config').select('company_vat').eq('id', true).maybeSingle()
   return String((data as { company_vat?: string } | null)?.company_vat ?? '11030281213')
@@ -239,6 +233,53 @@ export async function setInvoicePaid(invoiceId: string, paidOn: string | null) {
   rev()
 }
 
+/**
+ * §281 — Fuori dai conti, e con scritto perché.
+ *
+ * Una ISF duplicata, una nota di credito che ne annulla un'altra, una Tailors
+ * emessa due volte: esistono, sono passate dallo SDI, e non sono crediti — non
+ * si telefona a nessuno per averle. Fra gli «in attesa» gonfiavano lo scaduto
+ * di 42.456 € su un archivio di trentanove documenti.
+ *
+ * La ragione è **obbligatoria**: un'esclusione senza il perché è un numero che
+ * nessuno può più contestare, e fra sei mesi nessuno sa se era una scelta o una
+ * dimenticanza. Si può rimettere dentro passando `null`, e allora la fattura
+ * torna a essere un credito come prima.
+ */
+export async function setInvoiceUnmanaged(invoiceId: string, reason: string | null) {
+  await requireAdmin()
+  const testo = reason?.trim() ?? ''
+  if (reason !== null && !testo) {
+    throw new Error('Serve la ragione: una fattura tolta dai conti senza il perché non si legge')
+  }
+  const { error } = await createAdminClient().from('invoices')
+    .update({ excluded_reason: reason === null ? null : testo }).eq('id', invoiceId)
+  /* 42703 = la 210 non è stata eseguita. Va detto, non fatto fallire in silenzio. */
+  if (error?.code === '42703') throw new Error('Esegui prima la migration 210_invoice_unmanaged.sql')
+  if (error) throw new Error(error.message)
+  rev()
+}
+
+/**
+ * §280 — Quando quel denaro è atteso.
+ *
+ * Una fattura in attesa ha due strade, e sono due gesti diversi: il movimento
+ * **c'è già** e le si aggancia (`linkInvoiceToTx`), oppure **deve ancora
+ * arrivare** — e allora la sola cosa che si può dire è **quando**. Senza una
+ * data la fattura resta un credito senza scadenza: non compare fra gli scaduti,
+ * non entra in nessuna previsione di cassa, e sparisce dalle telefonate da fare.
+ *
+ * Cancellarla si può (`null`): una data inventata è peggio di nessuna data.
+ */
+export async function setInvoiceDue(invoiceId: string, dueDate: string | null) {
+  await requireAdmin()
+  if (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) throw new Error('Data non valida')
+  const { error } = await createAdminClient().from('invoices')
+    .update({ due_date: dueDate }).eq('id', invoiceId)
+  if (error) throw new Error(error.message)
+  rev()
+}
+
 /** Il cliente giusto, quando la partita IVA non bastava ad agganciarlo. */
 export async function setInvoiceClient(invoiceId: string, clientId: string | null) {
   await requireAdmin()
@@ -258,6 +299,154 @@ export async function setInvoiceClient(invoiceId: string, clientId: string | nul
 export async function deleteInvoice(invoiceId: string) {
   await requireAdmin()
   const { error } = await createAdminClient().from('invoices').delete().eq('id', invoiceId)
+  if (error) throw new Error(error.message)
+  rev()
+}
+
+/**
+ * §247 — La fattura scritta a mano.
+ *
+ * L'import legge l'XML dello SdI, ed è la strada giusta: il documento è quello
+ * che vale davanti all'erario. Ma il file arriva quando arriva — dal
+ * commercialista, dal fornitore, a volte mai — e nel frattempo il costo è già
+ * uscito dal conto. Finché l'unica porta era l'XML, una spesa senza documento
+ * restava **invisibile** alla Fatturazione e il conto economico non aveva
+ * niente con cui riconciliarla.
+ *
+ * Due cose la rendono sicura, e sono le stesse dell'import:
+ *
+ * **La chiave è la stessa** (`invoiceKey`: partita IVA, tipo, numero, data).
+ * Quando l'XML arriva davvero, l'import la riconosce come duplicato e non ne
+ * crea una seconda — che è l'unico modo perché scriverla a mano non diventi un
+ * problema domani.
+ *
+ * **Dice di essere scritta a mano.** `source_file = 'inserita a mano'` e un
+ * avviso in `warnings`: una riga senza documento sotto non può leggersi identica
+ * a una firmata dallo SdI. Quando l'XML arriva, sostituisce.
+ */
+export type ManualInvoice = {
+  direction: 'emessa' | 'ricevuta'
+  docType?: string
+  number: string
+  issuedOn: string
+  counterpartyName: string
+  counterpartyVat?: string | null
+  clientId?: string | null
+  taxable: number
+  vatAmount: number
+  /** se non c'è si deriva: imponibile più IVA, ed è dichiarato */
+  total?: number | null
+  dueDate?: string | null
+  /** nota di credito: toglie invece di aggiungere */
+  credit?: boolean
+  notes?: string | null
+}
+
+export async function addInvoiceManually(input: ManualInvoice): Promise<{ id: string }> {
+  const uid = await requireAdmin()
+  const admin = createAdminClient()
+
+  const number = input.number.trim()
+  const name = input.counterpartyName.trim()
+  if (!number) throw new Error('Serve il numero della fattura: è metà della chiave che la rende unica')
+  if (!name) throw new Error('Serve il nome della controparte')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.issuedOn)) throw new Error('La data va nel formato AAAA-MM-GG')
+
+  const docType = input.docType || (input.credit ? 'TD04' : 'TD01')
+  const taxable = Math.round(Number(input.taxable) * 100) / 100
+  const vat = Math.round(Number(input.vatAmount) * 100) / 100
+  const derived = input.total == null || Number(input.total) === 0
+  const total = derived ? Math.round((taxable + vat) * 100) / 100 : Math.round(Number(input.total) * 100) / 100
+
+  /* La stessa chiave dell'import: chi emette è il fornitore su una ricevuta e
+     Two Bee su una emessa, quindi su una emessa la chiave usa la nostra P.IVA —
+     esattamente come farebbe il parser leggendo il file. */
+  const own = await ownVat()
+  const party = input.direction === 'ricevuta' ? (input.counterpartyVat?.trim() || name) : own
+  const doc_key = [party, docType, number, input.issuedOn].join('|').toUpperCase()
+
+  const { data: già } = await admin.from('invoices').select('id').eq('doc_key', doc_key).maybeSingle()
+  if (già) throw new Error('Questa fattura c\'è già: stesso emittente, numero e data')
+
+  const warnings = ['Inserita a mano: il documento non è stato caricato']
+  if (derived) warnings.push('Totale derivato da imponibile più IVA')
+
+  const { data: row, error } = await admin.from('invoices').insert({
+    direction: input.direction,
+    doc_type: docType,
+    number,
+    issued_on: input.issuedOn,
+    counterparty_name: name,
+    counterparty_vat: input.counterpartyVat?.trim() || null,
+    client_id: input.clientId ?? null,
+    taxable, vat_amount: vat, total, total_derived: derived,
+    sign: input.credit ? -1 : 1,
+    due_date: input.dueDate || null,
+    notes: input.notes?.trim() || null,
+    doc_key,
+    source_file: 'inserita a mano',
+    warnings,
+    created_by: uid,
+  }).select('id').single()
+  if (error) throw new Error(error.message)
+
+  rev()
+  return { id: String(row.id) }
+}
+
+/**
+ * §250 — Il PDF della fattura.
+ *
+ * L'XML è il documento che vale davanti all'erario, ma non è quello che si
+ * guarda: nessuno legge un XML per capire cosa ha comprato. E per le fatture
+ * che un XML non ce l'hanno — un fornitore estero, una ricevuta, Google Cloud —
+ * il PDF **è** il documento, e senza un posto dove metterlo resta nella cartella
+ * download di qualcuno.
+ *
+ * Sta su MinIO come le buste paga, sotto `invoices/`, e **non è pubblico**: il
+ * download passa dal proxy autenticato. Una fattura è un documento fiscale con
+ * dentro nomi, importi e partite IVA — un link firmato che gira in una chat è
+ * un link che resta valido finché non scade.
+ */
+export async function attachInvoicePdf(invoiceId: string, form: FormData): Promise<{ path: string }> {
+  await requireAdmin()
+  const file = form.get('file')
+  if (!(file instanceof File) || file.size === 0) throw new Error('Nessun file')
+  if (file.size > 15 * 1024 * 1024) throw new Error('Il file supera i 15 MB')
+
+  const ext = (file.name.split('.').pop() ?? 'pdf').toLowerCase()
+  if (!['pdf', 'png', 'jpg', 'jpeg'].includes(ext)) {
+    throw new Error('Formato non ammesso: PDF o immagine')
+  }
+
+  const admin = createAdminClient()
+  const { data: inv } = await admin.from('invoices')
+    .select('id, number, issued_on, pdf_path').eq('id', invoiceId).maybeSingle()
+  if (!inv) throw new Error('Fattura non trovata')
+
+  /* La chiave contiene l'id, non il numero: un numero di fattura può avere una
+     barra dentro, e due fornitori possono avere lo stesso numero. */
+  const key = `invoices/${invoiceId}.${ext}`
+  await putObject(key, Buffer.from(await file.arrayBuffer()), file.type || 'application/pdf')
+
+  /* Se ce n'era un altro con estensione diversa, va tolto: due file per la
+     stessa fattura e non si sa più quale sia il documento. */
+  const old = (inv as { pdf_path: string | null }).pdf_path
+  if (old && old !== key) { try { await deleteObject(old) } catch { /* già sparito */ } }
+
+  const { error } = await admin.from('invoices').update({ pdf_path: key }).eq('id', invoiceId)
+  if (error) throw new Error(error.message)
+  rev()
+  return { path: key }
+}
+
+export async function removeInvoicePdf(invoiceId: string) {
+  await requireAdmin()
+  const admin = createAdminClient()
+  const { data: inv } = await admin.from('invoices').select('pdf_path').eq('id', invoiceId).maybeSingle()
+  const path = (inv as { pdf_path: string | null } | null)?.pdf_path
+  if (path) { try { await deleteObject(path) } catch { /* già sparito */ } }
+  const { error } = await admin.from('invoices').update({ pdf_path: null }).eq('id', invoiceId)
   if (error) throw new Error(error.message)
   rev()
 }

@@ -141,3 +141,23 @@ export function buildPermMap(perms: RolePermission[]): Record<string, Record<str
   }
   return map
 }
+
+/**
+ * §234 — chi può vedere i numeri, e nient'altro lo decide.
+ *
+ * Il conto economico, la banca, il fiscale, i compensi e il costo del lavoro
+ * sono la cosa più sensibile che c'è nel tool: li vedono **super admin e
+ * admin**, e la domanda si fa qui invece che in sette copie sparse fra le
+ * server action.
+ *
+ * Guarda `app_role`, non `role`. Sono due cose diverse: `role` è la mappatura
+ * grossolana che serve alla RLS (`get_my_role()`), e ci cade dentro chiunque sia
+ * stato promosso `admin` di ruolo senza esserlo di funzione. Il gate del
+ * dominio economico è l'ultimo posto dove si può essere generosi.
+ */
+export function canSeeEconomics(p: {
+  email?: string | null; app_role?: string | null
+} | null | undefined): boolean {
+  if (!p) return false
+  return isSuperAdminRaw(p.email, p.app_role) || isAdminRole(p.app_role)
+}

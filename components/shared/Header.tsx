@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import { GlobalSearch } from '@/components/shared/GlobalSearch'
 import { getInitials } from '@/lib/utils'
 import type { Profile, Notification } from '@/lib/types/database'
-import { SUPER_ADMIN_EMAILS, ROLE_LABELS } from '@/lib/permissions'
+import { SUPER_ADMIN_EMAILS, ROLE_LABELS, isAdminRole } from '@/lib/permissions'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { MobileNav } from '@/components/shared/MobileNav'
 import { Logo } from '@/components/shared/Logo'
@@ -41,6 +41,10 @@ export function Header({ profile }: HeaderProps) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const notifRef = useRef<HTMLDivElement>(null)
   const isGod = SUPER_ADMIN_EMAILS.includes(profile?.email ?? '')
+  /* §234 — fra i due portali si muovono **admin e super admin**, e nessun
+     altro: chi è confinato al workspace non vedrebbe comunque passare il
+     middleware, e un selettore che rimbalza è peggio di un selettore assente. */
+  const canSwitchPortal = isGod || isAdminRole(profile?.app_role)
 
   const unreadCount = notifications.filter((n) => !n.read).length
 
@@ -107,7 +111,7 @@ export function Header({ profile }: HeaderProps) {
       <Link href="/dashboard" aria-label="TwoBee — dashboard" className="lg:hidden flex items-center">
         <Logo variant="mark" className="w-6 h-6" priority />
       </Link>
-      {isGod && <PortalSwitcher />}
+      {canSwitchPortal && <PortalSwitcher />}
 
       <div className="flex-1 max-w-md">
         <GlobalSearch />

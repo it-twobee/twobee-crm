@@ -4,7 +4,7 @@ import {
 } from '@/lib/fattura-xml'
 import {
   totals, byMonth, byParty, aging, paymentDays, reconciliation, vatByQuarter, coverage,
-  lineCandidates, txCandidates, bankMatching, signed, daysBetween,
+  lineCandidates, txCandidates, bankMatching, signed, daysBetween, billingSeries,
   type Invoice, type LineRef, type TxRef,
 } from '@/lib/invoices'
 
@@ -439,6 +439,87 @@ console.log('\n— §214: la quadratura fra documenti, conto economico e banca �
   is('due mesi, in ordine', rows.map(r => r.month), ['2026-05-01', '2026-07-01'])
   eq('maggio: registrato senza documenti', rows[0].revenueGap, -900)
   is('e non ha fatture da agganciare', rows[0].issuedCount, 0)
+}
+
+console.log('\n— §278: emesso, incassato, in attesa, previsto —')
+{
+  const inv = [
+    I({ id: 'a', issuedOn: '2026-07-04', taxable: 1000, paidOn: '2026-07-20' }),
+    I({ id: 'b', issuedOn: '2026-07-18', taxable: 500 }),
+    I({ id: 'c', issuedOn: '2026-08-03', taxable: 2000 }),
+    // una nota di credito toglie dall'emesso, come in dichiarazione
+    I({ id: 'd', issuedOn: '2026-08-05', taxable: 300, sign: -1 }),
+    // le ricevute non c'entrano: questa serie parla di quello che emettiamo noi
+    I({ id: 'e', issuedOn: '2026-08-06', taxable: 900, direction: 'ricevuta' }),
+  ]
+  const s = billingSeries(inv, '2026-08-09',
+    [{ month: '2026-09-01', amount: 4000 }, { month: '2026-10-01', amount: 4000 }])
+  is('parte dal primo documento e arriva a dicembre',
+    [s[0].month, s.at(-1)!.month], ['2026-07-01', '2026-12-01'])
+  eq('luglio emesso', s[0].issued, 1500)
+  eq('di cui incassato', s[0].collected, 1000)
+  eq('e in attesa il resto', s[0].pending, 500)
+  /* §279 — la nota di credito **non** è credito in attesa: è fatturato
+     annullato, e chi legge non deve telefonare a nessuno per farselo dare. */
+  eq('agosto: emesso lordo', s[1].gross, 2000)
+  eq('di cui stornato', s[1].credited, 300)
+  eq('emesso netto, come in dichiarazione', s[1].issued, 1700)
+  eq('agosto non ha incassi', s[1].collected, 0)
+  eq('e in attesa c\'è solo quello che si può ancora incassare', s[1].pending, 1700)
+  is('e non è un mese futuro: ha già documenti', s[1].future, false)
+  /* Lordo = incassato + in attesa + stornato, per costruzione: è la ragione per
+     cui la barra si può leggere come una quantità sola divisa in parti. */
+  is('la barra chiude sempre',
+    s.every(p => Math.abs(p.gross - p.collected - p.pending - p.credited) < 0.01), true)
+  is('settembre è futuro', s[2].future, true)
+  eq('e porta quello che dicono i contratti', s[2].forecast, 4000)
+  eq('un mese futuro senza contratti resta a zero', s[4].forecast, 0)
+  is('ma esiste lo stesso, o il buco non si vede', s[4].month, '2026-11-01')
+  /* Il previsionale non entra nell'emesso: sono due grandezze diverse e
+     sommarle darebbe un fatturato che nessuno ha fatturato. */
+  eq('e non finisce nell\'emesso', s[2].issued, 0)
+}
+{
+  /* Una nota che annulla una fattura **già incassata**: in attesa non c'è
+     niente, e il numero non diventa negativo. */
+  const s = billingSeries([
+    I({ id: 'a', issuedOn: '2026-07-04', taxable: 1000, paidOn: '2026-07-10' }),
+    I({ id: 'b', issuedOn: '2026-07-20', taxable: 1000, sign: -1 }),
+  ], '2026-08-09')
+  eq('lordo mille', s[0].gross, 1000)
+  eq('stornato mille', s[0].credited, 1000)
+  eq('emesso netto zero', s[0].issued, 0)
+  eq('in attesa: niente, non un numero negativo', s[0].pending, 0)
+}
+{
+  is('senza documenti e senza contratti non c\'è niente da disegnare',
+    billingSeries([], '2026-08-09').length, 0)
+  const solo = billingSeries([], '2026-08-09', [{ month: '2026-09-01', amount: 1000 }])
+  is('con i soli contratti la serie parte da lì', solo[0].month, '2026-09-01')
+}
+
+console.log('\n— §281: fuori dai conti non è «in attesa» —')
+{
+  const inv = [
+    I({ id: 'a', issuedOn: '2026-05-08', taxable: 3600, total: 4392, paidOn: '2026-06-09' }),
+    // la ISF duplicata: esiste, è passata dallo SDI, e non la incasserà nessuno
+    I({ id: 'b', issuedOn: '2026-05-08', taxable: 3600, total: 4392,
+      excludedReason: 'duplicata di FPR 4/26' }),
+    I({ id: 'c', issuedOn: '2026-06-19', taxable: 1000, total: 1220 }),
+  ]
+  const s = billingSeries(inv, '2026-08-09')
+  eq('lordo: ci sono tutte, anche la duplicata', s[0].gross, 7200)
+  eq('fuori dai conti', s[0].unmanaged, 3600)
+  eq('netto: la duplicata non è fatturato', s[0].issued, 3600)
+  eq('incassato', s[0].collected, 3600)
+  eq('e in attesa non c\'è niente di suo', s[0].pending, 0)
+  eq('il mese dopo resta un credito vero', s[1].pending, 1000)
+  /* Il totale che si insegue non la contiene: era il difetto — 42.456 € di
+     scaduto su un archivio dove nove documenti non erano crediti. */
+  const t = totals(inv, '2026-08-09')
+  eq('lo scoperto non conta le fatture fuori dai conti', t.outstanding, 1220)
+  eq('e nemmeno l\'incassato le somma', t.collected, 4392)
+  is('ma nel conteggio dei documenti ci sono', t.count, 3)
 }
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)

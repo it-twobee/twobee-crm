@@ -12,15 +12,20 @@ import {
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { monthLabel, shiftMonth } from '@/lib/pl'
+import { dueOf, dayLabel } from '@/lib/cash-calendar'
+import { PAYROLL_CENTER } from '@/lib/costs'
 import {
   personCost, personNet, accruals, teamTotals, payrollHints, compareEmployment,
   flatTaxNet, contractSpec, CONTRACTS, monthLedger, ledgerAlerts,
   grossFromMonthlyNet, monthlyNetFromGross, monthlyInputSpec, ageAt, eligibility, fringeCapFor,
-  incentiveOptions, appliedIncentive, employerRate, apprenticeRate, impatriateRuleOf,
+  incentiveOptions, appliedIncentive, employerRate, apprenticeRate, impatriateRuleOf, inForce,
   type PayrollParams, type PersonInput, type ContractKind,
   type Payslip, type CollabInvoice, type F24, type TfrMovement,
 } from '@/lib/payroll'
 import { PARAM_FIELDS, type PersonRow } from '@/lib/payroll-map'
+import {
+  splitEmployer, monthlyCeiling, ceilingTotals, type Ceiling,
+} from '@/lib/payroll-ceiling'
 import {
   COMPANY_MEASURES, IMPATRIATE_QUALIFICATION, IMPATRIATE_CONDITIONS, impatriateView,
 } from '@/lib/incentives'
@@ -86,7 +91,17 @@ export function PersonaleClient({
 
   const go = (d: number) => router.push(`/economics/personale?m=${shiftMonth(month, d)}`)
 
-  const active = useMemo(() => people.filter(p => p.active), [people])
+  /* §233 — l'organico è uno solo e resta: quello che cambia da mese a mese è
+     **chi era in forza**, e lo dice la data di assunzione. Prima l'unico modo
+     per togliere qualcuno da un mese era eliminarlo dall'organico — che lo
+     toglie da tutti i mesi, cedolini compresi. Qui la riga resta visibile e
+     dichiara che non pesa su questo mese; i totali contano solo chi c'era. */
+  const active = useMemo(
+    () => people.filter(p => p.active && inForce({ hiredOn: p.hiredOn }, month)),
+    [people, month])
+  const notYet = useMemo(
+    () => people.filter(p => p.active && !inForce({ hiredOn: p.hiredOn }, month)),
+    [people, month])
   const tot = useMemo(() => teamTotals(active, params), [active, params])
 
   /* §182: quando ci sono i documenti il mese si legge da quelli. La stima
@@ -107,6 +122,29 @@ export function PersonaleClient({
   const hints = useMemo(
     () => payrollHints(active, params, monthRevenue * 12, month, iresPct),
     [active, params, monthRevenue, month, iresPct])
+
+  /* §235 — il tetto: quanto costa davvero una persona al mese, letto dai
+     documenti invece che dal contratto. L'F24 del mese non nomina nessuno ma
+     **conferma una ripartizione**: tolte le trattenute e gli apprendisti,
+     quello che resta diviso l'imponibile degli ordinari è l'aliquota vera. */
+  const ceilings = useMemo(() => {
+    if (!slips.length) return null
+    const kinds = new Map(people.map(p => [p.id, p.kind]))
+    const rates = new Map(people.filter(p => p.kind === 'apprendistato')
+      .map(p => [p.id, apprenticeRate(p, params)]))
+    const split = splitEmployer({ slips, kinds, apprenticeRates: rates, f24, params })
+    const byId2 = new Map(split.people.map(x => [x.personId, x]))
+    const rows = slips.map(sl => {
+      const p = people.find(x => x.id === sl.personId)
+      if (!p) return null
+      const e = byId2.get(sl.personId)
+      return monthlyCeiling({
+        person: { id: p.id, name: p.name, kind: p.kind, months: p.months, targetNet: p.agreedNet },
+        slip: sl, employer: e?.employer ?? 0, employerSource: e?.source ?? 'listino', params,
+      })
+    }).filter(Boolean) as Ceiling[]
+    return { split, totals: ceilingTotals(rows) }
+  }, [slips, people, f24, params])
   const savings = useMemo(() => hints.reduce((t, h) => t + (h.value ?? 0), 0), [hints])
 
   if (setupNeeded) {
@@ -174,9 +212,15 @@ export function PersonaleClient({
         <Kpi icon={<Wallet className="w-4 h-4 text-error" />} label="Costo di competenza"
           value={eur(hasDocs ? ledger.economic : tot.monthCost)}
           sub={hasDocs ? 'dai documenti del mese' : 'stima dai contratti'} />
+        {/* §224 — la cassa del costo del lavoro non è di questo mese: matura qui
+            ed esce entro il 20 del prossimo. Dirlo qui evita di cercarla nel mese
+            sbagliato, ed è la stessa regola che il conto economico applica alle
+            righe dell'area Personale. */}
         <Kpi icon={<Download className="w-4 h-4 text-warning" />} label="Uscita di cassa"
           value={eur(hasDocs ? ledger.cash : tot.yearCash / 12)}
-          sub={hasDocs ? `${eur(ledger.netPayroll)} netti · ${eur(ledger.employeeWithheld)} trattenute` : 'stimata'} />
+          sub={`esce entro il ${dayLabel(dueOf({
+            id: month, side: 'uscita', month, amount: 0, paid: false, category: PAYROLL_CENTER,
+          }))}` + (hasDocs ? ` · ${eur(ledger.netPayroll)} netti` : ' · stimata')} />
         <Kpi icon={<PiggyBank className="w-4 h-4 text-warning" />} label="TFR che matura"
           value={eur(hasDocs ? ledger.tfrAccrued : tot.tfr / 12)}
           sub="costo adesso, cassa alla fine del rapporto" />
@@ -338,6 +382,117 @@ export function PersonaleClient({
             </section>
           )}
 
+          {/* ── §235 · il tetto: quanto costa davvero, al mese ── */}
+          {ceilings && ceilings.totals.people.length > 0 && (
+            <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
+              <div className="px-5 py-4 border-b border-border">
+                <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary">
+                  <Wallet className="w-4 h-4 text-gold-text" />Quanto costa un dipendente al mese
+                </h2>
+                <p className="text-2xs text-text-tertiary mt-0.5">
+                  Non la media del contratto: quello che dicono il cedolino e l&apos;F24. Tre numeri, e sono
+                  tre domande diverse — il <strong className="text-text-secondary">mese normale</strong>, il{' '}
+                  <strong className="text-text-secondary">mese peggiore</strong> (quello con la mensilità in
+                  più) e il <strong className="text-text-secondary">tetto</strong>, che è l&apos;annuo diviso
+                  dodici: dodici tetti fanno esattamente quello che uscirà
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3 px-5 py-4 border-b border-border bg-background">
+                <div>
+                  <div className="text-2xs uppercase tracking-wider text-text-tertiary">Tetto mensile</div>
+                  <div className="text-xl font-bold tabular text-text-primary">{eur(ceilings.totals.monthly)}</div>
+                  <div className="text-2xs text-text-tertiary">
+                    da mettere a budget ogni mese · {eur(ceilings.totals.yearly)} l&apos;anno
+                  </div>
+                </div>
+                <div>
+                  <div className="text-2xs uppercase tracking-wider text-text-tertiary">Mese di punta</div>
+                  <div className="text-xl font-bold tabular text-warning">{eur(ceilings.totals.peak)}</div>
+                  <div className="text-2xs text-text-tertiary">
+                    quando cadono le mensilità aggiuntive: serve liquidità, non budget
+                  </div>
+                </div>
+                <div>
+                  <div className="text-2xs uppercase tracking-wider text-text-tertiary">
+                    {ceilings.totals.topUp > 0 ? 'Manca ai netti concordati' : 'Parte comprimibile'}
+                  </div>
+                  <div className={`text-xl font-bold tabular ${
+                    ceilings.totals.topUp > 0 ? 'text-error' : 'text-text-primary'}`}>
+                    {eur(ceilings.totals.topUp > 0 ? ceilings.totals.topUp : ceilings.totals.compressible)}
+                  </div>
+                  {/* §236 — trasferte e bonus non sono un extra: sono lo strumento con
+                      cui si arriva al netto promesso. Chiamarli «variabili» faceva
+                      sembrare tagliabile la parte che tiene in piedi il patto. */}
+                  <div className="text-2xs text-text-tertiary">
+                    {ceilings.totals.topUp > 0
+                      ? `su ${eur(ceilings.totals.variable)} fra trasferte e integrazioni: il resto serve tutto ad arrivare al netto`
+                      : `${eur(ceilings.totals.variable)} di trasferte, e servono tutte al netto concordato`}
+                  </div>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-2xs text-text-tertiary uppercase tracking-wider">
+                      <th className="text-left font-semibold px-5 py-2">Persona</th>
+                      <th className="text-right font-semibold px-2 py-2">Mese normale</th>
+                      <th className="text-right font-semibold px-2 py-2">Punta</th>
+                      <th className="text-right font-semibold px-5 py-2">Tetto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ceilings.totals.people.map(c => (
+                      <tr key={c.personId} className="border-t border-border/60 align-top">
+                        <td className="px-5 py-2.5">
+                          <span className="text-2xs font-semibold text-text-primary">{c.who}</span>
+                          <span className="block text-2xs text-text-tertiary">
+                            {c.rows.filter(r => r.kind !== 'giro')
+                              .map(r => `${r.label.toLowerCase()} ${eur(r.amount)}`).join(' · ')}
+                          </span>
+                          {c.passThrough > 0 && (
+                            <span className="block text-2xs text-info"
+                              title="Esce in busta e rientra come credito nell'F24: non è un costo del personale">
+                              + {eur(c.passThrough)} di indennità che rientrano in F24, fuori dal costo
+                            </span>
+                          )}
+                          {c.estimates.length > 0 && (
+                            <span className="block text-2xs text-warning">{c.estimates.join(' · ')}</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2.5 text-right text-2xs tabular text-text-secondary">
+                          {eur(c.ordinary)}
+                        </td>
+                        <td className="px-2 py-2.5 text-right text-2xs tabular text-warning">
+                          {c.extraMonths > 0 ? eur(c.peak) : '—'}
+                          {c.extraMonths > 0 && (
+                            <span className="block text-2xs text-text-tertiary">
+                              +{c.extraMonths === 1 ? 'una mensilità' : `${c.extraMonths} mensilità`}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-2.5 text-right text-sm font-bold tabular text-text-primary">
+                          {eur(c.monthly)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="flex items-start gap-2 text-2xs text-text-tertiary px-5 py-3 border-t border-border">
+                <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
+                {ceilings.split.why}{' '}
+                L&apos;F24 è aggregato e non nomina nessuno, ma <strong className="text-text-secondary">può
+                confermare una ripartizione</strong>: tolte le trattenute dei lavoratori e i contributi
+                dell&apos;apprendista — aliquota di legge, non stima — quello che resta è il datore sugli
+                ordinari. Se ne uscisse un&apos;aliquota fuori banda il modello conterrebbe altro (conguagli,
+                rate, sanzioni) e la ripartizione non si farebbe.
+              </p>
+            </section>
+          )}
+
           {/* l'organico */}
           <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
             <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3 flex-wrap">
@@ -347,6 +502,18 @@ export function PersonaleClient({
                   Interni ed esterni insieme: un collaboratore che fattura ogni mese è costo del personale
                   anche se non ha una busta paga. <strong className="text-text-secondary">Si scrive il mese</strong>{' '}
                   — netto in busta per i dipendenti, compenso per chi fattura — e il resto lo calcola il tool
+                </p>
+                {/* §233 — la risposta alla domanda «come lo tolgo da un mese solo?»,
+                    scritta dove verrebbe la voglia di eliminare la persona. */}
+                <p className="text-2xs text-text-tertiary mt-1">
+                  L&apos;organico è uno solo e vale per tutti i mesi:{' '}
+                  <strong className="text-text-secondary">in quali mesi pesa lo dice la data di assunzione</strong>,
+                  e lo stipendio del mese esce il 20 di quello dopo. Per togliere qualcuno da un mese si
+                  corregge la data — eliminarlo lo toglie da tutti, cedolini e fatture compresi.
+                  {notYet.length > 0 && (
+                    <> In {monthLabel(month).toLowerCase()} {notYet.length === 1 ? 'non era ancora in forza' : 'non erano ancora in forza'}{' '}
+                      <strong className="text-text-secondary">{notYet.map(p => p.name).join(', ')}</strong>: {notYet.length === 1 ? 'la sua riga resta' : 'le loro righe restano'} qui e non {notYet.length === 1 ? 'entra' : 'entrano'} nei totali.</>
+                  )}
                 </p>
               </div>
               <button onClick={() => run(() => addPerson(), 'Persona aggiunta')} disabled={pending}
@@ -363,7 +530,7 @@ export function PersonaleClient({
               <div className="divide-y divide-border/60">
                 {people.map(p => (
                   <PersonRow key={p.id} p={p} params={params} pending={pending} run={run} today={month}
-                    incentivesMissing={incentivesMissing}
+                    incentivesMissing={incentivesMissing} month={month}
                     isOpen={open === p.id} onToggle={() => setOpen(open === p.id ? null : p.id)} />
                 ))}
               </div>
@@ -425,7 +592,7 @@ function Kpi({ icon, label, value, sub, tone }: {
  * arriva a quel costo. Il dettaglio è il punto della sezione — un totale senza
  * scomposizione è un numero che non si può contestare, quindi nemmeno usare.
  */
-function PersonRow({ p, params, pending, run, isOpen, onToggle, today, incentivesMissing }: {
+function PersonRow({ p, params, pending, run, isOpen, onToggle, today, incentivesMissing, month }: {
   p: Person
   params: PayrollParams
   pending: boolean
@@ -436,7 +603,10 @@ function PersonRow({ p, params, pending, run, isOpen, onToggle, today, incentive
   today: string
   /** la 184 non è stata eseguita: niente campi che non salvano */
   incentivesMissing?: boolean
+  /** il mese guardato: da qui si sa se la persona pesa su questo mese */
+  month?: string
 }) {
+  const here = month ? inForce({ hiredOn: p.hiredOn }, month) : true
   const spec = contractSpec(p.kind)
   const c = personCost(p, params)
   const n = personNet(p, params)
@@ -484,6 +654,15 @@ function PersonRow({ p, params, pending, run, isOpen, onToggle, today, incentive
             )}
             {p.status !== 'attiva' && (
               <span className="text-2xs font-semibold text-warning shrink-0">{p.status}</span>
+            )}
+            {/* §233 — non era ancora in forza: la riga resta, il costo no. Prima
+                l'unico modo per dirlo era eliminarla, che la toglie da tutti i
+                mesi e si porta via cedolini e fatture insieme. */}
+            {!here && (
+              <span className="text-2xs font-semibold text-text-tertiary shrink-0 border border-border rounded px-1"
+                title="Il costo di questa persona non entra in questo mese: la data di assunzione è successiva">
+                entra {p.hiredOn ? monthLabel(`${p.hiredOn.slice(0, 7)}-01`).toLowerCase() : 'dopo'}
+              </span>
             )}
             {applied?.eligible && applied.relief > 0 && (
               <span className="flex items-center gap-1 text-2xs font-semibold text-success shrink-0"

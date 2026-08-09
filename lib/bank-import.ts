@@ -38,8 +38,36 @@ export type ParseResult = {
 
 const r2 = (n: number) => Math.round(n * 100) / 100
 
-const cells = (line: string, sep: string) =>
-  line.split(sep).map(c => c.replace(/^"|"$/g, '').trim())
+/**
+ * Le celle di una riga, **rispettando le virgolette**.
+ *
+ * `split(sep)` è giusto finché nessun campo contiene il separatore, e su Vivid
+ * non è così: `"ASANA.COM, DUBLIN, IE"` è **una** cella con due virgole dentro.
+ * Spezzandola, l'importo finiva nella colonna della valuta e la riga veniva
+ * scartata come «importo illeggibile» — 43 righe su 49, cioè quasi tutto
+ * l'estratto conto, senza che il totale letto lo dicesse.
+ *
+ * Le virgolette raddoppiate (`""`) sono un apice dentro il campo: è la regola
+ * del CSV, e i nomi delle società italiane ne sono pieni.
+ */
+const cells = (line: string, sep: string) => {
+  const out: string[] = []
+  let cur = '', quoted = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (quoted) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i++ } else quoted = false
+      } else cur += ch
+      continue
+    }
+    if (ch === '"') { quoted = true; continue }
+    if (ch === sep) { out.push(cur.trim()); cur = ''; continue }
+    cur += ch
+  }
+  out.push(cur.trim())
+  return out
+}
 
 /** Il separatore vero: il punto e virgola vince perché gli importi hanno la virgola. */
 function detectSep(header: string): string {
