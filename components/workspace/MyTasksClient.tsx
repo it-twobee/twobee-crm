@@ -77,9 +77,7 @@ export function MyTasksClient({
   const [q, setQ] = useState('')
   const [bucket, setBucket] = useState<Bucket>('tutte')
   const [prio, setPrio] = useState<'' | Priority>('')
-  /* §283 — le completate non stanno più in mezzo alle aperte: hanno una sezione
-     loro in fondo, e questa resta accesa perché l'elenco è di cose da fare. */
-  const [hideDone] = useState(true)
+
   const [selected, setSelected] = useState<Task | null>(null)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
 
@@ -134,11 +132,13 @@ export function MyTasksClient({
     const t = today(), w = addDays(7)
     const term = q.trim().toLowerCase()
     return tasks.filter(x => {
-      if (hideDone && x.status === 'completato') return false
+      /* §283 — le completate non stanno mai in mezzo alle aperte: hanno un
+         raccoglitore in fondo. L'elenco è di cose da fare, e una fatta lì
+         dentro fa scorrere due volte per trovarne una viva. */
+      if (x.status === 'completato') return false
       if (prio && x.priority !== prio) return false
       if (term && !x.title.toLowerCase().includes(term) && !projLabel(x).toLowerCase().includes(term)) return false
       if (bucket === 'tutte') return true
-      if (x.status === 'completato') return false
       if (bucket === 'overdue') return !!x.due_date && x.due_date < t
       if (bucket === 'today') return x.due_date === t
       if (bucket === 'week') return !!x.due_date && x.due_date > t && x.due_date <= w
@@ -149,7 +149,7 @@ export function MyTasksClient({
       return PRIO_RANK[a.priority] - PRIO_RANK[b.priority]
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks, hideDone, prio, q, bucket, projectName, clientName])
+  }, [tasks, prio, q, bucket, projectName, clientName])
 
   /* §283 — le completate in una sezione loro, in fondo. Prima non arrivavano
      nemmeno dal server (`neq('status','completato')`): spuntare per sbaglio
@@ -379,12 +379,6 @@ export function MyTasksClient({
         </div>
       )}
 
-      {/* §283 — chiuse ma raggiungibili: una spunta per sbaglio si disfa da qui */}
-      {view === 'elenco' && (
-        <CompletedTasks items={done} pending={pending}
-          onReopen={id => act(() => updateTaskStatus(id, 'da_fare'), 'Riaperta')} />
-      )}
-
       {/* BACHECA */}
       {view === 'bacheca' && shown.length > 0 && (
         <BoardView tasks={shown} onOpen={setSelected} onMove={move}
@@ -395,6 +389,12 @@ export function MyTasksClient({
       {view === 'calendario' && shown.length > 0 && (
         <CalendarView tasks={shown} onOpen={setSelected} accentOf={t => projAccent.get(accentKey(t))} />
       )}
+
+      {/* §283 — il raccoglitore, **in fondo e in tutte le viste**: bacheca e
+          calendario mostrano le stesse task, e cercare quella spuntata per
+          sbaglio non dipende da come si sta guardando l'elenco. */}
+      <CompletedTasks items={done} pending={pending}
+        onReopen={id => act(() => updateTaskStatus(id, 'da_fare'), 'Riaperta')} />
 
       {selected && (
         <TaskDetailDrawer task={selected} profiles={profiles.map(p => ({ id: p.id, full_name: p.full_name }))} canEdit

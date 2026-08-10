@@ -279,12 +279,16 @@ export function AdHocClient({
               </section>
             )
           })}
-          {/* §283 — chiuse ma raggiungibili: la spunta per sbaglio si disfa da
-              qui, e dopo sessanta giorni se ne vanno da sole. */}
-          <CompletedTasks items={done} pending={pending}
-            onReopen={id => act(() => setAdHocTaskStatus(
-              id, rows.find(r => r.id === id)?.client_id ?? null, 'da_fare'), 'Riaperta')} />
         </div>
+      )}
+
+      {/* §283 — il raccoglitore sta **in fondo e fuori dai rami**: dentro quello
+          della lista piena spariva proprio quando l'elenco si svuota, cioè nel
+          momento in cui uno cerca la task che ha appena spuntato. */}
+      {rows.length > 0 && (
+        <CompletedTasks items={done} pending={pending}
+          onReopen={id => act(() => setAdHocTaskStatus(
+            id, rows.find(r => r.id === id)?.client_id ?? null, 'da_fare'), 'Riaperta')} />
       )}
 
       {adding && (

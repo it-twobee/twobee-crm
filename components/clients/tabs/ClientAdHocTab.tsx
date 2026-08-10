@@ -221,12 +221,8 @@ export function ClientAdHocTab({
             </button>
           )}
         </div>
-      ) : view.length === 0 ? (
-        <>
-          {!done.length && <Empty>Nessuna task per il filtro attivo.</Empty>}
-          <CompletedTasks items={done} pending={pending}
-            onReopen={id => toggle({ id, status: 'completato' } as Row)} />
-        </>
+      ) : view.length === 0 && !done.length ? (
+        <Empty>Nessuna task per il filtro attivo.</Empty>
       ) : (
         <div className="rounded-2xl border border-border shadow-soft overflow-hidden divide-y divide-border animate-fade-in">
           {view.map(r => {
@@ -286,6 +282,14 @@ export function ClientAdHocTab({
             )
           })}
         </div>
+      )}
+
+      {/* §283 — il raccoglitore sta **in fondo e fuori dai rami**: dentro quello
+          della lista vuota compariva solo quando non c'era più niente da fare,
+          che è esattamente il momento in cui non serve. */}
+      {rows !== null && (
+        <CompletedTasks items={done} pending={pending}
+          onReopen={id => toggle({ id, status: 'completato' } as Row)} />
       )}
 
       {adding && (
