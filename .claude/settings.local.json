@@ -361,7 +361,8 @@
       "Bash(sed -n '/^export type CostItem = {/,/^}/p' lib/costs.ts)",
       "Bash(sed -n '/export const plannedForMonth/,/^$/p' lib/costs.ts)",
       "Bash(kill 904 979)",
-      "Bash(kill 30240 30274)"
+      "Bash(kill 30240 30274)",
+      "Bash(awk 'NR>=370 && NR<=400' components/workspace/MyTasksClient.tsx)"
     ],
     "defaultMode": "acceptEdits"
   }

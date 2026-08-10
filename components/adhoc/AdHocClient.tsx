@@ -9,6 +9,7 @@ import {
   RotateCcw, ChevronDown, CalendarDays, Building2,
 } from 'lucide-react'
 import { Avatar, SearchInput, Segmented, Empty } from '@/components/shared/formkit'
+import { CompletedTasks } from '@/components/tasks/CompletedTasks'
 import {
   setAdHocTaskStatus, deleteAdHocTask, updateAdHocTask,
 } from '@/app/actions/ad-hoc-tasks'
@@ -20,6 +21,8 @@ export type AdHocRow = {
   id: string; client_id: string | null; title: string; description?: string | null
   status: TaskStatusV2; priority: Priority; due_date: string | null; visibility: Visibility
   assignee_id: string | null; created_at: string
+  /** §283 — quando è stata completata: da lì si contano i sessanta giorni */
+  completed_at?: string | null
 }
 type Person = AssignablePerson
 type ClientOpt = { id: string; name: string }
@@ -88,6 +91,20 @@ export function AdHocClient({
       unassigned: open.filter(r => !r.assignee_id).length,
     }
   }, [rows])
+
+  /* §283 — le completate stanno **fuori** dall'elenco filtrato: sono un'altra
+     domanda («l'ho chiusa per sbaglio?») e in mezzo alle aperte non si vedono
+     né le une né le altre. Rispettano gli stessi filtri di cliente e persona,
+     perché altrimenti in una lista filtrata comparirebbero le altrui. */
+  const done = useMemo(() => rows
+    .filter(r => r.status === 'completato'
+      && (!clientId || r.client_id === clientId)
+      && (!assigneeId || r.assignee_id === assigneeId))
+    .sort((a, b) => (b.completed_at ?? '').localeCompare(a.completed_at ?? ''))
+    .map(r => ({ id: r.id, title: r.title, completedAt: r.completed_at,
+      who: clientName(r.client_id) })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, clientId, assigneeId])
 
   const view = useMemo(() => {
     const t = q.trim().toLowerCase()
@@ -221,7 +238,7 @@ export function AdHocClient({
             </button>
           )}
         </div>
-      ) : view.length === 0 ? (
+      ) : view.length === 0 && !done.length ? (
         <Empty>Nessuna task per i filtri attivi.</Empty>
       ) : (
         <div className="space-y-3 animate-fade-in">
@@ -262,6 +279,11 @@ export function AdHocClient({
               </section>
             )
           })}
+          {/* §283 — chiuse ma raggiungibili: la spunta per sbaglio si disfa da
+              qui, e dopo sessanta giorni se ne vanno da sole. */}
+          <CompletedTasks items={done} pending={pending}
+            onReopen={id => act(() => setAdHocTaskStatus(
+              id, rows.find(r => r.id === id)?.client_id ?? null, 'da_fare'), 'Riaperta')} />
         </div>
       )}
 

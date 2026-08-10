@@ -43,17 +43,24 @@ export default async function WorkspaceDashboardPage() {
       .gte('end_date', today()).order('start_date').limit(3),
   ])
 
-  // task assegnate (primario o multi-assegnatario), non completate
+  /* §283 — le assegnate, **comprese le completate di recente**: escluderle qui
+     era il motivo per cui una spunta per sbaglio non si poteva più disfare — la
+     task non tornava indietro perché non arrivava nemmeno al browser. Si
+     caricano quelle chiuse negli ultimi sessanta giorni, che è la finestra dopo
+     la quale il database le cancella da sé: oltre, non ci sono più comunque. */
   const ids = Array.from(new Set((taRes.data ?? []).map(r => r.task_id)))
   const orFilter = ids.length ? `assignee_id.eq.${userId},id.in.(${ids.join(',')})` : `assignee_id.eq.${userId}`
   // I progetti gestiti non dipendono dalle task: parte insieme, non dopo.
   const [{ data: myTasks }, { data: mgr }] = await Promise.all([
-    supabase.from('tasks').select('id, title, status, priority, due_date, assignee_id, project_id, client_id')
-      .is('deleted_at', null).neq('status', 'completato')
+    supabase.from('tasks')
+      .select('id, title, status, priority, due_date, assignee_id, project_id, client_id, completed_at')
+      .is('deleted_at', null)
+      .or(`status.neq.completato,completed_at.gte.${
+        new Date(Date.now() - 60 * 864e5).toISOString()}`)
       .or(orFilter).order('due_date', { ascending: true, nullsFirst: false }),
     supabase.from('projects').select('id, name, status, area, client_id').eq('manager_id', userId).is('deleted_at', null),
   ])
-  const tasks = (myTasks ?? []) as Task[]
+  const tasks = (myTasks ?? []) as unknown as Task[]
 
   // progetti dove sono coinvolto
   const projectIds = Array.from(new Set([

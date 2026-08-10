@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { TaskDetailDrawer } from '@/components/projects/TaskDetailDrawer'
 import { Avatar, SearchInput, Segmented } from '@/components/shared/formkit'
+import { CompletedTasks } from '@/components/tasks/CompletedTasks'
 import { updateTaskStatus, updateTask } from '@/app/actions/tasks'
 import type { Task, TaskStatusV2, Priority } from '@/lib/types/database'
 
@@ -76,7 +77,9 @@ export function MyTasksClient({
   const [q, setQ] = useState('')
   const [bucket, setBucket] = useState<Bucket>('tutte')
   const [prio, setPrio] = useState<'' | Priority>('')
-  const [hideDone, setHideDone] = useState(true)
+  /* §283 — le completate non stanno più in mezzo alle aperte: hanno una sezione
+     loro in fondo, e questa resta accesa perché l'elenco è di cose da fare. */
+  const [hideDone] = useState(true)
   const [selected, setSelected] = useState<Task | null>(null)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
 
@@ -147,6 +150,17 @@ export function MyTasksClient({
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, hideDone, prio, q, bucket, projectName, clientName])
+
+  /* §283 — le completate in una sezione loro, in fondo. Prima non arrivavano
+     nemmeno dal server (`neq('status','completato')`): spuntare per sbaglio
+     voleva dire riscrivere la task da capo. Ora ci sono quelle chiuse negli
+     ultimi sessanta giorni — oltre, il database le ha già cancellate. */
+  const done = useMemo(() => tasks
+    .filter(x => x.status === 'completato')
+    .sort((a, b) => (b.completed_at ?? '').localeCompare(a.completed_at ?? ''))
+    .map(x => ({ id: x.id, title: x.title, completedAt: x.completed_at, who: projLabel(x) })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tasks, projectName, clientName])
 
   const groups = useMemo(() => {
     const t = today(), w = addDays(7)
@@ -255,9 +269,6 @@ export function MyTasksClient({
           <option value="media">Media</option>
           <option value="bassa">Bassa</option>
         </select>
-        <label className="flex items-center gap-1.5 text-2xs text-text-secondary shrink-0 cursor-pointer">
-          <input type="checkbox" checked={hideDone} onChange={e => setHideDone(e.target.checked)} />Nascondi completate
-        </label>
         {filtering && (
           <button onClick={() => { setBucket('tutte'); setPrio(''); setQ('') }}
             className="flex items-center gap-1 text-2xs font-semibold text-text-secondary hover:text-text-primary shrink-0">
@@ -366,6 +377,12 @@ export function MyTasksClient({
             )
           })}
         </div>
+      )}
+
+      {/* §283 — chiuse ma raggiungibili: una spunta per sbaglio si disfa da qui */}
+      {view === 'elenco' && (
+        <CompletedTasks items={done} pending={pending}
+          onReopen={id => act(() => updateTaskStatus(id, 'da_fare'), 'Riaperta')} />
       )}
 
       {/* BACHECA */}

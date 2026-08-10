@@ -65,10 +65,14 @@ export async function updateTask(taskId: string, updates: {
 
 export async function updateTaskStatus(taskId: string, status: TaskStatusV2) {
   const uid = await requireStaff()
-  const patch: Record<string, unknown> = { status }
-  // completed_at esiste dalla migration 158; riaprire una task azzera il timestamp
-  patch.completed_at = status === 'completato' ? new Date().toISOString() : null
-  const { error } = await createActorClient(uid).from('tasks').update(patch).eq('id', taskId)
+  /* §283 — la data di completamento la garantisce il **trigger** (migration
+     211): copre anche i percorsi che non passano da qui — l'import Asana, una
+     UPDATE a mano, una futura azione che qualcuno scriverà. Qui si scrive lo
+     stesso perché finché la 211 non è stata eseguita il trigger non c'è, e una
+     task chiusa senza data sarebbe una task che la retention non vede mai. */
+  const { error } = await createActorClient(uid).from('tasks')
+    .update({ status, completed_at: status === 'completato' ? new Date().toISOString() : null })
+    .eq('id', taskId)
   if (error) throw new Error(error.message)
 }
 

@@ -171,6 +171,30 @@ La tabella qui sotto è il **changelog**: dice cosa fa ciascuna, non cosa manca.
 | `093_feedback.sql` | tabelle `feedback` + `feedback_votes` (RLS staff-read/own-write/admin-manage) + sezione workspace `feedback` | — |
 | `095_workspace_workload_section.sql` | voce sidebar `workload` nel workspace (il layout la inietta comunque come fallback) | — |
 
+## Task completate (§283, `components/tasks/CompletedTasks.tsx`, migration 211)
+Spuntare «fatta» le faceva sparire e non c'era modo di tornare indietro: nel
+workspace la query stessa le escludeva (`neq('status','completato')`), negli
+elenchi ad hoc il filtro di partenza è «aperte». Una spunta per sbaglio — la
+casella è grande quanto il dito — voleva dire riscrivere la task da capo, con
+descrizione, assegnatario e scadenza persi.
+
+- **Una sezione loro, chiusa e contata**, in fondo ai tre elenchi (ad hoc admin,
+  ad hoc del cliente, «Le mie attività»): la data in cui è stata completata, il
+  gesto per riaprirla, e in testa quanto le resta da vivere. Sotto la settimana
+  il countdown si scrive sulla riga: è l'unico momento in cui uno vorrebbe
+  riaprirla prima che se ne vada.
+- **Dopo 60 giorni si cancellano da sole** (`purge_completed_tasks`, cron alle
+  3:20). Un elenco di completate che cresce all'infinito è un elenco che nessuno
+  apre più, e allora tanto valeva cancellarle subito.
+- **La data la garantisce un trigger**, non le azioni: `updateTaskStatus` la
+  scriveva, `setAdHocTaskStatus` e `updateAdHocTask` no — due percorsi su tre
+  l'avevano dimenticata, e senza quella data la retention non ha da dove
+  contare. Le azioni la scrivono lo stesso, perché finché la 211 non è eseguita
+  il trigger non c'è; il trigger copre i percorsi che non passano da lì (import
+  Asana, UPDATE a mano).
+- **Riaprire azzera**: da quel momento è una task viva come le altre, e i
+  sessanta giorni ripartono solo se la si richiude.
+
 ## Workload (`/workload` e `/workspace/workload`)
 Vista strategica dei progetti in parallelo: effort (ore stimate, default 4h dove
 manca), timeline, carico per risorsa. Stessa `WorkloadClient` per admin e workspace.

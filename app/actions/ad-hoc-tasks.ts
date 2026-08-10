@@ -73,7 +73,12 @@ function revAdHoc(clientId: string | null) {
 
 export async function setAdHocTaskStatus(taskId: string, clientId: string | null, status: TaskStatusV2) {
   const uid = await requireStaff()
-  const { error } = await createActorClient(uid).from('tasks').update({ status }).eq('id', taskId)
+  /* §283 — la data di completamento la scriveva solo `updateTaskStatus`: le ad
+     hoc chiuse da qui restavano senza, e la sezione delle completate non sapeva
+     quando erano state finite né da quando contare i sessanta giorni. */
+  const { error } = await createActorClient(uid).from('tasks')
+    .update({ status, completed_at: status === 'completato' ? new Date().toISOString() : null })
+    .eq('id', taskId)
   if (error) throw new Error(error.message)
   revAdHoc(clientId)
 }
@@ -101,6 +106,11 @@ export async function updateAdHocTask(taskId: string, clientId: string | null, u
       patch.title = t
     }
     if (rest.description !== undefined) patch.description = rest.description?.trim() || null
+    /* §283 — anche da qui: cambiare stato dal pannello di dettaglio è lo stesso
+       fatto che spuntare la casella, e deve lasciare la stessa traccia. */
+    if (rest.status !== undefined) {
+      patch.completed_at = rest.status === 'completato' ? new Date().toISOString() : null
+    }
     const { error } = await admin.from('tasks').update(patch).eq('id', taskId)
     if (error) throw new Error(error.message)
   }

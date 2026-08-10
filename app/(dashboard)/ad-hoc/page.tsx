@@ -14,7 +14,9 @@ export default async function AdHocPage() {
 
   const [{ data: tasks }, { data: clients }, { data: profiles }, { data: assignments }] = await Promise.all([
     supabase.from('tasks')
-      .select('id, client_id, title, description, status, priority, due_date, visibility, assignee_id, created_at')
+      // §283 — `completed_at` serve alla sezione delle completate: senza, non si
+      // sa da quando contare i sessanta giorni né quando è stata chiusa
+      .select('id, client_id, title, description, status, priority, due_date, visibility, assignee_id, created_at, completed_at')
       .eq('task_type', 'ad_hoc').is('deleted_at', null)
       .order('created_at', { ascending: false }),
     supabase.from('clients').select('id, company_name, display_name').order('company_name'),

@@ -916,6 +916,8 @@ export interface Task {
   generated_for_date: string | null
   parent_task_id: string | null
   created_by: string | null
+  /** §283 — quando è stata completata: la scrive il trigger, riaprire azzera */
+  completed_at: string | null
   created_at: string
   updated_at: string
   deleted_at: string | null

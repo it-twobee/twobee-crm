@@ -9,6 +9,7 @@ import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import { setAdHocTaskStatus, deleteAdHocTask, updateAdHocTask } from '@/app/actions/ad-hoc-tasks'
 import { Avatar, SearchInput, Empty } from '@/components/shared/formkit'
 import { TaskComposer } from '@/components/tasks/TaskComposer'
+import { CompletedTasks } from '@/components/tasks/CompletedTasks'
 import { AdHocDetailModal, type AssignablePerson, type AdHocPatch } from '@/components/adhoc/AdHocDetailModal'
 import { SUPERVISOR_ROLE } from '@/lib/task-roles'
 import type { Profile, Priority, Visibility, TaskStatusV2 } from '@/lib/types/database'
@@ -16,6 +17,8 @@ import type { Profile, Priority, Visibility, TaskStatusV2 } from '@/lib/types/da
 type Row = {
   id: string; title: string; description: string | null; status: TaskStatusV2; priority: Priority
   due_date: string | null; visibility: Visibility; assignee_id: string | null
+  /** §283 — quando è stata completata: da lì si contano i sessanta giorni */
+  completed_at?: string | null
 }
 const STATUS_LABEL: Record<string, string> = {
   da_fare: 'Da fare', in_corso: 'In corso', in_review: 'In review',
@@ -91,7 +94,9 @@ export function ClientAdHocTab({
   const reload = useCallback(async () => {
     const sb = createBrowserClient()
     const { data } = await sb
-      .from('tasks').select('id,title,description,status,priority,due_date,visibility,assignee_id')
+      .from('tasks')
+      // §283 — con la data di completamento: serve alla sezione delle chiuse
+      .select('id,title,description,status,priority,due_date,visibility,assignee_id,completed_at')
       .eq('client_id', clientId).eq('task_type', kind).is('deleted_at', null)
       .order('created_at', { ascending: false })
     const list = (data ?? []) as Row[]
@@ -158,6 +163,14 @@ export function ClientAdHocTab({
     })
   }, [rows, q, filter])
 
+  /* §283 — le completate in una sezione loro: chiuse ma raggiungibili, e dopo
+     sessanta giorni il database le cancella da sé. Prima sparivano dietro il
+     filtro «aperte» e una spunta per sbaglio non si poteva più disfare. */
+  const done = useMemo(() => (rows ?? [])
+    .filter(r => r.status === 'completato')
+    .sort((a, b) => (b.completed_at ?? '').localeCompare(a.completed_at ?? ''))
+    .map(r => ({ id: r.id, title: r.title, completedAt: r.completed_at })), [rows])
+
   return (
     <div className="max-w-6xl space-y-4">
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -209,7 +222,11 @@ export function ClientAdHocTab({
           )}
         </div>
       ) : view.length === 0 ? (
-        <Empty>Nessuna task per il filtro attivo.</Empty>
+        <>
+          {!done.length && <Empty>Nessuna task per il filtro attivo.</Empty>}
+          <CompletedTasks items={done} pending={pending}
+            onReopen={id => toggle({ id, status: 'completato' } as Row)} />
+        </>
       ) : (
         <div className="rounded-2xl border border-border shadow-soft overflow-hidden divide-y divide-border animate-fade-in">
           {view.map(r => {
