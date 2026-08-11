@@ -133,9 +133,25 @@ export function CashPlan({
               deve ancora succedere. */}
           <span className="inline-flex items-baseline gap-1.5">
             <Landmark className="w-3.5 h-3.5 self-center text-text-tertiary" />
-            {cur.anchor ? 'Sul conto adesso' : 'Saldo a inizio mese'}
+            {cur.anchor ? 'In banca adesso' : 'Saldo a inizio mese'}
             <strong className="text-text-primary tabular text-sm">{eur(opening)}</strong>
           </span>
+          {/* §284 — quello che è stato spuntato e che l'estratto conto non ha
+              ancora visto. Non è una speranza: il bonifico l'ha visto una
+              persona sull'home banking. Sta accanto al saldo perché è il numero
+              che spiega la differenza fra i due. */}
+          {(t.declaredIn > 0 || t.declaredOut > 0) && (
+            <span className="inline-flex items-baseline gap-1.5">
+              <span className="text-text-tertiary">·</span>
+              spuntati e non ancora in estratto conto
+              {t.declaredIn > 0 && <span className="text-success">+{eur(t.declaredIn)}</span>}
+              {t.declaredOut > 0 && <span className="text-error">−{eur(t.declaredOut)}</span>}
+              <span className="text-text-tertiary">→ contati come</span>
+              <strong className="text-text-primary tabular">
+                {eur(opening + t.declaredIn - t.declaredOut)}
+              </strong>
+            </span>
+          )}
           <span className="text-success">+ {eur(t.inflow)} da incassare</span>
           <span className="text-error">− {eur(t.outflow)} da pagare</span>
           {touched && (
@@ -473,7 +489,9 @@ function Row({ item, off, onToggle }: { item: PlanItem; off: boolean; onToggle: 
      spegnerlo non cambierebbe niente — è già dentro il saldo (§263). */
   /* Una voce che in questo mese non muove un euro non si spegne: spegnerla non
      cambierebbe il saldo, e una casella che non fa niente è peggio di nessuna. */
-  const fisso = item.state === 'mosso' || !item.movesIn
+  /* Una dichiarata **si può spegnere**: è l'unica «mossa» che potrebbe non
+     essere vera, ed è esattamente la domanda che questo modello serve a fare. */
+  const fisso = (item.state === 'mosso' && !item.declared) || (!item.movesIn && !item.declared)
 
   return (
     <li className={`flex items-baseline gap-3 px-5 py-2 hover:bg-surface-hover ${off ? 'opacity-45' : ''}`}>
@@ -498,8 +516,14 @@ function Row({ item, off, onToggle }: { item: PlanItem; off: boolean; onToggle: 
         </p>
         <p className="text-2xs text-text-tertiary flex items-center gap-1.5 flex-wrap">
           <span className={`px-1.5 py-0.5 rounded-md ${
-            !item.movesIn && !item.inBalance ? 'text-text-tertiary bg-surface-active' : chip.cls}`}>
-            {item.inBalance ? 'già nel saldo' : !item.movesIn ? 'non in questo mese' : chip.label}
+            item.declared ? 'text-warning bg-warning-dim'
+              : !item.movesIn && !item.inBalance ? 'text-text-tertiary bg-surface-active' : chip.cls}`}>
+            {item.inBalance ? 'già nel saldo'
+              /* §284 — spuntata da una persona, non ancora vista dalla banca:
+                 conta nel saldo e resta riconoscibile finché l'estratto conto
+                 non la conferma (§226). */
+              : item.declared ? 'spuntata, non in estratto conto'
+              : !item.movesIn ? 'non in questo mese' : chip.label}
           </span>
           <span>{giorno(item.due)}</span>
           <span>· {item.why}</span>

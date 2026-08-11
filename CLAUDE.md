@@ -554,6 +554,20 @@ aperti compresi: è lì che serve guardare.
 
 - **Un mese aperto si legge dalle righe, uno mai aperto dal contratto e dal
   piano.** Sommarli conterebbe due volte lo stesso canone.
+- **§284 — spuntare «pagato» non fa sparire i soldi.** Una riga spuntata che
+  nessun movimento `banca` dimostra è un fatto **avvenuto** che il saldo non
+  contiene ancora: il bonifico l'ha visto una persona sull'home banking e
+  l'estratto conto si scarica la settimana dopo. Prima veniva marcata «già nel
+  saldo» e spuntare un incasso da 7.930 € faceva **scendere** di 7.930 il saldo
+  di fine mese — l'opposto di quello che era successo. Adesso `declared` la
+  somma al saldo, la mette nel **pavimento** (è un incasso avvenuto, non una
+  speranza) e resta riconoscibile — «spuntata, non in estratto conto» — finché
+  la banca non la conferma (§226). Le righe **dimostrate** restano fuori dal
+  totale, o si conterebbero due volte. Su agosto: +4.270 e −11.169 spuntati che
+  il conto non ha ancora visto, saldo 34.846 → **contato come 27.947**.
+  Il numero vale anche in Banca, dove **si conta dalle righe e non dai
+  `derivato`**: quelli restano anche quando il fatto è arrivato ma nessuno l'ha
+  riconciliato, e sui dati veri i due modi divergevano di **24.044 €**.
 - **Si parte dal saldo vero della banca** (§263): il mese in corso apre con
   **quello che c'è sul conto adesso** — 30.876,09 € al 9 agosto, lo stesso
   numero di `verify-bank.ts` — non con un'apertura ricostruita dalle righe.

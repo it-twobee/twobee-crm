@@ -67,7 +67,7 @@ type PlMonth = {
 }
 
 export function BankClient({
-  month, today, setupNeeded, accounts, txs, openLines, expected, months, plByMonth,
+  month, today, setupNeeded, accounts, txs, openLines, expected, months, plByMonth, unproven,
   clientNames, spendItems, centers = [],
 }: {
   month: string
@@ -76,6 +76,13 @@ export function BankClient({
   accounts: BankAccount[]
   txs: BankTx[]
   openLines: PlLineRef[]
+  /**
+   * §284 — le spunte «pagato» che nessun movimento di banca dimostra. Sono
+   * soldi che si sono mossi davvero — il bonifico l'ha visto una persona
+   * sull'home banking — e che l'estratto conto non ha ancora registrato: senza
+   * questo numero il saldo sembra vecchio finché non si ricarica il file.
+   */
+  unproven?: { inflow: number; outflow: number; count: number }
   expected: Expected[]
   months: string[]
   plByMonth: PlMonth[]
@@ -323,11 +330,22 @@ export function BankClient({
             {account.purpose && (
               <p className="text-2xs text-text-secondary mt-1.5 max-w-md">{account.purpose}</p>
             )}
-            {Math.abs(bal.pending) > 0 && (
-              <p className="text-2xs text-info mt-1.5">
-                {eur2(bal.declared)} contando {eur(Math.abs(bal.pending))} già{' '}
-                {bal.pending > 0 ? 'incassati' : 'pagati'} secondo il conto economico ma non ancora
-                sull&apos;estratto conto
+            {/* §284 — quanto vale quello che è stato spuntato e che il conto non
+                ha ancora visto. Si conta dalle **righe** di conto economico, non
+                dai movimenti `derivato`: quelli restano anche dopo che il fatto
+                è arrivato, e sui dati veri i due modi divergevano di 24.044 €. */}
+            {!!unproven && unproven.count > 0 && (
+              <p className="text-2xs text-info mt-1.5 max-w-md">
+                Col conto economico:{' '}
+                <strong className="text-text-primary tabular">
+                  {eur2(bal.real + unproven.inflow - unproven.outflow)}
+                </strong>
+                {' '}— ci sono {unproven.count} righe spuntate che nessun movimento dimostra
+                {unproven.inflow > 0 && <> (+{eur(unproven.inflow)} incassati</>}
+                {unproven.inflow > 0 && unproven.outflow > 0 && ', '}
+                {unproven.outflow === 0 && unproven.inflow > 0 && ')'}
+                {unproven.outflow > 0 && <>{unproven.inflow > 0 ? '' : ' ('}−{eur(unproven.outflow)} pagati)</>}
+                . Arriveranno col prossimo estratto conto.
               </p>
             )}
           </div>

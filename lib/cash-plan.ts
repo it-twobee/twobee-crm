@@ -92,6 +92,20 @@ export type PlanItem = {
    */
   inBalance: boolean
   /**
+   * §284 — spuntata «pagata» ma **nessun movimento di banca la dimostra**.
+   *
+   * È il caso di tutti i giorni: il bonifico si vede sull'home banking, si
+   * spunta la riga, e l'estratto conto si scarica la settimana dopo. Quei soldi
+   * ci sono, ma il saldo — che conta i soli movimenti `banca` (§189) — non li
+   * contiene ancora. Perciò una riga dichiarata **si somma** al saldo invece di
+   * sparire dentro: prima veniva marcata «già nel saldo» e spuntare un incasso
+   * da 7.930 € faceva **scendere** di 7.930 il saldo di fine mese.
+   *
+   * Resta dichiarata, non certificata: la differenza la si legge, e sparisce da
+   * sé quando l'estratto conto arriva (§226).
+   */
+  declared: boolean
+  /**
    * §264 — la voce è una riga del **conto economico di questo mese**.
    *
    * È l'appartenenza che il conto economico usa, e non coincide con la cassa:
@@ -149,6 +163,9 @@ export type Totals = {
   /** §263 — quello che è già dentro il saldo di partenza: si mostra, non si somma */
   alreadyIn: number
   alreadyOut: number
+  /** §284 — spuntato ma non ancora in estratto conto: **si somma** al saldo */
+  declaredIn: number
+  declaredOut: number
   /**
    * §264 — le righe del **conto economico di questo mese**, pagate o no: è il
    * numero che deve combaciare con quello della pagina del mese. Non è la cassa
@@ -199,6 +216,12 @@ export function planMonth(i: {
   payroll?: number
   /** §263 — fino a che data il saldo di partenza è un fatto già accaduto */
   anchor?: string | null
+  /**
+   * §284 — le righe che un movimento **di banca** dimostra. Solo queste sono
+   * dentro il saldo di partenza: le altre sono spunte, e il conto non le ha
+   * ancora viste.
+   */
+  inBank?: Set<string> | null
   /** il primo mese della catena: gli scoperti di prima pesano lì (§225) */
   since?: string | null
 }): PlanItem[] {
@@ -238,19 +261,28 @@ export function planMonth(i: {
     const muove = l.paid ? monthOf(quando) === i.month : bucket(quando) === i.month
     if (!mia && !muove) continue
 
-    const dentro = l.paid && quando <= limit
+    /* §284 — «già nel saldo» vuol dire **dimostrata dalla banca**, non
+       «spuntata». Senza `inBank` si torna al comportamento di prima, dove la
+       spunta valeva da sola. */
+    const provata = !i.inBank || i.inBank.has(l.id)
+    const dentro = l.paid && quando <= limit && provata
+    const dichiarata = l.paid && !provata
     const rit = l.paid ? 0 : late(l.due)
     items.push({
       id: `${l.paid ? 'f' : 'o'}:${l.id}`, side: l.side, group: groupOf(l),
       label: l.label, who: l.who ?? null, gross: r2(l.gross),
       due: l.paid ? quando : l.due, month: l.month, source: 'riga',
       state: l.paid ? 'mosso' : rit > 0 ? 'scaduto' : 'atteso',
-      lateDays: rit, movable: false, inBalance: dentro,
-      accrual: mia, movesIn: muove, on: true,
+      lateDays: rit, movable: false, inBalance: dentro, declared: dichiarata,
+      accrual: mia, movesIn: muove || dichiarata, on: true,
       why: l.paid
         ? dentro
           ? (l.side === 'entrata' ? 'incassata, già nel saldo' : 'pagata, già nel saldo')
-          : (l.side === 'entrata' ? 'incassata' : 'pagata')
+          : dichiarata
+            ? (l.side === 'entrata'
+                ? 'incassata, non ancora nell\'estratto conto'
+                : 'pagata, non ancora nell\'estratto conto')
+            : (l.side === 'entrata' ? 'incassata' : 'pagata')
         : rit > 0
           ? `in ritardo di ${rit} giorn${rit === 1 ? 'o' : 'i'}`
           : !mia
@@ -275,7 +307,7 @@ export function planMonth(i: {
           : p.external ? 'esterni' : 'struttura',
         label: p.label, who: p.who ?? null, gross: r2(p.gross), due: p.due, month: i.month,
         source: p.side === 'entrata' ? 'contratto' : 'piano', state: 'atteso',
-        lateDays: 0, movable: false, inBalance: false,
+        lateDays: 0, movable: false, inBalance: false, declared: false,
         accrual: true, movesIn: muove, on: true,
         why: muove
           ? (p.side === 'entrata' ? 'dal contratto' : 'dal piano dei costi')
@@ -297,7 +329,7 @@ export function planMonth(i: {
       label: 'Costo del lavoro', who: null, gross: r2(i.payroll),
       due: `${i.month.slice(0, 7)}-20`, month: shiftMonth(i.month, -1),
       source: 'organico', state: 'stimato', lateDays: 0, movable: false, inBalance: false,
-      accrual: false, movesIn: true, on: true,
+      declared: false, accrual: false, movesIn: true, on: true,
       why: 'stimato uguale all\'ultimo mese registrato: il piano non contiene il personale',
     })
   }
@@ -314,7 +346,7 @@ export function planMonth(i: {
       id: `iva:${d.date}:${d.label}`, side: 'uscita', group: 'iva',
       label: `Liquidazione IVA · ${d.label}`, who: null, gross: r2(d.amount), due: d.date,
       month: i.month, source: 'fisco', state: 'atteso', lateDays: late(d.date),
-      movable: false, inBalance: false, accrual: false, movesIn: true, on: true,
+      movable: false, inBalance: false, declared: false, accrual: false, movesIn: true, on: true,
       why: 'ha una data e non si sposta: è IVA incassata dai clienti',
     })
   }
@@ -331,7 +363,7 @@ export function planMonth(i: {
       label: p.kind === 'socio' ? 'Erogato al socio' : 'Provvigione commerciale',
       who: p.who, gross: r2(p.amount), due: `${i.month.slice(0, 7)}-28`,
       month: shiftMonth(i.month, -1), source: 'compenso', state: 'atteso',
-      lateDays: 0, movable: true, inBalance: false, accrual: false, movesIn: true, on: true,
+      lateDays: 0, movable: true, inBalance: false, declared: false, accrual: false, movesIn: true, on: true,
       why: p.from ? `maturato da ${p.from.slice(0, 7)}` : 'maturato nel mese scorso',
     })
   }
@@ -388,6 +420,8 @@ export function simulate(months: PlanMonth[], off: Set<string>): (Totals & { mon
       offOut: sum(spenti.filter(x => x.side === 'uscita').map(x => x.gross)),
       alreadyIn: sum(dentro.filter(x => x.side === 'entrata').map(x => x.gross)),
       alreadyOut: sum(dentro.filter(x => x.side === 'uscita').map(x => x.gross)),
+      declaredIn: sum(on.filter(x => x.declared && x.side === 'entrata').map(x => x.gross)),
+      declaredOut: sum(on.filter(x => x.declared && x.side === 'uscita').map(x => x.gross)),
       accrualIn: sum(m.items.filter(x => x.accrual && x.side === 'entrata').map(x => x.gross)),
       accrualOut: sum(m.items.filter(x => x.accrual && x.side === 'uscita').map(x => x.gross)),
     }
@@ -417,6 +451,8 @@ export type Outcomes = {
 export function outcomes(m: PlanMonth, off: Set<string>, opening = m.opening): Outcomes {
   const on = m.items.filter(x => !off.has(x.id) && !x.inBalance && x.movesIn)
   const uscite = sum(on.filter(x => x.side === 'uscita').map(x => x.gross))
+  /* §284 — una riga dichiarata è un incasso **già avvenuto**, solo non ancora
+     nell'estratto conto: sta nel pavimento come i fatti, non fra le speranze. */
   const fatti = sum(on.filter(x => x.side === 'entrata' && x.state === 'mosso').map(x => x.gross))
   const puntuali = sum(on.filter(x => x.side === 'entrata' && x.state === 'atteso').map(x => x.gross))
   const scaduti = sum(on.filter(x => x.side === 'entrata' && x.state === 'scaduto').map(x => x.gross))

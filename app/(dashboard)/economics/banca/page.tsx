@@ -80,7 +80,8 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
     }))
 
   const monthIds = (plMonths ?? []).map((m: { id: string }) => m.id)
-  const [{ data: revRows }, { data: costRows }, { data: streams }, { data: inst }, { data: items }] =
+  const [{ data: revRows }, { data: costRows }, { data: streams }, { data: inst }, { data: items },
+    { data: allocRows }] =
     monthIds.length
       ? await Promise.all([
           supabase.from('pl_revenue_lines').select('*').in('month_id', monthIds),
@@ -88,8 +89,10 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
           supabase.from('revenue_streams').select('*'),
           supabase.from('revenue_installments').select('*'),
           supabase.from('cost_items').select('*').eq('is_active', true),
+          // §258 — le quote: un bonifico cumulativo dimostra più di una riga
+          supabase.from('bank_tx_lines').select('tx_id, revenue_line_id, cost_line_id'),
         ])
-      : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }]
+      : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }]
 
   const monthOf = new Map((plMonths ?? []).map((m: { id: string; month: string }) => [m.id, m.month]))
   const nameOf = new Map((clients ?? []).map((c: { id: string; company_name: string; display_name: string | null }) =>
@@ -287,6 +290,39 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
       spendItems={spendItems}
       txs={txs}
       openLines={openLines}
+      /* §284 — le spunte che nessun movimento **di banca** dimostra: sono soldi
+         che si sono mossi davvero (l'ha visto una persona sull'home banking) e
+         che l'estratto conto non ha ancora registrato. Si contano dalle
+         **righe**, non dai movimenti `derivato`: quelli restano anche quando il
+         fatto è arrivato ma nessuno l'ha riconciliato, e sui dati veri i due
+         modi divergevano di 24.044 €. */
+      unproven={(() => {
+        const banca = new Set(txs.filter(t => t.source === 'banca').map(t => t.id))
+        const provata = new Set<string>()
+        for (const t of txs) {
+          if (t.source !== 'banca') continue
+          const id = t.revenue_line_id ?? t.cost_line_id
+          if (id) provata.add(String(id))
+        }
+        for (const a of (allocRows ?? []) as Record<string, unknown>[]) {
+          if (!banca.has(String(a.tx_id))) continue
+          const id = a.revenue_line_id ?? a.cost_line_id
+          if (id) provata.add(String(id))
+        }
+        const inn = (revRows ?? []).filter((r: Record<string, unknown>) =>
+          r.paid === true && !provata.has(String(r.id)))
+        const out = (costRows ?? []).filter((c: Record<string, unknown>) =>
+          c.paid === true && !provata.has(String(c.id)) && (num(c.actual) > 0 || num(c.budget) > 0))
+        const r2n = (x: number) => Math.round(x * 100) / 100
+        return {
+          inflow: r2n(inn.reduce((s2: number, r: Record<string, unknown>) =>
+            s2 + num(r.amount_net) * (1 + num(r.vat_rate)), 0)),
+          outflow: r2n(out.reduce((s2: number, c: Record<string, unknown>) =>
+            s2 + (num(c.actual) > 0 ? num(c.actual) : num(c.budget))
+              * (c.vat_applied ? 1 + num(c.vat_rate) : 1), 0)),
+          count: inn.length + out.length,
+        }
+      })()}
       /* §255 — le aree di costo: servono a dire **dove** finisce una voce creata
          da un movimento. Senza la scelta finivano tutte in «Spese fuori piano»,
          e una lettura per area con dentro trentaquattro commissioni non la apre

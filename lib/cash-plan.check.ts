@@ -160,6 +160,43 @@ const chainSenza = simulate([MESE, SET], new Set(['o:r3']))
 eq('spegnere agosto sposta anche settembre',
   Math.round((chain[1].end - chainSenza[1].end) * 100) / 100, 5490)
 
+/* §284 — spuntare «pagata» non fa sparire i soldi. Una riga che nessun movimento
+   di banca dimostra è un fatto avvenuto che il saldo non contiene ancora: si
+   somma, invece di essere data per scontata. Prima veniva marcata «già nel
+   saldo» e spuntare un incasso da 7.930 € faceva **scendere** di 7.930 il saldo
+   di fine mese. */
+{
+  const LINEE = [
+    { id: 'x1', side: 'entrata' as const, label: 'Seven — CRM', who: 'Seven',
+      gross: 7930, due: '2026-08-15', month: AGO, paid: true, paidOn: '2026-08-11' },
+  ]
+  // nessuna prova: il bonifico è stato visto sull'home banking, non nell'estratto
+  const senzaProva = planMonth({
+    month: AGO, today: '2026-08-11', open: true, anchor: '2026-08-11',
+    lines: LINEE, planned: [], dues: [], payouts: [], inBank: new Set<string>(),
+  })
+  eq('spuntata ma non dimostrata: dichiarata', senzaProva[0].declared, true)
+  eq('e non «già nel saldo»', senzaProva[0].inBalance, false)
+  const t1 = simulate([{ month: AGO, opening: 34845.84, anchor: '2026-08-11', open: true, items: senzaProva }], new Set())[0]
+  eq('quindi si somma al saldo', t1.inflow, 7930)
+  eq('e si legge a parte', t1.declaredIn, 7930)
+  eq('il fine mese sale, non scende', t1.end, Math.round((34845.84 + 7930) * 100) / 100)
+  /* §284 — una dichiarata è un incasso **avvenuto**: sta nel pavimento, non fra
+     le speranze. È la differenza fra «ci sono» e «spero che arrivino». */
+  eq('e sta nel pavimento',
+    outcomes({ month: AGO, opening: 34845.84, anchor: '2026-08-11', open: true, items: senzaProva },
+      new Set(), 34845.84).floor, Math.round((34845.84 + 7930) * 100) / 100)
+
+  // col movimento in estratto conto, invece, è già dentro il saldo
+  const conProva = planMonth({
+    month: AGO, today: '2026-08-11', open: true, anchor: '2026-08-11',
+    lines: LINEE, planned: [], dues: [], payouts: [], inBank: new Set(['x1']),
+  })
+  eq('dimostrata dalla banca: già nel saldo', conProva[0].inBalance, true)
+  eq('e non si somma due volte',
+    simulate([{ month: AGO, opening: 34845.84, anchor: '2026-08-11', open: true, items: conProva }], new Set())[0].inflow, 0)
+}
+
 /* §263 — con l'ancora al saldo di oggi, quello che si è già mosso è **dentro**
    il saldo e non si somma: il modello parte dal numero che si legge in Banca. */
 const ancorate = planMonth({

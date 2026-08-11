@@ -65,13 +65,17 @@ export async function loadProspetto(
     { data: revRows }, { data: costRows }, { data: accountRows }, { data: txRows, error: bankErr },
     { data: cfgRow }, { data: partnerRows }, { data: clientRows }, { data: payoutRows },
     { data: streamRows }, { data: coverRows }, { data: instRows }, { data: itemRows },
-    { data: vatActualRows },
+    { data: vatActualRows }, { data: allocRows },
   ] = await Promise.all([
     supabase.from('pl_months').select('id, month, status').order('month'),
     supabase.from('pl_revenue_lines').select('*'),
     supabase.from('pl_cost_lines').select('*'),
     supabase.from('bank_accounts').select('id, opening_balance, is_active'),
-    supabase.from('bank_transactions').select('booked_on, amount, source, kind').limit(5000),
+    /* §284 — servono anche gli **agganci**: una riga spuntata che nessun
+       movimento `banca` dimostra non è dentro il saldo, e va sommata invece che
+       data per scontata. */
+    supabase.from('bank_transactions')
+      .select('id, booked_on, amount, source, kind, revenue_line_id, cost_line_id').limit(5000),
     supabase.from('pl_config').select('*').eq('id', true).maybeSingle(),
     supabase.from('pl_partners').select('*').eq('is_active', true).order('sort_order'),
     supabase.from('clients').select('id, display_name, company_name, sales_owner_name'),
@@ -88,6 +92,9 @@ export async function loadProspetto(
     supabase.from('revenue_installments').select('*'),
     supabase.from('cost_items').select('*').eq('is_active', true),
     supabase.from('vat_settlements').select('year, quarter, to_pay, doc_ref, paid_on'),
+    /* §258 — le quote: un bonifico cumulativo nomina più righe, e senza queste
+       risulterebbero spuntate senza prova. */
+    supabase.from('bank_tx_lines').select('tx_id, revenue_line_id, cost_line_id'),
   ])
   const setupNeeded = setupErr?.code === '42P01' || setupErr?.code === 'PGRST205'
   if (setupNeeded) {
@@ -119,6 +126,24 @@ export async function loadProspetto(
   for (const r of (coverRows ?? []) as { stream_id: string; project_id: string }[]) {
     coverage.set(r.stream_id, [...(coverage.get(r.stream_id) ?? []), r.project_id])
   }
+  /* §284 — le righe che un movimento **di banca** nomina: per colonna o per
+     quota (§258). Sono le sole già contenute nel saldo di partenza. */
+  const allocs = (allocRows ?? []) as Record<string, unknown>[]
+  const bancaIds = new Set((txRows ?? [])
+    .filter((t: Record<string, unknown>) => String(t.source) === 'banca')
+    .map((t: Record<string, unknown>) => String(t.id)))
+  const inBank = new Set<string>()
+  for (const t of (txRows ?? []) as Record<string, unknown>[]) {
+    if (String(t.source) !== 'banca') continue
+    const id = t.revenue_line_id ?? t.cost_line_id
+    if (id) inBank.add(String(id))
+  }
+  for (const a of allocs) {
+    if (!bancaIds.has(String(a.tx_id))) continue
+    const id = a.revenue_line_id ?? a.cost_line_id
+    if (id) inBank.add(String(id))
+  }
+
   const streamById = new Map((streamRows ?? []).map((s: Record<string, unknown>) => [String(s.id), s]))
   const projectsOfStream = (id: string | null): string[] => {
     const st = id ? streamById.get(id) : null
@@ -395,7 +420,7 @@ export async function loadProspetto(
       anchor: mm === nowMonth ? today : null,
       open,
       items: planMonth({
-        month: mm, today, open, anchor: mm === nowMonth ? today : null,
+        month: mm, today, open, anchor: mm === nowMonth ? today : null, inBank,
         /* Le righe di **tutti** i mesi, ciascuna nel mese in cui la cassa la
            sente: quello del movimento se è già passata, quello della scadenza se
            no — e gli **scaduti pesano sul primo mese** della catena (§225), non

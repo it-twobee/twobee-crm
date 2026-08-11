@@ -43,7 +43,7 @@ async function main() {
     get<Record<string, unknown>[]>('pl_revenue_lines?select=*'),
     get<Record<string, unknown>[]>('pl_cost_lines?select=*'),
     get<Record<string, unknown>[]>('bank_accounts?select=id,opening_balance'),
-    get<Record<string, unknown>[]>('bank_transactions?select=booked_on,amount,source,kind'),
+    get<Record<string, unknown>[]>('bank_transactions?select=id,booked_on,amount,source,kind,revenue_line_id,cost_line_id'),
     get<Record<string, unknown>[]>('pl_config?select=*&limit=1'),
     get<Record<string, unknown>[]>('pl_partners?select=*&is_active=eq.true'),
     get<Record<string, unknown>[]>('clients?select=id,display_name,company_name,sales_owner_name'),
@@ -110,6 +110,25 @@ async function main() {
   const dues = quarters.filter(q => !q.closed && q.toPay > 0)
     .map(q => ({ date: q.deadline, amount: q.toPay, label: q.label }))
   const vatNow = quarters.find(q => !q.closed && q.toPay > 0) ?? null
+
+  /* §284 — le righe che un movimento **di banca** dimostra: le altre spunte
+     sono fatti che l'estratto conto non ha ancora visto, e si sommano al saldo
+     invece di essere date per scontate. Stessa costruzione del caricamento in
+     pagina, o lo script direbbe numeri diversi da quelli a schermo. */
+  const alloc = await get<Record<string, unknown>[]>('bank_tx_lines?select=tx_id,revenue_line_id,cost_line_id')
+    .catch(() => [] as Record<string, unknown>[])
+  const bancaIds = new Set(txs.filter(t => String(t.source) === 'banca').map(t => String(t.id)))
+  const inBank = new Set<string>()
+  for (const t of txs) {
+    if (String(t.source) !== 'banca') continue
+    const id = t.revenue_line_id ?? t.cost_line_id
+    if (id) inBank.add(String(id))
+  }
+  for (const a of alloc) {
+    if (!bancaIds.has(String(a.tx_id))) continue
+    const id = a.revenue_line_id ?? a.cost_line_id
+    if (id) inBank.add(String(id))
+  }
 
   const realTx = txs.filter(t => String(t.source) === 'banca')
   const opening = accounts.reduce((s, a) => s + num(a.opening_balance), 0)
@@ -186,7 +205,7 @@ async function main() {
       anchor: mm === nowMonth ? today : null,
       open,
       items: planMonth({
-        month: mm, today, open, anchor: mm === nowMonth ? today : null,
+        month: mm, today, open, anchor: mm === nowMonth ? today : null, inBank,
         /* §264 — si passano **tutte** le righe: quali sono di questo mese e
            quali ci si muovono soltanto lo decide il motore, che è l'unico posto
            dove quella regola deve vivere. */
@@ -244,6 +263,10 @@ async function main() {
   console.log(`${cur.anchor ? 'Sul conto adesso   ' : 'Saldo a inizio mese'}  ${eur2(t.opening).padStart(12)}`)
   if (t.alreadyIn > 0 || t.alreadyOut > 0) {
     console.log(`  già passati nel mese: ${eur2(t.alreadyIn)} dentro · ${eur2(t.alreadyOut)} fuori (nel saldo)`)
+  }
+  if (t.declaredIn > 0 || t.declaredOut > 0) {
+    console.log(`  spuntati e non ancora in estratto conto: +${eur2(t.declaredIn)} · −${eur2(t.declaredOut)}`
+      + `  → contati come ${eur2(t.opening + t.declaredIn - t.declaredOut)}`)
   }
 
   for (const side of ['entrata', 'uscita'] as const) {
