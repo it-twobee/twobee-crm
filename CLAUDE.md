@@ -2411,7 +2411,35 @@ Le task del calendario sono personali e nascoste di default.
 | Strategic Objectives widget | Fetcha `objectives` ma no widget | ⚠️ dati ci sono |
 | AI & Automation Center | — | ❌ da costruire |
 
-## Dove siamo — 2026-08-20
+## Dove siamo — 2026-08-20 (sera)
+
+**Il registro delle allocazioni è in produzione** (`2d45e53`). Il legame fra
+conto corrente e conto economico non è più un campo: è l'euro allocato. Da lì
+sono cadute sette cose in fila — l'F24 come documento, il dialogo che propone
+«accorpa» invece di creare una riga, la posizione di ognuno, l'accordo validato.
+
+Il ponte (§199) è passato da **−6.029 a −4.772 €**, e il numero è peggiorato due
+volte **correggendo errori**: la spesa al supermercato da 3.751 € (era 37,51) e
+le quattro righe che portavano il lordo dove il motore aspetta l'imponibile
+stavano *coprendo per caso* uscite vere che nessuna riga spiega. Un residuo che
+si allarga quando si corregge un dato era un residuo che mentiva.
+
+Quello che resta da guardare, in ordine:
+
+1. **6 spunte dichiarate** che nessun movimento conferma: è quasi tutto il
+   residuo del ponte.
+2. **Due bonifici Affinity di luglio**, 5.100 €: il motore dell'intake li propone
+   e dice «scegli quale» — tre righe dello stesso fornitore, e la scelta è di una
+   persona.
+3. **Tre movimenti di agosto** per 148,91 €: due Meta da correggere (la riga dice
+   109,12 e dal conto sono usciti 166,01) e un carburante da aggiungere.
+
+Fuori dal tool per scelta: la **provvigione divisa** fra Marco e Toto è un accordo
+fra loro (§286) e si registra a mano; il bonifico a Walter del 7 agosto è la
+**riconciliazione con GAV Sistemi**, marcata «niente da abbinare» col perché
+scritto.
+
+## Dove siamo — 2026-08-20 (mattina)
 
 **Allineato ai documenti veri** (`scripts/align-2026-08.ts`): estratto conto BPM
 al 20 agosto (14 movimenti), Vivid al 14 (1), 7 fatture nuove. Il saldo reale è
@@ -2560,13 +2588,14 @@ pubblicità allineata al conto Vivid (Meta comincia il 25 luglio: 211,64 a
 luglio, 109,12 ad agosto, zero prima). Senza, maggio porta 900 € di uscita
 scoperta per una campagna mai partita e la tenuta di cassa la conta.
 
-Ultimo commit: `5102698` (ferie e assenze, §223). **`main` è allineato a
-`origin/main`**: i 52 commit fermi in locale sono stati pushati, quindi su
-os.twobee.it c'è banca, personale, agevolazioni, ripartizione, Asana e ferie.
-Gate del repo: `npx tsc --noEmit` (ESLint non è configurato) più i **ventotto**
-`lib/*.check.ts` (gli ultimi sono `payout-window.check.ts` §286 e
-`pl-rows.check.ts` §287), che si lanciano con
-`npx tsx lib/<nome>.check.ts` e devono dire «Tutti i controlli passano».
+Ultimo commit: **`2d45e53`** (il registro delle allocazioni, §290→§307),
+pushato su `origin/main` il 2026-08-20 — 78 file, +9.849/−1.226. **`main` è
+allineato**, quindi su os.twobee.it c'è tutto quello che c'è qui.
+Gate del repo: `npx tsc --noEmit` (ESLint non è configurato) più i
+**trentaquattro** `lib/*.check.ts` (gli ultimi sono `allocations.check.ts` §297,
+`f24.check.ts` §301, `month-intake.check.ts` §303 e `stream-validation.check.ts`
+§306), che si lanciano con `npx tsx lib/<nome>.check.ts` e devono dire «Tutti i
+controlli passano».
 **Non lanciare `npm run build` mentre `npm run dev` gira**: condividono `.next`,
 il dev server resta a servire chunk CSS sostituiti e la pagina si apre senza
 stili. Se succede: ferma il dev, `rm -rf .next`, riavvia.
