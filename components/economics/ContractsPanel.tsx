@@ -12,6 +12,7 @@ import {
   currentMonth, monthSpan, scheduled,
   type Installment, type RevenueStream, type ScheduleSpec,
 } from '@/lib/revenue'
+import { canValidate, stateNote } from '@/lib/stream-validation'
 import {
   addStream, updateStream, deleteStream,
   generateInstallments, addInstallment, updateInstallment, deleteInstallment, activateStream,
@@ -334,6 +335,32 @@ function Row({
           </>
         )}
       </div>
+
+      {/* §306 — **una bozza mostra il suo importo e tace**, e quel silenzio è il
+          difetto: non fa canone, non genera righe nel mese, non conta nel valore
+          venduto del lavoro (§186). Chi la guarda vede un numero e ha ragione a
+          credere che sia dentro i conti. Qui c'è scritto che non lo è, e il gesto
+          per farlo entrare sta accanto alla frase. */}
+      {s.status !== 'attivo' && !parent && stateNote(s.status) && (
+        <div className={`mt-2 flex items-start gap-2 flex-wrap text-2xs rounded-xl px-3 py-2 border ${
+          s.status === 'bozza' ? 'border-warning/40 bg-warning-dim' : 'border-border bg-background'}`}>
+          <AlertTriangle className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${
+            s.status === 'bozza' ? 'text-warning' : 'text-text-tertiary'}`} aria-hidden="true" />
+          <span className="text-text-secondary flex-1 min-w-[200px]">{stateNote(s.status)}</span>
+          {s.status === 'bozza' && canEdit && (() => {
+            const v = canValidate({ status: 'bozza', amount: s.amount })
+            return v.can ? (
+              <button onClick={() => run(() => activateStream(s.id, ctx), 'Accordo validato: da qui entra nei conti')}
+                className="flex items-center gap-1 font-semibold text-success border border-success/40
+                           rounded-lg px-2 py-1 press shrink-0">
+                <Play className="w-3 h-3" aria-hidden="true" />Valida
+              </button>
+            ) : (
+              <span className="text-text-tertiary shrink-0" title={v.how}>{v.why}</span>
+            )
+          })()}
+        </div>
+      )}
 
       {/* la manutenzione aspetta la fine del lavoro che la genera */}
       {parent && s.status === 'bozza' && (

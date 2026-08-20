@@ -55,9 +55,24 @@ const TXS = [
 ]
 /* §240 — luglio matura 900 di quote soci e 300 di provvigioni; dalla banca in
    quel mese sono usciti 500. Sono due misure della stessa cosa, non due cose. */
+/* Il mese è quello in cui il compenso **matura**: esce in quello dopo (§224).
+   Giugno c'è perché è quello che luglio eroga: senza, la prima colonna del
+   prospetto sembrerebbe un mese senza compensi, che non è mai vero. */
 const PAYOUTS = [
-  { month: '2026-07-01', partners: 900, sales: 300, paidOut: 500 },
-  { month: '2026-08-01', partners: 400, sales: 100, paidOut: 0 },
+  { month: '2026-06-01', partners: 900, sales: 300, paidOut: 500,
+    people: [
+      { who: 'Marco', kind: 'socio' as const, amount: 300 },
+      { who: 'Walter', kind: 'socio' as const, amount: 300 },
+      { who: 'Toto', kind: 'socio' as const, amount: 300 },
+      { who: 'Antonio Giarletta', kind: 'commerciale' as const, amount: 300 },
+    ] },
+  { month: '2026-07-01', partners: 1200, sales: 400, paidOut: 500,
+    people: [
+      { who: 'Marco', kind: 'socio' as const, amount: 500 },
+      { who: 'Walter', kind: 'socio' as const, amount: 400 },
+      { who: 'Toto', kind: 'socio' as const, amount: 300 },
+      { who: 'Antonio Giarletta', kind: 'commerciale' as const, amount: 400 },
+    ] },
 ]
 const base: ProspettoInput = {
   months: MESI, revenue: REVENUE, costs: COSTS, txs: TXS,
@@ -95,7 +110,7 @@ eq('il margine di luglio', comp.totals.margin.cells.find(c => c.month === '2026-
    alla domanda per cui questa sezione esiste. Il denominatore è tutto quello
    che esce, compensi compresi — vedi sotto. */
 eq('ogni riga porta la sua quota', rowOf(comp, 'personale')?.share,
-   Math.round((8899 / (10329 + 1700)) * 100) / 100)
+   Math.round((8899 / (10329 + 2800)) * 100) / 100)
 eq('le righe vuote non compaiono', comp.costs.some(r => r.total === 0), false)
 
 // ── cassa ───────────────────────────────────────────────────────────────────
@@ -118,9 +133,40 @@ eq('la cassa non supera mai la competenza',
 /* Dal conto escono come tutto il resto, quindi si vedono lì. Ma non sono righe
    di conto economico — non si scrivono, si ricalcolano — e infilarli in `costs`
    darebbe un margine diverso da quello del conto economico, con lo stesso nome. */
-eq('in competenza si sa a chi spettano', comp.payouts.map(r => r.key), ['erogato', 'provvigioni'])
-eq('quote soci di luglio', comp.payouts.find(r => r.key === 'erogato')?.cells.find(c => c.month === '2026-07-01')?.value, 900)
-eq('provvigioni di luglio', comp.payouts.find(r => r.key === 'provvigioni')?.cells.find(c => c.month === '2026-07-01')?.value, 300)
+/* §291 — **il compenso pesa sul mese in cui esce**, non su quello in cui matura.
+   Le quote di giugno si erogano a luglio: prima il prospetto le metteva a giugno
+   e la colonna di luglio mostrava un «resta alla società» che nessun bonifico
+   avrebbe confermato. Il prezzo — un mese che sottrae quote maturate altrove —
+   è dichiarato sulla riga, non nascosto. */
+eq('luglio eroga quello che è maturato a giugno',
+   comp.payouts.find(r => r.key === 'erogato')?.cells.find(c => c.month === '2026-07-01')?.value, 900)
+eq('e agosto quello di luglio',
+   comp.payouts.find(r => r.key === 'erogato')?.cells.find(c => c.month === '2026-08-01')?.value, 1200)
+eq('le provvigioni si spostano insieme',
+   comp.payouts.find(r => r.key === 'provvigioni')?.cells.find(c => c.month === '2026-07-01')?.value, 300)
+
+/* §291 — e si legge **per persona**: «compensi 1.200 €» non risponde alla
+   domanda che uno si fa guardando il P&L, che è «quanto a Marco». */
+eq('i tre soci hanno una riga ciascuno',
+   comp.payouts.filter(r => r.key.startsWith('socio:')).map(r => r.label).sort(),
+   ['Marco', 'Toto', 'Walter'])
+eq('il commerciale sta in una riga sua',
+   comp.payouts.filter(r => r.key.startsWith('commerciale:')).map(r => r.label), ['Antonio Giarletta'])
+eq('Marco a luglio prende la sua quota di giugno',
+   comp.payouts.find(r => r.key === 'socio:Marco')?.cells.find(c => c.month === '2026-07-01')?.value, 300)
+eq('e ad agosto quella di luglio',
+   comp.payouts.find(r => r.key === 'socio:Marco')?.cells.find(c => c.month === '2026-08-01')?.value, 500)
+/* Chi prende di più si legge per primo: un elenco di persone in ordine di
+   inserimento non si guarda. */
+eq('le persone sono in ordine di importo',
+   comp.payouts.filter(r => r.key.startsWith('socio:')).map(r => r.label), ['Marco', 'Walter', 'Toto'])
+
+/* Il totale dei compensi si fa sulle **righe di gruppo**, mai su tutte: sommare
+   anche le persone lo conterebbe due volte, e sarebbe un margine sbagliato con
+   lo stesso nome di quello giusto. */
+eq('il totale non conta due volte il dettaglio',
+   comp.totals.payouts.cells.find(c => c.month === '2026-07-01')?.value, 1200)
+eq('e su tutto il periodo nemmeno', comp.totals.payouts.total, 900 + 300 + 1200 + 400)
 eq('e non entrano nei costi', comp.costs.some(r => r.key === 'erogato'), false)
 /* Il margine resta quello del conto economico: entrate meno costi. Quello che
    resta **dopo** i compensi è un altro numero, e ha un altro nome. */
@@ -138,9 +184,15 @@ eq('e vale quello che è uscito davvero',
    retribuzioni di luglio si pagano ad agosto: la spunta cade lì. */
 const conRighe = prospetto({ ...base, basis: 'cassa', payouts: [
   { month: '2026-07-01', partners: 900, sales: 300, paidPartners: 0, paidSales: 0, paidOut: 500 },
-  { month: '2026-08-01', partners: 400, sales: 100, paidPartners: 900, paidSales: 300, paidOut: 0 },
+  { month: '2026-08-01', partners: 400, sales: 100, paidPartners: 900, paidSales: 300, paidOut: 0,
+    people: [{ who: 'Marco', kind: 'socio' as const, amount: 400, paid: 900 }] },
 ] })
-eq('con le righe tornano due voci', conRighe.payouts.map(r => r.key), ['erogato', 'provvigioni'])
+eq('con le righe tornano le due voci di gruppo',
+   conRighe.payouts.filter(r => !r.key.includes(':')).map(r => r.key), ['erogato', 'provvigioni'])
+/* In cassa la persona si legge dalla **spunta**, non dal maturato: è l'unico
+   numero che un bonifico può confermare. */
+eq('e in cassa la persona porta quello che ha incassato',
+   conRighe.payouts.find(r => r.key === 'socio:Marco')?.cells.find(c => c.month === '2026-08-01')?.value, 900)
 eq('e il maturato di luglio esce ad agosto',
    conRighe.payouts.find(r => r.key === 'erogato')?.cells.find(c => c.month === '2026-08-01')?.value, 900)
 eq('mentre luglio non ne ha ancora pagato nessuno',
@@ -149,7 +201,7 @@ eq('mentre luglio non ne ha ancora pagato nessuno',
    denominatore farebbe sembrare il personale più pesante di quanto è. */
 eq('le quote guardano tutto quello che esce',
    comp.costs.find(r => r.key === 'personale')?.share,
-   Math.round((8899 / (10329 + 1700)) * 100) / 100)
+   Math.round((8899 / (10329 + 2800)) * 100) / 100)
 
 // ── e in banca ──────────────────────────────────────────────────────────────
 const lug = comp.bank.find(b => b.month === '2026-07-01')!

@@ -270,25 +270,70 @@ export function payoutSchedule(
 
 export function payoutsFromBank(
   txs: CertTx[],
-  people: { key: string; label: string; names: string[] }[],
+  people: { key: string; label: string; names: string[]; aliases?: string[] }[],
   kinds: string[] = PAYOUT_KINDS,
   /** §227 — si guardano solo i bonifici da qui in avanti: prima è liquidato */
   since?: string,
+  /**
+   * §305 — i movimenti che il **registro** (§297) dice essere compensi, con
+   * quanto di ognuno lo è. Vincono sulla categoria, e non è un raffinamento:
+   * `classify` etichetta `finanziamento` i bonifici ai soci di giugno e
+   * `pagamento` quelli del 13 agosto, perché legge la descrizione e quelle due
+   * frasi sono scritte diversamente. Filtrare per categoria perdeva metà dei
+   * casi — a Marco 3.412 € usciti e «erogato 0» — e un erogato a zero su chi è
+   * stato pagato è la stessa bugia di uno zero su chi non lo è stato.
+   *
+   * Porta anche **a chi**, e questo chiude il caso gemello: il bonifico a Toto
+   * dice «salvatore piacente» e il piano compensi lo chiama «Toto», quindi il
+   * nome non lo trovava. Il registro non ha bisogno di indovinarlo — l'ha già
+   * scritto qualcuno guardando (§244: si ritrova per nome, non per chiave).
+   */
+  allocated?: Map<string, { who: string; amount: number }[]>,
 ): Map<string, PayoutFact> {
   const out = new Map<string, PayoutFact>(
     people.map(p => [p.key, { who: p.label, paid: 0, rows: [] }]))
 
   const words = (s: string) => s.toLowerCase().split(/[^a-zà-ù]+/).filter(Boolean)
 
+  const norm = (x: string) => x.trim().toLowerCase()
+  /* §244 — una persona ha **più nomi**: `mergePeople` fonde «Marco» socio e
+     «Marco Lucci» commerciale in una sola, e `pl_payouts` scrive la quota col
+     primo e la provvigione col secondo. Confrontare la sola etichetta faceva
+     cadere metà del bonifico — a Marco 442 € invece di 3.412. */
+  const byLabel = new Map<string, string>()
+  for (const p of people) {
+    for (const nm of [p.label, ...(p.aliases ?? p.names)]) byLabel.set(norm(nm), p.key)
+  }
+
   for (const t of txs) {
     if (t.source !== 'banca' || t.amount >= 0) continue
+    if (since && t.booked_on.slice(0, 10) < since) continue
+
+    /* Dove il registro parla, non si indovina niente: dice quale movimento paga
+       quale compenso e per quanto, e lo ha scritto una persona guardandolo. */
+    const daRegistro = allocated?.get(t.id)
+    if (daRegistro?.length) {
+      for (const q of daRegistro) {
+        const key = byLabel.get(norm(q.who))
+        if (!key) continue
+        const f = out.get(key)!
+        f.paid = r2(f.paid + q.amount)
+        f.rows.push({
+          id: t.id, date: t.booked_on.slice(0, 10),
+          amount: r2(q.amount), description: t.description.slice(0, 90),
+        })
+      }
+      continue
+    }
+
     if (!kinds.includes(t.kind)) continue
     if (t.revenue_line_id || t.cost_line_id) continue
-    if (since && t.booked_on.slice(0, 10) < since) continue
     const hay = new Set([...words(t.counterparty ?? ''), ...words(t.description)])
     const hits = people.filter(p => p.names.some(nm => words(nm).every(w => hay.has(w))))
     // due nomi che corrispondono = non si sa quale: meglio nessuno di quello sbagliato
     if (hits.length !== 1) continue
+    /* Il ripiego di quando il registro non dice niente: l'importo intero al
+       nome che corrisponde. È come funzionava prima della 214. */
     const f = out.get(hits[0].key)!
     f.paid = r2(f.paid + Math.abs(t.amount))
     f.rows.push({
@@ -317,17 +362,34 @@ export function payoutsFromBank(
 export function mergePeople(
   partners: { id: string; label: string }[],
   owners: string[],
-): { key: string; label: string; names: string[]; partnerId: string | null }[] {
+): {
+  key: string; label: string; names: string[]; partnerId: string | null
+  /**
+   * §305 — **tutti i nomi con cui questa persona compare nel tool**: «Marco» in
+   * `pl_partners` e «Marco Lucci» in anagrafica sono la stessa, e `pl_payouts`
+   * scrive la quota col primo e la provvigione col secondo. Serve a ritrovarla
+   * nel registro delle allocazioni.
+   *
+   * Sono tenuti **separati da `names`** di proposito: quelli si cercano nella
+   * descrizione di un bonifico, e allargarli a un nome di battesimo solo
+   * («marco») farebbe corrispondere qualunque bonifico che lo contenga. Due
+   * lavori diversi, due liste.
+   */
+  aliases: string[]
+}[] {
   const norm = (s: string) => s.toLowerCase().split(/[^a-zà-ù]+/).filter(Boolean)
   const out = partners.map(p => {
     const first = norm(p.label)[0]
     const full = owners.find(o => norm(o).includes(first))
     const label = full ?? p.label
-    return { key: `p:${p.id}`, label, names: [label], partnerId: p.id as string | null }
+    return {
+      key: `p:${p.id}`, label, names: [label], partnerId: p.id as string | null,
+      aliases: Array.from(new Set([label, p.label])),
+    }
   })
   for (const o of owners) {
     if (out.some(p => p.label === o)) continue
-    out.push({ key: `o:${o}`, label: o, names: [o], partnerId: null })
+    out.push({ key: `o:${o}`, label: o, names: [o], partnerId: null, aliases: [o] })
   }
   return out
 }

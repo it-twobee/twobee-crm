@@ -91,6 +91,13 @@ export type PlConfig = {
    * dal registro compensi che nessuno aveva erogato. `null` = si conta da sempre.
    */
   settled_from: string | null
+  /**
+   * §286 — il giorno del mese in cui si erogano i compensi maturati nel mese
+   * prima. Da quel giorno dipende **cosa** si distribuisce: entra quello che è
+   * rientrato entro quella data, e non un euro di più. Il singolo mese può
+   * scriversi la sua eccezione (`pl_months.payout_date`); questo è il default.
+   */
+  payout_day: number
 }
 
 export const DEFAULT_PL_CONFIG: PlConfig = {
@@ -115,6 +122,7 @@ export const DEFAULT_PL_CONFIG: PlConfig = {
   digital_risk_cut_pct: 0.03,
   digital_risk_threshold: 20000,
   settled_from: null,
+  payout_day: 20,
 }
 
 /**
@@ -157,6 +165,7 @@ export function rowToPlConfig(row: Record<string, unknown> | null | undefined): 
     settled_from: typeof row.settled_from === 'string' ? row.settled_from.slice(0, 10)
       : typeof row.payout_from === 'string' ? row.payout_from.slice(0, 10)
       : d.settled_from,
+    payout_day: n(row.payout_day, d.payout_day),
   }
 }
 
@@ -203,6 +212,15 @@ export type RevenueLine = {
   project_ids?: string[]
   stream_id?: string | null
   /**
+   * §285 — la rata del contratto da cui la riga nasce. È la chiave con cui il
+   * **subappalto trova il suo ricavo**: una tranche di fornitore generata sulle
+   * rate del cliente (`splitCostLikeClient`) finanzia una rata precisa, e senza
+   * questo legame due rate dello stesso progetto nello stesso mese si dividono
+   * i costi esterni in proporzione all'imponibile — che è la regola giusta solo
+   * quando non si sa niente di meglio.
+   */
+  installment_id?: string | null
+  /**
    * §186 — valore venduto del progetto: somma dei contratti non in bozza. Decide
    * se l'opzione del fondo rischio è disponibile, e si guarda il **progetto**, non
    * la rata: un lavoro da 24.000 € pagato in sei rate da 4.000 resta un lavoro da
@@ -230,6 +248,16 @@ export type RevenueLine = {
   due_date?: string | null
   /** §224 — accordo di pagamento; null = lo decide la natura della voce */
   terms?: string | null
+  /**
+   * §290 — la chiusura del mese l'ha trascinata avanti: giorno, mese d'origine e
+   * quante chiusure si è portata dietro. La riga **resta** nel suo mese — il
+   * motore non le guarda, e non devono cambiare un solo numero di `computeMonth` —
+   * ma servono a chi la mostra: una riga scoperta da tre chiusure e una scaduta
+   * ieri non sono la stessa cosa e finora si leggevano identiche.
+   */
+  carried_at?: string | null
+  carried_from?: string | null
+  carry_count?: number | null
 }
 
 /**
@@ -266,6 +294,12 @@ export type CostLine = {
   cost_item_id?: string | null
   /** §173: se c'è, è un subappalto di quel progetto — e §186 lo toglie dal margine */
   project_id?: string | null
+  /**
+   * §285 — la rata del cliente che questa lavorazione finanzia. Quando c'è,
+   * il costo esce dal margine **di quella riga** e non si spalma sul progetto:
+   * è la differenza fra sapere e dedurre.
+   */
+  installment_id?: string | null
   /** §191: spesa fatta da un socio col suo sottoconto — è erogato, non struttura */
   partner_id?: string | null
   /** §191: la parte deducibile (0,75 sui pasti, 0,20 sul carburante a uso promiscuo) */
@@ -284,6 +318,10 @@ export type CostLine = {
   paid_on?: string | null
   due_date?: string | null
   terms?: string | null
+  /** §290 — trascinata avanti dalla chiusura: vedi `RevenueLine.carried_at` */
+  carried_at?: string | null
+  carried_from?: string | null
+  carry_count?: number | null
 }
 
 export type Partner = { id: string; label: string; takes_delivery: boolean; takes_residual: boolean }
@@ -482,6 +520,16 @@ export function computeMonth(
    * non quanto vale il lavoro.
    */
   marginCosts: CostLine[] = costs,
+  /**
+   * §285 — le righe che fanno da **denominatore** quando un subappalto si
+   * spalma sul progetto. Di norma sono le stesse che si stanno contando; non lo
+   * sono quando si guarda un sottoinsieme — la cassa (§232) o la finestra di
+   * erogazione (§286). Lì il denominatore deve restare il ricavo **intero** del
+   * progetto in quel mese, o l'unica rata incassata si prenderebbe addosso il
+   * subappalto di tutte: il margine scenderebbe, e con lui una quota che invece
+   * spetta. Non serve dove il costo dichiara la sua rata: quello è esatto.
+   */
+  marginRevenue: RevenueLine[] = revenue,
 ) {
   const accrued = r2(revenue.reduce((s, l) => s + l.amount_net, 0))
   const collected = r2(revenue.filter(l => l.paid).reduce((s, l) => s + l.amount_net, 0))
@@ -495,10 +543,20 @@ export function computeMonth(
      margine digital prima di dividerlo. Vale quello che è stato registrato;
      finché non lo è, quello che il piano prevede — altrimenti si distribuirebbe
      un margine che il subappaltatore si porterà via il mese prossimo. */
+  /* §285 — due strade, e la prima è sempre migliore. Un subappalto che
+     **dichiara la rata** che finanzia esce dal margine di quella riga e basta:
+     è un fatto, non una ripartizione. Solo quello che non lo dichiara si spalma
+     sul progetto come prima. Tenerli separati serve a non contarli due volte. */
+  const externalByInstallment = new Map<string, number>()
   const externalByProject = new Map<string, number>()
   for (const c of marginCosts) {
     if (!c.project_id) continue
     const amount = c.actual > 0 ? c.actual : c.budget
+    if (c.installment_id) {
+      externalByInstallment.set(c.installment_id,
+        r2((externalByInstallment.get(c.installment_id) ?? 0) + amount))
+      continue
+    }
     externalByProject.set(c.project_id, r2((externalByProject.get(c.project_id) ?? 0) + amount))
   }
 
@@ -506,7 +564,7 @@ export function computeMonth(
      canone): il costo esterno si spalma fra loro in proporzione all'imponibile,
      altrimenti la prima riga si mangerebbe tutto il subappalto. */
   const digitalByProject = new Map<string, number>()
-  for (const l of revenue) {
+  for (const l of marginRevenue) {
     if (l.kind !== 'digital') continue
     for (const p of covered(l)) {
       digitalByProject.set(p, r2((digitalByProject.get(p) ?? 0) + l.amount_net))
@@ -520,8 +578,15 @@ export function computeMonth(
        progetto solo il conto è identico a prima: la riga prende la sua fetta
        del subappalto in proporzione a quanto pesa sul ricavo digital di quel
        progetto. Con tre, prende la sua fetta di ciascuno dei tre. */
+    /* §285 — prima quello che è **suo**: la tranche di fornitore generata su
+       questa rata. Poi la fetta di quello che il progetto non ha saputo
+       attribuire a nessuno. Le due somme non si sovrappongono per costruzione,
+       perché un costo sta in una mappa o nell'altra. */
+    const own = l.kind === 'digital' && l.installment_id
+      ? externalByInstallment.get(l.installment_id) ?? 0
+      : 0
     const external = l.kind === 'digital'
-      ? r2(covered(l).reduce((n, p) => {
+      ? r2(own + covered(l).reduce((n, p) => {
           const total = digitalByProject.get(p) ?? 0
           if (total <= 0) return n
           return n + (externalByProject.get(p) ?? 0) * (l.amount_net / total)

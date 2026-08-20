@@ -14,6 +14,7 @@
  * quale famiglia di spesa appartengono, che è l'unica cosa che serve per capire
  * se un conto sta facendo il lavoro per cui è stato aperto.
  */
+import { classify, type TxKind } from '@/lib/bank'
 
 /** `italiano` = tracciato dell'home banking italiano (BPM, Valsabbina, e simili). */
 export type Dialect = 'italiano' | 'vivid'
@@ -206,6 +207,98 @@ export function parseStatement(csv: string): ParseResult {
   }
 
   return { dialect, rows, skipped }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Dalla riga letta alla riga da scrivere
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type ImportRow = {
+  account_id: string
+  booked_on: string
+  value_on: string | null
+  amount: number
+  causal_code: string | null
+  description: string
+  channel: string | null
+  counterparty: string | null
+  kind: TxKind
+  doc_ref: string | null
+  source: 'banca'
+  no_match_needed: boolean
+  import_hash: string
+  /** l'archivio ce l'ha già: è la stessa riga, non una nuova */
+  duplicate: boolean
+}
+
+/**
+ * Le righe da scrivere, con l'impronta che decide cosa è nuovo.
+ *
+ * **L'occorrenza, non la posizione** (§210). Due bonifici identici nello stesso
+ * giorno esistono davvero — due rate uguali a due fornitori diversi — quindi
+ * l'impronta porta anche *quale delle due è*. Se quel numero fosse la posizione
+ * nel file, riscaricare un periodo sovrapposto darebbe a ogni movimento una
+ * posizione diversa, quindi un'impronta diversa, quindi un duplicato: il saldo
+ * si allontanerebbe da quello vero proprio mentre lo si aggiorna.
+ *
+ * §288 — questa funzione esisteva **due volte**, dentro `importBankCsv` e dentro
+ * `scripts/import-bank-csv.ts`, e la seconda copia era rimasta alla posizione nel
+ * file: lo stesso estratto conto entrava pulito dal pulsante e duplicato dal
+ * terminale. Un import è idempotente o non lo è — non può dipendere da quale
+ * porta si usa.
+ */
+export function buildImportRows(
+  accountId: string,
+  parsed: ParsedTx[],
+  existingHashes: string[],
+): ImportRow[] {
+  const impronte = new Set(existingHashes)
+  const inArchivio = new Map<string, number>()
+  for (const h of existingHashes) {
+    const fp = h.slice(0, h.lastIndexOf('|'))
+    inArchivio.set(fp, (inArchivio.get(fp) ?? 0) + 1)
+  }
+
+  const consumate = new Map<string, number>()
+  return parsed.map(p => {
+    /* Due sorgenti di verità sul «chi»: la banca che lo mette in chiaro (Vivid) e
+       la descrizione da cui va estratto (home banking). Dove c'è il nome in chiaro
+       si passa da `merchant`, che riconduce ventisei codici FACEBK a «Meta Ads». */
+    const auto = classify(p.description, p.amount, p.causal_code)
+    const named = p.counterparty_raw ? merchant(p.counterparty_raw) : null
+    /* Un accredito dal proprio conto è un giroconto, non un incasso: senza questo
+       la provvista di un conto spese risulterebbe fatturato. */
+    const isOwnTransfer = /two bee/i.test(p.counterparty_raw ?? p.description)
+
+    const fp = `${accountId}|${p.booked_on}|${p.amount.toFixed(2)}|${p.causal_code ?? ''}|${p.description.slice(0, 80)}`
+    const vista = (consumate.get(fp) ?? 0) + 1
+    consumate.set(fp, vista)
+    // già in archivio tante volte quante ne ho viste finora: è la stessa, non una nuova
+    const duplicate = vista <= (inArchivio.get(fp) ?? 0)
+
+    /* Il numero libero, non `vista`: le righe importate prima del §210 portano
+       ancora la posizione nel file, e `fp|2` potrebbe essere occupato da un
+       movimento diverso. Cercarlo evita di sbattere contro il vincolo unico. */
+    let n = vista
+    while (!duplicate && impronte.has(`${fp}|${n}`)) n++
+    const import_hash = `${fp}|${n}`
+    if (!duplicate) impronte.add(import_hash)
+
+    return {
+      account_id: accountId, booked_on: p.booked_on, value_on: p.value_on,
+      amount: p.amount, causal_code: p.causal_code, description: p.description,
+      channel: p.channel,
+      counterparty: named?.name ?? auto.counterparty,
+      kind: (isOwnTransfer ? 'giroconto'
+        : named?.family === 'banca' ? 'commissione'
+        : auto.kind) as TxKind,
+      doc_ref: auto.docRef,
+      source: 'banca' as const,
+      no_match_needed: isOwnTransfer || named?.family === 'banca',
+      import_hash,
+      duplicate,
+    }
+  })
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

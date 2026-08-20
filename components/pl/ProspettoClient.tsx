@@ -41,6 +41,8 @@ export function ProspettoClient(props: {
   payouts: {
     month: string; partners: number; sales: number
     paidPartners?: number; paidSales?: number; paidOut: number
+    /** §291 — chi prende cosa: il P&L li mostra riga per riga */
+    people?: { who: string; kind: 'socio' | 'commerciale'; amount: number; paid?: number }[]
   }[]
   opening: number
   today: string

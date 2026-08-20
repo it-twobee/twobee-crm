@@ -21,9 +21,10 @@ import {
   type Cert, type CertLine, type CertTx,
 } from '@/lib/cash-certify'
 import {
-  monthLabel, computeMonth, rowToPlConfig, shiftMonth,
-  type Partner, type RevenueLine, type CostLine,
+  monthLabel, computeMonth, rowToPlConfig, shiftMonth, type Partner,
 } from '@/lib/pl'
+import { rowContext, toRevenueLines, toCostLines } from '@/lib/pl-rows'
+import { buildWindow, takenIn, marginCostsFor } from '@/lib/payout-window'
 
 const env = Object.fromEntries(
   readFileSync(`${process.cwd()}/.env.local`, 'utf8').split('\n')
@@ -54,14 +55,17 @@ const n = (v: unknown) => Number(v ?? 0)
 const eur = (x: number) => `${x.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
 
 async function main() {
-  const [txRows, months, revRows, costRows, clients, partnerRows] = await Promise.all([
-    get<Record<string, unknown>[]>('bank_transactions?select=*&limit=5000'),
-    get<{ id: string; month: string; status: string }[]>('pl_months?select=*&order=month'),
-    get<Record<string, unknown>[]>('pl_revenue_lines?select=*&limit=2000'),
-    get<Record<string, unknown>[]>('pl_cost_lines?select=*&limit=2000'),
-    get<Record<string, unknown>[]>('clients?select=id,company_name,display_name,sales_owner_name'),
-    get<Record<string, unknown>[]>('pl_partners?select=*&is_active=eq.true'),
-  ])
+  const [txRows, months, revRows, costRows, clients, partnerRows, streamRows, coverRows] =
+    await Promise.all([
+      get<Record<string, unknown>[]>('bank_transactions?select=*&limit=5000'),
+        get<{ id: string; month: string; status: string }[]>('pl_months?select=*&order=month'),
+      get<Record<string, unknown>[]>('pl_revenue_lines?select=*&limit=2000'),
+      get<Record<string, unknown>[]>('pl_cost_lines?select=*&limit=2000'),
+      get<Record<string, unknown>[]>('clients?select=id,company_name,display_name,sales_owner_id,sales_owner_name'),
+      get<Record<string, unknown>[]>('pl_partners?select=*&is_active=eq.true'),
+      get<Record<string, unknown>[]>('revenue_streams?select=id,project_id,amount,status'),
+      get<{ stream_id: string; project_id: string }[]>('revenue_stream_projects?select=stream_id,project_id'),
+    ])
 
   const mById = new Map(months.map(m => [m.id, m.month]))
   const txs: CertTx[] = txRows.map(t => ({
@@ -140,31 +144,39 @@ async function main() {
     id: String(p.id), label: String(p.label),
     takes_delivery: !!p.takes_delivery, takes_residual: !!p.takes_residual,
   }))
-  const ownerOf = new Map(clients.map(c => [String(c.id), {
-    id: null as string | null, name: (c.sales_owner_name as string) ?? null,
-  }]))
+  const rowCtx = rowContext({
+    month: months[0]?.month?.slice(0, 10) ?? '',
+    months: months as unknown as { id: unknown; month: unknown }[],
+    clients: clients as unknown as Record<string, unknown>[],
+    streams: streamRows, streamProjects: coverRows,
+  })
   const accruals: { key: string; month: string; amount: number }[] = []
+  const payoutDateOf = (mk: string) => {
+    const row = months.find(x => String(x.month).slice(0, 10) === mk)
+    const d = (row as unknown as { payout_date?: string | null } | undefined)?.payout_date
+    return d ? String(d).slice(0, 10) : null
+  }
+  const allRev = toRevenueLines(revRows, rowCtx)
+  const allCost = toCostLines(costRows, rowCtx)
   for (const m of months) {
-    const rev: RevenueLine[] = revRows.filter(r => r.month_id === m.id).map(r => ({
-      id: String(r.id), label: String(r.label), client_id: (r.client_id as string) ?? null,
-      plan_amount: n(r.plan_amount), invoices: n(r.invoices), amount_net: n(r.amount_net),
-      vat_rate: n(r.vat_rate), invoice_sent: r.invoice_sent === true, paid: r.paid === true,
-      kind: r.kind === 'digital' ? 'digital' : 'growth',
-      sales_owner_id: (r.sales_owner_id as string) ?? null,
-      sales_owner: (r.sales_owner as string) ?? null,
-      client_sales_owner: ownerOf.get(String(r.client_id ?? ''))?.name ?? null,
-      project_id: (r.project_id as string) ?? null,
-      risk_fund: r.risk_fund === true, pass_through: r.pass_through === true,
-    }))
-    const cst: CostLine[] = costRows.filter(c => c.month_id === m.id).map(c => ({
-      id: String(c.id), category: String(c.category), label: String(c.label),
-      project_id: (c.project_id as string) ?? null,
-      partner_id: (c.partner_id as string) ?? null,
-      cost_type: c.cost_type === 'V' ? 'V' : 'F',
-      budget: n(c.budget), actual: n(c.actual), paid: c.paid === true,
-      vat_applied: c.vat_applied === true, vat_rate: n(c.vat_rate),
-    }))
-    const t = computeMonth(rev, cst, cfg, plPartners)
+    /* §287 — le righe da un posto solo. Questa copia non portava né il valore
+       venduto del progetto né la rata: il maturato che ne usciva era diverso da
+       quello della pagina, e questo script serve proprio a confrontare. */
+    /* §286 — quello che si **deve erogare** non è il maturato: è quello che è
+       maturato in quel mese ed è rientrato entro il giorno della sua
+       erogazione. Questo script confronta il dovuto coi bonifici veri, quindi
+       deve chiedere lo stesso numero che chiede la pagina — o direbbe uno
+       scoperto che non esiste. */
+    const mk = String(m.month).slice(0, 10)
+    const w = buildWindow({
+      month: mk, date: payoutDateOf(mk), previousDate: payoutDateOf(shiftMonth(mk, -1)),
+      day: cfg.payout_day, settledFrom: cfg.settled_from,
+    })
+    const rev = takenIn(allRev, w)
+    const mesi = new Set(rev.map(l => l.month))
+    const cst = marginCostsFor(allCost, mesi, mk)
+    const t = computeMonth(rev, cst, cfg, plPartners, cst,
+      allRev.filter(l => mesi.has(l.month)))
     for (const pp of t.perPartner) {
       const k = people.find(x => x.partnerId === pp.partner.id)?.key
       if (k) accruals.push({ key: k, month: m.month, amount: pp.total })

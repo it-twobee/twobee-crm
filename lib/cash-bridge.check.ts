@@ -79,6 +79,58 @@ console.log('\n— Il ponte chiude: ogni differenza ha un nome —')
   eq('il ponte chiude a zero', b.residual, 0)
 }
 
+console.log('\n— §286 · il debito e la finestra: due tempi, non due numeri —')
+{
+  /* La regola che questo blocco protegge: **la posta del ponte è il maturato**,
+     e non è una preferenza. `companyPlan` vale `maturato − distribuito − costi`,
+     quindi rimettere qualcosa di diverso da `distribuito − uscito` sposta il
+     residuo di quella differenza e gli toglie ogni significato. Quello che si
+     può erogare adesso è un'altra domanda, e si legge accanto. */
+  const b = cashBridge([m({ distributed: 3000 })], [
+    tx({ amount: 12200, kind: 'incasso' }),
+    tx({ amount: -7320 }),
+  ], 0, { payableNow: 1200 })
+  eq('il ponte chiude a zero anche con la finestra dichiarata', b.residual, 0)
+  const posta = b.items.find(i => i.label === 'Compensi maturati e non pagati')!
+  eq('la posta resta il maturato: è quello che l\'identità richiede', posta.amount, 3000)
+  eq('il debito totale', b.payouts.owed, 3000)
+  eq('di cui erogabile adesso, dalla finestra', b.payouts.payableNow, 1200)
+  eq('e il resto quando i clienti pagano', b.payouts.later, 1800)
+
+  /* Un bonifico ai soci riduce il debito. Quanto resti erogabile lo dice il
+     registro dei compensi, non il ponte: qui si mostra e basta. */
+  const c = cashBridge([m({ distributed: 3000 })], [
+    tx({ amount: 12200, kind: 'incasso' }),
+    tx({ amount: -7320 }),
+    tx({ amount: -1000, kind: 'finanziamento' }),
+  ], 0, { payableNow: 200 })
+  eq('il bonifico abbassa il debito', c.payouts.owed, 2000)
+  eq('e la parte erogabile', c.payouts.payableNow, 200)
+  eq('il resto non si muove', c.payouts.later, 1800)
+  eq('e il ponte chiude lo stesso', c.residual, 0)
+
+  /* Erogato più di quanto fosse erogabile: la parte «adesso» non va sotto zero
+     — un anticipo non è un debito negativo, è debito che resta e basta. */
+  const d = cashBridge([m({ distributed: 3000 })], [
+    tx({ amount: 12200, kind: 'incasso' }),
+    tx({ amount: -7320 }),
+    tx({ amount: -2000, kind: 'finanziamento' }),
+  ], 0, { payableNow: 2500 })
+  /* L'erogabile non supera mai il dovuto: se il registro dicesse di più, è il
+     dovuto a decidere — non si può erogare quello che non si deve. */
+  eq('l\'erogabile non supera il dovuto', d.payouts.payableNow, 1000)
+  eq('ma il debito resta', d.payouts.owed, 1000)
+
+  /* Senza `payable` la ripartizione non si inventa: la lettura resta quella di
+     prima, e il ponte non cambia di un centesimo. */
+  const e = cashBridge([m({ distributed: 3000 })], [
+    tx({ amount: 12200, kind: 'incasso' }),
+    tx({ amount: -7320 }),
+  ], 0)
+  eq('senza il registro non si inventa niente', e.payouts.payableNow, 0)
+  eq('e il ponte è identico', e.residual, 0)
+}
+
 console.log('\n— Le poste: soci, imposte, oneri —')
 {
   const b = cashBridge([m({ collected: 10000, costsPaid: 6000, companyPlan: 1000 })], [

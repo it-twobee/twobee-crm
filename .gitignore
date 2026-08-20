@@ -32,3 +32,6 @@ yarn-error.log*
 
 # import Asana (mapping locale, non va in repo)
 asana-import-map.json
+
+# export per analisi esterna (rigenerabile)
+_export/

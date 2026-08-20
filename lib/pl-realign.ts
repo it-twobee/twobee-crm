@@ -155,6 +155,14 @@ export async function moveInstallmentLine(installmentId: string): Promise<MoveOu
   const { data: inst } = await admin.from('revenue_installments')
     .select('due_month').eq('id', installmentId).maybeSingle()
   if (!inst) return { moved: false, reason: 'non materializzata' }
+  const target = firstOfMonth((inst as { due_month: string }).due_month)
+
+  /* §285 — e con lei il subappalto che la finanzia. Il margine digital è il
+     rapporto fra una rata e il fornitore **di quel mese**: separarli sposta il
+     costo in un mese che non ha il ricavo da nettare e lascia scoperto quello
+     che ce l'ha. Si muove prima del ricavo perché se il mese di destinazione è
+     chiuso non si muove nessuno dei due, e restano appaiati dov'erano. */
+  await moveSubcontractFor(admin, installmentId, target)
 
   const { data: line } = await admin.from('pl_revenue_lines')
     .select('id, pl_months!inner(month, status)').eq('installment_id', installmentId).maybeSingle()
@@ -162,7 +170,31 @@ export async function moveInstallmentLine(installmentId: string): Promise<MoveOu
 
   const m = (line as unknown as { pl_months: { month: string; status: string } }).pl_months
   return moveLine(admin, 'pl_revenue_lines', (line as { id: string }).id,
-    firstOfMonth(m.month), m.status, firstOfMonth((inst as { due_month: string }).due_month))
+    firstOfMonth(m.month), m.status, target)
+}
+
+/**
+ * §285 — Il subappalto legato a una rata la segue quando si sposta.
+ *
+ * Due scritture, e servono tutte e due: la **voce di piano** (`start_month`), o
+ * ripreparare il mese la rifarebbe cadere dove stava, e l'**occorrenza** già nel
+ * conto economico, che è quella che il margine legge. Una lavorazione già
+ * pagata non si muove: quel denaro è uscito in quel mese, e riscriverlo
+ * sposterebbe un fatto per far tornare una previsione.
+ */
+async function moveSubcontractFor(admin: Admin, installmentId: string, target: string) {
+  await admin.from('cost_items')
+    .update({ start_month: target, end_month: target })
+    .eq('installment_id', installmentId).eq('frequency', 'una_tantum')
+
+  const { data: line } = await admin.from('pl_cost_lines')
+    .select('id, paid, pl_months!inner(month, status)')
+    .eq('installment_id', installmentId).maybeSingle()
+  if (!line || (line as { paid: boolean }).paid) return
+
+  const m = (line as unknown as { pl_months: { month: string; status: string } }).pl_months
+  await moveLine(admin, 'pl_cost_lines', (line as { id: string }).id,
+    firstOfMonth(m.month), m.status, target)
 }
 
 /** L'importo della rata è cambiato: nel mese aperto vale il nuovo. */

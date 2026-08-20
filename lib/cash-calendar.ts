@@ -95,7 +95,36 @@ export type CashLine = {
   category?: string | null
   /** uscite: se c'è, è un subappalto e si paga a incasso del cliente */
   project_id?: string | null
+  /** §290 — giorno in cui una chiusura di mese l'ha trascinata avanti */
+  carried_at?: string | null
+  /** §290 — il mese da cui arriva: il suo, la prima volta che è stata trascinata */
+  carried_from?: string | null
+  /** §290 — quante chiusure si è portata dietro */
+  carry_count?: number | null
 }
+
+export type Carry = {
+  /** da quale mese arriva */
+  from: string
+  /** quante chiusure si è portata dietro: 1 = la prima */
+  times: number
+  since: string
+}
+
+/**
+ * Da quanto una riga si trascina (§290).
+ *
+ * `openAt` sa già *che* una riga arriva da prima, e per mesi è bastato. Non
+ * bastava per la domanda che si fa davvero guardandola — «è di ieri o è quella
+ * di maggio che nessuno richiama?» — perché una riga scoperta da tre chiusure e
+ * una scaduta da tre giorni si leggevano identiche. Il numero lo scrive la
+ * chiusura, non lo si deduce dalle date: un mese riaperto e richiuso è una
+ * chiusura sola.
+ */
+export const carryOf = (l: CashLine): Carry | null =>
+  l.carried_at && l.carried_from
+    ? { from: monthOf(l.carried_from), times: Math.max(1, l.carry_count ?? 1), since: l.carried_at }
+    : null
 
 /**
  * Le bande del ritardo, in giorni oltre la scadenza.
@@ -157,6 +186,9 @@ export function fromRevenue(l: RevenueLine, fallbackMonth: string): CashLine & {
     due_date: l.due_date ?? null, terms: l.terms ?? null,
     project_id: l.project_id ?? null,
     projects: l.project_ids?.length ? l.project_ids : l.project_id ? [l.project_id] : [],
+    carried_at: l.carried_at ?? null,
+    carried_from: l.carried_from ?? null,
+    carry_count: l.carry_count ?? 0,
   }
 }
 
@@ -172,6 +204,9 @@ export function fromCost(c: CostLine, fallbackMonth: string): CashLine {
     paid: c.paid, paid_on: c.paid_on ?? null,
     due_date: c.due_date ?? null, terms: c.terms ?? null,
     category: c.category, project_id: c.project_id ?? null,
+    carried_at: c.carried_at ?? null,
+    carried_from: c.carried_from ?? null,
+    carry_count: c.carry_count ?? 0,
   }
 }
 

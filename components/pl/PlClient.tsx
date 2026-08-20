@@ -7,9 +7,9 @@ import { toast } from 'sonner'
 import {
   ChevronLeft, ChevronRight, ChevronDown, Plus, Trash2, CopyPlus, Lock, LockOpen,
   TrendingUp, TrendingDown, Wallet, Target, ShieldAlert, Users, Building2, Info,
-  Briefcase, AlertTriangle, RotateCcw, Landmark, CalendarRange, Receipt, Loader2, Truck,
+  Briefcase, AlertTriangle, RotateCcw, Landmark, Receipt, Loader2,
   FileText, BadgeEuro, CheckCircle2, CalendarClock, History, ArrowRightLeft, ListChecks,
-  MoreHorizontal, Banknote,
+  MoreHorizontal, Banknote, X, Link2,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import {
@@ -29,24 +29,30 @@ import {
   subcontractViews, bySupplierView, byProjectMargin, subcontractFindings, type SubItem,
 } from '@/lib/subcontracts'
 import { registerPartnerInvoice } from '@/app/actions/bank'
+import { linkInvoiceToLine, unlinkInvoiceFromLine } from '@/app/actions/invoices'
 import { currentQuarterVat, nextDue, type MonthVat, type VatActual } from '@/lib/vat'
-import { forecastTotals, type ForecastMonth } from '@/lib/forecast'
 import { openMonth } from '@/app/actions/pl'
 import { EconomicsNav } from '@/components/economics/EconomicsNav'
-import { materializePayouts, setPayoutPaid, setPayoutDate, reconcilePayout } from '@/app/actions/payouts'
+import { materializePayouts, setPayoutPaid, setPayoutDate, setMonthPayoutDate, reconcilePayout } from '@/app/actions/payouts'
+import {
+  buildWindow, takenIn, marginCostsFor, windowSummary, type PayoutWindow,
+} from '@/lib/payout-window'
 import { attachMany, detachAll, confirmPayment, undoPayment } from '@/app/actions/reconcile'
 import { updateCenter } from '@/app/actions/costs'
 import { Draft } from '@/components/economics/fields'
 import { PrepareMonth } from '@/components/pl/PrepareMonth'
+import { MonthIntake } from '@/components/pl/MonthIntake'
+import { monthIntake, applyIntake, intakeOverview } from '@/app/actions/month-intake'
 import { diagnose } from '@/lib/pl-health'
 import { PlHealth } from './PlHealth'
 import { CashRunway } from './CashRunway'
 import type { Runway } from '@/lib/cash-runway'
 import { CERT_LABEL, certSummary, type Cert, type PayoutView } from '@/lib/cash-certify'
+import { canRemove, type Removal } from '@/lib/line-removal'
 import {
-  fromRevenue, fromCost, collectionIndex, movedIn, openAt, statusOf, lateLabel,
+  fromRevenue, fromCost, collectionIndex, movedIn, openAt, statusOf, lateLabel, carryOf,
   isLate, summarize, dayLabel, TERMS_LABEL, TERMS_WHY,
-  type CashLine, type CashStatus, type CashCtx, type Band,
+  type CashLine, type CashStatus, type CashCtx, type Band, type Carry,
 } from '@/lib/cash-calendar'
 
 type Props = {
@@ -66,7 +72,6 @@ type Props = {
   /** aree di spesa: ogni uscita dice da quale budget esce */
   centers: { id: string; name: string }[]
   /** §176: i mesi che verranno, calcolati da contratti, rate e subappalti */
-  forecast: ForecastMonth[]
   /** §174: IVA mese per mese dell'anno, per la liquidazione trimestrale */
   vatMonths: MonthVat[]
   /** §242 — i modelli F24 arrivati: dove c'è, vince sulla stima */
@@ -80,7 +85,7 @@ type Props = {
   /** §192 — progetto → cliente: il subappalto sta sul progetto, il margine è del cliente */
   clientOfProject?: Record<string, string>
   /** §192 — le sorgenti dei subappalti: la voce di piano che vive sul progetto */
-  subItems?: SubItem[]
+  /** §285 — rata → mese: colloca i subappalti che dichiarano quale rata finanziano */
   /** §207 — righe che non dicono più quello che dice il contratto da cui nascono */
   drift?: ContractDrift[]
   /**
@@ -112,7 +117,13 @@ type Props = {
     txId: string; date: string; amount: number; who: string; why: string; free?: number
   }[]>
   /** §247 — quali righe hanno una fattura sotto: le altre vanno segnalate */
-  withInvoice?: Record<string, boolean>
+  /**
+   * §302 — il documento sotto ogni riga: numero, data, importo, controparte.
+   * Prima era un booleano, e un booleano non si può mostrare — poteva solo
+   * accendere un avviso. La fattura si collega **dalla riga**, sempre, non solo
+   * quando si spunta «pagato».
+   */
+  invoiceOf?: Record<string, { id: string; number: string; date: string; total: number; who: string }>
   /** §259/§261 — le fatture candidate, con quanta capienza è ancora libera:
       un documento può coprire più righe, e va scelto sapendo quanto ne resta */
   invoiceOptions?: Record<string, {
@@ -121,12 +132,10 @@ type Props = {
   }[]>
   /** §260 — i bonifici ai soci, candidati per la conferma di un compenso */
   payoutOptions?: { txId: string; date: string; amount: number; who: string; why: string }[]
-  bankMonth?: {
-    total: number; count: number
-    byAccount: { label: string; amount: number; count: number }[]
-    byKind: { label: string; amount: number; count: number }[]
-    matched: number; unmatched: number; sheet: number
-  } | null
+  /** §286 — la data in cui si eroga quello che è maturato in questo mese */
+  payoutDate?: string | null
+  /** §286 — quella del mese prima: apre la finestra, e ne esclude il contenuto */
+  prevPayoutDate?: string | null
   /** senza le tabelle di banca la tenuta di cassa non ha un saldo da cui partire */
   bankReady?: boolean
   /** §226 — cosa dice l'estratto conto di ogni spunta, riga per riga */
@@ -146,14 +155,22 @@ const pc = (n: number) => `${(n * 100).toFixed(n * 100 % 1 === 0 ? 0 : 1)}%`
 /** Due decimali dove servono: il 9,33% di una quota divisa non si arrotonda a 9%. */
 const pc1 = (n: number) => `${(n * 100).toFixed(2).replace(/\.00$/, '').replace('.', ',')}%`
 
+/** «13 agosto»: una data che si legge in mezzo a una frase, non «2026-08-13». */
+const MESI_IT = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
+  'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
+const giornoBreve = (iso: string) => {
+  const [, m, d] = iso.split('-').map(Number)
+  return `${d} ${MESI_IT[(m ?? 1) - 1]}`
+}
+
 export function PlClient({
   month, status, exists, setupNeeded, previous, missingClients,
-  knownMonths, config, partners, profiles, revenue, costs, centers, forecast, vatMonths, today,
-  projectNames, clientNames, clientOfProject = {}, subItems = [], drift = [],
+  knownMonths, config, partners, profiles, revenue, costs, centers, vatMonths, today,
+  projectNames, clientNames, clientOfProject = {}, drift = [],
   carryRevenue = [], carryCosts = [], cashSetupNeeded = false,
-  runway = null, bankReady = false, certs = {}, payouts = [], bankMonth = null, vatActuals = [],
-  payoutLines = [], linkedTx = {}, matchOptions = {}, withInvoice = {}, invoiceOptions = {},
-  payoutOptions = [],
+  runway = null, bankReady = false, certs = {}, payouts = [], vatActuals = [],
+  payoutLines = [], linkedTx = {}, matchOptions = {}, invoiceOf = {}, invoiceOptions = {},
+  payoutOptions = [], payoutDate = null, prevPayoutDate = null,
 }: Props) {
   const router = useRouter()
   /* Quale compenso è aperto: un numero che non si può aprire si prende per fede,
@@ -287,6 +304,20 @@ export function PlClient({
      progetto vanno ricomposti qui: la riga di un contratto si chiama col
      servizio — «Canone growth — lead generation» — e senza il cliente accanto
      un arretrato non si può nemmeno andare a chiedere. */
+  /** il booleano che serviva prima, derivato: `invoiceOf` è l'unica fonte */
+  const withInvoice = useMemo(
+    () => Object.fromEntries(Object.keys(invoiceOf).map(k => [k, true])) as Record<string, boolean>,
+    [invoiceOf])
+
+  /** §303 — i movimenti del mese da spiegare, quando il dialogo è aperto */
+  const [intakeData, setIntakeData] = useState<Awaited<ReturnType<typeof monthIntake>> | null>(null)
+  const [intakeMonths, setIntakeMonths] = useState<Awaited<ReturnType<typeof intakeOverview>>>([])
+  /** il mese che il dialogo sta guardando: può non essere quello della pagina */
+  const [intakeMonth, setIntakeMonth] = useState(month)
+
+  const statusOfMonth = useMemo(
+    () => new Map(knownMonths.map(m => [m.month.slice(0, 10), m.status])), [knownMonths])
+
   const carryItems = useMemo(() => {
     const revItem = (src: RevenueLine, m: string): CarryItem => ({
       id: src.id,
@@ -296,6 +327,14 @@ export function PlClient({
       amount: src.amount_net,
       month: m,
       href: src.project_id ? `/progetti/${src.project_id}` : undefined,
+      carry: carryOf(fromRevenue(src, m)),
+      /* §294 — una riga trascinata da luglio si toglie solo se **luglio** è
+         aperto: è il suo mese quello che la contiene, non quello guardato. */
+      remove: canRemove({
+        side: 'entrata', paid: src.paid, paid_on: src.paid_on,
+        invoiced: !!withInvoice[src.id], invoice_sent: src.invoice_sent,
+        installment_id: src.installment_id,
+      }, statusOfMonth.get(m) !== 'chiuso'),
     })
     const costItem = (src: CostLine, m: string): CarryItem => ({
       id: src.id,
@@ -307,6 +346,11 @@ export function PlClient({
       amount: src.actual > 0 ? src.actual : src.budget,
       month: m,
       href: src.project_id ? `/progetti/${src.project_id}` : undefined,
+      carry: carryOf(fromCost(src, m)),
+      remove: canRemove({
+        side: 'uscita', paid: src.paid, paid_on: src.paid_on,
+        invoiced: !!withInvoice[src.id], installment_id: src.installment_id,
+      }, statusOfMonth.get(m) !== 'chiuso'),
     })
     return {
       revenue: carryOpen.revenue.map(({ cash: c, src }) => revItem(src, c.month)),
@@ -315,28 +359,59 @@ export function PlClient({
       movedRevenue: carryRevenue.filter(l => moved.r.has(l.id)).map(l => revItem(l, l.month ?? month)),
       movedCosts: carryCosts.filter(c => moved.c.has(c.id)).map(c => costItem(c, c.month ?? month)),
     }
-  }, [carryOpen, carryRevenue, carryCosts, moved, month, statusOfRev, statusOfCost, clientNames, projectNames, today, cashCtx])
+  }, [carryOpen, carryRevenue, carryCosts, moved, month, statusOfRev, statusOfCost, clientNames, projectNames, today, cashCtx, withInvoice, statusOfMonth])
+
+  /* §286 — **la finestra dell'erogazione**: la base dei compensi non è né il
+     maturato né la cassa del mese, è quello che è stato fatturato in questo
+     mese ed è **rientrato entro il giorno in cui si eroga**. Le due letture di
+     §210 restano quelle della pagina — «com'è andato il mese» — ma la domanda
+     «quanto bonifico» ha una risposta sola e non dipende da un selettore.
+
+     Le righe si prendono da `allRevenue`, che comprende gli altri mesi: una
+     fattura di questo mese incassata il 3 del prossimo sta nel mese e nella
+     finestra, ed è esattamente quella per cui si sta pagando. */
+  const payoutWin = useMemo(() => buildWindow({
+    month, date: payoutDate, previousDate: prevPayoutDate,
+    day: config.payout_day, settledFrom: config.settled_from,
+  }), [month, payoutDate, prevPayoutDate, config.payout_day, config.settled_from])
+
+  const tPayout = useMemo(() => {
+    const lines = allRevenue.map(l => ({ ...l, month: l.month ?? month }))
+    const presi = takenIn(lines, payoutWin)
+    const mesi = new Set(presi.map(l => l.month))
+    const withMonth = allCosts.map(c => ({ ...c, month: c.month ?? month }))
+    /* §232 — i subappalti restano quelli **di competenza** delle righe prese, e
+       §285 il denominatore è il ricavo intero di quei mesi: filtrare una gamba
+       sola distribuirebbe una quota su un ricavo già di qualcun altro. */
+    const marginCosts = marginCostsFor(withMonth, mesi, month)
+    return computeMonth(presi, marginCosts, config, partners, marginCosts,
+      lines.filter(l => mesi.has(l.month)))
+  }, [allRevenue, allCosts, payoutWin, config, partners, month])
+
+  const payoutSummary = useMemo(
+    () => windowSummary(allRevenue.map(l => ({ ...l, month: l.month ?? month })), payoutWin),
+    [allRevenue, payoutWin, month])
 
   /* Un commerciale il cui cliente non ha ancora pagato deve restare in elenco a
      zero, non sparire: sparendo sembrerebbe che non gli spetti niente, che è
-     un'altra cosa. La lista viene dal maturato, l'importo dalla lettura scelta. */
+     un'altra cosa. La lista viene dal maturato, l'importo dalla finestra. */
   const owners = useMemo(() => {
-    const now = new Map(tv.salesByOwner.map(s => [s.label, s]))
+    const now = new Map(tPayout.salesByOwner.map(s => [s.label, s]))
     return t.salesByOwner.map(s => ({
       label: s.label,
       fromRegistry: s.fromRegistry,
-      amount: cash ? (now.get(s.label)?.amount ?? 0) : s.amount,
-      rows: cash ? (now.get(s.label)?.rows ?? []) : s.rows,
+      amount: now.get(s.label)?.amount ?? 0,
+      rows: now.get(s.label)?.rows ?? [],
       accrued: s.amount,
     }))
-  }, [t, tv, cash])
+  }, [t, tPayout])
 
   /* §229 — una persona, una riga. `payouts` viene dal server e conosce la
      storia (maturato dalla linea, bonifici veri); `tv.perPartner` e `owners`
      conoscono il **mese**. Si uniscono per chiave, così la stessa persona non
      compare più in tre pannelli con tre numeri che nessuno sommava. */
   const compensi = useMemo(() => {
-    const byPartner = new Map(tv.perPartner.map(p => [p.partner.id, p]))
+    const byPartner = new Map(tPayout.perPartner.map(p => [p.partner.id, p]))
     const byOwner = new Map(owners.map(o => [o.label, o]))
     if (payouts.length) {
       return payouts.map(pv => {
@@ -352,7 +427,7 @@ export function PlClient({
     }
     /* Senza banca non c'è storia: restano le quote del mese, che è esattamente
        quello che la pagina sapeva dire prima. */
-    const solo = tv.perPartner.map(p => ({
+    const solo = tPayout.perPartner.map(p => ({
       key: p.partner.id, who: p.partner.label, pv: null,
       partner: p, owner: byOwner.get(p.partner.label) ?? null,
       monthTotal: r2c(p.total + (byOwner.get(p.partner.label)?.amount ?? 0)),
@@ -363,12 +438,12 @@ export function PlClient({
       key: `o:${o.label}`, who: o.label, pv: null,
       partner: null, owner: o, monthTotal: o.amount, quotaRows: o.rows,
     }))]
-  }, [payouts, tv, owners])
+  }, [payouts, tPayout, owners])
 
   /* La provvigione dei clienti senza commerciale non è di nessuno: resta una
      riga a sé, o sembrerebbe spettare a qualcuno in particolare. */
-  const poolRow = tv.plan.salesPool > 0
-    ? { amount: tv.plan.salesPool, share: tv.plan.poolShare, rows: tv.plan.poolRows }
+  const poolRow = tPayout.plan.salesPool > 0
+    ? { amount: tPayout.plan.salesPool, share: tPayout.plan.poolShare, rows: tPayout.plan.poolRows }
     : null
 
   const run = (fn: () => Promise<unknown>, ok?: string) => start(async () => {
@@ -420,7 +495,6 @@ export function PlClient({
   const bulk = (action: 'paid' | 'unpaid' | 'align' | 'zero' | 'delete', ok: string, ids?: string[]) =>
     run(() => bulkCostAction(ids ?? Array.from(picked), action).then(() => setPicked(new Set())), ok)
 
-  const fc = useMemo(() => forecastTotals(forecast), [forecast])
 
   // incidenza costi: sotto target è efficienza, sopra è erosione di margine
   const overTarget = tv.costs.variance < 0
@@ -458,13 +532,8 @@ export function PlClient({
     out.push({ id: 'entrate', label: 'Entrate', value: eur(tv.revenue.accrued) })
     out.push({ id: 'uscite', label: 'Uscite', value: eur(tv.costs.actual),
       tone: overTarget ? 'warning' : undefined })
-    if (t.costs.external > 0) out.push({ id: 'subappalti', label: 'Fuori', value: eur(t.costs.external) })
-    if (forecast.length > 0 && fc.revenue > 0) {
-      out.push({ id: 'previsionale', label: '6 mesi', value: eur(fc.margin),
-        tone: fc.margin < 0 ? 'error' : undefined })
-    }
     return out
-  }, [runway, bankReady, tv, overTarget, compensi, t, vatNext, vatCurrent, forecast, fc])
+  }, [runway, bankReady, tv, overTarget, compensi, t, vatNext, vatCurrent])
 
   const todo = useMemo(() => {
     const out: { label: string; to: string; tone: 'error' | 'warning' | 'info' }[] = []
@@ -503,12 +572,8 @@ export function PlClient({
       out.push({ to: 'compensi', tone: 'info',
         label: `${eur(runway.payoutsOpen)} di compensi maturati e non ancora erogati` })
     }
-    if (fc.cashNegative > 0) {
-      out.push({ to: 'previsionale', tone: 'warning',
-        label: `In ${fc.cashNegative} dei prossimi mesi esce più di quanto entra` })
-    }
     return out
-  }, [locked, missingClients, missingTotal, drift, arrears, zeroActual, certOfMonth, runway, fc, costs, withInvoice])
+  }, [locked, missingClients, missingTotal, drift, arrears, zeroActual, certOfMonth, runway, costs, withInvoice])
 
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-5">
@@ -634,6 +699,36 @@ export function PlClient({
 
       {/* ── da dove nasce il mese: quattro sorgenti, contate prima di scrivere ── */}
       {!setupNeeded && !locked && <PrepareMonth month={month} compact={!empty} />}
+
+      {/* §303 — i movimenti che il mese non spiega. Sta qui e non in Banca perché
+          la domanda è del conto economico: un'uscita che nessuna riga contiene è
+          un margine più alto del vero. */}
+      {!setupNeeded && !locked && (
+        <div>
+          <button onClick={() => start(async () => {
+            try {
+              const [r, o] = await Promise.all([monthIntake(month), intakeOverview()])
+              setIntakeMonths(o)
+              if (!r.rows.length) {
+                /* §307 — «tutto a posto qui» non è tutta la risposta: se un altro
+                   mese ha movimenti scoperti va detto adesso, o quel lavoro
+                   resta invisibile finché qualcuno non cambia mese per caso. */
+                const altrove = o.filter(x => x.month !== month && x.movimenti > 0)
+                toast.success(altrove.length
+                  ? `Questo mese è a posto · ${altrove.reduce((n, x) => n + x.movimenti, 0)} da guardare in `
+                    + altrove.map(x => monthLabel(x.month).split(' ')[0].toLowerCase()).join(', ')
+                  : 'Ogni movimento ha già la sua riga')
+                return
+              }
+              setIntakeData(r)
+            } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+          })} disabled={pending}
+            className="inline-flex items-center gap-1.5 text-2xs font-semibold text-gold-text hover:underline disabled:opacity-40">
+            <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
+            Guarda i movimenti del mese
+          </button>
+        </div>
+      )}
 
       {/* ── scostamento fra anagrafica di oggi e mese ── */}
       {!setupNeeded && !empty && !locked && missingClients.length > 0 && (
@@ -807,6 +902,8 @@ export function PlClient({
       <div id="compensi" className="scroll-mt-16">
       <CompensiSection
         rows={compensi} pool={poolRow} config={config} cash={cash}
+        win={payoutWin} summary={payoutSummary} dateSet={!!payoutDate}
+        onDate={d => run(() => setMonthPayoutDate(month, d), 'Data dell\'erogazione aggiornata')}
         month={month} clientNames={clientNames} projectNames={projectNames}
         open={openQuota} setOpen={setOpenQuota}
         since={runway?.payoutsSince ?? null} bankReady={bankReady}
@@ -989,8 +1086,22 @@ export function PlClient({
                       <Owner line={line} clientNames={clientNames} />
                     </td>
                     <td className="px-2 py-1.5 text-center">
-                      <Check on={line.invoice_sent} disabled={locked} label="Fattura inviata"
-                        onToggle={() => run(() => updateRevenueLine(line.id, { invoice_sent: !line.invoice_sent }))} />
+                      <div className="flex flex-col items-center gap-1">
+                        <Check on={line.invoice_sent} disabled={locked} label="Fattura inviata"
+                          onToggle={() => run(() => updateRevenueLine(line.id, { invoice_sent: !line.invoice_sent }))} />
+                        {/* §302 — la spunta dice «l'ho emessa», il documento dice
+                            **quale**. Si collegava solo dentro il dialogo del
+                            pagamento, quindi su una riga già incassata non c'era
+                            strada — e senza il documento sotto la spunta è una
+                            dichiarazione come le altre (§226). */}
+                        {(invoiceOf[line.id] || (invoiceOptions[line.id] ?? []).length > 0) && (
+                          <InvoiceCell inv={invoiceOf[line.id]} disabled={locked}
+                            options={invoiceOptions[line.id] ?? []}
+                            gross={Math.round(line.amount_net * (1 + line.vat_rate) * 100) / 100}
+                            onLink={invId => run(() => linkInvoiceToLine(invId, line.id, 'ricavo'), 'Fattura collegata')}
+                            onUnlink={() => run(() => unlinkInvoiceFromLine(line.id, 'ricavo'), 'Fattura scollegata')} />
+                        )}
+                      </div>
                     </td>
                     <td className="px-2 py-1.5 text-center">
                       <div className="flex flex-col items-center gap-1">
@@ -1063,11 +1174,17 @@ export function PlClient({
                       ) : null}
                     </td>
                     <td className="px-2 py-1.5">
-                      {!locked && (
-                        <button onClick={() => run(() => deleteRevenueLine(line.id), 'Voce eliminata')}
-                          aria-label={`Elimina ${line.label}`}
-                          className="text-text-tertiary hover:text-error"><Trash2 className="w-3.5 h-3.5" /></button>
-                      )}
+                      {/* §294 — spento con la ragione accanto, non nascosto: un
+                          controllo che sparisce è un mistero, uno spento insegna
+                          la regola. La barriera vera è nell'azione. */}
+                      <RemoveButton
+                        check={canRemove({
+                          side: 'entrata', paid: line.paid, paid_on: line.paid_on,
+                          invoiced: !!withInvoice[line.id], invoice_sent: line.invoice_sent,
+                          installment_id: line.installment_id,
+                        }, !locked)}
+                        label={line.label}
+                        onRemove={() => run(() => deleteRevenueLine(line.id), 'Voce eliminata')} />
                     </td>
                   </tr>
                   )
@@ -1082,7 +1199,8 @@ export function PlClient({
         <CarryBlock side="entrata" items={carryItems.revenue}
           moved={carryItems.movedRevenue} showMoved={cash}
           onPaid={id => run(() => updateRevenueLine(id, { paid: true }), 'Incasso registrato oggi')}
-          onDue={(id, d) => run(() => updateRevenueLine(id, { due_date: d }))} />
+          onDue={(id, d) => run(() => updateRevenueLine(id, { due_date: d }))}
+          onRemove={id => run(() => deleteRevenueLine(id), 'Voce eliminata')} />
 
         {!locked && (
           <div className="px-4 py-3 border-t border-border">
@@ -1096,7 +1214,6 @@ export function PlClient({
 
       {/* ── uscite ── */}
       <div id="uscite" className="scroll-mt-16 space-y-5">
-      {bankMonth && bankMonth.count > 0 && <BankOut b={bankMonth} month={month} />}
       <CostSection
         costs={costs} centers={centers} locked={locked} pending={pending}
         picked={picked} setPicked={setPicked} totals={t.costs}
@@ -1110,6 +1227,9 @@ export function PlClient({
         onAdd={() => run(() => addCostLine(month), 'Voce aggiunta')}
         onBulk={bulk}
         linkedTx={linkedTx} matchOptions={matchOptions} withInvoice={withInvoice}
+        invoiceOf={invoiceOf} invoiceOptions={invoiceOptions}
+        onLinkInvoice={(id, invId) => run(() => linkInvoiceToLine(invId, id, 'costo'), 'Fattura collegata')}
+        onUnlinkInvoice={id => run(() => unlinkInvoiceFromLine(id, 'costo'), 'Fattura scollegata')}
         onAttach={(id, ids) => run(async () => {
           const r = await attachMany(id, 'costo', ids)
           toast[r.pagata ? 'success' : 'info'](
@@ -1131,104 +1251,7 @@ export function PlClient({
 
       </div>
 
-      {/* ── §192 · i lavori affidati fuori: qui atterra tutto ── */}
-      <div id="subappalti" className="scroll-mt-16">
-      <SubcontractSection
-        month={month} costs={costs} revenue={revenue} subItems={subItems}
-        projectNames={projectNames} clientNames={clientNames} clientOfProject={clientOfProject} />
-      </div>
-
       {/* ── previsionale: quello che è già deciso ── */}
-      {forecast.length > 0 && fc.revenue > 0 && (
-        <section id="previsionale" className="scroll-mt-16 bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
-          <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-border flex-wrap">
-            <div className="min-w-0 flex-1 basis-64">
-              <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary">
-                <CalendarRange className="w-4 h-4 text-accent" />I prossimi sei mesi
-              </h2>
-              <p className="text-2xs text-text-tertiary mt-0.5">
-                Non è una previsione: è quello che i contratti firmati e i subappalti dicono già oggi.
-                Qui c&apos;è la <strong className="text-text-secondary">competenza</strong>, IVA esclusa:
-                quando quei soldi si muovono lo dice la Tenuta di cassa, in cima
-              </p>
-            </div>
-            <div className="text-right ml-auto shrink-0">
-              <div className={`text-lg font-bold tabular ${fc.margin < 0 ? 'text-error' : 'text-success'}`}>
-                {eur(fc.margin)}
-              </div>
-              <div className="text-2xs text-text-tertiary">
-                {eur(fc.revenue)} − {eur(fc.cost)} di costi · {pc(fc.marginPct)}
-              </div>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-2xs text-text-tertiary uppercase tracking-wider">
-                  <th className="text-left font-semibold px-4 py-2">Mese</th>
-                  <th className="text-right font-semibold px-2 py-2">Entrate</th>
-                  <th className="text-right font-semibold px-2 py-2">Costi interni</th>
-                  <th className="text-right font-semibold px-2 py-2">Subappalti</th>
-                  <th className="text-right font-semibold px-2 py-2">Margine</th>
-                  <th className="w-32" />
-                </tr>
-              </thead>
-              <tbody>
-                {forecast.map(f => (
-                  <tr key={f.month} className="border-t border-border/60 hover:bg-surface-hover">
-                    <td className="px-4 py-2">
-                      <span className="text-2xs font-semibold text-text-primary">{monthLabel(f.month)}</span>
-                      <span className="block text-2xs text-text-tertiary">
-                        {f.revenueLines} entrat{f.revenueLines === 1 ? 'a' : 'e'} · {f.costLines} uscit{f.costLines === 1 ? 'a' : 'e'}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2 text-right text-2xs tabular text-text-primary">{eur(f.revenue)}</td>
-                    <td className="px-2 py-2 text-right text-2xs tabular text-text-secondary">{eur(f.internalCost)}</td>
-                    <td className="px-2 py-2 text-right text-2xs tabular text-orange">
-                      {f.subcontractCost > 0 ? eur(f.subcontractCost) : '—'}
-                    </td>
-                    <td className={`px-2 py-2 text-right text-2xs font-bold tabular ${f.margin < 0 ? 'text-error' : 'text-text-primary'}`}>
-                      {eur(f.margin)}
-                      <span className="block text-2xs font-normal text-text-tertiary">{pc(f.marginPct)}</span>
-                    </td>
-                    <td className="px-2 py-2 text-right">
-                      {f.open ? (
-                        <Link href={`/economics?m=${f.month}`}
-                          className="text-2xs font-semibold text-text-tertiary hover:text-gold-text">aperto →</Link>
-                      ) : (
-                        <button onClick={() => run(() => openMonth(f.month), `${monthLabel(f.month)} aperto`)}
-                          disabled={pending}
-                          className="text-2xs font-semibold border border-border rounded-lg px-2 py-1 text-gold-text hover:bg-surface-hover press disabled:opacity-40">
-                          Apri il mese
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <p className="flex items-start gap-2 text-2xs text-text-tertiary px-5 py-3 border-t border-border">
-            <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-            «Apri il mese» crea le righe vere: da lì in poi metti le spunte su fattura emessa, incassato e pagato.
-            {fc.negative > 0 && (
-              <span className="text-warning font-semibold"> {fc.negative} di questi mesi chiude in perdita.</span>
-            )}
-            {/* Perdita e cassa negativa sono due problemi diversi e si risolvono
-                in due modi diversi: uno si vende, l'altro si sposta — e il
-                secondo lo dice la Tenuta di cassa, che conosce IVA e compensi. */}
-            {fc.cashNegative > 0 && (
-              <span className="text-warning font-semibold">
-                {' '}In {fc.cashNegative} esce più di quanto entra: lì non manca il margine,
-                mancano i giorni.
-              </span>
-            )}
-          </p>
-        </section>
-      )}
-
       <p className="flex items-start gap-2 text-2xs text-text-tertiary">
         <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
         Le percentuali si applicano all&apos;imponibile. In <strong className="text-text-secondary">competenza</strong> il
@@ -1241,6 +1264,34 @@ export function PlClient({
         {knownMonths.length > 0 && ` · Mesi registrati: ${knownMonths.length}`}
         {!exists && ' · Questo mese non è ancora stato creato: la prima modifica lo crea.'}
       </p>
+
+      {intakeData && (
+        <MonthIntake rows={intakeData.rows} summary={intakeData.summary} month={intakeMonth} pending={pending}
+          months={intakeMonths}
+          onMonth={m => start(async () => {
+            try {
+              const r = await monthIntake(m)
+              setIntakeMonth(m)
+              setIntakeData(r)
+            } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+          })}
+          onClose={() => { setIntakeData(null); setIntakeMonth(month) }}
+          onApply={d => start(async () => {
+            try {
+              const r = await applyIntake(intakeMonth, d)
+              toast.success(
+                [r.accorpati && `${r.accorpati} accorpati`, r.corretti && `${r.corretti} corretti`,
+                 r.creati && `${r.creati} righe nuove`, r.ignorati && `${r.ignorati} ignorati`]
+                  .filter(Boolean).join(' · ')
+                + (r.totale ? ` · ${eur2(r.totale)}` : ''))
+              /* Quello che non è andato si dice: una lista che si interrompe a metà
+                 lascia lo schermo che dice una cosa e il database un'altra. */
+              if (r.falliti.length) toast.error(`${r.falliti.length} non applicati: ${r.falliti[0].why}`)
+              setIntakeData(null)
+              router.refresh()
+            } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+          })} />
+      )}
 
       {/* §259/§260 — il dialogo era scritto e non era montato: la casella
           scriveva lo stato e la conferma non compariva mai, quindi data,
@@ -1303,68 +1354,6 @@ export function PlClient({
  * l'imponibile. E conta solo `banca` (§189): un `derivato` nasce dalla spunta
  * che questo riquadro serve a verificare.
  */
-function BankOut({ b, month }: {
-  b: NonNullable<Props['bankMonth']>
-  month: string
-}) {
-  const gap = Math.round((b.total - b.sheet) * 100) / 100
-  return (
-    <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
-      <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-border flex-wrap">
-        <div className="min-w-0 flex-1 basis-64">
-          <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary">
-            <Banknote className="w-4 h-4 text-error" />Uscito davvero dai conti
-          </h2>
-          <p className="text-2xs text-text-tertiary mt-0.5">
-            {b.count} movimenti di {monthLabel(month)}, IVA compresa, solo estratto conto — le spunte non
-            contano qui. Sotto, l&apos;elenco è quello che il conto economico <em>prevede</em>
-          </p>
-        </div>
-        <div className="text-right ml-auto shrink-0">
-          <div className="text-xl font-bold tabular text-error">{eur(b.total)}</div>
-          <div className="text-2xs text-text-tertiary">{b.matched} agganciati a una riga</div>
-        </div>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 px-5 py-4 border-b border-border bg-background">
-        {b.byAccount.map(a => (
-          <div key={a.label}>
-            <div className="text-2xs uppercase tracking-wider text-text-tertiary">{a.label}</div>
-            <div className="text-lg font-bold tabular text-text-primary">{eur(a.amount)}</div>
-            <div className="text-2xs text-text-tertiary">
-              {a.count} movimenti · {b.total > 0 ? Math.round((a.amount / b.total) * 100) : 0}% delle uscite
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap gap-x-4 gap-y-1 px-5 py-3 border-b border-border">
-        {b.byKind.map(k => (
-          <span key={k.label} className="text-2xs text-text-secondary">
-            <strong className="text-text-primary capitalize">{k.label}</strong>{' '}
-            <span className="tabular">{eur(k.amount)}</span>
-            <span className="text-text-tertiary"> · {k.count}</span>
-          </span>
-        ))}
-      </div>
-
-      <p className="flex items-start gap-2 text-2xs text-text-tertiary px-5 py-3">
-        <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-        Il conto economico dice uscito <strong className="text-text-secondary">{eur(b.sheet)}</strong> (righe
-        spuntate, IVA compresa), i conti dicono <strong className="text-text-secondary">{eur(b.total)}</strong>.
-        {Math.abs(gap) < 1
-          ? ' Combaciano.'
-          : gap > 0
-            ? <> Mancano <strong className="text-error">{eur(gap)}</strong> di uscite che nessuna riga
-                spiega: {eur(b.unmatched)} sono movimenti non ancora agganciati. Si riconciliano in{' '}
-                <Link href="/economics/banca" className="text-gold-text hover:underline">Banca</Link>.</>
-            : <> Il conto economico dichiara <strong className="text-warning">{eur(-gap)}</strong> in più di
-                quello che dai conti è passato: sono spunte «pagato» che nessun movimento dimostra.</>}
-      </p>
-    </section>
-  )
-}
-
 /**
  * §246 — La riconciliazione dove si guarda la riga.
  *
@@ -1410,16 +1399,29 @@ function MatchCell({ lineId, side, linked, options, gross, onAttach, onDetach, d
     const chiusa = coperto >= gross - 0.01
     return (
       <button type="button" onClick={() => !disabled && setOpen(true)} disabled={disabled}
-        title={linked.map(l => `${dayLabel(l.date)} · ${eur(Math.abs(l.amount))} · ${l.who}`).join('\n')}
-        className={`inline-flex items-center gap-1 text-2xs font-semibold rounded-lg px-1.5 py-0.5
-                    whitespace-nowrap press disabled:opacity-60 border ${
+        title={[
+          ...linked.map(l => `${dayLabel(l.date)} · ${eur2(Math.abs(l.amount))} · ${l.who}`),
+          chiusa ? 'Copre la riga per intero' : `Coperta per ${eur2(coperto)} su ${eur2(gross)}`,
+        ].join('\n')}
+        className={`inline-flex items-center gap-1 max-w-full text-2xs font-semibold rounded-lg px-1.5 py-0.5
+                    press disabled:opacity-60 border ${
           chiusa ? 'border-success/40 bg-success-dim text-success'
                  : 'border-warning/40 bg-warning-dim text-warning'}`}>
-        <Banknote className="w-3 h-3" aria-hidden="true" />
-        {linked.length === 1
-          ? dayLabel(linked[0].date).replace(/ \d{4}$/, '')
-          : `${linked.length} mov.`}
-        {!chiusa && ` · ${eur(coperto)}/${eur(gross)}`}
+        <Banknote className="w-3 h-3 shrink-0" aria-hidden="true" />
+        <span className="truncate">
+          {linked.length === 1 ? giornoBreve(linked[0].date) : `${linked.length} mov.`}
+        </span>
+        {/* §307 — quello che **manca**, non due totali affiancati. Il chip diceva
+            «3.260 €/3.260 €»: due numeri che sembrano uguali perché `eur`
+            arrotonda all'euro, mentre la differenza vera era di 11 centesimi. Un
+            numero che si legge come un errore di stampa è peggio di nessun
+            numero — e quei due, insieme, erano più larghi della loro colonna e
+            finivano sopra l'importo, che è il primo numero che si guarda.
+            Sotto l'euro non si scrive niente: lo dice il colore, e il resto sta
+            nel titolo. */}
+        {!chiusa && gross - coperto >= 1 && (
+          <span className="shrink-0 tabular">−{eur(gross - coperto)}</span>
+        )}
       </button>
     )
   }
@@ -1756,6 +1758,7 @@ export type PayoutLine = {
 function CompensiSection({
   rows, pool, config, cash, month, clientNames, projectNames, open, setOpen, since, bankReady,
   lines, onPaid, onPaidMany, onMaterialize, pending, locked,
+  win, summary, dateSet, onDate,
 }: {
   rows: {
     key: string; who: string
@@ -1785,6 +1788,12 @@ function CompensiSection({
   onMaterialize: () => void
   pending: boolean
   locked: boolean
+  /** §286 — la finestra da cui esce ogni numero di questa sezione */
+  win: PayoutWindow
+  summary: ReturnType<typeof windowSummary>
+  /** la data è stata decisa, o è ancora il giorno di default? */
+  dateSet: boolean
+  onDate: (iso: string | null) => void
 }) {
   /* §244 — la riga si ritrova per **nome**, non per chiave.
      `mergePeople` fonde socio e commerciale in una persona sola e le dà la
@@ -1799,6 +1808,18 @@ function CompensiSection({
   const commerciali = rows.filter(r => r.owner && r.owner.amount > 0)
   const owed = rows.reduce((n, r) => n + Math.max(0, r.pv?.open ?? 0), 0)
   const never = rows.filter(r => r.pv?.never)
+
+  /* §304 — **la posizione di ognuno**, che era caricata e mostrata a nessuno.
+     `payoutLedger` sa da mesi quanto spetta a una persona su tutti i mesi,
+     quanto le è uscito davvero dal conto e quanto resta; qui serviva a due
+     totali in testata e il resto veniva buttato. Per sapere se Marco era in pari
+     bisognava confrontare tre pannelli, e uno dei tre l'abbiamo appena tolto.
+     In ordine di scoperto: chi aspetta di più si legge per primo, che è l'unico
+     ordine con cui si decide un bonifico. */
+  const posizioni = rows
+    .filter(r => r.pv && (Math.abs(r.pv.open) > 0.5 || r.pv.paid > 0))
+    .map(r => ({ who: r.who, pv: r.pv! }))
+    .sort((a, b) => b.pv.open - a.pv.open)
   const totSoci = soci.reduce((n, r) => n + (r.partner?.total ?? 0), 0)
   const totComm = commerciali.reduce((n, r) => n + (r.owner?.amount ?? 0), 0)
 
@@ -1843,7 +1864,10 @@ function CompensiSection({
       </div>
     </div>
   )
-  const base = cash ? 'sui movimenti di questo mese' : 'sul lavoro consegnato in questo mese'
+  /* §286 — la base dei compensi **non segue il selettore della pagina**: la
+     domanda «quanto bonifico» ha una risposta sola. Si dichiara qui sopra, una
+     volta, invece di ripeterla in ogni sottotitolo. */
+  const base = `rientrati entro il ${giornoBreve(win.date)}`
 
   const Riga = ({ r, id, amount, parti, detail, line }: {
     r: (typeof rows)[number]; id: string; amount: number
@@ -1911,8 +1935,184 @@ function CompensiSection({
     )
   }
 
+  const Posizione = () => {
+    if (!posizioni.length) return null
+    const scoperto = posizioni.reduce((n, p) => n + Math.max(0, p.pv.open), 0)
+    const anticipo = posizioni.reduce((n, p) => n + Math.max(0, -p.pv.open), 0)
+    return (
+      <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3 flex-wrap">
+          <div className="min-w-0 flex-1 basis-72">
+            <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary">
+              <Banknote className="w-4 h-4 text-gold-text" aria-hidden="true" />
+              La posizione di ognuno
+            </h2>
+            <p className="text-2xs text-text-tertiary mt-0.5 leading-relaxed">
+              Su <strong className="text-text-secondary">tutti i mesi</strong>, non su questo: un
+              bonifico non sa di che mese è, e confrontare il maturato di agosto con quello che è
+              uscito in agosto darebbe a chiunque uno scoperto o un anticipo che non ha.
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <p className={`text-xl font-bold tabular leading-tight ${
+              scoperto > 0.5 ? 'text-warning' : 'text-success'}`}>{eur(scoperto)}</p>
+            <p className="text-2xs text-text-tertiary">
+              da erogare{anticipo > 0.5 && <> · {eur(anticipo)} già in anticipo</>}
+            </p>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-2xs">
+            <thead>
+              <tr className="border-b border-border text-text-tertiary">
+                <th className="text-left px-5 py-2 font-semibold">Persona</th>
+                <th className="text-right px-3 py-2 font-semibold">Gli spetta</th>
+                <th className="text-right px-3 py-2 font-semibold">Uscito dal conto</th>
+                <th className="text-right px-5 py-2 font-semibold">Resta</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/50">
+              {posizioni.map(({ who, pv }) => (
+                <tr key={pv.key} className="hover:bg-surface-hover">
+                  <td className="px-5 py-2">
+                    <span className="font-semibold text-text-primary">{who}</span>
+                    {/* §228 — da quando si conta **per lui**, e perché. La stessa
+                        frase detta a due situazioni opposte è peggio di nessuna
+                        frase: chi è stato pagato riparte dalla liquidazione, chi
+                        non ha mai preso un euro si conta da sempre. */}
+                    <span className="block text-2xs text-text-tertiary">
+                      {pv.never
+                        ? <span className="text-error font-semibold">mai un bonifico: si conta da sempre</span>
+                        : pv.from
+                          ? <>da {monthLabel(pv.from).toLowerCase()}, prima è liquidato</>
+                          : <>da sempre</>}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-right tabular text-text-secondary">{eur(pv.due)}</td>
+                  <td className="px-3 py-2 text-right tabular text-text-secondary">
+                    {pv.paid > 0 ? eur(pv.paid) : <span className="text-text-tertiary">—</span>}
+                  </td>
+                  {/* La differenza è il numero per cui questa tabella esiste: è
+                      quello che dice se una persona è scoperta o in anticipo, e
+                      prima si ricavava confrontando tre pannelli. */}
+                  <td className={`px-5 py-2 text-right tabular font-bold ${
+                    pv.open > 0.5 ? 'text-warning' : pv.open < -0.5 ? 'text-info' : 'text-success'}`}>
+                    {pv.open > 0.5 ? eur(pv.open)
+                      : pv.open < -0.5 ? <>+{eur(-pv.open)}</>
+                      : 'in pari'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {anticipo > 0.5 && (
+          <p className="px-5 py-2.5 border-t border-border text-2xs text-text-tertiary">
+            Un <strong className="text-info">anticipo</strong> non è un errore: è quello che è uscito
+            oltre il maturato, e si riassorbe col mese dopo (§191).
+          </p>
+        )}
+      </section>
+    )
+  }
+
   return (
     <div className="space-y-4">
+      {/* ── 0 · §286 · la finestra, dichiarata prima dei numeri ───────────────
+          «Genera i compensi» su una base che nessuno vede è il modo in cui si
+          firma un bonifico sbagliato. Qui sta scritto cosa entra — competenza
+          di questo mese, incasso entro il giorno dell'erogazione — quanto è
+          rientrato e quanto no, e la data si cambia da qui perché è
+          un'eccezione che capita (ad agosto 2026 si è anticipata al 13). */}
+      <section className="bg-surface border border-border rounded-2xl shadow-soft px-5 py-4">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="min-w-0 flex-1 basis-72">
+            <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary">
+              <Wallet className="w-4 h-4 text-gold-text" />
+              Erogazione del {giornoBreve(win.date)}
+            </h2>
+            <p className="text-2xs text-text-tertiary mt-1 leading-relaxed">
+              Si distribuisce quello che è stato fatturato in <b>{monthLabel(win.month).toLowerCase()}</b>
+              {' '}e risulta incassato entro il giorno dell&apos;erogazione
+              {win.since ? <> — e non è già entrato in quella del {giornoBreve(win.since)}</> : null}.
+              I soldi escono {monthLabel(win.dueMonth).toLowerCase()}.
+            </p>
+            {/* §226/§228 — lo scoperto storico e chi non ha **mai** ricevuto un
+                bonifico. Erano calcolati e buttati via: la sezione mostrava le
+                quote del mese e taceva sul fatto che a una persona non fosse mai
+                uscito un euro. La regola sbaglia in una direzione sola — a chi è
+                stato pagato in contanti mostra uno scoperto che non ha, che è un
+                allarme falso e non una rassicurazione falsa, e si spegne
+                registrando il movimento. */}
+            {owed > 0.5 && (
+              <p className="text-2xs mt-2 flex items-start gap-1.5">
+                <Banknote className="w-3.5 h-3.5 shrink-0 mt-0.5 text-text-tertiary" aria-hidden="true" />
+                <span className="text-text-secondary">
+                  <b className="text-text-primary tabular">{eur(owed)}</b> maturati e mai erogati,
+                  su tutti i mesi
+                  {never.length > 0 && (
+                    <>
+                      {' · '}
+                      <b className="text-error">
+                        {never.map(r => r.who).join(', ')}
+                        {never.length === 1 ? ' non ha' : ' non hanno'} mai ricevuto un bonifico
+                      </b>
+                    </>
+                  )}
+                </span>
+              </p>
+            )}
+          </div>
+          <label className="flex items-center gap-2 text-2xs text-text-secondary shrink-0">
+            <span className="whitespace-nowrap">Data</span>
+            <input type="date" value={win.date} disabled={pending}
+              onChange={e => onDate(e.target.value || null)}
+              aria-label="Data dell'erogazione: decide quali incassi entrano nella distribuzione"
+              className="bg-background border border-border-interactive rounded-xl px-2.5 py-1.5
+                         text-2xs text-text-primary tabular focus-visible:border-gold" />
+            {!dateSet && <span className="text-text-tertiary whitespace-nowrap">giorno {config.payout_day}</span>}
+          </label>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap mt-3">
+          <span className="inline-flex items-baseline gap-1.5 text-2xs px-2.5 py-1 rounded-lg
+                           bg-success-dim border border-success/30">
+            <span className="text-text-secondary">nella finestra</span>
+            <b className="tabular text-text-primary">{eur(summary.taken.amount)}</b>
+            <span className="text-text-tertiary">· {summary.taken.n} righe</span>
+          </span>
+          {summary.open.n > 0 && (
+            <span className="inline-flex items-baseline gap-1.5 text-2xs px-2.5 py-1 rounded-lg
+                             bg-warning-dim border border-warning/30">
+              <span className="text-text-secondary">non ancora incassato</span>
+              <b className="tabular text-text-primary">{eur(summary.open.amount)}</b>
+              <span className="text-text-tertiary">· si eroga quando rientra</span>
+            </span>
+          )}
+          {summary.next.n > 0 && (
+            <span className="inline-flex items-baseline gap-1.5 text-2xs px-2.5 py-1 rounded-lg
+                             bg-background border border-border">
+              <span className="text-text-secondary">rientrato dopo</span>
+              <b className="tabular text-text-primary">{eur(summary.next.amount)}</b>
+              <span className="text-text-tertiary">· nella prossima erogazione</span>
+            </span>
+          )}
+          {summary.assumed.n > 0 && (
+            <span className="inline-flex items-baseline gap-1.5 text-2xs px-2.5 py-1 rounded-lg
+                             bg-background border border-border text-text-tertiary">
+              {summary.assumed.n} spuntate senza data: assunte dentro
+            </span>
+          )}
+        </div>
+      </section>
+
+      {/* ── §304 · la posizione di ognuno: sta **prima** delle quote del mese ──
+          Le quote dicono cosa spetta adesso; questa dice se una persona è in
+          pari, e sono due domande in ordine — la seconda si fa prima di
+          bonificare, non dopo. */}
+      <Posizione />
+
       {/* ── 1 · erogato soci ─────────────────────────────────────────────── */}
       <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
         <div className="flex items-end justify-between gap-3 px-5 py-4 border-b border-border flex-wrap">
@@ -2137,6 +2337,144 @@ function CashPill({ s, onDue, disabled }: {
   )
 }
 
+/**
+ * Il gesto per togliere una riga, con la ragione quando non si può. (§294)
+ *
+ * Un pulsante che sparisce lascia chi guarda a chiedersi se ha sbagliato posto.
+ * Uno spento, con scritto perché e cosa fare prima, insegna la regola una volta
+ * e non si ripresenta. L'unico caso in cui sparisce davvero è il mese chiuso,
+ * dove **nessuna** riga si tocca e ripeterlo su venti righe è rumore.
+ *
+ * Quando l'operazione si può fare ma ha una conseguenza che non si vede — la
+ * rata che tornerà, l'IVA di una fattura che forse esiste — la conferma la
+ * dice prima di eseguire.
+ */
+function RemoveButton({ check, label, onRemove, hideWhenBlocked }: {
+  check: Removal
+  label: string
+  onRemove: () => void
+  /** nel mese chiuso il pulsante non serve: lo dice già la testata */
+  hideWhenBlocked?: boolean
+}) {
+  if (!check.can) {
+    if (hideWhenBlocked) return null
+    return (
+      <button type="button" disabled title={`${check.why}. ${check.how}`}
+        aria-label={`Non si può eliminare ${label}: ${check.why}`}
+        className="text-text-tertiary/40 cursor-not-allowed">
+        <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+      </button>
+    )
+  }
+  return (
+    <button type="button"
+      onClick={() => { if (!check.warn || window.confirm(`${check.warn}\n\nElimino «${label}»?`)) onRemove() }}
+      aria-label={`Elimina ${label}`}
+      title={check.warn ?? `Elimina «${label}»`}
+      className={`hover:text-error press ${check.warn ? 'text-warning' : 'text-text-tertiary'}`}>
+      <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+    </button>
+  )
+}
+
+export type InvRef = { id: string; number: string; date: string; total: number; who: string }
+export type InvOption = {
+  id: string; number: string; date: string; total: number; who: string
+  /** su quante righe è già spesa, e quanto le resta di capienza */
+  righe?: number; left?: number
+}
+
+/**
+ * La fattura sotto una riga del conto economico. (§302)
+ *
+ * Il documento si poteva collegare **solo** dentro il dialogo del pagamento,
+ * quindi su una riga già pagata — o su una da collegare prima di incassare —
+ * non c'era strada. E il documento è la terza gamba del triangolo: la riga dice
+ * a che mese appartiene, il movimento quando i soldi si sono mossi, la fattura è
+ * l'unica cosa che vale davanti all'erario.
+ *
+ * Due cose che l'elenco dei candidati deve dire, e sono quelle che evitano
+ * l'abbinamento sbagliato: **quanta capienza le resta** — una fattura da 3.000 €
+ * già spesa su due righe non può coprirne una terza — e **se è già su altre
+ * righe**, perché una fattura che copre due mesi è normale e una spesa tre volte
+ * è un errore.
+ */
+function InvoiceCell({ inv, options, gross, disabled, onLink, onUnlink }: {
+  inv?: InvRef
+  options: InvOption[]
+  /** il lordo della riga: serve a dire se una fattura la copre */
+  gross: number
+  disabled?: boolean
+  onLink: (invoiceId: string) => void
+  onUnlink: () => void
+}) {
+  const [open, setOpen] = useState(false)
+
+  if (inv) {
+    return (
+      <span className="inline-flex items-baseline gap-1.5">
+        <span className="text-2xs font-semibold text-text-secondary tabular" title={`${inv.who} · ${eur2(Math.abs(inv.total))}`}>
+          {inv.number}
+        </span>
+        {!disabled && (
+          <button type="button" onClick={onUnlink} aria-label={`Scollega la fattura ${inv.number}`}
+            title="Scollega: la riga resta, il documento no"
+            className="text-text-tertiary hover:text-error">
+            <X className="w-3 h-3" aria-hidden="true" />
+          </button>
+        )}
+      </span>
+    )
+  }
+
+  /* §307 — in un mese chiuso non c'è niente da collegare, e un trattino non è
+     un'informazione: era un segnaposto appeso sopra «senza fattura», cioè due
+     segni per la stessa assenza. Chi mostra la cella dice già che il documento
+     manca; qui si tace. */
+  if (disabled) return null
+
+  return (
+    <span className="relative inline-block max-w-full">
+      <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
+        title={options.length
+          ? `${options.length} document${options.length === 1 ? 'o' : 'i'} possibil${options.length === 1 ? 'e' : 'i'}`
+          : 'Nessun documento con questo importo o questa controparte'}
+        className={`text-2xs font-semibold ${options.length
+          ? 'text-gold-text hover:underline' : 'text-text-tertiary'}`}>
+        {options.length ? `collega · ${options.length}` : 'nessuna'}
+      </button>
+      {open && options.length > 0 && (
+        <span className="absolute right-0 z-30 mt-1 w-72 bg-surface border border-border rounded-xl shadow-soft p-1.5 block">
+          <span className="block text-2xs text-text-tertiary px-1.5 pb-1">
+            Chi ha ancora capienza per {eur2(gross)} viene prima
+          </span>
+          {options.map(o => {
+            const capiente = (o.left ?? Math.abs(o.total)) >= gross - 0.02
+            return (
+              <button key={o.id} type="button"
+                onClick={() => { setOpen(false); onLink(o.id) }}
+                className="w-full text-left px-1.5 py-1 rounded-lg hover:bg-surface-hover press">
+                <span className="flex items-baseline gap-2">
+                  <span className="text-2xs font-semibold text-text-primary">{o.number}</span>
+                  <span className="text-2xs text-text-tertiary flex-1 truncate">{o.who}</span>
+                  <span className="text-2xs tabular text-text-primary">{eur2(Math.abs(o.total))}</span>
+                </span>
+                <span className="block text-2xs text-text-tertiary">
+                  {dayLabel(o.date)}
+                  {(o.righe ?? 0) > 0 && <> · già su {o.righe} righ{o.righe === 1 ? 'a' : 'e'}</>}
+                  {!capiente && (
+                    <span className="text-warning"> · le restano {eur2(o.left ?? 0)}</span>
+                  )}
+                </span>
+              </button>
+            )
+          })}
+        </span>
+      )}
+    </span>
+  )
+}
+
 export type CarryItem = {
   id: string
   status: CashStatus
@@ -2145,6 +2483,10 @@ export type CarryItem = {
   amount: number
   month: string
   href?: string
+  /** §290 — da quante chiusure di mese questa riga si sta trascinando */
+  carry?: Carry | null
+  /** §294 — se si può togliere, e se no perché. Guarda **il suo** mese */
+  remove?: Removal
 }
 
 /**
@@ -2159,7 +2501,7 @@ export type CarryItem = {
  * Le righe **in scadenza** non sono in ritardo e non vanno colorate come tali:
  * lo stipendio di luglio, ad agosto, è semplicemente il pagamento di agosto.
  */
-function CarryBlock({ side, items, moved, showMoved, onPaid, onDue }: {
+function CarryBlock({ side, items, moved, showMoved, onPaid, onDue, onRemove }: {
   side: 'entrata' | 'uscita'
   items: CarryItem[]
   /** §224 — le righe di altri mesi che in questo mese si sono **mosse** */
@@ -2168,6 +2510,8 @@ function CarryBlock({ side, items, moved, showMoved, onPaid, onDue }: {
   showMoved: boolean
   onPaid: (id: string) => void
   onDue: (id: string, d: string | null) => void
+  /** §294 — togliere una riga che non arriverà mai, da dove la si guarda */
+  onRemove: (id: string) => void
 }) {
   const [open, setOpen] = useState(true)
   const [openMoved, setOpenMoved] = useState(false)
@@ -2223,6 +2567,10 @@ function CarryBlock({ side, items, moved, showMoved, onPaid, onDue }: {
     : late.some(i => i.status.band === 'scaduto') ? 'scaduto'
     : late.length ? 'in_ritardo' : 'atteso'
   const verbo = side === 'entrata' ? 'incassare' : 'pagare'
+  /* §290 — quante la chiusura si è portata dietro più di una volta. Un ritardo
+     che sopravvive a due chiusure non è un ritardo: è un credito che nessuno sta
+     inseguendo, e va detto sopra, non riga per riga. */
+  const ripetute = items.filter(i => (i.carry?.times ?? 0) > 1).length
 
   /* Classi intere, mai composte: Tailwind legge il sorgente, e `border-${x}/40`
      non finisce nel CSS — il bordo sparirebbe proprio sulle righe che gridano. */
@@ -2254,6 +2602,11 @@ function CarryBlock({ side, items, moved, showMoved, onPaid, onDue }: {
               <>niente in ritardo</>
             )}
             {waiting.length > 0 && <> · {waiting.length} in scadenza per {eur(waitSum)}</>}
+            {ripetute > 0 && (
+              <> · <strong className="text-warning">
+                {ripetute} {ripetute === 1 ? 'si trascina' : 'si trascinano'} da più di una chiusura
+              </strong></>
+            )}
           </span>
         </span>
         <ChevronDown className={`w-4 h-4 text-text-tertiary shrink-0 transition-transform ${
@@ -2277,6 +2630,13 @@ function CarryBlock({ side, items, moved, showMoved, onPaid, onDue }: {
                   {monthLabel(i.month)}
                   {i.sub && <> · {i.sub}</>}
                   {' · '}attesa il {dayLabel(i.status.due)}
+                  {/* §290 — «trascinata due volte» è un'altra cosa da «scaduta
+                      ieri», e finora si leggevano identiche. */}
+                  {i.carry && i.carry.times > 1 && (
+                    <> · <span className="text-warning font-semibold">
+                      {i.carry.times}ª chiusura che se la porta dietro
+                    </span></>
+                  )}
                 </span>
               </span>
               <CashPill s={i.status} onDue={d => onDue(i.id, d)} />
@@ -2288,6 +2648,11 @@ function CarryBlock({ side, items, moved, showMoved, onPaid, onDue }: {
               <Check on={false}
                 label={`Segna ${i.title} come ${side === 'entrata' ? 'incassata' : 'pagata'}`}
                 onToggle={() => onPaid(i.id)} />
+              {/* §294 — e l'altra risposta: questa riga non arriverà mai. Il
+                  verdetto guarda **il suo** mese, non quello aperto. */}
+              {i.remove && (
+                <RemoveButton check={i.remove} label={i.title} onRemove={() => onRemove(i.id)} />
+              )}
             </li>
           ))}
         </ul>
@@ -3000,7 +3365,8 @@ function CostSection({
   costs, centers, locked, pending, picked, setPicked, totals,
   statusOf, late, certOf, carry, carryMoved, showMoved, onPaidCarry, onDue,
   onUpdate, onCenter, onDelete, onAdd, onBulk, onSyncPlan,
-  linkedTx, matchOptions, withInvoice, onAttach, onDetach, onPayToggle, onRenameCenter,
+  linkedTx, matchOptions, withInvoice, invoiceOf, invoiceOptions, onAttach, onDetach,
+  onLinkInvoice, onUnlinkInvoice, onPayToggle, onRenameCenter,
 }: {
   costs: CostLine[]
   centers: { id: string; name: string }[]
@@ -3031,6 +3397,11 @@ function CostSection({
   linkedTx: Record<string, { txId: string; date: string; amount: number; who: string }[]>
   /** §247 — quali righe hanno una fattura sotto */
   withInvoice: Record<string, boolean>
+  /** §302 — il documento sotto ogni riga, e i candidati per quelle che non l'hanno */
+  invoiceOf: Record<string, InvRef>
+  invoiceOptions: Record<string, InvOption[]>
+  onLinkInvoice: (lineId: string, invoiceId: string) => void
+  onUnlinkInvoice: (lineId: string) => void
   matchOptions: Record<string, { txId: string; date: string; amount: number; who: string; why: string }[]>
   onAttach: (costLineId: string, txIds: string[]) => void
   onDetach: (costLineId: string) => void
@@ -3339,27 +3710,43 @@ function CostSection({
                               gross={Math.round((c.actual > 0 ? c.actual : c.budget)
                                 * (c.vat_applied ? 1 + c.vat_rate : 1) * 100) / 100}
                               onAttach={ids => onAttach(c.id, ids)} onDetach={() => onDetach(c.id)} />
-                            {/* §247 — pagata e senza documento: l'IVA non si
-                                detrae e in verifica quel costo non si difende.
-                                Il link porta dove la fattura si scrive a mano. */}
-                            {c.paid && !withInvoice[c.id] && (
+                            {/* §302 — il documento del fornitore, collegabile da
+                                qui e non solo dentro il dialogo del pagamento.
+                                §247 — se la riga è pagata e non ce l'ha, l'IVA
+                                non si detrae e in verifica quel costo non si
+                                difende: il caso resta segnalato, ma adesso ha
+                                anche il gesto per chiuderlo. */}
+                            {/* §307 — **una cosa sola per il documento.** Prima
+                                ce n'erano due incolonnate — la cella e l'avviso
+                                «senza fattura» — e in un mese chiuso diventavano
+                                un trattino con una scritta sotto. Se il documento
+                                c'è, o si può collegare, comanda la cella; se
+                                manca e non c'è niente da collegare, comanda
+                                l'avviso. Mai entrambe. */}
+                            {invoiceOf[c.id] || (invoiceOptions[c.id] ?? []).length > 0 ? (
+                              <InvoiceCell inv={invoiceOf[c.id]} disabled={locked}
+                                options={invoiceOptions[c.id] ?? []}
+                                gross={Math.round((c.actual > 0 ? c.actual : c.budget)
+                                  * (c.vat_applied ? 1 + c.vat_rate : 1) * 100) / 100}
+                                onLink={invId => onLinkInvoice(c.id, invId)}
+                                onUnlink={() => onUnlinkInvoice(c.id)} />
+                            ) : c.paid ? (
                               <Link href="/economics/fatturazione"
-                                title="Pagata ma senza fattura: caricala o scrivila a mano in Fatturazione"
+                                title="Pagata e nessun documento con questo importo: caricala o scrivila a mano in Fatturazione"
                                 className="text-2xs font-semibold text-warning hover:underline whitespace-nowrap">
                                 senza fattura
                               </Link>
-                            )}
+                            ) : null}
                           </div>
 
                           <div className="flex justify-center">
-                            {!locked && (
-                              <button onClick={() => onDelete(c.id, c.label)}
-                                aria-label={`Elimina ${c.label}`}
-                                className="text-text-tertiary hover:text-error opacity-0
-                                           group-hover:opacity-100 focus:opacity-100">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
+                            <RemoveButton
+                              check={canRemove({
+                                side: 'uscita', paid: c.paid, paid_on: c.paid_on,
+                                invoiced: !!withInvoice[c.id], installment_id: c.installment_id,
+                              }, !locked)}
+                              label={c.label} hideWhenBlocked={locked}
+                              onRemove={() => onDelete(c.id, c.label)} />
                           </div>
                         </li>
                       )
@@ -3374,7 +3761,8 @@ function CostSection({
 
       {/* §224 — le uscite maturate prima che nessuno ha ancora pagato */}
       <CarryBlock side="uscita" items={carry} moved={carryMoved} showMoved={showMoved}
-        onPaid={onPaidCarry} onDue={onDue} />
+        onPaid={onPaidCarry} onDue={onDue}
+        onRemove={id => onDelete(id, carry.find(x => x.id === id)?.title ?? 'la voce')} />
 
       {!locked && (
         <div className="px-5 py-3 border-t border-border flex items-center gap-4 flex-wrap">
@@ -3414,261 +3802,6 @@ const COST_GRID = {
      pezzi stanno incolonnati invece che sovrapposti. */
   gridTemplateColumns: '2rem minmax(0,1fr) 1.5rem 6.5rem 7rem 8.5rem 1.5rem',
 } as const
-
-// ═══════════════════════════════════════════════════════════════════════════
-// §192 — Lavori affidati fuori
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * I subappalti del mese: chi, per quale progetto, di quale cliente.
- *
- * È la sezione dove **tutto atterra**, e serve perché prima nel conto economico si
- * leggeva «Subappalto — Rata 2 di 6» senza sapere di quale lavoro né a chi
- * andasse. Un subappalto è un solo fatto visto da quattro posti, e la gerarchia è
- * questa: **il patto si scrive sul progetto, il fatto qui, tutto il resto legge.**
- *
- * Perciò da qui si scrive solo l'effettivo e il pagato — che sono fatti, e li
- * conosce chi ha visto la fattura — mentre importo, fornitore e frequenza si
- * cambiano nella scheda del progetto, che ogni riga linka.
- */
-function SubcontractSection({
-  month, costs, revenue, subItems, projectNames, clientNames, clientOfProject,
-}: {
-  month: string
-  costs: CostLine[]
-  revenue: RevenueLine[]
-  subItems: SubItem[]
-  projectNames: Record<string, string>
-  clientNames: Record<string, string>
-  clientOfProject: Record<string, string>
-}) {
-  const [tab, setTab] = useState<'progetto' | 'fornitore'>('progetto')
-
-  const views = useMemo(() => subcontractViews(
-    subItems,
-    costs.filter(c => !!c.project_id).map(c => ({
-      id: c.id, label: c.label, budget: c.budget, actual: c.actual, paid: c.paid,
-      project_id: c.project_id ?? null, cost_item_id: c.cost_item_id ?? null,
-      center_id: c.center_id ?? null,
-    })),
-    month,
-    { project: projectNames, client: clientNames, clientOf: clientOfProject },
-  ), [subItems, costs, month, projectNames, clientNames, clientOfProject])
-
-  const revByProject = useMemo(() => {
-    const map: Record<string, number> = {}
-    for (const r of revenue) {
-      if (!r.project_id || r.pass_through) continue
-      map[r.project_id] = r2c((map[r.project_id] ?? 0) + r.amount_net)
-    }
-    return map
-  }, [revenue])
-
-  /* §207 — i lavori il cui ricavo del mese sta su un accordo che ne copre altri.
-     Non hanno un margine calcolabile, e mostrargliene uno negativo perché il
-     ricavo è su un'altra riga manderebbe a cercare una rata che non manca. */
-  const sharedProjects = useMemo(() => {
-    const s = new Set<string>()
-    for (const r of revenue) {
-      if (r.pass_through || (r.project_ids?.length ?? 0) < 2) continue
-      for (const p of r.project_ids!) s.add(p)
-    }
-    return s
-  }, [revenue])
-
-  const margins = useMemo(
-    () => byProjectMargin(views, revByProject, sharedProjects), [views, revByProject, sharedProjects])
-  const suppliers = useMemo(() => bySupplierView(views), [views])
-  const findings = useMemo(() => subcontractFindings(views, margins), [views, margins])
-
-  if (!views.length && !Object.keys(revByProject).length) return null
-
-  const external = views.reduce((n, v) => n + (v.booked > 0 ? v.booked : v.planned), 0)
-  const pagato = views.reduce((n, v) => n + v.paid, 0)
-
-  return (
-    <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
-      {/* §231 — il titolo prende lo spazio (`min-w-0 flex-1`) e il totale resta
-          ancorato a destra (`ml-auto`). Senza, quando la descrizione riempiva la
-          riga il numero andava a capo e si fermava dove capitava: sembrava
-          centrato per sbaglio, ed è il motivo per cui si legge come un errore. */}
-      <div className="flex items-end justify-between gap-3 px-5 py-4 border-b border-border flex-wrap">
-        <div className="min-w-0 flex-1 basis-64">
-          <h2 className="flex items-center gap-2 text-sm font-bold text-text-primary">
-            <Truck className="w-4 h-4 text-orange" aria-hidden="true" />Lavori affidati fuori
-          </h2>
-          <p className="text-2xs text-text-tertiary mt-0.5">
-            Il patto si scrive sulla scheda del progetto, il fatto qui: da questa tabella si
-            correggono <strong className="text-text-secondary">effettivo</strong> e{' '}
-            <strong className="text-text-secondary">pagato</strong>, l&apos;importo pattuito si
-            cambia sul progetto
-          </p>
-        </div>
-        <div className="text-right ml-auto shrink-0">
-          <p className="text-xl font-bold text-text-primary tabular">{eur(external)}</p>
-          <p className="text-2xs text-text-tertiary">
-            {views.length} voci · pagato {eur(pagato)}
-            {external > pagato && <span className="text-warning"> · {eur(external - pagato)} da pagare</span>}
-          </p>
-        </div>
-      </div>
-
-      {findings.length > 0 && (
-        <ul className="divide-y divide-border/60 bg-background">
-          {findings.map(f => (
-            <li key={f.id} className="flex items-start gap-2.5 px-5 py-2.5">
-              <AlertTriangle className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${
-                f.severity === 'critico' ? 'text-error'
-                  : f.severity === 'attenzione' ? 'text-warning' : 'text-text-tertiary'}`}
-                aria-hidden="true" />
-              <div className="min-w-0 flex-1">
-                <p className="text-2xs font-bold text-text-primary">{f.title}</p>
-                <p className="text-2xs text-text-secondary mt-0.5">{f.detail}</p>
-                {f.action && (
-                  <p className="text-2xs text-gold-text font-semibold mt-0.5">
-                    {f.href ? <Link href={f.href} className="hover:underline">{f.action}</Link> : f.action}
-                  </p>
-                )}
-              </div>
-              {f.value ? (
-                <span className="text-2xs tabular font-bold text-text-primary shrink-0">{eur(f.value)}</span>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="flex gap-1 px-5 py-2.5 border-b border-border">
-        {(['progetto', 'fornitore'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} aria-pressed={tab === t}
-            className={`text-2xs font-semibold px-3 py-1.5 rounded-lg press ${
-              tab === t ? 'bg-gold text-on-gold' : 'text-text-secondary hover:bg-surface-hover'}`}>
-            {t === 'progetto' ? 'Per progetto e margine' : 'Per subappaltatore'}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'progetto' ? (
-        <ul className="divide-y divide-border/60">
-          {/* Solo i lavori che hanno un subappalto: un progetto senza niente affidato
-              fuori ha margine uguale al ricavo, non aggiunge informazione e riempie
-              la lista di righe che dicono «100%». Il margine di quei lavori si legge
-              nella scheda del cliente. */}
-          {margins.filter(m => m.rows.length > 0).map(m => (
-            <li key={m.projectId ?? 'none'} className="px-5 py-3">
-              <div className="flex items-baseline gap-2 flex-wrap">
-                {m.projectId ? (
-                  <Link href={`/progetti/${m.projectId}?tab=economics`}
-                    className="text-sm font-bold text-text-primary hover:text-gold-text truncate">
-                    {m.projectName ?? 'Progetto'}
-                  </Link>
-                ) : (
-                  <span className="text-sm font-bold text-text-primary">Senza progetto</span>
-                )}
-                {m.clientId && (
-                  <Link href={`/clienti/${m.clientId}?tab=economics`}
-                    className="text-2xs text-info hover:underline shrink-0">
-                    {m.clientName ?? 'cliente'}
-                  </Link>
-                )}
-                {m.sharedRevenue ? (
-                  <>
-                    <span className="ml-auto text-2xs text-text-tertiary tabular shrink-0">
-                      fuori {eur(m.external)} · ricavo su un accordo condiviso
-                    </span>
-                    <span className="text-sm font-bold tabular shrink-0 text-text-tertiary"
-                      title="Il contratto copre più lavori e non dice quanto spetta a ciascuno: un margine di progetto qui sarebbe inventato">
-                      n/d
-                    </span>
-                    <span className="text-2xs text-text-tertiary tabular shrink-0 w-12 text-right">—</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="ml-auto text-2xs text-text-tertiary tabular shrink-0">
-                      ricavo {eur(m.revenue)} − fuori {eur(m.external)} =
-                    </span>
-                    <span className={`text-sm font-bold tabular shrink-0 ${
-                      m.margin < 0 ? 'text-error' : 'text-success'}`}>
-                      {eur(m.margin)}
-                    </span>
-                    <span className="text-2xs text-text-tertiary tabular shrink-0 w-12 text-right">
-                      {m.revenue > 0 ? `${Math.round(m.pct * 100)}%` : '—'}
-                    </span>
-                  </>
-                )}
-              </div>
-              {m.rows.length > 0 && (
-                <ul className="mt-1.5 space-y-1">
-                  {m.rows.map(r => (
-                    <li key={r.lineId ?? r.itemId} className="flex items-baseline gap-2 text-2xs">
-                      <SubBadge status={r.status} />
-                      <span className="truncate text-text-secondary">{r.label}</span>
-                      <span className={`shrink-0 ${r.supplier ? 'text-text-tertiary' : 'text-warning font-semibold'}`}>
-                        {r.supplier ?? 'fornitore da scrivere'}
-                      </span>
-                      {/* §231 — due numeri in fila senza un nome si leggono come
-                          uno spostato: «2.673 · 0» sembrava un totale sbagliato,
-                          ed erano il pattuito e l'effettivo. Larghezze fisse e
-                          l'etichetta sopra la prima cifra di ciascuno. */}
-                      <span className="ml-auto tabular text-text-tertiary shrink-0 w-24 text-right">
-                        <span className="text-text-tertiary/70">patto </span>{eur(r.planned)}
-                      </span>
-                      <span className="tabular font-bold text-text-primary shrink-0 w-24 text-right">
-                        <span className="font-normal text-text-tertiary/70">uscito </span>{eur(r.booked)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <ul className="divide-y divide-border/60">
-          {suppliers.map(g => (
-            <li key={g.supplier ?? 'none'} className="px-5 py-3">
-              <div className="flex items-baseline gap-2 flex-wrap">
-                <span className={`text-sm font-bold ${g.supplier ? 'text-text-primary' : 'text-warning'}`}>
-                  {g.supplier ?? 'Senza subappaltatore'}
-                </span>
-                <span className="text-2xs text-text-tertiary">
-                  {g.projects} {g.projects === 1 ? 'progetto' : 'progetti'} · {g.rows.length} voci
-                </span>
-                <span className="ml-auto text-2xs text-text-tertiary tabular">pattuito {eur(g.planned)}</span>
-                <span className="text-sm font-bold text-text-primary tabular w-24 text-right">{eur(g.booked)}</span>
-                <span className={`text-2xs tabular w-24 text-right ${
-                  g.paid < g.booked ? 'text-warning' : 'text-success'}`}>
-                  {g.paid < g.booked ? `${eur(g.booked - g.paid)} da pagare` : 'tutto pagato'}
-                </span>
-              </div>
-              <ul className="mt-1.5 space-y-1">
-                {g.rows.map(r => (
-                  <li key={r.lineId ?? r.itemId} className="flex items-baseline gap-2 text-2xs">
-                    <SubBadge status={r.status} />
-                    <span className="truncate text-text-secondary">{r.label}</span>
-                    {r.href && (
-                      <Link href={r.href} className="text-info hover:underline shrink-0">
-                        {r.projectName ?? 'progetto'}
-                      </Link>
-                    )}
-                    {r.clientName && <span className="text-text-tertiary shrink-0">{r.clientName}</span>}
-                    <span className="ml-auto tabular font-bold text-text-primary shrink-0">{eur(r.booked)}</span>
-                  </li>
-                ))}
-              </ul>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <p className="px-5 py-3 border-t border-border text-2xs text-text-tertiary">
-        Il margine è ricavo del mese meno i lavori affidati fuori. Il tempo del team interno non c&apos;è
-        per scelta: sta nel costo del lavoro aziendale, e mescolarli darebbe un margine che nessuno può
-        calcolare. Sul digital è questo margine la base della spartizione fra i soci
-      </p>
-    </section>
-  )
-}
 
 function SubBadge({ status }: { status: 'pianificato' | 'nel mese' | 'pagato' | 'orfano' | 'scostato' }) {
   const ui = {
@@ -3852,12 +3985,19 @@ function Distribution({ t: accrual, tCash, config, mode }: {
         </div>
       </div>
 
+      {/* §307 — quattro righe di testo diventavano il primo blocco della sezione,
+          prima di qualunque numero. Il fatto è uno: si stanno leggendo solo le
+          righe spuntate, e quante sono. Il resto — che i compensi restano quelli
+          del maturato (§204) — sta già scritto in fondo, dove parla dei compensi. */}
       {mode === 'incassato' && (
-        <p className="text-2xs text-text-secondary bg-info-dim border border-info/30 rounded-xl px-3 py-2 mb-3">
-          Stai leggendo <strong>solo le righe spuntate</strong>: {' '}
-          {eur(tCash.revenue.accrued)} di entrate incassate su {eur(accrual.revenue.accrued)} e{' '}
-          {eur(tCash.costs.actual)} di costi pagati su {eur(accrual.costs.actual)}. I compensi veri
-          restano quelli del maturato — chi ha lavorato ha lavorato — ma la cassa è questa.
+        <p className="text-2xs text-text-secondary mb-3 flex items-baseline gap-1.5 flex-wrap">
+          <Info className="w-3 h-3 shrink-0 self-center text-info" aria-hidden="true" />
+          <span>
+            Solo le righe spuntate: <strong className="text-text-primary tabular">{eur(tCash.revenue.accrued)}</strong>
+            {' '}incassati su {eur(accrual.revenue.accrued)} ·{' '}
+            <strong className="text-text-primary tabular">{eur(tCash.costs.actual)}</strong>
+            {' '}pagati su {eur(accrual.costs.actual)}
+          </span>
         </p>
       )}
 
@@ -3890,9 +4030,14 @@ function Distribution({ t: accrual, tCash, config, mode }: {
             className={`${x.tone} ${dim(x.key)} transition-opacity`}
             style={{ width: w(x.value) }} />
         ))}
+        {/* §307 — quello che nessuna voce spiega ha un **nome e una riga**, e un
+            colore suo. Era dipinto `bg-success`, lo stesso di «Cassa TwoBee»: due
+            cose diverse con lo stesso colore, e il solo posto dove aveva un nome
+            era un tooltip che galleggiava sopra l'elenco. Su un mese in lettura
+            di cassa erano 7.232 € che sembravano un blocco verde qualunque. */}
         {rest > 0 && (
-          <span className={`bg-success ${dim('rest')} transition-opacity`} style={{ width: w(rest) }}
-            title={`Resta: ${eur(rest)}`} />
+          <span className={`bg-border-strong ${dim('rest')} transition-opacity`}
+            style={{ width: w(rest) }} aria-label={`Non ancora destinato: ${eur(rest)}`} />
         )}
         {over > 0 && (
           <span aria-hidden="true" className="absolute top-0 bottom-0 w-0.5 bg-text-primary"
@@ -3903,7 +4048,12 @@ function Distribution({ t: accrual, tCash, config, mode }: {
 
       {/* le voci: una riga ciascuna, con una riga di spiegazione */}
       <ul className="mt-3 divide-y divide-border/50">
-        {[...positives, ...negatives].map(x => (
+        {[...positives, ...negatives, ...(rest > 0 ? [{
+          key: 'rest', label: 'Non ancora destinato', value: rest, tone: 'bg-border-strong',
+          hint: mode === 'incassato'
+            ? 'Incassato che nessuna voce ha ancora preso: i costi di questo mese non sono tutti pagati, e finché non lo sono la loro quota resta qui.'
+            : 'Imponibile che le quote non hanno assegnato: succede quando le percentuali del piano non fanno cento.',
+        } as Slice] : [])].map(x => (
           <li key={x.key}
             onMouseEnter={() => setHover(x.key)} onMouseLeave={() => setHover(null)}
             className={`flex items-start gap-2.5 py-1.5 rounded-lg px-1 -mx-1 transition-colors ${

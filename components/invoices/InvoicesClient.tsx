@@ -149,10 +149,12 @@ export function InvoicesClient({
             <FileText className="w-5 h-5 text-gold-text" />Fatturazione
           </h1>
           <p className="text-2xs text-text-tertiary mt-0.5 max-w-2xl">
-            {invoices.length} documenti letti dall&apos;XML dello SdI. Sta fra conto economico e banca
-            perché è quello che le lega: il primo dice a quale mese appartiene un ricavo, la seconda
-            quando i soldi si sono mossi, la fattura è l&apos;unico documento che vale davanti
-            all&apos;erario. Gli importi non si scrivono a mano: si rileggono dal file.
+            {invoices.length} documenti letti dall&apos;XML dello SdI, in due aree: le
+            <strong className="text-text-secondary"> fatture inviate</strong> ai clienti e le
+            <strong className="text-text-secondary"> fatture ricevute</strong> dai fornitori. Sono due
+            domande diverse — chi deve pagare noi e quando, chi dobbiamo pagare e quando — e ognuna ha
+            il suo scadenzario, la sua coda di lavoro e i suoi numeri. Gli importi non si scrivono a
+            mano: si rileggono dal file.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -184,34 +186,85 @@ export function InvoicesClient({
           onDone={v => { setManual(false); run(() => addInvoiceManually(v), 'Fattura aggiunta') }} />
       )}
 
-      {/* ── i quattro numeri che si guardano per primi ── */}
+      {/* ── §292 · due aree, e la scelta è della pagina ──
+          La direzione stava dentro «Scadenzario»: governava quel riquadro e i
+          fornitori, mentre le scorecard, il grafico e la coda del «da incassare»
+          restavano sulle emesse qualunque cosa premessi. Due letture della stessa
+          pagina che non concordano sono peggio di una sola (§210), e per vedere i
+          debiti verso i fornitori bisognava sapere che quell'interruttore c'era.
+          Ora l'area dichiara cosa contiene **prima** che uno prema. */}
+      <div className="flex gap-1 bg-surface border border-border rounded-2xl p-1 w-fit">
+        {([
+          ['emessa', 'Fatture inviate', tEm, 'ai clienti: quello che devono pagarci'],
+          ['ricevuta', 'Fatture ricevute', tRi, 'dai fornitori: quello che dobbiamo pagare'],
+        ] as const).map(([k, label, t, hint]) => (
+          <button key={k} onClick={() => setDir(k)} aria-current={dir === k ? 'page' : undefined}
+            className={`px-4 py-2.5 rounded-xl text-left ${
+              dir === k ? 'bg-gold text-on-gold' : 'hover:bg-surface-hover'}`}>
+            <span className={`block text-2xs font-bold ${dir === k ? 'text-on-gold' : 'text-text-primary'}`}>
+              {label} · {t.count}
+            </span>
+            <span className={`block text-2xs ${dir === k ? 'text-on-gold/80' : 'text-text-tertiary'}`}>
+              {eur(t.taxable)} · {hint}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── i quattro numeri dell'area scelta ── */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat icon={<ArrowUpRight className="w-3.5 h-3.5 text-success" />}
-          label="Fatturato emesso" value={eur(tEm.taxable)}
-          hint={`${tEm.count} documenti${tEm.credits ? `, di cui ${tEm.credits} note di credito` : ''}`}
-          extra={<span className="text-text-tertiary">IVA a debito {eur(tEm.vat)}</span>} />
-        <Stat icon={<ArrowDownLeft className="w-3.5 h-3.5 text-info" />}
-          label="Ricevuto" value={eur(tRi.taxable)}
-          hint={`${tRi.count} documenti da ${byParty(ricevute).length} fornitori`}
-          extra={<span className="text-text-tertiary">IVA a credito {eur(tRi.vat)}</span>} />
-        <Stat icon={<Landmark className="w-3.5 h-3.5 text-gold-text" />}
-          label="Da incassare" value={eur(tEm.outstanding)}
-          hint={days.median !== null
-            ? `chi paga lo fa in ${days.median} giorni (mediana su ${days.sample})`
-            : 'nessuna fattura incassata: la mediana non si può ancora calcolare'}
-          extra={tEm.overdue > 0
-            ? <span className="text-error">{eur(tEm.overdue)} già scaduti</span>
-            : <span className="text-success">niente di scaduto</span>} />
-        <Stat icon={<ArrowDownLeft className="w-3.5 h-3.5 text-orange" />}
-          label="Da pagare" value={eur(tRi.outstanding)}
-          hint="debiti verso fornitori ancora aperti"
-          extra={tRi.overdue > 0
-            ? <span className="text-warning">{eur(tRi.overdue)} oltre la scadenza</span>
-            : <span className="text-success">tutto nei termini</span>} />
+        {dir === 'emessa' ? (
+          <>
+            <Stat icon={<ArrowUpRight className="w-3.5 h-3.5 text-success" />}
+              label="Fatturato emesso" value={eur(tEm.taxable)}
+              hint={`${tEm.count} documenti${tEm.credits ? `, di cui ${tEm.credits} note di credito` : ''}`}
+              extra={<span className="text-text-tertiary">IVA a debito {eur(tEm.vat)}</span>} />
+            <Stat icon={<Landmark className="w-3.5 h-3.5 text-gold-text" />}
+              label="Da incassare" value={eur(tEm.outstanding)}
+              hint="crediti aperti verso i clienti"
+              extra={tEm.overdue > 0
+                ? <span className="text-error">{eur(tEm.overdue)} già scaduti</span>
+                : <span className="text-success">niente di scaduto</span>} />
+            <Stat icon={<CalendarClock className="w-3.5 h-3.5 text-info" />}
+              label="Tempi di incasso"
+              value={days.median !== null ? `${days.median} giorni` : 'n/d'}
+              hint={days.median !== null
+                ? `mediana su ${days.sample} fatture rientrate`
+                : 'nessuna fattura incassata: la mediana non si può ancora calcolare'}
+              extra={<span className="text-text-tertiary">dalla data di emissione</span>} />
+            <Stat icon={<ArrowDownLeft className="w-3.5 h-3.5 text-orange" />}
+              label="Clienti che fatturano" value={String(byParty(emesse).length)}
+              hint="raggruppati per partita IVA, non per nome"
+              extra={<span className="text-text-tertiary">nel periodo scelto</span>} />
+          </>
+        ) : (
+          <>
+            <Stat icon={<ArrowDownLeft className="w-3.5 h-3.5 text-info" />}
+              label="Ricevuto" value={eur(tRi.taxable)}
+              hint={`${tRi.count} documenti da ${byParty(ricevute).length} fornitori`}
+              extra={<span className="text-text-tertiary">IVA a credito {eur(tRi.vat)}</span>} />
+            <Stat icon={<Landmark className="w-3.5 h-3.5 text-orange" />}
+              label="Da pagare" value={eur(tRi.outstanding)}
+              hint="debiti verso fornitori ancora aperti"
+              extra={tRi.overdue > 0
+                ? <span className="text-warning">{eur(tRi.overdue)} oltre la scadenza</span>
+                : <span className="text-success">tutto nei termini</span>} />
+            <Stat icon={<ArrowUpRight className="w-3.5 h-3.5 text-error" />}
+              label="Oltre la scadenza" value={eur(tRi.overdue)}
+              hint={tRi.overdue > 0
+                ? 'un fornitore in ritardo è il primo che smette di lavorare'
+                : 'nessun debito scaduto'}
+              extra={<span className="text-text-tertiary">sul totale aperto {eur(tRi.outstanding)}</span>} />
+            <Stat icon={<FileText className="w-3.5 h-3.5 text-gold-text" />}
+              label="Note di credito" value={String(tRi.credits)}
+              hint="documenti che stornano, non debiti da pagare"
+              extra={<span className="text-text-tertiary">già scalati dal totale</span>} />
+          </>
+        )}
       </div>
 
       {/* ── §278 · il fatturato nel tempo: la forma che risponde a «come andiamo» ── */}
-      {series.length > 0 && (
+      {dir === 'emessa' && series.length > 0 && (
         <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
           <div className="flex items-baseline justify-between gap-3 flex-wrap mb-1">
             <h2 className="text-sm font-bold text-text-primary">Fatturato nel tempo</h2>
@@ -228,7 +281,23 @@ export function InvoicesClient({
           {/* §280 — la leva sta sotto il suo risultato: la barra smorzata dice
               «in attesa», e qui sotto ci sono le fatture che la compongono, una
               per una, col gesto per chiuderle. */}
-          <PendingInvoices invoices={invoices} txs={txs} today={today} pending={pending} run={run} />
+          <PendingInvoices invoices={invoices} txs={txs} today={today}
+            pending={pending} run={run} direction="emessa" />
+        </section>
+      )}
+
+      {/* §292 — le ricevute non hanno una serie storica da guardare: la domanda
+          non è «come andiamo» ma «chi dobbiamo pagare e quando», quindi la coda
+          sta da sola e in cima, dov'è la prima cosa da fare. */}
+      {dir === 'ricevuta' && (
+        <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
+          <h2 className="text-sm font-bold text-text-primary">Fatture dei fornitori da pagare</h2>
+          <p className="text-2xs text-text-tertiary">
+            In ordine di ritardo. Un debito senza una data di scadenza non è né in ritardo né atteso:
+            sparisce dalla previsione di cassa, e riappare il giorno in cui il fornitore chiama.
+          </p>
+          <PendingInvoices invoices={invoices} txs={txs} today={today}
+            pending={pending} run={run} direction="ricevuta" />
         </section>
       )}
 
@@ -281,10 +350,9 @@ export function InvoicesClient({
           <div className="grid gap-4 lg:grid-cols-2">
             {/* scadenzario */}
             <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <h2 className="text-sm font-bold text-text-primary">Scadenzario</h2>
-                <Toggle value={dir} onChange={setDir} />
-              </div>
+              <h2 className="text-sm font-bold text-text-primary mb-1">
+                Scadenzario · {dir === 'emessa' ? 'da incassare' : 'da pagare'}
+              </h2>
               <p className="text-2xs text-text-tertiary mb-3">
                 {eur(age.total)} aperti, di cui {eur(age.overdue)} oltre la scadenza.
                 {age.noDueDate > 0 && ` ${age.noDueDate} documenti non hanno una data: contano fra quelli a scadere.`}
@@ -389,7 +457,12 @@ export function InvoicesClient({
       {tab === 'elenco' && (
         <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-3 border-b border-border flex-wrap">
-            <Toggle value={dir} onChange={setDir} />
+            {/* §292 — niente secondo interruttore qui: l'area la sceglie la
+                pagina, e due selettori della stessa cosa nella stessa schermata
+                fanno cercare due volte dove si sta guardando. */}
+            <span className="text-2xs font-bold text-text-primary">
+              {dir === 'emessa' ? 'Inviate' : 'Ricevute'} · {listed.length}
+            </span>
             <div className="flex items-center gap-1.5 bg-background border border-border-interactive rounded-lg px-2 py-1.5">
               <Search className="w-3.5 h-3.5 text-text-tertiary" />
               <input value={q} onChange={e => setQ(e.target.value)} placeholder="numero o controparte"
@@ -537,20 +610,6 @@ export function InvoicesClient({
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-
-function Toggle({ value, onChange }: { value: InvoiceDirection; onChange: (v: InvoiceDirection) => void }) {
-  return (
-    <div className="flex gap-0.5 bg-surface-active rounded-lg p-0.5" role="group" aria-label="Verso">
-      {(['emessa', 'ricevuta'] as const).map(k => (
-        <button key={k} onClick={() => onChange(k)} aria-pressed={value === k}
-          className={`px-2.5 py-1 rounded-md text-2xs font-semibold ${
-            value === k ? 'bg-surface text-text-primary shadow-soft' : 'text-text-tertiary hover:text-text-secondary'}`}>
-          {k === 'emessa' ? 'Emesse' : 'Ricevute'}
-        </button>
-      ))}
-    </div>
-  )
-}
 
 function Stat({ icon, label, value, hint, extra }: {
   icon: React.ReactNode; label: string; value: string; hint?: string; extra?: React.ReactNode
@@ -714,21 +773,45 @@ function MonthChart({ rows }: { rows: ReturnType<typeof byMonth> }) {
  * che nessuno ha ancora caricato, e dichiara quello che è: una spunta senza un
  * movimento che la dimostri (§226).
  */
-function PendingInvoices({ invoices, txs, today, pending, run }: {
+const CODA = {
+  emessa: {
+    titolo: 'Da incassare', vuoto: 'Nessuna fattura in attesa: tutto quello che è stato emesso è rientrato.',
+    fuori: 'non sono crediti e non si inseguono', arriva: 'Deve ancora arrivare',
+    quando: 'Attesa il', segna: 'Oppure segnala incassata oggi', fatto: 'Segnata incassata oggi',
+    perche: 'Senza una data non è né scaduta né attesa: sparisce dalle telefonate da fare.',
+    manuale: 'Per il contante o un conto non caricato: resta una spunta che nessun movimento dimostra.',
+    escludi: 'Non è da incassare', chiedi: 'Perché %s non è da incassare?',
+    esempi: 'Es: duplicata di FPR 10/26 · stornata con nota di credito · giro fra società collegate',
+  },
+  ricevuta: {
+    titolo: 'Da pagare', vuoto: 'Nessuna fattura aperta: tutto quello che è arrivato è stato pagato.',
+    fuori: 'non sono debiti e non si pagano', arriva: 'Deve ancora uscire',
+    quando: 'In scadenza il', segna: 'Oppure segnala pagata oggi', fatto: 'Segnata pagata oggi',
+    perche: 'Senza una data non è né scaduta né attesa: sparisce dalla previsione di cassa.',
+    manuale: 'Per il contante o la carta di un socio: resta una spunta che nessun movimento dimostra.',
+    escludi: 'Non è da pagare', chiedi: 'Perché %s non è da pagare?',
+    esempi: 'Es: già pagata in contanti · duplicata · nota di credito in arrivo',
+  },
+} as const
+
+function PendingInvoices({ invoices, txs, today, pending, run, direction }: {
   invoices: Invoice[]
   txs: TxRef[]
   today: string
   pending: boolean
   run: (fn: () => Promise<unknown>, ok?: string) => void
+  /** §292 — la stessa coda vale nei due versi: cambia il verbo, non il gesto */
+  direction: InvoiceDirection
 }) {
+  const v = CODA[direction]
   const [open, setOpen] = useState<string | null>(null)
   const fuori = useMemo(() => invoices.filter(i =>
-    i.direction === 'emessa' && i.sign > 0 && !managed(i)), [invoices])
+    i.direction === direction && i.sign > 0 && !managed(i)), [invoices, direction])
   const attesa = useMemo(() => invoices
     /* §281 — quelle fuori dai conti non sono crediti: qui si elenca chi va
        chiamato, e chiamare per una fattura duplicata è il modo di non essere
        più creduti. */
-    .filter(i => i.direction === 'emessa' && i.sign > 0 && !i.paidOn && managed(i))
+    .filter(i => i.direction === direction && i.sign > 0 && !i.paidOn && managed(i))
     .map(i => ({
       i,
       /* Senza scadenza non è in ritardo: è una fattura di cui non sappiamo
@@ -736,13 +819,13 @@ function PendingInvoices({ invoices, txs, today, pending, run }: {
       late: i.dueDate && i.dueDate < today ? daysBetween(i.dueDate, today) : 0,
     }))
     .sort((a, b) => b.late - a.late || (a.i.dueDate ?? '9999').localeCompare(b.i.dueDate ?? '9999')),
-    [invoices, today])
+    [invoices, today, direction])
 
   const fuoriBlock = fuori.length > 0 ? (
     <div className="mt-2 rounded-xl border border-border bg-surface-hover/40 px-3 py-2">
       <p className="text-2xs text-text-tertiary">
         <strong className="text-text-secondary">{fuori.length} fuori dai conti</strong> per
-        {' '}{eur2(fuori.reduce((s2, i) => s2 + signedTotal(i), 0))}: non sono crediti e non si inseguono.
+        {' '}{eur2(fuori.reduce((s2, i) => s2 + signedTotal(i), 0))}: {v.fuori}.
       </p>
       <ul className="mt-1 space-y-0.5">
         {fuori.map(i => (
@@ -762,7 +845,7 @@ function PendingInvoices({ invoices, txs, today, pending, run }: {
     return (
       <div className="mt-4 pt-3 border-t border-border">
         <p className="flex items-center gap-2 text-2xs text-success">
-          <Check className="w-3.5 h-3.5" />Nessuna fattura in attesa: tutto quello che è stato emesso è rientrato.
+          <Check className="w-3.5 h-3.5" />{v.vuoto}
         </p>
         {fuoriBlock}
       </div>
@@ -777,7 +860,7 @@ function PendingInvoices({ invoices, txs, today, pending, run }: {
     <div className="mt-4 pt-3 border-t border-border">
       <div className="flex items-baseline justify-between gap-3 flex-wrap mb-2">
         <h3 className="text-2xs font-bold uppercase tracking-wider text-text-secondary">
-          Da incassare · {attesa.length} fattur{attesa.length === 1 ? 'a' : 'e'}
+          {v.titolo} · {attesa.length} fattur{attesa.length === 1 ? 'a' : 'e'}
         </h3>
         <span className="text-2xs text-text-tertiary tabular">
           {eur2(tot)} lordi
@@ -843,38 +926,32 @@ function PendingInvoices({ invoices, txs, today, pending, run }: {
 
                   <div className="rounded-lg border border-border/60 p-2">
                     <p className="flex items-center gap-1.5 text-2xs font-semibold text-text-tertiary mb-1">
-                      <CalendarClock className="w-3 h-3" />Deve ancora arrivare
+                      <CalendarClock className="w-3 h-3" />{v.arriva}
                     </p>
                     <label className="flex items-center gap-2">
-                      <span className="text-2xs text-text-secondary">Attesa il</span>
+                      <span className="text-2xs text-text-secondary">{v.quando}</span>
                       <input type="date" defaultValue={i.dueDate ?? ''} disabled={pending}
                         onChange={e => run(() => setInvoiceDue(i.id, e.target.value || null),
                           e.target.value ? 'Scadenza aggiornata' : 'Scadenza tolta')}
                         className="bg-background border border-border-interactive rounded-lg px-2 py-1 text-2xs text-text-primary" />
                     </label>
-                    <p className="text-2xs text-text-tertiary mt-1.5">
-                      Senza una data non è né scaduta né attesa: sparisce dalle telefonate da fare.
-                    </p>
+                    <p className="text-2xs text-text-tertiary mt-1.5">{v.perche}</p>
                     <button disabled={pending}
-                      onClick={() => run(() => setInvoicePaid(i.id, today), 'Segnata incassata oggi')}
+                      onClick={() => run(() => setInvoicePaid(i.id, today), v.fatto)}
                       className="mt-2 text-2xs font-semibold text-text-secondary hover:text-text-primary underline">
-                      Oppure segnala incassata oggi
+                      {v.segna}
                     </button>
-                    <p className="text-2xs text-text-tertiary">
-                      Per il contante o un conto non caricato: resta una spunta che nessun movimento dimostra.
-                    </p>
+                    <p className="text-2xs text-text-tertiary">{v.manuale}</p>
                     {/* §281 — la terza risposta: non è un credito. Duplicata,
                         stornata, giro fra società collegate — e il perché si
                         scrive, o fra sei mesi nessuno sa se era una scelta. */}
                     <button disabled={pending}
                       onClick={() => {
-                        const why = window.prompt(
-                          `Perché ${i.number} non è da incassare?\n`
-                          + 'Es: duplicata di FPR 10/26 · stornata con nota di credito · giro fra società collegate')
+                        const why = window.prompt(`${v.chiedi.replace('%s', i.number)}\n${v.esempi}`)
                         if (why?.trim()) run(() => setInvoiceUnmanaged(i.id, why), 'Tolta dai conti')
                       }}
                       className="mt-2 block text-2xs font-semibold text-text-tertiary hover:text-text-secondary underline">
-                      Non è da incassare
+                      {v.escludi}
                     </button>
                   </div>
                 </div>

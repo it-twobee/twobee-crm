@@ -215,5 +215,49 @@ console.log('\n— Il patto: venduto contro affidato fuori —')
   eq('e non entra nel margine', soloBozza.sold, 0)
 }
 
+console.log('\n— §285 · la tranche legata alla rata cade dove cade la rata —')
+{
+  /* Il caso vero: il grafico di Fatima, 650 € datati agosto sulla voce di
+     piano, contro la rata 1/4 che matura a luglio. Prima il costo usciva dal
+     margine di agosto — dove quella rata non c'è — e luglio distribuiva 1.625
+     interi invece di 975. */
+  const gianni = item({
+    id: 'g', label: 'Graphic Designer — Gianni', supplier: 'Gianni Barbone',
+    amount: 650, frequency: 'una_tantum', start_month: '2026-08-01',
+    project_id: 'p1', installment_id: 'rata1',
+  })
+  const rate = new Map([['rata1', '2026-07-01']])
+
+  is('senza il legame cadrebbe ad agosto, come dice la data', fallsIn(gianni, '2026-08-01'), true)
+  is('col legame cade a luglio, dove sta la sua rata', fallsIn(gianni, '2026-07-01', '2026-07-01'), true)
+  is('e ad agosto non cade più', fallsIn(gianni, '2026-08-01', '2026-07-01'), false)
+
+  const aLuglio = subcontractViews([gianni], [], '2026-07-01', NAMES, rate)
+  is('a luglio è un subappalto da portare nel mese', aLuglio[0]?.status, 'pianificato')
+  eq('per 650 €', aLuglio[0]?.planned ?? 0, 650)
+
+  /* E se la riga è già atterrata nel mese sbagliato, lo si dice invece di
+     lasciarla lì: due mesi con un margine falso, e nessuno dei due lo mostra. */
+  const rigaAdAgosto = line({
+    id: 'lg', label: 'Graphic Designer — Gianni', budget: 650, actual: 650,
+    cost_item_id: 'g', installment_id: 'rata1',
+  })
+  const vAgosto = subcontractViews([gianni], [rigaAdAgosto], '2026-08-01', NAMES, rate)
+  is('ad agosto la riga dichiara il mese giusto', vAgosto[0]?.wrongMonth, '2026-07')
+  const f = subcontractFindings(vAgosto, [])
+  is('e la diagnosi la segnala come critica',
+    f.some(x => x.id.startsWith('mese-sbagliato') && x.severity === 'critico'), true)
+
+  /* Un ricorrente non ha un mese suo: il legame non lo sposta, o un canone
+     mensile sparirebbe da undici mesi su dodici. */
+  const canone = item({ id: 'k', frequency: 'mensile', installment_id: 'rata1' })
+  is('il legame non tocca i ricorrenti', fallsIn(canone, '2026-09-01', '2026-07-01'), true)
+
+  /* Senza la mappa delle rate ci si comporta esattamente come prima: la
+     migration non ancora eseguita non deve cambiare un numero. */
+  is('senza rate note, vale la data della voce',
+    subcontractViews([gianni], [], '2026-08-01', NAMES)[0]?.status, 'pianificato')
+}
+
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

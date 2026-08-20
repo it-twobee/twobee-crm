@@ -8,7 +8,7 @@
 import {
   addDays, daysBetween, endOfMonth, monthOf, termsOf, dueOf, statusOf,
   collectionIndex, movedIn, openAt, lateAt, summarize, lateLabel, isLate,
-  fromRevenue, fromCost,
+  fromRevenue, fromCost, carryOf,
   TERMS, TERMS_LABEL, TERMS_WHY, LATE_BANDS, type CashLine,
 } from './cash-calendar'
 
@@ -168,7 +168,29 @@ eq('un ricavo diventa una riga di cassa',
    }, LUG),
    { id: 'x', side: 'entrata', month: LUG, amount: 1800, label: 'Canone',
      paid: false, paid_on: null, due_date: null, terms: null,
-     project_id: null, projects: [] })
+     project_id: null, projects: [],
+     carried_at: null, carried_from: null, carry_count: 0 })
+
+/* §290 — quanto una riga si trascina lo scrive la chiusura, non lo si deduce
+   dalle date: un mese riaperto e richiuso è una chiusura sola. */
+eq('una riga mai trascinata non dice niente',
+   carryOf(fromRevenue({
+     id: 'x', label: 'Canone', client_id: null, plan_amount: 1800, invoices: 1,
+     amount_net: 1800, vat_rate: 0.22, invoice_sent: true, paid: false,
+     kind: 'growth', sales_owner_id: null, sales_owner: null,
+   }, LUG)), null)
+eq('e una trascinata dice da dove e da quante chiusure',
+   carryOf(fromRevenue({
+     id: 'x', label: 'iCura', client_id: null, plan_amount: 3600, invoices: 1,
+     amount_net: 3600, vat_rate: 0.22, invoice_sent: true, paid: false,
+     kind: 'growth', sales_owner_id: null, sales_owner: null,
+     carried_at: '2026-09-01', carried_from: '2026-07-01', carry_count: 2,
+   }, LUG)), { from: '2026-07-01', times: 2, since: '2026-09-01' })
+/* Il segno c'è ma il conteggio no: è una riga trascinata dalla 213, che il
+   backfill ha marcato senza sapere quante volte. Vale una, non zero. */
+eq('senza conteggio vale la prima volta',
+   carryOf({ id: 'z', side: 'uscita', month: LUG, amount: 100, paid: false,
+     carried_at: '2026-09-01', carried_from: '2026-07-01' })?.times, 1)
 /* §207 — un accordo su più progetti li porta tutti: con uno solo si perdeva il
    collegamento e il subappalto degli altri due non trovava la sua rata. */
 eq('l\'accordo multi-progetto li porta tutti',

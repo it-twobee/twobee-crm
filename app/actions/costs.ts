@@ -335,6 +335,11 @@ export async function applyPlanToMonth(month: string) {
     // il subappalto porta con sé il progetto: è così che la marginalità resta
     // leggibile anche a mese chiuso
     project_id: i.project_id ?? null,
+    /* §285 — e la rata che finanzia, quando la voce la dichiara: il margine
+       digital toglie il subappalto **dalla riga di quella rata**, non alle
+       righe del progetto in proporzione. Perderlo qui vorrebbe dire avere il
+       legame nel piano e non nel mese, che è l'unico posto dove serve. */
+    installment_id: (i as CostItem & { installment_id?: string | null }).installment_id ?? null,
     cost_item_id: i.id,
     category: i.category,
     label: i.label,
@@ -501,7 +506,7 @@ export async function splitCostLikeClient(itemId: string, streamId: string, proj
   if (Number(item.amount) <= 0) throw new Error('Metti prima l\'importo concordato col fornitore')
 
   const { data: inst } = await admin.from('revenue_installments')
-    .select('due_month, label, amount').eq('stream_id', streamId).order('due_month')
+    .select('id, due_month, label, amount').eq('stream_id', streamId).order('due_month')
   if (!inst?.length) throw new Error('Il contratto col cliente non ha un piano di rate da ricalcare')
 
   const clientTotal = Number(stream.amount) || inst.reduce((s, i) => s + Number(i.amount), 0)
@@ -515,7 +520,13 @@ export async function splitCostLikeClient(itemId: string, streamId: string, proj
       ? Math.round((total - used) * 100) / 100
       : Math.round(total * share * 100) / 100
     used += amount
-    return { month: i.due_month, label: i.label ?? `Rata ${n + 1}`, amount }
+    /* §285 — la tranche **dichiara la rata che finanzia**. Prima il legame
+       restava nel nome («— Rata 1 di 6»), che è una stringa: due rate dello
+       stesso progetto nello stesso mese si dividevano i subappalti in
+       proporzione all'imponibile invece di prendersi il proprio, e una tranche
+       datata altrove usciva dal margine di un mese in cui il suo ricavo non
+       c'è. */
+    return { month: i.due_month, label: i.label ?? `Rata ${n + 1}`, amount, installmentId: i.id as string }
   })
 
   return materializeCostPlan(admin, item, projectId, rate)
@@ -550,10 +561,11 @@ async function materializeCostPlan(
   admin: ReturnType<typeof createAdminClient>,
   item: Record<string, unknown>,
   projectId: string,
-  rate: { month: string; label: string; amount: number }[],
+  rate: { month: string; label: string; amount: number; installmentId?: string | null }[],
 ) {
   const rows = rate.map((r, n) => ({
     project_id: projectId,
+    ...(r.installmentId ? { installment_id: r.installmentId } : {}),
     center_id: item.center_id,
     category: item.category,
     label: `${item.label} — ${r.label}`,

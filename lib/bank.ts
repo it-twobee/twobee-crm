@@ -411,6 +411,38 @@ export const unreconciled = (txs: BankTx[]) => txs.filter(t =>
   t.source === 'banca' && !t.no_match_needed && !t.revenue_line_id && !t.cost_line_id
   && !t.payslip_id && !t.hr_invoice_id && !isStructural(t))
 
+export type TransferSide = {
+  id: string
+  account_id: string
+  booked_on: string
+  amount: number
+}
+
+/**
+ * I due lati di un giroconto sono un fatto solo (§190).
+ *
+ * Appaia per **importo opposto e data vicina, su conti diversi**: senza, la
+ * liquidità totale sembra scesa di quello che si è solo spostato, e la lista da
+ * riconciliare chiede due volte lo stesso fatto. Un lato può appartenere a una
+ * coppia sola, quindi il primo che lo prende lo consuma.
+ */
+export function transferPairs<T extends TransferSide>(sides: T[], days = 4): { out: T; in: T }[] {
+  const distanza = (a: string, b: string) =>
+    Math.abs(new Date(a).getTime() - new Date(b).getTime()) / 86400000
+  const entrate = sides.filter(t => t.amount > 0)
+  const usate = new Set<string>()
+  const pairs: { out: T; in: T }[] = []
+  for (const out of sides.filter(t => t.amount < 0)) {
+    const match = entrate.find(e =>
+      !usate.has(e.id) && e.account_id !== out.account_id
+      && Math.abs(e.amount + out.amount) < 0.01 && distanza(e.booked_on, out.booked_on) <= days)
+    if (!match) continue
+    usate.add(match.id)
+    pairs.push({ out, in: match })
+  }
+  return pairs
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Previsione di cassa
 // ═══════════════════════════════════════════════════════════════════════════

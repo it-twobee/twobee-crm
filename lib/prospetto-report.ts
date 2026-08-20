@@ -35,7 +35,8 @@
  */
 import { computeMonth, monthLabel, shiftMonth, pct as plPct, type PlTotals } from '@/lib/pl'
 import { isPayrollCenter } from '@/lib/costs'
-import { fromRevenue, fromCost, movedIn } from '@/lib/cash-calendar'
+import { fromRevenue, fromCost } from '@/lib/cash-calendar'
+import { buildWindow, takenIn, marginCostsFor, windowSummary } from '@/lib/payout-window'
 import { prospetto } from '@/lib/pl-aggregate'
 import { simulate, outcomes, advice, GROUPS, type GroupKey, type PlanItem } from '@/lib/cash-plan'
 import { mergePeople } from '@/lib/cash-certify'
@@ -128,27 +129,33 @@ export function reportHtml(d: ProspettoData, month: string, today: string, autor
   const revPrev = d.revenue.filter(r => r.month === prevMonth)
   const costPrev = d.costs.filter(c => c.month === prevMonth)
   const tPrev = computeMonth(revPrev, costPrev, d.config, d.partners)
-  /* §275 — la base è **quello che si è mosso in quel mese**, non «le righe di
-     quel mese che risultano pagate»: sono due insiemi diversi e danno due
-     numeri diversi. La cassa di luglio comprende gli incassi di giugno arrivati
-     a luglio ed esclude le fatture di luglio incassate ad agosto — ed è la
-     lettura che la pagina Ripartizione mostra («sui movimenti di questo mese»,
-     §224). Il report ne dava un'altra: 3.595,94 € a socio contro i 3.530,94 €
-     che si leggono a schermo, e due numeri diversi sullo stesso compenso sono
-     il modo più veloce per non fidarsi di nessuno dei due. */
+  /* §286 — **la finestra dell'erogazione**, che supera §275.
+     `movedIn` risponde a «cosa si è mosso in quel mese»: ci trascina dentro le
+     fatture di maggio rientrate a luglio — già erogate — e ne lascia fuori
+     quelle di luglio rientrate il 3 agosto, che sono esattamente quelle per cui
+     si sta bonificando. La regola è un'altra e ha due gambe: **competenza** fino
+     al mese che si eroga, **cassa** entro il giorno in cui si eroga. Su luglio
+     2026, con l'erogazione anticipata al 13 agosto, sono le otto righe rientrate
+     entro quella data — comprese le quattro arrivate ad agosto. */
   const cashCtx = { collection: new Map(d.collection) }
-  const movedR = new Set(movedIn(d.revenue.map(l => fromRevenue(l, l.month)),
-    prevMonth, today, cashCtx).map(l => l.id))
-  const movedC = new Set(movedIn(d.costs.map(x => fromCost(x, x.month)),
-    prevMonth, today, cashCtx).map(l => l.id))
-  const revMoved = d.revenue.filter(l => movedR.has(l.id))
+  const w = buildWindow({
+    month: prevMonth,
+    date: d.payoutDates[prevMonth] ?? null,
+    previousDate: d.payoutDates[shiftMonth(prevMonth, -1)] ?? null,
+    day: d.config.payout_day,
+    settledFrom: d.config.settled_from,
+  })
+  const revMoved = takenIn(d.revenue, w)
   /* §232 — il margine digital continua a togliere i subappalti **di
      competenza** delle righe che si stanno contando: filtrarne una gamba sola
-     distribuirebbe una quota su un ricavo di cui una parte è già del fornitore. */
+     distribuirebbe una quota su un ricavo di cui una parte è già del fornitore.
+     §285 — e il denominatore resta il ricavo **intero** di quei mesi. */
   const mesiIn = new Set(revMoved.map(l => l.month))
+  const marginPrev = marginCostsFor(d.costs, mesiIn, prevMonth)
   const cashPrev = computeMonth(
-    revMoved, d.costs.filter(x => movedC.has(x.id)), d.config, d.partners,
-    d.costs.filter(x => x.project_id && mesiIn.has(x.month)))
+    revMoved, marginPrev, d.config, d.partners, marginPrev,
+    d.revenue.filter(l => mesiIn.has(l.month)))
+  const fuori = windowSummary(d.revenue, w)
   /* Quello che la sezione di cassa si aspetta davvero in uscita: se il mese è
      stato preparato (§243) sono righe copiate, e possono essere diverse dal
      ricalcolo. La differenza si dichiara invece di far tornare i conti a mano. */
@@ -368,7 +375,7 @@ export function reportHtml(d: ProspettoData, month: string, today: string, autor
         <tr class="total"><td class="lbl">Margine</td>
           <td class="num ${t.margin.net < 0 ? 'neg' : 'pos'}">${eur2(t.margin.net)}</td>
           <td class="num">${quota(Math.max(0, t.margin.net), t.revenue.accrued)}</td></tr>
-        <tr><td class="lbl">Compensi maturati<span>soci e commerciali: non sono costi, si ricalcolano</span></td>
+        <tr><td class="lbl">Compensi maturati in questo mese<span>escono il mese prossimo: qui è quello che il mese ha prodotto, non quello che paga</span></td>
           <td class="num mute">−${eur2(compensiTot)}</td>
           <td class="num mute">${quota(compensiTot, t.revenue.accrued)}</td></tr>
         <tr class="total"><td class="lbl">Resta alla società</td>
@@ -395,8 +402,13 @@ export function reportHtml(d: ProspettoData, month: string, today: string, autor
         </table>
         <table>
           <tr><th>Dove esce</th><th class="num">Importo</th><th class="num">%</th></tr>
+          ${/* §291 — qui vanno le **destinazioni**, non le persone: il dettaglio
+                per socio è già nella sezione dei compensi, e mettercelo anche qui
+                lo somma due volte, con quote che superano il 100%. Le righe di
+                persona hanno la chiave `socio:`/`commerciale:`. */''}
           ${[...agg.costs.map(r => ({ l: r.label, v: r.total, k: '' })),
-             ...agg.payouts.map(r => ({ l: r.label, v: r.total, k: 'compenso, non costo' }))]
+             ...agg.payouts.filter(r => !r.key.includes(':'))
+               .map(r => ({ l: r.label, v: r.total, k: `compenso, non costo · maturato a ${monthLabel(shiftMonth(month, -1))}` }))]
             .sort((a, b) => b.v - a.v)
             .map(row => `<tr><td class="lbl">${esc(row.l)}${row.k ? `<span>${row.k}</span>` : ''}</td>
               <td class="num">${eur2(row.v)}</td>
@@ -549,7 +561,8 @@ export function reportHtml(d: ProspettoData, month: string, today: string, autor
     <!-- §270 — i compensi: due colonne che non si sommano -->
     <section>
       <h2><i>${n(7)}</i> I compensi da erogare ${esc(aMese(month))}
-        <small>sull'<b>incassato</b> di ${esc(mese(prevMonth))}: ${eur2(r2(revMoved.reduce((s2, r) => s2 + r.amount_net, 0)))} rientrati dal conto</small></h2>
+        <small>fatturato ${esc(aMese(prevMonth))} e rientrato entro il ${esc(giorno(w.date))}:
+        ${eur2(fuori.taken.amount)} su ${fuori.taken.n} righe</small></h2>
       <table>
         <tr>
           <th>Persona</th><th>Come si compone</th>
@@ -575,13 +588,18 @@ export function reportHtml(d: ProspettoData, month: string, today: string, autor
           <td class="num pos">${eur2(pT.totCash)}</td></tr>
       </table>
       <p class="note">
-        <b>L'erogato si emette sull'incassato</b> (§224). La base è quello che dal conto è passato
-        ${esc(aMese(prevMonth))} — incassi di quel mese, di qualunque fattura — e su quella si applicano le
-        percentuali: ${Math.round(d.config.growth_delivery_pct * 100)}% del growth diviso fra i soci,
-        ${Math.round(d.config.digital_partner_pct * 100)}% del margine digital a ciascuno,
+        <b>L'erogato si emette sull'incassato</b> (§286). La base ha due gambe e nessuna basta da sola:
+        <b>competenza</b> — quello che è stato fatturato ${esc(aMese(prevMonth))} — e <b>cassa</b> — quello che
+        di quel fatturato risultava rientrato il ${esc(giorno(w.date))}, giorno dell'erogazione. Su quella base
+        si applicano le percentuali: ${Math.round(d.config.growth_delivery_pct * 100)}% del growth diviso fra i
+        soci, ${Math.round(d.config.digital_partner_pct * 100)}% del margine digital a ciascuno,
         ${Math.round(plPct.sales(d.config, 'growth') * 100)}% e
-        ${Math.round(plPct.sales(d.config, 'digital') * 100)}% di provvigione al commerciale. Le fatture di
-        ${esc(mese(prevMonth))} non ancora rientrate non sono qui: il loro compenso si eroga quando arrivano.
+        ${Math.round(plPct.sales(d.config, 'digital') * 100)}% di provvigione al commerciale.
+        ${fuori.open.n > 0 ? `Restano fuori <b>${eur2(fuori.open.amount)}</b> su ${fuori.open.n} righe di
+        ${esc(mese(prevMonth))} non ancora rientrate: non sono perse, il loro compenso si eroga
+        nell'erogazione in cui arrivano.` : `Di ${esc(mese(prevMonth))} è rientrato tutto.`}
+        ${fuori.next.n > 0 ? `Altre ${fuori.next.n} sono rientrate <b>dopo</b> il ${esc(giorno(w.date))}
+        (${eur2(fuori.next.amount)}): entrano nella prossima.` : ''}
         Un socio che è anche commerciale compare <b>una volta sola</b> — gli si bonifica una volta, e due
         righe con lo stesso nome fanno cercare due movimenti che non esistono.
         ${Math.abs(previsti - pT.totCash) < 1 ? '' : `Le righe già preparate in

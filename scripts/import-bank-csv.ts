@@ -8,8 +8,7 @@
  * Serve per i caricamenti massivi da terminale; dall'app si fa col pulsante.
  */
 import { readFileSync } from 'fs'
-import { classify } from '@/lib/bank'
-import { parseStatement, merchant, byFamily } from '@/lib/bank-import'
+import { parseStatement, buildImportRows, byFamily } from '@/lib/bank-import'
 
 const env = Object.fromEntries(
   readFileSync(`${process.cwd()}/.env.local`, 'utf8').split('\n')
@@ -45,26 +44,11 @@ async function main() {
   const { dialect, rows: parsed, skipped } = parseStatement(readFileSync(file, 'utf8'))
   if (!parsed.length) throw new Error('nessun movimento riconosciuto')
 
-  const rows = parsed.map((p, i) => {
-    const auto = classify(p.description, p.amount, p.causal_code)
-    const named = p.counterparty_raw ? merchant(p.counterparty_raw) : null
-    const isOwnTransfer = /two bee/i.test(p.counterparty_raw ?? p.description)
-    return {
-      account_id: account.id, booked_on: p.booked_on, value_on: p.value_on,
-      amount: p.amount, causal_code: p.causal_code, description: p.description,
-      channel: p.channel,
-      counterparty: named?.name ?? auto.counterparty,
-      kind: isOwnTransfer ? 'giroconto' : named?.family === 'banca' ? 'commissione' : auto.kind,
-      doc_ref: auto.docRef, source: 'banca' as const,
-      no_match_needed: isOwnTransfer || named?.family === 'banca',
-      import_hash: `${account.id}|${p.booked_on}|${p.amount.toFixed(2)}|${p.causal_code ?? ''}|${p.description.slice(0, 80)}|${i + 1}`,
-    }
-  })
-
-  const have = await api<{ import_hash: string }[]>(
+  const have = await api<{ import_hash: string | null }[]>(
     `bank_transactions?select=import_hash&account_id=eq.${account.id}`)
-  const già = new Set(have.map(r => r.import_hash))
-  const nuovi = rows.filter((r: { import_hash: string }) => !già.has(r.import_hash))
+  const rows = buildImportRows(
+    account.id, parsed, have.map(r => r.import_hash).filter((h): h is string => !!h))
+  const nuovi = rows.filter(r => !r.duplicate).map(({ duplicate: _, ...r }) => r)
 
   for (let i = 0; i < nuovi.length; i += 100) {
     await api('bank_transactions', { method: 'POST', body: JSON.stringify(nuovi.slice(i, i + 100)) })

@@ -1,6 +1,6 @@
 /* Verifica della stima fiscale. Esegui: npx tsx lib/tax.check.ts */
 import { estimateTaxes, entertainmentCap, taxInsights, DEFAULT_TAX_CONFIG as C, type TaxInput } from '@/lib/tax'
-import { vatByQuarter } from '@/lib/vat'
+import { vatByQuarter, nextDue, vatPending, type VatActual } from '@/lib/vat'
 
 let fail = 0
 const eq = (label: string, got: number, want: number, tol = 0.5) => {
@@ -107,6 +107,26 @@ console.log('\n— §242 · Il modello F24 batte la stima —')
      di mostrarlo. */
   is('ma il riporto resta quello del calcolo', conF24.carried, stima.carried)
   is('e debito e credito pure', { d: conF24.debit, c: conF24.credit }, { d: stima.debit, c: stima.credit })
+
+  /* §289 — una liquidazione **versata** non è più un'uscita da fare. Il 20 agosto
+     il 2º trimestre è uscito dal conto: continuare a toglierlo dal saldo lo
+     sottraeva due volte, e proprio nel giorno in cui il verdetto serve. */
+  const versato: VatActual[] = [
+    { quarter: { year: 2026, q: 2 }, toPay: 9669.33, docRef: 'F24 20/08/2026', paidOn: '2026-08-20' },
+  ]
+  const pagato = vatByQuarter(MESI, '2026-08-20', versato)[0]
+  is('un trimestre versato resta in tabella col suo importo', pagato.toPay, 9669.33)
+  is('ma non è più fra quelli da versare', vatPending(pagato), false)
+  is('e la prossima scadenza non è più lui', nextDue(MESI, '2026-08-20', versato), null)
+  /* Senza la data di pagamento il 20 agosto è ancora il giorno della scadenza:
+     scaduto no, da versare sì. È il caso che rende visibile la differenza. */
+  const nonVersato = vatByQuarter(MESI, '2026-08-20', [
+    { quarter: { year: 2026, q: 2 }, toPay: 9669.33 },
+  ])[0]
+  is('senza la data resta da versare', vatPending(nonVersato), true)
+  is('e nextDue lo trova', nextDue(MESI, '2026-08-20', [
+    { quarter: { year: 2026, q: 2 }, toPay: 9669.33 },
+  ])?.toPay, 9669.33)
 }
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)

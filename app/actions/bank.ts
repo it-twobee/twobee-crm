@@ -3,10 +3,11 @@
 import { createAdminClient, createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { requireEconomicsAdmin as requireAdmin } from '@/lib/economics-guard'
-import { classify, type TxKind } from '@/lib/bank'
+import { classify, transferPairs, type TxKind } from '@/lib/bank'
+import { bankActual } from '@/lib/bank-actual'
 import {
-  parseStatement, merchant, treatment, FAMILY_LABEL, CHECK_FAMILIES, DEDUCTIBILITY,
-  type SpendFamily,
+  parseStatement, buildImportRows, merchant, treatment, FAMILY_LABEL, CHECK_FAMILIES,
+  DEDUCTIBILITY, type SpendFamily,
 } from '@/lib/bank-import'
 
 const PATH = '/economics/banca'
@@ -55,54 +56,9 @@ export async function importBankCsv(accountId: string, csv: string): Promise<{
   const { data: have } = await admin.from('bank_transactions')
     .select('import_hash').eq('account_id', accountId).not('import_hash', 'is', null)
   const esistenti = (have ?? []).map((r: { import_hash: string }) => r.import_hash)
-  const impronte = new Set(esistenti)
-  const inArchivio = new Map<string, number>()
-  for (const h of esistenti) {
-    const fp = h.slice(0, h.lastIndexOf('|'))
-    inArchivio.set(fp, (inArchivio.get(fp) ?? 0) + 1)
-  }
 
-  const consumate = new Map<string, number>()
-  const rows = parsed.map(p => {
-    /* Due sorgenti di verità sul «chi»: la banca che lo mette in chiaro (Vivid) e
-       la descrizione da cui va estratto (home banking). Dove c'è il nome in chiaro
-       si passa da `merchant`, che riconduce ventisei codici FACEBK a «Meta Ads». */
-    const auto = classify(p.description, p.amount, p.causal_code)
-    const named = p.counterparty_raw ? merchant(p.counterparty_raw) : null
-    const counterparty = named?.name ?? auto.counterparty
-    /* Un accredito dal proprio conto è un giroconto, non un incasso: senza questo
-       la provvista di un conto spese risulterebbe fatturato. */
-    const isOwnTransfer = /two bee/i.test(p.counterparty_raw ?? p.description)
-    const kind: TxKind = isOwnTransfer ? 'giroconto'
-      : named?.family === 'banca' ? 'commissione'
-      : auto.kind
-
-    const fp = `${accountId}|${p.booked_on}|${p.amount.toFixed(2)}|${p.causal_code ?? ''}|${p.description.slice(0, 80)}`
-    const vista = (consumate.get(fp) ?? 0) + 1
-    consumate.set(fp, vista)
-    // già in archivio tante volte quante ne ho viste finora: è la stessa, non una nuova
-    const doppione = vista <= (inArchivio.get(fp) ?? 0)
-
-    /* Il numero libero, non `vista`: le righe importate prima del §210 portano
-       ancora la posizione nel file, e `fp|2` potrebbe essere occupato da un
-       movimento diverso. Cercarlo evita di sbattere contro il vincolo unico. */
-    let n = vista
-    while (!doppione && impronte.has(`${fp}|${n}`)) n++
-    const import_hash = `${fp}|${n}`
-    if (!doppione) impronte.add(import_hash)
-
-    return {
-      account_id: accountId, booked_on: p.booked_on, value_on: p.value_on,
-      amount: p.amount, causal_code: p.causal_code, description: p.description,
-      channel: p.channel, counterparty, kind, doc_ref: auto.docRef,
-      source: 'banca' as const,
-      no_match_needed: isOwnTransfer || named?.family === 'banca',
-      import_hash,
-      doppione,
-    }
-  })
-
-  const nuovi = rows.filter(r => !r.doppione).map(({ doppione: _, ...r }) => r)
+  const rows = buildImportRows(accountId, parsed, esistenti)
+  const nuovi = rows.filter(r => !r.duplicate).map(({ duplicate: _, ...r }) => r)
 
   for (let i = 0; i < nuovi.length; i += 100) {
     const { error } = await admin.from('bank_transactions').insert(nuovi.slice(i, i + 100))
@@ -141,30 +97,19 @@ export async function pairTransfers(days = 4): Promise<{ coppie: number }> {
     id: string; account_id: string; booked_on: string; amount: number
     transfer_pair_id: string | null; transfer_account_id: string | null
   }[]
-  const uscite = list.filter(t => t.amount < 0)
-  const entrate = list.filter(t => t.amount > 0)
-  const distanza = (a: string, b: string) =>
-    Math.abs(new Date(a).getTime() - new Date(b).getTime()) / 86400000
 
-  let coppie = 0
-  const usate = new Set<string>()
-  for (const u of uscite) {
-    const match = entrate.find(e =>
-      !usate.has(e.id) && e.account_id !== u.account_id
-      && Math.abs(e.amount + u.amount) < 0.01 && distanza(e.booked_on, u.booked_on) <= days)
-    if (!match) continue
-    usate.add(match.id)
+  const coppie = transferPairs(list, days)
+  for (const { out: u, in: match } of coppie) {
     await admin.from('bank_transactions').update({
       transfer_pair_id: match.id, transfer_account_id: match.account_id, no_match_needed: true,
     }).eq('id', u.id)
     await admin.from('bank_transactions').update({
       transfer_pair_id: u.id, transfer_account_id: u.account_id, no_match_needed: true,
     }).eq('id', match.id)
-    coppie++
   }
 
   rev()
-  return { coppie }
+  return { coppie: coppie.length }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -182,7 +127,7 @@ export async function pairTransfers(days = 4): Promise<{ coppie: number }> {
  */
 export async function reconcile(
   txId: string, target: { revenueLineId?: string | null; costLineId?: string | null },
-) {
+): Promise<{ actual?: { was: number; now: number } }> {
   const uid = await requireAdmin()
   const { error } = await createActorClient(uid).from('bank_transactions').update({
     revenue_line_id: target.revenueLineId ?? null,
@@ -192,7 +137,52 @@ export async function reconcile(
     no_match_needed: false,
   }).eq('id', txId)
   if (error) throw new Error(error.message)
+
+  const corretto = await alignActualToBank(target.costLineId ?? null)
   rev()
+  return corretto ? { actual: corretto } : {}
+}
+
+/**
+ * §296 — l'effettivo lo dice l'estratto conto, quando c'è.
+ *
+ * Finché nessun movimento la conferma, la cifra scritta a mano è la stima
+ * migliore che c'è. Da quando un movimento `banca` è agganciato, non lo è più:
+ * il fatto batte l'opinione, come il cedolino (§182) e il modello F24 (§242).
+ *
+ * Si scrive **solo** quando il conto è chiaro: un movimento tutto suo, che copre
+ * il lordo della riga. Se ne copre una parte — l'acconto Affinity di luglio,
+ * 2.100 € versati su una fattura da 2.562 — il costo resta quello che il
+ * fornitore ha fatturato: quello che manca è l'IVA, non una parte del lavoro, e
+ * riscrivere l'effettivo a 1.721,31 sarebbe un numero plausibile e sbagliato.
+ */
+async function alignActualToBank(costLineId: string | null) {
+  if (!costLineId) return null
+  const admin = createAdminClient()
+
+  const { data: line } = await admin.from('pl_cost_lines')
+    .select('id, actual, budget, vat_applied, vat_rate, month_id').eq('id', costLineId).maybeSingle()
+  if (!line) return null
+  const l = line as { actual: number; budget: number; vat_applied: boolean; vat_rate: number; month_id: string }
+
+  // un mese chiuso è una fotografia: non si riscrive perché arriva un estratto conto
+  const { data: m } = await admin.from('pl_months').select('status').eq('id', l.month_id).maybeSingle()
+  if ((m as { status?: string } | null)?.status === 'chiuso') return null
+
+  const { data: txs } = await admin.from('bank_transactions')
+    .select('id, amount, source').eq('cost_line_id', costLineId)
+
+  const was = Number(l.actual) > 0 ? Number(l.actual) : Number(l.budget)
+  const verdict = bankActual(
+    { net: was, vat_applied: l.vat_applied === true, vat_rate: Number(l.vat_rate) },
+    (txs ?? []).map((t: { id: string; amount: number; source: string }) =>
+      ({ id: t.id, amount: Number(t.amount), source: String(t.source) })))
+
+  if (verdict.state !== 'diverso') return null
+  const { error } = await admin.from('pl_cost_lines')
+    .update({ actual: verdict.net }).eq('id', costLineId)
+  if (error) throw new Error(error.message)
+  return { was, now: verdict.net }
 }
 
 /** Sgancia: la riga torna da riconciliare e non risulta più pagata da qui. */

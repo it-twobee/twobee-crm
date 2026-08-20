@@ -7,7 +7,8 @@ import { buildSchedule, type RevenueStream, type ScheduleSpec } from '@/lib/reve
 import {
   realignLines, moveInstallmentLine, syncInstallmentAmount, dropInstallmentLines,
 } from '@/lib/pl-realign'
-import { shiftMonth } from '@/lib/pl'
+import { shiftMonth, monthLabel } from '@/lib/pl'
+import { canValidate, canUnvalidate, type StreamState } from '@/lib/stream-validation'
 
 const PL_PATH = '/economics'
 
@@ -62,6 +63,16 @@ export async function addStream(input: StreamInput, ctx: RevCtx) {
 
 export async function updateStream(id: string, patch: Partial<StreamInput>, ctx: RevCtx) {
   await requireAdmin()
+
+  /* §306 — **la barriera sta qui, non nella select.** Lo stato di un accordo si
+     cambiava da una tendina senza nessun controllo: si poteva riportare in bozza
+     un contratto con rate già incassate — e da lì il canone sparisce
+     dall'economics mentre i soldi restano in cassa senza niente che li spieghi —
+     o attivare una manutenzione il cui progetto è ancora in corso, scavalcando
+     `activateStream` che quel controllo lo faceva. Una regola che vive in un
+     percorso e non nell'altro non è una regola. */
+  if (patch.status) await guardStatus(id, patch.status)
+
   // staccare un contratto da un progetto non deve lasciarlo senza cliente
   const extra = patch.project_id === null && !patch.client_id && ctx.clientId
     ? { client_id: ctx.clientId }
@@ -79,6 +90,64 @@ export async function updateStream(id: string, patch: Partial<StreamInput>, ctx:
 
   rev(ctx)
   return { realigned }
+}
+
+/**
+ * §306 — Il cambio di stato passa dalla stessa regola dei due gesti dedicati.
+ *
+ * Solo le due transizioni che possono fare danno sono controllate: verso
+ * `attivo` (un accordo senza importo, o una manutenzione il cui lavoro è in
+ * corso) e verso `bozza` (un accordo che ha già prodotto). `sospeso` e
+ * `concluso` non toccano quello che è già stato scritto — chiudono il futuro,
+ * non riscrivono il passato.
+ */
+async function guardStatus(id: string, next: StreamState) {
+  const admin = createAdminClient()
+  const { data: s } = await admin.from('revenue_streams')
+    .select('status, amount, activates_after_id').eq('id', id).maybeSingle()
+  if (!s) return
+  const cur = String(s.status) as StreamState
+  if (cur === next) return
+
+  if (next === 'attivo') {
+    let parent: { label: string; status: StreamState } | null = null
+    if (s.activates_after_id) {
+      const { data: p } = await admin.from('revenue_streams')
+        .select('status, label').eq('id', s.activates_after_id).maybeSingle()
+      if (p) parent = { label: String(p.label), status: String(p.status) as StreamState }
+    }
+    /* Da `sospeso` ad `attivo` è una ripresa, non una validazione: la regola
+       vale sul passaggio dalla bozza, dove l'accordo non è ancora venduto. */
+    if (cur === 'bozza') {
+      const v = canValidate({ status: cur, amount: Number(s.amount ?? 0), parent })
+      if (!v.can) throw new Error(`${v.why}. ${v.how}`)
+    }
+    return
+  }
+
+  if (next === 'bozza') {
+    const { data: inst } = await admin.from('revenue_installments').select('id').eq('stream_id', id)
+    const ids = ((inst ?? []) as { id: string }[]).map(x => x.id)
+    let materialized = 0, paid = 0, closedMonth: string | null = null
+    if (ids.length) {
+      const { data: lines } = await admin.from('pl_revenue_lines')
+        .select('paid, month_id').in('installment_id', ids)
+      const rows = (lines ?? []) as { paid: boolean; month_id: string }[]
+      materialized = rows.length
+      paid = rows.filter(r => r.paid).length
+      if (rows.length) {
+        const { data: months } = await admin.from('pl_months')
+          .select('month, status').in('id', Array.from(new Set(rows.map(r => r.month_id))))
+        const chiuso = ((months ?? []) as { month: string; status: string }[])
+          .filter(m => m.status === 'chiuso').map(m => m.month).sort()[0]
+        closedMonth = chiuso ? monthLabel(chiuso.slice(0, 10)).toLowerCase() : null
+      }
+    }
+    const v = canUnvalidate({
+      status: cur, amount: Number(s.amount ?? 0), materialized, paid, closedMonth,
+    })
+    if (!v.can) throw new Error(`${v.why}. ${v.how}`)
+  }
 }
 
 export async function deleteStream(id: string, ctx: RevCtx) {
@@ -184,8 +253,16 @@ export async function deleteInstallment(id: string, ctx: RevCtx) {
 }
 
 /**
- * Porta in 'attivo' una manutenzione la cui lavorazione è conclusa.
- * Il controllo sta qui e non nel database: attivare un canone è una decisione
+ * §306 — Valida un accordo: da 'bozza' ad 'attivo'.
+ *
+ * Ogni contratto nasce in bozza, e la bozza **non entra mai** — non fa canone,
+ * non genera righe nel mese, non conta nel valore venduto del lavoro (§186). È
+ * la regola giusta, ma finché questo gesto esisteva solo per le manutenzioni in
+ * attesa del loro progetto, un accordo scritto normalmente restava invisibile a
+ * tutto l'economics **per sempre**: l'importo nella scheda, il conto economico
+ * che non ne sapeva niente, e nessuno dei due che diceva perché.
+ *
+ * Il controllo sta qui e non nel database: validare un accordo è una decisione
  * commerciale, non un effetto collaterale della chiusura di un progetto.
  */
 export async function activateStream(id: string, ctx: RevCtx) {
@@ -193,22 +270,78 @@ export async function activateStream(id: string, ctx: RevCtx) {
   const admin = createAdminClient()
 
   const { data: s, error } = await admin.from('revenue_streams')
-    .select('activates_after_id, status').eq('id', id).single()
+    .select('activates_after_id, status, amount').eq('id', id).single()
   if (error) throw new Error(error.message)
-  if (s.status !== 'bozza') throw new Error('Questo contratto non è in bozza')
 
+  let parent: { label: string; status: StreamState } | null = null
   if (s.activates_after_id) {
-    const { data: parent } = await admin.from('revenue_streams')
+    const { data: p } = await admin.from('revenue_streams')
       .select('status, label').eq('id', s.activates_after_id).single()
-    if (parent && parent.status !== 'concluso') {
-      throw new Error(`«${parent.label}» non è ancora concluso: la manutenzione parte da lì`)
-    }
+    if (p) parent = { label: String(p.label), status: String(p.status) as StreamState }
   }
+
+  const v = canValidate({
+    status: String(s.status) as StreamState, amount: Number(s.amount ?? 0), parent,
+  })
+  if (!v.can) throw new Error(`${v.why}. ${v.how}`)
 
   const { error: eUp } = await admin.from('revenue_streams')
     .update({ status: 'attivo', updated_at: new Date().toISOString() }).eq('id', id)
   if (eUp) throw new Error(eUp.message)
   rev(ctx)
+}
+
+/**
+ * §306 — Riporta un accordo in bozza.
+ *
+ * Serve quando un accordo è stato validato per sbaglio, o quando il cliente si
+ * tira indietro prima di pagare. Non serve — e non si può — per riscrivere la
+ * storia: una rata **incassata** ha dei soldi dietro, e un mese **chiuso** ha
+ * già distribuito i compensi calcolati su quel ricavo.
+ *
+ * Le rate già materializzate nel mese non bloccano, ma restano dove sono: chi
+ * riporta in bozza le trova ancora lì, e va detto prima — o il mese continua a
+ * fatturare un contratto che non è più venduto.
+ */
+export async function unvalidateStream(id: string, ctx: RevCtx): Promise<{ warn?: string }> {
+  await requireAdmin()
+  const admin = createAdminClient()
+
+  const { data: s, error } = await admin.from('revenue_streams')
+    .select('status, amount').eq('id', id).single()
+  if (error) throw new Error(error.message)
+
+  /* Quanto ha già prodotto: le righe di ricavo che portano una sua rata, e in
+     quali mesi stanno. È la sola cosa che decide se si può tornare indietro. */
+  const { data: inst } = await admin.from('revenue_installments').select('id').eq('stream_id', id)
+  const ids = ((inst ?? []) as { id: string }[]).map(x => x.id)
+  let materialized = 0, paid = 0, closedMonth: string | null = null
+  if (ids.length) {
+    const { data: lines } = await admin.from('pl_revenue_lines')
+      .select('paid, month_id').in('installment_id', ids)
+    const rows = (lines ?? []) as { paid: boolean; month_id: string }[]
+    materialized = rows.length
+    paid = rows.filter(r => r.paid).length
+    if (rows.length) {
+      const { data: months } = await admin.from('pl_months')
+        .select('month, status').in('id', Array.from(new Set(rows.map(r => r.month_id))))
+      const chiuso = ((months ?? []) as { month: string; status: string }[])
+        .filter(m => m.status === 'chiuso').map(m => m.month).sort()[0]
+      closedMonth = chiuso ? monthLabel(chiuso.slice(0, 10)).toLowerCase() : null
+    }
+  }
+
+  const v = canUnvalidate({
+    status: String(s.status) as StreamState, amount: Number(s.amount ?? 0),
+    materialized, paid, closedMonth,
+  })
+  if (!v.can) throw new Error(`${v.why}. ${v.how}`)
+
+  const { error: eUp } = await admin.from('revenue_streams')
+    .update({ status: 'bozza', updated_at: new Date().toISOString() }).eq('id', id)
+  if (eUp) throw new Error(eUp.message)
+  rev(ctx)
+  return v.warn ? { warn: v.warn } : {}
 }
 
 /** Prezzo di listino di un servizio: alimenta il default in fase di quotazione. */

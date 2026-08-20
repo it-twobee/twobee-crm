@@ -22,16 +22,27 @@ import {
 import { plannedForMonth, isPayrollCenter, type CostItem } from '@/lib/costs'
 import { vatByQuarter, type MonthVat, type VatActual } from '@/lib/vat'
 import { planMonth, type PlanMonth } from '@/lib/cash-plan'
+import { buildWindow, takenIn, marginCostsFor } from '@/lib/payout-window'
+import { rowContext, toRevenueLines, toCostLines } from '@/lib/pl-rows'
 
 export type ProspettoData = {
   setupNeeded: boolean
   months: { month: string; status: string }[]
+  /**
+   * §286 — mese → data in cui si eroga quello che vi è maturato. È il limite
+   * della finestra da cui dipende quanto si distribuisce, e apre quella del mese
+   * dopo: senza, un incasso in ritardo o si perde o si conta due volte.
+   */
+  payoutDates: Record<string, string>
   revenue: (RevenueLine & { month: string })[]
   costs: (CostLine & { month: string })[]
   txs: { booked_on: string; amount: number; source: string; kind: string }[]
   payouts: {
+    /** il mese in cui matura: esce in quello dopo (§224, §291) */
     month: string; partners: number; sales: number
     paidPartners: number; paidSales: number; paidOut: number
+    /** §291 — chi prende cosa, dal piano compensi */
+    people: { who: string; kind: 'socio' | 'commerciale'; amount: number; paid: number }[]
   }[]
   opening: number
   bankReady: boolean
@@ -67,7 +78,10 @@ export async function loadProspetto(
     { data: streamRows }, { data: coverRows }, { data: instRows }, { data: itemRows },
     { data: vatActualRows }, { data: allocRows },
   ] = await Promise.all([
-    supabase.from('pl_months').select('id, month, status').order('month'),
+    /* `select('*')`: `payout_date` arriva con la 212 e prima non c'è. Chiederla
+       per nome farebbe fallire l'intero caricamento per una colonna che è un di
+       più — il prospetto si legge lo stesso, con la data di default. */
+    supabase.from('pl_months').select('*').order('month'),
     supabase.from('pl_revenue_lines').select('*'),
     supabase.from('pl_cost_lines').select('*'),
     supabase.from('bank_accounts').select('id, opening_balance, is_active'),
@@ -99,7 +113,7 @@ export async function loadProspetto(
   const setupNeeded = setupErr?.code === '42P01' || setupErr?.code === 'PGRST205'
   if (setupNeeded) {
     return {
-      setupNeeded: true, months: [], revenue: [], costs: [], txs: [], payouts: [],
+      setupNeeded: true, months: [], payoutDates: {}, revenue: [], costs: [], txs: [], payouts: [],
       opening: 0, bankReady: false, collection: [], first: month, plan: [],
       vatHeld: 0, vatLabel: '', vatDeadline: null, bank: null, horizon: [month],
       config: rowToPlConfig({}), partners: [], status: null,
@@ -144,52 +158,19 @@ export async function loadProspetto(
     if (id) inBank.add(String(id))
   }
 
-  const streamById = new Map((streamRows ?? []).map((s: Record<string, unknown>) => [String(s.id), s]))
-  const projectsOfStream = (id: string | null): string[] => {
-    const st = id ? streamById.get(id) : null
-    return st ? coveredProjects(st as unknown as RevenueStream, coverage) : []
-  }
-  const soldValue = (ids: string[], fallback: string | null): number | null => {
-    const from = ids.length ? ids : fallback ? [fallback] : []
-    if (!from.length) return null
-    const total = from.reduce((s2, p) => s2 + (projectValue.get(p) ?? 0), 0)
-    return total > 0 ? total : null
-  }
-
-  const revenue = (revRows ?? []).map((r: Record<string, unknown>) => ({
-    id: String(r.id), label: String(r.label), client_id: (r.client_id as string) ?? null,
-    plan_amount: num(r.plan_amount), invoices: num(r.invoices), amount_net: num(r.amount_net),
-    vat_rate: num(r.vat_rate), invoice_sent: r.invoice_sent === true, paid: r.paid === true,
-    kind: r.kind === 'digital' ? 'digital' : 'growth',
-    sales_owner_id: (r.sales_owner_id as string) ?? null,
-    sales_owner: (r.sales_owner as string) ?? null,
-    project_id: (r.project_id as string) ?? null,
-    // §207: i progetti dell'accordo, non solo quello scritto sulla riga
-    project_ids: projectsOfStream((r.stream_id as string) ?? null),
-    stream_id: (r.stream_id as string) ?? null,
-    // §186: il valore venduto decide se l'opzione fondo rischio c'è
-    project_value: soldValue(projectsOfStream((r.stream_id as string) ?? null),
-      (r.project_id as string) ?? null),
-    pass_through: r.pass_through === true, risk_fund: r.risk_fund === true,
-    paid_on: (r.paid_on as string) ?? null, due_date: (r.due_date as string) ?? null,
-    terms: (r.terms as string) ?? null,
-    month: monthOfId.get(String(r.month_id)) ?? month,
-  })) as (RevenueLine & { month: string })[]
-
-  const costs = (costRows ?? []).map((c: Record<string, unknown>) => ({
-    id: String(c.id), center_id: (c.center_id as string) ?? null,
-    cost_item_id: (c.cost_item_id as string) ?? null,
-    project_id: (c.project_id as string) ?? null,
-    partner_id: (c.partner_id as string) ?? null,
-    deductible_pct: c.deductible_pct == null ? 1 : num(c.deductible_pct),
-    category: String(c.category ?? ''), label: String(c.label),
-    cost_type: c.cost_type === 'V' ? 'V' : 'F',
-    budget: num(c.budget), actual: num(c.actual), paid: c.paid === true,
-    vat_applied: c.vat_applied === true, vat_rate: num(c.vat_rate),
-    paid_on: (c.paid_on as string) ?? null, due_date: (c.due_date as string) ?? null,
-    terms: (c.terms as string) ?? null,
-    month: monthOfId.get(String(c.month_id)) ?? month,
-  })) as (CostLine & { month: string })[]
+  /* §287 — un posto solo per costruire le righe del motore. Qui mancava
+     `installment_id`, e il report per il consiglio diceva un centesimo diverso
+     dalla pagina: poco, ma sono due cifre con lo stesso nome davanti agli
+     stessi tre soci. */
+  const rowCtx = rowContext({
+    month,
+    months: (monthRows ?? []) as { id: unknown; month: unknown }[],
+    clients: (clientRows ?? []) as Record<string, unknown>[],
+    streams: (streamRows ?? []) as Record<string, unknown>[],
+    streamProjects: (coverRows ?? []) as { stream_id: string; project_id: string }[],
+  })
+  const revenue = toRevenueLines(revRows as Record<string, unknown>[], rowCtx)
+  const costs = toCostLines(costRows as Record<string, unknown>[], rowCtx)
 
   /* §189 — l'apertura conta tutti i conti, i movimenti solo quelli `banca`: il
      motore li filtra da sé, qui si passano tutti perché la pagina dichiara
@@ -215,9 +196,9 @@ export async function loadProspetto(
     [String(c.id), (c.sales_owner_name as string) ?? null]))
   const nameOfClient = new Map((clientRows ?? []).map((c: Record<string, unknown>) =>
     [String(c.id), String(c.display_name || c.company_name || '')]))
-  const withOwner = revenue.map(l => ({
-    ...l, client_sales_owner: l.client_id ? ownerOfClient.get(l.client_id) ?? null : null,
-  }))
+  /* §287 — il commerciale dell'anagrafica lo mette già `toRevenueLine`: era la
+     terza copia di quella lettura, e le altre due se la dimenticavano. */
+  const withOwner = revenue
   const maturato = new Map((monthRows ?? []).map((m: { month: string }) => {
     const mm = m.month.slice(0, 10)
     const t = computeMonth(
@@ -227,6 +208,18 @@ export async function loadProspetto(
       sales: t.salesByOwner.map(x => ({ who: x.label, amount: x.amount })),
     }]
   }))
+
+  /* §244 — la riga si ritrova **per nome**, non per chiave: `mergePeople` fonde
+     socio e commerciale in una persona sola e le dà la chiave del socio, mentre
+     `materializePayouts` scrive la provvigione con quella del commerciale. Due
+     spazi di chiavi diversi, e la spunta compariva solo su chi è commerciale e
+     basta. Il nome ce l'hanno tutte e due ed è quello che si legge a schermo. */
+  const paidOfPerson = (rows: Record<string, unknown>[], who: string, kind: 'socio' | 'commerciale', mm: string) =>
+    r2(rows
+      .filter(x => x.paid === true && x.kind === kind
+        && String(x.person_label ?? '').trim().toLowerCase() === who.trim().toLowerCase()
+        && String(x.paid_on ?? '').slice(0, 7) === mm.slice(0, 7))
+      .reduce((s2: number, x) => s2 + num(x.amount), 0))
 
   const payouts = (monthRows ?? []).map((m: { month: string }) => {
     const mm = m.month.slice(0, 10)
@@ -251,6 +244,21 @@ export async function loadProspetto(
           && String(x.kind) === 'finanziamento' && num(x.amount) < 0
           && String(x.booked_on).slice(0, 7) === mm.slice(0, 7))
         .reduce((s: number, x: Record<string, unknown>) => s + num(x.amount), 0)),
+      /* §291 — chi prende cosa. Le persone escono dal piano compensi, non le
+         ricalcola la pagina: `perPartner` e `salesByOwner` sono la sorgente
+         canonica, e un secondo calcolo darebbe due numeri con lo stesso nome.
+         `paid` guarda la spunta di `pl_payouts`, che è l'unico numero che un
+         bonifico può confermare. */
+      people: [
+        ...mat.partners.map(x => ({
+          who: x.who, kind: 'socio' as const, amount: r2(x.amount),
+          paid: paidOfPerson(payoutRows ?? [], x.who, 'socio', mm),
+        })),
+        ...mat.sales.map(x => ({
+          who: x.who, kind: 'commerciale' as const, amount: r2(x.amount),
+          paid: paidOfPerson(payoutRows ?? [], x.who, 'commerciale', mm),
+        })),
+      ],
     }
   })
 
@@ -367,6 +375,36 @@ export async function loadProspetto(
       }
     })()
 
+  /* §286 — quello che si **eroga** non è quello che matura: è quello che è
+     maturato in quel mese ed è rientrato entro il giorno dell'erogazione. La
+     cassa deve aspettarsi il secondo, o il modello promette un bonifico che
+     non si farà — e lo promette proprio nei mesi in cui i clienti sono in
+     ritardo, cioè quando sbagliarlo costa di più.
+     Per un mese **mai aperto** non ci sono spunte da guardare e non c'è un
+     incasso da verificare: lì l'unica stima possibile resta il maturato, e il
+     ripiego è il calcolo di prima. */
+  const payoutDateOf = (mm: string) => {
+    const row = (monthRows ?? []).find((m: Record<string, unknown>) =>
+      String(m.month).slice(0, 10) === mm)
+    return row?.payout_date ? String(row.payout_date).slice(0, 10) : null
+  }
+  const erogabileOf = (mm: string) => {
+    if (!maturato.has(mm)) return maturatoOf(mm)
+    const w = buildWindow({
+      month: mm, date: payoutDateOf(mm), previousDate: payoutDateOf(shiftMonth(mm, -1)),
+      day: config.payout_day, settledFrom: config.settled_from,
+    })
+    const presi = takenIn(withOwner, w)
+    const mesi = new Set(presi.map((l: { month: string }) => l.month))
+    const mc = marginCostsFor(costs, mesi, mm)
+    const t = computeMonth(presi, mc, config, partners, mc,
+      withOwner.filter(l => mesi.has(l.month)))
+    return {
+      partners: t.perPartner.map(x => ({ who: x.partner.label, amount: x.total })),
+      sales: t.salesByOwner.map(x => ({ who: x.label, amount: x.amount })),
+    }
+  }
+
   const plan: PlanMonth[] = chainMonths.map(mm => {
     const open = openMonths.has(mm)
     /* Un mese aperto si legge dalle righe, uno mai aperto dal contratto e dal
@@ -394,7 +432,7 @@ export async function loadProspetto(
        quelle righe verrebbero create: matura in un mese, esce in quello dopo. */
     const materializzati = (payoutRows ?? []).filter((x: Record<string, unknown>) =>
       String(x.due_month ?? '').slice(0, 10) === mm && x.paid !== true)
-    const prev = maturatoOf(shiftMonth(mm, -1))
+    const prev = erogabileOf(shiftMonth(mm, -1))
     const compensi = materializzati.length
       ? materializzati.map((x: Record<string, unknown>) => ({
           key: String(x.id), who: String(x.person_label ?? ''),
@@ -448,6 +486,10 @@ export async function loadProspetto(
     setupNeeded: false,
     months: (monthRows ?? []).map((m: { month: string; status: string }) =>
       ({ month: m.month.slice(0, 10), status: m.status })),
+    payoutDates: Object.fromEntries((monthRows ?? [])
+      .filter((m: Record<string, unknown>) => !!m.payout_date)
+      .map((m: Record<string, unknown>) =>
+        [String(m.month).slice(0, 10), String(m.payout_date).slice(0, 10)])),
     /* §272 — le righe escono **col commerciale dell'anagrafica attaccato**.
        `ownerOf` legge prima la riga e poi il cliente (§185); senza quel campo
        ogni riga risulta inbound e la provvigione si divide fra i soci — nel

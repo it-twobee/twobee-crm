@@ -185,8 +185,19 @@ export function currentQuarterVat(months: MonthVat[], today: string, actuals: Va
   return vatByQuarter(months, today, actuals).find(x => x.quarter.year === q.year && x.quarter.q === q.q) ?? null
 }
 
-/** La prossima scadenza che non è ancora passata, con quanto si porta dietro. */
+/**
+ * Un trimestre che deve ancora uscire dal conto.
+ *
+ * §289 — «non ancora scaduto» non basta: il 20 agosto la liquidazione del 2º
+ * trimestre è stata **versata**, e finché `paidOn` non veniva guardato la tenuta
+ * di cassa continuava a toglierla dal saldo — che quel bonifico l'ha già ridotto.
+ * Il conto perdeva 9.669 € due volte, e li perdeva proprio nel giorno in cui il
+ * verdetto serve.
+ */
+export const vatPending = (q: QuarterVat) => !q.closed && !q.paidOn
+
+/** La prossima scadenza ancora da versare, con quanto si porta dietro. */
 export function nextDue(months: MonthVat[], today: string, actuals: VatActual[] = []): QuarterVat | null {
-  const all = vatByQuarter(months, today, actuals)
-  return all.find(x => !x.closed && x.toPay > 0) ?? all.find(x => !x.closed) ?? null
+  const aperti = vatByQuarter(months, today, actuals).filter(vatPending)
+  return aperti.find(x => x.toPay > 0) ?? aperti[0] ?? null
 }

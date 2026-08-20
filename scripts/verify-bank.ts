@@ -20,8 +20,13 @@
 import { readFileSync } from 'fs'
 import { balance, byKind, unreconciled, type BankTx, type TxKind } from '@/lib/bank'
 import { cashBridge } from '@/lib/cash-bridge'
-import { certify, certSummary, type CertLine, type CertTx } from '@/lib/cash-certify'
-import { computeMonth, rowToPlConfig, type RevenueLine, type CostLine, type Partner } from '@/lib/pl'
+import {
+  certify, certSummary, payoutLedger, payoutsFromBank, mergePeople,
+  type CertLine, type CertTx,
+} from '@/lib/cash-certify'
+import { computeMonth, rowToPlConfig, shiftMonth, type Partner } from '@/lib/pl'
+import { rowContext, toRevenueLines, toCostLines } from '@/lib/pl-rows'
+import { buildWindow, takenIn, marginCostsFor } from '@/lib/payout-window'
 import { eur2 } from '@/lib/money'
 
 const env = Object.fromEntries(
@@ -47,23 +52,13 @@ async function main() {
     get<Record<string, unknown>[]>('pl_config?select=*&limit=1'),
     get<Record<string, unknown>[]>('pl_partners?select=*'),
   ])
-  const [revRows, costRows, clientRows, streamRows] = await Promise.all([
+  const [revRows, costRows, clientRows, streamRows, coverRows] = await Promise.all([
     get<Record<string, unknown>[]>('pl_revenue_lines?select=*'),
     get<Record<string, unknown>[]>('pl_cost_lines?select=*'),
-    get<Record<string, unknown>[]>('clients?select=id,sales_owner_name'),
-    get<Record<string, unknown>[]>('revenue_streams?select=project_id,amount,status'),
+    get<Record<string, unknown>[]>('clients?select=id,sales_owner_id,sales_owner_name'),
+    get<Record<string, unknown>[]>('revenue_streams?select=id,project_id,amount,status'),
+    get<{ stream_id: string; project_id: string }[]>('revenue_stream_projects?select=stream_id,project_id'),
   ])
-  /* Due campi che la riga non porta e il motore usa: il commerciale
-     dell'anagrafica (§185) e il valore venduto del progetto, che decide il fondo
-     rischio digital sopra i 20.000 € (§186). Senza, le quote — e quindi il
-     ponte — verrebbero diverse da quelle della pagina. */
-  const ownerOfClient = new Map(clientRows.map(c => [String(c.id), (c.sales_owner_name as string) ?? null]))
-  const projectValue = new Map<string, number>()
-  for (const st of streamRows) {
-    if (!st.project_id || st.status === 'bozza') continue
-    const k = String(st.project_id)
-    projectValue.set(k, (projectValue.get(k) ?? 0) + num(st.amount))
-  }
 
   const txs: BankTx[] = txRows.map(t => ({
     id: String(t.id), account_id: String(t.account_id),
@@ -107,18 +102,21 @@ async function main() {
   const cfg = rowToPlConfig(config[0] ?? {})
   const plPartners = partners.map(p => ({ id: String(p.id), label: String(p.label),
     takes_delivery: !!p.takes_delivery, takes_residual: !!p.takes_residual })) as Partner[]
-  const mOf = new Map(months.map(m => [m.id, m.month.slice(0, 10)]))
-  const asRev = (r: Record<string, unknown>): RevenueLine & { month: string } => ({
-    ...(r as unknown as RevenueLine), month: mOf.get(String(r.month_id)) ?? '',
-    amount_net: num(r.amount_net), vat_rate: num(r.vat_rate), paid: r.paid === true,
-    client_sales_owner: ownerOfClient.get(String(r.client_id)) ?? null,
-    project_value: projectValue.get(String(r.project_id ?? '')) ?? null })
-  const asCost = (c: Record<string, unknown>): CostLine & { month: string } => ({
-    ...(c as unknown as CostLine), month: mOf.get(String(c.month_id)) ?? '',
-    budget: num(c.budget), actual: num(c.actual), paid: c.paid === true })
-  const allRev = revRows.map(asRev)
-  const allCost = costRows.map(asCost)
+  /* §287 — le righe da un posto solo: il ponte deve leggere lo stesso margine
+     digital della pagina che deve verificare, o conferma i suoi stessi errori. */
+  const rowCtx = rowContext({
+    month: months[0]?.month?.slice(0, 10) ?? '',
+    months: months as unknown as { id: unknown; month: unknown }[],
+    clients: clientRows, streams: streamRows, streamProjects: coverRows,
+  })
+  const allRev = toRevenueLines(revRows, rowCtx)
+  const allCost = toCostLines(costRows, rowCtx)
 
+  const payoutDateOf = (mk: string) => {
+    const row = months.find(x => x.month.slice(0, 10) === mk)
+    const d = (row as unknown as { payout_date?: string | null } | undefined)?.payout_date
+    return d ? String(d).slice(0, 10) : null
+  }
   const bridgeMonths = months.map(m => {
     const mm = m.month.slice(0, 10)
     const rev = allRev.filter(l => l.month === mm)
@@ -140,8 +138,68 @@ async function main() {
     }
   })
   const opening = accounts.reduce((s, a) => s + num(a.opening_balance), 0)
+  const certTxs: CertTx[] = txs.map(t => ({
+    id: t.id, booked_on: t.booked_on, amount: t.amount, source: t.source, kind: t.kind,
+    counterparty: t.counterparty, description: t.description,
+    revenue_line_id: t.revenue_line_id, cost_line_id: t.cost_line_id }))
+  /* §286 — quanto è **erogabile adesso**: le finestre già aperte, al netto dei
+     bonifici usciti. La regola sta in `payoutLedger` (conosce il consolidato e
+     chi non ha mai preso un euro): il ponte la mostra, non la ricalcola. */
+  /* §305 — quanto di ogni movimento è compenso, secondo il registro. Senza la
+     214 la query fallisce e resta vuota: si torna alla categoria, com'era. */
+  const [payoutAllocRows, payoutRows] = await Promise.all([
+    get<{ tx_id: string; payout_id: string; amount: number }[]>(
+      'payment_allocations?select=tx_id,payout_id,amount&payout_id=not.is.null').catch(() => []),
+    get<{ id: string; person_label: string }[]>('pl_payouts?select=id,person_label').catch(() => []),
+  ])
+  const payoutAlloc = new Map<string, { who: string; amount: number }[]>()
+  {
+    const labelOf = new Map(payoutRows.map(r => [String(r.id), String(r.person_label ?? '')]))
+    for (const a of payoutAllocRows) {
+      const who = labelOf.get(String(a.payout_id))
+      if (!who) continue
+      const k = String(a.tx_id)
+      payoutAlloc.set(k, [...(payoutAlloc.get(k) ?? []), { who, amount: num(a.amount) }])
+    }
+  }
+
+  const people = mergePeople(
+    plPartners.map(p => ({ id: p.id, label: p.label })),
+    Array.from(new Set(clientRows.map(c => String(c.sales_owner_name ?? '')).filter(Boolean))))
+  const accruals: { key: string; month: string; amount: number }[] = []
+  for (const m of months) {
+    const mk = m.month.slice(0, 10)
+    const w = buildWindow({
+      month: mk, date: payoutDateOf(mk), previousDate: payoutDateOf(shiftMonth(mk, -1)),
+      day: cfg.payout_day, settledFrom: cfg.settled_from,
+    })
+    const presi = takenIn(allRev, w)
+    const mesi = new Set(presi.map(l => l.month))
+    const mc = marginCostsFor(allCost, mesi, mk)
+    const tw = computeMonth(presi, mc, cfg, plPartners, mc,
+      allRev.filter(l => mesi.has(l.month)))
+    for (const pp of tw.perPartner) {
+      const k = people.find(x => x.partnerId === pp.partner.id)?.key
+      if (k) accruals.push({ key: k, month: mk, amount: pp.total })
+    }
+    for (const o of tw.salesByOwner) {
+      const k = people.find(x => x.label === o.label)?.key
+      if (k) accruals.push({ key: k, month: mk, amount: o.amount })
+    }
+  }
+  const ledger = payoutLedger({
+    people: people.map(p => ({ key: p.key, label: p.label })),
+    accruals,
+    /* §305 — quanto di ogni bonifico è compenso lo dice il registro (§297), non
+       la categoria del movimento. Uno script che non ci passa verifica sé stesso. */
+    facts: payoutsFromBank(certTxs, people, undefined, undefined, payoutAlloc), from: cfg.settled_from,
+  })
+  const payableNow = Math.round(
+    ledger.reduce((n, p) => n + Math.max(0, p.open), 0) * 100) / 100
+
   const bridge = cashBridge(bridgeMonths, txs.map(t => ({
-    booked_on: t.booked_on, amount: t.amount, kind: t.kind, source: t.source })), opening)
+    booked_on: t.booked_on, amount: t.amount, kind: t.kind, source: t.source })),
+    opening, { payableNow })
 
   line('═')
   console.log('2 · IL PONTE (§199) — ogni euro di differenza deve avere un nome')
@@ -155,16 +213,23 @@ async function main() {
     console.log('  Non è un arrotondamento: è un movimento che nessuna riga giustifica,')
     console.log('  o una spunta «pagato» su qualcosa che dal conto non è uscito.')
   }
+
+  /* §286 — il debito verso soci e commerciali letto in due tempi. La posta del
+     ponte è il maturato, perché l'identità la vuole così; quanto se ne eroga
+     adesso lo decide la finestra, e senza dirlo qui restano due numeri con lo
+     stesso nome in due schermate diverse. */
+  const po = bridge.payouts
+  if (po.owed > 0.5) {
+    console.log(`\n  compensi: dovuti ${eur2(po.owed)} · erogabili adesso ${eur2(po.payableNow)}`
+      + ` · quando i clienti pagano ${eur2(po.later)}`)
+    console.log('  (la posta del ponte è il dovuto: è quello che «Cassa TwoBee» ha già tolto)')
+  }
   console.log('\n  mese      competenza      costi     cassa in    cassa out    cum. piano   cum. cassa')
   bridge.rows.forEach(r => console.log(`  ${r.month.slice(0, 7)}  ${eur2(r.accrued).padStart(12)}`
     + ` ${eur2(r.costs).padStart(11)} ${eur2(r.cashIn).padStart(12)} ${eur2(r.cashOut).padStart(12)}`
     + ` ${eur2(r.cumPlan).padStart(13)} ${eur2(r.cumCash).padStart(12)}`))
 
   // ── 3 · quanto delle spunte lo dimostra la banca ──────────────────────────
-  const certTxs: CertTx[] = txs.map(t => ({
-    id: t.id, booked_on: t.booked_on, amount: t.amount, source: t.source, kind: t.kind,
-    counterparty: t.counterparty, description: t.description,
-    revenue_line_id: t.revenue_line_id, cost_line_id: t.cost_line_id }))
   const certLines: CertLine[] = [
     ...allRev.map(l => ({ id: l.id, side: 'entrata' as const, month: l.month, label: l.label,
       net: l.amount_net, vatRate: l.vat_rate, paid: l.paid, paid_on: l.paid_on ?? null })),

@@ -11,10 +11,12 @@ import type { MonthVat } from '@/lib/vat'
 import { forecast } from '@/lib/forecast'
 import { endOfMonth, dueOf, fromRevenue, fromCost, collectionIndex } from '@/lib/cash-calendar'
 import { cashRunway, type RunwayLine } from '@/lib/cash-runway'
-import { vatByQuarter, type VatActual } from '@/lib/vat'
+import { vatByQuarter, nextDue, vatPending, type VatActual } from '@/lib/vat'
 import { isPayrollCenter } from '@/lib/costs'
 import { eur2 } from '@/lib/money'
 import { usedByTx } from '@/lib/tx-links'
+import { buildWindow, takenIn, marginCostsFor } from '@/lib/payout-window'
+import { rowContext, toRevenueLine, toCostLine } from '@/lib/pl-rows'
 
 const monthOfIso = (iso: string) => `${iso.slice(0, 7)}-01`
 import {
@@ -51,6 +53,7 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
     { data: profiles }, { data: activeClients }, { data: centers },
     { data: fcStreams }, { data: fcItems }, { data: allProjects }, { data: streamProjects },
     { data: bankAccounts, error: bankErr }, { data: bankTx }, { data: payoutRows },
+    { data: payoutAllocRows },
   ] = await Promise.all([
     supabase.from('pl_months').select('*').order('month', { ascending: false }),
     supabase.from('pl_config').select('*').eq('id', true).maybeSingle(),
@@ -85,7 +88,25 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
     /* §243 — i compensi come righe spuntabili. Senza la 207 la query fallisce e
        la sezione mostra il piano come prima, senza spunte. */
     supabase.from('pl_payouts').select('*'),
+    /* §305 — quanto di ogni movimento è compenso, secondo il registro (§297).
+       Senza la 214 la query fallisce e si torna alla categoria del movimento. */
+    supabase.from('payment_allocations').select('tx_id, payout_id, amount').not('payout_id', 'is', null),
   ])
+
+  /* §305 — le allocazioni sui compensi, per movimento: è quello che il registro
+     sa e la categoria del movimento no. Senza la 214 resta vuota e si torna al
+     comportamento di prima. */
+  const payoutAlloc = new Map<string, { who: string; amount: number }[]>()
+  {
+    const labelOf = new Map(((payoutRows ?? []) as Record<string, unknown>[])
+      .map(r => [String(r.id), String(r.person_label ?? '')]))
+    for (const a of (payoutAllocRows ?? []) as { tx_id: string; payout_id: string; amount: number }[]) {
+      const who = labelOf.get(String(a.payout_id))
+      if (!who) continue
+      const k = String(a.tx_id)
+      payoutAlloc.set(k, [...(payoutAlloc.get(k) ?? []), { who, amount: Number(a.amount ?? 0) }])
+    }
+  }
 
   type MonthRow = { id: string; month: string; status: string }
   const monthsAll = (allMonths ?? []) as unknown as MonthRow[]
@@ -165,36 +186,12 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
   }
 
   // nomi dei progetti a cui le righe sono agganciate: la tabella li mostra
-  /* §186 — valore venduto di ciascun progetto: la somma dei suoi contratti non in
-     bozza. Decide se l'opzione del fondo rischio digital è disponibile, e si
-     guarda il progetto e non la rata — un lavoro da 24.000 € pagato in sei rate
-     da 4.000 resta un lavoro da 24.000. */
-  const projectValue = new Map<string, number>()
-  for (const st of (fcStreams ?? []) as { project_id: string | null; amount: unknown; status: string }[]) {
-    if (!st.project_id || st.status === 'bozza') continue
-    projectValue.set(st.project_id, num(projectValue.get(st.project_id)) + num(st.amount))
-  }
-  /* §207 — quanto vale il lavoro che una riga paga. Con un accordo su più
-     progetti la soglia del fondo rischio guarda l'insieme: è quello che è stato
-     venduto, e prenderne uno dei tre lo farebbe sembrare un lavoro piccolo. */
-  const soldValue = (ids: string[], fallback: string | null): number | null => {
-    const from = ids.length ? ids : fallback ? [fallback] : []
-    if (!from.length) return null
-    const total = from.reduce((s, p) => s + (projectValue.get(p) ?? 0), 0)
-    return total > 0 ? total : null
-  }
-
   /* §188 — i progetti coperti da ciascun accordo. La riga del mese ne porta uno
      solo quando ce n'è uno solo; con tre non ne porta nessuno, ma il margine
      digital deve togliere i subappalti di tutti e tre. */
   const coverage: Coverage = new Map()
   for (const r of (streamProjects ?? []) as { stream_id: string; project_id: string }[]) {
     coverage.set(r.stream_id, [...(coverage.get(r.stream_id) ?? []), r.project_id])
-  }
-  const streamById = new Map((fcStreams ?? []).map((s: Record<string, unknown>) => [String(s.id), s]))
-  const projectsOfStream = (id: string | null): string[] => {
-    const s = id ? streamById.get(id) : null
-    return s ? coveredProjects(s as unknown as RevenueStream, coverage) : []
   }
 
   const projectNames = Object.fromEntries(
@@ -205,29 +202,10 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
   const clientOfProject = Object.fromEntries(
     (allProjects ?? []).filter((p: { client_id: string | null }) => !!p.client_id)
       .map((p: { id: string; client_id: string }) => [p.id, p.client_id]))
-  // le sorgenti dei subappalti: la voce di piano che sta sul progetto
-  const subItems = (fcItems ?? [])
-    .filter((i: Record<string, unknown>) => !!i.project_id)
-    .map((i: Record<string, unknown>) => ({
-      id: String(i.id), label: String(i.label),
-      supplier: (i.supplier as string) ?? null,
-      amount: num(i.amount), frequency: String(i.frequency),
-      is_active: i.is_active !== false,
-      project_id: (i.project_id as string) ?? null,
-      start_month: (i.start_month as string) ?? null,
-      end_month: (i.end_month as string) ?? null,
-    }))
-
   // la riga di contratto si chiama col servizio: senza questo il cliente sparirebbe
   /* §185 — il commerciale che ciascun cliente ha in anagrafica. Le righe del mese
      ne portano una copia (la fotografia di quando sono nate); questa mappa serve
      a chi non l'ha, così il nome si legge invece di un trattino. */
-  const clientOwner = new Map((activeClients ?? []).map((c: Record<string, unknown>) =>
-    [String(c.id), {
-      id: (c.sales_owner_id as string) ?? null,
-      name: (c.sales_owner_name as string) ?? null,
-    }]))
-
   const clientNames = Object.fromEntries((activeClients ?? [])
     .map((c: { id: string; company_name: string; display_name: string | null }) =>
       [c.id, c.display_name || c.company_name]))
@@ -237,50 +215,21 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
      (§224) — e ogni copia si dimenticava un campo diverso: senza `project_ids`
      i subappalti non uscivano dal margine, senza `pass_through` le partite di
      giro entravano nelle quote. Stesse righe, risposte diverse. */
-  const asRev = (r: Record<string, unknown>, monthIso: string): RevenueLine => ({
-    id: String(r.id), label: String(r.label), client_id: (r.client_id as string) ?? null,
-    plan_amount: num(r.plan_amount), invoices: num(r.invoices), amount_net: num(r.amount_net),
-    vat_rate: num(r.vat_rate), invoice_sent: !!r.invoice_sent, paid: !!r.paid,
-    kind: (r.kind === 'digital' ? 'digital' : 'growth'),
-    sales_owner_id: (r.sales_owner_id as string) ?? null,
-    sales_owner: (r.sales_owner as string) ?? null,
-    client_sales_owner_id: clientOwner.get(String(r.client_id ?? ''))?.id ?? null,
-    client_sales_owner: clientOwner.get(String(r.client_id ?? ''))?.name ?? null,
-    origin: (r.origin as 'contratto' | 'anagrafica' | 'manuale') ?? 'manuale',
-    project_id: (r.project_id as string) ?? null,
-    // §207: i progetti dell'accordo, non solo quello scritto sulla riga
-    project_ids: projectsOfStream((r.stream_id as string) ?? null),
-    stream_id: (r.stream_id as string) ?? null,
-    // §186: il valore venduto del progetto decide se l'opzione fondo rischio c'è
-    project_value: soldValue(projectsOfStream((r.stream_id as string) ?? null), r.project_id as string | null),
-    risk_fund: r.risk_fund === true,
-    pass_through: r.pass_through === true,
-    // §224: competenza e movimento. Senza la 203 restano undefined e il motore
-    // legge come prima, invece di spostare numeri su una data che non esiste.
-    month: monthIso,
-    paid_on: (r.paid_on as string) ?? null,
-    due_date: (r.due_date as string) ?? null,
-    terms: (r.terms as string) ?? null,
+  /* §287 — le righe del motore si costruiscono in **un posto solo**
+     (`lib/pl-rows.ts`). Erano dieci copie con dieci sottoinsiemi diversi dei
+     campi, e ogni campo dimenticato dà un numero **plausibile e sbagliato** —
+     che è la sola categoria di errore che nessuno va a controllare. */
+  const rowCtx = rowContext({
+    month,
+    months: monthsAll as unknown as { id: unknown; month: unknown }[],
+    clients: (activeClients ?? []) as Record<string, unknown>[],
+    streams: (fcStreams ?? []) as Record<string, unknown>[],
+    streamProjects: (streamProjects ?? []) as { stream_id: string; project_id: string }[],
   })
-
-  const asCost = (c: Record<string, unknown>, monthIso: string): CostLine => ({
-    id: String(c.id), category: String(c.category), label: String(c.label),
-    center_id: (c.center_id as string) ?? null,
-    // se c'è la voce di piano, il preventivato lo scrive il piano e non questa pagina
-    cost_item_id: (c.cost_item_id as string) ?? null,
-    // §186: il subappalto esce dal margine digital prima della spartizione
-    project_id: (c.project_id as string) ?? null,
-    // §191: spesa di un socio col suo sottoconto — erogato, non struttura
-    partner_id: (c.partner_id as string) ?? null,
-    deductible_pct: c.deductible_pct == null ? 1 : num(c.deductible_pct),
-    cost_type: (c.cost_type === 'V' ? 'V' : 'F'),
-    budget: num(c.budget), actual: num(c.actual), paid: !!c.paid,
-    vat_applied: !!c.vat_applied, vat_rate: num(c.vat_rate),
-    month: monthIso,
-    paid_on: (c.paid_on as string) ?? null,
-    due_date: (c.due_date as string) ?? null,
-    terms: (c.terms as string) ?? null,
-  })
+  const asRev = (r: Record<string, unknown>, monthIso: string): RevenueLine =>
+    toRevenueLine(r, { ...rowCtx, month: monthIso })
+  const asCost = (c: Record<string, unknown>, monthIso: string): CostLine =>
+    toCostLine(c, { ...rowCtx, month: monthIso })
 
   /* §224 — quali righe di altri mesi entrano in questa pagina: le scoperte (che
      si trascinano, e vanno viste dove si spunta) e quelle il cui movimento cade
@@ -417,11 +366,26 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
     ...(aroundCost ?? []).map((c: Record<string, unknown>) => asCost(c, monthById.get(String(c.month_id)) ?? month))]
   const accruals: { key: string; month: string; amount: number }[] = []
   const monthsOfLines = Array.from(new Set([...allRev, ...allCost].map(l => l.month ?? month)))
+  const payoutDateOfMonth = (mk: string) =>
+    (monthsAll.find(m => m.month === mk) as { payout_date?: string | null } | undefined)?.payout_date ?? null
   for (const mk of monthsOfLines) {
-    const t = computeMonth(
-      allRev.filter(l => (l.month ?? month) === mk),
-      allCost.filter(c => (c.month ?? month) === mk),
-      config, plPartners)
+    /* §286 — quello che si **deve erogare** non è quello che matura: è quello
+       che è maturato in quel mese ed è rientrato entro il giorno della sua
+       erogazione. Il registro e la tenuta di cassa devono dire lo stesso numero
+       della sezione Compensi, o il conto economico contiene due cifre con lo
+       stesso nome — e nella tenuta di cassa la più alta è anche la più
+       sbagliata: toglie compensi che si erogheranno solo quando arriverà
+       l'incasso che li finanzia, senza contare quell'incasso. */
+    const w = buildWindow({
+      month: mk, date: payoutDateOfMonth(mk),
+      previousDate: payoutDateOfMonth(shiftMonth(mk, -1)),
+      day: config.payout_day, settledFrom: config.settled_from,
+    })
+    const presi = takenIn(allRev.map(l => ({ ...l, month: l.month ?? month })), w)
+    const mesi = new Set(presi.map(l => l.month))
+    const mc = marginCostsFor(allCost.map(c => ({ ...c, month: c.month ?? month })), mesi, mk)
+    const t = computeMonth(presi, mc, config, plPartners, mc,
+      allRev.filter(l => mesi.has(l.month ?? month)))
     for (const p of t.perPartner) {
       const k = people.find(x => x.partnerId === p.partner.id)?.key
       if (k) accruals.push({ key: k, month: mk, amount: p.total })
@@ -436,7 +400,11 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
   const payouts = payoutLedger({
     people: people.map(p => ({ key: p.key, label: p.label })),
     accruals,
-    facts: payoutsFromBank(certTxs, people),
+    /* §305 — quanto di ogni bonifico è compenso lo dice il **registro**, non la
+       categoria: `classify` etichetta diversamente i bonifici ai soci di giugno
+       e quelli del 13 agosto, e filtrare per categoria dava «erogato 0» a chi
+       aveva ricevuto 3.412 €. */
+    facts: payoutsFromBank(certTxs, people, undefined, undefined, payoutAlloc),
     from: payoutOrigin,
   })
   /* Quello che resta da erogare, collocato sul mese in cui è atteso: il compenso
@@ -458,12 +426,12 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
     paidOn: r.paid_on ? String(r.paid_on).slice(0, 10) : null,
   }))
   const quarters = vatByQuarter(vatMonths, todayIso, vatActuals)
-  const vatNow = quarters.find(q => !q.closed && q.toPay > 0) ?? quarters.find(q => !q.closed) ?? null
+  const vatNow = nextDue(vatMonths, todayIso, vatActuals)
   const runway = cashRunway({
     month, today: todayIso, balance: bankBalance,
     open: runwayLines,
     planned: fcRows.map(f => ({ month: f.month, cashIn: f.cashIn, cashOut: f.cashOut, open: f.open })),
-    dues: quarters.filter(q => !q.closed && q.toPay > 0)
+    dues: quarters.filter(vatPending).filter(q => q.toPay > 0)
       .map(q => ({ date: q.deadline, amount: q.toPay, label: q.label })),
     vatHeld: vatNow?.toPay ?? 0,
     vatDeadline: vatNow?.deadline ?? null,
@@ -511,23 +479,6 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
     }
     return Array.from(m.values()).sort((a, b) => b.amount - a.amount) as T[]
   }
-  type Slice = { label: string; amount: number; count: number }
-  const bankMonth = bankReady ? {
-    total: r2(outTx.reduce((s: number, t: Record<string, unknown>) => s + Math.abs(num(t.amount)), 0)),
-    count: outTx.length,
-    byAccount: groupBy<Slice>(outTx, t => accLabel.get(String(t.account_id)) ?? 'Conto'),
-    byKind: groupBy<Slice>(outTx, t => String(t.kind ?? 'altro')),
-    /* Quello che il conto economico dice uscito in questo mese, al lordo: è il
-       numero con cui si confronta, perché dal conto passa il totale della
-       fattura e non l'imponibile. */
-    matched: r2(outTx.filter((t: Record<string, unknown>) => t.cost_line_id).length),
-    unmatched: r2(outTx.filter((t: Record<string, unknown>) => !t.cost_line_id)
-      .reduce((s: number, t: Record<string, unknown>) => s + Math.abs(num(t.amount)), 0)),
-    sheet: r2((costs ?? [])
-      .map((c: Record<string, unknown>) => asCost(c, month))
-      .filter(c => c.paid)
-      .reduce((s, c) => s + c.actual * (c.vat_applied ? 1 + c.vat_rate : 1), 0)),
-  } : null
 
   /* §246 — la riconciliazione riga per riga, dentro il conto economico.
      Fin qui si faceva solo in Banca, partendo dal **movimento**: giusto quando
@@ -830,8 +781,12 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
       clientNames={clientNames}
       clientOfProject={clientOfProject}
       drift={drift}
-      subItems={subItems}
-      forecast={fcRows}
+      /* §286 — la data dell'erogazione di questo mese e quella del mese prima:
+         la prima chiude la finestra degli incassi che entrano nei compensi, la
+         seconda la apre. Assenti prima della 212: si cade sul giorno di
+         default e la pagina lo dichiara. */
+      payoutDate={(monthsAll.find(m => m.month === month) as { payout_date?: string | null } | undefined)?.payout_date ?? null}
+      prevPayoutDate={(monthsAll.find(m => m.month === shiftMonth(month, -1)) as { payout_date?: string | null } | undefined)?.payout_date ?? null}
       runway={runway}
       bankReady={bankReady}
       certs={certs}
@@ -839,7 +794,6 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
       vatMonths={vatMonths}
       vatActuals={vatActuals}
       today={todayIso}
-      bankMonth={bankMonth}
       linkedTx={linkedTx}
       matchOptions={matchOptions}
       invoiceOptions={invoiceOptions}
@@ -856,10 +810,25 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
       /* §247 — quali righe hanno un documento sotto. Una spesa pagata senza
          fattura non è un dettaglio contabile: è IVA che non si detrae e un
          costo che in verifica non si difende. */
-      withInvoice={Object.fromEntries([
-        ...(revenue ?? []).map((r: Record<string, unknown>) => [String(r.id), !!r.invoice_id]),
-        ...(costs ?? []).map((c: Record<string, unknown>) => [String(c.id), !!c.invoice_id]),
-      ])}
+      /* §302 — **quale** documento sta sotto ogni riga, non solo se c'è.
+         Serve a mostrarlo dove si lavora: la fattura si collegava solo dentro il
+         dialogo del pagamento, quindi su una riga già pagata non c'era strada.
+         Comprende anche le righe **trascinate** da altri mesi (§294): senza la
+         loro voce in mappa una riga con la fattura sotto risulterebbe
+         cancellabile proprio dove la si guarda per toglierla. */
+      invoiceOf={Object.fromEntries([
+        ...(revenue ?? []), ...(costs ?? []), ...(aroundRev ?? []), ...(aroundCost ?? []),
+      ]
+        .filter((r: Record<string, unknown>) => !!r.invoice_id)
+        .map((r: Record<string, unknown>) => {
+          const inv = (invRows ?? []).find((i: Record<string, unknown>) => String(i.id) === String(r.invoice_id))
+          return [String(r.id), inv ? {
+            id: String(inv.id), number: String(inv.number),
+            date: String(inv.issued_on).slice(0, 10),
+            total: r2(num(inv.sign) * num(inv.total)),
+            who: String(inv.counterparty_name ?? ''),
+          } : { id: String(r.invoice_id), number: '—', date: '', total: 0, who: '' }]
+        }))}
       payoutLines={(payoutRows ?? [])
         .filter((r: Record<string, unknown>) => String(r.month_id) === (monthRow?.id ?? ''))
         .map((r: Record<string, unknown>) => ({

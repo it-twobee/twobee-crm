@@ -9,7 +9,8 @@
  */
 import { readFileSync } from 'fs'
 import { computeMonth, rowToPlConfig, type RevenueLine, type CostLine, type Partner } from '@/lib/pl'
-import { contractDrift, coveredProjects, DRIFT_LABEL } from '@/lib/revenue'
+import { contractDrift, DRIFT_LABEL } from '@/lib/revenue'
+import { rowContext, toRevenueLines, toCostLines } from '@/lib/pl-rows'
 
 const env = Object.fromEntries(
   readFileSync(`${process.cwd()}/.env.local`, 'utf8').split('\n')
@@ -57,51 +58,20 @@ async function main() {
   const owner = new Map(clients.map(c => [c.id, c]))
   const num = (v: unknown) => Number(v ?? 0)
 
-  // il valore venduto del progetto: decide l'opzione fondo rischio (§186)
-  const projectValue = new Map<string, number>()
-  for (const s of streams) {
-    if (!s.project_id || s.status === 'bozza') continue
-    projectValue.set(s.project_id, (projectValue.get(s.project_id) ?? 0) + num(s.amount))
-  }
-
-  const streamById = new Map(streams.map(s => [s.id, s]))
   const coverage = new Map<string, string[]>()
   for (const b of bridge) coverage.set(b.stream_id, [...(coverage.get(b.stream_id) ?? []), b.project_id])
-  const projectsOf = (streamId: string | null): string[] => {
-    const s = streamId ? streamById.get(streamId) : null
-    return s ? coveredProjects(s as never, coverage) : []
-  }
-  const soldValue = (ids: string[], fallback: string | null) => {
-    const from = ids.length ? ids : fallback ? [fallback] : []
-    const total = from.reduce((n, p) => n + (projectValue.get(p) ?? 0), 0)
-    return total > 0 ? total : null
-  }
 
-  const revenue: RevenueLine[] = revRows.map(r => ({
-    id: String(r.id), label: String(r.label), client_id: (r.client_id as string) ?? null,
-    plan_amount: num(r.plan_amount), invoices: num(r.invoices), amount_net: num(r.amount_net),
-    vat_rate: num(r.vat_rate), invoice_sent: !!r.invoice_sent, paid: !!r.paid,
-    kind: r.kind === 'digital' ? 'digital' : 'growth',
-    sales_owner_id: (r.sales_owner_id as string) ?? null,
-    sales_owner: (r.sales_owner as string) ?? null,
-    client_sales_owner_id: owner.get(String(r.client_id))?.sales_owner_id ?? null,
-    client_sales_owner: owner.get(String(r.client_id))?.sales_owner_name ?? null,
-    project_id: (r.project_id as string) ?? null,
-    project_ids: projectsOf((r.stream_id as string) ?? null),
-    stream_id: (r.stream_id as string) ?? null,
-    project_value: soldValue(projectsOf((r.stream_id as string) ?? null), (r.project_id as string) ?? null),
-    risk_fund: r.risk_fund === true,
-    pass_through: r.pass_through === true,
-  }))
-
-  const costs: CostLine[] = costRows.map(c => ({
-    id: String(c.id), center_id: (c.center_id as string) ?? null,
-    project_id: (c.project_id as string) ?? null,
-    category: String(c.category), label: String(c.label),
-    cost_type: c.cost_type === 'V' ? 'V' : 'F',
-    budget: num(c.budget), actual: num(c.actual), paid: !!c.paid,
-    vat_applied: !!c.vat_applied, vat_rate: num(c.vat_rate),
-  }))
+  /* §287 — le righe si costruiscono in un posto solo: questo controllo deve
+     vedere **esattamente** quello che vede la pagina, o conferma l'errore
+     invece di trovarlo. */
+  const ctx = rowContext({
+    month, months: months as unknown as { id: unknown; month: unknown }[],
+    clients: clients as unknown as Record<string, unknown>[],
+    streams: streams as unknown as Record<string, unknown>[],
+    streamProjects: bridge,
+  })
+  const revenue = toRevenueLines(revRows, ctx)
+  const costs = toCostLines(costRows, ctx)
 
   const partners: Partner[] = partnerRows.map(p => ({
     id: String(p.id), label: String(p.label),

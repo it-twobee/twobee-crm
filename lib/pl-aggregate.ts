@@ -32,7 +32,7 @@
 
 import { monthOf, statusOf, type CashLine, type CashCtx } from '@/lib/cash-calendar'
 import { isPayrollCenter } from '@/lib/costs'
-import type { RevenueLine, CostLine } from '@/lib/pl'
+import { shiftMonth, type RevenueLine, type CostLine } from '@/lib/pl'
 
 const r2 = (n: number) => Math.round(n * 100) / 100
 const sum = (xs: number[]) => r2(xs.reduce((a, b) => a + b, 0))
@@ -162,6 +162,7 @@ export type ProspettoInput = {
    * la lettura scelta decide quale si guarda.
    */
   payouts?: {
+    /** il mese in cui il compenso **matura**: esce in quello dopo (§224) */
     month: string
     /** maturato, dal piano compensi */
     partners: number; sales: number
@@ -169,6 +170,13 @@ export type ProspettoInput = {
     paidPartners?: number; paidSales?: number
     /** ripiego senza righe materializzate: i bonifici `finanziamento` del mese */
     paidOut: number
+    /**
+     * §291 — chi prende cosa. Il totale non basta: un P&L che dice «compensi
+     * 12.325 €» non risponde alla domanda che ci si fa guardandolo, che è
+     * «quanto a Marco». Le persone arrivano dal piano compensi (`perPartner` e
+     * `salesByOwner`), non ricalcolate qui: la UI non rifà le percentuali.
+     */
+    people?: { who: string; kind: 'socio' | 'commerciale'; amount: number; paid?: number }[]
   }[]
 }
 
@@ -261,11 +269,31 @@ export function prospetto(i: ProspettoInput): Prospetto {
   })))
 
   // ── §240 · i compensi ─────────────────────────────────────────────────────
+  /**
+   * §291 — **il compenso pesa sul mese in cui esce**, non su quello in cui matura.
+   *
+   * Le quote di luglio si erogano ad agosto (§224, come il costo del lavoro), e
+   * finché il prospetto le metteva a luglio la colonna di agosto mostrava un
+   * «resta alla società» che nessun bonifico avrebbe mai confermato: il mese
+   * pagava dodicimila euro che il suo P&L non conteneva. In cassa il problema non
+   * c'era — `paidPartners` guarda già la spunta, che cade nel mese
+   * dell'erogazione — quindi lo spostamento riguarda la sola competenza, ed è
+   * proprio quello che allinea le due letture invece di separarle.
+   *
+   * Il prezzo è dichiarato e non si nasconde: la riga porta scritto **da quale
+   * mese** arriva la maturazione, perché un P&L che sottrae quote di un altro
+   * mese senza dirlo è il modo più veloce per non fidarsi del totale.
+   */
   const payIn = new Map((i.payouts ?? []).map(x => [monthOf(x.month), x]))
-  type PayIn = { partners: number; sales: number; paidPartners?: number; paidSales?: number; paidOut: number }
-  const payCells = (pick: (x: PayIn) => number) =>
+  type PayIn = {
+    partners: number; sales: number; paidPartners?: number; paidSales?: number; paidOut: number
+    people?: { who: string; kind: 'socio' | 'commerciale'; amount: number; paid?: number }[]
+  }
+  /** quello che matura nel mese prima: è quello che questo mese eroga */
+  const accruedFor = (m: string): PayIn | undefined => payIn.get(shiftMonth(m, -1))
+  const payCells = (pick: (x: PayIn) => number, from: (m: string) => PayIn | undefined) =>
     months.map(m => {
-      const x = payIn.get(m)
+      const x = from(m)
       const v = x ? r2(pick(x)) : 0
       return { month: m, value: v, count: v !== 0 ? 1 : 0 }
     })
@@ -274,27 +302,65 @@ export function prospetto(i: ProspettoInput): Prospetto {
      Senza righe materializzate resta il ripiego di prima — il totale dei
      movimenti `finanziamento`, che non si può spaccare in due. */
   const hasLines = (i.payouts ?? []).some(x => x.paidPartners != null || x.paidSales != null)
-  const payouts: MacroRow[] = i.basis === 'competenza'
+
+  /* §291 — una riga per persona, non un totale. «Compensi 12.325 €» non risponde
+     alla domanda che uno si fa guardando il P&L, che è «quanto a Marco»; e i
+     soci devono restare leggibili singolarmente anche quando uno di loro è pure
+     commerciale — sono due lavori diversi, e il tool li sa distinguere mentre il
+     bonifico no (§226). L'ordine è per importo: chi prende di più si legge prima. */
+  const peopleRows = (kind: 'socio' | 'commerciale', pick: (p: NonNullable<PayIn['people']>[number]) => number,
+    from: (m: string) => PayIn | undefined): MacroRow[] => {
+    const nomi = Array.from(new Set(months.flatMap(m =>
+      (from(m)?.people ?? []).filter(p => p.kind === kind).map(p => p.who))))
+    return nomi
+      .map(who => rowOf(`${kind}:${who}`, who, 'uscita',
+        months.map(m => {
+          const p = (from(m)?.people ?? []).find(x => x.kind === kind && x.who === who)
+          const v = p ? r2(pick(p)) : 0
+          return { month: m, value: v, count: v !== 0 ? 1 : 0 }
+        }),
+        kind === 'socio' ? 'Quota di socio: growth erogato più margine digital'
+          : 'Provvigione sul lavoro che ha portato'))
+      .filter(r => r.total !== 0)
+      .sort((a, b) => b.total - a.total)
+  }
+
+  /* Le due righe di gruppo restano anche col dettaglio: senza, per sapere quanto
+     è andato ai soci bisogna sommare a mente tre righe ogni mese. Il **totale
+     dei compensi si fa su queste**, mai su tutte le righe: sommare anche le
+     persone lo conterebbe due volte, e sarebbe un margine sbagliato con lo
+     stesso nome di quello giusto. */
+  const gruppi: MacroRow[] = i.basis === 'competenza'
     ? [
-        rowOf('erogato', 'Erogato ai soci', 'uscita', payCells(x => x.partners),
-          'Maturato dal piano compensi: matura in questo mese ed esce nel prossimo'),
-        rowOf('provvigioni', 'Provvigioni commerciali', 'uscita', payCells(x => x.sales),
-          'Maturate sul lavoro consegnato, anche se il cliente non ha ancora pagato'),
+        rowOf('erogato', 'Totale ai soci', 'uscita', payCells(x => x.partners, accruedFor),
+          'Maturato nel mese precedente: le quote di luglio si erogano ad agosto'),
+        rowOf('provvigioni', 'Totale provvigioni', 'uscita', payCells(x => x.sales, accruedFor),
+          'Maturate nel mese precedente sul lavoro consegnato, anche se il cliente non ha ancora pagato'),
       ].filter(r => r.total !== 0)
     : hasLines
       ? [
-          rowOf('erogato', 'Erogato ai soci', 'uscita', payCells(x => x.paidPartners ?? 0),
-            'Spuntato pagato in questo mese: le retribuzioni di luglio si pagano ad agosto'),
-          rowOf('provvigioni', 'Provvigioni commerciali', 'uscita', payCells(x => x.paidSales ?? 0),
+          rowOf('erogato', 'Totale ai soci', 'uscita', payCells(x => x.paidPartners ?? 0, m => payIn.get(m)),
+            'Spuntato pagato in questo mese: le quote di luglio si pagano ad agosto'),
+          rowOf('provvigioni', 'Totale provvigioni', 'uscita', payCells(x => x.paidSales ?? 0, m => payIn.get(m)),
             'Spuntate pagate in questo mese'),
         ].filter(r => r.total !== 0)
       /* Senza righe la banca dice **quanto** è uscito, non per quale dei due
          lavori: a un socio che è anche commerciale si bonifica una volta sola. */
-      : [rowOf('erogato', 'Compensi erogati', 'uscita', payCells(x => x.paidOut),
+      : [rowOf('erogato', 'Compensi erogati', 'uscita', payCells(x => x.paidOut, m => payIn.get(m)),
           'Dai movimenti della banca: un bonifico non dice se paga la quota o la provvigione')]
         .filter(r => r.total !== 0)
 
-  const payTot = rowOf('tot-compensi', 'Totale compensi', 'calcolo', totalCells(payouts))
+  const dettaglio: MacroRow[] = i.basis === 'competenza'
+    ? [...peopleRows('socio', p => p.amount, accruedFor),
+       ...peopleRows('commerciale', p => p.amount, accruedFor)]
+    : hasLines
+      ? [...peopleRows('socio', p => p.paid ?? 0, m => payIn.get(m)),
+         ...peopleRows('commerciale', p => p.paid ?? 0, m => payIn.get(m))]
+      : []
+
+  const payouts: MacroRow[] = [...dettaglio, ...gruppi]
+
+  const payTot = rowOf('tot-compensi', 'Totale compensi', 'calcolo', totalCells(gruppi))
   const left = rowOf('resta', 'Resta alla società', 'calcolo', months.map((m, k) => ({
     month: m,
     value: r2(margin.cells[k].value - payTot.cells[k].value),

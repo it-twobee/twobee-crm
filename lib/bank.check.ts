@@ -6,6 +6,7 @@ import {
   allowanceView, suggestFunding,
   type BankTx, type PlLineRef, type Expected,
 } from '@/lib/bank'
+import { parseStatement, buildImportRows } from '@/lib/bank-import'
 
 let fail = 0
 const eq = (label: string, got: number, want: number, tol = 0.01) => {
@@ -459,6 +460,58 @@ console.log('\n— §252 · La stessa persona scritta in due modi —')
      vale per le persone note, non è una normalizzazione fuzzy. */
   is('un fornitore resta com\'è', by.get('Affinity')?.net, -2100)
   is('e la classifica non ha più due righe per Walter', rows.filter(r => /walter/i.test(r.name)).length, 1)
+}
+
+/* ── §288 · l'import è idempotente da qualunque porta ──────────────────────── */
+{
+  const csv = (righe: string[]) =>
+    ['"Data contabile";"Data valuta";"Importo";"Divisa";"Causale";"Descrizione";"Canale"', ...righe].join('\n')
+  const riga = (d: string, imp: string, desc: string) =>
+    `"${d}";"${d}";"${imp}";"EUR";"260";"${desc}";""`
+
+  const primo = parseStatement(csv([
+    riga('10/08/2026', '-1300,00', 'vostra disposizione - favore gabriele saraiello'),
+    riga('11/08/2026', '4270,00', 'bonif. vs. favore - bon.da industrial service'),
+  ])).rows
+  const a = buildImportRows('conto', primo, [])
+  is('due movimenti nuovi su un archivio vuoto', a.filter(r => !r.duplicate).length, 2)
+
+  /* Il caso vero: la settimana dopo si riscarica un periodo più largo, e i due
+     movimenti di prima non sono più in cima al file. Con l'impronta basata sulla
+     posizione rientravano tutti e due come nuovi. */
+  const secondo = parseStatement(csv([
+    riga('05/08/2026', '-45,13', 'ovhcloud'),
+    riga('08/08/2026', '-92,02', 'stazione di servizio'),
+    riga('10/08/2026', '-1300,00', 'vostra disposizione - favore gabriele saraiello'),
+    riga('11/08/2026', '4270,00', 'bonif. vs. favore - bon.da industrial service'),
+  ])).rows
+  const b = buildImportRows('conto', secondo, a.map(r => r.import_hash))
+  is('riscaricando un periodo più largo entrano solo i mancanti', b.filter(r => !r.duplicate).length, 2)
+  is('e i due già in archivio sono riconosciuti', b.filter(r => r.duplicate).length, 2)
+
+  /* Due bonifici identici lo stesso giorno esistono davvero: le due fatture di
+     Gabriele pagate il 15 maggio con due disposizioni distinte. */
+  const gemelli = parseStatement(csv([
+    riga('15/05/2026', '-1300,00', 'vostra disposizione - favore gabriele saraiello'),
+    riga('15/05/2026', '-1300,00', 'vostra disposizione - favore gabriele saraiello'),
+  ])).rows
+  const g = buildImportRows('conto', gemelli, [])
+  is('due movimenti identici nello stesso giorno entrano tutti e due', g.filter(r => !r.duplicate).length, 2)
+  is('con impronte diverse', new Set(g.map(r => r.import_hash)).size, 2)
+  is('e rilanciando lo stesso file non ne entra nessuno',
+    buildImportRows('conto', gemelli, g.map(r => r.import_hash)).filter(r => !r.duplicate).length, 0)
+
+  /* L'impronta è per conto: lo stesso movimento su due conti è due fatti. */
+  is('l\'archivio di un altro conto non blocca niente',
+    buildImportRows('altro', primo, a.map(r => r.import_hash)).filter(r => !r.duplicate).length, 2)
+
+  /* Dove la banca mette la controparte in chiaro (Vivid) decide `merchant`, ed è
+     il motivo per cui ventisei codici FACEBK diventano una riga sola. */
+  const vivid = parseStatement([
+    'Completed date,Counterparty name,Reference,Payment amount,Payment currency',
+    '01.08.2026,"FACEBK *HNX27VHF92, Dublin, IE","FACEBK *HNX27VHF92, Dublin, IE",-32.94,EUR',
+  ].join('\n')).rows
+  is('la controparte passa da merchant', buildImportRows('c', vivid, [])[0].counterparty, 'Meta Ads')
 }
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)

@@ -32,6 +32,13 @@ export type CostItem = {
   center_id: string | null
   /** §173: se c'è, è un subappalto — il costo appartiene a quel lavoro */
   project_id?: string | null
+  /**
+   * §285: la rata del cliente che questa tranche finanzia. Le tranche nascono
+   * dal piano di pagamento del contratto (`splitCostLikeClient`) e finora il
+   * legame restava nel nome; qui è un dato, e il margine digital lo usa per
+   * togliere il subappalto alla riga giusta invece che al progetto in blocco.
+   */
+  installment_id?: string | null
   category: string
   label: string
   cost_type: CostType

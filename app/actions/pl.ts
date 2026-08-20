@@ -6,6 +6,7 @@ import { requireEconomicsAdmin as requireAdmin } from '@/lib/economics-guard'
 import { kindFromClientType, shiftMonth, DEFAULT_VAT_RATE, type PlConfig } from '@/lib/pl'
 import { linesForMonth } from '@/lib/revenue'
 import { loadCoverage, realignLines } from '@/lib/pl-realign'
+import { canRemove } from '@/lib/line-removal'
 import { applyPlanToMonth } from '@/app/actions/costs'
 
 const PATH = '/economics'
@@ -520,6 +521,7 @@ export async function updateRevenueLine(id: string, patch: RevenuePatch) {
 
 export async function deleteRevenueLine(id: string) {
   await requireAdmin()
+  await guardRemoval('pl_revenue_lines', id, 'entrata')
   const { error } = await createAdminClient().from('pl_revenue_lines').delete().eq('id', id)
   if (error) throw new Error(error.message)
   revalidatePath(PATH)
@@ -558,21 +560,109 @@ export async function updateCostLine(id: string, patch: CostPatch) {
 
 export async function deleteCostLine(id: string) {
   await requireAdmin()
+  await guardRemoval('pl_cost_lines', id, 'uscita')
   const { error } = await createAdminClient().from('pl_cost_lines').delete().eq('id', id)
   if (error) throw new Error(error.message)
   revalidatePath(PATH)
 }
 
+/**
+ * §294 — la barriera vera sta qui, non nel pulsante.
+ *
+ * Un file `'use server'` **esporta endpoint**: chi ha il codice davanti ne
+ * conosce i nomi, e finora queste due cancellavano qualunque cosa — una riga
+ * pagata, una fatturata, dentro un mese chiuso. Il pulsante spento nella pagina
+ * serve a spiegare la regola; a farla rispettare serve questo.
+ */
+async function guardRemoval(
+  table: 'pl_revenue_lines' | 'pl_cost_lines',
+  id: string,
+  side: 'entrata' | 'uscita',
+) {
+  const admin = createAdminClient()
+  const { data: row, error } = await admin.from(table)
+    .select('month_id, paid, paid_on, invoice_id, installment_id'
+      + (side === 'entrata' ? ', invoice_sent' : ''))
+    .eq('id', id).single()
+  if (error) throw new Error(error.message)
+
+  const r = row as unknown as {
+    month_id: string; paid: boolean; paid_on: string | null
+    invoice_id: string | null; installment_id: string | null; invoice_sent?: boolean
+  }
+  const { data: m } = await admin.from('pl_months')
+    .select('status').eq('id', r.month_id).maybeSingle()
+
+  const check = canRemove({
+    side, paid: r.paid === true, paid_on: r.paid_on,
+    invoiced: !!r.invoice_id, invoice_sent: r.invoice_sent === true,
+    installment_id: r.installment_id,
+  }, (m as { status?: string } | null)?.status !== 'chiuso')
+
+  if (!check.can) throw new Error(`${check.why}. ${check.how}`)
+}
+
 // ── Mese e piano ─────────────────────────────────────────────────────────────
 
+/**
+ * Chiude o riapre un mese, e §290 trascina avanti quello che non è stato saldato.
+ *
+ * La riga **resta nel suo mese**: la fattura è stata emessa in quel mese, l'IVA
+ * di quel trimestre la contiene e i compensi sono già stati calcolati su quel
+ * ricavo. Cambiare mese a una riga vorrebbe dire riscrivere tre cose dichiarate
+ * fuori dal tool. Quello che la chiusura registra è **che l'ha trascinata**: da
+ * lì il mese aperto la mette in cima, dove la si spunta, e dice da quanto gira.
+ *
+ * Riaprire cancella il segno, perché riaprire vuol dire che quella chiusura non
+ * è più successa — e se il mese si richiude, si conta da capo.
+ */
 export async function setMonthStatus(month: string, status: 'aperto' | 'chiuso') {
   await requireAdmin()
   const monthId = await ensureMonth(month)
-  const { error } = await createAdminClient().from('pl_months')
+  const admin = createAdminClient()
+  const { error } = await admin.from('pl_months')
     .update({ status, closed_at: status === 'chiuso' ? new Date().toISOString() : null })
     .eq('id', monthId)
   if (error) throw new Error(error.message)
+  await markCarried(monthId, month, status)
   revalidatePath(PATH)
+  revalidatePath('/economics/prospetto')
+}
+
+/**
+ * Il segno che la chiusura lascia sulle righe scoperte (§290).
+ *
+ * Senza la 213 le colonne non ci sono e qui non succede niente: il mese si
+ * chiude come prima e il trascinamento resta quello dedotto da `openAt`. È la
+ * stessa degradazione della 203 — l'app non si rompe per una migration non
+ * ancora eseguita, e non finge di aver scritto qualcosa.
+ */
+async function markCarried(monthId: string, month: string, status: 'aperto' | 'chiuso') {
+  const admin = createAdminClient()
+  const oggi = new Date().toISOString().slice(0, 10)
+
+  for (const table of ['pl_revenue_lines', 'pl_cost_lines'] as const) {
+    if (status === 'aperto') {
+      await admin.from(table)
+        .update({ carried_at: null, carried_from: null, carry_count: 0 })
+        .eq('month_id', monthId)
+      continue
+    }
+    /* Solo le scoperte, e una alla volta: `carry_count` va incrementato sul
+       valore che ha, e un UPDATE massivo non sa leggerlo. Sono poche righe —
+       quelle che un mese lascia indietro — e il conto deve restare esatto,
+       perché è l'unica cosa che distingue un ritardo di ieri da uno di tre mesi. */
+    const { data } = await admin.from(table)
+      .select('id, carry_count, carried_from')
+      .eq('month_id', monthId).eq('paid', false)
+    for (const r of (data ?? []) as { id: string; carry_count: number | null; carried_from: string | null }[]) {
+      await admin.from(table).update({
+        carried_at: oggi,
+        carried_from: r.carried_from ?? month,
+        carry_count: (r.carry_count ?? 0) + 1,
+      }).eq('id', r.id)
+    }
+  }
 }
 
 /**

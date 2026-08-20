@@ -38,6 +38,8 @@ export type SubItem = {
   frequency: string
   is_active: boolean
   project_id: string | null
+  /** §285 — la rata del cliente che questa tranche finanzia, quando lo dichiara */
+  installment_id?: string | null
   start_month?: string | null
   end_month?: string | null
 }
@@ -50,6 +52,7 @@ export type SubLine = {
   paid: boolean
   project_id?: string | null
   cost_item_id?: string | null
+  installment_id?: string | null
   center_id?: string | null
   note?: string | null
 }
@@ -109,9 +112,15 @@ const monthsApart = (a: string, b: string) =>
  * quando la distanza dall'inizio è un multiplo del passo — non ogni mese, che è
  * l'errore che fa sembrare un canone annuale dodici volte più caro.
  */
-export function fallsIn(item: SubItem, month: string): boolean {
+export function fallsIn(item: SubItem, month: string, installmentMonth?: string | null): boolean {
   if (!item.is_active) return false
   const m = first(month)
+  /* §285 — quando la tranche dichiara la rata che finanzia, è quella a decidere
+     in che mese cade: il margine digital è il rapporto fra una rata e il suo
+     fornitore **nello stesso mese**, e una data scritta a mano che se ne
+     discosta sposta il costo dove il ricavo non c'è. `start_month` resta per
+     tutto il resto, che è la maggioranza delle voci di piano. */
+  if (installmentMonth && item.frequency === 'una_tantum') return first(installmentMonth) === m
   const start = item.start_month ? first(item.start_month) : null
   const end = item.end_month ? first(item.end_month) : null
   if (start && m < start) return false
@@ -140,7 +149,20 @@ export function subcontractViews(
     /** progetto → cliente: il subappalto è del progetto, il margine è del cliente */
     clientOf: Record<string, string>
   },
+  /**
+   * §285 — rata → mese in cui cade. Serve a collocare le tranche che dichiarano
+   * quale rata finanziano: senza, una datata a mano in un mese diverso da quello
+   * della sua rata esce dal margine di un mese che non ha il ricavo da nettare.
+   * Assente = ci si comporta come prima, guardando solo `start_month`.
+   */
+  installmentMonths?: Map<string, string> | Record<string, string>,
 ): SubcontractView[] {
+  const instMonth = (id: string | null | undefined): string | null => {
+    if (!id || !installmentMonths) return null
+    const v = installmentMonths instanceof Map
+      ? installmentMonths.get(id) : installmentMonths[id]
+    return v ? first(v) : null
+  }
   const own = items.filter(i => !!i.project_id)
   const byId = new Map(own.map(i => [i.id, i]))
   const out: SubcontractView[] = []
@@ -165,9 +187,16 @@ export function subcontractViews(
     const supplier = item?.supplier ?? (l.note?.trim() || null)
     /* Una una tantum ha un mese suo: se la riga sta altrove, due mesi pagano lo
        stesso acconto. I ricorrenti tornano, quindi per loro non c'è mese sbagliato. */
-    const wrongMonth = item && item.frequency === 'una_tantum' && item.start_month
-      && item.start_month.slice(0, 7) !== month.slice(0, 7)
-      ? item.start_month.slice(0, 7) : null
+    /* §285 — se la tranche dichiara la sua rata, il mese giusto è quello della
+       rata e non quello scritto sulla voce: è il caso del grafico di Fatima,
+       650 € datati agosto contro una rata di luglio, che toglieva il costo dal
+       margine di luglio e lo metteva dove non c'era niente da nettare. */
+    const legata = instMonth(l.installment_id ?? item?.installment_id)
+    const wrongMonth = legata
+      ? (legata.slice(0, 7) !== month.slice(0, 7) ? legata.slice(0, 7) : null)
+      : item && item.frequency === 'una_tantum' && item.start_month
+        && item.start_month.slice(0, 7) !== month.slice(0, 7)
+        ? item.start_month.slice(0, 7) : null
     out.push({
       itemId: item?.id ?? null, lineId: l.id,
       label: item?.label ?? l.label, supplier,
@@ -183,7 +212,7 @@ export function subcontractViews(
 
   // i patti che cadono in questo mese e non sono ancora atterrati
   for (const i of own) {
-    if (usati.has(i.id) || !fallsIn(i, month)) continue
+    if (usati.has(i.id) || !fallsIn(i, month, instMonth(i.installment_id))) continue
     out.push({
       itemId: i.id, lineId: null, label: i.label, supplier: i.supplier,
       projectId: i.project_id ?? null, ...nameOf(i.project_id ?? null),

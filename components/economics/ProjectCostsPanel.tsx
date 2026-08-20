@@ -222,10 +222,32 @@ export function ProjectCostsPanel({
                             Su misura
                           </button>
                         </div>
+                        {/* §306 — **cosa si perde scegliendo «su misura»**, detto
+                            dove si sceglie e non a valle. Una tranche ricalcata
+                            sulle rate del cliente dichiara *quale* rata finanzia
+                            (§285), e il margine digital la toglie da quella riga;
+                            una costruita a mano no, e l'attribuzione torna
+                            proporzionale sul progetto (§208). È il ripiego giusto
+                            quando non si sa niente di meglio — ma va saputo prima. */}
                         {plan === i.id && (
-                          <CustomPlan
-                            defaultMonth={(i.start_month ?? month).slice(0, 7)}
-                            onBuild={spec => { setPlan(null); run(() => splitCostCustom(i.id, projectId, spec), 'Piano generato') }} />
+                          <div className="space-y-2">
+                            {rateable.length > 0 && (
+                              <p className="flex items-start gap-1.5 text-2xs text-text-tertiary
+                                            rounded-lg border border-border bg-background px-2.5 py-2">
+                                <Info className="w-3 h-3 shrink-0 mt-0.5" aria-hidden="true" />
+                                <span>
+                                  Un piano su misura <strong className="text-text-secondary">non dichiara
+                                  quale rata del cliente finanzia</strong>: il margine del lavoro lo
+                                  toglierà in proporzione all&apos;imponibile del mese invece che dalla
+                                  riga precisa. Va bene quando il fornitore ha tempi suoi; se invece
+                                  segue il cliente, «come il cliente» dice al tool anche il legame.
+                                </span>
+                              </p>
+                            )}
+                            <CustomPlan
+                              defaultMonth={(i.start_month ?? month).slice(0, 7)}
+                              onBuild={spec => { setPlan(null); run(() => splitCostCustom(i.id, projectId, spec), 'Piano generato') }} />
+                          </div>
                         )}
                       </div>
                     )}

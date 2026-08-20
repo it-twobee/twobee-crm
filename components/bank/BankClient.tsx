@@ -1,6 +1,8 @@
 'use client'
 
 import { useMemo, useRef, useState, useTransition } from 'react'
+import { AllocateDialog } from '@/components/bank/AllocateDialog'
+import { allocate } from '@/app/actions/allocations'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
@@ -68,6 +70,7 @@ type PlMonth = {
 
 export function BankClient({
   month, today, setupNeeded, accounts, txs, openLines, expected, months, plByMonth, unproven,
+  payableNow = 0,
   clientNames, spendItems, centers = [],
 }: {
   month: string
@@ -86,6 +89,8 @@ export function BankClient({
   expected: Expected[]
   months: string[]
   plByMonth: PlMonth[]
+  /** §286 — quanto del dovuto ai soci è erogabile adesso: lo dice il registro */
+  payableNow?: number
   clientNames: Record<string, string>
   /** §255 — le aree di costo, per dire dove finisce una voce creata dal movimento */
   centers?: string[]
@@ -172,6 +177,8 @@ export function BankClient({
   }), [today, bal, ownTxs, fc, overdueIn, overdueOut])
 
   const open = useMemo(() => unreconciled(ownTxs), [ownTxs])
+  /** §297 — quale movimento si sta spartendo fra più righe */
+  const [splitting, setSplitting] = useState<string | null>(null)
   /* §276 — gli abbinamenti in cui non c'è niente da giudicare: importo lordo
      esatto, nome che torna, e nessuna ambiguità nei due sensi. Restano una
      conferma umana — una sola invece di venti. */
@@ -500,7 +507,7 @@ export function BankClient({
 
       {/* ══ §199 · dal conto economico al saldo, e il cumulato ══ */}
       {plByMonth.length > 0 && (
-        <CashBridgePanel plByMonth={plByMonth} txs={txs}
+        <CashBridgePanel plByMonth={plByMonth} txs={txs} payableNow={payableNow}
           opening={accounts.reduce((n, a) => n + a.opening_balance, 0)}
           balance={liq.total} />
       )}
@@ -594,6 +601,14 @@ export function BankClient({
                     <span className="text-2xs text-text-tertiary shrink-0">
                       {new Date(t.booked_on).toLocaleDateString('it-IT')}
                     </span>
+                    {/* §297 — la terza risposta, che prima non c'era: questo
+                        movimento paga **più** righe. Senza, un bonifico
+                        cumulativo aveva una sola uscita — «niente da abbinare» —
+                        e finiva fra i 6.029 € che il ponte non sa spiegare. */}
+                    <button onClick={() => setSplitting(t.id)} disabled={pending}
+                      className="text-2xs font-semibold text-gold-text hover:underline shrink-0">
+                      paga più righe
+                    </button>
                     <button onClick={() => run(() => markNoMatch(t.id), 'Segnato: niente da riconciliare')}
                       disabled={pending}
                       className="text-2xs font-semibold text-text-tertiary hover:text-text-secondary shrink-0">
@@ -605,9 +620,19 @@ export function BankClient({
                     <div className="mt-2 space-y-1">
                       {cands.slice(0, 3).map(c => (
                         <button key={c.line.id} disabled={pending}
-                          onClick={() => run(() => reconcile(t.id, c.line.direction === 'in'
-                            ? { revenueLineId: c.line.id } : { costLineId: c.line.id }),
-                            'Riconciliato: la riga risulta pagata')}
+                          onClick={() => start(async () => {
+                            try {
+                              const r = await reconcile(t.id, c.line.direction === 'in'
+                                ? { revenueLineId: c.line.id } : { costLineId: c.line.id })
+                              /* §296 — se l'estratto conto dice un altro numero,
+                                 l'effettivo è stato corretto: dirlo qui evita che
+                                 lo si scopra fra un mese guardando il margine. */
+                              toast.success(r.actual
+                                ? `Riconciliato · effettivo corretto da ${eur2(r.actual.was)} a ${eur2(r.actual.now)}`
+                                : 'Riconciliato: la riga risulta pagata')
+                              router.refresh()
+                            } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+                          })}
                           className="w-full flex items-center gap-2 text-left px-3 py-2 rounded-xl border border-border hover:border-gold hover:bg-gold-dim press disabled:opacity-40">
                           <span className={`text-2xs font-bold tabular shrink-0 w-10 ${
                             c.score >= 0.8 ? 'text-success' : c.score >= 0.5 ? 'text-warning' : 'text-text-tertiary'}`}>
@@ -933,6 +958,26 @@ export function BankClient({
         vale finché la banca non lo conferma, e quando lo confermi si spegne da sé. È il modo di non
         contare due volte lo stesso bonifico.
       </p>
+
+      {/* §297 — spartire un movimento fra più righe */}
+      {splitting && (() => {
+        const t = ownTxs.find(x => x.id === splitting)
+        if (!t) return null
+        return (
+          <AllocateDialog tx={t} lines={openLines} monthLabel={monthLabel} pending={pending}
+            onClose={() => setSplitting(null)}
+            onConfirm={drafts => start(async () => {
+              try {
+                const r = await allocate(t.id, drafts)
+                toast.success(r.leftover > 0.01
+                  ? `Allocate ${r.scritte} righe · restano ${eur2(r.leftover)} da spiegare`
+                  : `Allocate ${r.scritte} righe: il movimento è spiegato per intero`)
+                setSplitting(null)
+                router.refresh()
+              } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+            })} />
+        )
+      })()}
     </div>
   )
 }
@@ -1621,11 +1666,12 @@ function OffPlanSpend({ account, txs, month }: {
  * residuo diverso da zero non è un arrotondamento — è un movimento in banca che
  * nessuna riga giustifica, o una spunta «pagato» su qualcosa che non è uscito.
  */
-function CashBridgePanel({ plByMonth, txs, opening, balance }: {
+function CashBridgePanel({ plByMonth, txs, opening, balance, payableNow }: {
   plByMonth: PlMonth[]
   txs: BankTx[]
   opening: number
   balance: number
+  payableNow: number
 }) {
   const [open, setOpen] = useState(false)
 
@@ -1636,8 +1682,8 @@ function CashBridgePanel({ plByMonth, txs, opening, balance }: {
       distributed: m.distributed, companyPlan: m.company,
     })),
     txs.map(t => ({ booked_on: t.booked_on, amount: t.amount, kind: t.kind, source: t.source })),
-    opening,
-  ), [plByMonth, txs, opening])
+    opening, { payableNow },
+  ), [plByMonth, txs, opening, payableNow])
 
   const last = bridge.rows.at(-1)
   const quadra = Math.abs(bridge.residual) < 1
@@ -1717,6 +1763,18 @@ function CashBridgePanel({ plByMonth, txs, opening, balance }: {
                     </span>
                   </div>
                   <p className="text-2xs text-text-tertiary mt-0.5">{i.why}</p>
+                  {/* §286 — la stessa cifra letta in due tempi. La posta è il
+                      **dovuto**, perché è quello che «Cassa TwoBee» ha già
+                      tolto; quanto se ne eroga adesso lo decide la finestra, e
+                      senza scriverlo qui restano due numeri con lo stesso nome
+                      in due sezioni della stessa pagina. */}
+                  {i.label.startsWith('Compensi') && bridge.payouts.payableNow > 0.5 && (
+                    <p className="text-2xs text-text-secondary mt-1">
+                      Di questi, <strong className="tabular">{eur2(bridge.payouts.payableNow)}</strong> si
+                      possono erogare adesso; <span className="tabular">{eur2(bridge.payouts.later)}</span>{' '}
+                      quando i clienti pagano le fatture che li finanziano.
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>

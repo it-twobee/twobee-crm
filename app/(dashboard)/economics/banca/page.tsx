@@ -2,10 +2,13 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { BankClient } from '@/components/bank/BankClient'
-import { monthKey } from '@/lib/pl'
+import { monthKey, shiftMonth } from '@/lib/pl'
 import { rowToPlConfig, computeMonth, type RevenueLine, type CostLine, type Partner } from '@/lib/pl'
 import type { BankAccount, BankTx, PlLineRef, Expected } from '@/lib/bank'
 import { dueOf, collectionIndex } from '@/lib/cash-calendar'
+import { rowContext, toRevenueLines, toCostLines } from '@/lib/pl-rows'
+import { buildWindow, takenIn, marginCostsFor } from '@/lib/payout-window'
+import { payoutLedger, payoutsFromBank, mergePeople } from '@/lib/cash-certify'
 
 export const revalidate = 0
 
@@ -81,7 +84,7 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
 
   const monthIds = (plMonths ?? []).map((m: { id: string }) => m.id)
   const [{ data: revRows }, { data: costRows }, { data: streams }, { data: inst }, { data: items },
-    { data: allocRows }] =
+    { data: allocRows }, { data: streamProjects }] =
     monthIds.length
       ? await Promise.all([
           supabase.from('pl_revenue_lines').select('*').in('month_id', monthIds),
@@ -91,8 +94,12 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
           supabase.from('cost_items').select('*').eq('is_active', true),
           // §258 — le quote: un bonifico cumulativo dimostra più di una riga
           supabase.from('bank_tx_lines').select('tx_id, revenue_line_id, cost_line_id'),
+          /* §207 — quali progetti copre un accordo. Senza, il margine digital di
+             un contratto multi-progetto non toglie i subappalti degli altri
+             lavori, e il ponte confermerebbe un numero che la pagina non ha. */
+          supabase.from('revenue_stream_projects').select('stream_id, project_id'),
         ])
-      : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }]
+      : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }]
 
   const monthOf = new Map((plMonths ?? []).map((m: { id: string; month: string }) => [m.id, m.month]))
   const nameOf = new Map((clients ?? []).map((c: { id: string; company_name: string; display_name: string | null }) =>
@@ -216,39 +223,78 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
     id: String(p.id), label: String(p.label),
     takes_delivery: p.takes_delivery !== false, takes_residual: p.takes_residual !== false,
   }))
-  const projectValue = new Map<string, number>()
-  for (const s of (streams ?? []) as Record<string, unknown>[]) {
-    if (!s.project_id || s.status === 'bozza') continue
-    projectValue.set(String(s.project_id), (projectValue.get(String(s.project_id)) ?? 0) + num(s.amount))
+  /* §287 — il contesto delle righe si costruisce una volta: chi è il
+     commerciale del cliente, quali progetti copre un accordo, quanto vale il
+     lavoro venduto. Erano tre mappe riscritte in ogni pagina, e ogni copia ne
+     dimenticava una. */
+  const rowCtx = rowContext({
+    month,
+    months: (plMonths ?? []) as unknown as { id: unknown; month: unknown }[],
+    clients: (clients ?? []) as Record<string, unknown>[],
+    streams: (streams ?? []) as Record<string, unknown>[],
+    streamProjects: (streamProjects ?? []) as { stream_id: string; project_id: string }[],
+  })
+
+  /* §286 — quanto è **erogabile adesso** verso soci e commerciali. La posta del
+     ponte resta il dovuto (l'identità la vuole così, §199); questo è l'altro
+     tempo della stessa cifra, e senza starebbero due numeri con lo stesso nome
+     in due sezioni. La regola la possiede `payoutLedger` — conosce il
+     consolidato (§230) e chi non ha mai preso un euro (§228) — e qui si legge. */
+  const allRevAll = toRevenueLines(revRows as Record<string, unknown>[], rowCtx)
+  const allCostAll = toCostLines(costRows as Record<string, unknown>[], rowCtx)
+  const people = mergePeople(
+    partners.map(p => ({ id: p.id, label: p.label })),
+    Array.from(new Set(((clients ?? []) as Record<string, unknown>[])
+      .map(c => String(c.sales_owner_name ?? '')).filter(Boolean))))
+  const payoutDateOfMonth = (mk: string) => {
+    const row = (plMonths ?? []).find((x: { month: string }) => x.month.slice(0, 10) === mk)
+    const d = (row as unknown as { payout_date?: string | null } | undefined)?.payout_date
+    return d ? String(d).slice(0, 10) : null
   }
-  const ownerOfClient = new Map((clients ?? []).map((c: Record<string, unknown>) => [String(c.id), c]))
+  const accruals: { key: string; month: string; amount: number }[] = []
+  for (const mrow of (plMonths ?? []) as { month: string }[]) {
+    const mk = mrow.month.slice(0, 10)
+    const w = buildWindow({
+      month: mk, date: payoutDateOfMonth(mk),
+      previousDate: payoutDateOfMonth(shiftMonth(mk, -1)),
+      day: config.payout_day, settledFrom: config.settled_from,
+    })
+    const presi = takenIn(allRevAll, w)
+    const mesi = new Set(presi.map(l => l.month))
+    const mc = marginCostsFor(allCostAll, mesi, mk)
+    const tw = computeMonth(presi, mc, config, partners, mc,
+      allRevAll.filter(l => mesi.has(l.month)))
+    for (const pp of tw.perPartner) {
+      const k = people.find(x => x.partnerId === pp.partner.id)?.key
+      if (k) accruals.push({ key: k, month: mk, amount: pp.total })
+    }
+    for (const o of tw.salesByOwner) {
+      const k = people.find(x => x.label === o.label)?.key
+      if (k) accruals.push({ key: k, month: mk, amount: o.amount })
+    }
+  }
+  const payableNow = Math.round(payoutLedger({
+    people: people.map(p => ({ key: p.key, label: p.label })),
+    accruals,
+    facts: payoutsFromBank((txRows ?? []).map((t: Record<string, unknown>) => ({
+      id: String(t.id), booked_on: String(t.booked_on).slice(0, 10), amount: num(t.amount),
+      source: String(t.source), kind: String(t.kind ?? 'altro'),
+      counterparty: (t.counterparty as string) ?? null,
+      description: String(t.description ?? ''),
+      revenue_line_id: (t.revenue_line_id as string) ?? null,
+      cost_line_id: (t.cost_line_id as string) ?? null,
+    })), people),
+    from: config.settled_from,
+  }).reduce((n, p) => n + Math.max(0, p.open), 0) * 100) / 100
 
   const plByMonth = (plMonths ?? []).map((m: { id: string; month: string; status: string }) => {
-    const revenue: RevenueLine[] = (revRows ?? []).filter((r: Record<string, unknown>) => r.month_id === m.id)
-      .map((r: Record<string, unknown>) => ({
-        id: String(r.id), label: String(r.label), client_id: (r.client_id as string) ?? null,
-        plan_amount: num(r.plan_amount), invoices: num(r.invoices), amount_net: num(r.amount_net),
-        vat_rate: num(r.vat_rate), invoice_sent: r.invoice_sent === true, paid: r.paid === true,
-        kind: r.kind === 'digital' ? 'digital' : 'growth',
-        sales_owner_id: (r.sales_owner_id as string) ?? null,
-        sales_owner: (r.sales_owner as string) ?? null,
-        client_sales_owner: (ownerOfClient.get(String(r.client_id))?.sales_owner_name as string) ?? null,
-        project_id: (r.project_id as string) ?? null,
-        project_value: projectValue.get(String(r.project_id ?? '')) ?? null,
-        risk_fund: r.risk_fund === true, pass_through: r.pass_through === true,
-      }))
-    const costs: CostLine[] = (costRows ?? []).filter((c: Record<string, unknown>) => c.month_id === m.id)
-      .map((c: Record<string, unknown>) => ({
-        id: String(c.id), center_id: (c.center_id as string) ?? null,
-        cost_item_id: (c.cost_item_id as string) ?? null,
-        project_id: (c.project_id as string) ?? null,
-        partner_id: (c.partner_id as string) ?? null,
-        deductible_pct: c.deductible_pct == null ? 1 : num(c.deductible_pct),
-        category: String(c.category), label: String(c.label),
-        cost_type: c.cost_type === 'V' ? 'V' : 'F',
-        budget: num(c.budget), actual: num(c.actual), paid: c.paid === true,
-        vat_applied: c.vat_applied === true, vat_rate: num(c.vat_rate),
-      }))
+    /* §287 — le righe del motore da un posto solo: qui mancava
+       `installment_id`, quindi il ponte leggeva un margine digital diverso da
+       quello della pagina che deve verificare. */
+    const revenue = toRevenueLines(
+      (revRows ?? []).filter((r: Record<string, unknown>) => r.month_id === m.id), rowCtx)
+    const costs = toCostLines(
+      (costRows ?? []).filter((c: Record<string, unknown>) => c.month_id === m.id), rowCtx)
     const t = computeMonth(revenue, costs, config, partners)
     return {
       month: m.month, status: m.status,
@@ -331,6 +377,7 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
       expected={expected}
       months={(plMonths ?? []).map((m: { month: string }) => m.month)}
       plByMonth={plByMonth}
+      payableNow={payableNow}
       clientNames={clientNames}
     />
   )

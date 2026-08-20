@@ -3,7 +3,9 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { requireEconomicsAdmin as requireAdmin } from '@/lib/economics-guard'
-import { computeMonth, rowToPlConfig, shiftMonth, type RevenueLine, type CostLine, type Partner } from '@/lib/pl'
+import { monthLabel } from '@/lib/pl'
+import { syncPayouts, loadWindow } from '@/lib/payouts-plan'
+import { allocate } from '@/app/actions/allocations'
 
 /**
  * §243 — I compensi come righe che si possono spuntare.
@@ -25,100 +27,61 @@ function rev(month: string) {
   revalidatePath(`/economics?m=${month}`)
 }
 
-/** La chiave della persona, la stessa di `mergePeople`: socio o nome libero. */
-const partnerKey = (id: string) => `p:${id}`
-const ownerKey = (label: string) => `o:${label}`
+export async function materializePayouts(month: string) {
+  await requireAdmin()
+  const out = await syncPayouts(createAdminClient(), month)
+  rev(month)
+  return out
+}
 
-export async function materializePayouts(month: string): Promise<{ righe: number; totale: number }> {
+/**
+ * §286 — La data in cui si eroga quello che è maturato in questo mese.
+ *
+ * Normalmente è il 20; ad agosto 2026 si è anticipata al 13, ed è esattamente
+ * il genere di eccezione che senza un posto dove scriverla diventa un totale
+ * che nessuno sa più ricostruire. Spostarla **cambia la base**: rientra o esce
+ * quello che è stato incassato in mezzo, quindi si ricalcola subito — le righe
+ * già pagate restano dove sono, perché quel bonifico è un fatto.
+ */
+export async function setMonthPayoutDate(month: string, date: string | null) {
   await requireAdmin()
   const db = createAdminClient()
+  const iso = date ? date.slice(0, 10) : null
+  if (iso && !/^\d{4}-\d{2}-\d{2}$/.test(iso)) throw new Error('Data non valida')
 
-  const { data: monthRow } = await db.from('pl_months')
-    .select('id, status').eq('month', month).maybeSingle()
-  if (!monthRow) throw new Error('Apri prima il mese dal conto economico')
+  const { data: row } = await db.from('pl_months').select('id').eq('month', month).maybeSingle()
+  if (!row) throw new Error('Mese non trovato')
+  const { error } = await db.from('pl_months').update({ payout_date: iso }).eq('id', row.id)
+  if (error) throw new Error(error.message)
 
-  const [{ data: cfgRow }, { data: partnerRows }, { data: revRows }, { data: costRows }, { data: clients }] =
-    await Promise.all([
-      db.from('pl_config').select('*').eq('id', true).maybeSingle(),
-      db.from('pl_partners').select('*').eq('is_active', true).order('sort_order'),
-      db.from('pl_revenue_lines').select('*').eq('month_id', monthRow.id),
-      db.from('pl_cost_lines').select('*').eq('month_id', monthRow.id),
-      db.from('clients').select('id, sales_owner_name'),
-    ])
-
-  const num = (v: unknown) => Number(v ?? 0)
-  const config = rowToPlConfig((cfgRow ?? {}) as Record<string, unknown>)
-  const partners = (partnerRows ?? []).map((p: Record<string, unknown>) => ({
-    id: String(p.id), label: String(p.label),
-    takes_delivery: !!p.takes_delivery, takes_residual: !!p.takes_residual,
-  })) as Partner[]
-  const ownerOf = new Map((clients ?? []).map((c: Record<string, unknown>) =>
-    [String(c.id), (c.sales_owner_name as string) ?? null]))
-
-  const revenue = (revRows ?? []).map((r: Record<string, unknown>) => ({
-    ...(r as unknown as RevenueLine),
-    amount_net: num(r.amount_net), vat_rate: num(r.vat_rate),
-    kind: r.kind === 'digital' ? 'digital' : 'growth',
-    paid: r.paid === true, pass_through: r.pass_through === true,
-    client_sales_owner: r.client_id ? ownerOf.get(String(r.client_id)) ?? null : null,
-  })) as RevenueLine[]
-  const costs = (costRows ?? []).map((c: Record<string, unknown>) => ({
-    ...(c as unknown as CostLine), budget: num(c.budget), actual: num(c.actual),
-    paid: c.paid === true,
-  })) as CostLine[]
-
-  const t = computeMonth(revenue, costs, config, partners)
-  /* §224 — matura in questo mese ed esce nel prossimo, come il costo del
-     lavoro: il conto economico non può dire che il compenso di luglio è in
-     ritardo il 2 luglio. */
-  const due = shiftMonth(month, 1)
-
-  type PayoutRow = {
-    month_id: string; person_key: string; person_label: string
-    kind: 'socio' | 'commerciale'; amount: number; due_month: string
-  }
-  const rows: PayoutRow[] = [
-    ...t.perPartner.filter(p => p.total > 0.005).map(p => ({
-      month_id: monthRow.id, person_key: partnerKey(p.partner.id), person_label: p.partner.label,
-      kind: 'socio' as const, amount: Math.round(p.total * 100) / 100, due_month: due,
-    })),
-    ...t.salesByOwner.filter(s => s.amount > 0.005).map(s => ({
-      month_id: monthRow.id, person_key: ownerKey(s.label), person_label: s.label,
-      kind: 'commerciale' as const, amount: Math.round(s.amount * 100) / 100, due_month: due,
-    })),
-  ]
-
-  /* Le righe già **pagate** non si toccano: quello che è uscito è un fatto, e
-     riscriverlo perché la base di calcolo è cambiata dopo cancellerebbe un
-     bonifico che è avvenuto davvero. Le altre si allineano. */
   const { data: existing } = await db.from('pl_payouts')
-    .select('id, person_key, kind, paid, note').eq('month_id', monthRow.id)
-  const byKey = new Map((existing ?? []).map((r: Record<string, unknown>) =>
-    [`${r.person_key}|${r.kind}`, r as { id: string; paid: boolean; note: string | null }]))
-
-  let touched = 0
-  for (const r of rows) {
-    const cur = byKey.get(`${r.person_key}|${r.kind}`)
-    /* §251 — una riga pagata è un fatto e una decisa a mano è una decisione:
-       né l'uno né l'altra si riscrivono perché la base di calcolo è cambiata. */
-    if (cur?.paid || cur?.note?.startsWith('Deciso a mano')) continue
-    const { error } = cur
-      ? await db.from('pl_payouts').update({ amount: r.amount, due_month: r.due_month, person_label: r.person_label }).eq('id', cur.id)
-      : await db.from('pl_payouts').insert(r as Record<string, unknown>)
-    if (error) throw new Error(error.message)
-    touched++
-  }
-  /* Chi non matura più niente e non è stato pagato sparisce: una riga a zero
-     che resta in elenco fa credere che a qualcuno spetti qualcosa. */
-  const keep = new Set(rows.map(r => `${r.person_key}|${r.kind}`))
-  for (const [k, cur] of Array.from(byKey.entries())) {
-    if (!keep.has(k) && !cur.paid && !cur.note?.startsWith('Deciso a mano')) {
-      await db.from('pl_payouts').delete().eq('id', cur.id)
-    }
-  }
-
+    .select('id').eq('month_id', row.id).limit(1)
   rev(month)
-  return { righe: touched, totale: Math.round(rows.reduce((s, r) => s + r.amount, 0) * 100) / 100 }
+  if (existing?.length) return materializePayouts(month)
+  return null
+}
+
+/**
+ * §286 — L'erogazione spiegata prima di premere.
+ *
+ * «Genera i compensi» su una base che nessuno vede è il modo in cui si firma un
+ * bonifico sbagliato: la finestra si dichiara — quali mesi guarda, entro quale
+ * data, quanto è rientrato e quanto no — e solo dopo si scrive.
+ */
+export async function previewPayouts(month: string) {
+  await requireAdmin()
+  const { w, t, summary, taken } = await loadWindow(createAdminClient(), month)
+  return {
+    window: w,
+    label: `${monthLabel(month)} · erogazione del ${w.date.split('-').reverse().join('/')}`,
+    righe: taken.length,
+    imponibile: summary.taken.amount,
+    scoperto: summary.open,
+    prossima: summary.next,
+    presunte: summary.assumed.n,
+    soci: t.perPartner.map(p => ({ label: p.partner.label, amount: p.total })),
+    commerciali: t.salesByOwner.map(s => ({ label: s.label, amount: s.amount })),
+  }
 }
 
 /**
@@ -182,32 +145,52 @@ export async function setPayoutAmount(id: string, amount: number, why: string, m
 }
 
 /**
- * §260 — Il bonifico che paga un compenso.
+ * §260/§297 — Il bonifico che paga un compenso, o due.
  *
- * Un compenso non è una riga di conto economico — si ricalcola (§227) — quindi
- * `bank_transactions` non ha una colonna che punti a lui: `revenue_line_id` e
- * `cost_line_id` sono le uniche due, e nessuna delle due è giusta. Qui il legame
- * si scrive dove può stare: sul movimento, in nota, e con `no_match_needed`
- * perché smetta di comparire fra quelli da riconciliare.
+ * Il §260 scriveva questo legame **in una nota**, e diceva perché: un compenso
+ * non è una riga di conto economico — si ricalcola (§227) — quindi
+ * `bank_transactions` non aveva una colonna che potesse puntargli. Lo stesso
+ * commento dichiarava la soluzione mancante: «quella elegante sarebbe una terza
+ * colonna». Con la 214 esiste, ed è `payment_allocations.payout_id`.
  *
- * Non è la soluzione elegante — quella sarebbe una terza colonna, o
- * `bank_tx_lines` esteso ai compensi — ma è quella onesta finché il compenso
- * resta una cosa che si ricalcola: una colonna che punta a una riga che nessuno
- * ha scritto è una colonna che punta al vuoto.
+ * Il caso che la nota non poteva reggere è quello vero: a Marco a luglio sono
+ * usciti **3.412 €**, che sono 3.191,12 di quota socio più 220,88 di
+ * provvigione — la sua, divisa a metà con Toto, che ne ha presi altrettanti per
+ * la ragione opposta. Una nota può dire *un* compenso; qui servono due
+ * allocazioni sullo stesso bonifico, e la stessa provvigione risulta pagata da
+ * **due** movimenti.
+ *
+ * La nota resta scritta: chi guarda l'elenco dei movimenti legge a chi è andato
+ * il bonifico senza aprire il registro.
  */
-export async function reconcilePayout(txId: string, payoutId: string) {
+export async function reconcilePayout(txId: string, payoutIds: string | string[]) {
   await requireAdmin()
   const db = createAdminClient()
-  const { data: p } = await db.from('pl_payouts')
-    .select('person_label, kind, amount').eq('id', payoutId).maybeSingle()
-  if (!p) throw new Error('Compenso non trovato')
-  const r = p as { person_label: string; kind: string; amount: number }
+  const ids = Array.isArray(payoutIds) ? payoutIds : [payoutIds]
+  if (!ids.length) throw new Error('Non hai scelto nessun compenso')
+
+  const { data: rows } = await db.from('pl_payouts')
+    .select('id, person_label, kind, amount').in('id', ids)
+  const people = (rows ?? []) as { id: string; person_label: string; kind: string; amount: number }[]
+  if (people.length !== ids.length) throw new Error('Compenso non trovato')
+
+  /* Il motore decide come si spartisce: ognuno prende il suo scoperto finché il
+     bonifico tiene. Se avanza, avanza e si vede — inventare una destinazione per
+     far tornare il conto è il modo in cui un registro smette di servire. */
+  const esito = await allocate(txId, ids.map(id => {
+    const p = people.find(x => x.id === id)!
+    return { target: 'compenso' as const, targetId: id, amount: Number(p.amount) }
+  }).filter(d => d.amount > 0))
+
   const { error } = await db.from('bank_transactions').update({
     no_match_needed: true,
-    note: `Compenso ${r.kind} a ${r.person_label} · ${r.amount.toFixed(2).replace('.', ',')} € (§260)`,
+    note: people.map(p =>
+      `Compenso ${p.kind} a ${p.person_label} · ${p.amount.toFixed(2).replace('.', ',')} €`).join(' + ')
+      + ' (§297)',
     matched_at: new Date().toISOString(),
   }).eq('id', txId)
   if (error) throw new Error(error.message)
   revalidatePath('/economics')
   revalidatePath('/economics/banca')
+  return esito
 }

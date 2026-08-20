@@ -12,8 +12,10 @@ import { readFileSync } from 'fs'
 import { cashRunway, type RunwayLine } from '@/lib/cash-runway'
 import { dueOf, fromRevenue, fromCost, collectionIndex, monthOf } from '@/lib/cash-calendar'
 import { eur } from '@/lib/money'
-import { computeMonth, rowToPlConfig, type RevenueLine, type CostLine, type Partner } from '@/lib/pl'
-import { vatByQuarter } from '@/lib/vat'
+import { computeMonth, rowToPlConfig, shiftMonth, type RevenueLine, type CostLine, type Partner } from '@/lib/pl'
+import { buildWindow, takenIn, marginCostsFor } from '@/lib/payout-window'
+import { rowContext, toRevenueLines, toCostLines } from '@/lib/pl-rows'
+import { vatByQuarter, nextDue, vatPending, type VatActual } from '@/lib/vat'
 import { payoutLedger, payoutsFromBank, mergePeople, type CertTx } from '@/lib/cash-certify'
 
 const env = Object.fromEntries(
@@ -35,17 +37,24 @@ const MONTH = process.argv[2] ?? new Date().toISOString().slice(0, 8) + '01'
 const TODAY = process.argv[3] ?? new Date().toISOString().slice(0, 10)
 
 async function main() {
-  const [months, config, partners, clients, accounts, tx] = await Promise.all([
-    get<{ id: string; month: string; status: string }[]>('pl_months?select=id,month,status&order=month'),
+  const [months, config, partners, clients, streams, bridge, accounts, tx] = await Promise.all([
+    // §286: `select=*` perché `payout_date` arriva con la 212 e prima non c'è
+    get<{ id: string; month: string; status: string; payout_date?: string | null }[]>('pl_months?select=*&order=month'),
     get<Record<string, unknown>[]>('pl_config?select=*&limit=1'),
     get<Record<string, unknown>[]>('pl_partners?select=*'),
     get<Record<string, unknown>[]>('clients?select=id,sales_owner_name'),
+    get<Record<string, unknown>[]>('revenue_streams?select=id,amount,status,project_id'),
+    get<{ stream_id: string; project_id: string }[]>('revenue_stream_projects?select=stream_id,project_id'),
     get<Record<string, unknown>[]>('bank_accounts?select=id,label,opening_balance'),
     get<Record<string, unknown>[]>('bank_transactions?select=*'),
   ])
-  const [rev, cost] = await Promise.all([
+  const [rev, cost, vatRows] = await Promise.all([
     get<Record<string, unknown>[]>('pl_revenue_lines?select=*'),
     get<Record<string, unknown>[]>('pl_cost_lines?select=*'),
+    /* §242 — i modelli F24 già arrivati. Senza, questo controllo usava la stima
+       mentre la pagina usa il documento: verificava sé stesso, non il codice
+       che gira. Sul 2º trimestre sono 8.399,87 contro 9.669,33. */
+    get<Record<string, unknown>[]>('vat_settlements?select=year,quarter,to_pay,doc_ref,paid_on').catch(() => []),
   ])
   const cfg = rowToPlConfig(config[0] ?? {})
   const monthOfId = new Map(months.map(m => [m.id, m.month.slice(0, 10)]))
@@ -54,20 +63,16 @@ async function main() {
     takes_delivery: !!p.takes_delivery, takes_residual: !!p.takes_residual,
   })) as Partner[]
 
-  const asRev = (r: Record<string, unknown>): RevenueLine & { month: string } => ({
-    ...(r as unknown as RevenueLine),
-    month: monthOfId.get(String(r.month_id)) ?? MONTH,
-    amount_net: num(r.amount_net), vat_rate: num(r.vat_rate),
-    paid: r.paid === true, paid_on: (r.paid_on as string) ?? null,
+  /* §287 — le righe da un posto solo. Prima questa copia non portava
+     `project_value`: nessuna riga risultava eleggibile al fondo rischio (§186)
+     e il controllo diceva 4.340,78 € a socio invece di 4.045,95 — cioè
+     confermava l'errore invece di trovarlo. */
+  const rowCtx = rowContext({
+    month: MONTH, months: months as unknown as { id: unknown; month: unknown }[],
+    clients, streams, streamProjects: bridge,
   })
-  const asCost = (c: Record<string, unknown>): CostLine & { month: string } => ({
-    ...(c as unknown as CostLine),
-    month: monthOfId.get(String(c.month_id)) ?? MONTH,
-    budget: num(c.budget), actual: num(c.actual),
-    paid: c.paid === true, paid_on: (c.paid_on as string) ?? null,
-  })
-  const allRev = rev.map(asRev)
-  const allCost = cost.map(asCost)
+  const allRev = toRevenueLines(rev, rowCtx)
+  const allCost = toCostLines(cost, rowCtx)
 
   const ctx = { collection: collectionIndex(allRev.map(l => fromRevenue(l, l.month))) }
   const open: RunwayLine[] = [
@@ -95,8 +100,14 @@ async function main() {
         .reduce((s, c) => s + (c.vat_applied ? (c.actual > 0 ? c.actual : c.budget) * c.vat_rate : 0), 0),
     }
   })
-  const quarters = vatByQuarter(vatMonths, TODAY)
-  const vatNow = quarters.find(q => !q.closed && q.toPay > 0) ?? quarters.find(q => !q.closed) ?? null
+  const vatActuals: VatActual[] = vatRows.map(r => ({
+    quarter: { year: Number(r.year), q: Number(r.quarter) as 1 | 2 | 3 | 4 },
+    toPay: num(r.to_pay),
+    docRef: (r.doc_ref as string) ?? null,
+    paidOn: r.paid_on ? String(r.paid_on).slice(0, 10) : null,
+  }))
+  const quarters = vatByQuarter(vatMonths, TODAY, vatActuals)
+  const vatNow = nextDue(vatMonths, TODAY, vatActuals)
 
   const certTxs: CertTx[] = tx.map(t => ({
     id: String(t.id), booked_on: String(t.booked_on).slice(0, 10), amount: num(t.amount),
@@ -105,12 +116,45 @@ async function main() {
     revenue_line_id: (t.revenue_line_id as string) ?? null,
     cost_line_id: (t.cost_line_id as string) ?? null,
   }))
+  /* §305 — quanto di ogni movimento è compenso, secondo il registro. Senza la
+     214 la query fallisce e resta vuota: si torna alla categoria, com'era. */
+  const [payoutAllocRows, payoutRows] = await Promise.all([
+    get<{ tx_id: string; payout_id: string; amount: number }[]>(
+      'payment_allocations?select=tx_id,payout_id,amount&payout_id=not.is.null').catch(() => []),
+    get<{ id: string; person_label: string }[]>('pl_payouts?select=id,person_label').catch(() => []),
+  ])
+  const payoutAlloc = new Map<string, { who: string; amount: number }[]>()
+  {
+    const labelOf = new Map(payoutRows.map(r => [String(r.id), String(r.person_label ?? '')]))
+    for (const a of payoutAllocRows) {
+      const who = labelOf.get(String(a.payout_id))
+      if (!who) continue
+      const k = String(a.tx_id)
+      payoutAlloc.set(k, [...(payoutAlloc.get(k) ?? []), { who, amount: num(a.amount) }])
+    }
+  }
+
   const people = mergePeople(
     plPartners.map(p => ({ id: p.id, label: p.label })),
     Array.from(new Set(clients.map(c => (c.sales_owner_name as string) ?? '').filter(Boolean))))
   const accruals: { key: string; month: string; amount: number }[] = []
+  const payoutDateOfMonth = (mk: string) => {
+    const row = months.find(m => monthOf(String(m.month)) === mk)
+    return row?.payout_date ? String(row.payout_date).slice(0, 10) : null
+  }
   for (const mk of Array.from(new Set([...allRev, ...allCost].map(l => l.month)))) {
-    const t = computeMonth(allRev.filter(l => l.month === mk), allCost.filter(c => c.month === mk), cfg, plPartners)
+    /* §286 — quello che si deve erogare è quello che è maturato in quel mese ed
+       è rientrato entro il giorno della sua erogazione, non il maturato secco:
+       la pagina e questo controllo devono dire lo stesso numero. */
+    const w = buildWindow({
+      month: mk, date: payoutDateOfMonth(mk),
+      previousDate: payoutDateOfMonth(shiftMonth(mk, -1)),
+      day: cfg.payout_day, settledFrom: cfg.settled_from,
+    })
+    const presi = takenIn(allRev, w)
+    const mesi = new Set(presi.map(l => l.month))
+    const mc = marginCostsFor(allCost, mesi, mk)
+    const t = computeMonth(presi, mc, cfg, plPartners, mc, allRev.filter(l => mesi.has(l.month)))
     for (const p of t.perPartner) {
       const k = people.find(x => x.partnerId === p.partner.id)?.key
       if (k) accruals.push({ key: k, month: mk, amount: p.total })
@@ -123,7 +167,10 @@ async function main() {
   const from = (config[0]?.settled_from ?? config[0]?.payout_from) as string | undefined
   const ledger = payoutLedger({
     people: people.map(p => ({ key: p.key, label: p.label })),
-    accruals, facts: payoutsFromBank(certTxs, people),
+    accruals,
+    /* §305 — quanto di ogni bonifico è compenso lo dice il registro (§297), non
+       la categoria del movimento. Uno script che non ci passa verifica sé stesso. */
+    facts: payoutsFromBank(certTxs, people, undefined, undefined, payoutAlloc),
     from: from ? monthOf(String(from)) : null,
   })
   const payoutPlan = Array.from(
@@ -133,7 +180,8 @@ async function main() {
   const r = cashRunway({
     month: MONTH, today: TODAY, balance, open,
     planned: [], // il previsionale non serve al controllo dei gradini
-    dues: quarters.filter(q => !q.closed && q.toPay > 0).map(q => ({ date: q.deadline, amount: q.toPay, label: q.label })),
+    dues: quarters.filter(vatPending).filter(q => q.toPay > 0)
+      .map(q => ({ date: q.deadline, amount: q.toPay, label: q.label })),
     vatHeld: vatNow?.toPay ?? 0, vatDeadline: vatNow?.deadline ?? null,
     vatLabel: vatNow?.label ?? '', vatDays: vatNow?.daysLeft ?? null,
     payouts: {

@@ -17,6 +17,7 @@ import { plannedForMonth, isPayrollCenter, type CostItem } from '@/lib/costs'
 import { vatByQuarter, type MonthVat, type VatActual } from '@/lib/vat'
 import { planMonth, simulate, outcomes, advice, GROUPS, type PlanMonth } from '@/lib/cash-plan'
 import { eur2 } from '@/lib/money'
+import { rowContext, toRevenueLines, toCostLines } from '@/lib/pl-rows'
 
 const env = Object.fromEntries(
   readFileSync(`${process.cwd()}/.env.local`, 'utf8').split('\n')
@@ -38,7 +39,7 @@ async function main() {
   const month = process.argv[2] ? monthKey(new Date(process.argv[2])) : monthKey(new Date())
 
   const [months, revRows, costRows, accounts, txs, cfgRows, partnerRows, clients,
-    payoutRows, streamRows, itemRows, vatRows] = await Promise.all([
+    payoutRows, streamRows, itemRows, vatRows, coverRows] = await Promise.all([
     get<{ id: string; month: string; status: string }[]>('pl_months?select=id,month,status&order=month'),
     get<Record<string, unknown>[]>('pl_revenue_lines?select=*'),
     get<Record<string, unknown>[]>('pl_cost_lines?select=*'),
@@ -46,52 +47,37 @@ async function main() {
     get<Record<string, unknown>[]>('bank_transactions?select=id,booked_on,amount,source,kind,revenue_line_id,cost_line_id'),
     get<Record<string, unknown>[]>('pl_config?select=*&limit=1'),
     get<Record<string, unknown>[]>('pl_partners?select=*&is_active=eq.true'),
-    get<Record<string, unknown>[]>('clients?select=id,display_name,company_name,sales_owner_name'),
+    get<Record<string, unknown>[]>('clients?select=id,display_name,company_name,sales_owner_id,sales_owner_name'),
     get<Record<string, unknown>[]>('pl_payouts?select=*').catch(() => []),
     get<Record<string, unknown>[]>('revenue_streams?select=*'),
     get<Record<string, unknown>[]>('cost_items?select=*&is_active=eq.true'),
     get<Record<string, unknown>[]>('vat_settlements?select=year,quarter,to_pay,doc_ref,paid_on').catch(() => []),
+    get<{ stream_id: string; project_id: string }[]>('revenue_stream_projects?select=stream_id,project_id'),
   ])
   const inst = await get<Record<string, unknown>[]>('revenue_installments?select=*')
 
   const monthOfId = new Map(months.map(m => [m.id, m.month.slice(0, 10)]))
   const nameOf = new Map(clients.map(c => [String(c.id), String(c.display_name || c.company_name || '')]))
 
-  const revenue = revRows.map(r => ({
-    id: String(r.id), label: String(r.label), client_id: (r.client_id as string) ?? null,
-    plan_amount: num(r.plan_amount), invoices: num(r.invoices), amount_net: num(r.amount_net),
-    vat_rate: num(r.vat_rate), invoice_sent: r.invoice_sent === true, paid: r.paid === true,
-    kind: (r.kind === 'digital' ? 'digital' : 'growth') as 'growth' | 'digital',
-    sales_owner_id: (r.sales_owner_id as string) ?? null, sales_owner: (r.sales_owner as string) ?? null,
-    project_id: (r.project_id as string) ?? null,
-    pass_through: r.pass_through === true, risk_fund: r.risk_fund === true,
-    paid_on: (r.paid_on as string) ?? null, due_date: (r.due_date as string) ?? null,
-    terms: (r.terms as string) ?? null,
-    month: monthOfId.get(String(r.month_id)) ?? month,
-  }))
-  const costs = costRows.map(c => ({
-    id: String(c.id), center_id: (c.center_id as string) ?? null,
-    cost_item_id: (c.cost_item_id as string) ?? null,
-    project_id: (c.project_id as string) ?? null, partner_id: (c.partner_id as string) ?? null,
-    deductible_pct: c.deductible_pct == null ? 1 : num(c.deductible_pct),
-    category: String(c.category ?? ''), label: String(c.label),
-    cost_type: (c.cost_type === 'V' ? 'V' : 'F') as 'F' | 'V',
-    budget: num(c.budget), actual: num(c.actual), paid: c.paid === true,
-    vat_applied: c.vat_applied === true, vat_rate: num(c.vat_rate),
-    paid_on: (c.paid_on as string) ?? null, due_date: (c.due_date as string) ?? null,
-    terms: (c.terms as string) ?? null,
-    month: monthOfId.get(String(c.month_id)) ?? month,
-  }))
+  /* §287 — le righe da un posto solo: questo controllo confronta il piano di
+     cassa col conto economico, quindi deve costruire le righe **come** il conto
+     economico. Prima ne aveva una copia sua, senza il valore venduto del
+     progetto né la rata del subappalto. */
+  const rowCtx = rowContext({
+    month, months: months as unknown as { id: unknown; month: unknown }[],
+    clients: clients as unknown as Record<string, unknown>[],
+    streams: streamRows, streamProjects: coverRows,
+  })
+  const revenue = toRevenueLines(revRows, rowCtx)
+  const costs = toCostLines(costRows, rowCtx)
 
   const config = rowToPlConfig(cfgRows[0] ?? {})
   const partners = partnerRows.map(p => ({
     id: String(p.id), label: String(p.label),
     takes_delivery: !!p.takes_delivery, takes_residual: !!p.takes_residual,
   })) as Partner[]
-  const ownerOf = new Map(clients.map(c => [String(c.id), (c.sales_owner_name as string) ?? null]))
-  const withOwner = revenue.map(l => ({
-    ...l, client_sales_owner: l.client_id ? ownerOf.get(l.client_id) ?? null : null,
-  }))
+  /* Il commerciale dell'anagrafica lo mette già `toRevenueLine` (§185/§287). */
+  const withOwner = revenue
 
   const ctx = { collection: collectionIndex(revenue.map(l => fromRevenue(l, l.month))) }
   const openMonths = new Set(months.map(m => m.month.slice(0, 10)))
@@ -177,7 +163,7 @@ async function main() {
     plan_amount: 0, invoices: 0, amount_net: l.amount_net, vat_rate: l.vat_rate,
     invoice_sent: false, paid: false, kind: l.kind,
     sales_owner_id: l.sales_owner_id, sales_owner: null,
-    client_sales_owner: l.client_id ? ownerOf.get(l.client_id) ?? null : null,
+    client_sales_owner: l.client_id ? rowCtx.ownerOf.get(l.client_id)?.name ?? null : null,
     project_id: l.project_id, pass_through: l.pass_through, risk_fund: false,
   }))
   const plannedCost = (mm: string) => plannedForMonth(items, mm).map((it, k) => ({
