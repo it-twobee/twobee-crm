@@ -330,12 +330,21 @@ function SingleMonth({ comp, cassa, col, head }: {
       return {
         key: k, label: (ra ?? rb)!.label, hint: (ra ?? rb)!.hint,
         accrued: ra?.total ?? 0, cash: rb?.total ?? 0,
+        /* §310 — il «non ancora mosso» viene dalla lettura di **competenza**: è
+           la parte delle righe di questo mese che nessuno ha spuntato. */
+        open: ra?.open ?? 0,
       }
     }).filter(r => r.accrued !== 0 || r.cash !== 0)
   }
   const rows = (label: string, items: ReturnType<typeof pair>, tone: 'success' | 'error' | 'accent') => (
     items.map(r => {
-      const miss = Math.round((r.accrued - r.cash) * 100) / 100
+      /* §310 — **non è «competenza meno cassa»**. Quelle due colonne parlano di
+         mesi diversi: lo stipendio di agosto è competenza di agosto e cassa di
+         settembre (§224), quindi la loro differenza sulla riga del Personale
+         dava «manca −6.937 €» — un numero che non esiste. Qui c'è quello che
+         delle righe **di questo mese** non si è ancora mosso, che è la sola
+         risposta possibile a «quanto manca». */
+      const miss = r.open
       return (
         <tr key={`${label}-${r.key}`} className="hover:bg-surface-hover">
           <td className="px-5 py-2">
@@ -354,14 +363,18 @@ function SingleMonth({ comp, cassa, col, head }: {
       )
     })
   )
-  const tot = (label: string, a: number, b: number, strong?: boolean) => (
+  /* §310 — `open` va passato, non dedotto: su un totale la differenza fra le due
+     colonne è la stessa somma di mesi diversi che sulle righe non voleva dire
+     niente. Dove non ha senso — il margine, quello che resta — la colonna resta
+     vuota invece di mostrare un numero che nessuno può controllare. */
+  const tot = (label: string, a: number, b: number, open?: number, strong?: boolean) => (
     <tr className={strong ? 'bg-surface-hover border-t border-border' : 'border-t border-border/60'}>
       <td className={`px-5 py-2 text-2xs ${strong ? 'font-bold text-text-primary' : 'font-semibold text-text-secondary'}`}>
         {label}
       </td>
       <td className={`${col} ${strong ? 'font-bold' : 'font-semibold'} ${a < 0 ? 'text-error' : 'text-text-secondary'}`}>{eur(a)}</td>
       <td className={`${col} ${strong ? 'font-bold' : 'font-semibold'} ${b < 0 ? 'text-error' : 'text-text-primary'}`}>{eur(b)}</td>
-      <td className={`${col} text-text-tertiary`}>{eur(Math.round((a - b) * 100) / 100)}</td>
+      <td className={`${col} text-text-tertiary`}>{open == null ? '' : open === 0 ? 'tutto mosso' : eur(open)}</td>
     </tr>
   )
   const sect = (title: string, tone: 'success' | 'error') => (
@@ -390,17 +403,17 @@ function SingleMonth({ comp, cassa, col, head }: {
         <tbody className="border-t border-border">
           {sect('Entrate', 'success')}
           {rows('e', pair(comp.revenue, cassa.revenue), 'success')}
-          {tot('Totale entrate', comp.totals.revenue.total, cassa.totals.revenue.total)}
+          {tot('Totale entrate', comp.totals.revenue.total, cassa.totals.revenue.total, comp.totals.revenue.open)}
           {sect('Uscite', 'error')}
           {rows('u', pair(comp.costs, cassa.costs), 'error')}
-          {tot('Totale costi', comp.totals.costs.total, cassa.totals.costs.total)}
+          {tot('Totale costi', comp.totals.costs.total, cassa.totals.costs.total, comp.totals.costs.open)}
           {rows('p', pair(comp.payouts, cassa.payouts), 'accent')}
           {tot('Totale che esce', comp.totals.costs.total + comp.totals.payouts.total,
             cassa.totals.costs.total + cassa.totals.payouts.total)}
         </tbody>
         <tbody className="border-t-2 border-border-strong">
           {tot('Margine', comp.totals.margin.total, cassa.totals.margin.total)}
-          {tot('Resta alla società', comp.totals.left.total, cassa.totals.left.total, true)}
+          {tot('Resta alla società', comp.totals.left.total, cassa.totals.left.total, undefined, true)}
         </tbody>
       </table>
     </div>

@@ -75,7 +75,12 @@ export async function uploadPayslip(formData: FormData): Promise<{ ok: true } | 
 
   if (dbErr) return { error: dbErr.message }
 
+  /* §309 — le due porte sulla stessa cosa: il dipendente la legge nel workspace,
+     l'admin la carica da HR & Team. Rinfrescarne una sola lascia l'altra a
+     mostrare l'elenco di prima, e chi ha appena caricato pensa che non sia
+     andato. */
   revalidatePath('/workspace/buste-paga')
+  revalidatePath('/hr')
   return { ok: true }
 }
 
@@ -91,6 +96,11 @@ export async function deletePayslip(payslipId: string): Promise<{ ok: true } | {
   const { error } = await admin.from('payslips').delete().eq('id', payslipId)
   if (error) return { error: error.message }
 
+  /* §309 — le due porte sulla stessa cosa: il dipendente la legge nel workspace,
+     l'admin la carica da HR & Team. Rinfrescarne una sola lascia l'altra a
+     mostrare l'elenco di prima, e chi ha appena caricato pensa che non sia
+     andato. */
   revalidatePath('/workspace/buste-paga')
+  revalidatePath('/hr')
   return { ok: true }
 }

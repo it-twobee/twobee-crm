@@ -57,6 +57,16 @@ export type MacroRow = {
   share: number
   /** una riga che il conto economico non contiene, e va detto */
   hint?: string
+  /**
+   * §310 — **quanto di questa competenza non si è ancora mosso.** Non è
+   * «competenza meno cassa»: quelle due colonne parlano di mesi diversi — lo
+   * stipendio di agosto è competenza di agosto e cassa di settembre (§224) —
+   * e sottrarle dava, sulla riga del Personale, «manca −6.937 €», che non è una
+   * quantità. Qui si contano le righe **di questo mese** che nessuno ha ancora
+   * spuntato: è la sola risposta possibile alla domanda «quanto manca».
+   */
+  open: number
+  openCells: Cell[]
 }
 
 export type BankMonth = {
@@ -210,6 +220,7 @@ export function prospetto(i: ProspettoInput): Prospetto {
 
   // ── entrate ───────────────────────────────────────────────────────────────
   const revCells = new Map<string, Cell[]>(REVENUE_MACRO.map(m => [m.key, empty()]))
+  const revOpen = new Map<string, Cell[]>(REVENUE_MACRO.map(m => [m.key, empty()]))
   for (const l of i.revenue) {
     const cl: CashLine = {
       id: l.id, side: 'entrata', month: monthOf(l.month), amount: l.amount_net,
@@ -218,10 +229,15 @@ export function prospetto(i: ProspettoInput): Prospetto {
     }
     const key = l.pass_through ? 'giro' : l.kind === 'digital' ? 'digital' : 'growth'
     put(revCells.get(key)!, bucketOf(cl, i.basis, i.today, ctx), l.amount_net)
+    /* §310 — sempre per **mese di competenza** e solo se non è spuntata: è la
+       domanda «di questo mese, quanto deve ancora arrivare», che non dipende
+       dalla lettura scelta. */
+    if (!l.paid) put(revOpen.get(key)!, monthOf(l.month), l.amount_net)
   }
 
   // ── uscite ────────────────────────────────────────────────────────────────
   const costCells = new Map<string, Cell[]>(COST_MACRO.map(m => [m.key, empty()]))
+  const costOpen = new Map<string, Cell[]>(COST_MACRO.map(m => [m.key, empty()]))
   for (const c of i.costs) {
     /* L'effettivo è il fatto; finché è zero vale il preventivato, o una spesa
        registrata e non ancora consuntivata sparirebbe dal prospetto proprio
@@ -235,23 +251,34 @@ export function prospetto(i: ProspettoInput): Prospetto {
     const key = costMacro(c)
     if (!costCells.has(key)) costCells.set(key, empty())
     put(costCells.get(key)!, bucketOf(cl, i.basis, i.today, ctx), amount)
+    if (!costOpen.has(key)) costOpen.set(key, empty())
+    if (!c.paid) put(costOpen.get(key)!, monthOf(c.month), amount)
   }
 
-  const rowOf = (key: string, label: string, kind: MacroRow['kind'], cells: Cell[], hint?: string): MacroRow => ({
-    key, label, kind, cells, total: sum(cells.map(c => c.value)), share: 0, hint,
-  })
+  const rowOf = (
+    key: string, label: string, kind: MacroRow['kind'], cells: Cell[], hint?: string,
+    openCells?: Cell[],
+  ): MacroRow => {
+    const oc = openCells ?? empty()
+    return {
+      key, label, kind, cells, total: sum(cells.map(c => c.value)), share: 0, hint,
+      openCells: oc, open: sum(oc.map(c => c.value)),
+    }
+  }
 
   const revenue = REVENUE_MACRO
-    .map(m => rowOf(m.key, m.label, 'entrata', revCells.get(m.key)!, 'hint' in m ? m.hint : undefined))
+    .map(m => rowOf(m.key, m.label, 'entrata', revCells.get(m.key)!,
+      'hint' in m ? m.hint : undefined, revOpen.get(m.key)))
     .filter(r => r.total !== 0)
   /* Le macro dichiarate prima, poi le aree del piano in ordine di peso: quello
      che costa di più si legge per primo, che è l'unico ordine utile. */
   const known = new Set<string>(COST_MACRO.map(m => m.key))
   const costs = [
-    ...COST_MACRO.map(m => rowOf(m.key, m.label, 'uscita', costCells.get(m.key)!, 'hint' in m ? m.hint : undefined)),
+    ...COST_MACRO.map(m => rowOf(m.key, m.label, 'uscita', costCells.get(m.key)!,
+      'hint' in m ? m.hint : undefined, costOpen.get(m.key))),
     ...Array.from(costCells.entries())
       .filter(([k]) => !known.has(k))
-      .map(([k, cells]) => rowOf(k, k, 'uscita', cells))
+      .map(([k, cells]) => rowOf(k, k, 'uscita', cells, undefined, costOpen.get(k)))
       .sort((a, b) => b.total - a.total),
   ].filter(r => r.total !== 0)
 
@@ -260,8 +287,15 @@ export function prospetto(i: ProspettoInput): Prospetto {
     value: sum(rows.map(r => r.cells[k].value)),
     count: rows.reduce((n, r) => n + r.cells[k].count, 0),
   }))
-  const revTot = rowOf('tot-entrate', 'Totale entrate', 'calcolo', totalCells(revenue))
-  const costTot = rowOf('tot-uscite', 'Totale uscite', 'calcolo', totalCells(costs))
+  /* §310 — anche i totali portano il «non ancora mosso», sommato dalle righe:
+     ricalcolarlo a parte sarebbe il secondo posto dove quella regola vive. */
+  const openTotals = (rows: MacroRow[]) => months.map((m, k) => ({
+    month: m,
+    value: sum(rows.map(r => r.openCells[k]?.value ?? 0)),
+    count: rows.reduce((n, r) => n + (r.openCells[k]?.count ?? 0), 0),
+  }))
+  const revTot = rowOf('tot-entrate', 'Totale entrate', 'calcolo', totalCells(revenue), undefined, openTotals(revenue))
+  const costTot = rowOf('tot-uscite', 'Totale uscite', 'calcolo', totalCells(costs), undefined, openTotals(costs))
   const margin = rowOf('margine', 'Margine', 'calcolo', months.map((m, k) => ({
     month: m,
     value: r2(revTot.cells[k].value - costTot.cells[k].value),

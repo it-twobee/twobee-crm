@@ -244,6 +244,35 @@ eq('i totali restano a zero', vuoto.totals.margin.total, 0)
 eq('e il saldo è l\'apertura', vuoto.bank.at(-1)?.balance, 1000)
 
 // ────────────────────────────────────────────────────────────────────────────
+/* ── §310 · «quanto manca» non è «competenza meno cassa» ────────────────────
+   Lo stipendio di agosto è competenza di agosto e cassa di settembre (§224).
+   Sottrarre le due colonne dava, sulla riga del Personale, «manca −6.937 €» —
+   la competenza di un mese meno la cassa di un altro, che non è una quantità. Il
+   numero vero è quanto delle righe **di questo mese** non si è ancora mosso. */
+{
+  const p = prospetto(base)
+  const pers = p.costs.find(r => r.key === 'personale')!
+  eq('il personale di luglio è competenza di luglio', pers.cells[1].value, 8899)
+  /* Quella riga è spuntata pagata il 20 agosto: di luglio non manca niente, e
+     «manca» dice zero — mentre competenza meno cassa direbbe 8.899. */
+  eq('e non manca niente, perché è stata pagata', pers.openCells[1].value, 0)
+
+  const ago = p.costs.find(r => r.key === 'Overhead')
+  eq('la voce di agosto non pagata manca per intero', ago?.openCells[2].value, 300)
+
+  const digital = p.revenue.find(r => r.key === 'digital')!
+  eq('il digital di luglio non è incassato', digital.openCells[1].value, 1625)
+
+  /* I totali sommano dalle righe, non da un secondo calcolo: ricalcolarli a
+     parte sarebbe il secondo posto dove quella regola vive. */
+  eq('il totale delle entrate somma le righe',
+     p.totals.revenue.openCells[1].value,
+     p.revenue.reduce((n, r) => n + r.openCells[1].value, 0))
+  eq('e quello delle uscite pure',
+     p.totals.costs.openCells[2].value,
+     p.costs.reduce((n, r) => n + r.openCells[2].value, 0))
+}
+
 if (fails.length) {
   console.error(`\n${fails.length} controlli falliti su ${ok + fails.length}:\n`)
   fails.forEach(f => console.error('  ✗ ' + f))

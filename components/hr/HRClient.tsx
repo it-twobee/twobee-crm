@@ -4,17 +4,18 @@ import { useState } from 'react'
 import {
   Users, Calendar, Star, ClipboardList, Plus, Check, X,
   Loader2, ChevronDown, Award, TrendingUp, Clock, AlertTriangle,
-  User, Briefcase, Mail, Phone, Edit2, Network, Contact,
+  User, Briefcase, Mail, Phone, Edit2, Network, Contact, FileText,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Organigramma } from '@/components/hr/Organigramma'
 import { ResourceProfilesTab } from '@/components/hr/ResourceProfilesTab'
 import { HrRequestsTab } from '@/components/hr/HrRequestsTab'
+import { PayslipsClient } from '@/components/workspace/payslips/PayslipsClient'
 import { FerieCalendar } from '@/components/hr/FerieCalendar'
 import { EmptyState } from '@/components/shared/EmptyState'
 import type {
-  Profile, TeamLeave, PerformanceReview, LeaveType, LeaveStatus, LegacyContractType, OrgUnit, OrgMember, ResourceProfile, HrRequest,
+  Profile, TeamLeave, PerformanceReview, LeaveType, LeaveStatus, LegacyContractType, OrgUnit, OrgMember, ResourceProfile, HrRequest, Payslip,
 } from '@/lib/types/database'
 
 interface Props {
@@ -26,11 +27,13 @@ interface Props {
   resourceProfiles: ResourceProfile[]
   /** richieste inviate dal Workspace, in attesa di decisione */
   hrRequests: HrRequest[]
+  /** §309 — le buste paga del team: le carica l'admin, le legge il dipendente */
+  payslips: Payslip[]
   currentUserId: string
   isAdmin: boolean
 }
 
-type Tab = 'richieste' | 'team' | 'ferie' | 'performance' | 'organigramma' | 'risorse'
+type Tab = 'richieste' | 'team' | 'ferie' | 'buste' | 'performance' | 'organigramma' | 'risorse'
 
 const ic = 'w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/50'
 
@@ -241,7 +244,7 @@ function ReviewModal({ reviewee, currentUserId, quarter, existing, onClose, onSa
   )
 }
 
-export function HRClient({ profiles, leaves: initialLeaves, reviews: initialReviews, orgUnits, orgMembers, resourceProfiles, hrRequests, currentUserId, isAdmin }: Props) {
+export function HRClient({ profiles, leaves: initialLeaves, reviews: initialReviews, orgUnits, orgMembers, resourceProfiles, hrRequests, payslips, currentUserId, isAdmin }: Props) {
   const hrPending = hrRequests.filter(r => r.status === 'pending').length
   // la coda delle richieste è la prima cosa da guardare quando qualcuno aspetta
   const [tab, setTab] = useState<Tab>(hrPending > 0 ? 'richieste' : 'team')
@@ -312,6 +315,11 @@ export function HRClient({ profiles, leaves: initialLeaves, reviews: initialRevi
           { key: 'richieste', label: `Richieste${hrPending > 0 ? ` (${hrPending})` : ''}`, icon: <ClipboardList className="w-3.5 h-3.5" /> },
           { key: 'team', label: 'Team', icon: <Users className="w-3.5 h-3.5" /> },
           { key: 'ferie', label: `Assenze${pending.length > 0 ? ` (${pending.length})` : ''}`, icon: <Calendar className="w-3.5 h-3.5" /> },
+          /* §309 — le buste paga si caricavano **solo** da `/workspace/buste-paga`:
+             un admin che gestisce il personale doveva entrare nel portale del
+             team per allegare un cedolino. Qui c'è lo stesso componente, non una
+             seconda copia — chi carica e chi legge devono vedere la stessa cosa. */
+          { key: 'buste', label: `Buste paga${payslips.length > 0 ? ` (${payslips.length})` : ''}`, icon: <FileText className="w-3.5 h-3.5" /> },
           { key: 'performance', label: 'Performance', icon: <Star className="w-3.5 h-3.5" /> },
           { key: 'organigramma', label: 'Organigramma', icon: <Network className="w-3.5 h-3.5" /> },
           { key: 'risorse', label: 'Risorse', icon: <Contact className="w-3.5 h-3.5" /> },
@@ -413,6 +421,17 @@ export function HRClient({ profiles, leaves: initialLeaves, reviews: initialRevi
       {tab === 'richieste' && <HrRequestsTab requests={hrRequests} profiles={profiles} />}
 
       {/* ── FERIE & PERMESSI ── */}
+      {/* §309 — **lo stesso componente del workspace.** Il dipendente vede le sue
+          nel suo portale, l'admin le carica da qui: due porte sulla stessa cosa,
+          non due implementazioni. Una seconda copia vorrebbe dire due elenchi che
+          col tempo dicono cose diverse — ed è esattamente quello che questo tool
+          passa il tempo a smontare. */}
+      {tab === 'buste' && (
+        <PayslipsClient payslips={payslips} isAdmin={isAdmin}
+          currentUserId={currentUserId}
+          team={profiles.map(p => ({ id: p.id, full_name: p.full_name ?? p.email ?? 'Senza nome' }))} />
+      )}
+
       {tab === 'ferie' && (
         <div className="space-y-4">
           {/* §223 — il calendario prima dell'elenco: «chi manca insieme a chi» e
