@@ -149,13 +149,21 @@ const parsed = JSON.parse((await res.json()).choices?.[0]?.message?.content?.mat
 > con l'header la modifica prende il nome di chi l'ha fatta, senza resta
 > «Sistema», e un UPDATE che non cambia niente non scrive più una riga.
 >
+> **§313 — e il modo di verificarlo in trenta secondi.** Un `ON CONFLICT` su un
+> indice che non c'è fallisce con `42P10`, e PostgREST lo risolve **prima** dei
+> vincoli di chiave esterna: un upsert con valori inventati risponde `42P10` se
+> l'indice manca e `23503` se c'è, senza scrivere niente. Passati così tutti gli
+> `onConflict` del codice, ne mancavano due — `payslips` e `item_views` — e la
+> 216 li rimette. Vale come metodo, non solo come episodio: ogni upsert è una
+> promessa su un indice, e dopo un reset la promessa va riprovata.
+>
 > **Non eseguire** `086_decisions`, `097_data_quality_view`, `098_time_tracking`:
 > riguardano domini demoliti nel reset del 2026-07-23 (decisions, time tracking,
 > widget salute dati) e non hanno un solo riferimento nel codice. Restano nel
 > repo come storia, non come lavoro arretrato.
 
 `chat_channels.project_id` **esiste** in produzione: il vecchio "BUG NOTO" è risolto.
-Numerazione: attenzione, `080_*`, `081_*` e `092_*` compaiono due volte. Il prossimo libero è **213**.
+Numerazione: attenzione, `080_*`, `081_*` e `092_*` compaiono due volte. Il prossimo libero è **217**.
 
 La tabella qui sotto è il **changelog**: dice cosa fa ciascuna, non cosa manca.
 
@@ -260,6 +268,7 @@ dato economico: è sicuro anche nel workspace.
 | `205_settled_from.sql` | **§230 — da eseguire.** Rinomina `payout_from` in **`settled_from`**: la linea del consolidato è una sola e vale per tre cose — compensi liquidati, spunte non certificate accettate, organico dei mesi vecchi non rincorso. Una colonna che dice meno del suo contenuto è il modo in cui il prossimo se ne inventa un altro uso | — |
 | `204_payout_from.sql` | **§227 — applicata il 2026-08-08.** `pl_config.payout_from` (seed 2026-07-01): da quale mese si contano i compensi maturati verso soci e commerciali. Prima è liquidato. Senza, il registro conta da sempre e mostra a ciascuno un anticipo che non esiste | — |
 | `212_payout_window.sql` | **§285/§286 — applicata il 2026-08-13.** `cost_items.installment_id` e `pl_cost_lines.installment_id`: la tranche di subappalto dichiara **quale rata del cliente finanzia**, e il margine digital la toglie da quella riga invece di spalmarla sul progetto. Più `pl_config.payout_day` (default 20) e `pl_months.payout_date`: la data dell'erogazione, che decide quali incassi entrano nella distribuzione. Backfill del legame per coda del nome, dove la corrispondenza è una sola. Senza, l'attribuzione resta proporzionale (§208) e la data cade sul giorno di default | — |
+| `216_missing_unique_indexes.sql` | **§313 — applicata il 2026-08-21.** Due indici unici che il registro dava per esistenti e sul database non c'erano: `payslips(profile_id, year, month)` (la 088) e `item_views(profile_id, item_id, item_type)` (la 109). Il reset del 2026-07-23 ha ricreato le tabelle e se li è portati via — §222 nella forma pura. Deduplica **prima** di vincolare: un indice unico su una tabella con duplicati non passa. Senza, caricare una busta paga falliva con `42P10` | — |
 | `215_f24_documents.sql` | **§301 — da eseguire.** `f24_documents` + `f24_lines`: il modello F24 come documento, coi suoi tributi. Ogni riga dichiara a quale mondo appartiene (`iva`, `ritenute`, `inps`, `inail`, `credito`, `altro`) e punta al dominio che ne è l'autorità — `vat_settlements` per l'IVA (§242), `hr_f24` per il resto (§182). Il `credito` **si sottrae**: è l'indennità L. 207/2024 che esce in busta e rientra (§235). `payment_allocations.f24_id` come quarto bersaglio, col CHECK rifatto a «uno solo fra quattro». Trigger `f24_lines_balance` **deferred**: il totale versato deve essere la somma dei debiti meno i crediti, ma un modello nasce vuoto e si compila una riga alla volta. Senza, i modelli non hanno un posto e la sezione lo dichiara | — |
 | `214_payment_allocations.sql` | **§297 — da eseguire.** `payment_allocations`: quanto di un movimento paga quale riga. Un movimento ha N allocazioni, una riga ne ha N, e ognuna dice se la certifica la banca o se è solo dichiarata. CHECK a un target solo (ricavo, costo, compenso), indice unico per (movimento, target) e **trigger `alloc_within_tx`** che vieta di allocare più di quello che il movimento contiene. Backfill dai legami diretti esistenti, con l'importo tagliato al minore fra il lordo del movimento e quello della riga. `bank_transactions.revenue_line_id`/`cost_line_id` restano: si droppano quando nessun chiamante li usa. Senza, il legame resta uno a uno e l'azione lo dichiara | — |
 | `213_carry_forward.sql` | **§290 — da eseguire.** `carried_at`/`carried_from`/`carry_count` su `pl_revenue_lines` e `pl_cost_lines`: la chiusura del mese marca le righe non saldate invece di lasciarle dedurre da `openAt`. La riga **resta nel suo mese** — fattura, IVA e compensi di quel mese sono già stati dichiarati fuori — e il segno dice da quante chiusure si trascina. Backfill delle scoperte nei mesi già chiusi. Senza, il mese si chiude come prima e il trascinamento resta quello dedotto | — |
