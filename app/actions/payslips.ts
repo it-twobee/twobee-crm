@@ -65,15 +65,41 @@ export async function uploadPayslip(formData: FormData): Promise<{ ok: true } | 
     return { error: `Upload fallito: ${(e as Error).message}` }
   }
 
-  const { error: dbErr } = await createAdminClient().from('payslips').upsert({
+  const admin = createAdminClient()
+  const row = {
     profile_id: profileId,
     year, month,
     file_path: key,
     file_name: file.name,
     uploaded_by: actor.userId,
-  } as never, { onConflict: 'profile_id,year,month' })
+  }
+  const { error: dbErr } = await admin.from('payslips')
+    .upsert(row as never, { onConflict: 'profile_id,year,month' })
 
-  if (dbErr) return { error: dbErr.message }
+  /* §313 — l'indice unico su `(profile_id, year, month)` lo crea la 088, il
+     registro la dà applicata, e sul database **non c'è**: il reset del
+     2026-07-23 ha ricreato la tabella e se l'è portato via (§222). Senza,
+     l'upsert non fallisce a metà — fallisce del tutto con 42P10, ed è la parte
+     fortunata: senza vincolo, ricaricare lo stesso mese scriverebbe un doppione
+     e il dipendente non saprebbe quale dei due è il suo cedolino.
+
+     Qui si fa a mano quello che l'indice garantirebbe: si cerca la riga di quel
+     mese e la si aggiorna, o si inserisce. È il ripiego dichiarato, non la
+     regola — la regola è la 216, che deduplica e vincola. Due upload nello
+     stesso istante possono ancora creare due righe: è esattamente ciò che un
+     indice impedisce e un `select`-poi-`insert` no. */
+  if (dbErr?.code === '42P10') {
+    const { data: già } = await admin.from('payslips')
+      .select('id').eq('profile_id', profileId).eq('year', year).eq('month', month)
+      .order('uploaded_at', { ascending: false }).limit(1)
+    const id = (già as { id: string }[] | null)?.[0]?.id
+    const { error } = id
+      ? await admin.from('payslips').update(row as never).eq('id', id)
+      : await admin.from('payslips').insert(row as never)
+    if (error) return { error: error.message }
+  } else if (dbErr) {
+    return { error: dbErr.message }
+  }
 
   /* §309 — le due porte sulla stessa cosa: il dipendente la legge nel workspace,
      l'admin la carica da HR & Team. Rinfrescarne una sola lascia l'altra a
