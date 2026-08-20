@@ -299,21 +299,41 @@ export function planMonth(i: {
      Lì le righe non esistono e il fatto lo dicono il contratto e il piano.
      Sommare tutti e due conterebbe due volte lo stesso canone: è il motivo per
      cui questo blocco vale **solo** a mese chiuso. */
-  if (!i.open) {
-    for (const p of i.planned) {
-      const muove = bucket(p.due) === i.month
-      items.push({
-        id: `p:${p.id}`, side: p.side, group: p.side === 'entrata' ? 'clienti'
-          : p.external ? 'esterni' : 'struttura',
-        label: p.label, who: p.who ?? null, gross: r2(p.gross), due: p.due, month: i.month,
-        source: p.side === 'entrata' ? 'contratto' : 'piano', state: 'atteso',
-        lateDays: 0, movable: false, inBalance: false, declared: false,
-        accrual: true, movesIn: muove, on: true,
-        why: muove
-          ? (p.side === 'entrata' ? 'dal contratto' : 'dal piano dei costi')
-          : `di questo mese, esce ${monthName(bucket(p.due))}`,
-      })
-    }
+  /* §308 — in un **mese aperto** arrivano solo le voci di piano che nessuna riga
+     rappresenta già: chi le passa le ha filtrate per `cost_item_id`, quindi qui
+     non c'è più il rischio di contare due volte lo stesso canone. Quello che
+     cambia è come si leggono — una voce del piano in un mese aperto **non è un
+     fatto registrato**: è una data e un importo che qualcuno ha scritto, e nel
+     mese non è ancora entrata. Chiamarla come le altre la farebbe sembrare
+     confermata; chiamarla stima sarebbe falso, perché una stima non ha una data. */
+  for (const p of i.planned) {
+    const muove = bucket(p.due) === i.month
+    const daPortare = i.open && p.side === 'uscita'
+    items.push({
+      id: `p:${p.id}`, side: p.side, group: p.side === 'entrata' ? 'clienti'
+        : p.external ? 'esterni' : 'struttura',
+      label: p.label, who: p.who ?? null, gross: r2(p.gross), due: p.due, month: i.month,
+      source: p.side === 'entrata' ? 'contratto' : 'piano',
+      state: p.due < i.today ? 'scaduto' : 'atteso',
+      lateDays: p.due < i.today ? daysBetween(p.due, i.today) : 0,
+      movable: false, inBalance: false, declared: false,
+      /* §308 — una voce di piano che **nessuna riga ha registrato** non è
+         competenza di questo mese: è cassa attesa. Il conto economico è
+         l'autorità su cosa il mese ha prodotto (§264), e i totali di competenza
+         del piano devono continuare a combaciare con lui riga per riga — è
+         l'unica cosa che rende quei numeri controllabili. Metterla in competenza
+         faceva dire al piano 29 voci contro 16 righe: due numeri con lo stesso
+         nome, che è il difetto che questo tool passa il tempo a chiudere.
+         Resta in cassa, e la sua presenza è **il segnale** che al mese manca
+         qualcosa: si porta dentro con «Prepara il mese» o dal dialogo dei
+         movimenti (§303). */
+      accrual: !daPortare, movesIn: muove, on: true,
+      why: !muove
+        ? `di questo mese, esce ${monthName(bucket(p.due))}`
+        : daPortare
+          ? 'dal piano dei costi — non ancora portata nel mese'
+          : (p.side === 'entrata' ? 'dal contratto' : 'dal piano dei costi'),
+    })
   }
 
   /* §225 — il piano dei costi **non** contiene il costo del lavoro: lo scrive

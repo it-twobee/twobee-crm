@@ -263,6 +263,71 @@ const secco: PlanMonth = {
 }
 eq('nessuna leva, e si dice', advice(secco, new Set()).some(s => s.key === 'niente-leve'), true)
 
+/* ── §308 · le spese ricorrenti entrano anche in un mese aperto ─────────────
+   «Un mese aperto si legge dalle righe» (§262) proteggeva dal doppio conteggio e
+   buttava via il resto: una voce ricorrente che nessuno ha portato nel mese
+   **non compariva da nessuna parte**, e la cassa del mese risultava più leggera
+   del vero. Chi passa le voci le filtra per `cost_item_id`, quindi qui il doppio
+   conteggio non può nascere — e la voce si legge per quello che è: una data e un
+   importo che nessuna riga ha ancora registrato. */
+{
+  const conPiano = planMonth({
+    month: AGO, today: TODAY, open: true, lines: [],
+    planned: [{ id: 'gw', side: 'uscita', label: 'Google Workspace', gross: 207.4, due: '2026-08-31' }],
+    dues: [], payouts: [],
+  })
+  const gw = conPiano.find(x => x.id === 'p:gw')
+  eq('in un mese aperto la voce di piano c\'è', !!gw, true)
+  eq('e vale il suo lordo', gw?.gross, 207.4)
+  eq('dichiara di non essere ancora nel mese', gw?.why, 'dal piano dei costi — non ancora portata nel mese')
+  eq('la sorgente resta il piano', gw?.source, 'piano')
+
+  /* Una voce di piano la cui data è già passata è **scaduta**, non «attesa»: il
+     giorno in cui doveva uscire è dietro, e chiamarla attesa insegna a non
+     guardare le date. */
+  const vecchia = planMonth({
+    month: AGO, today: TODAY, open: true, lines: [],
+    planned: [{ id: 'gc', side: 'uscita', label: 'Google Cloud', gross: 170.21, due: '2026-08-05' }],
+    dues: [], payouts: [],
+  }).find(x => x.id === 'p:gc')
+  eq('una data passata è scaduta', vecchia?.state, 'scaduto')
+  eq('e dice di quanti giorni', vecchia?.lateDays, 4)
+
+  /* A mese non aperto la frase resta quella di prima: lì il piano è l'unica
+     sorgente che c'è, e non c'è niente «da portare». */
+  const chiuso = planMonth({
+    month: '2026-09-01', today: TODAY, open: false, lines: [],
+    planned: [{ id: 'gw', side: 'uscita', label: 'Google Workspace', gross: 207.4, due: '2026-09-30' }],
+    dues: [], payouts: [],
+  }).find(x => x.id === 'p:gw')
+  eq('a mese non aperto la frase è quella di prima', chiuso?.why, 'dal piano dei costi')
+}
+
+/* ── §308 · l'ancora è l'ultimo estratto conto, non oggi ────────────────────
+   Il saldo di partenza è quello della banca, e la banca contiene solo ciò che
+   l'estratto conto copre. Con l'ancora su **oggi**, un pagamento spuntato il 22
+   — con l'ultimo estratto conto fermo al 20 — veniva dato per «già nel saldo»
+   mentre il conto non l'aveva visto, e il mese chiudeva con un numero che nessun
+   estratto conto avrebbe confermato. */
+{
+  const riga = {
+    id: 'x', side: 'uscita' as const, label: 'Fornitore', gross: 1000,
+    due: '2026-08-22', month: AGO, paid: true, paidOn: '2026-08-22',
+  }
+  const conOggi = planMonth({
+    month: AGO, today: '2026-08-25', open: true, anchor: '2026-08-25',
+    lines: [riga], planned: [], dues: [], payouts: [], inBank: new Set(['x']),
+  }).find(x => x.id === 'f:x')
+  eq('con l\'ancora su oggi risulta già nel saldo', conOggi?.inBalance, true)
+
+  const conEstratto = planMonth({
+    month: AGO, today: '2026-08-25', open: true, anchor: '2026-08-20',
+    lines: [riga], planned: [], dues: [], payouts: [], inBank: new Set(['x']),
+  }).find(x => x.id === 'f:x')
+  eq('con l\'ancora sull\'estratto conto no', conEstratto?.inBalance, false)
+  eq('e muove ancora il saldo del mese', conEstratto?.movesIn, true)
+}
+
 if (fails.length) {
   console.error(`\n${fails.length} controlli falliti su ${ok + fails.length}:\n`)
   fails.forEach(f => console.error('  ✗ ' + f))

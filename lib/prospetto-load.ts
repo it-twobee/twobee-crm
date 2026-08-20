@@ -19,7 +19,7 @@ import { collectionIndex, fromRevenue, fromCost, dueOf, monthOf } from '@/lib/ca
 import {
   linesForMonth, coveredProjects, type Coverage, type Installment, type RevenueStream,
 } from '@/lib/revenue'
-import { plannedForMonth, isPayrollCenter, type CostItem } from '@/lib/costs'
+import { plannedForMonth, plannedNotYetInMonth, isPayrollCenter, type CostItem } from '@/lib/costs'
 import { vatByQuarter, type MonthVat, type VatActual } from '@/lib/vat'
 import { planMonth, type PlanMonth } from '@/lib/cash-plan'
 import { buildWindow, takenIn, marginCostsFor } from '@/lib/payout-window'
@@ -76,6 +76,7 @@ export async function loadProspetto(
     { data: revRows }, { data: costRows }, { data: accountRows }, { data: txRows, error: bankErr },
     { data: cfgRow }, { data: partnerRows }, { data: clientRows }, { data: payoutRows },
     { data: streamRows }, { data: coverRows }, { data: instRows }, { data: itemRows },
+    { data: centerRows },
     { data: vatActualRows }, { data: allocRows },
   ] = await Promise.all([
     /* `select('*')`: `payout_date` arriva con la 212 e prima non c'è. Chiederla
@@ -105,6 +106,9 @@ export async function loadProspetto(
     supabase.from('revenue_stream_projects').select('stream_id, project_id'),
     supabase.from('revenue_installments').select('*'),
     supabase.from('cost_items').select('*').eq('is_active', true),
+    /* §308 — le aree, per riconoscere quella del personale dal suo **id**:
+       `cost_items.category` dice «HR» e l'area si chiama «Personale». */
+    supabase.from('cost_centers').select('id, name'),
     supabase.from('vat_settlements').select('year, quarter, to_pay, doc_ref, paid_on'),
     /* §258 — le quote: un bonifico cumulativo nomina più righe, e senza queste
        risulterebbero spuntate senza prova. */
@@ -294,6 +298,16 @@ export async function loadProspetto(
   const balanceAt = (from: string) => r2(opening + realTx
     .filter((t: Record<string, unknown>) => String(t.booked_on).slice(0, 10) < from)
     .reduce((s: number, t: Record<string, unknown>) => s + num(t.amount), 0))
+  /* §308 — **fin dove il saldo è un fatto**: la data dell'ultimo movimento
+     caricato, non oggi. Il saldo di partenza è quello della banca, e la banca
+     contiene solo ciò che l'estratto conto copre: se l'ultimo scaricato si ferma
+     al 20 e oggi è il 25, i cinque giorni in mezzo venivano dati per «già nel
+     saldo» mentre il conto non li ha visti — e il mese chiudeva con un numero che
+     nessun estratto conto avrebbe confermato. */
+  const lastStatement = realTx
+    .map((t: Record<string, unknown>) => String(t.booked_on).slice(0, 10))
+    .sort().at(-1) ?? null
+
   /* §263 — il saldo **di adesso**: è il numero che si legge in Banca, e contiene
      anche i movimenti che nessuna riga giustifica. Il mese in corso parte da lì,
      non da un'apertura ricostruita dalle righe. */
@@ -340,6 +354,10 @@ export async function loadProspetto(
   const streams = (streamRows ?? []) as unknown as RevenueStream[]
   const installments = (instRows ?? []) as unknown as Installment[]
   const items = ((itemRows ?? []) as unknown as CostItem[]).filter(i => i.is_active)
+  /* §308/§184 — l'area del costo del lavoro, per id: le sue voci a piano non
+     entrano nel piano di cassa, perché quelle righe le scrive l'organico. */
+  const payrollCenters = new Set(((centerRows ?? []) as { id: string; name: string }[])
+    .filter(c => isPayrollCenter(c.name)).map(c => c.id))
 
   /* Le righe che un mese **avrebbe** se lo si aprisse adesso: servono due volte,
      per le voci del piano di cassa e per sapere quanto matureranno i compensi.
@@ -415,7 +433,16 @@ export async function loadProspetto(
       gross: r2(l.amount_net * (1 + l.vat_rate)),
       due: dueOf({ id: l.id, side: 'entrata', month: mm, amount: l.amount_net, paid: false }),
     }))
-    const piano = open ? [] : plannedForMonth(items, mm).map((it, k) => ({
+    /* §308 — **le spese ricorrenti entrano anche in un mese aperto**, ma solo
+       quelle che nessuna riga rappresenta già. «Un mese aperto si legge dalle
+       righe» (§262) proteggeva dal doppio conteggio e buttava via il resto: una
+       voce a piano che nessuno ha portato nel mese non compariva da nessuna
+       parte, e la cassa del mese risultava più leggera del vero. Il legame è
+       `cost_item_id`, che la riga porta da quando nasce dal piano. */
+    const mancanti = open
+      ? plannedNotYetInMonth(items, mm, costs.filter(c => c.month === mm), payrollCenters)
+      : plannedForMonth(items, mm)
+    const piano = mancanti.map((it: CostItem, k: number) => ({
       id: `${mm}:cost:${k}`, side: 'uscita' as const, label: it.label,
       who: it.supplier ?? it.category ?? null,
       gross: r2(it.amount * (it.vat_applied ? 1 + it.vat_rate : 1)),
@@ -455,10 +482,13 @@ export async function loadProspetto(
       /* §263 — il mese in corso parte dal saldo vero di oggi; un mese passato da
          quello che aveva a inizio mese, perché lì tutto è già successo. */
       opening: mm === nowMonth ? balanceNow : balanceAt(mm),
-      anchor: mm === nowMonth ? today : null,
+      /* §308 — l'ancora è l'ultimo estratto conto, non oggi: è fin dove il saldo
+         di partenza è davvero un fatto. */
+      anchor: mm === nowMonth ? (lastStatement ?? today) : null,
       open,
       items: planMonth({
-        month: mm, today, open, anchor: mm === nowMonth ? today : null, inBank,
+        month: mm, today, open, inBank,
+        anchor: mm === nowMonth ? (lastStatement ?? today) : null,
         /* Le righe di **tutti** i mesi, ciascuna nel mese in cui la cassa la
            sente: quello del movimento se è già passata, quello della scadenza se
            no — e gli **scaduti pesano sul primo mese** della catena (§225), non

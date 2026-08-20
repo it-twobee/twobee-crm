@@ -114,6 +114,46 @@ export const plannedForMonth = (items: CostItem[], month: string) =>
   items.filter(i => dueInMonth(i, month))
 
 /**
+ * Le voci di piano che in questo mese **nessuna riga rappresenta ancora**. (§308)
+ *
+ * «Un mese aperto si legge dalle righe, uno mai aperto dal piano» (§262) è la
+ * regola giusta contro il doppio conteggio, e per mesi è bastata. Non basta per
+ * la domanda che si fa guardando il piano di cassa — *quanto esce in questo
+ * mese* — perché una voce ricorrente che nessuno ha portato nel mese **non
+ * compare da nessuna parte**: il piano dice che il 5 esce il canone di Google
+ * Workspace, il mese non ha quella riga, e la cassa del mese risulta più leggera
+ * del vero. `applyPlanToMonth` esiste appunto perché quel gesto va fatto a mano,
+ * e finché non lo si fa il numero è sbagliato in silenzio.
+ *
+ * Il legame è `pl_cost_lines.cost_item_id`, che la riga porta da quando nasce dal
+ * piano: quello che ha già una riga si esclude, il resto entra dichiarando di
+ * essere **atteso dal piano** e non registrato. Non è una stima — è una data e un
+ * importo che qualcuno ha scritto — ma non è nemmeno un fatto, e le due cose non
+ * si possono leggere uguali.
+ */
+export const plannedNotYetInMonth = (
+  items: CostItem[], month: string, lines: { cost_item_id?: string | null }[],
+  /**
+   * §184 — **l'area Personale la scrive l'organico, non il piano.** Le sue voci a
+   * piano sono un residuo del seed che nessuno porta mai nel mese, e le righe del
+   * costo del lavoro nascono da `pushPayrollToMonth` **senza** un
+   * `cost_item_id`: il filtro sopra non le riconosce, quindi le voci di piano
+   * comparirebbero accanto a quelle vere. Su agosto erano 8.640 € contati due
+   * volte. È la stessa esclusione che `applyPlanToMonth` fa a monte.
+   *
+   * Serve l'id dell'area e non il nome: `cost_items.category` dice «HR», l'area
+   * si chiama «Personale», e `isPayrollCenter` guarda il nome — quindi sul campo
+   * sbagliato non riconosceva niente.
+   */
+  payrollCenters?: Set<string>,
+) => {
+  const già = new Set(lines.map(l => l.cost_item_id).filter(Boolean) as string[])
+  return plannedForMonth(items, month)
+    .filter(i => !già.has(i.id))
+    .filter(i => !(payrollCenters?.size && i.center_id && payrollCenters.has(i.center_id)))
+}
+
+/**
  * L'area del costo del lavoro si chiama «Personale» e **non si tocca da qui**.
  *
  * Prima si chiamava «Persone» e si poteva scrivere a mano come un abbonamento,

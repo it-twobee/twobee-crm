@@ -13,7 +13,7 @@ import { readFileSync } from 'fs'
 import { shiftMonth, computeMonth, rowToPlConfig, monthKey, type Partner } from '@/lib/pl'
 import { collectionIndex, fromRevenue, fromCost, dueOf, monthOf, endOfMonth } from '@/lib/cash-calendar'
 import { linesForMonth, type Installment, type RevenueStream } from '@/lib/revenue'
-import { plannedForMonth, isPayrollCenter, type CostItem } from '@/lib/costs'
+import { plannedForMonth, plannedNotYetInMonth, isPayrollCenter, type CostItem } from '@/lib/costs'
 import { vatByQuarter, type MonthVat, type VatActual } from '@/lib/vat'
 import { planMonth, simulate, outcomes, advice, GROUPS, type PlanMonth } from '@/lib/cash-plan'
 import { eur2 } from '@/lib/money'
@@ -122,6 +122,9 @@ async function main() {
     .filter(t => String(t.booked_on).slice(0, 10) < from).reduce((s, t) => s + num(t.amount), 0))
   /* §263 — il saldo di adesso: il mese in corso parte da lì. */
   const balanceNow = r2(opening + realTx.reduce((s, t) => s + num(t.amount), 0))
+  /* §308 — fin dove il saldo è un fatto: la data dell'ultimo movimento caricato,
+     non oggi. La banca contiene solo ciò che l'estratto conto copre. */
+  const lastStatement = realTx.map(t => String(t.booked_on).slice(0, 10)).sort().at(-1) ?? null
 
   const nowMonth = monthOf(today)
   const first = month <= nowMonth ? month : nowMonth
@@ -157,6 +160,10 @@ async function main() {
   const streams = streamRows as unknown as RevenueStream[]
   const installments = inst as unknown as Installment[]
   const items = (itemRows as unknown as CostItem[]).filter(i => i.is_active)
+  /* §308/§184 — l'area del costo del lavoro, per id: `cost_items.category` dice
+     «HR» e l'area si chiama «Personale», quindi il nome va cercato sull'area. */
+  const centerRows = await get<{ id: string; name: string }[]>('cost_centers?select=id,name')
+  const payrollCenters = new Set(centerRows.filter(c => isPayrollCenter(c.name)).map(c => c.id))
 
   const plannedRev = (mm: string) => linesForMonth(streams, installments, mm).map((l, k) => ({
     id: `${mm}:rev:${k}`, label: l.label, client_id: l.client_id,
@@ -191,20 +198,31 @@ async function main() {
       anchor: mm === nowMonth ? today : null,
       open,
       items: planMonth({
-        month: mm, today, open, anchor: mm === nowMonth ? today : null, inBank,
+        month: mm, today, open, inBank,
+        anchor: mm === nowMonth ? (lastStatement ?? today) : null,
         /* §264 — si passano **tutte** le righe: quali sono di questo mese e
            quali ci si muovono soltanto lo decide il motore, che è l'unico posto
            dove quella regola deve vivere. */
         lines: cashLines,
         since: first,
-        planned: open ? [] : [
-          ...linesForMonth(streams, installments, mm).map((l, k) => ({
+        /* §308 — **la stessa regola della pagina**, e non è un dettaglio: questo
+           script costruiva il piano a modo suo con `open ? [] : …`, quindi le
+           spese ricorrenti che nessuna riga rappresenta non le vedeva — e un
+           controllo che non passa dal codice che gira in pagina verifica sé
+           stesso (§287). I contratti restano ai soli mesi mai preparati, perché
+           lì una rata materializzata è già una riga; le voci di piano entrano
+           anche in un mese preparato, filtrate per `cost_item_id`. */
+        planned: [
+          ...(open ? [] : linesForMonth(streams, installments, mm).map((l, k) => ({
             id: `${mm}:rev:${k}`, side: 'entrata' as const, label: l.label,
             who: l.client_id ? nameOf.get(l.client_id) ?? null : null,
             gross: r2(l.amount_net * (1 + l.vat_rate)),
             due: dueOf({ id: '', side: 'entrata', month: mm, amount: l.amount_net, paid: false }),
-          })),
-          ...plannedForMonth(items, mm).map((it, k) => ({
+          }))),
+          ...(open
+            ? plannedNotYetInMonth(items, mm, costs.filter(c => c.month === mm), payrollCenters)
+            : plannedForMonth(items, mm)
+          ).map((it, k) => ({
             id: `${mm}:cost:${k}`, side: 'uscita' as const, label: it.label, who: it.supplier ?? null,
             gross: r2(it.amount * (it.vat_applied ? 1 + it.vat_rate : 1)),
             due: dueOf({

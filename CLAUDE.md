@@ -995,6 +995,43 @@ quello che avvicina le due letture invece di separarle.
 - Nel conto economico i compensi restano **la leva**: è lì che si spunta
   l'erogazione (§243), e una leva lontana dal suo risultato non la usa nessuno.
 
+**Tutte le uscite che cadono nel mese, anche quelle che nessuno ha portato
+dentro** (§308). «Un mese aperto si legge dalle righe, uno mai aperto dal piano»
+(§262) proteggeva dal doppio conteggio e **buttava via il resto**: una spesa
+ricorrente che nessuno ha portato nel mese non compariva da nessuna parte, e la
+cassa del mese risultava più leggera del vero. Su agosto erano **965 €** —
+Google Workspace, Slack, OVHcloud, Aruba, il commercialista — con la loro data.
+
+- **Il legame è `cost_item_id`**, che la riga porta da quando nasce dal piano:
+  quello che ha già una riga si esclude, il resto entra.
+- **Entra in cassa, non in competenza.** Il conto economico è l'autorità su cosa
+  il mese ha prodotto (§264), e i totali di competenza del piano devono
+  continuare a combaciare con lui **riga per riga** — è l'unica cosa che rende
+  quei numeri controllabili. Metterle in competenza faceva dire al piano 29 voci
+  contro 16 righe: due numeri con lo stesso nome. La loro presenza in cassa è
+  **il segnale** che al mese manca qualcosa, e si porta dentro con «Prepara il
+  mese» o dal dialogo dei movimenti (§303).
+- **L'area Personale resta fuori** (§184): le sue voci a piano sono un residuo
+  del seed, e le righe del costo del lavoro le scrive l'organico **senza**
+  `cost_item_id` — quindi il filtro non le riconosce e comparirebbero accanto a
+  quelle vere. Su agosto erano 8.640 € contati due volte. E l'esclusione va per
+  **id dell'area**, non per nome: `cost_items.category` dice «HR», l'area si
+  chiama «Personale», e `isPayrollCenter` guarda il nome — sul campo sbagliato
+  non riconosceva niente.
+- **Una data già passata è `scaduto`, non `atteso`**: chiamarla attesa insegna a
+  non guardare le date.
+
+**Fin dove il saldo è un fatto lo dice l'estratto conto** (§308). L'ancora era
+**oggi**, ma il saldo di partenza è quello della banca e la banca contiene solo
+ciò che l'estratto conto copre: con l'ultimo scaricato fermo al 20 e oggi il 25,
+i cinque giorni in mezzo venivano dati per «già nel saldo» mentre il conto non li
+aveva visti — e il mese chiudeva con un numero che nessun estratto conto avrebbe
+confermato. Adesso l'ancora è la data dell'ultimo movimento caricato.
+
+**E `verify-plan` costruiva il piano a modo suo** (`open ? [] : …`), quindi non
+vedeva niente di tutto questo: un controllo che non passa dal codice che gira in
+pagina verifica sé stesso (§287). Ora applica le stesse due regole.
+
 **Il piano di cassa del mese** (§262, `lib/cash-plan.ts`, in cima al prospetto).
 La tenuta di cassa (§225) dice **se** un mese regge; questa dice **da cosa
 dipende**. Ogni fatto atteso è una riga con la sua data e la sua provenienza —
