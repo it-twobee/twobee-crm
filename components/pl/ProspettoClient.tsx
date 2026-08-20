@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   ChevronLeft, ChevronRight, ChevronDown, Info, Landmark, TrendingUp, TrendingDown,
+  ArrowDownRight, ArrowUpRight, Banknote, Check,
 } from 'lucide-react'
 import { eur } from '@/lib/money'
 import { monthLabel, shiftMonth, type RevenueLine, type CostLine } from '@/lib/pl'
@@ -58,6 +59,18 @@ export function ProspettoClient(props: {
   horizon?: string[]
   /** §265 — i movimenti veri del mese guardato, e il saldo di adesso */
   bank?: { inflow: number; outflow: number; balance: number } | null
+  /** §312 — il conto del mese come l'ha visto la banca: dentro non c'è niente di atteso */
+  bankMonth?: { opening: number; inflow: number; outflow: number; lastStatement: string | null } | null
+  /** §312 — compensi cumulativi per persona: maturato contro erogato */
+  ledger?: {
+    who: string; kind: 'socio' | 'commerciale'; accrued: number; paid: number
+    /** §228 — per lui si conta da sempre: non ha mai ricevuto un bonifico */
+    fromAlways?: boolean
+    /** §233 — mai un bonifico su nessun mese, non solo su quelli in finestra */
+    never?: boolean
+  }[]
+  /** §230 — da quale mese conta il cumulato: prima è liquidato */
+  ledgerSince?: string | null
 }) {
   const router = useRouter()
   const [basis, setBasis] = useState<Basis>('competenza')
@@ -155,6 +168,17 @@ export function ProspettoClient(props: {
           ))}
         </div>
       </div>
+
+      {/* ── §312 · la prima domanda, e ha tre numeri ─────────────────────────
+          «Quanto entra, quanto esce, quanto rimane» — sulla base del conto, che
+          è l'unica risposta che non contiene niente di atteso: quello che nessuno
+          ha pagato non c'è dentro, per costruzione, e non perché qualcuno si sia
+          ricordato di filtrarlo. Sta sopra ogni altra cosa perché è la domanda
+          con cui si apre la pagina; tutto il resto è il dettaglio di questi tre
+          numeri, e ci si scende dopo. */}
+      {single && props.bankMonth && (
+        <ContoDelMese m={props.bankMonth} month={props.month} />
+      )}
 
       {/* ── §262 · il piano di cassa: cosa deve succedere perché il mese chiuda ──
           Sta **prima** del prospetto perché è la domanda che si fa aprendo la
@@ -285,6 +309,16 @@ export function ProspettoClient(props: {
         )}
       </section>
 
+      {/* ── §312 · i compensi cumulativi, in fondo ───────────────────────────
+          La sezione Compensi del conto economico risponde a «quanto spetta per
+          questo mese»; questa a «quanto dobbiamo in tutto», che è la domanda che
+          si fa chi deve firmare i bonifici. Soci e commerciali separati perché
+          sono due lavori con due formule (§185), e il cumulato di ciascuno dice
+          se è stato erogato o no. */}
+      {props.ledger && props.ledger.length > 0 && (
+        <CompensiCumulativi rows={props.ledger} month={props.month} since={props.ledgerSince ?? null} />
+      )}
+
       <p className="flex items-start gap-2 text-2xs text-text-tertiary">
         <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
         Le macro non sono etichette libere: <strong className="text-text-secondary">Personale</strong> lo scrive
@@ -297,6 +331,225 @@ export function ProspettoClient(props: {
         qui si leggono e basta.
       </p>
     </div>
+  )
+}
+
+/**
+ * §312 — Il conto del mese: quanto entra, quanto esce, quanto rimane.
+ *
+ * È la prima domanda del prospetto, e per anni la pagina rispondeva a quella
+ * dopo: dove vanno i soldi, in che proporzione. Sono due domande, e la seconda
+ * non si può leggere senza la prima — un margine del 42% su un conto che chiude
+ * a seicento euro è un numero che non dice niente di utile.
+ *
+ * **Dentro c'è solo quello che il conto ha visto.** Non è una scelta di
+ * presentazione: la sorgente sono i movimenti `banca`, quindi una riga spuntata
+ * che nessun estratto conto dimostra non entra qui (§226), e nemmeno una riga
+ * attesa. Quello che deve ancora succedere è il piano di cassa, sotto — che è
+ * anche il posto dove si può spegnere una voce e vedere cosa cambia.
+ *
+ * L'apertura è ricostruita dai movimenti precedenti al mese, non è il saldo di
+ * oggi: su un mese passato il saldo di oggi non è la sua chiusura, e usarlo
+ * darebbe tre numeri che non si sommano fra loro.
+ */
+function ContoDelMese({ m, month }: {
+  m: { opening: number; inflow: number; outflow: number; lastStatement: string | null }
+  month: string
+}) {
+  const closing = Math.round((m.opening + m.inflow - m.outflow) * 100) / 100
+  const tone = closing < 0 ? 'text-error' : closing < 2000 ? 'text-warning' : 'text-success'
+  return (
+    <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
+      <div className="px-5 pt-4 pb-3 flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <h2 className="text-sm font-bold text-text-primary flex items-center gap-2">
+            <Landmark className="w-4 h-4 text-gold-text" aria-hidden="true" />
+            Il conto a {monthLabel(month).toLowerCase()}
+          </h2>
+          <p className="text-2xs text-text-tertiary mt-0.5 max-w-xl leading-relaxed">
+            Solo quello che è <strong className="text-text-secondary">passato dal conto</strong>: una
+            riga spuntata che l&apos;estratto conto non ha ancora visto non è qui, e nemmeno quello che
+            deve ancora succedere. Quello sta nel piano di cassa, sotto.
+          </p>
+        </div>
+        {m.lastStatement && (
+          <p className="text-2xs text-text-tertiary shrink-0">
+            estratto conto fino al{' '}
+            <strong className="text-text-secondary">{m.lastStatement.slice(8)}/{m.lastStatement.slice(5, 7)}</strong>
+          </p>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-border border-t border-border">
+        <div className="px-5 py-4">
+          <p className="text-2xs text-text-tertiary">Partiva da</p>
+          <p className="text-xl font-bold tabular text-text-secondary leading-tight mt-0.5">{eur(m.opening)}</p>
+          <p className="text-2xs text-text-tertiary mt-0.5">sul conto a inizio mese</p>
+        </div>
+        <div className="px-5 py-4">
+          <p className="text-2xs text-text-tertiary flex items-center gap-1">
+            <ArrowDownRight className="w-3 h-3 text-success" aria-hidden="true" />Entrato
+          </p>
+          <p className="text-xl font-bold tabular text-success leading-tight mt-0.5">+{eur(m.inflow)}</p>
+          <p className="text-2xs text-text-tertiary mt-0.5">incassi arrivati davvero</p>
+        </div>
+        <div className="px-5 py-4">
+          <p className="text-2xs text-text-tertiary flex items-center gap-1">
+            <ArrowUpRight className="w-3 h-3 text-error" aria-hidden="true" />Uscito
+          </p>
+          <p className="text-xl font-bold tabular text-error leading-tight mt-0.5">−{eur(m.outflow)}</p>
+          <p className="text-2xs text-text-tertiary mt-0.5">pagamenti partiti davvero</p>
+        </div>
+        <div className="px-5 py-4 bg-surface-hover/50">
+          <p className="text-2xs text-text-tertiary">Rimane</p>
+          <p className={`text-2xl font-bold tabular leading-tight mt-0.5 ${tone}`}>{eur(closing)}</p>
+          <p className="text-2xs text-text-tertiary mt-0.5">
+            {eur(m.opening)} + {eur(m.inflow)} − {eur(m.outflow)}
+          </p>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/**
+ * §312 — I compensi cumulativi, soci e commerciali.
+ *
+ * Il conto economico dice quanto spetta **per un mese**; questa tabella dice
+ * quanto si deve **in tutto**, che è la domanda di chi firma i bonifici. Senza,
+ * una persona pagata per intero e una che non ha mai visto un euro si leggevano
+ * uguali — è lo stesso difetto di §226, un mese alla volta.
+ *
+ * Tre regole:
+ *
+ *   · **Il maturato si somma su tutti i mesi**, perché un bonifico non sa di che
+ *     mese è: confrontarlo con un mese solo darebbe a chiunque uno scoperto o un
+ *     anticipo enormi, e nessuno dei due vero (§233).
+ *   · **Soci e commerciali stanno separati** perché sono due lavori con due
+ *     formule (§185): 30% erogato sul growth e 28% del margine sul digital da un
+ *     lato, 15% e 6% dall'altro. Sommarli darebbe un totale che non risponde a
+ *     nessuna domanda.
+ *   · **Chi è in pari resta in tabella**, con la spunta. Una riga che sparisce
+ *     quando è a posto fa sembrare la tabella l'elenco dei problemi, e allora
+ *     non si sa più se qualcuno è stato dimenticato.
+ */
+function CompensiCumulativi({ rows, month, since }: {
+  rows: {
+    who: string; kind: 'socio' | 'commerciale'; accrued: number; paid: number
+    fromAlways?: boolean; never?: boolean
+  }[]
+  month: string
+  since: string | null
+}) {
+  const gruppi = [
+    { kind: 'socio' as const, title: 'Soci', hint: 'erogato sul growth e quota del margine digital' },
+    { kind: 'commerciale' as const, title: 'Commerciali', hint: '15% sull\'imponibile growth, 6% sul margine digital' },
+  ]
+  const resta = rows.reduce((n, r) => n + Math.max(0, r.accrued - r.paid), 0)
+  return (
+    <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
+      <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0 flex-1 basis-72">
+          <h2 className="text-sm font-bold text-text-primary flex items-center gap-2">
+            <Banknote className="w-4 h-4 text-gold-text" aria-hidden="true" />
+            Compensi, dal primo mese a oggi
+          </h2>
+          <p className="text-2xs text-text-tertiary mt-0.5 leading-relaxed">
+            {since
+              ? <>Da <strong className="text-text-secondary">{monthLabel(since).toLowerCase()}</strong>,
+                  perché prima i conti sono liquidati (§230) — non su{' '}
+                  {monthLabel(month).toLowerCase()}: un bonifico non sa di che mese è.</>
+              : <>Su <strong className="text-text-secondary">tutti i mesi</strong>, non su{' '}
+                  {monthLabel(month).toLowerCase()}: un bonifico non sa di che mese è.</>}{' '}
+            Il maturato è quello che una persona ha prodotto; l&apos;erogato è quello che le è uscito
+            dal conto.
+          </p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className={`text-xl font-bold tabular leading-tight ${
+            resta > 0.5 ? 'text-warning' : 'text-success'}`}>{eur(resta)}</p>
+          <p className="text-2xs text-text-tertiary">ancora da erogare</p>
+        </div>
+      </div>
+
+      {gruppi.map(g => {
+        const mie = rows.filter(r => r.kind === g.kind)
+        if (!mie.length) return null
+        const acc = mie.reduce((n, r) => n + r.accrued, 0)
+        const pag = mie.reduce((n, r) => n + r.paid, 0)
+        return (
+          <div key={g.kind} className="border-b border-border last:border-b-0">
+            <div className="px-5 py-2.5 bg-surface-hover/50 flex items-baseline justify-between gap-3">
+              <p className="text-2xs font-bold uppercase tracking-wider text-text-secondary">
+                {g.title}
+                <span className="ml-2 font-normal normal-case tracking-normal text-text-tertiary">{g.hint}</span>
+              </p>
+              <p className="text-2xs tabular text-text-tertiary shrink-0">
+                {eur(pag)} erogati su {eur(acc)}
+              </p>
+            </div>
+            <table className="w-full text-2xs">
+              <tbody className="divide-y divide-border/50">
+                {mie.map(r => {
+                  const open = Math.round((r.accrued - r.paid) * 100) / 100
+                  return (
+                    <tr key={`${r.kind}|${r.who}`} className="hover:bg-surface-hover">
+                      <td className="px-5 py-2 font-semibold text-text-primary">
+                        {r.who}
+                        {/* §228 — perché il suo numero parte da più lontano degli
+                            altri. Senza la frase, la sua riga sembra un errore
+                            di calcolo accanto a quelle dei colleghi. */}
+                        {r.fromAlways && (
+                          <span className="block text-2xs font-normal text-text-tertiary">
+                            da sempre: non gli è mai uscito un bonifico
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular text-text-secondary">
+                        {eur(r.accrued)}
+                        <span className="block text-2xs text-text-tertiary font-normal">maturato</span>
+                      </td>
+                      <td className="px-3 py-2 text-right tabular text-text-secondary">
+                        {r.paid > 0 ? eur(r.paid) : <span className="text-text-tertiary">—</span>}
+                        <span className="block text-2xs text-text-tertiary font-normal">erogato</span>
+                      </td>
+                      {/* Lo stato in parola, non solo in cifra: «mai un bonifico»
+                          e «restano cento euro» sono due situazioni che chiedono
+                          due azioni diverse, e un numero solo le appiattisce. */}
+                      <td className="px-5 py-2 text-right whitespace-nowrap">
+                        {open <= 0.5 ? (
+                          <span className="inline-flex items-center gap-1 text-success font-semibold">
+                            <Check className="w-3 h-3" aria-hidden="true" />erogato
+                          </span>
+                        ) : r.never ? (
+                          <span className="text-error font-bold tabular">
+                            {eur(open)}
+                            <span className="block font-normal">mai un bonifico</span>
+                          </span>
+                        ) : (
+                          <span className="text-warning font-bold tabular">
+                            {eur(open)}
+                            <span className="block font-normal text-text-tertiary">da erogare</span>
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      })}
+
+      <p className="px-5 py-2.5 border-t border-border text-2xs text-text-tertiary leading-relaxed">
+        Quello che si può bonificare <strong className="text-text-secondary">adesso</strong> è di
+        norma meno: si eroga sull&apos;incassato, e una fattura ancora aperta porta con sé il compenso
+        che la finanzia (§286). Il numero, persona per persona, sta nel{' '}
+        <Link href={`/economics?m=${month}`} className="text-gold-text hover:underline">conto economico</Link>,
+        dove si spunta l&apos;erogazione.
+      </p>
+    </section>
   )
 }
 

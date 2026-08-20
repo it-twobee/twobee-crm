@@ -53,6 +53,18 @@ export type ProspettoData = {
   vatLabel: string
   vatDeadline: string | null
   bank: { inflow: number; outflow: number; balance: number } | null
+  /** §312 — il conto del mese come l'ha visto la banca: nessuna attesa dentro */
+  bankMonth: { opening: number; inflow: number; outflow: number; lastStatement: string | null } | null
+  /** §312 — compensi cumulativi per persona, maturato contro erogato */
+  ledger: {
+    who: string; kind: 'socio' | 'commerciale'; accrued: number; paid: number
+    /** §228 — per lui si conta da sempre: non ha mai ricevuto un bonifico */
+    fromAlways: boolean
+    /** §233 — mai un bonifico su nessun mese, non solo su quelli in finestra */
+    never: boolean
+  }[]
+  /** §230 — da quale mese conta il cumulato dei compensi: prima è liquidato */
+  ledgerSince: string | null
   horizon: string[]
   config: PlConfig
   partners: Partner[]
@@ -119,7 +131,8 @@ export async function loadProspetto(
     return {
       setupNeeded: true, months: [], payoutDates: {}, revenue: [], costs: [], txs: [], payouts: [],
       opening: 0, bankReady: false, collection: [], first: month, plan: [],
-      vatHeld: 0, vatLabel: '', vatDeadline: null, bank: null, horizon: [month],
+      vatHeld: 0, vatLabel: '', vatDeadline: null, bank: null, bankMonth: null,
+      ledger: [], ledgerSince: null, horizon: [month],
       config: rowToPlConfig({}), partners: [], status: null,
     }
   }
@@ -265,6 +278,93 @@ export async function loadProspetto(
       ],
     }
   })
+
+  /* §312 — il cumulato per persona. Il maturato lo somma dai mesi (`payouts`,
+     che nasce da `computeMonth`: la pagina non ricalcola percentuali, §291);
+     l'erogato lo legge da **tutte** le righe spuntate di `pl_payouts`, non solo
+     da quelle dei mesi in elenco — un bonifico non sa di che mese è, e filtrarlo
+     per finestra darebbe a chiunque uno scoperto che non ha (§233). */
+  const monthById = new Map((monthRows ?? []).map((m: { id: string; month: string }) =>
+    [String(m.id), m.month.slice(0, 10)]))
+  const ledger = (() => {
+    type Row = {
+      who: string; kind: 'socio' | 'commerciale'
+      accrued: number; accruedAll: number; paid: number
+      /** §233 — l'erogato **fuori** dalla finestra serve a una cosa sola: sapere
+       *  se questa persona ha mai ricevuto un bonifico. */
+      paidAll: number
+    }
+    const acc = new Map<string, Row>()
+    const key = (who: string, kind: string) => `${kind}|${who.trim().toLowerCase()}`
+    /* §230 — la linea del consolidato, che è **una** e vale per tutto: prima di
+       quel mese i conti sono liquidati, e un cumulato che parte da sempre
+       mostrerebbe ai tre soci un arretrato di mesi già pagati fuori dal tool.
+       Chi non ha mai preso un euro è il caso che la linea sbaglia (§228), e lo
+       dice il registro del conto economico: lì la regola è scritta una volta,
+       insieme ai bonifici che la decidono. */
+    const since = config.settled_from ? monthOf(String(config.settled_from)) : null
+    for (const m of payouts) {
+      const dentro = !since || m.month >= since
+      for (const p of m.people) {
+        const k = key(p.who, p.kind)
+        const cur = acc.get(k) ?? { who: p.who, kind: p.kind, accrued: 0, accruedAll: 0, paid: 0, paidAll: 0 }
+        acc.set(k, {
+          ...cur,
+          accrued: dentro ? r2(cur.accrued + p.amount) : cur.accrued,
+          accruedAll: r2(cur.accruedAll + p.amount),
+        })
+      }
+    }
+    for (const r of (payoutRows ?? []) as Record<string, unknown>[]) {
+      if (r.paid !== true) continue
+      /* Lo stesso taglio sull'erogato: un bonifico che ha chiuso un mese
+         liquidato non può chiudere due volte. Il mese di competenza sta in
+         `month_id` — `pl_payouts` non ha una colonna `month`, e leggerne una che
+         non c'è tagliava fuori **tutte** le righe: la tabella diceva «mai un
+         bonifico» a chi ne aveva incassati novemila. */
+      const mm = monthById.get(String(r.month_id))
+      const dentro = !since || (!!mm && mm >= since)
+      const who = String(r.person_label ?? '').trim()
+      const kind = r.kind === 'commerciale' ? 'commerciale' as const : 'socio' as const
+      if (!who) continue
+      const k = key(who, kind)
+      const cur = acc.get(k) ?? { who, kind, accrued: 0, accruedAll: 0, paid: 0, paidAll: 0 }
+      acc.set(k, {
+        ...cur,
+        paid: dentro ? r2(cur.paid + num(r.amount)) : cur.paid,
+        paidAll: r2(cur.paidAll + num(r.amount)),
+      })
+    }
+    /* §228 — la liquidazione è un fatto **per persona**, non una data per tutti.
+       La linea vale per chi è stato pagato: a chi non ha mai preso un euro non
+       si può dire che fino a giugno è a posto, e per lui si conta da sempre.
+       Senza questa riga il prospetto diceva 606 € ad Antonio Giarletta e la
+       tenuta di cassa 1.821 — due numeri con lo stesso nome, che è il difetto
+       che questa sezione esiste per chiudere.
+       La regola sbaglia in una direzione sola, ed è quella giusta: a chi è stato
+       pagato in contanti mostra uno scoperto che non ha, e si spegne registrando
+       il movimento. */
+    return Array.from(acc.values())
+      .map(r => {
+        /* §233 — e «mai un bonifico» si guarda su **tutti** i mesi, non su
+           quelli dentro la linea: Walter ne ha incassati 4.640 € prima di
+           luglio, e quelli hanno chiuso i mesi liquidati. Guardando la sola
+           finestra risultava mai pagato, e per lui il cumulato ripartiva da
+           sempre — 11.162 € invece di 6.522. La stessa frase detta a due
+           situazioni opposte è peggio di nessuna frase. */
+        const mai = r.paidAll <= 0.5
+        return {
+          who: r.who, kind: r.kind,
+          accrued: mai ? r.accruedAll : r.accrued,
+          paid: r.paid,
+          /** da sempre invece che dal consolidato, e la tabella lo dice */
+          fromAlways: mai && r.accruedAll > r.accrued + 0.5,
+          /** §233 — non gli è **mai** uscito un bonifico, su nessun mese */
+          never: mai,
+        }
+      })
+      .sort((a, b) => (b.accrued - b.paid) - (a.accrued - a.paid))
+  })()
 
   // ── §262 · il piano di cassa ──────────────────────────────────────────────
 
@@ -544,6 +644,33 @@ export async function loadProspetto(
        di adesso. Erano due sezioni a parte che calcolavano il saldo sulla sola
        finestra del prospetto e dicevano «0 €» di apertura: due numeri con lo
        stesso nome. Ora stanno dove c'è il saldo vero. */
+    /* §312 — il conto del mese, **come l'ha visto la banca**: apertura, entrato,
+       uscito, chiusura. È la prima domanda del prospetto — quanto entra, quanto
+       esce, quanto rimane — e l'unica risposta che non contiene niente di
+       atteso: una riga non pagata non c'è, per costruzione. `closing` è
+       `opening + entrato − uscito`, quindi sul mese in corso è il saldo vero
+       (`balance`) e su un mese passato è quello che il conto aveva alla fine —
+       che `balance` non poteva dire. */
+    bankMonth: !bankErr ? {
+      opening: balanceAt(month),
+      inflow: r2(realTx
+        .filter((t: Record<string, unknown>) => monthOf(String(t.booked_on).slice(0, 10)) === month
+          && num(t.amount) > 0)
+        .reduce((s: number, t: Record<string, unknown>) => s + num(t.amount), 0)),
+      outflow: r2(Math.abs(realTx
+        .filter((t: Record<string, unknown>) => monthOf(String(t.booked_on).slice(0, 10)) === month
+          && num(t.amount) < 0)
+        .reduce((s: number, t: Record<string, unknown>) => s + num(t.amount), 0))),
+      lastStatement,
+    } : null,
+    /* §312 — i compensi **cumulativi**, per persona: quello che ha maturato su
+       tutti i mesi e quello che gli è uscito. Il prospetto mostrava le quote del
+       mese e taceva sul cumulato, che è la domanda che si fa davvero — «ad
+       Antonio quanto dobbiamo in tutto» — e la cui risposta era 1.821 € contro i
+       284 che la finestra dell'erogazione rende bonificabili adesso (§311). */
+    ledger,
+    /** §230 — da quale mese conta il cumulato: prima è liquidato */
+    ledgerSince: config.settled_from ? monthOf(String(config.settled_from)) : null,
     bank: !bankErr ? {
       inflow: r2(realTx
         .filter((t: Record<string, unknown>) => monthOf(String(t.booked_on).slice(0, 10)) === month

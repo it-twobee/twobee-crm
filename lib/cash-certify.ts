@@ -418,6 +418,10 @@ export type PayoutView = {
   /** quello che non gli è ancora arrivato. Negativo = ha preso più del maturato */
   open: number
   rows: PayoutFact['rows']
+  /** §311 — il maturato: tutto quello che ha prodotto, incassato o no */
+  accrued: number
+  /** §311 — il credito vero: maturato meno quello che gli è uscito */
+  owed: number
   /** non ha mai ricevuto niente e qualcosa gli spetta */
   never: boolean
 }
@@ -439,8 +443,23 @@ export type PayoutView = {
  */
 export function payoutLedger(input: {
   people: { key: string; label: string }[]
-  /** maturato per persona e per mese di competenza */
+  /**
+   * **Quello che si può erogare**, per persona e per mese: sono gli importi già
+   * passati per la finestra dell'erogazione (§286), non il maturato secco. Il
+   * commento diceva «maturato» e non lo era, ed è da lì che veniva il numero
+   * sbagliato: ad Antonio Giarletta spettano 1.821 € e il tool ne dichiarava
+   * 284 — l'erogabile — sotto la parola «maturato» (§311).
+   */
   accruals: { key: string; month: string; amount: number }[]
+  /**
+   * §311 — il **maturato vero**: tutto quello che quella persona ha prodotto,
+   * incassato o no. È il numero che risponde a «quanto gli spetta», e senza di
+   * esso l'unica cifra visibile era l'erogabile: a chi ha lavorato e aspetta che
+   * il cliente paghi, il tool diceva un ottavo del suo credito.
+   *
+   * Assente, `accrued` vale `due` e niente cambia: è come funzionava prima.
+   */
+  matured?: { key: string; month: string; amount: number }[]
   /** i bonifici veri, **senza** filtro di data: la data la decide qui */
   facts: Map<string, PayoutFact>
   /** la linea generale: prima è liquidato. `null` = si conta da sempre */
@@ -461,12 +480,23 @@ export function payoutLedger(input: {
     const rows = (f?.rows ?? []).filter(r => !since || r.date >= since)
     const due = r2(mine.reduce((n, a) => n + a.amount, 0))
     const paid = r2(rows.reduce((n, r) => n + r.amount, 0))
+    /* Lo stesso taglio della liquidazione: quello che è stato pagato prima della
+       linea non torna a essere dovuto perché qui si guarda il maturato. */
+    const accrued = input.matured
+      ? r2(input.matured
+          .filter(a => a.key === p.key && (!from || monthOfIso(a.month) >= from))
+          .reduce((n, a) => n + a.amount, 0))
+      : due
 
     return {
       who: p.label, key: p.key, partnerId: p.key.startsWith('p:') ? p.key.slice(2) : null,
       from, whyFrom: (everPaid ? 'liquidato' : 'mai-pagato') as PayoutView['whyFrom'],
       schedule: payoutSchedule(mine, paid),
       due, paid, open: r2(due - paid), rows,
+      /* §311 — quanto gli spetta in tutto, e quanto di quello resta da erogare.
+         `open` resta la differenza sull'**erogabile**, perché è quella che dice
+         cosa si può bonificare adesso; `owed` è il credito vero della persona. */
+      accrued, owed: r2(accrued - paid),
       /* §233 — «mai un bonifico» guarda **tutti** i movimenti, non quelli dentro
          la finestra. Con il consolidato a luglio i bonifici di giugno restano
          fuori dal conteggio, e `paid === 0` diceva che Marco non aveva mai
@@ -491,6 +521,7 @@ export function payoutViews(
       from: null, whyFrom: 'liquidato' as const, schedule: [],
       due: r2(d.amount), paid,
       open: r2(d.amount - paid), rows: f?.rows ?? [],
+      accrued: r2(d.amount), owed: r2(d.amount - paid),
       never: paid === 0 && d.amount > 0,
     }
   }).sort((a, b) => b.open - a.open)

@@ -51,6 +51,9 @@ export default async function ProspettoPage({ searchParams }: {
       vatLabel={d.vatLabel}
       vatDeadline={d.vatDeadline}
       bank={d.bank}
+      bankMonth={d.bankMonth}
+      ledger={d.ledger}
+      ledgerSince={d.ledgerSince}
       horizon={d.horizon}
     />
   )

@@ -607,7 +607,61 @@ E in testata la sezione dice **a che punto è**: «2 su 3 pagati · restano 3.36
 con «Segna N pagati» accanto. Segnare dieci righe una a una è il motivo per cui
 non le segna nessuno.
 
-Gate: `npx tsx lib/pl-aggregate.check.ts` (47 controlli).
+Gate: `npx tsx lib/pl-aggregate.check.ts` (61 controlli).
+
+**Maturato ed erogabile sono due numeri, e per anni ne era visibile uno**
+(§311, `payoutLedger` in `lib/cash-certify.ts`). Il registro dei compensi
+riceve gli importi **già passati per la finestra dell'erogazione** (§286) — è
+quello che serve a decidere un bonifico — ma il campo si chiamava `due` e il
+commento sopra diceva «maturato». Non era un refuso: era l'unica cifra che
+uscisse, e la pagina, gli script e la tabella «La posizione di ognuno» la
+mostravano sotto la parola «gli spetta». **Ad Antonio Giarletta spettano
+1.821 € e il tool ne dichiarava 284.**
+
+- **Il maturato entra a parte** (`matured`), e la stessa linea del consolidato
+  vale per tutti e due: quello che è stato pagato prima non torna a essere
+  dovuto perché adesso si guarda un altro numero.
+- **`open` resta la differenza sull'erogabile** — è quello che si può bonificare
+  adesso, ed è la posta che il ponte (§199) usa. `owed` è il credito vero della
+  persona. Due domande, due campi: unificarli avrebbe spostato il residuo del
+  ponte, che è l'unico motivo per cui il ponte esiste.
+- **Assente il maturato, `accrued` vale `due`**: chi non l'ha ancora passato
+  funziona come prima, e non c'è un mese in cui i numeri cambiano da soli.
+
+**La prima domanda del prospetto ha tre numeri** (§312, `ContoDelMese` e
+`CompensiCumulativi` in `ProspettoClient`). Il prospetto rispondeva a «dove
+vanno i soldi, in che proporzione» — utile, ma è la **seconda** domanda: un
+margine del 42% su un conto che chiude a seicento euro non dice niente di
+azionabile. Sopra tutto sta ora **quanto entra, quanto esce, quanto rimane**,
+sulla base del conto.
+
+- **Dentro c'è solo quello che il conto ha visto**, e non perché qualcuno si sia
+  ricordato di filtrarlo: la sorgente sono i movimenti `banca`, quindi una riga
+  non pagata non c'è per costruzione, e nemmeno una spuntata che l'estratto
+  conto non dimostra (§226). Quello che deve ancora succedere è il piano di
+  cassa, sotto, dove si può anche spegnere una voce e vedere cosa cambia.
+- **L'apertura si ricostruisce dai movimenti precedenti al mese**, non è il
+  saldo di oggi: su un mese passato il saldo di oggi non è la sua chiusura, e i
+  tre numeri non si sommerebbero fra loro. Sul mese in corso i due coincidono, e
+  `verify-prospetto` verifica esattamente quello.
+- **In fondo i compensi cumulativi**, soci e commerciali separati perché sono
+  due lavori con due formule (§185). Il conto economico dice quanto spetta per
+  *un* mese; qui quanto si deve **in tutto**, che è la domanda di chi firma i
+  bonifici — e senza, una persona pagata per intero e una che non ha mai visto
+  un euro si leggevano uguali.
+
+Le due regole del registro valgono anche qui, e vanno riscritte ogni volta che
+si aggiunge una lettura dei compensi: **il consolidato taglia** (§230, e a chi
+non ha mai preso un euro non si applica, §228 — per Antonio si conta da sempre,
+1.821 € e non 606) e **«mai un bonifico» si guarda su tutti i mesi, non sulla
+finestra** (§233): Walter ne ha incassati 4.640 € prima di luglio, e guardando
+la sola finestra risultava mai pagato — il suo cumulato ripartiva da sempre,
+11.162 € invece di 6.522.
+
+Gate: `npx tsx scripts/verify-prospetto.ts <mese>` fa girare **lo stesso**
+`loadProspetto` della pagina e verifica che apertura + entrato − uscito sia il
+saldo vero di Banca (agosto 2026: 20.308 + 20.970 − 34.818 = **6.460,10 €**,
+✓ combacia), poi stampa i compensi cumulativi persona per persona.
 
 **Il conto economico è dove si registra il mese, non dove si guarda tutto**
 (§293). Erano dodici sezioni in fila, e tre rispondevano a domande che si fanno

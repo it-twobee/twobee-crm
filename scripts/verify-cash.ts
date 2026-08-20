@@ -138,6 +138,10 @@ async function main() {
     plPartners.map(p => ({ id: p.id, label: p.label })),
     Array.from(new Set(clients.map(c => (c.sales_owner_name as string) ?? '').filter(Boolean))))
   const accruals: { key: string; month: string; amount: number }[] = []
+  /* §311 — il maturato secco accanto all'erogabile: sono due domande, e finché
+     ne esisteva un numero solo lo script stampava «maturato 284 €» a chi ne ha
+     prodotti 1.821. */
+  const matured: { key: string; month: string; amount: number }[] = []
   const payoutDateOfMonth = (mk: string) => {
     const row = months.find(m => monthOf(String(m.month)) === mk)
     return row?.payout_date ? String(row.payout_date).slice(0, 10) : null
@@ -163,11 +167,23 @@ async function main() {
       const k = people.find(x => x.label === s.label)?.key
       if (k) accruals.push({ key: k, month: mk, amount: s.amount })
     }
+
+    const tutte = allRev.filter(l => l.month === mk)
+    const mcT = marginCostsFor(allCost, new Set([mk]), mk)
+    const tm = computeMonth(tutte, mcT, cfg, plPartners, mcT, tutte)
+    for (const p of tm.perPartner) {
+      const k = people.find(x => x.partnerId === p.partner.id)?.key
+      if (k) matured.push({ key: k, month: mk, amount: p.total })
+    }
+    for (const s of tm.salesByOwner) {
+      const k = people.find(x => x.label === s.label)?.key
+      if (k) matured.push({ key: k, month: mk, amount: s.amount })
+    }
   }
   const from = (config[0]?.settled_from ?? config[0]?.payout_from) as string | undefined
   const ledger = payoutLedger({
     people: people.map(p => ({ key: p.key, label: p.label })),
-    accruals,
+    accruals, matured,
     /* §305 — quanto di ogni bonifico è compenso lo dice il registro (§297), non
        la categoria del movimento. Uno script che non ci passa verifica sé stesso. */
     facts: payoutsFromBank(certTxs, people, undefined, undefined, payoutAlloc),
@@ -205,10 +221,15 @@ async function main() {
     + ` · ${r.vatDueInMonth ? 'DENTRO il mese' : 'fuori dal mese'}`)
   console.log(`  scoperti: ${r.toPayCount} uscite ${eur(r.toPayGross)} (${eur(r.lateOut)} scadute)`
     + ` · incassi ${r.dueInCount} nei termini ${eur(r.dueIn)} + ${r.lateInCount} scaduti ${eur(r.lateIn)}`)
-  console.log(`  compensi maturati non erogati: ${eur(r.payoutsOpen)} su ${ledger.length} persone`)
+  console.log(`  compensi da erogare: ${eur(r.payoutsOpen)} su ${ledger.length} persone`)
   for (const p of ledger) {
-    console.log(`    ${p.who.padEnd(22)} maturato ${eur(p.due).padStart(11)}`
-      + ` · erogato ${eur(p.paid).padStart(11)} · resta ${eur(p.open).padStart(11)}`
+    /* §311 — due numeri, non uno: `accrued` è quello che ha prodotto,
+       `due` quello che la finestra dell'erogazione rende bonificabile adesso.
+       Chiamare «maturato» il secondo diceva 284 € a chi ne aspetta 1.821. */
+    console.log(`    ${p.who.padEnd(22)} maturato ${eur(p.accrued).padStart(11)}`
+      + ` · erogabile ${eur(p.due).padStart(11)}`
+      + ` · uscito ${eur(p.paid).padStart(11)} · resta ${eur(p.open).padStart(11)}`
+      + (Math.abs(p.owed - p.open) > 0.5 ? ` (credito ${eur(p.owed)})` : '')
       + `  (da ${p.from ?? 'sempre'}, ${p.whyFrom})`)
     /* Il compenso di un mese esce in quello dopo: qui si legge dove cade, che è
        la domanda vera quando si decide quanto versare e quando. */

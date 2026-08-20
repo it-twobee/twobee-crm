@@ -242,6 +242,38 @@ eq('quello dell\'altro parte dalla linea',
 eq('senza linea si conta tutto per tutti',
    payoutLedger({ people: [{ key: 'p:p1', label: 'W' }], accruals: ACCR, facts, from: null })[0].due, 9000)
 
+/* §311 — il maturato e l'erogabile sono due numeri e devono restare due.
+   `accruals` arriva già filtrato dalla finestra (§286): finché il maturato non
+   aveva un campo suo, l'unica cifra visibile era l'erogabile, e la pagina la
+   chiamava «maturato» — ad Antonio Giarletta diceva 284 € su 1.821 maturati. */
+eq('senza il maturato niente cambia', led.get('Antonio Giarletta')?.accrued, 1245)
+const MAT = [
+  { key: 'p:p1', month: '2026-07-01', amount: 5200 },
+  { key: 'p:p1', month: '2026-08-01', amount: 4400 },
+  { key: 'o:Antonio Giarletta', month: '2026-05-01', amount: 900 },
+  { key: 'o:Antonio Giarletta', month: '2026-07-01', amount: 700 },
+  { key: 'o:Antonio Giarletta', month: '2026-08-01', amount: 1121 },
+]
+const LED2 = new Map(payoutLedger({
+  people: [{ key: 'p:p1', label: 'Walter Giacobbe' }, { key: 'o:Antonio Giarletta', label: 'Antonio Giarletta' }],
+  accruals: ACCR, matured: MAT, facts, from: '2026-07-01',
+}).map(v => [v.who, v]))
+eq('il maturato è più alto dell\'erogabile',
+   { acc: LED2.get('Antonio Giarletta')?.accrued, due: LED2.get('Antonio Giarletta')?.due },
+   { acc: 2721, due: 1245 })
+/* La linea vale per entrambi: chi è stato liquidato non torna a essere creditore
+   dei mesi chiusi solo perché qui si guarda il maturato invece dell'erogabile. */
+eq('e rispetta la stessa linea', LED2.get('Walter Giacobbe')?.accrued, 9600)
+/* `open` resta la differenza sull'erogabile — è quello che si può bonificare
+   adesso — e `owed` è il credito vero: due domande, due numeri. */
+eq('resta da erogare sull\'erogabile',
+   { open: LED2.get('Walter Giacobbe')?.open, owed: LED2.get('Walter Giacobbe')?.owed },
+   { open: 5000, owed: 9600 })
+/* §228 — e chi non ha mai preso un euro conta da sempre anche sul maturato:
+   è il caso da cui questo controllo nasce. */
+eq('chi non è mai stato pagato conta da sempre anche sul maturato',
+   LED2.get('Antonio Giarletta')?.owed, 2721)
+
 // ────────────────────────────────────────────────────────────────────────────
 if (fails.length) {
   console.error(`\n${fails.length} controlli falliti su ${ok + fails.length}:\n`)

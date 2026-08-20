@@ -1939,6 +1939,9 @@ function CompensiSection({
     if (!posizioni.length) return null
     const scoperto = posizioni.reduce((n, p) => n + Math.max(0, p.pv.open), 0)
     const anticipo = posizioni.reduce((n, p) => n + Math.max(0, -p.pv.open), 0)
+    /* §311 — quello che spetta in tutto: più alto dell'erogabile ogni volta che
+       un cliente è in ritardo, ed è il numero che una persona ha in testa. */
+    const credito = posizioni.reduce((n, p) => n + Math.max(0, p.pv.owed), 0)
     return (
       <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
         <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3 flex-wrap">
@@ -1952,13 +1955,30 @@ function CompensiSection({
               bonifico non sa di che mese è, e confrontare il maturato di agosto con quello che è
               uscito in agosto darebbe a chiunque uno scoperto o un anticipo che non ha.
             </p>
+            {/* §311 — le due colonne che non si sommano, dette prima dei numeri.
+                Il maturato è quello che una persona ha prodotto; l'erogabile è
+                la parte che i clienti hanno già pagato (§286). Finché ce n'era
+                una sola, la tabella mostrava l'erogabile chiamandolo «gli
+                spetta»: ad Antonio Giarletta 284 € su 1.821 maturati. */}
+            <p className="text-2xs text-text-tertiary mt-1.5 leading-relaxed">
+              <strong className="text-text-secondary">Maturato</strong> è quello che ha prodotto;
+              <strong className="text-text-secondary"> erogabile</strong> è la parte che i clienti
+              hanno già pagato. La differenza non è un debito in meno: si eroga quando l&apos;incasso
+              arriva.
+            </p>
           </div>
           <div className="text-right shrink-0">
             <p className={`text-xl font-bold tabular leading-tight ${
               scoperto > 0.5 ? 'text-warning' : 'text-success'}`}>{eur(scoperto)}</p>
             <p className="text-2xs text-text-tertiary">
-              da erogare{anticipo > 0.5 && <> · {eur(anticipo)} già in anticipo</>}
+              erogabile adesso{anticipo > 0.5 && <> · {eur(anticipo)} già in anticipo</>}
             </p>
+            {credito > scoperto + 0.5 && (
+              <p className="text-2xs text-text-tertiary mt-0.5">
+                <strong className="text-text-secondary">{eur(credito)}</strong> il credito
+                complessivo
+              </p>
+            )}
           </div>
         </div>
 
@@ -1967,9 +1987,10 @@ function CompensiSection({
             <thead>
               <tr className="border-b border-border text-text-tertiary">
                 <th className="text-left px-5 py-2 font-semibold">Persona</th>
-                <th className="text-right px-3 py-2 font-semibold">Gli spetta</th>
+                <th className="text-right px-3 py-2 font-semibold">Maturato</th>
+                <th className="text-right px-3 py-2 font-semibold">Erogabile adesso</th>
                 <th className="text-right px-3 py-2 font-semibold">Uscito dal conto</th>
-                <th className="text-right px-5 py-2 font-semibold">Resta</th>
+                <th className="text-right px-5 py-2 font-semibold">Resta da erogare</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
@@ -1989,7 +2010,17 @@ function CompensiSection({
                           : <>da sempre</>}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-right tabular text-text-secondary">{eur(pv.due)}</td>
+                  <td className="px-3 py-2 text-right tabular text-text-primary font-semibold">
+                    {eur(pv.accrued)}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular text-text-secondary">
+                    {eur(pv.due)}
+                    {pv.accrued - pv.due > 0.5 && (
+                      <span className="block text-2xs text-text-tertiary">
+                        {eur(pv.accrued - pv.due)} quando incassano
+                      </span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-right tabular text-text-secondary">
                     {pv.paid > 0 ? eur(pv.paid) : <span className="text-text-tertiary">—</span>}
                   </td>

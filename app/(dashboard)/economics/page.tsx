@@ -365,6 +365,12 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
   const allCost = [...(costs ?? []).map((c: Record<string, unknown>) => asCost(c, month)),
     ...(aroundCost ?? []).map((c: Record<string, unknown>) => asCost(c, monthById.get(String(c.month_id)) ?? month))]
   const accruals: { key: string; month: string; amount: number }[] = []
+  /* §311 — il **maturato secco**, senza la finestra: quello che il mese ha
+     prodotto, incassato o no. `accruals` è l'erogabile e risponde a «quanto
+     bonifico»; questo risponde a «quanto gli spetta», e sono due domande. Ad
+     Antonio Giarletta spettano 1.821 € e il tool ne dichiarava 284, che è
+     l'erogabile: sotto la parola «maturato» stava un ottavo del suo credito. */
+  const matured: { key: string; month: string; amount: number }[] = []
   const monthsOfLines = Array.from(new Set([...allRev, ...allCost].map(l => l.month ?? month)))
   const payoutDateOfMonth = (mk: string) =>
     (monthsAll.find(m => m.month === mk) as { payout_date?: string | null } | undefined)?.payout_date ?? null
@@ -394,12 +400,24 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
       const k = people.find(x => x.label === s.label)?.key
       if (k) accruals.push({ key: k, month: mk, amount: s.amount })
     }
+
+    const tutte = allRev.filter(l => (l.month ?? month) === mk)
+    const mcTutte = marginCostsFor(allCost.map(c => ({ ...c, month: c.month ?? month })), new Set([mk]), mk)
+    const tm = computeMonth(tutte, mcTutte, config, plPartners, mcTutte, tutte)
+    for (const p of tm.perPartner) {
+      const k = people.find(x => x.partnerId === p.partner.id)?.key
+      if (k) matured.push({ key: k, month: mk, amount: p.total })
+    }
+    for (const s of tm.salesByOwner) {
+      const k = people.find(x => x.label === s.label)?.key
+      if (k) matured.push({ key: k, month: mk, amount: s.amount })
+    }
   }
   /* I bonifici si passano **senza** filtro di data: quale finestra vale per
      ciascuno lo decide il registro, che sa chi è stato liquidato e chi no. */
   const payouts = payoutLedger({
     people: people.map(p => ({ key: p.key, label: p.label })),
-    accruals,
+    accruals, matured,
     /* §305 — quanto di ogni bonifico è compenso lo dice il **registro**, non la
        categoria: `classify` etichetta diversamente i bonifici ai soci di giugno
        e quelli del 13 agosto, e filtrare per categoria dava «erogato 0» a chi
