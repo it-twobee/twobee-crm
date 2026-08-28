@@ -29,6 +29,13 @@ export interface AgentTurn {
   links: AssistantLink[]
   /** Passi eseguiti, per la riga di attività nella UI. */
   steps: { tool: string; ok: boolean }[]
+  /**
+   * Un tool che scrive è andato a buon fine, quindi la pagina sotto al pannello
+   * mostra dati vecchi. Il client se ne serve per un `router.refresh()`: senza,
+   * l'assistente diceva «task completata» — ed era vero, l'audit lo conferma —
+   * ma l'elenco restava identico e sembrava che non avesse fatto niente.
+   */
+  changed: boolean
   pending?: PendingAction
   messages: ChatMessage[]
   tokens: number
@@ -100,6 +107,7 @@ export async function runAssistantTurn(opts: {
   const links: AssistantLink[] = []
   const steps: { tool: string; ok: boolean }[] = []
   let tokens = 0
+  let changed = false
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const last = round === MAX_ROUNDS - 1
@@ -112,7 +120,7 @@ export async function runAssistantTurn(opts: {
       if (e instanceof ProviderError) {
         return {
           answer: 'Il motore AI non ha risposto. Riprova fra poco.',
-          links, steps, messages, tokens,
+          links, steps, messages, tokens, changed,
         }
       }
       throw e
@@ -121,26 +129,27 @@ export async function runAssistantTurn(opts: {
 
     if (!res.toolCalls.length) {
       messages.push({ role: 'assistant', content: res.content })
-      return { answer: res.content?.trim() || 'Non ho una risposta.', links, steps, messages, tokens }
+      return { answer: res.content?.trim() || 'Non ho una risposta.', links, steps, messages, tokens, changed }
     }
 
     messages.push({ role: 'assistant', content: res.content, tool_calls: res.toolCalls })
 
     for (const call of res.toolCalls) {
       const out = await executeCall(c, call, allowed, conversationId, links, steps)
+      if (out.changed) changed = true
       if (out.pending) {
         // Ci si ferma qui: l'azione riparte da /confirm quando l'utente clicca.
         messages.push({ role: 'tool', tool_call_id: call.id, name: call.function.name, content: JSON.stringify({ in_attesa: 'conferma utente' }) })
         return {
           answer: res.content?.trim() || out.pending.summary,
-          links, steps, messages, tokens, pending: out.pending,
+          links, steps, messages, tokens, changed, pending: out.pending,
         }
       }
       messages.push({ role: 'tool', tool_call_id: call.id, name: call.function.name, content: out.content })
     }
   }
 
-  return { answer: 'Non sono riuscito a completare la richiesta in pochi passaggi. Prova a chiedermela in modo più specifico.', links, steps, messages, tokens }
+  return { answer: 'Non sono riuscito a completare la richiesta in pochi passaggi. Prova a chiedermela in modo più specifico.', links, steps, messages, tokens, changed }
 }
 
 async function executeCall(
@@ -150,7 +159,7 @@ async function executeCall(
   conversationId: string | null,
   links: AssistantLink[],
   steps: { tool: string; ok: boolean }[],
-): Promise<{ content: string; pending?: PendingAction }> {
+): Promise<{ content: string; pending?: PendingAction; changed?: boolean }> {
   const name = call.function.name
   const tool = findTool(name)
 
@@ -182,7 +191,7 @@ async function executeCall(
     const link = (result as { link?: AssistantLink } | null)?.link
     if (link) links.push(link)
 
-    return { content: JSON.stringify(result).slice(0, 12000) }
+    return { content: JSON.stringify(result).slice(0, 12000), changed: tool.mutating && !failed }
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Errore imprevisto'
     steps.push({ tool: name, ok: false })

@@ -5,14 +5,18 @@
 - **Supabase** PostgreSQL + Auth + RLS (`@/lib/supabase/server` server-side, `@/lib/supabase/client` client-side, `@/lib/supabase/admin` service role)
 - **UI**: design token light/dark (vedi «Design system» sotto); Radix UI; lucide-react; sonner toast
 - **AI**: due provider. Customer care → Anthropic `claude-haiku-4-5` (`app/actions/cc-ai.ts`,
-  chiave `ANTHROPIC_API_KEY`). Tutto il resto → Groq via fetch, chiave `GROQ_API_KEY`.
-  **Il modello Groq non si scrive nel codice**: sta in `lib/ai/model.ts`
-  (`GROQ_MODEL`, env `GROQ_MODEL`, default `openai/gpt-oss-120b`). `llama-3.3-70b-versatile`
-  è **dismesso** e risponde 404 — era copiato in cinque route e sono morte tutte insieme
-  senza che niente lo segnalasse. `openai/gpt-oss-120b` è un modello di **reasoning**: i
-  token di ragionamento escono dallo stesso `max_tokens` della risposta, quindi un budget
-  stretto non accorcia l'output, lo **svuota**. Se una route torna vuota, il primo sospetto
-  è il tetto dei token, non il prompt.
+  chiave `ANTHROPIC_API_KEY`, **non impostata**: quella funzione è spenta e ritorna vuoto).
+  Tutto il resto → Groq via fetch, chiave `GROQ_API_KEY`.
+  **Il modello Groq non si scrive nel codice**: sta in `lib/ai/model.ts` (env `GROQ_MODEL`,
+  default **`qwen/qwen3.8-27b`**). `llama-3.3-70b-versatile` è **dismesso** e risponde 404 —
+  era copiato in cinque route e sono morte tutte insieme senza che niente lo segnalasse.
+  Il cambio da `openai/gpt-oss-120b` a Qwen è stato fatto **misurando** sullo stesso carico:
+  Qwen emette più tool call nello stesso turno (tre, su una domanda composta) dove gpt-oss
+  ne fa una sola, **non è un modello di reasoning** (quindi un `max_tokens` stretto accorcia
+  la risposta invece di **svuotarla**), e sull'azione che modifica i dati chiama lo strumento
+  invece di chiedere conferma a parole. Il prezzo è il **rate limit**: il 429 arriva più
+  facilmente, per questo `provider.ts` riprova una volta rispettando `Retry-After`.
+  I tetti delle route restano a 1500: servivano con un reasoning model e non fanno danni.
 - **Charts**: Recharts (client), SVG inline (server/report)
 - **Dashboard grid**: react-grid-layout/legacy — layout in localStorage (`twobee-dash-layout-v3`)
 

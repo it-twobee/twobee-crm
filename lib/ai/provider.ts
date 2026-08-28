@@ -93,11 +93,35 @@ export async function chatWithTools(opts: {
     body.tool_choice = 'auto'
   }
 
-  const res = await fetch(p.url, {
+  /**
+   * Un 429 si riprova, una volta.
+   *
+   * Non è prudenza generica: provando qwen/qwen3.8-27b sul nostro account il
+   * limite è arrivato addosso a metà di una conversazione di quattro domande, e
+   * un turno agentico fa più chiamate del turno di una route generativa — quindi
+   * la probabilità di incrociarlo è più alta proprio dove costa di più. Senza
+   * questo, un giro perso in mezzo al loop diventa «Il motore AI non ha
+   * risposto» dopo che il modello aveva già letto i dati.
+   *
+   * Un solo tentativo, e con un tetto: l'utente sta guardando un pannello che
+   * gira, e aspettare mezzo minuto è peggio di un errore leggibile.
+   */
+  let res = await fetch(p.url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
     body: JSON.stringify(body),
   })
+
+  if (res.status === 429) {
+    const after = Number(res.headers.get('retry-after'))
+    const wait = Math.min(Number.isFinite(after) && after > 0 ? after * 1000 : 1500, 4000)
+    await new Promise((r) => setTimeout(r, wait))
+    res = await fetch(p.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify(body),
+    })
+  }
 
   if (!res.ok) {
     const detail = await res.text().catch(() => '')

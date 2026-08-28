@@ -95,11 +95,17 @@ export function AssistantPanel({ open, onClose, surface, userName }: Props) {
         steps: data.steps ?? [],
         pending: data.pending ?? null,
       }])
+      /* Un'azione che scrive ma non è rischiosa parte subito, senza card di
+         conferma: era l'unico percorso che non ricaricava, e l'assistente
+         diceva «task completata» — vero, l'audit lo conferma — davanti a un
+         elenco identico a prima. Una modifica che non si vede è indistinguibile
+         da una modifica che non è avvenuta. */
+      if (data.changed) router.refresh()
     } catch {
       setMessages((p) => [...p, { role: 'ai', text: 'Errore di connessione. Riprova.' }])
     }
     setLoading(false)
-  }, [loading, surface, conversationId])
+  }, [loading, surface, conversationId, router])
 
   const resolvePending = async (index: number, confirm: boolean) => {
     const msg = messages[index]

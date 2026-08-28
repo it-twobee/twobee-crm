@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { buildAssistantCtx, isStaffCtx, type Surface } from '@/lib/ai/context'
 import { runAssistantTurn } from '@/lib/ai/agent'
+import { revalidateAfterAssistantWrite } from '@/lib/ai/revalidate'
 import { checkDailyLimit } from '@/lib/ai/limits'
 import { activeModel } from '@/lib/ai/provider'
 import type { ChatMessage } from '@/lib/ai/provider'
 import type { AssistantCtx } from '@/lib/ai/context'
 
 const HISTORY_TURNS = 12
+
+
 
 /**
  * La cronologia si rilegge dal DB, non si prende dal client: gli argomenti dei
@@ -87,10 +90,14 @@ export async function POST(req: NextRequest) {
     latency_ms: Date.now() - started, success: true, tokens_used: turn.tokens,
   } as never).then(() => {}, () => {})
 
+  if (turn.changed) revalidateAfterAssistantWrite()
+
   return NextResponse.json({
     answer: turn.answer,
     links: turn.links,
     steps: turn.steps,
+    // Il client lo usa per ricaricare la pagina sotto al pannello.
+    changed: turn.changed,
     pending: turn.pending ?? null,
     conversationId,
   })
