@@ -8,6 +8,7 @@ import { ConfirmActionCard } from './ConfirmActionCard'
 // Etichette e regole stanno in un modulo puro: il registry importa i server
 // action e in un componente client non ci può entrare.
 import { TOOL_LABELS } from '@/lib/ai/tools/access'
+import { AssistantAnswer } from './AssistantAnswer'
 
 export type Surface = 'dashboard' | 'workspace'
 
@@ -212,7 +213,7 @@ export function AssistantPanel({ open, onClose, surface, userName }: Props) {
                         ))}
                       </div>
                     )}
-                    <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                    <AssistantAnswer text={msg.text} />
 
                     {msg.pending && !msg.pendingResolved && (
                       <ConfirmActionCard

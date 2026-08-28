@@ -2439,6 +2439,24 @@ avvolgono in `attempt()`.
 piccoli sbagliano su descrizioni lunghe e campi liberi. Gli stati task nell'enum
 sono quelli del CHECK: **`in_review`**, non `in_revisione`.
 
+**La risposta si formatta, non si stampa** (`lib/ai/format.ts` + `AssistantAnswer`).
+Il pannello mostrava il Markdown grezzo con `whitespace-pre-wrap`: alla prima
+domanda vera il modello ha risposto con una **tabella a pipe di cinque colonne** e
+a schermo si leggeva `|--------|-------|`, con ogni riga spezzata a metà. Su un
+telefono era illeggibile. Due lati, e servono entrambi:
+
+- **Il prompt chiede di non usare tabelle** (sezione «COME SCRIVI»): un elenco, una
+  cosa per riga, date in giorno/mese, stati a parole («da fare», non `da_fare`),
+  niente UUID a schermo. Misurato: cambia davvero l'output.
+- **Il renderer regge comunque**, perché un prompt è una preferenza e la tabella è
+  **intermittente** — nella stessa prova, senza le regole, a volte non compare.
+  Una tabella in 420px non si salva con `overflow-x`: si legge scorrendo, cioè non
+  si legge. Quindi la si **ribalta** in righe, titolo sopra e il resto sotto in
+  piccolo. `parseAnswer` è puro, quindi lo importa un componente client.
+
+Gate: `npx tsx lib/ai/format.check.ts` (27 controlli, col caso vero dello
+screenshot).
+
 ## Architettura portali
 - **Admin** (`/dashboard`, tutto): `super_admin`, `founder`, `admin`.
 - **Workspace** (`/workspace/**` e nient'altro): `manager`, `senior`, `junior`, `stage`, `freelance`, `partner`.
@@ -2757,9 +2775,9 @@ Ultimo commit: **`2d45e53`** (il registro delle allocazioni, §290→§307),
 pushato su `origin/main` il 2026-08-20 — 78 file, +9.849/−1.226. **`main` è
 allineato**, quindi su os.twobee.it c'è tutto quello che c'è qui.
 Gate del repo: `npx tsc --noEmit` (ESLint non è configurato) più i
-**trentacinque** `lib/**/*.check.ts` (gli ultimi sono `allocations.check.ts` §297,
+**trentasei** `lib/**/*.check.ts` (gli ultimi sono `allocations.check.ts` §297,
 `f24.check.ts` §301, `month-intake.check.ts` §303, `stream-validation.check.ts`
-§306 e `ai/tools/access.check.ts` §314), che si lanciano con
+§306, `ai/tools/access.check.ts` e `ai/format.check.ts` §314), che si lanciano con
 `npx tsx lib/<percorso>.check.ts` e devono dire «Tutti i controlli passano».
 **Non lanciare `npm run build` mentre `npm run dev` gira**: condividono `.next`,
 il dev server resta a servire chunk CSS sostituiti e la pagina si apre senza
