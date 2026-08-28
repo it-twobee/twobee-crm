@@ -4,7 +4,10 @@
 - **Next.js 14** App Router, TypeScript strict, Tailwind CSS
 - **Supabase** PostgreSQL + Auth + RLS (`@/lib/supabase/server` server-side, `@/lib/supabase/client` client-side, `@/lib/supabase/admin` service role)
 - **UI**: design token light/dark (vedi «Design system» sotto); Radix UI; lucide-react; sonner toast
-- **AI**: Groq `llama-3.3-70b-versatile` via fetch — chiave `GROQ_API_KEY` server-side
+- **AI**: Groq via fetch — chiave `GROQ_API_KEY` server-side. Il modello NON si
+  hardcoda: `GROQ_MODEL` da `lib/ai/model.ts` (env `GROQ_MODEL`, default
+  `openai/gpt-oss-120b`). È di reasoning: i token di ragionamento escono dallo
+  stesso `max_tokens`, quindi un budget stretto svuota `content` invece di accorciarlo
 - **Charts**: Recharts (client), SVG inline (server/report)
 - **Dashboard grid**: react-grid-layout/legacy — layout in localStorage (`twobee-dash-layout-v3`)
 
@@ -109,7 +112,7 @@ const { data } = await createAdminClient().from('table').insert({...})
 const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
-  body: JSON.stringify({ model: 'llama-3.3-70b-versatile', max_tokens: 1000,
+  body: JSON.stringify({ model: GROQ_MODEL, max_tokens: 1000,
     messages: [{ role: 'system', content: '...' }, { role: 'user', content: '...' }] }),
 })
 const parsed = JSON.parse((await res.json()).choices?.[0]?.message?.content?.match(/\{[\s\S]*\}/)?.[0] ?? '{}')
@@ -117,7 +120,8 @@ const parsed = JSON.parse((await res.json()).choices?.[0]?.message?.content?.mat
 
 ## Migration da eseguire (Supabase Dashboard → SQL Editor)
 `chat_channels.project_id` **esiste** in produzione: il vecchio "BUG NOTO" è risolto.
-Numerazione: attenzione, `080_*`, `081_*` e `092_*` compaiono due volte. Il prossimo libero è **106**.
+Numerazione: attenzione, `080_*`, `081_*`, `092_*` e `109_*` compaiono due volte. L'ultima è
+`115_ai_assistant.sql`: il prossimo libero è **116**.
 
 | # | Cosa fa | Serve anche |
 |---|---|---|
@@ -151,6 +155,7 @@ dato economico: è sicuro anche nel workspace.
 | `104_workload_sidebar_position.sql` | Sidebar: "Workload" tra "Le mie attività" e "Calendario" (riordino sort_order) | — |
 | `105_client_names.sql` | Fase 4a: `clients.display_name` (nome visualizzato, backfill da company_name) + `legal_name` (ragione sociale); aggiorna la VIEW `clients_workspace` | — |
 | `109_item_views.sql` | Operatività Fase 1: `item_views(profile_id,item_id,item_type,seen_at)` RLS own-only per il badge "Nuovo" per-utente + aggiunge `sprints.created_at` (backfill da start_date) | — |
+| `115_ai_assistant.sql` | Assistente AI: `ai_conversations` + `ai_assistant_messages` (RLS own-only), `ai_tool_calls` (audit, lettura `is_staff()`), `ai_pending_actions` (RLS deny-all, solo service role) + `ai_logs.profile_id` | — |
 
 **Scorciatoia**: `supabase/APPLY_PENDING.sql` è il concatenato (081, 086–093) in
 transazione, da incollare una volta sola nel SQL Editor. Bucket privati da creare
@@ -189,6 +194,27 @@ I token stanno in `google_credentials` (RLS deny-all, solo service role).
 `/api/google/events?profileIds=a,b` legge le agende dei colleghi; degli eventi
 altrui espone solo `"Occupato"` — niente titolo, descrizione o partecipanti.
 Le task del calendario sono personali e nascoste di default.
+
+## Assistente AI agentico (`lib/ai`, `/api/ai/assistant`)
+Chat che **agisce** sul gestionale: legge task/progetti/clienti/workload e scrive
+su task, progetti e sprint. Montata come slide-over (`AssistantLauncher`, Ctrl+J)
+nei layout `(dashboard)` e `(workspace)`. Distinta dai 28 endpoint generativi in
+`app/api/ai/*`, che restano invariati.
+
+- **Provider**: `lib/ai/provider.ts` — adapter OpenAI-compatibile. `AI_PROVIDER=groq`
+  (default, chiave già in produzione) o `openai`. Cambiare motore è una env, non un refactor.
+- **Il modello non è mai l'autorità sui permessi.** Tre strati indipendenti:
+  1. `toolsFor(ctx)` filtra il catalogo per ruolo — comodità, non barriera;
+  2. ogni `run()` richiama i guard **esistenti** (`assertCanEditTask`, `guard()`,
+     `setTaskAssignees`, `softDeleteTask`…). Non riscrivere authz nei tool;
+  3. tutte le letture usano `ctx.sb` (JWT utente) → **mai** il service role, così
+     la RLS resta il pavimento. Nel workspace i clienti passano da `clients_workspace`.
+- **Azioni rischiose** (`risky: true` → `delete_task`, `assign_task`, `create_plan`):
+  parcheggiate in `ai_pending_actions` e confermate con il solo `pending_id`. Gli
+  argomenti non tornano mai dal client, e `consumed_at` si marca **prima** di eseguire.
+- **Audit**: ogni chiamata finisce in `ai_tool_calls`; i turni in `ai_logs` (`call_type='assistant'`).
+- Aggiungere un tool = un file in `lib/ai/tools/` + una riga in `tools/index.ts`.
+  Descrizione ≤ 15 parole e schema con `enum`: i modelli piccoli sbagliano sul resto.
 
 ## Stato attuale — widget dashboard
 | Widget | Componente | Stato |

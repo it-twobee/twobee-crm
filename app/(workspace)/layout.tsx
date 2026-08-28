@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { WorkspaceSidebar } from '@/components/workspace/WorkspaceSidebar'
 import { UndoHotkey } from '@/components/undo/UndoHotkey'
+import { AssistantLauncher } from '@/components/ai/AssistantLauncher'
 import { GlobalSearch } from '@/components/shared/GlobalSearch'
 import { workspaceSearch } from '@/app/actions/global-search'
 import { isSuperAdminRaw, isAdminRole, isWorkspaceRole } from '@/lib/permissions'
@@ -84,6 +85,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <UndoHotkey />
+      <AssistantLauncher surface="workspace" userName={profile.full_name} />
       <WorkspaceSidebar
         sections={(visibleSections ?? []) as WorkspaceSectionRow[]}
         isSuperAdmin={isSuperAdmin}

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/shared/Sidebar'
 import { Header } from '@/components/shared/Header'
 import { UndoHotkey } from '@/components/undo/UndoHotkey'
+import { AssistantLauncher } from '@/components/ai/AssistantLauncher'
 import type { Profile } from '@/lib/types/database'
 
 export default async function DashboardLayout({
@@ -32,6 +33,7 @@ export default async function DashboardLayout({
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <UndoHotkey />
+      <AssistantLauncher surface="dashboard" userName={(profile as Profile | null)?.full_name} />
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header profile={profile as Profile | null} />
