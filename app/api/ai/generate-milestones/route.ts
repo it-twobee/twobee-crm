@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { GROQ_MODEL } from '@/lib/ai/model'
 
 const TYPE_CONTEXT: Record<string, string> = {
   ecommerce: 'E-commerce shop online con pagamenti, catalog prodotti, logistica',
@@ -38,8 +39,8 @@ Rispondi SOLO con il JSON array.`
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      max_tokens: 800,
+      model: GROQ_MODEL,
+      max_tokens: 1500,
       temperature: 0.4,
       messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
     }),

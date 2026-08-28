@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { GROQ_MODEL } from '@/lib/ai/model'
 
 // Fase 3d — AI Planning Assistant. Analizza carichi/segnali e PROPONE azioni.
 // NON modifica nulla: la spec (§9.4) impone analizza→propone→utente conferma→sistema.
@@ -48,7 +49,7 @@ Rispondi SOLO con questo JSON (nessun testo extra):
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: GROQ_MODEL,
         max_tokens: 1000,
         messages: [
           { role: 'system', content: 'Sei un assistente di pianificazione. Proponi, non applicare. Rispondi solo con JSON valido.' },

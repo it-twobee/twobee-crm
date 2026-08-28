@@ -6,7 +6,7 @@
 ## Stack
 - **Next.js 14** App Router, TypeScript strict, Tailwind (design token light/dark).
 - **Supabase**: Postgres + Auth + RLS. Client: `@/lib/supabase/{server,client,admin}`.
-- **AI**: Groq `llama-3.3-70b-versatile` (+ route Gemini/Anthropic sparse).
+- **AI**: Groq (modello da env `GROQ_MODEL`) (+ route Gemini/Anthropic sparse).
 - **Integrazioni**: Google Calendar (OAuth), Asana (sync/webhook), Twilio (SMS lead).
 
 ## Quattro portali, un gate

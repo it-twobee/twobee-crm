@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { GROQ_MODEL } from '@/lib/ai/model'
 
 export async function POST(req: Request) {
   try {
@@ -35,8 +36,8 @@ Tono: positivo, chiaro, orientato ai risultati. Max 150 parole totali.`
         Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        max_tokens: 400,
+        model: GROQ_MODEL,
+        max_tokens: 1500,
         messages: [
           { role: 'system', content: 'Sei un project manager che scrive report per clienti. Rispondi direttamente con il report, senza intestazioni o markdown.' },
           { role: 'user', content: prompt },

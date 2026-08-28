@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { GROQ_MODEL } from '@/lib/ai/model'
 
 export async function POST(req: NextRequest) {
   const { query, context } = await req.json()
@@ -53,8 +54,8 @@ Icone disponibili: users, folder-open, bar-chart-3, check-square, trending-up, a
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      max_tokens: 600,
+      model: GROQ_MODEL,
+      max_tokens: 1500,
       temperature: 0.3,
       messages: [
         { role: 'system', content: system },

@@ -32,7 +32,7 @@ Ultimo aggiornamento: sessione di sviluppo corrente · 62 migration · ~96 compo
 | Linguaggio | **TypeScript** strict |
 | Styling | **Tailwind CSS** · Radix UI · lucide-react · sonner (toast) |
 | Backend / DB | **Supabase** — PostgreSQL + Auth + Row Level Security + Realtime + Storage |
-| AI | **Groq** `llama-3.3-70b-versatile` (via fetch, chiave server-side) |
+| AI | **Groq** (via fetch, chiave server-side; modello da env `GROQ_MODEL`) |
 | Grafici | Recharts (client) · SVG inline (report server-side) |
 | Dashboard | react-grid-layout/legacy (griglia drag & resize) |
 | Deploy | Vercel |
@@ -227,7 +227,7 @@ Slack-like con canali per cliente/interni/progetto/customer care. Realtime, reaz
 
 ## 7. Integrazione AI
 
-Tutto su **Groq `llama-3.3-70b-versatile`** (chiave `GROQ_API_KEY` server-side). Route in `app/api/ai/` e affini:
+Tutto su **Groq** (chiave `GROQ_API_KEY` server-side, modello da `GROQ_MODEL` in `lib/ai/model.ts`). Route in `app/api/ai/` e affini:
 - `dashboard-chat` — assistente contestuale sui dati dashboard
 - `executive-brief` — briefing narrativo aziendale
 - `extract-project` / `extract-meeting` — estrazione dati da testo/upload

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { GROQ_MODEL } from '@/lib/ai/model'
 
 export async function POST(req: NextRequest) {
   const { project_type, project_name, company_name, kind, template_label } = await req.json()
@@ -36,8 +37,8 @@ Il brief deve:
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      max_tokens: 400,
+      model: GROQ_MODEL,
+      max_tokens: 1500,
       temperature: 0.6,
       messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
     }),

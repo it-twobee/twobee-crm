@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { GROQ_MODEL } from '@/lib/ai/model'
 
 // §27.2 — Assistente AI INTERNO del Customer Care.
 //
@@ -86,7 +87,7 @@ Rispondi SOLO con JSON valido:
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: GROQ_MODEL,
         max_tokens: 1200,
         messages: [
           { role: 'system', content: 'Rispondi sempre e solo con JSON valido, senza testo attorno.' },

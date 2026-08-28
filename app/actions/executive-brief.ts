@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
+import { GROQ_MODEL } from '@/lib/ai/model'
 
 export async function generateExecutiveBrief(): Promise<{ brief: string; error?: string }> {
   const supabase = await createClient()
@@ -95,8 +96,8 @@ Niente titoli, niente bullet, niente preamboli. Solo 3 frasi dirette con numeri 
         'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        max_tokens: 200,
+        model: GROQ_MODEL,
+        max_tokens: 1500,
         temperature: 0.3,
         messages: [{ role: 'user', content: prompt }],
       }),

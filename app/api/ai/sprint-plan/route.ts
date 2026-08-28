@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { GROQ_MODEL } from '@/lib/ai/model'
 
 export async function POST(req: Request) {
   try {
@@ -28,8 +29,8 @@ Rispondi SOLO con questo JSON (nessun testo extra):
         Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        max_tokens: 800,
+        model: GROQ_MODEL,
+        max_tokens: 1500,
         messages: [
           { role: 'system', content: 'Sei un project manager esperto. Rispondi solo con JSON valido.' },
           { role: 'user', content: prompt },

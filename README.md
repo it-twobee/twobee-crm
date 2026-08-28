@@ -25,7 +25,7 @@ Fatture    Portale Cliente
 |-------|-----------|
 | Frontend | Next.js 14 App Router · TypeScript strict · Tailwind CSS |
 | Backend | Supabase (PostgreSQL + Auth + RLS + Realtime) |
-| AI | Groq `llama-3.3-70b-versatile` |
+| AI | Groq (modello da env `GROQ_MODEL`, default `openai/gpt-oss-120b`) |
 | Charts | Recharts · SVG inline |
 | UI | Radix UI · Lucide · Sonner toast |
 | Deploy | Coolify (Docker · Next.js standalone) — os.twobee.it |

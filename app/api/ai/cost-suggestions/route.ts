@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { GROQ_MODEL } from '@/lib/ai/model'
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
@@ -70,7 +71,7 @@ Rispondi SOLO con JSON array.`,
         'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: GROQ_MODEL,
         max_tokens: 3000,
         messages: [
           { role: 'system', content: 'Rispondi SOLO con JSON array valido, senza markdown o testo extra.' },

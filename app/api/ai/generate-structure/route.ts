@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { GROQ_MODEL } from '@/lib/ai/model'
 
 // Generazione AI scope-aware da un brief. A seconda dello `scope` restituisce
 // l'intero piano oppure solo il sotto-albero da agganciare a un genitore esistente:
@@ -71,7 +72,7 @@ Regole:
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      model: GROQ_MODEL,
       max_tokens: 4000,
       temperature: 0.35,
       // JSON mode: forza un output JSON valido (niente preamboli/markdown → niente "parsing fallito").

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import type { Client, ClientKpi } from '@/lib/types/database'
+import { GROQ_MODEL } from '@/lib/ai/model'
 
 async function groq(prompt: string): Promise<string> {
   const key = process.env.GROQ_API_KEY
@@ -9,7 +10,7 @@ async function groq(prompt: string): Promise<string> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      model: GROQ_MODEL,
       max_tokens: 1800,
       messages: [{ role: 'user', content: prompt }],
     }),

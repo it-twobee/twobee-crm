@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { ClientTaskTemplate } from '@/lib/reparti-constants'
+import { GROQ_MODEL } from '@/lib/ai/model'
 
 export async function POST(req: NextRequest) {
   const { projectName, projectType, clientName, existingTasks, chatMessage, history } = await req.json()
@@ -41,7 +42,7 @@ ${existingTasks?.length ? `\nTask esistenti:\n${existingTasks.map((t: ClientTask
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
-    body: JSON.stringify({ model: 'llama-3.3-70b-versatile', max_tokens: 1500, messages }),
+    body: JSON.stringify({ model: GROQ_MODEL, max_tokens: 1500, messages }),
   })
 
   const data = await res.json()

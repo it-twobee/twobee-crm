@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { GROQ_MODEL } from '@/lib/ai/model'
 
 // Route AI Prefill generica (addendum §16). L'AI SUGGERISCE, non salva mai.
 // Estendibile per entityType (client/project/task/quote/proposal/report/timesheet).
@@ -17,7 +18,7 @@ async function groqJson(prompt: string, maxTokens = 1400): Promise<any> {
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
-    body: JSON.stringify({ model: 'llama-3.3-70b-versatile', max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] }),
+    body: JSON.stringify({ model: GROQ_MODEL, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] }),
   })
   if (!res.ok) throw new Error(`Groq ${res.status}`)
   const data = await res.json()

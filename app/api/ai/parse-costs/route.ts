@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
+import { GROQ_MODEL } from '@/lib/ai/model'
 
 export async function POST(req: NextRequest) {
   const formData = await req.formData()
@@ -62,7 +63,7 @@ ${JSON.stringify(rows)}`
         'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: GROQ_MODEL,
         max_tokens: 4000,
         messages: [
           { role: 'system', content: systemPrompt + '\nRispondi SOLO con un JSON array valido, senza markdown.' },

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { GROQ_MODEL } from '@/lib/ai/model'
 
 const DEPT_PERSONA: Record<string, string> = {
   growth:    'Sei un esperto di Growth Marketing con profonda conoscenza di acquisition, retention, funnel optimization, performance marketing e data-driven growth. Conosci le ultime strategie di growth hacking, SEO/SEM, paid social, email marketing automation.',
@@ -44,7 +45,7 @@ Regole:
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
-    body: JSON.stringify({ model: 'llama-3.3-70b-versatile', max_tokens: 1500, messages }),
+    body: JSON.stringify({ model: GROQ_MODEL, max_tokens: 1500, messages }),
   })
 
   const data = await res.json()

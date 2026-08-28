@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import type { Quote, ProposalContent, BrandMode } from '@/lib/types/database'
+import { GROQ_MODEL } from '@/lib/ai/model'
 
 interface Body {
   quoteId?: string
@@ -106,7 +107,7 @@ Rispondi ESCLUSIVAMENTE con JSON valido:
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile', max_tokens: 3200,
+        model: GROQ_MODEL, max_tokens: 3200,
         messages: [{ role: 'user', content: prompt }],
       }),
     })

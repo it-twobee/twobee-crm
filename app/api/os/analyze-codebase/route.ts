@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import fs from 'fs'
 import path from 'path'
+import { GROQ_MODEL } from '@/lib/ai/model'
 
 const SKIP_DIRS = new Set(['node_modules', '.next', '.git', 'dist', '.turbo', 'coverage', '__pycache__', '.supabase'])
 const KEEP_EXT  = new Set(['.ts', '.tsx', '.js', '.jsx', '.sql', '.md', '.json'])
@@ -105,7 +106,7 @@ export async function POST(req: NextRequest) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      model: GROQ_MODEL,
       max_tokens: 2500,
       messages: [
         {

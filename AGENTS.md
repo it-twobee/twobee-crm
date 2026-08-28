@@ -4,7 +4,10 @@
 - **Next.js 14** App Router, TypeScript strict, Tailwind CSS
 - **Supabase** PostgreSQL + Auth + RLS (`@/lib/supabase/server` server-side, `@/lib/supabase/client` client-side, `@/lib/supabase/admin` service role)
 - **UI**: bg `#111111`, gold `#F5C800`, surface `#1A1A1A`, border `#2A2A2A`; Radix UI; lucide-react; sonner toast
-- **AI**: Groq `llama-3.3-70b-versatile` via fetch — chiave `GROQ_API_KEY` server-side
+- **AI**: Groq via fetch — chiave `GROQ_API_KEY` server-side. Il modello NON si
+  hardcoda: `GROQ_MODEL` da `lib/ai/model.ts` (env `GROQ_MODEL`, default
+  `openai/gpt-oss-120b`). È di reasoning: i token di ragionamento escono dallo
+  stesso `max_tokens`, quindi un budget stretto svuota `content` invece di accorciarlo
 - **Charts**: Recharts (client), SVG inline (server/report)
 - **Dashboard grid**: react-grid-layout/legacy — layout in localStorage (`twobee-dash-layout-v3`)
 
@@ -73,7 +76,7 @@ const { data } = await createAdminClient().from('table').insert({...})
 const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
-  body: JSON.stringify({ model: 'llama-3.3-70b-versatile', max_tokens: 1000,
+  body: JSON.stringify({ model: GROQ_MODEL, max_tokens: 1000,
     messages: [{ role: 'system', content: '...' }, { role: 'user', content: '...' }] }),
 })
 const parsed = JSON.parse((await res.json()).choices?.[0]?.message?.content?.match(/\{[\s\S]*\}/)?.[0] ?? '{}')
