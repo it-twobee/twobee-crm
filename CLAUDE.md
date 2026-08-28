@@ -2410,7 +2410,7 @@ diverse. Sul database quei quattro ruoli sono due: **`freelance` e `partner` non
 hanno un account**, quindi quelle righe della matrice non sarebbero verificabili
 in nessun modo. `accessFor(name)` **lancia** su un nome non dichiarato: un tool
 nuovo non entra nel catalogo senza che qualcuno decida chi lo vede.
-Gate: `npx tsx lib/ai/tools/access.check.ts` (42 controlli).
+Gate: `npx tsx lib/ai/tools/access.check.ts` (44 controlli).
 
 **Le azioni rischiose non eseguono** (`risky: true`): parcheggiano gli argomenti
 in `ai_pending_actions` e restituiscono al client **solo un `pending_id`**. Il

@@ -79,6 +79,39 @@ export const TOOL_ACCESS: Record<string, Access> = {
 }
 
 /**
+ * Come si chiama uno strumento davanti a una persona.
+ *
+ * Sta qui e non nel pannello perché il pannello è un componente client e non può
+ * importare il registry (tira dentro i server action); tenendole là si scollano
+ * dai tool, ed era già successo — l'elenco portava `list_sprints`, `get_workload`
+ * e `create_plan`, che non esistono più, e non aveva i tre strumenti nuovi:
+ * all'utente sarebbe comparso `list_workstreams` grezzo. Questo modulo è puro,
+ * quindi il client lo importa e `access.check.ts` verifica che non manchi niente.
+ */
+export const TOOL_LABELS: Record<string, string> = {
+  search: 'cerco nel gestionale',
+  list_team: 'guardo il team',
+  open_page: 'preparo il link',
+  list_my_tasks: 'leggo le tue task',
+  list_tasks: 'cerco fra le task',
+  get_task: 'apro la task',
+  list_projects: 'leggo i progetti',
+  get_project: 'apro il progetto',
+  list_workstreams: 'leggo i workstream',
+  list_milestones: 'leggo le milestone',
+  list_clients: 'leggo i clienti',
+  get_financials: 'leggo i dati economici',
+  create_task: 'creo la task',
+  update_task: 'aggiorno la task',
+  complete_task: 'chiudo la task',
+  assign_task: 'aggiorno gli assegnatari',
+  delete_task: 'sposto nel cestino',
+  create_project: 'creo il progetto',
+  create_workstream: 'creo il workstream',
+  create_milestone: 'creo la milestone',
+}
+
+/**
  * Da quale sorgente si leggono i clienti.
  *
  * §211 dice che le pagine del workspace leggono `clients_workspace` e **mai**

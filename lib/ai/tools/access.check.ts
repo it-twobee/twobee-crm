@@ -9,7 +9,7 @@
  */
 import type { AppRole, PermissionSection, PermissionAction } from '@/lib/types/database'
 import { ADMIN_ROLES, EXTERNAL_ROLES } from '@/lib/permissions'
-import { TOOL_ACCESS, accessFor, clientsTableFor, type AccessCtx } from './access'
+import { TOOL_ACCESS, TOOL_LABELS, accessFor, clientsTableFor, type AccessCtx } from './access'
 
 let passed = 0
 const failures: string[] = []
@@ -98,6 +98,14 @@ check('senza permesso clienti e fuori dal workspace, list_clients non c è',
   sees(ctx('junior', { surface: 'dashboard', deny: ['clienti'] }), 'list_clients'), false)
 check('nel workspace list_clients c è anche senza permesso (la VIEW azzera i numeri)',
   sees(ctx('junior', { surface: 'workspace', deny: ['clienti'] }), 'list_clients'), true)
+
+// ─── etichette: nessuna mancante, nessuna orfana ─────────────────────────────
+// Sono ciò che l'utente legge nella riga di attività. Una mancante mostra il
+// nome tecnico dello strumento, una orfana è un tool che non esiste più.
+check('ogni strumento ha un\'etichetta',
+  Object.keys(TOOL_ACCESS).filter((n) => !TOOL_LABELS[n]), [])
+check('nessuna etichetta senza strumento',
+  Object.keys(TOOL_LABELS).filter((n) => !TOOL_ACCESS[n]), [])
 
 // ─── sorgente dei clienti: §211/§213 ────────────────────────────────────────
 // La tabella vera è leggibile da tutto lo staff (092), quindi la VIEW non è una

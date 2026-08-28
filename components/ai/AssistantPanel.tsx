@@ -5,6 +5,9 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowRight, Loader2, Send, Sparkles, Wrench, X } from 'lucide-react'
 import { ConfirmActionCard } from './ConfirmActionCard'
+// Etichette e regole stanno in un modulo puro: il registry importa i server
+// action e in un componente client non ci può entrare.
+import { TOOL_LABELS } from '@/lib/ai/tools/access'
 
 export type Surface = 'dashboard' | 'workspace'
 
@@ -21,44 +24,26 @@ interface Message {
   pendingResolved?: boolean
 }
 
-// Etichette umane: "sto leggendo le tue task" dice qualcosa, "list_my_tasks" no.
-const TOOL_LABELS: Record<string, string> = {
-  search: 'cerco nel gestionale',
-  list_team: 'guardo il team',
-  open_page: 'preparo il link',
-  list_my_tasks: 'leggo le tue task',
-  list_tasks: 'cerco fra le task',
-  get_task: 'apro la task',
-  list_projects: 'leggo i progetti',
-  get_project: 'apro il progetto',
-  list_sprints: 'leggo gli sprint',
-  get_workload: 'calcolo il carico di lavoro',
-  list_clients: 'leggo i clienti',
-  get_financials: 'leggo i dati economici',
-  create_task: 'creo la task',
-  update_task: 'aggiorno la task',
-  complete_task: 'chiudo la task',
-  assign_task: 'aggiorno gli assegnatari',
-  delete_task: 'sposto nel cestino',
-  request_task: 'invio la richiesta',
-  create_project: 'creo il progetto',
-  create_sprint: 'creo lo sprint',
-  create_milestone: 'creo la milestone',
-  create_plan: 'creo il piano',
-}
 
+/**
+ * Ogni suggerimento deve corrispondere a uno strumento che esiste, o il primo
+ * gesto che l'utente prova finisce in «non posso farlo». Quelli sul carico di
+ * lavoro e sul rischio cliente sono stati tolti: `get_workload` non c'è (il
+ * motore del carico è sparito con il reset) e `clients.risk_score` è droppata
+ * dalla 197, quindi il rischio si calcola in lettura e l'assistente non lo sa.
+ */
 const SUGGESTED: Record<Surface, string[]> = {
   dashboard: [
     'Riassumimi le mie task',
-    'Quali clienti sono a rischio?',
-    'Chi è più carico questa settimana?',
+    'Cosa scade questa settimana?',
     'Progetti attivi e avanzamento',
+    'Qual è l’MRR totale?',
   ],
   workspace: [
     'Riassumimi le mie task',
     'Cosa scade questa settimana?',
-    'Qual è il mio carico di lavoro?',
     'Mostrami i progetti attivi',
+    'Quali clienti seguiamo?',
   ],
 }
 
