@@ -8,15 +8,19 @@
   chiave `ANTHROPIC_API_KEY`, **non impostata**: quella funzione è spenta e ritorna vuoto).
   Tutto il resto → Groq via fetch, chiave `GROQ_API_KEY`.
   **Il modello Groq non si scrive nel codice**: sta in `lib/ai/model.ts` (env `GROQ_MODEL`,
-  default **`qwen/qwen3.8-27b`**). `llama-3.3-70b-versatile` è **dismesso** e risponde 404 —
+  default **`qwen/qwen3.6-27b`**). `llama-3.3-70b-versatile` è **dismesso** e risponde 404 —
   era copiato in cinque route e sono morte tutte insieme senza che niente lo segnalasse.
   Il cambio da `openai/gpt-oss-120b` a Qwen è stato fatto **misurando** sullo stesso carico:
   Qwen emette più tool call nello stesso turno (tre, su una domanda composta) dove gpt-oss
   ne fa una sola, **non è un modello di reasoning** (quindi un `max_tokens` stretto accorcia
   la risposta invece di **svuotarla**), e sull'azione che modifica i dati chiama lo strumento
-  invece di chiedere conferma a parole. Il prezzo è il **rate limit**: il 429 arriva più
-  facilmente, per questo `provider.ts` riprova una volta rispettando `Retry-After`.
-  I tetti delle route restano a 1500: servivano con un reasoning model e non fanno danni.
+  invece di chiedere conferma a parole. **Ma è durato tre domande**: su questo account
+  `qwen/qwen3.8-27b` ha **8.000 token al minuto** e un turno dell'assistente ne consuma da
+  3.700 a 9.900 — un turno bruciava il minuto e il secondo prendeva 429. Tutti gli altri
+  modelli, `qwen/qwen3.6-27b` compreso, ne hanno **250.000**. Il 3.6 passa le stesse prove
+  ed è il default; è un reasoning model, quindi i tetti larghi servono. **Prima di scegliere
+  un modello, leggi `x-ratelimit-limit-tokens` sulla risposta**: la qualità si vede in
+  quattro domande, il limite si vede in produzione.
 - **Charts**: Recharts (client), SVG inline (server/report)
 - **Dashboard grid**: react-grid-layout/legacy — layout in localStorage (`twobee-dash-layout-v3`)
 

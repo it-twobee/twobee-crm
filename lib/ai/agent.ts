@@ -16,6 +16,17 @@ import type { AssistantCtx } from './context'
  */
 const MAX_ROUNDS = 6
 
+/**
+ * Quanto di un risultato arriva al modello.
+ *
+ * Era 12000 caratteri, e con un turno che fa più giri il conto sale in fretta:
+ * in produzione un turno ha consumato **9.900 token**, e su un modello con un
+ * tetto di 8.000 al minuto un turno solo bruciava il minuto intero. Venti task
+ * decorate stanno in due-tremila caratteri, quindi questo taglio non toglie
+ * niente di utile e allontana il 429.
+ */
+const TOOL_RESULT_CAP = 6000
+
 export interface AssistantLink { percorso: string; etichetta: string }
 
 export interface PendingAction {
@@ -36,6 +47,13 @@ export interface AgentTurn {
    * ma l'elenco restava identico e sembrava che non avesse fatto niente.
    */
   changed: boolean
+  /**
+   * Perché il turno non è riuscito, quando non è riuscito. Serve al log: il
+   * ProviderError viene catturato qui e trasformato in una risposta gentile,
+   * quindi la route non vedeva nessuna eccezione e registrava `success: true` —
+   * un fallimento in produzione risultava indistinguibile da un turno andato bene.
+   */
+  error?: string
   pending?: PendingAction
   messages: ChatMessage[]
   tokens: number
@@ -118,9 +136,23 @@ export async function runAssistantTurn(opts: {
       res = await chatWithTools({ messages, tools: last ? undefined : chatTools })
     } catch (e) {
       if (e instanceof ProviderError) {
+        /* Uno schema sbagliato è recuperabile: glielo si dice e il giro dopo
+           riprova, esattamente come per un tool che restituisce un errore. Groq
+           rifiuta l'intera richiesta con un 400 quando il modello scrive un
+           argomento del tipo sbagliato, e prima quel 400 chiudeva la
+           conversazione dopo che i dati erano già stati letti. */
+        if (e.kind === 'tool_schema' && round < MAX_ROUNDS - 1) {
+          messages.push({
+            role: 'system',
+            content: `La tua ultima chiamata a uno strumento non è valida: ${e.detail || 'un argomento ha il tipo sbagliato'}. Riprova rispettando i tipi dello schema: i numeri senza apici, i booleani come true o false, e nessun campo fuori da quelli dichiarati.`,
+          })
+          continue
+        }
         return {
-          answer: 'Il motore AI non ha risposto. Riprova fra poco.',
-          links, steps, messages, tokens, changed,
+          answer: e.kind === 'rate_limit'
+            ? 'Il motore AI ha raggiunto il limite di richieste. Riprova fra un minuto.'
+            : 'Il motore AI non ha risposto. Riprova fra poco.',
+          links, steps, messages, tokens, changed, error: `${e.kind}: ${e.message}`,
         }
       }
       throw e
@@ -191,7 +223,7 @@ async function executeCall(
     const link = (result as { link?: AssistantLink } | null)?.link
     if (link) links.push(link)
 
-    return { content: JSON.stringify(result).slice(0, 12000), changed: tool.mutating && !failed }
+    return { content: JSON.stringify(result).slice(0, TOOL_RESULT_CAP), changed: tool.mutating && !failed }
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Errore imprevisto'
     steps.push({ tool: name, ok: false })

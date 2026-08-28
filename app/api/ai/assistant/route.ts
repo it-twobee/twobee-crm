@@ -7,7 +7,10 @@ import { activeModel } from '@/lib/ai/provider'
 import type { ChatMessage } from '@/lib/ai/provider'
 import type { AssistantCtx } from '@/lib/ai/context'
 
-const HISTORY_TURNS = 12
+/* Otto e non dodici: la storia entra in ogni chiamata del turno, quindi si paga
+   una volta per giro. Con i limiti al minuto del provider è la voce più facile da
+   tagliare senza perdere il filo di una conversazione. */
+const HISTORY_TURNS = 8
 
 
 
@@ -85,9 +88,13 @@ export async function POST(req: NextRequest) {
       .eq('id', conversationId).is('title', null).then(() => {}, () => {})
   }
 
+  /* `turn.error` esiste quando il provider ha fallito e l'agente ha risposto con
+     una frase di scuse invece di lanciare: senza questo, quel caso finiva in
+     tabella come `success: true` e dal log non si capiva che era andato storto. */
   void ctx.admin.from('ai_logs').insert({
     call_type: 'assistant', model: activeModel(), profile_id: ctx.userId,
-    latency_ms: Date.now() - started, success: true, tokens_used: turn.tokens,
+    latency_ms: Date.now() - started, success: !turn.error,
+    tokens_used: turn.tokens, error_message: turn.error ?? null,
   } as never).then(() => {}, () => {})
 
   if (turn.changed) revalidateAfterAssistantWrite()

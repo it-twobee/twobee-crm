@@ -70,7 +70,25 @@ export function activeModel(): string {
  */
 const ASSISTANT_MAX_TOKENS = Number(process.env.AI_MAX_TOKENS ?? 3000)
 
-export class ProviderError extends Error {}
+/**
+ * Perché il motore non ha risposto. La distinzione non è estetica: un limite di
+ * richieste si risolve aspettando, uno schema sbagliato si risolve **dicendolo al
+ * modello**, e il messaggio generico «non ha risposto» non permetteva di capire
+ * quale dei due fosse — l'errore veniva anche registrato come `success: true`.
+ */
+export type ProviderErrorKind = 'rate_limit' | 'tool_schema' | 'other'
+
+export class ProviderError extends Error {
+  readonly kind: ProviderErrorKind
+  /** Il messaggio del provider, da rimandare al modello quando è recuperabile. */
+  readonly detail: string
+
+  constructor(message: string, kind: ProviderErrorKind = 'other', detail = '') {
+    super(message)
+    this.kind = kind
+    this.detail = detail
+  }
+}
 
 export async function chatWithTools(opts: {
   messages: ChatMessage[]
@@ -124,8 +142,27 @@ export async function chatWithTools(opts: {
   }
 
   if (!res.ok) {
-    const detail = await res.text().catch(() => '')
-    throw new ProviderError(`${activeProvider()} ${res.status}: ${detail.slice(0, 300)}`)
+    const raw = await res.text().catch(() => '')
+    /* `tool_use_failed` è il rifiuto di una chiamata a strumento malformata: il
+       modello ha scritto un argomento del tipo sbagliato (visto davvero:
+       `solo_attivi: "True"` invece di un booleano) e Groq scarta tutta la
+       richiesta con un 400. È **recuperabile** — al modello si può dire cosa ha
+       sbagliato — quindi non deve morire come un errore di rete. */
+    let code = ''
+    let providerMessage = ''
+    try {
+      const parsed = JSON.parse(raw)
+      code = parsed?.error?.code ?? ''
+      providerMessage = parsed?.error?.message ?? ''
+    } catch { /* corpo non JSON: resta un errore generico */ }
+
+    if (code === 'tool_use_failed') {
+      throw new ProviderError('Chiamata a strumento malformata', 'tool_schema', providerMessage)
+    }
+    if (res.status === 429) {
+      throw new ProviderError('Limite di richieste del provider', 'rate_limit', providerMessage)
+    }
+    throw new ProviderError(`${activeProvider()} ${res.status}: ${raw.slice(0, 300)}`, 'other', providerMessage)
   }
 
   const data = await res.json()
