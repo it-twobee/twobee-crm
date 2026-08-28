@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { getViewer } from '@/lib/auth'
 import { Sidebar } from '@/components/shared/Sidebar'
 import { Header } from '@/components/shared/Header'
+import { AssistantLauncher } from '@/components/ai/AssistantLauncher'
 import type { Profile } from '@/lib/types/database'
 import { Suspense } from 'react'
 import { NavMemory } from '@/components/shared/BackLink'
@@ -36,6 +37,7 @@ export default async function DashboardLayout({
           {children}
         </main>
       </div>
+      <AssistantLauncher surface="dashboard" userName={(profile as Profile | null)?.full_name ?? null} />
     </div>
   )
 }

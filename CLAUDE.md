@@ -4,7 +4,15 @@
 - **Next.js 14** App Router, TypeScript strict, Tailwind CSS
 - **Supabase** PostgreSQL + Auth + RLS (`@/lib/supabase/server` server-side, `@/lib/supabase/client` client-side, `@/lib/supabase/admin` service role)
 - **UI**: design token light/dark (vedi «Design system» sotto); Radix UI; lucide-react; sonner toast
-- **AI**: Groq `llama-3.3-70b-versatile` via fetch — chiave `GROQ_API_KEY` server-side
+- **AI**: due provider. Customer care → Anthropic `claude-haiku-4-5` (`app/actions/cc-ai.ts`,
+  chiave `ANTHROPIC_API_KEY`). Tutto il resto → Groq via fetch, chiave `GROQ_API_KEY`.
+  **Il modello Groq non si scrive nel codice**: sta in `lib/ai/model.ts`
+  (`GROQ_MODEL`, env `GROQ_MODEL`, default `openai/gpt-oss-120b`). `llama-3.3-70b-versatile`
+  è **dismesso** e risponde 404 — era copiato in cinque route e sono morte tutte insieme
+  senza che niente lo segnalasse. `openai/gpt-oss-120b` è un modello di **reasoning**: i
+  token di ragionamento escono dallo stesso `max_tokens` della risposta, quindi un budget
+  stretto non accorcia l'output, lo **svuota**. Se una route torna vuota, il primo sospetto
+  è il tetto dei token, non il prompt.
 - **Charts**: Recharts (client), SVG inline (server/report)
 - **Dashboard grid**: react-grid-layout/legacy — layout in localStorage (`twobee-dash-layout-v3`)
 
@@ -178,6 +186,8 @@ La tabella qui sotto è il **changelog**: dice cosa fa ciascuna, non cosa manca.
 | `092_workspace_team_read_all.sql` | i ruoli `team` (manager…partner) leggono TUTTI clienti/progetti/task (scrittura task resta scoped) | — |
 | `093_feedback.sql` | tabelle `feedback` + `feedback_votes` (RLS staff-read/own-write/admin-manage) + sezione workspace `feedback` | — |
 | `095_workspace_workload_section.sql` | voce sidebar `workload` nel workspace (il layout la inietta comunque come fallback) | — |
+| `115_ai_assistant.sql` | **§314 — applicata il 2026-08-28.** Assistente AI agentico: `ai_conversations`, `ai_assistant_messages`, `ai_tool_calls` (audit di ogni chiamata) e `ai_pending_actions` + `ai_logs.profile_id`. Su `ai_pending_actions` la RLS è attiva **senza nessuna policy**: è voluto — deny-all per anon e authenticated, ci arriva solo il service role, ed è ciò che rende il pulsante «Conferma» una vera autorizzazione. Se lì comparisse una policy, gli argomenti di un'azione in attesa diventerebbero leggibili e riscrivibili dal browser | la **052** (vedi sotto) |
+| `052_ai_logs.sql` | **applicata il 2026-08-28, era un buco dello snapshot.** Il file era nel repo da sempre e nel database **non c'era nessuna tabella `ai_*`** — §222 nella forma pura. `lib/ai-logger.ts` fa l'insert in fire-and-forget con `.catch(() => {})`, quindi ogni log AI è stato scartato in silenzio fino a quel giorno: nessun errore, nessuna riga. Applicata insieme alla 115 in un'unica transazione, perché la 115 fa `ALTER TABLE ai_logs` e da sola sarebbe fallita per intero | — |
 
 ## Task completate (§283, `components/tasks/CompletedTasks.tsx`, migration 211)
 Spuntare «fatta» le faceva sparire e non c'era modo di tornare indietro: nel
@@ -2374,6 +2384,61 @@ due sia giusta, quindi si scarta e si conta, e la pagina lo scrive.
 
 Gate: `npx tsx lib/leave-calendar.check.ts` (42 controlli sulle righe vere).
 
+## Assistente AI agentico (§314, `lib/ai/**`)
+Slide-over con Ctrl+J, montato nei layout `(dashboard)` e `(workspace)`. Non
+risponde soltanto: chiama le funzioni dell'app **con i permessi di chi ha
+scritto**. Fuori dai portali cliente e risorsa (quelli sono v2).
+
+**Il modello non è mai l'autorità sui permessi.** Tre strati indipendenti, e
+ognuno regge da solo se gli altri due cedono:
+
+1. **`toolsFor(ctx)` filtra il catalogo** prima di mandarlo al modello: un junior
+   non riceve `get_financials` e non sa nemmeno che esiste. È l'equivalente della
+   voce di menu nascosta — **comodità, non barriera**.
+2. **Ogni `run` richiama i guard già esistenti** dei server action. Non si
+   riscrive l'autorizzazione dentro i tool: se AI e UI applicassero due regole
+   diverse, prima o poi divergono e l'AI diventa la scorciatoia.
+3. **Tutte le letture passano da `ctx.sb`**, il client col JWT dell'utente, mai
+   dal service role. Così la RLS resta il pavimento. Nel workspace i clienti si
+   leggono da `clients_workspace`, che azzera MRR e dati fiscali **in tabella**.
+
+**Le regole di accesso stanno in un modulo puro** (`lib/ai/tools/access.ts`) e non
+inline nei tool, per un motivo pratico: il registry importa i server action,
+quindi `lib/ai/tools/index.ts` **non si carica fuori da Next** (`react.cache`) e
+la matrice dei ruoli si potrebbe provare solo facendo login come quattro persone
+diverse. Sul database quei quattro ruoli sono due: **`freelance` e `partner` non
+hanno un account**, quindi quelle righe della matrice non sarebbero verificabili
+in nessun modo. `accessFor(name)` **lancia** su un nome non dichiarato: un tool
+nuovo non entra nel catalogo senza che qualcuno decida chi lo vede.
+Gate: `npx tsx lib/ai/tools/access.check.ts` (42 controlli).
+
+**Le azioni rischiose non eseguono** (`risky: true`): parcheggiano gli argomenti
+in `ai_pending_actions` e restituiscono al client **solo un `pending_id`**. Il
+client conferma con quell'id e nient'altro, quindi non si può far confermare una
+cosa ed eseguirne un'altra dai devtools. `consumed_at` si marca **prima** di
+eseguire, con update condizionale su `consumed_at IS NULL`: doppio clic ≠ doppia
+eliminazione. Scadenza 5 minuti, RLS deny-all sulla tabella.
+
+**Gli errori tornano al modello, non vengono sollevati**: un tool che fallisce
+risponde `{ error }` e il modello si autocorregge nello stesso turno invece di
+far fallire la conversazione. Le action di main **lanciano**, quindi i tool le
+avvolgono in `attempt()`.
+
+**Due cose misurate su `openai/gpt-oss-120b`, e il codice le assume:**
+- **Non emette tool call parallele.** Una sola per turno, anche chiedendone due
+  esplicitamente; le risolve in sequenza. Per questo `MAX_ROUNDS` è **6** e non 4:
+  con quattro giri una domanda composta tornava a metà.
+- **Sull'azione che modifica i dati è incoerente**: a volte chiede conferma **a
+  parole** invece di chiamare lo strumento, e allora la card di conferma non
+  nasce, l'utente scrive «sì» e l'azione parte **avendo scavalcato** la UI. La
+  mitigazione è nel system prompt («la conferma la gestisce l'applicazione, non
+  tu») e nel **non scrivere la parola "conferma" nelle description dei tool
+  mutanti**: è quella che lo induce a fare da sé il lavoro dell'app.
+
+**Vincoli sui tool**: description ≤ 15 parole e schema con `enum` — i modelli
+piccoli sbagliano su descrizioni lunghe e campi liberi. Gli stati task nell'enum
+sono quelli del CHECK: **`in_review`**, non `in_revisione`.
+
 ## Architettura portali
 - **Admin** (`/dashboard`, tutto): `super_admin`, `founder`, `admin`.
 - **Workspace** (`/workspace/**` e nient'altro): `manager`, `senior`, `junior`, `stage`, `freelance`, `partner`.
@@ -2692,10 +2757,10 @@ Ultimo commit: **`2d45e53`** (il registro delle allocazioni, §290→§307),
 pushato su `origin/main` il 2026-08-20 — 78 file, +9.849/−1.226. **`main` è
 allineato**, quindi su os.twobee.it c'è tutto quello che c'è qui.
 Gate del repo: `npx tsc --noEmit` (ESLint non è configurato) più i
-**trentaquattro** `lib/*.check.ts` (gli ultimi sono `allocations.check.ts` §297,
-`f24.check.ts` §301, `month-intake.check.ts` §303 e `stream-validation.check.ts`
-§306), che si lanciano con `npx tsx lib/<nome>.check.ts` e devono dire «Tutti i
-controlli passano».
+**trentacinque** `lib/**/*.check.ts` (gli ultimi sono `allocations.check.ts` §297,
+`f24.check.ts` §301, `month-intake.check.ts` §303, `stream-validation.check.ts`
+§306 e `ai/tools/access.check.ts` §314), che si lanciano con
+`npx tsx lib/<percorso>.check.ts` e devono dire «Tutti i controlli passano».
 **Non lanciare `npm run build` mentre `npm run dev` gira**: condividono `.next`,
 il dev server resta a servire chunk CSS sostituiti e la pagina si apre senza
 stili. Se succede: ferma il dev, `rm -rf .next`, riavvia.

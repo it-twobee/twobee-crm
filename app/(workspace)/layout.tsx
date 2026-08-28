@@ -12,6 +12,7 @@ import { workspaceSearch } from '@/app/actions/global-search'
 import { isAdminRole, isWorkspaceRole } from '@/lib/permissions'
 import { Suspense } from 'react'
 import { NavMemory } from '@/components/shared/BackLink'
+import { AssistantLauncher } from '@/components/ai/AssistantLauncher'
 import type { AppRole } from '@/lib/types/database'
 
 // group_key/group_order arrivano dalla migration 087: opzionali finché non è
@@ -118,6 +119,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
           {children}
         </main>
       </div>
+      <AssistantLauncher surface="workspace" userName={profile.full_name} />
     </div>
   )
 }

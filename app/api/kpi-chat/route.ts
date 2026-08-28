@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { GROQ_MODEL } from '@/lib/ai/model'
 
 async function groq(prompt: string, system: string): Promise<string> {
   const key = process.env.GROQ_API_KEY
@@ -7,8 +8,11 @@ async function groq(prompt: string, system: string): Promise<string> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      max_tokens: 400,
+      model: GROQ_MODEL,
+      // Il tetto non accorcia la risposta, la limita: la lunghezza la decide il
+      // prompt. Con un modello di reasoning i token di ragionamento escono da
+      // qui, quindi 400 rischiava di esaurirsi prima di scrivere una riga.
+      max_tokens: 1500,
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: prompt },
