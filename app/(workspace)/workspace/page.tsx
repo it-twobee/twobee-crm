@@ -76,10 +76,17 @@ export default async function WorkspaceDashboardPage() {
   const projectName = (id: string | null) => id ? (projMap.get(id)?.name ?? 'Progetto') : 'Ad Hoc'
 
   const t = today(), weekEnd = inDays(7)
-  const dueToday = tasks.filter(x => x.due_date === t).length
-  const dueWeek = tasks.filter(x => x.due_date && x.due_date > t && x.due_date <= weekEnd).length
-  const overdue = tasks.filter(x => x.due_date && x.due_date < t).length
-  const upcoming = tasks.filter(x => x.due_date).slice(0, 6)
+  /* §283 — la query qui sopra porta **anche** le completate di recente, perché
+     una spunta per sbaglio si deve poter disfare. Contatori ed elenco però
+     parlano di cose da fare: senza questo filtro una task chiusa con la
+     scadenza già passata restava rossa fra le «Scadute» e in cima a «Le mie
+     attività» — e cliccarla portava a una pagina dove non c'era più, perché
+     lì le completate stanno nel raccoglitore in fondo. */
+  const open = tasks.filter(x => x.status !== 'completato')
+  const dueToday = open.filter(x => x.due_date === t).length
+  const dueWeek = open.filter(x => x.due_date && x.due_date > t && x.due_date <= weekEnd).length
+  const overdue = open.filter(x => x.due_date && x.due_date < t).length
+  const upcoming = open.filter(x => x.due_date).slice(0, 6)
 
   const googleConnected = Boolean(profile.google_connected)
   const name = profile.full_name?.split(' ')[0] ?? 'ciao'

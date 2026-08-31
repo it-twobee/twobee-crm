@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { getSessionUser, getSessionProfile } from '@/lib/auth'
+import { getViewer } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { MyTasksClient } from '@/components/workspace/MyTasksClient'
 import type { Task } from '@/lib/types/database'
@@ -7,11 +7,16 @@ import type { Task } from '@/lib/types/database'
 export const revalidate = 0
 
 export default async function LeMieAttivitaPage() {
-  const user = await getSessionUser()
+  const { user, isAdmin } = await getViewer()
   if (!user) redirect('/login')
+  /* La voce è nel menu senza `adminOnly`, ma il gate guardava la colonna
+     legacy `role`: chi è admin per `app_role` — che è la colonna su cui decide
+     il middleware — entrava nella dashboard e veniva rimbalzato proprio qui,
+     su una voce che il suo menu gli mostra. Una domanda sola, la stessa del
+     middleware: `getViewer()`. E chi admin non è ha la stessa pagina dentro il
+     portale, quindi ci va diretto invece di rimbalzare due volte. */
+  if (!isAdmin) redirect('/workspace/attivita')
   const supabase = await createClient()
-  const profile = await getSessionProfile()
-  if (profile?.role !== 'admin') redirect('/dashboard')
 
   // task assegnate a me (primario via assignee_id o multi-assegnatario)
   const { data: ta } = await supabase.from('task_assignees').select('task_id').eq('profile_id', user.id)
