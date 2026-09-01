@@ -98,6 +98,8 @@ export const createTask: AnyTool = {
     if (!proj) return { error: 'Progetto non trovato o non visibile con i tuoi permessi' }
 
     let milestone: { id: string; workstream_id: string } | null = null
+    /** Il filone in cui è atterrata, quando l'abbiamo scelto noi: va detto. */
+    let landedIn: string | null = null
     if (args.milestone_id) {
       const { data } = await c.sb.from('milestones')
         .select('id, workstream_id').eq('id', args.milestone_id).eq('project_id', args.progetto_id).maybeSingle()
@@ -106,12 +108,26 @@ export const createTask: AnyTool = {
     } else {
       // La milestone di sistema («Operatività continua», trigger
       // ensure_system_milestone) è il posto dove atterrano le task senza una
-      // milestone propria: è l'equivalente della vecchia Ad Hoc di progetto.
-      const { data } = await c.sb.from('milestones')
-        .select('id, workstream_id, milestone_type').eq('project_id', args.progetto_id)
-        .order('milestone_type', { ascending: false }).limit(1).maybeSingle()
-      milestone = data as { id: string; workstream_id: string } | null
-      if (!milestone) return { error: 'Il progetto non ha milestone: creane una prima con create_milestone' }
+      // milestone propria. Ma ce n'è **una per workstream** — su Metroquadro
+      // sono sei — e il vecchio `order('milestone_type')` non ne distingue una:
+      // fra le sei tornava quella che decideva Postgres, quindi la task finiva
+      // in un filone a caso e il messaggio non diceva quale. Si filtra sul tipo
+      // per nome (non per ordine alfabetico) e si sceglie il primo workstream
+      // per `sort_order`, che è quello che una persona chiamerebbe «il primo».
+      const [{ data: sys }, { data: ws }] = await Promise.all([
+        c.sb.from('milestones').select('id, workstream_id')
+          .eq('project_id', args.progetto_id).eq('milestone_type', 'system'),
+        c.sb.from('project_workstreams').select('id, name')
+          .eq('project_id', args.progetto_id).order('sort_order'),
+      ])
+      const system = (sys ?? []) as { id: string; workstream_id: string }[]
+      if (!system.length) {
+        return { error: 'Il progetto non ha una milestone di sistema: passa milestone_id, o creane una con create_milestone' }
+      }
+      const streams = (ws ?? []) as { id: string; name: string }[]
+      const target = streams.find((w) => system.some((m) => m.workstream_id === w.id))
+      milestone = system.find((m) => m.workstream_id === target?.id) ?? system[0]
+      landedIn = target?.name ?? null
     }
 
     const r = await attempt(() => createProjectTask({
@@ -125,7 +141,13 @@ export const createTask: AnyTool = {
       due_date: args.scadenza ?? null,
     }))
     if ('error' in r) return r
-    return { ok: true, task_id: r.value, messaggio: `Task «${args.titolo}» creata` }
+    return {
+      ok: true,
+      task_id: r.value,
+      messaggio: landedIn
+        ? `Task «${args.titolo}» creata nel workstream «${landedIn}»`
+        : `Task «${args.titolo}» creata`,
+    }
   },
 }
 

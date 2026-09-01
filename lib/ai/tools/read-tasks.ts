@@ -1,5 +1,5 @@
 import type { AssistantCtx } from '../context'
-import { schema, S, capLimit, type AnyTool } from './types'
+import { schema, S, capLimit, escapeLike, listInfo, type AnyTool } from './types'
 import { accessFor, clientsTableFor } from './access'
 
 /** I valori del CHECK `tasks_status_check` sul DB. Nota `in_review`, non `in_revisione`. */
@@ -93,7 +93,7 @@ export const listMyTasks: AnyTool = {
       .from('task_assignees').select('task_id').eq('profile_id', c.userId)
     const bridgeIds = ((bridge ?? []) as { task_id: string }[]).map((b) => b.task_id)
 
-    let q = c.sb.from('tasks').select(TASK_SELECT).is('deleted_at', null)
+    let q = c.sb.from('tasks').select(TASK_SELECT, { count: 'exact' }).is('deleted_at', null)
     q = bridgeIds.length
       ? q.or(`assignee_id.eq.${c.userId},id.in.(${bridgeIds.join(',')})`)
       : q.eq('assignee_id', c.userId)
@@ -102,18 +102,20 @@ export const listMyTasks: AnyTool = {
     else q = q.in('status', ACTIVE_STATUSES as unknown as string[])
     if (args.scade_entro) q = q.lte('due_date', args.scade_entro)
 
-    const { data, error } = await q
+    const { data, error, count } = await q
       .order('due_date', { ascending: true, nullsFirst: false })
       .limit(capLimit(args.limite))
     if (error) return { error: error.message }
-    return { task: await decorate(c, (data ?? []) as TaskRow[]) }
+    const rows = (data ?? []) as TaskRow[]
+    return { ...listInfo(count, rows.length), task: await decorate(c, rows) }
   },
 }
 
 export const listTasks: AnyTool = {
   name: 'list_tasks',
-  description: 'Cerca task del team con filtri: progetto, assegnatario, stato, finestra di scadenza.',
+  description: 'Cerca task del team per titolo, progetto, assegnatario, stato o scadenza.',
   parameters: schema({
+    titolo: S.str('Cerca per titolo, anche parziale'),
     progetto_id: S.str('UUID del progetto'),
     cliente_id: S.str('UUID del cliente'),
     assegnatario_id: S.str('UUID della persona assegnataria'),
@@ -129,27 +131,31 @@ export const listTasks: AnyTool = {
   canUse: accessFor('list_tasks'),
   async run(
     args: {
-      progetto_id?: string; cliente_id?: string; assegnatario_id?: string; stato?: string
+      titolo?: string; progetto_id?: string; cliente_id?: string; assegnatario_id?: string; stato?: string
       priorita?: string; tipo?: string; scade_da?: string; scade_a?: string; limite?: number
     },
     c,
   ) {
-    let q = c.sb.from('tasks').select(TASK_SELECT).is('deleted_at', null)
+    let q = c.sb.from('tasks').select(TASK_SELECT, { count: 'exact' }).is('deleted_at', null)
+    if (args.titolo) q = q.ilike('title', `%${escapeLike(args.titolo)}%`)
     if (args.progetto_id) q = q.eq('project_id', args.progetto_id)
     if (args.cliente_id) q = q.eq('client_id', args.cliente_id)
     if (args.assegnatario_id) q = q.eq('assignee_id', args.assegnatario_id)
+    // Come per i progetti: chi cerca un titolo preciso vuole quella task, anche
+    // se è già completata. Il default "solo aperte" resta per gli elenchi.
     if (args.stato) q = q.eq('status', args.stato)
-    else q = q.in('status', ACTIVE_STATUSES as unknown as string[])
+    else if (!args.titolo) q = q.in('status', ACTIVE_STATUSES as unknown as string[])
     if (args.priorita) q = q.eq('priority', args.priorita)
     if (args.tipo) q = q.eq('task_type', args.tipo)
     if (args.scade_da) q = q.gte('due_date', args.scade_da)
     if (args.scade_a) q = q.lte('due_date', args.scade_a)
 
-    const { data, error } = await q
+    const { data, error, count } = await q
       .order('due_date', { ascending: true, nullsFirst: false })
       .limit(capLimit(args.limite))
     if (error) return { error: error.message }
-    return { task: await decorate(c, (data ?? []) as TaskRow[]) }
+    const rows = (data ?? []) as TaskRow[]
+    return { ...listInfo(count, rows.length), task: await decorate(c, rows) }
   },
 }
 

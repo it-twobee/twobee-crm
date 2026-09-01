@@ -157,8 +157,8 @@ export function WorkspaceSidebar({ sections, profile, isSuperAdmin = false }: Pr
       )}>
         <Link href="/workspace" aria-label="TwoBee — vai alla dashboard" className="flex items-center">
           {collapsed
-            ? <Logo variant="mark" className="w-5 h-5" priority />
-            : <Logo className="h-6" priority />}
+            ? <Logo variant="mark" className="w-6 h-6" priority />
+            : <Logo className="h-8" priority />}
         </Link>
       </div>
 

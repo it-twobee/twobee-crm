@@ -1,31 +1,22 @@
 import { chatWithTools, activeModel, ProviderError, type ChatMessage, type ToolCall } from './provider'
 import { buildSystemPrompt } from './prompt'
 import { chatToolsFor, findTool, toolsFor } from './tools'
-import type { AnyTool } from './tools/types'
+import { capResult, type AnyTool } from './tools/types'
 import type { AssistantCtx } from './context'
 
 /**
  * Sei giri, cioè cinque di strumenti più l'ultimo a parole.
  *
- * Non è un numero prudenziale: `openai/gpt-oss-120b` su Groq **non emette tool
- * call parallele** — provato, una sola per turno anche chiedendogliene due
- * esplicitamente («quante task aperte ho e quanti clienti attivi»). Le risolve
- * in sequenza, un giro per strumento, e arriva alla risposta giusta al terzo.
- * Con quattro giri restavano due soli strumenti prima del taglio, quindi una
- * domanda composta tornava a metà. Se si cambia provider si può abbassare.
+ * Non è un numero prudenziale: il default `qwen/qwen3.6-27b` fa **un giro per
+ * strumento** (come `openai/gpt-oss-120b` prima di lui: una sola tool call per
+ * turno anche chiedendogliene due esplicitamente, «quante task aperte ho e
+ * quanti clienti attivi»). Con quattro giri restavano due soli strumenti prima
+ * del taglio, quindi una domanda composta tornava a metà — e da quando il
+ * prompt gli chiede di cercare un nome anche fra i progetti, un turno può
+ * spendere due giri solo per trovare l'id. Se si passa a un modello che emette
+ * tool call parallele si può abbassare.
  */
 const MAX_ROUNDS = 6
-
-/**
- * Quanto di un risultato arriva al modello.
- *
- * Era 12000 caratteri, e con un turno che fa più giri il conto sale in fretta:
- * in produzione un turno ha consumato **9.900 token**, e su un modello con un
- * tetto di 8.000 al minuto un turno solo bruciava il minuto intero. Venti task
- * decorate stanno in due-tremila caratteri, quindi questo taglio non toglie
- * niente di utile e allontana il 429.
- */
-const TOOL_RESULT_CAP = 6000
 
 export interface AssistantLink { percorso: string; etichetta: string }
 
@@ -161,7 +152,19 @@ export async function runAssistantTurn(opts: {
 
     if (!res.toolCalls.length) {
       messages.push({ role: 'assistant', content: res.content })
-      return { answer: res.content?.trim() || 'Non ho una risposta.', links, steps, messages, tokens, changed }
+      const text = res.content?.trim() ?? ''
+      /* `finish_reason: 'length'` vuol dire che il tetto di token ha tagliato la
+         risposta a metà frase. Restituirla come definitiva è lo stesso difetto
+         di un elenco troncato senza il totale: chi legge non ha modo di sapere
+         che manca un pezzo. Va anche nel log come turno non riuscito, o non si
+         scopre mai che AI_MAX_TOKENS è troppo basso. */
+      if (res.finishReason === 'length') {
+        return {
+          answer: `${text}\n\n(Risposta interrotta: era troppo lunga. Chiedimi il resto, o restringi la domanda.)`.trim(),
+          links, steps, messages, tokens, changed, error: 'length: risposta troncata',
+        }
+      }
+      return { answer: text || 'Non ho una risposta.', links, steps, messages, tokens, changed }
     }
 
     messages.push({ role: 'assistant', content: res.content, tool_calls: res.toolCalls })
@@ -223,7 +226,7 @@ async function executeCall(
     const link = (result as { link?: AssistantLink } | null)?.link
     if (link) links.push(link)
 
-    return { content: JSON.stringify(result).slice(0, TOOL_RESULT_CAP), changed: tool.mutating && !failed }
+    return { content: capResult(result), changed: tool.mutating && !failed }
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Errore imprevisto'
     steps.push({ tool: name, ok: false })

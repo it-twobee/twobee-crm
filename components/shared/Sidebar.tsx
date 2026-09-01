@@ -60,11 +60,11 @@ export function Sidebar() {
       <div className="flex items-center h-14 px-4 border-b border-border">
         {!sidebarCollapsed ? (
           <Link href="/dashboard" aria-label="TwoBee — vai alla dashboard" className="flex items-center">
-            <Logo className="h-6" priority />
+            <Logo className="h-8" priority />
           </Link>
         ) : (
           <Link href="/dashboard" aria-label="TwoBee — vai alla dashboard" className="mx-auto flex items-center">
-            <Logo variant="mark" className="w-5 h-5" priority />
+            <Logo variant="mark" className="w-6 h-6" priority />
           </Link>
         )}
       </div>

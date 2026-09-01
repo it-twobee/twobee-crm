@@ -1,7 +1,7 @@
 import { globalSearch, workspaceSearch } from '@/app/actions/global-search'
 import { ROLE_LABELS } from '@/lib/permissions'
 import type { AppRole } from '@/lib/types/database'
-import { schema, S, capLimit, type AnyTool } from './types'
+import { schema, S, capLimit, escapeLike, listInfo, type AnyTool } from './types'
 import { accessFor } from './access'
 
 export const search: AnyTool = {
@@ -9,7 +9,7 @@ export const search: AnyTool = {
   // La descrizione elenca solo ciò che il motore copre davvero: clienti, messaggi
   // di chat e documenti. Prometterle anche progetti e task porterebbe il modello a
   // cercare qui un id che qui non c'è, e a fermarsi sul risultato vuoto.
-  description: 'Cerca per nome fra clienti, messaggi e documenti. Usalo per trovare un ID cliente.',
+  description: 'Cerca fra clienti, messaggi e documenti. Non copre progetti e task.',
   parameters: schema({ query: S.str('Testo da cercare, almeno 2 caratteri') }, ['query']),
   mutating: false,
   risky: false,
@@ -19,6 +19,12 @@ export const search: AnyTool = {
     const results = c.surface === 'workspace'
       ? await workspaceSearch(args.query)
       : await globalSearch(args.query)
+    /* Qui NON si dichiara un totale, ed è deliberato: il motore limita ogni
+       sorgente a monte (6 clienti, 8 messaggi, 6 documenti), quindi
+       `results.length` non è «quanti ce ne sono» ma «quanti me ne ha dati» — un
+       totale costruito su quel numero sarebbe la stessa bugia che `listInfo`
+       serve a togliere, solo scritta con più sicurezza. Chi deve contare i
+       clienti usa `list_clients`, che il totale ce l'ha vero. */
     return {
       risultati: results.slice(0, 20).map((r) => ({
         tipo: r.type, id: r.id, titolo: r.title, dettaglio: r.subtitle, percorso: r.href,
@@ -39,15 +45,16 @@ export const listTeam: AnyTool = {
   canUse: accessFor('list_team'),
   async run(args: { nome?: string; limite?: number }, c) {
     let q = c.sb.from('profiles')
-      .select('id, full_name, app_role, job_title, area')
+      .select('id, full_name, app_role, job_title, area', { count: 'exact' })
       .eq('is_active', true)
-    if (args.nome) q = q.ilike('full_name', `%${args.nome.replace(/[%_\\]/g, (m) => '\\' + m)}%`)
+    if (args.nome) q = q.ilike('full_name', `%${escapeLike(args.nome)}%`)
 
-    const { data, error } = await q.order('full_name').limit(capLimit(args.limite, 30, 60))
+    const { data, error, count } = await q.order('full_name').limit(capLimit(args.limite, 30, 60))
     if (error) return { error: error.message }
 
     const rows = (data ?? []) as { id: string; full_name: string; app_role: AppRole; job_title: string | null; area: string | null }[]
     return {
+      ...listInfo(count, rows.length),
       team: rows.map((p) => ({
         id: p.id, nome: p.full_name,
         ruolo: ROLE_LABELS[p.app_role] ?? p.app_role,

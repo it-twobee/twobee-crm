@@ -2465,6 +2465,54 @@ telefono era illeggibile. Due lati, e servono entrambi:
 Gate: `npx tsx lib/ai/format.check.ts` (27 controlli, col caso vero dello
 screenshot).
 
+**Un elenco tagliato deve sapere di essere tagliato** (§315). Il difetto che ha
+aperto il giro: alla domanda «le milestone di Metroquadro» l'assistente ha
+risposto «non trovo un cliente **o progetto** con quel nome» dopo aver chiamato
+`search` e `list_clients` — `list_projects` non l'aveva chiamato, e `search` non
+copre progetti e task (lo dice la sua description). Un «non esiste» detto al
+posto di un «non l'ho trovato qui» è la categoria di errore che nessuno va a
+controllare, ed è la stessa che si presenta in altri tre modi:
+
+- **I nomi si cercano** (`list_projects.nome`, `list_tasks.titolo`): senza un
+  filtro per nome l'unico modo di trovare un progetto era elencarli tutti e
+  guardarli a occhio. E una ricerca per nome **ignora il default «solo
+  attivi»/«solo aperte»**: chi cerca un titolo preciso vuole quella riga, anche
+  chiusa — restringere lì produce un «non esiste» falso in un altro modo.
+- **Il totale è un dato, non il numero di righe che si è visto** (`listInfo` in
+  `tools/types.ts`): il cap sulle liste è necessario, ma senza il totale il
+  modello conta quello che ha in mano — venti task su settanta diventano «hai
+  venti task». Ogni tool di elenco fa `count: 'exact'` e, quando taglia, dice
+  quanti ne restano fuori e come vederli. **`search` non lo dichiara di
+  proposito**: `globalSearch` limita ogni sorgente a monte (6 clienti, 8
+  messaggi, 6 documenti), quindi un totale costruito lì sarebbe la stessa bugia
+  scritta con più sicurezza.
+- **Il risultato si tronca per righe, non per caratteri** (`capResult`):
+  `JSON.stringify(x).slice(0, cap)` consegnava al modello un JSON rotto in mezzo
+  a una stringa, in silenzio. Si dimezza la lista più lunga finché sta nel tetto
+  e si dichiara il taglio; se un solo elemento non ci sta, un errore leggibile
+  batte un JSON invalido.
+- **Una risposta tagliata dal tetto di token lo dice** (`finish_reason: 'length'`)
+  **e va nel log come turno non riuscito**: altrimenti non si scopre mai che
+  `AI_MAX_TOKENS` è troppo basso. Stessa regola della trappola di osservabilità
+  già scritta sopra — dove un errore diventa una risposta gentile, il turno deve
+  portarsi dietro il motivo.
+
+Due difetti gemelli chiusi nello stesso giro. **La milestone di sistema è una per
+workstream** — Metroquadro ne ha sei — e `create_task` senza `milestone_id`
+sceglieva con `order('milestone_type')`, che fra le sei non ne distingue nessuna:
+la task atterrava nel filone che decideva Postgres e il messaggio non diceva
+quale. Ora il tipo si filtra per valore (`'system'`, il CHECK della 147), si
+prende il primo workstream per `sort_order` e la conferma **dice dove è
+atterrata**. E la route `/api/ai/assistant/confirm` scriveva in
+`ai_assistant_messages` col service role **senza verificare di chi fosse la
+conversazione** (la route principale lo fa in `ensureConversation`): un id
+qualunque dai devtools infilava un messaggio «assistente» nella conversazione di
+un collega, che `loadHistory` gli rimetteva nel contesto al turno dopo.
+
+Gate: `npx tsx lib/ai/tools/result.check.ts` (15 controlli su `listInfo` e
+`capResult`, coi casi che a mano non si incrociano — lista da 400 elementi,
+elemento singolo non riducibile, `count` assente).
+
 ## Architettura portali
 - **Admin** (`/dashboard`, tutto): `super_admin`, `founder`, `admin`.
 - **Workspace** (`/workspace/**` e nient'altro): `manager`, `senior`, `junior`, `stage`, `freelance`, `partner`.
@@ -2783,9 +2831,10 @@ Ultimo commit: **`2d45e53`** (il registro delle allocazioni, §290→§307),
 pushato su `origin/main` il 2026-08-20 — 78 file, +9.849/−1.226. **`main` è
 allineato**, quindi su os.twobee.it c'è tutto quello che c'è qui.
 Gate del repo: `npx tsc --noEmit` (ESLint non è configurato) più i
-**trentasei** `lib/**/*.check.ts` (gli ultimi sono `allocations.check.ts` §297,
+**trentasette** `lib/**/*.check.ts` (gli ultimi sono `allocations.check.ts` §297,
 `f24.check.ts` §301, `month-intake.check.ts` §303, `stream-validation.check.ts`
-§306, `ai/tools/access.check.ts` e `ai/format.check.ts` §314), che si lanciano con
+§306, `ai/tools/access.check.ts`, `ai/format.check.ts` §314 e
+`ai/tools/result.check.ts` §315), che si lanciano con
 `npx tsx lib/<percorso>.check.ts` e devono dire «Tutti i controlli passano».
 **Non lanciare `npm run build` mentre `npm run dev` gira**: condividono `.next`,
 il dev server resta a servire chunk CSS sostituiti e la pagina si apre senza

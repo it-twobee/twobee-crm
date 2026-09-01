@@ -25,10 +25,20 @@ export async function POST(req: NextRequest) {
   // tutte mutanti, quindi qui non c'è niente da distinguere.
   revalidateAfterAssistantWrite()
 
-  if (body.conversationId) {
-    void ctx.admin.from('ai_assistant_messages').insert({
-      conversation_id: body.conversationId, role: 'assistant', content: result.message,
-    } as never).then(() => {}, () => {})
+  /* La conversazione va verificata come nella route principale: l'id arriva dal
+     client e l'insert passa dal service role, quindi senza questo controllo si
+     può scrivere un messaggio «assistente» nella conversazione di un collega —
+     che `loadHistory` gli rimetterebbe nel contesto al turno dopo. */
+  const conversationId: string = (body.conversationId ?? '').toString()
+  if (conversationId) {
+    const { data: own } = await ctx.admin
+      .from('ai_conversations').select('id')
+      .eq('id', conversationId).eq('profile_id', ctx.userId).maybeSingle()
+    if (own) {
+      void ctx.admin.from('ai_assistant_messages').insert({
+        conversation_id: conversationId, role: 'assistant', content: result.message,
+      } as never).then(() => {}, () => {})
+    }
   }
 
   return NextResponse.json({ ok: true, answer: result.message })

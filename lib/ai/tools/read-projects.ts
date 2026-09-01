@@ -1,4 +1,4 @@
-import { schema, S, capLimit, type AnyTool } from './types'
+import { schema, S, capLimit, escapeLike, listInfo, type AnyTool } from './types'
 import { accessFor, clientsTableFor } from './access'
 
 /** Valori del CHECK su `projects`: stati in inglese, aree in italiano. */
@@ -17,8 +17,9 @@ interface ProjectRow {
 
 export const listProjects: AnyTool = {
   name: 'list_projects',
-  description: 'Elenca i progetti, filtrabili per cliente, stato e area.',
+  description: 'Cerca ed elenca i progetti per nome, cliente, stato o area.',
   parameters: schema({
+    nome: S.str('Cerca per nome, anche parziale. Guarda in tutti gli stati.'),
     cliente_id: S.str('UUID del cliente'),
     stato: S.enum('Filtra per stato. Default: solo attivi.', PROJECT_STATUSES),
     area: S.enum('Filtra per area', AREAS),
@@ -27,13 +28,18 @@ export const listProjects: AnyTool = {
   mutating: false,
   risky: false,
   canUse: accessFor('list_projects'),
-  async run(args: { cliente_id?: string; stato?: string; area?: string; limite?: number }, c) {
-    let q = c.sb.from('projects').select(PROJECT_SELECT).is('deleted_at', null)
+  async run(args: { nome?: string; cliente_id?: string; stato?: string; area?: string; limite?: number }, c) {
+    let q = c.sb.from('projects').select(PROJECT_SELECT, { count: 'exact' }).is('deleted_at', null)
+    if (args.nome) q = q.ilike('name', `%${escapeLike(args.nome)}%`)
     if (args.cliente_id) q = q.eq('client_id', args.cliente_id)
-    q = args.stato ? q.eq('status', args.stato) : q.eq('status', 'active')
+    // Il default "solo attivi" serve a "che progetti abbiamo in corso?". Ma se sta
+    // cercando un nome preciso vuole QUEL progetto, anche se è in draft o chiuso:
+    // restringere agli attivi qui produce un "non esiste" che è falso.
+    if (args.stato) q = q.eq('status', args.stato)
+    else if (!args.nome) q = q.eq('status', 'active')
     if (args.area) q = q.eq('area', args.area)
 
-    const { data, error } = await q.order('name').limit(capLimit(args.limite))
+    const { data, error, count } = await q.order('name').limit(capLimit(args.limite))
     if (error) return { error: error.message }
 
     const rows = (data ?? []) as unknown as ProjectRow[]
@@ -48,6 +54,7 @@ export const listProjects: AnyTool = {
     const clients = new Map(((cl ?? []) as { id: string; company_name: string }[]).map((x) => [x.id, x.company_name]))
 
     return {
+      ...listInfo(count, rows.length),
       progetti: rows.map((p) => ({
         id: p.id, nome: p.name, stato: p.status, area: p.area,
         servizio: p.service_type, sottoservizio: p.service_subtype,

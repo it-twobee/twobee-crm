@@ -52,11 +52,77 @@ export const S = {
   ids: (description: string) => ({ type: 'array', description, items: { type: 'string' } }),
 }
 
+/**
+ * `%`, `_` e `\\` sono metacaratteri di ILIKE: un nome che li contiene, passato
+ * grezzo, cerca qualcosa di diverso da quello che l'utente ha scritto.
+ */
+export function escapeLike(v: string): string {
+  return v.replace(/[%_\\]/g, (m) => '\\' + m)
+}
+
 export const EMPTY_SCHEMA = schema({})
+
+/**
+ * Quanti risultati esistono, non quanti se ne sono visti.
+ *
+ * Il cap sulle liste è necessario — un tool result enorme fa esplodere il
+ * contesto — ma senza il totale il modello conta le righe che ha in mano e
+ * risponde con quelle: venti task su settanta diventano «hai venti task», che
+ * è un numero plausibile e sbagliato, cioè quello che nessuno va a controllare.
+ * La nota dice al modello cosa fare invece di lasciarglielo dedurre.
+ */
+export function listInfo(total: number | null, shown: number): Record<string, unknown> {
+  const totale = total ?? shown
+  return totale > shown
+    ? { totale, troncato: `Vedi i primi ${shown} di ${totale}: alza "limite" o restringi i filtri.` }
+    : { totale }
+}
 
 /** Cap uniforme sulle liste: un tool result enorme fa esplodere il contesto. */
 export function capLimit(v: unknown, fallback = 20, max = 50): number {
   const n = typeof v === 'number' ? v : Number(v)
   if (!Number.isFinite(n) || n <= 0) return fallback
   return Math.min(Math.floor(n), max)
+}
+
+/**
+ * Quanto di un risultato arriva al modello.
+ *
+ * Era 12000 caratteri, e con un turno che fa più giri il conto sale in fretta:
+ * in produzione un turno ha consumato **9.900 token**, e su un modello con un
+ * tetto di 8.000 al minuto un turno solo bruciava il minuto intero. Venti task
+ * decorate stanno in due-tremila caratteri, quindi questo taglio non toglie
+ * niente di utile e allontana il 429.
+ */
+export const TOOL_RESULT_CAP = 6000
+
+/**
+ * Il risultato ridotto al tetto **restando JSON valido**.
+ *
+ * `JSON.stringify(x).slice(0, cap)` tagliava in mezzo a una stringa e
+ * consegnava al modello un JSON rotto, in silenzio: il modello leggeva quello
+ * che riusciva a leggere e rispondeva comunque. Qui si tolgono elementi dalla
+ * lista più lunga — dimezzandola finché sta nel tetto — e si dichiara quanti
+ * ne restano fuori, che è la stessa regola di `listInfo`: un elenco tagliato
+ * deve sapere di essere tagliato.
+ */
+export function capResult(result: unknown): string {
+  const full = JSON.stringify(result) ?? 'null'
+  if (full.length <= TOOL_RESULT_CAP) return full
+
+  const obj = result && typeof result === 'object' && !Array.isArray(result)
+    ? { ...(result as Record<string, unknown>) }
+    : null
+  const key = obj && Object.keys(obj).find((k) => Array.isArray(obj[k]) && (obj[k] as unknown[]).length > 1)
+
+  if (obj && key) {
+    const list = obj[key] as unknown[]
+    for (let keep = Math.floor(list.length / 2); keep >= 1; keep = Math.floor(keep / 2)) {
+      obj[key] = list.slice(0, keep)
+      obj.troncato = `Vedi ${keep} di ${list.length}: il risultato era troppo grande per il contesto.`
+      const out = JSON.stringify(obj)
+      if (out.length <= TOOL_RESULT_CAP) return out
+    }
+  }
+  return JSON.stringify({ error: 'Risultato troppo grande da leggere: restringi i filtri o abbassa «limite».' })
 }

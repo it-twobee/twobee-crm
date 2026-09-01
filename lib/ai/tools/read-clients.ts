@@ -1,4 +1,4 @@
-import { schema, S, capLimit, type AnyTool } from './types'
+import { schema, S, capLimit, listInfo, type AnyTool } from './types'
 import { accessFor, clientsTableFor } from './access'
 
 const LABELS = ['stabile', 'pending', 'perso'] as const
@@ -17,11 +17,12 @@ export const listClients: AnyTool = {
   canUse: accessFor('list_clients'),
   async run(args: { stato?: string; tipo?: string; limite?: number }, c) {
     let q = c.sb.from(clientsTableFor(c))
-      .select('id, company_name, display_name, client_type, client_label, payment_status, status')
+      .select('id, company_name, display_name, client_type, client_label, payment_status, status',
+        { count: 'exact' })
     if (args.stato) q = q.eq('client_label', args.stato)
     if (args.tipo) q = q.eq('client_type', args.tipo)
 
-    const { data, error } = await q.order('company_name').limit(capLimit(args.limite))
+    const { data, error, count } = await q.order('company_name').limit(capLimit(args.limite))
     if (error) return { error: error.message }
 
     const rows = (data ?? []) as {
@@ -30,6 +31,7 @@ export const listClients: AnyTool = {
       payment_status: string | null; status: string | null
     }[]
     return {
+      ...listInfo(count, rows.length),
       clienti: rows.map((x) => ({
         id: x.id, nome: x.display_name ?? x.company_name,
         tipo: x.client_type, etichetta: x.client_label,
