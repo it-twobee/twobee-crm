@@ -7,7 +7,7 @@ import {
   LayoutDashboard, CheckSquare, FolderKanban, Calendar, MessageSquare,
   FileText, Heart, User, UserCircle2, Users, BarChart3, Bot, TrendingUp,
   ListChecks, ListTodo, Headset, Briefcase, Headphones, Ticket, Receipt, History,
-  Lightbulb, Gauge, ChevronLeft, ChevronRight, ChevronDown, LogOut, Trash2,
+  Lightbulb, Gauge, ChevronLeft, ChevronRight, ChevronDown, LogOut, Trash2, Radar,
 } from 'lucide-react'
 import { useState, useCallback, useEffect } from 'react'
 import { ROLE_LABELS } from '@/lib/permissions'
@@ -38,6 +38,7 @@ export const ICON_MAP: Record<string, React.ComponentType<{ className?: string }
   Receipt,
   History,
   Lightbulb,
+  Radar,
   Gauge,
   Trash2,
 }

@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, FolderOpen, Settings, CalendarDays, Headphones,
   Ticket, UserCircle2, History, Lightbulb, FolderKanban, Briefcase, ListChecks, ListTodo,
-  Wallet, Target, Landmark, Users2, Banknote, FileText, Share2, Table2,
+  Wallet, Target, Landmark, Users2, Banknote, FileText, Share2, Table2, Radar, KeyRound,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -31,6 +31,8 @@ export const navSections: NavSection[] = [
       { href: '/clienti', icon: Users, label: 'Clienti' },
       { href: '/progetti', icon: Briefcase, label: 'Progetti' },
       { href: '/ad-hoc', icon: ListTodo, label: 'Task Ad Hoc' },
+      // §316 — stato tracking e QA giornaliero, per tutti i clienti
+      { href: '/tracking', icon: Radar, label: 'Tracking' },
       { href: '/customer-care', icon: Headphones, label: 'Customer Care' },
       { href: '/customer-care/tickets', icon: Ticket, label: 'Ticket' },
     ],
@@ -84,6 +86,7 @@ export const navSections: NavSection[] = [
       { href: '/impostazioni/catalogo', icon: FolderKanban, label: 'Catalogo progetti', superAdminOnly: true },
       { href: '/impostazioni/cronologia', icon: History, label: 'Cronologia', adminOnly: true },
       { href: '/impostazioni', icon: Settings, label: 'Impostazioni', adminOnly: true },
+      { href: '/impostazioni/tracking', icon: KeyRound, label: 'Chiavi tracking', adminOnly: true },
     ],
   },
 ]

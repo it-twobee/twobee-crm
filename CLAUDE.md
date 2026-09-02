@@ -179,7 +179,7 @@ const parsed = JSON.parse((await res.json()).choices?.[0]?.message?.content?.mat
 > repo come storia, non come lavoro arretrato.
 
 `chat_channels.project_id` **esiste** in produzione: il vecchio "BUG NOTO" è risolto.
-Numerazione: attenzione, `080_*`, `081_*` e `092_*` compaiono due volte. Il prossimo libero è **217**.
+Numerazione: attenzione, `080_*`, `081_*` e `092_*` compaiono due volte. Il prossimo libero è **218**.
 
 La tabella qui sotto è il **changelog**: dice cosa fa ciascuna, non cosa manca.
 
@@ -287,6 +287,7 @@ dato economico: è sicuro anche nel workspace.
 | `204_payout_from.sql` | **§227 — applicata il 2026-08-08.** `pl_config.payout_from` (seed 2026-07-01): da quale mese si contano i compensi maturati verso soci e commerciali. Prima è liquidato. Senza, il registro conta da sempre e mostra a ciascuno un anticipo che non esiste | — |
 | `212_payout_window.sql` | **§285/§286 — applicata il 2026-08-13.** `cost_items.installment_id` e `pl_cost_lines.installment_id`: la tranche di subappalto dichiara **quale rata del cliente finanzia**, e il margine digital la toglie da quella riga invece di spalmarla sul progetto. Più `pl_config.payout_day` (default 20) e `pl_months.payout_date`: la data dell'erogazione, che decide quali incassi entrano nella distribuzione. Backfill del legame per coda del nome, dove la corrispondenza è una sola. Senza, l'attribuzione resta proporzionale (§208) e la data cade sul giorno di default | — |
 | `216_missing_unique_indexes.sql` | **§313 — applicata il 2026-08-21.** Due indici unici che il registro dava per esistenti e sul database non c'erano: `payslips(profile_id, year, month)` (la 088) e `item_views(profile_id, item_id, item_type)` (la 109). Il reset del 2026-07-23 ha ricreato le tabelle e se li è portati via — §222 nella forma pura. Deduplica **prima** di vincolare: un indice unico su una tabella con duplicati non passa. Senza, caricare una busta paga falliva con `42P10` | — |
+| `217_tracking.sql` | **§316 — DA ESEGUIRE.** Modulo Tracking (port di «arealavoro»): `client_tracking` (satellite 1:1 di clients), `tracking_checklist_state`, `tracking_checks`, `tracking_qa_results`, `tracking_qa_runs`, `tracking_report_runs`, `tracking_report_rows` con RLS `is_staff()`; **`client_platform_keys`, `client_logins`, `agency_platform_keys` con RLS attiva e NESSUNA policy + REVOKE** (deny-all, solo service role, come 091/115 — non aggiungere policy). Più la voce `tracking` in `workspace_sections` (gruppo clienti) e i permessi. Additiva e idempotente | env Coolify **`VAULT_KEY`** e **`TRACKING_CRON_SECRET`** (runtime), task pianificato 07:00 |
 | `215_f24_documents.sql` | **§301 — da eseguire.** `f24_documents` + `f24_lines`: il modello F24 come documento, coi suoi tributi. Ogni riga dichiara a quale mondo appartiene (`iva`, `ritenute`, `inps`, `inail`, `credito`, `altro`) e punta al dominio che ne è l'autorità — `vat_settlements` per l'IVA (§242), `hr_f24` per il resto (§182). Il `credito` **si sottrae**: è l'indennità L. 207/2024 che esce in busta e rientra (§235). `payment_allocations.f24_id` come quarto bersaglio, col CHECK rifatto a «uno solo fra quattro». Trigger `f24_lines_balance` **deferred**: il totale versato deve essere la somma dei debiti meno i crediti, ma un modello nasce vuoto e si compila una riga alla volta. Senza, i modelli non hanno un posto e la sezione lo dichiara | — |
 | `214_payment_allocations.sql` | **§297 — da eseguire.** `payment_allocations`: quanto di un movimento paga quale riga. Un movimento ha N allocazioni, una riga ne ha N, e ognuna dice se la certifica la banca o se è solo dichiarata. CHECK a un target solo (ricavo, costo, compenso), indice unico per (movimento, target) e **trigger `alloc_within_tx`** che vieta di allocare più di quello che il movimento contiene. Backfill dai legami diretti esistenti, con l'importo tagliato al minore fra il lordo del movimento e quello della riga. `bank_transactions.revenue_line_id`/`cost_line_id` restano: si droppano quando nessun chiamante li usa. Senza, il legame resta uno a uno e l'azione lo dichiara | — |
 | `213_carry_forward.sql` | **§290 — da eseguire.** `carried_at`/`carried_from`/`carry_count` su `pl_revenue_lines` e `pl_cost_lines`: la chiusura del mese marca le righe non saldate invece di lasciarle dedurre da `openAt`. La riga **resta nel suo mese** — fattura, IVA e compensi di quel mese sono già stati dichiarati fuori — e il segno dice da quante chiusure si trascina. Backfill delle scoperte nei mesi già chiusi. Senza, il mese si chiude come prima e il trascinamento resta quello dedotto | — |
@@ -2391,6 +2392,70 @@ due sia giusta, quindi si scarta e si conta, e la pagina lo scrive.
   **sul server**, perché nel browser darebbe giorni diversi a seconda del fuso.
 
 Gate: `npx tsx lib/leave-calendar.check.ts` (42 controlli sulle righe vere).
+
+## Tracking (§316, `lib/tracking/**`)
+Port nel CRM dell'app «arealavoro» scritta a parte (Express + SQLite) da un
+collega: è entrata solo la logica di dominio, agganciata a clienti, auth e
+portali esistenti. Il DB del collega era vuoto: nessun travaso.
+
+**Dove sta.** Quattro tab nella scheda cliente (`ClientPageClient`, indici
+6–9: Tracking · Report · Chiavi · Accessi), condivise da `/clienti/[id]` e
+`/workspace/clienti/[id]`; pagina elenco `/tracking` e `/workspace/tracking`
+(badge per cliente, colonna QA, «Controlla ora»); `/impostazioni/tracking`
+(admin) per le chiavi d'agenzia. Le action rispondono con `ActionResult`
+(`lib/tracking/action-result.ts`) e **non lanciano**: in produzione Next
+maschera il messaggio di un throw da server action, e qui i messaggi sono la
+sostanza («Pixel ID non valido», «manca il service account»).
+
+**Dati.** `client_tracking` è una tabella satellite 1:1 e non colonne su
+`clients`, perché `clients_workspace` è una VIEW con l'elenco esplicito delle
+colonne: ogni campo nuovo lì obbligherebbe a rifarla. L'URL del sito resta
+`clients.website`. Il tab Note di arealavoro non esiste: le note stanno già in
+Anagrafica. `client_accounts` esisteva già (customer care) → gli accessi umani
+sono `client_logins`.
+
+**Segreti.** AES-256-GCM con la chiave in env **`VAULT_KEY`** (32 byte hex o
+base64), letta a chiamata e mai all'import: `next build` non deve averne
+bisogno. Blob = base64 di iv(12)|tag(16)|ct, stesso formato di arealavoro. Le
+tre tabelle segrete hanno RLS senza policy: ci arriva solo il service role da
+dentro una server action, e **chi vede** lo decide `TRACKING_SECRET_ROLES` in
+`lib/permissions.ts` (admin + manager/senior/junior/stage; mai freelance,
+partner, viewer) — unica fonte per i tab montati e per `requireInternalStaff`.
+Le liste restituiscono solo `hasValue`/`has_secret`; il valore esce solo dalle
+azioni `reveal*`. Non c'è rekey per scelta: persa la chiave, i segreti si
+reinseriscono dalle piattaforme. Per Meta il token è d'agenzia e nello slot
+Chiavi del cliente va l'**Ad Account ID**; Google Ads è dichiarato
+`implemented: false` e la UI lo mostra come non attivo invece di fingere.
+
+**Verifica sito e QA: la politica asimmetrica.** Lo snippet GTM sta sempre
+nell'HTML, quindi il suo stato sale e scende; GA4, Pixel e Klaviyo spesso li
+inietta GTM a runtime, quindi dall'HTML si può solo **promuovere** ad attivo,
+mai declassare, e con GTM presente l'assenza vale «non deducibile» (giallo), non
+«problema». Il QA giornaliero (`lib/tracking/qa.ts`) fa tre controlli per
+cliente con una sola richiesta al sito; per il Pixel, se il connettore Meta è
+configurato, vince l'API (`last_fired_time` nelle 48h). Un cliente in cui nessun
+controllo era possibile **non è verde**. Il giro lo lancia
+`POST /api/tracking/qa/run` con `Authorization: Bearer $TRACKING_CRON_SECRET`
+(task pianificato Coolify, `0 7 * * *`, `curl --max-time 900` su
+`http://localhost:3000`): sincrono, sequenziale, guardia anti-concorrenza a 30
+minuti. Se Traefik risponde 504 sui giri lunghi, la route passa a «avvia e
+rispondi 202» senza toccare `runQa`.
+
+**Report.** GA4 via service account (JWT RS256 fatto a mano con `node:crypto`,
+niente `google-auth-library`), Klaviyo con chiave per cliente, Meta con token
+d'agenzia; 30 giorni che **chiudono ieri** più i 30 precedenti; funnel B2B a
+due query (la Data API v1beta non ha un endpoint funnel); parametri custom
+saltati con il motivo, non fatali; la definizione usata viene **congelata nel
+run**; 30 run per cliente, anche quelli falliti. Template checklist e
+definizioni report sono **JSON importati come moduli**
+(`lib/tracking/templates`, `lib/tracking/definitions`): con `output: standalone`
+una lettura da `fs` non verrebbe tracciata. Gli id delle voci di checklist sono
+chiavi a DB: rinominarne uno perde la spunta.
+
+Gate: `npx tsx lib/tracking/{crypto,vocab,site-check,meta,checklist,reporting,csv,qa}.check.ts`.
+Env: `VAULT_KEY`, `TRACKING_CRON_SECRET` (entrambe `openssl rand -hex 32`),
+opzionali `TWOBEE_GA4_TOKEN_URL`, `TWOBEE_GA4_DATA_URL`, `TWOBEE_META_BASE`,
+`TWOBEE_KLAVIYO_BASE`, `TWOBEE_KLAVIYO_REVISION`.
 
 ## Assistente AI agentico (§314, `lib/ai/**`)
 Slide-over con Ctrl+J, montato nei layout `(dashboard)` e `(workspace)`. Non

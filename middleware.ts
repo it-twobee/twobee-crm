@@ -48,6 +48,7 @@ const PROTECTED_PATHS = [
   '/workspace',
   '/hr',
   '/feedback',
+  '/tracking',
 ]
 
 export async function middleware(request: NextRequest) {

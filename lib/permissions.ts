@@ -75,6 +75,18 @@ export function isExternalResource(appRole: string | null | undefined): boolean 
   return EXTERNAL_ROLES.includes(appRole as AppRole)
 }
 
+/**
+ * §316 — Chi vede in chiaro chiavi API e password degli account dei clienti
+ * (tab Chiavi e Accessi, azioni `reveal*`). Staff interno: admin e dipendenti.
+ * Freelance e partner sono fuori, e `viewer` è sola lettura per definizione.
+ * Unica fonte per UI (tab montati) e guard server (`requireInternalStaff`).
+ */
+export const TRACKING_SECRET_ROLES: AppRole[] = [...ADMIN_ROLES, 'manager', 'senior', 'junior', 'stage']
+
+export function canSeeTrackingSecrets(appRole: string | null | undefined): boolean {
+  return TRACKING_SECRET_ROLES.includes(appRole as AppRole)
+}
+
 export function isAdminRole(appRole: string | null | undefined): boolean {
   return ADMIN_ROLES.includes(appRole as AppRole)
 }

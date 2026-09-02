@@ -8,7 +8,7 @@ import { BackLink } from '@/components/shared/BackLink'
 import { formatCurrency, formatDate, getPaymentBadge } from '@/lib/utils'
 import type { Client, ClientContact, ClientKpi, Profile, ClientStakeholder, ClientInteraction, ClientLabel } from '@/lib/types/database'
 import { setClientLabel } from '@/app/actions/clients'
-import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
+import { SUPER_ADMIN_EMAILS, canSeeTrackingSecrets } from '@/lib/permissions'
 import { clientName } from '@/lib/utils'
 import { mrrOrigin, economicsHref, CONTRACT_PERIOD_HINT, PAYMENT_STATUS_HINT } from '@/lib/economics-source'
 import { paymentLabel } from '@/lib/clients'
@@ -19,6 +19,11 @@ const AnagraficaTab = dynamic(() => import('./tabs/AnagraficaTab').then(m => ({ 
 const PanoramicaTab = dynamic(() => import('./tabs/PanoramicaTab').then(m => ({ default: m.PanoramicaTab })))
 const ClientProjectsTab = dynamic(() => import('./tabs/ClientProjectsTab').then(m => ({ default: m.ClientProjectsTab })))
 const ClientAdHocTab = dynamic(() => import('./tabs/ClientAdHocTab').then(m => ({ default: m.ClientAdHocTab })))
+// §316 — modulo Tracking: quattro tab, le ultime due solo per lo staff interno
+const ClientTrackingTab = dynamic(() => import('@/components/tracking/ClientTrackingTab').then(m => ({ default: m.ClientTrackingTab })))
+const ClientReportTab = dynamic(() => import('@/components/tracking/ClientReportTab').then(m => ({ default: m.ClientReportTab })))
+const ClientKeysTab = dynamic(() => import('@/components/tracking/ClientKeysTab').then(m => ({ default: m.ClientKeysTab })))
+const ClientLoginsTab = dynamic(() => import('@/components/tracking/ClientLoginsTab').then(m => ({ default: m.ClientLoginsTab })))
 import { ClientAlertBanner } from './ClientAlertBanner'
 import type { RiskResult } from '@/lib/risk'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
@@ -202,6 +207,8 @@ export function ClientPageClient({
   // D3 (Fase 0): l'anagrafica (P.IVA/dati fiscali) è visibile SOLO ad admin.
   const canSeeAnagrafica = isAdmin
   const canSeeMrr = isAdminLevel && !hideEconomics
+  // chiavi e password: staff interno, mai esterni (TRACKING_SECRET_ROLES)
+  const canSeeSecrets = isAdmin || canSeeTrackingSecrets(currentProfile?.app_role)
   // dal workspace le rotte admin sono rimbalzate dal middleware
   const portalBase = backHref.startsWith('/workspace') ? '/workspace' : ''
 
@@ -216,6 +223,9 @@ export function ClientPageClient({
     { label: 'Progetti', index: 2 },
     { label: 'Task Ad Hoc', index: 3 },
     { label: 'Task al cliente', index: 4 },
+    { label: 'Tracking', index: 6 },
+    { label: 'Report', index: 7 },
+    ...(canSeeSecrets ? [{ label: 'Chiavi', index: 8 }, { label: 'Accessi', index: 9 }] : []),
     // Economics: dati economici aggregati, admin-only e mai nel workspace
     ...(economics ? [{ label: 'Economics', index: 5 }] : []),
   ]
@@ -371,6 +381,10 @@ export function ClientPageClient({
             profiles={allProfiles} canManage={isAdminLevel} kind="cliente" />
         )}
         {activeTab === 5 && economics}
+        {activeTab === 6 && <ClientTrackingTab clientId={client.id} website={client.website ?? ''} />}
+        {activeTab === 7 && <ClientReportTab clientId={client.id} clientName={clientName(client)} />}
+        {activeTab === 8 && canSeeSecrets && <ClientKeysTab clientId={client.id} />}
+        {activeTab === 9 && canSeeSecrets && <ClientLoginsTab clientId={client.id} clientName={clientName(client)} />}
       </div>
     </div>
   )
