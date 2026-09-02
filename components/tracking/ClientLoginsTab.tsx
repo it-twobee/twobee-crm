@@ -7,7 +7,7 @@ import {
   listLogins, createLogin, updateLogin, revealLoginSecret, deleteLogin, type LoginInput,
 } from '@/app/actions/tracking-secrets'
 import { Field, inputCls, ModalShell, Empty, SearchInput } from '@/components/shared/formkit'
-import { ACCOUNT_SERVICES, accountServiceLabel } from '@/lib/tracking/vocab'
+import { ACCOUNT_SERVICES, ACCOUNT_SERVICE_GROUPS, accountServiceLabel } from '@/lib/tracking/vocab'
 import type { ClientLoginRow } from '@/lib/types/database'
 import { GhostButton, GoldButton, Loading, Notice } from './ui'
 
@@ -147,6 +147,9 @@ function LoginModal({ clientId, clientName, row, onClose, onSaved }: {
   })
   const [secret, setSecret] = useState('')
   const [secretTouched, setSecretTouched] = useState(false)
+  // un servizio salvato a mano da un'altra sessione non sta nel menu: resta testo libero
+  const known = ACCOUNT_SERVICES.some(s => s.key === f.service)
+  const pickService = (v: string) => setF(s => ({ ...s, service: v === '__custom' ? '' : v }))
   const [showSecret, setShowSecret] = useState(false)
   const [pending, start] = useTransition()
 
@@ -163,9 +166,19 @@ function LoginModal({ clientId, clientName, row, onClose, onSaved }: {
   return (
     <ModalShell title={row ? 'Modifica accesso' : 'Nuovo accesso'} hint={clientName} icon={<KeyRound className="w-4 h-4 text-gold-text" />}
       onClose={onClose} onSubmit={submit} submitLabel={row ? 'Salva' : 'Crea'} canSubmit={!!f.service.trim()} pending={pending}>
-      <Field label="Servizio" hint="qualsiasi testo: il menu è solo un aiuto">
-        <input list="tracking-services" value={f.service} onChange={e => setF(s => ({ ...s, service: e.target.value }))} className={inputCls} />
-        <datalist id="tracking-services">{ACCOUNT_SERVICES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}</datalist>
+      <Field label="Servizio" hint="se manca, scegli «Altro» e scrivilo">
+        <select value={known ? f.service : '__custom'} onChange={e => pickService(e.target.value)} className={inputCls}>
+          {ACCOUNT_SERVICE_GROUPS.map(g => (
+            <optgroup key={g} label={g}>
+              {ACCOUNT_SERVICES.filter(s => s.group === g).map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+            </optgroup>
+          ))}
+          <option value="__custom">Altro servizio (scrivi il nome)…</option>
+        </select>
+        {!known && (
+          <input value={f.service} onChange={e => setF(s => ({ ...s, service: e.target.value }))}
+            className={`${inputCls} mt-2`} placeholder="Nome del servizio, es. Trustpilot" />
+        )}
       </Field>
       <Field label="Etichetta" hint="es. profilo principale, casella info@">
         <input value={f.label} onChange={e => setF(s => ({ ...s, label: e.target.value }))} className={inputCls} />

@@ -66,27 +66,37 @@ export const PLATFORMS: { key: PlatformKey; label: string; hint: string }[] = [
 export const PLATFORM_KEYS = PLATFORMS.map(p => p.key)
 export const isPlatformKey = (v: string): v is PlatformKey => PLATFORM_KEYS.includes(v as PlatformKey)
 
-/** Menu di comodo per gli accessi: il campo accetta qualsiasi testo. */
-export const ACCOUNT_SERVICES: { key: string; label: string }[] = [
-  { key: 'instagram', label: 'Instagram' },
-  { key: 'facebook', label: 'Facebook' },
-  { key: 'meta_business', label: 'Meta Business Suite' },
-  { key: 'tiktok', label: 'TikTok' },
-  { key: 'linkedin', label: 'LinkedIn' },
-  { key: 'gmail', label: 'Gmail / account Google' },
-  { key: 'webmail', label: 'Webmail' },
-  { key: 'dominio', label: 'Dominio / registrar' },
-  { key: 'hosting', label: 'Hosting / pannello' },
-  { key: 'cms', label: 'CMS del sito' },
-  { key: 'shopify', label: 'Shopify' },
-  { key: 'klaviyo', label: 'Klaviyo (account)' },
-  { key: 'google_ads', label: 'Google Ads (account)' },
-  { key: 'google_business', label: "Profilo dell'attività" },
-  { key: 'analytics', label: 'Google Analytics' },
-  { key: 'search_console', label: 'Search Console' },
-  { key: 'gtm', label: 'Google Tag Manager' },
-  { key: 'altro', label: 'Altro' },
+/** Menu per gli accessi, raggruppato come lo si cerca. Il campo accetta anche testo libero. */
+export const ACCOUNT_SERVICES: { key: string; label: string; group: string }[] = [
+  { key: 'instagram', label: 'Instagram', group: 'Social' },
+  { key: 'facebook', label: 'Facebook', group: 'Social' },
+  { key: 'meta_business', label: 'Meta Business Suite', group: 'Social' },
+  { key: 'tiktok', label: 'TikTok', group: 'Social' },
+  { key: 'linkedin', label: 'LinkedIn', group: 'Social' },
+  { key: 'whatsapp_business', label: 'WhatsApp Business', group: 'Social' },
+  { key: 'google_business', label: "Profilo dell'attività (Google)", group: 'Social' },
+  { key: 'google_ads', label: 'Google Ads (account)', group: 'Ads e misurazione' },
+  { key: 'analytics', label: 'Google Analytics', group: 'Ads e misurazione' },
+  { key: 'search_console', label: 'Search Console', group: 'Ads e misurazione' },
+  { key: 'gtm', label: 'Google Tag Manager', group: 'Ads e misurazione' },
+  { key: 'google_merchant', label: 'Google Merchant Center', group: 'Ads e misurazione' },
+  { key: 'gmail', label: 'Gmail / account Google', group: 'Email' },
+  { key: 'webmail', label: 'Webmail', group: 'Email' },
+  { key: 'brevo', label: 'Brevo (email marketing / SMTP)', group: 'Email' },
+  { key: 'klaviyo', label: 'Klaviyo (account)', group: 'Email' },
+  { key: 'mailchimp', label: 'Mailchimp', group: 'Email' },
+  { key: 'tharvel', label: 'Tharvel (pannello sito)', group: 'Sito e infrastruttura' },
+  { key: 'cms', label: 'CMS del sito (WordPress, ecc.)', group: 'Sito e infrastruttura' },
+  { key: 'shopify', label: 'Shopify', group: 'Sito e infrastruttura' },
+  { key: 'dominio', label: 'Dominio / registrar', group: 'Sito e infrastruttura' },
+  { key: 'dns', label: 'DNS (Cloudflare, ecc.)', group: 'Sito e infrastruttura' },
+  { key: 'hosting', label: 'Hosting / pannello', group: 'Sito e infrastruttura' },
+  { key: 'ftp', label: 'FTP / SFTP', group: 'Sito e infrastruttura' },
+  { key: 'stripe', label: 'Stripe', group: 'Pagamenti' },
+  { key: 'paypal', label: 'PayPal', group: 'Pagamenti' },
+  { key: 'altro', label: 'Altro', group: 'Altro' },
 ]
+export const ACCOUNT_SERVICE_GROUPS = Array.from(new Set(ACCOUNT_SERVICES.map(s => s.group)))
 export const accountServiceLabel = (key: string) => ACCOUNT_SERVICES.find(s => s.key === key)?.label ?? key
 
 /**
