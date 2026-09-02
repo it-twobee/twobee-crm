@@ -2436,8 +2436,10 @@ cliente con una sola richiesta al sito; per il Pixel, se il connettore Meta è
 configurato, vince l'API (`last_fired_time` nelle 48h). Un cliente in cui nessun
 controllo era possibile **non è verde**. Il giro lo lancia
 `POST /api/tracking/qa/run` con `Authorization: Bearer $TRACKING_CRON_SECRET`
-(task pianificato Coolify, `0 7 * * *`, `curl --max-time 900` su
-`http://localhost:3000`): sincrono, sequenziale, guardia anti-concorrenza a 30
+(task pianificato Coolify `tracking-qa-daily`, `0 7 * * *`, `wget` di busybox
+perché l'immagine è alpine e curl non c'è; **`127.0.0.1`, non `localhost`**: nel
+container `localhost` risolve in IPv6 e Next ascolta solo su IPv4, quindi
+«connection refused»): sincrono, sequenziale, guardia anti-concorrenza a 30
 minuti. Se Traefik risponde 504 sui giri lunghi, la route passa a «avvia e
 rispondi 202» senza toccare `runQa`.
 

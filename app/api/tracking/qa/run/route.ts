@@ -6,7 +6,7 @@ import { errorMessage, isTrackingError } from '@/lib/tracking/errors'
 
 /**
  * §316 — QA giornaliero, chiamato dal task pianificato di Coolify alle 07:00:
- *   curl -fsS --max-time 900 -X POST -H "Authorization: Bearer $TRACKING_CRON_SECRET" http://localhost:3000/api/tracking/qa/run
+ *   sh -c 'wget -qO- -T 900 --header="Authorization: Bearer $TRACKING_CRON_SECRET" --post-data= http://127.0.0.1:3000/api/tracking/qa/run'
  *
  * Nessuna sessione: autorizza solo il segreto. Il giro è sincrono (Node
  * standalone, nessun limite serverless) e risponde col riepilogo. Il client
