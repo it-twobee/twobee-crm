@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { Eye, EyeOff, Trash2, KeyRound } from 'lucide-react'
+import { BackLink } from '@/components/shared/BackLink'
+import { Suspense } from 'react'
 import { listAgencyKeys, revealAgencyKey, saveAgencyKey, deleteAgencyKey } from '@/app/actions/tracking-secrets'
 import { inputCls } from '@/components/shared/formkit'
 import type { AgencyKeyStatus } from '@/lib/types/database'
@@ -15,8 +17,9 @@ export type TemplateSummary = { archetype: string; title: string; version: numbe
  * Segreti d'agenzia: una copia per tutto il portafoglio. Il dato che cambia
  * da cliente a cliente (Property ID, Ad Account ID) sta nella scheda cliente.
  */
-export function AgencyKeysSettings({ vaultConfigured, cronConfigured, definitions, templates }: {
+export function AgencyKeysSettings({ vaultConfigured, cronConfigured, definitions, templates, backHref }: {
   vaultConfigured: boolean; cronConfigured: boolean; definitions: DefinitionSummary[]; templates: TemplateSummary[]
+  backHref: string
 }) {
   const [slots, setSlots] = useState<AgencyKeyStatus[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -30,9 +33,10 @@ export function AgencyKeysSettings({ vaultConfigured, cronConfigured, definition
 
   return (
     <div className="min-h-full p-4 sm:p-6 space-y-4 max-w-4xl">
+      <Suspense fallback={null}><BackLink fallback={backHref} label="Tracking" /></Suspense>
       <div>
         <h1 className="text-2xl font-bold text-text-primary font-heading">Chiavi tracking</h1>
-        <p className="text-2xs text-text-tertiary mt-1">Connettori a livello agenzia per report e controllo giornaliero. Cifrati a riposo con la chiave del server.</p>
+        <p className="text-2xs text-text-tertiary mt-1">Connettori a livello agenzia per report e controllo giornaliero, gestiti da admin e manager. Cifrati a riposo con la chiave del server.</p>
       </div>
 
       {!vaultConfigured && (

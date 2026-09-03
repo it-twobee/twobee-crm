@@ -12,5 +12,5 @@ export default async function TrackingPage() {
   if (profile.role !== 'admin') redirect('/workspace/tracking')
   const supabase = await createClient()
   const { rows, lastRun } = await loadTrackingOverview(supabase, 'clients')
-  return <TrackingList rows={rows} lastRun={lastRun} clientBase="/clienti" />
+  return <TrackingList rows={rows} lastRun={lastRun} clientBase="/clienti" settingsHref="/impostazioni/tracking" />
 }

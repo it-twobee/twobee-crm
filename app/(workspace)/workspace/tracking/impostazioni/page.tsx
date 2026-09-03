@@ -6,10 +6,10 @@ import { canManageAgencyKeys } from '@/lib/permissions'
 
 export const revalidate = 0
 
-/** §316 — chiavi d'agenzia (service account GA4, token Meta) e riepilogo di definizioni e checklist. */
-export default async function TrackingSettingsPage() {
+/** §316 — stessa pagina dell'admin, per i manager confinati al workspace. */
+export default async function WorkspaceTrackingSettingsPage() {
   const { profile, isAdmin } = await getViewer()
   if (!profile) redirect('/login')
-  if (!isAdmin && !canManageAgencyKeys(profile.app_role)) redirect('/dashboard')
-  return <AgencyKeysSettings {...agencySettingsProps()} backHref="/tracking" />
+  if (!isAdmin && !canManageAgencyKeys(profile.app_role)) redirect('/workspace/tracking')
+  return <AgencyKeysSettings {...agencySettingsProps()} backHref="/workspace/tracking" />
 }

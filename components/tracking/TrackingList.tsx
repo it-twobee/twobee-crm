@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, RefreshCw, ChevronRight } from 'lucide-react'
+import { AlertTriangle, RefreshCw, ChevronRight, KeyRound } from 'lucide-react'
 import { runQaAll } from '@/app/actions/tracking-qa'
 import { SearchInput, Empty } from '@/components/shared/formkit'
 import {
@@ -36,7 +36,11 @@ const FILTERS: { value: Filter; label: string }[] = [
 
 const QA_LABEL: Record<string, string> = Object.fromEntries(QA_CHECKS.map(c => [c.key, c.label]))
 
-export function TrackingList({ rows, lastRun, clientBase }: { rows: TrackingListRow[]; lastRun: TrackingQaRun | null; clientBase: string }) {
+export function TrackingList({ rows, lastRun, clientBase, settingsHref }: {
+  rows: TrackingListRow[]; lastRun: TrackingQaRun | null; clientBase: string
+  /** chiavi d'agenzia: solo per chi può gestirle (admin e manager) */
+  settingsHref?: string | null
+}) {
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<Filter>('tutti')
   const [pending, start] = useTransition()
@@ -79,7 +83,14 @@ export function TrackingList({ rows, lastRun, clientBase }: { rows: TrackingList
             {lastRun ? ` Ultimo giro ${fmtDate(lastRun.finished_at ?? lastRun.started_at)}: ${lastRun.clients} clienti, ${lastRun.problems} problemi.` : ' Nessun giro ancora eseguito.'}
           </p>
         </div>
-        <GoldButton onClick={checkAll} pending={pending}><RefreshCw className="w-4 h-4" /> Controlla ora</GoldButton>
+        <div className="flex items-center gap-2">
+          {settingsHref && (
+            <Link href={settingsHref} className="inline-flex items-center gap-1.5 text-sm font-semibold rounded-xl border border-border px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-surface-hover">
+              <KeyRound className="w-4 h-4" /> Chiavi d&apos;agenzia
+            </Link>
+          )}
+          <GoldButton onClick={checkAll} pending={pending}><RefreshCw className="w-4 h-4" /> Controlla ora</GoldButton>
+        </div>
       </div>
 
       {problems.length > 0 && (

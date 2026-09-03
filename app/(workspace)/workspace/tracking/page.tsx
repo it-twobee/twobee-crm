@@ -3,6 +3,7 @@ import { getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { TrackingList } from '@/components/tracking/TrackingList'
 import { loadTrackingOverview } from '@/lib/tracking/overview'
+import { canManageAgencyKeys } from '@/lib/permissions'
 
 export const revalidate = 0
 
@@ -13,5 +14,6 @@ export default async function WorkspaceTrackingPage() {
   const supabase = await createClient()
   // clients_workspace = VIEW senza dati economici, filtrata per chi guarda
   const { rows, lastRun } = await loadTrackingOverview(supabase, 'clients_workspace')
-  return <TrackingList rows={rows} lastRun={lastRun} clientBase="/workspace/clienti" />
+  const canManage = profile.role === 'admin' || canManageAgencyKeys(profile.app_role)
+  return <TrackingList rows={rows} lastRun={lastRun} clientBase="/workspace/clienti" settingsHref={canManage ? '/workspace/tracking/impostazioni' : null} />
 }

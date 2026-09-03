@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requireInternalStaff, requireAdmin } from '@/lib/tracking/guards'
+import { requireInternalStaff, requireAgencyKeyManager } from '@/lib/tracking/guards'
 import { run } from '@/lib/tracking/action-result'
 import { TrackingError } from '@/lib/tracking/errors'
 import { getVaultKey, seal, open } from '@/lib/tracking/crypto'
@@ -170,11 +170,16 @@ export async function deleteLogin(clientId: string, id: string) {
   })
 }
 
-/* ── Chiavi d'agenzia (admin) ──────────────────────────────────────────── */
+/* ── Chiavi d'agenzia (admin e manager) ────────────────────────────────── */
+
+function revalidateAgency() {
+  revalidatePath('/impostazioni/tracking')
+  revalidatePath('/workspace/tracking/impostazioni')
+}
 
 export async function listAgencyKeys() {
   return run(async (): Promise<AgencyKeyStatus[]> => {
-    await requireAdmin()
+    await requireAgencyKeyManager()
     const { data, error } = await createAdminClient().from('agency_platform_keys').select('platform, updated_at')
     if (error) throw new Error(error.message)
     const byPlatform = new Map((data ?? []).map(r => [r.platform as string, r.updated_at as string]))
@@ -187,7 +192,7 @@ export async function listAgencyKeys() {
 
 export async function revealAgencyKey(platform: string) {
   return run(async (): Promise<string> => {
-    await requireAdmin()
+    await requireAgencyKeyManager()
     const value = await readAgencyKey(createAdminClient(), assertAgencyPlatform(platform))
     if (value === null) throw new TrackingError(404, 'Nessun valore salvato')
     return value
@@ -196,7 +201,7 @@ export async function revealAgencyKey(platform: string) {
 
 export async function saveAgencyKey(platform: string, value: string) {
   return run(async (): Promise<void> => {
-    const { uid } = await requireAdmin()
+    const { uid } = await requireAgencyKeyManager()
     getVaultKey()
     const key = assertAgencyPlatform(platform)
     const v = String(value ?? '').trim()
@@ -205,14 +210,14 @@ export async function saveAgencyKey(platform: string, value: string) {
     // sbagliato si scopre qui, non al primo report che fallisce
     if (key === 'ga4') parseServiceAccount(v)
     await writeAgencyKey(createAdminClient(), key, v, uid)
-    revalidatePath('/impostazioni/tracking')
+    revalidateAgency()
   })
 }
 
 export async function deleteAgencyKey(platform: string) {
   return run(async (): Promise<void> => {
-    await requireAdmin()
+    await requireAgencyKeyManager()
     await dropAgencyKey(createAdminClient(), assertAgencyPlatform(platform))
-    revalidatePath('/impostazioni/tracking')
+    revalidateAgency()
   })
 }
