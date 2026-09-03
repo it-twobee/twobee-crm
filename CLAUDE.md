@@ -2434,8 +2434,10 @@ Chiavi del cliente va l'**Ad Account ID**; Google Ads è dichiarato
 nell'HTML, quindi il suo stato sale e scende; GA4, Pixel e Klaviyo spesso li
 inietta GTM a runtime, quindi dall'HTML si può solo **promuovere** ad attivo,
 mai declassare, e con GTM presente l'assenza vale «non deducibile» (giallo), non
-«problema». Il QA giornaliero (`lib/tracking/qa.ts`) fa tre controlli per
-cliente con una sola richiesta al sito; per il Pixel, se il connettore Meta è
+«problema». Il QA giornaliero fa tre controlli per cliente con una sola richiesta al sito:
+i controlli sono puri in `lib/tracking/qa-checks.ts` (li condivide anche
+l'app di laboratorio `it-twobee/arealavoro`, vedi sotto), `qa.ts` è solo
+l'orchestrazione su Supabase; per il Pixel, se il connettore Meta è
 configurato, vince l'API (`last_fired_time` nelle 48h). Un cliente in cui nessun
 controllo era possibile **non è verde**. Il giro lo lancia
 `POST /api/tracking/qa/run` con `Authorization: Bearer $TRACKING_CRON_SECRET`
@@ -2457,7 +2459,7 @@ definizioni report sono **JSON importati come moduli**
 una lettura da `fs` non verrebbe tracciata. Gli id delle voci di checklist sono
 chiavi a DB: rinominarne uno perde la spunta.
 
-Gate: `npx tsx lib/tracking/{crypto,vocab,site-check,meta,checklist,reporting,csv,qa}.check.ts`.
+Gate: `npx tsx lib/tracking/{crypto,vocab,site-check,meta,checklist,reporting,csv,qa-checks}.check.ts`.
 Env: `VAULT_KEY`, `TRACKING_CRON_SECRET` (entrambe `openssl rand -hex 32`),
 opzionali `TWOBEE_GA4_TOKEN_URL`, `TWOBEE_GA4_DATA_URL`, `TWOBEE_META_BASE`,
 `TWOBEE_KLAVIYO_BASE`, `TWOBEE_KLAVIYO_REVISION`.

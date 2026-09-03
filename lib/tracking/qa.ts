@@ -1,162 +1,47 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { TrackingError, errorMessage } from './errors'
-import { fetchSite, detectTags, type FoundTags } from './site-check'
-import { normalizeUrl } from './validate'
-import { runReport } from './ga4'
-import { accountPixels } from './meta'
 import { ga4ContextFor, metaContextFor, type Ga4Prepared } from './contexts'
-import { QA_CHECKS, type QaCheckKey, type QaStatus, type TrackingStatus } from './vocab'
+import {
+  fetchQaSite, checkGtm, checkMetaPixel, checkMetaPixelViaApi, checkGa4, promotionsFor, countProblems, viewsFor, summarize,
+  type CheckResult, type QaResults, type QaCheckView, type QaSummary,
+} from './qa-checks'
+import type { QaCheckKey } from './vocab'
 import type { ClientTracking, TrackingQaResult, TrackingQaRun } from '@/lib/types/database'
 
+export type { CheckResult, QaCheckView, QaSummary } from './qa-checks'
+export { summarize } from './qa-checks'
+
 /**
- * §316 — QA giornaliero: tre controlli per cliente, salvati a DB.
- *
- * Quattro esiti, e le differenze contano:
- *  'na'            manca il dato per controllare (nessun Pixel ID, nessun URL)
- *  'indeterminato' controllato ma non conclude: il sito carica GTM, che
- *                  inietta i tag a runtime, quindi l'assenza dall'HTML non
- *                  dimostra niente. Giallo, non rosso.
- *  'problema'      assenza reale, o errore
- *  'ok'            verificato
- *
- * Una sola richiesta HTTP per cliente serve a GTM e Pixel; il service account
- * GA4 si prepara una volta per tutta la tornata.
+ * §316 — QA giornaliero sul CRM: carica i clienti da Supabase, esegue i tre
+ * controlli di `qa-checks.ts` e salva gli esiti. Una sola richiesta HTTP per
+ * cliente; il service account GA4 si prepara una volta per tutta la tornata.
  */
 
 type Admin = SupabaseClient
-export type CheckResult = { status: QaStatus; detail: string }
 export type QaClient = { id: string; name: string; website: string | null; tracking: ClientTracking }
 
-/** Ieri e l'altroieri, più oggi (incompleto). */
-const GA4_WINDOW = { startDate: '2daysAgo', endDate: 'today' }
-
-type Site = { ok: boolean; error: string | null; tags: Pick<FoundTags, 'gtmIds' | 'metaIds'> }
-const NO_SITE: Site = { ok: false, error: 'Sito non interrogato', tags: { gtmIds: [], metaIds: [] } }
-
-function checkGtm(c: QaClient, site: Site): CheckResult {
-  if (!c.website) return { status: 'na', detail: 'URL del sito non inserito' }
-  if (!c.tracking.gtm_container_id) return { status: 'na', detail: 'Nessun container GTM configurato in scheda' }
-  if (!site.ok) return { status: 'problema', detail: site.error ?? 'Sito non raggiungibile' }
-  const wanted = c.tracking.gtm_container_id.toUpperCase()
-  if (site.tags.gtmIds.includes(wanted)) return { status: 'ok', detail: `${wanted} presente sul sito` }
-  return {
-    status: 'problema',
-    detail: site.tags.gtmIds.length
-      ? `GTM non trovato: sul sito c'è ${site.tags.gtmIds.join(', ')}, non ${wanted}`
-      : `GTM non trovato sul sito (atteso ${wanted})`,
-  }
-}
-
-const fmtWhen = (iso: string) => new Date(iso).toLocaleString('it-IT', { timeZone: 'Europe/Rome' })
-
-/**
- * Fonte di verità quando il connettore Meta è configurato: guarda se il pixel
- * ha ricevuto eventi di recente, non se il codice compare nell'HTML.
- * `null` = connettore non configurato, si usa l'HTML.
- */
-async function checkMetaPixelViaApi(admin: Admin, c: QaClient): Promise<CheckResult | null> {
-  const prepared = await metaContextFor(admin, c.id)
-  if (prepared.context === null) return null
-  const pixels = await accountPixels(prepared.adAccountId, prepared.context)
-  if (pixels.length === 0) return { status: 'problema', detail: 'Nessun pixel collegato a questo ad account Meta' }
-
-  const limit = Date.now() - 48 * 3600 * 1000
-  const active = pixels.filter(p => p.lastFiredTime && Date.parse(p.lastFiredTime) >= limit)
-  if (active.length) {
-    const p = active[0]
-    return { status: 'ok', detail: `Pixel "${p.name}" ha ricevuto eventi il ${fmtWhen(p.lastFiredTime!)}` }
-  }
-  const last = pixels.filter(p => p.lastFiredTime).sort((a, b) => Date.parse(b.lastFiredTime!) - Date.parse(a.lastFiredTime!))[0]
-  return {
-    status: 'problema',
-    detail: last ? `Nessun evento pixel nelle ultime 48h · ultimo: ${fmtWhen(last.lastFiredTime!)}` : 'Il pixel non ha mai ricevuto eventi',
-  }
-}
-
-function checkMetaPixel(c: QaClient, site: Site): CheckResult {
-  const pixel = c.tracking.meta_pixel_id
-  if (!pixel) return { status: 'na', detail: 'Nessun Pixel ID salvato per questo cliente' }
-  if (!c.website) return { status: 'na', detail: 'URL del sito non inserito' }
-  if (!site.ok) return { status: 'problema', detail: site.error ?? 'Sito non raggiungibile' }
-  if (site.tags.metaIds.includes(pixel)) return { status: 'ok', detail: `Pixel ${pixel} presente sul sito` }
-  // un altro Pixel nel sorgente è un dato concreto, anche con GTM attivo
-  if (site.tags.metaIds.length) {
-    return { status: 'problema', detail: `Meta Pixel non trovato: sul sito c'è ${site.tags.metaIds.join(', ')}, non ${pixel}` }
-  }
-  // nessun Pixel ma il sito carica GTM (uno qualsiasi): l'assenza non dimostra nulla
-  if (site.tags.gtmIds.length) {
-    return {
-      status: 'indeterminato',
-      detail: "Non deducibile dall'HTML: il sito carica GTM, e un Pixel configurato lì dentro non compare nel sorgente. " +
-        'La verifica certa arriva dal connettore Meta (token in Impostazioni + Ad Account ID nel tab Chiavi).',
-    }
-  }
-  return { status: 'problema', detail: 'Meta Pixel non trovato sul sito' }
-}
-
-async function checkGa4(c: QaClient, ga4: Ga4Prepared): Promise<CheckResult> {
-  const property = c.tracking.ga4_property_id
-  if (!property) return { status: 'na', detail: 'Property ID GA4 non inserito' }
-  if (!ga4.context) return { status: 'na', detail: ga4.error }
-  try {
-    const result = await runReport({ propertyId: property, ...GA4_WINDOW, metrics: ['sessions', 'eventCount'], limit: 1 }, ga4.context)
-    const sessions = result.rows[0]?.metrics.sessions ?? 0
-    const events = result.rows[0]?.metrics.eventCount ?? 0
-    if (sessions > 0 || events > 0) {
-      return { status: 'ok', detail: `${sessions.toLocaleString('it-IT')} sessioni e ${events.toLocaleString('it-IT')} eventi nelle ultime 48h` }
-    }
-    return { status: 'problema', detail: `Nessun dato GA4 nelle ultime 48h (property ${property})` }
-  } catch (e) {
-    // il messaggio di Google è specifico: si riporta intero, non riassunto
-    const msg = errorMessage(e)
-    console.error(`[qa] GA4 property ${property}: ${msg}`)
-    return { status: 'problema', detail: `GA4 non interrogabile: ${msg}` }
-  }
-}
-
-/**
- * Un controllo riuscito è la prova più forte che il canale funziona. Solo
- * promozione, mai declassamento — stessa regola della verifica del sito.
- */
-async function promoteChannels(admin: Admin, c: QaClient, results: Record<QaCheckKey, CheckResult>) {
-  const patch: Record<string, TrackingStatus> = {}
-  const pairs: [QaCheckKey, keyof ClientTracking][] = [['gtm', 'status_gtm'], ['ga4', 'status_ga4'], ['meta_pixel', 'status_meta_pixel']]
-  for (const [key, field] of pairs) {
-    if (results[key].status !== 'ok') continue
-    const current = c.tracking[field] as TrackingStatus
-    if (current === 'active' || current === 'na') continue
-    patch[field] = 'active'
-    console.log(`[qa] ${c.name} · ${field}: ${current} → active (verificato dal controllo)`)
-  }
-  if (Object.keys(patch).length === 0) return
-  const { error } = await admin.from('client_tracking').update({ ...patch, updated_at: new Date().toISOString() }).eq('client_id', c.id)
-  if (error) console.error(`[qa] ${c.name} · promozione fallita: ${error.message}`)
-}
-
 /** Esegue i tre controlli su un cliente e salva l'esito. */
-export async function checkClient(admin: Admin, c: QaClient, ga4: Ga4Prepared): Promise<Record<QaCheckKey, CheckResult>> {
-  let site: Site = NO_SITE
-  if (c.website) {
+export async function checkClient(admin: Admin, c: QaClient, ga4: Ga4Prepared): Promise<QaResults> {
+  const target = { website: c.website, ...c.tracking }
+  const site = await fetchQaSite(c.website)
+
+  // Meta: se il connettore è configurato vince l'API, che dice se il pixel
+  // riceve dati davvero; altrimenti si ricade sulla lettura dell'HTML.
+  let metaResult: CheckResult | null = null
+  const meta = await metaContextFor(admin, c.id)
+  if (meta.context !== null) {
     try {
-      const fetched = await fetchSite(normalizeUrl(c.website))
-      site = { ok: fetched.ok, error: fetched.error, tags: fetched.ok ? detectTags(fetched.html) : { gtmIds: [], metaIds: [] } }
+      metaResult = await checkMetaPixelViaApi(meta.adAccountId, meta.context)
     } catch (e) {
-      site = { ok: false, error: errorMessage(e), tags: { gtmIds: [], metaIds: [] } }
+      console.error(`[qa] ${c.name} · pixel via API Meta: ${errorMessage(e)}`)
+      metaResult = { status: 'problema', detail: `Meta non interrogabile: ${errorMessage(e)}` }
     }
   }
 
-  let metaResult: CheckResult | null = null
-  try {
-    metaResult = await checkMetaPixelViaApi(admin, c)
-  } catch (e) {
-    console.error(`[qa] ${c.name} · pixel via API Meta: ${errorMessage(e)}`)
-    metaResult = { status: 'problema', detail: `Meta non interrogabile: ${errorMessage(e)}` }
-  }
-
-  const results: Record<QaCheckKey, CheckResult> = {
-    gtm: checkGtm(c, site),
-    ga4: await checkGa4(c, ga4),
-    meta_pixel: metaResult ?? checkMetaPixel(c, site),
+  const results: QaResults = {
+    gtm: checkGtm(target, site),
+    ga4: await checkGa4(target, ga4.context, ga4.error ?? undefined),
+    meta_pixel: metaResult ?? checkMetaPixel(target, site),
   }
 
   const now = new Date().toISOString()
@@ -167,7 +52,12 @@ export async function checkClient(admin: Admin, c: QaClient, ga4: Ga4Prepared): 
   if (error) throw new Error(error.message)
   for (const [key, r] of Object.entries(results)) if (r.status === 'problema') console.warn(`[qa] ${c.name} · ${key}: ${r.detail}`)
 
-  await promoteChannels(admin, c, results)
+  const patch = promotionsFor(c.tracking, results)
+  if (Object.keys(patch).length) {
+    for (const [field, to] of Object.entries(patch)) console.log(`[qa] ${c.name} · ${field}: → ${to} (verificato dal controllo)`)
+    const { error: e2 } = await admin.from('client_tracking').update({ ...patch, updated_at: now }).eq('client_id', c.id)
+    if (e2) console.error(`[qa] ${c.name} · promozione fallita: ${e2.message}`)
+  }
   return results
 }
 
@@ -205,7 +95,7 @@ export async function runQaForClient(admin: Admin, clientId: string): Promise<{ 
   if (!c) throw new TrackingError(409, 'Configura prima il tracking del cliente (archetipo, sito, identificativi)')
   const startedAt = Date.now()
   const results = await checkClient(admin, c, await ga4ContextFor(admin))
-  const problems = Object.values(results).filter(r => r.status === 'problema').length
+  const problems = countProblems(results)
   console.log(`[qa] ricontrollo di ${c.name}: ${problems} problemi, ${Date.now() - startedAt} ms`)
   return { checks: await resultsFor(admin, clientId), problems }
 }
@@ -232,10 +122,7 @@ export async function runQa(admin: Admin, origin: TrackingQaRun['origin']): Prom
     const clients = await loadQaClients(admin)
     clientsCount = clients.length
     const ga4 = await ga4ContextFor(admin)
-    for (const c of clients) {
-      const results = await checkClient(admin, c, ga4)
-      problems += Object.values(results).filter(r => r.status === 'problema').length
-    }
+    for (const c of clients) problems += countProblems(await checkClient(admin, c, ga4))
   } catch (e) {
     await admin.from('tracking_qa_runs').update({
       finished_at: new Date().toISOString(), clients: clientsCount, problems, duration_ms: Date.now() - startedAt, error: errorMessage(e),
@@ -251,40 +138,10 @@ export async function runQa(admin: Admin, origin: TrackingQaRun['origin']): Prom
 
 /* ── lettura ───────────────────────────────────────────────────────────── */
 
-export type QaCheckView = { key: QaCheckKey; label: string; needs: string; status: QaStatus | null; detail: string; checkedAt: string | null }
-
-/** Esiti per cliente, nell'ordine dei controlli. `status` null = mai controllato. */
 export async function resultsFor(admin: Admin, clientId: string): Promise<QaCheckView[]> {
   const { data, error } = await admin.from('tracking_qa_results').select('*').eq('client_id', clientId)
   if (error) throw new Error(error.message)
-  const byKey = new Map(((data ?? []) as TrackingQaResult[]).map(r => [r.check_key, r]))
-  return QA_CHECKS.map(check => {
-    const row = byKey.get(check.key)
-    return {
-      key: check.key, label: check.label, needs: check.needs,
-      status: row?.status ?? null, detail: row?.detail ?? 'Mai controllato', checkedAt: row?.checked_at ?? null,
-    }
-  })
-}
-
-export type QaSummary = { status: 'ok' | 'problema' | 'na'; problems: { key: QaCheckKey; detail: string }[]; verified: number; checkedAt: string }
-
-/**
- * Un solo stato per cliente. Un cliente in cui nessun controllo è stato
- * possibile NON è verde: verde solo se almeno un controllo è passato davvero
- * e nessuno è fallito. `indeterminato` non è un problema.
- */
-export function summarize(rows: Pick<TrackingQaResult, 'client_id' | 'check_key' | 'status' | 'detail' | 'checked_at'>[]): Map<string, QaSummary> {
-  const map = new Map<string, QaSummary>()
-  for (const row of rows) {
-    let entry = map.get(row.client_id)
-    if (!entry) { entry = { status: 'na', problems: [], verified: 0, checkedAt: row.checked_at }; map.set(row.client_id, entry) }
-    if (row.status === 'problema') entry.problems.push({ key: row.check_key, detail: row.detail })
-    else if (row.status === 'ok') entry.verified += 1
-    if (row.checked_at > entry.checkedAt) entry.checkedAt = row.checked_at
-  }
-  for (const entry of Array.from(map.values())) entry.status = entry.problems.length ? 'problema' : entry.verified > 0 ? 'ok' : 'na'
-  return map
+  return viewsFor((data ?? []) as TrackingQaResult[])
 }
 
 export async function summaryByClient(admin: Admin): Promise<Map<string, QaSummary>> {
