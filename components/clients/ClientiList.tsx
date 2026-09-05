@@ -16,7 +16,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Client, PaymentStatus, ClientType, ClientLabel, Profile } from '@/lib/types/database'
 import { NewClientModal } from './NewClientModal'
-import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
+import { SUPER_ADMIN_EMAILS, canCreateClients } from '@/lib/permissions'
 import { deleteClients, previewClientDeletion, type DeletionPreview } from '@/app/actions/delete-client'
 import { PrioritaOggi } from './PrioritaOggi'
 
@@ -225,7 +225,10 @@ const STORAGE_PIN_ORDER = 'twobee_pinned_order'
 
 export function ClientiList({ clients: initialClients, currentProfile, hideEconomics = false, economics = {}, risks = {} }: ClientiListProps) {
   const canSeeMrr = !hideEconomics && (!currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || ['admin', 'manager'].includes(currentProfile.app_role ?? ''))
-  const canCreateClient = !hideEconomics && (!currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || ['admin', 'manager'].includes(currentProfile.app_role ?? ''))
+  /* §317 — creare un cliente non è vedere i suoi numeri: il bottone non passa
+     più da `hideEconomics`, che è il gate delle economics, ma dal ruolo. Stessa
+     regola del server (`requireClientCreator`), da `lib/permissions.ts`. */
+  const canCreateClient = !currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || canCreateClients(currentProfile.app_role)
   const showPayments = !hideEconomics
   /* §211 — una base sola per tutte le rotte della lista. Erano scritte a mano
      riga per riga, e le due sezioni in fondo — sospesi e persi — se l'erano
@@ -1030,7 +1033,16 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
       {showModal && (
         <NewClientModal
           onClose={() => setShowModal(false)}
-          onCreated={(client) => { setClients((prev) => [client, ...prev]); setShowModal(false) }}
+          onCreated={(client) => {
+            /* §211/§317 — nel workspace la lista arriva da `clients_workspace`,
+               che azzera i numeri: il cliente appena creato torna dalla tabella
+               piena, quindi lo si allinea invece di infilare colonne
+               economiche nello stato del browser. */
+            const row = hideEconomics
+              ? { ...client, mrr: 0, payment_status: null, contract_start: null, contract_end: null } as unknown as Client
+              : client
+            setClients((prev) => [row, ...prev]); setShowModal(false)
+          }}
         />
       )}
     </div>

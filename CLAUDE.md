@@ -2658,6 +2658,21 @@ la UI lo dichiara — far sparire un'attività dalla lista di qualcuno senza dir
 è il modo peggiore di far perdere una consegna. Si tocca dall'anagrafica (admin),
 e in lista un badge dice chi è fuori.
 
+**Il cliente nuovo lo apre anche il manager** (§317, `canCreateClients` in
+`lib/permissions.ts`). Era admin-only, ma il cliente lo porta chi lo ha in mano:
+i manager lo incontrano prima che esista un contratto, e far aprire l'anagrafica
+a un altro rimandava referenti e canali a quando qualcuno passava dal portale
+admin. Il bottone «Nuovo Cliente» in `ClientiList` non passa più da
+`hideEconomics` — quello è il gate delle economics, non dei permessi — ma dal
+ruolo, e la porta vera è `requireClientCreator()` nell'action: `admin` + `manager`.
+
+**Creare non è gestire.** Modifica dell'anagrafica, label, canone, dati fiscali
+ed eliminazione restano `requireAdmin`. Il workspace resta senza numeri perché
+la `NewClientModal` non ne chiede: `mrr: 0`, `payment_status: 'in_attesa'`,
+avvio a oggi (§169, li riscrive il primo contratto venduto). La riga che torna
+dall'insert arriva però dalla tabella piena, non dalla VIEW: `onCreated` la
+azzera prima di metterla in lista, come fa il server (§211).
+
 ### Il workspace è usabile o non è (§211)
 Tre difetti che rendevano il portale un vicolo cieco, e le regole che li chiudono:
 

@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient, createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import { SUPER_ADMIN_EMAILS, ADMIN_ROLES } from '@/lib/permissions'
+import { SUPER_ADMIN_EMAILS, ADMIN_ROLES, canCreateClients } from '@/lib/permissions'
 import type {
   Client, ClientContact, ClientStakeholder, StakeholderRole,
   ClientType, ClientLabel, PaymentStatus,
@@ -28,6 +28,22 @@ async function requireContactManager(): Promise<string> {
   const { data: p } = await sb.from('profiles').select('role, app_role, email').eq('id', user.id).single()
   const ok = p?.role === 'admin' || p?.app_role === 'manager' || SUPER_ADMIN_EMAILS.includes(p?.email ?? '')
   if (!ok) throw new Error('Permesso negato: solo admin e manager gestiscono i referenti')
+  return user.id
+}
+
+/**
+ * §317 — l'anagrafica nuova la apre anche il manager, dal workspace. Gestirla
+ * (canone, dati fiscali, label, eliminazione) resta `requireAdmin`: qui si
+ * concede una porta sola, non il dominio. Guarda `app_role`, perché è lì che
+ * sta il ruolo vero — `role` è la mappatura grossolana per la RLS.
+ */
+async function requireClientCreator(): Promise<string> {
+  const sb = await createClient()
+  const { data: { user } } = await sb.auth.getUser()
+  if (!user) throw new Error('Non autenticato')
+  const { data: p } = await sb.from('profiles').select('role, app_role, email').eq('id', user.id).single()
+  const ok = p?.role === 'admin' || canCreateClients(p?.app_role) || SUPER_ADMIN_EMAILS.includes(p?.email ?? '')
+  if (!ok) throw new Error('Permesso negato: solo admin e manager creano nuovi clienti')
   return user.id
 }
 
@@ -74,7 +90,7 @@ export type NewClientInput = {
 const slug = (s: string, max: number) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, max) || 'cliente'
 
 export async function createClientRecord(input: NewClientInput): Promise<Client> {
-  const uid = await requireAdmin()
+  const uid = await requireClientCreator()
   // §179: la cronologia deve sapere chi ha creato il cliente, non «Sistema»
   const admin = createActorClient(uid)
 
@@ -131,6 +147,7 @@ export async function createClientRecord(input: NewClientInput): Promise<Client>
   if (eCh) throw new Error(`Cliente creato, ma i canali no: ${eCh.message}`)
 
   revalidatePath('/clienti')
+  revalidatePath('/workspace/clienti')
   revalidatePath('/dashboard')
   return client as Client
 }

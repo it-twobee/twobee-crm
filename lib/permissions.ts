@@ -98,6 +98,23 @@ export function canManageAgencyKeys(appRole: string | null | undefined): boolean
   return TRACKING_AGENCY_ROLES.includes(appRole as AppRole)
 }
 
+/**
+ * §317 — chi apre una nuova anagrafica cliente. Era riservata all'admin, ma il
+ * cliente nuovo lo porta chi lo ha in mano: i manager lo incontrano prima che
+ * arrivi un contratto, e farlo aprire a un altro significava rimandare
+ * referenti e canali a quando qualcuno passava dal portale admin.
+ *
+ * Creare **non** è gestire: l'anagrafica (canone, dati fiscali, label) e
+ * l'eliminazione restano admin — la `NewClientModal` non chiede numeri
+ * (`mrr: 0`, `payment_status: 'in_attesa'`, avvio a oggi: li riscrive il primo
+ * contratto venduto, §169), quindi il workspace resta senza economics.
+ */
+export const CLIENT_CREATE_ROLES: AppRole[] = [...ADMIN_ROLES, 'manager']
+
+export function canCreateClients(appRole: string | null | undefined): boolean {
+  return CLIENT_CREATE_ROLES.includes(appRole as AppRole)
+}
+
 export function isAdminRole(appRole: string | null | undefined): boolean {
   return ADMIN_ROLES.includes(appRole as AppRole)
 }
