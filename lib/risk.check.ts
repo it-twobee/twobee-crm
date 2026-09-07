@@ -36,6 +36,9 @@ console.log('\n— Chi non ha un rischio da gestire —')
 {
   is('perso: fuori', scorable({ client_label: 'perso', is_internal: false }), false)
   is('partner: fuori', scorable({ client_label: 'partner', is_internal: false }), false)
+  /* §321 — il lead non ha fatture da non pagare né contratti da lasciar
+     scadere: ogni segnale uscirebbe «non calcolabile» e il badge direbbe n/d. */
+  is('lead: fuori', scorable({ client_label: 'lead', is_internal: false }), false)
   is('interno: fuori', scorable({ client_label: 'stabile', is_internal: true }), false)
   is('stabile: dentro', scorable({ client_label: 'stabile', is_internal: false }), true)
 

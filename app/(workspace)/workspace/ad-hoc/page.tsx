@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSessionProfile } from '@/lib/auth'
+import { canCreateClients } from '@/lib/permissions'
 import { redirect } from 'next/navigation'
 import { AdHocClient, type AdHocRow } from '@/components/adhoc/AdHocClient'
 
@@ -32,6 +33,7 @@ export default async function WorkspaceAdHocPage() {
         ({ id: c.id, name: c.display_name || c.company_name }))}
       profiles={(profiles ?? []).map(p => ({ ...p, client_id: clientOf.get(p.id) ?? null }))}
       canManage
+      canCreateClient={canCreateClients(profile.app_role)}
       clientBase="/workspace/clienti"
     />
   )

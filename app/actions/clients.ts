@@ -166,6 +166,52 @@ const EDITABLE = [
 
 export type ClientPatch = Partial<Pick<Client, typeof EDITABLE[number]>>
 
+/**
+ * §321 — L'anagrafica aperta in un gesto solo, dal punto in cui serve.
+ *
+ * Nasce dal composer di una task ad hoc: si scrive un nome che in anagrafica
+ * non c'è, e le risposte sono due — «aggiungilo» oppure «segnalo come lead».
+ * Cambia una parola, `client_label`, e cambia il peso della riga: un lead non
+ * fattura, quindi resta fuori da MRR, conto economico e alert (§176 per la
+ * `pending`, stessa regola).
+ *
+ * **Non è una seconda porta d'ingresso**: passa da `createClientRecord`, quindi
+ * dallo stesso guard (§317), dalla stessa insert e dalla stessa cronologia. I
+ * numeri non li chiede — `mrr: 0`, avvio a oggi, pagamento in attesa — perché
+ * li riscrive il primo contratto venduto (§169), ed è la stessa scelta che fa
+ * la `NewClientModal`. Quello che resta da compilare lo compila chi apre la
+ * scheda: qui si dà un posto a un lavoro che è già cominciato.
+ */
+export async function createClientQuick(
+  name: string,
+  label: Extract<ClientLabel, 'stabile' | 'lead'> = 'lead',
+): Promise<Client> {
+  try {
+    return await createClientRecord({
+      display_name: name,
+      client_type: 'growth',
+      client_label: label,
+      is_internal: false,
+      active_channels: [],
+      mrr: 0,
+      contract_start: new Date().toISOString().slice(0, 10),
+      contract_end: null,
+      payment_status: 'in_attesa',
+      contacts: [],
+    })
+  } catch (e) {
+    /* Senza la 218 il CHECK non conosce «lead» e Postgres risponde con il nome
+       del vincolo, che a chi ha premuto un pulsante non dice niente. Il cliente
+       normale si crea lo stesso: è solo il lead che aspetta la migration. */
+    const msg = e instanceof Error ? e.message : ''
+    if (label === 'lead' && /client_label/.test(msg)) {
+      throw new Error('Il lead richiede la migration 218: esegui 218_client_lead.sql, '
+        + 'oppure aggiungilo come cliente.')
+    }
+    throw e
+  }
+}
+
 export async function updateClientRecord(clientId: string, patch: ClientPatch) {
   const uid = await requireAdmin()
   const clean: Record<string, unknown> = {}

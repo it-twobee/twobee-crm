@@ -58,17 +58,19 @@ interface Props {
 }
 
 const LABEL_TEXT: Record<string, string> = {
-  stabile: 'Stabile', in_bilico: 'In bilico', pending: 'In pending', perso: 'Perso', partner: 'Partner',
+  stabile: 'Stabile', in_bilico: 'In bilico', pending: 'In pending', lead: 'Lead',
+  perso: 'Perso', partner: 'Partner',
 }
 
 const labelBadge: Record<string, string> = {
   stabile: 'border-success/30 text-success bg-success/10',
   in_bilico: 'border-warning/30 text-warning bg-warning/10',
   pending: 'border-warning/40 text-warning bg-warning/15',
+  lead: 'border-info/30 text-info bg-info/10',
   perso: 'border-error/30 text-error bg-error/10',
   partner: 'border-gold/30 text-gold-text bg-gold/10',
 }
-const labelOptions = ['stabile', 'in_bilico', 'pending', 'perso', 'partner']
+const labelOptions = ['stabile', 'in_bilico', 'pending', 'lead', 'perso', 'partner']
 
 // Inline text field that turns into an <input> on click
 function InlineTextField({ value, field, clientId, canEdit, className = '' }: {

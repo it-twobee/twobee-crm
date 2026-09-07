@@ -11,11 +11,12 @@ interface Props {
 const LABEL_COLOR: Record<string, string> = {
   stabile:  'var(--color-success)',
   in_bilico:'var(--color-gold-text)',
+  lead:     'var(--color-info)',
   perso:    'var(--color-error)',
   partner:  'var(--color-accent)',
 }
 const LABEL_TEXT: Record<string, string> = {
-  stabile: 'Stabile', in_bilico: 'In bilico', perso: 'Perso', partner: 'Partner',
+  stabile: 'Stabile', in_bilico: 'In bilico', lead: 'Lead', perso: 'Perso', partner: 'Partner',
 }
 
 export function ClientHealthMap({ clients }: Props) {

@@ -83,9 +83,13 @@ const monthsBetween = (from: string, to: string) => {
  * Un cliente perso, un partner o una società del gruppo non hanno un rischio da
  * gestire: il perso è già andato, il partner non è una relazione commerciale, e
  * l'interno è Two Bee stessa. Un punteggio lì è rumore che copre i clienti veri.
+ * §321 — e il **lead** non è ancora un cliente: non ha fatture da non pagare né
+ * contratti da lasciar scadere, quindi ogni segnale gli uscirebbe «non
+ * calcolabile» e il badge direbbe «n/d» a chiunque. Fuori come il partner.
  */
 export const scorable = (c: Pick<RiskInput, 'client_label' | 'is_internal'>) =>
-  !c.is_internal && c.client_label !== 'perso' && c.client_label !== 'partner'
+  !c.is_internal && c.client_label !== 'perso'
+  && c.client_label !== 'partner' && c.client_label !== 'lead'
 
 // ── I segnali ───────────────────────────────────────────────────────────────
 

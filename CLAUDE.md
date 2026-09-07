@@ -198,7 +198,7 @@ const parsed = JSON.parse((await res.json()).choices?.[0]?.message?.content?.mat
 ```
 
 ## Stati del cliente (`client_label`)
-`stabile` · `in_bilico` · **`pending`** · `perso` · `partner`.
+`stabile` · `in_bilico` · **`pending`** · **`lead`** · `perso` · `partner`.
 
 `pending` (§176) = lavorazioni sospese temporaneamente. **Non è un perso**: non
 fattura — quindi fuori da MRR attivo, generazione del conto economico, alert e
@@ -207,10 +207,25 @@ l'ultima sospensione, così si sa da quanto è fermo: oltre i 60 giorni scatta
 l'alert in dashboard, perché un rapporto sospeso che nessuno richiama diventa un
 rapporto perso.
 
-`lib/clients.ts` è l'unica fonte: `isLost`, `isPaused`, `countsInStats`
-(esclude interni + persi + fermi), `pausedDays`. Non riscrivere il filtro
-inline: ogni `client_label !== 'perso'` sparso è un posto che dimenticherà il
-prossimo stato.
+**`lead` (§321) = non è ancora un cliente.** Nasce scrivendo un nome che in
+anagrafica non c'è — dal composer di una task ad hoc, dove le due risposte sono
+«aggiungi in anagrafica» e «segna come lead». Non fattura, quindi vale la regola
+della `pending`: fuori da MRR, conto economico, alert, punteggio di rischio. E
+**non è un perso**: un perso era un cliente e non lo è più, un lead non lo è
+ancora, e contarlo nel churn direbbe che abbiamo perso qualcuno che non avevamo.
+
+L'alternativa era un campo di testo libero sulla task, ed è la ragione per cui
+non si è fatta: un nome che non è una riga è un riferimento sospeso — non si
+apre, non si raggruppa, non compare nella scheda di nessuno, e il giorno in cui
+diventa un cliente vero non c'è niente da collegare.
+
+`lib/clients.ts` è l'unica fonte: `isLost`, `isPaused`, `isLead`,
+`countsInStats` (esclude interni + persi + fermi + lead), `pausedDays`. Non
+riscrivere il filtro inline: ogni `client_label !== 'perso'` sparso è un posto
+che dimenticherà il prossimo stato — ed è successo, perché gli stati sono già
+sei. Gate: `npx tsx lib/clients.check.ts` (21 controlli, con l'elenco chiuso
+delle label: se ne arriva una settima, il test è il posto dove qualcuno deve
+decidere se conta).
 
 ## Tipo cliente (§178)
 `client_type` non si sceglie: lo dicono i progetti. Solo digital → `digital`,

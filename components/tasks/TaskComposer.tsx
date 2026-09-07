@@ -4,11 +4,12 @@ import { useState, useEffect, useMemo, useTransition } from 'react'
 import { toast } from 'sonner'
 import {
   CheckSquare, CornerDownRight, Repeat, Briefcase, FolderTree, Flag,
-  Eye, EyeOff, ListTodo, Building2, ShieldCheck,
+  Eye, EyeOff, ListTodo, Building2, ShieldCheck, CircleSlash, UserPlus, Sprout,
 } from 'lucide-react'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import { createProjectTask } from '@/app/actions/tasks'
 import { createAdHocTask } from '@/app/actions/ad-hoc-tasks'
+import { createClientQuick } from '@/app/actions/clients'
 import {
   ModalShell, Group, Field, Segmented, SearchInput, PickRow, Avatar, Empty, inputCls,
 } from '@/components/shared/formkit'
@@ -16,6 +17,14 @@ import { CLIENT_ROLES } from '@/lib/permissions'
 import type { AppRole, Priority, Visibility } from '@/lib/types/database'
 
 export type TaskKind = 'project' | 'ad_hoc' | 'cliente'
+
+/**
+ * §321 — «nessun cliente» **scelto** non è «non ho ancora scelto», e la
+ * differenza deve stare nello stato: con la stringa vuota per tutte e due, il
+ * pulsante Crea resterebbe spento su una scelta che è stata fatta. Sentinella,
+ * non `null`, perché `clientId` è la stessa variabile che porta un uuid.
+ */
+export const NO_CLIENT = '__none__'
 export type Person = { id: string; full_name: string; avatar_url: string | null; app_role?: AppRole | null }
 export type ClientOpt = { id: string; name: string }
 export type ProjectOpt = { id: string; name: string; client_id: string | null }
@@ -44,6 +53,12 @@ export type PickDestination = {
   projects: ProjectOpt[]
   defaultKind?: TaskKind
   defaultClientId?: string
+  /**
+   * §317 — chi può aprire una nuova anagrafica (admin e manager). Il gate vero
+   * è `requireClientCreator()` dentro l'azione; questo serve a non mostrare un
+   * pulsante che rimbalzerebbe, che è peggio di un pulsante assente (§211).
+   */
+  canCreateClient?: boolean
 }
 
 const KIND_META: Record<TaskKind, { label: string; hint: string }> = {
@@ -73,6 +88,11 @@ export function TaskComposer({
   const [wsId, setWsId] = useState(fixed?.workstreamId ?? '')
   const [msId, setMsId] = useState(fixed?.milestoneId ?? '')
   const [q, setQ] = useState('')
+  /* §321 — un'anagrafica aperta da qui deve comparire subito nella lista: il
+     server la conosce, questa modale no, e ricaricare la pagina sotto una
+     modale aperta è il modo per perdere quello che si stava scrivendo. */
+  const [nuovi, setNuovi] = useState<ClientOpt[]>([])
+  const [creating, setCreating] = useState<'stabile' | 'lead' | null>(null)
 
   const [title, setTitle] = useState('')
   const [assignee, setAssignee] = useState('')
@@ -113,9 +133,10 @@ export function TaskComposer({
 
   // referenti del cliente: su una task "al cliente" il titolare è uno di loro
   const [contacts, setContacts] = useState<Person[] | null>(null)
+  const noClient = clientId === NO_CLIENT
   const effectiveClientId = kind === 'project'
     ? (pick?.projects.find(p => p.id === projectId)?.client_id ?? fixed?.clientId ?? null)
-    : (clientId || null)
+    : (noClient ? null : (clientId || null))
 
   useEffect(() => {
     if (kind !== 'cliente' || !effectiveClientId) { setContacts(null); return }
@@ -140,21 +161,35 @@ export function TaskComposer({
 
   const person = assigneeOptions.find(p => p.id === assignee)
   const supPerson = supervisorOptions.find(p => p.id === supervisor)
-  const client = (pick?.clients ?? []).find(c => c.id === clientId)
+  const allClients = useMemo(
+    () => [...nuovi, ...(pick?.clients ?? [])], [nuovi, pick])
+  const client = allClients.find(c => c.id === clientId)
   const project = (pick?.projects ?? []).find(p => p.id === projectId)
 
   const filteredClients = useMemo(() => {
     const t = q.trim().toLowerCase()
-    return t ? (pick?.clients ?? []).filter(c => c.name.toLowerCase().includes(t)) : (pick?.clients ?? [])
-  }, [pick, q])
+    return t ? allClients.filter(c => c.name.toLowerCase().includes(t)) : allClients
+  }, [allClients, q])
+
+  /* §321 — il nome scritto vale come nome nuovo solo se **non** è già in
+     anagrafica: proporre «aggiungi Affinity» quando Affinity è tre righe sotto
+     è il modo di creare un doppione senza accorgersene. */
+  const nome = q.trim()
+  const esisteGià = nome.length > 0
+    && allClients.some(c => c.name.trim().toLowerCase() === nome.toLowerCase())
+  const canOpenAnagrafica = !!pick?.canCreateClient && nome.length >= 2 && !esisteGià
   const filteredProjects = useMemo(() => {
     const t = q.trim().toLowerCase()
     return t ? (pick?.projects ?? []).filter(p => p.name.toLowerCase().includes(t)) : (pick?.projects ?? [])
   }, [pick, q])
 
+  /* Una task **al cliente** compare nel portale del cliente: senza un cliente
+     non ha un posto dove comparire, quindi lì la sentinella non vale. */
   const destinationReady = fixed
     ? true
-    : kind === 'project' ? (!!projectId && !!wsId && !!msId) : !!clientId
+    : kind === 'project' ? (!!projectId && !!wsId && !!msId)
+    : kind === 'cliente' ? (!!clientId && !noClient)
+    : !!clientId
   const canSubmit = !!title.trim() && destinationReady
 
   const Icon = fixed?.variant === 'subtask' ? CornerDownRight
@@ -172,7 +207,33 @@ export function TaskComposer({
   const hint = fixed?.context
     ?? (kind === 'project'
       ? [project?.name, ws.find(w => w.id === wsId)?.name].filter(Boolean).join(' · ') || 'Dove va questa task?'
-      : client?.name ?? 'Per quale cliente?')
+      : noClient ? 'Nessun cliente' : client?.name ?? 'Per quale cliente?')
+
+  /**
+   * §321 — «questo nome non è in anagrafica»: le due risposte.
+   *
+   * `stabile` è un cliente vero, `lead` è qualcuno per cui il lavoro è già
+   * cominciato ma che non fattura ancora — e la differenza non è cosmetica:
+   * un lead resta fuori da MRR, conto economico, alert e churn
+   * (`countsInStats` in `lib/clients.ts`). Quello che nasce qui è una riga
+   * minima, e chi apre la scheda la completa: qui si dà un posto a un lavoro,
+   * non si compila un'anagrafica.
+   */
+  const creaCliente = (label: 'stabile' | 'lead') => {
+    setCreating(label)
+    start(async () => {
+      try {
+        const c = await createClientQuick(nome, label)
+        const opt = { id: c.id, name: c.display_name || c.company_name }
+        setNuovi(prev => [opt, ...prev])
+        setClientId(c.id)
+        setQ('')
+        toast.success(label === 'lead' ? `«${opt.name}» segnato come lead` : `«${opt.name}» in anagrafica`)
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Errore')
+      } finally { setCreating(null) }
+    })
+  }
 
   const submit = () => start(async () => {
     try {
@@ -189,7 +250,7 @@ export function TaskComposer({
         })
       } else {
         id = await createAdHocTask({
-          client_id: clientId, task_type: kind === 'cliente' ? 'cliente' : 'ad_hoc',
+          client_id: effectiveClientId, task_type: kind === 'cliente' ? 'cliente' : 'ad_hoc',
           title: title.trim(), assignee_id: assignee || null,
           supervisor_id: kind === 'cliente' ? (supervisor || null) : null,
           due_date: due || null, priority,
@@ -215,7 +276,13 @@ export function TaskComposer({
       {pick && pick.allow.length > 1 && (
         <div>
           <Segmented ariaLabel="Tipo di task" value={kind}
-            onChange={k => { setKind(k); setQ(''); setAssignee(''); setSupervisor('') }}
+            onChange={k => {
+              setKind(k); setQ(''); setAssignee(''); setSupervisor('')
+              /* §321 — «nessun cliente» vale solo per una task nostra: passando
+                 a «Al cliente» resterebbe scelto un cliente che non esiste, con
+                 Crea spento e niente che lo spieghi. Si torna a chiedere. */
+              if (k === 'cliente') setClientId(prev => prev === NO_CLIENT ? '' : prev)
+            }}
             options={pick.allow.map(k => ({ value: k, label: KIND_META[k].label }))} />
           <p className="text-2xs text-text-tertiary mt-1.5">{KIND_META[kind].hint}</p>
         </div>
@@ -280,19 +347,69 @@ export function TaskComposer({
         <Group label="Cliente" meta={clientId
           ? <button type="button" onClick={() => { setClientId(''); setAssignee('') }} className="text-2xs font-semibold text-gold-text">Cambia</button>
           : undefined}>
-          {clientId && client ? (
+          {clientId && (noClient || client) ? (
             <PickRow selected onClick={() => { setClientId(''); setAssignee('') }}
-              icon={<Avatar name={client.name} />} title={client.name} />
+              icon={noClient
+                ? <span className="w-8 h-8 rounded-full bg-surface-active flex items-center justify-center shrink-0">
+                    <CircleSlash className="w-4 h-4 text-text-tertiary" />
+                  </span>
+                : <Avatar name={client!.name} />}
+              title={noClient ? 'Nessun cliente' : client!.name}
+              subtitle={noClient ? 'roba nostra, non legata a un cliente' : undefined} />
           ) : (
             <div className="space-y-2">
-              <SearchInput value={q} onChange={setQ} placeholder="Cerca cliente…" autoFocus />
-              {filteredClients.length === 0 ? <Empty>Nessun cliente per «{q}».</Empty> : (
-                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                  {filteredClients.map(c => (
-                    <PickRow key={c.id} selected={false} onClick={() => { setClientId(c.id); setQ('') }}
-                      icon={<Avatar name={c.name} />} title={c.name} />
-                  ))}
+              <SearchInput value={q} onChange={setQ}
+                placeholder={pick.canCreateClient ? 'Cerca, o scrivi un nome nuovo…' : 'Cerca cliente…'} autoFocus />
+
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {/* §321 — la prima voce è «nessuno»: una task ad hoc può essere
+                    roba nostra e basta. Su una task **al cliente** non c'è,
+                    perché senza cliente non avrebbe un portale dove comparire. */}
+                {kind === 'ad_hoc' && (!nome || 'nessun cliente'.includes(nome.toLowerCase())) && (
+                  <PickRow selected={false} onClick={() => { setClientId(NO_CLIENT); setQ('') }}
+                    icon={<span className="w-8 h-8 rounded-full bg-surface-active flex items-center justify-center shrink-0">
+                      <CircleSlash className="w-4 h-4 text-text-tertiary" />
+                    </span>}
+                    title="Nessun cliente" subtitle="roba nostra, non legata a un cliente" />
+                )}
+                {filteredClients.map(c => (
+                  <PickRow key={c.id} selected={false} onClick={() => { setClientId(c.id); setQ('') }}
+                    icon={<Avatar name={c.name} />} title={c.name} />
+                ))}
+              </div>
+
+              {/* §321 — il nome scritto non è in anagrafica: due risposte, e
+                  dicono cosa comportano. Senza il permesso non si mostra un
+                  pulsante che rimbalzerebbe (§211): si dice a chi chiederlo. */}
+              {canOpenAnagrafica && (
+                <div className="rounded-xl border border-dashed border-border p-3 space-y-2">
+                  <p className="text-2xs text-text-secondary">
+                    «<span className="font-semibold text-text-primary">{nome}</span>» non è in anagrafica.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => creaCliente('stabile')} disabled={!!creating}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gold text-on-gold text-2xs font-semibold disabled:opacity-60">
+                      <UserPlus className="w-3.5 h-3.5" />
+                      {creating === 'stabile' ? 'Aggiungo…' : 'Aggiungi in anagrafica'}
+                    </button>
+                    <button type="button" onClick={() => creaCliente('lead')} disabled={!!creating}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border-strong text-text-primary text-2xs font-semibold hover:bg-surface-hover disabled:opacity-60">
+                      <Sprout className="w-3.5 h-3.5 text-info" />
+                      {creating === 'lead' ? 'Segno…' : 'Segna come lead'}
+                    </button>
+                  </div>
+                  <p className="text-2xs text-text-tertiary">
+                    Il lead resta fuori da canone, conto economico e avvisi finché non diventa cliente.
+                  </p>
                 </div>
+              )}
+
+              {nome && filteredClients.length === 0 && !canOpenAnagrafica && (
+                <Empty>
+                  {esisteGià ? <>«{nome}» è già in elenco.</>
+                    : pick.canCreateClient ? <>Scrivi almeno due lettere per aprirlo in anagrafica.</>
+                    : <>Nessun cliente per «{nome}». L&apos;anagrafica la apre un admin o un manager.</>}
+                </Empty>
               )}
             </div>
           )}

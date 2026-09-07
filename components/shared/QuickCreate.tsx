@@ -15,6 +15,7 @@ import {
   ModalShell, Group, Field, SearchInput, PickRow, Segmented, Empty, inputCls,
 } from '@/components/shared/formkit'
 import { workstreamPrefixFromProjectName, applyWorkstreamPrefix } from '@/lib/project-naming'
+import { canCreateClients } from '@/lib/permissions'
 import { TaskComposer } from '@/components/tasks/TaskComposer'
 import type {
   WorkstreamType, ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode,
@@ -44,6 +45,10 @@ export function QuickCreate({ context = 'admin' }: { context?: 'admin' | 'worksp
   const [templates, setTemplates] = useState<ProjectTemplate[]>([])
   const [nodes, setNodes] = useState<ProjectTemplateNode[]>([])
   const [wizardLoaded, setWizardLoaded] = useState(false)
+  /* §317/§321 — il ruolo di chi guarda: decide se il composer può offrire di
+     aprire un'anagrafica. La porta vera resta `requireClientCreator()` nell'
+     azione; questo evita di mostrare un pulsante che rimbalzerebbe (§211). */
+  const [canCreateClient, setCanCreateClient] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [rect, setRect] = useState<DOMRect | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
@@ -52,11 +57,16 @@ export function QuickCreate({ context = 'admin' }: { context?: 'admin' | 'worksp
   const ensureData = useCallback(async () => {
     if (loaded) return
     const sb = createBrowserClient()
-    const [c, p, pr] = await Promise.all([
+    const { data: { user } } = await sb.auth.getUser()
+    const [c, p, pr, me] = await Promise.all([
       sb.from('clients').select('id, company_name, display_name').order('company_name'),
       sb.from('projects').select('id, name, client_id').is('deleted_at', null).order('created_at', { ascending: false }),
       sb.from('profiles').select('id, full_name, app_role, avatar_url').eq('is_active', true).order('full_name'),
+      user
+        ? sb.from('profiles').select('app_role').eq('id', user.id).maybeSingle()
+        : Promise.resolve({ data: null }),
     ])
+    setCanCreateClient(canCreateClients((me.data as { app_role?: string | null } | null)?.app_role))
     setClients((c.data ?? []).map((x: { id: string; company_name: string; display_name: string | null }) => ({ id: x.id, name: x.display_name || x.company_name })))
     setProjects((p.data ?? []) as ProjectOpt[])
     setProfiles((pr.data ?? []) as PersonOpt[])
@@ -131,7 +141,7 @@ export function QuickCreate({ context = 'admin' }: { context?: 'admin' | 'worksp
         <WorkstreamModal projects={projects} base={base} onClose={() => setMode(null)} onDone={() => setMode(null)} notify={notifyCreated} />, document.body)}
       {mounted && mode === 'task' && createPortal(
         <TaskComposer
-          destination={{ mode: 'pick', allow: ['project', 'ad_hoc', 'cliente'], clients, projects }}
+          destination={{ mode: 'pick', allow: ['project', 'ad_hoc', 'cliente'], clients, projects, canCreateClient }}
           profiles={profiles.map(p => ({ id: p.id, full_name: p.full_name, avatar_url: p.avatar_url ?? null, app_role: p.app_role as never }))}
           onClose={() => setMode(null)}
           onCreated={({ kind, clientId, projectId, workstreamId }) => {

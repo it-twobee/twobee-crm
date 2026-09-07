@@ -14,13 +14,27 @@ export const isLost = (c: Countable) => c.client_label === 'perso'
 export const isPaused = (c: Countable) => c.client_label === 'pending'
 
 /**
+ * §321: non è ancora un cliente. Nasce scrivendo un nome che in anagrafica non
+ * c'è — dal composer di una task ad hoc, o dalla lista clienti — e serve a dare
+ * un posto a un lavoro già cominciato.
+ *
+ * Non fattura, quindi vale la regola della `pending`: fuori da MRR, conto
+ * economico, alert. Ma **non è un perso**: un perso era un cliente e non lo è
+ * più, un lead non lo è ancora, e contarlo nel churn direbbe che abbiamo perso
+ * qualcuno che non avevamo mai avuto.
+ */
+export const isLead = (c: Countable) => c.client_label === 'lead'
+
+/**
  * Base di calcolo di ogni statistica e di ogni avviso: né clienti interni
- * (TwoBee stessa, scambi merce), né persi, né fermi. Un cliente che non lavora
+ * (TwoBee stessa, scambi merce), né persi, né fermi, né lead (§321: non
+ * fatturano ancora). Un cliente che non lavora
  * e continua a pesare su MRR, health map o alert falsa tutti i numeri e non è
  * azionabile: il perso merita attenzione una volta sola, quando lo perdi; il
  * fermo la merita nella sua sezione, dove si vede da quanto sta fermo.
  */
-export const countsInStats = (c: Countable) => !c.is_internal && !isLost(c) && !isPaused(c)
+export const countsInStats = (c: Countable) =>
+  !c.is_internal && !isLost(c) && !isPaused(c) && !isLead(c)
 
 /**
  * §177: il cliente ha almeno un contratto venduto?

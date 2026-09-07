@@ -50,15 +50,19 @@ const relDays = (iso: string) => {
 }
 
 type Filter = 'aperte' | 'late' | 'soon' | 'unassigned' | 'tutte'
+/** §321 — filtrare le ad hoc che non sono di nessun cliente */
+const NESSUNO = '__none__'
 type GroupBy = 'cliente' | 'assegnatario' | 'scadenza' | 'nessuno'
 
 export function AdHocClient({
-  rows, clients, profiles, canManage, clientBase = '/clienti',
+  rows, clients, profiles, canManage, canCreateClient = false, clientBase = '/clienti',
 }: {
   rows: AdHocRow[]
   clients: ClientOpt[]
   profiles: Person[]
   canManage: boolean
+  /** §317 — admin e manager possono aprire un'anagrafica dal composer */
+  canCreateClient?: boolean
   clientBase?: string
 }) {
   const router = useRouter()
@@ -72,7 +76,10 @@ export function AdHocClient({
   const [groupBy, setGroupBy] = useState<GroupBy>('cliente')
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
 
-  const clientName = (id: string | null) => (id ? clients.find(c => c.id === id)?.name ?? '—' : '—')
+  /* §321 — «nessun cliente» è una scelta, non un dato mancante: un trattino la
+     fa leggere come un'anagrafica che manca, e chi la vede va a cercarla. */
+  const clientName = (id: string | null) =>
+    id ? (clients.find(c => c.id === id)?.name ?? '—') : 'Nessun cliente'
   const person = (id: string | null) => (id ? profiles.find(p => p.id === id) ?? null : null)
 
   const act = (fn: () => Promise<unknown>, ok?: string) => start(async () => {
@@ -111,7 +118,7 @@ export function AdHocClient({
     const in7 = plusDays(7)
     return rows.filter(r => {
       if (t && !r.title.toLowerCase().includes(t) && !clientName(r.client_id).toLowerCase().includes(t)) return false
-      if (clientId && r.client_id !== clientId) return false
+      if (clientId === NESSUNO ? r.client_id !== null : (clientId && r.client_id !== clientId)) return false
       if (assigneeId && r.assignee_id !== assigneeId) return false
       if (filter === 'tutte') return true
       if (r.status === 'completato') return false
@@ -197,6 +204,7 @@ export function AdHocClient({
         <select value={clientId} onChange={e => setClientId(e.target.value)} aria-label="Filtra per cliente"
           className="bg-surface border border-border-interactive rounded-xl px-3 py-2 text-2xs text-text-primary shrink-0 max-w-[180px]">
           <option value="">Tutti i clienti</option>
+          <option value={NESSUNO}>Nessun cliente</option>
           {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <select value={assigneeId} onChange={e => setAssigneeId(e.target.value)} aria-label="Filtra per assegnatario"
@@ -293,7 +301,10 @@ export function AdHocClient({
 
       {adding && (
         <TaskComposer
-          destination={{ mode: 'pick', allow: ['ad_hoc', 'cliente'], clients, projects: [], defaultClientId: clientId || undefined }}
+          destination={{
+            mode: 'pick', allow: ['ad_hoc', 'cliente'], clients, projects: [],
+            defaultClientId: clientId || undefined, canCreateClient,
+          }}
           profiles={profiles}
           onClose={() => setAdding(false)}
           onCreated={() => router.refresh()} />

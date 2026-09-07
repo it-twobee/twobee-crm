@@ -16,7 +16,14 @@ async function requireStaff(): Promise<string> {
 }
 
 export async function createAdHocTask(input: {
-  client_id: string
+  /**
+   * §321 — `null` = task ad hoc **senza cliente**: lavoro nostro che non è di
+   * nessuno in particolare (una ricerca, una sistemata al sito, un adempimento).
+   * `tasks.client_id` è nullable dalla 155 e la RLS della 094 fa il resto: una
+   * task senza progetto la vedono solo admin e assegnatario, quindi non finisce
+   * sotto gli occhi di tutti per il fatto di non avere un cliente.
+   */
+  client_id: string | null
   title: string
   assignee_id?: string | null
   due_date?: string | null

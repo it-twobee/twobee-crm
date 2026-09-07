@@ -35,7 +35,7 @@ export type PermissionAction = 'view' | 'create' | 'edit' | 'delete'
 export type PaymentStatus = 'pagato' | 'in_attesa' | 'scaduto'
 export type ClientStatus = 'verde' | 'giallo' | 'rosso'
 export type ClientType = 'growth' | 'digital' | 'growth_digital'
-export type ClientLabel = 'stabile' | 'in_bilico' | 'pending' | 'perso' | 'partner'
+export type ClientLabel = 'stabile' | 'in_bilico' | 'pending' | 'lead' | 'perso' | 'partner'
 export type StakeholderRole = 'owner' | 'stakeholder' | 'collaboratore_esterno' | 'agenzia_supporto'
 export type Priority = 'alta' | 'media' | 'bassa'
 // 'customer_care'/'cliente' esistono ancora ma la chat non li mostra più: vivono

@@ -1,5 +1,35 @@
 # Workspace, workload, ferie, task completate, widget
 
+## Task ad hoc: il cliente può anche non esserci (§321)
+
+`TaskComposer` chiedeva un cliente e basta, e le due cose che mancavano erano
+opposte: un cliente **che non esiste ancora** e **nessun cliente affatto**.
+
+- **«Nessun cliente» è la prima voce dell'elenco**, non un campo lasciato vuoto:
+  una ricerca, una sistemata al sito, un adempimento sono lavoro nostro e non
+  sono di nessuno. Nel composer è una sentinella (`NO_CLIENT`), non la stringa
+  vuota, perché «ho scelto di non averlo» e «non ho ancora scelto» sono due
+  stati diversi e col vuoto per tutti e due il pulsante Crea resta spento su una
+  scelta che è stata fatta. `tasks.client_id` è nullable dalla 155 e la RLS della
+  094 fa il resto: una task senza progetto la vedono solo admin e assegnatario.
+  **Su una task «al cliente» la voce non c'è**: senza cliente non avrebbe un
+  portale dove comparire.
+- **Un nome che in anagrafica non c'è si scrive lo stesso**, e le risposte sono
+  due — «aggiungi in anagrafica» e «segna come lead» (§321). Sono entrambe una
+  riga in anagrafica: cambia `client_label`, e con quello il peso della riga.
+  Un campo di testo libero sulla task sarebbe stato un riferimento sospeso.
+- **La proposta non compare se il nome è già in elenco**: offrire «aggiungi
+  Affinity» mentre Affinity è tre righe sotto è il modo di creare un doppione
+  senza accorgersene. E non compare a chi non può aprire un'anagrafica (§317):
+  un pulsante che rimbalza è peggio di un pulsante assente (§211). La porta vera
+  resta `requireClientCreator()` dentro l'azione.
+- **Si passa da `createClientRecord`**, non da una seconda insert: stesso guard,
+  stessa cronologia, stessi default della `NewClientModal` (`mrr: 0`, avvio a
+  oggi, pagamento in attesa — li riscrive il primo contratto venduto, §169).
+- Nell'elenco delle ad hoc «nessun cliente» **si scrive**, non è un trattino: un
+  trattino si legge come un'anagrafica che manca e manda a cercarla. C'è anche
+  il suo filtro.
+
 ## Workload (`/workload` e `/workspace/workload`)
 Vista strategica dei progetti in parallelo: effort (ore stimate, default 4h dove
 manca), timeline, carico per risorsa. Stessa `WorkloadClient` per admin e workspace.

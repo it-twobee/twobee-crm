@@ -65,10 +65,13 @@ const labelBadge: Record<string, string> = {
   stabile: 'bg-success/20 text-success',
   in_bilico: 'bg-warning/20 text-warning',
   pending: 'bg-warning/20 text-warning',
+  lead: 'bg-info/20 text-info',
   perso: 'bg-error/20 text-error',
   partner: 'bg-gold/20 text-gold-text',
 }
-const labelIcon: Record<string, string> = { stabile: '✅', in_bilico: '⚠️', pending: '⏸️', perso: '❌', partner: '🤝' }
+const labelIcon: Record<string, string> = {
+  stabile: '✅', in_bilico: '⚠️', pending: '⏸️', lead: '🌱', perso: '❌', partner: '🤝',
+}
 const typeBadge: Record<string, string> = {
   growth: 'bg-gold/15 text-gold-text',
   digital: 'bg-info/15 text-info',
@@ -835,6 +838,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
           <option value="stabile">✅ Stabile</option>
           <option value="in_bilico">⚠️ In bilico</option>
           <option value="pending">⏸️ In pending</option>
+          <option value="lead">🌱 Lead</option>
           <option value="perso">❌ Perso</option>
           <option value="partner">🤝 Partner</option>
         </select>

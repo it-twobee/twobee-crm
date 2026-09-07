@@ -40,6 +40,7 @@ export const CLIENT_LABEL_OPTIONS: { value: ClientLabel; label: string }[] = [
   { value: 'stabile', label: 'Stabile' },
   { value: 'in_bilico', label: 'In bilico' },
   { value: 'pending', label: 'In pending' },
+  { value: 'lead', label: 'Lead' },
   { value: 'perso', label: 'Perso' },
   { value: 'partner', label: 'Partner' },
 ]

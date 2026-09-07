@@ -96,7 +96,8 @@ export function relationship(c: ClientInput, today = new Date().toISOString().sl
       months: na(sold.length
         ? 'i contratti non hanno una data di inizio'
         : 'nessun contratto: il rapporto si misura dal primo che vendi'),
-      active: c.client_label !== 'perso' && c.client_label !== 'pending',
+      active: c.client_label !== 'perso' && c.client_label !== 'pending'
+        && c.client_label !== 'lead',
       renewalInDays: renewal,
       lost: c.client_label === 'perso',
     }
@@ -107,7 +108,8 @@ export function relationship(c: ClientInput, today = new Date().toISOString().sl
     months: ok(Math.max(0, span), end
       ? `dal primo contratto (${start}) al ${end}`
       : `dal primo contratto, ${start}`),
-    active: c.client_label !== 'perso' && c.client_label !== 'pending',
+    active: c.client_label !== 'perso' && c.client_label !== 'pending'
+      && c.client_label !== 'lead',
     renewalInDays: renewal,
     lost: c.client_label === 'perso',
   }

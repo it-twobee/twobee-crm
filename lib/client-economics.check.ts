@@ -66,6 +66,13 @@ eq('cliente perso: rapporto chiuso alla data di perdita',
     streams: [S({ start_date: '2026-01-01' })], client_label: 'perso', lost_at: '2026-04-15',
   }), '2026-07-01').months.value, 3)
 
+/* §321 — un lead non ha un rapporto in corso: il lavoro può essere cominciato,
+   ma finché non fattura non è un cliente attivo. */
+eq('lead: rapporto non attivo',
+  relationship(base({ client_label: 'lead' }), '2026-07-01').active, false)
+eq('e non è nemmeno un perso',
+  relationship(base({ client_label: 'lead' }), '2026-07-01').lost, false)
+
 console.log('\n— Rinnovo: l\'ultimo contratto a scadere, se non c\'è un indeterminato —')
 eq('scadenza dal contratto',
   relationship(base({ streams: [S({ start_date: '2026-01-01', end_date: '2026-09-30' })] }), '2026-07-01').renewalInDays, 91)
