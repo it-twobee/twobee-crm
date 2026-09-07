@@ -16,8 +16,13 @@
  */
 import { classify, type TxKind } from '@/lib/bank'
 
-/** `italiano` = tracciato dell'home banking italiano (BPM, Valsabbina, e simili). */
-export type Dialect = 'italiano' | 'vivid'
+/**
+ * `italiano` = tracciato dell'home banking italiano (BPM, Valsabbina, e simili).
+ * `camt` = ISO 20022 camt.053, che non è un CSV: è quello che Vivid esporta
+ * quando non gli si chiede il foglio di calcolo, ed è lo stesso standard di
+ * mezza Europa.
+ */
+export type Dialect = 'italiano' | 'vivid' | 'camt'
 
 export type ParsedTx = {
   booked_on: string
@@ -136,7 +141,97 @@ function parseAmount(v: string): number {
   return Number(s.replace(',', '.'))
 }
 
+
+/**
+ * L'estratto conto in ISO 20022 (camt.053).
+ *
+ * Non è un dialetto CSV in più: è un formato diverso dello **stesso** conto, e
+ * da lì il vincolo che governa tutto questo parser — **le descrizioni devono
+ * uscire identiche a quelle del CSV**. L'impronta che riconosce un movimento
+ * già in archivio contiene la descrizione (§210, §288): se il camt scrivesse
+ * «Card transaction ASANA.COM, DUBLIN, IE» dove il CSV ha scritto «ASANA.COM,
+ * DUBLIN, IE — ASANA.COM, DUBLIN, IE», riscaricare due mesi già importati ne
+ * reinserirebbe ogni riga. Perciò si ricostruisce la stessa coppia
+ * `controparte — causale`, e il resto della catena non si accorge di niente.
+ *
+ * Il camt dice il «chi» in due modi e nessuno dei due è un campo:
+ * «Card transaction <esercente>» e «Incoming transfer From <nome> <causale>
+ * <IBAN> <BIC>». Si toglie il prefisso, si tolgono IBAN e BIC dalla coda, e si
+ * toglie la causale che `RmtInf/Ustrd` ha già detto: quello che resta è il
+ * nome. Dove non resta niente si tiene la riga intera — perdere un movimento è
+ * peggio che tenerne uno con la descrizione lunga.
+ */
+function parseCamt(xml: string): ParseResult {
+  const dec = (v: string) => v
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&').trim()
+  const tag = (block: string, name: string) => {
+    const m = block.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`))
+    return m ? dec(m[1]) : ''
+  }
+
+  const rows: ParsedTx[] = []
+  const skipped: string[] = []
+  const blocks = xml.match(/<Ntry>[\s\S]*?<\/Ntry>/g) ?? []
+  if (!blocks.length) throw new Error('Nessun movimento (<Ntry>) nel file camt.053')
+
+  blocks.forEach((b, i) => {
+    const booked = tag(tag(b, 'BookgDt'), 'Dt').slice(0, 10)
+    const value = tag(tag(b, 'ValDt'), 'Dt').slice(0, 10)
+    const raw = Number(tag(b, 'Amt'))
+    /* Nel camt il segno non sta nell'importo: sta in un campo a parte, e
+       leggerlo male ribalta un estratto conto intero. */
+    const dbit = /<CdtDbtInd>\s*DBIT\s*<\/CdtDbtInd>/.test(b)
+    const info = tag(b, 'AddtlNtryInf') || tag(b, 'AddtlTxInf')
+    const ustrd = tag(tag(b, 'RmtInf'), 'Ustrd')
+
+    if (!booked || !Number.isFinite(raw) || !info) {
+      skipped.push(`movimento ${i + 1}: ${!booked ? 'data illeggibile' : !Number.isFinite(raw) ? 'importo illeggibile' : 'descrizione vuota'}`)
+      return
+    }
+
+    const carta = /^Card transaction\s+/i.test(info)
+    const pre = info.match(/^(?:Card transaction|Incoming transfer From|Outgoing transfer To|Direct debit (?:from|to))\s+/i)
+    let party = pre ? info.slice(pre[0].length) : info
+
+    /* IBAN e BIC si tolgono **solo** dai bonifici, e il BIC solo dopo aver
+       tolto un IBAN: «WWWARUBAIT, BIBBIENA, IT» è un esercente, e BIBBIENA ha
+       esattamente la forma di un BIC. Una regola che si applica ovunque
+       cancella il nome di un paese toscano e lascia «WWWARUBAIT,, IT». */
+    if (!carta) {
+      const senzaIban = party.replace(/\s+[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b/g, '')
+      if (senzaIban !== party) party = senzaIban.replace(/\s+[A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?\b/g, '')
+      party = party.trim()
+    }
+    if (ustrd && party.endsWith(ustrd)) party = party.slice(0, -ustrd.length).trim()
+
+    /* Sulle carte il CSV di Vivid ripete il nome nella colonna «Reference», e
+       la descrizione che ne esce è «X — X». Va ripetuto anche qui, o lo stesso
+       addebito esportato nei due formati produce due impronte diverse. */
+    const ref = ustrd || (carta ? (party || info) : '')
+
+    rows.push({
+      booked_on: booked,
+      value_on: value || booked,
+      amount: r2(dbit ? -Math.abs(raw) : Math.abs(raw)),
+      /* La stessa regola del CSV Vivid: la controparte è il dato utile, la
+         causale la segue quando c'è. Ripetere è meglio che perdere. */
+      description: [party || info, ref].filter(Boolean).join(' — '),
+      counterparty_raw: party || null,
+      causal_code: null,
+      channel: null,
+    })
+  })
+
+  return { dialect: 'camt', rows, skipped }
+}
+
 export function parseStatement(csv: string): ParseResult {
+  /* Il formato si riconosce dal contenuto, non dall'estensione (§277): un camt
+     salvato come `.txt` è sempre un camt, e un CSV rinominato `.xml` non lo è. */
+  if (/<Document[^>]*camt\.053/i.test(csv) || /<Ntry>/.test(csv)) return parseCamt(csv)
+
   const lines = csv.split(/\r?\n/).filter(l => l.trim())
   if (!lines.length) throw new Error('Il file è vuoto')
 
@@ -146,7 +241,8 @@ export function parseStatement(csv: string): ParseResult {
   if (!dialect) {
     throw new Error(
       'Formato non riconosciuto. Servono una data («Data contabile», «Data operazione») e un importo '
-      + '(«Importo», oppure «Dare»/«Avere»), o il tracciato Vivid («Completed date», «Payment amount»). '
+      + '(«Importo», oppure «Dare»/«Avere»), il tracciato Vivid («Completed date», «Payment amount») '
+      + 'o un estratto conto camt.053 in XML. '
       + `Trovate: ${header.join(', ')}`)
   }
 

@@ -4,8 +4,8 @@
 
 **Allineato ai documenti veri al 7 settembre**: estratto conto BPM al 7/9 (7
 movimenti nuovi su 114 letti), 7 fatture nuove (3 emesse, 4 ricevute). Archivio
-a 81 documenti, 151 movimenti. **Saldo reale 15.606,10 €** — e il gate del
-prospetto lo conferma: 4.315 + 11.743 − 452 = 15.606, ✓ combacia.
+a 81 documenti, 151 movimenti. **Saldo reale 15.787,07 €** (BPM 15.358,92 + Vivid 428,15) — e il gate del
+prospetto lo conferma: 4.315 + 12.204 − 732 = 15.787, ✓ combacia.
 
 **Il fatto nuovo grosso: iCura AI Digital Trainer.** La FPR 55/26 del 31 agosto
 fattura **20.000 €** di «acconto contrattuale per kick-off», e nel tool quel
@@ -66,18 +66,23 @@ vuoto.
 
 **Quello che resta, in ordine:**
 
-1. **Manca l'estratto conto Vivid** dal 15 agosto al 7 settembre. Il giroconto
-   del 2/9 (−450 € da BPM) ha un solo lato, e le spese di software e ads di fine
-   agosto non ci sono. È anche la ragione per cui agosto è stato **lasciato
-   aperto**: chiudere con dentro un mese di spese mancanti è fotografare un mese
-   incompleto.
+1. ~~Manca l'estratto conto Vivid.~~ **Arrivato**, in camt.053 (§320): 57
+   movimenti letti, 52 già riconosciuti, **5 nuovi** — cashback 11,73, Google
+   Workspace 177,88, Slack 57,75, OVHcloud 45,13, e il **lato mancante del
+   giroconto del 2 settembre**, che adesso è appaiato: i giroconti sono 8 su 8,
+   nessuno spaiato. Vivid passa da 247,18 a **428,15 €** e il saldo totale a
+   **15.787,07 €**. Fra il 15 e il 31 agosto su quel conto non è successo
+   niente, quindi agosto non cambia.
 2. **L'incasso ISF da 2.196 € del 6 agosto** non è stato toccato: quell'importo
    torna su quattro righe di due clienti diversi — Affinity ha lo stesso canone
    — e attaccarlo alla sbagliata dichiara incassata una fattura che nessuno ha
    pagato (§189). La scelta è di una persona.
 3. **Tre uscite di agosto da sistemare col dialogo dei movimenti** (§303), 148,91 €
    in tutto: due Meta Ads da accorpare (la riga dice 109,12 e dal conto sono
-   usciti 166,01) e un carburante da 92,02 da aggiungere.
+   usciti 166,01) e un carburante da 92,02 da aggiungere. Con l'estratto Vivid è
+   arrivato anche un **Google Workspace da 177,88 €** del 2 settembre che
+   `merchant()` non riconduce a niente e finisce in «Altro»: a piano la voce
+   esiste e dice 170.
 4. **Antonio Giarletta non ha ancora ricevuto un bonifico**: 1.821 € maturati,
    contati da sempre perché a chi non ha mai preso un euro la linea del
    consolidato non si applica (§228).
@@ -266,7 +271,7 @@ Ultimo commit: **`2d45e53`** (il registro delle allocazioni, §290→§307),
 pushato su `origin/main` il 2026-08-20 — 78 file, +9.849/−1.226. **`main` è
 allineato**, quindi su os.twobee.it c'è tutto quello che c'è qui.
 Gate del repo: `npx tsc --noEmit` (ESLint non è configurato) più i
-**trentasette** `lib/**/*.check.ts` (gli ultimi sono `allocations.check.ts` §297,
+**quarantacinque** `lib/**/*.check.ts` (gli ultimi sono `allocations.check.ts` §297,
 `f24.check.ts` §301, `month-intake.check.ts` §303, `stream-validation.check.ts`
 §306, `ai/tools/access.check.ts`, `ai/format.check.ts` §314 e
 `ai/tools/result.check.ts` §315), che si lanciano con

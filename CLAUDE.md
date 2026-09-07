@@ -41,7 +41,7 @@ database vero, e riscoprirle costa più che leggerle.
   va a controllare.** Quando una fonte manca, dichiaralo («n/d», «stimato»,
   «senza contratto»): mai uno zero.
 - **Gate del repo**: `npx tsc --noEmit` (ESLint non configurato) + i
-  **trentasette** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
+  **quarantacinque** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
   `lib/tracking/**`) — con `npx tsx lib/<percorso>.check.ts`: devono dire «Tutti
   i controlli passano».
 - **Non lanciare `npm run build` mentre `npm run dev` gira**: condividono `.next`

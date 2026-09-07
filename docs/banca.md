@@ -48,6 +48,32 @@ dice quando, l'altro dice di chi. La sezione li tiene agganciati.
   finiscono in `skipped` con la ragione. `merchant()` riconduce le descrizioni
   delle carte al fornitore vero — ventisei codici `FACEBK *…` sono «Meta Ads» — ed
   è **idempotente**, perché si applica all'import e poi rileggendo dal database.
+**E l'estratto conto non è sempre un CSV** (§320, `parseCamt`). Vivid esporta
+anche in **camt.053**, lo standard ISO 20022 di mezza Europa, e il formato si
+riconosce dal contenuto come tutti gli altri (§277) — un camt salvato `.txt` è
+sempre un camt. Ma non è un dialetto in più: è **lo stesso conto in un altro
+formato**, e da lì il vincolo che governa tutto il parser — **le descrizioni
+devono uscire identiche a quelle del CSV**. L'impronta che riconosce un
+movimento già in archivio contiene la descrizione (§210, §288): se il camt
+scrivesse «Card transaction ASANA.COM, DUBLIN, IE» dove il CSV ha scritto
+«ASANA.COM, DUBLIN, IE — ASANA.COM, DUBLIN, IE», riscaricare due mesi già
+importati ne reinserirebbe ogni riga. Ricostruita la stessa coppia
+`controparte — causale`, su 57 movimenti letti **52 sono stati riconosciuti** e
+5 erano nuovi davvero.
+
+Tre cose che il camt dice diversamente, e ognuna è un modo di sbagliare:
+
+- **Il segno non sta nell'importo**: sta in `CdtDbtInd`. Leggerlo male non
+  storta una riga, ribalta un estratto conto intero.
+- **Il «chi» non è un campo**: è dentro una frase — «Card transaction
+  <esercente>» o «Incoming transfer From <nome> <causale> <IBAN> <BIC>». Si
+  toglie il prefisso, si tolgono IBAN e BIC dalla coda, si toglie la causale che
+  `RmtInf/Ustrd` ha già detto, e quello che resta è il nome.
+- **IBAN e BIC si tolgono solo dai bonifici.** «WWWARUBAIT, BIBBIENA, IT» è un
+  esercente, e *BIBBIENA* ha esattamente la forma di un BIC: una regola applicata
+  ovunque cancellava il nome di un paese toscano e lasciava «WWWARUBAIT,, IT».
+  Il BIC si toglie solo dopo che un IBAN è stato tolto.
+
 - **Giroconti fra conti propri**: `pairTransfers` appaia i due lati per importo
   opposto e data vicina. Senza, la liquidità totale sembra scendere e la lista da
   riconciliare chiede due volte lo stesso fatto.

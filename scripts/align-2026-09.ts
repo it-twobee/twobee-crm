@@ -45,6 +45,7 @@
 import { readFileSync } from 'fs'
 import { targetCoverage, type Allocation } from '@/lib/allocations'
 import { eur } from '@/lib/money'
+import { transferPairs } from '@/lib/bank'
 
 const APPLY = process.argv.includes('--apply')
 
@@ -249,6 +250,27 @@ async function main() {
       + `${c2(cov.allocated)} su ${c2(Number(p.amount))} → pagato = ${deve ? 'sì' : 'no'}`
       + (!deve && cov.allocated > 0 ? ` · restano scoperti ${c2(Number(p.amount) - cov.allocated)}` : ''))
     if (APPLY) await patch(`pl_payouts?id=eq.${p.id}`, { paid: deve })
+  }
+
+  /* ── 5 · i due lati del giroconto ─────────────────────────────────────────── */
+  line('═'); console.log('5 · GIROCONTI SPAIATI (§190)'); line()
+
+  /* Un lato senza l'altro fa sembrare che la liquidità sia scesa, e la lista da
+     riconciliare chiede due volte lo stesso fatto. Il lato Vivid del 2 settembre
+     è arrivato con l'estratto camt: prima non c'era, ed è la ragione per cui
+     quei 450 € sembravano usciti. */
+  const soli = await api<Row[]>(
+    'bank_transactions?select=id,account_id,booked_on,amount&kind=eq.giroconto&transfer_pair_id=is.null')
+  const coppie = transferPairs(soli as { id: string; account_id: string; booked_on: string; amount: number }[])
+  if (!coppie.length) say('nessuna coppia da fare')
+  for (const { out, in: entrata } of coppie) {
+    say(`${out.booked_on} ${eur(out.amount)} ↔ ${eur(entrata.amount)}: appaiati`)
+    if (APPLY) {
+      await patch(`bank_transactions?id=eq.${out.id}`,
+        { transfer_pair_id: entrata.id, transfer_account_id: entrata.account_id, no_match_needed: true })
+      await patch(`bank_transactions?id=eq.${entrata.id}`,
+        { transfer_pair_id: out.id, transfer_account_id: out.account_id, no_match_needed: true })
+    }
   }
 
   line('═')

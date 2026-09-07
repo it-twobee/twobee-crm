@@ -41,6 +41,40 @@ console.log('\n— Valsabbina: virgola decimale, date con le barre —')
   is('niente scartato', r.skipped.length, 0)
 }
 
+console.log('\n— camt.053: lo stesso conto, un altro formato —')
+{
+  const xml = `<?xml version="1.0" encoding="UTF-8" ?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08"><BkToCstmrStmt><Stmt>
+  <Ntry><Amt Ccy="EUR">1000</Amt><CdtDbtInd>CRDT</CdtDbtInd><BookgDt><Dt>2026-07-14</Dt></BookgDt>
+    <NtryDtls><TxDtls><RmtInf><Ustrd>Spese Tools/Ads</Ustrd></RmtInf></TxDtls></NtryDtls>
+    <AddtlNtryInf>Incoming transfer From TWO BEE SOCIETA' A RESPONSABILITA' Spese Tools/Ads IT34T0503440090000000036003 BAPPIT22XXX</AddtlNtryInf></Ntry>
+  <Ntry><Amt Ccy="EUR">304.9</Amt><CdtDbtInd>DBIT</CdtDbtInd><BookgDt><Dt>2026-07-16</Dt></BookgDt>
+    <AddtlNtryInf>Card transaction ASANA.COM, DUBLIN, IE</AddtlNtryInf></Ntry>
+  <Ntry><Amt Ccy="EUR">4.87</Amt><CdtDbtInd>DBIT</CdtDbtInd><BookgDt><Dt>2026-07-16</Dt></BookgDt>
+    <AddtlNtryInf>Card transaction WWWARUBAIT, BIBBIENA, IT</AddtlNtryInf></Ntry>
+  <Ntry><Amt Ccy="EUR">14.56</Amt><CdtDbtInd>CRDT</CdtDbtInd><BookgDt><Dt>2026-08-03</Dt></BookgDt>
+    <AddtlNtryInf>Incoming transfer From Vivid Money GmbH DE94202208000026633805 SXPYDEHHXXX</AddtlNtryInf></Ntry>
+</Stmt></BkToCstmrStmt></Document>`
+  const r = parseStatement(xml)
+  is('dialetto riconosciuto dal contenuto', r.dialect, 'camt')
+  is('quattro movimenti', r.rows.length, 4)
+  /* Il segno sta in un campo a parte: leggerlo male ribalta l'estratto conto. */
+  eq('CRDT è positivo', r.rows[0].amount, 1000)
+  eq('DBIT è negativo', r.rows[1].amount, -304.9)
+  /* Il vincolo che tiene in piedi tutto: la descrizione deve uscire **identica**
+     a quella del CSV, o riscaricare due mesi già importati li reinserisce. */
+  is('bonifico: nome — causale, senza IBAN né BIC',
+    r.rows[0].description, "TWO BEE SOCIETA' A RESPONSABILITA' — Spese Tools/Ads")
+  is('carta: il nome ripetuto, come fa il CSV',
+    r.rows[1].description, 'ASANA.COM, DUBLIN, IE — ASANA.COM, DUBLIN, IE')
+  /* «BIBBIENA» ha esattamente la forma di un BIC: togliere i BIC ovunque
+     cancellava il nome di un paese toscano e lasciava «WWWARUBAIT,, IT». */
+  is('un esercente che sembra un BIC resta intero',
+    r.rows[2].description, 'WWWARUBAIT, BIBBIENA, IT — WWWARUBAIT, BIBBIENA, IT')
+  is('senza causale non si ripete niente', r.rows[3].description, 'Vivid Money GmbH')
+  is('niente scartato', r.skipped.length, 0)
+}
+
 console.log('\n— Vivid: punto decimale, date coi punti, controparte in chiaro —')
 {
   const csv = [
