@@ -89,7 +89,7 @@ export async function loadProspetto(
     { data: cfgRow }, { data: partnerRows }, { data: clientRows }, { data: payoutRows },
     { data: streamRows }, { data: coverRows }, { data: instRows }, { data: itemRows },
     { data: centerRows },
-    { data: vatActualRows }, { data: allocRows },
+    { data: vatActualRows }, { data: allocRows }, { data: payoutAllocRows },
   ] = await Promise.all([
     /* `select('*')`: `payout_date` arriva con la 212 e prima non c'è. Chiederla
        per nome farebbe fallire l'intero caricamento per una colonna che è un di
@@ -125,6 +125,10 @@ export async function loadProspetto(
     /* §258 — le quote: un bonifico cumulativo nomina più righe, e senza queste
        risulterebbero spuntate senza prova. */
     supabase.from('bank_tx_lines').select('tx_id, revenue_line_id, cost_line_id'),
+    /* §305 — quanto di ogni bonifico è compenso, e a chi: lo dice il registro
+       (§297), non la spunta. Senza la 214 la query fallisce, la mappa resta
+       vuota e l'erogato torna a leggersi dalla spunta, come prima. */
+    supabase.from('payment_allocations').select('tx_id, payout_id, amount'),
   ])
   const setupNeeded = setupErr?.code === '42P01' || setupErr?.code === 'PGRST205'
   if (setupNeeded) {
@@ -231,12 +235,41 @@ export async function loadProspetto(
      `materializePayouts` scrive la provvigione con quella del commerciale. Due
      spazi di chiavi diversi, e la spunta compariva solo su chi è commerciale e
      basta. Il nome ce l'hanno tutte e due ed è quello che si legge a schermo. */
+  /* §305/§297 — l'erogato lo dice il **registro**, non la spunta, e la data è
+     quella del movimento. I due difetti si sono visti insieme sul bonifico a
+     Walter del 27 agosto: la provvigione di Marco Lucci è 442,11 € e i due
+     bonifici che se la dividono ne portano 441,76, quindi la spunta non scatta
+     — e con la spunta come sola sorgente l'erogato di una persona pagata si
+     leggeva **zero**, che è la stessa bugia di uno zero su chi non è stato
+     pagato. Il conto economico legge già così (§305): due schermate che dicono
+     «erogato» e due cifre diverse è il difetto che questa riga chiude.
+     Dove il registro tace vale la spunta: una dichiarazione senza prova resta
+     una dichiarazione (§226), non un buco. */
+  const txDay = new Map(((txRows ?? []) as Record<string, unknown>[])
+    .map(t => [String(t.id), String(t.booked_on ?? '').slice(0, 10)]))
+  const allocByPayout = new Map<string, { amount: number; day: string }[]>()
+  for (const a of (payoutAllocRows ?? []) as Record<string, unknown>[]) {
+    if (!a.payout_id) continue          // le allocazioni su ricavi e costi non sono compensi
+    const k = String(a.payout_id)
+    allocByPayout.set(k, [...(allocByPayout.get(k) ?? []),
+      { amount: num(a.amount), day: txDay.get(String(a.tx_id)) ?? '' }])
+  }
+  const erogatoOf = (r: Record<string, unknown>): { amount: number; day: string }[] => {
+    const dal = allocByPayout.get(String(r.id))
+    if (dal?.length) return dal
+    return r.paid === true
+      ? [{ amount: num(r.amount), day: String(r.paid_on ?? '').slice(0, 10) }]
+      : []
+  }
+  const erogatoIn = (r: Record<string, unknown>, mm: string) =>
+    erogatoOf(r).filter(e => e.day.slice(0, 7) === mm.slice(0, 7))
+      .reduce((n, e) => n + e.amount, 0)
+
   const paidOfPerson = (rows: Record<string, unknown>[], who: string, kind: 'socio' | 'commerciale', mm: string) =>
     r2(rows
-      .filter(x => x.paid === true && x.kind === kind
-        && String(x.person_label ?? '').trim().toLowerCase() === who.trim().toLowerCase()
-        && String(x.paid_on ?? '').slice(0, 7) === mm.slice(0, 7))
-      .reduce((s2: number, x) => s2 + num(x.amount), 0))
+      .filter(x => x.kind === kind
+        && String(x.person_label ?? '').trim().toLowerCase() === who.trim().toLowerCase())
+      .reduce((s2: number, x) => s2 + erogatoIn(x, mm), 0))
 
   const payouts = (monthRows ?? []).map((m: { month: string }) => {
     const mm = m.month.slice(0, 10)
@@ -248,14 +281,12 @@ export async function loadProspetto(
       /* §243 — spuntato pagato **in questo mese**: la retribuzione di luglio si
          paga ad agosto, e la spunta cade lì. La riga sa anche per quale dei due
          lavori, cosa che un bonifico non dice (§226). */
-      paidPartners: (payoutRows ?? [])
-        .filter((x: Record<string, unknown>) => x.paid === true && x.kind === 'socio'
-          && String(x.paid_on ?? '').slice(0, 7) === mm.slice(0, 7))
-        .reduce((s2: number, x: Record<string, unknown>) => s2 + num(x.amount), 0),
-      paidSales: (payoutRows ?? [])
-        .filter((x: Record<string, unknown>) => x.paid === true && x.kind === 'commerciale'
-          && String(x.paid_on ?? '').slice(0, 7) === mm.slice(0, 7))
-        .reduce((s2: number, x: Record<string, unknown>) => s2 + num(x.amount), 0),
+      paidPartners: r2((payoutRows ?? [])
+        .filter((x: Record<string, unknown>) => x.kind === 'socio')
+        .reduce((s2: number, x: Record<string, unknown>) => s2 + erogatoIn(x, mm), 0)),
+      paidSales: r2((payoutRows ?? [])
+        .filter((x: Record<string, unknown>) => x.kind === 'commerciale')
+        .reduce((s2: number, x: Record<string, unknown>) => s2 + erogatoIn(x, mm), 0)),
       paidOut: Math.abs((txRows ?? [])
         .filter((x: Record<string, unknown>) => String(x.source) === 'banca'
           && String(x.kind) === 'finanziamento' && num(x.amount) < 0
@@ -316,7 +347,8 @@ export async function loadProspetto(
       }
     }
     for (const r of (payoutRows ?? []) as Record<string, unknown>[]) {
-      if (r.paid !== true) continue
+      const uscito = r2(erogatoOf(r).reduce((n, e) => n + e.amount, 0))
+      if (uscito <= 0) continue
       /* Lo stesso taglio sull'erogato: un bonifico che ha chiuso un mese
          liquidato non può chiudere due volte. Il mese di competenza sta in
          `month_id` — `pl_payouts` non ha una colonna `month`, e leggerne una che
@@ -331,8 +363,8 @@ export async function loadProspetto(
       const cur = acc.get(k) ?? { who, kind, accrued: 0, accruedAll: 0, paid: 0, paidAll: 0 }
       acc.set(k, {
         ...cur,
-        paid: dentro ? r2(cur.paid + num(r.amount)) : cur.paid,
-        paidAll: r2(cur.paidAll + num(r.amount)),
+        paid: dentro ? r2(cur.paid + uscito) : cur.paid,
+        paidAll: r2(cur.paidAll + uscito),
       })
     }
     /* §228 — la liquidazione è un fatto **per persona**, non una data per tutti.

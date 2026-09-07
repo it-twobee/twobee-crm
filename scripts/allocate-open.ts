@@ -26,7 +26,7 @@
  */
 import { readFileSync } from 'fs'
 import { eur } from '@/lib/money'
-import { propose, type AllocTx, type Candidate } from '@/lib/allocations'
+import { propose, targetCoverage, type AllocTx, type Candidate, type Allocation } from '@/lib/allocations'
 import { PERSON_ALIASES } from '@/lib/bank'
 
 const APPLY = process.argv.includes('--apply')
@@ -62,9 +62,61 @@ const line = (c = '─') => console.log(c.repeat(78))
 
 type Alloc = { tx_id: string; amount: number; revenue_line_id: string | null; cost_line_id: string | null; payout_id: string | null }
 
+/**
+ * §297 — **la spunta «pagato» segue il registro**, e la regola non può vivere
+ * solo nell'azione. Scrivere le allocazioni e lasciare `paid` com'era lascia il
+ * database a metà: sul bonifico a Walter del 27 agosto le due allocazioni
+ * c'erano e il prospetto continuava a dire «erogato 0», che è la stessa bugia
+ * di uno zero su chi non è stato pagato (§305). Stessa `targetCoverage`
+ * dell'azione: una regola sola, non una copia che domani diverge.
+ *
+ * Coperto vuol dire **coperto**: la provvigione di Walter è 417,00 e il
+ * bonifico ne porta 416,88 — dodici centesimi che restano scoperti, e la riga
+ * lo dice invece di arrotondare per far tornare il conto.
+ */
+async function syncPaid(rows: Record<string, unknown>[]) {
+  const COL = { ricavo: 'revenue_line_id', costo: 'cost_line_id', compenso: 'payout_id' } as const
+  const toAlloc = (r: Record<string, unknown>): Allocation => ({
+    id: String(r.id ?? ''), txId: String(r.tx_id), amount: num(r.amount),
+    evidence: (r.evidence as Allocation['evidence']) ?? 'certificata',
+    target: r.revenue_line_id ? 'ricavo' : r.cost_line_id ? 'costo' : 'compenso',
+    targetId: String(r.revenue_line_id ?? r.cost_line_id ?? r.payout_id),
+  })
+
+  for (const t of Array.from(new Set(rows.map(toAlloc).map(a => `${a.target}|${a.targetId}`)))) {
+    const [target, id] = t.split('|') as ['ricavo' | 'costo' | 'compenso', string]
+    const tutte = (await api<Record<string, unknown>[]>(
+      `payment_allocations?select=id,tx_id,amount,evidence,revenue_line_id,cost_line_id,payout_id&${COL[target]}=eq.${id}`)).map(toAlloc)
+
+    let lordo: number
+    if (target === 'compenso') {
+      const [p] = await api<Record<string, unknown>[]>(`pl_payouts?select=amount&id=eq.${id}`)
+      if (!p) continue
+      lordo = num(p.amount)
+    } else {
+      const tab = target === 'ricavo' ? 'pl_revenue_lines' : 'pl_cost_lines'
+      const cols = target === 'ricavo' ? 'amount_net,vat_rate,month_id' : 'actual,budget,vat_applied,vat_rate,month_id'
+      const [l] = await api<Record<string, unknown>[]>(`${tab}?select=${cols}&id=eq.${id}`)
+      if (!l) continue
+      // un mese chiuso è una fotografia: non la riscrive un'allocazione di oggi
+      const [m] = await api<Record<string, unknown>[]>(`pl_months?select=status&id=eq.${l.month_id}`)
+      if (m?.status === 'chiuso') continue
+      const netto = target === 'ricavo'
+        ? num(l.amount_net)
+        : (num(l.actual) > 0 ? num(l.actual) : num(l.budget))
+      lordo = r2(netto * (target === 'ricavo' || l.vat_applied ? 1 + num(l.vat_rate) : 1))
+    }
+
+    const c = targetCoverage(lordo, target, id, tutte)
+    const tab = target === 'compenso' ? 'pl_payouts' : target === 'ricavo' ? 'pl_revenue_lines' : 'pl_cost_lines'
+    await api(`${tab}?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ paid: c.state === 'coperto' }) })
+  }
+}
+
 async function write(rows: Record<string, unknown>[]) {
   if (!APPLY || !rows.length) return
   await api('payment_allocations', { method: 'POST', body: JSON.stringify(rows) })
+  await syncPaid(rows)
 }
 
 async function main() {

@@ -1,0 +1,118 @@
+# Workspace, workload, ferie, task completate, widget
+
+## Workload (`/workload` e `/workspace/workload`)
+Vista strategica dei progetti in parallelo: effort (ore stimate, default 4h dove
+manca), timeline, carico per risorsa. Stessa `WorkloadClient` per admin e workspace.
+`lib/workload.ts` = calcoli puri (l'effort di una task multi-assegnata si **divide**
+fra gli assegnatari). Filtri: tipo/cliente/risorsa/periodo. Editing (stato,
+riassegnazione, elimina) riservato al **PM** (`projects.manager_id`), al `manager`
+di ruolo o all'admin, via `app/actions/workload-tasks.ts` (service role). Nessun
+dato economico: è sicuro anche nel workspace.
+
+## Task completate (§283, `components/tasks/CompletedTasks.tsx`, migration 211)
+Spuntare «fatta» le faceva sparire e non c'era modo di tornare indietro: nel
+workspace la query stessa le escludeva (`neq('status','completato')`), negli
+elenchi ad hoc il filtro di partenza è «aperte». Una spunta per sbaglio — la
+casella è grande quanto il dito — voleva dire riscrivere la task da capo, con
+descrizione, assegnatario e scadenza persi.
+
+- **Una sezione loro, chiusa e contata**, in fondo ai tre elenchi (ad hoc admin,
+  ad hoc del cliente, «Le mie attività»): la data in cui è stata completata, il
+  gesto per riaprirla, e in testa quanto le resta da vivere. Sotto la settimana
+  il countdown si scrive sulla riga: è l'unico momento in cui uno vorrebbe
+  riaprirla prima che se ne vada.
+- **Dopo 60 giorni si cancellano da sole** (`purge_completed_tasks`, cron alle
+  3:20). Un elenco di completate che cresce all'infinito è un elenco che nessuno
+  apre più, e allora tanto valeva cancellarle subito.
+- **La data la garantisce un trigger**, non le azioni: `updateTaskStatus` la
+  scriveva, `setAdHocTaskStatus` e `updateAdHocTask` no — due percorsi su tre
+  l'avevano dimenticata, e senza quella data la retention non ha da dove
+  contare. Le azioni la scrivono lo stesso, perché finché la 211 non è eseguita
+  il trigger non c'è; il trigger copre i percorsi che non passano da lì (import
+  Asana, UPDATE a mano).
+- **Riaprire azzera**: da quel momento è una task viva come le altre, e i
+  sessanta giorni ripartono solo se la si richiude.
+
+
+## Ferie e assenze (§223, `lib/leave-calendar.ts`)
+Le assenze vivono in **due tabelle che non si parlano**: `hr_requests` è quello
+che la persona chiede dal Workspace (stati in inglese, e comprende tipi che
+assenze non sono — una nota spesa, un documento), `team_leaves` è il registro che
+l'admin tiene a mano (stati in italiano). Approvare una richiesta scrive in
+`calendar_events`, **non** in `team_leaves`: sono indipendenti. `normalize()` le
+fa diventare una lista sola, perché «chi manca il 12 agosto?» non può avere due
+risposte a seconda di quale tabella si guarda.
+
+Cosa resta fuori **si dichiara**, non si filtra in silenzio: `spesa` e
+`documento_hr` (hanno una data, ma nessuno manca dall'ufficio), le righe senza
+date, e gli **intervalli rovesciati** — sul database ce n'è uno vero, dal 24
+agosto al 31 luglio. Non si aggiusta scambiando le date: non si sa quale delle
+due sia giusta, quindi si scarta e si conta, e la pagina lo scrive.
+
+- **L'avviso a dieci giorni** (`upcoming`) è la finestra in cui una consegna si
+  può ancora spostare. Include **chi è già via**, con i giorni negativi: la
+  domanda vera non è «chi parte» ma «su chi non posso contare», e una persona
+  partita ieri non c'è esattamente come una che parte domani.
+- **Nel calendario il colore dice il tipo e il tratteggio dice lo stato**: due
+  informazioni su due canali, così una ferie da approvare non si confonde con un
+  permesso approvato. I giorni degli altri mesi ci sono: un'assenza che comincia
+  il 31 e finisce il 3 si legge solo se si vedono le due estremità.
+- **Il countdown del workspace** (`countdown`) guarda **solo le ferie
+  approvate**: metterlo su una richiesta che può essere rifiutata è il modo più
+  veloce di far arrabbiare qualcuno. Sparisce quando non c'è niente da contare —
+  un riquadro che dice «nessuna ferie» è una presa in giro — e il conteggio si fa
+  **sul server**, perché nel browser darebbe giorni diversi a seconda del fuso.
+
+Gate: `npx tsx lib/leave-calendar.check.ts` (42 controlli sulle righe vere).
+
+
+### Il workspace è usabile o non è (§211)
+Tre difetti che rendevano il portale un vicolo cieco, e le regole che li chiudono:
+
+- **Le sezioni personali non passano dai permessi.** La 079 ha seminato
+  `workspace_section_permissions` per manager, senior, junior, stage e freelance:
+  `partner` è arrivato dopo, `viewer` non c'è mai stato, e chi non era in quella
+  lista entrava e trovava **una voce sola**. Dashboard, attività, profilo,
+  richieste HR, calendario, buste paga, documenti personali, cronologia e
+  feedback ora sono universali: mostrano **solo i dati di chi guarda**, e a
+  garantirlo è la RLS — owner-only in tabella — non il menu. Nascondere la voce
+  non proteggeva niente, rendeva solo il portale inutilizzabile. Restano ai
+  permessi le sezioni che parlano di **altri**: clienti, progetti, customer care,
+  ticket, documenti condivisi, task ad hoc.
+- **Un link che rimbalza è peggio di un link assente.** Dal workspace ogni rotta
+  admin la respinge il middleware: le rotte si costruiscono da una `base` sola
+  (`ClientiList`, `ClientPageClient.portalBase`, `basePath`/`clientBase`), mai
+  scritte a mano riga per riga. Le due sezioni in fondo alla lista clienti —
+  sospesi e persi — se l'erano dimenticata, e un cliente sospeso che non si apre
+  è esattamente la voce che serve di più a chi deve richiamarlo.
+- **Niente economics, e non per convenzione.** Tre strati indipendenti:
+  `clients_workspace` azzera canone e dati fiscali **in tabella** (100/197);
+  `hideEconomics` spegne MRR, pagamenti, anagrafica fiscale, export ed elimina;
+  la scheda Economics del progetto e del cliente **non viene montata**. In più
+  quello che nessun riquadro mostra non parte nemmeno: stato pagamenti e date di
+  contratto si azzerano prima di finire nel payload, perché una cosa nascosta
+  nella UI si legge lo stesso dal pannello di rete. Le pagine del workspace
+  leggono `clients_workspace`, **mai** `clients`, anche quando servono i soli
+  nomi — è la sorgente che la RLS garantisce a tutto lo staff.
+
+
+## Stato attuale — widget dashboard
+| Widget | Componente | Stato |
+|---|---|---|
+| Company Pulse | `CompanyPulse` + `KpiCards` + `RevenueChart` | ✅ attivo, ~50% doc |
+| Client Health | `ClientsRiskPanel` | ✅ attivo, semplificato |
+| Delivery Radar | `ProgettiWidget` + `TasksDue` | ✅ attivo, parziale |
+| Team Capacity | `WorkloadPanel` | ✅ attivo, base |
+| Risk/Alerts | `SmartInsights` + `AlertCenter` | ✅ attivo, rule-based |
+| Founder Focus | `DailyFocus` | ✅ attivo |
+| AI Chat | `AIDashboardChat` | ✅ attivo |
+| Margin Radar | — | ❌ da costruire |
+| Decision Center | — | ❌ da costruire |
+| AI Executive Brief | `SmartInsights` (approssimazione) | ⚠️ parziale |
+| Financial Control aggregato | — | ❌ solo in tab cliente |
+| Growth Performance aggregato | — | ❌ solo in tab cliente |
+| Sales Pipeline widget | Fetcha `deals` ma no widget | ⚠️ dati ci sono |
+| Strategic Objectives widget | Fetcha `objectives` ma no widget | ⚠️ dati ci sono |
+| AI & Automation Center | — | ❌ da costruire |
+
+
