@@ -39,6 +39,7 @@ export default async function WorkstreamPage({
       recurring={(recurring ?? []) as RecurringTaskTemplate[]}
       profiles={(profiles ?? []) as { id: string; full_name: string; avatar_url: string | null }[]}
       canEdit
+      currentUserId={user.id}
       backHref={`/progetti/${params.projectId}`}
       focusMilestoneId={searchParams.ms ?? null}
     />

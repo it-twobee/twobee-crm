@@ -4,7 +4,7 @@ import { useMemo, useRef, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Flag, Calendar as CalIcon, User, CheckSquare, FolderTree,
-  ChevronRight, CheckCircle2, Repeat, ShieldCheck, CircleDot, AlertTriangle,
+  ChevronRight, CheckCircle2, Repeat, ShieldCheck, CircleDot, AlertTriangle, Plus,
 } from 'lucide-react'
 import type { ProjectWorkstream, Milestone, Task } from '@/lib/types/database'
 
@@ -66,7 +66,8 @@ const WEEKDAY_SHORT = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab']
 export function ProjectGantt({
   workstreams = [], milestones = [], tasks, profiles, onOpenMilestone,
   title = 'Calendario milestone', laneSubtitle, laneAccent, labelWidth = LABEL_W,
-  lanes: externalLanes, laneLabel = 'workstream', milestoneContext, emptyHint, headerNote, headerHint,
+  lanes: externalLanes, laneLabel = 'workstream', milestoneContext, emptyHint, emptyAction,
+  onAddMilestone, headerNote, headerHint,
 }: {
   workstreams?: ProjectWorkstream[]
   milestones?: Milestone[]
@@ -86,6 +87,10 @@ export function ProjectGantt({
   /** testo della riga di contesto nel recap (default: nome corsia) */
   milestoneContext?: (m: Milestone) => string | null
   emptyHint?: string
+  /** azione offerta quando non c'è niente da disegnare (es. «aggiungi milestone») */
+  emptyAction?: React.ReactNode
+  /** se passata, ogni corsia offre un «+» che crea una milestone lì */
+  onAddMilestone?: (laneId: string) => void
   /** sostituisce il contatore in intestazione (es. «6 clienti · 2 fermi») */
   headerNote?: React.ReactNode
   /** spiegazione in hover del contatore in intestazione */
@@ -145,6 +150,7 @@ export function ProjectGantt({
     return (
       <div className="bg-surface border border-border rounded-2xl p-6 text-center shadow-soft">
         <p className="text-2xs text-text-tertiary">{emptyHint ?? 'Nessuna milestone datata: aggiungi una scadenza a una milestone per vederla sul calendario.'}</p>
+        {emptyAction}
       </div>
     )
   }
@@ -258,7 +264,7 @@ export function ProjectGantt({
           <div className="h-7 border-b border-border/60" />
           {showDays && <div className="h-10 border-b border-border" />}
           {lanes.map(l => (
-            <div key={l.id} className="border-b border-border/40 flex items-center gap-2 pr-2"
+            <div key={l.id} className="border-b border-border/40 flex items-center gap-2 pr-2 group/lane"
               style={{ height: LANE_H, paddingLeft: 12 + (l.depth ?? 0) * 16 }}>
               {l.toggle && (
                 <button onClick={l.toggle.onToggle} aria-expanded={l.toggle.expanded}
@@ -282,6 +288,13 @@ export function ProjectGantt({
                   aria-label={`${l.badge.text}: ${l.badge.title}${l.badge.detail ? `. ${l.badge.detail}` : ''}`}
                   className={`shrink-0 text-2xs font-semibold px-1.5 py-0.5 rounded-full border whitespace-nowrap cursor-help ${l.badge.tone}`}>
                   {l.badge.text}
+                </button>
+              )}
+              {onAddMilestone && (
+                <button type="button" onClick={() => onAddMilestone(l.id)}
+                  aria-label={`Aggiungi una milestone a ${l.name}`} title="Aggiungi una milestone"
+                  className="shrink-0 text-text-tertiary hover:text-gold-text opacity-0 group-hover/lane:opacity-100 focus-visible:opacity-100 transition-opacity press">
+                  <Plus className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>

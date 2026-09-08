@@ -60,7 +60,7 @@ type TaskTarget = {
 }
 
 export function WorkstreamPageClient({
-  project, ws, milestones, tasks, recurring, profiles, canEdit, backHref, focusMilestoneId,
+  project, ws, milestones, tasks, recurring, profiles, canEdit, currentUserId, backHref, focusMilestoneId,
 }: {
   project: Project
   ws: ProjectWorkstream
@@ -68,7 +68,9 @@ export function WorkstreamPageClient({
   tasks: Task[]
   recurring: RecurringTaskTemplate[]
   profiles: Person[]
+  /** governa la workstream: struttura, creazione, eliminazione (admin o manager del progetto) */
   canEdit: boolean
+  currentUserId: string
   backHref: string
   focusMilestoneId?: string | null
 }) {
@@ -81,6 +83,10 @@ export function WorkstreamPageClient({
   const [wsName, setWsName] = useState(ws.name)
   const [filter, setFilter] = useState<TaskFilter>('all')
   const [hideDone, setHideDone] = useState(false)
+  // il blocco «Operatività continua» apriva d'ufficio su ogni workstream, anche a
+  // termine e vuoto: la milestone di sistema nasce dal trigger, non da una scelta.
+  // Su una workstream a termine senza niente dentro resta chiuso, con l'invito.
+  const [showContinuous, setShowContinuous] = useState(false)
 
   const act = (fn: () => Promise<unknown>, ok?: string) => start(async () => {
     try { await fn(); if (ok) toast.success(ok); router.refresh() }
@@ -118,6 +124,18 @@ export function WorkstreamPageClient({
       return true
     })
   }, [filter, hideDone, late, soon])
+
+  const systemTasks = allTasks.filter(t => systemMs.some(m => m.id === t.milestone_id))
+  /** ha senso mostrarlo: workstream continuativa, o c'è già dentro qualcosa */
+  const continuousRelevant = ws.workstream_type === 'recurring' || systemTasks.length > 0 || recurring.length > 0
+  const continuousOpen = continuousRelevant || showContinuous
+
+  // §322 — la propria roba si tocca sempre. Arrivando dal calendario milestone
+  // chi non è manager del progetto trovava data, stato e responsabile disabilitati
+  // anche sulle proprie: qui il titolare della milestone e l'assegnatario della
+  // task rientrano. Creare, rinominare ed eliminare restano di chi governa.
+  const canEditMs = (m: Milestone) => canEdit || (!!m.owner_id && m.owner_id === currentUserId)
+  const canEditTask = (t: Task) => canEdit || (!!t.assignee_id && t.assignee_id === currentUserId)
 
   const msContext = (m: Milestone) => `${ws.name} · ${m.title}`
 
@@ -297,7 +315,8 @@ export function WorkstreamPageClient({
                   tasks={visibleTasks(allTasks.filter(t => t.milestone_id === m.id))}
                   totalTasks={allTasks.filter(t => t.milestone_id === m.id)}
                   subtasksOf={(pid) => tasks.filter(t => t.parent_task_id === pid)}
-                  profiles={profiles} canEdit={canEdit} act={act} pending={pending}
+                  profiles={profiles} canEdit={canEditMs(m)} canManage={canEdit} canEditTask={canEditTask}
+                  act={act} pending={pending}
                   onOpenTask={setTaskDetail} focus={m.id === focusMilestoneId}
                   onAddTask={() => setTaskTarget({ milestoneId: m.id, parentId: null, kind: 'task', context: msContext(m), defaultDue: m.due_date })}
                   onAddSub={(t) => setTaskTarget({ milestoneId: m.id, parentId: t.id, kind: 'subtask', context: `${msContext(m)} · ${t.title}`, defaultDue: t.due_date })} />
@@ -306,15 +325,24 @@ export function WorkstreamPageClient({
           </section>
 
           {/* OPERATIVITÀ CONTINUA — blocco a parte (milestone di sistema) */}
-          {systemMs.map(m => (
+          {continuousOpen && systemMs.map(m => (
             <ContinuousBlock key={m.id} m={m} project={project} wsId={ws.id}
+              onHide={continuousRelevant ? undefined : () => setShowContinuous(false)}
               tasks={visibleTasks(allTasks.filter(t => t.milestone_id === m.id))}
               totalTasks={allTasks.filter(t => t.milestone_id === m.id)}
               subtasksOf={(pid) => tasks.filter(t => t.parent_task_id === pid)}
-              profiles={profiles} canEdit={canEdit} act={act} onOpenTask={setTaskDetail}
+              profiles={profiles} canEdit={canEdit} canEditTask={canEditTask} act={act} onOpenTask={setTaskDetail}
               onAddTask={() => setTaskTarget({ milestoneId: m.id, parentId: null, kind: 'continuous', context: msContext(m) })}
               onAddSub={(t) => setTaskTarget({ milestoneId: m.id, parentId: t.id, kind: 'subtask', context: `${msContext(m)} · ${t.title}` })} />
           ))}
+
+          {!continuousOpen && canEdit && systemMs.length > 0 && (
+            <button onClick={() => setShowContinuous(true)}
+              className="flex items-center gap-1.5 text-2xs font-semibold text-text-secondary hover:text-gold-text press">
+              <Repeat className="w-3.5 h-3.5" />Aggiungi operatività continua
+              <span className="text-text-tertiary font-normal">— attività senza scadenza di consegna</span>
+            </button>
+          )}
 
           {/* elimina workstream */}
           {canEdit && (
@@ -351,7 +379,8 @@ export function WorkstreamPageClient({
       )}
 
       {taskDetail && (
-        <TaskDetailDrawer task={taskDetail} profiles={profiles.map(p => ({ id: p.id, full_name: p.full_name }))} canEdit={canEdit}
+        <TaskDetailDrawer task={taskDetail} profiles={profiles.map(p => ({ id: p.id, full_name: p.full_name }))}
+          canEdit={canEditTask(taskDetail)} canDelete={canEdit}
           contextLabel={ws.name} onClose={() => setTaskDetail(null)} onChanged={() => router.refresh()} />
       )}
     </div>
@@ -376,7 +405,7 @@ function Chip({ label, n, icon, tone, on, onClick }: {
 
 // Blocco "Operatività continua" — attività continuative senza scadenza di consegna
 function ContinuousBlock({
-  m, project, wsId, tasks, totalTasks, subtasksOf, profiles, canEdit, act, onOpenTask, onAddTask, onAddSub,
+  m, project, wsId, tasks, totalTasks, subtasksOf, profiles, canEdit, canEditTask, act, onOpenTask, onAddTask, onAddSub, onHide,
 }: {
   m: Milestone
   project: Project
@@ -386,10 +415,13 @@ function ContinuousBlock({
   subtasksOf: (parentId: string) => Task[]
   profiles: Person[]
   canEdit: boolean
+  canEditTask: (t: Task) => boolean
   act: (fn: () => Promise<unknown>, ok?: string) => void
   onOpenTask: (t: Task) => void
   onAddTask: () => void
   onAddSub: (t: Task) => void
+  /** presente solo quando il blocco è aperto a mano e si può richiudere */
+  onHide?: () => void
 }) {
   const done = totalTasks.filter(t => t.status === 'completato').length
 
@@ -412,6 +444,10 @@ function ContinuousBlock({
             <Plus className="w-3.5 h-3.5" />Attività
           </button>
         )}
+        {onHide && (
+          <button onClick={onHide} aria-label="Nascondi operatività continua"
+            className="text-2xs font-semibold text-text-tertiary hover:text-text-primary shrink-0 press">Nascondi</button>
+        )}
       </div>
       <div className="p-2 space-y-0.5">
         {tasks.length === 0 && (
@@ -421,7 +457,8 @@ function ContinuousBlock({
         )}
         {tasks.map(t => (
           <TaskRow key={t.id} t={t} subs={subtasksOf(t.id)} project={project} wsId={wsId}
-            profiles={profiles} canEdit={canEdit} act={act} onOpenTask={onOpenTask} onAddSub={onAddSub} />
+            profiles={profiles} canEdit={canEditTask(t)} canManage={canEdit}
+            act={act} onOpenTask={onOpenTask} onAddSub={onAddSub} />
         ))}
       </div>
     </section>
@@ -430,7 +467,7 @@ function ContinuousBlock({
 
 // ── Nodo milestone della timeline ───────────────────────────────────────────
 function MilestoneNode({
-  m, index, last, project, wsId, tasks, totalTasks, subtasksOf, profiles, canEdit, act, pending,
+  m, index, last, project, wsId, tasks, totalTasks, subtasksOf, profiles, canEdit, canManage, canEditTask, act, pending,
   onOpenTask, focus, onAddTask, onAddSub,
 }: {
   m: Milestone
@@ -442,7 +479,11 @@ function MilestoneNode({
   totalTasks: Task[]
   subtasksOf: (parentId: string) => Task[]
   profiles: Person[]
+  /** stato, scadenza e responsabile: chi governa la workstream o chi ha in carico questa milestone */
   canEdit: boolean
+  /** titolo, eliminazione, nuove task: solo chi governa la workstream */
+  canManage: boolean
+  canEditTask: (t: Task) => boolean
   act: (fn: () => Promise<unknown>, ok?: string) => void
   pending: boolean
   onOpenTask: (t: Task) => void
@@ -457,7 +498,7 @@ function MilestoneNode({
   useEffect(() => {
     if (focus && ref.current) {
       ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      if (canEdit && m.milestone_type !== 'system') { setTitle(m.title); setEditingTitle(true) }
+      if (canManage && m.milestone_type !== 'system') { setTitle(m.title); setEditingTitle(true) }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus])
@@ -513,14 +554,14 @@ function MilestoneNode({
           <span className="w-6 h-6 rounded-lg bg-info-dim flex items-center justify-center text-2xs font-bold text-info shrink-0 tabular">
             {index + 1}
           </span>
-          {editingTitle && canEdit ? (
+          {editingTitle && canManage ? (
             // eslint-disable-next-line jsx-a11y/no-autofocus
             <input value={title} onChange={e => setTitle(e.target.value)} autoFocus aria-label="Titolo milestone"
               onBlur={() => { if (title.trim() && title !== m.title) act(() => updateMilestone(m.id, project.id, { title }), 'Salvato'); setEditingTitle(false) }}
               onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
               className="flex-1 bg-background border border-border-interactive rounded-lg px-2 py-1 text-sm font-semibold text-text-primary" />
           ) : (
-            <button onClick={() => canEdit && m.milestone_type !== 'system' && setEditingTitle(true)}
+            <button onClick={() => canManage && m.milestone_type !== 'system' && setEditingTitle(true)}
               className={`flex-1 min-w-0 text-left text-sm font-semibold truncate hover:text-gold-text ${
                 done2 ? 'text-text-tertiary line-through' : 'text-text-primary'
               }`}>
@@ -538,7 +579,7 @@ function MilestoneNode({
               {MS_STATUS.map(s => <option key={s} value={s}>{MS_STATUS_LABEL[s]}</option>)}
             </select>
           ) : <span className="text-2xs text-text-tertiary shrink-0">{MS_STATUS_LABEL[m.status]}</span>}
-          {canEdit && m.milestone_type !== 'system' && (
+          {canManage && m.milestone_type !== 'system' && (
             <button aria-label="Elimina milestone" className="text-text-tertiary hover:text-error shrink-0"
               onClick={() => { if (confirm(`Eliminare "${m.title}"? Le sue task vengono eliminate con lei.`)) act(() => deleteMilestone(m.id, project.id), 'Milestone eliminata') }}>
               <Trash2 className="w-3.5 h-3.5" />
@@ -576,14 +617,15 @@ function MilestoneNode({
         <div className="border-t border-border p-2 space-y-0.5">
           {tasks.map(t => (
             <TaskRow key={t.id} t={t} subs={subtasksOf(t.id)} project={project} wsId={wsId}
-              profiles={profiles} canEdit={canEdit} act={act} onOpenTask={onOpenTask} onAddSub={onAddSub} />
+              profiles={profiles} canEdit={canEditTask(t)} canManage={canManage}
+              act={act} onOpenTask={onOpenTask} onAddSub={onAddSub} />
           ))}
           {tasks.length === 0 && (
             <p className="text-2xs text-text-tertiary px-2 py-1.5">
               {totalTasks.length === 0 ? 'Nessuna task in questa milestone.' : 'Nessuna task per il filtro attivo.'}
             </p>
           )}
-          {canEdit && (
+          {canManage && (
             <button onClick={onAddTask}
               className="flex items-center gap-1.5 text-2xs font-semibold text-text-secondary hover:text-gold-text px-2 pt-1.5 pb-0.5">
               <Plus className="w-3.5 h-3.5" />Nuova task
@@ -597,14 +639,17 @@ function MilestoneNode({
 
 // ── Riga task (con subtask) ──────────────────────────────────────────────────
 function TaskRow({
-  t, subs, project, wsId, profiles, canEdit, act, onOpenTask, onAddSub,
+  t, subs, project, wsId, profiles, canEdit, canManage, act, onOpenTask, onAddSub,
 }: {
   t: Task
   subs: Task[]
   project: Project
   wsId: string
   profiles: Person[]
+  /** spunta e assegnatario: chi governa la workstream o chi ha la task in mano */
   canEdit: boolean
+  /** subtask ed eliminazione: solo chi governa la workstream */
+  canManage: boolean
   act: (fn: () => Promise<unknown>, ok?: string) => void
   onOpenTask: (t: Task) => void
   onAddSub: (t: Task) => void
@@ -645,6 +690,10 @@ function TaskRow({
               <option value="">—</option>
               {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
             </select>
+          </>
+        )}
+        {canManage && (
+          <>
             <button onClick={() => onAddSub(t)} aria-label="Aggiungi subtask"
               className="text-text-tertiary hover:text-gold-text opacity-0 group-hover:opacity-100 shrink-0"><CornerDownRight className="w-3.5 h-3.5" /></button>
             <button onClick={() => { if (confirm('Eliminare la task e le sue subtask?')) act(() => deleteTask(t.id), 'Eliminata') }}
@@ -664,7 +713,7 @@ function TaskRow({
                 const sp = profiles.find(p => p.id === s.assignee_id)
                 return sp ? <span title={sp.full_name} className="shrink-0"><Avatar name={sp.full_name} url={sp.avatar_url} size={18} /></span> : null
               })()}
-              {canEdit && <button onClick={() => act(() => deleteTask(s.id))} aria-label="Elimina subtask" className="text-error opacity-0 group-hover/sub:opacity-100 shrink-0"><Trash2 className="w-3 h-3" /></button>}
+              {canManage && <button onClick={() => act(() => deleteTask(s.id))} aria-label="Elimina subtask" className="text-error opacity-0 group-hover/sub:opacity-100 shrink-0"><Trash2 className="w-3 h-3" /></button>}
             </div>
           ))}
         </div>

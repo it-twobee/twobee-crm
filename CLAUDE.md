@@ -18,7 +18,7 @@ database vero, e riscoprirle costa più che leggerle.
 | `lib/risk.ts`, badge rischio in lista/scheda/dashboard | `docs/clienti-rischio.md` |
 | migration, `supabase/**`, «questa colonna esiste?» | `docs/migrations.md` |
 | `activity_log`, ripristino, versioni, attribuzione | `docs/cronologia.md` |
-| workspace, workload, ferie, task completate, widget dashboard | `docs/operativita.md` |
+| workspace, workload, ferie, task completate, widget dashboard, progetti/workstream/milestone | `docs/operativita.md` |
 | `lib/tracking/**`, tab Tracking/Report/Chiavi/Accessi, QA giornaliero | `docs/tracking.md` |
 | `lib/ai/**`, assistente Ctrl+J, tool e azioni rischiose | `docs/ai-assistant.md` |
 | `/asana` (sezione temporanea, da togliere a travaso finito) | `docs/asana.md` |
@@ -333,6 +333,15 @@ la `NewClientModal` non ne chiede: `mrr: 0`, `payment_status: 'in_attesa'`,
 avvio a oggi (§169, li riscrive il primo contratto venduto). La riga che torna
 dall'insert arriva però dalla tabella piena, non dalla VIEW: `onCreated` la
 azzera prima di metterla in lista, come fa il server (§211).
+
+**La propria roba si tocca sempre** (§322, `docs/operativita.md`). Un permesso
+di governo — admin o manager del progetto — non è un permesso di modifica: chi
+ha la milestone in carico o la task assegnata ne cambia data, stato e
+assegnatario anche senza governare il workstream, mentre titoli, creazione ed
+eliminazione restano a chi governa. Due gate distinti (`canEdit`/`canEditTask`
+contro `canManage`/`canDelete`), perché la stessa task si modificava da «Le mie
+attività» e non dalla pagina del progetto: la stessa domanda non può avere due
+risposte a seconda della pagina da cui ci si arriva.
 
 ## Chat — quattro gruppi
 `Team` (canali `type='team'`: `team-intern`, `angolo-informativo`, `best-ideas`) ·

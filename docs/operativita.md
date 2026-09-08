@@ -1,5 +1,45 @@
 # Workspace, workload, ferie, task completate, widget
 
+## Progetti: la propria roba si tocca sempre (§322)
+
+Dal calendario milestone si clicca una tappa e si arriva sulla pagina del
+workstream, dove `canEdit` era **uno**: admin o manager del progetto. Per tutti
+gli altri scadenza, stato e responsabile erano disabilitati **anche sulle
+proprie** — e in «Le mie attività» le stesse task si modificano da sempre,
+quindi la stessa persona trovava due risposte alla stessa domanda a seconda
+della pagina da cui ci arrivava.
+
+- **Due diritti, non uno.** `canEdit` (governo: struttura, titoli, creazione,
+  eliminazione) resta ad admin e manager del progetto; chi ha la **milestone in
+  carico** (`owner_id`) ne cambia scadenza, stato e responsabile, chi ha la
+  **task assegnata** (`assignee_id`, il primario) ne cambia spunta,
+  assegnatario e — nel drawer — data e descrizione. Eliminare non è modificare:
+  `canManage` e `canDelete` restano di chi governa, e il drawer li distingue
+  perché lo monta anche «Le mie attività», dove valgono insieme.
+- **Il server non è cambiato**: `requireStaff` in
+  `app/actions/{tasks,milestones}.ts` ammette già tutto lo staff interno. Era
+  una barriera solo nella UI, che è il posto in cui una barriera non protegge
+  niente (§211) e blocca il lavoro vero.
+
+## La milestone si aggiunge dalla pagina progetto (§322)
+
+Il wizard mette le milestone del template e poi non ci si rientra: l'unico posto
+per aggiungerne una era la pagina del singolo workstream, che dal progetto si
+raggiunge solo aprendola. Ora ogni riga della scheda Workstream porta il
+conteggio e un tasto «Milestone» — la stessa `NewMilestoneModal` del workstream,
+così la convention del titolo `M{n}` la scrive un posto solo — il calendario ha
+un «+» per corsia, e lo stato vuoto («nessuna milestone datata») offre il gesto
+invece di descriverlo. La riga della lista è diventata un `div` col click sul
+figlio: due `<button>` annidati non sono HTML valido.
+
+**E «Operatività continua» non è una scelta di chi guarda** (§322). La milestone
+di sistema nasce dal trigger `tbv2_ensure_system_milestone` su **ogni**
+workstream (migration 147), quindi il riquadro verde compariva sempre — anche su
+una workstream a termine, anche vuoto, senza modo di toglierlo. Resta aperto
+dove ha senso (workstream continuativa, o c'è già dentro qualcosa: task o
+ricorrenti); altrove è un invito richiudibile. La milestone **non si cancella**:
+regge le task senza consegna, dato che `tasks.milestone_id` è NOT NULL.
+
 ## Task ad hoc: il cliente può anche non esserci (§321)
 
 `TaskComposer` chiedeva un cliente e basta, e le due cose che mancavano erano

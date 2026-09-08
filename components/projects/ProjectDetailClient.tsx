@@ -12,6 +12,8 @@ import {
 import { updateProjectStatus, updateProjectBrief, deleteProject } from '@/app/actions/projects'
 import { generateRecurringNow } from '@/app/actions/tasks'
 import { createWorkstream } from '@/app/actions/workstreams'
+import { createMilestone, updateMilestone } from '@/app/actions/milestones'
+import { NewMilestoneModal, type NewMilestoneValues } from './NewMilestoneModal'
 import {
   ModalShell, Field, Segmented, SearchInput, Avatar, inputCls,
 } from '@/components/shared/formkit'
@@ -71,6 +73,9 @@ export function ProjectDetailClient({
   const [pending, start] = useTransition()
   const [tab, setTab] = useState<'panoramica' | 'workstream' | 'economics'>(initialTab ?? 'panoramica')
   const [creatingWs, setCreatingWs] = useState(false)
+  // le milestone si aggiungono anche da qui: dopo il wizard nessuno ci rientra,
+  // e aprire la pagina della workstream per una tappa in più non si trovava
+  const [msWs, setMsWs] = useState<ProjectWorkstream | null>(null)
   const [wsQuery, setWsQuery] = useState('')
   const [wsFilter, setWsFilter] = useState<'all' | 'late' | 'soon' | 'unassigned'>('all')
   const [wsSort, setWsSort] = useState<'salute' | 'scadenza' | 'nome' | 'avanzamento'>('salute')
@@ -116,6 +121,19 @@ export function ProjectDetailClient({
       catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
     })
 
+  /** crea la milestone restando sulla pagina progetto */
+  const submitMilestone = (ws: ProjectWorkstream, v: NewMilestoneValues) =>
+    start(async () => {
+      try {
+        const id = await createMilestone({
+          project_id: project.id, workstream_id: ws.id, title: v.title,
+          due_date: v.due_date, visibility: v.visibility, approval_required: v.approval_required,
+        })
+        if (v.owner_id) await updateMilestone(id, project.id, { owner_id: v.owner_id })
+        setMsWs(null); router.refresh(); toast.success('Milestone creata')
+      } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+    })
+
   const recurringWs = workstreams.filter(w => w.workstream_type === 'recurring')
   const projectWs = workstreams.filter(w => w.workstream_type === 'project')
   const wsPrefix = workstreamPrefixFromProjectName(project.name)
@@ -139,6 +157,8 @@ export function ProjectDetailClient({
     .filter(m => m.workstream_id === wsId && m.milestone_type === 'delivery' && m.status !== 'completata' && m.due_date)
     .sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1))[0]
   const wsOverdueCount = (wsId: string) => tasks.filter(t => t.workstream_id === wsId && isOverdue(t)).length
+  const wsDeliveryMs = (wsId: string) =>
+    milestones.filter(m => m.workstream_id === wsId && m.milestone_type === 'delivery')
   const wsOwners = (wsId: string) => {
     const ids = new Set<string>()
     const w = workstreams.find(x => x.id === wsId)
@@ -521,7 +541,19 @@ export function ProjectDetailClient({
             </div>
 
             {/* ── Calendario milestone a swimlane ── */}
-            <ProjectGantt workstreams={workstreams} milestones={milestones} tasks={tasks} profiles={profiles} onOpenMilestone={openMilestone} />
+            <ProjectGantt workstreams={workstreams} milestones={milestones} tasks={tasks} profiles={profiles} onOpenMilestone={openMilestone}
+              onAddMilestone={canManageProject
+                ? (wsId) => { const w = workstreams.find(x => x.id === wsId); if (w) setMsWs(w) }
+                : undefined}
+              emptyHint={workstreams.length > 1
+                ? 'Nessuna milestone datata: aggiungine una col tasto «Milestone» sulla riga del workstream qui sotto, o metti una scadenza a una esistente.'
+                : undefined}
+              emptyAction={canManageProject && workstreams.length === 1 ? (
+                <button onClick={() => setMsWs(workstreams[0])}
+                  className="inline-flex items-center gap-1.5 text-2xs font-semibold bg-gold text-on-gold px-3 py-1.5 rounded-lg shadow-soft press mt-2.5">
+                  <Plus className="w-3.5 h-3.5" />Aggiungi una milestone
+                </button>
+              ) : undefined} />
 
             {/* ── toolbar ── */}
             <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
@@ -596,18 +628,29 @@ export function ProjectDetailClient({
               <WsGroup title="Continuative" hint="Attività ricorrenti senza fine definita"
                 items={viewRecurring} onOpen={openWorkstream} progress={wsProgress}
                 health={wsHealth} nextMs={wsNextMilestone} overdueOf={wsOverdueCount}
-                openOf={wsOpenCount} ownersOf={wsOwners} />
+                openOf={wsOpenCount} ownersOf={wsOwners}
+                msCount={id => wsDeliveryMs(id).length}
+                onAddMilestone={canManageProject ? setMsWs : undefined} />
             )}
             {/* A termine */}
             {viewProject.length > 0 && (
               <WsGroup title="A termine" hint="Con data di inizio e fine"
                 items={viewProject} onOpen={openWorkstream} progress={wsProgress}
                 health={wsHealth} nextMs={wsNextMilestone} overdueOf={wsOverdueCount}
-                openOf={wsOpenCount} ownersOf={wsOwners} />
+                openOf={wsOpenCount} ownersOf={wsOwners}
+                msCount={id => wsDeliveryMs(id).length}
+                onAddMilestone={canManageProject ? setMsWs : undefined} />
             )}
           </div>
         )}
       </div>
+
+      {msWs && (
+        <NewMilestoneModal context={msWs.name} index={wsDeliveryMs(msWs.id).length} profiles={profiles}
+          pending={pending} clientVisibleAllowed={!!project.client_id}
+          suggestedDue={msWs.end_date ?? project.target_end_date}
+          onClose={() => setMsWs(null)} onCreate={v => submitMilestone(msWs, v)} />
+      )}
 
       {creatingWs && (
         <NewWorkstreamModal projectId={project.id} projectName={project.name} prefix={wsPrefix}
@@ -806,7 +849,7 @@ const relDays = (iso: string) => {
 }
 
 // Gruppo workstream come RIGHE ricche
-function WsGroup({ title, hint, items, onOpen, progress, health, nextMs, overdueOf, openOf, ownersOf }: {
+function WsGroup({ title, hint, items, onOpen, progress, health, nextMs, overdueOf, openOf, ownersOf, msCount, onAddMilestone }: {
   title: string; hint: string; items: ProjectWorkstream[]
   onOpen: (id: string) => void
   progress: (id: string) => number | null
@@ -815,6 +858,10 @@ function WsGroup({ title, hint, items, onOpen, progress, health, nextMs, overdue
   overdueOf: (id: string) => number
   openOf: (id: string) => number
   ownersOf: (id: string) => Person[]
+  /** quante milestone di consegna ha la workstream */
+  msCount?: (id: string) => number
+  /** aggiunge una milestone senza uscire dalla pagina progetto */
+  onAddMilestone?: (ws: ProjectWorkstream) => void
 }) {
   return (
     <section>
@@ -830,51 +877,67 @@ function WsGroup({ title, hint, items, onOpen, progress, health, nextMs, overdue
           const owners = ownersOf(w.id).slice(0, 4)
           const rel = nm?.due_date ? relDays(nm.due_date) : null
           const h = health(w.id)
+          const msc = msCount ? msCount(w.id) : null
           return (
-            <button key={w.id} onClick={() => onOpen(w.id)}
-              className="w-full flex items-center gap-3 p-3 sm:p-3.5 text-left hover:bg-surface-hover transition-colors group no-tap-highlight bg-surface">
+            // la riga apre la workstream, ma «Milestone» è un'azione a sé: due
+            // bottoni annidati non sono HTML valido, quindi il click sta sul figlio
+            <div key={w.id}
+              className="w-full flex items-stretch gap-3 p-3 sm:p-3.5 hover:bg-surface-hover transition-colors group no-tap-highlight bg-surface">
               {/* semaforo */}
               <span className={`w-1 self-stretch rounded-full shrink-0 ${HEALTH_DOT[h]}`} aria-hidden />
-              {/* nome + tipo + date */}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-text-primary truncate">{w.name}</span>
-                  {w.workstream_type === 'recurring'
-                    ? <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-success-dim text-success shrink-0">Continuativa</span>
-                    : <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-surface-active text-text-tertiary shrink-0">A termine</span>}
-                </div>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  {w.workstream_type === 'project' && (w.start_date || w.end_date) && (
-                    <span className="text-2xs text-text-tertiary tabular">{w.start_date ?? '—'} → {w.end_date ?? '—'}</span>
-                  )}
-                  {nm && rel && (
-                    <span className="text-2xs flex items-center gap-1">
-                      <Flag className="w-3 h-3 text-info" /><span className="text-text-secondary truncate max-w-[140px]">{nm.title}</span>
-                      <span className={rel.tone}>· {rel.text}</span>
+              <button onClick={() => onOpen(w.id)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+                {/* nome + tipo + date */}
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-text-primary truncate">{w.name}</span>
+                    {w.workstream_type === 'recurring'
+                      ? <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-success-dim text-success shrink-0">Continuativa</span>
+                      : <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-surface-active text-text-tertiary shrink-0">A termine</span>}
+                  </span>
+                  <span className="flex items-center gap-2 mt-1 flex-wrap">
+                    {w.workstream_type === 'project' && (w.start_date || w.end_date) && (
+                      <span className="text-2xs text-text-tertiary tabular">{w.start_date ?? '—'} → {w.end_date ?? '—'}</span>
+                    )}
+                    {nm && rel && (
+                      <span className="text-2xs flex items-center gap-1">
+                        <Flag className="w-3 h-3 text-info" /><span className="text-text-secondary truncate max-w-[140px]">{nm.title}</span>
+                        <span className={rel.tone}>· {rel.text}</span>
+                      </span>
+                    )}
+                    {msc !== null && (
+                      <span className="text-2xs text-text-tertiary flex items-center gap-1">
+                        <Flag className="w-3 h-3" /><span className="tabular">{msc}</span> milestone
+                      </span>
+                    )}
+                    <span className="text-2xs text-text-tertiary flex items-center gap-1">
+                      <CheckSquare className="w-3 h-3" /><span className="tabular">{openOf(w.id)}</span> aperte
                     </span>
-                  )}
-                  <span className="text-2xs text-text-tertiary flex items-center gap-1">
-                    <CheckSquare className="w-3 h-3" /><span className="tabular">{openOf(w.id)}</span> aperte
                   </span>
-                </div>
-              </div>
-              {/* progress */}
-              <div className="hidden sm:flex items-center gap-2 w-28 shrink-0">
-                <div className="h-1.5 bg-surface-active rounded-full overflow-hidden flex-1"><div className="h-full bg-gold rounded-full" style={{ width: `${pr}%` }} /></div>
-                <span className="text-2xs text-text-tertiary tabular w-8 text-right">{pr}%</span>
-              </div>
-              {/* contatore ritardo */}
-              {od > 0 && <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-error-dim text-error shrink-0 tabular">{od} in ritardo</span>}
-              {/* avatar owner */}
-              <div className="hidden sm:flex items-center shrink-0">
-                {owners.map((p, i) => (
-                  <span key={p.id} style={{ marginLeft: i ? -6 : 0 }} title={p.full_name}>
-                    <Avatar name={p.full_name} url={p.avatar_url} size={24} />
-                  </span>
-                ))}
-              </div>
-              <ChevronRight className="w-4 h-4 text-text-tertiary shrink-0 group-hover:translate-x-0.5 transition-transform" />
-            </button>
+                </span>
+                {/* progress */}
+                <span className="hidden sm:flex items-center gap-2 w-28 shrink-0">
+                  <span className="h-1.5 bg-surface-active rounded-full overflow-hidden flex-1"><span className="block h-full bg-gold rounded-full" style={{ width: `${pr}%` }} /></span>
+                  <span className="text-2xs text-text-tertiary tabular w-8 text-right">{pr}%</span>
+                </span>
+                {/* contatore ritardo */}
+                {od > 0 && <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-error-dim text-error shrink-0 tabular">{od} in ritardo</span>}
+                {/* avatar owner */}
+                <span className="hidden sm:flex items-center shrink-0">
+                  {owners.map((p, i) => (
+                    <span key={p.id} style={{ marginLeft: i ? -6 : 0 }} title={p.full_name}>
+                      <Avatar name={p.full_name} url={p.avatar_url} size={24} />
+                    </span>
+                  ))}
+                </span>
+                <ChevronRight className="w-4 h-4 text-text-tertiary shrink-0 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+              {onAddMilestone && (
+                <button onClick={() => onAddMilestone(w)} title={`Aggiungi una milestone a ${w.name}`}
+                  className="self-center flex items-center gap-1 text-2xs font-semibold text-gold-text border border-border rounded-lg px-2 py-1.5 shrink-0 hover:bg-surface-active press">
+                  <Plus className="w-3.5 h-3.5" />Milestone
+                </button>
+              )}
+            </div>
           )
         })}
       </div>

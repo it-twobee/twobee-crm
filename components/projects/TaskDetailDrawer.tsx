@@ -24,12 +24,14 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 export function TaskDetailDrawer({
-  task, profiles, contextLabel, canEdit, onClose, onChanged,
+  task, profiles, contextLabel, canEdit, canDelete, onClose, onChanged,
 }: {
   task: Task
   profiles: Person[]
   contextLabel?: string
   canEdit: boolean
+  /** eliminare non è modificare: l'assegnatario cambia la sua task, non la cancella */
+  canDelete?: boolean
   onClose: () => void
   onChanged: () => void
 }) {
@@ -207,13 +209,16 @@ export function TaskDetailDrawer({
           </div>
         </div>
 
-        {/* footer */}
+        {/* footer — di default eliminare segue la modifica, i chiamanti che
+            distinguono i due diritti passano canDelete */}
         {canEdit && (
           <div className="p-3 border-t border-border flex justify-between items-center">
-            <button onClick={() => { if (confirm('Eliminare la task?')) act(() => deleteTask(task.id), 'Eliminata'); onClose() }}
-              className="flex items-center gap-1 text-2xs font-semibold text-error hover:opacity-80">
-              <Trash2 className="w-3.5 h-3.5" />Elimina
-            </button>
+            {(canDelete ?? true) ? (
+              <button onClick={() => { if (confirm('Eliminare la task?')) act(() => deleteTask(task.id), 'Eliminata'); onClose() }}
+                className="flex items-center gap-1 text-2xs font-semibold text-error hover:opacity-80">
+                <Trash2 className="w-3.5 h-3.5" />Elimina
+              </button>
+            ) : <span />}
             {pending && <Loader2 className="w-4 h-4 text-text-tertiary animate-spin" />}
           </div>
         )}
