@@ -197,6 +197,11 @@ export interface Client {
    *  le statistiche: qui si decide chi lo **vede**, non se conta nei numeri.
    *  Opzionale finché la 200 non è applicata. */
   workspace_hidden?: boolean
+  /** §326: che genere di interno è, quando `is_internal`. «giro» = società
+   *  collegata che fattura davvero (GAV Sistemi); «progetto» = marchio o lavoro
+   *  di TwoBee, che non fattura e non ha niente da quotare. NULL su un cliente
+   *  vero. Opzionale finché la 220 non è applicata. */
+  internal_kind?: 'giro' | 'progetto' | null
   /** §161: prima volta che il cliente è stato perso. Non si azzera se torna attivo. */
   lost_at?: string | null
   /** §176: ultima sospensione delle lavorazioni. Si azzera quando riparte. */

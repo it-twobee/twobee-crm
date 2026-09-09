@@ -2,6 +2,36 @@
 
 ## Dove siamo — 2026-09-09
 
+**§326 — la lista clienti chiedeva a GAV Sistemi di quotare un canone.** E a
+TwoBee. Sotto `is_internal` stavano due cose che non si somigliano: GAV ha
+partita IVA e una fattura emessa da 3.660 € — è un **giro fra società
+collegate**, e quel documento sta nel registro IVA come tutti gli altri —
+mentre Twobee, Metroquadro, Visionark e Costruisci e arreda non hanno né l'una
+né le altre: sono **marchi e lavori nostri**. In una lista sola il danno era
+doppio e opposto: al primo si chiedeva «da quotare» e non c'è niente da quotare,
+al secondo lo stato dei pagamenti e non c'è nessun pagamento. Adesso sono **tre
+aree** — Clienti (11) · Società collegate (1) · Progetti interni TwoBee (4).
+
+**La colonna Pagamenti era una parola, adesso è un numero.** Leggeva
+`clients.payment_status` — scritta dal cron notturno — e sotto lo scoperto **del
+solo mese in corso**: un credito di luglio non compariva da nessuna parte.
+Adesso è lo **scaduto cumulativo** delle fatture del cliente, dalla stessa porta
+di Fatturazione: **13.176,00 €**, gli stessi che dice la sezione Fatture — se
+divergessero, una delle due pagine starebbe mentendo e non si saprebbe quale.
+Affinity 4.392 (2 fatture) e iCura 8.784 (2).
+
+**E dov'era «Settore» — il ramo merceologico, che non fa decidere niente — c'è
+il ciclo dei soldi**, con i tre stati che Fatturazione e Banca già conoscono:
+`pagato` · `da emettere fattura` · `non pagato`. Il secondo non è un ritardo del
+cliente: è **nostro**, ed è competenza del mese senza un documento sotto — Seven
+6.500, Josè 1.200. L'ordine conta: prima il non pagato, che sono soldi già
+dovuti; poi il da emettere, che è lavoro nostro.
+
+**Chi non si quota**, e la regola non è «chi conta nelle statistiche»: è **chi
+può firmare qualcosa**. Non i giri, non gli interni, non i persi — ma sì i lead,
+che è il loro motivo (§321), e sì i fermi, perché il giorno che ripartono serve
+un contratto.
+
 **§325 — l'IVA aveva tre letture in tre posti diversi.** La Fiscale la calcolava
 solo dalle righe del conto economico, l'archivio delle fatture per conto suo in
 un'altra pagina, e il modello F24 arrivava mesi dopo. Adesso stanno nella stessa

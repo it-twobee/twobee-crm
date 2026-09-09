@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react'
 import Link from 'next/link'
 import {
   Plus, Search, Download, ExternalLink, Trash2,
@@ -10,6 +10,8 @@ import {
   AlertTriangle, Loader2, EyeOff,
 } from 'lucide-react'
 import { formatCurrency, getPaymentBadge, clientName } from '@/lib/utils'
+import type { ClientBilling } from '@/lib/client-billing'
+import { needsQuote, segmentOf, SEGMENT_LABEL, SEGMENT_HINT, type ClientSegment } from '@/lib/clients'
 import { pausedDays, paymentLabel } from '@/lib/clients'
 import type { RiskResult } from '@/lib/risk'
 import { createClient } from '@/lib/supabase/client'
@@ -39,6 +41,12 @@ export type ClientEconomicsSummary = {
   unpaidCount: number
   unpaidAmount: number
   unpaidLabels: string[]
+  /**
+   * §326 — dove sta il ciclo dei soldi: pagato / da emettere fattura / non
+   * pagato, con lo scaduto cumulativo. Nasce dalle fatture e dalle righe del
+   * mese, cioè dalle stesse porte di Fatturazione e Banca.
+   */
+  billing?: ClientBilling
 }
 
 interface ClientiListProps {
@@ -409,8 +417,14 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
      ne saltava metà: i clienti senza quel numero restavano fuori pur essendo
      esattamente nella stessa condizione. Gli interni non si quotano. */
   const toQuote = useMemo(
-    () => allFiltered.filter(c => !c.is_internal && (economics[c.id]?.contracts ?? 0) === 0).length,
+    () => allFiltered.filter(c => needsQuote(c, economics[c.id]?.contracts ?? 0)).length,
     [allFiltered, economics])
+
+  /* §326 — l'ordine è quello in cui si guardano: prima chi compra, poi i giri,
+     poi quello che facciamo per noi. */
+  const SEGMENTS: ClientSegment[] = ['cliente', 'giro', 'interno']
+  const segmentiPresenti = useMemo(
+    () => new Set(allFiltered.map(segmentOf)).size, [allFiltered])
 
   /* La selezione vive sugli id: se un cliente sparisce — eliminato qui, da un
      altro admin via realtime — esce da sé invece di restare a gonfiare il
@@ -539,7 +553,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
           {canSeeMrr && (
             <div className="bg-surface rounded-lg p-2.5">
               <p className="text-2xs text-text-secondary uppercase tracking-wider mb-0.5">Canone</p>
-              {eco && eco.contracts === 0 ? (
+              {eco && needsQuote(client, eco.contracts) ? (
                 <p className="text-sm font-black text-warning">da quotare</p>
               ) : (
                 <p className="text-sm font-black text-gold-text">{formatCurrency(canone(eco, client))}</p>
@@ -611,6 +625,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
 
   const ClientRow = ({ client, pinned }: { client: Client; pinned: boolean }) => {
     const eco = economics[client.id]
+    const b = eco?.billing
     return (
     <tr
       key={client.id}
@@ -666,7 +681,11 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
         <td className="px-4 py-3.5" title={eco && eco.contracts > 0
           ? `Somma dei canoni attivi · ${eco.contracts} contratt${eco.contracts === 1 ? 'o' : 'i'}`
           : 'Nessun contratto nei progetti: il canone non è verificabile'}>
-          {eco && eco.contracts === 0 ? (
+          {/* §326 — «da quotare» si chiede solo a chi può avere un contratto.
+              GAV Sistemi è un giro di fatture e TwoBee è sé stessa: nessuno dei
+              due avrà mai un canone, e l'etichetta metteva in cima alle cose da
+              fare due righe che non si sarebbero chiuse mai. */}
+          {eco && needsQuote(client, eco.contracts) ? (
             <span className="text-2xs font-semibold text-warning">da quotare</span>
           ) : (
             <span className="text-sm font-bold text-gold-text">{formatCurrency(canone(eco, client))}</span>
@@ -684,31 +703,58 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
       )}
       {showPayments && (
         <td className="px-4 py-3.5">
-          {/* §177: lo stato si deduce da rate e righe di mese. Senza nessuna
-              delle due il valore in colonna è un residuo: meglio dirlo. */}
-          {eco && !eco.hasBilling ? (
-            <span className="text-2xs text-text-tertiary" title="Nessuna rata né riga di conto economico: lo stato pagamenti non è calcolabile">
-              nessuna scadenza
-            </span>
+          {/* §326 — la colonna dei pagamenti è **quanto deve adesso**, non una
+              parola. Il numero è lo scaduto cumulativo delle sue fatture, dalla
+              stessa porta di Fatturazione (`isOpen`): se qui comparisse una
+              cifra diversa dal «da incassare» di quella pagina, una delle due
+              starebbe mentendo e non si saprebbe quale.
+              Prima c'era `clients.payment_status` — una parola scritta dal cron
+              — e sotto il solo scoperto **del mese in corso**: un credito di
+              luglio non compariva da nessuna parte. */}
+          {b && b.overdue > 0 ? (
+            <>
+              <span className="text-sm font-bold tabular text-error">{formatCurrency(b.overdue)}</span>
+              <span className="block text-2xs text-text-tertiary">
+                {b.overdueCount} fattur{b.overdueCount === 1 ? 'a' : 'e'} scadut{b.overdueCount === 1 ? 'a' : 'e'}
+                {b.worstLate > 0 && ` · la più vecchia da ${b.worstLate} giorni`}
+              </span>
+            </>
+          ) : b && b.open > 0 ? (
+            <>
+              <span className="text-sm font-bold tabular text-text-primary">{formatCurrency(b.open)}</span>
+              <span className="block text-2xs text-text-tertiary">
+                {b.openCount} fattur{b.openCount === 1 ? 'a' : 'e'} nei termini
+              </span>
+            </>
+          ) : b && b.state === 'nessuna_scadenza' ? (
+            <span className="text-2xs text-text-tertiary" title={b.why}>nessuna scadenza</span>
           ) : (
-          <span className={`inline-flex items-center whitespace-nowrap text-xs font-semibold px-2 py-0.5 rounded ${getPaymentBadge(client.payment_status)}`}>
-            {paymentLabel(client.payment_status)}
-          </span>
+            <span className="text-2xs text-success">niente da incassare</span>
           )}
-          {/* §177: su più progetti conta quale non ha pagato, non solo che
-              qualcosa manca — è l'unica informazione su cui si può agire */}
-          {eco && eco.unpaidCount > 0 && (
-            <span className="block text-2xs text-text-tertiary mt-0.5" title={eco.unpaidLabels.join(' · ')}>
-              {eco.unpaidCount} progett{eco.unpaidCount === 1 ? 'o' : 'i'} scopert{eco.unpaidCount === 1 ? 'o' : 'i'}
-              {' '}· {formatCurrency(eco.unpaidAmount)}
+          {/* Quello che non è ancora stato chiesto non è un credito: si vede,
+              e si tiene separato dallo scaduto. */}
+          {b && b.toInvoice > 0 && (
+            <span className="block text-2xs text-warning mt-0.5">
+              + {formatCurrency(b.toInvoice)} da fatturare
             </span>
           )}
         </td>
       )}
+      {/* §326 — qui c'era «Settore», cioè il ramo merceologico: una parola che
+          non fa decidere niente. Al suo posto il punto del ciclo dei soldi, con
+          i tre stati che la Fatturazione e la Banca già conoscono. */}
       <td className="px-4 py-3.5">
-        {client.industry
-          ? <span className="inline-flex whitespace-nowrap text-xs text-text-secondary bg-background border border-border px-2 py-0.5 rounded">{client.industry}</span>
-          : <span className="text-xs text-text-tertiary">—</span>}
+        {b ? (
+          <span className={`inline-flex items-center whitespace-nowrap text-xs font-semibold px-2 py-0.5 rounded border ${
+            b.tone === 'error' ? 'text-error border-error/40 bg-error/5'
+              : b.tone === 'warning' ? 'text-warning border-warning/40 bg-warning/5'
+              : b.tone === 'success' ? 'text-success border-success/40 bg-success/5'
+              : 'text-text-tertiary border-border'}`} title={b.why}>
+            {b.label}
+          </span>
+        ) : (
+          <span className="text-xs text-text-tertiary">—</span>
+        )}
       </td>
       <td className="px-4 py-3.5">
         <div className="flex items-center gap-3">
@@ -940,7 +986,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
                 </th>
                 {canSeeMrr && <ColHeader col="mrr" label="Canone" />}
                 {showPayments && <ColHeader col="payment_status" label="Pagamenti" />}
-                <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Settore</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap" title="Dove sta il ciclo dei soldi: pagato, da emettere fattura, non pagato. Le stesse porte di Fatturazione e Banca.">Fatturazione</th>
                 <th className="px-4 py-3 w-24" />
               </tr>
             </thead>
@@ -951,20 +997,43 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
               {pinnedClients.map((client) => (
                 <ClientRow key={client.id} client={client} pinned />
               ))}
-              {pinnedClients.length > 0 && unpinnedClients.length > 0 && (
-                <tr>
-                  <td colSpan={12} className="px-4 py-1.5 bg-surface">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-px bg-surface-hover" />
-                      <span className="text-2xs text-text-secondary uppercase tracking-widest">Altri clienti</span>
-                      <div className="flex-1 h-px bg-surface-hover" />
-                    </div>
-                  </td>
-                </tr>
-              )}
-              {unpinnedClients.map((client) => (
-                <ClientRow key={client.id} client={client} pinned={false} />
-              ))}
+              {/* §326 — tre aree, non una lista sola. GAV Sistemi fattura davvero
+                  ma non è un cliente: è un giro fra società collegate. Metroquadro,
+                  Visionark e TwoBee non fatturano affatto: sono marchi e lavori
+                  nostri. Tenerli in fila con gli altri fa due danni opposti — al
+                  primo si chiede «da quotare» e non c'è niente da quotare, al
+                  secondo si chiede lo stato dei pagamenti e non c'è nessun
+                  pagamento. La testata compare solo quando c'è più di un'area:
+                  su una lista di soli clienti sarebbe rumore. */}
+              {SEGMENTS.map(seg => {
+                const rows = unpinnedClients.filter(c => segmentOf(c) === seg)
+                if (!rows.length) return null
+                return (
+                  <Fragment key={seg}>
+                    {(segmentiPresenti > 1 || pinnedClients.length > 0) && (
+                      <tr>
+                        <td colSpan={12} className="px-4 py-1.5 bg-surface">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-px bg-surface-hover" />
+                            <span className="text-2xs text-text-secondary uppercase tracking-widest whitespace-nowrap">
+                              {seg === 'cliente' && pinnedClients.length > 0 && segmentiPresenti === 1
+                                ? 'Altri clienti'
+                                : SEGMENT_LABEL[seg]}
+                            </span>
+                            <span className="text-2xs text-text-tertiary normal-case truncate">
+                              {SEGMENT_HINT[seg]}
+                            </span>
+                            <div className="flex-1 h-px bg-surface-hover" />
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    {rows.map(client => (
+                      <ClientRow key={client.id} client={client} pinned={false} />
+                    ))}
+                  </Fragment>
+                )
+              })}
             </tbody>
           </table>
         </div>

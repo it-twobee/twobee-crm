@@ -2,6 +2,10 @@ import type { ClientLabel } from '@/lib/types/database'
 
 type Countable = { client_label?: ClientLabel | null; is_internal?: boolean | null }
 
+/** §326 — che genere di interno è, quando lo è. */
+export type InternalKind = 'giro' | 'progetto'
+type Segmentable = Countable & { internal_kind?: InternalKind | null }
+
 /** Perso = fuori dai conti e dagli avvisi. Resta in anagrafica e nello storico churn. */
 export const isLost = (c: Countable) => c.client_label === 'perso'
 
@@ -35,6 +39,64 @@ export const isLead = (c: Countable) => c.client_label === 'lead'
  */
 export const countsInStats = (c: Countable) =>
   !c.is_internal && !isLost(c) && !isPaused(c) && !isLead(c)
+
+/**
+ * §326 — In che area della lista sta questa riga.
+ *
+ * `is_internal` dice «non conta nelle statistiche» (§213) e sotto quella parola
+ * stanno due cose che non si somigliano. **GAV Sistemi** ha una partita IVA e
+ * una fattura emessa: non è un cliente, è un giro di fatture fra società
+ * collegate, e quel documento sta nel registro IVA come tutti gli altri.
+ * **Metroquadro, Visionark, Costruisci e arreda, Twobee** non hanno partita
+ * IVA né fatture: sono marchi e lavori interni, e non fattureranno mai.
+ *
+ * Tenerli in una lista sola fa due danni opposti: al primo si chiede «da
+ * quotare» — e non c'è niente da quotare — al secondo si chiede lo stato dei
+ * pagamenti, e non c'è nessun pagamento perché non c'è nessuna fattura.
+ *
+ * Un interno senza `internal_kind` è un **giro**: è la scelta prudente, perché
+ * un giro compare nei conti e un lavoro interno no — e far comparire una riga
+ * di troppo si vede, farne sparire una no.
+ */
+export type ClientSegment = 'cliente' | 'giro' | 'interno'
+
+export const segmentOf = (c: Segmentable): ClientSegment =>
+  !c.is_internal ? 'cliente' : c.internal_kind === 'progetto' ? 'interno' : 'giro'
+
+/** §326 — società collegata che fattura davvero. */
+export const isGiro = (c: Segmentable) => segmentOf(c) === 'giro'
+/** §326 — marchio o lavoro interno di TwoBee: non fattura. */
+export const isInternalWork = (c: Segmentable) => segmentOf(c) === 'interno'
+
+export const SEGMENT_LABEL: Record<ClientSegment, string> = {
+  cliente: 'Clienti',
+  giro: 'Società collegate',
+  interno: 'Progetti interni TwoBee',
+}
+
+export const SEGMENT_HINT: Record<ClientSegment, string> = {
+  cliente: 'chi compra da noi',
+  giro: 'fatturano davvero, ma non sono clienti: sono giri fra società collegate',
+  interno: 'marchi e lavori nostri: non fatturano, e non c\'è niente da quotare',
+}
+
+/**
+ * §326 — «da quotare» va chiesto solo a chi può avere un contratto.
+ *
+ * L'etichetta nasce dal fatto che un cliente fattura senza avere un contratto
+ * censito, ed è un'informazione vera **sui clienti**. Su GAV Sistemi e su
+ * TwoBee non lo è: il primo è un giro di fatture, il secondo è sé stessi, e
+ * nessuno dei due avrà mai un canone da quotare. Chiederglielo mette in cima a
+ * una lista di cose da fare due righe che non si chiuderanno mai — ed è così
+ * che una lista di cose da fare smette di essere guardata.
+ *
+ * Stessa ragione per un **perso**: non si quota chi se n'è andato. Un **lead**
+ * invece sì, ed è anzi il solo motivo per cui esiste (§321); e un **fermo**
+ * pure, perché il giorno che riparte serve un contratto. La regola non è «chi
+ * conta nelle statistiche»: è «chi può firmare qualcosa».
+ */
+export const needsQuote = (c: Segmentable, contracts: number) =>
+  segmentOf(c) === 'cliente' && !isLost(c) && contracts === 0
 
 /**
  * §177: il cliente ha almeno un contratto venduto?

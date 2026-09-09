@@ -41,7 +41,7 @@ database vero, e riscoprirle costa più che leggerle.
   va a controllare.** Quando una fonte manca, dichiaralo («n/d», «stimato»,
   «senza contratto»): mai uno zero.
 - **Gate del repo**: `npx tsc --noEmit` (ESLint non configurato) + i
-  **quarantacinque** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
+  **quarantasette** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
   `lib/tracking/**`) — con `npx tsx lib/<percorso>.check.ts`: devono dire «Tutti
   i controlli passano».
 - **Non lanciare `npm run build` mentre `npm run dev` gira**: condividono `.next`
@@ -342,6 +342,29 @@ eliminazione restano a chi governa. Due gate distinti (`canEdit`/`canEditTask`
 contro `canManage`/`canDelete`), perché la stessa task si modificava da «Le mie
 attività» e non dalla pagina del progetto: la stessa domanda non può avere due
 risposte a seconda della pagina da cui ci si arriva.
+
+**Tre aree in lista clienti** (§326, `segmentOf` in `lib/clients.ts`,
+`clients.internal_kind`). `is_internal` diceva «non conta nelle statistiche» e
+sotto quella parola stavano due cose diverse: **GAV Sistemi** ha partita IVA e
+fatture — è un giro fra società collegate, e quei documenti stanno nel registro
+IVA — mentre **Twobee, Metroquadro, Visionark, Costruisci e arreda** non hanno
+né l'una né le altre: sono marchi e lavori nostri. In una lista sola si faceva
+il danno due volte, opposto: al primo si chiedeva «da quotare» e non c'è niente
+da quotare, al secondo lo stato dei pagamenti e non c'è nessun pagamento.
+`needsQuote` risponde a «chi può firmare qualcosa»: non i giri, non gli interni,
+non i persi — ma sì i lead (è il loro motivo, §321) e sì i fermi. Un interno
+senza `internal_kind` è un **giro**: far comparire una riga di troppo si vede,
+farne sparire una no.
+
+**La colonna Pagamenti è un numero, non una parola** (§326,
+`lib/client-billing.ts`). È lo **scaduto cumulativo** delle fatture del cliente,
+dalla stessa porta di Fatturazione (`isOpen`): 13.176 € al 9 settembre, gli
+stessi che dice la sezione Fatture. Prima leggeva `clients.payment_status` — una
+parola scritta dal cron — e sotto lo scoperto **del solo mese in corso**, quindi
+un credito di luglio non compariva da nessuna parte. Accanto, dov'era «Settore»,
+c'è il **ciclo**: `pagato` · `da emettere fattura` (competenza senza documento
+sotto: è un ritardo **nostro**) · `non pagato`. L'ordine conta — prima il non
+pagato, che sono soldi già dovuti.
 
 ## Chat — quattro gruppi
 `Team` (canali `type='team'`: `team-intern`, `angolo-informativo`, `best-ideas`) ·
