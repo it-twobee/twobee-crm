@@ -250,6 +250,67 @@ esattamente 55, cioè la soglia — e qualcuno ha cliccato.
   non lo è**. Imputare al più vecchio scoperto è una regola di imputazione, non
   un fatto del documento — lo script la stampa e la lascia decidere.
 
+**§325 — l'IVA ha tre letture, e stavano in tre posti diversi.** La sezione
+Fiscale la calcolava **solo dalle righe** del conto economico (22% dei ricavi
+registrati); l'archivio delle fatture — il registro vero, quello che l'erario
+vede — la calcolava per conto suo in un'altra pagina; il modello F24 arrivava
+mesi dopo. Tre numeri sotto la stessa parola, e nessuna schermata che li
+mettesse in fila. Adesso `vatByQuarter` prende anche i documenti (`VatDocs`) e
+la pagina mostra le tre colonne accanto.
+
+**Sul 2º trimestre 2026 la misura è netta.** Il modello ha chiesto **9.669,33**:
+
+| lettura | saldo | sbaglia di |
+|---|---|---|
+| righe del conto economico | 8.451,96 | **+1.132,85** |
+| documenti dello SdI | 9.804,96 | **−135,63** |
+| modello F24 | 9.669,33 | — |
+
+I documenti hanno sbagliato **otto volte meno**. Non è una sorpresa ed è il
+motivo per cui la colonna serve: la stima è esatta *sul registrato*, e sbaglia
+di tutto quello che il mese non ha.
+
+**Ma non vale sempre, e dirlo è metà del lavoro.** Sul 3º trimestre in corso il
+segno si ribalta: righe 15.476,54 contro documenti 11.059,67, **−4.416,87**. Non
+è un errore dell'una o dell'altra — sono due domande:
+
+- sul **venduto** le righe hanno 2.816 € di imposta in più, perché settembre è
+  competenza maturata e le fatture escono a fine mese;
+- sul **comprato** i documenti hanno 1.600 € di credito in più, perché sono
+  arrivate fatture di fornitori che le uscite non hanno ancora registrato.
+
+Per questo lo scarto si attribuisce **al lato che lo produce**: a metà trimestre
+il conto economico corre avanti, a trimestre chiuso è il registro ad avere più
+documenti, e una spiegazione sola sbaglierebbe una volta su due.
+
+**I documenti non toccano quello che esce.** Il versamento resta quello di §242
+— il modello quando c'è, la stima quando non c'è — e la lettura dai documenti
+sta accanto come controllo. Spostare la liquidazione su una terza fonte
+cambierebbe la cassa senza che nessuno l'abbia deciso, ed è la decisione di una
+persona, non di un refactoring.
+
+**Il 2º trimestre è versato per intero** (20 agosto 2026, cod. 6032): **9.669,33**
+di IVA dentro un F24 da **10.547,24** — il resto sono ritenute 239,48, INPS
+856,00 e crediti 217,57, che stanno in `hr_f24` perché sono costo del lavoro
+(§242). Il **riporto al 3º trimestre è zero**: non è rimasto niente né a debito
+né a credito, ed è quello che l'engine mostra.
+
+**§325 — e la somma era scritta tre volte.** Da righe di conto economico a IVA
+del mese: nella pagina **Fiscale**, che applicava la detraibilità parziale
+(§191 — su un pranzo l'IVA a credito è zero, sul carburante a uso promiscuo il
+40%), nel **prospetto** e nel **piano di cassa**, che la ignoravano. I tre numeri
+coincidono oggi *per caso*: nessuna riga ha una percentuale sotto il 100%, e
+alla prima che arriva le tre pagine direbbero tre liquidazioni diverse senza che
+nessuna si accorga delle altre. Adesso è `monthsVat`, una sola, e accetta le
+righe nelle due forme in cui il repo le ha (`month_id` e `month`) perché sono la
+stessa riga.
+
+Resta un **limite dichiarato**: le righe che arrivano da `lib/pl-rows.ts` non
+portano `vat_deductible_pct` — portano `deductible_pct`, che è la deducibilità
+delle imposte sul reddito, un'altra cosa — quindi il piano di cassa legge l'IVA
+a credito piena. Finché nessun costo ha una detraibilità parziale è lo stesso
+numero; quando ne arriverà uno, il commento nel codice dice dove guardare.
+
 **IVA** (`lib/vat.ts`): l'IVA incassata non è cassa disponibile. Liquidazione
 trimestrale, scadenze ordinarie 16/05 · **20/08** · 16/11 · 16/03 (il quarto con
 la dichiarazione annuale), 1% di interessi sui primi tre. Il credito di un

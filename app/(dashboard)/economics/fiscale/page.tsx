@@ -3,7 +3,9 @@ import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { TaxClient } from '@/components/tax/TaxClient'
 import { monthKey } from '@/lib/pl'
-import type { MonthVat, VatActual } from '@/lib/vat'
+import type { MonthVat, VatActual, VatDocs, VatRevRow, VatCostRow } from '@/lib/vat'
+import { monthsVat, deductiblePct } from '@/lib/vat'
+import { vatByQuarter as docVatByQuarter, withRectifications } from '@/lib/invoices'
 import { DEFAULT_TAX_CONFIG, type Provision, type TaxConfig } from '@/lib/tax'
 
 export const revalidate = 0
@@ -36,26 +38,17 @@ export default async function FiscalePage({ searchParams }: { searchParams: { m?
     : [{ data: [] }, { data: [] }]
 
   const num = (v: unknown) => Number(v ?? 0)
-  /* Percentuale di deducibilità: assente = piena. Una colonna che non c'è ancora
-     (migration non eseguita) non deve azzerare un costo: lo zero si legge come
-     «non deducibile» e cambierebbe l'imposta. */
-  const pctOf = (v: unknown) => {
-    if (v == null) return 1
-    const x = Number(v)
-    return Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 1
-  }
+  const pctOf = deductiblePct
 
-  const vatMonths: MonthVat[] = (months ?? []).map((m: { id: string; month: string }) => ({
-    month: m.month,
-    debit: (rev ?? []).filter((r: { month_id: string }) => r.month_id === m.id)
-      .reduce((s: number, r: Record<string, unknown>) => s + num(r.amount_net) * num(r.vat_rate), 0),
-    /* §191 — l'IVA a credito è quella **detraibile**: su un pranzo con lo
-       scontrino è zero, sul carburante a uso promiscuo è il 40%. Contarla per
-       intero gonfierebbe il credito e la liquidazione arriverebbe più alta. */
-    credit: (cost ?? []).filter((c: { month_id: string; vat_applied: boolean }) => c.month_id === m.id && c.vat_applied)
-      .reduce((s: number, c: Record<string, unknown>) =>
-        s + num(c.actual) * num(c.vat_rate) * pctOf(c.vat_deductible_pct), 0),
-  }))
+  /* §325 — la somma la fa `monthsVat`, non questa pagina: la stessa riga stava
+     scritta anche nel prospetto, e là la detraibilità parziale (§191) non veniva
+     applicata. Due IVA diverse sotto la stessa parola, in attesa della prima
+     riga con una percentuale sotto il 100%. */
+  const vatMonths: MonthVat[] = monthsVat(
+    (months ?? []) as { id: string; month: string }[],
+    (rev ?? []) as unknown as VatRevRow[],
+    (cost ?? []) as unknown as VatCostRow[],
+  )
 
   /* §242 — i modelli F24 già arrivati. Dove c'è il documento, il documento
      vince: la stima resta accanto e la differenza dice quanto fatturato manca
@@ -63,12 +56,53 @@ export default async function FiscalePage({ searchParams }: { searchParams: { m?
      pagina continua a stimare, come prima. */
   const { data: settlementRows } = await supabase
     .from('vat_settlements').select('year, quarter, to_pay, doc_ref, paid_on')
+
+  /* §325 — e la stessa IVA letta dai **documenti**. È il registro vero, quello
+     che l'erario vede, e sul 2º trimestre ha predetto il modello otto volte
+     meglio della stima sulle righe. Le colonne, non `*`: qui non serve l'XML.
+     Se la 198 non è stata eseguita la query fallisce e la pagina stima come
+     prima, senza la terza colonna. */
+  const { data: invoiceRows } = await supabase
+    .from('invoices')
+    .select('id, direction, doc_type, number, issued_on, counterparty_name, counterparty_vat, '
+      + 'taxable, vat_amount, total, sign, due_date, paid_on, excluded_reason, rectifies_id')
   const vatActuals: VatActual[] = (settlementRows ?? []).map((r: Record<string, unknown>) => ({
     quarter: { year: Number(r.year), q: Number(r.quarter) as 1 | 2 | 3 | 4 },
     toPay: num(r.to_pay),
     docRef: (r.doc_ref as string) ?? null,
     paidOn: r.paid_on ? String(r.paid_on).slice(0, 10) : null,
   }))
+
+  /* §325 — lo stesso motore della sezione Fatture (`lib/invoices.ts`), non una
+     seconda somma scritta qui: due strade allo stesso numero divergono sempre,
+     e questa è la pagina in cui la divergenza si andrebbe a cercare per ultima.
+     `withRectifications` serve perché una nota di credito che storna una
+     fattura conta nel **suo** trimestre, che è il trimestre in cui l'imposta si
+     rettifica. */
+  const vatDocs: VatDocs[] = docVatByQuarter(withRectifications(
+    ((invoiceRows ?? []) as unknown as Record<string, unknown>[]).map(r => ({
+      id: String(r.id),
+      direction: r.direction === 'ricevuta' ? 'ricevuta' as const : 'emessa' as const,
+      docType: String(r.doc_type ?? 'TD01'),
+      number: String(r.number ?? '—'),
+      issuedOn: String(r.issued_on),
+      counterpartyName: String(r.counterparty_name ?? ''),
+      counterpartyVat: (r.counterparty_vat as string) ?? null,
+      clientId: null,
+      taxable: num(r.taxable), vatAmount: num(r.vat_amount), total: num(r.total),
+      sign: r.sign === -1 ? -1 as const : 1 as const,
+      dueDate: (r.due_date as string) ?? null,
+      paidOn: (r.paid_on as string) ?? null,
+      excludedReason: (r.excluded_reason as string) ?? null,
+      rectifiesId: (r.rectifies_id as string) ?? null,
+    }))))
+    .map(q => {
+      const [y, t] = q.quarter.split('-T')
+      return {
+        quarter: { year: Number(y), q: Number(t) as 1 | 2 | 3 | 4 },
+        debit: q.debit, credit: q.credit,
+      }
+    })
 
   // ── i numeri dell'anno che alimentano stime e diagnosi ────────────────────
 
@@ -190,6 +224,7 @@ export default async function FiscalePage({ searchParams }: { searchParams: { m?
       })) as Provision[]}
       vatMonths={vatMonths}
       vatActuals={vatActuals}
+      vatDocs={vatDocs}
       revenueYtd={revenueYtd}
       costsYtd={costsYtd}
       nonDeductibleYtd={nonDeductibleYtd}

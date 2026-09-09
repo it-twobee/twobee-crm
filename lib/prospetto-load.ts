@@ -20,7 +20,7 @@ import {
   linesForMonth, coveredProjects, type Coverage, type Installment, type RevenueStream,
 } from '@/lib/revenue'
 import { plannedForMonth, plannedNotYetInMonth, isPayrollCenter, type CostItem } from '@/lib/costs'
-import { vatByQuarter, type MonthVat, type VatActual } from '@/lib/vat'
+import { vatByQuarter, monthsVat, type MonthVat, type VatActual } from '@/lib/vat'
 import { planMonth, type PlanMonth } from '@/lib/cash-plan'
 import { buildWindow, takenIn, marginCostsFor } from '@/lib/payout-window'
 import { rowContext, toRevenueLines, toCostLines } from '@/lib/pl-rows'
@@ -406,13 +406,19 @@ export async function loadProspetto(
 
   /* L'IVA: si legge su tutto l'anno perché il credito di un trimestre si riporta
      su quello dopo, e dove il modello F24 è arrivato vince sulla stima (§242). */
-  const vatMonths: MonthVat[] = Array.from(openMonths).sort().map(mm => ({
-    month: mm,
-    debit: revenue.filter(r => r.month === mm)
-      .reduce((s, r) => s + r.amount_net * r.vat_rate, 0),
-    credit: costs.filter(c => c.month === mm && c.vat_applied)
-      .reduce((s, c) => s + c.actual * c.vat_rate, 0),
-  }))
+  /* §325 — la somma la fa `monthsVat`, come la Fiscale e il prospetto: era la
+     terza copia della stessa riga, e nessuna delle tre sapeva delle altre.
+     **Limite dichiarato**: le righe che arrivano da `lib/pl-rows.ts` non
+     portano `vat_deductible_pct` (porta `deductible_pct`, che è un'altra cosa —
+     quella delle imposte sul reddito), quindi qui l'IVA a credito si legge
+     piena. Finché nessun costo ha una detraibilità parziale è lo stesso numero;
+     quando ne arriverà uno, il piano di cassa lo leggerà più alto della Fiscale
+     e sarà questo commento a dire dove guardare. */
+  const vatMonths: MonthVat[] = monthsVat(
+    Array.from(openMonths).sort().map(mm => ({ id: mm, month: mm })),
+    revenue.map(r => ({ month: r.month, amount_net: r.amount_net, vat_rate: r.vat_rate })),
+    costs.map(c => ({ month: c.month, actual: c.actual, vat_applied: c.vat_applied, vat_rate: c.vat_rate })),
+  )
   const vatActuals: VatActual[] = (vatActualRows ?? []).map((r: Record<string, unknown>) => ({
     quarter: { year: Number(r.year), q: Number(r.quarter) as 1 | 2 | 3 | 4 },
     toPay: num(r.to_pay),

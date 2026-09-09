@@ -7,11 +7,11 @@ import {
   computeMonth, DEFAULT_PL_CONFIG, rowToPlConfig, monthKey, shiftMonth,
   type PlConfig, type RevenueLine, type CostLine, type Partner,
 } from '@/lib/pl'
-import type { MonthVat } from '@/lib/vat'
+import type { MonthVat, VatRevRow, VatCostRow } from '@/lib/vat'
 import { forecast } from '@/lib/forecast'
 import { endOfMonth, dueOf, fromRevenue, fromCost, collectionIndex } from '@/lib/cash-calendar'
 import { cashRunway, type RunwayLine } from '@/lib/cash-runway'
-import { vatByQuarter, nextDue, vatPending, type VatActual } from '@/lib/vat'
+import { vatByQuarter, nextDue, vatPending, monthsVat, type VatActual } from '@/lib/vat'
 import { isPayrollCenter } from '@/lib/costs'
 import { eur2 } from '@/lib/money'
 import { usedByTx } from '@/lib/tx-links'
@@ -142,7 +142,7 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
       : Promise.resolve({ data: [] }),
     yearIds.length ? supabase.from('pl_revenue_lines').select('month_id, amount_net, vat_rate').in('month_id', yearIds)
       : Promise.resolve({ data: [] }),
-    yearIds.length ? supabase.from('pl_cost_lines').select('month_id, actual, vat_applied, vat_rate').in('month_id', yearIds)
+    yearIds.length ? supabase.from('pl_cost_lines').select('month_id, actual, vat_applied, vat_rate, vat_deductible_pct').in('month_id', yearIds)
       : Promise.resolve({ data: [] }),
     streamIds.length ? supabase.from('revenue_installments').select('*').in('stream_id', streamIds)
       : Promise.resolve({ data: [] }),
@@ -158,19 +158,17 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
 
   // §174: l'IVA si legge su tutto l'anno perché il credito di un trimestre si
   // riporta su quello dopo: senza i precedenti il numero da versare è sbagliato.
-  const vatMonths: MonthVat[] = monthsAll
-    .filter(m => m.month.startsWith(year))
-    .sort((a, b) => a.month.localeCompare(b.month))
-    .map(m => ({
-      month: m.month,
-      debit: (yRev ?? [])
-        .filter((r: { month_id: string }) => r.month_id === m.id)
-        .reduce((s: number, r: { amount_net: unknown; vat_rate: unknown }) => s + Number(r.amount_net ?? 0) * Number(r.vat_rate ?? 0), 0),
-      // l'IVA sugli acquisti si scomputa solo dove è stata davvero pagata
-      credit: (yCost ?? [])
-        .filter((c: { month_id: string; vat_applied: boolean }) => c.month_id === m.id && c.vat_applied)
-        .reduce((s: number, c: { actual: unknown; vat_rate: unknown }) => s + Number(c.actual ?? 0) * Number(c.vat_rate ?? 0), 0),
-    }))
+  /* §325 — la somma la fa `monthsVat`, la stessa della pagina Fiscale. Qui era
+     riscritta a mano e **senza la detraibilità parziale** (§191): l'IVA a
+     credito risultava piena anche su un pranzo, dove è zero, e le due pagine
+     avrebbero detto due liquidazioni diverse alla prima riga con una
+     percentuale sotto il 100%. Oggi non ce n'è nessuna, quindi coincidevano —
+     ed è il modo in cui una divergenza aspetta senza farsi vedere. */
+  const vatMonths: MonthVat[] = monthsVat(
+    monthsAll.filter(m => m.month.startsWith(year)).sort((a, b) => a.month.localeCompare(b.month)),
+    (yRev ?? []) as unknown as VatRevRow[],
+    (yCost ?? []) as unknown as VatCostRow[],
+  )
 
   // 42P01 = tabella assente: la 163 non è stata eseguita. Va detto, non subito.
   const setupNeeded = monthErr?.code === '42P01'

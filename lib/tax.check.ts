@@ -1,6 +1,6 @@
 /* Verifica della stima fiscale. Esegui: npx tsx lib/tax.check.ts */
 import { estimateTaxes, entertainmentCap, taxInsights, DEFAULT_TAX_CONFIG as C, type TaxInput } from '@/lib/tax'
-import { vatByQuarter, nextDue, vatPending, type VatActual } from '@/lib/vat'
+import { vatByQuarter, nextDue, vatPending, monthsVat, deductiblePct, type VatActual } from '@/lib/vat'
 
 let fail = 0
 const eq = (label: string, got: number, want: number, tol = 0.5) => {
@@ -118,6 +118,59 @@ console.log('\n— §242 · Il modello F24 batte la stima —')
   is('un trimestre versato resta in tabella col suo importo', pagato.toPay, 9669.33)
   is('ma non è più fra quelli da versare', vatPending(pagato), false)
   is('e la prossima scadenza non è più lui', nextDue(MESI, '2026-08-20', versato), null)
+
+  /* §325 — la terza lettura: la stessa IVA dai **documenti** dello SdI. Sui dati
+     veri del 2º trimestre 2026 il modello ha chiesto 9.669,33, i documenti
+     dicevano 9.804,96 e le righe 8.451,96: l'archivio ha sbagliato di 135,63
+     dove la stima ne sbagliava 1.132,85, otto volte tanto. */
+  const DOCS = [{ quarter: { year: 2026, q: 2 as const }, debit: 10428, credit: 623.04 }]
+  const conDocs = vatByQuarter(MESI, '2026-08-09', [], DOCS)[0]
+  is('i documenti stanno accanto alle righe', conDocs.documents,
+    { debit: 10428, credit: 623.04, balance: 9804.96 })
+  eq('e lo scarto col conto economico è dichiarato', conDocs.documentsGap, 1488.26)
+  /* Il confronto è fra **saldi**, non fra quello che si versa: riporto e 1%
+     sono mestiere della liquidazione, non del registro, e sommarli qui
+     confronterebbe due cose diverse facendole sembrare in disaccordo. */
+  eq('si confronta il saldo, non il versamento',
+    conDocs.documents!.balance - conDocs.balance, conDocs.documentsGap)
+  /* I documenti non toccano quello che esce: il modello vince quando c'è, la
+     stima regge quando non c'è. Spostare il versamento su una terza fonte
+     cambierebbe la cassa senza che nessuno l'abbia deciso. */
+  is('ma non cambiano il da versare', conDocs.toPay, stima.toPay)
+  is('senza archivio la colonna resta vuota, non a zero', stima.documents, null)
+  is('e allora non c\'è nessuno scarto da mostrare', stima.documentsGap, 0)
+
+  /* §325 — la somma da righe a IVA del mese stava scritta **tre volte**: nella
+     Fiscale, che applicava la detraibilità parziale (§191), e nel prospetto e
+     nel piano di cassa, che la ignoravano. Oggi i numeri coincidono perché
+     nessuna riga ha una percentuale sotto il 100%: è il modo in cui una
+     divergenza aspetta senza farsi vedere. */
+  const MESI_ID = [{ id: 'm4', month: '2026-04-01' }, { id: 'm5', month: '2026-05-01' }]
+  const REV = [
+    { month_id: 'm4', amount_net: 10000, vat_rate: 0.22 },
+    { month_id: 'm5', amount_net: 5000, vat_rate: 0.22 },
+  ]
+  const COST = [
+    { month_id: 'm4', actual: 1000, vat_applied: true, vat_rate: 0.22 },
+    // §191 — un pranzo: l'IVA c'è sul documento e non è detraibile
+    { month_id: 'm4', actual: 500, vat_applied: true, vat_rate: 0.22, vat_deductible_pct: 0 },
+    // carburante a uso promiscuo: 40%
+    { month_id: 'm5', actual: 200, vat_applied: true, vat_rate: 0.22, vat_deductible_pct: 0.4 },
+  ]
+  const mv = monthsVat(MESI_ID, REV, COST)
+  eq('IVA a debito di aprile', mv[0].debit, 2200)
+  eq('a credito solo la parte detraibile', mv[0].credit, 220)
+  eq('e il 40% del carburante', mv[1].credit, 17.6)
+  /* Una colonna che non c'è ancora — migration non eseguita — non deve azzerare
+     un costo: lo zero si leggerebbe come «non detraibile» e alzerebbe la
+     liquidazione. */
+  is('assente vuol dire piena, non zero', deductiblePct(undefined), 1)
+  is('null idem', deductiblePct(null), 1)
+  is('e un valore fuori scala si riporta dentro', [deductiblePct(2), deductiblePct(-1)], [1, 0])
+  /* Le righe arrivano in due forme, `month_id` e `month`, e sono la stessa riga:
+     accettarle entrambe è ciò che permette a questa funzione di essere l'unica. */
+  const perMese = monthsVat(MESI_ID, [{ month: '2026-04-01', amount_net: 10000, vat_rate: 0.22 }], [])
+  eq('si può indicizzare anche per mese', perMese[0].debit, 2200)
   /* Senza la data di pagamento il 20 agosto è ancora il giorno della scadenza:
      scaduto no, da versare sì. È il caso che rende visibile la differenza. */
   const nonVersato = vatByQuarter(MESI, '2026-08-20', [

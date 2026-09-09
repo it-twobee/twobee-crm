@@ -2,6 +2,40 @@
 
 ## Dove siamo — 2026-09-09
 
+**§325 — l'IVA aveva tre letture in tre posti diversi.** La Fiscale la calcolava
+solo dalle righe del conto economico, l'archivio delle fatture per conto suo in
+un'altra pagina, e il modello F24 arrivava mesi dopo. Adesso stanno nella stessa
+riga, e sul **2º trimestre** la misura è netta: il modello ha chiesto
+**9.669,33**, i documenti dicevano **9.804,96** e le righe **8.451,96** — i
+documenti hanno sbagliato di 135,63, la stima di 1.132,85. **Otto volte meno.**
+
+Sul **3º trimestre** in corso il segno si ribalta (righe 15.476,54, documenti
+11.059,67) e non è un errore: sul venduto le righe hanno 2.816 € di imposta in
+più perché settembre è competenza e le fatture escono a fine mese; sul comprato i
+documenti ne hanno 1.600 in più perché sono arrivate fatture che le uscite non
+registrano. Per questo lo scarto adesso si attribuisce **al lato che lo produce**
+— una spiegazione sola sbaglierebbe una volta su due.
+
+**Il versamento non cambia**: resta il modello quando c'è, la stima quando non
+c'è (§242). I documenti stanno accanto come controllo, perché spostare la
+liquidazione su una terza fonte muoverebbe la cassa senza che nessuno l'abbia
+deciso.
+
+**Il 2º trimestre è versato per intero.** 9.669,33 di IVA dentro l'F24 da
+10.547,24 del 20 agosto (cod. 6032) — il resto sono ritenute 239,48, INPS 856,00
+e crediti 217,57, che stanno in `hr_f24`. **Riporto al 3º trimestre: zero.**
+
+**E la somma era scritta tre volte.** Da righe a IVA del mese: la Fiscale
+applicava la detraibilità parziale (§191), il prospetto e il piano di cassa no.
+Coincidevano *per caso* — nessuna riga ha una percentuale sotto il 100% — e alla
+prima che arriva avrebbero detto tre liquidazioni diverse. Adesso è `monthsVat`,
+una sola. Il piano di cassa resta con un limite dichiarato: le righe di
+`lib/pl-rows.ts` non portano `vat_deductible_pct`, quindi lì il credito si legge
+pieno, e c'è scritto dove guardare quando smetterà di essere lo stesso numero.
+
+**Settembre è aperto**, e si vede: il 3º trimestre passa da 12.429,17 a
+15.476,54 di saldo IVA sulle righe, perché la competenza del mese è entrata.
+
 **Archivio a 86 documenti** (47 emesse, 39 ricevute): 5 fatture nuove — FPR
 57/26 Fatima, FPR 59/26 iCura, la nota di **debito** FPR 58/26 ad Affinity, la
 nota di **credito** FPR 56/26 a Petito, e in entrata la FPR 14/26 di Affinity da

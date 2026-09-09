@@ -24,6 +24,62 @@ export type MonthVat = {
   credit: number
 }
 
+/**
+ * §325 — Da righe di conto economico a IVA del mese, **in un posto solo**.
+ *
+ * Questa somma stava scritta due volte: nella pagina Fiscale, che applicava la
+ * detraibilità parziale (§191 — su un pranzo l'IVA a credito è zero, sul
+ * carburante a uso promiscuo il 40%), e nel prospetto, che la ignorava. Oggi i
+ * due numeri coincidono per caso, perché nessuna riga ha una percentuale sotto
+ * il 100%: il giorno che qualcuno la mette, le due pagine dicono due IVA diverse
+ * sotto la stessa parola, e nessuna delle due si accorge dell'altra.
+ *
+ * Una regola scritta due volte non è una regola. Qui è una.
+ */
+/* Le righe arrivano in due forme — chi le legge dal database le ha per
+   `month_id`, chi le ha già caricate le ha per `month` — e sono la stessa riga.
+   Accettarle entrambe è ciò che permette a questa funzione di essere l'unica. */
+export type VatRevRow = { month_id?: string; month?: string; amount_net?: unknown; vat_rate?: unknown }
+export type VatCostRow = {
+  month_id?: string
+  month?: string
+  actual?: unknown
+  vat_applied?: boolean
+  vat_rate?: unknown
+  /** §191 — quanta di quell'IVA è davvero detraibile. Assente = piena. */
+  vat_deductible_pct?: unknown
+}
+
+const sameMonth = (r: { month_id?: string; month?: string }, m: { id: string; month: string }) =>
+  r.month_id != null ? r.month_id === m.id : r.month === m.month
+
+const numOf = (v: unknown) => Number(v ?? 0)
+
+/**
+ * Percentuale di detraibilità: assente = piena. Una colonna che non c'è ancora
+ * — migration non eseguita — non deve azzerare un costo: lo zero si leggerebbe
+ * come «non detraibile» e alzerebbe la liquidazione.
+ */
+export const deductiblePct = (v: unknown): number => {
+  if (v == null) return 1
+  const x = Number(v)
+  return Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 1
+}
+
+export function monthsVat(
+  months: { id: string; month: string }[],
+  rev: VatRevRow[],
+  cost: VatCostRow[],
+): MonthVat[] {
+  return months.map(m => ({
+    month: m.month,
+    debit: rev.filter(r => sameMonth(r, m))
+      .reduce((s, r) => s + numOf(r.amount_net) * numOf(r.vat_rate), 0),
+    credit: cost.filter(c => sameMonth(c, m) && c.vat_applied)
+      .reduce((s, c) => s + numOf(c.actual) * numOf(c.vat_rate) * deductiblePct(c.vat_deductible_pct), 0),
+  }))
+}
+
 export type Quarter = { year: number; q: 1 | 2 | 3 | 4 }
 
 export const quarterOf = (month: string): Quarter => {
@@ -78,6 +134,28 @@ export type VatActual = {
   paidOn?: string | null
 }
 
+/**
+ * §325 — la stessa IVA, letta dai **documenti** invece che dalle righe.
+ *
+ * Il conto economico stima l'imposta come 22% dei ricavi registrati: è esatta
+ * sul registrato, e sbaglia di tutto quello che il mese non ha. L'archivio
+ * fatture è il registro vero — quello che l'erario vede — e sul 2º trimestre
+ * 2026 la differenza si misura: il modello F24 ha chiesto 9.669,33, i documenti
+ * dicevano 9.804,96 e la stima 8.536,48. I documenti hanno sbagliato di 135,63,
+ * la stima di 1.132,85: **otto volte tanto**.
+ *
+ * Non è la stessa cosa del confronto col modello (§242), che arriva mesi dopo:
+ * questa lettura è disponibile **subito**, e sul trimestre in corso è l'unica
+ * che dica quanto mettere da parte davvero.
+ */
+export type VatDocs = {
+  quarter: Quarter
+  /** IVA sulle fatture emesse del trimestre, note di credito già scalate */
+  debit: number
+  /** IVA sulle ricevute */
+  credit: number
+}
+
 export type QuarterVat = {
   quarter: Quarter
   label: string
@@ -109,6 +187,14 @@ export type QuarterVat = {
   estimated: number
   docRef: string | null
   paidOn: string | null
+  /**
+   * §325 — l'IVA che dicono i documenti dello SdI, quando l'archivio copre il
+   * trimestre. `null` = nessuna fattura caricata per quei mesi, e allora la
+   * colonna resta vuota invece di mostrare uno zero che sembrerebbe «niente IVA».
+   */
+  documents: { debit: number; credit: number; balance: number } | null
+  /** §325 — documenti meno stima: positivo = il registro ha più imposta delle righe */
+  documentsGap: number
 }
 
 const days = (from: string, to: string) =>
@@ -126,8 +212,11 @@ export function vatByQuarter(
   today: string,
   /** §242 — i modelli F24 già arrivati: dove c'è, vince sul calcolo */
   actuals: VatActual[] = [],
+  /** §325 — la stessa IVA letta dall'archivio delle fatture, quando c'è */
+  docs: VatDocs[] = [],
 ): QuarterVat[] {
   const actualOf = new Map(actuals.map(a => [`${a.quarter.year}-${a.quarter.q}`, a]))
+  const docsOf = new Map(docs.map(d => [`${d.quarter.year}-${d.quarter.q}`, d]))
   const byQuarter = new Map<string, MonthVat[]>()
   for (const m of months) {
     const q = quarterOf(m.month)
@@ -162,6 +251,7 @@ export function vatByQuarter(
        trimestre dopo nasce dal saldo calcolato, e sostituirlo con un numero che
        il documento non contiene sposterebbe l'errore avanti invece di mostrarlo. */
     const actual = actualOf.get(key)
+    const d = docsOf.get(key)
     const toPay = actual ? r2(actual.toPay) : estimated
     carried = balance < 0 ? -balance : deferred ? -balance : 0
 
@@ -175,14 +265,23 @@ export function vatByQuarter(
       estimated,
       docRef: actual?.docRef ?? null,
       paidOn: actual?.paidOn ?? null,
+      /* §325 — il saldo dei documenti si confronta col **saldo** stimato, non
+         con quello che si versa: il riporto e l'1% sono mestiere della
+         liquidazione, non del registro, e sommarli qui confronterebbe due cose
+         diverse facendole sembrare in disaccordo. */
+      documents: d ? { debit: d.debit, credit: d.credit, balance: r2(d.debit - d.credit) } : null,
+      documentsGap: d ? r2(r2(d.debit - d.credit) - r2(debit - credit)) : 0,
     }
   })
 }
 
 /** Il trimestre in cui cade oggi, con quello che c'è da versare. */
-export function currentQuarterVat(months: MonthVat[], today: string, actuals: VatActual[] = []): QuarterVat | null {
+export function currentQuarterVat(
+  months: MonthVat[], today: string, actuals: VatActual[] = [], docs: VatDocs[] = [],
+): QuarterVat | null {
   const q = quarterOf(today)
-  return vatByQuarter(months, today, actuals).find(x => x.quarter.year === q.year && x.quarter.q === q.q) ?? null
+  return vatByQuarter(months, today, actuals, docs)
+    .find(x => x.quarter.year === q.year && x.quarter.q === q.q) ?? null
 }
 
 /**
@@ -197,7 +296,9 @@ export function currentQuarterVat(months: MonthVat[], today: string, actuals: Va
 export const vatPending = (q: QuarterVat) => !q.closed && !q.paidOn
 
 /** La prossima scadenza ancora da versare, con quanto si porta dietro. */
-export function nextDue(months: MonthVat[], today: string, actuals: VatActual[] = []): QuarterVat | null {
-  const aperti = vatByQuarter(months, today, actuals).filter(vatPending)
+export function nextDue(
+  months: MonthVat[], today: string, actuals: VatActual[] = [], docs: VatDocs[] = [],
+): QuarterVat | null {
+  const aperti = vatByQuarter(months, today, actuals, docs).filter(vatPending)
   return aperti.find(x => x.toPay > 0) ?? aperti[0] ?? null
 }

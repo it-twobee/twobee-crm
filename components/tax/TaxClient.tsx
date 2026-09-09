@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { monthLabel, shiftMonth } from '@/lib/pl'
-import { vatByQuarter, nextDue, type MonthVat, type VatActual } from '@/lib/vat'
+import { vatByQuarter, nextDue, type MonthVat, type VatActual, type VatDocs } from '@/lib/vat'
 import {
   fiscalCalendar, estimateTaxes, setAsideStatus, taxInsights, monthsLeftInYear, upcoming,
   maxiDeduction, taxMeasures,
@@ -35,7 +35,7 @@ const KIND_TONE: Record<string, string> = {
 }
 
 export function TaxClient({
-  month, today, setupNeeded, config, provisions, vatMonths, vatActuals = [],
+  month, today, setupNeeded, config, provisions, vatMonths, vatActuals = [], vatDocs = [],
   revenueYtd, costsYtd, nonDeductibleYtd, entertainmentYtd, monthsBooked, costsWithVat, costsWithoutVat,
   vatOnUnpaid, q4Share, hasWelfare, hasTraining, rndSpend,
   newHires = 0, newHiresCost = 0, protectedCost = 0,
@@ -47,6 +47,8 @@ export function TaxClient({
   config: TaxConfig
   provisions: Provision[]
   vatMonths: MonthVat[]
+  /** §325 — la stessa IVA letta dai documenti dello SdI */
+  vatDocs?: VatDocs[]
   /** §242 — i modelli F24 arrivati: dove c'è, vince sulla stima */
   vatActuals?: VatActual[]
   revenueYtd: number
@@ -85,8 +87,10 @@ export function TaxClient({
   const year = Number(month.slice(0, 4))
   const go = (d: number) => router.push(`/economics/fiscale?m=${shiftMonth(month, d * 12)}`)
 
-  const vat = useMemo(() => vatByQuarter(vatMonths, today, vatActuals), [vatMonths, today, vatActuals])
-  const next = useMemo(() => nextDue(vatMonths, today, vatActuals), [vatMonths, today, vatActuals])
+  const vat = useMemo(() => vatByQuarter(vatMonths, today, vatActuals, vatDocs),
+    [vatMonths, today, vatActuals, vatDocs])
+  const next = useMemo(() => nextDue(vatMonths, today, vatActuals, vatDocs),
+    [vatMonths, today, vatActuals, vatDocs])
   /* §184 — la maxi-deduzione abbassa la base IRES e nient'altro: è
      extracontabile (non tocca il margine) e non vale ai fini IRAP. Entra nella
      stima perché una previsione che la ignora sovrastima l'imposta di migliaia. */
@@ -278,7 +282,12 @@ export function TaxClient({
         <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
           <h2 className="text-sm font-bold text-text-primary mb-1">IVA, trimestre per trimestre</h2>
           <p className="text-2xs text-text-tertiary mb-3">
-            Il credito di un trimestre si riporta sul successivo. Sotto i 25,82 € il versamento non si fa
+            Il credito di un trimestre si riporta sul successivo. Sotto i 25,82 € il versamento non si fa.
+            {vat.some(q => q.documents) && (
+              <> Tre letture dello stesso fatto: le <strong className="text-text-secondary">righe</strong> del
+              conto economico, i <strong className="text-text-secondary">documenti</strong> dello SdI, e il{' '}
+              <strong className="text-text-secondary">modello F24</strong> quando arriva.</>
+            )}
           </p>
           {vat.length === 0 ? (
             <Empty>Nessun mese registrato: l&apos;IVA si calcola dal conto economico.</Empty>
@@ -324,6 +333,42 @@ export function TaxClient({
                       {q.gap > 0
                         ? ' — è fatturato del trimestre che le righe non hanno.'
                         : ' — ci sono righe nel mese che il registro IVA non conta.'}
+                    </p>
+                  )}
+                  {/* §325 — quello che dice il registro delle fatture. Sul 2º
+                      trimestre 2026 il modello ha chiesto 9.669,33: i documenti
+                      ne dicevano 9.804,96 e le righe 8.451,96, quindi l'archivio
+                      ha sbagliato di 135 € dove la stima ne sbagliava 1.133.
+                      Su un trimestre ancora aperto è l'unico numero disponibile
+                      che si regga su documenti invece che su previsioni. */}
+                  {q.documents && Math.abs(q.documentsGap) >= 1 && (
+                    <p className="text-2xs text-text-tertiary mt-1">
+                      I documenti dello SdI dicono{' '}
+                      <span className="tabular text-text-secondary">{eur(q.documents.balance)}</span>
+                      {' '}({eur(q.documents.debit)} − {eur(q.documents.credit)}):{' '}
+                      <strong className={q.documentsGap > 0 ? 'text-warning' : 'text-text-secondary'}>
+                        {q.documentsGap > 0 ? `${eur(q.documentsGap)} in più` : `${eur(-q.documentsGap)} in meno`}
+                      </strong>
+                      {' '}delle righe.
+                      {/* §325 — lo scarto va attribuito al lato che lo produce, o
+                          la spiegazione è giusta solo in un verso. A metà
+                          trimestre il conto economico corre avanti — la
+                          competenza c'è, la fattura esce a fine mese — e a
+                          trimestre chiuso è l'opposto: il registro ha documenti
+                          che le righe non hanno. Dire sempre la stessa cosa
+                          sbaglierebbe una volta su due. */}
+                      {Math.abs(q.documents.debit - q.debit) >= 1 && (
+                        <> Sul <strong className="text-text-secondary">venduto</strong>{' '}
+                        {q.documents.debit > q.debit
+                          ? `i documenti hanno ${eur(q.documents.debit - q.debit)} di imposta in più: è fatturato che le righe non registrano.`
+                          : `le righe hanno ${eur(q.debit - q.documents.debit)} di imposta in più: è competenza maturata che non è ancora stata fatturata.`}</>
+                      )}
+                      {Math.abs(q.documents.credit - q.credit) >= 1 && (
+                        <> Sul <strong className="text-text-secondary">comprato</strong>{' '}
+                        {q.documents.credit > q.credit
+                          ? `i documenti hanno ${eur(q.documents.credit - q.credit)} di credito in più: sono fatture ricevute che le uscite non hanno ancora.`
+                          : `le righe hanno ${eur(q.credit - q.documents.credit)} di credito in più: sono costi previsti senza un documento sotto.`}</>
+                      )}
                     </p>
                   )}
                   {q.paidOn && (
