@@ -190,6 +190,57 @@ il **perché** accanto. «Scaduta» senza «attesa il 15 luglio» è un'accusa c
 legge va a verificare a mano, ed è la stessa regola della provenienza dei numeri
 (`lib/economics-source.ts`). In elenco c'è la parola, nella scheda la ragione.
 
+**§324 — un debito si paga per fornitore, non per documento** (`payables` e
+`outflow` in `lib/invoices.ts`). Il credito e il debito avevano la stessa forma
+— una lista piatta ordinata per ritardo — e non sono la stessa domanda. Un
+credito si insegue **una fattura alla volta**: si telefona per la FPR 41/26, non
+«per Petito». Un debito si paga **un fornitore alla volta**: chi ha due fatture
+Affinity aperte fa un bonifico, non due, e una lista piatta gliele mette in due
+punti diversi dello schermo. L'ordine è l'urgenza del fornitore — **prima chi è
+più in ritardo**, non chi costa di più: un fornitore piccolo scaduto da due mesi
+smette di lavorare prima di uno grande che scade domani.
+
+- **Lo scadenzario guarda indietro, la cassa guarda avanti.** `aging` dice da
+  quanto aspetta chi aspetta; `outflow` dice quanto esce entro 7 e entro 30
+  giorni, ed è la domanda che parla con la tenuta di cassa. Non si sostituiscono:
+  vanno lette insieme. Al 9 settembre: **12.792,86 € verso 5 fornitori**, di cui
+  **9.795,26 già scaduti** e **2.997,60 senza una data**.
+- **«Senza data» è una fascia sua**, non un residuo in fondo. Sono i soldi che
+  usciranno in un momento che il tool non sa, e nasconderli in un totale li fa
+  mancare proprio il giorno in cui il fornitore chiama (§280).
+- **La scadenza che il documento non dichiara, la dice il fornitore stesso**
+  (`supplierTerm`, `suggestedDue`). Metà delle fatture ricevute non porta
+  `DataScadenzaPagamento` — il tracciato non la pretende — e inventare trenta
+  giorni sarebbe la cosa peggiore: un numero plausibile che nessuno verifica. Ma
+  Saraiello lo ha già scritto **cinque volte**, ed è sempre 31 giorni; Affinity
+  emette a zero, pagamento immediato. È una mediana sui documenti veri di quel
+  fornitore, **col campione accanto** — sotto i due precedenti non è
+  un'abitudine, è un caso, e allora la pagina dice che non lo sa invece di
+  riempire il buco.
+
+**§324 — un movimento non paga una fattura che a quella data non esisteva.**
+Tre agganci su cinquantanove, tutti con la stessa forma: il bonifico del mese
+prima attaccato alla fattura del mese dopo. `txCandidates` li proponeva —
+importo esatto (55) più controparte (20) fanno 75, e la penalità di 20 lasciava
+esattamente 55, cioè la soglia — e qualcuno ha cliccato.
+
+- **La sola distanza non li riconosce.** Un anticipo di pochi giorni è
+  legittimo: con la fatturazione differita si paga a maggio quello che viene
+  fatturato il 29, e sui dati veri sono GIALEDA a dieci giorni e Talenti a uno.
+  Escluderli perderebbe agganci veri. Oltre **45 giorni** — il termine della
+  differita — non è più un ritardo di emissione: è un'altra fattura.
+- **La firma netta è un'altra: due fatture che si dichiarano pagate dallo stesso
+  movimento.** Una lo tiene agganciato, l'altra ne porta la data in `paid_on`.
+  Non ha bisogno di soglie, e prende i due casi che la distanza si lasciava
+  scappare (14 e 19 giorni). È anche ciò che rende sicura la riparazione: la
+  fattura giusta **portava già** la data giusta, quindi spostare il legame non
+  muove un euro. `scripts/fix-invoice-links.ts`.
+- **Quello che resta ambiguo non si scrive.** La 5/2026 di Saraiello risulta
+  pagata 19 giorni prima di essere emessa, e più vecchie ce ne sono due ancora
+  aperte: che la data sia sbagliata è quasi certo, **quale sia la fattura giusta
+  non lo è**. Imputare al più vecchio scoperto è una regola di imputazione, non
+  un fatto del documento — lo script la stampa e la lascia decidere.
+
 **IVA** (`lib/vat.ts`): l'IVA incassata non è cassa disponibile. Liquidazione
 trimestrale, scadenze ordinarie 16/05 · **20/08** · 16/11 · 16/03 (il quarto con
 la dichiarazione annuale), 1% di interessi sui primi tre. Il credito di un

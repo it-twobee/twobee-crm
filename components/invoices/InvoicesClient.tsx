@@ -17,6 +17,7 @@ import {
   lineCandidates, txCandidates, signed, signedTotal, daysBetween,
   invoiceStatus, invoiceStage, stageWhy, isOpen, isVoided, rectified,
   docKind, DOC_KIND_LABEL, isCreditNote, isDebitNote,
+  payables, outflow, suggestedDue, type Payable,
   type Invoice, type LineRef, type TxRef, type InvoiceDirection, type CoverageRow,
   type InvoiceState, type DocKind, type InvoiceStatus,
 } from '@/lib/invoices'
@@ -149,6 +150,22 @@ export function InvoicesClient({
   const age = useMemo(() => aging(dir === 'emessa' ? emesse : ricevute, today), [dir, emesse, ricevute, today])
   const days = useMemo(() => paymentDays(emesse), [emesse])
   const vat = useMemo(() => vatByQuarter(scoped), [scoped])
+  /* §324 — i debiti si leggono per fornitore, non per documento: chi ha tre
+     fatture aperte fa un bonifico solo. Si calcola sull'archivio intero, non su
+     `scoped`: filtrare per anno spezzerebbe un fornitore a cavallo di dicembre. */
+  const debiti = useMemo(() => payables(invoices, today), [invoices, today])
+  const uscite = useMemo(() => outflow(invoices, today), [invoices, today])
+  /* §324 — «prossima uscita» degenera quando tutto è già scaduto: mostrerebbe
+     una data passata sotto la parola «prossima». La domanda che regge sempre è
+     quanto serve avere sul conto entro il mese, scaduto compreso. */
+  const entro30 = useMemo(() => {
+    const q = ['già scadute', 'entro 7 giorni', 'entro 30 giorni'] as const
+    const s = uscite.slices.filter(x => (q as readonly string[]).includes(x.key))
+    return {
+      amount: Math.round(s.reduce((n, x) => n + x.amount, 0) * 100) / 100,
+      count: s.reduce((n, x) => n + x.count, 0),
+    }
+  }, [uscite])
   const cover = useMemo(() => coverage({ invoices: scoped, lines, txs }), [scoped, lines, txs])
   const findings = useMemo(
     () => reconciliation({ invoices: scoped, lines, txs, today }), [scoped, lines, txs, today])
@@ -338,12 +355,19 @@ export function InvoicesClient({
               extra={tRi.overdue > 0
                 ? <span className="text-warning">{eur(tRi.overdue)} oltre la scadenza</span>
                 : <span className="text-success">tutto nei termini</span>} />
-            <Stat icon={<ArrowUpRight className="w-3.5 h-3.5 text-error" />}
-              label="Oltre la scadenza" value={eur(tRi.overdue)}
-              hint={tRi.overdue > 0
-                ? 'un fornitore in ritardo è il primo che smette di lavorare'
-                : 'nessun debito scaduto'}
-              extra={<span className="text-text-tertiary">sul totale aperto {eur(tRi.outstanding)}</span>} />
+            {/* §324 — qui c'era «Oltre la scadenza», che ripeteva il numero già
+                scritto nel riquadro accanto: due volte la stessa cifra sulla
+                stessa riga fa contare a mano invece di leggere (§238). La
+                domanda che mancava è l'altra: **quando esce il prossimo euro**. */}
+            <Stat icon={<CalendarClock className="w-3.5 h-3.5 text-info" />}
+              label="Serve entro 30 giorni"
+              value={eur(entro30.amount)}
+              hint={entro30.count
+                ? `${entro30.count} fatture fra scadute e in scadenza`
+                : 'niente in scadenza entro il mese'}
+              extra={uscite.undated > 0
+                ? <span className="text-warning">più {eur(uscite.undated)} senza una data</span>
+                : <span className="text-text-tertiary">ogni debito ha una scadenza</span>} />
             <Stat icon={<FileText className="w-3.5 h-3.5 text-gold-text" />}
               label="Note di credito e debito"
               value={`${tRi.credits} · ${tRi.debits}`}
@@ -381,12 +405,64 @@ export function InvoicesClient({
       {/* §292 — le ricevute non hanno una serie storica da guardare: la domanda
           non è «come andiamo» ma «chi dobbiamo pagare e quando», quindi la coda
           sta da sola e in cima, dov'è la prima cosa da fare. */}
+      {/* ── §324 · Chi dobbiamo pagare, e quando esce ── */}
+      {dir === 'ricevuta' && debiti.length > 0 && (
+        <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
+          <div className="flex items-baseline justify-between gap-3 flex-wrap mb-1">
+            <h2 className="text-sm font-bold text-text-primary">Chi dobbiamo pagare</h2>
+            <span className="text-2xs text-text-tertiary tabular">
+              {debiti.length} fornitor{debiti.length === 1 ? 'e' : 'i'} · {eur2(uscite.total)} lordi
+            </span>
+          </div>
+          <p className="text-2xs text-text-tertiary mb-3 max-w-3xl">
+            Un credito si insegue una fattura alla volta; un debito si paga un fornitore alla volta.
+            In ordine di <strong className="text-text-secondary">ritardo</strong>, non di importo: un
+            fornitore piccolo scaduto da due mesi smette di lavorare prima di uno grande che scade domani.
+          </p>
+
+          {/* Quando esce: la domanda della cassa, non dello scadenzario */}
+          <div className="grid gap-2 sm:grid-cols-5 mb-4">
+            {uscite.slices.map(s => (
+              <div key={s.key} className={`rounded-xl border px-3 py-2 ${
+                s.amount === 0 ? 'border-border opacity-50'
+                  : s.key === 'già scadute' ? 'border-error/40 bg-error/5'
+                  : s.key === 'senza data' ? 'border-warning/40 bg-warning/5'
+                  : 'border-border'}`}>
+                <span className="block text-2xs text-text-tertiary">{s.key}</span>
+                <span className={`block text-sm font-bold tabular ${
+                  s.key === 'già scadute' && s.amount > 0 ? 'text-error'
+                    : s.key === 'senza data' && s.amount > 0 ? 'text-warning' : 'text-text-primary'}`}>
+                  {eur(s.amount)}
+                </span>
+                <span className="block text-2xs text-text-tertiary">
+                  {s.count} fattur{s.count === 1 ? 'a' : 'e'}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <ul className="divide-y divide-border/60 rounded-xl border border-border overflow-hidden">
+            {debiti.map(p => <PayableRow key={p.key} p={p} invoices={invoices} today={today}
+              pending={pending} run={run} />)}
+          </ul>
+        </section>
+      )}
+
       {dir === 'ricevuta' && (
         <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
-          <h2 className="text-sm font-bold text-text-primary">Fatture dei fornitori da pagare</h2>
-          <p className="text-2xs text-text-tertiary">
-            In ordine di ritardo. Un debito senza una data di scadenza non è né in ritardo né atteso:
-            sparisce dalla previsione di cassa, e riappare il giorno in cui il fornitore chiama.
+          <h2 className="text-sm font-bold text-text-primary">
+            Le stesse fatture, una per una
+          </h2>
+          {/* §324 — sono gli stessi documenti del riquadro sopra, non altri: là
+              si decide **chi** pagare, qui si lavora **una fattura**. Due liste
+              sulla stessa pagina vanno dichiarate uguali, o la prima cosa che
+              viene in mente è che i due totali siano due numeri diversi (§238). */}
+          <p className="text-2xs text-text-tertiary max-w-3xl">
+            Lo stesso debito di sopra, visto per documento invece che per fornitore: là si sceglie chi
+            pagare, qui si chiude la singola partita — si aggancia il movimento che è già passato, si
+            mette la data attesa, o si dichiara che non è un debito. Un debito senza una data di
+            scadenza non è né in ritardo né atteso: sparisce dalla previsione di cassa, e riappare il
+            giorno in cui il fornitore chiama.
           </p>
           <PendingInvoices invoices={invoices} txs={txs} today={today}
             pending={pending} run={run} direction="ricevuta" />
@@ -919,6 +995,98 @@ function MonthChart({ rows }: { rows: ReturnType<typeof byMonth> }) {
  * che nessuno ha ancora caricato, e dichiara quello che è: una spunta senza un
  * movimento che la dimostri (§226).
  */
+/**
+ * §324 — Un fornitore, con dentro le sue fatture.
+ *
+ * Chiuso di default: la riga porta già la decisione — quanto, quando, quanto in
+ * ritardo — e aprirlo serve solo quando si vuole sapere **di cosa** è fatto quel
+ * numero. Un elenco che parte tutto aperto è un elenco che non si legge.
+ */
+function PayableRow({ p, invoices, today, pending, run }: {
+  p: Payable
+  invoices: Invoice[]
+  today: string
+  pending: boolean
+  run: (fn: () => Promise<unknown>, ok?: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <li className={open ? 'bg-surface-hover/50' : ''}>
+      <div className="flex items-baseline gap-3 px-3 py-2 flex-wrap">
+        <button onClick={() => setOpen(o => !o)} aria-expanded={open}
+          className="text-2xs font-bold text-text-primary hover:text-gold-text text-left min-w-[150px] flex-1 truncate">
+          {p.name}
+        </button>
+        <span className="text-2xs text-text-tertiary shrink-0">
+          {p.invoices.length} fattur{p.invoices.length === 1 ? 'a' : 'e'}
+        </span>
+        <span className="text-2xs shrink-0">
+          {p.worstLate > 0
+            ? <span className="text-error font-semibold">in ritardo di {p.worstLate} giorni</span>
+            : p.nextDue
+              ? <span className="text-text-tertiary">scade il {day(p.nextDue)}</span>
+              : <span className="text-warning">senza data attesa</span>}
+        </span>
+        {p.undated > 0 && p.nextDue && (
+          <span className="text-2xs text-warning shrink-0">
+            {p.undated} senza data
+          </span>
+        )}
+        <span className="text-2xs font-bold tabular text-text-primary shrink-0 w-28 text-right">
+          {eur2(p.total)}
+        </span>
+      </div>
+
+      {open && (
+        <ul className="px-3 pb-3 space-y-1">
+          {/* §324 — il termine che questo fornitore usa, dai suoi stessi documenti.
+              Col campione accanto: un termine dedotto da un documento solo non è
+              un termine, è un caso. */}
+          {p.term.days !== null && p.term.sample >= 2 && (
+            <li className="text-2xs text-text-tertiary">
+              Di solito scrive <strong className="text-text-secondary">{p.term.days} giorni</strong> di
+              termine, su {p.term.sample} sue fatture.
+            </li>
+          )}
+          {p.invoices.map(i => {
+            const st = invoiceStatus(i, today)
+            const sug = suggestedDue(i, invoices)
+            return (
+              <li key={i.id} className="flex items-baseline gap-2 flex-wrap text-2xs">
+                <span className="font-semibold text-text-secondary w-24 shrink-0">{i.number}</span>
+                <span className="text-text-tertiary shrink-0">del {day(i.issuedOn)}</span>
+                <span className={`shrink-0 ${TONE[st.tone]}`} title={st.why}>{st.label}</span>
+                <span className="tabular text-text-primary ml-auto shrink-0">{eur2(signedTotal(i))}</span>
+                {!i.paidOn && (
+                  <button disabled={pending}
+                    onClick={() => run(() => setInvoicePaid(i.id, today), 'Segnata pagata')}
+                    className="text-text-tertiary hover:text-success underline shrink-0">segna pagata</button>
+                )}
+                {sug && (
+                  <span className="basis-full pl-24 text-text-tertiary">
+                    Nessuna scadenza sul documento.{' '}
+                    <button disabled={pending}
+                      onClick={() => run(() => setInvoiceDue(i.id, sug.date), 'Scadenza impostata')}
+                      className="text-gold-text hover:underline">
+                      metti il {day(sug.date)}
+                    </button>{' '}
+                    — {sug.why}.
+                  </span>
+                )}
+                {!i.dueDate && !sug && (
+                  <span className="basis-full pl-24 text-warning">
+                    Nessuna scadenza sul documento e nessuno storico da cui dedurla: va decisa a mano.
+                  </span>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </li>
+  )
+}
+
 const CODA = {
   emessa: {
     titolo: 'Da incassare', vuoto: 'Nessuna fattura in attesa: tutto quello che è stato emesso è rientrato.',

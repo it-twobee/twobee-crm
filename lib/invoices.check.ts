@@ -6,6 +6,7 @@ import {
   totals, byMonth, byParty, aging, paymentDays, reconciliation, vatByQuarter, coverage,
   lineCandidates, txCandidates, bankMatching, signed, daysBetween, billingSeries,
   withRectifications, invoiceStatus, invoiceStage, isOpen, isVoided, partlyVoided, rectified,
+  payables, outflow, supplierTerm, suggestedDue,
   type Invoice, type LineRef, type TxRef,
 } from '@/lib/invoices'
 
@@ -656,6 +657,113 @@ console.log('\n— §323: una nota senza riferimento resta dov\'è —')
   const f = reconciliation({ invoices: inv, lines: [], txs: [], today: '2026-09-09' })
   is('e la riconciliazione chiede di collegarla',
     f.some(x => x.id === 'note-senza-riferimento'), true)
+}
+
+console.log('\n— §324: il termine lo dice il fornitore, sui suoi documenti —')
+{
+  const R = (o: Partial<Invoice>) => I({ direction: 'ricevuta', counterpartyName: 'Gabriele Saraiello',
+    counterpartyVat: '07854321218', ...o })
+  /* Le cinque di Saraiello con la scadenza scritta: tutte a 31 giorni. La sesta
+     non ce l'ha, e il tracciato non la pretende — ma il fornitore l'ha già detto
+     cinque volte. */
+  const storico = [
+    R({ id: 'a', issuedOn: '2026-04-08', dueDate: '2026-05-09', paidOn: '2026-05-15' }),
+    R({ id: 'b', issuedOn: '2026-05-08', dueDate: '2026-06-08', paidOn: '2026-05-15' }),
+    R({ id: 'c', issuedOn: '2026-06-04', dueDate: '2026-07-05', paidOn: '2026-07-17' }),
+    R({ id: 'd', issuedOn: '2026-07-02', dueDate: '2026-08-02' }),
+    R({ id: 'e', issuedOn: '2026-08-05', dueDate: '2026-09-05' }),
+  ]
+  const senza = R({ id: 'f', issuedOn: '2026-09-02', dueDate: null, total: 1500 })
+  const tutte = [...storico, senza]
+
+  const t = supplierTerm(tutte, senza)
+  is('il termine mediano del fornitore', [t.days, t.sample], [31, 5])
+  const s = suggestedDue(senza, tutte)
+  is('la scadenza dedotta', s?.date, '2026-10-03')
+  is('e dice su quanti documenti si regge', /5 fatture/.test(s?.why ?? ''), true)
+  /* 31 giorni dopo il 2 settembre è il 3 ottobre, e deve esserlo ovunque giri
+     il codice: la somma si fa in UTC, perché mezzanotte locale riportata a
+     Greenwich è il giorno prima da Napoli in ora legale. */
+  is('la somma non dipende dal fuso',
+    suggestedDue({ ...senza, issuedOn: '2026-12-02' }, tutte.map(x => ({ ...x })))?.date, '2027-01-02')
+  is('su una fattura che la scadenza ce l\'ha già non si suggerisce niente',
+    suggestedDue(storico[0], tutte), null)
+  /* Un solo precedente non è un'abitudine: meglio «non lo so» di un numero
+     plausibile che nessuno andrà a verificare. */
+  const solo = R({ id: 'x', counterpartyName: 'Antonella Spaduzzi', counterpartyVat: '09999999999',
+    issuedOn: '2026-08-17', dueDate: null })
+  is('senza storico non si deduce niente', suggestedDue(solo, [...tutte, solo]), null)
+}
+
+console.log('\n— §324: i debiti si leggono per fornitore —')
+{
+  const oggi = '2026-09-09'
+  const R = (o: Partial<Invoice>) => I({ direction: 'ricevuta', ...o })
+  const inv = [
+    R({ id: 'a1', counterpartyName: 'Affinity Srl', counterpartyVat: '01', number: 'FPR 9/26',
+      issuedOn: '2026-07-21', dueDate: '2026-07-21', taxable: 2100, total: 2562 }),
+    R({ id: 'a2', counterpartyName: 'Affinity Srl', counterpartyVat: '01', number: 'FPR 13/26',
+      issuedOn: '2026-09-01', dueDate: '2026-09-01', taxable: 2450, total: 2989 }),
+    R({ id: 'o1', counterpartyName: 'OVH SRL', counterpartyVat: '02', number: 'IT3087078',
+      issuedOn: '2026-09-01', dueDate: '2026-09-01', taxable: 37, total: 45.13 }),
+    R({ id: 'n1', counterpartyName: 'Antonella Spaduzzi', counterpartyVat: '03', number: '3PR',
+      issuedOn: '2026-08-17', dueDate: null, taxable: 1440, total: 1497.6 }),
+    R({ id: 'f1', counterpartyName: 'Futuro Srl', counterpartyVat: '04', number: '1/26',
+      issuedOn: '2026-09-05', dueDate: '2026-10-05', taxable: 1000, total: 1220 }),
+    // già pagata: non è un debito, e non deve comparire
+    R({ id: 'p1', counterpartyName: 'Affinity Srl', counterpartyVat: '01', number: 'FPR 12/26',
+      issuedOn: '2026-09-01', dueDate: '2026-09-01', total: 3260, paidOn: '2026-09-09' }),
+    // e nemmeno una emessa: questo è il verso dei debiti
+    I({ id: 'em', number: 'FPR 59/26', issuedOn: '2026-09-09', dueDate: '2026-09-18' }),
+  ]
+  const p = payables(inv, oggi)
+  is('un fornitore per riga, non un documento', p.length, 4)
+  is('prima il più in ritardo', p.map(x => x.name),
+    ['Affinity Srl', 'OVH SRL', 'Futuro Srl', 'Antonella Spaduzzi'])
+  eq('e il suo totale è la cifra del bonifico', p[0].total, 5551)
+  is('le sue due fatture aperte, non la pagata', p[0].invoices.map(x => x.number), ['FPR 9/26', 'FPR 13/26'])
+  is('quante sono in ritardo', p[0].overdueCount, 2)
+  eq('quanto è già scaduto', p[0].overdue, 5551)
+  is('il ritardo peggiore', p[0].worstLate, 50)
+  /* Chi non ha nessuna data chiude la lista: non conta meno, ma non si può dire
+     quando — e metterla in mezzo a una fila ordinata per urgenza direbbe una
+     posizione che non ha. */
+  is('chi non ha date sta in fondo', p.at(-1)!.name, 'Antonella Spaduzzi')
+  is('e lo dichiara', p.at(-1)!.undated, 1)
+  is('nessuna emessa fra i debiti', p.some(x => x.invoices.some(i => i.direction === 'emessa')), false)
+
+  const o = outflow(inv, oggi)
+  const q = (k: string) => o.slices.find(s => s.key === k)!
+  eq('già scadute', q('già scadute').amount, 5596.13)
+  eq('entro 30 giorni', q('entro 30 giorni').amount, 1220)
+  eq('senza data è una fascia sua, non un residuo', q('senza data').amount, 1497.6)
+  eq('e il totale le contiene tutte', o.total, 8313.73)
+  eq('la parte di cui non si sa quando', o.undated, 1497.6)
+}
+
+console.log('\n— §324: un movimento non paga una fattura che non esisteva —')
+{
+  /* Il caso vero: il bonifico Tailors del 17 giugno agganciato alla FPR 51/26
+     del 4 agosto. Importo esatto (55) più controparte (20) facevano 75, e la
+     penalità di 20 lasciava 55 — cioè esattamente la soglia. */
+  const tardi = I({ number: 'FPR 51/26', issuedOn: '2026-08-04', taxable: 2000, vatAmount: 440, total: 2440 })
+  const tx: TxRef[] = [{ id: 't', bookedOn: '2026-06-17', amount: 2440,
+    description: 'bonif. vs. favore - bon.da tailors style srl', counterparty: 'Tailors Style', invoiceId: null }]
+  is('48 giorni prima: non si propone più', txCandidates(tardi, tx).length, 0)
+  /* Ma la fatturazione differita è legittima: GIALEDA ha incassato il 19 maggio
+     una fattura datata 29. Escluderlo del tutto perderebbe gli agganci veri. */
+  const differita = I({ direction: 'ricevuta', number: '90/2026', issuedOn: '2026-05-29',
+    counterpartyName: 'GIALEDA SRL', taxable: 115.61, vatAmount: 25.43, total: 141.04 })
+  const tx2: TxRef[] = [{ id: 't2', bookedOn: '2026-05-19', amount: -141.04,
+    description: 'addebito gialeda srl', counterparty: 'Gialeda', invoiceId: null }]
+  is('dieci giorni prima resta un candidato', txCandidates(differita, tx2).length, 1)
+
+  const f = reconciliation({
+    invoices: [tardi], lines: [],
+    txs: [{ ...tx[0], invoiceId: tardi.id }], today: '2026-09-09',
+  })
+  is('e chi l\'ha già agganciato se lo sente dire',
+    f.some(x => x.id === 'movimento-anteriore' && x.severity === 'critico'), true)
 }
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)

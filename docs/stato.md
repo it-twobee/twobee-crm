@@ -73,6 +73,45 @@ agosto, il saldo vero no, e la differenza è quasi tutta lì. Si chiude preparan
 settembre, che è un'altra operazione — crea righe di ricavo e di costo — e non
 si fa di straforo insieme a un import.
 
+**§324 — il lato «da pagare», che aveva la forma sbagliata.** I debiti verso i
+fornitori si leggevano come i crediti verso i clienti: una lista piatta ordinata
+per ritardo. Ma un credito si insegue una fattura alla volta e un debito si paga
+**un fornitore alla volta**. Adesso «Chi dobbiamo pagare» raggruppa, e sopra c'è
+quando esce: **12.792,86 € verso 5 fornitori**, di cui **9.795,26 già scaduti** e
+**2.997,60 senza una data**. Nei prossimi 30 giorni non scade nient'altro — tutto
+il debito aperto è già oltre il termine o non ne ha uno.
+
+Nel riquadro «Oltre la scadenza» c'era lo stesso numero già scritto nel riquadro
+accanto: due volte la stessa cifra sulla stessa riga fa contare a mano invece di
+leggere (§238). Al suo posto la domanda che mancava — **quanto serve avere sul
+conto entro il mese**, scaduto compreso. Non «la prossima uscita»: con tutto il
+debito già oltre il termine, quel riquadro avrebbe mostrato una data passata
+sotto la parola «prossima».
+
+**La scadenza che manca la dice il fornitore.** Metà delle ricevute non porta
+`DataScadenzaPagamento`, e senza quella un debito non è né scaduto né atteso:
+sparisce dalla cassa. Non si inventano trenta giorni — si legge il termine che
+quel fornitore scrive **sulle sue altre fatture**, col campione accanto.
+Saraiello: 31 giorni su 5 documenti, quindi la 6/2026 del 2 settembre scade il
+**3 ottobre**. Spaduzzi ha una fattura sola e nessuno storico: lì la pagina dice
+che non lo sa.
+
+**Tre agganci impossibili, e la soglia che li lasciava passare.** Il bonifico
+Tailors del 17 giugno era attaccato a una fattura del 4 agosto — 48 giorni prima
+che esistesse — e iCura uguale a 14 giorni. `txCandidates` li proponeva:
+importo esatto più controparte fanno 75, la penalità era 20, restava esattamente
+la soglia di 55. Ora la penalità oltre il termine della differita è 40, e la
+riconciliazione ha un controllo suo. **Due riparati** con
+`scripts/fix-invoice-links.ts` — la fattura giusta portava già la data giusta,
+quindi non si è mosso un euro — e **uno lasciato aperto**: la 5/2026 di Saraiello
+è pagata 19 giorni prima di essere emessa, ma quale delle due più vecchie sia la
+vera destinataria non lo dice nessun documento.
+
+**Un bug di fuso trovato scrivendo il test.** La scadenza dedotta cadeva il 2
+ottobre invece del 3: `new Date('...T00:00:00')` è mezzanotte locale e
+`toISOString()` la riporta a Greenwich, che da Napoli in ora legale è il giorno
+prima. Adesso la somma è in UTC, e il gate passa anche a UTC+14 e UTC−11.
+
 **Da eseguire**: `219_invoice_states.sql`, poi
 `npx tsx scripts/fix-invoice-states.ts --scrivi`. Finché la migration manca la
 sezione si accende lo stesso e lo dichiara in testata: stati e storni restano

@@ -561,6 +561,182 @@ export function byParty(invoices: Invoice[]): PartyRow[] {
   }).sort((a, b) => b.taxable - a.taxable)
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// §324 · Chi dobbiamo pagare
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Il debito verso i fornitori ha una forma diversa dal credito verso i clienti,
+ * e finora aveva la stessa.
+ *
+ * Un credito si insegue **una fattura alla volta**: si telefona per la FPR
+ * 41/26, non «per Petito». Un debito si paga **un fornitore alla volta**: chi ha
+ * tre fatture aperte di Affinity fa un bonifico, non tre, e una lista piatta
+ * ordinata per ritardo gliele mette in tre punti diversi dello schermo. Per
+ * questo qui si raggruppa, e l'ordine è **l'urgenza del fornitore**, non quella
+ * del singolo documento.
+ */
+export type SupplierTerm = {
+  /** giorni fra emissione e scadenza che questo fornitore usa di solito */
+  days: number | null
+  /** su quanti suoi documenti è calcolato: senza il campione non è un dato */
+  sample: number
+}
+
+/**
+ * §324 — Il termine di pagamento, **dai documenti del fornitore stesso**.
+ *
+ * Metà delle fatture ricevute non porta `DataScadenzaPagamento`: il tracciato
+ * non la pretende, e senza di essa il debito non è né scaduto né atteso — cioè
+ * sparisce dalla previsione di cassa (§280). Inventare trenta giorni sarebbe la
+ * cosa peggiore: un numero plausibile che nessuno andrà a verificare.
+ *
+ * Ma il fornitore lo ha già detto, **sulle sue altre fatture**. Saraiello ne ha
+ * cinque con la scadenza scritta e sono tutte a 31 giorni; Affinity le emette a
+ * zero giorni, pagamento immediato. È una mediana su documenti veri, non una
+ * consuetudine di mercato — e va mostrata **col campione accanto**, perché un
+ * termine dedotto da un documento solo non è un termine.
+ *
+ * Chi non ha storia non ne ha: `days` resta null e la pagina lo dice, invece di
+ * riempire il buco.
+ */
+export function supplierTerm(all: Invoice[], of: Pick<Invoice, 'counterpartyVat' | 'counterpartyName' | 'direction'>): SupplierTerm {
+  const k = partyKey(of)
+  const gg = all
+    .filter(i => i.direction === of.direction && partyKey(i) === k && i.dueDate)
+    .map(i => daysBetween(i.issuedOn, i.dueDate!))
+    .filter(n => n >= 0)
+    .sort((a, b) => a - b)
+  return { days: gg.length ? gg[Math.floor(gg.length / 2)] : null, sample: gg.length }
+}
+
+/**
+ * §324 — La scadenza che il documento non dichiara, dedotta dal fornitore.
+ *
+ * Non si scrive da sola: è un **suggerimento con la sua ragione**, e chi lo
+ * accetta lo fa sapendo su quanti documenti si regge. Un solo precedente non
+ * basta — è un caso, non un'abitudine.
+ */
+export function suggestedDue(i: Invoice, all: Invoice[]): { date: string; why: string } | null {
+  if (i.dueDate) return null
+  const t = supplierTerm(all, i)
+  if (t.days === null || t.sample < 2) return null
+  /* In UTC, non in ora locale: `new Date('2026-09-02T00:00:00')` è mezzanotte
+     **qui**, e `toISOString()` la riporta a Greenwich — a Napoli in ora legale
+     sono due ore indietro, cioè il giorno prima. La scadenza dedotta cadeva il
+     2 ottobre invece del 3, e sarebbe cambiata cambiando fuso: una data che
+     dipende da dove gira il codice non è una data. */
+  const d = new Date(`${i.issuedOn}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + t.days)
+  return {
+    date: d.toISOString().slice(0, 10),
+    why: `${t.days} giorni: è il termine che questo fornitore scrive sulle sue altre ${t.sample} fatture`,
+  }
+}
+
+const partyKey = (i: Pick<Invoice, 'counterpartyVat' | 'counterpartyName'>) =>
+  i.counterpartyVat?.replace(/\D/g, '') || i.counterpartyName.trim().toUpperCase()
+
+export type Payable = {
+  key: string
+  name: string
+  vat: string | null
+  clientId: string | null
+  /** le sue fatture ancora aperte, dalla più vecchia */
+  invoices: Invoice[]
+  /** lordo dovuto: è la cifra del bonifico */
+  total: number
+  overdue: number
+  overdueCount: number
+  /** la prima scadenza nota: è quando esce il prossimo euro */
+  nextDue: string | null
+  /** giorni di ritardo della più vecchia: zero se niente è scaduto */
+  worstLate: number
+  /** quante delle sue non hanno una data: sono quelle invisibili */
+  undated: number
+  term: SupplierTerm
+}
+
+/**
+ * I fornitori da pagare, in ordine di urgenza.
+ *
+ * L'ordine non è l'importo: **prima chi è più in ritardo**, poi chi scade
+ * prima. Un fornitore piccolo scaduto da due mesi smette di lavorare prima di
+ * uno grande che scade domani, e un elenco ordinato per importo lo mette in
+ * fondo. Chi non ha nessuna data chiude la lista — non perché conti meno, ma
+ * perché non si può dire quando: sta lì con il suo numero e il suo perché.
+ */
+export function payables(invoices: Invoice[], today: string): Payable[] {
+  const open = invoices.filter(i => i.direction === 'ricevuta' && isOpen(i))
+  const map = new Map<string, Invoice[]>()
+  for (const i of open) map.set(partyKey(i), [...(map.get(partyKey(i)) ?? []), i])
+
+  return Array.from(map, ([key, rows]) => {
+    const late = rows.filter(i => i.dueDate && i.dueDate < today)
+    const date = rows.map(i => i.dueDate).filter(Boolean).sort() as string[]
+    return {
+      key,
+      name: rows[0].counterpartyName,
+      vat: rows[0].counterpartyVat,
+      clientId: rows.find(r => r.clientId)?.clientId ?? null,
+      invoices: rows.slice().sort((a, b) =>
+        (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999') || a.issuedOn.localeCompare(b.issuedOn)),
+      total: sum(rows.map(signedTotal)),
+      overdue: sum(late.map(signedTotal)),
+      overdueCount: late.length,
+      nextDue: date[0] ?? null,
+      worstLate: date[0] && date[0] < today ? daysBetween(date[0], today) : 0,
+      undated: rows.filter(i => !i.dueDate).length,
+      term: supplierTerm(invoices, rows[0]),
+    }
+  }).sort((a, b) =>
+    b.worstLate - a.worstLate
+    || (a.nextDue ?? '9999').localeCompare(b.nextDue ?? '9999')
+    || b.total - a.total)
+}
+
+/**
+ * §324 — Quanto esce, e quando.
+ *
+ * Lo scadenzario (`aging`) guarda **indietro**: da quanto aspetta chi aspetta.
+ * Per i debiti la domanda è l'opposta e guarda **avanti** — «quanto devo avere
+ * sul conto questa settimana» — ed è quella che parla con la tenuta di cassa.
+ * Le due non si sostituiscono: un debito scaduto da 90 giorni sta in una fascia
+ * dell'una e in «già scadute» dell'altra, e vanno lette insieme.
+ *
+ * «Senza data» è una fascia sua e non finisce in fondo silenziosamente: sono i
+ * soldi che usciranno in un momento che il tool non sa, e nasconderli in un
+ * totale li fa mancare proprio il giorno in cui il fornitore chiama.
+ */
+export type OutflowKey = 'già scadute' | 'entro 7 giorni' | 'entro 30 giorni' | 'oltre 30 giorni' | 'senza data'
+const OUTFLOW: OutflowKey[] = ['già scadute', 'entro 7 giorni', 'entro 30 giorni', 'oltre 30 giorni', 'senza data']
+
+export function outflow(invoices: Invoice[], today: string): {
+  slices: { key: OutflowKey; count: number; amount: number }[]
+  total: number
+  /** la parte di cui non si sa quando: si dichiara, non si spalma */
+  undated: number
+} {
+  const open = invoices.filter(i => i.direction === 'ricevuta' && isOpen(i))
+  const rows = new Map<OutflowKey, { key: OutflowKey; count: number; amount: number }>(
+    OUTFLOW.map(k => [k, { key: k, count: 0, amount: 0 }]))
+  for (const i of open) {
+    const d = !i.dueDate ? 'senza data'
+      : i.dueDate < today ? 'già scadute'
+      : daysBetween(today, i.dueDate) <= 7 ? 'entro 7 giorni'
+      : daysBetween(today, i.dueDate) <= 30 ? 'entro 30 giorni'
+      : 'oltre 30 giorni'
+    const b = rows.get(d)!
+    b.count++
+    b.amount = r2(b.amount + signedTotal(i))
+  }
+  return {
+    slices: OUTFLOW.map(k => rows.get(k)!),
+    total: sum(open.map(signedTotal)),
+    undated: rows.get('senza data')!.amount,
+  }
+}
+
 export type AgingBucket = {
   key: 'a scadere' | '1-30' | '31-60' | '61-90' | 'oltre 90'
   count: number
@@ -760,9 +936,18 @@ export function txCandidates(inv: Invoice, txs: TxRef[]): Candidate<TxRef>[] {
       if (near(Math.abs(t.amount), Math.abs(gross))) { score += 55; why.push('importo lordo esatto') }
       else if (near(Math.abs(t.amount), Math.abs(gross), 1)) { score += 35; why.push('importo a meno di un euro') }
 
+      /* §324 — un movimento **prima** della fattura non è sempre un errore: con
+         la fatturazione differita si paga a giugno quello che viene fatturato a
+         luglio, e sui dati veri sono GIALEDA a dieci giorni e Talenti a uno. Ma
+         oltre il termine della differita non è più un ritardo di emissione: è
+         un'altra fattura. La penalità di 20 non bastava — importo esatto più
+         controparte fanno 75, e 55 passa comunque la soglia — e sono così
+         entrati tre agganci impossibili: il bonifico Tailors del 17 giugno
+         attaccato a una fattura del 4 agosto, cioè 48 giorni prima che esistesse. */
       const d = daysBetween(inv.issuedOn, t.bookedOn)
       if (d >= 0 && d <= 120) { score += d <= 45 ? 15 : 5; why.push(`${d} giorni dopo l'emissione`) }
-      else if (d < 0) { score -= 20; why.push('movimento precedente alla fattura') }
+      else if (d >= -45) { score -= 20; why.push(`movimento di ${-d} giorni prima della fattura`) }
+      else { score -= 40; why.push(`la fattura non esisteva ancora: ${-d} giorni dopo il movimento`) }
 
       const hay = `${t.description} ${t.counterparty ?? ''}`.toLowerCase()
       if (nameScore(inv.counterpartyName, hay) >= 0.5) { score += 20; why.push('la controparte combacia') }
@@ -1128,6 +1313,30 @@ export function reconciliation(i: {
         + 'insieme fanno sparire un importo due volte, o nessuna delle due. Lo storno basta da solo.',
       action: 'Rimettili nei conti: la nota di credito li tiene già fuori dai crediti.',
       refs: escluseStornate.map(x => x.id),
+    })
+  }
+
+  /* 8 · §324 — il movimento paga una fattura che a quella data non esisteva.
+     Tre agganci su cinquantanove, e tutti e tre con la stessa forma: il bonifico
+     è quello del mese prima, che la fattura giusta aveva già registrato come
+     `paid_on`. Due documenti che si dichiarano pagati dallo stesso movimento
+     sono un incasso contato due volte da qualche parte. */
+  const impossibili = i.invoices
+    .map(x => ({ inv: x, tx: i.txs.find(t => t.invoiceId === x.id) }))
+    .filter((p): p is { inv: Invoice; tx: TxRef } =>
+      !!p.tx && daysBetween(p.inv.issuedOn, p.tx.bookedOn) < -45)
+  if (impossibili.length) {
+    out.push({
+      id: 'movimento-anteriore', severity: 'critico',
+      title: `${impossibili.length} movimenti sono agganciati a una fattura che a quella data non esisteva`,
+      detail: impossibili
+        .map(p => `${p.inv.number} è del ${p.inv.issuedOn} e il movimento del ${p.tx.bookedOn}`)
+        .join(' · ')
+        + '. Un anticipo di pochi giorni è normale — con la fatturazione differita si paga prima '
+        + 'di ricevere il documento — ma oltre il mese e mezzo il movimento è di un\'altra fattura, '
+        + 'quasi sempre quella dello stesso importo del mese precedente.',
+      action: 'Stacca l\'aggancio e rimettilo sulla fattura giusta: quella che porta già quella data di pagamento.',
+      refs: impossibili.map(p => p.inv.id),
     })
   }
 
