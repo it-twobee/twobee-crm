@@ -476,8 +476,16 @@ export function invoiceWarnings(i: ParsedInvoice): string[] {
   const out: string[] = []
   const fromLines = r2(i.lines.reduce((s, l) => s + l.total, 0))
 
-  if (i.lines.length && Math.abs(fromLines - i.taxable - i.fund) > 0.02) {
-    out.push(`Le righe sommano ${fromLines.toFixed(2)} ma l'imponibile dichiarato è ${i.taxable.toFixed(2)}`)
+  /* §324 — la cassa previdenziale si **somma** alle righe, non si sottrae: il
+     4% del professionista è imponibile, quindi `righe + cassa = imponibile`. Col
+     segno sbagliato ogni parcella con la cassa risultava incoerente — la 3PR di
+     Spaduzzi è 1.440 + 57,60 = 1.497,60 e torna al centesimo — e un avviso che
+     sbaglia sui documenti corretti insegna a ignorarli tutti, che è il difetto
+     già visto sul bollo. */
+  if (i.lines.length && Math.abs(fromLines + i.fund - i.taxable) > 0.02) {
+    out.push(`Le righe sommano ${fromLines.toFixed(2)}`
+      + (i.fund ? ` più ${i.fund.toFixed(2)} di cassa` : '')
+      + ` ma l'imponibile dichiarato è ${i.taxable.toFixed(2)}`)
   }
   /* Il bollo da 2 € può essere **a carico di chi emette** — dovuto all'erario ma
      non riaddebitato — e allora resta fuori dal totale del documento; oppure

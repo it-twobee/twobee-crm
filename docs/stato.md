@@ -107,6 +107,14 @@ quindi non si è mosso un euro — e **uno lasciato aperto**: la 5/2026 di Sarai
 è pagata 19 giorni prima di essere emessa, ma quale delle due più vecchie sia la
 vera destinataria non lo dice nessun documento.
 
+**Un falso positivo che valeva per tutte le parcelle.** La 3PR di Spaduzzi —
+una delle due senza data — era segnata come incoerente: righe 1.440, imponibile
+1.497,60. Torna: in mezzo ci sono 57,60 di cassa previdenziale, che è
+**imponibile** e va sommata. Il controllo la sottraeva. Una sola nell'archivio,
+ma ogni parcella con la cassa avrebbe preso lo stesso avviso, ed è il difetto
+già visto sul bollo (§211). Riscritti i tre avvisi che cambiavano, rileggendo
+l'XML conservato.
+
 **Un bug di fuso trovato scrivendo il test.** La scadenza dedotta cadeva il 2
 ottobre invece del 3: `new Date('...T00:00:00')` è mezzanotte locale e
 `toISOString()` la riporta a Greenwich, che da Napoli in ora legale è il giorno

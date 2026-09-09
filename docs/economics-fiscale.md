@@ -218,6 +218,15 @@ smette di lavorare prima di uno grande che scade domani.
   un'abitudine, è un caso, e allora la pagina dice che non lo sa invece di
   riempire il buco.
 
+**§324 — la cassa previdenziale si somma, non si sottrae.** Il controllo di
+coerenza faceva `righe − imponibile − cassa`, e il 4% del professionista è
+**imponibile**: la 3PR di Spaduzzi è 1.440 + 57,60 = 1.497,60, torna al
+centesimo, e il tool la dichiarava incoerente. Una sola nell'archivio di oggi, ma
+ogni parcella con la cassa avrebbe preso lo stesso avviso — ed è il difetto già
+visto sul bollo (§211): un avviso che sbaglia sui documenti corretti insegna a
+ignorarli tutti. Adesso l'avviso, quando è vero, **nomina la cassa**, o chi legge
+rifà la sottrazione a mano per capire da dove esce la differenza.
+
 **§324 — un movimento non paga una fattura che a quella data non esisteva.**
 Tre agganci su cinquantanove, tutti con la stessa forma: il bonifico del mese
 prima attaccato alla fattura del mese dopo. `txCandidates` li proponeva —

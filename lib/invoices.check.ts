@@ -659,6 +659,48 @@ console.log('\n— §323: una nota senza riferimento resta dov\'è —')
     f.some(x => x.id === 'note-senza-riferimento'), true)
 }
 
+console.log('\n— §324: la cassa previdenziale si somma, non si sottrae —')
+{
+  /* La 3PR di Spaduzzi: righe 1.440, cassa 4% = 57,60, imponibile 1.497,60.
+     Torna al centesimo, e il controllo la dichiarava incoerente — un avviso che
+     sbaglia sui documenti corretti insegna a ignorarli tutti. */
+  const xml = `<?xml version="1.0" encoding="utf-8"?>
+<FatturaElettronica versione="FPR12" xmlns="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2">
+  <FatturaElettronicaHeader xmlns="">
+    <CedentePrestatore><DatiAnagrafici><IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>09999999999</IdCodice></IdFiscaleIVA>
+      <Anagrafica><Denominazione>Antonella Spaduzzi</Denominazione></Anagrafica></DatiAnagrafici><Sede><Comune>Napoli</Comune></Sede></CedentePrestatore>
+    <CessionarioCommittente><DatiAnagrafici><IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>${OWN}</IdCodice></IdFiscaleIVA>
+      <Anagrafica><Denominazione>TWO BEE SRL</Denominazione></Anagrafica></DatiAnagrafici><Sede><Comune>Napoli</Comune></Sede></CessionarioCommittente>
+  </FatturaElettronicaHeader>
+  <FatturaElettronicaBody xmlns="">
+    <DatiGenerali><DatiGeneraliDocumento>
+      <TipoDocumento>TD01</TipoDocumento><Divisa>EUR</Divisa><Data>2026-08-17</Data><Numero>3PR</Numero>
+      <DatiCassaPrevidenziale><TipoCassa>TC22</TipoCassa><AlCassa>4.00</AlCassa>
+        <ImportoContributoCassa>57.60</ImportoContributoCassa><AliquotaIVA>0.00</AliquotaIVA><Natura>N2.2</Natura></DatiCassaPrevidenziale>
+      <ImportoTotaleDocumento>1497.60</ImportoTotaleDocumento>
+    </DatiGeneraliDocumento></DatiGenerali>
+    <DatiBeniServizi>
+      <DettaglioLinee><NumeroLinea>1</NumeroLinea><Descrizione>Consulenza</Descrizione>
+        <PrezzoUnitario>1440.00</PrezzoUnitario><PrezzoTotale>1440.00</PrezzoTotale><AliquotaIVA>0.00</AliquotaIVA><Natura>N2.2</Natura></DettaglioLinee>
+      <DatiRiepilogo><AliquotaIVA>0.00</AliquotaIVA><ImponibileImporto>1497.60</ImponibileImporto><Imposta>0.00</Imposta><Natura>N2.2</Natura></DatiRiepilogo>
+    </DatiBeniServizi>
+    <DatiPagamento><CondizioniPagamento>TP02</CondizioniPagamento>
+      <DettaglioPagamento><ModalitaPagamento>MP05</ModalitaPagamento><ImportoPagamento>1497.60</ImportoPagamento></DettaglioPagamento></DatiPagamento>
+  </FatturaElettronicaBody>
+</FatturaElettronica>`
+  const [p] = parseFattura(xml, OWN)
+  eq('la cassa è letta', p.fund, 57.6)
+  eq('l\'imponibile la contiene già', p.taxable, 1497.6)
+  const w = invoiceWarnings(p)
+  is('righe più cassa fanno l\'imponibile: niente da segnalare',
+    w.filter(x => x.includes('Le righe sommano')), [])
+  /* Ma se non torna davvero, lo deve dire — e citando la cassa, o chi legge
+     rifà la sottrazione a mano per capire da dove esce la differenza. */
+  const rotta = { ...p, taxable: 1600 }
+  is('quando non torna lo dice, e nomina la cassa',
+    /1440.00 più 57.60 di cassa/.test(invoiceWarnings(rotta).find(x => x.includes('Le righe')) ?? ''), true)
+}
+
 console.log('\n— §324: il termine lo dice il fornitore, sui suoi documenti —')
 {
   const R = (o: Partial<Invoice>) => I({ direction: 'ricevuta', counterpartyName: 'Gabriele Saraiello',
