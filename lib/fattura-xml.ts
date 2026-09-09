@@ -225,6 +225,27 @@ export type VatSummary = {
   collectability: string | null
 }
 
+/**
+ * §323 — Quale documento questa nota rettifica.
+ *
+ * `DatiFattureCollegate` è il campo per cui una nota di credito non è un
+ * mistero: **il documento dice da solo quale fattura annulla**, con numero e
+ * data. Finché non lo leggevamo, quel legame lo ricostruiva una persona
+ * scrivendo a mano una ragione di esclusione su una delle due righe — e nei
+ * dati veri l'ha scritta sulla riga sbagliata due volte su quattro.
+ *
+ * Il tracciato non lo pretende: le TD05 di questo archivio non ce l'hanno, e
+ * un TD04 senza riferimento resta una nota che non dice cosa storna. È una cosa
+ * da segnalare, non da indovinare.
+ */
+export type RelatedDoc = {
+  /** il numero come lo scrive il documento: «FPR 41/26» */
+  id: string
+  date: string | null
+  /** la riga a cui si riferisce, quando lo storno è parziale */
+  line: number | null
+}
+
 export type Installment = {
   dueDate: string | null
   amount: number
@@ -246,6 +267,8 @@ export type ParsedInvoice = {
   lines: InvoiceLine[]
   vat: VatSummary[]
   installments: Installment[]
+  /** §323 — i documenti che questo rettifica: su una nota di credito è la fattura stornata */
+  related: RelatedDoc[]
   taxable: number
   tax: number
   /** totale dichiarato nel documento; se manca si ricostruisce da imponibile + imposta */
@@ -268,6 +291,42 @@ export type ParsedInvoice = {
 }
 
 const CREDIT_NOTES = new Set(['TD04', 'TD08'])
+const DEBIT_NOTES = new Set(['TD05', 'TD09'])
+
+/**
+ * §323 — Che **genere** di documento è, al di là del codice.
+ *
+ * `DOC_TYPES` traduce il codice; questo lo classifica, ed è un'altra domanda.
+ * Un elenco che mostra «TD05» accanto a «TD01» chiede di ricordare a memoria
+ * quale dei due aggiunge e quale toglie: sono i due codici che più facilmente
+ * si scambiano, perché differiscono di una cifra e le parole si somigliano.
+ *
+ * La distinzione che conta è **cosa fa al fatturato**: una nota di credito
+ * toglie, una di debito aggiunge — e non è ridondante col segno, perché una
+ * nota di debito ha lo stesso segno di una fattura e non è una fattura.
+ */
+export type DocKind = 'fattura' | 'nota_credito' | 'nota_debito' | 'parcella' | 'autofattura'
+
+const AUTO = new Set(['TD16', 'TD17', 'TD18', 'TD19', 'TD20', 'TD21', 'TD22', 'TD23', 'TD27'])
+
+export function docKind(docType: string): DocKind {
+  if (CREDIT_NOTES.has(docType)) return 'nota_credito'
+  if (DEBIT_NOTES.has(docType)) return 'nota_debito'
+  if (docType === 'TD06' || docType === 'TD03') return 'parcella'
+  if (AUTO.has(docType)) return 'autofattura'
+  return 'fattura'
+}
+
+export const DOC_KIND_LABEL: Record<DocKind, string> = {
+  fattura: 'Fattura',
+  nota_credito: 'Nota di credito',
+  nota_debito: 'Nota di debito',
+  parcella: 'Parcella',
+  autofattura: 'Autofattura',
+}
+
+export const isCreditNote = (docType: string) => docKind(docType) === 'nota_credito'
+export const isDebitNote = (docType: string) => docKind(docType) === 'nota_debito'
 
 function party(node: XmlNode | null): InvoiceParty {
   const a = pick(node, 'DatiAnagrafici')
@@ -342,6 +401,18 @@ export function parseFattura(xml: string, ownVat: string): ParsedInvoice[] {
       to: str(l, 'DataFinePeriodo'),
     }))
 
+    /* §323 — sta sotto `DatiGenerali`, accanto al documento e non dentro, perché
+       un documento può rettificarne più d'uno. Su una fattura ordinaria lo stesso
+       campo cita un DDT o un ordine: è il **tipo** che gli dà il significato di
+       storno, non la sua presenza. */
+    const related: RelatedDoc[] = all(pick(body, 'DatiGenerali'), 'DatiFattureCollegate')
+      .map(f => ({
+        id: str(f, 'IdDocumento') ?? '',
+        date: str(f, 'Data'),
+        line: num(f, 'RiferimentoNumeroLinea') ?? num(f, 'NumLinea'),
+      }))
+      .filter(f => f.id)
+
     const installments: Installment[] = all(body, 'DatiPagamento/DettaglioPagamento').map(p => ({
       dueDate: str(p, 'DataScadenzaPagamento'),
       amount: num(p, 'ImportoPagamento') ?? 0,
@@ -368,7 +439,7 @@ export function parseFattura(xml: string, ownVat: string): ParsedInvoice[] {
       currency: str(g, 'Divisa') ?? 'EUR',
       supplier, customer,
       counterparty: direction === 'emessa' ? customer : supplier,
-      lines, vat, installments,
+      lines, vat, installments, related,
       taxable, tax, total: r2(total), totalDerived: declared === null,
       stamp: r2(stamp), withholding: r2(withholding), fund: r2(fund),
       // la prima scadenza è quella che conta per lo scaduto; le altre stanno nelle rate
@@ -434,5 +505,16 @@ export function invoiceWarnings(i: ParsedInvoice): string[] {
     }
   }
   if (!i.dueDate) out.push('Nessuna data di scadenza: lo scaduto non si può calcolare')
+  /* §323 — Una nota che non dice cosa rettifica.
+     Il tracciato non obbliga a compilare `DatiFattureCollegate`, ma senza quel
+     campo la nota è un importo che gira per l'archivio senza un posto: non si sa
+     quale fattura smetta di essere un credito, e quel credito resta a gonfiare
+     lo scaduto finché qualcuno non se ne ricorda. Vale per il credito e per il
+     debito: una nota di debito che non dice cosa integra è la stessa cosa. */
+  const kind = docKind(i.docType)
+  if ((kind === 'nota_credito' || kind === 'nota_debito') && !i.related.length) {
+    out.push(`${DOC_KIND_LABEL[kind]} senza il riferimento al documento che rettifica: `
+      + 'quale fattura tocchi va deciso a mano')
+  }
   return out
 }

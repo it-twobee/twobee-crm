@@ -53,7 +53,7 @@ async function main() {
   const have = await api<{ doc_key: string }[]>('invoices?select=doc_key')
   const già = new Set(have.map(h => h.doc_key))
 
-  let nuovi = 0, dup = 0, falliti = 0
+  let nuovi = 0, dup = 0, falliti = 0, senza219 = 0
   const perDir: Record<string, { em: number; ri: number }> = {}
 
   for (const f of files) {
@@ -106,6 +106,17 @@ async function main() {
           invoice_id: row.id, due_date: r.dueDate, amount: r.amount, method: r.method, iban: r.iban,
         }))) })
       }
+      /* §323 — quello che il documento dichiara di rettificare. Se la 219 non
+         c'è ancora l'import non si ferma — le fatture sono il dato che conta e
+         i riferimenti si rileggono dall'XML conservato con
+         `fix-invoice-states.ts` — ma lo dice, invece di saltarlo in silenzio. */
+      if (inv.related.length) {
+        try {
+          await api('invoice_related', { method: 'POST', body: JSON.stringify(inv.related.map(r => ({
+            invoice_id: row.id, doc_id: r.id, doc_date: r.date, line_no: r.line,
+          }))) })
+        } catch { senza219++ }
+      }
 
       nuovi++
       const d = f.path.split('/').slice(0, -1).join('/')
@@ -115,12 +126,18 @@ async function main() {
   }
 
   const linked = await api<number>('rpc/link_invoices_to_clients', { method: 'POST', body: '{}' })
+  const stornate = await api<number>('rpc/link_invoice_rectifications', { method: 'POST', body: '{}' })
+    .catch(() => -1)
 
   console.log(`${files.length} file · ${nuovi} fatture nuove · ${dup} già in archivio · ${falliti} illeggibili`)
   for (const [d, c] of Object.entries(perDir)) {
     console.log(`  ${d.split('/').at(-1)}: ${c.em} emesse, ${c.ri} ricevute`)
   }
-  console.log(`${linked} agganciate a un cliente per partita IVA\n`)
+  console.log(`${linked} agganciate a un cliente per partita IVA`)
+  console.log(stornate >= 0
+    ? `${stornate} note collegate alla fattura che rettificano\n`
+    : `storni non collegati: manca la migration 219_invoice_states.sql`
+      + ` (${senza219} riferimenti non scritti)\n`)
 
   const all = await api<{ direction: string; taxable: number; vat_amount: number; sign: number }[]>(
     'invoices?select=direction,taxable,vat_amount,sign')

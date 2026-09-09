@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import {
   FileText, Upload, AlertTriangle, Search, Link2, Link2Off, Check, Loader2,
-  ArrowDownLeft, ArrowUpRight, Info, Landmark, BookOpen, Trash2, Plus, CalendarClock,
+  ArrowDownLeft, ArrowUpRight, Info, Landmark, BookOpen, Trash2, Plus, CalendarClock, Send,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { EconomicsNav } from '@/components/economics/EconomicsNav'
@@ -15,13 +15,17 @@ import {
   totals, byMonth, byParty, aging, paymentDays, reconciliation, vatByQuarter, coverage, managed,
   type BillingPoint,
   lineCandidates, txCandidates, signed, signedTotal, daysBetween,
+  invoiceStatus, invoiceStage, stageWhy, isOpen, isVoided, rectified,
+  docKind, DOC_KIND_LABEL, isCreditNote, isDebitNote,
   type Invoice, type LineRef, type TxRef, type InvoiceDirection, type CoverageRow,
+  type InvoiceState, type DocKind, type InvoiceStatus,
 } from '@/lib/invoices'
 import { BillingChart } from '@/components/charts/BillingChart'
 import {
   importInvoices, addInvoiceManually, attachInvoicePdf, removeInvoicePdf,
   linkInvoiceToLine, unlinkInvoiceFromLine,
   linkInvoiceToTx, setInvoicePaid, setInvoiceDue, setInvoiceUnmanaged, deleteInvoice,
+  setInvoiceSent, setInvoiceRectifies,
 } from '@/app/actions/invoices'
 
 const eur = (n: number) => formatCurrency(Math.round(n))
@@ -34,11 +38,60 @@ const monthName = (iso: string) =>
 
 type Tab = 'panoramica' | 'elenco' | 'riconcilia'
 
+/* §323 — i filtri di stato, con dentro la stessa parola che sta nella colonna.
+   Un filtro che dice «Aperte» accanto a una riga che dice «da incassare» fa
+   dubitare che siano la stessa cosa, e chi dubita conta a mano. */
+const STATE_FILTER: { key: InvoiceState | 'tutte' | 'non_pagate'; label: string; hint: string }[] = [
+  { key: 'tutte', label: 'Tutti gli stati', hint: '' },
+  { key: 'non_pagate', label: 'Non pagate', hint: 'scadute, nei termini e senza data insieme' },
+  { key: 'scaduta', label: '· scadute', hint: 'oltre la data attesa' },
+  { key: 'attesa', label: '· nei termini', hint: 'attese, non ancora scadute' },
+  { key: 'senza_data', label: '· senza data', hint: 'né scadute né attese: invisibili' },
+  { key: 'pagata', label: 'Pagate', hint: 'con una data di incasso o di pagamento' },
+  { key: 'stornata', label: 'Stornate', hint: 'annullate da una nota di credito' },
+  { key: 'rettifica', label: 'Note di credito', hint: 'non si incassano: rettificano' },
+  { key: 'non_gestita', label: 'Non gestite', hint: 'fuori dai conti, col perché scritto' },
+]
+
+const KIND_FILTER: { key: DocKind | 'tutti'; label: string }[] = [
+  { key: 'tutti', label: 'Tutti i documenti' },
+  { key: 'fattura', label: 'Solo fatture' },
+  { key: 'nota_credito', label: 'Note di credito' },
+  { key: 'nota_debito', label: 'Note di debito' },
+  { key: 'parcella', label: 'Parcelle' },
+  { key: 'autofattura', label: 'Autofatture' },
+]
+
+const TONE: Record<InvoiceStatus['tone'], string> = {
+  success: 'text-success',
+  error: 'text-error',
+  warning: 'text-warning',
+  info: 'text-info',
+  muted: 'text-text-tertiary',
+}
+
+/** §323 — il genere del documento, dove cambia il segno di quello che si legge. */
+function KindBadge({ docType }: { docType: string }) {
+  const kind = docKind(docType)
+  if (kind === 'fattura') return null
+  const tone = kind === 'nota_credito' ? 'text-error border-error/40'
+    : kind === 'nota_debito' ? 'text-orange border-orange/40'
+    : 'text-text-tertiary border-border'
+  return (
+    <span className={`inline-flex items-center rounded border px-1 py-px text-2xs font-semibold ${tone}`}
+      title={`${DOC_TYPES[docType] ?? docType} (${docType})`}>
+      {DOC_KIND_LABEL[kind]}
+    </span>
+  )
+}
+
 export function InvoicesClient({
-  month, setupNeeded, today, invoices, lines, txs, clients, series = [],
+  month, setupNeeded, statesReady = true, today, invoices, lines, txs, clients, series = [],
 }: {
   month: string
   setupNeeded: boolean
+  /** §323 — false = manca la 219: il viaggio del documento non si può dichiarare */
+  statesReady?: boolean
   today: string
   /** §278 — emesso, incassato, in attesa e previsionale, mese per mese */
   series?: BillingPoint[]
@@ -53,7 +106,8 @@ export function InvoicesClient({
   const [dir, setDir] = useState<InvoiceDirection>('emessa')
   const [q, setQ] = useState('')
   const [year, setYear] = useState<string>('tutti')
-  const [state, setState] = useState<'tutte' | 'aperte' | 'scadute' | 'pagate'>('tutte')
+  const [state, setState] = useState<InvoiceState | 'tutte' | 'non_pagate'>('tutte')
+  const [kind, setKind] = useState<DocKind | 'tutti'>('tutti')
   const [open, setOpen] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   /* §247 — la porta che mancava: il documento che non c'è ancora si scrive. */
@@ -72,6 +126,7 @@ export function InvoicesClient({
       toast.success(
         `${r.nuovi} fatture nuove su ${r.letti} lette`
         + (r.duplicati ? ` · ${r.duplicati} già in archivio` : '')
+        + (r.stornate ? ` · ${r.stornate} storni collegati` : '')
         + (r.falliti.length ? ` · ${r.falliti.length} illeggibili` : ''))
       if (r.falliti.length) console.warn('File non letti:', r.falliti)
       router.refresh()
@@ -102,14 +157,23 @@ export function InvoicesClient({
     const needle = q.trim().toLowerCase()
     return scoped
       .filter(i => i.direction === dir)
-      .filter(i => state === 'tutte'
-        || (state === 'pagate' && i.paidOn)
-        || (state === 'aperte' && !i.paidOn)
-        || (state === 'scadute' && !i.paidOn && i.dueDate && i.dueDate < today))
+      .filter(i => {
+        if (state === 'tutte') return true
+        const s = invoiceStatus(i, today).state
+        /* «Non pagate» è la domanda che si fa davvero, e le tre sotto sono le
+           risposte: una fattura senza data non è meno non pagata delle altre —
+           è solo quella che nessuno vede (§280). */
+        if (state === 'non_pagate') return s === 'scaduta' || s === 'attesa' || s === 'senza_data'
+        return s === state
+      })
+      .filter(i => kind === 'tutti' || docKind(i.docType) === kind)
       .filter(i => !needle
         || i.counterpartyName.toLowerCase().includes(needle)
         || i.number.toLowerCase().includes(needle))
-  }, [scoped, dir, state, q, today])
+  }, [scoped, dir, state, kind, q, today])
+
+  /* §323 — per dire «storna la FPR 41/26» serve il documento, non il suo id. */
+  const byId = useMemo(() => new Map(invoices.map(i => [i.id, i])), [invoices])
 
   /* Le fatture che non hanno ancora un aggancio: è la coda di lavoro, e sta in
      cima perché finché è piena i totali delle altre sezioni non sono confrontabili. */
@@ -143,6 +207,23 @@ export function InvoicesClient({
     <div className="p-6 space-y-5 min-h-full">
       <EconomicsNav active="fatture" month={month} />
 
+      {/* §323 — la 219 manca: la sezione funziona, ma il viaggio del documento e
+          gli storni non si possono dichiarare. Dirlo è meglio che mostrare ogni
+          fattura come «da inviare», che sarebbe plausibile e falso. */}
+      {!statesReady && (
+        <div className="rounded-2xl border border-warning/40 bg-warning/5 px-4 py-3">
+          <p className="flex items-center gap-2 text-2xs font-bold text-warning">
+            <AlertTriangle className="w-3.5 h-3.5" />Stati e storni non ancora attivi
+          </p>
+          <p className="text-2xs text-text-secondary mt-1 max-w-3xl">
+            Manca la migration <code className="text-gold-text">219_invoice_states.sql</code>: senza,
+            il tool non sa quali fatture una nota di credito ha annullato e non distingue una fattura
+            emessa da una inviata. Tutto il resto funziona, e queste due colonne restano vuote invece
+            di dire qualcosa di sbagliato.
+          </p>
+        </div>
+      )}
+
       <header className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="flex items-center gap-2 text-lg font-bold text-text-primary font-heading">
@@ -154,7 +235,8 @@ export function InvoicesClient({
             <strong className="text-text-secondary"> fatture ricevute</strong> dai fornitori. Sono due
             domande diverse — chi deve pagare noi e quando, chi dobbiamo pagare e quando — e ognuna ha
             il suo scadenzario, la sua coda di lavoro e i suoi numeri. Gli importi non si scrivono a
-            mano: si rileggono dal file.
+            mano: si rileggono dal file, e lo stato pure — una nota di credito dice quale fattura
+            storna, e da quel momento quella fattura non è più un credito da inseguire.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -217,7 +299,7 @@ export function InvoicesClient({
           <>
             <Stat icon={<ArrowUpRight className="w-3.5 h-3.5 text-success" />}
               label="Fatturato emesso" value={eur(tEm.taxable)}
-              hint={`${tEm.count} documenti${tEm.credits ? `, di cui ${tEm.credits} note di credito` : ''}`}
+              hint={`${tEm.count} documenti da ${byParty(emesse).length} clienti, al netto degli storni`}
               extra={<span className="text-text-tertiary">IVA a debito {eur(tEm.vat)}</span>} />
             <Stat icon={<Landmark className="w-3.5 h-3.5 text-gold-text" />}
               label="Da incassare" value={eur(tEm.outstanding)}
@@ -232,10 +314,17 @@ export function InvoicesClient({
                 ? `mediana su ${days.sample} fatture rientrate`
                 : 'nessuna fattura incassata: la mediana non si può ancora calcolare'}
               extra={<span className="text-text-tertiary">dalla data di emissione</span>} />
-            <Stat icon={<ArrowDownLeft className="w-3.5 h-3.5 text-orange" />}
-              label="Clienti che fatturano" value={String(byParty(emesse).length)}
-              hint="raggruppati per partita IVA, non per nome"
-              extra={<span className="text-text-tertiary">nel periodo scelto</span>} />
+            {/* §323 — le note non sono una nota a piè di pagina: sui dati veri
+                sono 7 documenti su 47, e sono quelli che spostano il fatturato
+                nella direzione che nessuno si aspetta. Le due specie stanno
+                nello stesso riquadro perché è lì che si confondono. */}
+            <Stat icon={<FileText className="w-3.5 h-3.5 text-orange" />}
+              label="Note di credito e debito"
+              value={`${tEm.credits} · ${tEm.debits}`}
+              hint={`${eur(tEm.creditsAmount)} stornati, ${eur(tEm.debitsAmount)} rifatturati`}
+              extra={tEm.voided > 0
+                ? <span className="text-text-tertiary">{tEm.voided} fatture annullate per intero</span>
+                : <span className="text-text-tertiary">nessuna fattura annullata</span>} />
           </>
         ) : (
           <>
@@ -256,9 +345,12 @@ export function InvoicesClient({
                 : 'nessun debito scaduto'}
               extra={<span className="text-text-tertiary">sul totale aperto {eur(tRi.outstanding)}</span>} />
             <Stat icon={<FileText className="w-3.5 h-3.5 text-gold-text" />}
-              label="Note di credito" value={String(tRi.credits)}
-              hint="documenti che stornano, non debiti da pagare"
-              extra={<span className="text-text-tertiary">già scalati dal totale</span>} />
+              label="Note di credito e debito"
+              value={`${tRi.credits} · ${tRi.debits}`}
+              hint="la prima toglie dal costo, la seconda aggiunge"
+              extra={<span className="text-text-tertiary">
+                {eur(tRi.creditsAmount)} stornati, {eur(tRi.debitsAmount)} rifatturati
+              </span>} />
           </>
         )}
       </div>
@@ -471,10 +563,17 @@ export function InvoicesClient({
             </div>
             <select value={state} onChange={e => setState(e.target.value as never)} aria-label="Stato"
               className="bg-background border border-border-interactive rounded-lg px-2 py-1.5 text-2xs text-text-primary">
-              <option value="tutte">Tutte</option>
-              <option value="aperte">Aperte</option>
-              <option value="scadute">Scadute</option>
-              <option value="pagate">Saldate</option>
+              {STATE_FILTER.map(o => (
+                <option key={o.key} value={o.key} title={o.hint}>{o.label}</option>
+              ))}
+            </select>
+            {/* §323 — il genere del documento è un filtro suo: «quali sono le
+                note di credito» è una domanda che si fa da sola, e prima si
+                poteva rispondere solo leggendo riga per riga la scritta piccola
+                sotto il numero. */}
+            <select value={kind} onChange={e => setKind(e.target.value as never)} aria-label="Tipo di documento"
+              className="bg-background border border-border-interactive rounded-lg px-2 py-1.5 text-2xs text-text-primary">
+              {KIND_FILTER.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
             </select>
             <span className="ml-auto text-2xs text-text-tertiary tabular">
               {listed.length} documenti · {eur(listed.reduce((s, i) => s + signed(i), 0))} imponibile
@@ -499,8 +598,14 @@ export function InvoicesClient({
               </thead>
               <tbody>
                 {listed.map(i => {
-                  const late = !i.paidOn && i.dueDate && i.dueDate < today
+                  const st = invoiceStatus(i, today)
                   const linked = lines.find(l => l.invoiceId === i.id)
+                  /* §323 — il documento che questa nota storna, e le note che
+                     stornano questo: la stessa relazione letta nei due versi,
+                     perché chi guarda una fattura annullata vuole sapere da cosa
+                     e chi guarda una nota vuole sapere cosa. */
+                  const storna = i.rectifiesId ? byId.get(i.rectifiesId) : undefined
+                  const stornata = (i.rectifiedBy ?? []).map(x => byId.get(x)).filter(Boolean) as Invoice[]
                   return (
                     <tr key={i.id} className="border-t border-border/60 hover:bg-surface-hover align-top">
                       <td className="px-4 py-2">
@@ -510,7 +615,19 @@ export function InvoicesClient({
                         </button>
                         <span className="block text-2xs text-text-tertiary">
                           {day(i.issuedOn)}
-                          {i.docType !== 'TD01' && ` · ${DOC_TYPES[i.docType] ?? i.docType}`}
+                          {i.docType !== 'TD01' && docKind(i.docType) === 'fattura'
+                            && ` · ${DOC_TYPES[i.docType] ?? i.docType}`}
+                        </span>
+                        <span className="flex items-center gap-1 flex-wrap mt-0.5">
+                          <KindBadge docType={i.docType} />
+                          {/* §323 — il viaggio del documento, dove è una domanda:
+                              sulle ricevute non lo è, non le abbiamo mandate noi. */}
+                          {statesReady && st.stage === 'emessa' && (
+                            <span title={stageWhy(i)}
+                              className="inline-flex items-center gap-0.5 rounded border border-warning/40 px-1 py-px text-2xs font-semibold text-warning">
+                              <Send className="w-2.5 h-2.5" />da inviare
+                            </span>
+                          )}
                         </span>
                         {/* §250 — il documento sta accanto al numero, dove lo si
                             cerca: una fattura senza il suo PDF si ritrova solo
@@ -530,23 +647,44 @@ export function InvoicesClient({
                             <Link2 className="w-2.5 h-2.5" />nel conto economico
                           </span>
                         )}
+                        {storna && (
+                          <span className="block text-2xs text-text-tertiary">
+                            {i.sign < 0 ? 'storna' : 'integra'} la {storna.number} del {day(storna.issuedOn)}
+                          </span>
+                        )}
+                        {stornata.length > 0 && (
+                          <span className="block text-2xs text-error">
+                            stornata da {stornata.map(x => x.number).join(', ')}
+                          </span>
+                        )}
                       </td>
                       <td className={`px-2 py-2 text-2xs tabular text-right font-semibold ${
                         i.sign === -1 ? 'text-error' : 'text-text-primary'}`}>{eur2(signed(i))}</td>
                       <td className="px-2 py-2 text-2xs tabular text-right text-text-tertiary">{eur2(i.sign * i.vatAmount)}</td>
                       <td className="px-2 py-2 text-2xs tabular text-right text-text-secondary">{eur2(signedTotal(i))}</td>
                       <td className="px-2 py-2 text-2xs text-text-tertiary">{day(i.dueDate)}</td>
+                      {/* §323 — lo stato lo dice `invoiceStatus`, che è l'unico
+                          posto in cui si decide: qui prima c'era una seconda
+                          catena di if, e due catene divergono sempre. Il titolo
+                          porta il perché — «scaduta» senza una data è un'accusa
+                          che chi legge deve andare a verificare. */}
                       <td className="px-2 py-2">
-                        {i.paidOn ? (
-                          <span className="text-2xs font-semibold text-success">saldata {day(i.paidOn)}</span>
-                        ) : late ? (
-                          <span className="text-2xs font-semibold text-error">
-                            scaduta da {daysBetween(i.dueDate!, today)} gg
-                          </span>
-                        ) : (
+                        <span className={`block text-2xs font-semibold ${TONE[st.tone]}`} title={st.why}>
+                          {st.label}
+                        </span>
+                        {st.state === 'pagata' && (
+                          <span className="block text-2xs text-text-tertiary">{day(i.paidOn!)}</span>
+                        )}
+                        {isOpen(i) && (
                           <button onClick={() => run(() => setInvoicePaid(i.id, today), 'Segnata come saldata')}
-                            className="text-2xs font-semibold text-text-tertiary hover:text-success press">
-                            segna saldata
+                            className="text-2xs text-text-tertiary hover:text-success press underline">
+                            segna {dir === 'emessa' ? 'saldata' : 'pagata'}
+                          </button>
+                        )}
+                        {statesReady && st.stage === 'emessa' && (
+                          <button onClick={() => run(() => setInvoiceSent(i.id, today), 'Segnata come inviata')}
+                            className="block text-2xs text-text-tertiary hover:text-text-primary press underline">
+                            segna inviata
                           </button>
                         )}
                       </td>
@@ -572,6 +710,14 @@ export function InvoicesClient({
           </div>
 
           {open && <Detail invoice={invoices.find(i => i.id === open)!} onClose={() => setOpen(null)}
+            today={today} statesReady={statesReady} pending={pending} run={run}
+            candidates={invoices.filter(x =>
+              x.direction === dir && x.sign > 0 && x.id !== open
+              && x.counterpartyName === invoices.find(i => i.id === open)!.counterpartyName)}
+            target={(() => {
+              const t = invoices.find(i => i.id === open)!.rectifiesId
+              return t ? byId.get(t) ?? null : null
+            })()}
             onDelete={() => run(() => deleteInvoice(open), 'Fattura eliminata')} />}
         </section>
       )}
@@ -807,11 +953,19 @@ function PendingInvoices({ invoices, txs, today, pending, run, direction }: {
   const [open, setOpen] = useState<string | null>(null)
   const fuori = useMemo(() => invoices.filter(i =>
     i.direction === direction && i.sign > 0 && !managed(i)), [invoices, direction])
+  /* §323 — annullate da una nota di credito. Non si nascondono: sparire da una
+     lista senza dire perché è il modo di far ricomparire la stessa domanda fra
+     un mese. Qui però non c'è niente da fare, e infatti non c'è nessun gesto. */
+  const stornate = useMemo(() => invoices.filter(i =>
+    i.direction === direction && managed(i) && !i.paidOn && isVoided(i)), [invoices, direction])
   const attesa = useMemo(() => invoices
     /* §281 — quelle fuori dai conti non sono crediti: qui si elenca chi va
        chiamato, e chiamare per una fattura duplicata è il modo di non essere
        più creduti. */
-    .filter(i => i.direction === direction && i.sign > 0 && !i.paidOn && managed(i))
+    /* §323 — e nemmeno quelle che una nota di credito ha annullato: la FPR
+       41/26 di Petito era in questa lista da 56 giorni, e la nota che la
+       cancellava era in archivio. `isOpen` è la stessa porta dei totali. */
+    .filter(i => i.direction === direction && isOpen(i))
     .map(i => ({
       i,
       /* Senza scadenza non è in ritardo: è una fattura di cui non sappiamo
@@ -841,12 +995,32 @@ function PendingInvoices({ invoices, txs, today, pending, run, direction }: {
     </div>
   ) : null
 
+  const stornateBlock = stornate.length > 0 ? (
+    <div className="mt-2 rounded-xl border border-border bg-surface-hover/40 px-3 py-2">
+      <p className="text-2xs text-text-tertiary">
+        <strong className="text-text-secondary">{stornate.length} annullate da una nota di credito</strong>
+        {' '}per {eur2(stornate.reduce((s2, i) => s2 + signedTotal(i), 0))}: il documento lo dice da sé,
+        e non c&apos;è niente da inseguire.
+      </p>
+      <ul className="mt-1 space-y-0.5">
+        {stornate.map(i => (
+          <li key={i.id} className="flex items-baseline gap-2 text-2xs">
+            <span className="font-semibold text-text-secondary">{i.number}</span>
+            <span className="text-text-tertiary truncate flex-1">{i.counterpartyName}</span>
+            <span className="tabular text-text-tertiary">{eur2(signedTotal(i))}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  ) : null
+
   if (!attesa.length) {
     return (
       <div className="mt-4 pt-3 border-t border-border">
         <p className="flex items-center gap-2 text-2xs text-success">
           <Check className="w-3.5 h-3.5" />{v.vuoto}
         </p>
+        {stornateBlock}
         {fuoriBlock}
       </div>
     )
@@ -960,6 +1134,7 @@ function PendingInvoices({ invoices, txs, today, pending, run, direction }: {
           )
         })}
       </ul>
+      {stornateBlock}
       {fuoriBlock}
     </div>
   )
@@ -1060,9 +1235,20 @@ function Slot({ icon, title, done, onUndo, empty, options, pending }: {
   )
 }
 
-function Detail({ invoice, onClose, onDelete }: {
-  invoice: Invoice; onClose: () => void; onDelete: () => void
+function Detail({ invoice, onClose, onDelete, today, statesReady, pending, run, candidates, target }: {
+  invoice: Invoice
+  onClose: () => void
+  onDelete: () => void
+  today: string
+  statesReady: boolean
+  pending: boolean
+  run: (fn: () => Promise<unknown>, ok?: string) => void
+  /** §323 — le fatture della stessa controparte: è fra queste che una nota storna */
+  candidates: Invoice[]
+  target: Invoice | null
 }) {
+  const st = invoiceStatus(invoice, today)
+  const nota = isCreditNote(invoice.docType) || isDebitNote(invoice.docType)
   return (
     <div className="border-t border-border bg-surface-hover px-5 py-4">
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -1084,6 +1270,80 @@ function Detail({ invoice, onClose, onDelete }: {
           </button>
         </div>
       </div>
+      {/* §323 — lo stato per esteso, col perché accanto: in elenco c'è la
+          parola, qui la ragione, e sono due bisogni diversi. */}
+      <dl className="mt-3 grid gap-x-6 gap-y-1 sm:grid-cols-2">
+        <div className="flex items-baseline gap-2">
+          <dt className="text-2xs text-text-tertiary w-24 shrink-0">Stato</dt>
+          <dd className={`text-2xs font-semibold ${TONE[st.tone]}`}>
+            {st.label} <span className="font-normal text-text-tertiary">— {st.why}</span>
+          </dd>
+        </div>
+        {statesReady && st.stage && (
+          <div className="flex items-baseline gap-2">
+            <dt className="text-2xs text-text-tertiary w-24 shrink-0">Documento</dt>
+            <dd className="text-2xs text-text-secondary">
+              {st.stage === 'inviata' ? 'inviata' : 'emessa, non ancora inviata'}
+              <span className="text-text-tertiary"> — {stageWhy(invoice)}</span>
+              {st.stage === 'emessa' && (
+                <button disabled={pending}
+                  onClick={() => run(() => setInvoiceSent(invoice.id, today), 'Segnata come inviata')}
+                  className="ml-2 underline text-text-tertiary hover:text-text-primary press">
+                  segna inviata oggi
+                </button>
+              )}
+            </dd>
+          </div>
+        )}
+        {rectified(invoice) > 0 && (
+          <div className="flex items-baseline gap-2">
+            <dt className="text-2xs text-text-tertiary w-24 shrink-0">Stornato</dt>
+            <dd className="text-2xs text-error">
+              {eur2(rectified(invoice))} su {eur2(invoice.taxable)} di imponibile
+              {!isVoided(invoice) && ' — il resto è ancora un credito'}
+            </dd>
+          </div>
+        )}
+      </dl>
+
+      {/* §323 — il legame fra la nota e la fattura che rettifica. Lo dichiara il
+          documento (`DatiFattureCollegate`) e su tutte le note di credito di
+          questo archivio c'è; sulle note di **debito** non c'è mai, e senza il
+          legame la fattura resta a galleggiare fra i crediti aperti. È l'unico
+          punto in cui si scrive a mano, e ci si arriva solo quando il file tace. */}
+      {nota && statesReady && (
+        <div className="mt-3 rounded-xl border border-border p-3">
+          <p className="text-2xs font-semibold text-text-secondary">
+            {isCreditNote(invoice.docType) ? 'Storna' : 'Integra'} il documento
+          </p>
+          {target ? (
+            <p className="text-2xs text-text-secondary mt-1">
+              {target.number} del {day(target.issuedOn)} · {eur2(target.taxable)} di imponibile
+              <button disabled={pending}
+                onClick={() => run(() => setInvoiceRectifies(invoice.id, null), 'Collegamento tolto')}
+                className="ml-2 underline text-text-tertiary hover:text-warning press">togli</button>
+            </p>
+          ) : (
+            <>
+              <p className="text-2xs text-text-tertiary mt-1">
+                Il documento non lo dichiara. Finché manca, la fattura che questa nota tocca resta
+                fra i crediti aperti e lo storno pesa sul mese sbagliato.
+              </p>
+              <select defaultValue="" disabled={pending} aria-label="Documento rettificato"
+                onChange={e => { if (e.target.value) run(() => setInvoiceRectifies(invoice.id, e.target.value), 'Collegata') }}
+                className="mt-1.5 bg-background border border-border-interactive rounded-lg px-2 py-1.5 text-2xs text-text-primary max-w-full">
+                <option value="">scegli la fattura…</option>
+                {candidates.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.number} · {day(c.issuedOn)} · {eur2(c.taxable)}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+        </div>
+      )}
+
       {invoice.warnings?.length ? (
         <ul className="mt-2 space-y-0.5">
           {invoice.warnings.map((w, k) => (

@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { InvoicesClient } from '@/components/invoices/InvoicesClient'
 import { monthKey, shiftMonth } from '@/lib/pl'
 import { linesForMonth, type Installment, type RevenueStream } from '@/lib/revenue'
-import { billingSeries } from '@/lib/invoices'
+import { billingSeries, withRectifications } from '@/lib/invoices'
 import type { Invoice, LineRef, TxRef } from '@/lib/invoices'
 
 export const revalidate = 0
@@ -27,12 +27,30 @@ export default async function FatturePage({ searchParams }: { searchParams: { m?
   const month = /^\d{4}-\d{2}-01$/.test(searchParams.m ?? '') ? searchParams.m! : monthKey(new Date())
 
   const [{ data: rows, error }, { data: clients }] = await Promise.all([
-    supabase.from('invoices').select('*').order('issued_on', { ascending: false }),
+    /* §323 — le colonne, non `*`: `raw_xml` è il documento intero, e su un
+       archivio con quattro note di credito che si portano dietro il PDF della
+       fattura stornata erano mezzo megabyte spediti al browser a ogni
+       caricamento per non leggerne un carattere. Il file resta dov'è: è la
+       prova, e si rilegge quando serve davvero. */
+    supabase.from('invoices')
+      .select('id, direction, doc_type, number, issued_on, counterparty_name, counterparty_vat, '
+        + 'client_id, taxable, vat_amount, total, sign, due_date, paid_on, pdf_path, '
+        + 'excluded_reason, warnings, sent_on, from_sdi, rectifies_id')
+      .order('issued_on', { ascending: false }),
     supabase.from('clients').select('id, company_name, display_name, piva').order('company_name'),
   ])
 
   // 42P01 = la 198 non è stata eseguita. Va detto, non fatto fallire.
   const setupNeeded = error?.code === '42P01'
+  /* §323 — 42703 = la 219 non c'è ancora e mancano le colonne dello stato. La
+     pagina deve accendersi lo stesso, senza il viaggio del documento e senza gli
+     storni: una sezione che sparisce per una migration non applicata nasconde
+     anche tutto quello che funzionava. */
+  const statesReady = error?.code !== '42703'
+
+  const { data: rowsSafe } = statesReady
+    ? { data: rows }
+    : await supabase.from('invoices').select('*').order('issued_on', { ascending: false })
 
   const [{ data: rev }, { data: cost }, { data: txs }, { data: streams }, { data: inst }] = setupNeeded
     ? [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }]
@@ -52,7 +70,7 @@ export default async function FatturePage({ searchParams }: { searchParams: { m?
 
   const n = (v: unknown) => Number(v ?? 0)
 
-  const invoices: Invoice[] = (rows ?? []).map((r: Record<string, unknown>) => ({
+  const invoices: Invoice[] = withRectifications((rowsSafe ?? []).map((r: Record<string, unknown>) => ({
     id: String(r.id),
     direction: r.direction === 'ricevuta' ? 'ricevuta' : 'emessa',
     docType: String(r.doc_type ?? 'TD01'),
@@ -69,7 +87,12 @@ export default async function FatturePage({ searchParams }: { searchParams: { m?
     // §281 — se c'è, la fattura è fuori dai conti e il testo dice perché
     excludedReason: (r.excluded_reason as string) ?? null,
     warnings: (r.warnings as string[]) ?? undefined,
-  }))
+    /* §323 — il viaggio del documento e lo storno. `from_sdi` è generata dal
+       database sul fatto: c'è l'XML, quindi è transitata. */
+    fromSdi: r.from_sdi === true,
+    sentOn: (r.sent_on as string) ?? null,
+    rectifiesId: (r.rectifies_id as string) ?? null,
+  })))
 
   const lines: LineRef[] = [
     ...(rev ?? []).map((r: Record<string, unknown>) => ({
@@ -111,6 +134,7 @@ export default async function FatturePage({ searchParams }: { searchParams: { m?
       series={billingSeries(invoices, today, forecast)}
       month={month}
       setupNeeded={setupNeeded}
+      statesReady={statesReady}
       today={today}
       invoices={invoices}
       lines={lines}

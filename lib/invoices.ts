@@ -19,6 +19,9 @@
  */
 
 import { eur } from '@/lib/money'
+import { docKind, DOC_KIND_LABEL, isCreditNote, isDebitNote, type DocKind } from '@/lib/fattura-xml'
+
+export { docKind, DOC_KIND_LABEL, isCreditNote, isDebitNote, type DocKind }
 
 const r2 = (n: number) => Math.round(n * 100) / 100
 const sum = (ns: number[]) => r2(ns.reduce((a, b) => a + b, 0))
@@ -52,7 +55,84 @@ export type Invoice = {
    * scritto accanto invece che nella memoria di chi l'ha decisa.
    */
   excludedReason?: string | null
+  /** §323 — c'è l'XML dello SdI dietro: il documento è transitato per forza */
+  fromSdi?: boolean
+  /** §323 — quando è partita, se a saperlo è solo una persona (fatture a mano, §247) */
+  sentOn?: string | null
+  /** §323 — il documento che questa nota rettifica, risolto nell'archivio */
+  rectifiesId?: string | null
+  /** §323 — riempito da `withRectifications`: le note che rettificano questa */
+  rectifiedBy?: string[]
+  /**
+   * §323 — quanto imponibile di questa fattura una **nota di credito** ha
+   * annullato. Le note di **debito** non entrano: integrano, non stornano, ed
+   * è la ragione per cui i due generi vanno distinti e non solo tradotti.
+   */
+  rectifiedAmount?: number
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// §323 · Lo storno: chi annulla chi
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Chiude il cerchio che il documento apre da solo.
+ *
+ * `rectifiesId` arriva dal database e punta **in avanti**: la nota dice quale
+ * fattura tocca. La domanda che serve in pagina è l'opposta — «questa fattura è
+ * ancora un credito?» — e la risposta va calcolata una volta sola, qui, perché
+ * ogni pezzo che la ricalcolasse per conto suo sarebbe la stessa regola scritta
+ * due volte, che è esattamente il difetto da cui nasce §323.
+ *
+ * Si passa **tutto** l'archivio: una nota di settembre può stornare una fattura
+ * di luglio, e filtrare per mese prima di collegare perderebbe proprio i casi
+ * per cui il collegamento esiste.
+ */
+export function withRectifications(invoices: Invoice[]): Invoice[] {
+  const byId = new Map(invoices.map(i => [i.id, i]))
+  const notes = new Map<string, { ids: string[]; credited: number }>()
+
+  for (const n of invoices) {
+    if (!n.rectifiesId || !byId.has(n.rectifiesId)) continue
+    const cur = notes.get(n.rectifiesId) ?? { ids: [], credited: 0 }
+    cur.ids.push(n.id)
+    // solo il credito annulla: una nota di debito rifattura, e va sommata altrove
+    if (n.sign < 0) cur.credited = r2(cur.credited + Math.abs(n.taxable))
+    notes.set(n.rectifiesId, cur)
+  }
+
+  return invoices.map(i => {
+    const n = notes.get(i.id)
+    return n ? { ...i, rectifiedBy: n.ids, rectifiedAmount: n.credited } : i
+  })
+}
+
+/** Quanto di questa fattura una nota di credito ha annullato. */
+export const rectified = (i: Invoice) => i.rectifiedAmount ?? 0
+
+/**
+ * §323 — annullata per intero: non è un credito, e non lo diventerà.
+ *
+ * La soglia è l'imponibile e non il totale perché la nota di credito segue
+ * l'imponibile: su una fattura con bollo i due lordi non coinciderebbero mai e
+ * nessuno storno risulterebbe completo.
+ */
+export const isVoided = (i: Invoice) =>
+  i.sign > 0 && i.taxable > 0 && rectified(i) >= r2(i.taxable) - 0.01
+
+/** §323 — stornata solo in parte: il resto è ancora un credito vero. */
+export const partlyVoided = (i: Invoice) =>
+  i.sign > 0 && rectified(i) > 0.01 && !isVoided(i)
+
+/**
+ * §323 — è ancora un credito da inseguire?
+ *
+ * Tre modi di **non** esserlo, e il tool li conosceva solo per metà: incassata,
+ * dichiarata fuori dai conti a mano (§281), o annullata da una nota di credito
+ * che lo dice da sé. La terza è quella nuova, ed è quella che sui dati veri
+ * valeva 1.830 € di credito verso Petito che nessuno avrebbe più incassato.
+ */
+export const isOpen = (i: Invoice) => i.sign > 0 && !i.paidOn && managed(i) && !isVoided(i)
 
 /** §281 — dentro i conti: quelle senza una ragione di esclusione. */
 export const managed = (i: Pick<Invoice, 'excludedReason'>) => !i.excludedReason
@@ -65,6 +145,149 @@ export const signedVat = (i: Pick<Invoice, 'sign' | 'vatAmount'>) => r2(i.sign *
 export const monthOf = (iso: string) => `${iso.slice(0, 7)}-01`
 
 // ═══════════════════════════════════════════════════════════════════════════
+// §323 · Lo stato, in un posto solo
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Due assi, non uno.
+ *
+ * Lo stato di una fattura sembra una parola sola e sono due domande che restano
+ * vere insieme: **il documento dov'è arrivato** (esiste, è partito) e **dov'è il
+ * denaro** (rientrato, atteso, scaduto, annullato, fuori dai conti). Schiacciarle
+ * in un elenco unico costringe a scegliere quale delle due dire, e chi legge
+ * finisce per crederle alternative: una fattura «inviata» sembrerebbe una che
+ * non è stata pagata.
+ *
+ * **Il viaggio si legge dal file, non si digita.** Un XML che torna dallo SdI è
+ * la prova di essere transitato: se ce l'abbiamo, è partita. Una fattura scritta
+ * a mano (§247) no, e la sola persona che sappia quando è uscita è quella che
+ * l'ha mandata — per questo `sentOn` esiste e resta vuota sui file dello SdI,
+ * dove la data non c'è dentro e inventarla sarebbe peggio di non averla.
+ *
+ * **Sulle ricevute il viaggio non è una domanda.** Non le abbiamo mandate noi:
+ * `stage` è `null`, e un'etichetta che non si applica non si mostra spenta —
+ * si toglie.
+ *
+ * Ogni stato porta il **perché**: è la stessa regola della provenienza dei
+ * numeri (`lib/economics-source.ts`). «Scaduta» senza «il 15 agosto, 25 giorni
+ * fa» è un'accusa senza data, e la prima cosa che fa chi la legge è andare a
+ * cercarsela.
+ */
+export type InvoiceStage = 'emessa' | 'inviata'
+
+export type InvoiceState =
+  /** §281 — dichiarata fuori dai conti a mano, col perché accanto */
+  | 'non_gestita'
+  /**
+   * §323 — è una **nota di credito**: non si incassa, rettifica un'altra.
+   * Senza questo stato finiva fra le «scadute» — ha una data di scadenza,
+   * copiata dalla fattura che storna — e l'elenco chiedeva di sollecitare un
+   * documento che toglie soldi invece di portarne.
+   */
+  | 'rettifica'
+  /** rientrata: `paidOn` è un fatto, non un'opinione */
+  | 'pagata'
+  /** §323 — una nota di credito l'ha annullata: non arriverà mai */
+  | 'stornata'
+  /** non pagata, oltre la data attesa */
+  | 'scaduta'
+  /** non pagata, ancora nei termini */
+  | 'attesa'
+  /** §280 — non pagata e senza una data: né scaduta né attesa, cioè invisibile */
+  | 'senza_data'
+
+export type InvoiceStatus = {
+  stage: InvoiceStage | null
+  state: InvoiceState
+  /** l'etichetta da mostrare, già in italiano e già col numero dentro */
+  label: string
+  tone: 'success' | 'error' | 'warning' | 'info' | 'muted'
+  /** da dove viene questo stato: senza, è un'etichetta di cui fidarsi a metà */
+  why: string
+}
+
+/**
+ * §323 — Il viaggio del documento.
+ *
+ * Vale solo su quello che mandiamo noi. `fromSdi` è generata dal database sul
+ * fatto — c'è l'XML o non c'è — quindi non è un campo che qualcuno possa aver
+ * dimenticato di aggiornare.
+ */
+export function invoiceStage(i: Invoice): InvoiceStage | null {
+  if (i.direction !== 'emessa') return null
+  return i.fromSdi || i.sentOn ? 'inviata' : 'emessa'
+}
+
+export function stageWhy(i: Invoice): string {
+  if (i.fromSdi) return 'il file è tornato dallo SdI: è transitata'
+  if (i.sentOn) return `segnata come inviata il ${i.sentOn}`
+  return 'scritta a mano: niente prova che sia partita'
+}
+
+/** Lo stato completo. Un solo posto: ogni copia sarebbe una regola scritta due volte. */
+export function invoiceStatus(i: Invoice, today: string): InvoiceStatus {
+  const stage = invoiceStage(i)
+  const incassa = i.direction === 'emessa'
+
+  if (!managed(i)) {
+    return {
+      stage, state: 'non_gestita', tone: 'muted',
+      label: 'non gestita',
+      why: i.excludedReason ?? 'fuori dai conti, senza una ragione scritta',
+    }
+  }
+  /* §323 — una nota di credito non ha uno stato di incasso: porta la data di
+     scadenza della fattura che rettifica, e senza questo ramo la ereditava anche
+     come ritardo. Una nota di **debito** invece si incassa come una fattura, ed
+     è la ragione per cui i due generi non sono lo stesso documento col segno
+     cambiato. */
+  if (i.sign < 0) {
+    return {
+      stage, state: 'rettifica', tone: 'muted',
+      label: 'nota di credito',
+      why: i.rectifiesId
+        ? 'storna un altro documento: non si incassa'
+        : 'non dichiara quale documento storna: il legame va deciso a mano',
+    }
+  }
+  if (i.paidOn) {
+    const anche = isVoided(i) ? ', e poi stornata' : ''
+    return {
+      stage, state: 'pagata', tone: 'success',
+      label: incassa ? 'saldata' : 'pagata',
+      why: `${incassa ? 'incassata' : 'pagata'} il ${i.paidOn}${anche}`,
+    }
+  }
+  if (isVoided(i)) {
+    return {
+      stage, state: 'stornata', tone: 'muted',
+      label: 'stornata',
+      why: 'annullata per intero da una nota di credito: non è un credito da inseguire',
+    }
+  }
+  if (!i.dueDate) {
+    return {
+      stage, state: 'senza_data', tone: 'warning',
+      label: 'senza data attesa',
+      why: 'nessuna scadenza sul documento: non è né scaduta né attesa, quindi non la cerca nessuno',
+    }
+  }
+  if (i.dueDate < today) {
+    const gg = daysBetween(i.dueDate, today)
+    return {
+      stage, state: 'scaduta', tone: 'error',
+      label: `scaduta da ${gg} ${gg === 1 ? 'giorno' : 'giorni'}`,
+      why: `attesa il ${i.dueDate}${partlyVoided(i) ? ', stornata in parte' : ''}`,
+    }
+  }
+  return {
+    stage, state: 'attesa', tone: 'info',
+    label: incassa ? 'da incassare' : 'da pagare',
+    why: `attesa il ${i.dueDate}${partlyVoided(i) ? ', stornata in parte' : ''}`,
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // I totali
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -72,6 +295,14 @@ export type Totals = {
   count: number
   /** quante sono note di credito: un conteggio che nasconde 4 storni mente */
   credits: number
+  /** §323 — e quante di debito: stesso posto in elenco, effetto opposto sul fatturato */
+  debits: number
+  /** §323 — imponibile stornato dalle note di credito, in positivo */
+  creditsAmount: number
+  /** §323 — imponibile aggiunto dalle note di debito */
+  debitsAmount: number
+  /** §323 — quante fatture una nota di credito ha annullato per intero */
+  voided: number
   taxable: number
   vat: number
   total: number
@@ -90,11 +321,22 @@ export function totals(invoices: Invoice[], today: string): Totals {
   /* §281 — quelle fuori dai conti non sono crediti: tenerle fra gli scoperti
      gonfiava lo scaduto di 42.456 € e mandava a inseguire soldi che nessuno
      deve. Restano nel conteggio dei documenti, che è un'altra domanda. */
-  const paid = invoices.filter(i => i.paidOn && managed(i))
-  const open = invoices.filter(i => !i.paidOn && managed(i))
+  const paid = invoices.filter(i => i.sign > 0 && i.paidOn && managed(i))
+  /* §323 — «aperta» ha tre modi di non esserlo, e prima ne conosceva due. Una
+     fattura annullata da una nota di credito non è un credito: sui dati veri
+     erano 1.830 € verso Petito che il tool continuava a mettere in fila fra le
+     telefonate da fare, e la nota che li cancellava era in archivio da subito.
+     Le note stesse restano fuori: una nota di credito non si incassa (§279). */
+  const open = invoices.filter(isOpen)
+  const credits = invoices.filter(i => isCreditNote(i.docType))
+  const debits = invoices.filter(i => isDebitNote(i.docType))
   return {
     count: invoices.length,
-    credits: invoices.filter(i => i.sign === -1).length,
+    credits: credits.length,
+    debits: debits.length,
+    creditsAmount: sum(credits.map(i => Math.abs(i.taxable))),
+    debitsAmount: sum(debits.map(i => Math.abs(i.taxable))),
+    voided: invoices.filter(isVoided).length,
     taxable: sum(invoices.map(signed)),
     vat: sum(invoices.map(signedVat)),
     total: sum(invoices.map(signedTotal)),
@@ -183,7 +425,13 @@ export type BillingPoint = {
   issued: number
   /** §279 — quello che è stato emesso prima degli storni: è l'altezza della barra */
   gross: number
-  /** §279 — annullato da una nota di credito: non è credito, non si insegue */
+  /**
+   * §279 — annullato da una nota di credito: non è credito, non si insegue.
+   * §323 — e conta **nel mese della fattura annullata**, non in quello della
+   * nota: una nota di settembre che storna luglio dice che luglio valeva meno,
+   * non che settembre ha fatturato meno. Le note che non dichiarano cosa
+   * stornano restano nel proprio mese, che è l'unico che se ne conosca.
+   */
   credited: number
   /** §281 — fuori dai conti per scelta: duplicate, giri fra società collegate */
   unmanaged: number
@@ -208,6 +456,10 @@ export function billingSeries(
   from?: string,
 ): BillingPoint[] {
   const emesse = invoices.filter(i => i.direction === 'emessa')
+  /* §323 — quali storni hanno davvero un bersaglio in archivio: una nota che
+     cita una fattura che non abbiamo non è un errore, è un pezzo mancante, e va
+     contata dove sta invece che sparire. */
+  const noti = new Set(emesse.map(i => i.id))
   const mesiDoc = emesse.map(i => monthOf(i.issuedOn))
   const mesiFc = forecast.map(f => monthOf(f.month))
   if (!mesiDoc.length && !mesiFc.length) return []
@@ -228,12 +480,28 @@ export function billingSeries(
   while (cur <= stop) {
     const key = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-01`
     const own = emesse.filter(i => monthOf(i.issuedOn) === key)
-    const gross = sum(own.filter(i => i.sign > 0).map(i => i.taxable))
-    const credited = sum(own.filter(i => i.sign < 0).map(i => i.taxable))
+    const positive = own.filter(i => i.sign > 0)
+    const gross = sum(positive.map(i => i.taxable))
     /* §281 — fuori dai conti: non sono fatturato e non sono credito. Escono dal
        netto come le note di credito, e per la stessa ragione. */
-    const unmanaged = sum(own.filter(i => i.sign > 0 && !managed(i)).map(i => i.taxable))
-    const collected = sum(own.filter(i => i.sign > 0 && managed(i) && !!i.paidOn).map(i => i.taxable))
+    const unmanaged = sum(positive.filter(i => !managed(i)).map(i => i.taxable))
+    /* §323 — **lo storno vale nel mese della fattura che annulla, non nel suo.**
+       La nota di credito FPR 56/26 è del 9 settembre e cancella la FPR 41/26 del
+       3 luglio: luglio non ha mai incassato quei 1.830 €, e settembre non ha
+       perso niente. Finché lo storno restava nel proprio mese, luglio teneva un
+       credito che non sarebbe mai arrivato e settembre mostrava un fatturato più
+       basso del vero — due mesi sbagliati per un documento solo.
+       La dichiarazione resta un'altra domanda, e la risponde `vatByQuarter`, che
+       tiene ogni documento nel suo trimestre: qui si legge «come è andato il
+       mese», e per quella domanda il mese è quello della fattura. */
+    const stornato = sum(positive.filter(managed).map(rectified))
+    /* Una nota che non dice cosa storna resta dov'è: è l'unico mese che se ne
+       conosca, e spostarla altrove sarebbe inventare il legame che le manca. */
+    const orfane = sum(own
+      .filter(i => i.sign < 0 && !(i.rectifiesId && noti.has(i.rectifiesId)))
+      .map(i => Math.abs(i.taxable)))
+    const credited = r2(stornato + orfane)
+    const collected = sum(positive.filter(i => managed(i) && !!i.paidOn).map(i => i.taxable))
     /* Il resto è quello che si può ancora incassare. Se lo storno supera lo
        scoperto la differenza non è un credito negativo: è una nota che annulla
        una fattura già incassata, e la parte in attesa è semplicemente zero. */
@@ -308,6 +576,12 @@ const BUCKETS: AgingBucket['key'][] = ['a scadere', '1-30', '31-60', '61-90', 'o
  * telefonata, gli stessi 3.000 scaduti da novanta sono un credito da svalutare,
  * e un totale unico li fa sembrare la stessa cosa. Chi non ha una scadenza
  * finisce in «a scadere» e lo dice il conteggio delle fatture senza data.
+ *
+ * §323 — e ci sta solo quello che **si insegue**: `isOpen`, la stessa porta dei
+ * totali. Qui era rimasto un secondo `!paidOn` a mano, quindi lo scadenzario
+ * continuava a elencare le duplicate escluse a mano (§281) e le note di credito
+ * col segno meno dentro una fascia di ritardo. Una regola scritta due volte non
+ * è una regola: era vera nei riquadri e falsa nella tabella sotto.
  */
 export function aging(invoices: Invoice[], today: string): {
   buckets: AgingBucket[]
@@ -315,7 +589,7 @@ export function aging(invoices: Invoice[], today: string): {
   overdue: number
   noDueDate: number
 } {
-  const open = invoices.filter(i => !i.paidOn)
+  const open = invoices.filter(isOpen)
   const rows = new Map(BUCKETS.map(k => [k, { key: k, count: 0, amount: 0 }]))
   let noDueDate = 0
 
@@ -746,9 +1020,15 @@ export function reconciliation(i: {
   const out: InvoiceFinding[] = []
   const withDocs = new Set(i.invoices.map(x => monthOf(x.issuedOn)))
 
+  /* §323 — un documento che non è fatturato non è «fatturato senza riga»: una
+     duplicata esclusa a mano, una fattura che una nota di credito ha annullato,
+     e la nota stessa non devono entrare nel mese, quindi non manca loro niente.
+     Prima ci finivano dentro e la lista dei problemi veri ci si perdeva. */
+  const daRegistrare = (x: Invoice) => managed(x) && !isVoided(x) && !x.rectifiesId
+
   // 1 · fatture senza una riga nel conto economico
   const orphanInvoices = i.invoices.filter(x =>
-    x.direction === 'emessa' && !i.lines.some(l => l.invoiceId === x.id))
+    x.direction === 'emessa' && daRegistrare(x) && !i.lines.some(l => l.invoiceId === x.id))
   if (orphanInvoices.length) {
     out.push({
       id: 'fatture-senza-riga', severity: 'critico',
@@ -777,7 +1057,8 @@ export function reconciliation(i: {
   }
 
   // 3 · fatture scadute e non saldate
-  const overdue = i.invoices.filter(x => !x.paidOn && x.dueDate && x.dueDate < i.today)
+  // §323 — `isOpen`: chi è stato stornato o messo fuori dai conti non si sollecita
+  const overdue = i.invoices.filter(x => isOpen(x) && x.dueDate && x.dueDate < i.today)
   const inOverdue = overdue.filter(x => x.direction === 'emessa')
   const outOverdue = overdue.filter(x => x.direction === 'ricevuta')
   if (inOverdue.length) {
@@ -815,7 +1096,42 @@ export function reconciliation(i: {
     })
   }
 
-  // 5 · il documento stesso non torna
+  /* 5 · §323 — note che non dicono cosa rettificano.
+     Una nota di credito senza `DatiFattureCollegate` è un importo che gira per
+     l'archivio senza un posto: la fattura che dovrebbe smettere di essere un
+     credito resta fra le telefonate da fare, e lo storno abbassa un mese che non
+     c'entra. Il legame va deciso a mano una volta, e poi vale per sempre. */
+  const noteOrfane = i.invoices.filter(x =>
+    (isCreditNote(x.docType) || isDebitNote(x.docType)) && !x.rectifiesId)
+  if (noteOrfane.length) {
+    out.push({
+      id: 'note-senza-riferimento', severity: 'attenzione',
+      title: `${noteOrfane.length} note di credito o debito non dicono quale fattura rettificano`,
+      detail: `${eur(sum(noteOrfane.map(x => Math.abs(x.taxable))))} di imponibile che il tool non sa `
+        + 'dove imputare: il documento non compila DatiFattureCollegate, oppure la fattura citata '
+        + 'non è in archivio. Finché il legame manca, la fattura stornata resta fra i crediti aperti.',
+      action: 'Apri la nota e indica la fattura che rettifica.',
+      value: sum(noteOrfane.map(x => Math.abs(x.taxable))),
+      refs: noteOrfane.map(x => x.id),
+    })
+  }
+
+  /* 6 · §323 — esclusioni a mano che una nota di credito spiegherebbe da sola.
+     È il difetto da cui nasce §323: la stessa verità tenuta in due posti, e in
+     due casi su quattro scritta sulla riga sbagliata. */
+  const escluseStornate = i.invoices.filter(x => !managed(x) && (isVoided(x) || x.rectifiesId))
+  if (escluseStornate.length) {
+    out.push({
+      id: 'esclusione-ridondante', severity: 'nota',
+      title: `${escluseStornate.length} documenti sono esclusi a mano e già stornati da una nota`,
+      detail: 'L\'esclusione toglie dai conti un solo documento della coppia, la nota ne toglie due: '
+        + 'insieme fanno sparire un importo due volte, o nessuna delle due. Lo storno basta da solo.',
+      action: 'Rimettili nei conti: la nota di credito li tiene già fuori dai crediti.',
+      refs: escluseStornate.map(x => x.id),
+    })
+  }
+
+  // 7 · il documento stesso non torna
   const broken = i.invoices.filter(x => (x.warnings?.length ?? 0) > 0)
   if (broken.length) {
     out.push({

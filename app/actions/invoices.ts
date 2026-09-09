@@ -38,6 +38,8 @@ export type ImportReport = {
   duplicati: number
   falliti: { file: string; motivo: string }[]
   agganciati: number
+  /** §323 — quante note hanno trovato in archivio la fattura che stornano */
+  stornate: number
   dal: string | null
   al: string | null
 }
@@ -59,7 +61,7 @@ export async function importInvoices(
   const vat = await ownVat()
 
   const report: ImportReport = {
-    letti: 0, nuovi: 0, duplicati: 0, falliti: [], agganciati: 0, dal: null, al: null,
+    letti: 0, nuovi: 0, duplicati: 0, falliti: [], agganciati: 0, stornate: 0, dal: null, al: null,
   }
 
   const parsed: { file: string; xml: string; inv: ParsedInvoice }[] = []
@@ -142,11 +144,25 @@ export async function importInvoices(
         invoice_id: id, due_date: r.dueDate, amount: r.amount, method: r.method, iban: r.iban,
       })))
     }
+    /* §323 — quello che il documento dichiara di rettificare. Si conserva com'è
+       scritto — un numero e una data — e la risoluzione all'archivio la fa dopo
+       la RPC, su tutto insieme: la fattura stornata può essere arrivata in
+       questo stesso lotto, e risolvere riga per riga la mancherebbe. */
+    if (inv.related.length) {
+      await admin.from('invoice_related').insert(inv.related.map(r => ({
+        invoice_id: id, doc_id: r.id, doc_date: r.date, line_no: r.line,
+      })))
+    }
   }
 
   // l'aggancio all'anagrafica per partita IVA: lo fa il database, in un colpo
   const { data: linked } = await admin.rpc('link_invoices_to_clients')
   report.agganciati = Number(linked ?? 0)
+  /* §323 — e l'aggancio fra nota e fattura stornata. Anche questo si può
+     rilanciare: una fattura importata domani ritrova la nota che la stornava
+     ieri, senza che nessuno debba reimportare niente. */
+  const { data: rett } = await admin.rpc('link_invoice_rectifications')
+  report.stornate = Number(rett ?? 0)
 
   const date = parsed.map(p => p.inv.issuedOn).sort()
   report.dal = date[0] ?? null
@@ -276,6 +292,50 @@ export async function setInvoiceDue(invoiceId: string, dueDate: string | null) {
   if (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) throw new Error('Data non valida')
   const { error } = await createAdminClient().from('invoices')
     .update({ due_date: dueDate }).eq('id', invoiceId)
+  if (error) throw new Error(error.message)
+  rev()
+}
+
+/**
+ * §323 — Quando il documento è partito.
+ *
+ * Vale solo per quello che non ha un XML dietro: se il file è tornato dallo SdI
+ * la fattura è transitata, il database lo sa da sé (`from_sdi`) e chiederlo a
+ * una persona sarebbe chiedere di ricopiare un fatto che il tool ha già. Serve
+ * invece sulle fatture scritte a mano (§247), dove l'unico che sa quando è
+ * uscita è chi l'ha mandata.
+ *
+ * Non si scrive una data sui documenti dello SdI: quella data nel file non c'è,
+ * e metterci quella dell'import vorrebbe dire scrivere quando l'abbiamo
+ * scaricata spacciandola per quando l'abbiamo mandata.
+ */
+export async function setInvoiceSent(invoiceId: string, sentOn: string | null) {
+  await requireAdmin()
+  if (sentOn && !/^\d{4}-\d{2}-\d{2}$/.test(sentOn)) throw new Error('Data non valida')
+  const { error } = await createAdminClient().from('invoices')
+    .update({ sent_on: sentOn }).eq('id', invoiceId)
+  if (error?.code === '42703') throw new Error('Esegui prima la migration 219_invoice_states.sql')
+  if (error) throw new Error(error.message)
+  rev()
+}
+
+/**
+ * §323 — Quale fattura questa nota storna, quando il documento non lo dice.
+ *
+ * Il legame lo dichiara `DatiFattureCollegate` e nell'archivio è compilato su
+ * tutte le note di credito; sulle note di **debito** non c'è mai, e senza il
+ * legame la fattura che rettificano resta a galleggiare fra i crediti aperti.
+ *
+ * È l'unico posto in cui questo rapporto si scrive a mano, e ci si arriva solo
+ * quando il documento tace: `null` lo toglie, e la RPC lo riscriverebbe comunque
+ * se il file lo dichiarasse.
+ */
+export async function setInvoiceRectifies(noteId: string, targetId: string | null) {
+  await requireAdmin()
+  if (targetId === noteId) throw new Error('Una nota non può stornare sé stessa')
+  const { error } = await createAdminClient().from('invoices')
+    .update({ rectifies_id: targetId }).eq('id', noteId)
+  if (error?.code === '42703') throw new Error('Esegui prima la migration 219_invoice_states.sql')
   if (error) throw new Error(error.message)
   rev()
 }

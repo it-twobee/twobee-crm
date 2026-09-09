@@ -91,8 +91,10 @@ vista è un grafico di cui non ci si fida più.
   stornata non è un incasso che deve ancora arrivare, è un incasso che **non
   arriverà mai**, e le due cose chiedono due azioni diverse (telefonare, o non
   fare niente). `credited` è una grandezza sua e `pending` non scende mai sotto
-  zero. Sui dati veri: 98.550 € emessi lordi, di cui **10.500 stornati**
-  (7.200 a maggio, 3.300 ad agosto).
+  zero. Sui dati di allora: 98.550 € emessi lordi, di cui **10.500 stornati**
+  (7.200 a maggio, 3.300 ad agosto). **La ripartizione per mese è superata da
+  §323**: quei 3.300 sono note del 3 agosto che annullano due fatture di
+  **giugno**, e adesso pesano lì.
 - **§280 — nel grafico stanno solo tre cose: netto, rientrato, in attesa.**
   L'altezza della barra è il **fatturato netto**, e lo stornato non è una terza
   parte — disegnarlo alzerebbe una barra che il fatturato non ha. Resta scritto
@@ -102,8 +104,11 @@ vista è un grafico di cui non ci si fida più.
   stati; sui dati veri ne servivano tre, e il terzo vale **nove documenti su
   trentanove**: le ISF duplicate con le loro note di credito, la Gli Artigiani
   stornata, la Tailors emessa due volte. Non sono crediti — nessuno telefonerà
-  mai per averli — e fra gli «in attesa» gonfiavano lo scaduto. Non si
-  cancellano: esistono, sono passate dallo SDI. Si dichiarano fuori **col
+  mai per averli — e fra gli «in attesa» gonfiavano lo scaduto. **§323 le ha
+  portate a zero**: otto delle nove le spiegava già una nota di credito, e
+  tenere a mano una sola riga della coppia sottraeva l'importo due volte o
+  nessuna. L'esclusione a mano resta per quello che nessun documento spiega.
+  Non si cancellano: esistono, sono passate dallo SDI. Si dichiarano fuori **col
   perché accanto**, perché un'esclusione senza ragione fra sei mesi non si
   distingue da una dimenticanza — per questo la colonna è di testo e non un
   booleano. Escono dal netto e dall'atteso come le note di credito; restano nel
@@ -127,6 +132,63 @@ vista è un grafico di cui non ci si fida più.
 - **Il pallino porta il numero**: il riquadro sul mese dà i quattro valori e la
   quota rientrata, e l'asse resta pulito. Dal grafico si prende la direzione,
   dal numero la decisione.
+
+**§323 — la nota di credito dice quale fattura storna, e per otto mesi nessuno
+l'ha letta** (`invoice_related`, `invoices.rectifies_id`, migration **219**).
+`DatiFattureCollegate` sta nel tracciato FatturaPA ed è compilato su **tutte**
+le TD04 di questo archivio: la FPR 56/26 del 9 settembre dichiara di stornare la
+FPR 41/26 del 3 luglio, numero e data. Finché quel campo restava nell'XML e non
+in tabella, il legame lo ricostruiva una persona scrivendo a mano una ragione di
+esclusione (§281) su **una** delle due righe della coppia — e una regola tenuta
+a mano in due posti è andata come vanno sempre:
+
+- **Tailors**: FPR 51/26 esclusa, la sua nota FPR 52/26 no. La nota toglieva
+  2.440 € da un mese da cui la fattura era già uscita. Fatturato **sotto** di
+  2.440.
+- **Affinity**: FPR 45/26 (la nota) esclusa, la FPR 31/26 che annulla no, e
+  accanto la nota di debito FPR 47/26 che rifattura lo stesso servizio. Giugno
+  contava 4.392 dove i documenti dicono 2.196. Fatturato **sopra** di 2.196.
+
+Due errori di segno opposto, nati dallo stesso gesto, che quasi si
+compensavano — cioè il caso peggiore: il totale generale restava plausibile.
+Adesso il legame è **derivato** (`link_invoice_rectifications()`), e una fattura
+stornata smette di essere un credito senza che nessuno lo dica. L'esclusione a
+mano resta per quello che nessun documento spiega: la ISF FPR 9/26 duplicata e
+mai stornata, un giro fra società collegate.
+
+- **`isOpen` è la sola porta del «da incassare»**, e ha tre modi di dire no:
+  incassata, esclusa a mano, stornata. Prima ne conosceva due, e nello
+  scadenzario (`aging`) nemmeno quelli — c'era un secondo `!paidOn` scritto a
+  mano, quindi i riquadri e la tabella sotto dicevano numeri diversi.
+- **Lo storno pesa nel mese della fattura annullata, non in quello della nota.**
+  La FPR 56/26 è di settembre e cancella luglio: luglio non ha mai incassato quei
+  1.830 €, settembre non ha perso niente. Con lo storno nel proprio mese erano
+  **due** mesi sbagliati per un documento solo. La dichiarazione è un'altra
+  domanda e la risponde `vatByQuarter`, che tiene ogni documento nel suo
+  trimestre.
+- **Una nota di debito non storna: integra.** Ha lo stesso segno di una fattura e
+  non è una fattura, ed è il motivo per cui i due generi vanno distinti e non
+  solo tradotti: se la TD05 entrasse nello storno, la fattura che rettifica
+  risulterebbe annullata due volte.
+- **Le note che non dichiarano niente restano dove sono.** Le TD05 di questo
+  archivio non hanno `DatiFattureCollegate`, e spostarne lo storno «da qualche
+  parte» sarebbe inventare il legame che manca: si collegano a mano dalla scheda
+  del documento, e finché non lo sono la riconciliazione le elenca.
+
+**§323 — emessa non è inviata.** Un XML che torna dallo SdI **è** la prova di
+essere transitato: `invoices.from_sdi` è generata dal fatto — c'è il file o non
+c'è — perché uno stato che si può digitare è uno stato di cui fidarsi a metà. La
+**data** dell'invio nell'XML non c'è e non si inventa: `sent_on` resta NULL sui
+documenti dello SdI ed esiste per le fatture scritte a mano (§247), dove l'unico
+che sa quando è uscita è chi l'ha mandata. Sulle **ricevute** il viaggio non è
+una domanda — non le abbiamo mandate noi — e uno stato che non si applica non si
+mostra spento: si toglie.
+
+Gli stati stanno in `invoiceStatus()`, uno solo: `non gestita` · `pagata` ·
+`stornata` · `scaduta` · `attesa` · `senza data`, in quest'ordine, e ognuno porta
+il **perché** accanto. «Scaduta» senza «attesa il 15 luglio» è un'accusa che chi
+legge va a verificare a mano, ed è la stessa regola della provenienza dei numeri
+(`lib/economics-source.ts`). In elenco c'è la parola, nella scheda la ragione.
 
 **IVA** (`lib/vat.ts`): l'IVA incassata non è cassa disponibile. Liquidazione
 trimestrale, scadenze ordinarie 16/05 · **20/08** · 16/11 · 16/03 (il quarto con

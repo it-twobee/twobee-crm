@@ -1,5 +1,83 @@
 # Dove siamo
 
+## Dove siamo — 2026-09-09
+
+**Archivio a 86 documenti** (47 emesse, 39 ricevute): 5 fatture nuove — FPR
+57/26 Fatima, FPR 59/26 iCura, la nota di **debito** FPR 58/26 ad Affinity, la
+nota di **credito** FPR 56/26 a Petito, e in entrata la FPR 14/26 di Affinity da
+12.200 €, che è la più grossa mai ricevuta.
+
+**§323 — la nota di credito diceva già quale fattura stornava, e per otto mesi
+nessuno l'ha letta.** `DatiFattureCollegate` è nel tracciato FatturaPA ed è
+compilato su **tutte** le TD04 dell'archivio: la FPR 56/26 dichiara di annullare
+la FPR 41/26 del 3 luglio, con numero e data. Finché quel campo restava nell'XML
+e non in una colonna, il legame lo ricostruiva una persona scrivendo a mano una
+ragione di esclusione (§281) su **una** delle due righe della coppia — e ha
+sbagliato riga due volte su quattro.
+
+**Due numeri diversi per la stessa parola, nella stessa schermata** (§238 di
+nuovo). La scorecard «Fatturato emesso» sommava ogni documento col suo segno e
+diceva **123.075 €**; il grafico sotto toglieva le note di credito **e** le
+esclusioni a mano e diceva **112.375 €**. La differenza — **10.700 €** — sono
+quattro fatture sottratte **due volte**: una come «fuori dai conti» e una come
+storno della loro nota di credito, perché `credited` non escludeva le note già
+escluse. Il netto giusto è 123.075: ogni documento conta una volta, col suo
+segno. Non c'era modo di accorgersene guardando un totale: entrambi erano
+plausibili.
+
+**E lo storno stava nel mese sbagliato.** Adesso pesa nel mese della **fattura
+annullata**, non in quello della nota. Maggio 26.800 · giugno 17.300 · luglio
+30.725 · agosto 39.725 · settembre 8.525. Prima i 3.300 delle note del 3 agosto
+cadevano su agosto mentre annullavano due fatture di **giugno**, e il 1.500 di
+Petito cadeva su settembre mentre annullava **luglio**: due mesi sbagliati per
+un documento solo. La dichiarazione resta un'altra domanda e la risponde
+`vatByQuarter`, che tiene ogni documento nel suo trimestre.
+
+**La coda del «da incassare» chiedeva di telefonare per soldi già stornati.**
+Erano 17 documenti per 69.479 €, e dentro c'erano la FPR 31/26 di Affinity
+(2.196) e la FPR 41/26 di Petito (1.830) — entrambe annullate da una nota che
+era in archivio — più due note di credito contate come crediti **negativi**, che
+nascondevano altri 4.270 €. Adesso sono **13 fatture vere per 69.723 €**, di cui
+**47.122,50 scaduti**. Il totale si somiglia; la lista è un'altra.
+
+**Gli stati sono uno solo, in `invoiceStatus()`**, e coprono tutto l'archivio
+senza sovrapporsi: 22 pagate · 8 scadute · 5 nei termini · 6 stornate · 6 note
+di credito · 0 non gestite. Le esclusioni a mano rimaste sono **zero**: le otto
+che c'erano le spiegava già una nota di credito. Il campo resta, ed è giusto che
+resti — serve per quello che nessun documento spiega — ma non è più il posto
+dove si tiene a mano una cosa che il file dice da sé.
+
+**Emessa non è inviata** (§323): `from_sdi` è **generata** da `raw_xml IS NOT
+NULL`, perché un file tornato dallo SdI è la prova del transito e uno stato che
+si può digitare è uno stato di cui fidarsi a metà. La data dell'invio nell'XML
+non c'è e non si inventa: `sent_on` esiste per le fatture scritte a mano (§247).
+
+**Banca riallineata al 9 settembre.** BPM: 116 righe nell'estratto, **5 nuove**
+(iCura 24.400 in entrata, Affinity 12.200 e 3.260 in uscita, due commissioni).
+Vivid: il camt di 57 movimenti era **già tutto in archivio**, e il saldo di
+chiusura che il file dichiara — 428,15 — è al centesimo quello del tool. BPM
+quadra allo stesso modo: le 116 righe del CSV più i tre movimenti del 28 aprile
+che quel CSV non copre fanno **24.295,92**, cioè il saldo dell'archivio.
+**Liquidità reale 24.724,07 €.**
+
+**Otto abbinamenti fattura↔movimento scritti**, tutti col criterio di §276 —
+importo lordo identico, controparte che torna, e su sei di essi **il numero
+della fattura scritto dalla banca nella causale**: FPR 43, 44, 48, 49, 53, 55 in
+entrata, e le due Affinity in uscita (FPR 12/26 e 14/26). Nessuno era ambiguo;
+gli undici che lo sono restano a mano, e la ragione è scritta accanto a ciascuno.
+
+**Il ponte (§199) non quadra, e si sa di quanto**: residuo −24.109,08 €. Non è
+un movimento senza nome: **settembre ha 14 movimenti in banca per +20.408,97 € e
+non ha un mese di conto economico**. La cassa cumulata del piano si ferma ad
+agosto, il saldo vero no, e la differenza è quasi tutta lì. Si chiude preparando
+settembre, che è un'altra operazione — crea righe di ricavo e di costo — e non
+si fa di straforo insieme a un import.
+
+**Da eseguire**: `219_invoice_states.sql`, poi
+`npx tsx scripts/fix-invoice-states.ts --scrivi`. Finché la migration manca la
+sezione si accende lo stesso e lo dichiara in testata: stati e storni restano
+spenti invece di dire qualcosa di sbagliato.
+
 ## Dove siamo — 2026-09-07
 
 **Allineato ai documenti veri al 7 settembre**: estratto conto BPM al 7/9 (7

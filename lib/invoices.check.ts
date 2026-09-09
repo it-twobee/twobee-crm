@@ -1,10 +1,11 @@
 /* Verifica del dominio fatture. Esegui: npx tsx lib/invoices.check.ts */
 import {
-  parseFattura, parseXml, pick, str, num, invoiceKey, invoiceWarnings,
+  parseFattura, parseXml, pick, str, num, invoiceKey, invoiceWarnings, docKind,
 } from '@/lib/fattura-xml'
 import {
   totals, byMonth, byParty, aging, paymentDays, reconciliation, vatByQuarter, coverage,
   lineCandidates, txCandidates, bankMatching, signed, daysBetween, billingSeries,
+  withRectifications, invoiceStatus, invoiceStage, isOpen, isVoided, partlyVoided, rectified,
   type Invoice, type LineRef, type TxRef,
 } from '@/lib/invoices'
 
@@ -171,8 +172,13 @@ console.log('\n— I totali, col segno delle note di credito —')
   eq('imponibile al netto dello storno', t.taxable, 1300)
   eq('IVA al netto dello storno', t.vat, 286)
   is('le note di credito si contano a parte', t.credits, 1)
-  eq('tutto aperto', t.outstanding, 1586)
-  eq('e tutto scaduto al 1° settembre', t.overdue, 1586)
+  /* §323 — lo scoperto sono le **fatture** aperte, non la loro somma algebrica
+     con le note. Una nota di credito non si incassa (§279): scalarla da qui
+     diceva che c'erano 1.586 € da chiedere a qualcuno, quando le fatture da
+     chiedere sono due per 1.830 e lo storno tocca quella che la nota dichiara —
+     e se non la dichiara, la riconciliazione lo chiede invece di indovinare. */
+  eq('tutto aperto: le note non sono crediti', t.outstanding, 1830)
+  eq('e tutto scaduto al 1° settembre', t.overdue, 1830)
   eq('niente incassato', t.collected, 0)
 }
 eq('quello che è stato incassato non è più aperto',
@@ -520,6 +526,136 @@ console.log('\n— §281: fuori dai conti non è «in attesa» —')
   eq('lo scoperto non conta le fatture fuori dai conti', t.outstanding, 1220)
   eq('e nemmeno l\'incassato le somma', t.collected, 4392)
   is('ma nel conteggio dei documenti ci sono', t.count, 3)
+}
+
+console.log('\n— §323: la nota di credito dice cosa storna —')
+{
+  /* Il caso Petito, con le date vere: la fattura è di luglio, la nota di
+     settembre. Se lo storno restasse nel mese della nota, luglio terrebbe un
+     credito che non arriverà mai e settembre mostrerebbe un fatturato più basso
+     del vero — due mesi sbagliati per un documento solo. */
+  const grezze = [
+    I({ id: 'f41', number: 'FPR 41/26', issuedOn: '2026-07-03', taxable: 1500, total: 1830,
+      dueDate: '2026-07-15' }),
+    I({ id: 'f57', number: 'FPR 57/26', issuedOn: '2026-09-09', taxable: 3125, total: 3812.5,
+      dueDate: '2026-09-18' }),
+    I({ id: 'n56', number: 'FPR 56/26', docType: 'TD04', sign: -1, issuedOn: '2026-09-09',
+      taxable: 1500, vatAmount: 330, total: 1830, dueDate: '2026-07-15', rectifiesId: 'f41' }),
+  ]
+  const inv = withRectifications(grezze)
+  const f41 = inv.find(i => i.id === 'f41')!
+
+  eq('la fattura sa quanto le è stato stornato', rectified(f41), 1500)
+  is('e da quale documento', f41.rectifiedBy, ['n56'])
+  is('annullata per intero', isVoided(f41), true)
+  is('quindi non è più un credito da inseguire', isOpen(f41), false)
+  is('e non è stornata «in parte»', partlyVoided(f41), false)
+
+  const st = invoiceStatus(f41, '2026-09-09')
+  is('lo stato lo dice in una parola', st.state, 'stornata')
+  is('e non «scaduta da 56 giorni», che era la risposta di prima', st.label, 'stornata')
+
+  const s = billingSeries(inv, '2026-09-09')
+  const lug = s.find(p => p.month === '2026-07-01')!
+  const set = s.find(p => p.month === '2026-09-01')!
+  eq('luglio: lo storno pesa sul mese della fattura', lug.credited, 1500)
+  eq('quindi luglio non ha più niente in attesa', lug.pending, 0)
+  eq('e il suo netto è zero', lug.issued, 0)
+  eq('settembre non ha perso niente', set.credited, 0)
+  eq('il suo netto è quello che ha davvero emesso', set.issued, 3125)
+  eq('ed è tutto ancora da incassare', set.pending, 3125)
+
+  const t = totals(inv.filter(i => i.direction === 'emessa'), '2026-09-09')
+  is('una nota di credito e nessuna di debito', [t.credits, t.debits], [1, 0])
+  eq('imponibile stornato', t.creditsAmount, 1500)
+  is('una fattura annullata per intero', t.voided, 1)
+  eq('lo scoperto è solo la fattura viva', t.outstanding, 3812.5)
+  eq('e lo scaduto è zero: la stornata non si sollecita', t.overdue, 0)
+
+  const a = aging(inv, '2026-09-09')
+  eq('nemmeno lo scadenzario la tiene', a.total, 3812.5)
+  is('e non la conta in nessuna fascia', a.buckets.reduce((s2, b) => s2 + b.count, 0), 1)
+}
+
+console.log('\n— §323: una nota di debito non storna, integra —')
+{
+  const inv = withRectifications([
+    I({ id: 'f31', number: 'FPR 31/26', issuedOn: '2026-06-05', taxable: 1800, total: 2196 }),
+    I({ id: 'n45', number: 'FPR 45/26', docType: 'TD04', sign: -1, issuedOn: '2026-08-03',
+      taxable: 1800, vatAmount: 396, total: 2196, rectifiesId: 'f31' }),
+    I({ id: 'n47', number: 'FPR 47/26', docType: 'TD05', issuedOn: '2026-08-04',
+      taxable: 1800, vatAmount: 396, total: 2196, rectifiesId: 'f31' }),
+  ])
+  const f31 = inv.find(i => i.id === 'f31')!
+  /* La nota di debito ha lo stesso segno di una fattura e non è una fattura: se
+     entrasse nello storno, la 31/26 risulterebbe annullata due volte e giugno
+     scenderebbe sotto zero. */
+  eq('solo il credito annulla', rectified(f31), 1800)
+  const t = totals(inv, '2026-08-09')
+  is('e i due generi si contano separati', [t.credits, t.debits], [1, 1])
+  eq('imponibile rifatturato dalla nota di debito', t.debitsAmount, 1800)
+  eq('il netto è quello di un mese solo', t.taxable, 1800)
+  is('il genere lo dice il codice, non il segno', docKind('TD05'), 'nota_debito')
+}
+
+console.log('\n— §323: emessa non è inviata —')
+{
+  const sdi = I({ fromSdi: true })
+  const mano = I({ id: 'm', fromSdi: false })
+  is('col file dello SdI è transitata per forza', invoiceStage(sdi), 'inviata')
+  is('scritta a mano resta solo emessa', invoiceStage(mano), 'emessa')
+  is('finché qualcuno non dice quando è partita',
+    invoiceStage({ ...mano, sentOn: '2026-09-08' }), 'inviata')
+  /* Sulle ricevute la domanda non esiste: non le abbiamo mandate noi, e uno
+     stato che non si applica non si mostra spento — si toglie. */
+  is('sulle ricevute il viaggio non è una domanda',
+    invoiceStage(I({ direction: 'ricevuta', fromSdi: true })), null)
+}
+
+console.log('\n— §323: gli stati coprono ogni fattura, una volta sola —')
+{
+  const oggi = '2026-09-09'
+  const casi: [string, Invoice, string][] = [
+    ['saldata', I({ paidOn: '2026-08-01' }), 'pagata'],
+    ['fuori dai conti', I({ excludedReason: 'duplicata' }), 'non_gestita'],
+    ['scaduta', I({ dueDate: '2026-08-04' }), 'scaduta'],
+    ['nei termini', I({ dueDate: '2026-09-30' }), 'attesa'],
+    ['senza scadenza', I({ dueDate: null }), 'senza_data'],
+  ]
+  for (const [nome, inv, atteso] of casi) is(`${nome} → ${atteso}`, invoiceStatus(inv, oggi).state, atteso)
+  /* §323 — una nota di credito porta la data di scadenza della fattura che
+     storna: senza uno stato suo la ereditava anche come ritardo, e l'elenco
+     chiedeva di sollecitare un documento che toglie soldi. */
+  is('una nota di credito non è «scaduta»',
+    invoiceStatus(I({ docType: 'TD04', sign: -1, dueDate: '2026-07-15' }), oggi).state, 'rettifica')
+  is('una nota di debito invece si incassa come una fattura',
+    invoiceStatus(I({ docType: 'TD05', dueDate: '2026-09-30' }), oggi).state, 'attesa')
+  /* L'esclusione a mano batte tutto: è una decisione di una persona su un
+     documento, e nessun calcolo la deve scavalcare. */
+  is('l\'esclusione a mano viene prima di ogni altra cosa',
+    invoiceStatus(I({ paidOn: '2026-08-01', excludedReason: 'giro fra società' }), oggi).state,
+    'non_gestita')
+  is('ogni stato porta il perché',
+    casi.every(([, inv]) => invoiceStatus(inv, oggi).why.length > 0), true)
+}
+
+console.log('\n— §323: una nota senza riferimento resta dov\'è —')
+{
+  /* Il tracciato non obbliga a compilare DatiFattureCollegate, e le note di
+     debito di questo archivio non ce l'hanno. Spostarne lo storno «da qualche
+     parte» sarebbe inventare il legame che manca: resta nel proprio mese, e la
+     riconciliazione lo dice. */
+  const inv = withRectifications([
+    I({ id: 'a', issuedOn: '2026-07-03', taxable: 1000, total: 1220 }),
+    I({ id: 'orf', docType: 'TD04', sign: -1, issuedOn: '2026-09-01', taxable: 400,
+      vatAmount: 88, total: 488 }),
+  ])
+  const s = billingSeries(inv, '2026-09-09')
+  eq('luglio non perde niente', s.find(p => p.month === '2026-07-01')!.credited, 0)
+  eq('lo storno resta nel mese della nota', s.find(p => p.month === '2026-09-01')!.credited, 400)
+  const f = reconciliation({ invoices: inv, lines: [], txs: [], today: '2026-09-09' })
+  is('e la riconciliazione chiede di collegarla',
+    f.some(x => x.id === 'note-senza-riferimento'), true)
 }
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
