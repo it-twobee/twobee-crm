@@ -203,8 +203,8 @@ smette di lavorare prima di uno grande che scade domani.
 - **Lo scadenzario guarda indietro, la cassa guarda avanti.** `aging` dice da
   quanto aspetta chi aspetta; `outflow` dice quanto esce entro 7 e entro 30
   giorni, ed è la domanda che parla con la tenuta di cassa. Non si sostituiscono:
-  vanno lette insieme. Al 9 settembre: **8.638,86 € verso 4 fornitori**, di cui
-  **5.641,26 già scaduti** e **2.997,60 senza una data**.
+  vanno lette insieme. Al 9 settembre: **6.031,73 € verso 4 fornitori**, di cui
+  **3.034,13 già scaduti** e **2.997,60 senza una data**.
 - **«Senza data» è una fascia sua**, non un residuo in fondo. Sono i soldi che
   usciranno in un momento che il tool non sa, e nasconderli in un totale li fa
   mancare proprio il giorno in cui il fornitore chiama (§280).

@@ -77,9 +77,23 @@ si fa di straforo insieme a un import.
 fornitori si leggevano come i crediti verso i clienti: una lista piatta ordinata
 per ritardo. Ma un credito si insegue una fattura alla volta e un debito si paga
 **un fornitore alla volta**. Adesso «Chi dobbiamo pagare» raggruppa, e sopra c'è
-quando esce: **8.638,86 € verso 4 fornitori**, di cui **5.641,26 già scaduti** e
+quando esce: **6.031,73 € verso 4 fornitori**, di cui **3.034,13 già scaduti** e
 **2.997,60 senza una data**. Nei prossimi 30 giorni non scade nient'altro — tutto
 il debito aperto è già oltre il termine o non ne ha uno.
+
+**Quattro debiti, e ognuno per una ragione diversa.** Affinity **FPR 13/26**
+(2.989) è il «Saldo sviluppo modulo gestione trasferte I.S.F.»: la catena è
+acconto 30% + secondo 35% + **saldo 35% al completamento**, e quel saldo è dovuto
+quando il lavoro chiude, non adesso. OVH **IT3087078** (45,13) è settembre, e la
+carta addebita circa un mese dopo — luglio il 4 agosto, agosto il 3 settembre —
+quindi arriva a inizio ottobre: non è un arretrato. Saraiello **6/2026** (1.500)
+è settembre e basta. Spaduzzi **3PR** (1.497,60) non ha scadenza e non ha
+storico: l'unica delle quattro che vada davvero decisa a mano.
+
+**Un buco da 462 € che vale la pena guardare.** La FPR 9/26 di Affinity (acconto
+30% ISF) è di 2.562 € e il bonifico del 23 luglio è di **2.100**, cioè il solo
+imponibile: manca l'IVA. È saldata — lo dice chi ha in mano il rapporto — ma il
+conto corrente ne dimostra 2.100, e la differenza non è un arrotondamento.
 
 **La catena Saraiello, rimessa in ordine dal fornitore stesso.** Sei fatture e
 quattro pagamenti sparsi, con la 5/2026 che risultava pagata 19 giorni prima di
