@@ -77,9 +77,19 @@ si fa di straforo insieme a un import.
 fornitori si leggevano come i crediti verso i clienti: una lista piatta ordinata
 per ritardo. Ma un credito si insegue una fattura alla volta e un debito si paga
 **un fornitore alla volta**. Adesso «Chi dobbiamo pagare» raggruppa, e sopra c'è
-quando esce: **12.792,86 € verso 5 fornitori**, di cui **9.795,26 già scaduti** e
+quando esce: **8.638,86 € verso 4 fornitori**, di cui **5.641,26 già scaduti** e
 **2.997,60 senza una data**. Nei prossimi 30 giorni non scade nient'altro — tutto
 il debito aperto è già oltre il termine o non ne ha uno.
+
+**La catena Saraiello, rimessa in ordine dal fornitore stesso.** Sei fatture e
+quattro pagamenti sparsi, con la 5/2026 che risultava pagata 19 giorni prima di
+essere emessa. Il pattern vero, una volta saputo che la distinta del 20 agosto da
+2.854 € è **1.300 a Saraiello + 1.554 a Smiraglia** (l'unica scomposizione
+esatta): paga **circa due settimane dopo l'emissione, sempre prima della
+scadenza** — 3/2026 il 1º luglio, 4/2026 il 17, 5/2026 il 20 agosto. Resta aperta
+**solo la 6/2026 di settembre**, 1.500 €. La distinta non si aggancia a nessuna
+delle due: paga due fatture e la colonna ne regge una (§189), quindi entrambe
+restano «dichiarate» e lo scadenzario delle spunte lo dice.
 
 Nel riquadro «Oltre la scadenza» c'era lo stesso numero già scritto nel riquadro
 accanto: due volte la stessa cifra sulla stessa riga fa contare a mano invece di
