@@ -144,10 +144,19 @@ ottobre invece del 3: `new Date('...T00:00:00')` è mezzanotte locale e
 `toISOString()` la riporta a Greenwich, che da Napoli in ora legale è il giorno
 prima. Adesso la somma è in UTC, e il gate passa anche a UTC+14 e UTC−11.
 
-**Da eseguire**: `219_invoice_states.sql`, poi
-`npx tsx scripts/fix-invoice-states.ts --scrivi`. Finché la migration manca la
-sezione si accende lo stesso e lo dichiara in testata: stati e storni restano
-spenti invece di dire qualcosa di sbagliato.
+**219 applicata, e il riallineamento è passato.** 6 storni collegati leggendo
+`DatiFattureCollegate` dagli XML già in archivio, 9 esclusioni a mano rimosse —
+una in più delle otto previste, perché nel frattempo qualcuno aveva escluso anche
+la FPR 41/26, che adesso la nota di credito spiega da sé. **Esclusioni a mano
+rimaste: zero.**
+
+I numeri, sul database vero: **netto 123.075,00 €**, e la scorecard e il grafico
+adesso dicono **la stessa cifra** — prima erano 123.075 contro 112.375. Mese per
+mese: maggio 26.800 · giugno 17.300 · luglio 30.725 · agosto 39.725 · settembre
+8.525. Gli stati coprono tutte e 47 le emesse senza sovrapporsi: 28 pagate · 5
+stornate · 6 note di credito · 4 scadute · 4 nei termini. E **47 su 47 sono
+passate dallo SdI**, quindi nessuna è «da inviare»: quello stato esiste per le
+fatture scritte a mano (§247), e per ora non ce ne sono.
 
 ## Dove siamo — 2026-09-07
 
