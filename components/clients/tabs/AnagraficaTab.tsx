@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Loader2, Trash2, Pencil, Save, X, Check, Building2, Receipt, Users2, Crown } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
+import { segmentOf, SEGMENT_LABEL } from '@/lib/clients'
 import { toast } from 'sonner'
 import {
   updateClientRecord, createClientContact, updateClientContact, deleteClientContact,
@@ -32,7 +33,7 @@ type Section = 'azienda' | 'fiscale'
 
 /** Si salva solo la sezione aperta: prima partiva l'intera riga, risk score e created_at compresi. */
 const SECTION_FIELDS: Record<Section, readonly (keyof ClientPatch)[]> = {
-  azienda: ['display_name', 'legal_name', 'phone', 'website', 'client_label', 'industry', 'market_area', 'notes', 'active_channels', 'is_internal', 'workspace_hidden', 'sales_owner_id', 'sales_owner_name'],
+  azienda: ['display_name', 'legal_name', 'phone', 'website', 'client_label', 'industry', 'market_area', 'notes', 'active_channels', 'workspace_hidden', 'sales_owner_id', 'sales_owner_name'],
   fiscale: ['piva', 'fiscal_code', 'address', 'city', 'cap', 'country', 'sdi_code', 'pec'],
 }
 
@@ -226,11 +227,13 @@ export function AnagraficaTab({
               )}
             </div>
           </Field>
-          <Field label="Cliente interno" value={client.is_internal ? 'Sì — fuori dalle statistiche' : 'No'} editMode={editAzienda}>
-            <label className="flex items-center gap-2 h-9 cursor-pointer">
-              <input type="checkbox" checked={!!form.is_internal} onChange={(e) => setForm((p) => ({ ...p, is_internal: e.target.checked }))} className="accent-gold" />
-              <span className="text-sm text-text-secondary">Escluso da statistiche commerciali</span>
-            </label>
+          {/* §326 — l'area non è una spunta. Questa casella scriveva
+              `is_internal` da sola e lasciava `internal_kind` vuoto: è così che
+              Elettra Group è finita fra le società collegate senza che nessuno
+              l'avesse deciso. Le due colonne si muovono insieme, e l'unico posto
+              che lo fa è `setClientSegment`. Qui resta la lettura. */}
+          <Field label="Area in anagrafica" value={SEGMENT_LABEL[segmentOf(client)]} editMode={false}>
+            <span />
           </Field>
           {/* §213 — due domande diverse, e vanno tenute separate: «interno»
               riguarda i numeri, «nascosto» riguarda le persone. GAV Sistemi è

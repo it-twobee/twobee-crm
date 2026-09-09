@@ -16,6 +16,8 @@ import { pausedDays, paymentLabel } from '@/lib/clients'
 import type { RiskResult } from '@/lib/risk'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { useRouter } from 'next/navigation'
+import { setClientSegment } from '@/app/actions/clients'
 import type { Client, PaymentStatus, ClientType, ClientLabel, Profile } from '@/lib/types/database'
 import { NewClientModal } from './NewClientModal'
 import { SUPER_ADMIN_EMAILS, canCreateClients } from '@/lib/permissions'
@@ -423,8 +425,17 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
   /* §326 — l'ordine è quello in cui si guardano: prima chi compra, poi i giri,
      poi quello che facciamo per noi. */
   const SEGMENTS: ClientSegment[] = ['cliente', 'giro', 'interno']
+  const SEGMENT_SHORT: Record<ClientSegment, string> = {
+    cliente: 'Clienti', giro: 'Società collegate', interno: 'Interni TwoBee',
+  }
   const segmentiPresenti = useMemo(
     () => new Set(allFiltered.map(segmentOf)).size, [allFiltered])
+
+  /* §326 — lo scaduto di una sezione, per la banda. Passa dallo stesso
+     `billing` delle righe: se la testata dicesse un totale che le righe sotto
+     non fanno, si conterebbe a mano per capire chi ha ragione. */
+  const sommaSegmento = (rows: Client[]) =>
+    Math.round(rows.reduce((t, c) => t + (economics[c.id]?.billing?.overdue ?? 0), 0) * 100) / 100
 
   /* La selezione vive sugli id: se un cliente sparisce — eliminato qui, da un
      altro admin via realtime — esce da sé invece di restare a gonfiare il
@@ -446,6 +457,24 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
   /* Un cliente non è una riga d'anagrafica: sotto ci stanno progetti, task,
      contratti e chat, e cascatano tutti. Prima di chiedere conferma si va a
      contarli, così la conferma dice cosa costa davvero. */
+  /* §326 — lo spostamento fra aree. Solo admin: cambiare area cambia i numeri
+     (un interno esce dalle statistiche, §213), ed è la stessa porta che governa
+     canone e dati fiscali. */
+  const router = useRouter()
+  const canMoveSegment = !hideEconomics
+  const [moving, setMoving] = useState(false)
+  const moveTo = async (seg: ClientSegment) => {
+    setMoving(true)
+    try {
+      await setClientSegment(selected, seg)
+      toast.success(`${selected.length} spostat${selected.length === 1 ? 'a' : 'e'} in «${SEGMENT_LABEL[seg]}»`)
+      setSelected([])
+      router.refresh()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Spostamento non riuscito')
+    } finally { setMoving(false) }
+  }
+
   const askDelete = async (ids: string[]) => {
     if (ids.length === 0) return
     setPendingIds(ids)
@@ -626,6 +655,13 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
   const ClientRow = ({ client, pinned }: { client: Client; pinned: boolean }) => {
     const eco = economics[client.id]
     const b = eco?.billing
+    /* §326 — un progetto interno non fattura, per definizione. Ripetergli
+        «nessuna scadenza» in due colonne accanto non è informazione: è la stessa
+        assenza detta due volte, e nello screenshot occupava metà della riga.
+        Nella colonna dei pagamenti resta il vuoto, e nell'altra si dice **perché**
+        è vuoto — che è l'unica cosa che quelle righe hanno da dire. */
+    const seg = segmentOf(client)
+    const nonFattura = seg === 'interno'
     return (
     <tr
       key={client.id}
@@ -685,7 +721,9 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
               GAV Sistemi è un giro di fatture e TwoBee è sé stessa: nessuno dei
               due avrà mai un canone, e l'etichetta metteva in cima alle cose da
               fare due righe che non si sarebbero chiuse mai. */}
-          {eco && needsQuote(client, eco.contracts) ? (
+          {nonFattura ? (
+            <span className="text-2xs text-text-tertiary">—</span>
+          ) : eco && needsQuote(client, eco.contracts) ? (
             <span className="text-2xs font-semibold text-warning">da quotare</span>
           ) : (
             <span className="text-sm font-bold text-gold-text">{formatCurrency(canone(eco, client))}</span>
@@ -726,6 +764,8 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
                 {b.openCount} fattur{b.openCount === 1 ? 'a' : 'e'} nei termini
               </span>
             </>
+          ) : nonFattura ? (
+            <span className="text-2xs text-text-tertiary">—</span>
           ) : b && b.state === 'nessuna_scadenza' ? (
             <span className="text-2xs text-text-tertiary" title={b.why}>nessuna scadenza</span>
           ) : (
@@ -744,7 +784,11 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
           non fa decidere niente. Al suo posto il punto del ciclo dei soldi, con
           i tre stati che la Fatturazione e la Banca già conoscono. */}
       <td className="px-4 py-3.5">
-        {b ? (
+        {nonFattura ? (
+          <span className="text-2xs text-text-tertiary" title="Marchio o lavoro interno di TwoBee: non emette fatture, quindi non ha un ciclo di incasso">
+            non fattura
+          </span>
+        ) : b ? (
           <span className={`inline-flex items-center whitespace-nowrap text-xs font-semibold px-2 py-0.5 rounded border ${
             b.tone === 'error' ? 'text-error border-error/40 bg-error/5'
               : b.tone === 'warning' ? 'text-warning border-warning/40 bg-warning/5'
@@ -1012,18 +1056,31 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
                   <Fragment key={seg}>
                     {(segmentiPresenti > 1 || pinnedClients.length > 0) && (
                       <tr>
-                        <td colSpan={12} className="px-4 py-1.5 bg-surface">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-px bg-surface-hover" />
-                            <span className="text-2xs text-text-secondary uppercase tracking-widest whitespace-nowrap">
+                        {/* §326 — una banda, non un filetto. Il filetto con la
+                            scritta in mezzo si legge come una riga di tabella
+                            vuota, e infatti nello screenshot la prima anagrafica
+                            sotto sembrava appartenere alla riga sopra. Qui la
+                            sezione ha un bordo a sinistra, un conteggio e il suo
+                            numero: si vede dov'è che comincia. */}
+                        <td colSpan={12} className={`px-4 py-2 border-l-2 bg-surface-hover/40 ${
+                          seg === 'giro' ? 'border-l-orange' : seg === 'interno' ? 'border-l-info' : 'border-l-border-strong'}`}>
+                          <div className="flex items-baseline gap-2 flex-wrap">
+                            <span className="text-2xs font-bold text-text-primary uppercase tracking-widest whitespace-nowrap">
                               {seg === 'cliente' && pinnedClients.length > 0 && segmentiPresenti === 1
                                 ? 'Altri clienti'
                                 : SEGMENT_LABEL[seg]}
                             </span>
-                            <span className="text-2xs text-text-tertiary normal-case truncate">
-                              {SEGMENT_HINT[seg]}
-                            </span>
-                            <div className="flex-1 h-px bg-surface-hover" />
+                            <span className="text-2xs font-semibold text-text-secondary tabular">{rows.length}</span>
+                            <span className="text-2xs text-text-tertiary truncate">{SEGMENT_HINT[seg]}</span>
+                            {/* Il numero che conta cambia da sezione a sezione:
+                                per i clienti è quanto devono, per i giri quanto
+                                è passato di lì, per gli interni non esiste. */}
+                            {canSeeMrr && sommaSegmento(rows) > 0 && (
+                              <span className="ml-auto text-2xs tabular text-text-tertiary whitespace-nowrap">
+                                {seg === 'cliente' ? 'da incassare ' : 'aperto '}
+                                <strong className="text-error">{formatCurrency(sommaSegmento(rows))}</strong>
+                              </span>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1086,6 +1143,24 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
           <button onClick={() => setSelected([])} className="text-xs text-text-secondary hover:text-text-primary transition-colors">
             Annulla
           </button>
+          {/* §326 — spostare, non ricreare. Un'anagrafica che finisce nell'area
+              sbagliata si correggeva solo dal database: da qui si sposta, e le
+              due colonne (`is_internal` e `internal_kind`) si muovono insieme —
+              scriverne una sola è il modo in cui Elettra Group è finita fra le
+              società collegate senza che nessuno l'avesse deciso. */}
+          {canMoveSegment && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-2xs text-text-tertiary whitespace-nowrap">sposta in</span>
+              {SEGMENTS.map(seg => (
+                <button key={seg} disabled={moving}
+                  onClick={() => moveTo(seg)}
+                  title={SEGMENT_HINT[seg]}
+                  className="text-2xs font-semibold border border-border rounded-lg px-2 py-1 text-text-secondary hover:text-text-primary hover:bg-surface-hover press disabled:opacity-40 whitespace-nowrap">
+                  {SEGMENT_SHORT[seg]}
+                </button>
+              ))}
+            </div>
+          )}
           <button onClick={() => askDelete(selected)}
             className="ml-auto sm:ml-2 flex items-center gap-1.5 text-sm font-semibold bg-error-dim border border-error/40 text-error px-3 py-1.5 rounded-xl hover:bg-error/20 transition-colors press">
             <Trash2 className="w-3.5 h-3.5" /> Elimina

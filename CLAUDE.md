@@ -356,6 +356,23 @@ non i persi — ma sì i lead (è il loro motivo, §321) e sì i fermi. Un inter
 senza `internal_kind` è un **giro**: far comparire una riga di troppo si vede,
 farne sparire una no.
 
+**L'area si sposta, e muove due colonne insieme** (§326, `setClientSegment` in
+`app/actions/clients.ts`). `is_internal` era modificabile da solo — dal form
+anagrafica e dalla creazione — e lasciava `internal_kind` vuoto: Elettra Group è
+stata segnata interna dopo il backfill della 220 ed è finita fra le società
+collegate senza che nessuno l'avesse deciso. Il default prudente non era
+sbagliato; era sbagliato che ci fosse un modo di scrivere una sola delle due.
+Adesso `is_internal` **non è più in `EDITABLE`** e nella scheda l'area è in sola
+lettura: si sposta dalla lista (barra della selezione, anche su più anagrafiche)
+o si sceglie alla creazione. `workspace_hidden` resta una decisione a parte
+(§213): l'area riguarda i numeri, il nascondere riguarda le persone.
+
+**Nel portale operativo le tre aree non esistono**: là sono tutti clienti allo
+stesso livello, ed è giusto — chi lavora una commessa non ha bisogno di sapere
+come si chiama nei conti. L'unica differenza che resta è `workspace_hidden`, che
+tiene GAV Sistemi fuori dalle lavorazioni (§213), e passa dalla VIEW
+`clients_workspace`, non dalle pagine.
+
 **La colonna Pagamenti è un numero, non una parola** (§326,
 `lib/client-billing.ts`). È lo **scaduto cumulativo** delle fatture del cliente,
 dalla stessa porta di Fatturazione (`isOpen`): 13.176 € al 9 settembre, gli

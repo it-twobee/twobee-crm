@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient, createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { SUPER_ADMIN_EMAILS, ADMIN_ROLES, canCreateClients } from '@/lib/permissions'
+import type { ClientSegment } from '@/lib/clients'
 import type {
   Client, ClientContact, ClientStakeholder, StakeholderRole,
   ClientType, ClientLabel, PaymentStatus,
@@ -66,6 +67,10 @@ export type NewClientInput = {
   client_type: ClientType
   client_label: ClientLabel
   is_internal: boolean
+  /** §326 — quale area, quando è interno. Si scrive insieme a `is_internal`:
+   *  scriverne una sola lascia l'anagrafica senza genere, ed è così che Elettra
+   *  Group è finita fra le società collegate senza che nessuno l'avesse deciso. */
+  internal_kind?: 'giro' | 'progetto' | null
   industry?: string | null
   market_area?: string | null
   active_channels: string[]
@@ -105,6 +110,7 @@ export async function createClientRecord(input: NewClientInput): Promise<Client>
     client_type: input.client_type,
     client_label: input.client_label,
     is_internal: input.is_internal,
+    internal_kind: input.is_internal ? (input.internal_kind ?? 'giro') : null,
     industry: input.industry || null,
     market_area: input.market_area?.trim() || null,
     active_channels: input.active_channels,
@@ -156,7 +162,11 @@ export async function createClientRecord(input: NewClientInput): Promise<Client>
 const EDITABLE = [
   // §178: `client_type` non c'è più — lo derivano i progetti (trigger)
   'display_name', 'legal_name', 'phone', 'website', 'client_label',
-  'industry', 'market_area', 'notes', 'active_channels', 'is_internal', 'workspace_hidden',
+  /* §326 — `is_internal` non è più qui: da solo lascia `internal_kind` vuoto e
+     l'anagrafica finisce nell'area sbagliata (è successo con Elettra Group).
+     L'area si cambia con `setClientSegment`, che scrive le due colonne insieme.
+     `workspace_hidden` resta: è un'altra domanda (§213). */
+  'industry', 'market_area', 'notes', 'active_channels', 'workspace_hidden',
   'sales_owner_id', 'sales_owner_name',
   'piva', 'fiscal_code', 'address', 'city', 'cap', 'country', 'sdi_code', 'pec',
   'mrr', 'contract_start', 'contract_end', 'payment_status', 'ad_budget_monthly',
@@ -229,6 +239,50 @@ export async function updateClientRecord(clientId: string, patch: ClientPatch) {
   /* §213 — `workspace_hidden` cambia cosa vede un altro portale: senza questa
      la lista operativa continuava a mostrarlo fino alla scadenza della cache. */
   revalidatePath('/workspace/clienti')
+}
+
+/**
+ * §326 — Sposta un'anagrafica fra le tre aree della lista.
+ *
+ * Le due colonne devono muoversi **insieme**. `is_internal` senza
+ * `internal_kind` è il caso che si è già visto: Elettra Group è stata segnata
+ * interna dopo il backfill della 220, è rimasta senza genere, ed è finita fra
+ * le società collegate perché quello è il default prudente. Non era sbagliato
+ * il default: era sbagliato che ci fosse un modo di scrivere una sola delle
+ * due. Da qui non c'è più.
+ *
+ * **`workspace_hidden` resta una decisione a parte**, e non si tocca (§213). Le
+ * due domande sono diverse: l'area dice se conta nei numeri, il nascondere dice
+ * se il team lo vede. GAV Sistemi è entrambe le cose, e il fatto che spesso
+ * vadano insieme non le rende la stessa cosa — un giro di fatture può essere
+ * lavorato dal team, e un lavoro interno può essere visibile a tutti.
+ *
+ * Nel portale operativo le tre aree **non esistono**: là sono tutti clienti allo
+ * stesso livello, ed è giusto così — chi lavora una commessa non ha bisogno di
+ * sapere come si chiama nei conti.
+ */
+export async function setClientSegment(clientIds: string[], segment: ClientSegment) {
+  const uid = await requireAdmin()
+  if (!clientIds.length) return 0
+
+  const patch = segment === 'cliente'
+    ? { is_internal: false, internal_kind: null }
+    : { is_internal: true, internal_kind: segment === 'giro' ? 'giro' : 'progetto' }
+
+  const { error } = await createActorClient(uid).from('clients').update(patch).in('id', clientIds)
+  /* 42703 = la 220 non è stata eseguita. Va detto: senza la colonna lo
+     spostamento riuscirebbe a metà — interno sì, ma di quale genere no. */
+  if (error?.code === '42703') throw new Error('Esegui prima la migration 220_client_segments.sql')
+  if (error) throw new Error(error.message)
+
+  for (const id of clientIds) revClient(id)
+  revalidatePath('/clienti')
+  revalidatePath('/dashboard')
+  /* L'area cambia `is_internal`, che la VIEW del workspace legge per azzerare i
+     numeri (§211): senza questa la lista operativa resta indietro fino alla
+     scadenza della cache. */
+  revalidatePath('/workspace/clienti')
+  return clientIds.length
 }
 
 /** Cambio label dalla scheda cliente (badge in testata). */

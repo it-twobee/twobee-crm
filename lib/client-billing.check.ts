@@ -123,5 +123,30 @@ console.log('\n— §326: tre aree, non una lista sola —')
   is('e a un fermo pure', needsQuote({ ...cliente, client_label: 'pending' }, 0), true)
 }
 
+console.log('\n— §326: spostare un\'anagrafica muove due colonne, non una —')
+{
+  /* Il caso vero: Elettra Group è stata segnata interna **dopo** il backfill
+     della 220, è rimasta senza genere, ed è finita fra le società collegate.
+     Il default non era sbagliato — far comparire una riga di troppo si vede,
+     farne sparire una no — era sbagliato che ci fosse un modo di scrivere una
+     sola delle due colonne. `patchFor` è quello che l'azione scrive. */
+  const patchFor = (seg: 'cliente' | 'giro' | 'interno') => seg === 'cliente'
+    ? { is_internal: false, internal_kind: null }
+    : { is_internal: true, internal_kind: seg === 'giro' ? 'giro' : 'progetto' }
+
+  for (const seg of ['cliente', 'giro', 'interno'] as const) {
+    const p = patchFor(seg)
+    is(`«${seg}» torna in «${seg}»`, segmentOf(p as never), seg)
+  }
+  is('tornando cliente il genere si azzera', patchFor('cliente').internal_kind, null)
+  is('e non resta interno', patchFor('cliente').is_internal, false)
+  /* La rotta di ritorno chiude il cerchio: qualunque area si scelga, rileggerla
+     dà la stessa area. Senza questo, uno spostamento potrebbe non essere
+     reversibile e nessuna pagina se ne accorgerebbe. */
+  is('nessuna area lascia un\'anagrafica senza genere',
+    (['cliente', 'giro', 'interno'] as const)
+      .every(seg => segmentOf(patchFor(seg) as never) === seg), true)
+}
+
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

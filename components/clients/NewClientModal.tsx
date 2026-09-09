@@ -4,6 +4,13 @@ import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { Building2, ChevronDown, Plus, Trash2, Target, Landmark } from 'lucide-react'
 import { createClientRecord } from '@/app/actions/clients'
+import { SEGMENT_HINT, type ClientSegment } from '@/lib/clients'
+
+const SEGMENT_CHOICES: { key: ClientSegment; label: string; hint: string }[] = [
+  { key: 'cliente', label: 'Cliente', hint: 'compra da noi: entra in MRR, conto economico e statistiche' },
+  { key: 'giro', label: 'Società collegata', hint: SEGMENT_HINT.giro },
+  { key: 'interno', label: 'Progetto interno TwoBee', hint: SEGMENT_HINT.interno },
+]
 import { ModalShell, Group, Field, Segmented, inputCls } from '@/components/shared/formkit'
 import { CLIENT_CHANNELS, INDUSTRIES, INDUSTRY_BENCHMARKS,
   CLIENT_TYPE_OPTIONS, CLIENT_LABEL_OPTIONS, PAYMENT_STATUS_OPTIONS,
@@ -23,7 +30,10 @@ export function NewClientModal({ onClose, onCreated }: { onClose: () => void; on
   const [legalName, setLegalName] = useState('')
   const [type, setType] = useState<ClientType>('growth')
   const [label, setLabel] = useState<ClientLabel>('stabile')
-  const [isInternal, setIsInternal] = useState(false)
+  /* §326 — tre aree, non un interruttore: nel portale operativo restano tutti
+     clienti allo stesso livello, qui la differenza cambia i numeri. */
+  const [segment, setSegment] = useState<ClientSegment>('cliente')
+  const isInternal = segment !== 'cliente'
   const [industry, setIndustry] = useState('')
   const [marketArea, setMarketArea] = useState('')
   const [channels, setChannels] = useState<string[]>([])
@@ -60,7 +70,9 @@ export function NewClientModal({ onClose, onCreated }: { onClose: () => void; on
     try {
       const client = await createClientRecord({
         display_name: name, legal_name: legalName, client_type: type, client_label: label,
-        is_internal: isInternal, industry, market_area: marketArea,
+        is_internal: isInternal,
+        internal_kind: segment === 'cliente' ? null : segment === 'giro' ? 'giro' : 'progetto',
+        industry, market_area: marketArea,
         active_channels: channels, notes,
         ad_budget_monthly: num(adBudget),
         // colonne NOT NULL a DB, ma non più decisioni dell'utente: le riscrive
@@ -113,16 +125,29 @@ export function NewClientModal({ onClose, onCreated }: { onClose: () => void; on
         <input value={marketArea} onChange={e => setMarketArea(e.target.value)} className={inputCls} placeholder="es. Napoli, Campania, Italia" />
       </Field>
 
-      <button type="button" onClick={() => setIsInternal(v => !v)} aria-pressed={isInternal}
-        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-colors ${
-          isInternal ? 'border-gold bg-gold-dim' : 'border-border hover:bg-surface-hover'
-        }`}>
-        <Landmark className={`w-4 h-4 shrink-0 ${isInternal ? 'text-gold-text' : 'text-text-tertiary'}`} />
-        <span className="min-w-0">
-          <span className="block text-sm font-semibold text-text-primary">Cliente interno</span>
-          <span className="block text-2xs text-text-tertiary">Fuori dalle statistiche commerciali (TwoBee, scambi merce)</span>
-        </span>
-      </button>
+      {/* §326 — l'interruttore «cliente interno» diceva sì o no, e sotto quel sì
+          ci stavano due cose diverse: una società collegata che fattura davvero
+          (GAV Sistemi) e un marchio nostro che non fatturerà mai (Metroquadro).
+          Sceglierlo qui evita di dover spostare l'anagrafica il giorno dopo —
+          ed è la stessa scelta che la lista offre sulle anagrafiche esistenti. */}
+      <Group label="Dove va in anagrafica">
+        <div className="grid gap-1.5">
+          {SEGMENT_CHOICES.map(o => {
+            const on = segment === o.key
+            return (
+              <button key={o.key} type="button" onClick={() => setSegment(o.key)} aria-pressed={on}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-colors ${
+                  on ? 'border-gold bg-gold-dim' : 'border-border hover:bg-surface-hover'}`}>
+                <Landmark className={`w-4 h-4 shrink-0 ${on ? 'text-gold-text' : 'text-text-tertiary'}`} />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-text-primary">{o.label}</span>
+                  <span className="block text-2xs text-text-tertiary">{o.hint}</span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </Group>
 
       <Group label="Canali attivi">
         <div className="flex flex-wrap gap-1.5">

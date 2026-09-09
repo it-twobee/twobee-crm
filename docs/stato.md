@@ -11,6 +11,27 @@ né le altre: sono **marchi e lavori nostri**. In una lista sola il danno era
 doppio e opposto: al primo si chiedeva «da quotare» e non c'è niente da quotare,
 al secondo lo stato dei pagamenti e non c'è nessun pagamento. Adesso sono **tre
 aree** — Clienti (11) · Società collegate (1) · Progetti interni TwoBee (4).
+La **220 è applicata**: il backfill ha seguito i documenti e ha separato GAV dai
+quattro marchi al primo colpo. Il CHECK regge (§313: `internal_kind` inventato →
+**23514**, `giro` passa), e nessun cliente vero ha preso un genere.
+
+**E si è visto subito perché serviva un modo di spostarle.** Elettra Group è
+stata segnata interna **dopo** il backfill della 220, è rimasta senza
+`internal_kind` ed è comparsa fra le società collegate. Il default prudente ha
+funzionato — meglio una riga di troppo in vista che una sparita — ma il difetto
+era a monte: `is_internal` si poteva scrivere **da solo**, dal form anagrafica e
+dalla creazione. Adesso non è più in `EDITABLE`, nella scheda l'area è in sola
+lettura, e si sposta da un posto solo: la barra della selezione in lista, anche
+su più anagrafiche insieme, o la scelta alla creazione. Le due colonne si
+muovono insieme o non si muovono.
+
+**E la lista si legge.** Le sezioni erano un filetto con la scritta in mezzo, che
+si legge come una riga vuota — nello screenshot la prima anagrafica sotto
+sembrava appartenere alla riga sopra. Adesso sono bande con un bordo colorato, il
+conteggio e lo scaduto della sezione. E le righe degli interni non ripetono più
+«nessuna scadenza» in due colonne accanto: nella prima resta il vuoto, nella
+seconda c'è **perché** è vuoto — «non fattura» — che è l'unica cosa che quelle
+righe hanno da dire.
 
 **La colonna Pagamenti era una parola, adesso è un numero.** Leggeva
 `clients.payment_status` — scritta dal cron notturno — e sotto lo scoperto **del
