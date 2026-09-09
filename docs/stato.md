@@ -15,6 +15,35 @@ La **220 è applicata**: il backfill ha seguito i documenti e ha separato GAV da
 quattro marchi al primo colpo. Il CHECK regge (§313: `internal_kind` inventato →
 **23514**, `giro` passa), e nessun cliente vero ha preso un genere.
 
+**§327 — «interni» non vuol dire «nostri», e l'area si cambia anche
+dall'anagrafica.** La descrizione diceva «marchi e lavori nostri» ed era troppo
+stretta: lì dentro ci vanno anche **aziende clienti vere** con cui il rapporto
+non passa da una fattura — scambio merce, permute, accordi di altra natura.
+Elettra Group è una di quelle, e adesso sta lì (Progetti interni: 5). Quello che
+accomuna l'area non è la proprietà: è che **il valore non passa da un
+documento**, ed è per questo che non hanno stato di fatturazione né un canone da
+quotare — non perché contino meno.
+
+L'area si cambia adesso da tre punti: la barra della selezione in lista, la
+scheda del cliente, e la scelta alla creazione. Tutti e tre passano da
+`setClientSegment`: il rimedio al caso Elettra non era togliere il comando, era
+farlo scrivere **le due colonne insieme**. In anagrafica si applica subito e non
+è un campo del form — salvarlo col resto lo rimetterebbe in `EDITABLE` dalla
+porta di servizio.
+
+**Le sezioni sono più nette**: sfondo pieno, un bordo sopra che chiude la
+precedente, e il nome in un chip colorato per area col conteggio dentro. Il
+colore non decora — dice a colpo d'occhio in quale delle tre stai leggendo.
+
+**§327 — e finalmente si sa quale commit gira.** «Il redeploy va verificato a
+mano» era una nota nel manuale, e a mano non si poteva: da fuori si vede solo
+che l'etag della pagina di login è cambiato, cioè che **un** build è passato, non
+quale. Dopo sette push in un giorno quella distinzione è tutta la domanda.
+`/api/version` restituisce lo SHA, letto a **build time** in `next.config.mjs` —
+nel container non c'è nessun `.git` da interrogare a runtime. Non è protetto: uno
+SHA abbreviato non è un segreto, e un endpoint di versione dietro autenticazione
+non risponde alla domanda per cui esiste, che si fa prima di aver fatto login.
+
 **E si è visto subito perché serviva un modo di spostarle.** Elettra Group è
 stata segnata interna **dopo** il backfill della 220, è rimasta senza
 `internal_kind` ed è comparsa fra le società collegate. Il default prudente ha

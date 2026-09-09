@@ -11,6 +11,14 @@
 - `main` allineato a GitHub. Il fix WL-01 (hint "assegna PM" nel Workload) è nel
   merge che porta anche questo documento.
 - La VPS deploya da `main`: ogni cosa che deve andare in produzione passa da lì.
+- **Quale commit sta girando: `curl -s https://os.twobee.it/api/version`** (§327).
+  Restituisce `{ sha, builtAt }`, con lo SHA catturato a **build time** in
+  `next.config.mjs` — nel container non c'è nessun `.git` da interrogare a
+  runtime. Prima l'unico segnale da fuori era l'etag della pagina di login, che
+  dice che **un** build è passato ma non quale: dopo sette push in un giorno
+  quella distinzione è tutta la domanda. Se risponde `sconosciuto`, il build non
+  è partito da un checkout git — in Coolify basta `COOLIFY_GIT_COMMIT`, che c'è
+  già, o il `git rev-parse` di riserva.
 
 ## 2. Stato DB (Supabase `ujkrrryitfqboskdqhwf`, eu-west-1)
 **Il DB NON è stato costruito eseguendo le migration in sequenza, ma da uno

@@ -785,7 +785,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
           i tre stati che la Fatturazione e la Banca già conoscono. */}
       <td className="px-4 py-3.5">
         {nonFattura ? (
-          <span className="text-2xs text-text-tertiary" title="Marchio o lavoro interno di TwoBee: non emette fatture, quindi non ha un ciclo di incasso">
+          <span className="text-2xs text-text-tertiary" title="Il valore non passa da una fattura: marchio nostro, scambio merce, permuta o accordo di altra natura">
             non fattura
           </span>
         ) : b ? (
@@ -1062,15 +1062,26 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
                             sotto sembrava appartenere alla riga sopra. Qui la
                             sezione ha un bordo a sinistra, un conteggio e il suo
                             numero: si vede dov'è che comincia. */}
-                        <td colSpan={12} className={`px-4 py-2 border-l-2 bg-surface-hover/40 ${
-                          seg === 'giro' ? 'border-l-orange' : seg === 'interno' ? 'border-l-info' : 'border-l-border-strong'}`}>
+                        {/* §327 — più nette. Una banda che si distingue appena
+                            dalle righe fa contare a occhio dove finisce una
+                            sezione: adesso ha uno sfondo pieno, un bordo sopra
+                            che chiude quella precedente e il nome in un chip
+                            colorato per area. Il colore non decora — dice a
+                            colpo d'occhio in quale delle tre stai leggendo. */}
+                        <td colSpan={12} className={`px-4 py-2.5 border-t-2 border-l-4 bg-surface-active ${
+                          seg === 'giro' ? 'border-l-orange border-t-orange/30'
+                            : seg === 'interno' ? 'border-l-info border-t-info/30'
+                            : 'border-l-gold border-t-border-strong'}`}>
                           <div className="flex items-baseline gap-2 flex-wrap">
-                            <span className="text-2xs font-bold text-text-primary uppercase tracking-widest whitespace-nowrap">
+                            <span className={`inline-flex items-baseline gap-1.5 rounded-md px-2 py-0.5 text-2xs font-bold uppercase tracking-widest whitespace-nowrap ${
+                              seg === 'giro' ? 'bg-orange-dim text-orange'
+                                : seg === 'interno' ? 'bg-info-dim text-info'
+                                : 'bg-gold-dim text-gold-text'}`}>
                               {seg === 'cliente' && pinnedClients.length > 0 && segmentiPresenti === 1
                                 ? 'Altri clienti'
                                 : SEGMENT_LABEL[seg]}
+                              <span className="tabular font-semibold opacity-70">{rows.length}</span>
                             </span>
-                            <span className="text-2xs font-semibold text-text-secondary tabular">{rows.length}</span>
                             <span className="text-2xs text-text-tertiary truncate">{SEGMENT_HINT[seg]}</span>
                             {/* Il numero che conta cambia da sezione a sezione:
                                 per i clienti è quanto devono, per i giri quanto

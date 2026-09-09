@@ -74,10 +74,23 @@ export const SEGMENT_LABEL: Record<ClientSegment, string> = {
   interno: 'Progetti interni TwoBee',
 }
 
+/**
+ * §327 — «interni» non vuol dire «nostri».
+ *
+ * La prima versione diceva «marchi e lavori nostri», ed era troppo stretta: qui
+ * dentro ci vanno anche **aziende clienti vere** con cui il rapporto non passa
+ * da una fattura — scambio merce, permuta, accordi di altra natura. Elettra
+ * Group è una di quelle: è un cliente, lavora con noi, e non c'è un canone da
+ * quotare perché non c'è niente da fatturare.
+ *
+ * Quello che accomuna l'area non è la proprietà: è che **il valore non passa da
+ * un documento**. Per questo non hanno stato di fatturazione e non hanno un
+ * canone da quotare — non perché contino meno.
+ */
 export const SEGMENT_HINT: Record<ClientSegment, string> = {
-  cliente: 'chi compra da noi',
+  cliente: 'chi compra da noi, con un canone o un lavoro a corpo',
   giro: 'fatturano davvero, ma non sono clienti: sono giri fra società collegate',
-  interno: 'marchi e lavori nostri: non fatturano, e non c\'è niente da quotare',
+  interno: 'marchi nostri e clienti fuori fattura: scambio merce, permute, accordi di altra natura',
 }
 
 /**

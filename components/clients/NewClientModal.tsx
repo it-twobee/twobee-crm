@@ -9,7 +9,7 @@ import { SEGMENT_HINT, type ClientSegment } from '@/lib/clients'
 const SEGMENT_CHOICES: { key: ClientSegment; label: string; hint: string }[] = [
   { key: 'cliente', label: 'Cliente', hint: 'compra da noi: entra in MRR, conto economico e statistiche' },
   { key: 'giro', label: 'Società collegata', hint: SEGMENT_HINT.giro },
-  { key: 'interno', label: 'Progetto interno TwoBee', hint: SEGMENT_HINT.interno },
+  { key: 'interno', label: 'Progetto interno o fuori fattura', hint: SEGMENT_HINT.interno },
 ]
 import { ModalShell, Group, Field, Segmented, inputCls } from '@/components/shared/formkit'
 import { CLIENT_CHANNELS, INDUSTRIES, INDUSTRY_BENCHMARKS,

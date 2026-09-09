@@ -1,5 +1,23 @@
+import { execSync } from 'node:child_process'
+
+/* §327 — lo SHA del commit, letto **a build time**. Nel container non c'è
+   nessun `.git` da interrogare a runtime, quindi o si cattura qui o l'endpoint
+   di versione risponde «sconosciuto» proprio dove serve. `COOLIFY_GIT_COMMIT`
+   viene dal deploy quando c'è; altrimenti si chiede a git, e se anche quello
+   manca — un tarball senza storia — resta null invece di inventare un valore. */
+const buildSha = process.env.COOLIFY_GIT_COMMIT
+  ?? process.env.SOURCE_COMMIT
+  ?? (() => {
+    try { return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() }
+    catch { return undefined }
+  })()
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  env: {
+    BUILD_SHA: buildSha ? String(buildSha).slice(0, 12) : '',
+    BUILD_TIME: new Date().toISOString(),
+  },
   output: "standalone",
   poweredByHeader: false,
   // `next build` e `next dev` condividono `.next`: lanciare il build mentre il

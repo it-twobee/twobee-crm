@@ -4,11 +4,11 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Loader2, Trash2, Pencil, Save, X, Check, Building2, Receipt, Users2, Crown } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
-import { segmentOf, SEGMENT_LABEL } from '@/lib/clients'
+import { segmentOf, SEGMENT_LABEL, SEGMENT_HINT, type ClientSegment } from '@/lib/clients'
 import { toast } from 'sonner'
 import {
   updateClientRecord, createClientContact, updateClientContact, deleteClientContact,
-  saveClientStakeholder, deleteClientStakeholder, setClientTeam,
+  saveClientStakeholder, deleteClientStakeholder, setClientTeam, setClientSegment,
   type ClientPatch, type ContactInput, type StakeholderInput,
 } from '@/app/actions/clients'
 import { CLIENT_CHANNELS, INDUSTRIES,
@@ -100,6 +100,20 @@ export function AnagraficaTab({
   const [client, setClient] = useState(initialClient)
   const router = useRouter()
   const [editAzienda, setEditAzienda] = useState(false)
+  /* §327 — l'area si applica subito, non al salvataggio del form: passa da
+     `setClientSegment`, che tiene allineate `is_internal` e `internal_kind`. */
+  const [movingSegment, setMovingSegment] = useState(false)
+  const moveSegment = async (seg: ClientSegment) => {
+    if (segmentOf(client) === seg) return
+    setMovingSegment(true)
+    try {
+      await setClientSegment([client.id], seg)
+      toast.success(`Spostato in «${SEGMENT_LABEL[seg]}»`)
+      router.refresh()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Spostamento non riuscito')
+    } finally { setMovingSegment(false) }
+  }
   const [editFiscale, setEditFiscale] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(client)
@@ -227,13 +241,29 @@ export function AnagraficaTab({
               )}
             </div>
           </Field>
-          {/* §326 — l'area non è una spunta. Questa casella scriveva
-              `is_internal` da sola e lasciava `internal_kind` vuoto: è così che
-              Elettra Group è finita fra le società collegate senza che nessuno
-              l'avesse deciso. Le due colonne si muovono insieme, e l'unico posto
-              che lo fa è `setClientSegment`. Qui resta la lettura. */}
-          <Field label="Area in anagrafica" value={SEGMENT_LABEL[segmentOf(client)]} editMode={false}>
-            <span />
+          {/* §326/§327 — l'area non è una spunta, ma si cambia anche da qui.
+              La casella di prima scriveva `is_internal` da sola e lasciava
+              `internal_kind` vuoto: è così che Elettra Group è finita fra le
+              società collegate senza che nessuno l'avesse deciso. Il rimedio non
+              era togliere il comando — è passare da `setClientSegment`, che
+              scrive le due colonne insieme, e che si applica **subito**: non è
+              un campo del form, perché salvarlo insieme al resto lo farebbe
+              tornare in `EDITABLE` per la porta di servizio. */}
+          <Field label="Area in anagrafica" value={SEGMENT_LABEL[segmentOf(client)]} editMode={editAzienda}>
+            <div className="flex flex-wrap gap-1.5">
+              {(['cliente', 'giro', 'interno'] as ClientSegment[]).map(seg => {
+                const on = segmentOf(client) === seg
+                return (
+                  <button key={seg} type="button" disabled={movingSegment} title={SEGMENT_HINT[seg]}
+                    onClick={() => moveSegment(seg)}
+                    className={`text-2xs font-semibold rounded-lg px-2 py-1 border transition-colors press disabled:opacity-40 ${
+                      on ? 'border-gold bg-gold-dim text-gold-text'
+                        : 'border-border text-text-secondary hover:text-text-primary hover:bg-surface-hover'}`}>
+                    {SEGMENT_LABEL[seg]}
+                  </button>
+                )
+              })}
+            </div>
           </Field>
           {/* §213 — due domande diverse, e vanno tenute separate: «interno»
               riguarda i numeri, «nascosto» riguarda le persone. GAV Sistemi è

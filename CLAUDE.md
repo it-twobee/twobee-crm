@@ -367,6 +367,18 @@ lettura: si sposta dalla lista (barra della selezione, anche su più anagrafiche
 o si sceglie alla creazione. `workspace_hidden` resta una decisione a parte
 (§213): l'area riguarda i numeri, il nascondere riguarda le persone.
 
+**«Interni» non vuol dire «nostri»** (§327). Nell'area ci vanno anche **aziende
+clienti vere** con cui il rapporto non passa da una fattura: scambio merce,
+permute, accordi di altra natura. Quello che le accomuna non è la proprietà — è
+che il valore non passa da un documento, e per questo non hanno stato di
+fatturazione né un canone da quotare. L'area si cambia da tre punti (barra della
+selezione, scheda cliente, creazione) e tutti passano da `setClientSegment`.
+
+**Quale commit gira** (§327, `/api/version`): lo SHA è catturato a **build
+time** in `next.config.mjs` — nel container non c'è nessun `.git` da
+interrogare — e l'endpoint è pubblico, perché la domanda «l'ultimo push è
+arrivato?» si fa prima di aver fatto login.
+
 **Nel portale operativo le tre aree non esistono**: là sono tutti clienti allo
 stesso livello, ed è giusto — chi lavora una commessa non ha bisogno di sapere
 come si chiama nei conti. L'unica differenza che resta è `workspace_hidden`, che
