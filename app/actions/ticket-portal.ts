@@ -40,11 +40,32 @@ export interface PortalMessage {
   created_at: string
 }
 
+/**
+ * §329 — il token del portale è una chiave, e la chiave la dà lo staff.
+ *
+ * Il controllo era «c'è una sessione», e sotto c'era il service role: qualunque
+ * utente autenticato — compreso un `client` confinato in `/portale` o un
+ * `freelance` che vede solo i propri progetti — poteva passare l'id di un altro
+ * cliente e ricevere il suo token. Con quel token le altre azioni di questo
+ * file (che sono **giustamente** senza sessione, perché le usa un ospite dal
+ * magic link) restituiscono i ticket di quel cliente, nomi ed email di chi li
+ * ha aperti, e permettono di scriverci dentro. Il token è la sola credenziale
+ * del portale: chi lo distribuisce deve essere staff interno.
+ */
+async function requireStaff(): Promise<string> {
+  const sb = await createClient()
+  const { data: { user } } = await sb.auth.getUser()
+  if (!user) throw new Error('Non autenticato')
+  const { data: p } = await sb.from('profiles').select('role').eq('id', user.id).single()
+  if (p?.role !== 'admin' && p?.role !== 'team') throw new Error('Permesso negato')
+  return user.id
+}
+
 // Team: genera o recupera portal token per cliente
 export async function getOrCreatePortal(clientId: string): Promise<{ token: string } | { error: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Non autorizzato' }
+  try { await requireStaff() } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Non autorizzato' }
+  }
 
   const sb = serviceClient()
   const { data: existing } = await sb.from('ticket_portals').select('token').eq('client_id', clientId).single()

@@ -1,8 +1,26 @@
 'use server'
 
 import Anthropic from '@anthropic-ai/sdk'
+import { createClient } from '@/lib/supabase/server'
 
 const anthropic = new Anthropic()
+
+/**
+ * §329 — anche un'azione che oggi non fa niente è un endpoint.
+ *
+ * Queste due non chiedevano niente a nessuno e chiamano un servizio **a
+ * consumo** con il testo che ricevono. Oggi `ANTHROPIC_API_KEY` non è
+ * impostata, quindi l'unico effetto è una risposta vuota — ed è precisamente il
+ * modo in cui un problema del genere resta lì: il giorno in cui qualcuno mette
+ * la chiave, la porta è già aperta e nessuno la sta guardando.
+ */
+async function requireStaff(): Promise<void> {
+  const sb = await createClient()
+  const { data: { user } } = await sb.auth.getUser()
+  if (!user) throw new Error('Non autenticato')
+  const { data: p } = await sb.from('profiles').select('role').eq('id', user.id).single()
+  if (p?.role !== 'admin' && p?.role !== 'team') throw new Error('Permesso negato')
+}
 
 interface Message {
   sender: string
@@ -11,6 +29,7 @@ interface Message {
 }
 
 export async function suggestCCReplies(clientName: string, messages: Message[]): Promise<string[]> {
+  await requireStaff()
   if (!messages.length) return []
   try {
     const history = messages.slice(-10).map(m =>
@@ -46,6 +65,7 @@ Rispondi SOLO con un JSON array di 3 stringhe, nessun testo extra. Esempio: ["ri
 }
 
 export async function summarizeClientThread(clientName: string, messages: Message[]): Promise<string> {
+  await requireStaff()
   if (messages.length < 3) return ''
   try {
     const history = messages.slice(-20).map(m =>

@@ -2,6 +2,51 @@
 
 ## Dove siamo — 2026-09-11
 
+**§329 — il campo «ruolo» del form ospiti scriveva nella RLS.** Nel Customer
+Care, il form «ospite esterno» ha un campo ruolo **a testo libero**. Quel testo
+finiva in `user_metadata.role`, e il trigger `handle_new_user` (001) copia
+`raw_user_meta_data->>'role'` dentro `profiles.role` — la colonna che
+`get_my_role()` legge per tutta la RLS e che il middleware usa per scegliere il
+portale. Scrivere «admin» e invitare un proprio indirizzo bastava: il profilo
+nasceva con i permessi di un admin, al momento dell'invito. L'azione chiedeva
+solo «c'è una sessione», e a quella pagina ci arriva ogni ruolo del workspace,
+`freelance` e `partner` compresi.
+
+Accanto, la stessa forma: `getOrCreatePortal` dava il **token del portale
+ticket** di qualunque cliente a chiunque fosse autenticato — e quel token, da
+solo, apre i ticket di quel cliente con nomi ed email di chi li ha aperti.
+
+Chiuse tutte e due dal lato applicazione, più `/api/invite` (che scriveva
+`profiles.role` dal corpo della richiesta, senza passare da `coarseRole`) e le
+due azioni AI del customer care, che non chiedevano niente a nessuno e chiamano
+un servizio a consumo. La **221 è scritta e non eseguita**: toglie al trigger la
+lettura del ruolo dai metadati e restringe allo staff due policy che erano
+`FOR ALL USING (auth.uid() IS NOT NULL)` — cioè la RLS accesa e lasciata
+passare.
+
+**La regola che resta**, ed è la parte che vale più delle quattro correzioni: si
+può saltare il controllo di ruolo **o** il client di servizio, non tutti e due.
+Chi lavora sulla roba di chi chiama può affidarsi alla RLS — ma allora deve
+passarci. Le due falle stavano esattamente nell'incrocio: sessione letta, ruolo
+no, service role sì. `lib/actions-guard.check.ts` (48° file del gate) elenca
+tutte le server action e lo verifica; è stato provato **rimettendo le falle**, e
+fallisce nominandole entrambe. Cinque eccezioni dichiarate, tutte del portale
+ospite, che autorizza col token e non con la sessione.
+
+**E il manuale diceva cose che non sono più vere.** Non è pignoleria: `CLAUDE.md`
+e `AGENTS.md` sono istruzioni, e un agente le esegue. L'esempio Groq usava il
+modello **dismesso** che lo stesso file dichiara morto (il codice è a posto:
+tutte e sei le chiamate passano da `GROQ_MODEL`); l'albero diceva «migration
+001–091, 086–091 da eseguire» mentre sul disco ce ne sono 193 e la 086 è
+**esplicitamente da non eseguire**; cinque dei quindici percorsi elencati non
+esistono; la sezione «Chat — quattro gruppi» descriveva un componente cancellato
+(`/chat` fa redirect al Customer Care). `AGENTS.md` era fermo a luglio — colori
+esadecimali a mano, `llama-3.3-70b`, «001–034» — ed è diventato un puntatore:
+due manuali che si contraddicono sono peggio di uno. Il registro completo, con
+cosa è verificato e cosa no, sta in `docs/audit-twobee-os.md`.
+
+## Dove siamo — 2026-09-11 (calendario milestone)
+
 **§328 — il calendario milestone mostrava tutta l'anagrafica.** Meno i persi,
 che erano l'unico stato che il filtro conosceva — scritto inline in due
 `page.tsx` come `client_label === 'perso'`, cioè esattamente il caso che

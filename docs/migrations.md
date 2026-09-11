@@ -1,5 +1,34 @@
 # Registro migration
 
+## Da eseguire: la 221 (§329)
+
+`221_role_not_from_metadata.sql` è **scritta e non eseguita**. Toglie a
+`handle_new_user` la lettura di `role` dai metadati dell'utente — che sono
+scritti da chi crea l'invito, quindi erano un modo di scegliersi un ruolo di
+autorizzazione — e restringe allo staff le policy di `channel_guests` (021) e
+`ticket_portals` (028), che erano `FOR ALL USING (auth.uid() IS NOT NULL)`.
+
+Prima di eseguirla, due verifiche sul database, perché il reset del 2026-07-23
+ha ricreato tabelle e il registro non dice cosa c'è **adesso** (§222):
+
+```sql
+SELECT prosrc LIKE '%raw_user_meta_data->>''role''%' AS legge_role
+  FROM pg_proc WHERE proname = 'handle_new_user';
+SELECT tablename, policyname, qual FROM pg_policies
+ WHERE tablename IN ('channel_guests','ticket_portals');
+```
+
+Dopo, il controllo che la migration **non** fa da sola, perché cambiare i
+permessi di qualcuno non è una cosa che deve fare uno script:
+
+```sql
+SELECT id, email, role, app_role FROM public.profiles
+ WHERE role = 'admin' AND app_role IS NULL;
+```
+
+Nessuna riga è l'esito atteso. Se ne esce qualcuna, è un profilo nato da metadati
+che nessuno ha dichiarato: va guardato a mano.
+
 ## Registro migration (Supabase Dashboard → SQL Editor)
 
 > **§222 — attenzione al registro.** «Applicata» non vuol dire «c'è ancora».
@@ -9,7 +38,7 @@
 > — perché applicate lo erano, prima. La **202** le rimette. Prima di dare per
 > esistente una colonna aggiunta prima della 146, **verificala sul database**.
 >
-> **Niente da eseguire.** Verificato sul database il 2026-08-01: tutte quelle
+> **Niente da eseguire fino alla 220.** Verificato sul database il 2026-08-01: tutte quelle
 > elencate qui sotto sono applicate, `175_tax_control.sql` e `179_os_versions.sql`
 > comprese. L'attribuzione via `x-actor-id` è stata provata sul database vero:
 > con l'header la modifica prende il nome di chi l'ha fatta, senza resta

@@ -37,11 +37,20 @@ database vero, e riscoprirle costa più che leggerle.
   `CostLine` a mano, nemmeno in uno script di verifica.
 - **Una regola scritta due volte non è una regola**: se un controllo vive in
   un percorso e non nell'altro, spostalo dentro l'azione che passano tutti.
+- **Si può saltare il controllo di ruolo, o il client di servizio, non tutti e
+  due** (§329). Un file `'use server'` esporta endpoint: «c'è una sessione» non
+  è un permesso. Chi lavora sulla roba di chi chiama può affidarsi alla RLS —
+  ma allora deve *passarci*, non usare `createAdminClient()`. Gate:
+  `npx tsx lib/actions-guard.check.ts`.
+- **Il ruolo non arriva mai dal client.** `profiles.role` è ciò che
+  `get_my_role()` legge per la RLS: non si scrive da un corpo JSON né dai
+  metadati di un invito — il trigger `handle_new_user` li ricopia. `app_role`
+  dell'elenco chiuso, `role` derivato da `coarseRole()`.
 - **Un numero plausibile e sbagliato è la sola categoria di errore che nessuno
   va a controllare.** Quando una fonte manca, dichiaralo («n/d», «stimato»,
   «senza contratto»): mai uno zero.
 - **Gate del repo**: `npx tsc --noEmit` (ESLint non configurato) + i
-  **quarantasette** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
+  **quarantotto** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
   `lib/tracking/**`) — con `npx tsx lib/<percorso>.check.ts`: devono dire «Tutti
   i controlli passano».
 - **Non lanciare `npm run build` mentre `npm run dev` gira**: condividono `.next`
@@ -74,29 +83,30 @@ database vero, e riscoprirle costa più che leggerle.
 ## Comandi
 ```bash
 npm run dev    # :3000
-npm run build
-npm run lint
+npm run build  # mai mentre gira il dev: condividono .next
 ```
+`npm run lint` è nel `package.json` ma **non è un gate**: `eslint-config-next` è
+installato e il file di configurazione non c'è, quindi `next lint` apre la
+procedura interattiva invece di controllare qualcosa. I gate veri sono
+`npx tsc --noEmit` e i `lib/**/*.check.ts`.
 
 ## Struttura cartelle
 ```
 app/(dashboard)/
-  dashboard/page.tsx              ← 17 query parallele + DashboardGrid
+  dashboard/page.tsx              ← query parallele + DashboardGrid
   clienti/[id]/page.tsx           ← tabs: Panoramica|KPI|Fatturazione|Documenti|Anagrafica|Relazione
-  clienti/[id]/progetto/[pid]/    ← ProjectPageClient (tab: Progetto|Appuntamenti|Riunioni|KPI|Aggiornamenti|Chat)
-  progetti/page.tsx
-  chat/page.tsx                   ← SlackChat globale (da mantenere)
-app/actions/
-  project-channels.ts             ← ensureProjectChannels() — crea canali con service role (bypassa RLS)
+  progetti/page.tsx               ← ProgettiClient: calendario milestone per cliente + elenco
+  chat/page.tsx                   ← redirect a /customer-care (la chat non c'è più)
+app/actions/                      ← 45 file `'use server'`: ognuno è un endpoint (vedi §329)
+  clients.ts                      ← createClientRecord/requireClientCreator, contatti, segmento
   delete-client.ts                ← elimina client + cascade chat/tasks/projects
 components/dashboard/             ← tutti i widget (vedi sezione stato)
 components/clients/tabs/          ← PanoramicaTab, KpiTab, AnagraficaTab, ProjectStatusTab…
-components/projects/ProjectPageClient.tsx  ← 2980 righe, tab Chat con ProjectChatSection
-components/chat/SlackChat.tsx     ← componente chat completo (props: channelId, channelType, currentProfile…)
-components/progetti/ProgettiClient.tsx     ← CRUD progetti: NewProjectDetailedModal + EditProgettoModal + DeleteConfirmModal
+components/projects/ProgettiClient.tsx     ← elenco progetti + ProjectWizard
+components/projects/ProjectGantt.tsx       ← il calendario milestone, usato da tre pagine
 lib/types/database.ts             ← tutti i tipi
-app/api/ai/                       ← extract-project, extract-meeting, sprint-plan, kpi-report, project-summary
-supabase/migrations/              ← 001–091 (086–091 da eseguire, vedi sotto)
+app/api/ai/                       ← assistant, dashboard-chat, kpi-precompile, customer-care-suggest
+supabase/migrations/              ← 001–221 (stato reale in docs/migrations.md: la 221 è da eseguire)
 ```
 
 ## Design system — MAI colori hardcoded
@@ -187,11 +197,12 @@ const { data } = await createClient().from('table').select('*')
 import { createAdminClient } from '@/lib/supabase/admin'
 const { data } = await createAdminClient().from('table').insert({...})
 
-// Groq AI
+// Groq AI — il modello NON si scrive qui: viene da lib/ai/model.ts
+import { GROQ_MODEL } from '@/lib/ai/model'
 const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
-  body: JSON.stringify({ model: 'llama-3.3-70b-versatile', max_tokens: 1000,
+  body: JSON.stringify({ model: GROQ_MODEL, max_tokens: 1000,
     messages: [{ role: 'system', content: '...' }, { role: 'user', content: '...' }] }),
 })
 const parsed = JSON.parse((await res.json()).choices?.[0]?.message?.content?.match(/\{[\s\S]*\}/)?.[0] ?? '{}')
@@ -396,14 +407,17 @@ c'è il **ciclo**: `pagato` · `da emettere fattura` (competenza senza documento
 sotto: è un ritardo **nostro**) · `non pagato`. L'ordine conta — prima il non
 pagato, che sono soldi già dovuti.
 
-## Chat — quattro gruppi
-`Team` (canali `type='team'`: `team-intern`, `angolo-informativo`, `best-ideas`) ·
-`Progetti` (un solo canale interno per progetto) · `Messaggi diretti` (`type='dm'`,
-partecipanti in `chat_dm_participants`, leggibili **solo** dai due, nemmeno dall'admin).
+## Chat — non c'è più, il Customer Care sì
+`/chat` fa `redirect('/customer-care')` e `SlackChat` non esiste: la chat interna
+è stata smontata. Quello che resta vivo sono i canali `customer_care`/`cliente`,
+che usa `/customer-care`, e le tabelle `chat_channels`/`chat_messages`, che li
+tengono. Se ti serve la storia dei quattro gruppi (team, progetti, DM,
+best-ideas) sta nel registro: qui non descriviamo codice che non c'è, perché una
+riga di manuale su un componente cancellato manda a cercarlo.
 
-Il **Customer Care non sta più nella chat**: i canali `customer_care`/`cliente` esistono
-ancora e li usa `/customer-care`. La chat li esclude a monte, non li cancella.
-`#best-ideas` non è una chat: è un raccoglitore (`chat_best_ideas`).
+I **messaggi diretti** (`type='dm'`, partecipanti in `chat_dm_participants`)
+restano leggibili **solo** dai due, nemmeno dall'admin: la regola vale ancora,
+è nella RLS, ed è la ragione per cui la tabella non si legge col service role.
 
 ## Calendario e Google
 I token stanno in `google_credentials` (RLS deny-all, solo service role).
