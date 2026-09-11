@@ -1,5 +1,5 @@
 /* Verifica degli stati del cliente. Esegui: npx tsx lib/clients.check.ts */
-import { isLost, isPaused, isLead, countsInStats, pausedDays, paymentLabel } from '@/lib/clients'
+import { isLost, isPaused, isLead, countsInStats, countsInDelivery, pausedDays, paymentLabel } from '@/lib/clients'
 import type { ClientLabel } from '@/lib/types/database'
 
 let fail = 0
@@ -28,6 +28,16 @@ is('dentro', TUTTI.filter(l => countsInStats(c(l))), ['stabile', 'in_bilico', 'p
 is('fuori', TUTTI.filter(l => !countsInStats(c(l))), ['pending', 'lead', 'perso'])
 is('l\'interno è fuori comunque', countsInStats(c('stabile', true)), false)
 is('anche un partner interno', countsInStats(c('partner', true)), false)
+
+console.log('\n— Chi entra nel calendario delle lavorazioni (§328) —')
+/* Non è la stessa domanda delle statistiche: un lavoro interno non conta
+   nell'MRR ma ha milestone vere, un giro ha solo fatture e non avrà mai un
+   progetto — una riga «0 progetti» per lui è un allarme che non si spegne. */
+is('dentro', TUTTI.filter(l => countsInDelivery(c(l))), ['stabile', 'in_bilico', 'partner'])
+is('il lavoro interno si presidia', countsInDelivery({ ...c('stabile', true), internal_kind: 'progetto' }), true)
+is('il giro no', countsInDelivery({ ...c('stabile', true), internal_kind: 'giro' }), false)
+is('interno senza genere è un giro', countsInDelivery(c('stabile', true)), false)
+is('senza label conta', countsInDelivery({}), true)
 
 console.log('\n— Un lead non è un perso —')
 /* La distinzione non è cosmetica: il churn conta i persi, e un lead contato lì

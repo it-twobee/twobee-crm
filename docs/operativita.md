@@ -21,6 +21,29 @@ della pagina da cui ci arrivava.
   una barriera solo nella UI, che è il posto in cui una barriera non protegge
   niente (§211) e blocca il lavoro vero.
 
+## Nel calendario milestone stanno i clienti da presidiare (§328)
+
+`/progetti` apre con una riga per cliente — anche senza progetti, perché chi è
+fermo si vede solo se la sua riga c'è — e ci finiva **tutta l'anagrafica** meno
+i persi: i sospesi con «0 progetti» in rosso, i lead, e GAV Sistemi, che non è
+un cliente ma un giro di fatture fra società collegate (§326) e non avrà mai un
+progetto. Una riga rossa che nessuno può spegnere insegna a ignorare le altre.
+
+- **`countsInDelivery` in `lib/clients.ts`**, non `countsInStats`: quella
+  risponde ai **numeri**, questa alle **consegne**, e le risposte divergono.
+  Metroquadro e Costruisci e arreda non contano nell'MRR ma hanno milestone
+  vere: dentro. Il **giro** ha solo fatture: fuori. Fuori anche perso (nessun
+  presidio), sospeso (lo si segue dalla sua sezione, con i giorni da quanto è
+  fermo) e lead (niente da consegnare ancora).
+- **Il filtro sta nel componente**, `ProgettiClient`, e le due pagine passano
+  i campi grezzi: il flag `lost` calcolato inline in due `page.tsx` era la stessa
+  regola scritta due volte, ed era già indietro di tre stati.
+- **Il workspace passa solo la label.** Là le aree non esistono (§326) e la VIEW
+  `clients_workspace` non espone `internal_kind`: passare `is_internal` da solo
+  farebbe passare un lavoro interno per un giro e cancellerebbe Metroquadro dal
+  calendario del team. GAV sta fuori già dalla VIEW, via `workspace_hidden`
+  (§213).
+
 ## La milestone si aggiunge dalla pagina progetto (§322)
 
 Il wizard mette le milestone del template e poi non ci si rientra: l'unico posto

@@ -20,7 +20,7 @@ export default async function ProgettiPage({ searchParams }: { searchParams: { c
     { data: clients }, { data: profiles }, { data: services },
     { data: templates }, { data: nodes }, { data: projects },
   ] = await Promise.all([
-    supabase.from('clients').select('id, company_name, display_name, client_label').order('company_name'),
+    supabase.from('clients').select('id, company_name, display_name, client_label, is_internal, internal_kind').order('company_name'),
     supabase.from('profiles').select('id, full_name, app_role, avatar_url').eq('is_active', true).order('full_name'),
     supabase.from('service_catalog').select('*').order('area').order('sort_order'),
     supabase.from('project_templates').select('*').order('sort_order'),
@@ -39,8 +39,10 @@ export default async function ProgettiPage({ searchParams }: { searchParams: { c
       ])
     : [{ data: [] }, { data: [] }, { data: [] }]
 
-  const clientOpts = (clients ?? []).map(c =>
-    ({ id: c.id, name: c.display_name || c.company_name, lost: c.client_label === 'perso' }))
+  const clientOpts = (clients ?? []).map(c => ({
+    id: c.id, name: c.display_name || c.company_name,
+    client_label: c.client_label, is_internal: c.is_internal, internal_kind: c.internal_kind,
+  }))
 
   return (
     <ProgettiClient

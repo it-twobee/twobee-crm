@@ -112,6 +112,23 @@ export const needsQuote = (c: Segmentable, contracts: number) =>
   segmentOf(c) === 'cliente' && !isLost(c) && contracts === 0
 
 /**
+ * §328 — chi ha lavorazioni da presidiare: è la base del calendario milestone.
+ *
+ * Non è `countsInStats`: quella risponde ai **numeri**, questa alle **consegne**,
+ * e le due domande hanno risposte diverse. Un lavoro interno (Metroquadro,
+ * Costruisci e arreda) non conta nell'MRR ma ha milestone vere e va presidiato
+ * come un cliente. Un **giro** invece — GAV Sistemi — ha solo fatture: una riga
+ * «0 progetti» in rosso per chi non avrà mai un progetto è un allarme che
+ * nessuno può spegnere, e un allarme che non si spegne insegna a ignorare gli
+ * altri. Fuori anche chi non lavora con noi in questo momento: il **perso** non
+ * ha un presidio da misurare, il **fermo** lo ha sospeso lui (e lo si segue
+ * dalla sua sezione, con i giorni da quanto è fermo), il **lead** non ha ancora
+ * niente da consegnare.
+ */
+export const countsInDelivery = (c: Segmentable) =>
+  !isLost(c) && !isPaused(c) && !isLead(c) && !isGiro(c)
+
+/**
  * §177: il cliente ha almeno un contratto venduto?
  *
  * `mrr_source` passa a 'contratti' solo quando esiste un contratto non in

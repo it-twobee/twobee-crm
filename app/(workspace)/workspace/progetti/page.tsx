@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { ProgettiClient } from '@/components/projects/ProgettiClient'
 import type {
   ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode,
-  ProjectWorkstream, Milestone, Task,
+  ProjectWorkstream, Milestone, Task, ClientLabel,
 } from '@/lib/types/database'
 
 export const revalidate = 0
@@ -42,8 +42,11 @@ export default async function WorkspaceProgettiPage({ searchParams }: { searchPa
       ])
     : [{ data: [] }, { data: [] }, { data: [] }]
 
-  const clientOpts = (clients ?? []).map((c: { id: string; company_name: string; display_name: string | null; client_label: string | null }) =>
-    ({ id: c.id, name: c.display_name || c.company_name, lost: c.client_label === 'perso' }))
+  // Solo la label: nel workspace le aree non esistono (§326) e la VIEW non espone
+  // `internal_kind` — passare `is_internal` da solo farebbe passare un lavoro
+  // interno per un giro. GAV Sistemi sta fuori già dalla VIEW (§213).
+  const clientOpts = (clients ?? []).map((c: { id: string; company_name: string; display_name: string | null; client_label: ClientLabel | null }) =>
+    ({ id: c.id, name: c.display_name || c.company_name, client_label: c.client_label }))
 
   return (
     <ProgettiClient

@@ -220,10 +220,11 @@ apre, non si raggruppa, non compare nella scheda di nessuno, e il giorno in cui
 diventa un cliente vero non c'è niente da collegare.
 
 `lib/clients.ts` è l'unica fonte: `isLost`, `isPaused`, `isLead`,
-`countsInStats` (esclude interni + persi + fermi + lead), `pausedDays`. Non
-riscrivere il filtro inline: ogni `client_label !== 'perso'` sparso è un posto
-che dimenticherà il prossimo stato — ed è successo, perché gli stati sono già
-sei. Gate: `npx tsx lib/clients.check.ts` (21 controlli, con l'elenco chiuso
+`countsInStats` (esclude interni + persi + fermi + lead), `countsInDelivery`
+(§328: chi ha consegne da presidiare — dentro i lavori interni, fuori i giri),
+`pausedDays`. Non riscrivere il filtro inline: ogni `client_label !== 'perso'`
+sparso è un posto che dimenticherà il prossimo stato — ed è successo, perché gli stati sono già
+sei. Gate: `npx tsx lib/clients.check.ts` (26 controlli, con l'elenco chiuso
 delle label: se ne arriva una settima, il test è il posto dove qualcuno deve
 decidere se conta).
 

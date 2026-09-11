@@ -6,9 +6,10 @@ import { useRouter } from 'next/navigation'
 import { Plus, FolderKanban, Search, ChevronRight } from 'lucide-react'
 import { ProjectWizard } from './ProjectWizard'
 import { ProjectGantt, type GanttLane } from './ProjectGantt'
+import { countsInDelivery, type InternalKind } from '@/lib/clients'
 import type {
   ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode,
-  ProjectWorkstream, Milestone, Task,
+  ProjectWorkstream, Milestone, Task, ClientLabel,
 } from '@/lib/types/database'
 
 type ProjectRow = { id: string; name: string; status: string; area: string; service_type: string; client_id: string; created_at: string }
@@ -86,7 +87,7 @@ export function ProgettiClient({
   clients, profiles, services, templates, nodes, projects, workstreams, milestones, calTasks, initialClientId, openWizard,
   basePath = '/progetti', canCreate = true,
 }: {
-  clients: { id: string; name: string; lost?: boolean }[]
+  clients: { id: string; name: string; client_label?: ClientLabel | null; is_internal?: boolean | null; internal_kind?: InternalKind | null }[]
   profiles: { id: string; full_name: string; app_role: string | null; avatar_url?: string | null }[]
   services: ServiceCatalogEntry[]
   templates: ProjectTemplate[]
@@ -123,7 +124,7 @@ export function ProgettiClient({
     return m
   }, [milestones])
 
-  // Un gruppo per ogni cliente in anagrafica, anche senza progetti: chi è fermo si
+  // Un gruppo per ogni cliente da presidiare, anche senza progetti: chi è fermo si
   // vede solo se la sua riga c'è. I progetti interni stanno in un gruppo a parte.
   const groups = useMemo(() => {
     const live = projects.filter(p => LIVE_STATUSES.includes(p.status))
@@ -140,8 +141,8 @@ export function ProgettiClient({
       ps.sort((a, b) => (nextOpen(msByProject.get(a.id)) ?? FAR) < (nextOpen(msByProject.get(b.id)) ?? FAR) ? -1 : 1)
       return { id, name, projects: ps, milestones: ms }
     }
-    // i clienti persi non hanno un presidio da misurare: fuori dal calendario
-    const list = clients.filter(c => !c.lost).map(c => build(c.id, c.name))
+    // persi, fermi, lead e società collegate non hanno un presidio da misurare (§328)
+    const list = clients.filter(countsInDelivery).map(c => build(c.id, c.name))
     if (byClient.has(INTERNAL_KEY)) list.push(build(INTERNAL_KEY, 'Progetti interni'))
     // ordine da calendario: chi ha la prossima milestone aperta più vicina sta in cima
     return list.sort((a, b) => {
@@ -239,13 +240,13 @@ export function ProgettiClient({
         headerNote={<>· {groups.length} clienti · {msCount} milestone{quietCount > 0 && <span className="text-warning font-semibold"> · {quietCount} fermi</span>}</>}
         headerHint={{
           title: 'Clienti nel calendario',
-          detail: `Ogni cliente in anagrafica ha una riga, anche senza progetti. «Fermi» sono quelli senza milestone da ${QUIET_DAYS} giorni e senza nulla in programma nei prossimi ${QUIET_DAYS}. I clienti persi non compaiono.`,
+          detail: `Ogni cliente attivo ha una riga, anche senza progetti. «Fermi» sono quelli senza milestone da ${QUIET_DAYS} giorni e senza nulla in programma nei prossimi ${QUIET_DAYS}. Persi, sospesi, lead e società collegate non compaiono.`,
         }}
         tasks={calTasks ?? []}
         profiles={profiles as { id: string; full_name: string; avatar_url: string | null }[]}
         onOpenMilestone={openMilestone}
         milestoneContext={wsName}
-        emptyHint="Nessun cliente in anagrafica: il calendario mostra una riga per cliente e i progetti in corso nella tendina."
+        emptyHint="Nessun cliente attivo: il calendario mostra una riga per cliente e i progetti in corso nella tendina."
         labelWidth={260}
       />
 

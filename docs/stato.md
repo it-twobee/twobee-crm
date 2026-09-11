@@ -1,5 +1,19 @@
 # Dove siamo
 
+## Dove siamo — 2026-09-11
+
+**§328 — il calendario milestone mostrava tutta l'anagrafica.** Meno i persi,
+che erano l'unico stato che il filtro conosceva — scritto inline in due
+`page.tsx` come `client_label === 'perso'`, cioè esattamente il caso che
+`lib/clients.ts` esiste per evitare. Così in `/progetti` stavano i sospesi con
+«0 progetti» in rosso, i lead, e GAV Sistemi, che non è un cliente ma un giro
+di fatture (§326) e non avrà mai un progetto: una riga d'allarme che nessuno può
+spegnere. Adesso il filtro è **uno**, `countsInDelivery`, e non è
+`countsInStats`: quella risponde ai numeri, questa alle consegne. Metroquadro e
+Costruisci e arreda non contano nell'MRR ma hanno milestone vere e restano;
+il giro esce con persi, sospesi e lead. Il workspace passa solo la label —
+là le aree non esistono e la VIEW non espone `internal_kind` (`docs/operativita.md`).
+
 ## Dove siamo — 2026-09-09
 
 **§326 — la lista clienti chiedeva a GAV Sistemi di quotare un canone.** E a
