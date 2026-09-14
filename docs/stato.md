@@ -23,12 +23,14 @@ pagina: finiva in «passati in questo mese», montato **solo** in lettura di
 cassa. Adesso ha le stesse due celle delle righe del mese, lo stesso dialogo, e
 il blocco di destinazione c'è in tutte e due le letture.
 
-**§333 — chi ha maturato resta in elenco, anche a zero.** Conseguenza vista
+**§333 — l'elenco dei commerciali è di persone, non di importi.** Conseguenza vista
 subito su agosto: marcata iCura «divisa», la sola provvigione incassata di
 Walter Giacobbe è andata nel pool e la sua riga è uscita dai commerciali senza
 una parola — il denaro c'era (260 € dentro «Erogato soci»), il nome no. Il
 filtro `amount > 0` contraddiceva la regola scritta sopra `owners`. Adesso resta
 a zero col maturato accanto (603 €), e il blocco del pool nomina chi prende cosa.
+Stessa ragione per chi non ha portato niente: Toto non compariva affatto, e
+un'assenza si legge «non è un commerciale». Ci sono tutti, ordinati per importo.
 
 **§332 — «Prepara i compensi» spariva dopo il primo clic.** Compariva solo con
 zero righe, quindi chi maturava una provvigione dopo — Walter Giacobbe ad

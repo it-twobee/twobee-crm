@@ -69,16 +69,21 @@ diversi, non per incoerenza:
   - Si accende da due posti: la casella sotto «Commerciale» nell'economics del
     cliente (vale per tutte le rate) e il pulsante **«divisa?»** accanto alla
     provvigione della singola riga di conto economico.
-- **Chi ha maturato resta in elenco, anche a zero** (§333). La regola era già
-  scritta sopra `owners` — «sparendo sembrerebbe che non gli spetti niente, che è
-  un'altra cosa» — e il filtro `amount > 0` la contraddiceva: bastava che i
-  clienti di una persona non avessero ancora pagato, o che le sue righe fossero
-  divise fra i soci (§330), perché il nome uscisse dalla sezione senza una
-  parola. È successo a Walter Giacobbe su agosto: marcata iCura «divisa», la sua
-  unica provvigione incassata spariva e con lei la sua riga, e l'unico modo di
-  scoprire dove fossero finiti quei 600 € era rifare il conto a mano. Adesso
-  resta, con **0 € accanto al maturato** — «non gli spetta niente» e «i suoi
-  clienti non hanno ancora pagato» sono due fatti diversi.
+- **L'elenco è di persone, non di importi** (§333). Il filtro era `amount > 0`,
+  e bastava che i clienti di qualcuno non avessero ancora pagato, o che le sue
+  righe fossero divise fra i soci (§330), perché il nome uscisse dalla sezione
+  senza una parola: è successo a Walter Giacobbe su agosto, e l'unico modo di
+  scoprire dove fossero finiti quei 600 € era rifare il conto a mano. La stessa
+  domanda vale per chi non ha portato niente — Toto non compariva affatto, e
+  un'assenza si legge «non è un commerciale», che è un'altra cosa da «questo
+  mese non ha portato nulla». Ci sono quindi **tutte** le persone che il tool
+  conosce (`mergePeople`: i soci e i nomi che i clienti hanno in anagrafica),
+  ordinate per importo — chi ha portato in cima, gli zeri in fondo — così
+  l'elenco resta lo stesso da un mese all'altro e la lettura non ci perde.
+  Accanto allo zero sta il **maturato**, quando c'è: «non gli spetta niente» e
+  «i suoi clienti non hanno ancora pagato» sono due fatti diversi, e si
+  leggevano identici. Aprendo una riga a zero il dettaglio lo dice a parole,
+  invece di mostrare un riquadro vuoto che sembra un errore.
 - **E il pool dice a chi arriva** (§333): nomi e importi dentro il blocco, non
   solo il totale e la quota. È l'unico posto in cui quella parte del compenso
   compare col nome di chi la prende — sulla riga del socio è un chip fra gli

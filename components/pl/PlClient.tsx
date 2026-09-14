@@ -1873,14 +1873,22 @@ function CompensiSection({
   const lineOf = (key: string, kind: 'socio' | 'commerciale', who: string) =>
     lines.find(l => l.kind === kind && (l.person_label === who || l.person_key === key))
   const soci = rows.filter(r => r.partner)
-  /* §333 — **chi ha maturato resta in elenco, anche a zero.** La regola era già
-     scritta sopra `owners` — «sparendo sembrerebbe che non gli spetti niente,
-     che è un'altra cosa» — e il filtro `amount > 0` la contraddiceva: bastava
-     che i clienti di una persona non avessero ancora pagato, o che le sue righe
-     fossero divise fra i soci (§330), perché il suo nome uscisse dalla sezione
-     senza una parola. È successo a Walter Giacobbe su agosto, e l'unico modo di
-     scoprire dov'erano finiti i suoi 600 € era rifare il conto a mano. */
-  const commerciali = rows.filter(r => r.owner && (r.owner.amount > 0 || r.owner.accrued > 0))
+  /* §333 — **l'elenco è di persone, non di importi.** Prima il filtro era
+     `amount > 0`: bastava che i clienti di qualcuno non avessero ancora pagato,
+     o che le sue righe fossero divise fra i soci (§330), perché il nome uscisse
+     dalla sezione senza una parola — è successo a Walter Giacobbe su agosto, e
+     l'unico modo di scoprire dov'erano finiti i suoi 600 € era rifare il conto
+     a mano. Ma la stessa domanda vale per chi non ha portato niente: Toto non
+     compariva affatto, e un'assenza si legge «non è un commerciale», che è
+     un'altra cosa da «questo mese non ha portato nulla». La regola sopra
+     `owners` lo dice già — «deve restare in elenco a zero, non sparire» — e qui
+     si applica a tutte le persone che il tool conosce: i soci e i nomi che i
+     clienti hanno in anagrafica. Chi ha portato sta in cima, gli zeri in fondo:
+     l'elenco resta stabile da un mese all'altro e la lettura non ci perde. */
+  const commerciali = [...rows].sort((a, b) =>
+    (b.owner?.amount ?? 0) - (a.owner?.amount ?? 0)
+    || (b.owner?.accrued ?? 0) - (a.owner?.accrued ?? 0)
+    || a.who.localeCompare(b.who))
   const owed = rows.reduce((n, r) => n + Math.max(0, r.pv?.open ?? 0), 0)
   const never = rows.filter(r => r.pv?.never)
 
@@ -2317,7 +2325,9 @@ function CompensiSection({
             <p className="text-2xs text-text-tertiary mt-0.5">
               {pc(config.growth_sales_pct)} sul growth · {pc(config.digital_sales_pct)} sul margine
               digital · {base}. Un socio che è anche commerciale compare in tutte e due le sezioni:
-              sono due lavori diversi
+              sono due lavori diversi. Ci sono <strong className="text-text-secondary">tutti</strong>,
+              anche a zero: chi non ha portato niente questo mese è un'informazione, la sua assenza
+              sarebbe un dubbio
             </p>
           </div>
           <Testata tot={totComm} st={stato('commerciale', commerciali)} />
@@ -2327,18 +2337,24 @@ function CompensiSection({
         ) : (
           <ul className="divide-y divide-border/60">
             {commerciali.map(r => (
-              <Riga key={r.key} r={r} id={`c:${r.key}`} amount={r.owner!.amount} line={lineOf(r.key, 'commerciale', r.who)}
+              <Riga key={r.key} r={r} id={`c:${r.key}`} amount={r.owner?.amount ?? 0}
+                line={lineOf(r.key, 'commerciale', r.who)}
                 parti={[
                   r.partner ? { k: 'anche socio', v: r.partner.total } : null,
                   /* §333 — il maturato accanto allo zero: «non gli spetta niente»
                      e «i suoi clienti non hanno ancora pagato» sono due fatti
                      diversi, e senza questo numero si leggevano identici. */
-                  r.owner!.amount < 0.005 && r.owner!.accrued > 0
+                  (r.owner?.amount ?? 0) < 0.005 && (r.owner?.accrued ?? 0) > 0
                     ? { k: 'maturato, non ancora in cassa', v: r.owner!.accrued } : null,
-                  r.owner!.fromRegistry ? { k: 'dall\'anagrafica', v: r.owner!.amount } : null,
+                  r.owner?.fromRegistry ? { k: 'dall\'anagrafica', v: r.owner.amount } : null,
                 ].filter(Boolean) as { k: string; v: number }[]}
-                detail={<QuotaDetail rows={r.owner!.rows} total={r.owner!.amount} config={config}
-                  clientNames={clientNames} projectNames={projectNames} />} />
+                detail={<QuotaDetail rows={r.owner?.rows ?? []} total={r.owner?.amount ?? 0} config={config}
+                  clientNames={clientNames} projectNames={projectNames}
+                  /* §333 — a chi non ha portato niente questo mese si dice così,
+                     invece di aprire un riquadro vuoto che sembra un errore. */
+                  note={!r.owner || r.owner.accrued < 0.005
+                    ? 'Nessun cliente portato in questo mese: la riga resta in elenco perché «non ha portato niente» e «non è un commerciale» sono due cose diverse.'
+                    : undefined} />} />
             ))}
             {pool && (
               <li className="bg-gold-dim/40">
@@ -3361,7 +3377,10 @@ function QuotaDetail({ rows, total, config, clientNames, projectNames, note }: {
   if (!rows.length) {
     return (
       <p className="px-3 py-2.5 text-2xs text-text-tertiary border-t border-border">
-        Nessuna riga di ricavo alimenta questo compenso in questo mese.
+        {/* §333 — la nota del chiamante vince: «non ha portato niente» detto a
+            chi è in elenco a zero spiega perché la riga c'è, e la frase
+            generica lo lasciava a chiedersi se fosse un errore. */}
+        {note ?? 'Nessuna riga di ricavo alimenta questo compenso in questo mese.'}
       </p>
     )
   }
