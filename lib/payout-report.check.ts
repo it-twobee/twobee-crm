@@ -111,13 +111,30 @@ console.log('\n— Il documento —')
 const html = payoutReportHtml({
   month: '2026-08-01', today: '2026-09-14', w, t, config: C,
   clientNames: { c1: 'Affinity', c2: 'Seven', c3: 'Josè Restaurant' },
-  open: { n: 2, amount: 12200 },
+  open: { n: 2, amount: 12200, rows: [
+    { label: 'Canone growth', clientId: 'c1', month: '2026-07-01', amount: 3600 },
+    { label: 'CRM', clientId: 'c2', month: '2026-08-01', amount: 8600 },
+    { label: 'Budget ads anticipato', clientId: 'c3', month: '2026-08-01',
+      amount: 500, passThrough: true },
+  ] },
 })
 yes('è un HTML autonomo, senza asset esterni',
   html.startsWith('<!doctype html>') && !/<(script|link)\b/i.test(html))
 yes('porta il mese e la data di erogazione', html.includes('Agosto 2026') && html.includes('20 settembre'))
 yes('nomina i clienti, non gli id', html.includes('Affinity') && !html.includes('>c1<'))
 yes('dichiara cosa è rimasto fuori dalla finestra', html.includes('12.200,00 €'))
+/* §335 — la base è l'incassato, e il foglio lo dice con quella parola: «maturato»
+   accanto a un numero già in cassa fa credere l'opposto di quello che è. */
+yes('la base si chiama col suo nome', html.includes('fatture incassate') && !html.includes('>Maturato<'))
+/* Un compenso più basso del previsto ha sempre una ragione, e la domanda è
+   «quale cliente non ha pagato»: il totale senza nomi la manda altrove. */
+yes('e quello che slitta porta i nomi, non solo il totale',
+  html.includes('Affinity') && html.includes('8.600,00 €'))
+/* §188 — una partita di giro entra in cassa e non genera nessuna quota: dirla
+   fra «il compenso si eroga quando il cliente paga» promette soldi che non ci
+   sono. Il foglio la marca e dice il compenso vero in gioco. */
+yes('la partita di giro è marcata, e il compenso in gioco è al netto',
+  html.includes('partita di giro · nessuna quota') && html.includes('è 12.200,00 €'))
 yes('spiega le due divisioni con parole diverse',
   html.includes('cliente senza commerciale') && html.includes('divisa per scelta'))
 /* Il foglio si stampa: se una persona si spezza fra due fogli, chi riceve la

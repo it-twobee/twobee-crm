@@ -60,6 +60,21 @@ export type PayoutLineRef = {
   paidOn: string | null
 }
 
+/** Una riga che il compenso aspetta: maturata e non ancora rientrata. */
+export type OpenLine = {
+  label: string
+  clientId: string | null
+  month: string | null
+  amount: number
+  /**
+   * §188 — partita di giro: un anticipo che torna al cliente. È un credito da
+   * incassare come gli altri, ma **non genera nessuna quota**, quindi la frase
+   * «il compenso di queste righe si eroga quando il cliente paga» su di lei è
+   * falsa. Dirlo costa una parola; non dirlo promette un compenso che non c'è.
+   */
+  passThrough?: boolean
+}
+
 export type PayoutReportInput = {
   month: string
   today: string
@@ -78,9 +93,13 @@ export type PayoutReportInput = {
    */
   owners?: string[]
   lines?: PayoutLineRef[]
-  /** §286 — cosa la finestra ha lasciato fuori, e perché */
-  open?: { n: number; amount: number }
-  next?: { n: number; amount: number }
+  /**
+   * §286/§335 — cosa la finestra ha lasciato fuori. Non basta il conteggio: chi
+   * riceve un compenso più basso del previsto vuole sapere **quale** cliente non
+   * ha pagato, e un totale senza nomi manda a cercarlo in un'altra pagina.
+   */
+  open?: { n: number; amount: number; rows?: OpenLine[] }
+  next?: { n: number; amount: number; rows?: OpenLine[] }
 }
 
 /**
@@ -194,6 +213,34 @@ export function payoutReportHtml(i: PayoutReportInput): string {
      finiscono uno sotto l'altro con lo stesso importo. Scriverlo su tutte le
      righe sarebbe rumore; scriverlo su nessuna fa sembrare un doppione la riga
      che viene da prima. */
+  /* §335 — quello che slitta, **con i nomi**. Un compenso più basso del previsto
+     ha sempre una ragione, e la domanda che arriva è «quale cliente non ha
+     pagato»: un totale senza l'elenco la manda a cercare in un'altra pagina. */
+  const slitta = (
+    b: { n: number; amount: number; rows?: OpenLine[] } | undefined,
+    titolo: string, perche: string,
+  ) => {
+    if (!b || b.n === 0) return ''
+    const rows = (b.rows ?? []).slice().sort((a, c) => c.amount - a.amount)
+    /* Il totale che porta un compenso è al netto delle partite di giro: metterle
+       dentro promette una quota su un anticipo che torna al cliente. */
+    const quotabili = r2(rows.filter(r => !r.passThrough).reduce((n, r) => n + r.amount, 0))
+    const giri = rows.filter(r => r.passThrough).length
+    return `<div class="slip">
+      <p><b>${titolo} — ${b.n} ${b.n === 1 ? 'riga' : 'righe'} per ${eur2(b.amount)}</b><br>${perche}${
+        giri > 0 ? ` ${giri === 1 ? 'Una riga è' : `${giri} righe sono`} una partita di giro`
+          + ` (§188): entra in cassa ma non genera nessuna quota, quindi il compenso in gioco`
+          + ` è ${eur2(quotabili)}.` : ''}</p>
+      ${rows.length ? `<table class="slim"><tbody>${rows.map(r => `<tr>
+        <td class="lbl">${esc((r.clientId ? clientNames[r.clientId] : null) ?? r.label)}${
+          r.month && r.month !== month
+            ? ` <span class="chip">${esc(monthLabel(r.month).toLowerCase())}</span>` : ''
+        }${r.passThrough ? ' <span class="chip">partita di giro · nessuna quota</span>' : ''
+        }<span>${esc(r.label)}</span></td>
+        <td class="num${r.passThrough ? ' mute' : ''}">${eur2(r.amount)}</td></tr>`).join('')}</tbody></table>` : ''}
+    </div>`
+  }
+
   const riga = (r: QuotaRow) => `<tr>
     <td class="lbl">${esc(nome(r))}${r.month && r.month !== month
       ? ` <span class="chip">${esc(monthLabel(r.month).toLowerCase())}</span>` : ''}<span>${esc(r.label)}</span></td>
@@ -226,7 +273,7 @@ export function payoutReportHtml(i: PayoutReportInput): string {
           <tr class="grp"><td colspan="4">${esc(REASON[g.reason])}</td>
             <td class="num">${eur2(g.total)}</td></tr>
           ${g.rows.map(riga).join('')}`).join('')}
-        <tr class="total"><td colspan="4">Totale maturato per ${esc(p.who)}</td>
+        <tr class="total"><td colspan="4">Compenso di ${esc(p.who)}</td>
           <td class="num">${eur2(p.total)}</td></tr>
         ${p.spent > 0.005 ? `<tr><td colspan="4" class="mute">
           Già uscito: spese dal sottoconto o fattura del socio (§191)</td>
@@ -312,6 +359,12 @@ export function payoutReportHtml(i: PayoutReportInput): string {
 
   .note { margin-top: 4mm; font-size: 8.5pt; color: var(--ink-2); background: #F7F8F9;
           border-left: 3px solid var(--line); padding: 9px 12px; }
+  .slip { margin-top: 4mm; font-size: 8.5pt; color: var(--ink-2); background: #F7F8F9;
+          border-left: 3px solid var(--warn); padding: 9px 12px; break-inside: avoid; }
+  .slip p { margin: 0; } .slip b { color: var(--ink); }
+  .slip .slim { margin-top: 6px; }
+  .slip .slim td { border-bottom: 1px solid var(--line); padding: 4px 6px 4px 0; font-size: 8.5pt; }
+  .slip .slim tr:last-child td { border-bottom: 0; }
   .note b { color: var(--ink); }
   .foot { margin-top: 8mm; padding-top: 4mm; border-top: 1px solid var(--line);
           font-size: 7.5pt; color: var(--mute); }
@@ -337,22 +390,26 @@ export function payoutReportHtml(i: PayoutReportInput): string {
         <b>${eur2(tot.cash)} da versare${daPagare.length
           ? ` a ${daPagare.length} ${daPagare.length === 1 ? 'persona' : 'persone'}` : ''}</b>
         <p>
-          ${eur2(tot.total)} maturati in questa finestra${tot.spent > 0.005
+          Calcolati sulle <b>fatture incassate</b>${w.since
+            ? ` fra il ${giorno(w.since)} e il ${giorno(w.date)}`
+            : ` entro il ${giorno(w.date)}`}: ${eur2(tot.total)} di compensi${tot.spent > 0.005
             ? `, meno ${eur2(tot.spent)} già usciti come spesa dai sottoconti o come fattura del socio (§191)`
             : ''}.
-          La base non è il maturato del mese ma quello <b>rientrato entro
-          il ${giorno(w.date)}</b>: chi ha lavorato ha lavorato, ma si eroga quello che è in cassa.
+          Quello che il cliente non ha ancora pagato <b>non entra in questo foglio e non si
+          perde</b>: slitta alla finestra del mese in cui il denaro arriva. Chi ha lavorato ha
+          lavorato, ma si eroga quello che è in cassa.
         </p>
       </div>
     </div>
 
     <h2><i>1</i> Quanto va a ciascuno
-      <small>erogato soci e provvigione sono due lavori diversi, su due formule diverse</small></h2>
+      <small>sulle sole fatture incassate: erogato soci e provvigione sono due lavori
+      diversi, su due formule diverse</small></h2>
     <table>
       <thead><tr>
         <th>Persona</th>
         <th class="num">Erogato soci</th><th class="num">Provvigione</th>
-        <th class="num">Maturato</th><th class="num">Già uscito</th><th class="num">Da versare</th>
+        <th class="num">Compenso</th><th class="num">Già uscito</th><th class="num">Da versare</th>
         <th>Stato</th>
       </tr></thead>
       <tbody>
@@ -376,11 +433,12 @@ export function payoutReportHtml(i: PayoutReportInput): string {
         </tr>
       </tbody>
     </table>
-    ${i.open && i.open.n > 0 ? `<p class="note">
-      <b>${i.open.n} ${i.open.n === 1 ? 'riga maturata' : 'righe maturate'} e non incassate
-      per ${eur2(i.open.amount)}</b> restano fuori da questi numeri: il loro compenso si eroga
-      quando rientrano, nella finestra del mese in cui il cliente paga. Non è una quota persa,
-      è una quota rimandata.</p>` : ''}
+    ${slitta(i.open, 'Non incassate: slittano al mese prossimo',
+      'Il compenso di queste righe si eroga quando il cliente paga, nella finestra di quel mese.'
+      + ' Non è una quota persa, è una quota rimandata.')}
+    ${slitta(i.next, 'Incassate dopo l\'erogazione: entrano nella prossima',
+      'Sono già in cassa, ma il denaro è arrivato dopo il ' + giorno(w.date)
+      + ': distribuirle adesso vorrebbe dire erogare due volte lo stesso incasso.')}
 
     <h2><i>2</i> Da cosa viene, riga per riga
       <small>base, quota applicata e motivo: ogni numero qui sopra si apre e torna</small></h2>

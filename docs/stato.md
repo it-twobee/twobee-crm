@@ -31,6 +31,13 @@ ricavo, base, percentuale applicata, motivo. Non ricalcola niente: rende i
 e le 5 righe maturate e non incassate per 12.200 € dette accanto, perché è quasi
 sempre lì la ragione di un compenso più basso del previsto.
 
+**§335 — il foglio dice su cosa è calcolato.** La base era già l'incassato — le
+sole fatture rientrate nella finestra, le altre slittano da sole — ma la colonna
+si chiamava «Maturato» e la frase diceva «maturati in questa finestra»: la parola
+faceva credere il contrario del numero. Adesso la regola sta in cima, e quello
+che slitta porta i nomi dei clienti invece di un conteggio. Le partite di giro in
+quell'elenco sono marcate: entrano in cassa e non generano quota.
+
 **§333 — l'elenco dei commerciali è di persone, non di importi.** Conseguenza vista
 subito su agosto: marcata iCura «divisa», la sola provvigione incassata di
 Walter Giacobbe è andata nel pool e la sua riga è uscita dai commerciali senza

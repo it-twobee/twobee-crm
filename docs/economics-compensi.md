@@ -112,10 +112,22 @@ diversi, non per incoerenza:
     consegnato, quello che esce è al netto di ciò che il socio ha già speso dal
     sottoconto o fatturato (§191). Sommarli a mente è l'errore che il foglio
     esiste per evitare.
-  - **Quello che non è entrato si dice**: le righe maturate e non rientrate nella
-    finestra (§286) hanno una riga loro, «non è una quota persa, è rimandata».
-    Un compenso più basso del previsto ha sempre una ragione, e nove volte su
-    dieci è quella.
+  - **La base è l'incassato, e il foglio lo dice con quella parola** (§335). La
+    colonna si chiamava «Maturato» e la frase in cima diceva «X maturati in
+    questa finestra»: il numero era già quello delle sole fatture rientrate, ma
+    la parola faceva credere l'opposto — che dentro ci fosse anche quello che il
+    cliente non ha pagato. Adesso la regola sta in cima, prima dei numeri:
+    *calcolati sulle fatture incassate fra il … e il …; quello che il cliente non
+    ha ancora pagato non entra e non si perde, slitta alla finestra del mese in
+    cui il denaro arriva*.
+  - **Quello che slitta porta i nomi** (§335), non solo il totale: la domanda
+    davanti a un compenso più basso del previsto è «quale cliente non ha
+    pagato», e un conteggio la manda a cercare in un'altra pagina. Due blocchi —
+    non incassate, e incassate **dopo** l'erogazione (quelle entrano nella
+    prossima, distribuirle adesso sarebbe erogare due volte lo stesso incasso).
+    Una **partita di giro** (§188) in quell'elenco è marcata e tolta dal conto:
+    entra in cassa e non genera nessuna quota, e dirla fra le righe che portano
+    compenso prometterebbe soldi che non ci sono.
   - **Il mese si scrive solo quando non è quello del foglio.** La finestra ne
     attraversa due, quindi due canoni uguali dello stesso cliente finiscono uno
     sotto l'altro con lo stesso importo e la stessa percentuale: senza il mese si

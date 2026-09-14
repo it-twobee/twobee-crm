@@ -15,6 +15,16 @@ import { loadWindow } from '@/lib/payouts-plan'
 import { payoutReportHtml, payoutPeople, type PayoutLineRef } from '@/lib/payout-report'
 import { eur2 } from '@/lib/money'
 
+/** Una riga rimasta fuori dalla finestra, ridotta a quello che il foglio mostra. */
+const openLine = (l: {
+  label: string; client_id: string | null; month?: string | null
+  amount_net: number; pass_through?: boolean
+}) => ({
+  label: l.label, clientId: l.client_id, month: l.month ?? null,
+  amount: l.amount_net, passThrough: l.pass_through === true,
+})
+
+
 const env = Object.fromEntries(
   readFileSync(`${process.cwd()}/.env.local`, 'utf8').split('\n')
     .map(l => l.match(/^([A-Z_0-9]+)=(.*)$/)).filter(Boolean)
@@ -46,8 +56,10 @@ async function main() {
     .map((c: Record<string, unknown>) => String(c.sales_owner_name ?? '')).filter(Boolean)))
   const input = {
     month, today, w, t, config, clientNames, lines, owners, autore: 'Marco Lucci',
-    open: { n: summary.open.n, amount: summary.open.amount },
-    next: { n: summary.next.n, amount: summary.next.amount },
+    /* §335 — non solo quante, ma **quali**: la domanda che arriva davanti a un
+       compenso più basso del previsto è «chi non ha pagato». */
+    open: { n: summary.open.n, amount: summary.open.amount, rows: summary.open.rows.map(openLine) },
+    next: { n: summary.next.n, amount: summary.next.amount, rows: summary.next.rows.map(openLine) },
   }
   writeFileSync(out, payoutReportHtml(input))
 

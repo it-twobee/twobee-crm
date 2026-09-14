@@ -6,6 +6,16 @@ import { loadWindow } from '@/lib/payouts-plan'
 import { payoutReportHtml, type PayoutLineRef } from '@/lib/payout-report'
 import { monthKey } from '@/lib/pl'
 
+/** Una riga rimasta fuori dalla finestra, ridotta a quello che il foglio mostra. */
+const openLine = (l: {
+  label: string; client_id: string | null; month?: string | null
+  amount_net: number; pass_through?: boolean
+}) => ({
+  label: l.label, clientId: l.client_id, month: l.month ?? null,
+  amount: l.amount_net, passThrough: l.pass_through === true,
+})
+
+
 /**
  * §334 — Il foglio dell'erogazione, da stampare o mandare a chi lo riceve.
  * Il documento lo compone `lib/payout-report.ts`; qui c'è solo la porta.
@@ -61,8 +71,10 @@ export async function GET(req: NextRequest) {
   const html = payoutReportHtml({
     month, today, w, t, config, clientNames, lines, owners,
     autore: String((profile as { full_name?: string } | null)?.full_name ?? ''),
-    open: { n: summary.open.n, amount: summary.open.amount },
-    next: { n: summary.next.n, amount: summary.next.amount },
+    /* §335 — non solo quante, ma **quali**: la domanda che arriva davanti a un
+       compenso più basso del previsto è «chi non ha pagato». */
+    open: { n: summary.open.n, amount: summary.open.amount, rows: summary.open.rows.map(openLine) },
+    next: { n: summary.next.n, amount: summary.next.amount, rows: summary.next.rows.map(openLine) },
   })
   return new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
 }
