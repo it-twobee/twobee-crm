@@ -135,6 +135,30 @@ yes('e quello che slitta porta i nomi, non solo il totale',
    sono. Il foglio la marca e dice il compenso vero in gioco. */
 yes('la partita di giro è marcata, e il compenso in gioco è al netto',
   html.includes('partita di giro · nessuna quota') && html.includes('è 12.200,00 €'))
+
+/* §336 — il limite inferiore della finestra deve dire perché c'è: «dal 13
+   agosto» da solo fa chiedere dove sia finito quello che è entrato prima, e chi
+   lo chiede sta cercando un ammanco che non esiste. */
+const h3 = payoutReportHtml({
+  month: '2026-08-01', today: '2026-09-14', w, t, config: C, clientNames: { c1: 'Affinity' },
+  already: { n: 3, amount: 6625, rows: [
+    { label: 'Canone luglio', clientId: 'c1', month: '2026-07-01', amount: 6625 },
+  ] },
+})
+yes('dice dove è finito quello che è rientrato prima della finestra',
+  h3.includes('Già distribuite nell\'erogazione del 13 agosto')
+  && h3.includes('6.625,00 €'))
+yes('e spiega che è il motivo del limite inferiore',
+  h3.includes('è il motivo per cui la finestra parte dal 13 agosto')
+  || h3.includes('È il motivo per cui la finestra parte dal 13 agosto'))
+/* Senza erogazione precedente non c'è nessun limite da spiegare: il blocco
+   sparisce invece di dire «già distribuite» di niente. */
+const h4 = payoutReportHtml({
+  month: '2026-08-01', today: '2026-09-14', config: C, clientNames: {}, t,
+  w: { ...w, since: null },
+  already: { n: 3, amount: 6625, rows: [] },
+})
+yes('senza erogazione precedente il blocco non compare', !h4.includes('Già distribuite'))
 yes('spiega le due divisioni con parole diverse',
   html.includes('cliente senza commerciale') && html.includes('divisa per scelta'))
 /* Il foglio si stampa: se una persona si spezza fra due fogli, chi riceve la

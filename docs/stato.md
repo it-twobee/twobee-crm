@@ -31,6 +31,13 @@ ricavo, base, percentuale applicata, motivo. Non ricalcola niente: rende i
 e le 5 righe maturate e non incassate per 12.200 € dette accanto, perché è quasi
 sempre lì la ragione di un compenso più basso del previsto.
 
+**§336 — e anche perché la finestra comincia lì.** «Fra il 13 agosto e il 20
+settembre» faceva nascere la domanda giusta: e fra il 1° e il 12 agosto? Quello
+che è rientrato prima è stato erogato il 13 agosto, sulla competenza di luglio —
+8 righe per 25.325 €, fra cui i 3.500 di Industrial Service dell'11 agosto e i
+1.625 di Fatima Leo del 3. Ora stanno nel foglio: un limite senza la sua ragione
+fa cercare un ammanco che non c'è.
+
 **§335 — il foglio dice su cosa è calcolato.** La base era già l'incassato — le
 sole fatture rientrate nella finestra, le altre slittano da sole — ma la colonna
 si chiamava «Maturato» e la frase diceva «maturati in questa finestra»: la parola

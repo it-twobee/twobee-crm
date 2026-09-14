@@ -75,6 +75,8 @@ export async function GET(req: NextRequest) {
        compenso più basso del previsto è «chi non ha pagato». */
     open: { n: summary.open.n, amount: summary.open.amount, rows: summary.open.rows.map(openLine) },
     next: { n: summary.next.n, amount: summary.next.amount, rows: summary.next.rows.map(openLine) },
+    already: { n: summary.already.n, amount: summary.already.amount,
+      rows: summary.already.rows.map(openLine) },
   })
   return new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
 }

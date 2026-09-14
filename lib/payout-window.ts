@@ -217,5 +217,12 @@ export function windowSummary<T extends WindowLine & { amount_net?: number }>(
     open: bucket(['scoperta']),
     /** incassate dopo: non sono perse, sono della prossima erogazione */
     next: bucket(['dopo']),
+    /**
+     * §336 — già distribuite nell'erogazione precedente. Spiega **il limite
+     * inferiore della finestra**, che senza di lei sembra una data scelta a
+     * caso: «dal 13 agosto» fa chiedere dove sia finito quello che è entrato
+     * fra il 1° e il 12, e la risposta è che l'ha pagato il foglio prima.
+     */
+    already: bucket(['gia_erogata']),
   }
 }

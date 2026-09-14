@@ -100,6 +100,13 @@ export type PayoutReportInput = {
    */
   open?: { n: number; amount: number; rows?: OpenLine[] }
   next?: { n: number; amount: number; rows?: OpenLine[] }
+  /**
+   * §336 — quello che l'erogazione **precedente** ha già distribuito. Spiega il
+   * limite inferiore della finestra: «dal 13 agosto» da solo fa chiedere dove
+   * sia finito quello che è entrato fra il 1° e il 12, e senza la risposta si
+   * cerca un ammanco che non c'è.
+   */
+  already?: { n: number; amount: number; rows?: OpenLine[] }
 }
 
 /**
@@ -218,7 +225,7 @@ export function payoutReportHtml(i: PayoutReportInput): string {
      pagato»: un totale senza l'elenco la manda a cercare in un'altra pagina. */
   const slitta = (
     b: { n: number; amount: number; rows?: OpenLine[] } | undefined,
-    titolo: string, perche: string,
+    titolo: string, perche: string, tone: 'warn' | 'done' = 'warn',
   ) => {
     if (!b || b.n === 0) return ''
     const rows = (b.rows ?? []).slice().sort((a, c) => c.amount - a.amount)
@@ -226,7 +233,7 @@ export function payoutReportHtml(i: PayoutReportInput): string {
        dentro promette una quota su un anticipo che torna al cliente. */
     const quotabili = r2(rows.filter(r => !r.passThrough).reduce((n, r) => n + r.amount, 0))
     const giri = rows.filter(r => r.passThrough).length
-    return `<div class="slip">
+    return `<div class="slip${tone === 'done' ? ' done' : ''}">
       <p><b>${titolo} — ${b.n} ${b.n === 1 ? 'riga' : 'righe'} per ${eur2(b.amount)}</b><br>${perche}${
         giri > 0 ? ` ${giri === 1 ? 'Una riga è' : `${giri} righe sono`} una partita di giro`
           + ` (§188): entra in cassa ma non genera nessuna quota, quindi il compenso in gioco`
@@ -362,6 +369,9 @@ export function payoutReportHtml(i: PayoutReportInput): string {
   .slip { margin-top: 4mm; font-size: 8.5pt; color: var(--ink-2); background: #F7F8F9;
           border-left: 3px solid var(--warn); padding: 9px 12px; break-inside: avoid; }
   .slip p { margin: 0; } .slip b { color: var(--ink); }
+  /* Quello che è già stato pagato non è un avviso: colorarlo come i ritardi
+     insegnerebbe a ignorare il colore dei ritardi. */
+  .slip.done { border-left-color: var(--pos); }
   .slip .slim { margin-top: 6px; }
   .slip .slim td { border-bottom: 1px solid var(--line); padding: 4px 6px 4px 0; font-size: 8.5pt; }
   .slip .slim tr:last-child td { border-bottom: 0; }
@@ -439,6 +449,11 @@ export function payoutReportHtml(i: PayoutReportInput): string {
     ${slitta(i.next, 'Incassate dopo l\'erogazione: entrano nella prossima',
       'Sono già in cassa, ma il denaro è arrivato dopo il ' + giorno(w.date)
       + ': distribuirle adesso vorrebbe dire erogare due volte lo stesso incasso.')}
+    ${w.since ? slitta(i.already, `Già distribuite nell'erogazione del ${giorno(w.since)}`,
+      `È il motivo per cui la finestra parte dal ${giorno(w.since)} e non dall'inizio del mese:`
+      + ' quello che è rientrato prima è stato erogato col foglio precedente, sulla competenza'
+      + ' del mese prima. Sono qui perché un limite senza la sua ragione fa cercare un ammanco'
+      + ' che non c\'è.', 'done') : ''}
 
     <h2><i>2</i> Da cosa viene, riga per riga
       <small>base, quota applicata e motivo: ogni numero qui sopra si apre e torna</small></h2>

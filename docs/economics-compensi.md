@@ -120,6 +120,13 @@ diversi, non per incoerenza:
     *calcolati sulle fatture incassate fra il … e il …; quello che il cliente non
     ha ancora pagato non entra e non si perde, slitta alla finestra del mese in
     cui il denaro arriva*.
+  - **Anche il limite inferiore ha la sua ragione scritta** (§336). «Calcolati
+    sulle fatture incassate fra il 13 agosto e il 20 settembre» fa nascere una
+    domanda sola — *e fra il 1° e il 12 agosto non è entrato niente?* — e chi la
+    fa sta cercando un ammanco che non esiste: quello che è rientrato prima
+    l'ha erogato il foglio precedente, sulla competenza del mese prima. Su
+    agosto sono 8 righe per 25.325 €, e adesso stanno scritte. Un limite senza
+    la sua ragione si legge come una data scelta a caso.
   - **Quello che slitta porta i nomi** (§335), non solo il totale: la domanda
     davanti a un compenso più basso del previsto è «quale cliente non ha
     pagato», e un conteggio la manda a cercare in un'altra pagina. Due blocchi —
