@@ -69,6 +69,20 @@ diversi, non per incoerenza:
   - Si accende da due posti: la casella sotto «Commerciale» nell'economics del
     cliente (vale per tutte le rate) e il pulsante **«divisa?»** accanto alla
     provvigione della singola riga di conto economico.
+- **Chi ha maturato resta in elenco, anche a zero** (§333). La regola era già
+  scritta sopra `owners` — «sparendo sembrerebbe che non gli spetti niente, che è
+  un'altra cosa» — e il filtro `amount > 0` la contraddiceva: bastava che i
+  clienti di una persona non avessero ancora pagato, o che le sue righe fossero
+  divise fra i soci (§330), perché il nome uscisse dalla sezione senza una
+  parola. È successo a Walter Giacobbe su agosto: marcata iCura «divisa», la sua
+  unica provvigione incassata spariva e con lei la sua riga, e l'unico modo di
+  scoprire dove fossero finiti quei 600 € era rifare il conto a mano. Adesso
+  resta, con **0 € accanto al maturato** — «non gli spetta niente» e «i suoi
+  clienti non hanno ancora pagato» sono due fatti diversi.
+- **E il pool dice a chi arriva** (§333): nomi e importi dentro il blocco, non
+  solo il totale e la quota. È l'unico posto in cui quella parte del compenso
+  compare col nome di chi la prende — sulla riga del socio è un chip fra gli
+  altri, e nel totale è già confusa col resto.
 - **Le righe di compenso invecchiano, e adesso lo dicono** (§332). «Prepara i
   compensi» compariva solo con **zero** righe: premuto una volta spariva per
   sempre, e chi maturava una provvigione **dopo** — Walter Giacobbe ad agosto,

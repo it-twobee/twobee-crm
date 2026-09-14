@@ -466,8 +466,21 @@ export function PlClient({
 
   /* La provvigione dei clienti senza commerciale non è di nessuno: resta una
      riga a sé, o sembrerebbe spettare a qualcuno in particolare. */
+  /* §333 — **e a chi arriva.** Il blocco diceva solo il totale e la quota, e
+     una provvigione che non porta nessun nome si legge come una provvigione di
+     nessuno: dopo aver marcato iCura «divisa», la riga «Walter Giacobbe» è
+     sparita dai commerciali e i suoi 200 € stavano qui dentro, senza che niente
+     lo dicesse. I nomi sono quelli della sezione — la persona è una, e chiamarla
+     «Walter» qui e «Walter Giacobbe» due righe sopra la fa sembrare due. */
   const poolRow = tPayout.plan.salesPool > 0
-    ? { amount: tPayout.plan.salesPool, share: tPayout.plan.poolShare, rows: tPayout.plan.poolRows }
+    ? {
+        amount: tPayout.plan.salesPool, share: tPayout.plan.poolShare,
+        rows: tPayout.plan.poolRows,
+        to: tPayout.perPartner.map(p => ({
+          who: compensi.find(c => c.partner?.partner.id === p.partner.id)?.who ?? p.partner.label,
+          amount: p.salesShare,
+        })).filter(x => x.amount > 0.005),
+      }
     : null
 
   const run = (fn: () => Promise<unknown>, ok?: string) => start(async () => {
@@ -1823,7 +1836,7 @@ function CompensiSection({
     monthTotal: number
     quotaRows: QuotaRow[]
   }[]
-  pool: { amount: number; share: number; rows: QuotaRow[] } | null
+  pool: { amount: number; share: number; rows: QuotaRow[]; to: { who: string; amount: number }[] } | null
   config: PlConfig
   cash: boolean
   month: string
@@ -1860,7 +1873,14 @@ function CompensiSection({
   const lineOf = (key: string, kind: 'socio' | 'commerciale', who: string) =>
     lines.find(l => l.kind === kind && (l.person_label === who || l.person_key === key))
   const soci = rows.filter(r => r.partner)
-  const commerciali = rows.filter(r => r.owner && r.owner.amount > 0)
+  /* §333 — **chi ha maturato resta in elenco, anche a zero.** La regola era già
+     scritta sopra `owners` — «sparendo sembrerebbe che non gli spetti niente,
+     che è un'altra cosa» — e il filtro `amount > 0` la contraddiceva: bastava
+     che i clienti di una persona non avessero ancora pagato, o che le sue righe
+     fossero divise fra i soci (§330), perché il suo nome uscisse dalla sezione
+     senza una parola. È successo a Walter Giacobbe su agosto, e l'unico modo di
+     scoprire dov'erano finiti i suoi 600 € era rifare il conto a mano. */
+  const commerciali = rows.filter(r => r.owner && (r.owner.amount > 0 || r.owner.accrued > 0))
   const owed = rows.reduce((n, r) => n + Math.max(0, r.pv?.open ?? 0), 0)
   const never = rows.filter(r => r.pv?.never)
 
@@ -2310,6 +2330,11 @@ function CompensiSection({
               <Riga key={r.key} r={r} id={`c:${r.key}`} amount={r.owner!.amount} line={lineOf(r.key, 'commerciale', r.who)}
                 parti={[
                   r.partner ? { k: 'anche socio', v: r.partner.total } : null,
+                  /* §333 — il maturato accanto allo zero: «non gli spetta niente»
+                     e «i suoi clienti non hanno ancora pagato» sono due fatti
+                     diversi, e senza questo numero si leggevano identici. */
+                  r.owner!.amount < 0.005 && r.owner!.accrued > 0
+                    ? { k: 'maturato, non ancora in cassa', v: r.owner!.accrued } : null,
                   r.owner!.fromRegistry ? { k: 'dall\'anagrafica', v: r.owner!.amount } : null,
                 ].filter(Boolean) as { k: string; v: number }[]}
                 detail={<QuotaDetail rows={r.owner!.rows} total={r.owner!.amount} config={config}
@@ -2332,8 +2357,20 @@ function CompensiSection({
                     <ChevronDown className={`w-3.5 h-3.5 text-text-tertiary shrink-0 transition-transform ${
                       open === 'pool' ? 'rotate-180' : ''}`} aria-hidden="true" />
                   </div>
-                  <p className="text-2xs text-text-tertiary mt-0.5">
-                    {eur(pool.share)} a testa ai soci.
+                  {/* §333 — i nomi e gli importi, non solo «a testa». È l'unico
+                      posto in cui questa parte del compenso compare col nome di
+                      chi la prende: sulla riga del socio è un chip fra gli altri,
+                      e nel totale è già confusa col resto. */}
+                  <span className="flex items-center gap-1.5 flex-wrap mt-1">
+                    {pool.to.map(x => (
+                      <span key={x.who} className="inline-flex items-baseline gap-1 text-2xs px-2 py-0.5
+                                                   rounded-lg bg-surface border border-border">
+                        <span className="text-text-secondary">{x.who}</span>
+                        <span className="tabular font-semibold text-text-primary">{eur(x.amount)}</span>
+                      </span>
+                    ))}
+                  </span>
+                  <p className="text-2xs text-text-tertiary mt-1">
                     {poolKinds.assenti && <>
                       {' '}Clienti senza commerciale, né sulla riga né in anagrafica: assegnarne uno
                       in anagrafica sposta la provvigione da qui a lui.
