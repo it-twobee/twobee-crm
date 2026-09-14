@@ -358,7 +358,7 @@ export function BankClient({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <input ref={fileRef} type="file" accept=".csv,.txt,.tsv,text/csv,text/plain" className="hidden"
+            <input ref={fileRef} type="file" accept=".csv,.txt,.tsv,.xml,text/csv,text/plain,text/xml,application/xml" className="hidden"
               onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }} />
             <button onClick={() => fileRef.current?.click()} disabled={pending}
               className="flex items-center gap-1.5 text-2xs font-bold bg-gold text-on-gold rounded-xl px-3 py-2 press disabled:opacity-40">

@@ -387,7 +387,9 @@
       "Bash(awk 'NR>=3699 && /^}$/ {print NR; exit}' components/pl/PlClient.tsx)",
       "Bash(awk -F: '$1>1990 && $1<2070')",
       "Bash(awk 'NR>=2050 && NR<=2130 && /^      <\\\\/section>|^      {\\\\/\\\\* ── 1|^      <section/' components/pl/PlClient.tsx)",
-      "Bash(git branch *)"
+      "Bash(git branch *)",
+      "Bash(awk '/^## /{if\\(h\\)print len\"\\\\t\"h; h=$0; len=0} {len+=length\\($0\\)+1} END{print len\"\\\\t\"h}' CLAUDE.md)",
+      "Bash(perl -0pi -e 's/await requireStaff\\\\\\(\\\\\\)/await requireWorkEditor\\(\\)/g' app/actions/workstreams.ts)"
     ],
     "defaultMode": "acceptEdits"
   }
