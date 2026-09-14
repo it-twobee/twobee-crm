@@ -230,6 +230,13 @@ export type RevenueLine = {
   /** §186 — l'admin ha scelto di destinare il 9% al fondo rischio su questa riga */
   risk_fund?: boolean
   /**
+   * §330 — la provvigione di questa riga si **divide fra i soci** in parti
+   * uguali anche se un commerciale c'è. Non è la stessa cosa di `inbound`:
+   * lì nessuno ha portato il cliente, qui qualcuno l'ha portato e resta
+   * scritto — cambia solo dove finisce il 15% (o il 6% del digital).
+   */
+  sales_split?: boolean
+  /**
    * §188 — partita di giro: un anticipo che torna al cliente, tipicamente il
    * budget pubblicitario che Two Bee spende per lui. È fatturato e fa IVA, ma
    * **non** è ricavo su cui spartire: provvigione ed erogato su un anticipo
@@ -285,6 +292,19 @@ export function ownerOf(l: RevenueLine): {
 /** Nessuno ha portato questo cliente: la provvigione va divisa fra i soci. */
 export const isInbound = (l: RevenueLine) =>
   l.sales_origin === 'inbound' || ownerOf(l).source === null
+
+/**
+ * §330 — questa provvigione si divide fra i soci, per assenza o per scelta.
+ *
+ * Due strade a un solo esito, e tenerle distinte conta: `isInbound` dice che
+ * **non c'è nessuno** a cui darla, `sales_split` che c'è ed è stato deciso di
+ * dividerla lo stesso. Chi legge il dettaglio deve poterle distinguere — «da
+ * lead generation» e «divisa per scelta» si correggono in due modi opposti, e
+ * confonderle manderebbe a sistemare l'anagrafica di un cliente che ce l'ha
+ * già giusta. Il motore invece le tratta uguali, perché il denaro fa la stessa
+ * strada: è l'unica funzione che decide chi entra nel pool.
+ */
+export const splitsSales = (l: RevenueLine) => isInbound(l) || l.sales_split === true
 
 export type CostLine = {
   id: string
@@ -481,7 +501,11 @@ export type QuotaRow = {
   pct: number
   amount: number
   /** perché gli spetta */
-  reason: 'erogato' | 'digital' | 'residuo' | 'provvigione' | 'provvigione-divisa'
+  reason: 'erogato' | 'digital' | 'residuo' | 'provvigione'
+    /** nessuno ha portato il cliente: il 15% (o il 6%) si spartisce */
+    | 'provvigione-divisa'
+    /** §330 — un commerciale c'è, ed è stato deciso di dividerla lo stesso */
+    | 'provvigione-condivisa'
 }
 
 export type PlTotals = ReturnType<typeof computeMonth>
@@ -663,12 +687,19 @@ export function computeMonth(
   const deliveryTakers = partners.filter(p => p.takes_delivery)
   const residualTakers = partners.filter(p => p.takes_residual)
 
-  /* Provvigione senza un commerciale — né sulla riga né in anagrafica — o da
-     lead generation: non resta in cassa, si divide fra i soci in parti uguali.
+  /* Provvigione senza un commerciale — né sulla riga né in anagrafica — da lead
+     generation, o dichiarata divisa sulla riga (§330): non resta in cassa, si
+     divide fra i soci in parti uguali.
      Sul growth il 15% diventa 5% a testa, sul digital il 6% diventa 2%.
      Si divide fra **tutti i soci**, non solo fra quelli che prendono l'erogato:
      una provvigione non è erogato, è utile commerciale. */
-  const salesPool = r2(split.filter(x => isInbound(x.line)).reduce((n, x) => n + x.s.sales, 0))
+  const salesPool = r2(split.filter(x => splitsSales(x.line)).reduce((n, x) => n + x.s.sales, 0))
+  /* §330 — perché è finita nel pool. Il denaro fa la stessa strada, la
+     correzione no: a un cliente senza commerciale se ne assegna uno e la
+     provvigione si sposta, a una riga divisa per scelta l'anagrafica è già
+     giusta e toccarla non cambierebbe niente. */
+  const splitReason = (l: RevenueLine): QuotaRow['reason'] =>
+    isInbound(l) ? 'provvigione-divisa' : 'provvigione-condivisa'
   /* Una partita di giro ha `sales` a zero, quindi non entra nel pool da sé: non
      serve filtrarla, e va bene così — se un giorno cambiasse, il conto resterebbe
      corretto perché parte sempre dalle quote calcolate, non dagli importi. */
@@ -720,9 +751,9 @@ export function computeMonth(
     // provvigione di chi non ha un commerciale: divisa fra tutti i soci
     if (eligible.length) {
       for (const x of split) {
-        if (x.s.sales <= 0 || !isInbound(x.line)) continue
+        if (x.s.sales <= 0 || !splitsSales(x.line)) continue
         rows.push(rowOf(x, x.s.sales / eligible.length,
-          pct.sales(config, x.line.kind) / eligible.length, 'provvigione-divisa'))
+          pct.sales(config, x.line.kind) / eligible.length, splitReason(x.line)))
       }
     }
 
@@ -793,7 +824,7 @@ export function computeMonth(
     label: string; amount: number; fromRegistry: boolean; rows: QuotaRow[]
   }>()
   for (const x of split) {
-    if (!x.s.sales || isInbound(x.line)) continue
+    if (!x.s.sales || splitsSales(x.line)) continue
     const o = ownerOf(x.line)
     const key = o.id ?? o.name ?? '—'
     const cur = salesByOwner.get(key)
@@ -805,11 +836,12 @@ export function computeMonth(
     })
   }
 
-  /* Le righe che finiscono nel pool: quali clienti non hanno un commerciale.
-     È la lista da guardare per sistemare l'anagrafica, non solo un totale. */
+  /* Le righe che finiscono nel pool, col perché di ciascuna: quali clienti non
+     hanno un commerciale — la lista da guardare per sistemare l'anagrafica — e
+     quali ce l'hanno ma si dividono per scelta, che invece è già a posto. */
   const poolRows = split
-    .filter(x => x.s.sales > 0 && isInbound(x.line))
-    .map(x => rowOf(x, x.s.sales, pct.sales(config, x.line.kind), 'provvigione-divisa'))
+    .filter(x => x.s.sales > 0 && splitsSales(x.line))
+    .map(x => rowOf(x, x.s.sales, pct.sales(config, x.line.kind), splitReason(x.line)))
 
   return {
     revenue: {

@@ -92,6 +92,20 @@ eq('e uno dei tre scritto sulla riga è uno scostamento',
 eq('IVA e partita di giro rientrano nell\'accordo',
   drift({ kind: 'digital', vat_rate: 0.1, pass_through: true }).map(d => d.fields),
   [['vat_rate', 'pass_through']])
+/* §330 — a chi va la provvigione è dell'accordo: deciso una volta sul
+   contratto, le rate che verranno lo trovano già scritto invece di chiedere a
+   qualcuno di ricordarsene ogni mese. */
+eq('la provvigione divisa scende dall\'accordo alla riga',
+  contractDrift([L({ kind: 'digital' })], [{ ...multi, sales_split: true }]).map(d => d.patch),
+  [{ sales_split: true }])
+eq('e tolta dall\'accordo torna indietro',
+  contractDrift([L({ kind: 'digital', sales_split: true })], [multi]).map(d => d.fields),
+  [['sales_split']])
+eq('riga e accordo d\'accordo: nessuno scostamento',
+  contractDrift([L({ kind: 'digital', sales_split: true })], [{ ...multi, sales_split: true }]).length, 0)
+eq('le rate nascono già con la scelta dell\'accordo',
+  linesForMonth([{ ...digital, sales_split: true }], rate, '2026-03-01').map(l => l.sales_split), [true])
+
 eq('una riga senza contratto non si confronta', contractDrift([L({ stream_id: null })], [multi]).length, 0)
 eq('un contratto sparito non si inventa', contractDrift([L({ stream_id: 'zz' })], [multi]).length, 0)
 /* L'importo no: un canone partito a metà mese vale mezzo canone, ed è una

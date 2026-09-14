@@ -205,6 +205,45 @@ const flagged = computeMonth([
 ], [], C, partners)
 eq('marcata inbound: si divide anche col commerciale valorizzato', flagged.plan.salesPool, 1500)
 
+/* §330 — la terza strada: un commerciale c'è, resta scritto, e la provvigione
+   si divide lo stesso. Prima l'unico modo di ottenerlo era marcare la riga
+   «inbound», cioè cancellare il commerciale per far tornare un numero. */
+console.log('\n— §330 · provvigione divisa per scelta —')
+const splitG = computeMonth([
+  rev({ amount_net: 10000, kind: 'growth', sales_owner: 'Walter', sales_split: true }),
+], [], C, partners)
+eq('il 15% finisce nel pool', splitG.plan.salesPool, 1500)
+eq('500 a testa ai tre soci', splitG.plan.poolShare, 500)
+eq('e non resta niente al commerciale', splitG.salesByOwner.length, 0)
+is('il motivo la distingue da una riga senza commerciale',
+  splitG.plan.poolRows.map(r => r.reason), ['provvigione-condivisa'])
+
+const splitD = computeMonth([
+  rev({ amount_net: 20000, kind: 'digital', sales_owner: 'Walter', sales_split: true }),
+], [], C, partners)
+eq('sul digital il 6% del margine si divide', splitD.plan.salesPool, 1200)
+eq('400 a testa', splitD.plan.poolShare, 400)
+eq('la quota digital dei soci non si muove', splitD.plan.digitalPerPartner, 5600)
+
+/* La divisione non cambia quanto esce: cambia la tasca. È la verifica che
+   impedisce di «sistemare» il pool alzando o abbassando la percentuale. */
+const intero = computeMonth([
+  rev({ amount_net: 20000, kind: 'digital', sales_owner: 'Walter' }),
+], [], C, partners)
+eq('stessa provvigione, intera a Walter', intero.salesByOwner[0].amount, 1200)
+eq('e lo stesso totale distribuito', intero.plan.distributed, splitD.plan.distributed)
+
+const misto = computeMonth([
+  rev({ id: 'a', amount_net: 10000, kind: 'growth', sales_owner: 'Walter', sales_split: true }),
+  rev({ id: 'b', amount_net: 10000, kind: 'growth', sales_owner: 'Walter' }),
+  rev({ id: 'c', amount_net: 10000, kind: 'growth', sales_owner: null }),
+], [], C, partners)
+eq('divisa e non divisa convivono: a Walter resta una riga', misto.salesByOwner[0].amount, 1500)
+eq('nel pool le altre due', misto.plan.salesPool, 3000)
+is('e ognuna dice perché ci è finita',
+  misto.plan.poolRows.map(r => r.reason).sort(),
+  ['provvigione-condivisa', 'provvigione-divisa'])
+
 console.log('\n— Non pagato: il compenso matura comunque —')
 const np = computeMonth([rev({ amount_net: 10000, kind: 'growth', paid: false })], [], C, partners)
 eq('maturato', np.revenue.accrued, 10000)

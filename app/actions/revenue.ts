@@ -45,6 +45,15 @@ export type StreamInput = {
   activates_after_id?: string | null
   /** §174: come si paga, non solo quanto — «30gg d.f.f.m.», «40/30/30 a SAL» */
   payment_terms?: string | null
+  /**
+   * §330: la provvigione di questo accordo si divide fra i soci in parti uguali.
+   * Il commerciale resta quello scritto — è il riferimento del cliente — cambia
+   * solo dove finisce il 15% (o il 6% del digital). Sta sull'accordo e non sulla
+   * singola rata perché è dell'accordo: una scelta da rifare a mano su ogni rata
+   * è una scelta che prima o poi qualcuno dimentica, e il mese in cui la
+   * dimentica il numero resta plausibile.
+   */
+  sales_split?: boolean
   note?: string | null
 }
 

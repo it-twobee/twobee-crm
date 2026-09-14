@@ -1,5 +1,35 @@
 # Dove siamo
 
+## Dove siamo — 2026-09-14
+
+**Movimenti e fatture aggiornati.** 176 XML dallo SdI (2 nuove: la FPR 60/26 a
+Marietta, la FPR 30/26 di Giacobbe Walter), l'estratto conto BPM al 11/09 (1
+nuovo: i 4.392 € di Affinity, che la causale dichiara «saldo fatture n 40 e n
+47») e il camt Vivid al 14/09 (4 nuovi). Restano da confermare a mano gli 8
+pagamenti cumulativi: nessuno è **certo** secondo §276.
+
+**§330 — un commerciale di riferimento, una provvigione divisa.** Il piano
+conosceva due casi e ne servivano tre: il digital di iCura ha Walter come
+commerciale — è lui che il cliente chiama — ma il lavoro è stato portato in tre.
+`sales_split` lo dichiara sull'accordo e sulla riga; il nome resta scritto e
+cambia solo la tasca. Prima l'unica strada era marcare la riga `inbound`, cioè
+cancellare il commerciale per far tornare un numero. **Serve la migration 222.**
+
+**§331 — un arretrato si incassa come tutto il resto.** Le righe di mesi
+precedenti erano l'unico posto del conto economico in cui «pagato» restava per
+forza una dichiarazione: niente dialogo, niente fattura, niente movimento — e i
+candidati non venivano nemmeno costruiti. Spuntandone una, poi, spariva dalla
+pagina: finiva in «passati in questo mese», montato **solo** in lettura di
+cassa. Adesso ha le stesse due celle delle righe del mese, lo stesso dialogo, e
+il blocco di destinazione c'è in tutte e due le letture.
+
+**§332 — «Prepara i compensi» spariva dopo il primo clic.** Compariva solo con
+zero righe, quindi chi maturava una provvigione dopo — Walter Giacobbe ad
+agosto, coi 20.000 di iCura rientrati il 9 settembre dentro la finestra del 20 —
+aveva l'importo in elenco e nessuna casella accanto. La testata adesso conta gli
+scoperti e offre «Aggiorna N»; le righe già pagate e quelle decise a mano non si
+toccano.
+
 ## Dove siamo — 2026-09-11
 
 **§329 — il campo «ruolo» del form ospiti scriveva nella RLS.** Nel Customer

@@ -96,6 +96,8 @@ export async function generateRevenueFromClients(month: string) {
     paid: boolean
     /** §188: partita di giro (budget ads anticipato): fatturato sì, quote no */
     pass_through: boolean
+    /** §330: la provvigione si divide fra i soci, dal contratto */
+    sales_split: boolean
   }
   const rows: Row[] = []
   const withContract = new Set<string>()
@@ -138,6 +140,8 @@ export async function generateRevenueFromClients(month: string) {
         sales_owner: streamName.get(l.stream_id) ?? c?.sales_owner_name ?? null,
         invoice_sent: l.invoiced, paid: l.paid,
         pass_through: !!l.pass_through,
+        // §330 — la scelta sta sull'accordo: la rata la trova già presa
+        sales_split: !!l.sales_split,
       })
     }
   }
@@ -161,8 +165,10 @@ export async function generateRevenueFromClients(month: string) {
       sales_owner: c.sales_owner_name ?? null,
       invoice_sent: c.payment_status !== 'in_attesa',
       paid: c.payment_status === 'pagato',
-      // l'MRR d'anagrafica non distingue le partite di giro: si marcano sul contratto
+      // l'MRR d'anagrafica non distingue né le partite di giro né le provvigioni
+      // divise: tutte e due si dichiarano sul contratto
       pass_through: false,
+      sales_split: false,
     })
   }
 
@@ -476,6 +482,8 @@ export type RevenuePatch = Partial<{
   risk_fund: boolean
   /** §188 — anticipo che torna al cliente: fuori dalle quote del piano */
   pass_through: boolean
+  /** §330 — la provvigione si divide fra i soci, col commerciale che resta scritto */
+  sales_split: boolean
   /** §224 — quando l'incasso è passato dal conto */
   paid_on: string | null
   /** §224 — scadenza scritta a mano */

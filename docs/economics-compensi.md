@@ -41,6 +41,44 @@ diversi, non per incoerenza:
   legge `clients.sales_owner_name`, che spesso è un segnalatore senza account nel
   tool. **Se non c'è da nessuna parte, la provvigione non resta in cassa: si
   divide fra i soci in parti uguali** (5% a testa sul growth, 2% sul digital).
+- **La provvigione si può dividere anche col commerciale scritto** (§330,
+  `splitsSales` in `lib/pl.ts`, `sales_split`). Il piano conosceva due soli
+  casi: o il cliente l'ha portato qualcuno e il 15% (il 6% sul digital) è suo per
+  intero, o non l'ha portato nessuno e si divide fra i soci. Il **digital di
+  iCura** non è né l'uno né l'altro: Walter è il commerciale di riferimento — è
+  lui che il cliente chiama — ma il lavoro è stato portato in tre, e la quota si
+  divide in tre. Le due strade disponibili erano entrambe sbagliate: lasciarla
+  intera dà a una persona il compenso di tre, e marcare la riga `inbound` per
+  ottenere la divisione **cancella il commerciale**, cioè scrive un dato falso
+  per far tornare un numero.
+  - La divisione **non tocca la percentuale**: il 6% resta 6%, cambia la tasca.
+    Il totale distribuito del mese è identico, ed è la verifica che impedisce di
+    «sistemare» il pool alzando o abbassando una quota.
+  - Il motivo resta distinto — `provvigione-divisa` (nessun commerciale) contro
+    `provvigione-condivisa` (c'è, e si divide per scelta) — perché **si
+    correggono in due modi opposti**: al primo si assegna un commerciale in
+    anagrafica e la provvigione si sposta, al secondo l'anagrafica è già giusta e
+    toccarla non cambia niente. Il pannello «provvigioni divise» dice quale dei
+    due casi ha davanti, o tutti e due.
+  - Sta **sull'accordo** (`revenue_streams.sales_split`) e non solo sulla riga:
+    un acconto di kick-off e le rate che verranno sono lo stesso lavoro.
+    `contractDrift` (§207) la riporta alle righe dei mesi aperti e «Prepara il
+    mese» la copia sulle rate nuove. Una scelta da rifare a mano ogni mese è una
+    scelta che qualcuno dimentica, e il mese in cui la dimentica il numero resta
+    plausibile.
+  - Si accende da due posti: la casella sotto «Commerciale» nell'economics del
+    cliente (vale per tutte le rate) e il pulsante **«divisa?»** accanto alla
+    provvigione della singola riga di conto economico.
+- **Le righe di compenso invecchiano, e adesso lo dicono** (§332). «Prepara i
+  compensi» compariva solo con **zero** righe: premuto una volta spariva per
+  sempre, e chi maturava una provvigione **dopo** — Walter Giacobbe ad agosto,
+  quando i 20.000 di iCura sono rientrati il 9 settembre, dentro la finestra del
+  20 — si trovava l'importo in elenco e **nessuna casella accanto**, senza una
+  parola che dicesse perché. Uno spazio vuoto vicino a un numero si legge come
+  «questo non si paga», ed è il contrario. Adesso la testata conta chi è scoperto
+  e offre «Aggiorna N», la riga mette un avviso al posto della casella, e
+  rigenerare **non tocca** le righe pagate (§243) né quelle decise a mano (§251)
+  — o il pulsante prometterebbe un lavoro che non farà.
 - `rowToPlConfig` è l'unico mapper da `pl_config`: era scritto due volte
   (economics e scheda cliente) e la seconda copia si dimenticava ogni colonna
   nuova.
@@ -128,6 +166,22 @@ subappalto `a_incasso`, entrata `giorni_15` (§177).
   se è chiuso: il movimento è un fatto di adesso. E la contropartita ha una riga
   anche lei — «passati in questo mese» — o la cassa avrebbe un numero senza niente
   dietro.
+- **Un arretrato si incassa come tutto il resto** (§331). Le righe di mesi
+  precedenti erano l'unico posto del conto economico in cui «pagato» restava per
+  forza un'opinione: la casella scriveva il booleano e basta — niente dialogo,
+  niente fattura, niente movimento — e i candidati non venivano nemmeno
+  costruiti, perché `matchOptions` e `invoiceOptions` guardavano solo le righe
+  del mese aperto. È esattamente la spunta che §226 esiste per stanare, prodotta
+  dal tool stesso. Adesso ogni riga del blocco porta le **stesse due celle**
+  delle righe del mese (fattura e movimenti) e spuntarla apre lo **stesso
+  dialogo**: data, movimento, fattura.
+- **E non sparisce** (§331). Spuntandola usciva da «da incassare» ed entrava in
+  «passati in questo mese», che però era montato **solo in lettura di cassa**: in
+  competenza la riga spariva dalla pagina, e l'unico modo di ritrovarla era
+  cambiare lettura — una cosa che nessuno sa di dover fare. Adesso il blocco c'è
+  in tutte e due, dice **quante di quelle righe nessun movimento le conferma**, e
+  la spunta si può togliere da lì: era un fatto dichiarato, non un fatto della
+  banca, e finché non lo è resta correggibile.
 - **Il ritardo si legge, non si conta a mente**: bande a 15 e 45 giorni (`LATE_BANDS`),
   colore *e* parola («in ritardo di 3 giorni» e «di 54» sono due fatti diversi, un
   rosso solo li appiattisce). La riga in ritardo è **tinta**, e il pallino sta accanto

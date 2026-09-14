@@ -133,7 +133,7 @@ export const REVENUE_FIELDS: Record<keyof RevenueLine, true> = {
   sales_owner_id: true, sales_owner: true, sales_origin: true,
   client_sales_owner_id: true, client_sales_owner: true, origin: true,
   project_id: true, project_ids: true, stream_id: true, installment_id: true,
-  project_value: true, risk_fund: true, pass_through: true,
+  project_value: true, risk_fund: true, sales_split: true, pass_through: true,
   month: true, paid_on: true, due_date: true, terms: true,
   carried_at: true, carried_from: true, carry_count: true,
 }
@@ -187,6 +187,8 @@ export function toRevenueLine(r: Row, ctx: RowCtx): RevRow {
     // §186 — il valore venduto decide se l'opzione fondo rischio esiste
     project_value: soldValue(covered, str(r.project_id), ctx),
     risk_fund: r.risk_fund === true,
+    // §330 — la provvigione si divide fra i soci anche col commerciale scritto
+    sales_split: r.sales_split === true,
     pass_through: r.pass_through === true,
     // §224 — competenza e movimento: senza la 203 restano nulli e il motore
     // legge come prima, invece di spostare numeri su una data che non esiste

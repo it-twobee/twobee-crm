@@ -62,7 +62,7 @@ const rigaPiena = {
   invoice_sent: true, paid: true, kind: 'digital',
   sales_owner_id: null, sales_owner: null, sales_origin: 'diretto',
   origin: 'contratto', project_id: 'p-seven', stream_id: 's-seven',
-  installment_id: 'i-r1', risk_fund: true, pass_through: false,
+  installment_id: 'i-r1', risk_fund: true, pass_through: false, sales_split: true,
   paid_on: '2026-08-07T00:00:00+00:00', due_date: '2026-08-15', terms: 'giorni_15',
 }
 const mappata = toRevenueLine(rigaPiena, ctx) as unknown as Record<string, unknown>
@@ -78,6 +78,7 @@ eq('il commerciale arriva dall\'anagrafica quando la riga non ne porta uno (§18
 eq('la rata che la finanzia (§285)', mappata.installment_id, 'i-r1')
 eq('il valore venduto del progetto (§186)', mappata.project_value, 45000)
 eq('il fondo rischio è una scelta della riga', mappata.risk_fund, true)
+eq('e la provvigione divisa pure (§330)', mappata.sales_split, true)
 eq('la data del movimento perde l\'ora: è un giorno, non un istante',
   mappata.paid_on, '2026-08-07')
 eq('l\'accordo di pagamento', mappata.terms, 'giorni_15')

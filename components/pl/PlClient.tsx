@@ -325,6 +325,8 @@ export function PlClient({
       title: src.client_id ? (clientNames[src.client_id] ?? src.label) : src.label,
       sub: src.client_id ? src.label : '',
       amount: src.amount_net,
+      gross: Math.round(src.amount_net * (1 + src.vat_rate) * 100) / 100,
+      paid: src.paid,
       month: m,
       href: src.project_id ? `/progetti/${src.project_id}` : undefined,
       carry: carryOf(fromRevenue(src, m)),
@@ -344,6 +346,9 @@ export function PlClient({
         ? `${src.category} · ${projectNames[src.project_id] ?? 'progetto'}`
         : src.category,
       amount: src.actual > 0 ? src.actual : src.budget,
+      gross: Math.round((src.actual > 0 ? src.actual : src.budget)
+        * (src.vat_applied ? 1 + src.vat_rate : 1) * 100) / 100,
+      paid: src.paid,
       month: m,
       href: src.project_id ? `/progetti/${src.project_id}` : undefined,
       carry: carryOf(fromCost(src, m)),
@@ -439,6 +444,25 @@ export function PlClient({
       partner: null, owner: o, monthTotal: o.amount, quotaRows: o.rows,
     }))]
   }, [payouts, tPayout, owners])
+
+  /* §331 — le leve di una riga di un altro mese, le stesse del mese aperto.
+     Una sola fabbrica per i due versi: se entrate e uscite le costruissero
+     ognuna per conto proprio, «coperta» finirebbe per voler dire due cose. */
+  const carryDocs = (kind: 'ricavo' | 'costo'): CarryDocs => ({
+    inv: id => invoiceOf[id],
+    invOptions: id => invoiceOptions[id] ?? [],
+    linked: id => linkedTx[id] ?? [],
+    txOptions: id => matchOptions[id] ?? [],
+    onLinkInvoice: (id, invId) => run(() => linkInvoiceToLine(invId, id, kind), 'Fattura collegata'),
+    onUnlinkInvoice: id => run(() => unlinkInvoiceFromLine(id, kind), 'Fattura scollegata'),
+    onAttach: (id, ids) => run(async () => {
+      const r = await attachMany(id, kind, ids)
+      toast[r.pagata ? 'success' : 'info'](
+        r.pagata ? `Riga ${kind === 'ricavo' ? 'incassata' : 'pagata'}: ${eur(r.coperto)}`
+          : `${r.agganciati} agganciati · ${eur(r.coperto)} su ${eur(r.lordo)}`)
+    }),
+    onDetach: id => run(() => detachAll(id, kind), 'Movimenti sganciati'),
+  })
 
   /* La provvigione dei clienti senza commerciale non è di nessuno: resta una
      riga a sé, o sembrerebbe spettare a qualcuno in particolare. */
@@ -978,8 +1002,8 @@ export function PlClient({
               </button>
             </div>
             <p className="text-2xs text-text-tertiary mt-2">
-              Importi e spunte non si toccano: si riallineano tipo, progetto, IVA e partita di giro,
-              che sono decisioni dell&apos;accordo e non fatti del mese.
+              Importi e spunte non si toccano: si riallineano tipo, progetto, IVA, partita di giro
+              e a chi va la provvigione, che sono decisioni dell&apos;accordo e non fatti del mese.
             </p>
           </div>
         )}
@@ -1127,6 +1151,25 @@ export function PlClient({
                     </td>
                     <td className="px-2 py-1.5 text-right text-2xs text-info tabular">
                       {eur(s.sales)}
+                      {/* §330 — a chi va, accanto a quanto è. Un commerciale di
+                          riferimento che resta scritto e una provvigione che si
+                          divide non sono in contraddizione: il cliente lo chiama
+                          lui, il lavoro l'hanno portato in tre. L'alternativa era
+                          marcare la riga «inbound», cioè cancellare il
+                          commerciale per far tornare un numero. */}
+                      {s.sales > 0 && (
+                        <button onClick={() => run(() => updateRevenueLine(line.id, { sales_split: !line.sales_split }))}
+                          disabled={locked} aria-pressed={!!line.sales_split}
+                          title={line.sales_split
+                            ? `Provvigione divisa fra i soci: ${pc(pct.sales(config, line.kind))} spartito in parti uguali, il commerciale resta quello scritto`
+                            : `Dividi la provvigione fra i soci invece di darla tutta a ${ownerOf(line).name ?? 'chi ha portato il cliente'}`}
+                          className={`block ml-auto mt-0.5 text-2xs font-semibold px-1.5 py-0.5 rounded border press disabled:opacity-40 ${
+                            line.sales_split
+                              ? 'border-accent/40 bg-accent/15 text-accent'
+                              : 'border-transparent text-text-tertiary hover:border-border'}`}>
+                          {line.sales_split ? 'divisa fra i soci' : 'divisa?'}
+                        </button>
+                      )}
                       {/* §186: sul digital la base è il margine, non l'imponibile.
                           Se un subappalto ha mangiato metà del ricavo va detto
                           qui, dove si guarda la quota. */}
@@ -1197,8 +1240,9 @@ export function PlClient({
         {/* §224 — quello che è maturato prima e non si è ancora incassato. Sta
             qui e non in un riquadro altrove: è dove si spunta. */}
         <CarryBlock side="entrata" items={carryItems.revenue}
-          moved={carryItems.movedRevenue} showMoved={cash}
-          onPaid={id => run(() => updateRevenueLine(id, { paid: true }), 'Incasso registrato oggi')}
+          moved={carryItems.movedRevenue} docs={carryDocs('ricavo')}
+          onPay={i => setPaying({ id: i.id, label: i.title, kind: 'ricavo', gross: i.gross })}
+          onUnpay={i => run(() => undoPayment(i.id, 'ricavo'), 'Spunta tolta e movimenti sganciati')}
           onDue={(id, d) => run(() => updateRevenueLine(id, { due_date: d }))}
           onRemove={id => run(() => deleteRevenueLine(id), 'Voce eliminata')} />
 
@@ -1218,8 +1262,9 @@ export function PlClient({
         costs={costs} centers={centers} locked={locked} pending={pending}
         picked={picked} setPicked={setPicked} totals={t.costs}
         statusOf={id => statusOfCost.get(id)} late={lateCost} certOf={id => certs[id]}
-        carry={carryItems.costs} carryMoved={carryItems.movedCosts} showMoved={cash}
-        onPaidCarry={id => run(() => updateCostLine(id, { paid: true }), 'Pagamento registrato oggi')}
+        carry={carryItems.costs} carryMoved={carryItems.movedCosts} carryDocs={carryDocs('costo')}
+        onPayCarry={i => setPaying({ id: i.id, label: i.title, kind: 'costo', gross: i.gross })}
+        onUnpayCarry={i => run(() => undoPayment(i.id, 'costo'), 'Spunta tolta e movimenti sganciati')}
         onDue={(id, d) => run(() => updateCostLine(id, { due_date: d }))}
         onUpdate={(id, patch) => run(() => updateCostLine(id, patch))}
         onCenter={(id, v) => run(() => setLineCenter(id, v))}
@@ -1310,10 +1355,18 @@ export function PlClient({
                 lineId: p.id, kind: p.kind, paidOn: v.paidOn, txIds: v.txIds, invoiceId: v.invoiceId,
               })
               const verbo = p.kind === 'ricavo' ? 'Incassata' : 'Pagata'
-              toast.success(!v.txIds.length
+              /* §331 — **dove è finita.** La riga fa cassa nel mese della data,
+                 non in quello che si sta guardando: una rata di luglio pagata
+                 oggi, mentre si guarda agosto, esce dall'elenco di agosto ed è
+                 giusto così — ma senza dirlo si legge come una riga sparita, ed
+                 è esattamente il motivo per cui si torna a cercarla. */
+              const altrove = v.paidOn.slice(0, 7) !== month.slice(0, 7)
+                ? ` · fa cassa a ${monthLabel(v.paidOn.slice(0, 8) + '01').toLowerCase()}`
+                : ''
+              toast.success((!v.txIds.length
                 ? `${verbo} · nessun movimento: resta dichiarata`
                 : `${verbo} · ${eur(r.coperto)} su ${eur(r.lordo)} agganciati`
-                  + (r.saltati ? ` · ${r.saltati} già spesi altrove` : ''))
+                  + (r.saltati ? ` · ${r.saltati} già spesi altrove` : '')) + altrove)
             })
           }} />
       )}
@@ -1753,6 +1806,8 @@ export type PayoutLine = {
   due_month: string
   paid: boolean
   paid_on: string | null
+  /** §251 — se comincia per «Deciso a mano», rigenerare non la tocca */
+  note?: string | null
 }
 
 function CompensiSection({
@@ -1822,6 +1877,13 @@ function CompensiSection({
     .sort((a, b) => b.pv.open - a.pv.open)
   const totSoci = soci.reduce((n, r) => n + (r.partner?.total ?? 0), 0)
   const totComm = commerciali.reduce((n, r) => n + (r.owner?.amount ?? 0), 0)
+  /* §330 — cosa c'è dentro il pool: righe senza commerciale, righe divise per
+     scelta, o tutte e due. Sono due situazioni che si correggono in due modi
+     opposti, e dirle con la stessa frase manda a toccare l'anagrafica giusta. */
+  const poolKinds = {
+    assenti: (pool?.rows ?? []).some(r => r.reason === 'provvigione-divisa'),
+    scelte: (pool?.rows ?? []).some(r => r.reason === 'provvigione-condivisa'),
+  }
 
   /* §244 — quante ne sono state pagate e quanto resta, **nella testata**: la
      domanda che si fa aprendo la sezione è «ho finito?», e con dieci righe si
@@ -1836,6 +1898,32 @@ function CompensiSection({
     }
   }
 
+  /* §332 — **le righe preparate invecchiano, e nessuno lo diceva.**
+     «Prepara i compensi» compariva solo con zero righe: bastava averlo premuto
+     una volta perché il pulsante sparisse per sempre, e da lì in poi chi
+     maturava una provvigione dopo — Walter Giacobbe ad agosto, quando i 20.000
+     di iCura sono rientrati il 9 settembre, dentro la finestra del 20 — aveva
+     il suo importo in elenco e **nessuna casella accanto**, senza una parola
+     che spiegasse perché. Un compenso che non si può spuntare si legge come un
+     compenso che non si deve pagare.
+     Una riga già pagata è un fatto e una decisa a mano è una decisione (§251):
+     né l'una né l'altra si riallineano, quindi nessuna delle due conta qui — o
+     il pulsante prometterebbe un lavoro che non farà. */
+  const manuale = (l?: PayoutLine) => !!l?.note?.startsWith('Deciso a mano')
+  const daPreparare = (kind: 'socio' | 'commerciale', people: typeof rows,
+    amountOf: (r: (typeof rows)[number]) => number) => people.filter(r => {
+    const atteso = amountOf(r)
+    if (atteso <= 0.005) return false
+    const l = lineOf(r.key, kind, r.who)
+    if (!l) return true
+    return !l.paid && !manuale(l) && Math.abs(l.amount - atteso) > 0.01
+  })
+  const scoperti = {
+    socio: daPreparare('socio', soci, r => r.partner?.total ?? 0),
+    commerciale: daPreparare('commerciale', commerciali, r => r.owner?.amount ?? 0),
+  }
+  const daFare = scoperti.socio.length + scoperti.commerciale.length
+
   const Testata = ({ tot, st }: { tot: number; st: ReturnType<typeof stato> }) => (
     <div className="flex items-center gap-3 shrink-0 ml-auto">
       {/* Segnare dieci righe una a una è il motivo per cui non le segna nessuno. */}
@@ -1845,11 +1933,15 @@ function CompensiSection({
           Segna {st.pending.length} pagati
         </button>
       )}
-      {!locked && lines.length === 0 && rows.length > 0 && (
+      {!locked && daFare > 0 && rows.length > 0 && (
         <button onClick={onMaterialize} disabled={pending}
-          title="Copia i compensi di questo mese in righe spuntabili: da lì in poi si segna chi è stato pagato"
+          title={lines.length === 0
+            ? 'Copia i compensi di questo mese in righe spuntabili: da lì in poi si segna chi è stato pagato'
+            : `${daFare} ${daFare === 1 ? 'compenso non ha' : 'compensi non hanno'} una riga`
+              + ' allineata: rigenerarle non tocca quelle già pagate né quelle decise a mano'}
           className="flex items-center gap-1.5 text-2xs font-semibold border border-border rounded-xl px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-surface-hover press disabled:opacity-40 whitespace-nowrap">
-          <CheckCircle2 className="w-3.5 h-3.5" />Prepara i compensi
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          {lines.length === 0 ? 'Prepara i compensi' : `Aggiorna ${daFare}`}
         </button>
       )}
       <div className="text-right">
@@ -1894,7 +1986,18 @@ function CompensiSection({
               onToggle={() => onPaid(line.id, !line.paid, `${r.who} — ${line.kind === 'socio' ? 'erogato' : 'provvigione'}`, line.amount)}
               label={`${r.who}: segna il compenso come ${line.paid ? 'non pagato' : 'pagato'}`} />
           </span>
-        ) : <span className="w-4 shrink-0" />}
+        ) : (
+          /* §332 — al posto della casella, il motivo per cui non c'è. Uno spazio
+             vuoto accanto a un importo si legge come «questo non si paga», ed è
+             il contrario di quello che vuol dire: la riga spuntabile non è stata
+             ancora preparata. La leva è in testata, e qui c'è il perché. */
+          <span className="shrink-0 self-center" title={amount > 0
+            ? `Nessuna riga da spuntare per ${r.who}: premi «Aggiorna» qui sopra per prepararla`
+            : 'Niente da erogare in questo mese'}>
+            <AlertTriangle className={`w-3.5 h-3.5 ${amount > 0 ? 'text-warning' : 'text-text-tertiary opacity-40'}`}
+              aria-label={amount > 0 ? `${r.who}: riga di compenso non ancora preparata` : undefined} />
+          </span>
+        )}
         <button type="button" onClick={() => setOpen(aperto ? null : id)} aria-expanded={aperto}
           className="flex-1 flex items-baseline gap-3 text-left min-w-0">
           <span className="text-sm font-semibold text-text-primary shrink-0">{r.who}</span>
@@ -2217,14 +2320,29 @@ function CompensiSection({
                 <button type="button" onClick={() => setOpen(open === 'pool' ? null : 'pool')}
                   aria-expanded={open === 'pool'} className="w-full px-5 py-2.5 text-left">
                   <div className="flex items-baseline gap-3">
-                    <span className="text-sm font-semibold text-text-primary flex-1">Da lead generation</span>
+                    <span className="text-sm font-semibold text-text-primary flex-1">
+                      {/* §330 — il titolo dice cosa c'è dentro. Con righe divise
+                          per scelta «Da lead generation» sarebbe una descrizione
+                          sbagliata del **perché**, e il perché è l'unica cosa
+                          che questo blocco aggiunge al totale. */}
+                      {poolKinds.assenti && poolKinds.scelte ? 'Provvigioni divise fra i soci'
+                        : poolKinds.scelte ? 'Divise per scelta' : 'Da lead generation'}
+                    </span>
                     <span className="text-sm font-bold text-text-primary tabular">{eur(pool.amount)}</span>
                     <ChevronDown className={`w-3.5 h-3.5 text-text-tertiary shrink-0 transition-transform ${
                       open === 'pool' ? 'rotate-180' : ''}`} aria-hidden="true" />
                   </div>
                   <p className="text-2xs text-text-tertiary mt-0.5">
-                    Clienti senza commerciale, né sulla riga né in anagrafica: {eur(pool.share)} a
-                    testa ai soci. Assegnarne uno in anagrafica sposta la provvigione da qui a lui
+                    {eur(pool.share)} a testa ai soci.
+                    {poolKinds.assenti && <>
+                      {' '}Clienti senza commerciale, né sulla riga né in anagrafica: assegnarne uno
+                      in anagrafica sposta la provvigione da qui a lui.
+                    </>}
+                    {poolKinds.scelte && <>
+                      {' '}Le righe marcate <strong className="text-text-secondary">divisa fra
+                      i soci</strong> hanno già il loro commerciale e restano qui: la divisione è
+                      una scelta, non un dato mancante.
+                    </>}
                   </p>
                 </button>
                 {open === 'pool' && (
@@ -2518,6 +2636,64 @@ export type CarryItem = {
   carry?: Carry | null
   /** §294 — se si può togliere, e se no perché. Guarda **il suo** mese */
   remove?: Removal
+  /**
+   * §331 — il lordo: è il metro con cui si legge un movimento e una fattura.
+   * Senza, la riga di un altro mese resta l'unico posto del conto economico in
+   * cui «incassato» non si può dimostrare.
+   */
+  gross: number
+  /** §331 — se è già stata spuntata: la riga non sparisce, cambia stato */
+  paid: boolean
+}
+
+/**
+ * §331 — la prova di una riga di un altro mese: la fattura e i movimenti.
+ *
+ * Le stesse quattro leve che hanno le righe del mese, passate in blocco perché
+ * `CarryBlock` serve sia le entrate sia le uscite e non deve sapere quale delle
+ * due sta guardando. Un arretrato senza queste è una riga che si può solo
+ * dichiarare pagata — ed è esattamente la spunta che §226 esiste per stanare.
+ */
+export type CarryDocs = {
+  inv: (id: string) => InvRef | undefined
+  invOptions: (id: string) => InvOption[]
+  linked: (id: string) => { txId: string; date: string; amount: number; who: string }[]
+  txOptions: (id: string) => { txId: string; date: string; amount: number; who: string; why: string }[]
+  onLinkInvoice: (id: string, invoiceId: string) => void
+  onUnlinkInvoice: (id: string) => void
+  onAttach: (id: string, txIds: string[]) => void
+  onDetach: (id: string) => void
+}
+
+/**
+ * §331 — fattura e movimento di una riga di un altro mese, in due celle.
+ *
+ * Sono gli stessi due componenti delle righe del mese, non una versione
+ * ridotta: una regola scritta due volte non è una regola, e «questa riga è
+ * coperta» deve voler dire la stessa cosa da qualunque blocco la si guardi.
+ * Compaiono solo quando c'è qualcosa da mostrare o da scegliere — su un
+ * arretrato senza candidati due caselle vuote sarebbero solo rumore.
+ */
+function Prove({ i, docs, side }: { i: CarryItem; docs: CarryDocs; side: 'entrata' | 'uscita' }) {
+  const inv = docs.inv(i.id)
+  const invOpts = docs.invOptions(i.id)
+  const linked = docs.linked(i.id)
+  const txOpts = docs.txOptions(i.id)
+  if (!inv && !invOpts.length && !linked.length && !txOpts.length) return null
+  return (
+    <span className="hidden md:flex items-center gap-1.5 shrink-0">
+      {(inv || invOpts.length > 0) && (
+        <InvoiceCell inv={inv} options={invOpts} gross={i.gross}
+          onLink={id => docs.onLinkInvoice(i.id, id)}
+          onUnlink={() => docs.onUnlinkInvoice(i.id)} />
+      )}
+      {(linked.length > 0 || txOpts.length > 0) && (
+        <MatchCell lineId={i.id} side={side} linked={linked} options={txOpts} gross={i.gross}
+          onAttach={ids => docs.onAttach(i.id, ids)}
+          onDetach={() => docs.onDetach(i.id)} />
+      )}
+    </span>
+  )
 }
 
 /**
@@ -2532,23 +2708,37 @@ export type CarryItem = {
  * Le righe **in scadenza** non sono in ritardo e non vanno colorate come tali:
  * lo stipendio di luglio, ad agosto, è semplicemente il pagamento di agosto.
  */
-function CarryBlock({ side, items, moved, showMoved, onPaid, onDue, onRemove }: {
+function CarryBlock({ side, items, moved, onPay, onUnpay, onDue, onRemove, docs }: {
   side: 'entrata' | 'uscita'
   items: CarryItem[]
   /** §224 — le righe di altri mesi che in questo mese si sono **mosse** */
   moved: CarryItem[]
-  /** in lettura di cassa quelle righe fanno un totale: qui c'è chi lo fa */
-  showMoved: boolean
-  onPaid: (id: string) => void
+  /**
+   * §331 — spuntare passa dal **dialogo**, come nelle righe del mese: chiede la
+   * data, il movimento e la fattura. `updateRevenueLine(paid: true)` scriveva il
+   * booleano e basta, ed è il motivo per cui gli arretrati erano l'unica parte
+   * del conto economico in cui l'incasso restava una dichiarazione.
+   */
+  onPay: (i: CarryItem) => void
+  onUnpay: (i: CarryItem) => void
   onDue: (id: string, d: string | null) => void
   /** §294 — togliere una riga che non arriverà mai, da dove la si guarda */
   onRemove: (id: string) => void
+  /** §331 — la fattura e il movimento di una riga di un altro mese */
+  docs: CarryDocs
 }) {
   const [open, setOpen] = useState(true)
   const [openMoved, setOpenMoved] = useState(false)
   const movedSum = Math.round(moved.reduce((n, i) => n + i.amount, 0))
+  const senzaProva = moved.filter(i => docs.linked(i.id).length === 0).length
 
-  const movedBlock = showMoved && moved.length > 0 ? (
+  /* §331 — **non più solo in lettura di cassa.** Spuntare un arretrato lo
+     toglieva dall'elenco «da incassare» e lo mandava qui, che in competenza non
+     era montato: la riga spariva dalla pagina e l'unico modo di ritrovarla era
+     cambiare lettura, che è una cosa che nessuno sa di dover fare. Un incasso
+     appena registrato è la cosa che si vuole rivedere subito — se non altro per
+     agganciarci il movimento. */
+  const movedBlock = moved.length > 0 ? (
     <div className="mx-4 my-3 rounded-xl border border-border overflow-hidden">
       <button type="button" onClick={() => setOpenMoved(o => !o)} aria-expanded={openMoved}
         className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left bg-background hover:bg-surface-hover">
@@ -2560,6 +2750,12 @@ function CarryBlock({ side, items, moved, showMoved, onPaid, onDue, onRemove }: 
           </span>
           <span className="block text-2xs text-text-tertiary">
             Sono dentro i totali di cassa e fuori dalla competenza di questo mese
+            {/* §331 — e quante di queste nessun movimento le dimostra: è la
+                ragione per cui il blocco si apre, non un dettaglio. */}
+            {senzaProva > 0 && <> · <strong className="text-warning">
+              {senzaProva} {senzaProva === 1 ? 'senza movimento' : 'senza movimento'} che
+              {senzaProva === 1 ? ' la confermi' : ' le confermi'}
+            </strong></>}
           </span>
         </span>
         <span className="text-2xs font-bold text-text-primary tabular shrink-0">{eur(movedSum)}</span>
@@ -2576,10 +2772,17 @@ function CarryBlock({ side, items, moved, showMoved, onPaid, onDue, onRemove }: 
                   {monthLabel(i.month)}{i.sub && <> · {i.sub}</>}
                 </span>
               </span>
+              {/* §331 — fattura e movimento, le stesse delle righe del mese:
+                  una riga spuntata senza niente sotto è la spunta che il ponte
+                  (§199) va poi a cercare. */}
+              <Prove i={i} docs={docs} side={side} />
               <CashPill s={i.status} />
               <span className="text-2xs font-bold text-text-primary tabular shrink-0 w-20 text-right">
                 {eur(i.amount)}
               </span>
+              {/* Togliere la spunta si può: era un fatto dichiarato, non un
+                  fatto della banca, e finché non lo è resta correggibile. */}
+              <Check on label={`Togli la spunta a ${i.title}`} onToggle={() => onUnpay(i)} />
             </li>
           ))}
         </ul>
@@ -2670,6 +2873,11 @@ function CarryBlock({ side, items, moved, showMoved, onPaid, onDue, onRemove }: 
                   )}
                 </span>
               </span>
+              {/* §331 — la fattura e il movimento stanno **qui**, dove si
+                  spunta: una rata di luglio incassata oggi è un incasso come
+                  tutti gli altri, e mandare a cercarne il documento in un'altra
+                  sezione vuol dire che non ce lo aggancia nessuno. */}
+              <Prove i={i} docs={docs} side={side} />
               <CashPill s={i.status} onDue={d => onDue(i.id, d)} />
               <span className="text-2xs font-bold text-text-primary tabular shrink-0 w-20 text-right">
                 {eur(i.amount)}
@@ -2678,7 +2886,7 @@ function CarryBlock({ side, items, moved, showMoved, onPaid, onDue, onRemove }: 
                   di un altro mese, e incassarla oggi è un fatto di oggi. */}
               <Check on={false}
                 label={`Segna ${i.title} come ${side === 'entrata' ? 'incassata' : 'pagata'}`}
-                onToggle={() => onPaid(i.id)} />
+                onToggle={() => onPay(i)} />
               {/* §294 — e l'altra risposta: questa riga non arriverà mai. Il
                   verdetto guarda **il suo** mese, non quello aperto. */}
               {i.remove && (
@@ -2692,9 +2900,10 @@ function CarryBlock({ side, items, moved, showMoved, onPaid, onDue, onRemove }: 
       {open && (
         <p className="flex items-start gap-2 text-2xs text-text-tertiary px-3.5 py-2.5 border-t border-border/60">
           <ArrowRightLeft className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-          Spuntarne una registra <strong className="text-text-secondary">la data di oggi</strong>: da lì
-          conta nella cassa di questo mese e sparisce da qui. Il suo mese di competenza non cambia — e
-          se è chiuso non si riapre, perché il movimento è un fatto di adesso, non di allora.
+          Spuntarne una chiede <strong className="text-text-secondary">data, movimento e
+          fattura</strong>: da lì conta nella cassa di questo mese e passa nel blocco qui sopra —
+          non sparisce, e la spunta si può togliere. Il suo mese di competenza non cambia, e se è
+          chiuso non si riapre: il movimento è un fatto di adesso, non di allora.
         </p>
       )}
     </div>
@@ -3084,6 +3293,14 @@ function Owner({ line, clientNames }: {
           ? 'dall\'anagrafica'
           : `fotografia della riga${line.client_id && clientNames[line.client_id] ? '' : ''}`}
       </span>
+      {/* §330 — il nome resta il suo, la provvigione no: senza scriverlo qui,
+          accanto a chi la riga attribuisce, il compenso di questa persona
+          risulta più basso di quello che la colonna promette. */}
+      {line.sales_split && (
+        <span className="block text-2xs font-semibold text-accent">
+          provvigione divisa fra i soci
+        </span>
+      )}
     </div>
   )
 }
@@ -3118,6 +3335,10 @@ function QuotaDetail({ rows, total, config, clientNames, projectNames, note }: {
     residuo: 'residuo growth',
     provvigione: 'provvigione',
     'provvigione-divisa': 'provvigione divisa fra i soci',
+    /* §330 — un commerciale c'è, e la divisione è una scelta dichiarata. Detta
+       con le stesse parole dell'altra manderebbe a «sistemare» un'anagrafica
+       che è già giusta. */
+    'provvigione-condivisa': 'provvigione divisa per scelta',
   }
   const sum = rows.reduce((s, r) => s + r.amount, 0)
 
@@ -3394,7 +3615,7 @@ function originOf(c: CostLine): { label: string; href: string } | null {
  */
 function CostSection({
   costs, centers, locked, pending, picked, setPicked, totals,
-  statusOf, late, certOf, carry, carryMoved, showMoved, onPaidCarry, onDue,
+  statusOf, late, certOf, carry, carryMoved, onPayCarry, onUnpayCarry, carryDocs, onDue,
   onUpdate, onCenter, onDelete, onAdd, onBulk, onSyncPlan,
   linkedTx, matchOptions, withInvoice, invoiceOf, invoiceOptions, onAttach, onDetach,
   onLinkInvoice, onUnlinkInvoice, onPayToggle, onRenameCenter,
@@ -3415,8 +3636,11 @@ function CostSection({
   carry: CarryItem[]
   /** §224 — quelle di altri mesi uscite davvero in questo */
   carryMoved: CarryItem[]
-  showMoved: boolean
-  onPaidCarry: (id: string) => void
+  /** §331 — spuntare un arretrato passa dal dialogo, come le righe del mese */
+  onPayCarry: (i: CarryItem) => void
+  onUnpayCarry: (i: CarryItem) => void
+  /** §331 — fattura e movimento anche sulle righe di altri mesi */
+  carryDocs: CarryDocs
   onDue: (id: string, d: string | null) => void
   onUpdate: (id: string, patch: Partial<{ label: string; category: string; budget: number; actual: number; paid: boolean; cost_type: 'F' | 'V' }>) => void
   onCenter: (id: string, centerId: string | null) => void
@@ -3791,8 +4015,8 @@ function CostSection({
       )}
 
       {/* §224 — le uscite maturate prima che nessuno ha ancora pagato */}
-      <CarryBlock side="uscita" items={carry} moved={carryMoved} showMoved={showMoved}
-        onPaid={onPaidCarry} onDue={onDue}
+      <CarryBlock side="uscita" items={carry} moved={carryMoved} docs={carryDocs}
+        onPay={onPayCarry} onUnpay={onUnpayCarry} onDue={onDue}
         onRemove={id => onDelete(id, carry.find(x => x.id === id)?.title ?? 'la voce')} />
 
       {!locked && (

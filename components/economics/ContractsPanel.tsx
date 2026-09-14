@@ -431,6 +431,20 @@ function Row({
                 <option value="">—</option>
                 {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
               </select>
+              {/* §330 — il riferimento e la tasca sono due domande. Un lavoro
+                  portato in tre ha comunque una persona che il cliente chiama,
+                  e l'unico modo che il tool aveva di dividere la provvigione era
+                  cancellare quel nome: un dato falso per far tornare un numero.
+                  Qui la divisione si dichiara, e le rate la trovano già presa. */}
+              <label className="flex items-start gap-2 mt-1.5 cursor-pointer">
+                <input type="checkbox" checked={!!s.sales_split} disabled={!canEdit}
+                  onChange={e => run(() => updateStream(s.id, { sales_split: e.target.checked }, ctx))}
+                  className="mt-0.5 accent-current text-gold-text" />
+                <span className="text-2xs text-text-tertiary leading-snug">
+                  Provvigione divisa fra i soci — il commerciale resta il riferimento, la quota si
+                  spartisce in parti uguali
+                </span>
+              </label>
             </Field>
             <Field label="Si attiva dopo">
               <select value={s.activates_after_id ?? ''} disabled={!canEdit} aria-label="Si attiva dopo"

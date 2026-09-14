@@ -53,6 +53,8 @@ export type RevenueStream = {
   payment_terms?: string | null
   /** §188: anticipo che torna al cliente (budget ads): fatturato sì, quote no */
   pass_through?: boolean
+  /** §330: la provvigione si divide fra i soci, col commerciale che resta scritto */
+  sales_split?: boolean
 }
 
 export type Installment = {
@@ -82,6 +84,8 @@ export type MonthLine = {
   paid: boolean
   /** §188: partita di giro, dal contratto */
   pass_through?: boolean
+  /** §330: provvigione divisa fra i soci, dal contratto */
+  sales_split?: boolean
 }
 
 const first = (iso: string) => iso.slice(0, 8) + '01'
@@ -143,7 +147,7 @@ export function linesForMonth(
         project_id: singleProject(projects), project_ids: projects,
         label: s.label, kind: s.kind, amount_net: s.amount, vat_rate: s.vat_rate,
         sales_owner_id: s.sales_owner_id, invoiced: false, paid: false,
-        pass_through: !!s.pass_through,
+        pass_through: !!s.pass_through, sales_split: !!s.sales_split,
       })
     }
   }
@@ -160,7 +164,7 @@ export function linesForMonth(
       label: i.label ? `${s.label} — ${i.label}` : s.label,
       kind: s.kind, amount_net: i.amount, vat_rate: s.vat_rate,
       sales_owner_id: s.sales_owner_id, invoiced: i.invoiced, paid: i.paid,
-      pass_through: !!s.pass_through,
+      pass_through: !!s.pass_through, sales_split: !!s.sales_split,
     })
   }
 
@@ -189,16 +193,18 @@ export type LineFacts = {
   project_id: string | null
   vat_rate: number
   pass_through?: boolean
+  sales_split?: boolean
 }
 
-export type DriftField = 'kind' | 'project_id' | 'vat_rate' | 'pass_through'
+export type DriftField = 'kind' | 'project_id' | 'vat_rate' | 'pass_through' | 'sales_split'
 
 export type ContractDrift = {
   lineId: string
   label: string
   streamId: string
   fields: DriftField[]
-  patch: Partial<Pick<LineFacts, 'kind' | 'project_id' | 'vat_rate' | 'pass_through'>>
+  patch: Partial<Pick<LineFacts,
+    'kind' | 'project_id' | 'vat_rate' | 'pass_through' | 'sales_split'>>
 }
 
 /** Come si legge uno scostamento, in italiano e senza gergo di colonna. */
@@ -207,6 +213,7 @@ export const DRIFT_LABEL: Record<DriftField, string> = {
   project_id: 'progetto',
   vat_rate: 'aliquota IVA',
   pass_through: 'partita di giro',
+  sales_split: 'provvigione divisa',
 }
 
 /**
@@ -234,6 +241,7 @@ export function contractDrift(
       project_id: singleProject(coveredProjects(s, coverage)),
       vat_rate: s.vat_rate,
       pass_through: !!s.pass_through,
+      sales_split: !!s.sales_split,
     }
     const fields: DriftField[] = []
     const patch: ContractDrift['patch'] = {}
@@ -247,6 +255,11 @@ export function contractDrift(
     }
     if (!!l.pass_through !== want.pass_through) {
       fields.push('pass_through'); patch.pass_through = want.pass_through
+    }
+    /* §330 — a chi va la provvigione è dell'accordo, non del mese: deciso una
+       volta sul contratto, le rate che verranno lo trovano già scritto. */
+    if (!!l.sales_split !== want.sales_split) {
+      fields.push('sales_split'); patch.sales_split = want.sales_split
     }
 
     if (fields.length) out.push({ lineId: l.id, label: l.label, streamId: s.id, fields, patch })

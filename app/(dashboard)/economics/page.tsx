@@ -259,6 +259,7 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
           kind: (r.kind === 'digital' ? 'digital' : 'growth') as 'growth' | 'digital',
           project_id: (r.project_id as string) ?? null,
           vat_rate: num(r.vat_rate), pass_through: r.pass_through === true,
+          sales_split: r.sales_split === true,
         })),
         (fcStreams ?? []) as unknown as RevenueStream[],
         coverage,
@@ -641,12 +642,17 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
 
   /* I candidati si mostrano **anche** su una riga già agganciata ma non coperta:
      è il caso dei ventidue Meta, dove al secondo giro se ne aggiungono altri. */
+  /* §331 — e **anche sulle righe di altri mesi**. Una rata di luglio incassata
+     ad agosto è un incasso come gli altri: ha una fattura e un movimento, e
+     finché i candidati si costruivano sulle sole righe del mese aperto il
+     blocco «Da mesi precedenti» aveva una spunta e nient'altro — cioè l'unica
+     parte del conto economico in cui «pagato» restava per forza un'opinione. */
   const matchOptions: Record<string, Cand[]> = {}
-  for (const r of (revenue ?? []) as Record<string, unknown>[]) {
+  for (const r of [...(revenue ?? []), ...(aroundRev ?? [])] as Record<string, unknown>[]) {
     const name = r.client_id ? (clientNames[String(r.client_id)] ?? '') : String(r.label)
     matchOptions[String(r.id)] = candidatesFor(grossRev(r), 'in', name)
   }
-  for (const c of (costs ?? []) as Record<string, unknown>[]) {
+  for (const c of [...(costs ?? []), ...(aroundCost ?? [])] as Record<string, unknown>[]) {
     matchOptions[String(c.id)] = candidatesFor(grossCost(c), 'out', String(c.label))
   }
 
@@ -707,11 +713,11 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
       .map(({ vicino: _v, stesso: _s, ...i }) => i)
 
   const invoiceOptions: Record<string, InvOpt[]> = {}
-  for (const r of (revenue ?? []) as Record<string, unknown>[]) {
+  for (const r of [...(revenue ?? []), ...(aroundRev ?? [])] as Record<string, unknown>[]) {
     const nome = r.client_id ? (clientNames[String(r.client_id)] ?? '') : String(r.label)
     invoiceOptions[String(r.id)] = invFor('emessa', grossRev(r), nome)
   }
-  for (const c of (costs ?? []) as Record<string, unknown>[]) {
+  for (const c of [...(costs ?? []), ...(aroundCost ?? [])] as Record<string, unknown>[]) {
     invoiceOptions[String(c.id)] = invFor('ricevuta', grossCost(c), String(c.label))
   }
 
@@ -852,6 +858,10 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
           kind: r.kind === 'commerciale' ? 'commerciale' as const : 'socio' as const,
           amount: num(r.amount), due_month: String(r.due_month).slice(0, 10),
           paid: r.paid === true, paid_on: r.paid_on ? String(r.paid_on).slice(0, 10) : null,
+          /* §332 — una riga decisa a mano (§251) non si riallinea: senza saperlo,
+             la pagina la conterebbe fra quelle da rigenerare e offrirebbe un
+             pulsante che su di lei non fa niente. */
+          note: r.note ? String(r.note) : null,
         }))}
       centers={(centers ?? []).map((c: { id: string; name: string }) => ({ id: c.id, name: c.name }))}
       costs={(costs ?? []).map((c: Record<string, unknown>) => asCost(c, month))}
