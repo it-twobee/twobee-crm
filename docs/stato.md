@@ -23,6 +23,14 @@ pagina: finiva in «passati in questo mese», montato **solo** in lettura di
 cassa. Adesso ha le stesse due celle delle righe del mese, lo stesso dialogo, e
 il blocco di destinazione c'è in tutte e due le letture.
 
+**§334 — il foglio dell'erogazione, da stampare.** «Report compensi» in testata
+a Erogato soci apre `/api/compensi`: chi prende cosa, quanto è già uscito, quanto
+resta da versare, e sotto ogni persona il dettaglio riga per riga — voce di
+ricavo, base, percentuale applicata, motivo. Non ricalcola niente: rende i
+`QuotaRow` che il motore produce già. Su agosto: 15.498,02 € a quattro persone,
+e le 5 righe maturate e non incassate per 12.200 € dette accanto, perché è quasi
+sempre lì la ragione di un compenso più basso del previsto.
+
 **§333 — l'elenco dei commerciali è di persone, non di importi.** Conseguenza vista
 subito su agosto: marcata iCura «divisa», la sola provvigione incassata di
 Walter Giacobbe è andata nel pool e la sua riga è uscita dai commerciali senza

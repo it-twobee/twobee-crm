@@ -9,7 +9,7 @@ import {
   TrendingUp, TrendingDown, Wallet, Target, ShieldAlert, Users, Building2, Info,
   Briefcase, AlertTriangle, RotateCcw, Landmark, Receipt, Loader2,
   FileText, BadgeEuro, CheckCircle2, CalendarClock, History, ArrowRightLeft, ListChecks,
-  MoreHorizontal, Banknote, X, Link2,
+  MoreHorizontal, Banknote, X, Link2, FileDown,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import {
@@ -1952,6 +1952,18 @@ function CompensiSection({
   }
   const daFare = scoperti.socio.length + scoperti.commerciale.length
 
+  /* §334 — il foglio dell'erogazione. Si apre in una scheda e da lì il browser
+     lo salva in PDF: un documento identico su ogni macchina, senza portarsi
+     dietro un motore di stampa — ed è la forma in cui un compenso si manda a chi
+     lo riceve, che nel tool non entra. */
+  const Report = () => (
+    <a href={`/api/compensi?m=${month}`} target="_blank" rel="noopener"
+      title="Il dettaglio di ogni compenso: voci, base e percentuali, pronto da stampare"
+      className="flex items-center gap-1.5 text-2xs font-bold bg-gold text-on-gold rounded-xl px-3 py-2 press whitespace-nowrap">
+      <FileDown className="w-3.5 h-3.5" aria-hidden="true" />Report compensi
+    </a>
+  )
+
   const Testata = ({ tot, st }: { tot: number; st: ReturnType<typeof stato> }) => (
     <div className="flex items-center gap-3 shrink-0 ml-auto">
       {/* Segnare dieci righe una a una è il motivo per cui non le segna nessuno. */}
@@ -2287,7 +2299,13 @@ function CompensiSection({
               {pc(config.digital_partner_pct)} del margine digital a ciascuno · {base}
             </p>
           </div>
-          <Testata tot={totSoci} st={stato('socio', soci)} />
+          <div className="flex items-center gap-2 shrink-0 ml-auto flex-wrap justify-end">
+            {/* §334 — il foglio sta accanto al primo dei due blocchi che
+                riepiloga, non in fondo alla pagina: si scarica nello stesso
+                momento in cui si guarda quanto versare. */}
+            <Report />
+            <Testata tot={totSoci} st={stato('socio', soci)} />
+          </div>
         </div>
         {soci.length === 0 ? <div className="p-5"><Empty>Nessun socio configurato.</Empty></div> : (
           <ul className="divide-y divide-border/60">

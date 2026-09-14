@@ -497,6 +497,14 @@ export type QuotaRow = {
   base: number
   /** il subappalto già tolto dalla base, quando c'è */
   external: number
+  /**
+   * §334 — il mese di **competenza** della riga. La finestra dell'erogazione
+   * attraversa i mesi (§286: una rata di luglio incassata il 3 agosto sta nella
+   * finestra di adesso), quindi due canoni uguali dello stesso cliente finiscono
+   * uno sotto l'altro con lo stesso importo e la stessa percentuale — e senza il
+   * mese si leggono come una riga scritta due volte.
+   */
+  month: string | null
   /** la percentuale applicata a questa persona, già divisa dove va divisa */
   pct: number
   amount: number
@@ -716,7 +724,7 @@ export function computeMonth(
   ): QuotaRow => ({
     lineId: x.line.id, label: x.line.label,
     clientId: x.line.client_id, projectId: x.line.project_id ?? null,
-    kind: x.line.kind,
+    kind: x.line.kind, month: x.line.month ?? null,
     base: x.line.kind === 'digital' ? x.s.margin : x.s.base,
     external: x.s.external,
     pct, amount: r2(amount), reason,

@@ -98,6 +98,32 @@ diversi, non per incoerenza:
   e offre «Aggiorna N», la riga mette un avviso al posto della casella, e
   rigenerare **non tocca** le righe pagate (§243) né quelle decise a mano (§251)
   — o il pulsante prometterebbe un lavoro che non farà.
+- **Il foglio dell'erogazione** (§334, `lib/payout-report.ts`, `/api/compensi`,
+  pulsante «Report compensi» in testata a «Erogato soci»). Il conto economico
+  risponde già a «quanto spetta a ciascuno», ma la risposta vive in una pagina
+  che si apre un pannello alla volta. Il giorno del bonifico la domanda si fa in
+  due minuti — **quanto verso, a chi, e se qualcuno chiede perché, da dove
+  viene** — e chi riceve il compenso nel tool non entra: gli serve un foglio.
+  - **Nessun numero senza la sua riga**: ogni compenso si apre nelle voci di
+    ricavo che lo alimentano, con base, percentuale applicata e motivo. Sono i
+    `QuotaRow` che il motore produce già (§186), non un secondo calcolo — un
+    foglio che ricalcola è un foglio che un giorno dirà un numero diverso.
+  - **Maturato e da versare in due colonne**: quello che spetta è il lavoro
+    consegnato, quello che esce è al netto di ciò che il socio ha già speso dal
+    sottoconto o fatturato (§191). Sommarli a mente è l'errore che il foglio
+    esiste per evitare.
+  - **Quello che non è entrato si dice**: le righe maturate e non rientrate nella
+    finestra (§286) hanno una riga loro, «non è una quota persa, è rimandata».
+    Un compenso più basso del previsto ha sempre una ragione, e nove volte su
+    dieci è quella.
+  - **Il mese si scrive solo quando non è quello del foglio.** La finestra ne
+    attraversa due, quindi due canoni uguali dello stesso cliente finiscono uno
+    sotto l'altro con lo stesso importo e la stessa percentuale: senza il mese si
+    leggono come una riga scritta due volte. Per questo `QuotaRow` porta `month`.
+  - HTML autonomo come il report del board (§268): nessun asset esterno, e il PDF
+    lo fa il browser. `npx tsx scripts/report-compensi.ts 2026-08-01` lo genera su
+    file per guardarlo prima di mandarlo — una colonna che va a capo si vede solo
+    guardando il foglio. Gate: `npx tsx lib/payout-report.check.ts`.
 - `rowToPlConfig` è l'unico mapper da `pl_config`: era scritto due volte
   (economics e scheda cliente) e la seconda copia si dimenticava ogni colonna
   nuova.
