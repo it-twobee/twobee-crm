@@ -58,7 +58,8 @@ export default async function WorkspaceProjectDetailPage({ params, searchParams 
       backHref="/workspace/progetti"
       canManageProject={canManageProject}
       canEditTasks
-      initialTab={searchParams.tab === 'workstream' ? 'workstream' : undefined}
+      initialTab={searchParams.tab === 'workstream' ? 'workstream'
+        : searchParams.tab === 'panoramica' ? 'panoramica' : undefined}
     /></>
   )
 }

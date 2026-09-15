@@ -102,7 +102,11 @@ export default async function ProjectDetailPage({ params, searchParams }: { para
       recurring={(recurring ?? []) as RecurringTaskTemplate[]}
       memberIds={memberIds}
       profiles={(profiles ?? []) as { id: string; full_name: string; avatar_url: string | null }[]}
-      initialTab={searchParams.tab === 'workstream' ? 'workstream' : searchParams.tab === 'economics' ? 'economics' : undefined}
+      /* §342 — `panoramica` ora è una scelta esplicita: il default è passato
+         alle workstream, quindi un link che la voleva deve poterla chiedere. */
+      initialTab={searchParams.tab === 'workstream' ? 'workstream'
+        : searchParams.tab === 'economics' ? 'economics'
+        : searchParams.tab === 'panoramica' ? 'panoramica' : undefined}
       /* §176: l'economics nasce dal cliente. Un progetto interno o esterno non
          ha un accordo economico da gestire: la scheda non compare proprio */
       economics={streamErr || !project.client_id ? undefined : (

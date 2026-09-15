@@ -71,7 +71,12 @@ export function ProjectDetailClient({
 }) {
   const router = useRouter()
   const [pending, start] = useTransition()
-  const [tab, setTab] = useState<'panoramica' | 'workstream' | 'economics'>(initialTab ?? 'panoramica')
+  /* §342 — **si apre sulle workstream.** La Panoramica è un riassunto, e un
+     riassunto si legge quando si sa già di cosa: aprendo un progetto la domanda
+     è «a che punto sono le lavorazioni», non «quante ne ho in tutto». Le
+     statistiche restano dove servono — dentro la Panoramica, che è il posto
+     giusto per i numeri d'insieme — a un clic di distanza. */
+  const [tab, setTab] = useState<'panoramica' | 'workstream' | 'economics'>(initialTab ?? 'workstream')
   const [creatingWs, setCreatingWs] = useState(false)
   // le milestone si aggiungono anche da qui: dopo il wizard nessuno ci rientra,
   // e aprire la pagina della workstream per una tappa in più non si trovava
@@ -315,8 +320,8 @@ export function ProjectDetailClient({
       <div className="flex border-b border-border px-4 sm:px-6 scroll-x-touch
                       sticky top-0 z-20 bg-background/95 backdrop-blur-sm">
         {(economics
-          ? [['panoramica', 'Panoramica'], ['workstream', 'Workstream'], ['economics', 'Economics']] as const
-          : [['panoramica', 'Panoramica'], ['workstream', 'Workstream']] as const
+          ? [['workstream', 'Workstream'], ['panoramica', 'Panoramica'], ['economics', 'Economics']] as const
+          : [['workstream', 'Workstream'], ['panoramica', 'Panoramica']] as const
         ).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`px-4 py-3.5 text-sm font-semibold border-b-2 whitespace-nowrap transition-colors ${
@@ -540,21 +545,6 @@ export function ProjectDetailClient({
                 sub={nextDelivery ? `Prossima: ${nextDelivery.title}` : undefined} />
             </div>
 
-            {/* ── Calendario milestone a swimlane ── */}
-            <ProjectGantt workstreams={workstreams} milestones={milestones} tasks={tasks} profiles={profiles} onOpenMilestone={openMilestone}
-              onAddMilestone={canManageProject
-                ? (wsId) => { const w = workstreams.find(x => x.id === wsId); if (w) setMsWs(w) }
-                : undefined}
-              emptyHint={workstreams.length > 1
-                ? 'Nessuna milestone datata: aggiungine una col tasto «Milestone» sulla riga del workstream qui sotto, o metti una scadenza a una esistente.'
-                : undefined}
-              emptyAction={canManageProject && workstreams.length === 1 ? (
-                <button onClick={() => setMsWs(workstreams[0])}
-                  className="inline-flex items-center gap-1.5 text-2xs font-semibold bg-gold text-on-gold px-3 py-1.5 rounded-lg shadow-soft press mt-2.5">
-                  <Plus className="w-3.5 h-3.5" />Aggiungi una milestone
-                </button>
-              ) : undefined} />
-
             {/* ── toolbar ── */}
             <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
               <h3 className="text-xl font-bold text-text-primary font-heading">
@@ -641,6 +631,29 @@ export function ProjectDetailClient({
                 msCount={id => wsDeliveryMs(id).length}
                 onAddMilestone={canManageProject ? setMsWs : undefined} />
             )}
+
+            {/* §342 — **il calendario dopo le corsie, non prima.** Sta sotto
+                perché risponde a una domanda successiva: prima si guarda *cosa*
+                c'è da fare — le workstream, con avanzamento e prossima tappa —
+                e solo dopo *quando* cade. Con il calendario in cima la prima
+                cosa che si vedeva era una griglia di date senza sapere ancora a
+                cosa appartenessero, e su un progetto con una workstream sola
+                erano due schermate di bandierine prima del contenuto. */}
+            <div className="pt-1">
+              <ProjectGantt workstreams={workstreams} milestones={milestones} tasks={tasks} profiles={profiles} onOpenMilestone={openMilestone}
+                onAddMilestone={canManageProject
+                  ? (wsId) => { const w = workstreams.find(x => x.id === wsId); if (w) setMsWs(w) }
+                  : undefined}
+                emptyHint={workstreams.length > 1
+                  ? 'Nessuna milestone datata: aggiungine una col tasto «Milestone» sulla riga del workstream qui sopra, o metti una scadenza a una esistente.'
+                  : undefined}
+                emptyAction={canManageProject && workstreams.length === 1 ? (
+                  <button onClick={() => setMsWs(workstreams[0])}
+                    className="inline-flex items-center gap-1.5 text-2xs font-semibold bg-gold text-on-gold px-3 py-1.5 rounded-lg shadow-soft press mt-2.5">
+                    <Plus className="w-3.5 h-3.5" />Aggiungi una milestone
+                  </button>
+                ) : undefined} />
+            </div>
           </div>
         )}
       </div>

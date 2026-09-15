@@ -73,6 +73,11 @@ ricavo, base, percentuale applicata, motivo. Non ricalcola niente: rende i
 e le 5 righe maturate e non incassate per 12.200 € dette accanto, perché è quasi
 sempre lì la ragione di un compenso più basso del previsto.
 
+**§342 — la scheda progetto si apre sulle lavorazioni.** Era Panoramica, e nel
+tab Workstream il calendario stava sopra l'elenco: un riassunto prima di sapere
+di cosa, e delle date prima di sapere a cosa appartengono. Ora Workstream è il
+primo tab e il calendario sta sotto le corsie.
+
 **Workstream azzerate.** Su richiesta esplicita, dopo aver misurato la cascata e
 averla dichiarata: via **93 workstream** e con loro, per `ON DELETE CASCADE`,
 **144 milestone**, **124 task di progetto** e **185 regole ricorrenti**. Le

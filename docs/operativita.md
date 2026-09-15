@@ -85,6 +85,24 @@ progetto. Una riga rossa che nessuno può spegnere insegna a ignorare le altre.
   calendario del team. GAV sta fuori già dalla VIEW, via `workspace_hidden`
   (§213).
 
+## La scheda progetto si apre sulle lavorazioni (§342)
+
+Il progetto si apriva sulla **Panoramica** e, dentro il tab Workstream, la prima
+cosa a schermo era il **calendario**. Due volte lo stesso difetto: un riassunto
+prima di sapere di cosa, e delle date prima di sapere a cosa appartengono. Chi
+apre un progetto si sta chiedendo «a che punto sono le lavorazioni», non «quante
+ne ho in tutto» — e su un progetto con una workstream sola erano due schermate
+di bandierine prima del contenuto.
+
+- **Workstream è il primo tab e quello di default**; la Panoramica viene dopo ed
+  è il posto giusto per le statistiche d'insieme, che restano dove sono.
+- **Dentro il tab, il calendario sta sotto l'elenco**: prima *cosa* c'è da fare
+  — le corsie, con avanzamento, prossima tappa e task aperte — poi *quando*
+  cade. I segnali (in ritardo, ≤7 giorni, non assegnate, avanzamento) restano in
+  cima, perché filtrano l'elenco che viene subito dopo.
+- `?tab=panoramica` diventa una scelta esplicita che le due pagine accettano: il
+  default è cambiato, e un link che voleva il riassunto deve poterlo chiedere.
+
 ## La milestone si aggiunge dalla pagina progetto (§322)
 
 Il wizard mette le milestone del template e poi non ci si rientra: l'unico posto
