@@ -182,6 +182,11 @@ export function AnagraficaTab({
 
   return (
     <div className="space-y-6">
+      {hideEconomics && (
+        <p className="text-sm text-text-secondary">
+          Dati operativi, referenti e team del cliente. I dati fiscali e amministrativi sono riservati agli amministratori.
+        </p>
+      )}
 
       {/* Dati Aziendali */}
       <SectionCard>
@@ -191,9 +196,9 @@ export function AnagraficaTab({
           <Field label="Nome visualizzato" value={client.display_name ?? client.company_name} editMode={editAzienda}>
             <Input label="Nome visualizzato" value={form.display_name ?? form.company_name ?? ''} onChange={(v) => setForm((p) => ({ ...p, display_name: v }))} />
           </Field>
-          <Field label="Ragione Sociale" value={client.legal_name} editMode={editAzienda}>
+          {!hideEconomics && <Field label="Ragione Sociale" value={client.legal_name} editMode={editAzienda}>
             <Input label="Ragione sociale" value={form.legal_name ?? ''} onChange={(v) => setForm((p) => ({ ...p, legal_name: v }))} placeholder="es. Seven Holding S.r.l." />
-          </Field>
+          </Field>}
           <Field label="Telefono" value={client.phone} editMode={editAzienda}>
             <Input label="Telefono" value={form.phone ?? ''} onChange={(v) => setForm((p) => ({ ...p, phone: v }))} placeholder="+39 ..." />
           </Field>
@@ -226,6 +231,8 @@ export function AnagraficaTab({
             <Input label="Area di mercato" value={form.market_area ?? ''} onChange={(v) => setForm((p) => ({ ...p, market_area: v }))} placeholder="es. Nord Italia, Nazionale, Europa..." />
           </Field>
           {/* §166: il commerciale si definisce qui, non riga per riga nel P&L */}
+          {/* Questi campi sono oscurati o assenti in clients_workspace. */}
+          {!hideEconomics && <>
           <Field label="Commerciale"
             value={allProfiles.find((p) => p.id === client.sales_owner_id)?.full_name ?? client.sales_owner_name}
             editMode={editAzienda}>
@@ -290,6 +297,7 @@ export function AnagraficaTab({
                 aria-label="Note interne" className={`${inputCls} resize-none`} />
             </Field>
           </div>
+          </>}
         </div>
 
         {/* Canali */}
@@ -306,9 +314,9 @@ export function AnagraficaTab({
             </div>
           ) : (
             <div className="flex gap-2 flex-wrap">
-              {client.active_channels.length === 0
+              {(client.active_channels ?? []).length === 0
                 ? <span className="text-text-secondary italic text-xs">Nessun canale attivo</span>
-                : client.active_channels.map((ch) => (
+                : (client.active_channels ?? []).map((ch) => (
                   <span key={ch} className="bg-background border border-border text-text-secondary text-xs px-2.5 py-1 rounded">{ch}</span>
                 ))}
             </div>

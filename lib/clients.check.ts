@@ -1,6 +1,7 @@
 /* Verifica degli stati del cliente. Esegui: npx tsx lib/clients.check.ts */
 import { isLost, isPaused, isLead, countsInStats, countsInDelivery, pausedDays, paymentLabel } from '@/lib/clients'
 import type { ClientLabel } from '@/lib/types/database'
+import { canSeeClientAnagrafica, canSeeEconomics } from '@/lib/permissions'
 
 let fail = 0
 const is = (label: string, got: unknown, want: unknown) => {
@@ -67,6 +68,18 @@ is('in_attesa è «da pagare»', paymentLabel('in_attesa'), 'Da pagare')
 is('scaduto è «non pagato»', paymentLabel('scaduto'), 'Non pagato')
 is('ignoto è un trattino', paymentLabel('boh'), '—')
 is('nullo è un trattino', paymentLabel(null), '—')
+
+console.log('\n— Visibilità anagrafica operativa —')
+for (const app_role of ['super_admin', 'founder', 'admin', 'manager']) {
+  is(`${app_role}: anagrafica visibile`, canSeeClientAnagrafica({ app_role }), true)
+}
+for (const app_role of ['senior', 'junior', 'stage', 'freelance', 'partner', 'viewer', 'client', 'guest', 'unknown']) {
+  is(`${app_role}: anagrafica nascosta`, canSeeClientAnagrafica({ app_role }), false)
+}
+is('profilo assente: anagrafica nascosta', canSeeClientAnagrafica(null), false)
+is('ruolo assente: anagrafica nascosta', canSeeClientAnagrafica({}), false)
+is('Marco: anagrafica visibile', canSeeClientAnagrafica({ email: 'm.lucci@twobee.it' }), true)
+is('manager: economics ancora vietate', canSeeEconomics({ app_role: 'manager' }), false)
 
 console.log(fail ? `\n${fail} controlli falliti.` : '\nTutti i controlli passano.')
 process.exit(fail ? 1 : 0)

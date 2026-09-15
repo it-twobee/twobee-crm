@@ -229,3 +229,10 @@ export function canSeeEconomics(p: {
   if (!p) return false
   return isSuperAdminRaw(p.email, p.app_role) || isAdminRole(p.app_role)
 }
+
+// La scheda operativa non concede accesso ai dati fiscali né alla modifica.
+export function canSeeClientAnagrafica(p: {
+  email?: string | null; app_role?: string | null
+} | null | undefined): boolean {
+  return canSeeEconomics(p) || p?.app_role === 'manager'
+}
