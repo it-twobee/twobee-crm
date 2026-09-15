@@ -31,6 +31,13 @@ ricavo, base, percentuale applicata, motivo. Non ricalcola niente: rende i
 e le 5 righe maturate e non incassate per 12.200 € dette accanto, perché è quasi
 sempre lì la ragione di un compenso più basso del previsto.
 
+**§338 — la ricorrente si modifica dove si legge.** Il responsabile stava dietro
+una matita che compariva solo al passaggio del mouse, ed è la sola cosa che
+decide se l'occorrenza arriverà a qualcuno. Ora la riga porta responsabile,
+regola in italiano, prossima data e volume mensile; il form mostra le prime tre
+date prima di salvare e chiede da quando a quando; le tappe generate portano il
+badge «ricorrente».
+
 **§337 — le ricorrenze, e un motore che gira davvero.** Misurato prima di
 toccare niente: **185 template ricorrenti attivi, zero occorrenze mai generate**.
 La 152 schedulava il motore con `pg_cron` dentro un `EXCEPTION WHEN

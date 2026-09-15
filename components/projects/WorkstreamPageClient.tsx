@@ -15,7 +15,7 @@ import {
   createRecurring, updateRecurring, deleteRecurring,
   createRecurringMilestone, updateRecurringMilestone, deleteRecurringMilestone,
 } from '@/app/actions/recurring'
-import { nextOccurrence, ruleLabel, monthlyVolume } from '@/lib/recurrence'
+import { nextOccurrence, ruleLabel, monthlyVolume, occurrencesBetween } from '@/lib/recurrence'
 import { Avatar, Segmented, inputCls } from '@/components/shared/formkit'
 import { TaskDetailDrawer } from './TaskDetailDrawer'
 import { TaskComposer } from '@/components/tasks/TaskComposer'
@@ -582,6 +582,16 @@ function MilestoneNode({
               {m.title}
             </button>
           )}
+          {/* §338 — una tappa nata da una regola lo dice: altrimenti chi la
+              trova in elenco la corregge a mano, e al giro dopo ne ricompare
+              un'altra identica senza che si capisca da dove. Il posto per
+              cambiarla è la regola, non la tappa. */}
+          {m.is_recurring_instance && (
+            <span className="flex items-center gap-1 text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-success-dim text-success shrink-0"
+              title="Nata da una tappa ricorrente: per cambiarla tutte, modifica la regola qui sopra">
+              <Repeat className="w-3 h-3" aria-hidden="true" />ricorrente
+            </span>
+          )}
           {rel && <span className={`text-2xs font-semibold shrink-0 ${rel.tone}`}>{rel.text}</span>}
           {lateHere > 0 && (
             <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-error-dim text-error shrink-0 tabular">{lateHere} in ritardo</span>
@@ -743,7 +753,102 @@ const FREQ: { key: RecurrenceFrequency; label: string }[] = [
 ]
 const FREQ_LABEL: Record<string, string> = Object.fromEntries(FREQ.map(f => [f.key, f.label]))
 const WEEKDAYS = [['Lun', 1], ['Mar', 2], ['Mer', 3], ['Gio', 4], ['Ven', 5], ['Sab', 6], ['Dom', 0]] as const
-type RecInput = { title: string; frequency: RecurrenceFrequency; interval: number; weekdays: number[]; day_of_month: number | null; owner_id: string | null; visibility: 'internal' | 'client_visible' }
+type RecInput = {
+  title: string; frequency: RecurrenceFrequency; interval: number
+  weekdays: number[]; day_of_month: number | null
+  /** §338 — da quando, e fino a quando. Su una tappa è la domanda principale */
+  start_date: string; end_date: string | null
+  owner_id: string | null; visibility: 'internal' | 'client_visible'
+}
+
+/**
+ * §338 — La riga di una ricorrente, editabile dove la si legge.
+ *
+ * Diceva titolo e frequenza, e tutto il resto stava dietro una matita che
+ * compariva solo passandoci sopra: il responsabile — cioè la sola cosa che
+ * decide se l'occorrenza arriverà a qualcuno in «le mie attività» — non era
+ * nemmeno visibile. Una regola senza responsabile genera task di nessuno, e
+ * finora era l'impostazione di tutte e 185.
+ *
+ * Adesso la riga dice **chi, ogni quanto, la prossima volta e quante ne fa**, e
+ * le due cose che si cambiano di continuo — responsabile e pausa — si toccano
+ * sul posto. La matita resta per il resto (titolo, giorni, visibilità) ed è
+ * **sempre visibile**: un controllo che appare al passaggio del mouse non
+ * esiste per chi non sa di doverlo cercare, e su un touch non esiste affatto.
+ */
+function RecurringRow({
+  id, title, rule, active, visibility, ownerId, accent, Icon,
+  profiles, canEdit, pending, onOwner, onToggle, onEdit, onDelete,
+}: {
+  id: string
+  title: string
+  rule: { frequency: RecurrenceFrequency; interval: number; weekdays: number[] | null; day_of_month: number | null; start_date: string; end_date: string | null }
+  active: boolean
+  visibility: 'internal' | 'client_visible'
+  ownerId: string | null
+  accent: string
+  Icon: typeof Repeat
+  profiles: Person[]
+  canEdit: boolean
+  pending: boolean
+  onOwner: (v: string | null) => void
+  onToggle: () => void
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  const oggi = new Date().toISOString().slice(0, 10)
+  const prossima = active ? nextOccurrence(rule, oggi) : null
+  const quante = active ? monthlyVolume(rule, oggi) : 0
+  const giorno = (v: string) =>
+    new Date(`${v}T00:00:00`).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
+
+  return (
+    <div className={`flex items-center gap-2 py-1.5 border-b border-border/50 last:border-0 ${active ? '' : 'opacity-60'}`}>
+      <Icon className={`w-3.5 h-3.5 shrink-0 ${accent}`} aria-hidden="true" />
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm text-text-primary truncate">{title}</span>
+        <span className="block text-2xs text-text-tertiary truncate">
+          {ruleLabel(rule)}
+          {prossima
+            ? <> · prossima <strong className="text-text-secondary">{giorno(prossima)}</strong>
+              {quante > 1 && <> · {quante} al mese</>}</>
+            : active
+              ? <> · <span className="text-warning">nessuna data in arrivo</span></>
+              : <> · in pausa</>}
+        </span>
+      </span>
+
+      {/* §338 — il responsabile **sulla riga**: è quello che decide se
+          l'occorrenza arriverà a qualcuno, e stava dietro una matita nascosta.
+          Senza, la regola genera task di nessuno — l'impostazione con cui sono
+          nate tutte e 185 quelle in archivio. */}
+      <select value={ownerId ?? ''} disabled={!canEdit || pending}
+        aria-label={`Responsabile di ${title}`}
+        onChange={e => onOwner(e.target.value || null)}
+        className={`shrink-0 text-2xs rounded-lg px-1.5 py-1 border bg-background max-w-[130px]
+          ${ownerId ? 'border-border text-text-secondary' : 'border-warning/40 text-warning'}`}>
+        <option value="">nessuno</option>
+        {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+      </select>
+
+      {visibility === 'client_visible' && (
+        <span className="text-2xs text-info shrink-0" title="Visibile nel portale del cliente">cliente</span>
+      )}
+      {canEdit && (
+        <>
+          <button onClick={onToggle} disabled={pending}
+            className="text-2xs text-text-tertiary hover:text-gold-text shrink-0 disabled:opacity-40">
+            {active ? 'Pausa' : 'Attiva'}
+          </button>
+          <button onClick={onEdit} aria-label={`Modifica ${title}`}
+            className="text-text-tertiary hover:text-text-primary shrink-0"><Pencil className="w-3 h-3" /></button>
+          <button onClick={onDelete} aria-label={`Elimina ${title}`}
+            className="text-text-tertiary hover:text-error shrink-0"><Trash2 className="w-3 h-3" /></button>
+        </>
+      )}
+    </div>
+  )
+}
 
 function RecurringPanel({
   recurring, projectId, clientId, wsId, systemMilestoneId, profiles, canEdit, act, pending,
@@ -768,22 +873,23 @@ function RecurringPanel({
         )}
         {recurring.map(r => editing === r.id ? (
           <RecurringForm key={r.id} profiles={profiles} pending={pending}
-            initial={{ title: r.title, frequency: r.frequency, interval: r.interval, weekdays: r.weekdays ?? [], day_of_month: r.day_of_month, owner_id: r.owner_id, visibility: r.visibility }}
+            initial={{ title: r.title, frequency: r.frequency, interval: r.interval, weekdays: r.weekdays ?? [],
+              day_of_month: r.day_of_month, start_date: r.start_date, end_date: r.end_date,
+              owner_id: r.owner_id, visibility: r.visibility }}
             onCancel={() => setEditing(null)} onSave={v => { act(() => updateRecurring(r.id, projectId, v), 'Aggiornata'); setEditing(null) }} />
         ) : (
-          <div key={r.id} className={`flex items-center gap-2 py-1 group ${r.active ? '' : 'opacity-50'}`}>
-            <Repeat className="w-3.5 h-3.5 text-success shrink-0" />
-            <span className="flex-1 min-w-0 text-sm text-text-primary truncate">{r.title}</span>
-            <span className="text-2xs text-success shrink-0">{FREQ_LABEL[r.frequency] ?? r.frequency}{r.interval > 1 ? ` ×${r.interval}` : ''}</span>
-            {r.visibility === 'client_visible' && <span className="text-2xs text-info shrink-0">cliente</span>}
-            {canEdit && (
-              <>
-                <button onClick={() => act(() => updateRecurring(r.id, projectId, { active: !r.active }), r.active ? 'Sospesa' : 'Riattivata')} className="text-2xs text-text-tertiary hover:text-gold-text shrink-0">{r.active ? 'Pausa' : 'Attiva'}</button>
-                <button onClick={() => setEditing(r.id)} aria-label="Modifica ricorrente" className="text-text-tertiary hover:text-text-primary opacity-0 group-hover:opacity-100 shrink-0"><Pencil className="w-3 h-3" /></button>
-                <button onClick={() => { if (confirm(`Eliminare "${r.title}"? Le occorrenze già generate restano.`)) act(() => deleteRecurring(r.id, projectId), 'Eliminata') }} aria-label="Elimina ricorrente" className="text-error opacity-0 group-hover:opacity-100 shrink-0"><Trash2 className="w-3 h-3" /></button>
-              </>
-            )}
-          </div>
+          <RecurringRow key={r.id} id={r.id} title={r.title} active={r.active}
+            rule={r} visibility={r.visibility} ownerId={r.owner_id}
+            accent="text-success" Icon={Repeat}
+            profiles={profiles} canEdit={canEdit} pending={pending}
+            /* §338 — assegnare rigenera: l'azione produce subito l'occorrenza,
+               così chi la riceve la trova in «le mie attività» adesso e non
+               domani mattina. */
+            onOwner={v => act(() => updateRecurring(r.id, projectId, { owner_id: v }),
+              v ? 'Assegnata: le prossime occorrenze sono sue' : 'Responsabile tolto')}
+            onToggle={() => act(() => updateRecurring(r.id, projectId, { active: !r.active }), r.active ? 'Sospesa' : 'Riattivata')}
+            onEdit={() => setEditing(r.id)}
+            onDelete={() => { if (confirm(`Eliminare "${r.title}"? Le occorrenze già generate restano.`)) act(() => deleteRecurring(r.id, projectId), 'Eliminata') }} />
         ))}
         {editing === 'new' && (
           <RecurringForm profiles={profiles} pending={pending} onCancel={() => setEditing(null)}
@@ -816,10 +922,6 @@ function RecurringMilestonePanel({
   act: (fn: () => Promise<unknown>, ok?: string) => void; pending: boolean
 }) {
   const [editing, setEditing] = useState<string | null>(null)
-  const oggi = new Date().toISOString().slice(0, 10)
-  const giorno = (iso: string) =>
-    new Date(`${iso}T00:00:00`).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
-
   if (!canEdit && recurring.length === 0) return null
 
   return (
@@ -844,36 +946,21 @@ function RecurringMilestonePanel({
         )}
         {recurring.map(r => editing === r.id ? (
           <RecurringForm key={r.id} profiles={profiles} pending={pending}
-            initial={{ title: r.title, frequency: r.frequency, interval: r.interval, weekdays: r.weekdays ?? [], day_of_month: r.day_of_month, owner_id: r.owner_id, visibility: r.visibility }}
+            initial={{ title: r.title, frequency: r.frequency, interval: r.interval, weekdays: r.weekdays ?? [],
+              day_of_month: r.day_of_month, start_date: r.start_date, end_date: r.end_date,
+              owner_id: r.owner_id, visibility: r.visibility }}
             onCancel={() => setEditing(null)}
             onSave={v => { act(() => updateRecurringMilestone(r.id, projectId, v), 'Aggiornata'); setEditing(null) }} />
         ) : (
-          <div key={r.id} className={`flex items-center gap-2 py-1 group ${r.active ? '' : 'opacity-50'}`}>
-            <Flag className="w-3.5 h-3.5 text-gold-text shrink-0" aria-hidden="true" />
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm text-text-primary truncate">{r.title}</span>
-              {/* Quando cade la prossima, detto dove si legge la regola: senza,
-                  «ogni mese il 25» non dice se il 25 di questo mese è passato. */}
-              <span className="block text-2xs text-text-tertiary truncate">
-                {ruleLabel(r)}
-                {(() => {
-                  const p = r.active ? nextOccurrence(r, oggi) : null
-                  return p ? <> · prossima <strong className="text-text-secondary">{giorno(p)}</strong></> : null
-                })()}
-              </span>
-            </span>
-            {r.visibility === 'client_visible' && <span className="text-2xs text-info shrink-0">cliente</span>}
-            {canEdit && (
-              <>
-                <button onClick={() => act(() => updateRecurringMilestone(r.id, projectId, { active: !r.active }), r.active ? 'Sospesa' : 'Riattivata')}
-                  className="text-2xs text-text-tertiary hover:text-gold-text shrink-0">{r.active ? 'Pausa' : 'Attiva'}</button>
-                <button onClick={() => setEditing(r.id)} aria-label="Modifica tappa ricorrente"
-                  className="text-text-tertiary hover:text-text-primary opacity-0 group-hover:opacity-100 shrink-0"><Pencil className="w-3 h-3" /></button>
-                <button onClick={() => { if (confirm(`Eliminare "${r.title}"? Le tappe già generate restano.`)) act(() => deleteRecurringMilestone(r.id, projectId), 'Eliminata') }}
-                  aria-label="Elimina tappa ricorrente" className="text-error opacity-0 group-hover:opacity-100 shrink-0"><Trash2 className="w-3 h-3" /></button>
-              </>
-            )}
-          </div>
+          <RecurringRow key={r.id} id={r.id} title={r.title} active={r.active}
+            rule={r} visibility={r.visibility} ownerId={r.owner_id}
+            accent="text-gold-text" Icon={Flag}
+            profiles={profiles} canEdit={canEdit} pending={pending}
+            onOwner={v => act(() => updateRecurringMilestone(r.id, projectId, { owner_id: v }),
+              v ? 'Assegnata: le prossime tappe sono sue' : 'Responsabile tolto')}
+            onToggle={() => act(() => updateRecurringMilestone(r.id, projectId, { active: !r.active }), r.active ? 'Sospesa' : 'Riattivata')}
+            onEdit={() => setEditing(r.id)}
+            onDelete={() => { if (confirm(`Eliminare "${r.title}"? Le tappe già generate restano.`)) act(() => deleteRecurringMilestone(r.id, projectId), 'Eliminata') }} />
         ))}
         {editing === 'new' && (
           <RecurringForm profiles={profiles} pending={pending} onCancel={() => setEditing(null)}
@@ -894,9 +981,25 @@ function RecurringForm({ initial, profiles, pending, onSave, onCancel }: {
   const [dom, setDom] = useState<number | null>(initial?.day_of_month ?? 1)
   const [ownerId, setOwnerId] = useState(initial?.owner_id ?? '')
   const [visibility, setVisibility] = useState<'internal' | 'client_visible'>(initial?.visibility ?? 'internal')
+  const oggi = new Date().toISOString().slice(0, 10)
+  const [start, setStart] = useState(initial?.start_date ?? oggi)
+  const [end, setEnd] = useState(initial?.end_date ?? '')
   const needsWeekdays = frequency === 'weekly' || frequency === 'biweekly'
   const needsDom = frequency === 'monthly' || frequency === 'quarterly'
-  const submit = () => onSave({ title, frequency, interval, weekdays: needsWeekdays ? weekdays : [], day_of_month: needsDom ? dom : null, owner_id: ownerId || null, visibility })
+  const value: RecInput = {
+    title, frequency, interval,
+    weekdays: needsWeekdays ? weekdays : [], day_of_month: needsDom ? dom : null,
+    start_date: start || oggi, end_date: end || null,
+    owner_id: ownerId || null, visibility,
+  }
+  /* §338 — **cosa produrrà, prima di salvare.** Una regola si scrive a parole e
+     si legge in date: «ogni due settimane di lunedì» non dice se la prima cade
+     domani o fra dodici giorni, e una ricorrenza che sforna trenta righe invece
+     di una si scopre quando il calendario è già pieno. */
+  const prossime = occurrencesBetween(value, start || oggi,
+    new Date(Date.parse(`${start || oggi}T00:00:00Z`) + 92 * 86400000).toISOString().slice(0, 10), 3)
+  const alMese = monthlyVolume(value, start || oggi)
+  const submit = () => onSave(value)
   return (
     <div className="bg-background border border-gold/30 rounded-xl p-3 space-y-2.5 my-1">
       {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
@@ -931,6 +1034,31 @@ function RecurringForm({ initial, profiles, pending, onSave, onCancel }: {
         <Segmented ariaLabel="Visibilità" value={visibility} onChange={setVisibility}
           options={[{ value: 'internal', label: 'Interna' }, { value: 'client_visible', label: 'Cliente' }]} />
       </div>
+      {/* §338 — da quando parte e quando finisce: su una tappa ricorrente è la
+          domanda principale («la review parte da gennaio»), e non c'era. Senza
+          fine la serie continua, ed è il caso normale. */}
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="flex items-center gap-1.5 text-2xs text-text-tertiary">Dal
+          <input type="date" value={start} onChange={e => setStart(e.target.value)}
+            aria-label="Prima data utile"
+            className="flex-1 bg-surface border border-border-interactive rounded-lg px-2 py-1.5 text-2xs text-text-primary" /></label>
+        <label className="flex items-center gap-1.5 text-2xs text-text-tertiary">Fino al
+          <input type="date" value={end} onChange={e => setEnd(e.target.value)}
+            aria-label="Ultima data utile (facoltativa)" placeholder="senza fine"
+            className="flex-1 bg-surface border border-border-interactive rounded-lg px-2 py-1.5 text-2xs text-text-primary" /></label>
+      </div>
+
+      <p className="text-2xs text-text-tertiary bg-surface border border-border rounded-lg px-2.5 py-1.5">
+        {prossime.length === 0
+          ? <span className="text-warning">Questa regola non produce nessuna data: controlla frequenza e periodo.</span>
+          : <>
+            <strong className="text-text-secondary">{ruleLabel(value)}</strong>
+            {' · '}prossime: {prossime.map(d =>
+              new Date(`${d}T00:00:00`).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })).join(' · ')}
+            {alMese > 0 && <> · {alMese} al mese</>}
+          </>}
+      </p>
+
       <div className="flex justify-end gap-2">
         <button onClick={onCancel} className="text-2xs font-semibold text-text-secondary px-2.5 py-1.5">Annulla</button>
         <button onClick={submit} disabled={pending || !title.trim()} className="text-2xs font-semibold bg-gold text-on-gold px-3 py-1.5 rounded-lg disabled:opacity-40">Salva</button>

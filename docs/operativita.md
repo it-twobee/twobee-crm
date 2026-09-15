@@ -131,6 +131,28 @@ riga adesso parla di ottobre.
 - Togliere la regola non toglie la storia: `recurring_template_id` va a NULL e
   le tappe generate restano.
 
+**La riga di una ricorrente si modifica dove si legge** (§338). Diceva titolo e
+frequenza, e tutto il resto stava dietro una matita che compariva solo passandoci
+sopra — su un touch, mai. Il **responsabile** non era nemmeno visibile, ed è la
+sola cosa che decide se l'occorrenza arriverà a qualcuno: una regola senza
+responsabile genera task di nessuno, che è come sono nate tutte e 185 quelle in
+archivio. Adesso la riga dice **chi, ogni quanto, la prossima volta e quante ne
+fa al mese**; responsabile e pausa si toccano sul posto, e assegnare **rigenera
+subito**. Matita e cestino sono sempre visibili.
+
+- **Il form dice cosa produrrà, prima di salvare**: le prime tre date e il
+  volume mensile. Una regola si scrive a parole e si legge in date — «ogni due
+  settimane di lunedì» non dice se la prima cade domani o fra dodici giorni — e
+  una ricorrenza che sforna trenta righe invece di una si scopre quando il
+  calendario è già pieno. Se non produce nessuna data, lo dice in giallo invece
+  di salvare una regola muta.
+- **Da quando e fino a quando** erano assenti, e su una tappa sono la domanda
+  principale: «la review parte da gennaio». Senza fine la serie continua, ed è
+  il caso normale.
+- **Una tappa nata da una regola porta il badge «ricorrente»**: altrimenti chi
+  la trova in elenco la corregge a mano e al giro dopo ne ricompare un'altra
+  identica, senza capire da dove. Il posto per cambiarla è la regola.
+
 Gate: `npx tsx lib/recurrence.check.ts` e `npx tsx lib/recurrence-run.check.ts`.
 
 ## Task ad hoc: il cliente può anche non esserci (§321)

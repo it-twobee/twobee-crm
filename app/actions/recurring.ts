@@ -93,6 +93,9 @@ export async function updateRecurring(id: string, projectId: string, updates: {
   interval?: number
   weekdays?: number[] | null
   day_of_month?: number | null
+  /* §338 — anche la data di partenza si corregge: «la review parte da gennaio»
+     è una correzione normale, e le occorrenze già generate restano dove sono. */
+  start_date?: string
   end_date?: string | null
   generation_lead_days?: number
   owner_id?: string | null
@@ -184,6 +187,9 @@ export async function updateRecurringMilestone(id: string, projectId: string, up
   interval?: number
   weekdays?: number[] | null
   day_of_month?: number | null
+  /* §338 — anche la data di partenza si corregge: «la review parte da gennaio»
+     è una correzione normale, e le occorrenze già generate restano dove sono. */
+  start_date?: string
   end_date?: string | null
   generation_lead_days?: number
   owner_id?: string | null
