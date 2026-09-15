@@ -8,7 +8,7 @@ import { BackLink } from '@/components/shared/BackLink'
 import { formatCurrency, formatDate, getPaymentBadge } from '@/lib/utils'
 import type { Client, ClientContact, ClientKpi, Profile, ClientStakeholder, ClientInteraction, ClientLabel } from '@/lib/types/database'
 import { setClientLabel } from '@/app/actions/clients'
-import { SUPER_ADMIN_EMAILS, canSeeTrackingSecrets } from '@/lib/permissions'
+import { SUPER_ADMIN_EMAILS, canSeeTrackingSecrets, canSeeClientAnagrafica } from '@/lib/permissions'
 import { clientName } from '@/lib/utils'
 import { mrrOrigin, economicsHref, CONTRACT_PERIOD_HINT, PAYMENT_STATUS_HINT } from '@/lib/economics-source'
 import { paymentLabel } from '@/lib/clients'
@@ -206,8 +206,7 @@ export function ClientPageClient({
   const origin = mrrOrigin(quoted ? 'contratti' : 'anagrafica', contractsCount)
   const isAdmin = SUPER_ADMIN_EMAILS.includes(currentProfile?.email ?? '') || currentProfile?.app_role === 'admin'
   const isAdminLevel = isAdmin || currentProfile?.app_role === 'manager'
-  // D3 (Fase 0): l'anagrafica (P.IVA/dati fiscali) è visibile SOLO ad admin.
-  const canSeeAnagrafica = isAdmin
+  const canSeeAnagrafica = canSeeClientAnagrafica(currentProfile)
   const canSeeMrr = isAdminLevel && !hideEconomics
   // chiavi e password: staff interno, mai esterni (TRACKING_SECRET_ROLES)
   const canSeeSecrets = isAdmin || canSeeTrackingSecrets(currentProfile?.app_role)

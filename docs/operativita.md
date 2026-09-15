@@ -1,5 +1,15 @@
 # Workspace, workload, ferie, task completate, widget
 
+## Anagrafica cliente per i manager
+
+La scheda **Anagrafica** è visibile anche ai manager (`canSeeClientAnagrafica`):
+dati operativi, referenti, stakeholder e team. Nel workspace continua a leggere
+`clients_workspace`: dati fiscali, ragione sociale, note amministrative,
+commerciale e area contabile non vengono mostrati come campi vuoti o dedotti.
+La modifica dell'azienda, degli stakeholder e del team resta riservata agli
+admin; i permessi già esistenti sui contatti non cambiano. Nessuna migration.
+Gate: matrice dei ruoli in `lib/clients.check.ts`.
+
 ## Progetti: la propria roba si tocca sempre (§322)
 
 Dal calendario milestone si clicca una tappa e si arriva sulla pagina del
@@ -370,5 +380,4 @@ Tre difetti che rendevano il portale un vicolo cieco, e le regole che li chiudon
 | Sales Pipeline widget | Fetcha `deals` ma no widget | ⚠️ dati ci sono |
 | Strategic Objectives widget | Fetcha `objectives` ma no widget | ⚠️ dati ci sono |
 | AI & Automation Center | — | ❌ da costruire |
-
 
