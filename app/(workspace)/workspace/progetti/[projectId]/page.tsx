@@ -5,6 +5,7 @@ import { ProjectDetailClient } from '@/components/projects/ProjectDetailClient'
 import type {
   Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate,
 } from '@/lib/types/database'
+import { canGovernProjects } from '@/lib/permissions'
 
 export const revalidate = 0
 
@@ -37,9 +38,10 @@ export default async function WorkspaceProjectDetailPage({ params, searchParams 
   const client = (project as { client?: { company_name: string; display_name: string | null } | null }).client ?? null
 
   const memberIds = (members ?? []).map(m => m.profile_id)
-  const isMemberManager = (members ?? []).some(m => m.profile_id === userId && m.role_in_project === 'manager')
-  const canManageProject = profile.role === 'admin'
-    || (profile.app_role === 'manager' && (project.manager_id === userId || isMemberManager))
+  /* §339 — il governo è del ruolo, non della colonna: `role_in_project` è
+     nullo su quasi tutte le righe, e la condizione che lo leggeva spegneva la
+     pagina a ogni manager. La regola sta in `lib/permissions.ts`, una volta. */
+  const canManageProject = canGovernProjects(profile)
 
   return (
     <ProjectDetailClient

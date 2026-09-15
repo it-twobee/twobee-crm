@@ -21,6 +21,37 @@ della pagina da cui ci arrivava.
   una barriera solo nella UI, che è il posto in cui una barriera non protegge
   niente (§211) e blocca il lavoro vero.
 
+## Manager vuol dire manager (§339)
+
+Il governo di un progetto — struttura, titoli, creazione, eliminazione — era una
+riga scritta a mano in due pagine: `role === 'admin' || (app_role === 'manager'
+&& (project.manager_id === userId || isMemberManager))`. Nessun manager ci
+passava, e la ragione non era il ruolo ma il **dato**: Sabrina Nastro è
+`app_role = manager` e membro di sei progetti, e su tutti e sei
+`role_in_project` è **nullo**. La condizione leggeva quella colonna, quindi era
+falsa ovunque.
+
+Un permesso che dipende da una colonna che nessuno compila è un permesso che non
+esiste, e si scopre solo quando qualcuno prova a spostare la data di una
+milestone e trova tutto spento. Il perimetro per progetto era una finzione: nel
+codice sì, nei dati no.
+
+- **`canGovernProjects` in `lib/permissions.ts`**, una volta sola: admin,
+  founder, super admin e **manager**, su qualunque progetto. Stesso insieme di
+  chi può aprire un cliente (§317), e il gate lo verifica.
+- **Il server non è cambiato**, come già diceva §322: `requireStaff` in
+  `app/actions/{tasks,milestones}.ts` ammette tutto lo staff interno. Era una
+  barriera solo nella UI, cioè nel posto in cui una barriera non protegge niente
+  (§211) e blocca il lavoro vero.
+- **Governare non è il portale**: un manager governa i progetti e resta
+  confinato al workspace (`coarseRole('manager') === 'team'`, §234). Due domande
+  diverse, e vanno tenute diverse.
+- **La propria roba resta di chi ce l'ha** (§322): milestone in carico e task
+  assegnate si toccano sempre, anche senza governo. Questa regola aggiunge, non
+  sostituisce.
+
+Gate: `npx tsx lib/permissions.check.ts`.
+
 ## Nel calendario milestone stanno i clienti da presidiare (§328)
 
 `/progetti` apre con una riga per cliente — anche senza progetti, perché chi è

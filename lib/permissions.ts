@@ -115,6 +115,34 @@ export function canCreateClients(appRole: string | null | undefined): boolean {
   return CLIENT_CREATE_ROLES.includes(appRole as AppRole)
 }
 
+/**
+ * §339 — chi governa un progetto: struttura, titoli, creazione, eliminazione.
+ *
+ * Era una riga scritta a mano in due pagine — `role === 'admin' || (app_role ===
+ * 'manager' && (project.manager_id === userId || isMemberManager))` — e nessun
+ * manager ci passava. La ragione non era il ruolo ma il **dato**: Sabrina è
+ * membro di sei progetti e su tutti e sei `role_in_project` è nullo, quindi la
+ * condizione era falsa ovunque. Un permesso che dipende da una colonna che
+ * nessuno compila è un permesso che non esiste, e si scopre solo quando
+ * qualcuno prova a spostare una data e trova tutto spento.
+ *
+ * Adesso **manager vuol dire manager**, su qualunque progetto. Il perimetro per
+ * progetto si è rivelato una finzione: c'era nel codice e non nei dati. Chi
+ * lavora sulla propria roba non passa nemmeno da qui (§322): milestone in
+ * carico e task assegnate si toccano sempre, anche senza governo.
+ */
+export const PROJECT_GOVERN_ROLES: AppRole[] = [...ADMIN_ROLES, 'manager']
+
+export function canGovernProjects(p: {
+  role?: string | null
+  app_role?: string | null
+} | null | undefined): boolean {
+  if (!p) return false
+  /* `role === 'admin'` copre chi è stato promosso dalla mappatura grossolana
+     (§329) senza avere un `app_role` dell'elenco chiuso. */
+  return p.role === 'admin' || PROJECT_GOVERN_ROLES.includes(p.app_role as AppRole)
+}
+
 export function isAdminRole(appRole: string | null | undefined): boolean {
   return ADMIN_ROLES.includes(appRole as AppRole)
 }

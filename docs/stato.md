@@ -31,6 +31,14 @@ ricavo, base, percentuale applicata, motivo. Non ricalcola niente: rende i
 e le 5 righe maturate e non incassate per 12.200 € dette accanto, perché è quasi
 sempre lì la ragione di un compenso più basso del previsto.
 
+**§339 — manager vuol dire manager.** Il governo dei progetti leggeva
+`project_members.role_in_project`, che è nullo su quasi tutte le righe: Sabrina
+Nastro è manager e membro di sei progetti, e non poteva modificare niente da
+nessuna parte. Un permesso che dipende da una colonna che nessuno compila è un
+permesso che non esiste. Ora `canGovernProjects` in `lib/permissions.ts`, una
+volta sola: admin e manager, su qualunque progetto. Il server ammetteva già
+tutti — era una barriera della sola UI.
+
 **§338 — la ricorrente si modifica dove si legge.** Il responsabile stava dietro
 una matita che compariva solo al passaggio del mouse, ed è la sola cosa che
 decide se l'occorrenza arriverà a qualcuno. Ora la riga porta responsabile,

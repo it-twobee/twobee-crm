@@ -3,6 +3,7 @@ import { getSessionProfile } from '@/lib/auth'
 import { redirect, notFound } from 'next/navigation'
 import { WorkstreamPageClient } from '@/components/projects/WorkstreamPageClient'
 import type { Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate, RecurringMilestoneTemplate } from '@/lib/types/database'
+import { canGovernProjects } from '@/lib/permissions'
 
 export const revalidate = 0
 
@@ -20,7 +21,7 @@ export default async function WorkspaceWorkstreamPage({
 
   // Tutto chiave su wsId/projectId dell'indirizzo: il workstream non deve
   // arrivare per primo perché gli altri partano, basta controllarlo dopo.
-  const [{ data: ws }, { data: project }, { data: milestones }, { data: tasks }, { data: recurring }, { data: recurringMs }, { data: profiles }, { data: members }] = await Promise.all([
+  const [{ data: ws }, { data: project }, { data: milestones }, { data: tasks }, { data: recurring }, { data: recurringMs }, { data: profiles }] = await Promise.all([
     supabase.from('project_workstreams').select('*').eq('id', params.wsId).maybeSingle(),
     supabase.from('projects').select('*').eq('id', params.projectId).maybeSingle(),
     supabase.from('milestones').select('*').eq('workstream_id', params.wsId).order('sort_order'),
@@ -29,12 +30,11 @@ export default async function WorkspaceWorkstreamPage({
     // §337 — le tappe che tornano: una regola, non dodici righe scritte a mano
     supabase.from('recurring_milestone_templates').select('*').eq('workstream_id', params.wsId).order('created_at'),
     supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true).order('full_name'),
-    supabase.from('project_members').select('profile_id, role_in_project').eq('project_id', params.projectId),
   ])
   if (!project || !ws || ws.project_id !== params.projectId) notFound()
 
-  const isMemberManager = (members ?? []).some(m => m.profile_id === userId && m.role_in_project === 'manager')
-  const canEdit = profile.role === 'admin' || (profile.app_role === 'manager' && (project.manager_id === userId || isMemberManager))
+  // §339 — manager vuol dire manager: la regola sta in `lib/permissions.ts`
+  const canEdit = canGovernProjects(profile)
 
   return (
     <WorkstreamPageClient
