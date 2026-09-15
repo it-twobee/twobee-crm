@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect, notFound } from 'next/navigation'
 import { WorkstreamPageClient } from '@/components/projects/WorkstreamPageClient'
-import type { Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate } from '@/lib/types/database'
+import type { Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate, RecurringMilestoneTemplate } from '@/lib/types/database'
 
 export const revalidate = 0
 
@@ -21,11 +21,13 @@ export default async function WorkstreamPage({
   const { data: ws } = await supabase.from('project_workstreams').select('*').eq('id', params.wsId).single()
   if (!ws || ws.project_id !== params.projectId) notFound()
 
-  const [{ data: project }, { data: milestones }, { data: tasks }, { data: recurring }, { data: profiles }] = await Promise.all([
+  const [{ data: project }, { data: milestones }, { data: tasks }, { data: recurring }, { data: recurringMs }, { data: profiles }] = await Promise.all([
     supabase.from('projects').select('*').eq('id', params.projectId).single(),
     supabase.from('milestones').select('*').eq('workstream_id', params.wsId).order('sort_order'),
     supabase.from('tasks').select('*').eq('workstream_id', params.wsId).is('deleted_at', null).order('created_at'),
     supabase.from('recurring_task_templates').select('*').eq('workstream_id', params.wsId).order('created_at'),
+    // §337 — le tappe che tornano: una regola, non dodici righe scritte a mano
+    supabase.from('recurring_milestone_templates').select('*').eq('workstream_id', params.wsId).order('created_at'),
     supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true).order('full_name'),
   ])
   if (!project) notFound()
@@ -37,6 +39,7 @@ export default async function WorkstreamPage({
       milestones={(milestones ?? []) as Milestone[]}
       tasks={(tasks ?? []) as Task[]}
       recurring={(recurring ?? []) as RecurringTaskTemplate[]}
+      recurringMs={(recurringMs ?? []) as RecurringMilestoneTemplate[]}
       profiles={(profiles ?? []) as { id: string; full_name: string; avatar_url: string | null }[]}
       canEdit
       currentUserId={user.id}

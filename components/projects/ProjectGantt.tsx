@@ -7,6 +7,7 @@ import {
   ChevronRight, CheckCircle2, Repeat, ShieldCheck, CircleDot, AlertTriangle, Plus,
 } from 'lucide-react'
 import type { ProjectWorkstream, Milestone, Task } from '@/lib/types/database'
+import { collapseSeries } from '@/lib/recurrence'
 
 type Person = { id: string; full_name: string; avatar_url: string | null }
 type GanttTask = Pick<Task, 'id' | 'milestone_id' | 'status' | 'parent_task_id'>
@@ -106,16 +107,29 @@ export function ProjectGantt({
   const showDays = zoom === 'giorni'
   const person = (id: string | null) => (id ? profiles?.find(p => p.id === id) ?? null : null)
 
+  /* §337 — **di una tappa ricorrente ne compare una sola**: la più vicina a
+     oggi guardando avanti. Una chiusura mensile genera dodici milestone l'anno,
+     e in fila su una corsia sono dodici bandierine identiche che nascondono le
+     consegne vere — cioè il calendario smette di servire a quello per cui
+     esiste. Quando la serie è tutta passata resta l'ultima: «finita» e «non c'è
+     mai stata» non possono leggersi uguali. Le consegne vere passano intere.
+     Il taglio sta qui e non nelle due pagine che costruiscono le corsie: una
+     regola scritta due volte non è una regola. */
+  const todayIso = new Date().toISOString().slice(0, 10)
+
   const lanes: GanttLane[] = useMemo(() => {
-    if (externalLanes) return externalLanes
+    const collassa = (ms: Milestone[]) => collapseSeries(ms, todayIso)
+    if (externalLanes) {
+      return externalLanes.map(l => ({ ...l, milestones: collassa(l.milestones) }))
+    }
     return workstreams
       .map(w => ({
         id: w.id, name: w.name, subtitle: laneSubtitle?.(w) ?? null, accent: laneAccent?.(w),
         bar: w.workstream_type === 'project' && w.start_date ? { start: w.start_date, end: w.end_date } : null,
-        milestones: milestones.filter(m => m.workstream_id === w.id && m.due_date),
+        milestones: collassa(milestones.filter(m => m.workstream_id === w.id && m.due_date)),
       }))
       .filter(l => l.milestones.length > 0)
-  }, [externalLanes, workstreams, milestones, laneSubtitle, laneAccent])
+  }, [externalLanes, workstreams, milestones, laneSubtitle, laneAccent, todayIso])
 
   const model = useMemo(() => {
     const dates: number[] = []
@@ -155,7 +169,6 @@ export function ProjectGantt({
     )
   }
 
-  const todayIso = new Date().toISOString().slice(0, 10)
   const msTone = (m: Milestone) => {
     if (m.status === 'completata') return { pill: 'bg-success-dim border-success/40', flag: 'text-success' }
     if (m.milestone_type === 'system') return { pill: 'bg-surface-active border-border-strong', flag: 'text-text-tertiary' }

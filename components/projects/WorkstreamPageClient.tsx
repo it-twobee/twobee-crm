@@ -11,13 +11,17 @@ import {
 import { createMilestone, updateMilestone, deleteMilestone } from '@/app/actions/milestones'
 import { updateWorkstream, deleteWorkstream } from '@/app/actions/workstreams'
 import { createProjectTask, updateTaskStatus, deleteTask, setTaskAssignees } from '@/app/actions/tasks'
-import { createRecurring, updateRecurring, deleteRecurring } from '@/app/actions/recurring'
+import {
+  createRecurring, updateRecurring, deleteRecurring,
+  createRecurringMilestone, updateRecurringMilestone, deleteRecurringMilestone,
+} from '@/app/actions/recurring'
+import { nextOccurrence, ruleLabel, monthlyVolume } from '@/lib/recurrence'
 import { Avatar, Segmented, inputCls } from '@/components/shared/formkit'
 import { TaskDetailDrawer } from './TaskDetailDrawer'
 import { TaskComposer } from '@/components/tasks/TaskComposer'
 import { NewMilestoneModal, type NewMilestoneValues } from './NewMilestoneModal'
 import type {
-  Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate,
+  Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate, RecurringMilestoneTemplate,
   WorkstreamStatus, MilestoneStatus, RecurrenceFrequency,
 } from '@/lib/types/database'
 import { Suspense } from 'react'
@@ -60,13 +64,15 @@ type TaskTarget = {
 }
 
 export function WorkstreamPageClient({
-  project, ws, milestones, tasks, recurring, profiles, canEdit, currentUserId, backHref, focusMilestoneId,
+  project, ws, milestones, tasks, recurring, recurringMs = [], profiles, canEdit, currentUserId, backHref, focusMilestoneId,
 }: {
   project: Project
   ws: ProjectWorkstream
   milestones: Milestone[]
   tasks: Task[]
   recurring: RecurringTaskTemplate[]
+  /** §337 — le tappe che tornano. Vuoto finché la 223 non è eseguita */
+  recurringMs?: RecurringMilestoneTemplate[]
   profiles: Person[]
   /** governa la workstream: struttura, creazione, eliminazione (admin o manager del progetto) */
   canEdit: boolean
@@ -279,6 +285,14 @@ export function WorkstreamPageClient({
             <RecurringPanel recurring={recurring} projectId={project.id} clientId={project.client_id}
               wsId={ws.id} systemMilestoneId={systemMilestoneId} profiles={profiles} canEdit={canEdit} act={act} pending={pending} />
           )}
+
+          {/* §337 — le tappe che tornano. Stanno accanto alle attività
+              ricorrenti e non fra le milestone di consegna: là sono una lista
+              di date, qui sono una regola, e le due cose si modificano in modo
+              diverso. Sul calendario poi ne compare una sola per serie. */}
+          <RecurringMilestonePanel recurring={recurringMs} projectId={project.id}
+            clientId={project.client_id} wsId={ws.id} profiles={profiles}
+            canEdit={canEdit} act={act} pending={pending} />
 
           {/* MILESTONE DI CONSEGNA — timeline */}
           <section>
@@ -774,6 +788,96 @@ function RecurringPanel({
         {editing === 'new' && (
           <RecurringForm profiles={profiles} pending={pending} onCancel={() => setEditing(null)}
             onSave={v => { act(() => createRecurring({ client_id: clientId, project_id: projectId, workstream_id: wsId, milestone_id: systemMilestoneId, ...v }), 'Creata'); setEditing(null) }} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * §337 — Le tappe che tornano.
+ *
+ * La chiusura del mese, la review trimestrale, il piano stagionale: non sono
+ * attività da spuntare, sono **consegne con una data** che si ripresentano. Il
+ * doc 16 dice «mai una workstream nuova per settimana/mese» e ha ragione — il
+ * contenitore è stabile — ma la tappa dentro quel contenitore torna eccome, e
+ * finora si scriveva a mano dodici volte, cioè non si scriveva.
+ *
+ * Ogni regola dichiara **quando cade la prossima e quante ne fa al mese**, prima
+ * di salvare: una ricorrenza che produce trenta righe invece di una si scopre
+ * il giorno dopo, quando il calendario è già pieno.
+ */
+function RecurringMilestonePanel({
+  recurring, projectId, clientId, wsId, profiles, canEdit, act, pending,
+}: {
+  recurring: RecurringMilestoneTemplate[]
+  projectId: string; clientId: string | null; wsId: string
+  profiles: Person[]; canEdit: boolean
+  act: (fn: () => Promise<unknown>, ok?: string) => void; pending: boolean
+}) {
+  const [editing, setEditing] = useState<string | null>(null)
+  const oggi = new Date().toISOString().slice(0, 10)
+  const giorno = (iso: string) =>
+    new Date(`${iso}T00:00:00`).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
+
+  if (!canEdit && recurring.length === 0) return null
+
+  return (
+    <div className="bg-surface border border-border rounded-2xl shadow-soft p-4">
+      <div className="flex items-center justify-between mb-2.5">
+        <div className="text-sm font-bold text-text-primary flex items-center gap-2">
+          <Flag className="w-4 h-4 text-gold-text" aria-hidden="true" />Tappe ricorrenti
+        </div>
+        {canEdit && editing !== 'new' && (
+          <button onClick={() => setEditing('new')}
+            className="flex items-center gap-1 text-2xs font-semibold text-gold-text hover:opacity-80">
+            <Plus className="w-3 h-3" />Nuova
+          </button>
+        )}
+      </div>
+      <div className="space-y-1">
+        {recurring.length === 0 && editing !== 'new' && (
+          <p className="text-2xs text-text-tertiary">
+            Nessuna tappa ricorrente. Una chiusura mensile o una review trimestrale si scrivono
+            una volta sola: sul calendario compare sempre e solo la più vicina.
+          </p>
+        )}
+        {recurring.map(r => editing === r.id ? (
+          <RecurringForm key={r.id} profiles={profiles} pending={pending}
+            initial={{ title: r.title, frequency: r.frequency, interval: r.interval, weekdays: r.weekdays ?? [], day_of_month: r.day_of_month, owner_id: r.owner_id, visibility: r.visibility }}
+            onCancel={() => setEditing(null)}
+            onSave={v => { act(() => updateRecurringMilestone(r.id, projectId, v), 'Aggiornata'); setEditing(null) }} />
+        ) : (
+          <div key={r.id} className={`flex items-center gap-2 py-1 group ${r.active ? '' : 'opacity-50'}`}>
+            <Flag className="w-3.5 h-3.5 text-gold-text shrink-0" aria-hidden="true" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm text-text-primary truncate">{r.title}</span>
+              {/* Quando cade la prossima, detto dove si legge la regola: senza,
+                  «ogni mese il 25» non dice se il 25 di questo mese è passato. */}
+              <span className="block text-2xs text-text-tertiary truncate">
+                {ruleLabel(r)}
+                {(() => {
+                  const p = r.active ? nextOccurrence(r, oggi) : null
+                  return p ? <> · prossima <strong className="text-text-secondary">{giorno(p)}</strong></> : null
+                })()}
+              </span>
+            </span>
+            {r.visibility === 'client_visible' && <span className="text-2xs text-info shrink-0">cliente</span>}
+            {canEdit && (
+              <>
+                <button onClick={() => act(() => updateRecurringMilestone(r.id, projectId, { active: !r.active }), r.active ? 'Sospesa' : 'Riattivata')}
+                  className="text-2xs text-text-tertiary hover:text-gold-text shrink-0">{r.active ? 'Pausa' : 'Attiva'}</button>
+                <button onClick={() => setEditing(r.id)} aria-label="Modifica tappa ricorrente"
+                  className="text-text-tertiary hover:text-text-primary opacity-0 group-hover:opacity-100 shrink-0"><Pencil className="w-3 h-3" /></button>
+                <button onClick={() => { if (confirm(`Eliminare "${r.title}"? Le tappe già generate restano.`)) act(() => deleteRecurringMilestone(r.id, projectId), 'Eliminata') }}
+                  aria-label="Elimina tappa ricorrente" className="text-error opacity-0 group-hover:opacity-100 shrink-0"><Trash2 className="w-3 h-3" /></button>
+              </>
+            )}
+          </div>
+        ))}
+        {editing === 'new' && (
+          <RecurringForm profiles={profiles} pending={pending} onCancel={() => setEditing(null)}
+            onSave={v => { act(() => createRecurringMilestone({ client_id: clientId, project_id: projectId, workstream_id: wsId, ...v }), 'Creata'); setEditing(null) }} />
         )}
       </div>
     </div>

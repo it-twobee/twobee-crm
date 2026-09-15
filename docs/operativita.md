@@ -63,6 +63,76 @@ dove ha senso (workstream continuativa, o c'è già dentro qualcosa: task o
 ricorrenti); altrove è un invito richiudibile. La milestone **non si cancella**:
 regge le task senza consegna, dato che `tasks.milestone_id` è NOT NULL.
 
+## Le ricorrenze: una regola, e un motore che gira davvero (§337)
+
+**Il motore non è mai partito.** `recurring_task_templates` esiste dalla 147 e
+`generate_recurring_task_occurrences()` dalla 152, schedulata via `pg_cron`
+dentro un `EXCEPTION WHEN undefined_function`. L'estensione su questo database
+non c'è: la migration è passata, non l'ha più detto, e la misura prima della
+riparazione era **185 template attivi, zero occorrenze, `last_generated_at` NULL
+su tutti**. Una schedulazione che fallisce in silenzio è peggio di una che non
+c'è — quella almeno si nota.
+
+- **La regola sta in `lib/recurrence.ts`**, pura e con un gate, e non in SQL: le
+  serviva anche alla pagina — «la prossima è il 22» prima di salvare, e sul
+  calendario solo la tappa più vicina — e una seconda implementazione della
+  stessa regola dà la stessa risposta finché qualcuno non ne corregge una.
+  `matches`/`occurrencesBetween`/`nextOccurrence` contano in **UTC**: «ogni
+  lunedì» calcolato con l'ora locale cade di domenica per mezza Europa una volta
+  l'anno, e si scopre dal calendario di qualcun altro.
+- **Le settimane si contano dalla prima occorrenza**, non dalla data di
+  partenza: una quindicinale creata mercoledì 2 per i lunedì deve partire dal 7
+  e non dal 14, e contando i giorni trascorsi ne saltava una su due.
+- **Il 31 non si sposta al 28.** Una mensile sul 31 salta i mesi che non ce
+  l'hanno: spostarla farebbe comparire una chiusura tre giorni prima senza che
+  nessuno l'abbia chiesto, e chi la riceve non ha modo di sapere perché.
+- **Materializza `lib/recurrence-run.ts`**, idempotente **leggendo**: prima
+  guarda cosa c'è, poi scrive quello che manca — come l'import dell'estratto
+  conto (§210) — e l'indice unico resta l'ultima difesa, non la prima.
+- **Due strade, un motore**: il cron (`/api/recurrences/run`, task pianificato
+  di Coolify col suo segreto, come il QA del tracking §316) e la **generazione
+  immediata** dentro l'azione. Una ricorrente si scrive per darla a qualcuno, e
+  finché la prima occorrenza non esiste chi la riceve non ha niente da vedere:
+  «l'ho assegnata» e «non mi è arrivato niente» sono la stessa sera. La
+  generazione immediata non fa fallire l'azione — se inciampa ci ripensa il
+  cron, mentre perdere il template sarebbe il danno peggiore.
+- **`task_assignees` si scrive** (CLAUDE.md): il trigger sincronizza nell'altro
+  verso, quindi il motore che scrive solo `tasks.assignee_id` lascia il ponte
+  vuoto. Oggi i tre lettori di «le mie attività» guardano tutti e due, ma il
+  giorno in cui una vista nuova legge solo il ponte la ricorrente di qualcuno
+  sparisce dalla sua lista senza che nessuno tocchi niente.
+- **Trenta giorni, non tre.** Tre erano la difesa del doc 08 contro la
+  proliferazione, e con la generazione ferma il problema non si è mai
+  presentato; ma tre giorni vogliono dire che una ricorrente si vede solo quando
+  è già da fare, e «le mie attività» smette di servire a organizzarsi la
+  settimana. Resta per template: chi produce troppo si abbassa da solo.
+
+**Le tappe ricorrenti** (§337, `recurring_milestone_templates`). Il doc 16 dice
+«mai una workstream nuova per settimana/mese» e ha ragione — il contenitore è
+stabile — ma la **tappa** dentro quel contenitore torna eccome: chiusura del
+mese, review trimestrale, piano stagionale. Sono una regola che genera milestone
+vere, una per periodo, ognuna col suo stato: una riga sola con la data che
+avanza sarebbe stata più semplice e avrebbe cancellato il passato — non si
+saprebbe più se la chiusura di settembre è stata fatta in ritardo, perché quella
+riga adesso parla di ottobre.
+
+- **Sul calendario ne compare una sola** (`collapseSeries`): la più vicina a
+  oggi guardando avanti, che è quella su cui si può ancora fare qualcosa. Dodici
+  bandierine identiche in fila nasconderebbero le consegne vere, cioè il
+  calendario smetterebbe di servire a quello per cui esiste. Quando la serie è
+  tutta passata resta l'ultima: «finita» e «non c'è mai stata» non possono
+  leggersi uguali. Le consegne vere passano intere.
+- **Il taglio sta in `ProjectGantt`**, non nelle due pagine che costruiscono le
+  corsie: una regola scritta due volte non è una regola.
+- Nascono `delivery` e non `system`: una tappa che torna **ha una data e si
+  chiude**, ed è esattamente quello che la milestone di sistema non è (§322).
+  Marcarla di sistema la farebbe sparire dal calendario, che è il posto per cui
+  è stata chiesta.
+- Togliere la regola non toglie la storia: `recurring_template_id` va a NULL e
+  le tappe generate restano.
+
+Gate: `npx tsx lib/recurrence.check.ts` e `npx tsx lib/recurrence-run.check.ts`.
+
 ## Task ad hoc: il cliente può anche non esserci (§321)
 
 `TaskComposer` chiedeva un cliente e basta, e le due cose che mancavano erano

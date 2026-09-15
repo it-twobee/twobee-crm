@@ -871,6 +871,36 @@ export interface Milestone {
   completion_criteria: string | null
   visibility: Visibility
   sort_order: number
+  /** §337 — la serie da cui nasce, quando è una tappa ricorrente */
+  recurring_template_id?: string | null
+  generated_for_date?: string | null
+  is_recurring_instance?: boolean
+  created_at: string
+  updated_at: string
+}
+
+/** §337 — la regola che genera le tappe ricorrenti. */
+export interface RecurringMilestoneTemplate {
+  id: string
+  client_id: string | null
+  project_id: string
+  workstream_id: string
+  title: string
+  description: string | null
+  frequency: RecurrenceFrequency
+  interval: number
+  weekdays: number[] | null
+  day_of_month: number | null
+  start_date: string
+  end_date: string | null
+  generation_lead_days: number
+  owner_id: string | null
+  approval_required: boolean
+  deliverable: string | null
+  visibility: Visibility
+  active: boolean
+  last_generated_at: string | null
+  created_by: string | null
   created_at: string
   updated_at: string
 }

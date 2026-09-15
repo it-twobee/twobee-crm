@@ -31,6 +31,18 @@ ricavo, base, percentuale applicata, motivo. Non ricalcola niente: rende i
 e le 5 righe maturate e non incassate per 12.200 € dette accanto, perché è quasi
 sempre lì la ragione di un compenso più basso del previsto.
 
+**§337 — le ricorrenze, e un motore che gira davvero.** Misurato prima di
+toccare niente: **185 template ricorrenti attivi, zero occorrenze mai generate**.
+La 152 schedulava il motore con `pg_cron` dentro un `EXCEPTION WHEN
+undefined_function`, l'estensione non c'è e per mesi non l'ha detto nessuno. Ora
+la regola sta in `lib/recurrence.ts` (pura, due gate), la materializzazione in
+`lib/recurrence-run.ts`, e gira da due parti: il cron `/api/recurrences/run` e la
+generazione immediata dentro l'azione — chi riceve una ricorrente la vede quando
+gliela assegni, non il giorno dopo. Finestra a 30 giorni, `task_assignees`
+scritto. **Nuove: le tappe ricorrenti** (`recurring_milestone_templates`), e sul
+calendario ne compare una sola per serie, la più vicina a oggi. **Serve la
+migration 223** e il segreto `RECURRENCE_CRON_SECRET`.
+
 **§336 — e anche perché la finestra comincia lì.** «Fra il 13 agosto e il 20
 settembre» faceva nascere la domanda giusta: e fra il 1° e il 12 agosto? Quello
 che è rientrato prima è stato erogato il 13 agosto, sulla competenza di luglio —
