@@ -66,11 +66,17 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 ALTER TABLE public.channel_guests ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "auth manage channel_guests" ON public.channel_guests;
+-- Anche il nome nuovo: rieseguire questa migration deve essere innocuo, e
+-- senza questa riga il secondo giro muore con «policy already exists» — dentro
+-- un BEGIN/COMMIT, quindi si porta dietro il rollback di tutto il resto. Chi lo
+-- vede non ha modo di sapere se il danno è stato fatto o evitato.
+DROP POLICY IF EXISTS "channel_guests_staff" ON public.channel_guests;
 CREATE POLICY "channel_guests_staff" ON public.channel_guests
   FOR ALL USING (public.is_staff()) WITH CHECK (public.is_staff());
 
 ALTER TABLE public.ticket_portals ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "ticket_portals_team" ON public.ticket_portals;
+DROP POLICY IF EXISTS "ticket_portals_staff" ON public.ticket_portals;
 CREATE POLICY "ticket_portals_staff" ON public.ticket_portals
   FOR ALL USING (public.is_staff()) WITH CHECK (public.is_staff());
 

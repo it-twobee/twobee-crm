@@ -13,6 +13,21 @@ La **221** non va rieseguita: gli effetti sono stati verificati via SQL MCP,
 non via REST, e la 224 ha poi corretto ulteriormente `handle_new_user`.
 Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 
+> **Provata sul campo il 2026-09-15**, per sbaglio: rieseguita, la 221 muore con
+> `42710 policy "channel_guests_staff" already exists`. È dentro un
+> `BEGIN/COMMIT`, quindi **rollback di tutto** — e va bene così, perché la sua
+> `CREATE OR REPLACE FUNCTION handle_new_user()` avrebbe riportato indietro la
+> 224, che quella lettura dai metadati l'ha tolta del tutto. Ma un errore che
+> **sembra** un guasto e invece è una protezione lascia chi lo legge senza sapere
+> se il danno è stato fatto o evitato: i `DROP POLICY IF EXISTS` ora coprono
+> anche i nomi nuovi, così il secondo giro è innocuo e silenzioso.
+>
+> La regola che se ne ricava: **una migration che non si può rilanciare è una
+> migration che si può solo temere.** Quando due file toccano la stessa funzione
+> — qui la 221 e la 224 su `handle_new_user` — l'ordine di esecuzione diventa
+> parte del risultato, e l'unico modo di renderlo innocuo è che rilanciare il
+> più vecchio non disfi il più nuovo.
+
 > **Due migration numerate 223.** `223_recurring_milestones.sql` (§337, tappe
 > ricorrenti) e `223_sales_workspace.sql` (commerciale) sono **entrambe
 > applicate**, nate in due sessioni parallele che non si vedevano. Il numero
