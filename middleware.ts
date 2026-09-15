@@ -40,6 +40,7 @@ function writeRole(userId: string, row: Omit<CachedRole, 'at'>) {
 const PROTECTED_PATHS = [
   '/dashboard',
   '/clienti',
+  '/commerciale',
   '/customer-care',
   '/calendario',
   '/documenti',

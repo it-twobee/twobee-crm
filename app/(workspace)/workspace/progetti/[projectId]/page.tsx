@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { SalesHandoff } from '@/components/sales/SalesHandoff'
 import { getSessionProfile } from '@/lib/auth'
 import { redirect, notFound } from 'next/navigation'
 import { ProjectDetailClient } from '@/components/projects/ProjectDetailClient'
@@ -44,6 +45,7 @@ export default async function WorkspaceProjectDetailPage({ params, searchParams 
   const canManageProject = canGovernProjects(profile)
 
   return (
+    <><SalesHandoff projectId={params.projectId} />
     <ProjectDetailClient
       project={project as Project}
       clientName={(client?.display_name || client?.company_name) ?? '—'}
@@ -57,6 +59,6 @@ export default async function WorkspaceProjectDetailPage({ params, searchParams 
       canManageProject={canManageProject}
       canEditTasks
       initialTab={searchParams.tab === 'workstream' ? 'workstream' : undefined}
-    />
+    /></>
   )
 }

@@ -39,7 +39,7 @@ const is = (label: string, got: unknown, want: unknown) => {
  */
 const GUARD_CONDIVISE = [
   'requireEconomicsAdmin', 'requireInternalStaff', 'requireAgencyKeyManager',
-  'requireStaff', 'requireAdmin',
+  'requireStaff', 'requireAdmin', 'requireSalesAccess',
 ]
 const LEGGE_SESSIONE = /auth\.getUser\(|getSessionProfile\(|getSessionUser\(|getViewer\(/
 /**

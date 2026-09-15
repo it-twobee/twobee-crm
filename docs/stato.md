@@ -1,5 +1,32 @@
 # Dove siamo
 
+## Verifica database — 2026-09-15
+
+MCP Supabase operativo in lettura/scrittura sul progetto `ujkrrryitfqboskdqhwf`.
+Gli effetti della **221 erano già presenti** (trigger e policy verificati),
+nonostante il registro migration vuoto; non è stata rieseguita. Applicate
+**224** (ruoli iniziali guest, blocco delle modifiche amministrative dal browser)
+e **223** (commerciale). Test SQL passati su PostgreSQL isolato con struttura
+reale e dati fittizi annullati; verifiche remote di schema, RLS e RPC superate.
+Nessun ruolo o dato aziendale esistente modificato. Dettagli in `docs/migrations.md`.
+
+`deals` e `deal_activities` erano assenti: la 223 le ha ripristinate insieme
+allo storico, senza rilanciare le vecchie migration dei domini demoliti.
+
+## Commerciale — implementazione locale del 2026-09-15, non distribuita
+
+Prima versione di `/commerciale` e `/workspace/commerciale`: Oggi, pipeline,
+esiti e follow-up, referenti, storico, stime separate e passaggio guidato alla
+delivery. Riuso di anagrafiche e motore progetti; grant `can_view_deals`, RLS
+per owner e responsabili, comandi atomici con idempotenza e controllo revisioni.
+Dettagli, limiti e checklist in `docs/commerciale.md`.
+
+**223 e 224 applicate.** Verifiche locali: TypeScript e 50 check di dominio
+passati, più test delle action con Supabase simulato e suite SQL/RLS su
+PostgreSQL isolato. Restano distribuzione del codice e collaudo browser con
+utenti autorizzati; nessun deploy effettuato. Il portale cliente resta il
+secondo intervento.
+
 ## Dove siamo — 2026-09-14
 
 **Movimenti e fatture aggiornati.** 176 XML dallo SdI (2 nuove: la FPR 60/26 a
@@ -122,7 +149,8 @@ solo, apre i ticket di quel cliente con nomi ed email di chi li ha aperti.
 Chiuse tutte e due dal lato applicazione, più `/api/invite` (che scriveva
 `profiles.role` dal corpo della richiesta, senza passare da `coarseRole`) e le
 due azioni AI del customer care, che non chiedevano niente a nessuno e chiamano
-un servizio a consumo. La **221 è scritta e non eseguita**: toglie al trigger la
+un servizio a consumo. La **221 era indicata come non eseguita; i suoi effetti
+sono stati verificati sul DB il 2026-09-15** (vedi avvertenze sopra): toglie al trigger la
 lettura del ruolo dai metadati e restringe allo staff due policy che erano
 `FOR ALL USING (auth.uid() IS NOT NULL)` — cioè la RLS accesa e lasciata
 passare.
@@ -855,5 +883,3 @@ partite di giro, quote + costi + subappalti = 31.725 €, differenza 0,00.
    `delete-client.ts`. Gli altri percorsi che scrivono su tabelle loggate (deals,
    tickets, objectives) continuano a registrare «Sistema» finché non passano
    anche loro.
-
-

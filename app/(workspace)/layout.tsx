@@ -13,6 +13,7 @@ import { isAdminRole, isWorkspaceRole } from '@/lib/permissions'
 import { Suspense } from 'react'
 import { NavMemory } from '@/components/shared/BackLink'
 import { AssistantLauncher } from '@/components/ai/AssistantLauncher'
+import { getSalesAccess } from '@/lib/sales-guard'
 import type { AppRole } from '@/lib/types/database'
 
 // group_key/group_order arrivano dalla migration 087: opzionali finché non è
@@ -79,6 +80,11 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   // in tabella, qui restano filtrate anche se qualcuno le riattiva a mano.
   const HIDDEN_WORKSPACE_KEYS = ['chat', 'task', 'portfolio', 'workload', 'cestino']
   visibleSections = (visibleSections ?? []).filter((s: { key: string }) => !HIDDEN_WORKSPACE_KEYS.includes(s.key))
+  visibleSections = visibleSections.filter((s: { key: string }) => s.key !== 'commerciale')
+  if (await getSalesAccess()) visibleSections.push({
+    id: 'commerciale', key: 'commerciale', label: 'Commerciale', route: '/workspace/commerciale',
+    icon: 'TrendingUp', sort_order: 25, group_key: 'clienti', group_order: 2,
+  })
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">

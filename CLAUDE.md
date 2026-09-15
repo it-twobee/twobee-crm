@@ -23,6 +23,7 @@ database vero, e riscoprirle costa più che leggerle.
 | `lib/ai/**`, assistente Ctrl+J, tool e azioni rischiose | `docs/ai-assistant.md` |
 | `/asana` (sezione temporanea, da togliere a travaso finito) | `docs/asana.md` |
 | «a che punto siamo», cosa è applicato, cosa è aperto | `docs/stato.md` |
+| commerciale, opportunità, lead commerciali, esiti, passaggio alla delivery | `docs/commerciale.md` |
 
 ## Invarianti — valgono anche senza aprire i doc
 - **Nessun valore economico si digita**: contratti e rate sono l'unica scrittura,
@@ -106,7 +107,7 @@ components/projects/ProgettiClient.tsx     ← elenco progetti + ProjectWizard
 components/projects/ProjectGantt.tsx       ← il calendario milestone, usato da tre pagine
 lib/types/database.ts             ← tutti i tipi
 app/api/ai/                       ← assistant, dashboard-chat, kpi-precompile, customer-care-suggest
-supabase/migrations/              ← 001–221 (stato reale in docs/migrations.md: la 221 è da eseguire)
+supabase/migrations/              ← stato reale e prerequisiti in docs/migrations.md
 ```
 
 ## Design system — MAI colori hardcoded
