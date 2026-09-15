@@ -15,7 +15,8 @@ const RESTORABLE: Record<string, string> = {
   projects: 'projects',
   tasks: 'tasks',
   tickets: 'tickets',
-  deals: 'deals',
+  // Gli esiti commerciali e il passaggio alla delivery sono transazioni collegate.
+  // Ripristinare soltanto la riga deals lascerebbe indietro storico e progetto.
   objectives: 'objectives',
   key_results: 'key_results',
 }

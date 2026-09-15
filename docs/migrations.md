@@ -1,14 +1,45 @@
 # Registro migration
 
-## Da eseguire: la 221 (§329)
+## Applicate il 2026-09-15: 224 sicurezza e 223 commerciale
 
-`221_role_not_from_metadata.sql` è **scritta e non eseguita**. Toglie a
+Progetto `ujkrrryitfqboskdqhwf`, tramite MCP `apply_migration`, in quest'ordine:
+
+| Versione registrata | File | Esito |
+|---|---|---|
+| `20260915125653` | `224_profile_authorization.sql` | Applicata e verificata |
+| `20260915125709` | `223_sales_workspace.sql` | Applicata e verificata |
+
+`223_sales_workspace.sql`: ripristina `deals`/`deal_activities` se assenti e le amplia; aggiunge comandi
+idempotenti, riepiloghi delivery, RLS per owner/responsabili e RPC riservati al
+service role. `create_client_bundle` è condivisa con la creazione anagrafica.
+Prima dell'applicazione, test SQL 223/224 e riesecuzione delle migration passati
+su PostgreSQL 16 isolato, con snapshot della struttura reale (Supabase 17.6),
+senza copiare dati di produzione. Fixture annullate con ROLLBACK. La 223
+ripristina solo le due tabelle demolite, non le policy aperte o gli altri
+domini della vecchia 011; reinstalla anche `trg_log_deals`.
+
+Verifica remota: quattro tabelle commerciali con RLS; nessuna scrittura
+diretta per anon/authenticated; RPC privilegiate solo service role; opzioni
+admin restituite correttamente. Conteggi invariati prima/dopo: 9 profili,
+16 clienti, 30 progetti, 16 contratti, 46 righe ricavo, 88 fatture. Le quattro
+tabelle nuove sono vuote. Nessun ruolo o dato aziendale esistente modificato.
+Le due colonne della 222 risultano già presenti: non rieseguita.
+Il codice commerciale resta locale, non distribuito. Vedi `docs/commerciale.md`.
+
+## 221 (§329): effetti già presenti, verificati il 2026-09-15
+
+`221_role_not_from_metadata.sql` risulta **già presente nello schema reale**
+del progetto `ujkrrryitfqboskdqhwf`: corpo di `handle_new_user` corrispondente
+al file, RLS attiva e sole policy `channel_guests_staff` / `ticket_portals_staff`
+con `USING` e `WITH CHECK is_staff()`. Prima delle nuove applicazioni il registro MCP era vuoto:
+non documenta quando sia stata eseguita. Non rieseguita, perché le due
+`CREATE POLICY` fallirebbero sui nomi già esistenti. Toglie a
 `handle_new_user` la lettura di `role` dai metadati dell'utente — che sono
 scritti da chi crea l'invito, quindi erano un modo di scegliersi un ruolo di
 autorizzazione — e restringe allo staff le policy di `channel_guests` (021) e
 `ticket_portals` (028), che erano `FOR ALL USING (auth.uid() IS NOT NULL)`.
 
-Prima di eseguirla, due verifiche sul database, perché il reset del 2026-07-23
+Verifiche sul database, perché il reset del 2026-07-23
 ha ricreato tabelle e il registro non dice cosa c'è **adesso** (§222):
 
 ```sql
@@ -28,6 +59,22 @@ SELECT id, email, role, app_role FROM public.profiles
 
 Nessuna riga è l'esito atteso. Se ne esce qualcuna, è un profilo nato da metadati
 che nessuno ha dichiarato: va guardato a mano.
+
+**Esito 2026-09-15:** zero profili `role = 'admin' AND app_role IS NULL` e zero
+profili con `app_role` amministrativo ma `role <> 'admin'`. Nessun ruolo modificato.
+
+**Correzione eseguita con la 224:** il trigger della 221 continuava a copiare
+`app_role` dai metadati, anche per i valori amministrativi. L'elenco chiuso non
+è un'autorizzazione: `requireEconomicsAdmin` legge proprio `app_role`. Inoltre
+`profiles.app_role` è `NOT NULL`: metadato assente o non valido porta il trigger
+a inserire NULL e bloccava la creazione del profilo. La 224 assegna inizialmente
+`role = 'guest'` e `app_role = 'guest'`, lasciando l'assegnazione dei ruoli al
+percorso server autorizzato. Il trigger `guard_profile_self_update` (SECURITY
+INVOKER) impedisce anche agli utenti autenticati di riscrivere ruoli, email,
+stato attivo e altri campi amministrativi sul proprio profilo. Restano
+modificabili nome, avatar, telefono, mansione, competenze e configurazione
+dashboard; service role e amministrazione SQL restano autorizzati. Revocati
+TRUNCATE/REFERENCES/TRIGGER sui profili per anon/authenticated.
 
 ## Registro migration (Supabase Dashboard → SQL Editor)
 
@@ -57,8 +104,14 @@ che nessuno ha dichiarato: va guardato a mano.
 > widget salute dati) e non hanno un solo riferimento nel codice. Restano nel
 > repo come storia, non come lavoro arretrato.
 
-`chat_channels.project_id` **esiste** in produzione: il vecchio "BUG NOTO" è risolto.
-Numerazione: attenzione, `080_*`, `081_*` e `092_*` compaiono due volte. Il prossimo libero è **221**.
+La vecchia affermazione su `chat_channels.project_id` non è più valida: nello
+snapshot del 2026-09-15 la colonna non c'è. La creazione canali commerciale non
+la usa; non è stata ripristinata da questa migration.
+Numerazione: attenzione, `080_*`, `081_*`, `092_*` e **`223_*`** compaiono due
+volte. Le due 223 sono interventi distinti sviluppati in parallelo:
+`223_recurring_milestones.sql` e `223_sales_workspace.sql`. Non rinominare né
+rieseguire quella commerciale già registrata come `20260915125709`; verificare
+sempre nome completo e schema reale. Dopo la 224, il prossimo libero è **225**.
 
 > **`219_invoice_states.sql` — applicata il 2026-09-09** (§323), e lo script di
 > riallineamento è passato: **6 storni collegati** leggendo `DatiFattureCollegate`
@@ -157,5 +210,3 @@ a mano: `payslips`, `personal-documents`, `best-ideas`. Le env Google
 Finché non le esegui l'app **non si rompe**: le pagine mostrano `SetupNotice`
 e le funzioni nuove degradano con un messaggio. I bucket vanno creati a mano
 (le migration non li creano).
-
-

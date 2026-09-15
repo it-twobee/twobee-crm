@@ -29,6 +29,7 @@ export const navSections: NavSection[] = [
     label: 'Clienti',
     items: [
       { href: '/clienti', icon: Users, label: 'Clienti' },
+      { href: '/commerciale', icon: Target, label: 'Commerciale', adminOnly: true },
       { href: '/progetti', icon: Briefcase, label: 'Progetti' },
       { href: '/ad-hoc', icon: ListTodo, label: 'Task Ad Hoc' },
       // §316 — stato tracking e QA giornaliero, per tutti i clienti

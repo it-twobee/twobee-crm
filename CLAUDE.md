@@ -23,6 +23,7 @@ database vero, e riscoprirle costa più che leggerle.
 | `lib/ai/**`, assistente Ctrl+J, tool e azioni rischiose | `docs/ai-assistant.md` |
 | `/asana` (sezione temporanea, da togliere a travaso finito) | `docs/asana.md` |
 | «a che punto siamo», cosa è applicato, cosa è aperto | `docs/stato.md` |
+| commerciale, opportunità, lead commerciali, esiti, passaggio alla delivery | `docs/commerciale.md` |
 
 ## Invarianti — valgono anche senza aprire i doc
 - **Nessun valore economico si digita**: contratti e rate sono l'unica scrittura,
@@ -50,7 +51,7 @@ database vero, e riscoprirle costa più che leggerle.
   va a controllare.** Quando una fonte manca, dichiaralo («n/d», «stimato»,
   «senza contratto»): mai uno zero.
 - **Gate del repo**: `npx tsc --noEmit` (ESLint non configurato) + i
-  **cinquantuno** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
+  **cinquantadue** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
   `lib/tracking/**`) — con `npx tsx lib/<percorso>.check.ts`: devono dire «Tutti
   i controlli passano».
 - **Non lanciare `npm run build` mentre `npm run dev` gira**: condividono `.next`
@@ -106,7 +107,7 @@ components/projects/ProgettiClient.tsx     ← elenco progetti + ProjectWizard
 components/projects/ProjectGantt.tsx       ← il calendario milestone, usato da tre pagine
 lib/types/database.ts             ← tutti i tipi
 app/api/ai/                       ← assistant, dashboard-chat, kpi-precompile, customer-care-suggest
-supabase/migrations/              ← 001–221 (stato reale in docs/migrations.md: la 221 è da eseguire)
+supabase/migrations/              ← stato reale e prerequisiti in docs/migrations.md
 ```
 
 ## Design system — MAI colori hardcoded

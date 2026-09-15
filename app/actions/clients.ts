@@ -102,6 +102,16 @@ export async function createClientRecord(input: NewClientInput): Promise<Client>
   const name = input.display_name.trim()
   if (!name) throw new Error('Il nome è obbligatorio')
 
+  const bundle = await admin.rpc('create_client_bundle', { p_input: input, p_actor: uid })
+  if (!bundle.error) {
+    revalidatePath('/clienti')
+    revalidatePath('/workspace/clienti')
+    revalidatePath('/dashboard')
+    return bundle.data as Client
+  }
+  // Consente il deploy prima della 223; dopo, ogni creazione è atomica.
+  if (bundle.error.code !== 'PGRST202') throw new Error(bundle.error.message)
+
   const { data: client, error } = await admin.from('clients').insert({
     // company_name resta la colonna storica: la teniamo allineata al nome visualizzato
     company_name: name,

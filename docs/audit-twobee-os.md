@@ -1,5 +1,32 @@
 # Audit TwoBee OS — registro
 
+## Aggiornamento 2026-09-15 — DB verificato, 224 e 223 applicate
+
+La premessa storica sotto descrive l'11 settembre, non lo stato attuale.
+Verificate su `ujkrrryitfqboskdqhwf` le policy della 221 già presenti. La 224
+(`20260915125653`) completa A-01: `handle_new_user` ignora entrambi i ruoli nei
+metadati, inizializza guest/guest senza NULL e un trigger SECURITY INVOKER
+blocca le modifiche amministrative dirette del proprio profilo. La policy
+own-update preesistente permetteva di cambiare anche `role`, `app_role` ed
+`email`; il nuovo guard le respinge lasciando aperti i normali dati personali.
+Zero profili con app_role amministrativo e role incoerente prima della modifica;
+nessun ruolo esistente corretto automaticamente.
+
+La 223 (`20260915125709`) ripristina il commerciale con RLS e RPC service-only.
+Suite SQL 223/224 superate su PostgreSQL isolato con struttura reale e fixture
+annullate, anche dopo riesecuzione; 50 check lib, action boundary e TypeScript
+passati. Verifica remota dei grant e dei conteggi completata. Non equivale a
+un collaudo browser o a una verifica dell'intero sistema di autorizzazione.
+
+**Rilievi preesistenti ancora da valutare:** 2 view SECURITY DEFINER (fra cui
+`clients_workspace`, deliberata), 67 funzioni con search_path mutabile,
+46 SECURITY DEFINER invocabili da anon, protezione password compromesse non
+abilitata. Nessuna correzione generalizzata eseguita: serve distinguere gli
+endpoint pubblici intenzionali dalle esposizioni indebite. [Advisor Supabase](https://supabase.com/docs/guides/database/database-linter).
+Nel nuovo modulo, `sales_commands` senza policy è deny-all intenzionale;
+`sales_can_read` è l'helper SECURITY DEFINER necessario alla RLS e restituisce
+solo un booleano relativo all'utente autenticato.
+
 > Aperto l'**11 settembre 2026** sul commit `75e8f48`, branch `main`.
 > Ambiente: macOS, Node locale, nessun accesso al database di produzione e
 > nessun accesso alla UI di Coolify. **Niente è stato applicato in produzione**:

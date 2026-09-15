@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { SalesHandoff } from '@/components/sales/SalesHandoff'
 import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect, notFound } from 'next/navigation'
 import { ProjectDetailClient } from '@/components/projects/ProjectDetailClient'
@@ -91,6 +92,7 @@ export default async function ProjectDetailPage({ params, searchParams }: { para
   })
 
   return (
+    <><SalesHandoff projectId={params.projectId} />
     <ProjectDetailClient
       project={project as Project}
       clientName={(client?.display_name || client?.company_name) ?? '—'}
@@ -120,6 +122,6 @@ export default async function ProjectDetailPage({ params, searchParams }: { para
           costActuals={(costActuals ?? []) as CostActual[]}
         />
       )}
-    />
+    /></>
   )
 }
