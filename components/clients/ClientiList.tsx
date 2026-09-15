@@ -254,6 +254,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
      caselle — un cestino che risponde «permesso negato» è peggio di niente. */
   const canDelete = !hideEconomics && (!currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || currentProfile.app_role === 'admin')
   const [clients, setClients] = useState(initialClients)
+  useEffect(() => { setClients(initialClients) }, [initialClients])
   const [search, setSearch] = useState('')
 
   // Realtime: aggiorna i clienti in lista appena cambiano su Supabase

@@ -11,6 +11,7 @@ let owner: string | null = actor
 let targetRole = 'senior'
 let permissionWrites = 0
 let args: Record<string, unknown> = {}
+const invalidated: string[] = []
 const db = {
   from: () => ({
     select: () => ({ eq: () => ({
@@ -24,7 +25,7 @@ const db = {
 const internals = Module as unknown as { _load: (name: string, ...rest: unknown[]) => unknown }
 const original = internals._load
 internals._load = function (name, ...rest) {
-  if (name === 'next/cache') return { revalidatePath: () => {} }
+  if (name === 'next/cache') return { revalidatePath: (path: string) => { invalidated.push(path) } }
   if (name === '@/lib/sales-guard') return { requireSalesAccess: async () => {
     if (!access) throw new Error('Accesso commerciale non abilitato')
     return { actor, access, sb: db }
@@ -53,6 +54,11 @@ async function main() {
   assert.equal(args.p_actor, actor)
   assert.equal(args.p_request, other)
   assert.equal((args.p_input as { revision: number }).revision, 2)
+  assert.equal(invalidated.includes('/clienti'), false)
+  await assert.rejects(() => actions.recordSalesOutcome(other, actor, 2, { ...input, outcome: 'vinta', client_id: 'non-uuid' }), /Identificativo/)
+  await actions.recordSalesOutcome(other, actor, 2, { ...input, outcome: 'vinta', client_id: other, proposal_ref: 'Accettata v1' })
+  assert.equal((args.p_input as { client_id: string }).client_id, other)
+  for (const path of ['/clienti', '/workspace/clienti', '/clienti/[id]', '/workspace/clienti/[id]']) assert.ok(invalidated.includes(path))
   await assert.rejects(() => actions.saveSalesDelivery(other, actor, 2, {
     delivery: {}, delivery_owner_id: actor, project_id: null, service_id: null,
     contact_id: null, proposal_ref: '', complete: true,

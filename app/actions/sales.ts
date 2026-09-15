@@ -60,8 +60,9 @@ async function command(requestId: string, kind: string, dealId: string | null, i
   })
   if (error) dbError(error)
   refreshSales()
-  if (kind === 'create' || kind === 'delivery_complete') {
+  if (kind === 'create' || kind === 'delivery_complete' || (kind === 'outcome' && input.outcome === 'vinta')) {
     revalidatePath('/clienti'); revalidatePath('/workspace/clienti')
+    revalidatePath('/clienti/[id]', 'page'); revalidatePath('/workspace/clienti/[id]', 'page')
     revalidatePath('/progetti'); revalidatePath('/workspace/progetti')
   }
   return data as string
@@ -92,7 +93,7 @@ export async function addSalesContact(requestId: string, dealId: string, revisio
 }
 
 export async function recordSalesOutcome(requestId: string, dealId: string, revision: number, input: {
-  outcome: SalesOutcome; content: string; date: string | null; next_action: string; proposal_ref: string
+  outcome: SalesOutcome; content: string; date: string | null; next_action: string; proposal_ref: string; client_id?: string | null
 }) {
   await requireSalesAccess()
   if (!input || !Object.hasOwn(OUTCOMES, input.outcome)) throw new Error('Esito non valido')
@@ -101,6 +102,7 @@ export async function recordSalesOutcome(requestId: string, dealId: string, revi
   }
   if (!input.content.trim()) throw new Error('Indica cosa è successo')
   if (input.date && !validDate(input.date)) throw new Error('Data non valida')
+  if (input.client_id) uuid(input.client_id)
   return command(requestId, 'outcome', dealId, { ...input, revision })
 }
 

@@ -11,10 +11,16 @@ export const SALES_STAGES = [
   ['chiuso_perso', 'Persa', 'Trattativa chiusa con un motivo', 0],
 ] as const
 export type SalesStage = typeof SALES_STAGES[number][0]
+export const SALES_SOURCES = ['Meta Ads', 'Sito', 'Volantino', 'Passaparola', 'Referral', 'Telefonico', 'Network', 'Altro'] as const
+
+export function salesSourceOptions(current?: string | null): string[] {
+  return current && !SALES_SOURCES.some(source => source === current)
+    ? [...SALES_SOURCES, current] : [...SALES_SOURCES]
+}
 export const OUTCOMES = {
   nota: 'Nota', non_risponde: 'Non risponde', ricontattare: 'Da ricontattare',
   incontro: 'Incontro fissato', proposta: 'Proposta inviata',
-  pausa: 'Da riprendere', riattiva: 'Riattiva', persa: 'Non interessato', vinta: 'Vinta',
+  pausa: 'Da riprendere', riattiva: 'Riattiva', persa: 'Non interessato', vinta: 'Vinta · cliente acquisito',
 } as const
 export type SalesOutcome = keyof typeof OUTCOMES
 export type SalesAccess = 'admin' | 'manager' | 'owner' | null

@@ -1,6 +1,6 @@
 # Registro migration
 
-## Da eseguire: solo la 221 (§329)
+## Stato consolidato al 2026-09-15
 
 **Verificato sul database il 2026-09-15**, una per una: 205, 206, 207, 213, 214,
 215, 222, 223 (tappe ricorrenti), 223 (commerciale) e 224 **ci sono tutte**. Sei
@@ -9,17 +9,32 @@ tempo: un registro che elenca lavoro già fatto è il modo più veloce per far
 rieseguire una migration a qualcuno, e va riletto contro il database e non
 contro la memoria (§222).
 
-Resta la **221**, che tocca `handle_new_user` e le policy di `channel_guests` e
-`ticket_portals`: non è verificabile dall'API REST — `pg_proc` e `pg_policies`
-non passano da PostgREST — quindi va controllata con le due query che il
-paragrafo §329 riporta, prima e dopo.
+La **221** non va rieseguita: gli effetti sono stati verificati via SQL MCP,
+non via REST, e la 224 ha poi corretto ulteriormente `handle_new_user`.
+Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 
 > **Due migration numerate 223.** `223_recurring_milestones.sql` (§337, tappe
 > ricorrenti) e `223_sales_workspace.sql` (commerciale) sono **entrambe
 > applicate**, nate in due sessioni parallele che non si vedevano. Il numero
 > doppio non ha rotto niente — Supabase registra la sua versione, non il nome
 > del file — ma il registro è una tabella ordinata e due righe con la stessa
-> chiave sono una trappola per chi arriva dopo. La prossima libera è la **225**.
+> chiave sono una trappola per chi arriva dopo. Dopo la 225, la prossima libera è la **226**.
+
+## 225 — acquisizione cliente alla vittoria commerciale
+
+`225_sales_client_conversion.sql`: **applicata il 2026-09-15** via MCP,
+versione `20260915142808`. Sposta la
+conversione `lead` → `stabile` dalla delivery all'esito Vinta, nella stessa
+transazione; riusa la riga cliente e lascia intatte le altre label. Per le
+opportunità senza anagrafica supporta un collegamento esplicito o il bundle
+canonico, con controllo dei nomi duplicati. Proposta accettata inseribile nello
+stesso esito. Nessuna generazione economica, modifica di ruoli o backfill.
+Test dedicati: `supabase/tests/225_sales_client_conversion.check.sql`.
+Prima del rilascio: suite SQL 223 e 225 passate su PostgreSQL 16 isolato;
+225 rieseguita e ritestata. Snapshot di sole strutture, con grant SELECT della
+vista workspace ripristinato nel test perché non incluso nello snapshot delle
+tabelle. Verifica remota: RPC sempre solo service role, 16 clienti e una
+opportunità invariati, zero vittorie pregresse da riallineare.
 
 ## Applicate il 2026-09-15: 224 sicurezza e 223 commerciale
 
@@ -45,7 +60,9 @@ admin restituite correttamente. Conteggi invariati prima/dopo: 9 profili,
 16 clienti, 30 progetti, 16 contratti, 46 righe ricavo, 88 fatture. Le quattro
 tabelle nuove sono vuote. Nessun ruolo o dato aziendale esistente modificato.
 Le due colonne della 222 risultano già presenti: non rieseguita.
-Il codice commerciale resta locale, non distribuito. Vedi `docs/commerciale.md`.
+Il rilascio iniziale è stato successivamente distribuito e confermato
+dall'utente; i conteggi sopra descrivono il momento dell'applicazione 223/224.
+Vedi `docs/commerciale.md` per gli incrementi successivi.
 
 ## 221 (§329): effetti già presenti, verificati il 2026-09-15
 
@@ -132,7 +149,8 @@ Numerazione: attenzione, `080_*`, `081_*`, `092_*` e **`223_*`** compaiono due
 volte. Le due 223 sono interventi distinti sviluppati in parallelo:
 `223_recurring_milestones.sql` e `223_sales_workspace.sql`. Non rinominare né
 rieseguire quella commerciale già registrata come `20260915125709`; verificare
-sempre nome completo e schema reale. Dopo la 224, il prossimo libero è **225**.
+sempre nome completo e schema reale. La 225 è riservata alla conversione
+commerciale; il prossimo libero è **226**.
 
 > **`219_invoice_states.sql` — applicata il 2026-09-09** (§323), e lo script di
 > riallineamento è passato: **6 storni collegati** leggendo `DatiFattureCollegate`

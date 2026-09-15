@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { canReadDeal, isClosed, plusDays, salesAccess, salesMetrics, salesPriority, salesToday, validDate, validateDeal, type DealInput, type SalesDeal } from './sales'
+import { canReadDeal, isClosed, plusDays, salesAccess, salesMetrics, salesPriority, salesToday, salesSourceOptions, validDate, validateDeal, type DealInput, type SalesDeal } from './sales'
 
 const owner = '00000000-0000-4000-8000-000000000001'
 const other = '00000000-0000-4000-8000-000000000002'
@@ -14,6 +14,14 @@ const base: SalesDeal = {
 }
 let checks = 0
 function test(name: string, run: () => void) { run(); checks++; console.log(`OK ${name}`) }
+
+test('Fonti guidate, nessuna perdita delle fonti storiche', () => {
+  const expected = ['Meta Ads', 'Sito', 'Volantino', 'Passaparola', 'Referral', 'Telefonico', 'Network', 'Altro']
+  assert.deepEqual(salesSourceOptions(), expected)
+  assert.deepEqual(salesSourceOptions('Meta Ads'), expected)
+  assert.deepEqual(salesSourceOptions('Fiera 2025'), [...expected, 'Fiera 2025'])
+  assert.deepEqual(salesSourceOptions(''), expected)
+})
 
 test('Un ruolo workspace non abilita automaticamente il commerciale', () => {
   for (const role of ['manager', 'senior', 'junior', 'stage', 'freelance', 'partner']) assert.equal(salesAccess(role, false), null)

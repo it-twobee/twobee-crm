@@ -1,6 +1,6 @@
 # Area commerciale — prima implementazione
 
-Stato al 15 settembre 2026: **migration 223 e 224 applicate; codice locale non distribuito**.
+Stato al 15 settembre 2026: **prima versione online e in collaudo utente; migration 223, 224 e 225 applicate**.
 Fonte funzionale: `TwoBee-OS_Brief_Area-Commerciale_v1.0.pdf`.
 Il portale cliente resta il secondo intervento, dopo la verifica di questo modulo.
 
@@ -17,6 +17,9 @@ montano lo stesso componente. Tre sezioni: **Oggi**, **Opportunità**, **Risulta
 - Inserimento: azienda esistente o nuovo lead, almeno un recapito per il nuovo
   lead, owner precompilato con chi crea, primo contatto a oggi modificabile.
   Il nome precompila il titolo. I nomi simili vengono suggeriti, mai uniti.
+- Fonte a menu: Meta Ads, Sito, Volantino, Passaparola, Referral, Telefonico,
+  Network, Altro; può restare sconosciuta. Le fonti storiche personalizzate si
+  conservano in modifica e nei filtri, senza riclassificarle automaticamente.
 - Esiti: nota, non risponde, ricontattare, incontro, proposta, pausa,
   riattivazione, perdita e vittoria. Date rapide domani/una settimana.
   Proposte identificate da riferimento/versione; incontri collegati al referente.
@@ -38,8 +41,18 @@ montano lo stesso componente. Tre sezioni: **Oggi**, **Opportunità**, **Risulta
 **Anagrafica, persona e opportunità sono distinte.** `clients` e
 `client_contacts` sono le fonti canoniche. Più opportunità possono riferirsi
 alla stessa azienda. Una perdita non cambia la label cliente. La conversione
-da `lead` a `stabile` avviene solo alla conferma della delivery, sulla stessa riga.
-Altre label non vengono riscritte.
+da `lead` a `stabile` avviene alla conferma **Vinta**, sulla stessa riga e nella
+stessa transazione (`225_sales_client_conversion.sql`), senza attendere la
+delivery. Altre label non vengono riscritte. Il riferimento della proposta può
+essere confermato direttamente nell'esito, senza tornare alla scheda.
+
+Per opportunità precedenti senza `client_id`, l'esito permette di scegliere
+un'anagrafica esistente oppure crea il bundle canonico con i recapiti già
+disponibili. Nessuna unione per nome: un nome già presente blocca la creazione
+e richiede una scelta esplicita. Retry e rollback coprono anche l'acquisizione.
+La vittoria invalida elenco e schede clienti in entrambi i portali; l'elenco
+recepisce i nuovi dati server anche se era già montato. Il dettaglio commerciale
+conferma l'acquisizione e offre il link al cliente; la delivery rimane separata.
 
 **Le stime non sono Economics.** `monthly_value`, `setup_value` e
 `one_off_value` sono imponibili stimati e vengono presentati separatamente.
@@ -149,8 +162,16 @@ Gli advisor segnalano intenzionalmente `sales_commands` deny-all e l'helper
 RLS `sales_can_read` SECURITY DEFINER; gli altri rilievi preesistenti sono nel
 registro audit e non sono stati chiusi da questa attività.
 
-**Restano:** deploy del codice, smoke test browser e collaudo autenticato
-end-to-end. Le migration applicate non distribuiscono le nuove pagine.
+**Rilascio iniziale:** codice pubblicato su main; l'utente ha confermato deploy
+e accesso dei manager. Rimane il collaudo autenticato completo dei flussi.
+La 225 è un incremento successivo: stato di applicazione in `docs/migrations.md`.
+
+**Verifiche incremento 225:** TypeScript e 53 file check passati, action con
+invalidazione delle pagine Clienti verificata, suite SQL 223/225 passate anche
+dopo riesecuzione della 225. Browser locale con backend simulato: menu e invio
+fonte, conservazione fonte storica, proposta inline alla vittoria, conferma e
+link cliente, selezione anagrafica per opportunità precedenti, dialog mobile
+senza overflow nei due temi. Non equivale al collaudo autenticato in produzione.
 
 ## Incrementi successivi
 

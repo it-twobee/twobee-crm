@@ -1,5 +1,20 @@
 # Dove siamo
 
+## Commerciale — acquisizione automatica e fonti guidate, 2026-09-15
+
+La vittoria acquisisce subito il lead come cliente, senza aspettare la delivery
+e senza creare contratti, fatture o MRR. Riusa l'anagrafica; per le opportunità
+precedenti prive di collegamento consente la scelta di un cliente esistente o
+la creazione del bundle, senza unire automaticamente nomi uguali. La proposta
+accettata si può indicare nell'esito. Fonte a menu con le otto opzioni richieste
+e conservazione dei valori storici. Migrazione **225 applicata**
+(`20260915142808`), nessun dato aziendale preesistente modificato.
+
+Verifiche: TypeScript, 53 check, test action, suite SQL 223/225 e browser locale
+con dati simulati (fonti, vittoria, collegamento anagrafica, mobile nei due temi).
+Il collaudo autenticato in produzione resta agli utenti. Dettagli in
+`docs/commerciale.md` e `docs/migrations.md`.
+
 ## Verifica database — 2026-09-15
 
 MCP Supabase operativo in lettura/scrittura sul progetto `ujkrrryitfqboskdqhwf`.
@@ -13,7 +28,7 @@ Nessun ruolo o dato aziendale esistente modificato. Dettagli in `docs/migrations
 `deals` e `deal_activities` erano assenti: la 223 le ha ripristinate insieme
 allo storico, senza rilanciare le vecchie migration dei domini demoliti.
 
-## Commerciale — implementazione locale del 2026-09-15, non distribuita
+## Commerciale — primo rilascio del 2026-09-15
 
 Prima versione di `/commerciale` e `/workspace/commerciale`: Oggi, pipeline,
 esiti e follow-up, referenti, storico, stime separate e passaggio guidato alla
@@ -23,9 +38,9 @@ Dettagli, limiti e checklist in `docs/commerciale.md`.
 
 **223 e 224 applicate.** Verifiche locali: TypeScript e 50 check di dominio
 passati, più test delle action con Supabase simulato e suite SQL/RLS su
-PostgreSQL isolato. Restano distribuzione del codice e collaudo browser con
-utenti autorizzati; nessun deploy effettuato. Il portale cliente resta il
-secondo intervento.
+PostgreSQL isolato. Successivamente distribuito: l'utente ha confermato deploy
+e accesso dei manager, con test funzionali in corso. Il portale cliente resta
+il secondo intervento.
 
 ## Dove siamo — 2026-09-14
 
