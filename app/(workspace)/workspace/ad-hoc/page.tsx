@@ -13,12 +13,14 @@ export default async function WorkspaceAdHocPage() {
   const supabase = await createClient()
 
   // clients_workspace = VIEW senza dati economici; le task le filtra la RLS
-  const [{ data: tasks }, { data: clients }, { data: profiles }, { data: assignments }] = await Promise.all([
+  const [{ data: tasks }, { data: clients }, { data: projects }, { data: profiles }, { data: assignments }] = await Promise.all([
+    // §340 — tutte, non le sole ad hoc: la RLS decide già cosa questo ruolo vede
     supabase.from('tasks')
-      .select('id, client_id, title, description, status, priority, due_date, visibility, assignee_id, created_at')
-      .eq('task_type', 'ad_hoc').is('deleted_at', null)
+      .select('id, client_id, title, description, status, priority, due_date, visibility, assignee_id, created_at, completed_at, task_type, project_id')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false }),
     supabase.from('clients_workspace').select('id, company_name, display_name').order('company_name'),
+    supabase.from('projects').select('id, name').order('name'),
     supabase.from('profiles').select('id, full_name, avatar_url, app_role').eq('is_active', true).order('full_name'),
     // se la RLS non li espone al workspace il gruppo "lato cliente" resta vuoto
     supabase.from('client_assignments').select('profile_id, client_id'),
@@ -31,6 +33,7 @@ export default async function WorkspaceAdHocPage() {
       rows={(tasks ?? []) as AdHocRow[]}
       clients={(clients ?? []).map((c: { id: string; company_name: string; display_name: string | null }) =>
         ({ id: c.id, name: c.display_name || c.company_name }))}
+      projects={(projects ?? []) as { id: string; name: string }[]}
       profiles={(profiles ?? []).map(p => ({ ...p, client_id: clientOf.get(p.id) ?? null }))}
       canManage
       canCreateClient={canCreateClients(profile.app_role)}

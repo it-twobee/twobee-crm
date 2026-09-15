@@ -71,11 +71,18 @@ export async function createAdHocTask(input: {
   return data.id as string
 }
 
-/** le viste che mostrano task ad hoc: cliente + elenco globale nei due portali */
+/** le viste che mostrano le task: cliente + elenco globale nei due portali */
 function revAdHoc(clientId: string | null) {
   if (clientId) revalidatePath(`/clienti/${clientId}`)
   revalidatePath('/ad-hoc')
   revalidatePath('/workspace/ad-hoc')
+  /* §340 — l'elenco adesso contiene anche le task di progetto, e da lì si
+     spuntano: senza questa riga la stessa task resta aperta sulla pagina del
+     progetto fino al prossimo caricamento, e due schermate dicono due cose. */
+  revalidatePath('/progetti')
+  revalidatePath('/workspace/progetti')
+  revalidatePath('/le-mie-attivita')
+  revalidatePath('/workspace/attivita')
 }
 
 export async function setAdHocTaskStatus(taskId: string, clientId: string | null, status: TaskStatusV2) {

@@ -186,6 +186,46 @@ subito**. Matita e cestino sono sempre visibili.
 
 Gate: `npx tsx lib/recurrence.check.ts` e `npx tsx lib/recurrence-run.check.ts`.
 
+## La sezione Task le contiene tutte (§340)
+
+`/ad-hoc` mostrava le sole `task_type = 'ad_hoc'` e si chiamava «Task Ad Hoc»:
+l'altra metà del lavoro stava nella scheda di ogni progetto, e per sapere cosa
+ha in mano una persona bisognava guardare in due posti **sapendo già in quale**.
+Adesso è «Task» e le carica tutte.
+
+- **Il selettore in cima rifà la separazione**: *Tutte · Di progetto · Ad hoc*,
+  ognuna col suo numero, così si sa cosa si lascia fuori **prima** di premere.
+  Si apre su «Tutte»: la domanda che porta qui è «cosa c'è da fare», e la
+  risposta non è mai metà del lavoro.
+- **I riquadri in cima seguono la scelta**: un «12 in ritardo» che conta anche
+  quello che non stai guardando manda a cercare due task che non esistono.
+- **Il progetto si vede sulla riga** quando ce n'è uno, e si tace dove sarebbe
+  una ripetizione (sotto il titolo del gruppo «Progetto»): in una lista
+  mescolata è ciò che distingue una consegna da una richiesta veloce.
+- **Si può raggruppare per progetto**, oltre che per cliente, persona e
+  scadenza.
+- Le azioni non sono cambiate: `setAdHocTaskStatus` e compagnia lavorano per id
+  e non filtrano il tipo. Ma ora la revalidazione tocca anche `/progetti` e «le
+  mie attività»: spuntare qui una task di progetto la lasciava aperta là, e due
+  schermate dicevano due cose.
+
+## Progetti: filtrabili e raggruppati per cliente (§341)
+
+L'elenco sotto il calendario era una griglia piatta di trenta schede, coi
+progetti dello stesso cliente sparsi in mezzo: per sapere cosa c'è aperto su
+iCura bisognava scorrere tutto e tenerlo a mente — mentre il calendario, dieci
+centimetri più su, è già per cliente. Le due metà della pagina rispondevano alla
+stessa domanda in due ordini diversi.
+
+- **Raggruppato per cliente** di default, con il conteggio e quanti sono attivi;
+  il pulsante «per cliente» torna all'elenco unico per chi lo preferisce.
+- **Il filtro cliente** elenca solo chi ha davvero un progetto: un filtro con
+  voci vuote fa premere per scoprire che non c'era niente.
+- **Una sola `ProjectCard`** per tutti e due i modi di leggere: due copie dello
+  stesso markup divergono al primo campo aggiunto, e la pagina finisce col dire
+  due cose di sé. Sotto il titolo del cliente il nome del cliente sparisce —
+  ripeterlo su ogni riga allontana il servizio, che è l'informazione vera.
+
 ## Task ad hoc: il cliente può anche non esserci (§321)
 
 `TaskComposer` chiedeva un cliente e basta, e le due cose che mancavano erano

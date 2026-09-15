@@ -23,6 +23,15 @@ export type AdHocRow = {
   assignee_id: string | null; created_at: string
   /** §283 — quando è stata completata: da lì si contano i sessanta giorni */
   completed_at?: string | null
+  /**
+   * §340 — da dove viene. La sezione era solo delle ad hoc, e per vedere il
+   * lavoro di qualcuno bisognava guardare in due posti sapendo già in quale
+   * stava: qui le richieste fuori progetto, nella scheda del progetto tutto il
+   * resto. Ora ci sono tutte, e questo campo è quello che permette di separarle
+   * di nuovo quando serve — senza doverle cercare altrove.
+   */
+  task_type?: 'project' | 'ad_hoc'
+  project_id?: string | null
 }
 type Person = AssignablePerson
 type ClientOpt = { id: string; name: string }
@@ -50,15 +59,20 @@ const relDays = (iso: string) => {
 }
 
 type Filter = 'aperte' | 'late' | 'soon' | 'unassigned' | 'tutte'
+/** §340 — l'origine: di progetto, fuori progetto, o tutte insieme */
+type Origin = 'tutte' | 'progetto' | 'ad_hoc'
 /** §321 — filtrare le ad hoc che non sono di nessun cliente */
 const NESSUNO = '__none__'
-type GroupBy = 'cliente' | 'assegnatario' | 'scadenza' | 'nessuno'
+type GroupBy = 'cliente' | 'assegnatario' | 'scadenza' | 'progetto' | 'nessuno'
+type ProjectOpt = { id: string; name: string }
 
 export function AdHocClient({
-  rows, clients, profiles, canManage, canCreateClient = false, clientBase = '/clienti',
+  rows, clients, projects = [], profiles, canManage, canCreateClient = false, clientBase = '/clienti',
 }: {
   rows: AdHocRow[]
   clients: ClientOpt[]
+  /** §340 — i nomi dei progetti: una task di progetto senza il suo non si colloca */
+  projects?: ProjectOpt[]
   profiles: Person[]
   canManage: boolean
   /** §317 — admin e manager possono aprire un'anagrafica dal composer */
@@ -74,6 +88,10 @@ export function AdHocClient({
   const [clientId, setClientId] = useState('')
   const [assigneeId, setAssigneeId] = useState('')
   const [groupBy, setGroupBy] = useState<GroupBy>('cliente')
+  /* §340 — si apre sull'insieme: la domanda che porta qui è «cosa c'è da fare»,
+     e la risposta non è mai metà del lavoro. Le due viste separate restano a un
+     clic, per quando la domanda diventa «cosa c'è fuori dai progetti». */
+  const [origin, setOrigin] = useState<Origin>('tutte')
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
 
   /* §321 — «nessun cliente» è una scelta, non un dato mancante: un trattino la
@@ -81,29 +99,45 @@ export function AdHocClient({
   const clientName = (id: string | null) =>
     id ? (clients.find(c => c.id === id)?.name ?? '—') : 'Nessun cliente'
   const person = (id: string | null) => (id ? profiles.find(p => p.id === id) ?? null : null)
+  const projectName = (id: string | null | undefined) =>
+    (id ? projects.find(p => p.id === id)?.name ?? 'Progetto' : null)
+  const isAdHoc = (r: AdHocRow) => (r.task_type ?? 'ad_hoc') === 'ad_hoc'
 
   const act = (fn: () => Promise<unknown>, ok?: string) => start(async () => {
     try { await fn(); if (ok) toast.success(ok); router.refresh() }
     catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
   })
 
+  /* §340 — i numeri in cima seguono l'origine scelta: un riquadro «12 in
+     ritardo» che conta anche quello che non stai guardando manda a cercare due
+     task che non ci sono. */
+  const scope = useMemo(
+    () => rows.filter(r => origin === 'tutte' || (origin === 'ad_hoc' ? isAdHoc(r) : !isAdHoc(r))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, origin])
+
   const counts = useMemo(() => {
     const in7 = plusDays(7)
-    const open = rows.filter(r => r.status !== 'completato')
+    const open = scope.filter(r => r.status !== 'completato')
     return {
-      tutte: rows.length,
+      tutte: scope.length,
       aperte: open.length,
       late: open.filter(r => r.due_date && r.due_date < today()).length,
       soon: open.filter(r => r.due_date && r.due_date >= today() && r.due_date <= in7).length,
       unassigned: open.filter(r => !r.assignee_id).length,
+      /* Quante ce ne sono nelle due metà: serve alle etichette del selettore,
+         così si sa cosa si sta lasciando fuori **prima** di premere. */
+      diProgetto: rows.filter(r => !isAdHoc(r)).length,
+      adHoc: rows.filter(r => isAdHoc(r)).length,
     }
-  }, [rows])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope, rows])
 
   /* §283 — le completate stanno **fuori** dall'elenco filtrato: sono un'altra
      domanda («l'ho chiusa per sbaglio?») e in mezzo alle aperte non si vedono
      né le une né le altre. Rispettano gli stessi filtri di cliente e persona,
      perché altrimenti in una lista filtrata comparirebbero le altrui. */
-  const done = useMemo(() => rows
+  const done = useMemo(() => scope
     .filter(r => r.status === 'completato'
       && (!clientId || r.client_id === clientId)
       && (!assigneeId || r.assignee_id === assigneeId))
@@ -111,13 +145,15 @@ export function AdHocClient({
     .map(r => ({ id: r.id, title: r.title, completedAt: r.completed_at,
       who: clientName(r.client_id) })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, clientId, assigneeId])
+    [scope, clientId, assigneeId])
 
   const view = useMemo(() => {
     const t = q.trim().toLowerCase()
     const in7 = plusDays(7)
-    return rows.filter(r => {
-      if (t && !r.title.toLowerCase().includes(t) && !clientName(r.client_id).toLowerCase().includes(t)) return false
+    return scope.filter(r => {
+      if (t && !r.title.toLowerCase().includes(t)
+        && !clientName(r.client_id).toLowerCase().includes(t)
+        && !(projectName(r.project_id) ?? '').toLowerCase().includes(t)) return false
       if (clientId === NESSUNO ? r.client_id !== null : (clientId && r.client_id !== clientId)) return false
       if (assigneeId && r.assignee_id !== assigneeId) return false
       if (filter === 'tutte') return true
@@ -133,7 +169,7 @@ export function AdHocClient({
       return PRIO_RANK[a.priority] - PRIO_RANK[b.priority]
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, q, filter, clientId, assigneeId, clients])
+  }, [scope, q, filter, clientId, assigneeId, clients, projects])
 
   /** raggruppamento: chiave stabile + etichetta leggibile */
   const groups = useMemo(() => {
@@ -143,6 +179,10 @@ export function AdHocClient({
       let key: string, label: string, order: string
       if (groupBy === 'cliente') {
         key = r.client_id ?? 'nessuno'; label = clientName(r.client_id); order = label.toLowerCase()
+      } else if (groupBy === 'progetto') {
+        key = r.project_id ?? 'fuori'
+        label = projectName(r.project_id) ?? 'Fuori progetto'
+        order = r.project_id ? label.toLowerCase() : 'zzz'
       } else if (groupBy === 'assegnatario') {
         key = r.assignee_id ?? 'nessuno'
         label = person(r.assignee_id)?.full_name ?? 'Non assegnate'
@@ -161,19 +201,23 @@ export function AdHocClient({
       .map(([key, v]) => ({ key, label: v.label, items: v.items, order: v.order }))
       .sort((a, b) => a.order.localeCompare(b.order))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, groupBy, clients, profiles])
+  }, [view, groupBy, clients, profiles, projects])
 
-  const filtering = filter !== 'aperte' || !!q.trim() || !!clientId || !!assigneeId
-  const reset = () => { setFilter('aperte'); setQ(''); setClientId(''); setAssigneeId('') }
+  const filtering = filter !== 'aperte' || !!q.trim() || !!clientId || !!assigneeId || origin !== 'tutte'
+  const reset = () => { setFilter('aperte'); setQ(''); setClientId(''); setAssigneeId(''); setOrigin('tutte') }
 
 
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-4">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-text-primary font-heading">Task Ad Hoc</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-text-primary font-heading">Task</h1>
           <p className="text-sm text-text-secondary mt-1">
-            Tutto quello che non sta in un progetto: richieste veloci, extra, favori.{' '}
+            {origin === 'ad_hoc'
+              ? 'Fuori progetto: richieste veloci, extra, favori.'
+              : origin === 'progetto'
+                ? 'Quelle che stanno dentro un progetto, per cliente.'
+                : 'Tutte le task, dentro e fuori dai progetti.'}{' '}
             <span className="tabular font-semibold text-text-primary">{counts.aperte}</span> aperte su{' '}
             <span className="tabular">{counts.tutte}</span>
           </p>
@@ -184,6 +228,21 @@ export function AdHocClient({
             <Plus className="w-4 h-4" />Nuova task
           </button>
         )}
+      </div>
+
+      {/* §340 — **l'origine, prima di tutto il resto.** La sezione mostrava solo
+          le ad hoc e per vedere il lavoro di una persona bisognava guardare in
+          due posti sapendo già in quale stava. Adesso ci sono tutte, e questo
+          selettore le separa di nuovo quando la domanda è «cosa c'è fuori dai
+          progetti». Ogni voce porta il suo numero: si sa cosa si lascia fuori
+          prima di premere, non dopo. */}
+      <div className="w-full sm:max-w-md">
+        <Segmented ariaLabel="Quali task" value={origin} onChange={setOrigin}
+          options={[
+            { value: 'tutte', label: `Tutte · ${counts.diProgetto + counts.adHoc}` },
+            { value: 'progetto', label: `Di progetto · ${counts.diProgetto}` },
+            { value: 'ad_hoc', label: `Ad hoc · ${counts.adHoc}` },
+          ]} />
       </div>
 
       {/* segnali: ognuno filtra */}
@@ -212,10 +271,11 @@ export function AdHocClient({
           <option value="">Tutti gli assegnatari</option>
           {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
         </select>
-        <div className="w-72 shrink-0">
+        <div className="w-[22rem] shrink-0">
           <Segmented ariaLabel="Raggruppa per" value={groupBy} onChange={setGroupBy}
             options={[
               { value: 'cliente', label: 'Cliente' },
+              { value: 'progetto', label: 'Progetto' },
               { value: 'assegnatario', label: 'Persona' },
               { value: 'scadenza', label: 'Scadenza' },
               { value: 'nessuno', label: 'Piatta' },
@@ -238,8 +298,8 @@ export function AdHocClient({
           <div className="w-12 h-12 rounded-full bg-gold-dim flex items-center justify-center mx-auto mb-3">
             <ListTodo className="w-6 h-6 text-gold-text" />
           </div>
-          <p className="text-sm text-text-secondary">Nessuna task ad hoc.</p>
-          <p className="text-2xs text-text-tertiary mt-1">Le attività fuori progetto si raccolgono qui, per tutti i clienti.</p>
+          <p className="text-sm text-text-secondary">Nessuna task.</p>
+          <p className="text-2xs text-text-tertiary mt-1">Qui stanno tutte: quelle dei progetti e quelle fuori, per tutti i clienti.</p>
           {canManage && (
             <button onClick={() => setAdding(true)} className="text-2xs font-semibold bg-gold text-on-gold px-4 py-2 rounded-lg shadow-soft press mt-3">
               Crea la prima
@@ -273,6 +333,12 @@ export function AdHocClient({
                   <div className="rounded-2xl border border-border shadow-soft overflow-hidden divide-y divide-border">
                     {g.items.map(r => (
                       <Row key={r.id} r={r} profiles={profiles} canManage={canManage} pending={pending}
+                        /* §340 — in una lista mescolata il progetto è ciò che
+                           distingue una task di consegna da una richiesta
+                           veloce: senza, due righe identiche vogliono dire due
+                           cose diverse. Si tace dove sarebbe una ripetizione —
+                           quando è già il titolo del gruppo. */
+                        projectLabel={groupBy === 'progetto' ? null : projectName(r.project_id)}
                         clientLabel={groupBy === 'cliente' ? null : clientName(r.client_id)}
                         clientHref={r.client_id ? `${clientBase}/${r.client_id}` : null}
                         showAssignee={groupBy !== 'assegnatario'}
@@ -322,13 +388,15 @@ export function AdHocClient({
 }
 
 function Row({
-  r, profiles, person, clientLabel, clientHref, showAssignee, canManage, pending,
+  r, profiles, person, clientLabel, clientHref, projectLabel, showAssignee, canManage, pending,
   onOpen, onToggle, onPatch, onDelete,
 }: {
   r: AdHocRow
   profiles: Person[]
   person: Person | null
   clientLabel: string | null
+  /** §340 — il progetto da cui viene, quando ce n'è uno */
+  projectLabel?: string | null
   clientHref: string | null
   showAssignee: boolean
   canManage: boolean
@@ -360,6 +428,11 @@ function Row({
         {r.title}
         {r.description && <span className="ml-1.5 text-2xs text-text-tertiary">·  dettagli</span>}
       </button>
+
+      {projectLabel && (
+        <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-lg bg-info-dim text-info shrink-0 truncate max-w-[150px]"
+          title={`Task del progetto ${projectLabel}`}>{projectLabel}</span>
+      )}
 
       {clientLabel && (
         clientHref

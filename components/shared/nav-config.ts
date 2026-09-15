@@ -30,7 +30,7 @@ export const navSections: NavSection[] = [
     items: [
       { href: '/clienti', icon: Users, label: 'Clienti' },
       { href: '/progetti', icon: Briefcase, label: 'Progetti' },
-      { href: '/ad-hoc', icon: ListTodo, label: 'Task Ad Hoc' },
+      { href: '/ad-hoc', icon: ListTodo, label: 'Task' },
       // §316 — stato tracking e QA giornaliero, per tutti i clienti
       { href: '/tracking', icon: Radar, label: 'Tracking' },
       { href: '/customer-care', icon: Headphones, label: 'Customer Care' },

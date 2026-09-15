@@ -31,6 +31,21 @@ ricavo, base, percentuale applicata, motivo. Non ricalcola niente: rende i
 e le 5 righe maturate e non incassate per 12.200 € dette accanto, perché è quasi
 sempre lì la ragione di un compenso più basso del previsto.
 
+**Workstream azzerate.** Su richiesta esplicita, dopo aver misurato la cascata e
+averla dichiarata: via **93 workstream** e con loro, per `ON DELETE CASCADE`,
+**144 milestone**, **124 task di progetto** e **185 regole ricorrenti**. Le
+**53 task ad hoc** sono rimaste tutte, nessuna riga orfana in `task_assignees`.
+I 30 progetti restano: era una pulizia delle workstream, non dei progetti.
+
+**§341 — i progetti si raggruppano per cliente.** L'elenco sotto il calendario
+era una griglia piatta; ora è per cliente, con filtro cliente e ritorno
+all'elenco unico.
+
+**§340 — la sezione Task le contiene tutte.** Era «Task Ad Hoc» e mostrava metà
+del lavoro; l'altra metà stava nella scheda di ogni progetto. Ora si chiama
+«Task», le carica tutte, e un selettore *Tutte · Di progetto · Ad hoc* rifà la
+separazione quando serve.
+
 **§339 — manager vuol dire manager.** Il governo dei progetti leggeva
 `project_members.role_in_project`, che è nullo su quasi tutte le righe: Sabrina
 Nastro è manager e membro di sei progetti, e non poteva modificare niente da
