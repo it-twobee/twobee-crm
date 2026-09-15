@@ -154,6 +154,30 @@ contratti»; `npx tsx scripts/verify-month.ts <mese>` lo dice dalla riga di coma
 Serve perché **la quadratura chiude a zero anche sui numeri sbagliati**: le quote
 tornano lo stesso, solo prese dalla tasca di qualcun altro.
 
+**Il pannello contratti sapeva di zero progetti** (§343, `ClientDealsPanel`).
+Tutti e tre i punti che montano `ContractsPanel` gli passavano `projects={[]}`:
+il selettore «Progetto» era sempre vuoto e il riquadro diceva «questo cliente non
+ha progetti attivi» anche a chi ne ha quattro. Un accordo senza lavoro si poteva
+quindi solo **creare**, mai **collegare** — e un contratto scollegato non entra
+nel margine di nessun progetto, che è proprio il difetto che quel riquadro
+esisteva per segnalare. Il messaggio non mentiva su una sfumatura: descriveva
+l'anagrafica del cliente guardando una lista che non era mai stata riempita.
+
+**Chi porta un cliente può non avere un account** (§343). `sales_owner_name` sta
+su `revenue_streams` da sempre e `ownerOf` lo legge già (§185) — «spesso è un
+segnalatore senza account nel tool», dice il paragrafo — ma il pannello offriva
+solo i profili registrati. Per un partner o un consulente esterno l'unica mossa
+era lasciare «—», cioè **dichiarare che il cliente non l'ha portato nessuno**: da
+lì la provvigione si divide fra i soci (`isInbound`), e una persona vera sparisce
+dai compensi. Ora il selettore ha «Altro — scrivi il nome…» e apre un campo
+libero; i due campi si escludono, perché due nomi sulla stessa riga diventano due
+commerciali diversi a seconda di chi legge.
+
+**E la casella della provvigione divisa si vede che si preme** (§343). Era una
+checkbox di sistema con l'etichetta in `text-text-tertiary`: identica, a occhio,
+a un controllo disabilitato. Adesso è un bottone con lo stato acceso in
+`accent`, che è il modo in cui il resto dell'app dice «questo si tocca».
+
 **Un accordo su N progetti, in codice** (§207). La 188 era solo tabella: nessuno
 leggeva `revenue_stream_projects`, quindi una riga si prendeva il primo dei tre
 progetti. Adesso `coveredProjects` decide — un progetto solo → la riga lo porta;

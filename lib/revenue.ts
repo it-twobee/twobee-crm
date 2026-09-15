@@ -48,6 +48,12 @@ export type RevenueStream = {
   end_date: string | null
   status: StreamStatus
   sales_owner_id: string | null
+  /**
+   * §185/§343 — chi ha portato il cliente quando **non ha un account nel tool**:
+   * un segnalatore, un partner, un consulente esterno. Esiste da sempre nel
+   * database e `ownerOf` lo legge già; mancava solo il modo di scriverlo.
+   */
+  sales_owner_name?: string | null
   activates_after_id: string | null
   /** §174: metodo di pagamento concordato. È quello che il subappalto ricalca. */
   payment_terms?: string | null

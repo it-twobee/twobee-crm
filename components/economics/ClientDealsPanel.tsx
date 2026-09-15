@@ -241,7 +241,7 @@ export function ClientDealsPanel({
                   installments={installments}
                   services={services}
                   profiles={profiles}
-                  projects={[]}
+                  projects={projects}
                   canEdit={canEdit}
                   defaultKind={project.kind ?? defaultKind}
                   defaultStart={defaultStart ?? null}
@@ -321,7 +321,11 @@ export function ClientDealsPanel({
             installments={installments}
             services={services}
             profiles={profiles}
-            projects={[]}
+            /* §343 — i progetti del cliente, non una lista vuota. Il selettore
+               «Progetto» era sempre a zero opzioni e il riquadro diceva «questo
+               cliente non ha progetti attivi» anche a chi ne ha quattro: un
+               accordo senza lavoro si poteva solo creare, mai collegare. */
+            projects={projects}
             canEdit={canEdit}
             defaultKind={defaultKind}
             defaultStart={defaultStart ?? null}

@@ -73,6 +73,14 @@ ricavo, base, percentuale applicata, motivo. Non ricalcola niente: rende i
 e le 5 righe maturate e non incassate per 12.200 € dette accanto, perché è quasi
 sempre lì la ragione di un compenso più basso del previsto.
 
+**§343 — il pannello contratti sapeva di zero progetti.** Tutti e tre i punti che
+montano `ContractsPanel` gli passavano `projects={[]}`: il selettore «Progetto»
+era sempre vuoto e il riquadro diceva «questo cliente non ha progetti attivi»
+anche a chi ne ha quattro. Un accordo senza lavoro si poteva solo creare, mai
+collegare. Insieme: il commerciale esterno si scrive (il campo
+`sales_owner_name` c'era già nel database e `ownerOf` lo leggeva, mancava solo il
+modo di scriverlo) e la casella della provvigione divisa non sembra più spenta.
+
 **§342 — la scheda progetto si apre sulle lavorazioni.** Era Panoramica, e nel
 tab Workstream il calendario stava sopra l'elenco: un riassunto prima di sapere
 di cosa, e delle date prima di sapere a cosa appartengono. Ora Workstream è il

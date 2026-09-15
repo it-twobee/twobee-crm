@@ -42,6 +42,8 @@ export type StreamInput = {
   end_date?: string | null
   status?: 'bozza' | 'attivo' | 'sospeso' | 'concluso'
   sales_owner_id?: string | null
+  /** §343: il nome di chi ha portato il cliente e nel tool non c'è */
+  sales_owner_name?: string | null
   activates_after_id?: string | null
   /** §174: come si paga, non solo quanto — «30gg d.f.f.m.», «40/30/30 a SAL» */
   payment_terms?: string | null

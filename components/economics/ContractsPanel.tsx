@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import {
-  Plus, Trash2, Repeat, Package, CalendarRange, Play, Lock, Tag, Briefcase, Unlink, AlertTriangle,
+  Plus, Trash2, Repeat, Package, CalendarRange, Play, Lock, Tag, Briefcase, Unlink, AlertTriangle, Check,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import {
@@ -48,6 +48,9 @@ const STATUS_TONE: Record<string, string> = {
   sospeso: 'bg-warning-dim border-warning/40 text-warning',
   concluso: 'bg-info-dim border-info/40 text-info',
 }
+
+/** §343 — la voce del selettore che apre il campo libero, non un id di profilo. */
+const ALTRO = '__altro__'
 
 export function ContractsPanel({
   scope, streams, installments, services, profiles, projects, canEdit,
@@ -286,6 +289,9 @@ function Row({
   run: (fn: () => Promise<unknown>, ok?: string) => void
 }) {
   const [custom, setCustom] = useState<string | null>(null)
+  /* §343 — il nome di un commerciale che nel tool non c'è. `null` = non si sta
+     scrivendo; una stringa (anche vuota) = il campo è aperto. */
+  const [libero, setLibero] = useState<string | null>(null)
   const rows = installments.filter(i => i.stream_id === s.id)
   const planned = scheduled(installments, s.id)
   const gap = Math.round((s.amount - planned) * 100) / 100
@@ -425,26 +431,69 @@ function Row({
                 onSave={v => run(() => updateStream(s.id, { payment_terms: v || null }, ctx))} />
             </Field>
             <Field label="Commerciale">
-              <select value={s.sales_owner_id ?? ''} disabled={!canEdit} aria-label="Commerciale"
-                onChange={e => run(() => updateStream(s.id, { sales_owner_id: e.target.value || null }, ctx))}
+              {/* §343 — **chi porta un cliente può non avere un account.** Un
+                  segnalatore, un partner, un consulente esterno esistono e
+                  prendono la provvigione (§185 li legge già da
+                  `sales_owner_name`), ma qui si poteva solo scegliere fra i
+                  profili del tool: l'unico modo di registrarli era lasciare il
+                  campo a «—», cioè dichiarare che il cliente non l'ha portato
+                  nessuno — e la provvigione si divideva fra i soci. Un dato
+                  falso per far stare una persona in un elenco che non la
+                  contiene. */}
+              <select value={s.sales_owner_id ?? (s.sales_owner_name ? ALTRO : '')}
+                disabled={!canEdit} aria-label="Commerciale"
+                onChange={e => {
+                  const v = e.target.value
+                  if (v === ALTRO) { setLibero(s.sales_owner_name ?? ''); return }
+                  /* Uno dei due, mai tutti e due: due nomi sulla stessa riga
+                     diventano due commerciali diversi a seconda di chi legge. */
+                  run(() => updateStream(s.id,
+                    { sales_owner_id: v || null, sales_owner_name: null }, ctx))
+                  setLibero(null)
+                }}
                 className={inp}>
                 <option value="">—</option>
                 {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                <option value={ALTRO}>Altro — scrivi il nome…</option>
               </select>
+
+              {(libero !== null || s.sales_owner_name) && (
+                <Draft value={libero ?? s.sales_owner_name ?? ''} disabled={!canEdit}
+                  label="Nome del commerciale esterno" className={`${inp} mt-1.5`}
+                  placeholder="Nome e cognome"
+                  onSave={v => {
+                    setLibero(null)
+                    run(() => updateStream(s.id,
+                      { sales_owner_name: v.trim() || null, sales_owner_id: null }, ctx),
+                    v.trim() ? 'Commerciale esterno registrato' : 'Commerciale tolto')
+                  }} />
+              )}
+
               {/* §330 — il riferimento e la tasca sono due domande. Un lavoro
                   portato in tre ha comunque una persona che il cliente chiama,
                   e l'unico modo che il tool aveva di dividere la provvigione era
                   cancellare quel nome: un dato falso per far tornare un numero.
-                  Qui la divisione si dichiara, e le rate la trovano già presa. */}
-              <label className="flex items-start gap-2 mt-1.5 cursor-pointer">
-                <input type="checkbox" checked={!!s.sales_split} disabled={!canEdit}
-                  onChange={e => run(() => updateStream(s.id, { sales_split: e.target.checked }, ctx))}
-                  className="mt-0.5 accent-current text-gold-text" />
-                <span className="text-2xs text-text-tertiary leading-snug">
+                  §343 — e la casella si vede che si preme: era una checkbox di
+                  sistema con l'etichetta in grigio terziario, cioè identica a un
+                  controllo spento. */}
+              <button type="button" disabled={!canEdit}
+                aria-pressed={!!s.sales_split}
+                onClick={() => run(() => updateStream(s.id, { sales_split: !s.sales_split }, ctx),
+                  s.sales_split ? 'Provvigione al commerciale' : 'Provvigione divisa fra i soci')}
+                className={`flex items-start gap-2 mt-1.5 w-full text-left rounded-lg px-2 py-1.5 border press
+                  disabled:opacity-40 disabled:cursor-not-allowed ${
+                  s.sales_split
+                    ? 'border-accent/40 bg-accent/10'
+                    : 'border-border hover:bg-surface-hover'}`}>
+                <span className={`w-3.5 h-3.5 rounded border shrink-0 mt-0.5 flex items-center justify-center ${
+                  s.sales_split ? 'bg-accent border-accent' : 'border-border-strong bg-background'}`}>
+                  {s.sales_split && <Check className="w-2.5 h-2.5 text-on-gold" strokeWidth={3} aria-hidden="true" />}
+                </span>
+                <span className={`text-2xs leading-snug ${s.sales_split ? 'text-accent' : 'text-text-secondary'}`}>
                   Provvigione divisa fra i soci — il commerciale resta il riferimento, la quota si
                   spartisce in parti uguali
                 </span>
-              </label>
+              </button>
             </Field>
             <Field label="Si attiva dopo">
               <select value={s.activates_after_id ?? ''} disabled={!canEdit} aria-label="Si attiva dopo"
