@@ -41,6 +41,7 @@ import { attachMany, detachAll, confirmPayment, undoPayment } from '@/app/action
 import { updateCenter } from '@/app/actions/costs'
 import { Draft } from '@/components/economics/fields'
 import { PrepareMonth } from '@/components/pl/PrepareMonth'
+import { AccessRequests, type AccessReq } from '@/components/pl/AccessRequests'
 import { MonthIntake } from '@/components/pl/MonthIntake'
 import { monthIntake, applyIntake, intakeOverview } from '@/app/actions/month-intake'
 import { diagnose } from '@/lib/pl-health'
@@ -142,6 +143,8 @@ type Props = {
   certs?: Record<string, Cert>
   /** §226 — compensi maturati contro quelli davvero usciti dal conto */
   payouts?: PayoutView[]
+  /** §344 — chi ha chiesto di vedere il foglio dell'erogazione e aspetta un sì */
+  accessRequests?: AccessReq[]
 }
 
 const eur = (n: number) => formatCurrency(Math.round(n))
@@ -170,7 +173,7 @@ export function PlClient({
   carryRevenue = [], carryCosts = [], cashSetupNeeded = false,
   runway = null, bankReady = false, certs = {}, payouts = [], vatActuals = [],
   payoutLines = [], linkedTx = {}, matchOptions = {}, invoiceOf = {}, invoiceOptions = {},
-  payoutOptions = [], payoutDate = null, prevPayoutDate = null,
+  payoutOptions = [], payoutDate = null, prevPayoutDate = null, accessRequests = [],
 }: Props) {
   const router = useRouter()
   /* Quale compenso è aperto: un numero che non si può aprire si prende per fede,
@@ -944,7 +947,7 @@ export function PlClient({
         month={month} clientNames={clientNames} projectNames={projectNames}
         open={openQuota} setOpen={setOpenQuota}
         since={runway?.payoutsSince ?? null} bankReady={bankReady}
-        lines={payoutLines} pending={pending} locked={locked}
+        lines={payoutLines} pending={pending} locked={locked} access={accessRequests}
         onPaid={(id, paid, label, amount) => paid
           ? setPayingPayout({ id, label, gross: amount })
           : run(() => setPayoutPaid(id, false, month), 'Spunta tolta')}
@@ -1826,7 +1829,7 @@ export type PayoutLine = {
 function CompensiSection({
   rows, pool, config, cash, month, clientNames, projectNames, open, setOpen, since, bankReady,
   lines, onPaid, onPaidMany, onMaterialize, pending, locked,
-  win, summary, dateSet, onDate,
+  win, summary, dateSet, onDate, access,
 }: {
   rows: {
     key: string; who: string
@@ -1862,6 +1865,8 @@ function CompensiSection({
   /** la data è stata decisa, o è ancora il giorno di default? */
   dateSet: boolean
   onDate: (iso: string | null) => void
+  /** §344 — chi ha chiesto di vedere il foglio dell'erogazione */
+  access: AccessReq[]
 }) {
   /* §244 — la riga si ritrova per **nome**, non per chiave.
      `mergePeople` fonde socio e commerciale in una persona sola e le dà la
@@ -2286,6 +2291,11 @@ function CompensiSection({
           pari, e sono due domande in ordine — la seconda si fa prima di
           bonificare, non dopo. */}
       <Posizione />
+
+      {/* ── §344 · chi ha chiesto di vedere il foglio ──────────────────────
+          Accanto al pulsante che lo genera: chi lo ha mandato è l'unico che sa
+          se quel nome è la persona giusta. */}
+      <AccessRequests rows={access} />
 
       {/* ── 1 · erogato soci ─────────────────────────────────────────────── */}
       <section className="bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">

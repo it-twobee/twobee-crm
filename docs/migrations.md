@@ -33,7 +33,19 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > applicate**, nate in due sessioni parallele che non si vedevano. Il numero
 > doppio non ha rotto niente — Supabase registra la sua versione, non il nome
 > del file — ma il registro è una tabella ordinata e due righe con la stessa
-> chiave sono una trappola per chi arriva dopo. Dopo la 225, la prossima libera è la **226**.
+> chiave sono una trappola per chi arriva dopo. Dopo la 226, la prossima libera è la **227**.
+
+## 226 — richieste di accesso al foglio dei compensi (§344)
+
+`226_report_access.sql`: **da applicare**. Crea `report_access_requests` — chi ha
+chiesto di vedere `/api/compensi`, quale mese, e la decisione dell'admin —
+`ENABLE ROW LEVEL SECURITY` senza policy (deny-all come `google_credentials`:
+ci passa solo il service role, dietro le guard applicative). Unico su
+`(token, resource, scope)` perché ricaricare la pagina non deve moltiplicare le
+notifiche a chi decide. Non tocca nessuna tabella esistente e non ha backfill:
+finché non è applicata, la porta mostra il modulo e l'invio risponde «non è
+stato possibile inviare la richiesta» — nessun 500, e il foglio resta
+raggiungibile come prima da chi ha `canSeeEconomics`.
 
 ## 225 — acquisizione cliente alla vittoria commerciale
 

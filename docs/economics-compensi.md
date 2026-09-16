@@ -143,6 +143,36 @@ diversi, non per incoerenza:
     lo fa il browser. `npx tsx scripts/report-compensi.ts 2026-08-01` lo genera su
     file per guardarlo prima di mandarlo — una colonna che va a capo si vede solo
     guardando il foglio. Gate: `npx tsx lib/payout-report.check.ts`.
+  - **Chi non può vedere chiede, non rimbalza** (§344, `lib/report-access.ts`,
+    `lib/report-gate.ts`, tabella `report_access_requests`). Il foglio si manda a
+    chi il compenso lo riceve, e chi lo riceve nel tool non entra: il link
+    condiviso rispondeva «Permesso negato» in tre parole, e da lì la domanda
+    ripartiva su un altro canale — una telefonata a chi non sapeva che qualcuno
+    stesse aspettando. Adesso la porta mostra un modulo: **nome e cognome
+    obbligatori**, la richiesta arriva nella campanella di tutti gli admin
+    (`notifications`, tipo `access_request`) e il riquadro «Richieste di accesso
+    al foglio» in testa a «Erogato soci» la approva o la rifiuta. Cinque regole:
+    - **Il permesso è del documento, non della persona**: si approva «i compensi
+      di agosto a Tizio». Un altro mese è un'altra richiesta — costa un clic a
+      chi decide e non regala dodici fogli a chi ne ha chiesto uno.
+    - **Scade** (quindici giorni): un permesso che non scade è un permesso che
+      nessuno revoca. Alla scadenza la porta torna a **chiedere**, non a negare:
+      la scadenza è nostra, non una decisione contro chi ha chiesto.
+    - **Un no si dà una volta.** Dopo un rifiuto il modulo non si riapre, o la
+      decisione dell'admin sarebbe l'inizio di un ciclo. La revoca è lo stesso
+      gesto e vale al ricarico successivo.
+    - **Chi decide vede quello che c'è, non di più.** Un nome scritto a mano non
+      è un'identità: il riquadro dice «senza account» quando lo è, e mostra
+      l'indirizzo quando chi ha chiesto aveva una sessione del tool. È la stessa
+      fiducia di un link mandato via mail, con in più il gesto di qualcuno che
+      dice sì e la traccia di chi l'ha detto (`decided_by`).
+    - **Un permesso mai usato è il primo da togliere**: `opened_n` conta le
+      aperture, e il riquadro le mostra accanto alla scadenza.
+    `canSeeEconomics` resta la prima domanda (§234) e non la sostituisce
+    nessuno: l'approvazione la **affianca** per un documento e per qualche
+    giorno. Il service role serve perché chi chiede non ha una sessione — non
+    c'è una RLS che possa rispondere per lui — e per questo la tabella è
+    deny-all. Gate: `npx tsx lib/report-access.check.ts`.
 - `rowToPlConfig` è l'unico mapper da `pl_config`: era scritto due volte
   (economics e scheda cliente) e la seconda copia si dimenticava ogni colonna
   nuova.

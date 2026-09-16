@@ -1,5 +1,21 @@
 # Dove siamo
 
+## Compensi — il foglio si chiede, 2026-09-16
+
+`/api/compensi` non risponde più «Permesso negato» a chi non ha accesso: mostra
+un modulo con **nome e cognome obbligatori**, la richiesta arriva nella
+campanella di tutti gli admin e si approva o si rifiuta dal riquadro «Richieste
+di accesso al foglio», in testa a «Erogato soci». Il sì vale **solo per il mese
+chiesto** e **scade dopo quindici giorni**; la revoca è immediata, il rifiuto non
+riapre il modulo. Chi ha `canSeeEconomics` non vede nessun cambiamento.
+
+Migration **226 da applicare** (`report_access_requests`, deny-all): finché non
+lo è, la porta mostra il modulo e l'invio dice che non è stato possibile —
+nessun 500. Verifiche: TypeScript, 54 check, gate delle action, e le quattro
+facce della porta provate in locale (modulo, nomi rifiutati, errore d'invio).
+Il collaudo autenticato in produzione resta agli utenti. Dettagli in
+`docs/economics-compensi.md` (§344) e `docs/migrations.md`.
+
 ## Commerciale — acquisizione automatica e fonti guidate, 2026-09-15
 
 La vittoria acquisisce subito il lead come cliente, senza aspettare la delivery

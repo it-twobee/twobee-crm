@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { canSeeEconomics } from '@/lib/permissions'
 import { loadWindow } from '@/lib/payouts-plan'
 import { payoutReportHtml, type PayoutLineRef } from '@/lib/payout-report'
-import { monthKey } from '@/lib/pl'
+import { monthKey, monthLabel } from '@/lib/pl'
+import { monthParam } from '@/lib/report-access'
+import { reportGate, reportRequest, type GateCtx } from '@/lib/report-gate'
 
 /** Una riga rimasta fuori dalla finestra, ridotta a quello che il foglio mostra. */
 const openLine = (l: {
@@ -22,18 +22,33 @@ const openLine = (l: {
  */
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: NextRequest) {
-  /* §234 — una route è un endpoint HTTP come una server action, e nasconderne
-     il link non è una barriera: il controllo sta qui, non nel pulsante. */
-  const sb = await createClient()
-  const { data: { user } } = await sb.auth.getUser()
-  if (!user) return new NextResponse('Non autenticato', { status: 401 })
-  const { data: profile } = await sb.from('profiles')
-    .select('email, app_role, full_name').eq('id', user.id).maybeSingle()
-  if (!canSeeEconomics(profile)) return new NextResponse('Permesso negato', { status: 403 })
+/** Il mese chiesto nell'indirizzo, o quello in corso se non è un mese. */
+const meseDi = (req: NextRequest) =>
+  monthParam(req.nextUrl.searchParams.get('m')) ?? monthKey(new Date())
 
-  const m = req.nextUrl.searchParams.get('m')
-  const month = m ? monthKey(new Date(m)) : monthKey(new Date())
+const ctxDi = (month: string): GateCtx => ({
+  resource: 'compensi', scope: month,
+  titolo: `Compensi di ${monthLabel(month)}`,
+  link: `/economics?m=${month}#compensi`,
+})
+
+/**
+ * §344 — chi ha chiesto e ha avuto il sì manda il modulo qui: la richiesta
+ * viaggia sullo stesso indirizzo del documento, così il link che gira è uno.
+ */
+export async function POST(req: NextRequest) {
+  const month = meseDi(req)
+  return reportRequest(req, ctxDi(month))
+}
+
+export async function GET(req: NextRequest) {
+  const month = meseDi(req)
+  /* §234 — una route è un endpoint HTTP come una server action, e nasconderne
+     il link non è una barriera: il controllo sta qui, non nel pulsante. §344 —
+     ma a chi non può si dà una strada, non tre parole di rifiuto. */
+  const gate = await reportGate(req, ctxDi(month))
+  if (gate.kind === 'stop') return gate.res
+
   const today = new Date().toISOString().slice(0, 10)
 
   const admin = createAdminClient()
@@ -70,7 +85,7 @@ export async function GET(req: NextRequest) {
 
   const html = payoutReportHtml({
     month, today, w, t, config, clientNames, lines, owners,
-    autore: String((profile as { full_name?: string } | null)?.full_name ?? ''),
+    autore: gate.autore,
     /* §335 — non solo quante, ma **quali**: la domanda che arriva davanti a un
        compenso più basso del previsto è «chi non ha pagato». */
     open: { n: summary.open.n, amount: summary.open.amount, rows: summary.open.rows.map(openLine) },
@@ -78,5 +93,9 @@ export async function GET(req: NextRequest) {
     already: { n: summary.already.n, amount: summary.already.amount,
       rows: summary.already.rows.map(openLine) },
   })
-  return new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+  /* §344 — il foglio adesso lo può vedere anche un ospite approvato: non deve
+     restare in nessuna cache intermedia dopo che il permesso è scaduto. */
+  return new NextResponse(html, {
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+  })
 }

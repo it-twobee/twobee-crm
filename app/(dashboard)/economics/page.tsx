@@ -1,5 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getSessionUser, getSessionProfile } from '@/lib/auth'
+import { fullName } from '@/lib/report-access'
+import type { AccessReq } from '@/components/pl/AccessRequests'
 import { redirect } from 'next/navigation'
 import { PlClient } from '@/components/pl/PlClient'
 import { PlPeriod } from '@/components/pl/PlPeriod'
@@ -779,6 +782,27 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
     )
   }
 
+  /* §344 — chi ha chiesto di vedere il foglio dell'erogazione. Le richieste
+     **di tutti i mesi**, non solo di questo: una richiesta di luglio aperta
+     mentre si guarda agosto è qualcuno che aspetta e non lo saprebbe nessuno.
+     Service role perché la tabella è deny-all (la porta è la guard del layout,
+     §234); i rifiuti non si elencano — una decisione presa non è una pendenza. */
+  const { data: accessRows } = await createAdminClient()
+    .from('report_access_requests')
+    .select('*').eq('resource', 'compensi').neq('status', 'denied')
+    .order('created_at', { ascending: false }).limit(50)
+  const accessRequests: AccessReq[] = (accessRows ?? [])
+    .filter((r: Record<string, unknown>) => r.status === 'pending'
+      || !r.expires_at || new Date(String(r.expires_at)).getTime() > Date.now())
+    .map((r: Record<string, unknown>) => ({
+      id: String(r.id), name: fullName(r as { first_name: string; last_name: string }),
+      email: r.requester_email ? String(r.requester_email) : null,
+      scope: String(r.scope), status: r.status as AccessReq['status'],
+      createdAt: String(r.created_at),
+      expiresAt: r.expires_at ? String(r.expires_at) : null,
+      openedN: Number(r.opened_n ?? 0),
+    }))
+
   return (
     <PlClient
       month={month}
@@ -813,6 +837,7 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
       bankReady={bankReady}
       certs={certs}
       payouts={payouts}
+      accessRequests={accessRequests}
       vatMonths={vatMonths}
       vatActuals={vatActuals}
       today={todayIso}
