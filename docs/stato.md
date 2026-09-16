@@ -12,7 +12,11 @@ stato React — cioè ridisegnava il calendario a ogni frame. **Tutta la riga de
 cliente e progetto in `/progetti`, workstream nella scheda progetto; dal
 workspace il link resta nel workspace (§234). Il recap in hover della milestone
 è diventato usabile: il titolo apre la milestone, la riga del contesto apre il
-progetto o la workstream. Nessuna migration.
+progetto o la workstream. E il calendario **non torna più su oggi da solo**: due
+prop di default che creavano un array nuovo a ogni render facevano ripartire
+l'effetto di posizionamento a ogni ridisegno — passare col mouse su una
+bandierina rispediva indietro chi stava guardando le tappe lontane. Nessuna
+migration.
 Dettagli in `docs/operativita.md` (§345).
 
 ## Compensi — il foglio si chiede, 2026-09-16

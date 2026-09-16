@@ -80,6 +80,26 @@ export function stepOf(view: number): number {
   return Math.max(160, view * 0.8)
 }
 
+/**
+ * Il giorno che sta **al centro** della finestra, in giorni dall'inizio del
+ * calendario. Non è un intero: mezzo giorno di scarto, ripetuto a ogni cambio
+ * di scala, si accumula finché la tappa che si stava guardando esce dallo
+ * schermo.
+ */
+export function centerDay(scrollLeft: number, view: number, dayW: number): number {
+  return (scrollLeft + view / 2) / Math.max(1, dayW)
+}
+
+/**
+ * E il viaggio di ritorno: dove portare lo scorrimento perché quel giorno torni
+ * al centro, con la scala nuova. Cambiare scala non è spostarsi — e la scala si
+ * cambia proprio per guardare lontano da oggi, quindi riportare a oggi a ogni
+ * passaggio è il contrario di quello che serve.
+ */
+export function scrollForCenterDay(day: number, view: number, dayW: number): number {
+  return Math.max(0, day * dayW - view / 2)
+}
+
 function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n))
 }

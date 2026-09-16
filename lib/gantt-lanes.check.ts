@@ -7,6 +7,8 @@
    una riga di duecentosessanta. Qui il componente si rende davvero, fuori dal
    browser, e si guarda il markup che esce. Niente JSX: così gira con lo stesso
    `npx tsx` di tutti gli altri. */
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import * as React from 'react'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -76,6 +78,25 @@ is('il chevron della tendina', /class="relative z-10 shrink-0 text-text-tertiary
 
 console.log('\n— Le milestone sono pulsanti —')
 is('una per ogni tappa', (html.match(/aria-label="Milestone /g) ?? []).length, 2)
+
+/* Gli ultimi due non si possono provare rendendo: chiedono un ridisegno e un
+   puntatore, e qui non c'è né l'uno né l'altro. Si controlla la **causa**, che
+   nel sorgente si vede — come fa `actions-guard.check.ts` con le porte.
+
+   Il difetto: scorrendo il calendario e passando col mouse su una bandierina,
+   la vista tornava di colpo su oggi, e le tappe lontane erano irraggiungibili.
+   Due anelli della stessa catena, e basta rimetterne uno perché torni. */
+const src = readFileSync(join(process.cwd(), 'components/projects/ProjectGantt.tsx'), 'utf8')
+
+console.log('\n— Il calendario non torna su oggi da solo —')
+/* `= []` in una prop di default è un array nuovo a ogni render: invalida il
+   `useMemo` delle corsie, quindi quello del modello, quindi fa ripartire
+   l'effetto che riposiziona la vista. */
+is('nessun array creato nelle prop di default', /=\s*\[\]\s*,/.test(src.slice(0, src.indexOf('}: {'))), false)
+/* E anche con le prop ferme, un modello nuovo (zoom, tendina aperta) non deve
+   riportare la vista su oggi: ci si apre una volta sola. */
+is('su oggi ci si apre una volta sola', src.includes('avviato.current'), true)
+is('e cambiare scala tiene il giorno al centro', src.includes('scrollForCenterDay('), true)
 
 console.log(fail ? `\n${fail} controlli falliti.` : '\nTutti i controlli passano.')
 process.exit(fail ? 1 : 0)

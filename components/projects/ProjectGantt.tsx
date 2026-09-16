@@ -12,6 +12,7 @@ import type { ProjectWorkstream, Milestone, Task } from '@/lib/types/database'
 import { collapseSeries } from '@/lib/recurrence'
 import {
   thumbGeometry, thumbOffset, scrolledPercent, scrollFromDrag, scrollFromTrack, stepOf,
+  centerDay, scrollForCenterDay,
 } from '@/lib/gantt-scroll'
 
 type Person = { id: string; full_name: string; avatar_url: string | null }
@@ -72,13 +73,22 @@ const MS = 86400000
 const LABEL_W = 160 // colonna sinistra nomi workstream
 const LANE_H = 56   // altezza corsia (più respiro)
 
+/* §345 — `= []` in una prop di default crea un array **nuovo a ogni render**,
+   e un array nuovo invalida il `useMemo` delle corsie, che invalida quello del
+   modello, che fa ripartire l'effetto che riporta la vista su oggi. Risultato:
+   qualsiasi ridisegno — passare col mouse su una bandierina, aprire la tendina
+   di un cliente — rispediva a settembre chi stava guardando marzo. Due costanti
+   ferme, e la catena si spezza all'origine. */
+const NO_WS: ProjectWorkstream[] = []
+const NO_MS: Milestone[] = []
+
 function parse(d: string) { return new Date(d + 'T00:00:00').getTime() }
 function addDays(t: number, n: number) { return t + n * MS }
 const MONTHS = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
 const WEEKDAY_SHORT = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab']
 
 export function ProjectGantt({
-  workstreams = [], milestones = [], tasks, profiles, onOpenMilestone,
+  workstreams = NO_WS, milestones = NO_MS, tasks, profiles, onOpenMilestone,
   title = 'Calendario milestone', laneSubtitle, laneAccent, labelWidth = LABEL_W,
   lanes: externalLanes, laneLabel = 'workstream', milestoneContext, emptyHint, emptyAction,
   onAddMilestone, headerNote, headerHint, laneHref, milestoneHref, contextHref,
@@ -188,9 +198,34 @@ export function ProjectGantt({
     return { min, max, totalDays, width: totalDays * DAY_W, x, days, monthSegs, todayLeft: x(todayT) }
   }, [lanes, DAY_W])
 
+  /* §345 — su oggi ci si apre **una volta sola**. Rifarlo a ogni modello nuovo
+     voleva dire riportare la vista su oggi ogni volta che il componente si
+     ridisegnava per un'altra ragione, cioè continuamente: chi stava scorrendo
+     verso le tappe di marzo veniva rispedito a oggi a metà gesto, e le
+     milestone lontane diventavano irraggiungibili. Per tornare a oggi c'è il
+     pulsante «Oggi», che è una richiesta, non un ripensamento del calendario. */
+  const avviato = useRef(false)
   useEffect(() => {
-    if (model && scrollRef.current) scrollRef.current.scrollLeft = Math.max(0, model.todayLeft - 260)
+    if (!model || !scrollRef.current || avviato.current) return
+    avviato.current = true
+    scrollRef.current.scrollLeft = Math.max(0, model.todayLeft - 260)
   }, [model])
+
+  /* Cambiare scala non è spostarsi: il giorno che sta al centro resta al
+     centro. Senza, ogni passaggio fra giorni/settimane/mesi riportava a oggi —
+     e la scala si cambia proprio per guardare **lontano** da oggi. */
+  const centroRef = useRef<number | null>(null)
+  const cambiaZoom = (z: Zoom) => {
+    const el = scrollRef.current
+    if (el) centroRef.current = centerDay(el.scrollLeft, el.clientWidth, DAY_W)
+    setZoom(z)
+  }
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el || centroRef.current === null) return
+    el.scrollLeft = scrollForCenterDay(centroRef.current, el.clientWidth, DAY_W)
+    centroRef.current = null
+  }, [DAY_W])
 
   /* §345 — la barra di navigazione. Il calendario è quasi sempre più largo
      dello schermo — ottanta giorni a 44px fanno tre metri e mezzo di griglia —
@@ -319,7 +354,7 @@ export function ProjectGantt({
             className="text-2xs font-semibold text-gold-text hover:opacity-80 press">Oggi</button>
           <div className="flex bg-surface-active rounded-lg p-0.5">
             {(Object.keys(ZOOMS) as Zoom[]).map(z => (
-              <button key={z} onClick={() => setZoom(z)} aria-pressed={zoom === z}
+              <button key={z} onClick={() => cambiaZoom(z)} aria-pressed={zoom === z}
                 className={`px-2.5 py-1 rounded-md text-2xs font-semibold capitalize ${zoom === z ? 'bg-surface text-text-primary shadow-soft' : 'text-text-secondary hover:text-text-primary'}`}>{z}</button>
             ))}
           </div>

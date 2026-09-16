@@ -6,7 +6,7 @@
    trascinandolo — cioè non si vede. */
 import {
   thumbGeometry, thumbOffset, scrollFromDrag, scrollFromTrack, scrolledPercent,
-  stepOf, MIN_THUMB,
+  stepOf, centerDay, scrollForCenterDay, MIN_THUMB,
 } from '@/lib/gantt-scroll'
 
 let fail = 0
@@ -78,6 +78,18 @@ console.log('\n— Il passo delle frecce —')
    finiti. Una schermata intera fa perdere il filo a ogni clic. */
 is('quasi una schermata', stepOf(740), 592)
 is('su una finestra piccola c\'è un minimo', stepOf(100), 160)
+
+console.log('\n— Cambiare scala non sposta il calendario —')
+/* Il 40° giorno al centro, a 44px al giorno. Si passa a «settimane» (20px):
+   quel giorno deve restare al centro, altrimenti il cambio di scala è un salto
+   — e la scala si cambia proprio per guardare lontano da oggi. */
+const giorno40 = scrollForCenterDay(40, VIEW, 44)
+is('il giorno al centro si ritrova', r2(centerDay(giorno40, VIEW, 44)), 40)
+const dopoZoom = scrollForCenterDay(centerDay(giorno40, VIEW, 44), VIEW, 20)
+is('e resta al centro con l\'altra scala', r2(centerDay(dopoZoom, VIEW, 20)), 40)
+/* All'inizio del calendario non si può centrare niente di più a sinistra del
+   bordo: si resta a zero invece di chiedere uno scorrimento negativo. */
+is('all\'inizio ci si ferma al bordo', scrollForCenterDay(1, VIEW, 44), 0)
 
 console.log(fail ? `\n${fail} controlli falliti.` : '\nTutti i controlli passano.')
 process.exit(fail ? 1 : 0)

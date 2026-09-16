@@ -136,6 +136,28 @@ griglia più larga dello schermo senza un modo visibile di muovercisi.
     fretta della mano.
   - Cursore e pista hanno `touch-action: none`: da telefono trascinare la barra
     trascinava anche la pagina.
+- **Il calendario non torna su oggi da solo.** Scorrendo verso le tappe lontane
+  bastava passare col mouse su una bandierina e la vista saltava indietro alla
+  posizione di partenza: le milestone passate e future erano di fatto
+  irraggiungibili. La catena, tutta dentro `ProjectGantt`: `workstreams = []` e
+  `milestones = []` come **prop di default** creano un array nuovo a ogni
+  render, l'array nuovo invalida il `useMemo` delle corsie, che invalida quello
+  del modello, e l'effetto legato al modello riportava lo scorrimento su oggi.
+  Un `setState` qualunque — il recap in hover, la tendina di un cliente —
+  bastava a farla ripartire.
+  - Gli array di default sono due **costanti di modulo**: la catena si spezza
+    all'origine, e il calendario smette di ricalcolare corsie e modello a ogni
+    ridisegno.
+  - Su oggi ci si apre **una volta sola** (`avviato`). Per tornarci c'è il
+    pulsante «Oggi», che è una richiesta — non un ripensamento del calendario.
+  - **Cambiare scala non è spostarsi**: il giorno al centro resta al centro
+    (`centerDay`/`scrollForCenterDay`, sotto test). Prima ogni passaggio fra
+    giorni, settimane e mesi riportava a oggi, e la scala si cambia proprio per
+    guardare lontano da oggi.
+  - Gate: `lib/gantt-lanes.check.ts` controlla la **causa** nel sorgente — le
+    prop di default e la guardia sull'avvio — come `actions-guard.check.ts` fa
+    con le porte: un difetto che chiede un ridisegno e un puntatore non si
+    riproduce senza browser, ma la sua origine nel codice si vede.
 - **La corsia è la porta della corsia** (`GanttLane.href`, `laneHref`). In
   `/progetti` la riga cliente apre la scheda del cliente e la riga progetto apre
   il progetto; nella scheda progetto la corsia apre la workstream — la stessa
