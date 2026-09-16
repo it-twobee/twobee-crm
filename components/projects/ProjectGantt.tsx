@@ -81,7 +81,7 @@ export function ProjectGantt({
   workstreams = [], milestones = [], tasks, profiles, onOpenMilestone,
   title = 'Calendario milestone', laneSubtitle, laneAccent, labelWidth = LABEL_W,
   lanes: externalLanes, laneLabel = 'workstream', milestoneContext, emptyHint, emptyAction,
-  onAddMilestone, headerNote, headerHint, laneHref,
+  onAddMilestone, headerNote, headerHint, laneHref, milestoneHref, contextHref,
 }: {
   workstreams?: ProjectWorkstream[]
   milestones?: Milestone[]
@@ -102,6 +102,10 @@ export function ProjectGantt({
   laneLabel?: string
   /** testo della riga di contesto nel recap (default: nome corsia) */
   milestoneContext?: (m: Milestone) => string | null
+  /** §345 — dove porta la milestone: serve al recap, che diventa un link vero */
+  milestoneHref?: (m: Milestone) => string | null
+  /** §345 — dove porta il **contesto** della milestone (progetto · workstream) */
+  contextHref?: (m: Milestone) => string | null
   emptyHint?: string
   /** azione offerta quando non c'è niente da disegnare (es. «aggiungi milestone») */
   emptyAction?: React.ReactNode
@@ -118,6 +122,18 @@ export function ProjectGantt({
   const [hint, setHint] = useState<{ title: string; detail?: string; rect: DOMRect } | null>(null)
   const [mounted, setMounted] = useState(false)
   useEffect(() => { setMounted(true) }, [])
+
+  /* §345 — il recap non si chiude appena il puntatore lascia la bandierina.
+     Fra le due c'è un varco di 8px, e un riquadro che sparisce mentre ci si sta
+     andando sopra non è cliccabile nemmeno se lo è: dentro ci stanno il
+     progetto, la workstream e la milestone, e sono tre posti dove andare. */
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const tieniAperto = () => { if (hoverTimer.current) clearTimeout(hoverTimer.current) }
+  const chiudiTraPoco = () => {
+    tieniAperto()
+    hoverTimer.current = setTimeout(() => setHover(null), 160)
+  }
+  useEffect(() => () => { if (hoverTimer.current) clearTimeout(hoverTimer.current) }, [])
   const DAY_W = ZOOMS[zoom]
   const showDays = zoom === 'giorni'
   const person = (id: string | null) => (id ? profiles?.find(p => p.id === id) ?? null : null)
@@ -339,15 +355,37 @@ export function ProjectGantt({
           const HIcon = milestoneIcon(hm, todayIso)
           return (
             <div style={{ position: 'fixed', left: r.left + r.width / 2, top, transform: `translate(-50%, ${above ? '-100%' : '0'})`, zIndex: 60 }}
-              className="w-64 pointer-events-none">
+              className="w-64"
+              onMouseEnter={tieniAperto} onMouseLeave={chiudiTraPoco}>
+              {/* §345 — il riquadro si può usare, non solo leggere: il titolo
+                  apre la milestone, la riga del contesto apre il progetto o la
+                  workstream. Un recap che elenca tre cose e non ne apre nessuna
+                  costringe a rifare a mano la strada che ha appena mostrato.
+                  Il varco di 8px fra bandierina e riquadro lo copre la chiusura
+                  ritardata: senza, sparirebbe mentre ci si va sopra. */}
               <div className="bg-surface border border-border-strong rounded-xl shadow-pop p-3 animate-fade-in">
-                <div className="flex items-start gap-2">
-                  <HIcon className={`w-4 h-4 mt-0.5 shrink-0 ${hmTone.flag}`} />
-                  <span className="text-sm font-bold text-text-primary leading-snug">{hm.title}</span>
-                </div>
+                {(() => {
+                  const mh = milestoneHref?.(hm) ?? null
+                  const testa = (
+                    <div className="flex items-start gap-2">
+                      <HIcon className={`w-4 h-4 mt-0.5 shrink-0 ${hmTone.flag}`} />
+                      <span className="text-sm font-bold text-text-primary leading-snug">{hm.title}</span>
+                      {mh && <ArrowUpRight className="w-3.5 h-3.5 shrink-0 text-text-tertiary ml-auto" aria-hidden />}
+                    </div>
+                  )
+                  return mh
+                    ? <Link href={mh} className="block hover:opacity-80">{testa}</Link>
+                    : (
+                      <button type="button" className="block w-full text-left hover:opacity-80"
+                        onClick={() => onOpenMilestone?.(hm.workstream_id, hm.id)}>{testa}</button>
+                    )
+                })()}
                 <div className="mt-2.5 space-y-1.5">
                   <div className="flex items-center gap-2 text-2xs text-text-secondary">
-                    <FolderTree className="w-3.5 h-3.5 text-gold-text shrink-0" /><span className="truncate">{hover.ctx}</span>
+                    <FolderTree className="w-3.5 h-3.5 text-gold-text shrink-0" />
+                    {contextHref?.(hm)
+                      ? <Link href={contextHref(hm)!} className="truncate hover:text-gold-text hover:underline underline-offset-2">{hover.ctx}</Link>
+                      : <span className="truncate">{hover.ctx}</span>}
                   </div>
                   <div className="flex items-center gap-2 text-2xs text-text-secondary">
                     <CalIcon className="w-3.5 h-3.5 text-text-tertiary shrink-0" /><span className="tabular">{hm.due_date}</span>
@@ -361,13 +399,10 @@ export function ProjectGantt({
                     <span className={`ml-auto text-2xs font-semibold px-2 py-0.5 rounded-full border ${hmTone.pill} ${hmTone.flag}`}>{MS_LABEL[hm.status]}</span>
                   </div>
                 </div>
-                {/* §345 — il recap si apre passandoci sopra, quindi sembra tutto
-                    quello che si può avere. Dirlo costa una riga: la bandierina
-                    sotto il puntatore è un pulsante, e porta alla milestone. */}
                 {onOpenMilestone && (
-                  <div className="flex items-center gap-1 mt-2.5 pt-2 border-t border-border/60 text-2xs font-semibold text-gold-text">
-                    <ArrowUpRight className="w-3.5 h-3.5 shrink-0" aria-hidden />Clicca per aprire la milestone
-                  </div>
+                  <p className="mt-2.5 pt-2 border-t border-border/60 text-2xs text-text-tertiary">
+                    Il titolo apre la milestone, la riga sopra il progetto.
+                  </p>
                 )}
               </div>
             </div>
@@ -382,12 +417,32 @@ export function ProjectGantt({
           <div className="h-7 border-b border-border/60" />
           {showDays && <div className="h-10 border-b border-border" />}
           {lanes.map(l => (
-            <div key={l.id} className="border-b border-border/40 flex items-center gap-2 pr-2 group/lane"
+            /* §345 — **tutta la riga è un bersaglio**, non il solo nome, che su
+               un cognome corto sono quaranta pixel. E le due specie di riga
+               rispondono a due gesti diversi, perché due gesti diversi è quello
+               che ci si aspetta da loro:
+                 · riga con tendina (il cliente) → il clic **apre e chiude**, che
+                   è il gesto per cui la tendina esiste; la scheda si apre dal
+                   nome, che resta un link vero;
+                 · riga senza tendina (progetto, workstream) → **è** il link: il
+                   nome si allarga su tutta la riga con uno strato invisibile
+                   (`after:inset-0`), quindi funzionano anche il tasto centrale e
+                   «apri in una nuova scheda», che un `onClick` non dà.
+               Gli altri comandi della riga stanno sopra lo strato (`z-10`). */
+            <div key={l.id}
+              onClick={e => {
+                if (!l.toggle) return
+                // i comandi dentro la riga hanno già il loro gesto
+                if ((e.target as HTMLElement).closest('button, a')) return
+                l.toggle.onToggle()
+              }}
+              className={`relative border-b border-border/40 flex items-center gap-2 pr-2 group/lane ${
+                l.toggle || l.href ? 'cursor-pointer hover:bg-surface-hover transition-colors' : ''}`}
               style={{ height: LANE_H, paddingLeft: 12 + (l.depth ?? 0) * 16 }}>
               {l.toggle && (
                 <button onClick={l.toggle.onToggle} aria-expanded={l.toggle.expanded}
                   aria-label={`${l.toggle.expanded ? 'Chiudi' : 'Apri'} ${l.name}`}
-                  className="shrink-0 text-text-tertiary hover:text-text-primary press">
+                  className="relative z-10 shrink-0 text-text-tertiary hover:text-text-primary press">
                   <ChevronRight className={`w-3.5 h-3.5 transition-transform ${l.toggle.expanded ? 'rotate-90' : ''}`} />
                 </button>
               )}
@@ -401,7 +456,8 @@ export function ProjectGantt({
                   cliccabile dentro un altro non è HTML valido. */}
               <div className="min-w-0 flex-1">
                 {l.href ? (
-                  <Link href={l.href} title={`Apri ${l.name}`} className="block min-w-0">
+                  <Link href={l.href} title={`Apri ${l.name}`}
+                    className={`block min-w-0 ${l.toggle ? '' : "after:content-[''] after:absolute after:inset-0"}`}>
                     <div className={`flex items-center gap-1 leading-tight ${l.depth ? 'text-xs text-text-secondary' : 'text-xs font-semibold text-text-primary'} group-hover/lane:text-gold-text`}>
                       <span className="truncate group-hover/lane:underline underline-offset-2">{l.name}</span>
                       <ArrowUpRight className="w-3 h-3 shrink-0 opacity-0 group-hover/lane:opacity-100 transition-opacity" aria-hidden />
@@ -422,14 +478,14 @@ export function ProjectGantt({
                   onFocus={e => setHint({ title: l.badge!.title, detail: l.badge!.detail, rect: e.currentTarget.getBoundingClientRect() })}
                   onBlur={() => setHint(null)}
                   aria-label={`${l.badge.text}: ${l.badge.title}${l.badge.detail ? `. ${l.badge.detail}` : ''}`}
-                  className={`shrink-0 text-2xs font-semibold px-1.5 py-0.5 rounded-full border whitespace-nowrap cursor-help ${l.badge.tone}`}>
+                  className={`relative z-10 shrink-0 text-2xs font-semibold px-1.5 py-0.5 rounded-full border whitespace-nowrap cursor-help ${l.badge.tone}`}>
                   {l.badge.text}
                 </button>
               )}
               {onAddMilestone && (
                 <button type="button" onClick={() => onAddMilestone(l.id)}
                   aria-label={`Aggiungi una milestone a ${l.name}`} title="Aggiungi una milestone"
-                  className="shrink-0 text-text-tertiary hover:text-gold-text opacity-0 group-hover/lane:opacity-100 focus-visible:opacity-100 transition-opacity press">
+                  className="relative z-10 shrink-0 text-text-tertiary hover:text-gold-text opacity-0 group-hover/lane:opacity-100 focus-visible:opacity-100 transition-opacity press">
                   <Plus className="w-3.5 h-3.5" />
                 </button>
               )}
@@ -495,8 +551,11 @@ export function ProjectGantt({
                     return (
                       <button key={m.id}
                         onClick={() => onOpenMilestone?.(m.workstream_id, m.id)}
-                        onMouseEnter={e => setHover({ m, ctx: milestoneContext?.(m) ?? l.name, rect: e.currentTarget.getBoundingClientRect() })}
-                        onMouseLeave={() => setHover(h => (h?.m.id === m.id ? null : h))}
+                        onMouseEnter={e => {
+                          tieniAperto()
+                          setHover({ m, ctx: milestoneContext?.(m) ?? l.name, rect: e.currentTarget.getBoundingClientRect() })
+                        }}
+                        onMouseLeave={chiudiTraPoco}
                         aria-label={`Milestone ${m.title}`}
                         className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10"
                         style={{ left: model.x(parse(m.due_date!)) + DAY_W / 2 + stacked * 12 }}>

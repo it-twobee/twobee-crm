@@ -648,6 +648,10 @@ export function ProjectDetailClient({
                    stessa destinazione della riga qui sopra, e chi sta guardando
                    le date non deve risalire all'elenco per arrivarci. */
                 laneHref={wsHref}
+                /* §345 — dal riquadro in hover: il titolo apre la milestone,
+                   la riga del contesto apre la workstream che la contiene. */
+                milestoneHref={m => `${wsBase}/${m.workstream_id}?ms=${m.id}`}
+                contextHref={m => `${wsBase}/${m.workstream_id}`}
                 onAddMilestone={canManageProject
                   ? (wsId) => { const w = workstreams.find(x => x.id === wsId); if (w) setMsWs(w) }
                   : undefined}

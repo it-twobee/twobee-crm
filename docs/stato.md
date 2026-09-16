@@ -7,10 +7,12 @@ griglia (cursore proporzionale, frecce, clic sulla pista, ←/→ e Home/Fine da
 tastiera), visibile solo quando c'è qualcosa oltre il bordo. La sua matematica
 sta in `lib/gantt-scroll.ts` con 22 controlli: la prima versione scorreva più in
 fretta del dito col cursore alla larghezza minima, e la posizione passava dallo
-stato React — cioè ridisegnava il calendario a ogni frame. Il **nome della
-corsia è cliccabile**: cliente e progetto in `/progetti`, workstream nella
-scheda progetto; dal workspace il link resta nel workspace (§234). Il recap in
-hover della milestone dichiara che il clic la apre. Nessuna migration.
+stato React — cioè ridisegnava il calendario a ogni frame. **Tutta la riga della corsia
+è cliccabile** (non il solo nome, che su un nome corto sono quaranta pixel):
+cliente e progetto in `/progetti`, workstream nella scheda progetto; dal
+workspace il link resta nel workspace (§234). Il recap in hover della milestone
+è diventato usabile: il titolo apre la milestone, la riga del contesto apre il
+progetto o la workstream. Nessuna migration.
 Dettagli in `docs/operativita.md` (§345).
 
 ## Compensi — il foglio si chiede, 2026-09-16

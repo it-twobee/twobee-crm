@@ -283,6 +283,13 @@ export function ProgettiClient({
         profiles={profiles as { id: string; full_name: string; avatar_url: string | null }[]}
         onOpenMilestone={openMilestone}
         milestoneContext={wsName}
+        /* §345 — dal riquadro in hover si esce: il titolo apre la milestone,
+           la riga «Progetto · Workstream» apre il progetto. */
+        milestoneHref={m => {
+          const w = wsById.get(m.workstream_id)
+          return w ? `${basePath}/${w.project_id}/workstream/${w.id}?ms=${m.id}` : null
+        }}
+        contextHref={m => (m.project_id ? `${basePath}/${m.project_id}` : null)}
         emptyHint="Nessun cliente attivo: il calendario mostra una riga per cliente e i progetti in corso nella tendina."
         labelWidth={260}
       />

@@ -136,23 +136,37 @@ griglia più larga dello schermo senza un modo visibile di muovercisi.
     fretta della mano.
   - Cursore e pista hanno `touch-action: none`: da telefono trascinare la barra
     trascinava anche la pagina.
-- **Il nome della corsia è la porta della corsia** (`GanttLane.href`,
-  `laneHref`). In `/progetti` la riga cliente apre la scheda del cliente e la
-  riga progetto apre il progetto; nella scheda progetto la corsia apre la
-  workstream — la stessa destinazione della riga dell'elenco qui sopra. Prima il
-  nome era un'etichetta: si leggeva «iCura» accanto alle sue scadenze e per
-  aprirlo bisognava tornare indietro e ricercarlo in un elenco.
-  - Il link sta **sul nome**, non sulla riga: accanto ci sono già il chevron che
-    apre la tendina e il «+» che aggiunge una milestone, e un elemento
-    cliccabile dentro un altro non è HTML valido.
+- **La corsia è la porta della corsia** (`GanttLane.href`, `laneHref`). In
+  `/progetti` la riga cliente apre la scheda del cliente e la riga progetto apre
+  il progetto; nella scheda progetto la corsia apre la workstream — la stessa
+  destinazione della riga dell'elenco qui sopra. Prima il nome era un'etichetta:
+  si leggeva «iCura» accanto alle sue scadenze e per aprirlo bisognava tornare
+  indietro e ricercarlo in un elenco.
+  - **Il bersaglio è tutta la riga, non il nome.** Il primo tentativo metteva il
+    link sul solo nome: su un nome corto sono quaranta pixel su una riga di
+    duecentosessanta, e la risposta è stata «non è cliccabile» — che era vero
+    nei fatti anche se il link c'era. Le due specie di riga rispondono a due
+    gesti diversi, perché è quello che ci si aspetta da loro: la riga **con
+    tendina** (il cliente) si apre e si chiude col clic, e la scheda si apre dal
+    nome; la riga **senza tendina** (progetto, workstream) *è* il link — il nome
+    si allarga su tutta la riga con uno strato invisibile (`after:inset-0`), che
+    a differenza di un `onClick` lascia funzionare tasto centrale e «apri in una
+    nuova scheda». Chevron, chip e «+» stanno sopra lo strato (`z-10`), o si
+    vedrebbero e aprirebbero un'altra pagina.
+  - Gate: `npx tsx lib/gantt-lanes.check.ts` rende il componente fuori dal
+    browser e guarda il markup che esce. «Non è cliccabile» è un difetto che il
+    compilatore non vede e che dal codice si legge come funzionante.
   - **Dal workspace si resta nel workspace** (§234): la riga cliente porta a
     `/workspace/clienti/<id>`, che il middleware non rimbalza. «Progetti
     interni» non ha un link — è un raggruppamento, non un'anagrafica, e un link
     che non porta da nessuna parte è peggio di un link assente (§211).
-- **Il recap in hover dice che si può aprire.** La bandierina era già un
-  pulsante, ma il riquadro che compare passandoci sopra sembrava tutto quello
-  che c'era da avere: una riga in fondo dichiara che il clic porta alla
-  milestone.
+- **Il recap in hover si usa, non si legge soltanto.** Dentro ci stanno tre
+  cose — milestone, progetto, workstream — e sono tre posti dove andare: il
+  titolo apre la milestone (`milestoneHref`), la riga del contesto apre il
+  progetto o la workstream (`contextHref`). Prima il riquadro era
+  `pointer-events-none`: mostrava la strada e non la faceva percorrere. Perché
+  sia raggiungibile col puntatore la chiusura è **ritardata di 160ms**, o
+  sparirebbe nel varco di 8px fra la bandierina e il riquadro.
 
 ## La milestone si aggiunge dalla pagina progetto (§322)
 
