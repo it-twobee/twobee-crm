@@ -10,6 +10,9 @@ import {
 } from 'lucide-react'
 import type { ProjectWorkstream, Milestone, Task } from '@/lib/types/database'
 import { collapseSeries } from '@/lib/recurrence'
+import {
+  thumbGeometry, thumbOffset, scrolledPercent, scrollFromDrag, scrollFromTrack, stepOf,
+} from '@/lib/gantt-scroll'
 
 type Person = { id: string; full_name: string; avatar_url: string | null }
 type GanttTask = Pick<Task, 'id' | 'milestone_id' | 'status' | 'parent_task_id'>
@@ -180,43 +183,79 @@ export function ProjectGantt({
      pagine restava fermo al giorno in cui il calendario si apre, senza vedere
      che oltre il bordo c'è dell'altro. La barra nativa è nascosta
      (`scroll-x-touch`, per non mostrarne una diversa su ogni sistema), quindi
-     la scorrevolezza va **detta**: il cursore dice quanto si sta guardando del
-     totale e dove, le frecce spostano di una schermata. */
-  const trackRef = useRef<HTMLDivElement>(null)
-  const dragRef = useRef<{ x: number; left: number } | null>(null)
-  const [sc, setSc] = useState({ left: 0, view: 0, total: 0 })
-  const syncSc = () => {
-    const el = scrollRef.current
-    if (el) setSc({ left: el.scrollLeft, view: el.clientWidth, total: el.scrollWidth })
-  }
-  useEffect(() => {
-    syncSc()
-    window.addEventListener('resize', syncSc)
-    return () => window.removeEventListener('resize', syncSc)
-  }, [model])
+     la scorrevolezza va **detta**.
 
-  const scrollable = sc.total > sc.view + 1
-  /* Larghezza del cursore = quanta parte del calendario è a schermo. Sotto il
-     6% non si afferrerebbe più, e una barra che non si prende non è una barra. */
-  const thumbW = scrollable ? Math.max(6, (sc.view / sc.total) * 100) : 100
-  const thumbL = scrollable ? Math.min((sc.left / sc.total) * 100, 100 - thumbW) : 0
-  /* Per chi legge con uno screen reader il valore non è la posizione del
-     cursore ma **quanto si è avanzati**: 100 vuol dire in fondo, non oltre. */
-  const scrolledPct = scrollable ? Math.round((sc.left / (sc.total - sc.view)) * 100) : 0
+     **La posizione non passa dallo stato React.** Scriverla lì voleva dire
+     ridisegnare tutto il calendario — ogni corsia, ogni bandierina, i due
+     portali — a ogni tacca di rotellina e a ogni frame di trascinamento: la
+     barra arrancava dietro al dito e il calendario si muoveva a scatti. Nello
+     stato resta solo la **geometria**, che cambia quando cambiano zoom, corsie
+     o larghezza della finestra; dove sta il cursore lo scrive `dipingi()`
+     direttamente sul nodo, una volta per frame. Per questo il cursore non ha
+     `style` in JSX: quello che React non gestisce, React non lo azzera. */
+  const trackRef = useRef<HTMLDivElement>(null)
+  const thumbRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<{ x: number; left: number } | null>(null)
+  const rafRef = useRef(0)
+  const [geo, setGeo] = useState({ view: 0, total: 0 })
   const gridId = useId()
 
-  const scrollBy = (dir: -1 | 1) => scrollRef.current?.scrollBy(
-    { left: dir * Math.max(120, sc.view * 0.8), behavior: 'smooth' })
-  /* Il rapporto è fra pixel di barra e pixel di calendario: vale sia per il
-     trascinamento sia per il salto, così il cursore resta sotto il dito. */
-  const scrollToX = (clientX: number, center: boolean) => {
+  /** Le tre misure della barra, dai nodi veri. La matematica sta in
+      `lib/gantt-scroll.ts`, sotto test: è la parte che si sbaglia in silenzio. */
+  const geomOf = (el: HTMLDivElement, track: HTMLDivElement) =>
+    thumbGeometry(el.clientWidth, el.scrollWidth, track.clientWidth)
+
+  const dipingi = () => {
     const el = scrollRef.current
     const track = trackRef.current
-    if (!el || !track) return
-    const r = track.getBoundingClientRect()
-    const ratio = sc.total / r.width
-    el.scrollLeft = (clientX - r.left) * ratio - (center ? sc.view / 2 : 0)
+    const thumb = thumbRef.current
+    if (!el || !track || !thumb) return
+    const g = geomOf(el, track)
+    thumb.style.width = `${g.w}px`
+    thumb.style.transform = `translateX(${thumbOffset(el.scrollLeft, g)}px)`
+    track.setAttribute('aria-valuenow', String(scrolledPercent(el.scrollLeft, g)))
   }
+
+  const onGridScroll = () => {
+    if (rafRef.current) return
+    rafRef.current = requestAnimationFrame(() => { rafRef.current = 0; dipingi() })
+  }
+
+  /* `ResizeObserver` scatta anche quando cambia solo l'altezza — apri la
+     tendina di un cliente e la griglia cresce in verticale — quindi si scrive
+     solo se le due misure sono davvero cambiate: lo stesso oggetto di prima
+     fa saltare il render a React. */
+  const misura = () => {
+    const el = scrollRef.current
+    if (!el) return
+    setGeo(g => (g.view === el.clientWidth && g.total === el.scrollWidth
+      ? g : { view: el.clientWidth, total: el.scrollWidth }))
+  }
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    misura()
+    /* Non basta `resize` della finestra: la colonna si stringe anche quando si
+       apre la barra laterale o si apre la tendina di un cliente. */
+    const ro = new ResizeObserver(misura)
+    ro.observe(el)
+    window.addEventListener('resize', misura)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', misura)
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    }
+  }, [model])
+
+  // Dopo **ogni** render: la barra compare quando la geometria è nota, e un
+  // render successivo non deve lasciare il cursore alla posizione di prima.
+  useEffect(dipingi)
+
+  const scrollable = geo.total > geo.view + 1
+
+  const scorri = (dir: -1 | 1) => scrollRef.current?.scrollBy(
+    { left: dir * stepOf(geo.view), behavior: 'smooth' })
 
   if (!model) {
     return (
@@ -399,7 +438,7 @@ export function ProjectGantt({
         </div>
 
         {/* griglia scrollabile */}
-        <div ref={scrollRef} id={gridId} onScroll={syncSc} className="scroll-x-touch flex-1">
+        <div ref={scrollRef} id={gridId} onScroll={onGridScroll} className="scroll-x-touch flex-1">
           <div className="relative select-none" style={{ width: model.width, minWidth: '100%' }}>
             {/* header mesi */}
             <div className="relative h-7 border-b border-border/60">
@@ -485,34 +524,40 @@ export function ProjectGantt({
           direbbe «scorri» dove non c'è niente da scorrere. */}
       {scrollable && (
         <div className="flex items-center gap-2 px-3 py-2 border-t border-border">
-          <button type="button" onClick={() => scrollBy(-1)} aria-label="Indietro di una schermata"
+          <button type="button" onClick={() => scorri(-1)} aria-label="Indietro di una schermata"
             title="Indietro" className="shrink-0 p-1 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-surface-hover press">
             <ChevronLeft className="w-4 h-4" />
           </button>
           <div ref={trackRef}
             role="scrollbar" aria-orientation="horizontal" aria-controls={gridId}
-            aria-label="Scorri il calendario"
-            aria-valuemin={0} aria-valuemax={100} aria-valuenow={scrolledPct}
+            aria-label="Scorri il calendario" aria-valuemin={0} aria-valuemax={100}
             tabIndex={0}
             onKeyDown={e => {
               const el = scrollRef.current
               if (!el) return
-              const passo = Math.max(120, sc.view * 0.8)
+              const passo = stepOf(geo.view)
               if (e.key === 'ArrowLeft') { e.preventDefault(); el.scrollBy({ left: -passo, behavior: 'smooth' }) }
               else if (e.key === 'ArrowRight') { e.preventDefault(); el.scrollBy({ left: passo, behavior: 'smooth' }) }
               else if (e.key === 'Home') { e.preventDefault(); el.scrollTo({ left: 0, behavior: 'smooth' }) }
-              else if (e.key === 'End') { e.preventDefault(); el.scrollTo({ left: sc.total, behavior: 'smooth' }) }
+              else if (e.key === 'End') { e.preventDefault(); el.scrollTo({ left: el.scrollWidth, behavior: 'smooth' }) }
             }}
             onPointerDown={e => {
-              // clic sulla pista: la finestra si sposta **centrata** lì, perché
-              // il punto premuto è quello che si vuole guardare.
-              if (e.target === trackRef.current) scrollToX(e.clientX, true)
+              /* Clic sulla pista: la finestra si sposta **centrata** lì, perché
+                 il punto premuto è quello che si vuole guardare. Solo sulla
+                 pista: sul cursore comincia un trascinamento. */
+              const el = scrollRef.current
+              if (e.target !== trackRef.current || !el) return
+              const r = trackRef.current.getBoundingClientRect()
+              el.scrollTo({
+                left: scrollFromTrack((e.clientX - r.left) / r.width, el.clientWidth, el.scrollWidth),
+                behavior: 'smooth',
+              })
             }}
-            className="relative flex-1 h-2.5 rounded-full bg-surface-active cursor-pointer">
-            <div
+            className="relative flex-1 h-2.5 rounded-full bg-surface-active cursor-pointer touch-none">
+            <div ref={thumbRef}
               onPointerDown={e => {
                 e.preventDefault()
-                dragRef.current = { x: e.clientX, left: sc.left }
+                dragRef.current = { x: e.clientX, left: scrollRef.current?.scrollLeft ?? 0 }
                 e.currentTarget.setPointerCapture(e.pointerId)
               }}
               onPointerMove={e => {
@@ -520,14 +565,16 @@ export function ProjectGantt({
                 const el = scrollRef.current
                 const track = trackRef.current
                 if (!d || !el || !track) return
-                el.scrollLeft = d.left + (e.clientX - d.x) * (sc.total / track.getBoundingClientRect().width)
+                // il tasto è stato rilasciato fuori e la cattura è andata persa:
+                // senza questo il cursore continuerebbe a seguire il puntatore
+                if (e.buttons === 0) { dragRef.current = null; return }
+                el.scrollLeft = scrollFromDrag(d.left, e.clientX - d.x, geomOf(el, track))
               }}
               onPointerUp={() => { dragRef.current = null }}
               onPointerCancel={() => { dragRef.current = null }}
-              style={{ left: `${thumbL}%`, width: `${thumbW}%` }}
-              className="absolute top-0 bottom-0 rounded-full bg-border-strong hover:bg-text-tertiary transition-colors cursor-grab active:cursor-grabbing" />
+              className="absolute top-0 bottom-0 left-0 w-8 rounded-full bg-border-strong hover:bg-text-tertiary transition-colors cursor-grab active:cursor-grabbing touch-none" />
           </div>
-          <button type="button" onClick={() => scrollBy(1)} aria-label="Avanti di una schermata"
+          <button type="button" onClick={() => scorri(1)} aria-label="Avanti di una schermata"
             title="Avanti" className="shrink-0 p-1 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-surface-hover press">
             <ChevronRight className="w-4 h-4" />
           </button>

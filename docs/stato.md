@@ -4,7 +4,10 @@
 
 Il calendario milestone ha una **barra di navigazione orizzontale** sotto la
 griglia (cursore proporzionale, frecce, clic sulla pista, ←/→ e Home/Fine da
-tastiera), visibile solo quando c'è qualcosa oltre il bordo. Il **nome della
+tastiera), visibile solo quando c'è qualcosa oltre il bordo. La sua matematica
+sta in `lib/gantt-scroll.ts` con 22 controlli: la prima versione scorreva più in
+fretta del dito col cursore alla larghezza minima, e la posizione passava dallo
+stato React — cioè ridisegnava il calendario a ogni frame. Il **nome della
 corsia è cliccabile**: cliente e progetto in `/progetti`, workstream nella
 scheda progetto; dal workspace il link resta nel workspace (§234). Il recap in
 hover della milestone dichiara che il clic la apre. Nessuna migration.

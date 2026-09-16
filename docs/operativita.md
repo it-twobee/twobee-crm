@@ -118,6 +118,24 @@ griglia più larga dello schermo senza un modo visibile di muovercisi.
   una schermata, la pista si clicca per saltare, e da tastiera rispondono ←/→ e
   Home/Fine. Compare **solo quando c'è qualcosa oltre il bordo**: una barra
   sempre piena direbbe «scorri» dove non c'è niente da scorrere.
+  - **La posizione del cursore non passa dallo stato React.** Tenerla lì voleva
+    dire ridisegnare tutto il calendario — ogni corsia, ogni bandierina, i due
+    portali — a ogni tacca di rotellina e a ogni frame di trascinamento: la
+    barra arrancava dietro al dito. Nello stato resta la sola **geometria**
+    (zoom, corsie, larghezza della finestra, con un `ResizeObserver` che scrive
+    solo se le misure sono cambiate davvero); dove sta il cursore lo scrive una
+    funzione sul nodo, una volta per frame.
+  - **La matematica sta in `lib/gantt-scroll.ts`, sotto test**
+    (`npx tsx lib/gantt-scroll.check.ts`), perché è la parte che si sbaglia in
+    silenzio: un cursore che si stacca dal dito non solleva nessun errore, si
+    vede solo trascinandolo — cioè non si vede. La regola che la prima versione
+    aveva sbagliato: il moltiplicatore del trascinamento è **corsa del
+    calendario / corsa del cursore**, e la corsa del cursore è `pista − cursore`,
+    non la pista. Finché il cursore resta proporzionale le due forme coincidono;
+    sotto la larghezza minima di 28px divergono, e il calendario scorre più in
+    fretta della mano.
+  - Cursore e pista hanno `touch-action: none`: da telefono trascinare la barra
+    trascinava anche la pagina.
 - **Il nome della corsia è la porta della corsia** (`GanttLane.href`,
   `laneHref`). In `/progetti` la riga cliente apre la scheda del cliente e la
   riga progetto apre il progetto; nella scheda progetto la corsia apre la
