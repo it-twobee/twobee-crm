@@ -114,6 +114,9 @@ export function ProgettiClient({
   const [grouped, setGrouped] = useState(true)
 
   const clientName = (id: string) => clients.find(c => c.id === id)?.name ?? '—'
+  /* §234/§345 — dal workspace le rotte admin le rimbalza il middleware: la
+     riga cliente del calendario porta alla scheda **dello stesso portale**. */
+  const clientBase = basePath.startsWith('/workspace') ? '/workspace/clienti' : '/clienti'
   const serviceLabel = (st: string) => services.find(s => s.service_type === st)?.label ?? st
 
   // ── Calendario milestone globale: una corsia per cliente, progetti in tendina ──
@@ -171,6 +174,10 @@ export function ProgettiClient({
           : 'nessun progetto in corso',
         accent: ACCENTS[i % ACCENTS.length],
         depth: 0,
+        // i progetti interni sono un raggruppamento, non un'anagrafica: non c'è
+        // una scheda da aprire, e un link che non porta da nessuna parte è
+        // peggio di un link assente (§211)
+        href: g.id === INTERNAL_KEY ? null : `${clientBase}/${g.id}`,
         // da chiusa la riga cliente porta le milestone di tutti i suoi progetti;
         // da aperta le lascia alle righe figlie, per non disegnarle due volte
         milestones: open ? [] : g.milestones,
@@ -193,6 +200,7 @@ export function ProgettiClient({
           name: p.name,
           subtitle: p.status === 'active' ? serviceLabel(p.service_type) : (STATUS_LABEL[p.status] ?? p.status),
           depth: 1,
+          href: `${basePath}/${p.id}`,
           milestones: pms,
           badge: quietBadge(quietInfo(pms)),
         })

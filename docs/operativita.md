@@ -103,6 +103,39 @@ di bandierine prima del contenuto.
 - `?tab=panoramica` diventa una scelta esplicita che le due pagine accettano: il
   default è cambiato, e un link che voleva il riassunto deve poterlo chiedere.
 
+## Il calendario si scorre e si apre (§345)
+
+Il calendario milestone mostrava date che non portavano da nessuna parte e una
+griglia più larga dello schermo senza un modo visibile di muovercisi.
+
+- **Una barra di navigazione orizzontale sotto la griglia**, dove il browser
+  mette la sua. La barra nativa è nascosta (`scroll-x-touch`, per non mostrarne
+  una diversa su ogni sistema) e l'unico modo di scorrere era la rotellina
+  orizzontale: chi ha un mouse a una rotella, o un trackpad che quel gesto lo
+  usa per tornare indietro nella cronologia, restava fermo al giorno in cui il
+  calendario si apre **senza sapere che oltre il bordo c'è dell'altro**. Il
+  cursore dice quanta parte del totale si sta guardando, le frecce spostano di
+  una schermata, la pista si clicca per saltare, e da tastiera rispondono ←/→ e
+  Home/Fine. Compare **solo quando c'è qualcosa oltre il bordo**: una barra
+  sempre piena direbbe «scorri» dove non c'è niente da scorrere.
+- **Il nome della corsia è la porta della corsia** (`GanttLane.href`,
+  `laneHref`). In `/progetti` la riga cliente apre la scheda del cliente e la
+  riga progetto apre il progetto; nella scheda progetto la corsia apre la
+  workstream — la stessa destinazione della riga dell'elenco qui sopra. Prima il
+  nome era un'etichetta: si leggeva «iCura» accanto alle sue scadenze e per
+  aprirlo bisognava tornare indietro e ricercarlo in un elenco.
+  - Il link sta **sul nome**, non sulla riga: accanto ci sono già il chevron che
+    apre la tendina e il «+» che aggiunge una milestone, e un elemento
+    cliccabile dentro un altro non è HTML valido.
+  - **Dal workspace si resta nel workspace** (§234): la riga cliente porta a
+    `/workspace/clienti/<id>`, che il middleware non rimbalza. «Progetti
+    interni» non ha un link — è un raggruppamento, non un'anagrafica, e un link
+    che non porta da nessuna parte è peggio di un link assente (§211).
+- **Il recap in hover dice che si può aprire.** La bandierina era già un
+  pulsante, ma il riquadro che compare passandoci sopra sembrava tutto quello
+  che c'era da avere: una riga in fondo dichiara che il clic porta alla
+  milestone.
+
 ## La milestone si aggiunge dalla pagina progetto (§322)
 
 Il wizard mette le milestone del template e poi non ci si rientra: l'unico posto

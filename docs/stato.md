@@ -1,5 +1,15 @@
 # Dove siamo
 
+## Progetti — il calendario si scorre e si apre, 2026-09-16
+
+Il calendario milestone ha una **barra di navigazione orizzontale** sotto la
+griglia (cursore proporzionale, frecce, clic sulla pista, ←/→ e Home/Fine da
+tastiera), visibile solo quando c'è qualcosa oltre il bordo. Il **nome della
+corsia è cliccabile**: cliente e progetto in `/progetti`, workstream nella
+scheda progetto; dal workspace il link resta nel workspace (§234). Il recap in
+hover della milestone dichiara che il clic la apre. Nessuna migration.
+Dettagli in `docs/operativita.md` (§345).
+
 ## Compensi — il foglio si chiede, 2026-09-16
 
 `/api/compensi` non risponde più «Permesso negato» a chi non ha accesso: mostra

@@ -1,10 +1,12 @@
 'use client'
 
-import { useMemo, useRef, useEffect, useState } from 'react'
+import { useMemo, useRef, useEffect, useState, useId } from 'react'
 import { createPortal } from 'react-dom'
+import Link from 'next/link'
 import {
   Flag, Calendar as CalIcon, User, CheckSquare, FolderTree,
-  ChevronRight, CheckCircle2, Repeat, ShieldCheck, CircleDot, AlertTriangle, Plus,
+  ChevronRight, ChevronLeft, ArrowUpRight, CheckCircle2, Repeat, ShieldCheck,
+  CircleDot, AlertTriangle, Plus,
 } from 'lucide-react'
 import type { ProjectWorkstream, Milestone, Task } from '@/lib/types/database'
 import { collapseSeries } from '@/lib/recurrence'
@@ -30,6 +32,14 @@ export type GanttLane = {
   badge?: { text: string; tone: string; title: string; detail?: string }
   /** testo al posto di «nessuna milestone datata»; stringa vuota = niente */
   emptyLabel?: string
+  /**
+   * §345 — dove porta il nome della corsia: la scheda del cliente, del progetto
+   * o della workstream. Senza, il nome è solo un'etichetta: si legge «iCura»
+   * accanto alle sue scadenze e per aprirlo bisogna tornare indietro e cercarlo
+   * in un elenco. Assente = corsia non navigabile (un raggruppamento che non ha
+   * una pagina propria).
+   */
+  href?: string | null
 }
 
 /** L'icona dice che tipo di milestone è e a che punto sta, senza aprire il recap. */
@@ -68,7 +78,7 @@ export function ProjectGantt({
   workstreams = [], milestones = [], tasks, profiles, onOpenMilestone,
   title = 'Calendario milestone', laneSubtitle, laneAccent, labelWidth = LABEL_W,
   lanes: externalLanes, laneLabel = 'workstream', milestoneContext, emptyHint, emptyAction,
-  onAddMilestone, headerNote, headerHint,
+  onAddMilestone, headerNote, headerHint, laneHref,
 }: {
   workstreams?: ProjectWorkstream[]
   milestones?: Milestone[]
@@ -80,6 +90,8 @@ export function ProjectGantt({
   laneSubtitle?: (ws: ProjectWorkstream) => string | null
   /** classe bg per il pallino d'accento (raggruppa visivamente per progetto) */
   laneAccent?: (ws: ProjectWorkstream) => string | undefined
+  /** §345 — dove porta il nome della corsia derivata da una workstream */
+  laneHref?: (ws: ProjectWorkstream) => string | null
   labelWidth?: number
   /** corsie pronte: bypassa la derivazione da workstreams (vista per progetto) */
   lanes?: GanttLane[]
@@ -126,10 +138,11 @@ export function ProjectGantt({
       .map(w => ({
         id: w.id, name: w.name, subtitle: laneSubtitle?.(w) ?? null, accent: laneAccent?.(w),
         bar: w.workstream_type === 'project' && w.start_date ? { start: w.start_date, end: w.end_date } : null,
+        href: laneHref?.(w) ?? null,
         milestones: collassa(milestones.filter(m => m.workstream_id === w.id && m.due_date)),
       }))
       .filter(l => l.milestones.length > 0)
-  }, [externalLanes, workstreams, milestones, laneSubtitle, laneAccent, todayIso])
+  }, [externalLanes, workstreams, milestones, laneSubtitle, laneAccent, laneHref, todayIso])
 
   const model = useMemo(() => {
     const dates: number[] = []
@@ -159,6 +172,51 @@ export function ProjectGantt({
   useEffect(() => {
     if (model && scrollRef.current) scrollRef.current.scrollLeft = Math.max(0, model.todayLeft - 260)
   }, [model])
+
+  /* §345 — la barra di navigazione. Il calendario è quasi sempre più largo
+     dello schermo — ottanta giorni a 44px fanno tre metri e mezzo di griglia —
+     e l'unico modo di muoversi era la rotellina orizzontale: chi ha un mouse
+     senza seconda rotella o un trackpad configurato per la navigazione fra
+     pagine restava fermo al giorno in cui il calendario si apre, senza vedere
+     che oltre il bordo c'è dell'altro. La barra nativa è nascosta
+     (`scroll-x-touch`, per non mostrarne una diversa su ogni sistema), quindi
+     la scorrevolezza va **detta**: il cursore dice quanto si sta guardando del
+     totale e dove, le frecce spostano di una schermata. */
+  const trackRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<{ x: number; left: number } | null>(null)
+  const [sc, setSc] = useState({ left: 0, view: 0, total: 0 })
+  const syncSc = () => {
+    const el = scrollRef.current
+    if (el) setSc({ left: el.scrollLeft, view: el.clientWidth, total: el.scrollWidth })
+  }
+  useEffect(() => {
+    syncSc()
+    window.addEventListener('resize', syncSc)
+    return () => window.removeEventListener('resize', syncSc)
+  }, [model])
+
+  const scrollable = sc.total > sc.view + 1
+  /* Larghezza del cursore = quanta parte del calendario è a schermo. Sotto il
+     6% non si afferrerebbe più, e una barra che non si prende non è una barra. */
+  const thumbW = scrollable ? Math.max(6, (sc.view / sc.total) * 100) : 100
+  const thumbL = scrollable ? Math.min((sc.left / sc.total) * 100, 100 - thumbW) : 0
+  /* Per chi legge con uno screen reader il valore non è la posizione del
+     cursore ma **quanto si è avanzati**: 100 vuol dire in fondo, non oltre. */
+  const scrolledPct = scrollable ? Math.round((sc.left / (sc.total - sc.view)) * 100) : 0
+  const gridId = useId()
+
+  const scrollBy = (dir: -1 | 1) => scrollRef.current?.scrollBy(
+    { left: dir * Math.max(120, sc.view * 0.8), behavior: 'smooth' })
+  /* Il rapporto è fra pixel di barra e pixel di calendario: vale sia per il
+     trascinamento sia per il salto, così il cursore resta sotto il dito. */
+  const scrollToX = (clientX: number, center: boolean) => {
+    const el = scrollRef.current
+    const track = trackRef.current
+    if (!el || !track) return
+    const r = track.getBoundingClientRect()
+    const ratio = sc.total / r.width
+    el.scrollLeft = (clientX - r.left) * ratio - (center ? sc.view / 2 : 0)
+  }
 
   if (!model) {
     return (
@@ -264,6 +322,14 @@ export function ProjectGantt({
                     <span className={`ml-auto text-2xs font-semibold px-2 py-0.5 rounded-full border ${hmTone.pill} ${hmTone.flag}`}>{MS_LABEL[hm.status]}</span>
                   </div>
                 </div>
+                {/* §345 — il recap si apre passandoci sopra, quindi sembra tutto
+                    quello che si può avere. Dirlo costa una riga: la bandierina
+                    sotto il puntatore è un pulsante, e porta alla milestone. */}
+                {onOpenMilestone && (
+                  <div className="flex items-center gap-1 mt-2.5 pt-2 border-t border-border/60 text-2xs font-semibold text-gold-text">
+                    <ArrowUpRight className="w-3.5 h-3.5 shrink-0" aria-hidden />Clicca per aprire la milestone
+                  </div>
+                )}
               </div>
             </div>
           )
@@ -288,9 +354,27 @@ export function ProjectGantt({
               )}
               {l.accent ? <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${l.accent}`} aria-hidden />
                         : <FolderTree className="w-3.5 h-3.5 text-gold-text shrink-0" />}
+              {/* §345 — il nome è la porta della corsia: cliente, progetto o
+                  workstream. Prima era solo un'etichetta, e per aprire quello di
+                  cui si stavano guardando le scadenze bisognava tornare indietro
+                  e ricercarlo in un elenco. Link solo sul nome, non sulla riga:
+                  accanto ci sono già il chevron e il «+», e un elemento
+                  cliccabile dentro un altro non è HTML valido. */}
               <div className="min-w-0 flex-1">
-                <div className={`truncate leading-tight ${l.depth ? 'text-xs text-text-secondary' : 'text-xs font-semibold text-text-primary'}`}>{l.name}</div>
-                {l.subtitle && <div className="text-2xs text-text-tertiary truncate leading-tight">{l.subtitle}</div>}
+                {l.href ? (
+                  <Link href={l.href} title={`Apri ${l.name}`} className="block min-w-0">
+                    <div className={`flex items-center gap-1 leading-tight ${l.depth ? 'text-xs text-text-secondary' : 'text-xs font-semibold text-text-primary'} group-hover/lane:text-gold-text`}>
+                      <span className="truncate group-hover/lane:underline underline-offset-2">{l.name}</span>
+                      <ArrowUpRight className="w-3 h-3 shrink-0 opacity-0 group-hover/lane:opacity-100 transition-opacity" aria-hidden />
+                    </div>
+                    {l.subtitle && <div className="text-2xs text-text-tertiary truncate leading-tight">{l.subtitle}</div>}
+                  </Link>
+                ) : (
+                  <>
+                    <div className={`truncate leading-tight ${l.depth ? 'text-xs text-text-secondary' : 'text-xs font-semibold text-text-primary'}`}>{l.name}</div>
+                    {l.subtitle && <div className="text-2xs text-text-tertiary truncate leading-tight">{l.subtitle}</div>}
+                  </>
+                )}
               </div>
               {l.badge && (
                 <button type="button"
@@ -315,7 +399,7 @@ export function ProjectGantt({
         </div>
 
         {/* griglia scrollabile */}
-        <div ref={scrollRef} className="scroll-x-touch flex-1">
+        <div ref={scrollRef} id={gridId} onScroll={syncSc} className="scroll-x-touch flex-1">
           <div className="relative select-none" style={{ width: model.width, minWidth: '100%' }}>
             {/* header mesi */}
             <div className="relative h-7 border-b border-border/60">
@@ -394,6 +478,61 @@ export function ProjectGantt({
           </div>
         </div>
       </div>
+
+      {/* §345 — la barra di navigazione orizzontale. Sta **sotto** la griglia,
+          dove un browser mette la sua: è il posto in cui la si cerca. Compare
+          solo quando c'è qualcosa oltre il bordo — una barra sempre piena
+          direbbe «scorri» dove non c'è niente da scorrere. */}
+      {scrollable && (
+        <div className="flex items-center gap-2 px-3 py-2 border-t border-border">
+          <button type="button" onClick={() => scrollBy(-1)} aria-label="Indietro di una schermata"
+            title="Indietro" className="shrink-0 p-1 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-surface-hover press">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <div ref={trackRef}
+            role="scrollbar" aria-orientation="horizontal" aria-controls={gridId}
+            aria-label="Scorri il calendario"
+            aria-valuemin={0} aria-valuemax={100} aria-valuenow={scrolledPct}
+            tabIndex={0}
+            onKeyDown={e => {
+              const el = scrollRef.current
+              if (!el) return
+              const passo = Math.max(120, sc.view * 0.8)
+              if (e.key === 'ArrowLeft') { e.preventDefault(); el.scrollBy({ left: -passo, behavior: 'smooth' }) }
+              else if (e.key === 'ArrowRight') { e.preventDefault(); el.scrollBy({ left: passo, behavior: 'smooth' }) }
+              else if (e.key === 'Home') { e.preventDefault(); el.scrollTo({ left: 0, behavior: 'smooth' }) }
+              else if (e.key === 'End') { e.preventDefault(); el.scrollTo({ left: sc.total, behavior: 'smooth' }) }
+            }}
+            onPointerDown={e => {
+              // clic sulla pista: la finestra si sposta **centrata** lì, perché
+              // il punto premuto è quello che si vuole guardare.
+              if (e.target === trackRef.current) scrollToX(e.clientX, true)
+            }}
+            className="relative flex-1 h-2.5 rounded-full bg-surface-active cursor-pointer">
+            <div
+              onPointerDown={e => {
+                e.preventDefault()
+                dragRef.current = { x: e.clientX, left: sc.left }
+                e.currentTarget.setPointerCapture(e.pointerId)
+              }}
+              onPointerMove={e => {
+                const d = dragRef.current
+                const el = scrollRef.current
+                const track = trackRef.current
+                if (!d || !el || !track) return
+                el.scrollLeft = d.left + (e.clientX - d.x) * (sc.total / track.getBoundingClientRect().width)
+              }}
+              onPointerUp={() => { dragRef.current = null }}
+              onPointerCancel={() => { dragRef.current = null }}
+              style={{ left: `${thumbL}%`, width: `${thumbW}%` }}
+              className="absolute top-0 bottom-0 rounded-full bg-border-strong hover:bg-text-tertiary transition-colors cursor-grab active:cursor-grabbing" />
+          </div>
+          <button type="button" onClick={() => scrollBy(1)} aria-label="Avanti di una schermata"
+            title="Avanti" className="shrink-0 p-1 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-surface-hover press">
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       <div className="flex items-center gap-x-4 gap-y-1 flex-wrap px-4 py-2 border-t border-border">
         {LEGEND.map(({ Icon, label }) => (

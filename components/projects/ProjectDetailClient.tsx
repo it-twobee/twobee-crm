@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useTransition, useRef, useEffect } from 'react'
+import { useState, useMemo, useCallback, useTransition, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -89,6 +89,9 @@ export function ProjectDetailClient({
   // dal workspace le rotte admin sono rimbalzate dal middleware
   const portalBase = backHref.startsWith('/workspace') ? '/workspace' : ''
   const openWorkstream = (wsId: string) => router.push(`${wsBase}/${wsId}`)
+  /* §345 — stabile, altrimenti le corsie del calendario si ricalcolano a ogni
+     render: `ProjectGantt` la tiene fra le dipendenze del proprio `useMemo`. */
+  const wsHref = useCallback((w: ProjectWorkstream) => `${wsBase}/${w.id}`, [wsBase])
   const openMilestone = (wsId: string, msId: string) => router.push(`${wsBase}/${wsId}?ms=${msId}`)
 
   const name = (id: string | null) => id ? (profiles.find(p => p.id === id)?.full_name ?? '—') : '—'
@@ -641,6 +644,10 @@ export function ProjectDetailClient({
                 erano due schermate di bandierine prima del contenuto. */}
             <div className="pt-1">
               <ProjectGantt workstreams={workstreams} milestones={milestones} tasks={tasks} profiles={profiles} onOpenMilestone={openMilestone}
+                /* §345 — dal nome della corsia si apre la workstream: è la
+                   stessa destinazione della riga qui sopra, e chi sta guardando
+                   le date non deve risalire all'elenco per arrivarci. */
+                laneHref={wsHref}
                 onAddMilestone={canManageProject
                   ? (wsId) => { const w = workstreams.find(x => x.id === wsId); if (w) setMsWs(w) }
                   : undefined}
