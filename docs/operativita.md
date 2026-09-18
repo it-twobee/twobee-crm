@@ -559,6 +559,31 @@ quindi aprire una task in supporto e salvare qualunque altra modifica la
 retrocedeva in silenzio. Gli stati arrivano da `task-ui`, dove sono scritti una
 volta sola.
 
+## La voce delle liste: dinamica, e con le mani legate (§351)
+
+«4 in ritardo: recuperale prima di aprire altro» era una frase fissa, e una
+frase fissa si smette di leggere al terzo giorno — con lei si smette di leggere
+il numero che porta. Adesso il verdetto, il sottotitolo dell'elenco e il saluto
+della home operativa ruotano, cambiano con l'ora e col giorno, e si permettono
+di lamentarsi. `lib/task-mood.ts`, sotto gate, con tre vincoli che il test
+controlla uno per uno:
+
+- **il numero non si tocca**: la battuta ci gira intorno, non lo sostituisce e
+  non lo arrotonda. Il gate prova tutte le varianti per ogni ora e ogni giorno e
+  conta quelle che «dimenticano» il conteggio: devono essere zero;
+- **stessa situazione, stessa frase**: la scelta è deterministica e il seme
+  dipende dal giorno e dai conteggi, **non** da quello che si sta scrivendo
+  nella ricerca — un testo che balla mentre digiti è un difetto, non brio;
+- **l'ora arriva dopo il montaggio**: il server sta su UTC e chi legge no, quindi
+  finché il momento non si conosce si pesca solo fra le frasi che valgono sempre.
+  Senza questa regola il browser scriverebbe «buongiorno» dove il server aveva
+  scritto «è tardi», e React lo direbbe a voce alta.
+
+L'ordine della gravità non cambia mai — ritardo, scadenza vicina, buone notizie —
+e a chi non ha nemmeno una task non si parla di ritardi: il caso vuoto viene
+prima di tutti, o la lista di chi è appena arrivato lo accoglierebbe con un
+rimprovero.
+
 ## Progetti: filtrabili e raggruppati per cliente (§341)
 
 L'elenco sotto il calendario era una griglia piatta di trenta schede, coi

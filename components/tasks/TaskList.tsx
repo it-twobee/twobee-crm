@@ -22,6 +22,7 @@ import {
   STATUS_LABEL, TASK_TONE as STATUS_TONE, PRIO_DOT, PRIO_RANK,
   today, addDays, relDays, nextMonday, COLUMNS,
 } from './task-ui'
+import { verdetto as verdettoDi, sottotitolo, seme, type Momento } from '@/lib/task-mood'
 import { tappeRows, filtraTappe, progettoBreve, workstreamBreve, urgenzaDi, type MilestoneInput } from '@/lib/task-board'
 import type { Priority, Visibility, TaskStatusV2 } from '@/lib/types/database'
 
@@ -139,6 +140,15 @@ export function TaskList({
      da fare, a che punto è, quando cade — e non c'era ragione perché la sezione
      Task ne avesse una sola. La scelta è personale: sopravvive al ricarico. */
   const [modo, setModo] = useState<Modo>('elenco')
+  /* §351 — che ore sono lo dice il browser **dopo** il montaggio: il server sta
+     su UTC e chi legge no, quindi una frase scelta sull'orologio al primo render
+     sarebbe diversa di qua e di là. Finché è `null` si pesca fra le frasi che
+     valgono sempre. */
+  const [momento, setMomento] = useState<Momento>({ ora: null, giorno: null })
+  useEffect(() => {
+    const d = new Date()
+    setMomento({ ora: d.getHours(), giorno: d.getDay() })
+  }, [])
   useEffect(() => {
     const m = localStorage.getItem('twobee-tasklist-modo') as Modo | null
     if (m === 'elenco' || m === 'bacheca' || m === 'calendario') setModo(m)
@@ -332,13 +342,13 @@ export function TaskList({
 
   /* §348 — il verdetto, solo sulla lista personale: su quella globale «3 in
      ritardo» non è una notizia su di te ma sull'azienda, e la dicono già i
-     riquadri. Qui invece è la prima cosa che si legge entrando. */
-  const verdetto = !personale ? null
-    : counts.tutte === 0 ? { tono: 'neutro', testo: 'Nessuna attività assegnata.' }
-    : counts.late > 0 ? { tono: 'error', testo: `${counts.late} in ritardo: recuperale prima di aprire altro.` }
-    : counts.soon > 0 ? { tono: 'warning', testo: `${counts.soon} in scadenza entro sette giorni.` }
-    : counts.aperte === 0 ? { tono: 'success', testo: 'Tutto chiuso. Giornata pulita.' }
-    : { tono: 'success', testo: `Niente in ritardo. ${counts.aperte} attività aperte.` }
+     riquadri. Qui invece è la prima cosa che si legge entrando.
+     §351 — e le parole ruotano (`lib/task-mood.ts`): una frase fissa si smette
+     di leggere al terzo giorno, e con lei il numero che porta. Il seme dipende
+     dal giorno e dai conteggi, non da quello che si sta scrivendo nella
+     ricerca — un testo che balla mentre digiti è un difetto, non brio. */
+  const mood = seme(today(), counts.late, counts.soon, counts.aperte, counts.tutte)
+  const verdetto = personale ? verdettoDi(counts, momento, mood) : null
 
 
   return (
@@ -347,13 +357,7 @@ export function TaskList({
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-text-primary font-heading">{titolo ?? 'Task'}</h1>
           <p className="text-sm text-text-secondary mt-1">
-            {origin === 'ad_hoc'
-              ? 'Fuori progetto: richieste veloci, extra, favori.'
-              : origin === 'progetto'
-                ? 'Quelle che stanno dentro un progetto, per cliente.'
-                : personale
-                  ? 'Tutte le task assegnate a te, dentro e fuori dai progetti.'
-                  : 'Tutte le task, dentro e fuori dai progetti.'}{' '}
+            {sottotitolo({ origin, personale }, momento, mood)}{' '}
             <span className="tabular font-semibold text-text-primary">{counts.aperte}</span> aperte su{' '}
             <span className="tabular">{counts.tutte}</span>
           </p>

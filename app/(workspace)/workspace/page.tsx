@@ -8,6 +8,8 @@ import {
   Briefcase, AlertTriangle, CheckSquare, CalendarClock,
 } from 'lucide-react'
 import type { Task } from '@/lib/types/database'
+import { SalutoDinamico } from '@/components/workspace/SalutoDinamico'
+import { seme } from '@/lib/task-mood'
 
 export const revalidate = 0
 
@@ -98,6 +100,10 @@ export default async function WorkspaceDashboardPage() {
         <p className="text-text-secondary text-sm mt-1 capitalize">
           {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
+        {/* §351 — il seme si calcola qui, dove la data è una sola: calcolarlo nel
+            browser farebbe scegliere una frase diversa da quella già scritta
+            nell'HTML, e React se ne accorgerebbe. */}
+        <SalutoDinamico seme={seme(new Date().toISOString().slice(0, 10), name.length)} />
       </div>
 
       {!googleConnected && (
