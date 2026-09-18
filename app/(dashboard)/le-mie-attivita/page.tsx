@@ -1,12 +1,19 @@
 import { createClient } from '@/lib/supabase/server'
 import { getViewer } from '@/lib/auth'
 import { redirect } from 'next/navigation'
-import { MyTasksClient } from '@/components/workspace/MyTasksClient'
+import { TaskList, type TaskRow } from '@/components/tasks/TaskList'
 import type { MilestoneInput } from '@/lib/task-board'
-import type { Task } from '@/lib/types/database'
 
 export const revalidate = 0
 
+/**
+ * §348 — «Le mie attività» **è** la sezione Task, ristretta a chi guarda.
+ *
+ * Era un secondo elenco, con le sue righe, il suo dettaglio e le sue parole: la
+ * stessa task si leggeva in due modi a seconda della pagina da cui ci si
+ * arrivava, e ogni correzione andava fatta due volte — finché qualcuno non se
+ * ne dimenticava. Qui cambia una cosa sola: quali righe arrivano.
+ */
 export default async function LeMieAttivitaPage() {
   const { user, isAdmin } = await getViewer()
   if (!user) redirect('/login')
@@ -24,8 +31,7 @@ export default async function LeMieAttivitaPage() {
   // una task, e non comparivano in nessuna lista personale
   const [{ data: ta }, { data: tappe }] = await Promise.all([
     /* §347 — `assigned_by`: chi ha deciso che questa task fosse tua. È la
-       persona a cui chiedere spiegazioni, e finora non era scritta da nessuna
-       parte. Nulla per le assegnazioni di prima della 231. */
+       persona a cui chiedere spiegazioni. */
     (async () => {
       const r = await supabase.from('task_assignees').select('task_id, assigned_by').eq('profile_id', user.id)
       /* Finché la 231 non è applicata la colonna non c'è e la query fallisce:
@@ -53,15 +59,16 @@ export default async function LeMieAttivitaPage() {
     ...(tappe ?? []).map(m => m.project_id),
   ].filter(Boolean))) as string[]
 
-  const [{ data: projects }, { data: msTasks }, { data: profiles }] = await Promise.all([
-    // §346 — `client_id`: la milestone non ce l'ha, e la fascia dice di chi è il lavoro
+  const [{ data: projects }, { data: workstreams }, { data: msTasks }, { data: profiles }] = await Promise.all([
     projectIds.length ? supabase.from('projects').select('id, name, client_id').in('id', projectIds) : Promise.resolve({ data: [] }),
-    /* le task **di tutti** sotto quelle tappe: «2 aperte su 3» contato sulle mie
-       direbbe un numero più piccolo del vero, e la domanda è quanto manca alla
-       consegna, non quanto manca a me */
+    // i nomi delle corsie: la riga dice progetto **e** workstream (§346)
+    supabase.from('project_workstreams').select('id, name, project_id'),
+    /* le task **di tutti** sotto quelle tappe: «2 aperte su 3» contato sulla
+       mia lista direbbe un numero più piccolo del vero, e la domanda è quanto
+       manca alla consegna */
     msIds.length ? supabase.from('tasks').select('milestone_id, status').is('deleted_at', null).in('milestone_id', msIds)
       : Promise.resolve({ data: [] }),
-    supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true),
+    supabase.from('profiles').select('id, full_name, avatar_url, app_role').eq('is_active', true).order('full_name'),
   ])
 
   const clientIds = Array.from(new Set([
@@ -72,26 +79,19 @@ export default async function LeMieAttivitaPage() {
     ? await supabase.from('clients').select('id, company_name, display_name').in('id', clientIds)
     : { data: [] as { id: string; company_name: string; display_name: string | null }[] }
 
-  const projectName: Record<string, string> = {}
-  ;(projects ?? []).forEach(p => { projectName[p.id] = p.name })
-  const clientName: Record<string, string> = {}
-  ;(clients ?? []).forEach(c => { clientName[c.id] = c.display_name || c.company_name })
-
   return (
-    <div className="max-w-6xl mx-auto p-4 sm:p-6">
-      <h1 className="text-2xl sm:text-3xl font-bold text-text-primary font-heading mb-1">Le mie attività</h1>
-      <p className="text-sm text-text-secondary mb-5">Task assegnate a te e milestone che hai in carico, da tutti i progetti.</p>
-      <MyTasksClient
-        tasks={(tasks ?? []) as Task[]}
-        profiles={(profiles ?? []) as { id: string; full_name: string; avatar_url: string | null }[]}
-        projectName={projectName}
-        clientName={clientName}
-        milestones={(tappe ?? []) as MilestoneInput[]}
-        milestoneTasks={(msTasks ?? []) as { milestone_id: string | null; status: string }[]}
-        projects={(projects ?? []) as { id: string; name: string; client_id: string | null }[]}
-        assignedBy={assignedBy}
-        projectBase="/progetti"
-      />
-    </div>
+    <TaskList
+      titolo="Le mie attività"
+      personale
+      rows={(tasks ?? []) as TaskRow[]}
+      clients={(clients ?? []).map(c => ({ id: c.id, name: c.display_name || c.company_name }))}
+      projects={(projects ?? []) as { id: string; name: string; client_id: string | null }[]}
+      workstreams={(workstreams ?? []) as { id: string; name: string; project_id: string }[]}
+      milestones={(tappe ?? []) as MilestoneInput[]}
+      milestoneTasks={(msTasks ?? []) as { milestone_id: string | null; status: string }[]}
+      assignedBy={assignedBy}
+      profiles={(profiles ?? []).map(p => ({ ...p, client_id: null }))}
+      canManage
+    />
   )
 }

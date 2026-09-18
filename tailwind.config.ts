@@ -31,6 +31,11 @@ const config: Config = {
         "warning-dim": "var(--color-warning-dim)",
         error: "var(--color-error)",
         "error-dim": "var(--color-error-dim)",
+        // §348 — le righe delle task in scadenza: opache, una per tema
+        "row-late": "var(--color-row-late)",
+        "row-late-edge": "var(--color-row-late-edge)",
+        "row-soon": "var(--color-row-soon)",
+        "row-soon-edge": "var(--color-row-soon-edge)",
         info: "var(--color-info)",
         "info-dim": "var(--color-info-dim)",
         accent: "var(--color-accent)",

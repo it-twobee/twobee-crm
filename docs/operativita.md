@@ -510,6 +510,41 @@ spiegazioni a qualcuno.
   multi-assegnate per una colonna che serve a dire un nome sarebbe il danno
   peggiore.
 
+## «Le mie attività» è la sezione Task, ristretta a te (§348)
+
+Erano **due liste di task**: la sezione Task e «Le mie attività», ognuna con le
+sue righe, il suo dettaglio, le sue parole. Avevano già preso strade diverse —
+«Completata» di qua, «Completato» di là — e ogni correzione andava fatta due
+volte, finché qualcuno non se ne dimenticava: colonne, colori di urgenza, chi ha
+assegnato e il dettaglio nuovo erano arrivati solo da una parte.
+
+Adesso il componente è **uno** (`components/tasks/TaskList.tsx`) e cambia una
+cosa sola: quali righe arrivano. La pagina personale passa le task assegnate a
+chi guarda e `personale`, che toglie quello che su una lista di una persona non
+ha senso — il filtro per assegnatario (è già uno) e il raggruppamento per
+persona (sarebbe un gruppo solo) — e aggiunge il **verdetto** in testa, che su
+una lista propria è la prima cosa che si legge.
+
+- **Bacheca e calendario sono passati di là**, non spariti: erano tre modi di
+  guardare lo stesso lavoro che esistevano solo in «Le mie attività», e non
+  c'era ragione perché la sezione Task ne avesse uno solo. Stanno in
+  `components/tasks/TaskViews.tsx`, sopra lo stesso modello di riga.
+- **Il vocabolario visivo è in `components/tasks/task-ui.ts`**: stati, toni,
+  priorità e i due modi di scrivere una scadenza — compatto per la colonna,
+  esteso per le schede. Erano scritti due volte e già divergevano.
+- **Si apre raggruppata per scadenza**, ed è la prima voce del selettore: la
+  domanda che porta in queste pagine è «cosa devo fare adesso», e la risposta è
+  una data. Per cliente serve quando si prepara una call, non quando si apre la
+  mattina.
+- **I colori dell'urgenza sono opachi e per tema** (`--color-row-late`,
+  `--color-row-soon`): una velatura lascia passare lo sfondo della pagina,
+  quindi la stessa classe rendeva due colori diversi in chiaro e in scuro e sul
+  buio mangiava l'elevazione della riga. Sono la superficie con dentro un 6-9%
+  di rosso o d'ambra; il bordo di sinistra è l'unico segno vivo e resta sotto
+  metà opacità.
+- Il dettaglio è lo stesso modale in tutte e due le pagine, con dentro chi ha
+  assegnato (§347).
+
 ## Progetti: filtrabili e raggruppati per cliente (§341)
 
 L'elenco sotto il calendario era una griglia piatta di trenta schede, coi

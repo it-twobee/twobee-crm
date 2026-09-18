@@ -46,6 +46,19 @@
   --color-orange: #FDBA74;
   --color-orange-dim: rgba(253,186,116,0.14);
 
+  /* §348 — la riga di una task che scade. **Tinte opache, non velature**: una
+     velatura sopra la riga lascia passare lo sfondo della pagina, quindi la
+     stessa classe rendeva due colori diversi a seconda del tema e sul buio
+     mangiava l'elevazione della superficie. Questi sono `--color-surface` con
+     dentro un 9% di rosso e di giallo: si distinguono dalla riga accanto e non
+     gridano. Il bordo di sinistra è l'unico segno vivo, e resta sotto metà
+     opacità perché il colore non è mai l'unico canale — la data dice «3g fa»,
+     «oggi», «domani». */
+  --color-row-late: #292122;
+  --color-row-late-edge: rgba(252,165,165,0.55);
+  --color-row-soon: #2A2414;
+  --color-row-soon-edge: rgba(255,197,1,0.45);
+
   --overlay-tint: 255,255,255;
   --shadow-color: rgba(0,0,0,0.45);
   --color-scrim: rgba(0,0,0,0.72);
@@ -107,6 +120,13 @@
   --color-accent-dim: rgba(139,92,246,0.14);
   --color-orange: #9A3412;
   --color-orange-dim: rgba(249,115,22,0.16);
+
+  /* §348 — le stesse righe sulla carta: bianco con dentro un 6-8% di rosso e di
+     ambra. Sul chiaro basta meno, perché il contrasto parte da più in alto. */
+  --color-row-late: #FEF4F4;
+  --color-row-late-edge: rgba(192,38,27,0.45);
+  --color-row-soon: #FEF7EB;
+  --color-row-soon-edge: rgba(122,83,0,0.40);
 
   --overlay-tint: 16,24,40;
   --shadow-color: rgba(16,24,40,0.10);

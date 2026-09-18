@@ -1,12 +1,16 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
-import { MyTasksClient } from '@/components/workspace/MyTasksClient'
+import { TaskList, type TaskRow } from '@/components/tasks/TaskList'
 import type { MilestoneInput } from '@/lib/task-board'
-import type { Task } from '@/lib/types/database'
 
 export const revalidate = 0
 
+/**
+ * §348 — la stessa lista della sezione Task, con le sole righe di chi guarda.
+ * L'unica differenza è quali task arrivano: tutto il resto — colonne, colori,
+ * dettaglio, bacheca, calendario — è lo stesso componente.
+ */
 export default async function MieAttivitaPage() {
   const profile = await getSessionProfile()
   if (!profile) redirect('/login')
@@ -14,23 +18,16 @@ export default async function MieAttivitaPage() {
   const supabase = await createClient()
   const userId = profile.id
 
-  // task in cui sono assegnatario (primario via assignee_id o in task_assignees).
-  // L'elenco dei colleghi non dipende dalle task: parte insieme, non dopo.
-  // §346 — e le tappe di cui sono responsabile: lavoro mio, e finora invisibile
-  // ovunque tranne che sul calendario del progetto.
   const [{ data: ta }, { data: profiles }, { data: tappe }] = await Promise.all([
-    /* §347 — `assigned_by`: chi ha deciso che questa task fosse tua. È la
-       persona a cui chiedere spiegazioni, e finora non era scritta da nessuna
-       parte. Nulla per le assegnazioni di prima della 231. */
+    /* §347 — `assigned_by`: chi ha deciso che questa task fosse tua. Se la 231
+       non è ancora applicata si ripiega sulla query di prima: perdere tutte le
+       task multi-assegnate per una colonna che dice un nome sarebbe peggio. */
     (async () => {
       const r = await supabase.from('task_assignees').select('task_id, assigned_by').eq('profile_id', userId)
-      /* Finché la 231 non è applicata la colonna non c'è e la query fallisce:
-         senza questa rete l'elenco perderebbe **tutte** le task multi-assegnate
-         — `ids` resterebbe vuoto — per una colonna che serve solo a dire un
-         nome. L'attribuzione può mancare; la lista no. */
       return r.error ? await supabase.from('task_assignees').select('task_id').eq('profile_id', userId) : r
     })(),
-    supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true),
+    supabase.from('profiles').select('id, full_name, avatar_url, app_role').eq('is_active', true).order('full_name'),
+    // §346 — le tappe di cui sono responsabile: lavoro mio come una task
     supabase.from('milestones')
       .select('id, project_id, workstream_id, title, status, milestone_type, owner_id, due_date, approval_required, is_recurring_instance')
       .eq('owner_id', userId),
@@ -50,10 +47,9 @@ export default async function MieAttivitaPage() {
     ...(tappe ?? []).map(m => m.project_id),
   ].filter(Boolean))) as string[]
 
-  const [{ data: projects }, { data: msTasks }] = await Promise.all([
+  const [{ data: projects }, { data: workstreams }, { data: msTasks }] = await Promise.all([
     projectIds.length ? supabase.from('projects').select('id, name, client_id').in('id', projectIds) : Promise.resolve({ data: [] }),
-    // le task di tutti sotto quelle tappe: il conteggio dice quanto manca alla
-    // consegna, non quanto manca a me
+    supabase.from('project_workstreams').select('id, name, project_id'),
     msIds.length ? supabase.from('tasks').select('milestone_id, status').is('deleted_at', null).in('milestone_id', msIds)
       : Promise.resolve({ data: [] }),
   ])
@@ -69,25 +65,22 @@ export default async function MieAttivitaPage() {
     ? await supabase.from('clients_workspace').select('id, company_name, display_name').in('id', clientIds)
     : { data: [] as { id: string; company_name: string; display_name: string | null }[] }
 
-  const projectName: Record<string, string> = {}
-  ;(projects ?? []).forEach(p => { projectName[p.id] = p.name })
-  const clientName: Record<string, string> = {}
-  ;(clients ?? []).forEach(c => { clientName[c.id] = c.display_name || c.company_name })
-
   return (
-    <div className="max-w-6xl mx-auto p-4 sm:p-6">
-      <h1 className="text-2xl font-bold text-text-primary mb-1">Le mie attività</h1>
-      <p className="text-sm text-text-secondary mb-5">Task assegnate a te e milestone che hai in carico, da tutti i progetti.</p>
-      <MyTasksClient
-        tasks={(tasks ?? []) as Task[]}
-        profiles={(profiles ?? []) as { id: string; full_name: string; avatar_url: string | null }[]}
-        projectName={projectName}
-        clientName={clientName}
-        milestones={(tappe ?? []) as MilestoneInput[]}
-        milestoneTasks={(msTasks ?? []) as { milestone_id: string | null; status: string }[]}
-        projects={(projects ?? []) as { id: string; name: string; client_id: string | null }[]}
-        assignedBy={assignedBy}
-      />
-    </div>
+    <TaskList
+      titolo="Le mie attività"
+      personale
+      rows={(tasks ?? []) as TaskRow[]}
+      clients={(clients ?? []).map((c: { id: string; company_name: string; display_name: string | null }) =>
+        ({ id: c.id, name: c.display_name || c.company_name }))}
+      projects={(projects ?? []) as { id: string; name: string; client_id: string | null }[]}
+      workstreams={(workstreams ?? []) as { id: string; name: string; project_id: string }[]}
+      milestones={(tappe ?? []) as MilestoneInput[]}
+      milestoneTasks={(msTasks ?? []) as { milestone_id: string | null; status: string }[]}
+      assignedBy={assignedBy}
+      profiles={(profiles ?? []).map(p => ({ ...p, client_id: null }))}
+      canManage
+      clientBase="/workspace/clienti"
+      projectBase="/workspace/progetti"
+    />
   )
 }

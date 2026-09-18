@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionProfile } from '@/lib/auth'
 import { canCreateClients } from '@/lib/permissions'
 import { redirect } from 'next/navigation'
-import { AdHocClient, type AdHocRow } from '@/components/adhoc/AdHocClient'
+import { TaskList, type TaskRow } from '@/components/tasks/TaskList'
 import type { MilestoneInput } from '@/lib/task-board'
 
 export const revalidate = 0
@@ -45,8 +45,8 @@ export default async function WorkspaceAdHocPage() {
     .forEach(a => { assignedBy[a.task_id] = a.assigned_by })
 
   return (
-    <AdHocClient
-      rows={(tasks ?? []) as AdHocRow[]}
+    <TaskList
+      rows={(tasks ?? []) as TaskRow[]}
       clients={(clients ?? []).map((c: { id: string; company_name: string; display_name: string | null }) =>
         ({ id: c.id, name: c.display_name || c.company_name }))}
       projects={(projects ?? []) as { id: string; name: string; client_id: string | null }[]}
