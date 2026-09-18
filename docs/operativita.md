@@ -633,6 +633,24 @@ bocciava «Elenco pulito», che un numero non ce l'ha perché non c'è niente da
 contare. Dove però il numero **è** la notizia — ritardi, scadenze di oggi, chiuse
 in giornata, carico aperto — la frase deve dirlo.
 
+## I dettagli della task si scrivono dove si crea la task (§353)
+
+Nel wizard la task aveva titolo, data, assegnatario — e il campo dei **dettagli**
+dietro un bottone che si apre solo se uno sa che c'è. Il risultato si legge in
+archivio: il contesto finiva nel titolo («Creatività statica x3 (3 formati, no
+logo, consegna giovedì)»), e chi riceveva la task leggeva una riga di elenco
+lunga il doppio e comunque incompleta.
+
+Adesso è una riga sotto il titolo, facoltativa: se non serve resta vuota e non
+occupa niente. Sotto il bottone restano **ore e priorità**, che sono
+impostazioni, non contenuto — e infatti il bottone ha cambiato nome: due cose
+diverse non possono chiamarsi tutte e due «dettagli».
+
+**Il campo si chiama «Dettagli» ovunque** — wizard, modale, pannello laterale del
+progetto — perché è sempre la stessa colonna (`tasks.description`). Si chiamava
+«Descrizione» in due posti su quattro, e un campo con due nomi fa cercare due
+campi.
+
 ## Progetti: filtrabili e raggruppati per cliente (§341)
 
 L'elenco sotto il calendario era una griglia piatta di trenta schede, coi

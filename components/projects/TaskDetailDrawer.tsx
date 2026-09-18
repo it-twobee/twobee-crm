@@ -137,9 +137,10 @@ export function TaskDetailDrawer({
             </div>
           </div>
 
-          {/* descrizione */}
+          {/* §353 — «Dettagli», come nel modale e nel wizard: è lo stesso campo
+              (`tasks.description`) e chiamarlo in due modi fa cercare due campi. */}
           <div>
-            <div className="text-2xs font-semibold text-text-secondary mb-1">Descrizione</div>
+            <div className="text-2xs font-semibold text-text-secondary mb-1">Dettagli</div>
             <textarea value={description} onChange={e => setDescription(e.target.value)} disabled={!canEdit} rows={3}
               onBlur={() => description !== (task.description ?? '') && act(() => updateTask(task.id, { description: description || null }))}
               placeholder="—"

@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import {
   Plus, Trash2, FolderTree, Flag, CheckSquare, Repeat, ChevronDown,
-  Wand2, CalendarRange, Eye, EyeOff, Clock, SlidersHorizontal, Package,
+  Wand2, CalendarRange, Eye, EyeOff, Clock, SlidersHorizontal, Package, AlignLeft,
 } from 'lucide-react'
 import { StepHead, Segmented, inputCls, Avatar, Empty } from '@/components/shared/formkit'
 import {
@@ -218,15 +218,16 @@ export function StepStruttura({
                             <OwnerSelect team={team} value={m.owner_id} label="Owner milestone" compact
                               onChange={v => updMs(w.key, m.key, x => ({ ...x, owner_id: v }))} />
                             <DetailBtn open={!!open[m.key]} onClick={() => toggle(m.key)}
-                              filled={!!m.description || !!m.deliverable} label={`Dettagli di ${m.title}`} />
+                              filled={!!m.description || !!m.deliverable} label={`Dettagli di ${m.title}`}
+                              titolo={m.description || m.deliverable ? 'Dettagli compilati' : 'Dettagli e consegnabile'} />
                             <button type="button" onClick={() => updWs(w.key, x => ({ ...x, milestones: x.milestones.filter(y => y.key !== m.key) }))}
                               aria-label="Elimina milestone" className="text-text-tertiary hover:text-error shrink-0"><Trash2 className="w-3 h-3" /></button>
                           </div>
 
                           {open[m.key] && (
                             <div className="ml-5 rounded-lg bg-surface border border-border p-2 space-y-2">
-                              <textarea value={m.description ?? ''} rows={2} placeholder="A cosa serve questa milestone, cosa la chiude"
-                                aria-label="Descrizione milestone"
+                              <textarea value={m.description ?? ''} rows={2} placeholder="Dettagli: a cosa serve questa milestone, cosa la chiude"
+                                aria-label="Dettagli milestone"
                                 onChange={e => updMs(w.key, m.key, x => ({ ...x, description: e.target.value || null }))}
                                 className={`${inputCls} text-2xs resize-none`} />
                               <label className="flex items-center gap-2">
@@ -257,17 +258,32 @@ export function StepStruttura({
                                 <OwnerSelect team={team} value={t.assignee_id} label="Assegnatario" compact
                                   onChange={v => updTask(w.key, m.key, t.key, x => ({ ...x, assignee_id: v }))} />
                                 <DetailBtn open={!!open[t.key]} onClick={() => toggle(t.key)}
-                                  filled={!!t.description || t.estimated_hours != null} label={`Dettagli di ${t.title}`} />
+                                  filled={t.estimated_hours != null}
+                                  label={`Stima e priorità di ${t.title}`}
+                                  titolo={t.estimated_hours != null ? 'Stima inserita' : 'Ore stimate e priorità'} />
                                 <button type="button" onClick={() => updMs(w.key, m.key, x => ({ ...x, tasks: x.tasks.filter(y => y.key !== t.key) }))}
                                   aria-label="Elimina task" className="text-text-tertiary hover:text-error shrink-0"><Trash2 className="w-3 h-3" /></button>
                               </div>
 
+                              {/* §353 — **la descrizione sta sotto il titolo**, non dietro un
+                                  bottone. Era nel pannello dei dettagli, che si apre solo se uno
+                                  sa che c'è: il risultato era che chi scriveva la task metteva
+                                  tutto nel titolo — «Creatività statica x3 (3 formati, no logo,
+                                  consegna giovedì)» — e chi la riceveva leggeva una riga di
+                                  elenco lunga il doppio e comunque incompleta. Qui è una riga
+                                  sola, facoltativa: se non serve resta vuota e non occupa
+                                  niente. Ore e priorità restano nei dettagli, che sono
+                                  impostazioni, non contenuto. */}
+                              <div className="flex items-center gap-2 pl-5">
+                                <AlignLeft className="w-3 h-3 text-text-tertiary shrink-0" aria-hidden="true" />
+                                <input value={t.description ?? ''} aria-label={`Dettagli di ${t.title}`}
+                                  placeholder="Dettagli: contesto, link, cosa serve per chiuderla"
+                                  onChange={e => updTask(w.key, m.key, t.key, x => ({ ...x, description: e.target.value || null }))}
+                                  className="flex-1 min-w-0 bg-transparent text-2xs text-text-secondary placeholder:text-text-tertiary border-b border-transparent focus:border-border-interactive outline-none py-0.5" />
+                              </div>
+
                               {open[t.key] && (
                                 <div className="rounded-lg bg-surface border border-border p-2 space-y-2">
-                                  <textarea value={t.description ?? ''} rows={2} placeholder="Cosa va fatto, con quale criterio è finita"
-                                    aria-label="Descrizione task"
-                                    onChange={e => updTask(w.key, m.key, t.key, x => ({ ...x, description: e.target.value || null }))}
-                                    className={`${inputCls} text-2xs resize-none`} />
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <label className="flex items-center gap-1.5">
                                       <Clock className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
@@ -332,10 +348,15 @@ function Stat({ icon, n, label }: { icon: React.ReactNode; n: number; label: str
 }
 
 /** Il pallino pieno dice che sotto c'è del contenuto, senza doverlo aprire. */
-function DetailBtn({ open, onClick, filled, label }: { open: boolean; onClick: () => void; filled: boolean; label: string }) {
+/* §353 — il titolo arriva da chi lo usa: sotto questo bottone, su una task, non
+   ci sono più i «dettagli» — quelli stanno in chiaro sotto il titolo — ma ore e
+   priorità. Due cose diverse non possono chiamarsi allo stesso modo. */
+function DetailBtn({ open, onClick, filled, label, titolo }: {
+  open: boolean; onClick: () => void; filled: boolean; label: string; titolo: string
+}) {
   return (
     <button type="button" onClick={onClick} aria-expanded={open} aria-label={label}
-      title={filled ? 'Dettagli compilati' : 'Aggiungi descrizione, ore, priorità'}
+      title={titolo}
       className={`relative shrink-0 ${open || filled ? 'text-gold-text' : 'text-text-tertiary hover:text-text-secondary'}`}>
       <SlidersHorizontal className="w-3.5 h-3.5" />
       {filled && !open && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-gold" aria-hidden />}
