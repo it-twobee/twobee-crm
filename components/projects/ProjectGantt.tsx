@@ -11,7 +11,7 @@ import {
 import type { ProjectWorkstream, Milestone, Task } from '@/lib/types/database'
 import { collapseSeries } from '@/lib/recurrence'
 import {
-  giornoUTC, isoUTC, oggiLocale, nonLavorativo, perche,
+  giornoUTC, isoUTC, oggiLocale, nonLavorativo, nomeFestivo, perche,
 } from '@/lib/calendario-lavorativo'
 import {
   thumbGeometry, thumbOffset, scrolledPercent, scrollFromDrag, scrollFromTrack, stepOf,
@@ -558,14 +558,34 @@ export function ProjectGantt({
               <div className="relative h-10 border-b border-border">
                 {model.days.map((d, i) => {
                   const iso = isoUTC(d.getTime())
+                  const festa = nomeFestivo(iso)
                   const fermo = nonLavorativo(iso)
                   const isToday = iso === todayIso
                   return (
-                    <div key={i} title={perche(iso) ?? undefined}
-                      className={`absolute top-0 bottom-0 flex flex-col items-center justify-center gap-0.5 border-l ${fermo ? 'bg-cal-fermo' : ''} border-border/30`}
+                    /* §356 — il riquadro del progetto, non il titolo del
+                       browser: quello compare dopo un secondo, sparisce da solo
+                       e da telefono non esiste. Qui basta passarci sopra, e dice
+                       **quale** festa è — «Pasquetta», «Liberazione» — perché un
+                       lunedì spento senza nome sembra un errore del calendario. */
+                    <div key={i}
+                      onMouseEnter={festa || fermo
+                        ? e => setHint({
+                          title: festa ?? (perche(iso) as string),
+                          detail: festa ? 'Festivo: nessuno consegna, e nessuno lo ricorda finché non slitta una scadenza.' : 'Fine settimana',
+                          rect: e.currentTarget.getBoundingClientRect(),
+                        })
+                        : undefined}
+                      onMouseLeave={festa || fermo ? () => setHint(null) : undefined}
+                      className={`absolute top-0 bottom-0 flex flex-col items-center justify-center gap-0.5 border-l border-border/30 ${
+                        festa ? 'bg-cal-festivo' : fermo ? 'bg-cal-fermo' : ''
+                      }`}
                       style={{ left: i * DAY_W, width: DAY_W }}>
                       <span className={`text-2xs leading-none ${isToday ? 'text-gold-text font-bold' : 'text-text-tertiary/70'}`}>{WEEKDAY_SHORT[d.getUTCDay()]}</span>
-                      <span className={`text-2xs tabular leading-none ${isToday ? 'text-gold-text font-bold' : fermo ? 'text-text-tertiary/60' : 'text-text-secondary'}`}>{d.getUTCDate()}</span>
+                      <span className={`text-2xs tabular leading-none ${
+                        isToday ? 'text-gold-text font-bold'
+                          : festa ? 'text-gold-text/80 font-semibold'
+                          : fermo ? 'text-text-tertiary/60' : 'text-text-secondary'
+                      }`}>{d.getUTCDate()}</span>
                     </div>
                   )
                 })}
@@ -595,7 +615,8 @@ export function ProjectGantt({
                    testata — un lunedì spento senza spiegazione sembra un errore
                    del calendario. */
                 return (
-                  <span key={i} className="absolute top-0 bottom-0 bg-cal-fermo"
+                  <span key={i}
+                    className={`absolute top-0 bottom-0 ${nomeFestivo(iso) ? 'bg-cal-festivo' : 'bg-cal-fermo'}`}
                     style={{ left: i * DAY_W, width: DAY_W }} />
                 )
               })}

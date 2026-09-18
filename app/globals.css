@@ -66,6 +66,11 @@
      verso il fondo pagina (#0B0B0C), che è il modo in cui una colonna «esce»
      dal piano senza coprire quello che ci sta sopra. */
   --color-cal-fermo: #0D0D0F;
+  /* §356 — il festivo ha un colore suo: un sabato lo si sa già, il 25 aprile
+     no, e in un piano è il giorno che sorprende. Stessa profondità del fermo —
+     resta una colonna spenta — con dentro un'ombra d'oro, che in questo tema è
+     il colore di ciò che chiede attenzione. */
+  --color-cal-festivo: #1A1508;
 
   --overlay-tint: 255,255,255;
   --shadow-color: rgba(0,0,0,0.45);
@@ -138,6 +143,8 @@
 
   /* sulla carta si scende dal bianco verso il grigio del fondo pagina */
   --color-cal-fermo: #ECEFF3;
+  /* sulla carta: lo stesso grigio del fermo, virato di ambra */
+  --color-cal-festivo: #F6EFDD;
 
   --overlay-tint: 16,24,40;
   --shadow-color: rgba(16,24,40,0.10);

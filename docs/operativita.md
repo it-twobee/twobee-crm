@@ -714,10 +714,13 @@ Tre cose sulla sezione Progetti, tutte sullo stesso schermo.
   bello e inservibile. Sono le feste nazionali italiane più Pasquetta, che è
   l'unica mobile e si calcola; il patrono resta fuori, perché cambia da città a
   città e spegnere un giorno lavorativo per metà squadra fa più danno che non
-  spegnerne nessuno. Weekend e festivi hanno lo **stesso peso** — il piano si
-  legge alla stessa maniera — e *quale* festa sia lo dice il titolo della
-  colonna in testata: un lunedì spento senza spiegazione sembra un errore del
-  calendario, non il 25 aprile.
+  spegnerne nessuno. **Il festivo ha un colore suo** (§356): un sabato lo si sa
+  già, il 25 aprile no, ed è il giorno che sorprende chi sta facendo un piano.
+  Stessa profondità del fermo — resta una colonna spenta — con dentro un'ombra
+  d'oro, e il numero del giorno nell'inchiostro d'oro tenue. Passandoci sopra il
+  riquadro dice **quale** festa è: «Pasquetta», «Liberazione», «Ferragosto». Non
+  il titolo del browser, che compare dopo un secondo, sparisce da solo e da
+  telefono non esiste: il riquadro è lo stesso che usano i badge delle corsie.
 
   **Il colore è opaco, non una velatura**, e questa è la parte che avevo
   sbagliato due volte. Prima con `bg-overlay/[0.05]`, una classe che il CSS

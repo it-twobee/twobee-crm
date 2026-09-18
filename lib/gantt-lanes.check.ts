@@ -108,7 +108,7 @@ console.log('\n— I giorni non lavorativi sono spenti (§354/§355) —')
    niente sullo schermo), e `bg-overlay` prende il tono del **testo**, quindi al
    buio schiariva le colonne invece di spegnerle. Il colore adesso è un token
    opaco per tema, e il gate conta quello. */
-const bande = (html.match(/<span class="absolute top-0 bottom-0 bg-cal-fermo"/g) ?? []).length
+const bande = (html.match(/<span class="absolute top-0 bottom-0 bg-cal-(fermo|festivo)"/g) ?? []).length
 const giorniHeader = (html.match(/flex flex-col items-center justify-center/g) ?? []).length
 /* La testata usa la stessa tinta: contare la classe e basta contava due volte
    lo stesso giorno, e l'asserzione «meno della metà» cadeva per un pelo. La
@@ -118,6 +118,18 @@ is('le bande dei giorni fermi ci sono', bande > 0, true)
    rompe, e nessuno dei due si vede leggendo il codice. */
 is('e sono una minoranza dei giorni', bande > 0 && bande < giorniHeader / 2, true)
 is('non intercettano il puntatore', html.includes('bottom-0 pointer-events-none'), true)
+
+/* §356 — il festivo ha una colonna di un altro colore: un sabato lo si sa già,
+   il 25 aprile no. Il gate lo prova su una finestra che contiene una festa. */
+const conFesta = renderToStaticMarkup(createElement(ProjectGantt, {
+  lanes: [{ id: 'p9', name: 'p', depth: 0, href: '/progetti/p9',
+    milestones: [ms('mf', '2026-04-24', 'w1'), ms('mg', '2026-04-27', 'w1')] }] as GanttLane[],
+  tasks: [], profiles: [], onOpenMilestone: () => {},
+}))
+is('la colonna del 25 aprile ha il colore dei festivi',
+  (conFesta.match(/bg-cal-festivo/g) ?? []).length > 0, true)
+is('e il weekend resta col suo',
+  (conFesta.match(/bg-cal-fermo/g) ?? []).length > 0, true)
 
 console.log('\n— Il segno di oggi sta su oggi (§355) —')
 /* Il difetto che ha aperto §355: le colonne nascevano a mezzanotte **locale** e
