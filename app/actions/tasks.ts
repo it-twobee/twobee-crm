@@ -83,7 +83,11 @@ export async function setTaskAssignees(taskId: string, profileIds: string[], pri
   if (del) throw new Error(del.message)
   if (profileIds.length) {
     const primary = primaryId && profileIds.includes(primaryId) ? primaryId : profileIds[0]
-    const rows = profileIds.map(pid => ({ task_id: taskId, profile_id: pid, is_primary_owner: pid === primary }))
+    // §347 — chi ha assegnato, non chi ha creato la task: sono due domande, e
+    // la seconda non risponde alla prima quando il lavoro cambia mano
+    const rows = profileIds.map(pid => ({
+      task_id: taskId, profile_id: pid, is_primary_owner: pid === primary, assigned_by: uid,
+    }))
     const { error } = await admin.from('task_assignees').insert(rows)
     if (error) throw new Error(error.message)
   } else {

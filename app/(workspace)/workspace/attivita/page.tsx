@@ -19,13 +19,26 @@ export default async function MieAttivitaPage() {
   // §346 — e le tappe di cui sono responsabile: lavoro mio, e finora invisibile
   // ovunque tranne che sul calendario del progetto.
   const [{ data: ta }, { data: profiles }, { data: tappe }] = await Promise.all([
-    supabase.from('task_assignees').select('task_id').eq('profile_id', userId),
+    /* §347 — `assigned_by`: chi ha deciso che questa task fosse tua. È la
+       persona a cui chiedere spiegazioni, e finora non era scritta da nessuna
+       parte. Nulla per le assegnazioni di prima della 231. */
+    (async () => {
+      const r = await supabase.from('task_assignees').select('task_id, assigned_by').eq('profile_id', userId)
+      /* Finché la 231 non è applicata la colonna non c'è e la query fallisce:
+         senza questa rete l'elenco perderebbe **tutte** le task multi-assegnate
+         — `ids` resterebbe vuoto — per una colonna che serve solo a dire un
+         nome. L'attribuzione può mancare; la lista no. */
+      return r.error ? await supabase.from('task_assignees').select('task_id').eq('profile_id', userId) : r
+    })(),
     supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true),
     supabase.from('milestones')
       .select('id, project_id, workstream_id, title, status, milestone_type, owner_id, due_date, approval_required, is_recurring_instance')
       .eq('owner_id', userId),
   ])
   const ids = Array.from(new Set((ta ?? []).map(r => r.task_id)))
+  const assignedBy: Record<string, string | null> = {}
+  ;((ta ?? []) as { task_id: string; assigned_by?: string | null }[])
+    .forEach(a => { assignedBy[a.task_id] = a.assigned_by ?? null })
   const msIds = (tappe ?? []).map(m => m.id)
 
   const orFilter = ids.length ? `assignee_id.eq.${userId},id.in.(${ids.join(',')})` : `assignee_id.eq.${userId}`
@@ -73,6 +86,7 @@ export default async function MieAttivitaPage() {
         milestones={(tappe ?? []) as MilestoneInput[]}
         milestoneTasks={(msTasks ?? []) as { milestone_id: string | null; status: string }[]}
         projects={(projects ?? []) as { id: string; name: string; client_id: string | null }[]}
+        assignedBy={assignedBy}
       />
     </div>
   )

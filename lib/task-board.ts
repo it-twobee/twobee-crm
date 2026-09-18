@@ -241,3 +241,33 @@ export function workstreamBreve(nome: string | null | undefined, progetto?: stri
      — accorciarlo a indovinare è il modo di far sparire l'unica parte utile. */
   return n
 }
+
+// ── §347 · quanto è urgente questa task ─────────────────────────────────────
+
+/**
+ * Due livelli, non tre.
+ *
+ * Una lista in cui tutto è colorato non ha righe urgenti: il colore serve a far
+ * saltare all'occhio le due sole cose su cui si può ancora fare qualcosa —
+ * quello che è già in ritardo e quello che scade adesso. «Entro sette giorni»
+ * resta scritto sulla data, dove si legge quando lo si sta cercando.
+ *
+ * Il tono è **tenue** per costruzione: i token `-dim` stanno al 14-20% di alfa,
+ * quindi la riga si distingue senza diventare un cartello. Il colore non è
+ * l'unico canale — la data dice «3g fa», «oggi», «domani» — perché chi non
+ * distingue i rossi deve poter leggere la stessa cosa.
+ */
+export type Urgenza = 'scaduta' | 'imminente' | null
+
+export function urgenzaDi(
+  due: string | null | undefined,
+  chiusa: boolean,
+  today?: string,
+): Urgenza {
+  /* Una task chiusa non è urgente: era. Colorare di rosso una riga già fatta
+     manda a riaprirla per capire cosa manca. */
+  if (chiusa || !due) return null
+  const t = today ?? oggi()
+  if (due < t) return 'scaduta'
+  return due <= piu(t, 1) ? 'imminente' : null
+}

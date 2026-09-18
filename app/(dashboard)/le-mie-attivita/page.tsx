@@ -23,12 +23,25 @@ export default async function LeMieAttivitaPage() {
   // §346 — le tappe di cui sono responsabile: sono lavoro mio esattamente come
   // una task, e non comparivano in nessuna lista personale
   const [{ data: ta }, { data: tappe }] = await Promise.all([
-    supabase.from('task_assignees').select('task_id').eq('profile_id', user.id),
+    /* §347 — `assigned_by`: chi ha deciso che questa task fosse tua. È la
+       persona a cui chiedere spiegazioni, e finora non era scritta da nessuna
+       parte. Nulla per le assegnazioni di prima della 231. */
+    (async () => {
+      const r = await supabase.from('task_assignees').select('task_id, assigned_by').eq('profile_id', user.id)
+      /* Finché la 231 non è applicata la colonna non c'è e la query fallisce:
+         senza questa rete l'elenco perderebbe **tutte** le task multi-assegnate
+         — `ids` resterebbe vuoto — per una colonna che serve solo a dire un
+         nome. L'attribuzione può mancare; la lista no. */
+      return r.error ? await supabase.from('task_assignees').select('task_id').eq('profile_id', user.id) : r
+    })(),
     supabase.from('milestones')
       .select('id, project_id, workstream_id, title, status, milestone_type, owner_id, due_date, approval_required, is_recurring_instance')
       .eq('owner_id', user.id),
   ])
   const ids = Array.from(new Set((ta ?? []).map(r => r.task_id)))
+  const assignedBy: Record<string, string | null> = {}
+  ;((ta ?? []) as { task_id: string; assigned_by?: string | null }[])
+    .forEach(a => { assignedBy[a.task_id] = a.assigned_by ?? null })
   const msIds = (tappe ?? []).map(m => m.id)
 
   const orFilter = ids.length ? `assignee_id.eq.${user.id},id.in.(${ids.join(',')})` : `assignee_id.eq.${user.id}`
@@ -76,6 +89,7 @@ export default async function LeMieAttivitaPage() {
         milestones={(tappe ?? []) as MilestoneInput[]}
         milestoneTasks={(msTasks ?? []) as { milestone_id: string | null; status: string }[]}
         projects={(projects ?? []) as { id: string; name: string; client_id: string | null }[]}
+        assignedBy={assignedBy}
         projectBase="/progetti"
       />
     </div>

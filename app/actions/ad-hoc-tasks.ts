@@ -55,7 +55,9 @@ export async function createAdHocTask(input: {
   // assegnatario primario via task_assignees (il trigger sincronizza tasks.assignee_id)
   if (input.assignee_id) {
     const { error: e2 } = await admin.from('task_assignees')
-      .insert({ task_id: data.id, profile_id: input.assignee_id, is_primary_owner: true })
+      // §347 — chi ha deciso che la facesse lei: senza, chi la riceve non sa a
+      // chi chiedere spiegazioni, e `created_by` risponde a un'altra domanda
+      .insert({ task_id: data.id, profile_id: input.assignee_id, is_primary_owner: true, assigned_by: uid })
     if (e2) throw new Error(e2.message)
   }
   // il supervisore non è il titolare: resta secondo livello, così tasks.assignee_id
@@ -63,7 +65,7 @@ export async function createAdHocTask(input: {
   if (input.supervisor_id && input.supervisor_id !== input.assignee_id) {
     const { error: e3 } = await admin.from('task_assignees').insert({
       task_id: data.id, profile_id: input.supervisor_id,
-      is_primary_owner: false, role_in_task: SUPERVISOR_ROLE,
+      is_primary_owner: false, role_in_task: SUPERVISOR_ROLE, assigned_by: uid,
     })
     if (e3) throw new Error(e3.message)
   }
@@ -137,7 +139,8 @@ export async function updateAdHocTask(taskId: string, clientId: string | null, u
     if (eDel) throw new Error(eDel.message)
     if (assignee_id) {
       const { error: eIns } = await admin.from('task_assignees')
-        .insert({ task_id: taskId, profile_id: assignee_id, is_primary_owner: true })
+        // §347 — riassegnare è una decisione nuova: l'autore si riscrive
+        .insert({ task_id: taskId, profile_id: assignee_id, is_primary_owner: true, assigned_by: uid })
       if (eIns) throw new Error(eIns.message)
     } else {
       const { error: eNull } = await admin.from('tasks').update({ assignee_id: null }).eq('id', taskId)
@@ -152,7 +155,7 @@ export async function updateAdHocTask(taskId: string, clientId: string | null, u
     if (supervisor_id) {
       const { error: eIns } = await admin.from('task_assignees').insert({
         task_id: taskId, profile_id: supervisor_id,
-        is_primary_owner: false, role_in_task: SUPERVISOR_ROLE,
+        is_primary_owner: false, role_in_task: SUPERVISOR_ROLE, assigned_by: uid,
       })
       if (eIns) throw new Error(eIns.message)
     }

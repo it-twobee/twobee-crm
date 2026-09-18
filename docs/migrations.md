@@ -33,7 +33,27 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > applicate**, nate in due sessioni parallele che non si vedevano. Il numero
 > doppio non ha rotto niente — Supabase registra la sua versione, non il nome
 > del file — ma il registro è una tabella ordinata e due righe con la stessa
-> chiave sono una trappola per chi arriva dopo. Dopo la 230, la prossima libera è la **231**.
+> chiave sono una trappola per chi arriva dopo. Dopo la 231, la prossima libera è la **232**.
+
+## 231 — chi ha assegnato la task (§347)
+
+`231_task_assigned_by.sql`: **da applicare**. Aggiunge
+`task_assignees.assigned_by` (FK a `profiles`, `ON DELETE SET NULL`). Sta lì e
+non su `tasks` perché descrive l'assegnazione, non la task: su `tasks` sarebbe
+una copia da riallineare a ogni cambio di titolare.
+
+**Nessun backfill**: l'unica traccia era `activity_log`, dove le righe delle
+task sono tutte anteriori al reset del dominio progetto e hanno `user_id` nullo.
+Riempirla con `tasks.created_by` sarebbe stato inventare un'attribuzione —
+indistinguibile, il giorno dopo, da una vera. Le assegnazioni già in archivio
+restano senza autore e l'interfaccia lo dichiara.
+
+Il codice regge la colonna mancante: le pagine personali ripiegano sulla query
+di prima se la migration non è ancora applicata (perdere le task
+multi-assegnate per un nome sarebbe il danno peggiore), e la sezione Task mostra
+semplicemente nessun autore.
+
+Rilanciabile: `ADD COLUMN IF NOT EXISTS`.
 
 ## 230 — via la riga «task», fantasma della sezione Task (§346)
 

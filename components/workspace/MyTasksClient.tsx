@@ -12,7 +12,7 @@ import { Avatar, SearchInput, Segmented } from '@/components/shared/formkit'
 import { CompletedTasks } from '@/components/tasks/CompletedTasks'
 import { updateTaskStatus, updateTask } from '@/app/actions/tasks'
 import { MilestoneBand } from '@/components/tasks/MilestoneBand'
-import { tappeRows, filtraTappe, type MilestoneInput } from '@/lib/task-board'
+import { tappeRows, filtraTappe, urgenzaDi, type MilestoneInput } from '@/lib/task-board'
 import type { Task, TaskStatusV2, Priority } from '@/lib/types/database'
 
 type Person = { id: string; full_name: string; avatar_url: string | null }
@@ -67,6 +67,7 @@ const isOverdue = (t: Task) => !!t.due_date && t.status !== 'completato' && t.du
 export function MyTasksClient({
   tasks, profiles, projectName, clientName,
   milestones = [], milestoneTasks = [], projects = [], projectBase = '/workspace/progetti',
+  assignedBy = {},
 }: {
   tasks: Task[]
   profiles: Person[]
@@ -81,6 +82,8 @@ export function MyTasksClient({
   milestoneTasks?: { milestone_id?: string | null; status: string }[]
   projects?: { id: string; name: string; client_id?: string | null }[]
   projectBase?: string
+  /** §347 — chi ti ha dato questa task: è la persona a cui chiedere spiegazioni */
+  assignedBy?: Record<string, string | null>
 }) {
   const router = useRouter()
   const [pending, start] = useTransition()
@@ -366,9 +369,19 @@ export function MyTasksClient({
                   const p = person(t.assignee_id)
                   const due = dueLabel(t.due_date, t.status === 'completato')
                   const done = t.status === 'completato'
+                  /* §347 — il colore dice quanto manca, e solo per le due cose
+                     su cui si può ancora fare qualcosa: scaduta, o scade adesso.
+                     Stessa regola della sezione Task (`lib/task-board.ts`): la
+                     stessa task non può sembrare urgente in un elenco e no
+                     nell'altro. */
+                  const urg = urgenzaDi(t.due_date, done)
+                  const tinta = urg === 'scaduta' ? 'bg-error-dim border-l-error'
+                    : urg === 'imminente' ? 'bg-warning-dim border-l-warning'
+                    : 'border-l-transparent'
+                  const daChi = person(assignedBy[t.id] ?? null)
                   return (
                     <div key={t.id}
-                      className="grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_128px_112px_170px] gap-x-2 gap-y-1 items-center px-4 py-2.5 border-b border-border/60 hover:bg-surface-hover group">
+                      className={`grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_128px_112px_170px] gap-x-2 gap-y-1 items-center px-4 py-2.5 border-b border-l-2 border-border/60 ${tinta} hover:bg-surface-hover group`}>
                       {/* nome */}
                       <div className="flex items-center gap-2.5 min-w-0">
                         <button onClick={() => toggle(t)} disabled={pending} aria-label={done ? 'Riapri' : 'Completa'}
@@ -384,6 +397,12 @@ export function MyTasksClient({
                             done ? 'text-text-tertiary line-through' : 'text-text-primary'
                           }`}>{t.title}</button>
                         {p && <span title={p.full_name} className="shrink-0"><Avatar name={p.full_name} url={p.avatar_url} size={20} /></span>}
+                        {/* §347 — chi te l'ha data. Senza, «chiedo a chi?» si
+                            risolve aprendo il dettaglio di ogni riga. */}
+                        {daChi && (
+                          <span className="hidden sm:inline text-2xs text-text-tertiary shrink-0 truncate max-w-[110px]"
+                            title={`Assegnata da ${daChi.full_name}`}>da {daChi.full_name.split(' ')[0]}</span>
+                        )}
                         {/* rimanda: appare solo su hover, solo se ha senso */}
                         {!done && (
                           <span className="hidden sm:flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">

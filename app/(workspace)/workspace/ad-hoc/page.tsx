@@ -14,7 +14,7 @@ export default async function WorkspaceAdHocPage() {
   const supabase = await createClient()
 
   // clients_workspace = VIEW senza dati economici; le task le filtra la RLS
-  const [{ data: tasks }, { data: clients }, { data: projects }, { data: profiles }, { data: workstreams }, { data: assignments }, { data: milestones }] = await Promise.all([
+  const [{ data: tasks }, { data: clients }, { data: projects }, { data: profiles }, { data: workstreams }, { data: assignments }, { data: assegnazioni }, { data: milestones }] = await Promise.all([
     // §340 — tutte, non le sole ad hoc: la RLS decide già cosa questo ruolo vede
     supabase.from('tasks')
       .select('id, client_id, title, description, status, priority, due_date, visibility, assignee_id, created_at, completed_at, task_type, project_id, milestone_id, workstream_id')
@@ -29,6 +29,9 @@ export default async function WorkspaceAdHocPage() {
     supabase.from('project_workstreams').select('id, name, project_id'),
     // se la RLS non li espone al workspace il gruppo "lato cliente" resta vuoto
     supabase.from('client_assignments').select('profile_id, client_id'),
+    /* §347 — chi ha assegnato, dal ponte canonico: la riga lo dice sotto il nome
+       di chi ce l'ha in carico. */
+    supabase.from('task_assignees').select('task_id, assigned_by').eq('is_primary_owner', true),
     /* §346 — le tappe, con la stessa porta delle task: quello che questo ruolo
        non deve vedere lo toglie la RLS, non una `select` diversa qui */
     supabase.from('milestones')
@@ -37,6 +40,9 @@ export default async function WorkspaceAdHocPage() {
   ])
 
   const clientOf = new Map((assignments ?? []).map(a => [a.profile_id, a.client_id]))
+  const assignedBy: Record<string, string | null> = {}
+  ;((assegnazioni ?? []) as { task_id: string; assigned_by: string | null }[])
+    .forEach(a => { assignedBy[a.task_id] = a.assigned_by })
 
   return (
     <AdHocClient
@@ -46,6 +52,7 @@ export default async function WorkspaceAdHocPage() {
       projects={(projects ?? []) as { id: string; name: string; client_id: string | null }[]}
       workstreams={(workstreams ?? []) as { id: string; name: string; project_id: string }[]}
       milestones={(milestones ?? []) as MilestoneInput[]}
+      assignedBy={assignedBy}
       profiles={(profiles ?? []).map(p => ({ ...p, client_id: clientOf.get(p.id) ?? null }))}
       canManage
       canCreateClient={canCreateClients(profile.app_role)}

@@ -58,11 +58,13 @@ const BUCKET_META: Record<Bucket, { label: string; icon: React.ReactNode; hint: 
 }
 
 export function AdHocDetailModal({
-  task, clientLabel, people, canManage, pending, onClose, onSave, onDelete,
+  task, clientLabel, people, assegnante, canManage, pending, onClose, onSave, onDelete,
 }: {
   task: AdHocDetail
   clientLabel: string
   people: AssignablePerson[]
+  /** §347 — chi ha deciso l'assegnazione; nullo = non risulta */
+  assegnante?: AssignablePerson | null
   canManage: boolean
   pending: boolean
   onClose: () => void
@@ -164,6 +166,20 @@ export function AdHocDetailModal({
               </span>
             </span>
           </div>
+        )}
+
+        {/* §347 — **chi l'ha assegnata.** È la domanda di chi la riceve, e serve
+            per chiedere spiegazioni a una persona precisa. Quando non lo
+            sappiamo si dichiara: le assegnazioni di prima della 231 non hanno
+            un autore, e riempirle con chi ha creato la task sarebbe
+            un'attribuzione inventata — indistinguibile, il giorno dopo, da una
+            vera. */}
+        {picked && (
+          <p className="text-2xs text-text-tertiary mb-2">
+            {assegnante
+              ? <>Assegnata da <span className="font-semibold text-text-secondary">{assegnante.full_name}</span></>
+              : 'Assegnata prima che registrassimo da chi: non risulta.'}
+          </p>
         )}
 
         {canManage && (

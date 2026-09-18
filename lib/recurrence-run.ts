@@ -180,6 +180,7 @@ export async function runRecurrences(db: Db, opts: {
          verso, quindi va scritto qui. */
       const assegnate = rows.filter(r => r.assignee_id)
       if (assegnate.length) {
+        const autorePerTemplate = new Map(templates.map(t => [t.id, t.created_by ?? null]))
         const { data: nate } = await db.from('tasks')
           .select('id, assignee_id, recurring_template_id, generated_for_date')
           .in('recurring_template_id', ids).not('assignee_id', 'is', null)
@@ -188,9 +189,15 @@ export async function runRecurrences(db: Db, opts: {
           .in('task_id', ((nate ?? []) as { id: string }[]).map(n => n.id))
         const noti = new Set(((già ?? []) as { task_id: string; profile_id: string }[])
           .map(g => `${g.task_id}|${g.profile_id}`))
-        const ponte = ((nate ?? []) as { id: string; assignee_id: string }[])
+        const ponte = ((nate ?? []) as { id: string; assignee_id: string; recurring_template_id: string }[])
           .filter(n => !noti.has(`${n.id}|${n.assignee_id}`))
-          .map(n => ({ task_id: n.id, profile_id: n.assignee_id, is_primary_owner: true }))
+          /* §347 — l'autore dell'assegnazione è chi ha scritto la regola: il
+             motore non decide niente, esegue. Se la regola non ha un autore
+             (import, riga a mano) resta nullo, e la riga lo dichiara. */
+          .map(n => ({
+            task_id: n.id, profile_id: n.assignee_id, is_primary_owner: true,
+            assigned_by: autorePerTemplate.get(n.recurring_template_id) ?? null,
+          }))
         await insertChunks(db, 'task_assignees', ponte)
       }
 

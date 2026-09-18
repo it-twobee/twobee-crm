@@ -14,7 +14,7 @@ export default async function AdHocPage() {
   const profile = await getSessionProfile()
   if (profile?.role !== 'admin') redirect('/dashboard')
 
-  const [{ data: tasks }, { data: clients }, { data: projects }, { data: profiles }, { data: workstreams }, { data: assignments }, { data: milestones }] = await Promise.all([
+  const [{ data: tasks }, { data: clients }, { data: projects }, { data: profiles }, { data: workstreams }, { data: assignments }, { data: assegnazioni }, { data: milestones }] = await Promise.all([
     /* §340 — **tutte**, non le sole ad hoc. La sezione rispondeva a metà della
        domanda «cosa c'è da fare», e l'altra metà stava nella scheda di ogni
        progetto: per vedere il carico di una persona bisognava sapere già dove
@@ -36,6 +36,10 @@ export default async function AdHocPage() {
     supabase.from('project_workstreams').select('id, name, project_id'),
     // referenti lato cliente: servono a sapere a quale anagrafica appartengono
     supabase.from('client_assignments').select('profile_id, client_id'),
+    /* §347 — chi ha assegnato: sta su `task_assignees`, che è la sorgente
+       canonica dell'assegnazione. Solo il titolare, che è quello che la riga
+       mostra. `assigned_by` nullo = assegnata prima della 231. */
+    supabase.from('task_assignees').select('task_id, assigned_by').eq('is_primary_owner', true),
     /* §346 — le tappe. Le `system` le scarta `tappeRows`, non la query: la
        regola di cosa è una tappa sta in un posto solo, e le tre pagine che la
        chiedono non devono ricordarsene una per una. */
@@ -45,6 +49,9 @@ export default async function AdHocPage() {
   ])
 
   const clientOf = new Map((assignments ?? []).map(a => [a.profile_id, a.client_id]))
+  const assignedBy: Record<string, string | null> = {}
+  ;((assegnazioni ?? []) as { task_id: string; assigned_by: string | null }[])
+    .forEach(a => { assignedBy[a.task_id] = a.assigned_by })
 
   return (
     <AdHocClient
@@ -53,6 +60,7 @@ export default async function AdHocPage() {
       projects={(projects ?? []) as { id: string; name: string; client_id: string | null }[]}
       workstreams={(workstreams ?? []) as { id: string; name: string; project_id: string }[]}
       milestones={(milestones ?? []) as MilestoneInput[]}
+      assignedBy={assignedBy}
       profiles={(profiles ?? []).map(p => ({ ...p, client_id: clientOf.get(p.id) ?? null }))}
       canManage
       canCreateClient={canCreateClients(profile?.app_role)}

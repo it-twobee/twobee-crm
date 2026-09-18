@@ -16,7 +16,7 @@ import {
 import { TaskComposer } from '@/components/tasks/TaskComposer'
 import { AdHocDetailModal, type AssignablePerson, type AdHocPatch } from './AdHocDetailModal'
 import { MilestoneBand } from '@/components/tasks/MilestoneBand'
-import { tappeRows, filtraTappe, progettoBreve, workstreamBreve, type MilestoneInput } from '@/lib/task-board'
+import { tappeRows, filtraTappe, progettoBreve, workstreamBreve, urgenzaDi, type MilestoneInput } from '@/lib/task-board'
 import type { Priority, Visibility, TaskStatusV2 } from '@/lib/types/database'
 
 export type AdHocRow = {
@@ -80,7 +80,7 @@ type GroupBy = 'cliente' | 'assegnatario' | 'scadenza' | 'progetto' | 'nessuno'
 type ProjectOpt = { id: string; name: string; client_id?: string | null }
 
 export function AdHocClient({
-  rows, clients, projects = [], workstreams = [], milestones = [], profiles, canManage,
+  rows, clients, projects = [], workstreams = [], milestones = [], assignedBy = {}, profiles, canManage,
   canCreateClient = false, clientBase = '/clienti', projectBase = '/progetti',
 }: {
   rows: AdHocRow[]
@@ -91,6 +91,9 @@ export function AdHocClient({
   workstreams?: { id: string; name: string; project_id: string }[]
   /** §346 — le tappe: stanno in una fascia loro, sopra le task */
   milestones?: MilestoneInput[]
+  /** §347 — chi ha deciso l'assegnazione, per task: viene da `task_assignees`,
+      che è la sorgente canonica. Vuoto per le assegnazioni di prima della 231. */
+  assignedBy?: Record<string, string | null>
   profiles: Person[]
   canManage: boolean
   /** §317 — admin e manager possono aprire un'anagrafica dal composer */
@@ -427,6 +430,11 @@ export function AdHocClient({
                         projectHref={r.project_id ? `${projectBase}/${r.project_id}` : null}
                         showAssignee={groupBy !== 'assegnatario'}
                         person={person(r.assignee_id)}
+                        /* §347 — «chi me l'ha data?» è la domanda che si fa chi
+                           la riceve, e senza risposta non sa a chi chiedere
+                           spiegazioni. Nullo = assegnata prima che lo
+                           registrassimo: lo dice il dettaglio, non la riga. */
+                        assegnante={person(assignedBy[r.id] ?? null)}
                         onOpen={() => setDetail(r)}
                         onToggle={() => act(() => setAdHocTaskStatus(r.id, r.client_id, r.status === 'completato' ? 'da_fare' : 'completato'))}
                         onPatch={u => act(() => updateAdHocTask(r.id, r.client_id, u), 'Aggiornata')}
@@ -462,7 +470,8 @@ export function AdHocClient({
 
       {detail && (
         <AdHocDetailModal task={detail} clientLabel={clientName(detail.client_id)}
-          people={profiles} canManage={canManage} pending={pending}
+          people={profiles} assegnante={person(assignedBy[detail.id] ?? null)}
+          canManage={canManage} pending={pending}
           onClose={() => setDetail(null)}
           onSave={(patch: AdHocPatch) => { act(() => updateAdHocTask(detail.id, detail.client_id, patch), 'Task aggiornata'); setDetail(null) }}
           onDelete={() => { act(() => deleteAdHocTask(detail.id, detail.client_id), 'Task eliminata'); setDetail(null) }} />
@@ -491,12 +500,14 @@ export type ContestoTask = {
 }
 
 function Row({
-  r, profiles, person, contesto, clientHref, projectHref, showAssignee, canManage, pending,
+  r, profiles, person, assegnante, contesto, clientHref, projectHref, showAssignee, canManage, pending,
   onOpen, onToggle, onPatch, onDelete,
 }: {
   r: AdHocRow
   profiles: Person[]
   person: Person | null
+  /** §347 — chi ha assegnato, quando lo sappiamo */
+  assegnante: Person | null
   contesto: ContestoTask
   clientHref: string | null
   /** §346 — dove porta il nome del progetto: la sua scheda */
@@ -511,8 +522,18 @@ function Row({
 }) {
   const rel = r.due_date && r.status !== 'completato' ? relDays(r.due_date) : null
   const done = r.status === 'completato'
+  /* §347 — **il colore dice quanto manca**, e solo per le due cose su cui si può
+     ancora fare qualcosa: già scaduta, o scade adesso. Tenue per costruzione (i
+     token `-dim` stanno al 14-20% di alfa) e mai da solo — la data scrive «3g
+     fa», «oggi», «domani», perché chi non distingue i rossi deve leggere la
+     stessa cosa. La regola sta in `lib/task-board.ts`, sotto test: la usano due
+     elenchi. */
+  const urgenza = urgenzaDi(r.due_date, done)
+  const tinta = urgenza === 'scaduta' ? 'bg-error-dim border-error'
+    : urgenza === 'imminente' ? 'bg-warning-dim border-warning'
+    : 'bg-surface border-transparent'
   return (
-    <div className={`${GRID} px-3 sm:px-4 py-2 bg-surface group hover:bg-surface-hover transition-colors`}>
+    <div className={`${GRID} px-3 sm:px-4 py-2 border-l-2 ${tinta} group hover:bg-surface-hover transition-colors`}>
       {/* 1 · attività */}
       <div className="flex items-center gap-2.5 min-w-0">
         {canManage ? (
@@ -575,14 +596,23 @@ function Row({
         )}
       </div>
 
-      {/* 4 · chi */}
-      <div className="hidden sm:flex items-center min-w-0">
+      {/* 4 · chi, e da parte di chi */}
+      <div className="hidden sm:flex flex-col justify-center min-w-0">
         {showAssignee && (
           <span className={`${canManage ? 'group-hover:hidden' : ''} flex items-center gap-1.5 min-w-0`}>
             {person
               ? <><Avatar name={person.full_name} url={person.avatar_url} size={22} />
                   <span className="text-2xs text-text-secondary truncate">{person.full_name}</span></>
               : !done && <span className="text-2xs text-warning">non assegnata</span>}
+          </span>
+        )}
+        {/* §347 — chi l'ha data. Sta sotto il nome e non in un titolo nascosto:
+            da telefono un tooltip non esiste, e questa è l'informazione che
+            serve per chiedere spiegazioni a qualcuno. */}
+        {showAssignee && person && assegnante && (
+          <span className={`${canManage ? 'group-hover:hidden' : ''} text-2xs text-text-tertiary truncate pl-[28px]`}
+            title={`Assegnata da ${assegnante.full_name}`}>
+            da {assegnante.full_name.split(' ')[0]}
           </span>
         )}
         {canManage && (

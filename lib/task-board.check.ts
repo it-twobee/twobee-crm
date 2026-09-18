@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 ;(globalThis as unknown as { React: unknown }).React = React
 import {
   tappeRows, filtraTappe, tappeCounts, isTappaAperta,
-  progettoBreve, workstreamBreve, type MilestoneInput,
+  progettoBreve, workstreamBreve, urgenzaDi, type MilestoneInput,
 } from '@/lib/task-board'
 import { MilestoneBand } from '@/components/tasks/MilestoneBand'
 
@@ -136,6 +136,20 @@ is('il workstream che è il progetto non si ripete',
 is('un nome fuori convention si mostra com\'è',
   workstreamBreve('Corsia vecchia', 'iCura · Digital · Sito web'), 'Corsia vecchia')
 is('niente workstream, niente riga', workstreamBreve(null, 'x'), '')
+
+console.log('\n— Quanto è urgente: due livelli, non tre —')
+const u = (due: string | null, chiusa = false) => urgenzaDi(due, chiusa, OGGI)
+is('ieri è scaduta', u('2026-09-16'), 'scaduta')
+is('oggi è imminente', u(OGGI), 'imminente')
+is('domani è imminente', u('2026-09-18'), 'imminente')
+/* Fra tre giorni non è imminente: se lo fosse, in una settimana l'elenco
+   sarebbe tutto colorato — e una lista dove tutto è urgente non ha righe
+   urgenti. La data continua a dirlo («tra 3g»), che è dove lo si cerca. */
+is('fra tre giorni no', u('2026-09-20'), null)
+is('senza data no', u(null), null)
+/* Una task chiusa non è urgente: era. Una riga rossa già fatta manda a
+   riaprirla per capire cosa manca. */
+is('una chiusa in ritardo non si colora', u('2026-09-01', true), null)
 
 console.log('\n— La fascia, resa davvero —')
 const html = (ms0: MilestoneInput[], defaultOpen = true) => renderToStaticMarkup(createElement(MilestoneBand, {

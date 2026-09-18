@@ -470,6 +470,46 @@ due righe identiche.
 Gate: `npx tsx lib/task-board.check.ts` prova i due tagli sui nomi veri del
 database.
 
+## Quanto manca, e chi te l'ha data (§347)
+
+Due cose che una lista di task non diceva, e sono le due domande che ci si fa
+guardandola.
+
+**Il colore dice quanto manca**, e solo per ciò su cui si può ancora fare
+qualcosa: **scaduta** (tinta rossa) e **scade adesso** — oggi o domani — (tinta
+gialla). Non tre livelli: «entro sette giorni» colorerebbe in una settimana
+tutto l'elenco, e una lista dove tutto è urgente non ha righe urgenti. La tinta
+è tenue per costruzione (i token `-dim` stanno al 14-20% di alfa) e non è mai
+l'unico canale — la data continua a scrivere «3g fa», «oggi», «domani» — perché
+chi non distingue i rossi deve leggere la stessa cosa. La regola è
+`urgenzaDi` in `lib/task-board.ts`, sotto test: la usano la sezione Task e «Le
+mie attività», e la stessa task non può sembrare urgente in un elenco e no
+nell'altro.
+
+**Chi ha assegnato la task** non era scritto da nessuna parte. `tasks.created_by`
+risponde a un'altra domanda — chi l'ha **creata** — e le due divergono ogni volta
+che un lavoro cambia mano, che è esattamente quando uno vuole chiedere
+spiegazioni a qualcuno.
+
+- La colonna sta su **`task_assignees.assigned_by`** (migration 231), dove sta il
+  fatto che descrive: l'assegnazione. Su `tasks` sarebbe una seconda copia da
+  riallineare a mano a ogni cambio di titolare — cioè un valore plausibile e
+  sbagliato in attesa di essere letto.
+- La scrivono tutti i percorsi che assegnano: creazione e modifica di una task,
+  `setTaskAssignees`, e il motore delle ricorrenze, dove l'autore è **chi ha
+  scritto la regola** — il motore non decide niente, esegue.
+- **Nessun backfill.** L'unica traccia era `activity_log`, dove le righe delle
+  task sono anteriori al reset del dominio progetto e hanno `user_id` nullo.
+  Riempire con `created_by` sarebbe stata un'attribuzione inventata, e il giorno
+  dopo indistinguibile da una vera. In lista non si scrive niente, nel dettaglio
+  si dichiara: «assegnata prima che registrassimo da chi».
+- In riga sta **sotto il nome di chi ce l'ha in carico** («da Marco»), non in un
+  titolo che compare al passaggio del mouse: da telefono un tooltip non esiste.
+- Le pagine personali reggono la colonna mancante: se la 231 non è ancora
+  applicata la query ripiega su quella di prima, perché perdere **tutte** le task
+  multi-assegnate per una colonna che serve a dire un nome sarebbe il danno
+  peggiore.
+
 ## Progetti: filtrabili e raggruppati per cliente (§341)
 
 L'elenco sotto il calendario era una griglia piatta di trenta schede, coi
