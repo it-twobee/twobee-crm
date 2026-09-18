@@ -23,7 +23,7 @@ import { StepStruttura, applyNaming, offConventionCount, spreadDueDates } from '
 import { StepConferma } from './wizard/StepConferma'
 import { StepEconomics, emptyEconomics, specOf, type EconomicsState } from './wizard/StepEconomics'
 import {
-  STEPS, nk, countTree, applyRelativeDates,
+  STEPS, nk, countTree, recOwner, applyRelativeDates,
   newTask, newMilestone, newRecurring, newWorkstream,
   type Person, type ClientOpt, type ClientChoice, type WsPick,
   type WWorkstream, type WMilestone, type WRecurring, type WTask,
@@ -207,6 +207,9 @@ export function ProjectWizard({
     spreadDates: () => editStructure(s => spreadDueDates(s, info.startDate, info.targetEnd)),
     assignAllToPm: () => editStructure(s => s.map(w => ({
       ...w,
+      // §346 — anche le ricorrenti: sono quelle che senza responsabile fanno il
+      // danno peggiore, perché ne generano una nuova ogni settimana
+      recurring: w.recurring.map(r => ({ ...r, owner_id: recOwner(r, w, info.managerId || null) })),
       milestones: w.milestones.map(m => ({
         ...m,
         owner_id: m.owner_id ?? (info.managerId || null),
@@ -262,7 +265,11 @@ export function ProjectWizard({
           })),
         })),
         recurring: w.recurring.map(r => ({
-          title: r.title, description: r.description, frequency: r.frequency, owner_id: r.owner_id,
+          title: r.title, description: r.description, frequency: r.frequency,
+          /* §346 — chi la riceve, per davvero: la riga, il workstream, il PM.
+             Prima passava `r.owner_id` e basta, che dal template arriva sempre
+             nullo: quindici regole nate di nessuno. */
+          owner_id: recOwner(r, w, info.managerId || null),
           priority: r.priority, visibility: r.visibility, estimated_hours: r.estimated_hours,
         })),
       })),
@@ -431,7 +438,8 @@ export function ProjectWizard({
               )}
               {steps[step].key === 'struttura' && (
                 <StepStruttura structure={structure} setStructure={editStructure} team={teamPeople}
-                  ctx={ctx} startDate={info.startDate} targetEnd={info.targetEnd} />
+                  ctx={ctx} startDate={info.startDate} targetEnd={info.targetEnd}
+                  managerId={info.managerId || null} />
               )}
               {steps[step].key === 'economics' && client?.kind === 'client' && (
                 <StepEconomics value={eco} onChange={setEco} clientName={client.name} />

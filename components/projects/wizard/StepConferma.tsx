@@ -46,7 +46,7 @@ export function StepConferma({
   }
 }) {
   const [showAll, setShowAll] = useState(false)
-  const counts = useMemo(() => countTree(structure), [structure])
+  const counts = useMemo(() => countTree(structure, managerId), [structure, managerId])
   const pm = profiles.find(p => p.id === managerId)
   const undated = counts.ms - counts.dated
   const unassigned = counts.tk - counts.assigned
@@ -66,6 +66,16 @@ export function StepConferma({
     if (counts.tk > 0 && unassigned > 0) out.push({
       id: 'unassigned', tone: 'warn',
       text: `${unassigned} task su ${counts.tk} senza assegnatario.`,
+      fix: managerId ? { label: 'Assegna al PM', run: quickFix.assignAllToPm } : { label: 'Struttura', run: () => goTo(6) },
+    })
+    /* §346 — una ricorrente senza responsabile non è una task non assegnata:
+       **non esiste affatto**. Il motore la salta, perché materializzarla vuol
+       dire fabbricare una riga al giorno che nessuno raccoglie. Prima di questo
+       controllo erano quindici su quindici, e il progetto nasceva con delle
+       regole spente senza che nessuno lo dicesse. */
+    if (counts.rc > 0 && counts.rc - counts.rcOwned > 0) out.push({
+      id: 'recowner', tone: 'warn',
+      text: `${counts.rc - counts.rcOwned} ricorrenti su ${counts.rc} senza responsabile: resteranno ferme, non generano niente.`,
       fix: managerId ? { label: 'Assegna al PM', run: quickFix.assignAllToPm } : { label: 'Struttura', run: () => goTo(6) },
     })
     if (offConvention > 0) out.push({ id: 'naming', tone: 'warn', text: `${offConvention} nomi fuori dalla naming convention.`, fix: { label: 'Riallinea', run: quickFix.realignNaming } })

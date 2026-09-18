@@ -10,7 +10,7 @@ import {
   MoreHorizontal, TrendingUp, ShieldCheck, Gauge, Wand2, SlidersHorizontal, RotateCcw,
 } from 'lucide-react'
 import { updateProjectStatus, updateProjectBrief, deleteProject } from '@/app/actions/projects'
-import { generateRecurringNow } from '@/app/actions/tasks'
+import { generateRecurrencesNow } from '@/app/actions/recurring'
 import { createWorkstream } from '@/app/actions/workstreams'
 import { createMilestone, updateMilestone } from '@/app/actions/milestones'
 import { NewMilestoneModal, type NewMilestoneValues } from './NewMilestoneModal'
@@ -119,7 +119,19 @@ export function ProjectDetailClient({
 
   const genRecurring = () =>
     start(async () => {
-      try { const n = await generateRecurringNow(); router.refresh(); toast.success(`${n} occorrenze generate`) }
+      try {
+        const r = await generateRecurrencesNow(project.id)
+        router.refresh()
+        /* «0 nuove» è una risposta legittima — la finestra è già coperta — e
+           detta così non si legge come un errore (§277). Le regole ferme si
+           dicono qui, perché è il momento in cui uno si chiede perché non è
+           successo niente. */
+        toast.success(`${r.tasks.created} occorrenze generate`, {
+          description: r.tasks.fermi
+            ? `${r.tasks.fermi} regole ferme: senza responsabile non generano niente.`
+            : undefined,
+        })
+      }
       catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
     })
 
@@ -144,6 +156,33 @@ export function ProjectDetailClient({
 
   const recurringWs = workstreams.filter(w => w.workstream_type === 'recurring')
   const projectWs = workstreams.filter(w => w.workstream_type === 'project')
+
+  /* §346 — che fine hanno fatto le ricorrenti. Tre risposte, in ordine di
+     gravità: nessuna ha mai generato (il motore non è mai passato), qualcuna è
+     senza responsabile (e allora resta ferma), oppure quando è passato
+     l'ultima volta. Il silenzio non è una risposta: era lo stato in cui 185
+     regole hanno prodotto zero occorrenze per mesi (§337), e poi altre 15. */
+  const recStato = (() => {
+    const attive = recurring.filter(r => r.active)
+    if (!attive.length) return null
+    const senzaOwner = attive.filter(r => !r.owner_id).length
+    const generate = attive.filter(r => r.last_generated_at).length
+    /* L'ordine conta, ed è il motivo per cui la causa va nominata prima del
+       sintomo: se **tutte** sono senza responsabile non hanno mai generato per
+       quello, e mandare a premere «Genera ricorrenti» sarebbe mandare a premere
+       un bottone che non può fare niente. */
+    if (senzaOwner === attive.length) return {
+      tone: 'text-error',
+      text: `${senzaOwner} regole ferme: senza responsabile non generano niente. Assegnale dalla workstream.`,
+    }
+    if (!generate) return { tone: 'text-error', text: 'Mai generate: le occorrenze non esistono ancora. Premi «Genera ricorrenti».' }
+    if (senzaOwner) return { tone: 'text-warning', text: `${senzaOwner} ferme senza responsabile: quelle occorrenze non nascono.` }
+    const ultima = attive.map(r => r.last_generated_at ?? '').sort().pop() ?? ''
+    return {
+      tone: 'text-text-tertiary',
+      text: `Ultima generazione: ${new Date(ultima).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}`,
+    }
+  })()
   const wsPrefix = workstreamPrefixFromProjectName(project.name)
 
   // ── Segnali PM (per la Signal Bar del tab Workstream) ─────────────────────
@@ -457,9 +496,21 @@ export function ProjectDetailClient({
                   </button>
                 )}
                 {recurring.filter(r => r.active).length > 0 && (
-                  <div className="flex items-center gap-2 text-2xs text-text-tertiary mt-3 pt-2.5 border-t border-border">
-                    <Repeat className="w-3.5 h-3.5 text-success shrink-0" />
-                    <span className="tabular font-semibold text-text-secondary">{recurring.filter(r => r.active).length}</span> attività ricorrenti attive
+                  <div className="mt-3 pt-2.5 border-t border-border space-y-1">
+                    <div className="flex items-center gap-2 text-2xs text-text-tertiary">
+                      <Repeat className="w-3.5 h-3.5 text-success shrink-0" />
+                      <span className="tabular font-semibold text-text-secondary">{recurring.filter(r => r.active).length}</span> attività ricorrenti attive
+                    </div>
+                    {/* §346 — **una regola che non ha ancora prodotto niente lo
+                        deve dire.** Il motore gira per conto suo: se non parte —
+                        cron muto, segreto mancante, finestra troppo stretta — la
+                        pagina resta identica a una in cui tutto funziona, e la
+                        scoperta arriva dal cliente. Lo stato si legge da
+                        `last_generated_at`, che è il solo posto dove il silenzio
+                        lascia un segno. */}
+                    {recStato && (
+                      <p className={`text-2xs ${recStato.tone}`}>{recStato.text}</p>
+                    )}
                   </div>
                 )}
               </section>

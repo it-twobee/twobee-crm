@@ -118,18 +118,32 @@ export const isExternal = (p: Person) => !p.app_role || isExternalResource(p.app
 let _k = 0
 export const nk = () => `k${_k++}`
 
-export function countTree(structure: WWorkstream[]) {
-  let ms = 0, tk = 0, rc = 0, dated = 0, assigned = 0, hours = 0
+/**
+ * §346 — chi riceverà le occorrenze: la riga, poi il workstream, poi il PM.
+ *
+ * Il motore copia `owner_id` del template in `assignee_id` della task, e senza
+ * responsabile **non genera**: la regola resta ferma, che è come stavano tutte
+ * quelle trovate in archivio. La catena sta qui perché la chiedono in tre — la
+ * select che la mostra, il payload che la scrive e il controllo finale che
+ * conta quante restano scoperte — e tre risposte diverse alla stessa domanda
+ * sono il modo di far comparire un nome che nessuno aveva visto.
+ */
+export const recOwner = (r: WRecurring, w: WWorkstream, managerId: string | null) =>
+  r.owner_id ?? w.owner_id ?? managerId ?? null
+
+export function countTree(structure: WWorkstream[], managerId: string | null = null) {
+  let ms = 0, tk = 0, rc = 0, rcOwned = 0, dated = 0, assigned = 0, hours = 0
   structure.forEach(w => {
     ms += w.milestones.length
     rc += w.recurring.length
+    w.recurring.forEach(r => { if (recOwner(r, w, managerId)) rcOwned++ })
     w.milestones.forEach(m => {
       if (m.due_date) dated++
       tk += m.tasks.length
       m.tasks.forEach(t => { if (t.assignee_id) assigned++; hours += t.estimated_hours ?? 0 })
     })
   })
-  return { ws: structure.length, ms, tk, rc, dated, assigned, hours }
+  return { ws: structure.length, ms, tk, rc, rcOwned, dated, assigned, hours }
 }
 
 export const PRIORITIES: Priority[] = ['alta', 'media', 'bassa']

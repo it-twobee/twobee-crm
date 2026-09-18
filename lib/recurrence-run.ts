@@ -30,7 +30,8 @@ const plus = (day: string, n: number) => iso(Date.parse(`${day}T00:00:00Z`) + n 
 
 export type RunReport = {
   today: string
-  tasks: { templates: number; created: number; window: string | null }
+  /** `fermi` = regole attive che non generano perché non hanno un responsabile (§346) */
+  tasks: { templates: number; created: number; fermi: number; window: string | null }
   milestones: { templates: number; created: number; window: string | null }
 }
 
@@ -79,6 +80,12 @@ export function missingFor<T extends { id: string; generation_lead_days: number 
   const have = new Set(existing.map(e => `${e.recurring_template_id}|${e.generated_for_date}`))
   const out: { template: T; date: string }[] = []
   for (const t of templates) {
+    /* §346 — la finestra la scrive il trigger `trg_recurrence_lead_days` (228)
+       quando la colonna arriva vuota. Se qui arrivasse comunque un non-numero,
+       questa regola **non genera**: inventare un trenta al volo farebbe
+       comparire trenta righe da un trigger rotto, e nessuno andrebbe a
+       cercarne la causa. */
+    if (!Number.isFinite(t.generation_lead_days)) continue
     const to = plus(today, Math.max(0, t.generation_lead_days))
     for (const date of occurrencesBetween(ruleOf(t), today, to)) {
       if (!have.has(`${t.id}|${date}`)) out.push({ template: t, date })
@@ -109,11 +116,19 @@ export async function runRecurrences(db: Db, opts: {
   today?: string
   taskTemplateId?: string
   milestoneTemplateId?: string
+  /**
+   * §346 — tutte le regole di un progetto appena nato. Il wizard ne scrive
+   * dieci in una volta e non ne conosce gli id: sono nate dentro la RPC. Senza
+   * questo taglio l'unica alternativa era rigenerare l'archivio intero a ogni
+   * progetto creato, che è il modo di far pagare a chi crea un progetto il
+   * lavoro di tutti gli altri.
+   */
+  projectId?: string
 } = {}): Promise<RunReport> {
   const today = opts.today ?? new Date().toISOString().slice(0, 10)
   const report: RunReport = {
     today,
-    tasks: { templates: 0, created: 0, window: null },
+    tasks: { templates: 0, created: 0, fermi: 0, window: null },
     milestones: { templates: 0, created: 0, window: null },
   }
 
@@ -123,9 +138,21 @@ export async function runRecurrences(db: Db, opts: {
       .not('project_id', 'is', null).not('workstream_id', 'is', null)
       .not('milestone_id', 'is', null)
     if (opts.taskTemplateId) q = q.eq('id', opts.taskTemplateId)
+    if (opts.projectId) q = q.eq('project_id', opts.projectId)
     const { data } = await q
-    const templates = (data ?? []) as TaskTemplate[]
+    const tutti = (data ?? []) as TaskTemplate[]
+
+    /* §346 — **una regola senza responsabile resta ferma.** Il motore copia
+       `owner_id` in `assignee_id`: generarla vuol dire fabbricare lavoro di
+       nessuno, una riga nuova ogni giorno che nessuno raccoglie — è così che
+       sono nate le 185 occorrenze di nessuno di §337, e con la finestra a
+       trenta giorni ne sarebbero arrivate 113 in un colpo solo. Fermarsi non è
+       nascondere: il report dice quante ne ha lasciate ferme, la scheda
+       progetto le conta in giallo, e assegnare rigenera subito (§338) — quindi
+       il gesto che manca è quello che accende la serie. */
+    const templates = tutti.filter(t => t.owner_id)
     report.tasks.templates = templates.length
+    report.tasks.fermi = tutti.length - templates.length
 
     if (templates.length) {
       const ids = templates.map(t => t.id)
@@ -179,6 +206,7 @@ export async function runRecurrences(db: Db, opts: {
   {
     let q = db.from('recurring_milestone_templates').select('*').eq('active', true)
     if (opts.milestoneTemplateId) q = q.eq('id', opts.milestoneTemplateId)
+    if (opts.projectId) q = q.eq('project_id', opts.projectId)
     const { data, error } = await q
     /* La 223 può non essere ancora eseguita: le task si generano lo stesso e il
        report lo dichiara, invece di far fallire tutto il giro. */

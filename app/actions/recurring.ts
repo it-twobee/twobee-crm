@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import type { RecurrenceFrequency, Priority, Visibility } from '@/lib/types/database'
 import { runRecurrences } from '@/lib/recurrence-run'
+import { generaSubito } from '@/lib/recurrence-kick'
 
 async function requireStaff(): Promise<string> {
   const sb = await createClient()
@@ -28,22 +29,11 @@ const rev = (projectId: string) => {
   revalidatePath('/progetti')
 }
 
-/**
- * §337 — **genera subito**, e non aspetta il cron.
- *
- * Una ricorrente si scrive per darla a qualcuno, e finché la prima occorrenza
- * non esiste chi la riceve non ha niente da vedere: «l'ho assegnata» e «non mi
- * è arrivato niente» sono la stessa sera. Il giro è ristretto a una serie sola,
- * quindi costa quanto una riga.
- *
- * Non fa fallire l'azione: la regola è scritta, e se la materializzazione va
- * storta ci riprova il cron. Il contrario — perdere il template perché la
- * generazione è inciampata — sarebbe il danno peggiore.
- */
-async function generaSubito(opts: { taskTemplateId?: string; milestoneTemplateId?: string }) {
-  try { await runRecurrences(createAdminClient() as never, opts) }
-  catch { /* ci ripensa il cron: la regola è salva, ed è quella che conta */ }
-}
+/* §337 — **genera subito**, e non aspetta il cron: una ricorrente si scrive per
+   darla a qualcuno, e finché la prima occorrenza non esiste chi la riceve non ha
+   niente da vedere. §346 — il motore sta in `lib/recurrence-kick.ts`, perché le
+   stesse righe le scrivono anche il wizard e la conversione di un'opportunità,
+   e quelle strade non passano di qui. */
 
 export async function createRecurring(input: {
   client_id: string | null
@@ -75,7 +65,14 @@ export async function createRecurring(input: {
     day_of_month: input.day_of_month ?? null,
     start_date: input.start_date || new Date().toISOString().slice(0, 10),
     end_date: input.end_date || null,
-    generation_lead_days: input.generation_lead_days ?? 3,
+    /* §346 — **la finestra non si scrive qui.** Passava 3 esplicito, e con tre
+       giorni una mensile non produce niente per settimane («tre giorni non ne
+       prendono nessuno», `lib/recurrence-run.check.ts`). Ma nemmeno trenta è la
+       risposta: su una giornaliera sono trenta righe uguali. Il numero lo
+       decide la cadenza, in un posto solo — `recurrence_lead_days()` sul
+       database, scritto dal trigger quando questa colonna arriva vuota (228).
+       Qui si scrive **solo** se qualcuno ha chiesto una finestra sua. */
+    ...(input.generation_lead_days ? { generation_lead_days: input.generation_lead_days } : {}),
     owner_id: input.owner_id || null,
     priority: input.priority ?? 'media',
     visibility: input.visibility ?? 'internal',
@@ -232,7 +229,10 @@ export async function deleteRecurringMilestone(id: string, projectId: string) {
  */
 export async function generateRecurrencesNow(projectId: string) {
   await requireStaff()
-  const report = await runRecurrences(createAdminClient() as never)
+  /* §346 — **le regole di questo progetto**, non l'archivio intero: il bottone
+     sta sulla scheda di un progetto e chi lo preme si aspetta che riguardi
+     quello che ha davanti. Il giro completo resta quello del cron. */
+  const report = await runRecurrences(createAdminClient() as never, { projectId })
   rev(projectId)
   return report
 }

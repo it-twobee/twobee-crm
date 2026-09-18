@@ -5,6 +5,7 @@ import { createActorClient } from '@/lib/supabase/admin'
 import { requireSalesAccess } from '@/lib/sales-guard'
 import { OUTCOMES, canReadDeal, uuid, validDate, validateDeal, type DealInput, type Delivery, type SalesData, type SalesDeal, type SalesOutcome, type SalesActivity } from '@/lib/sales'
 import { isWorkspaceRole } from '@/lib/permissions'
+import { generaSubito } from '@/lib/recurrence-kick'
 
 const DEAL_FIELDS = 'id,title,company_name,client_id,contact_id,assigned_to,stage,source,need,blocker,next_action,next_action_on,resume_on,monthly_value,setup_value,one_off_value,proposal_ref,loss_reason,created_at,updated_at,closed_at,last_interaction_at,revision,delivery,delivery_project_id,delivery_completed_at,delivery_owner_id'
 
@@ -61,6 +62,12 @@ async function command(requestId: string, kind: string, dealId: string | null, i
   if (error) dbError(error)
   refreshSales()
   if (kind === 'create' || kind === 'delivery_complete' || (kind === 'outcome' && input.outcome === 'vinta')) {
+    /* §346 — un'opportunità vinta apre un progetto da template dentro la RPC
+       (225), quindi anche da qui nascono regole ricorrenti che nessuno
+       materializzava. Il progetto nato non torna da `sales_command`, che
+       restituisce l'opportunità: il giro è sull'archivio, ma parte solo sui
+       comandi che un progetto lo creano davvero. */
+    await generaSubito()
     revalidatePath('/clienti'); revalidatePath('/workspace/clienti')
     revalidatePath('/clienti/[id]', 'page'); revalidatePath('/workspace/clienti/[id]', 'page')
     revalidatePath('/progetti'); revalidatePath('/workspace/progetti')

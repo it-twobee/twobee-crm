@@ -10,7 +10,7 @@ import {
   workstreamName, milestoneName, taskName, isConform, type NamingCtx,
 } from '@/lib/project-naming'
 import {
-  countTree, FREQUENCIES, FREQ_LABEL, PRIORITIES,
+  countTree, recOwner, FREQUENCIES, FREQ_LABEL, PRIORITIES,
   newTask, newMilestone, newRecurring, newWorkstream,
   type WWorkstream, type WMilestone, type WTask, type Person, type Priority,
 } from './types'
@@ -59,7 +59,7 @@ export function spreadDueDates(structure: WWorkstream[], start: string, end: str
 }
 
 export function StepStruttura({
-  structure, setStructure, team, ctx, startDate, targetEnd,
+  structure, setStructure, team, ctx, startDate, targetEnd, managerId = null,
 }: {
   structure: WWorkstream[]
   setStructure: React.Dispatch<React.SetStateAction<WWorkstream[]>>
@@ -67,8 +67,10 @@ export function StepStruttura({
   ctx: NamingCtx
   startDate: string
   targetEnd: string
+  /** §346 — l'ultimo anello della catena del responsabile di una ricorrente */
+  managerId?: string | null
 }) {
-  const counts = useMemo(() => countTree(structure), [structure])
+  const counts = useMemo(() => countTree(structure, managerId), [structure, managerId])
   const off = useMemo(() => offConventionCount(structure, ctx), [structure, ctx])
   // il dettaglio si apre riga per riga: l'albero resta leggibile, la profondità
   // c'è quando serve. Aprire tutto trasformerebbe la struttura in un modulo.
@@ -166,12 +168,23 @@ export function StepStruttura({
                         className={`${inputCls} text-2xs flex-1 min-w-[180px]`} />
                     </div>
 
+                    {/* §346 — **il responsabile sta sulla riga.** C'erano titolo e
+                        frequenza e basta: la regola nasceva senza destinatario —
+                        quindici così, in archivio — e il motore copia il
+                        responsabile del template nell'assegnatario
+                        dell'occorrenza, quindi senza di lui non genera niente. La
+                        select parte da chi la riceverebbe comunque (workstream, poi
+                        PM), così la catena si vede prima di creare invece di
+                        scoprirla dopo. */}
                     {w.recurring.map(r => (
                       <div key={r.key} className="flex items-center gap-2 pl-4">
                         <Repeat className="w-3.5 h-3.5 text-success shrink-0" />
                         <input value={r.title} aria-label="Titolo ricorrente"
                           onChange={e => updWs(w.key, x => ({ ...x, recurring: x.recurring.map(y => y.key === r.key ? { ...y, title: e.target.value } : y) }))}
                           className="flex-1 min-w-0 bg-transparent text-sm text-text-primary border-b border-transparent focus:border-border-interactive outline-none" />
+                        <OwnerSelect team={team} compact label="Responsabile ricorrente"
+                          value={recOwner(r, w, managerId)}
+                          onChange={v => updWs(w.key, x => ({ ...x, recurring: x.recurring.map(y => y.key === r.key ? { ...y, owner_id: v } : y) }))} />
                         <select value={r.frequency} aria-label="Frequenza"
                           onChange={e => updWs(w.key, x => ({ ...x, recurring: x.recurring.map(y => y.key === r.key ? { ...y, frequency: e.target.value } : y) }))}
                           className="text-2xs bg-background border border-border rounded-lg px-1.5 py-1 text-text-secondary shrink-0">
@@ -181,6 +194,11 @@ export function StepStruttura({
                           aria-label="Elimina ricorrente" className="text-text-tertiary hover:text-error shrink-0"><Trash2 className="w-3 h-3" /></button>
                       </div>
                     ))}
+                    {w.recurring.length > 0 && !w.recurring.every(r => recOwner(r, w, managerId)) && (
+                      <p className="pl-4 text-2xs text-warning">
+                        Una ricorrente senza responsabile resta ferma: il motore non la materializza finché non le dai qualcuno.
+                      </p>
+                    )}
 
                     {w.milestones.map((m, mi) => {
                       const msOff = !isConform(m.title, milestoneName(mi, m.title))

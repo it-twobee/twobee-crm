@@ -767,8 +767,10 @@ type RecInput = {
  * Diceva titolo e frequenza, e tutto il resto stava dietro una matita che
  * compariva solo passandoci sopra: il responsabile — cioè la sola cosa che
  * decide se l'occorrenza arriverà a qualcuno in «le mie attività» — non era
- * nemmeno visibile. Una regola senza responsabile genera task di nessuno, e
- * finora era l'impostazione di tutte e 185.
+ * nemmeno visibile. §346 — e da lì una regola senza responsabile **non genera
+ * affatto**: il motore la salta, perché materializzarla vuol dire fabbricare
+ * una riga al giorno che nessuno raccoglie. Assegnarla è il gesto che la
+ * accende, e rigenera subito.
  *
  * Adesso la riga dice **chi, ogni quanto, la prossima volta e quante ne fa**, e
  * le due cose che si cambiano di continuo — responsabile e pausa — si toccano
@@ -820,14 +822,14 @@ function RecurringRow({
 
       {/* §338 — il responsabile **sulla riga**: è quello che decide se
           l'occorrenza arriverà a qualcuno, e stava dietro una matita nascosta.
-          Senza, la regola genera task di nessuno — l'impostazione con cui sono
-          nate tutte e 185 quelle in archivio. */}
+          §346 — senza, la regola resta **ferma**: il motore la salta, e questa
+          select è il gesto che la accende. Il bordo giallo dice che è spenta. */}
       <select value={ownerId ?? ''} disabled={!canEdit || pending}
         aria-label={`Responsabile di ${title}`}
         onChange={e => onOwner(e.target.value || null)}
         className={`shrink-0 text-2xs rounded-lg px-1.5 py-1 border bg-background max-w-[130px]
           ${ownerId ? 'border-border text-text-secondary' : 'border-warning/40 text-warning'}`}>
-        <option value="">nessuno</option>
+        <option value="">nessuno · ferma</option>
         {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
       </select>
 

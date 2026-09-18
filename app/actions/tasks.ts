@@ -131,10 +131,11 @@ export async function deleteChecklistItem(itemId: string) {
   if (error) throw new Error(error.message)
 }
 
-// ── motore ricorrenze (trigger manuale, oltre al cron giornaliero) ─────────────
-export async function generateRecurringNow(): Promise<number> {
-  await requireStaff()
-  const { data, error } = await createAdminClient().rpc('generate_recurring_task_occurrences')
-  if (error) throw new Error(error.message)
-  return (data as number) ?? 0
-}
+/* §346 — **il motore è uno.** Qui c'era `generateRecurringNow`, che chiamava la
+   funzione SQL della 152: §337 l'aveva sostituita con `lib/recurrence-run.ts` —
+   quella scrive anche `task_assignees`, tiene le tappe ricorrenti e dice cosa ha
+   fatto — ma il bottone della scheda progetto puntava ancora alla vecchia, e due
+   motori sulla stessa regola danno la stessa risposta solo finché nessuno ne
+   corregge uno. Adesso si passa da `generateRecurrencesNow` in
+   `app/actions/recurring.ts`. Un file `'use server'` esporta endpoint (§329):
+   lasciare qui il vecchio voleva dire lasciare raggiungibile il motore sbagliato. */

@@ -33,7 +33,59 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > applicate**, nate in due sessioni parallele che non si vedevano. Il numero
 > doppio non ha rotto niente — Supabase registra la sua versione, non il nome
 > del file — ma il registro è una tabella ordinata e due righe con la stessa
-> chiave sono una trappola per chi arriva dopo. Dopo la 226, la prossima libera è la **227**.
+> chiave sono una trappola per chi arriva dopo. Dopo la 228, la prossima libera è la **229**.
+
+## 228 — la finestra di generazione la decide la cadenza (§346)
+
+`228_recurrence_window_by_frequency.sql`: **da applicare** (dopo la 227).
+Misurato il 18 settembre 2026 con tutte le regole a trenta giorni: un giro
+avrebbe creato **236 occorrenze**, ~170 dalle sole sei giornaliere. Con la
+finestra per cadenza sono 85, e 33 contando solo le regole che hanno un
+responsabile.
+
+- `recurrence_lead_days(frequency)`: giornaliera 7, settimanale e quindicinale
+  30, mensile 90, trimestrale 180. **È l'unico posto dove quei numeri esistono.**
+- `generation_lead_days` diventa **nullable** e perde il default: NULL = «quella
+  della cadenza», la scrive il trigger `trg_recurrence_lead_days`
+  (BEFORE INSERT OR UPDATE). Serve perché i due scrittori non possono
+  condividere una costante: l'azione passa da PostgREST (che non chiama
+  funzioni) e il wizard da `create_project_from_template`.
+- La funzione del wizard torna a scrivere la colonna direttamente, con NULL
+  quando il payload non porta niente — la 227 ci arrivava con un UPDATE in coda,
+  che adesso non serve più.
+- Backfill: `SET generation_lead_days = recurrence_lead_days(frequency) WHERE = 30`.
+  I trenta della 227 non li ha scelti nessuno, visto che il campo non è esposto
+  in nessun form.
+
+Rilanciabile: `CREATE OR REPLACE`, `DROP TRIGGER IF EXISTS`, e un backfill che
+riporta allo stesso valore quello che ci è già. In coda la verifica mostra
+finestra minima e massima per cadenza e quante regole restano senza responsabile.
+
+## 227 — le ricorrenti del wizard nascono lavorabili (§346)
+
+`227_recurring_from_wizard.sql`: **da applicare**. Riscrive
+`create_project_from_template` (ultima definizione: la 155) cambiando **due
+righe sole** del blocco ricorrenti, e fa un backfill.
+
+- `generation_lead_days` **non viene più scritto** se il payload non lo porta:
+  vale la colonna (`DEFAULT 30` dalla 223). Prima la funzione passava 3
+  esplicito, quindi il default non si applicava mai e una mensile non generava
+  niente per settimane. Backfill: `SET generation_lead_days = 30 WHERE = 3`,
+  idempotente.
+- `owner_id` prende il **pavimento**: riga → responsabile del workstream → PM del
+  progetto. Il motore copia `owner_id` in `assignee_id`, quindi una regola senza
+  responsabile genera task di nessuno. Serve ai payload che il wizard non
+  costruisce — la conversione di un'opportunità vinta (225) crea progetti da
+  template senza passare di lì.
+
+**Nessun backfill sui responsabili delle 15 regole esistenti**: chi riceve una
+ricorrente è una decisione di qualcuno, e scriverla qui la renderebbe
+indistinguibile da una scelta vera. Le dichiara la scheda progetto («mai
+generate», «N senza responsabile»), che è il posto dove qualcuno può rimediare.
+
+Rilanciabile: `CREATE OR REPLACE` più un UPDATE idempotente. In coda la verifica
+conta finestre a 3, finestre a 30, regole senza responsabile e regole mai
+generate.
 
 ## 226 — richieste di accesso al foglio dei compensi (§344)
 

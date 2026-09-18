@@ -5,6 +5,7 @@ import { createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { requireEconomicsAdmin } from '@/lib/economics-guard'
 import { buildSchedule, type ScheduleSpec } from '@/lib/revenue'
+import { generaSubito } from '@/lib/recurrence-kick'
 
 export interface WizardTaskInput {
   title: string
@@ -216,8 +217,23 @@ export async function createProjectFromWizard(payload: WizardPayload): Promise<s
     .rpc('create_project_from_template', { p_payload: payload, p_created_by: user.id })
   if (error) throw new Error(error.message)
 
+  /* §346 — le ricorrenti del wizard erano regole e basta. La RPC scrive in
+     `recurring_task_templates` e non materializza niente: `createRecurring`
+     generava subito, ma il wizard è la strada da cui nascono quasi tutte le
+     regole, ed era l'unica che non passava dal motore. Misurato sul database
+     prima della riparazione: 15 regole attive, zero occorrenze. Chi apriva la
+     sezione Task il giorno dopo aver creato il progetto non trovava niente, e
+     non aveva modo di sapere perché. */
+  await generaSubito({ projectId: data as string })
+
   revalidatePath('/progetti')
   revalidatePath('/workspace/progetti')
+  /* dove le occorrenze devono **comparire**: chi le riceve guarda lì, non la
+     pagina del progetto (§337) */
+  revalidatePath('/ad-hoc')
+  revalidatePath('/workspace/ad-hoc')
+  revalidatePath('/le-mie-attivita')
+  revalidatePath('/workspace/attivita')
   if (payload.project.client_id) revalidatePath(`/clienti/${payload.project.client_id}`)
   return data as string
 }
