@@ -6,6 +6,7 @@ import { WorkspaceMobileNav } from '@/components/workspace/WorkspaceMobileNav'
 import { Logo } from '@/components/shared/Logo'
 import { PortalSwitcher } from '@/components/shared/PortalSwitcher'
 import { QuickCreate } from '@/components/shared/QuickCreate'
+import { HeaderActions } from '@/components/shared/HeaderActions'
 import Link from 'next/link'
 import { GlobalSearch } from '@/components/shared/GlobalSearch'
 import { workspaceSearch } from '@/app/actions/global-search'
@@ -119,7 +120,17 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
               placeholder="Cerca clienti, documenti…"
             />
           </div>
-          <QuickCreate context="workspace" />
+          {/* §350 — **le stesse azioni del portale admin.** Qui c'era il solo
+              «crea»: niente notifiche (quindi un'assegnazione la si scopriva
+              ricaricando), niente profilo da cui uscire, e il tema si cambiava
+              solo dalla barra laterale — che sotto i 1024px non esiste, quindi
+              da telefono non si poteva cambiare affatto. Non era una scelta: era
+              una testata scritta a parte, e quello che nasce a parte resta
+              indietro. */}
+          <div className="flex items-center gap-1.5 lg:gap-3 ml-auto">
+            <QuickCreate context="workspace" />
+            <HeaderActions profile={profile} portal="workspace" />
+          </div>
         </header>
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
           {/* §234 — la memoria del percorso c'era solo nel portale admin, quindi

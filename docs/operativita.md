@@ -672,6 +672,26 @@ due sia giusta, quindi si scarta e si conta, e la pagina lo scrive.
 Gate: `npx tsx lib/leave-calendar.check.ts` (42 controlli sulle righe vere).
 
 
+## La testata del workspace fa quello che fa quella admin (§350)
+
+Nel portale operativo la testata aveva **solo** il «crea»: niente campanella,
+quindi un'assegnazione la si scopriva ricaricando; niente menu profilo, quindi
+per uscire bisognava sapere dove andare; e il tema si cambiava solo dalla barra
+laterale, che sotto i 1024px non esiste — da telefono, quindi, non si poteva
+cambiare affatto. Non era una decisione: era una testata scritta a parte, e
+quello che nasce a parte resta indietro.
+
+- **`components/shared/HeaderActions.tsx`**: notifiche, profilo e tema, un
+  componente solo per i due portali. Prima erano centocinquanta righe dentro
+  `Header` e non esistevano altrove.
+- Il portale cambia **due cose**, e nessuna riguarda cosa si può fare: dove
+  porta la voce profilo (`/impostazioni/profilo` o `/workspace/profilo`) e se
+  compare «Impostazioni», che è una pagina del portale admin — mostrarla a chi
+  il middleware rimbalza sarebbe un link che non porta da nessuna parte (§211).
+- Le notifiche leggono `notifications` filtrate sull'utente e restano in ascolto
+  in realtime: la stessa query di prima, che nel workspace non girava perché non
+  c'era chi la chiamasse.
+
 ### Il workspace è usabile o non è (§211)
 Tre difetti che rendevano il portale un vicolo cieco, e le regole che li chiudono:
 
