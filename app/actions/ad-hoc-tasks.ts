@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
+import { notificaAssegnazione } from '@/lib/notify'
 import { SUPERVISOR_ROLE } from '@/lib/task-roles'
 import type { TaskStatusV2, Priority, Visibility } from '@/lib/types/database'
 
@@ -59,6 +60,10 @@ export async function createAdHocTask(input: {
       // chi chiedere spiegazioni, e `created_by` risponde a un'altra domanda
       .insert({ task_id: data.id, profile_id: input.assignee_id, is_primary_owner: true, assigned_by: uid })
     if (e2) throw new Error(e2.message)
+    // §350 — chi la riceve deve saperlo adesso, non al prossimo ricarico
+    await notificaAssegnazione({
+      destinatario: input.assignee_id, autore: uid, titolo: input.title.trim(), db: admin,
+    })
   }
   // il supervisore non è il titolare: resta secondo livello, così tasks.assignee_id
   // continua a puntare a chi la deve fare davvero
@@ -68,6 +73,10 @@ export async function createAdHocTask(input: {
       is_primary_owner: false, role_in_task: SUPERVISOR_ROLE, assigned_by: uid,
     })
     if (e3) throw new Error(e3.message)
+    await notificaAssegnazione({
+      destinatario: input.supervisor_id, autore: uid, titolo: input.title.trim(),
+      dettaglio: 'come supervisore', db: admin,
+    })
   }
   revAdHoc(input.client_id)
   return data.id as string
@@ -142,6 +151,11 @@ export async function updateAdHocTask(taskId: string, clientId: string | null, u
         // §347 — riassegnare è una decisione nuova: l'autore si riscrive
         .insert({ task_id: taskId, profile_id: assignee_id, is_primary_owner: true, assigned_by: uid })
       if (eIns) throw new Error(eIns.message)
+      const { data: t } = await admin.from('tasks').select('title').eq('id', taskId).maybeSingle()
+      await notificaAssegnazione({
+        destinatario: assignee_id, autore: uid,
+        titolo: (t as { title?: string } | null)?.title ?? 'Task assegnata', db: admin,
+      })
     } else {
       const { error: eNull } = await admin.from('tasks').update({ assignee_id: null }).eq('id', taskId)
       if (eNull) throw new Error(eNull.message)
@@ -158,6 +172,11 @@ export async function updateAdHocTask(taskId: string, clientId: string | null, u
         is_primary_owner: false, role_in_task: SUPERVISOR_ROLE, assigned_by: uid,
       })
       if (eIns) throw new Error(eIns.message)
+      const { data: t } = await admin.from('tasks').select('title').eq('id', taskId).maybeSingle()
+      await notificaAssegnazione({
+        destinatario: supervisor_id, autore: uid, dettaglio: 'come supervisore',
+        titolo: (t as { title?: string } | null)?.title ?? 'Task assegnata', db: admin,
+      })
     }
   }
   revAdHoc(clientId)

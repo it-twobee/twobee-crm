@@ -33,7 +33,24 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > applicate**, nate in due sessioni parallele che non si vedevano. Il numero
 > doppio non ha rotto niente — Supabase registra la sua versione, non il nome
 > del file — ma il registro è una tabella ordinata e due righe con la stessa
-> chiave sono una trappola per chi arriva dopo. Dopo la 231, la prossima libera è la **232**.
+> chiave sono una trappola per chi arriva dopo. Dopo la 232, la prossima libera è la **233**.
+
+## 232 — una notifica, un destinatario (§350)
+
+`232_notifications_one_recipient.sql`: **da applicare**. `notifications` ha due
+colonne per la stessa cosa — `profile_id` (001) e `user_id` (arrivato dopo): la
+RLS della 009 le guarda tutte e due, la campanella filtrava sul solo `user_id`,
+e chi scriveva sceglieva. Misurato il 18 settembre 2026: **11 righe su 23** con
+`user_id` nullo — le `task_request` di luglio, ai manager e a un junior —
+leggibili dal database e invisibili sullo schermo.
+
+Non sceglie quale colonna vince: **le tiene uguali**. Trigger
+`trg_notification_recipient` (BEFORE INSERT OR UPDATE) che riempie quella che
+manca, più il backfill delle righe vecchie. La campanella, dal canto suo, ora
+legge come legge la RLS.
+
+Rilanciabile: `CREATE OR REPLACE`, `DROP TRIGGER IF EXISTS`, e un UPDATE che al
+secondo giro non trova più niente.
 
 ## 231 — chi ha assegnato la task (§347)
 

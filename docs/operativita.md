@@ -688,9 +688,38 @@ quello che nasce a parte resta indietro.
   porta la voce profilo (`/impostazioni/profilo` o `/workspace/profilo`) e se
   compare «Impostazioni», che è una pagina del portale admin — mostrarla a chi
   il middleware rimbalza sarebbe un link che non porta da nessuna parte (§211).
-- Le notifiche leggono `notifications` filtrate sull'utente e restano in ascolto
-  in realtime: la stessa query di prima, che nel workspace non girava perché non
-  c'era chi la chiamasse.
+- Le notifiche restano in ascolto in realtime e sono **di chi le riceve**: la
+  RLS (009) le dà a `user_id = auth.uid() OR profile_id = auth.uid()`, nessuno
+  legge quelle di un altro.
+
+**Ma la campanella leggeva metà di quello che le spettava.** `notifications` ha
+due colonne per il destinatario — `profile_id` (001) e `user_id`, arrivato dopo —
+la RLS le guarda tutte e due e la query ne guardava una. Misurato: **11
+notifiche su 23** avevano `user_id` nullo (le `task_request` di luglio,
+indirizzate ai manager e a un junior): consegnate dal database, invisibili sullo
+schermo. Adesso la campanella legge come legge la RLS, e la **232** tiene le due
+colonne uguali con un trigger, così un produttore nuovo non può più sbagliarne
+una. Una notifica che il database consegna e l'interfaccia non mostra è peggio
+di una che non esiste: il sistema sembra funzionare.
+
+**E qualcosa da notificare, nel workspace, non c'era.** Le tre specie esistenti
+— cliente perso, richiesta di accesso, nuovo lead — sono tutte indirizzate agli
+admin: un junior aveva una campanella che non avrebbe suonato mai. Adesso
+`lib/notify.ts` scrive **«ti hanno assegnato»** — task, supervisione, milestone
+in carico — con dentro chi te l'ha data (§347) e il link per aprirla. Tre regole,
+e sono tutte su quando **non** si scrive:
+
+- **mai a sé stessi**: una notifica per una cosa appena fatta da chi la legge
+  insegna a ignorare la campanella, e da lì non si torna indietro;
+- **mai dal motore delle ricorrenze**: trenta occorrenze al mese, tutte uguali,
+  seppellirebbero le tre righe che contano — la regola si assegna una volta, e
+  quella assegnazione la notifica chi l'ha fatta;
+- **mai a costo dell'operazione**: se la scrittura inciampa il lavoro resta
+  assegnato, perché perdere l'assegnazione per una notifica sarebbe il danno
+  peggiore.
+
+Rimettere lo stesso responsabile su una milestone non suona: si legge chi c'era
+prima di scrivere, e una riassegnazione a sé stessa non è una notizia.
 
 ### Il workspace è usabile o non è (§211)
 Tre difetti che rendevano il portale un vicolo cieco, e le regole che li chiudono:

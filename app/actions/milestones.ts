@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
+import { notificaAssegnazione } from '@/lib/notify'
 import type { MilestoneStatus, Visibility } from '@/lib/types/database'
 
 async function requireStaff(): Promise<string> {
@@ -50,11 +51,27 @@ export async function updateMilestone(id: string, projectId: string, updates: {
   visibility?: Visibility
   owner_id?: string | null
 }) {
-  await requireStaff()
+  const uid = await requireStaff()
+  const admin = createAdminClient()
   const patch: Record<string, unknown> = { ...updates }
   if (updates.status === 'completata') patch.completed_at = new Date().toISOString()
-  const { error } = await createAdminClient().from('milestones').update(patch).eq('id', id)
+  /* §350 — prendere in carico una consegna è la seconda cosa che vale una
+     notifica: si legge **prima** di scrivere, perché rimettere lo stesso
+     responsabile non è un'assegnazione nuova e non deve suonare. */
+  const { data: prima } = updates.owner_id !== undefined
+    ? await admin.from('milestones').select('title, owner_id, workstream_id').eq('id', id).maybeSingle()
+    : { data: null }
+  const { error } = await admin.from('milestones').update(patch).eq('id', id)
   if (error) throw new Error(error.message)
+  const before = prima as { title?: string; owner_id?: string | null; workstream_id?: string } | null
+  if (before && updates.owner_id && updates.owner_id !== before.owner_id) {
+    await notificaAssegnazione({
+      destinatario: updates.owner_id, autore: uid, tipo: 'milestone_assigned',
+      titolo: before.title ?? 'Milestone', dettaglio: 'milestone da consegnare',
+      link: `/workspace/progetti/${projectId}/workstream/${before.workstream_id}`,
+      db: admin,
+    })
+  }
   rev(projectId)
 }
 

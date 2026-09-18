@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient, createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
+import { notificaAssegnazione } from '@/lib/notify'
 import type { TaskStatusV2, Priority, Visibility } from '@/lib/types/database'
 
 async function requireStaff(): Promise<string> {
@@ -90,6 +91,13 @@ export async function setTaskAssignees(taskId: string, profileIds: string[], pri
     }))
     const { error } = await admin.from('task_assignees').insert(rows)
     if (error) throw new Error(error.message)
+    /* §350 — uno per uno, e mai a chi ha premuto: assegnare tre persone manda
+       tre notifiche, non tre a testa. */
+    const { data: t } = await admin.from('tasks').select('title').eq('id', taskId).maybeSingle()
+    const titolo = (t as { title?: string } | null)?.title ?? 'Task assegnata'
+    for (const pid of profileIds) {
+      await notificaAssegnazione({ destinatario: pid, autore: uid, titolo, db: admin })
+    }
   } else {
     // nessun assegnatario: azzera il primario (il trigger scatta solo su task_assignees)
     const { error } = await admin.from('tasks').update({ assignee_id: null }).eq('id', taskId)

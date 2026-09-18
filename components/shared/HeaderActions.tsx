@@ -27,7 +27,7 @@ import { SUPER_ADMIN_EMAILS, ROLE_LABELS } from '@/lib/permissions'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 
 const NOTIF_ICONS: Record<string, string> = {
-  task_assigned: '✅', task_due: '⏰', mention: '💬',
+  task_assigned: '✅', milestone_assigned: '⚑', task_due: '⏰', mention: '💬',
   approval_request: '🔔', approval_resolved: '✓', invite: '✉️', new_lead: '🎯',
   client_lost: '💔', access_request: '🔑',
 }
@@ -60,10 +60,17 @@ export function HeaderActions({ profile, portal = 'admin' }: {
     const supabase = createClient()
 
     const fetchNotifs = async () => {
+      /* §350 — **si legge come legge la RLS**: `user_id = auth.uid() OR
+         profile_id = auth.uid()` (009). La campanella filtrava sul solo
+         `user_id`, e undici notifiche su ventitré — scritte da un produttore
+         che riempiva il solo `profile_id` — erano leggibili dal database e
+         invisibili sullo schermo. Una notifica che il database consegna e
+         l'interfaccia non mostra è peggio di una che non esiste: il sistema
+         sembra funzionare. */
       const { data } = await supabase
         .from('notifications')
         .select('*')
-        .eq('user_id', profile.id)
+        .or(`user_id.eq.${profile.id},profile_id.eq.${profile.id}`)
         .order('created_at', { ascending: false })
         .limit(30)
       setNotifications((data ?? []) as Notification[])
@@ -73,6 +80,11 @@ export function HeaderActions({ profile, portal = 'admin' }: {
 
     const channel = supabase
       .channel('notif-realtime')
+      /* Il filtro realtime regge una colonna sola: `user_id`, che dalla 232 è
+         sempre valorizzata (il trigger copia l'una nell'altra). Una riga che
+         arrivasse col solo `profile_id` non farebbe scattare il toast, ma al
+         ricarico ci sarebbe — il taglio è fra «subito» e «alla prossima
+         apertura», non fra «c'è» e «non c'è». */
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` },
         (payload) => {
           const n = payload.new as Notification
@@ -95,7 +107,8 @@ export function HeaderActions({ profile, portal = 'admin' }: {
   const markAllRead = async () => {
     if (!profile) return
     const supabase = createClient()
-    await supabase.from('notifications').update({ read: true }).eq('user_id', profile.id).eq('read', false)
+    await supabase.from('notifications').update({ read: true })
+      .or(`user_id.eq.${profile.id},profile_id.eq.${profile.id}`).eq('read', false)
     setNotifications((p) => p.map((n) => ({ ...n, read: true })))
   }
 
