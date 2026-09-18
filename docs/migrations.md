@@ -33,7 +33,23 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > applicate**, nate in due sessioni parallele che non si vedevano. Il numero
 > doppio non ha rotto niente — Supabase registra la sua versione, non il nome
 > del file — ma il registro è una tabella ordinata e due righe con la stessa
-> chiave sono una trappola per chi arriva dopo. Dopo la 228, la prossima libera è la **229**.
+> chiave sono una trappola per chi arriva dopo. Dopo la 229, la prossima libera è la **230**.
+
+## 229 — nel workspace la sezione si chiama «Task» (§346)
+
+`229_workspace_task_section_label.sql`: **da applicare**. Solo etichetta e
+descrizione della riga `ad_hoc` in `workspace_sections`: il menu del portale
+operativo diceva ancora «Task Ad Hoc», ma dal §340 quella pagina le contiene
+tutte e l'intestazione dice «Task». Rotta, permessi e ordine non cambiano.
+
+Il letterale `'Task Ad Hoc'` nella **156** è stato allineato: quella migration
+ha `ON CONFLICT (key) DO UPDATE SET label = EXCLUDED.label`, quindi rilanciarla
+avrebbe disfatto questa — e «rilanciare il più vecchio non deve disfare il più
+nuovo» (il caso 221/224 qui sopra).
+
+In coda la verifica mostra anche la riga **`task`**, rimasta dal seed iniziale e
+**inattiva**: punta a `/workspace/task`, che non esiste. Non compare a nessuno,
+ma è il posto dove qualcuno un giorno accenderà un link che rimbalza (§211).
 
 ## 228 — la finestra di generazione la decide la cadenza (§346)
 

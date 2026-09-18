@@ -17,7 +17,9 @@ WHERE key = 'documenti' AND sort_order = 6;
 INSERT INTO public.workspace_sections
   (key, label, description, route, icon, sort_order, group_key, group_order, is_active)
 SELECT
-  'ad_hoc', 'Task Ad Hoc', 'Attività fuori progetto, per tutti i clienti',
+  -- §346 — l'etichetta è allineata alla 229: da §340 la pagina le contiene
+  -- tutte, e rilanciare questa migration non deve disfare quella
+  'ad_hoc', 'Task', 'Tutte le task, dentro e fuori dai progetti',
   '/workspace/ad-hoc', 'ListTodo', 6, 'lavori',
   COALESCE((SELECT group_order FROM public.workspace_sections WHERE key = 'progetti'), 1),
   true

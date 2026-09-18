@@ -308,6 +308,11 @@ l'altra metà del lavoro stava nella scheda di ogni progetto, e per sapere cosa
 ha in mano una persona bisognava guardare in due posti **sapendo già in quale**.
 Adesso è «Task» e le carica tutte.
 
+Il **menu del workspace** ha continuato a dirlo «Task Ad Hoc» fino alla
+migration 229 (§346): l'etichetta non sta nel codice ma in
+`workspace_sections`, quindi rinominare la pagina non rinomina la voce — ed è
+proprio la voce a promettere metà del contenuto a chi deve ancora entrare.
+
 - **Il selettore in cima rifà la separazione**: *Tutte · Di progetto · Ad hoc*,
   ognuna col suo numero, così si sa cosa si lascia fuori **prima** di premere.
   Si apre su «Tutte»: la domanda che porta qui è «cosa c'è da fare», e la
