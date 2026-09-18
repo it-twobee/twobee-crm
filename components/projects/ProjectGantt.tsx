@@ -13,6 +13,7 @@ import { collapseSeries } from '@/lib/recurrence'
 import {
   giornoUTC, isoUTC, oggiLocale, nonLavorativo, nomeFestivo, perche,
 } from '@/lib/calendario-lavorativo'
+import { ricorrenzaMarketing } from '@/lib/date-marketing'
 import {
   thumbGeometry, thumbOffset, scrolledPercent, scrollFromDrag, scrollFromTrack, stepOf,
   centerDay, scrollForCenterDay,
@@ -559,8 +560,10 @@ export function ProjectGantt({
                 {model.days.map((d, i) => {
                   const iso = isoUTC(d.getTime())
                   const festa = nomeFestivo(iso)
+                  const mkt = ricorrenzaMarketing(iso)
                   const fermo = nonLavorativo(iso)
                   const isToday = iso === todayIso
+                  const segnato = festa || mkt || fermo
                   return (
                     /* §356 — il riquadro del progetto, non il titolo del
                        browser: quello compare dopo un secondo, sparisce da solo
@@ -568,21 +571,30 @@ export function ProjectGantt({
                        **quale** festa è — «Pasquetta», «Liberazione» — perché un
                        lunedì spento senza nome sembra un errore del calendario. */
                     <div key={i}
-                      onMouseEnter={festa || fermo
+                      onMouseEnter={segnato
                         ? e => setHint({
-                          title: festa ?? (perche(iso) as string),
-                          detail: festa ? 'Festivo: nessuno consegna, e nessuno lo ricorda finché non slitta una scadenza.' : 'Fine settimana',
+                          title: mkt?.nome ?? festa ?? (perche(iso) as string),
+                          /* quando una data marketing cade in un giorno fermo si
+                             dicono tutte e due: «Festa della mamma» e «è
+                             domenica» sono due informazioni diverse, e servono
+                             tutte e due a chi sta pianificando. */
+                          detail: mkt
+                            ? `${mkt.nota}${fermo ? ` · ${festa ?? perche(iso)}: non si lavora.` : ''}`
+                            : festa
+                              ? 'Festivo: nessuno consegna, e nessuno lo ricorda finché non slitta una scadenza.'
+                              : 'Fine settimana',
                           rect: e.currentTarget.getBoundingClientRect(),
                         })
                         : undefined}
-                      onMouseLeave={festa || fermo ? () => setHint(null) : undefined}
+                      onMouseLeave={segnato ? () => setHint(null) : undefined}
                       className={`absolute top-0 bottom-0 flex flex-col items-center justify-center gap-0.5 border-l border-border/30 ${
-                        festa ? 'bg-cal-festivo' : fermo ? 'bg-cal-fermo' : ''
+                        mkt ? 'bg-cal-marketing' : festa ? 'bg-cal-festivo' : fermo ? 'bg-cal-fermo' : ''
                       }`}
                       style={{ left: i * DAY_W, width: DAY_W }}>
                       <span className={`text-2xs leading-none ${isToday ? 'text-gold-text font-bold' : 'text-text-tertiary/70'}`}>{WEEKDAY_SHORT[d.getUTCDay()]}</span>
                       <span className={`text-2xs tabular leading-none ${
                         isToday ? 'text-gold-text font-bold'
+                          : mkt ? 'text-accent font-semibold'
                           : festa ? 'text-gold-text/80 font-semibold'
                           : fermo ? 'text-text-tertiary/60' : 'text-text-secondary'
                       }`}>{d.getUTCDate()}</span>
@@ -605,7 +617,8 @@ export function ProjectGantt({
               style={{ top: showDays ? 68 : 28 }}>
               {model.days.map((d, i) => {
                 const iso = isoUTC(d.getTime())
-                if (!nonLavorativo(iso)) return null
+                const mkt = ricorrenzaMarketing(iso)
+                if (!nonLavorativo(iso) && !mkt) return null
                 /* §355 — **colore opaco, non velatura.** `bg-overlay` prende il
                    tono del testo: al buio era bianco, quindi schiariva le
                    colonne invece di spegnerle. `bg-cal-fermo` è la superficie
@@ -614,9 +627,16 @@ export function ProjectGantt({
                    maniera, e a dire *quale* festa è ci pensa il titolo in
                    testata — un lunedì spento senza spiegazione sembra un errore
                    del calendario. */
+                /* §357 — **la data marketing vince il colore**, anche di
+                   domenica: la festa della mamma è sempre domenica, e lasciarla
+                   nel grigio del weekend vuol dire nasconderla proprio nel
+                   calendario che dovrebbe farla vedere. Il riquadro, poi, dice
+                   tutte e due le cose. */
                 return (
                   <span key={i}
-                    className={`absolute top-0 bottom-0 ${nomeFestivo(iso) ? 'bg-cal-festivo' : 'bg-cal-fermo'}`}
+                    className={`absolute top-0 bottom-0 ${
+                      mkt ? 'bg-cal-marketing' : nomeFestivo(iso) ? 'bg-cal-festivo' : 'bg-cal-fermo'
+                    }`}
                     style={{ left: i * DAY_W, width: DAY_W }} />
                 )
               })}

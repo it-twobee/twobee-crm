@@ -108,7 +108,7 @@ console.log('\n— I giorni non lavorativi sono spenti (§354/§355) —')
    niente sullo schermo), e `bg-overlay` prende il tono del **testo**, quindi al
    buio schiariva le colonne invece di spegnerle. Il colore adesso è un token
    opaco per tema, e il gate conta quello. */
-const bande = (html.match(/<span class="absolute top-0 bottom-0 bg-cal-(fermo|festivo)"/g) ?? []).length
+const bande = (html.match(/<span class="absolute top-0 bottom-0 bg-cal-(fermo|festivo|marketing)"/g) ?? []).length
 const giorniHeader = (html.match(/flex flex-col items-center justify-center/g) ?? []).length
 /* La testata usa la stessa tinta: contare la classe e basta contava due volte
    lo stesso giorno, e l'asserzione «meno della metà» cadeva per un pelo. La
@@ -130,6 +130,27 @@ is('la colonna del 25 aprile ha il colore dei festivi',
   (conFesta.match(/bg-cal-festivo/g) ?? []).length > 0, true)
 is('e il weekend resta col suo',
   (conFesta.match(/bg-cal-fermo/g) ?? []).length > 0, true)
+
+/* §357 — il terzo colore: le date marketing. Sulla settimana del Black Friday
+   devono convivere tre tinte — il weekend, la settimana marcata e il venerdì —
+   e la data marketing vince anche quando cade di domenica, o la festa della
+   mamma sparirebbe nel grigio. */
+const conBlackFriday = renderToStaticMarkup(createElement(ProjectGantt, {
+  lanes: [{ id: 'pb', name: 'p', depth: 0, href: '/progetti/pb',
+    milestones: [ms('mb1', '2026-11-24', 'w1'), ms('mb2', '2026-11-30', 'w1')] }] as GanttLane[],
+  tasks: [], profiles: [], onOpenMilestone: () => {},
+}))
+is('la settimana del Black Friday è marcata',
+  (conBlackFriday.match(/bg-cal-marketing/g) ?? []).length > 0, true)
+is('e il weekend fuori dalla settimana resta grigio',
+  (conBlackFriday.match(/bg-cal-fermo/g) ?? []).length > 0, true)
+const conFestaMamma = renderToStaticMarkup(createElement(ProjectGantt, {
+  lanes: [{ id: 'pm', name: 'p', depth: 0, href: '/progetti/pm',
+    milestones: [ms('mm1', '2026-05-08', 'w1'), ms('mm2', '2026-05-12', 'w1')] }] as GanttLane[],
+  tasks: [], profiles: [], onOpenMilestone: () => {},
+}))
+is('la festa della mamma non sparisce nel weekend',
+  (conFestaMamma.match(/bg-cal-marketing/g) ?? []).length > 0, true)
 
 console.log('\n— Il segno di oggi sta su oggi (§355) —')
 /* Il difetto che ha aperto §355: le colonne nascevano a mezzanotte **locale** e

@@ -736,6 +736,36 @@ Gate: `npx tsx lib/gantt-lanes.check.ts` rende il componente e conta le bande �
 «zero» e «tutti i giorni» sono i due modi in cui questa cosa si rompe, e nessuno
 dei due si vede leggendo il codice.
 
+## Le date che muovono le campagne (§357)
+
+Il calendario spegne i giorni in cui **non si consegna** (§355); un terzo colore
+accende quelli in cui si lavora **di più**. Sono due domande opposte, e infatti
+le colonne marketing non vanno verso il fondo pagina come weekend e festivi ma
+verso l'accento: «qui succede qualcosa», non «qui non si fa niente».
+
+- **Poche e vere**: Black Friday, Cyber Monday, Singles' Day, avvio del
+  calendario dell'avvento, saldi invernali ed estivi, San Valentino, festa della
+  donna, del papà, della mamma, Halloween, rientro di settembre. Il gate impone
+  il numero — **fra nove e venti l'anno** — perché una colonna colorata dice
+  «guarda qui» solo finché resta rara, e le giornate mondiali di qualcosa sono
+  trecentosessantacinque.
+- **La Black Week è una settimana, non un venerdì**: da lunedì a Cyber Monday,
+  perché le creatività partono lunedì e segnare il solo venerdì vuol dire
+  segnare il giorno in cui è già tardi. Dentro la settimana, Black Friday e
+  Cyber Monday tengono il loro nome. È l'unica finestra: tutto il resto è un
+  giorno solo.
+- **Una data marketing vince il colore anche di domenica.** La festa della mamma
+  è sempre domenica: lasciarla nel grigio del weekend vuol dire nasconderla
+  proprio nel calendario che dovrebbe farla vedere. Il riquadro in hover dice
+  tutte e due le cose — «Festa della mamma» e «domenica: non si lavora» — perché
+  sono due informazioni diverse e servono entrambe a chi pianifica.
+- **Le date calcolate sono il punto debole**, e stanno sotto gate: «venerdì dopo
+  il quarto giovedì di novembre» non è «ultimo venerdì di novembre» — nel 2025
+  le due regole danno risultati diversi — e un errore così si scopre l'anno in
+  cui capita, cioè col piano già in mano al cliente. Il test fissa cinque anni
+  di Black Friday, e controlla che festa della mamma cada di domenica, i saldi
+  estivi di sabato e il rientro di lunedì.
+
 ## Progetti: filtrabili e raggruppati per cliente (§341)
 
 L'elenco sotto il calendario era una griglia piatta di trenta schede, coi

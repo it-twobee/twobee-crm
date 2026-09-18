@@ -71,6 +71,12 @@
      resta una colonna spenta — con dentro un'ombra d'oro, che in questo tema è
      il colore di ciò che chiede attenzione. */
   --color-cal-festivo: #1A1508;
+  /* §357 — le date marketing non sono giorni spenti: sono giorni in cui si
+     lavora **di più**. Quindi non vanno verso il fondo pagina come weekend e
+     festivi, ma verso l'accento — il colore che in questo tema vuol dire
+     «guarda qui». Resta una tinta di fondo: deve farsi notare senza coprire le
+     bandierine che ci stanno sopra. */
+  --color-cal-marketing: #171029;
 
   --overlay-tint: 255,255,255;
   --shadow-color: rgba(0,0,0,0.45);
@@ -145,6 +151,8 @@
   --color-cal-fermo: #ECEFF3;
   /* sulla carta: lo stesso grigio del fermo, virato di ambra */
   --color-cal-festivo: #F6EFDD;
+  /* sulla carta: un violetto tenue, distinguibile dal grigio e dall'ambra */
+  --color-cal-marketing: #F0ECFB;
 
   --overlay-tint: 16,24,40;
   --shadow-color: rgba(16,24,40,0.10);

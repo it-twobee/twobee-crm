@@ -39,6 +39,7 @@ const config: Config = {
         // §355 — la colonna dei giorni fermi nel calendario milestone
         "cal-fermo": "var(--color-cal-fermo)",
         "cal-festivo": "var(--color-cal-festivo)",
+        "cal-marketing": "var(--color-cal-marketing)",
         info: "var(--color-info)",
         "info-dim": "var(--color-info-dim)",
         accent: "var(--color-accent)",
