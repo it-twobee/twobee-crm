@@ -18,7 +18,7 @@ database vero, e riscoprirle costa più che leggerle.
 | `lib/risk.ts`, badge rischio in lista/scheda/dashboard | `docs/clienti-rischio.md` |
 | migration, `supabase/**`, «questa colonna esiste?» | `docs/migrations.md` |
 | `activity_log`, ripristino, versioni, attribuzione | `docs/cronologia.md` |
-| workspace, workload, ferie, task completate, widget dashboard, progetti/workstream/milestone | `docs/operativita.md` |
+| workspace, workload, ferie, sezione Task (`lib/task-board.ts`), ricorrenti (`lib/recurrence*.ts`), widget dashboard, progetti/workstream/milestone | `docs/operativita.md` |
 | `lib/tracking/**`, tab Tracking/Report/Chiavi/Accessi, QA giornaliero | `docs/tracking.md` |
 | `lib/ai/**`, assistente Ctrl+J, tool e azioni rischiose | `docs/ai-assistant.md` |
 | `/asana` (sezione temporanea, da togliere a travaso finito) | `docs/asana.md` |
@@ -51,7 +51,7 @@ database vero, e riscoprirle costa più che leggerle.
   va a controllare.** Quando una fonte manca, dichiaralo («n/d», «stimato»,
   «senza contratto»): mai uno zero.
 - **Gate del repo**: `npx tsc --noEmit` (ESLint non configurato) + i
-  **cinquantasei** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
+  **cinquantasette** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
   `lib/tracking/**`) — con `npx tsx lib/<percorso>.check.ts`: devono dire «Tutti
   i controlli passano».
 - **Non lanciare `npm run build` mentre `npm run dev` gira**: condividono `.next`

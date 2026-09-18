@@ -15,6 +15,8 @@ import {
 } from '@/app/actions/ad-hoc-tasks'
 import { TaskComposer } from '@/components/tasks/TaskComposer'
 import { AdHocDetailModal, type AssignablePerson, type AdHocPatch } from './AdHocDetailModal'
+import { MilestoneBand } from '@/components/tasks/MilestoneBand'
+import { tappeRows, filtraTappe, type MilestoneInput } from '@/lib/task-board'
 import type { Priority, Visibility, TaskStatusV2 } from '@/lib/types/database'
 
 export type AdHocRow = {
@@ -32,6 +34,8 @@ export type AdHocRow = {
    */
   task_type?: 'project' | 'ad_hoc'
   project_id?: string | null
+  /** §346 — sotto quale tappa sta: serve alla fascia per dire «3 aperte su 5» */
+  milestone_id?: string | null
 }
 type Person = AssignablePerson
 type ClientOpt = { id: string; name: string }
@@ -64,20 +68,26 @@ type Origin = 'tutte' | 'progetto' | 'ad_hoc'
 /** §321 — filtrare le ad hoc che non sono di nessun cliente */
 const NESSUNO = '__none__'
 type GroupBy = 'cliente' | 'assegnatario' | 'scadenza' | 'progetto' | 'nessuno'
-type ProjectOpt = { id: string; name: string }
+/** §346 — `client_id` serve alle tappe: la milestone non ce l'ha, il progetto sì */
+type ProjectOpt = { id: string; name: string; client_id?: string | null }
 
 export function AdHocClient({
-  rows, clients, projects = [], profiles, canManage, canCreateClient = false, clientBase = '/clienti',
+  rows, clients, projects = [], milestones = [], profiles, canManage,
+  canCreateClient = false, clientBase = '/clienti', projectBase = '/progetti',
 }: {
   rows: AdHocRow[]
   clients: ClientOpt[]
   /** §340 — i nomi dei progetti: una task di progetto senza il suo non si colloca */
   projects?: ProjectOpt[]
+  /** §346 — le tappe: stanno in una fascia loro, sopra le task */
+  milestones?: MilestoneInput[]
   profiles: Person[]
   canManage: boolean
   /** §317 — admin e manager possono aprire un'anagrafica dal composer */
   canCreateClient?: boolean
   clientBase?: string
+  /** §211 — dal workspace si resta nel workspace: la rotta si costruisce da qui */
+  projectBase?: string
 }) {
   const router = useRouter()
   const [pending, start] = useTransition()
@@ -203,6 +213,30 @@ export function AdHocClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, groupBy, clients, profiles, projects])
 
+  /* §346 — **le tappe, in una fascia loro.** Una milestone non compariva in
+     nessun elenco di lavoro: chi ne aveva una in carico la vedeva solo sul
+     calendario del progetto, cioè solo se era già andato a cercarla. Non si
+     mescola alle task — le sue task sono già qui sotto, e contarle due volte
+     farebbe dire ai riquadri in cima un numero che non esiste (il perché per
+     esteso sta in `lib/task-board.ts`). Segue gli stessi filtri dell'elenco: una
+     fascia che li ignora mostra le tappe di altri mentre stai guardando le tue.
+     Sparisce su «Ad hoc», che è per definizione quello che sta fuori dai
+     progetti. */
+  const tappe = useMemo(
+    () => tappeRows({
+      milestones,
+      tasks: rows.map(r => ({ milestone_id: r.milestone_id ?? null, status: r.status })),
+      projects,
+      clientName: Object.fromEntries(clients.map(c => [c.id, c.name])),
+    }),
+    [milestones, rows, projects, clients])
+
+  const tappeView = useMemo(
+    () => (origin === 'ad_hoc' ? [] : filtraTappe(tappe, {
+      q, clientId, ownerId: assigneeId, mode: filter,
+    })),
+    [tappe, origin, q, clientId, assigneeId, filter])
+
   const filtering = filter !== 'aperte' || !!q.trim() || !!clientId || !!assigneeId || origin !== 'tutte'
   const reset = () => { setFilter('aperte'); setQ(''); setClientId(''); setAssigneeId(''); setOrigin('tutte') }
 
@@ -293,7 +327,11 @@ export function AdHocClient({
         )}
       </div>
 
-      {rows.length === 0 ? (
+      <MilestoneBand rows={tappeView} people={profiles}
+        hint="Le consegne del progetto: si aprono sulla workstream, dove si spostano e si chiudono."
+        hrefOf={r => `${projectBase}/${r.projectId}/workstream/${r.workstreamId}`} />
+
+      {rows.length === 0 && tappeView.length === 0 ? (
         <div className="text-center py-16 border border-dashed border-border rounded-2xl">
           <div className="w-12 h-12 rounded-full bg-gold-dim flex items-center justify-center mx-auto mb-3">
             <ListTodo className="w-6 h-6 text-gold-text" />
@@ -307,7 +345,7 @@ export function AdHocClient({
           )}
         </div>
       ) : view.length === 0 && !done.length ? (
-        <Empty>Nessuna task per i filtri attivi.</Empty>
+        <Empty>{rows.length ? 'Nessuna task per i filtri attivi.' : 'Nessuna task: qui sopra restano le tappe.'}</Empty>
       ) : (
         <div className="space-y-3 animate-fade-in">
           {groups.map(g => {

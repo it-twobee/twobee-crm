@@ -11,6 +11,8 @@ import { TaskDetailDrawer } from '@/components/projects/TaskDetailDrawer'
 import { Avatar, SearchInput, Segmented } from '@/components/shared/formkit'
 import { CompletedTasks } from '@/components/tasks/CompletedTasks'
 import { updateTaskStatus, updateTask } from '@/app/actions/tasks'
+import { MilestoneBand } from '@/components/tasks/MilestoneBand'
+import { tappeRows, filtraTappe, type MilestoneInput } from '@/lib/task-board'
 import type { Task, TaskStatusV2, Priority } from '@/lib/types/database'
 
 type Person = { id: string; full_name: string; avatar_url: string | null }
@@ -64,11 +66,21 @@ const isOverdue = (t: Task) => !!t.due_date && t.status !== 'completato' && t.du
 
 export function MyTasksClient({
   tasks, profiles, projectName, clientName,
+  milestones = [], milestoneTasks = [], projects = [], projectBase = '/workspace/progetti',
 }: {
   tasks: Task[]
   profiles: Person[]
   projectName: Record<string, string>
   clientName: Record<string, string>
+  /** §346 — le tappe in carico a chi guarda: una milestone con un responsabile
+      non compariva in nessuna lista personale, solo sul calendario del progetto */
+  milestones?: MilestoneInput[]
+  /** §346 — **tutte** le task sotto quelle tappe, non le mie: «2 aperte su 3»
+      contato sulla mia lista direbbe un numero più piccolo del vero, e quello
+      che serve a decidere se una consegna è a rischio è quanto manca in tutto */
+  milestoneTasks?: { milestone_id?: string | null; status: string }[]
+  projects?: { id: string; name: string; client_id?: string | null }[]
+  projectBase?: string
 }) {
   const router = useRouter()
   const [pending, start] = useTransition()
@@ -120,13 +132,42 @@ export function MyTasksClient({
     }
   }, [tasks])
 
+  /* §346 — **le tappe che hai in carico.** Una milestone con `owner_id` non
+     compariva in nessuna lista personale: chi ce l'aveva la trovava solo
+     aprendo il calendario del progetto, cioè solo se sapeva già di doverla
+     cercare. Sta in cima e non in mezzo alle task: una tappa non si spunta, e
+     le sue task sono altre righe di questo stesso elenco. */
+  const tappe = useMemo(
+    () => tappeRows({
+      milestones,
+      tasks: milestoneTasks,
+      projects: projects.length ? projects : Object.entries(projectName).map(([id, name]) => ({ id, name })),
+      clientName,
+    }),
+    [milestones, milestoneTasks, projects, projectName, clientName])
+
+  /* segue ricerca e riquadri: una fascia che li ignora mostra tappe lontane
+     mentre stai guardando cosa è in ritardo */
+  const tappeView = useMemo(
+    () => filtraTappe(tappe, { q, mode: bucket === 'tutte' ? 'aperte' : bucket }),
+    [tappe, q, bucket])
+
+  const tappeAperte = useMemo(() => tappe.filter(r => r.aperta).length, [tappe])
+
   const verdict = useMemo(() => {
-    if (tasks.length === 0) return { tone: 'neutral' as const, text: 'Nessuna attività assegnata.' }
+    /* «Nessuna attività assegnata» con tre consegne in carico è la frase che fa
+       chiudere la pagina: le tappe sono lavoro, e vanno nominate qui. */
+    if (tasks.length === 0) return {
+      tone: 'neutral' as const,
+      text: tappeAperte
+        ? `Nessuna task assegnata: hai ${tappeAperte} tappe in carico.`
+        : 'Nessuna attività assegnata.',
+    }
     if (counts.overdue > 0) return { tone: 'error' as const, text: `${counts.overdue} in ritardo: recuperale prima di aprire altro.` }
     if (counts.today > 0) return { tone: 'warning' as const, text: `${counts.today} in scadenza oggi.` }
     if (counts.open === 0) return { tone: 'success' as const, text: 'Tutto chiuso. Giornata pulita.' }
     return { tone: 'success' as const, text: `Niente in ritardo. ${counts.open} attività aperte.` }
-  }, [tasks.length, counts])
+  }, [tasks.length, counts, tappeAperte])
 
   const shown = useMemo(() => {
     const t = today(), w = addDays(7)
@@ -278,7 +319,11 @@ export function MyTasksClient({
         <span className="text-2xs text-text-tertiary tabular shrink-0">{shown.length}</span>
       </div>
 
-      {shown.length === 0 && (
+      <MilestoneBand rows={tappeView} people={profiles} title="Tappe che hai in carico" showOwner={false}
+        hint="Consegne di cui sei responsabile: si aprono sulla workstream, dove si spostano e si chiudono."
+        hrefOf={r => `${projectBase}/${r.projectId}/workstream/${r.workstreamId}`} />
+
+      {shown.length === 0 && tappeView.length === 0 && (
         <div className="text-center py-16 border border-dashed border-border rounded-2xl">
           <div className="w-12 h-12 rounded-full bg-success-dim flex items-center justify-center mx-auto mb-3">
             <PartyPopper className="w-6 h-6 text-success" />

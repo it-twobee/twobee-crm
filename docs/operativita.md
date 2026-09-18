@@ -324,6 +324,106 @@ Adesso è «Task» e le carica tutte.
   mie attività»: spuntare qui una task di progetto la lasciava aperta là, e due
   schermate dicevano due cose.
 
+## Le ricorrenti del wizard erano regole e basta (§346)
+
+**Misurato sul database il 17 settembre 2026**: 15 regole ricorrenti attive,
+**zero occorrenze**, `last_generated_at` nullo su tutte e 15, `owner_id` nullo
+su tutte e 15. §337 aveva riparato il motore e il motore funziona: non lo
+chiamava nessuno. Quattro cause in fila, e ognuna bastava da sola.
+
+- **Il wizard non accendeva il motore.** `createRecurring` generava subito
+  (§337), ma le regole quasi nessuno le scrive a mano: nascono dentro
+  `create_project_from_template`, che le inserisce e non materializza niente.
+  Stessa strada per la conversione di un'opportunità vinta (225). Adesso il
+  «genera subito» sta in **`lib/recurrence-kick.ts`** e lo chiamano tutte e tre
+  le strade; `runRecurrences` accetta `projectId`, perché il wizard scrive dieci
+  regole in una volta e non ne conosce gli id — sono nate dentro la RPC — e
+  rigenerare l'archivio intero a ogni progetto creato farebbe pagare a chi crea
+  un progetto il lavoro di tutti gli altri.
+- **La regola nasceva di nessuno.** Nella riga ricorrente del wizard c'erano
+  titolo e frequenza: il responsabile non era chiedibile, e l'espansione da
+  template lo passava sempre nullo. Il motore copia `owner_id` del template in
+  `assignee_id` dell'occorrenza, quindi ogni ricorrente generava task di
+  nessuno — che è il modo più silenzioso di non consegnare un lavoro. Ora la
+  riga ha la sua select, la catena è **`recOwner`** (riga → workstream → PM) in
+  un posto solo perché la chiedono in tre (la select, il payload, il controllo
+  finale), «Assegna al PM» tocca anche le ricorrenti, e la migration 227 mette
+  lo stesso pavimento dentro la funzione, per i payload che la UI non costruisce.
+- **La finestra era di tre giorni, e trenta non era la risposta.** §337 aveva
+  deciso trenta e la 223 ha messo `DEFAULT 30` sulla colonna, ma tutti e tre i
+  punti di scrittura passavano 3 esplicito: il default non si applicava mai, e
+  con tre giorni una mensile non produce niente per settimane («tre giorni non
+  ne prendono nessuno», `lib/recurrence-run.check.ts`). Portate tutte a trenta
+  (227), però, un giro avrebbe creato **236 occorrenze**, ~170 dalle sole sei
+  giornaliere: trenta giorni di «Check Ads» sono trenta righe identiche. §337
+  aveva previsto la valvola — «chi produce troppo si abbassa da solo» — ma il
+  campo non è esposto in nessun form, quindi non è mai stato possibile: un
+  parametro che nessuno può toccare non è una scelta, è un numero. Adesso **la
+  finestra la decide la cadenza** (228): giornaliera 7, settimanale e
+  quindicinale 30, mensile 90, trimestrale 180 — così quante righe una regola
+  mette in lista non dipende da quanto spesso torna. Lo stesso giro ne fa 85.
+  Il numero vive in un posto solo, `recurrence_lead_days()` sul database: la
+  colonna è nullable, NULL vuol dire «decidila tu», e lo scrive un trigger —
+  perché i due scrittori (l'azione via PostgREST e la funzione del wizard) non
+  possono condividere una costante.
+- **Una regola senza responsabile non genera.** Il motore copia `owner_id` in
+  `assignee_id`: materializzarla vuol dire fabbricare lavoro di nessuno, una
+  riga nuova ogni giorno che nessuno raccoglie — sarebbero state 113 in un colpo
+  solo. Fermarsi **non è nascondere**: il report dice quante ne ha lasciate
+  ferme, la scheda progetto le conta in giallo, e assegnare rigenera subito
+  (§338). Il gesto che manca diventa quello che accende la serie.
+- **Il motore è uno.** Il bottone «Genera ricorrenti» chiamava ancora
+  `generate_recurring_task_occurrences()` della 152 — la funzione SQL che §337
+  aveva sostituito: non scrive `task_assignees`, non conosce le tappe ricorrenti
+  e non dice cosa ha fatto. Due motori sulla stessa regola danno la stessa
+  risposta solo finché nessuno ne corregge uno. Adesso passa da
+  `generateRecurrencesNow`, ristretto al progetto che lo chiede, e il vecchio
+  endpoint non c'è più (§329: lasciarlo esportato voleva dire lasciare
+  raggiungibile il motore sbagliato).
+- **Il cron poteva non passare.** `RECURRENCE_CRON_SECRET` non era nemmeno in
+  `.env.local.example`: senza segreto `fromCron()` rifiuta e la schedulazione
+  fallisce in silenzio — lo stesso difetto che §337 diceva di aver chiuso, un
+  piano più su. Ora è documentato, **e la scheda progetto dichiara lo stato**:
+  «mai generate» in rosso, «N senza responsabile» in giallo, altrimenti la data
+  dell'ultima generazione. Un motore fermo e un motore che gira non possono
+  avere la stessa faccia.
+
+## La sezione Task mostra anche le tappe (§346)
+
+Una milestone non compariva in **nessun** elenco di lavoro: non nella sezione
+Task (§340), che pure «le contiene tutte», e nemmeno in «Le mie attività». Chi
+ne aveva una in carico la trovava solo aprendo il calendario del progetto, cioè
+solo se sapeva già di doverla cercare — sedici tappe con un responsabile, zero
+liste personali che le nominano.
+
+- **Una fascia loro, sopra l'elenco**, richiudibile e contata: in ritardo, senza
+  responsabile, consegnate. Non righe mescolate, e la ragione non è estetica: le
+  task di una tappa sono **già** nell'elenco, quindi in una lista sola lo stesso
+  lavoro si conta due volte e «12 in ritardo» diventa un numero che non esiste da
+  nessuna parte; lo stato parla un'altra lingua (`in_approvazione`/`completata`
+  contro `in_review`/`completato`); e una tappa non si spunta — si consegna, e a
+  volte si fa approvare.
+- **Le milestone di sistema restano fuori.** «Operatività continua» nasce dal
+  trigger su ogni workstream (§322), non ha data e non si chiude: diciotto righe
+  identiche in cima sono lo stesso rumore che §337 ha tolto dal calendario.
+- **Segue i filtri dell'elenco** (ricerca, cliente, persona, in ritardo/≤7g/non
+  assegnate): una fascia che li ignora mostra le tappe di altri mentre stai
+  guardando le tue. Sparisce su «Ad hoc», che è per definizione quello che sta
+  fuori dai progetti.
+- **La riga è il link** (§345), con lo strato invisibile su tutta la riga e non
+  sul solo titolo, e porta alla workstream — dove la tappa si modifica davvero
+  (§322). Dal workspace resta nel workspace: la rotta si costruisce da `projectBase`.
+- **In «Le mie attività» il conteggio delle task è di tutti**, non delle mie: «2
+  aperte su 3» contato sulla propria lista direbbe un numero più piccolo del
+  vero, e la domanda è quanto manca alla consegna. E «nessuna attività
+  assegnata» con tre consegne in carico è la frase che fa chiudere la pagina:
+  adesso le nomina.
+- Il modello è in **`lib/task-board.ts`** perché lo chiedono in tre — sezione
+  Task admin, workspace, «Le mie attività» — e una regola scritta tre volte
+  diverge alla prima correzione. Gate: `npx tsx lib/task-board.check.ts`, che
+  prova il modello **e rende la fascia** fuori dal browser: «non è cliccabile» è
+  un difetto che il compilatore non vede.
+
 ## Progetti: filtrabili e raggruppati per cliente (§341)
 
 L'elenco sotto il calendario era una griglia piatta di trenta schede, coi
