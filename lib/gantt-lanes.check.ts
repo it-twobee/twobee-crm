@@ -98,5 +98,17 @@ is('nessun array creato nelle prop di default', /=\s*\[\]\s*,/.test(src.slice(0,
 is('su oggi ci si apre una volta sola', src.includes('avviato.current'), true)
 is('e cambiare scala tiene il giorno al centro', src.includes('scrollForCenterDay('), true)
 
+console.log('\n— Sabato e domenica sono spenti (§354) —')
+/* La banda del fine settimana deve stare **sotto** le corsie e non intercettare
+   il puntatore: se coprisse le bandierine, il calendario diventerebbe bello e
+   inservibile — e un difetto così si vede solo provando a cliccare. */
+const bande = (html.match(/bg-overlay\/\[0\.05\]/g) ?? []).length
+const giorniHeader = (html.match(/flex flex-col items-center justify-center/g) ?? []).length
+is('le bande del fine settimana ci sono', bande > 0, true)
+/* Due giorni su sette: «zero» e «tutti» sono i due modi in cui questa cosa si
+   rompe, e nessuno dei due si vede leggendo il codice. */
+is('e sono una minoranza dei giorni', bande > 0 && bande < giorniHeader / 2, true)
+is('non intercettano il puntatore', html.includes('bottom-0 pointer-events-none'), true)
+
 console.log(fail ? `\n${fail} controlli falliti.` : '\nTutti i controlli passano.')
 process.exit(fail ? 1 : 0)

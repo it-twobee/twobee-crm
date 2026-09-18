@@ -676,6 +676,38 @@ assegnatari **senza autore** e senza avvisare nessuno: era l'unico percorso di
 creazione rimasto fuori da §347 e §350, e proprio quello che crea task già
 assegnate.
 
+## Il calendario milestone prende la pagina, e il fine settimana è spento (§354)
+
+Tre cose sulla sezione Progetti, tutte sullo stesso schermo.
+
+- **La pagina non è più larga 1024px.** Il calendario è la cosa per cui questa
+  pagina si apre, e in una colonna stretta il nome di un progetto («iCura
+  Impresa · Digital · Sito web») arrivava ai puntini dopo tre parole mentre a
+  destra restava un mese e mezzo di griglia da guardare. La colonna dei nomi
+  passa da 260 a 320, e **dentro la riga di un cliente il nome del cliente
+  sparisce** dal nome del progetto: era scritto due volte, e la seconda mangiava
+  il servizio — l'unica cosa che distingue due righe dello stesso cliente
+  (`progettoBreve`, la stessa regola delle task §346).
+- **Il filtro area governa anche il calendario.** Era solo dell'elenco qui
+  sotto: scegliendo «growth» le bandierine sopra continuavano a mostrare tutto,
+  e le due metà della pagina rispondevano a due domande diverse. Adesso è un
+  comando solo (`AreaPicker`, stesso stato) in due posti — in testata al
+  calendario, dove si vede l'effetto, e nella barra dell'elenco, dove stava già.
+  Con un'area scelta restano solo i clienti che in quell'area hanno qualcosa: una
+  riga «nessun progetto in corso» sotto il filtro «growth» direbbe una cosa
+  falsa, perché i progetti quel cliente ce li ha — solo non di quell'area.
+- **Sabato e domenica sono spenti su tutta l'altezza.** In testata erano già in
+  ombra, ma sotto le corsie il fine settimana spariva: una bandierina di sabato
+  si legge come un giorno di lavoro qualunque, e un piano fatto contando quei due
+  giorni sfora di due giorni a settimana. La banda sta **sotto** le corsie e non
+  intercetta il puntatore — se coprisse le bandierine il calendario diventerebbe
+  bello e inservibile — e sotto i 20px per giorno non si disegna: a scala mensile
+  sarebbe una zebratura che nasconde quello che deve far vedere.
+
+Gate: `npx tsx lib/gantt-lanes.check.ts` rende il componente e conta le bande —
+«zero» e «tutti i giorni» sono i due modi in cui questa cosa si rompe, e nessuno
+dei due si vede leggendo il codice.
+
 ## Progetti: filtrabili e raggruppati per cliente (§341)
 
 L'elenco sotto il calendario era una griglia piatta di trenta schede, coi

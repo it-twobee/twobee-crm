@@ -89,7 +89,7 @@ const WEEKDAY_SHORT = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab']
 
 export function ProjectGantt({
   workstreams = NO_WS, milestones = NO_MS, tasks, profiles, onOpenMilestone,
-  title = 'Calendario milestone', laneSubtitle, laneAccent, labelWidth = LABEL_W,
+  title = 'Calendario milestone', laneSubtitle, laneAccent, labelWidth = LABEL_W, headerControls,
   lanes: externalLanes, laneLabel = 'workstream', milestoneContext, emptyHint, emptyAction,
   onAddMilestone, headerNote, headerHint, laneHref, milestoneHref, contextHref,
 }: {
@@ -106,6 +106,9 @@ export function ProjectGantt({
   /** §345 — dove porta il nome della corsia derivata da una workstream */
   laneHref?: (ws: ProjectWorkstream) => string | null
   labelWidth?: number
+  /** §354 — comandi del chiamante nella testata, accanto allo zoom: il filtro
+      che decide **cosa** si vede sta dove si vede il risultato. */
+  headerControls?: React.ReactNode
   /** corsie pronte: bypassa la derivazione da workstreams (vista per progetto) */
   lanes?: GanttLane[]
   /** nome plurale della corsia, per il contatore in intestazione */
@@ -349,7 +352,8 @@ export function ProjectGantt({
             {headerNote ?? <>· {lanes.reduce((n, l) => n + l.milestones.length, 0)} milestone · {lanes.length} {laneLabel}</>}
           </span>
         )}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2 flex-wrap justify-end">
+          {headerControls}
           <button onClick={() => { if (scrollRef.current) scrollRef.current.scrollTo({ left: Math.max(0, model.todayLeft - 260), behavior: 'smooth' }) }}
             className="text-2xs font-semibold text-gold-text hover:opacity-80 press">Oggi</button>
           <div className="flex bg-surface-active rounded-lg p-0.5">
@@ -553,6 +557,25 @@ export function ProjectGantt({
                     </div>
                   )
                 })}
+              </div>
+            )}
+
+            {/* §354 — **sabato e domenica sono spenti su tutta l'altezza.** In
+                testata erano già in ombra, ma sotto le corsie il fine settimana
+                spariva: una bandierina di sabato si legge come un giorno di
+                lavoro qualunque, e un piano fatto contando quei due giorni
+                sfora di due giorni a settimana. La banda sta **sotto** le
+                corsie (prima nel DOM, e le corsie non hanno sfondo), quindi non
+                copre né le bandierine né i loro gesti.
+                Sotto i 20px per giorno non si disegna: a scala mensile sarebbe
+                una zebratura che nasconde quello che deve far vedere. */}
+            {DAY_W >= 20 && (
+              <div className="absolute inset-x-0 bottom-0 pointer-events-none" aria-hidden
+                style={{ top: showDays ? 68 : 28 }}>
+                {model.days.map((d, i) => (d.getDay() === 0 || d.getDay() === 6) ? (
+                  <span key={i} className="absolute top-0 bottom-0 bg-overlay/[0.05]"
+                    style={{ left: i * DAY_W, width: DAY_W }} />
+                ) : null)}
               </div>
             )}
 

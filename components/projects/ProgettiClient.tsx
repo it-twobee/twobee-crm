@@ -7,6 +7,7 @@ import { Plus, FolderKanban, Search, ChevronRight, Users } from 'lucide-react'
 import { ProjectWizard } from './ProjectWizard'
 import { ProjectGantt, type GanttLane } from './ProjectGantt'
 import { countsInDelivery, type InternalKind } from '@/lib/clients'
+import { progettoBreve } from '@/lib/task-board'
 import { VoceSezione } from '@/components/workspace/VoceSezione'
 import type { Sezione } from '@/lib/task-mood'
 import type {
@@ -141,7 +142,12 @@ export function ProgettiClient({
   // Un gruppo per ogni cliente da presidiare, anche senza progetti: chi è fermo si
   // vede solo se la sua riga c'è. I progetti interni stanno in un gruppo a parte.
   const groups = useMemo(() => {
-    const live = projects.filter(p => LIVE_STATUSES.includes(p.status))
+    /* §354 — il filtro area governa **anche** il calendario: era solo
+       dell'elenco qui sotto, quindi scegliendo «growth» le bandierine sopra
+       continuavano a mostrare tutto e le due metà della pagina rispondevano a
+       due domande diverse. Stesso stato, un solo comando — che sta sia in
+       testata al calendario sia nella barra dell'elenco. */
+    const live = projects.filter(p => LIVE_STATUSES.includes(p.status) && (!area || p.area === area))
     const byClient = new Map<string, ProjectRow[]>()
     live.forEach(p => {
       const key = p.client_id ?? INTERNAL_KEY
@@ -155,16 +161,20 @@ export function ProgettiClient({
       ps.sort((a, b) => (nextOpen(msByProject.get(a.id)) ?? FAR) < (nextOpen(msByProject.get(b.id)) ?? FAR) ? -1 : 1)
       return { id, name, projects: ps, milestones: ms }
     }
-    // persi, fermi, lead e società collegate non hanno un presidio da misurare (§328)
+    /* persi, fermi, lead e società collegate non hanno un presidio da misurare
+       (§328). §354 — con un'area scelta restano solo i clienti che in
+       quell'area hanno davvero qualcosa: una riga «nessun progetto in corso»
+       sotto il filtro «growth» direbbe una cosa falsa — il cliente i progetti
+       ce li ha, solo non di quell'area. */
     const list = clients.filter(countsInDelivery).map(c => build(c.id, c.name))
-    if (byClient.has(INTERNAL_KEY)) list.push(build(INTERNAL_KEY, 'Progetti interni'))
+      .filter(g => !area || g.projects.length > 0)
     // ordine da calendario: chi ha la prossima milestone aperta più vicina sta in cima
     return list.sort((a, b) => {
       const da = nextOpen(a.milestones) ?? FAR
       const db = nextOpen(b.milestones) ?? FAR
       return da === db ? a.name.localeCompare(b.name) : (da < db ? -1 : 1)
     })
-  }, [projects, clients, msByProject])
+  }, [projects, clients, msByProject, area]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const lanes: GanttLane[] = useMemo(() => {
     const out: GanttLane[] = []
@@ -201,7 +211,11 @@ export function ProgettiClient({
         const pms = msByProject.get(p.id) ?? []
         out.push({
           id: p.id,
-          name: p.name,
+          /* §354 — dentro la riga di un cliente il nome del cliente è già
+             scritto sopra: ripeterlo su ogni progetto spendeva metà colonna per
+             dirlo due volte, e il servizio — l'unica cosa che distingue due
+             righe — finiva nei puntini. Stessa regola delle task (§346). */
+          name: progettoBreve(p.name, g.name) || p.name,
           subtitle: p.status === 'active' ? serviceLabel(p.service_type) : (STATUS_LABEL[p.status] ?? p.status),
           depth: 1,
           href: `${basePath}/${p.id}`,
@@ -255,8 +269,13 @@ export function ProgettiClient({
 
   const activeCount = projects.filter(p => p.status === 'active').length
 
+  /* §354 — **niente colonna stretta.** Il calendario milestone è la cosa per cui
+     si apre questa pagina, e in 1024px il nome di un progetto («iCura Impresa ·
+     Digital · Sito web») arrivava ai puntini dopo tre parole, mentre a destra
+     restava un mese e mezzo di griglia da guardare. Qui la larghezza è quella
+     della pagina. */
   return (
-    <div className="max-w-5xl mx-auto p-4 sm:p-6 space-y-5">
+    <div className="max-w-none p-4 sm:p-6 space-y-5">
       {/* header */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
@@ -296,7 +315,11 @@ export function ProgettiClient({
         }}
         contextHref={m => (m.project_id ? `${basePath}/${m.project_id}` : null)}
         emptyHint="Nessun cliente attivo: il calendario mostra una riga per cliente e i progetti in corso nella tendina."
-        labelWidth={260}
+        /* §354 — 320 e non 260: con «Cliente · Area · Servizio» il nome del
+           progetto arrivava ai puntini dopo tre parole. Qui ci sta intero, e
+           accanto resta posto per il badge dei fermi. */
+        labelWidth={320}
+        headerControls={<AreaPicker value={area} onChange={setArea} />}
       />
 
       {/* toolbar filtri */}
@@ -306,14 +329,7 @@ export function ProgettiClient({
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Cerca progetto o cliente…"
             className="w-full bg-surface border border-border-interactive rounded-xl pl-9 pr-3 py-2 text-sm text-text-primary" />
         </div>
-        <div className="flex bg-surface border border-border rounded-xl p-0.5 scroll-x-touch">
-          <button onClick={() => setArea('')}
-            className={`px-3 py-1.5 rounded-lg text-2xs font-semibold whitespace-nowrap ${area === '' ? 'bg-gold text-on-gold' : 'text-text-secondary hover:text-text-primary'}`}>Tutte</button>
-          {AREAS.map(a => (
-            <button key={a} onClick={() => setArea(a)}
-              className={`px-3 py-1.5 rounded-lg text-2xs font-semibold capitalize whitespace-nowrap ${area === a ? 'bg-gold text-on-gold' : 'text-text-secondary hover:text-text-primary'}`}>{a}</button>
-          ))}
-        </div>
+        <AreaPicker value={area} onChange={setArea} />
         {/* §341 — il cliente come filtro: l'elenco è lungo trenta schede, e la
             domanda che ci si porta è quasi sempre «cosa c'è aperto su questo». */}
         <select value={projClient} onChange={e => setProjClient(e.target.value)}
@@ -423,5 +439,27 @@ function ProjectCard({ p, basePath, clientName, serviceLabel, showClient }: {
         </div>
       </div>
     </Link>
+  )
+}
+
+/**
+ * §354 — il filtro area, **un comando solo in due posti**.
+ *
+ * Governa il calendario e l'elenco insieme: sono due modi di guardare gli
+ * stessi progetti, e vederli rispondere a due filtri diversi è il motivo per
+ * cui uno smette di fidarsi di quello che legge. Compare in testata al
+ * calendario — dove si vede l'effetto — e nella barra dell'elenco, dove stava
+ * già: stesso stato, quindi non possono divergere.
+ */
+function AreaPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex bg-surface-active rounded-xl p-0.5 shrink-0" role="radiogroup" aria-label="Filtra per area">
+      {([['', 'Tutte'], ...AREAS.map(a => [a, a] as const)] as [string, string][]).map(([v, label]) => (
+        <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onChange(v)}
+          className={`px-2.5 py-1 rounded-lg text-2xs font-semibold capitalize whitespace-nowrap transition-colors ${
+            value === v ? 'bg-gold text-on-gold' : 'text-text-secondary hover:text-text-primary'
+          }`}>{label}</button>
+      ))}
+    </div>
   )
 }
