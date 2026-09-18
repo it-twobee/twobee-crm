@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getViewer } from '@/lib/auth'
+import { canCreateClients } from '@/lib/permissions'
 import { redirect } from 'next/navigation'
 import { TaskList, type TaskRow } from '@/components/tasks/TaskList'
 import type { MilestoneInput } from '@/lib/task-board'
@@ -15,7 +16,7 @@ export const revalidate = 0
  * ne dimenticava. Qui cambia una cosa sola: quali righe arrivano.
  */
 export default async function LeMieAttivitaPage() {
-  const { user, isAdmin } = await getViewer()
+  const { user, isAdmin, profile: chiGuarda } = await getViewer()
   if (!user) redirect('/login')
   /* La voce è nel menu senza `adminOnly`, ma il gate guardava la colonna
      legacy `role`: chi è admin per `app_role` — che è la colonna su cui decide
@@ -25,6 +26,7 @@ export default async function LeMieAttivitaPage() {
      portale, quindi ci va diretto invece di rimbalzare due volte. */
   if (!isAdmin) redirect('/workspace/attivita')
   const supabase = await createClient()
+  const appRole = chiGuarda?.app_role ?? null
 
   // task assegnate a me (primario via assignee_id o multi-assegnatario) e
   // §346 — le tappe di cui sono responsabile: sono lavoro mio esattamente come
@@ -77,6 +79,12 @@ export default async function LeMieAttivitaPage() {
   const { data: clients } = clientIds.length
     ? await supabase.from('clients').select('id, company_name, display_name').in('id', clientIds)
     : { data: [] as { id: string; company_name: string; display_name: string | null }[] }
+  /* §353 — l'anagrafica intera serve **al composer**, non al filtro: da «Nuova
+     task» si scrive anche a un cliente su cui non si sta ancora lavorando, ed è
+     la stessa lista che offre il «crea» in testata. Il filtro in cima resta
+     sulle righe che ci sono davvero (§341). */
+  const { data: tuttiClienti } = await supabase.from('clients')
+    .select('id, company_name, display_name').order('company_name')
 
   return (
     <TaskList
@@ -84,6 +92,7 @@ export default async function LeMieAttivitaPage() {
       personale
       rows={(tasks ?? []) as TaskRow[]}
       clients={(clients ?? []).map(c => ({ id: c.id, name: c.display_name || c.company_name }))}
+      clientiPerCrea={(tuttiClienti ?? []).map(c => ({ id: c.id, name: c.display_name || c.company_name }))}
       projects={(projects ?? []) as { id: string; name: string; client_id: string | null }[]}
       workstreams={(workstreams ?? []) as { id: string; name: string; project_id: string }[]}
       milestones={(tappe ?? []) as MilestoneInput[]}
@@ -91,6 +100,7 @@ export default async function LeMieAttivitaPage() {
       assignedBy={assignedBy}
       profiles={(profiles ?? []).map(p => ({ ...p, client_id: null }))}
       canManage
+      canCreateClient={canCreateClients(appRole)}
     />
   )
 }

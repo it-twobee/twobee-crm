@@ -76,12 +76,15 @@ const PROJ_ACCENTS = ['bg-gold', 'bg-info', 'bg-accent', 'bg-success', 'bg-orang
 type ProjectOpt = { id: string; name: string; client_id?: string | null }
 
 export function TaskList({
-  rows, clients, projects = [], workstreams = [], milestones = [], milestoneTasks, assignedBy = {}, profiles, canManage,
+  rows, clients, clientiPerCrea, projects = [], workstreams = [], milestones = [], milestoneTasks, assignedBy = {}, profiles, canManage,
   canCreateClient = false, clientBase = '/clienti', projectBase = '/progetti',
   personale = false, titolo,
 }: {
   rows: TaskRow[]
+  /** l'anagrafica che compare **nel filtro**: solo chi ha righe in elenco (§341) */
   clients: ClientOpt[]
+  /** quella che compare **nel composer**: tutta, come nel «crea» della testata */
+  clientiPerCrea?: ClientOpt[]
   /** §340 — i nomi dei progetti: una task di progetto senza il suo non si colloca */
   projects?: ProjectOpt[]
   /** §346 — i nomi delle corsie: la riga dice progetto **e** workstream */
@@ -584,11 +587,15 @@ export function TaskList({
              chiamante a non offrirla. */
           destination={{
             mode: 'pick', allow: ['project', 'ad_hoc', 'cliente'],
-            clients,
+            /* §353 — **gli stessi clienti del «crea»**, non quelli che
+               compaiono in elenco: il filtro in cima deve mostrare solo chi ha
+               davvero delle righe (§341), ma per creare una task serve tutta
+               l'anagrafica — altrimenti da «Le mie attività» si può scrivere
+               una task solo ai clienti su cui si sta già lavorando. */
+            clients: clientiPerCrea ?? clients,
             // il composer vuole `client_id` sempre presente: qui è facoltativo
             // perché a una riga di elenco basta il nome
             projects: projects.map(p => ({ ...p, client_id: p.client_id ?? null })),
-            defaultKind: 'ad_hoc',
             defaultClientId: clientId || undefined, canCreateClient,
           }}
           profiles={profiles}

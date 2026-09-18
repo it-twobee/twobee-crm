@@ -655,6 +655,14 @@ cercare due campi.
 c'era affatto, quindi la richiesta arrivava a chi la riceve senza una riga di
 contesto. Subito sotto il titolo, facoltativo.
 
+**«Nuova task» e il «crea» della testata aprono la stessa cosa.** Erano due
+porte per lo stesso modale con due contenuti diversi: dalla sezione Task
+mancavano i progetti, l'anagrafica era quella delle righe in elenco e il
+permesso di aprire un cliente non veniva passato. Adesso le due chiamate
+combaciano — stessi tipi, stessa anagrafica, stessi progetti, stesso permesso —
+e l'unica differenza è contestuale: se in pagina c'è un filtro cliente attivo,
+quel cliente arriva già scelto.
+
 **Da «Nuova task» si crea anche dentro un progetto.** Il composer offriva solo
 «Ad hoc» e «Al cliente», mentre quella sezione le contiene tutte (§340): per
 aggiungere una task a una milestone bisognava aprire il progetto, poi la

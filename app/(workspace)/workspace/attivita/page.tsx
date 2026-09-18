@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSessionProfile } from '@/lib/auth'
+import { canCreateClients } from '@/lib/permissions'
 import { redirect } from 'next/navigation'
 import { TaskList, type TaskRow } from '@/components/tasks/TaskList'
 import type { MilestoneInput } from '@/lib/task-board'
@@ -63,6 +64,12 @@ export default async function MieAttivitaPage() {
   const { data: clients } = clientIds.length
     ? await supabase.from('clients_workspace').select('id, company_name, display_name').in('id', clientIds)
     : { data: [] as { id: string; company_name: string; display_name: string | null }[] }
+  /* §353 — l'anagrafica intera serve **al composer**, non al filtro: da «Nuova
+     task» si scrive anche a un cliente su cui non si sta ancora lavorando, ed è
+     la stessa lista che offre il «crea» in testata. Il filtro in cima resta
+     sulle righe che ci sono davvero (§341). */
+  const { data: tuttiClienti } = await supabase.from('clients_workspace')
+    .select('id, company_name, display_name').order('company_name')
 
   return (
     <TaskList
@@ -71,6 +78,8 @@ export default async function MieAttivitaPage() {
       rows={(tasks ?? []) as TaskRow[]}
       clients={(clients ?? []).map((c: { id: string; company_name: string; display_name: string | null }) =>
         ({ id: c.id, name: c.display_name || c.company_name }))}
+      clientiPerCrea={(tuttiClienti ?? []).map((c: { id: string; company_name: string; display_name: string | null }) =>
+        ({ id: c.id, name: c.display_name || c.company_name }))}
       projects={(projects ?? []) as { id: string; name: string; client_id: string | null }[]}
       workstreams={(workstreams ?? []) as { id: string; name: string; project_id: string }[]}
       milestones={(tappe ?? []) as MilestoneInput[]}
@@ -78,6 +87,7 @@ export default async function MieAttivitaPage() {
       assignedBy={assignedBy}
       profiles={(profiles ?? []).map(p => ({ ...p, client_id: null }))}
       canManage
+      canCreateClient={canCreateClients(profile.app_role)}
       clientBase="/workspace/clienti"
       projectBase="/workspace/progetti"
     />
