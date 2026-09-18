@@ -7,7 +7,10 @@ import * as React from 'react'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 ;(globalThis as unknown as { React: unknown }).React = React
-import { tappeRows, filtraTappe, tappeCounts, isTappaAperta, type MilestoneInput } from '@/lib/task-board'
+import {
+  tappeRows, filtraTappe, tappeCounts, isTappaAperta,
+  progettoBreve, workstreamBreve, type MilestoneInput,
+} from '@/lib/task-board'
 import { MilestoneBand } from '@/components/tasks/MilestoneBand'
 
 let fail = 0
@@ -109,6 +112,30 @@ is('contati sulle aperte, le chiuse a parte',
   { totali: 4, aperte: 3, chiuse: 1, ritardo: 1, vicine: 1, senzaResponsabile: 1, senzaData: 1 })
 is('nessuna tappa, nessun numero',
   tappeCounts(rows([])), { totali: 0, aperte: 0, chiuse: 0, ritardo: 0, vicine: 0, senzaResponsabile: 0, senzaData: 0 })
+
+console.log('\n— Dove sta una task, senza ripetizioni —')
+/* Nomi veri dal database: la convention scrive `Cliente · Area · Servizio` e
+   `Cliente · Servizio — Corsia`, quindi in un elenco che il cliente lo dice già
+   metà larghezza se ne va a ripeterlo — e il resto finisce nei puntini. */
+is('il cliente davanti al progetto sparisce',
+  progettoBreve('Affinity · Growth · Lead Generation', 'Affinity'), 'Growth · Lead Generation')
+is('maiuscole diverse, stesso cliente',
+  progettoBreve('affinity · Growth · Lead Generation', 'Affinity'), 'Growth · Lead Generation')
+is('un cliente che non è il prefisso non taglia niente',
+  progettoBreve('Affinity · Growth · Lead Generation', 'iCura'), 'Affinity · Growth · Lead Generation')
+is('senza cliente resta tutto', progettoBreve('Progetto interno', null), 'Progetto interno')
+is('nessun nome, nessuna riga', progettoBreve(null, 'Affinity'), '')
+
+is('del workstream resta la corsia',
+  workstreamBreve('Fatima Leo · Lead Generation · Academy — Tracking e dati', 'Fatima Leo · Growth · Lead Generation · Academy'),
+  'Tracking e dati')
+/* Corsia unica: il workstream **è** il progetto, e ripeterne il nome due volte
+   di fila fa sembrare che siano due cose. */
+is('il workstream che è il progetto non si ripete',
+  workstreamBreve('iCura · Sito web', 'iCura · Sito web'), '')
+is('un nome fuori convention si mostra com\'è',
+  workstreamBreve('Corsia vecchia', 'iCura · Digital · Sito web'), 'Corsia vecchia')
+is('niente workstream, niente riga', workstreamBreve(null, 'x'), '')
 
 console.log('\n— La fascia, resa davvero —')
 const html = (ms0: MilestoneInput[], defaultOpen = true) => renderToStaticMarkup(createElement(MilestoneBand, {

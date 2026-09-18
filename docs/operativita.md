@@ -433,6 +433,37 @@ liste personali che le nominano.
   prova il modello **e rende la fascia** fuori dal browser: «non è cliccabile» è
   un difetto che il compilatore non vede.
 
+## La riga della task dice dove sta (§346)
+
+Nell'elenco della sezione Task le colonne non avevano un nome — una data
+relativa («tra 7g»), un cerchietto con due lettere e una parola di stato si
+leggono solo se qualcuno dice cosa sono — e il contesto stava in un chip
+tagliato a 150px: su un nome scritto dalla convention (`Cliente · Area ·
+Servizio`) si leggeva **«Affinity · Growth · Le…»**, cioè il nome del cliente,
+che il titolo del gruppo diceva già, e del progetto niente. Del **workstream**
+non c'era traccia: due task dello stesso progetto ma di due corsie diverse erano
+due righe identiche.
+
+- **Intestazione e righe da una griglia sola** (`GRID` in `AdHocClient`): due
+  elenchi di colonne scritti a mano divergono al primo ritocco, e
+  un'intestazione disallineata è peggio di nessuna intestazione.
+- **Il contesto non si ripete**: `progettoBreve` toglie dal nome del progetto il
+  cliente che è già scritto accanto (o in testa al gruppo), `workstreamBreve`
+  toglie dal workstream il prefisso che ripete il progetto e resta muto quando
+  la corsia **è** il progetto. Valgono per ogni raggruppamento — cliente,
+  progetto, persona, scadenza, piatta — perché la riga sa cosa il gruppo ha già
+  detto. Il nome intero resta nel titolo del puntatore: accorciare non è
+  nascondere.
+- **Due colonne per la stessa cosa non ci sono più**: data relativa e campo data
+  stavano una accanto all'altra, come l'avatar e la tendina dell'assegnatario —
+  ed è il motivo per cui al progetto restavano 150px. Ora il campo prende il
+  posto del testo al passaggio del mouse, come in «Le mie attività».
+- Da telefono restano due colonne (attività e stato) e «dove» scende sotto il
+  titolo, invece di sparire: è quello che distingue due righe con lo stesso nome.
+
+Gate: `npx tsx lib/task-board.check.ts` prova i due tagli sui nomi veri del
+database.
+
 ## Progetti: filtrabili e raggruppati per cliente (§341)
 
 L'elenco sotto il calendario era una griglia piatta di trenta schede, coi

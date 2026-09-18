@@ -76,9 +76,13 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
       .sort((a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order)
   }
 
-  // Sezioni senza pagina dopo il reset del dominio progetto: la 146 le disattiva
-  // in tabella, qui restano filtrate anche se qualcuno le riattiva a mano.
-  const HIDDEN_WORKSPACE_KEYS = ['chat', 'task', 'portfolio', 'workload', 'cestino']
+  /* Sezioni senza pagina dopo il reset del dominio progetto: la 146 le disattiva
+     in tabella, qui restano filtrate anche se qualcuno le riattiva a mano.
+     §346 — `task` non è più in elenco perché **la riga non c'è più** (230): era
+     il fantasma di questa stessa sezione, che vive in `ad_hoc` e una pagina ce
+     l'ha. Le altre sono funzioni tolte che possono tornare, e la loro riga
+     conserva ordine, gruppo e permessi. */
+  const HIDDEN_WORKSPACE_KEYS = ['chat', 'portfolio', 'workload', 'cestino']
   visibleSections = (visibleSections ?? []).filter((s: { key: string }) => !HIDDEN_WORKSPACE_KEYS.includes(s.key))
   visibleSections = visibleSections.filter((s: { key: string }) => s.key !== 'commerciale')
   if (await getSalesAccess()) visibleSections.push({

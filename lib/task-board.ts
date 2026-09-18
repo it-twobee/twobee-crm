@@ -200,3 +200,44 @@ export function tappeCounts(rows: TappaRow[]): TappeCounts {
     senzaData: aperte.filter(r => !r.dueDate).length,
   }
 }
+
+// ── §346 · come si legge «dove sta» una task ────────────────────────────────
+
+const pulisci = (s: string) => s.replace(/\s+/g, ' ').trim()
+
+/**
+ * Il progetto senza il nome del cliente davanti.
+ *
+ * La convention scrive `Cliente · Area · Servizio` (`lib/project-naming.ts`), e
+ * in un elenco raggruppato per cliente — o in una riga che il cliente lo dice
+ * già accanto — «Affinity · Growth · Lead Generation» spende metà della
+ * larghezza per ripetere quello che si sa, e l'altra metà finisce nei puntini:
+ * si leggeva «Affinity · Growth · Le…», cioè il nome del cliente due volte e il
+ * progetto mai.
+ */
+export function progettoBreve(nome: string | null | undefined, cliente?: string | null): string {
+  const n = pulisci(nome ?? '')
+  const c = pulisci(cliente ?? '')
+  if (!n || !c) return n
+  return n.toLowerCase().startsWith(`${c.toLowerCase()} · `) ? pulisci(n.slice(c.length + 3)) : n
+}
+
+/**
+ * Il workstream senza il prefisso che ripete il progetto.
+ *
+ * `workstreamName()` compone `Cliente · Servizio — Corsia`: davanti al nome del
+ * progetto quel prefisso è già scritto. Stringa vuota quando il workstream **è**
+ * il progetto (unica corsia, nessun « — »): non c'è niente da aggiungere, e
+ * ripetere il nome del progetto due volte di fila fa sembrare che siano due.
+ */
+export function workstreamBreve(nome: string | null | undefined, progetto?: string | null): string {
+  const n = pulisci(nome ?? '')
+  if (!n) return ''
+  const taglio = n.indexOf(' — ')
+  if (taglio >= 0) return pulisci(n.slice(taglio + 3))
+  const p = pulisci(progetto ?? '')
+  if (p && n.toLowerCase() === p.toLowerCase()) return ''
+  /* Nome fuori convention (progetti vecchi o rinominati a mano): si mostra com'è
+     — accorciarlo a indovinare è il modo di far sparire l'unica parte utile. */
+  return n
+}

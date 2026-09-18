@@ -16,7 +16,7 @@ import {
 import { TaskComposer } from '@/components/tasks/TaskComposer'
 import { AdHocDetailModal, type AssignablePerson, type AdHocPatch } from './AdHocDetailModal'
 import { MilestoneBand } from '@/components/tasks/MilestoneBand'
-import { tappeRows, filtraTappe, type MilestoneInput } from '@/lib/task-board'
+import { tappeRows, filtraTappe, progettoBreve, workstreamBreve, type MilestoneInput } from '@/lib/task-board'
 import type { Priority, Visibility, TaskStatusV2 } from '@/lib/types/database'
 
 export type AdHocRow = {
@@ -36,6 +36,9 @@ export type AdHocRow = {
   project_id?: string | null
   /** §346 — sotto quale tappa sta: serve alla fascia per dire «3 aperte su 5» */
   milestone_id?: string | null
+  /** §346 — in quale corsia: su un progetto con quattro workstream è l'unica
+      cosa che dice dove finisce questo lavoro */
+  workstream_id?: string | null
 }
 type Person = AssignablePerson
 type ClientOpt = { id: string; name: string }
@@ -49,6 +52,11 @@ const STATUS_TONE: Record<string, string> = {
   richiesta_supporto: 'text-orange', completato: 'text-success',
 }
 const PRIO_DOT: Record<string, string> = { alta: 'bg-error', media: 'bg-warning', bassa: 'bg-text-tertiary' }
+/* §346 — **una definizione sola** per l'intestazione e per le righe: due
+   elenchi di colonne scritti a mano divergono al primo ritocco, e
+   un'intestazione disallineata è peggio di nessuna intestazione. Da telefono
+   restano due colonne (attività e stato) e «dove» scende sotto il titolo. */
+const GRID = 'grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_minmax(0,190px)_100px_140px_84px_20px] gap-x-2.5 gap-y-0.5 items-center'
 const PRIO_RANK: Record<string, number> = { alta: 0, media: 1, bassa: 2 }
 
 const today = () => new Date().toISOString().slice(0, 10)
@@ -72,13 +80,15 @@ type GroupBy = 'cliente' | 'assegnatario' | 'scadenza' | 'progetto' | 'nessuno'
 type ProjectOpt = { id: string; name: string; client_id?: string | null }
 
 export function AdHocClient({
-  rows, clients, projects = [], milestones = [], profiles, canManage,
+  rows, clients, projects = [], workstreams = [], milestones = [], profiles, canManage,
   canCreateClient = false, clientBase = '/clienti', projectBase = '/progetti',
 }: {
   rows: AdHocRow[]
   clients: ClientOpt[]
   /** §340 — i nomi dei progetti: una task di progetto senza il suo non si colloca */
   projects?: ProjectOpt[]
+  /** §346 — i nomi delle corsie: la riga dice progetto **e** workstream */
+  workstreams?: { id: string; name: string; project_id: string }[]
   /** §346 — le tappe: stanno in una fascia loro, sopra le task */
   milestones?: MilestoneInput[]
   profiles: Person[]
@@ -112,6 +122,25 @@ export function AdHocClient({
   const projectName = (id: string | null | undefined) =>
     (id ? projects.find(p => p.id === id)?.name ?? 'Progetto' : null)
   const isAdHoc = (r: AdHocRow) => (r.task_type ?? 'ad_hoc') === 'ad_hoc'
+
+  /* §346 — **dove sta questa task.** Il chip mostrava il solo progetto tagliato
+     a 150px: su un nome scritto dalla convention si leggeva «Affinity · Growth ·
+     Le…», cioè il cliente — che il titolo del gruppo diceva già — e niente
+     altro. Qui il cliente esce dal nome del progetto quando è già scritto
+     accanto, e la corsia compare: senza, due task dello stesso progetto ma di
+     due workstream diversi sono due righe identiche. Il nome intero resta nel
+     titolo del puntatore, perché accorciare non è nascondere. */
+  const contestoDi = (r: AdHocRow, by: GroupBy): ContestoTask => {
+    const pj = r.project_id ? projects.find(p => p.id === r.project_id) ?? null : null
+    const cl = r.client_id ? (clients.find(c => c.id === r.client_id)?.name ?? null) : null
+    const ws = r.workstream_id ? (workstreams.find(w => w.id === r.workstream_id)?.name ?? null) : null
+    return {
+      progetto: by === 'progetto' ? null : (progettoBreve(pj?.name, cl) || null),
+      workstream: workstreamBreve(ws, pj?.name) || null,
+      cliente: by === 'cliente' ? null : (cl ?? 'Nessun cliente'),
+      esteso: [cl ?? 'Nessun cliente', pj?.name, ws].filter(Boolean).join('  ›  '),
+    }
+  }
 
   const act = (fn: () => Promise<unknown>, ok?: string) => start(async () => {
     try { await fn(); if (ok) toast.success(ok); router.refresh() }
@@ -369,15 +398,25 @@ export function AdHocClient({
                 )}
                 {!isOff && (
                   <div className="rounded-2xl border border-border shadow-soft overflow-hidden divide-y divide-border">
+                    {/* §346 — **le colonne hanno un nome.** Erano sei incolonnate
+                        senza intestazione: una data relativa («tra 7g»), un
+                        cerchietto con due lettere e una parola di stato si
+                        leggono solo se qualcuno dice cosa sono. */}
+                    <div className={`${GRID} px-3 sm:px-4 py-1.5 bg-surface-active/40`}>
+                      <span className="text-2xs font-bold uppercase tracking-wide text-text-tertiary pl-[42px]">Attività</span>
+                      <span className="hidden sm:block text-2xs font-bold uppercase tracking-wide text-text-tertiary">Dove</span>
+                      <span className="hidden sm:block text-2xs font-bold uppercase tracking-wide text-text-tertiary">Scadenza</span>
+                      <span className="hidden sm:block text-2xs font-bold uppercase tracking-wide text-text-tertiary">Chi</span>
+                      <span className="hidden sm:block text-2xs font-bold uppercase tracking-wide text-text-tertiary text-right">Stato</span>
+                      {canManage && <span className="hidden sm:block" />}
+                    </div>
                     {g.items.map(r => (
                       <Row key={r.id} r={r} profiles={profiles} canManage={canManage} pending={pending}
-                        /* §340 — in una lista mescolata il progetto è ciò che
-                           distingue una task di consegna da una richiesta
-                           veloce: senza, due righe identiche vogliono dire due
-                           cose diverse. Si tace dove sarebbe una ripetizione —
-                           quando è già il titolo del gruppo. */
-                        projectLabel={groupBy === 'progetto' ? null : projectName(r.project_id)}
-                        clientLabel={groupBy === 'cliente' ? null : clientName(r.client_id)}
+                        /* §340/§346 — **dove sta questa task**: progetto e
+                           workstream, non un chip tagliato a metà. Si tace quello
+                           che il titolo del gruppo dice già — ripeterlo mangia la
+                           larghezza che serve al resto. */
+                        contesto={contestoDi(r, groupBy)}
                         clientHref={r.client_id ? `${clientBase}/${r.client_id}` : null}
                         showAssignee={groupBy !== 'assegnatario'}
                         person={person(r.assignee_id)}
@@ -425,16 +464,31 @@ export function AdHocClient({
   )
 }
 
+/**
+ * §346 — dove sta la task: cliente, progetto, **workstream**.
+ *
+ * Il chip diceva il solo progetto, tagliato a 150px: su un nome scritto dalla
+ * convention — `Cliente · Area · Servizio` — si leggeva «Affinity · Growth ·
+ * Le…», cioè il cliente (che il titolo del gruppo diceva già) e niente altro.
+ * Del workstream non c'era traccia, e su un progetto con quattro corsie è
+ * l'unica cosa che dice *dove* finisce quel lavoro.
+ */
+export type ContestoTask = {
+  progetto: string | null
+  workstream: string | null
+  cliente: string | null
+  /** il nome intero, per il titolo del puntatore: accorciare non è nascondere */
+  esteso: string
+}
+
 function Row({
-  r, profiles, person, clientLabel, clientHref, projectLabel, showAssignee, canManage, pending,
+  r, profiles, person, contesto, clientHref, showAssignee, canManage, pending,
   onOpen, onToggle, onPatch, onDelete,
 }: {
   r: AdHocRow
   profiles: Person[]
   person: Person | null
-  clientLabel: string | null
-  /** §340 — il progetto da cui viene, quando ce n'è uno */
-  projectLabel?: string | null
+  contesto: ContestoTask
   clientHref: string | null
   showAssignee: boolean
   canManage: boolean
@@ -447,71 +501,92 @@ function Row({
   const rel = r.due_date && r.status !== 'completato' ? relDays(r.due_date) : null
   const done = r.status === 'completato'
   return (
-    <div className="flex items-center gap-2.5 px-3 sm:px-4 py-2.5 bg-surface group hover:bg-surface-hover transition-colors">
-      {canManage ? (
-        <button onClick={onToggle} disabled={pending} aria-label={done ? 'Riapri' : 'Completa'}
-          className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 transition-colors ${
-            done ? 'bg-success border-success' : 'border-border-strong hover:border-gold'
+    <div className={`${GRID} px-3 sm:px-4 py-2 bg-surface group hover:bg-surface-hover transition-colors`}>
+      {/* 1 · attività */}
+      <div className="flex items-center gap-2.5 min-w-0">
+        {canManage ? (
+          <button onClick={onToggle} disabled={pending} aria-label={done ? 'Riapri' : 'Completa'}
+            className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 transition-colors ${
+              done ? 'bg-success border-success' : 'border-border-strong hover:border-gold'
+            }`}>
+            {done && <Check className="w-3 h-3 text-on-gold" strokeWidth={3} />}
+          </button>
+        ) : <span className="w-4 h-4 shrink-0" />}
+
+        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${PRIO_DOT[r.priority]}`} title={`Priorità ${r.priority}`} />
+
+        <button onClick={onOpen} title="Apri il dettaglio"
+          className={`flex-1 min-w-0 truncate text-sm text-left hover:text-gold-text transition-colors ${
+            done ? 'text-text-tertiary line-through' : 'text-text-primary'
           }`}>
-          {done && <Check className="w-3 h-3 text-on-gold" strokeWidth={3} />}
+          {r.title}
+          {r.description && <span className="ml-1.5 text-2xs text-text-tertiary">·  dettagli</span>}
         </button>
-      ) : <span className="w-4 h-4 shrink-0" />}
 
-      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${PRIO_DOT[r.priority]}`} title={`Priorità ${r.priority}`} />
+        {r.visibility === 'client_visible' && (
+          <span className="flex items-center gap-1 text-2xs text-info shrink-0" title="Visibile al cliente"><Eye className="w-3 h-3" /></span>
+        )}
+      </div>
 
-      <button onClick={onOpen} title="Apri il dettaglio"
-        className={`flex-1 min-w-0 truncate text-sm text-left hover:text-gold-text transition-colors ${
-          done ? 'text-text-tertiary line-through' : 'text-text-primary'
-        }`}>
-        {r.title}
-        {r.description && <span className="ml-1.5 text-2xs text-text-tertiary">·  dettagli</span>}
-      </button>
+      {/* 2 · dove. Da telefono scende sotto il titolo invece di sparire: è
+             l'informazione che distingue due righe con lo stesso nome. */}
+      <div className="col-start-1 sm:col-auto row-start-2 sm:row-auto min-w-0 pl-[42px] sm:pl-0 flex flex-col leading-tight"
+        title={contesto.esteso || undefined}>
+        {contesto.progetto && (
+          <span className="text-2xs font-semibold text-info truncate">{contesto.progetto}</span>
+        )}
+        {contesto.workstream && (
+          <span className="text-2xs text-text-tertiary truncate">{contesto.workstream}</span>
+        )}
+        {contesto.cliente && (
+          clientHref
+            ? <Link href={clientHref} className="text-2xs text-text-tertiary hover:text-gold-text truncate">{contesto.cliente}</Link>
+            : <span className="text-2xs text-text-tertiary truncate">{contesto.cliente}</span>
+        )}
+      </div>
 
-      {projectLabel && (
-        <span className="text-2xs font-semibold px-1.5 py-0.5 rounded-lg bg-info-dim text-info shrink-0 truncate max-w-[150px]"
-          title={`Task del progetto ${projectLabel}`}>{projectLabel}</span>
-      )}
+      {/* 3 · scadenza: la data relativa, e in hover il campo che la sposta.
+             Stavano una accanto all'altra e occupavano due colonne per la stessa
+             cosa — che è il motivo per cui il progetto era ridotto a 150px. */}
+      <div className="hidden sm:block min-w-0">
+        <span className={`text-2xs tabular ${canManage ? 'group-hover:hidden' : ''} ${rel?.tone ?? 'text-text-tertiary'}`}>
+          {rel?.text ?? (r.due_date ? r.due_date.slice(5) : '—')}
+        </span>
+        {canManage && (
+          <input type="date" defaultValue={r.due_date ?? ''} aria-label="Scadenza"
+            onBlur={e => { if (e.target.value !== (r.due_date ?? '')) onPatch({ due_date: e.target.value || null }) }}
+            className="hidden group-hover:block w-full text-2xs bg-background border border-border rounded-lg px-1 py-0.5 text-text-secondary" />
+        )}
+      </div>
 
-      {clientLabel && (
-        clientHref
-          ? <Link href={clientHref} className="text-2xs text-text-tertiary hover:text-gold-text shrink-0 truncate max-w-[140px]">{clientLabel}</Link>
-          : <span className="text-2xs text-text-tertiary shrink-0 truncate max-w-[140px]">{clientLabel}</span>
-      )}
+      {/* 4 · chi */}
+      <div className="hidden sm:flex items-center min-w-0">
+        {showAssignee && (
+          <span className={`${canManage ? 'group-hover:hidden' : ''} flex items-center gap-1.5 min-w-0`}>
+            {person
+              ? <><Avatar name={person.full_name} url={person.avatar_url} size={22} />
+                  <span className="text-2xs text-text-secondary truncate">{person.full_name}</span></>
+              : !done && <span className="text-2xs text-warning">non assegnata</span>}
+          </span>
+        )}
+        {canManage && (
+          <select value={r.assignee_id ?? ''} onChange={e => onPatch({ assignee_id: e.target.value || null })}
+            aria-label="Assegnatario"
+            className="hidden group-hover:block w-full text-2xs bg-background border border-border rounded-lg px-1 py-0.5 text-text-secondary">
+            <option value="">nessuno</option>
+            {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+          </select>
+        )}
+      </div>
 
-      {r.visibility === 'client_visible' && (
-        <span className="flex items-center gap-1 text-2xs text-info shrink-0" title="Visibile al cliente"><Eye className="w-3 h-3" /></span>
-      )}
-
-      {rel
-        ? <span className={`text-2xs tabular shrink-0 w-16 text-right ${rel.tone}`}>{rel.text}</span>
-        : <span className="w-16 shrink-0" />}
-
-      {canManage && (
-        <input type="date" defaultValue={r.due_date ?? ''} aria-label="Scadenza"
-          onBlur={e => { if (e.target.value !== (r.due_date ?? '')) onPatch({ due_date: e.target.value || null }) }}
-          className="text-2xs bg-background border border-border rounded-lg px-1.5 py-1 text-text-secondary shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity" />
-      )}
-
-      {showAssignee && (person
-        ? <span title={person.full_name} className="shrink-0"><Avatar name={person.full_name} url={person.avatar_url} size={22} /></span>
-        : !done && <span className="text-2xs text-warning shrink-0">non assegnata</span>)}
-
-      {canManage && (
-        <select value={r.assignee_id ?? ''} onChange={e => onPatch({ assignee_id: e.target.value || null })}
-          aria-label="Assegnatario"
-          className="text-2xs bg-background border border-border rounded-lg px-1.5 py-1 text-text-secondary max-w-[104px] shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity">
-          <option value="">—</option>
-          {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-        </select>
-      )}
-
-      <span className={`text-2xs font-semibold shrink-0 w-20 text-right ${STATUS_TONE[r.status]}`}>
+      {/* 5 · stato */}
+      <span className={`text-2xs font-semibold text-right shrink-0 ${STATUS_TONE[r.status]}`}>
         {STATUS_LABEL[r.status] ?? r.status}
       </span>
 
       {canManage && (
         <button onClick={() => { if (confirm(`Eliminare "${r.title}"?`)) onDelete() }} aria-label="Elimina task"
-          className="text-text-tertiary hover:text-error opacity-0 group-hover:opacity-100 shrink-0">
+          className="hidden sm:block text-text-tertiary hover:text-error opacity-0 group-hover:opacity-100">
           <Trash2 className="w-3.5 h-3.5" />
         </button>
       )}

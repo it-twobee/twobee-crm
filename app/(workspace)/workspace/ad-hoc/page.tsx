@@ -14,16 +14,19 @@ export default async function WorkspaceAdHocPage() {
   const supabase = await createClient()
 
   // clients_workspace = VIEW senza dati economici; le task le filtra la RLS
-  const [{ data: tasks }, { data: clients }, { data: projects }, { data: profiles }, { data: assignments }, { data: milestones }] = await Promise.all([
+  const [{ data: tasks }, { data: clients }, { data: projects }, { data: profiles }, { data: workstreams }, { data: assignments }, { data: milestones }] = await Promise.all([
     // §340 — tutte, non le sole ad hoc: la RLS decide già cosa questo ruolo vede
     supabase.from('tasks')
-      .select('id, client_id, title, description, status, priority, due_date, visibility, assignee_id, created_at, completed_at, task_type, project_id, milestone_id')
+      .select('id, client_id, title, description, status, priority, due_date, visibility, assignee_id, created_at, completed_at, task_type, project_id, milestone_id, workstream_id')
       .is('deleted_at', null)
       .order('created_at', { ascending: false }),
     supabase.from('clients_workspace').select('id, company_name, display_name').order('company_name'),
     // §346 — `client_id` del progetto: senza, le tappe non si filtrano per cliente
     supabase.from('projects').select('id, name, client_id').order('name'),
     supabase.from('profiles').select('id, full_name, avatar_url, app_role').eq('is_active', true).order('full_name'),
+    // §346 — i nomi delle corsie: sulla riga della task il workstream è l'unica
+    // cosa che distingue due lavori dello stesso progetto
+    supabase.from('project_workstreams').select('id, name, project_id'),
     // se la RLS non li espone al workspace il gruppo "lato cliente" resta vuoto
     supabase.from('client_assignments').select('profile_id, client_id'),
     /* §346 — le tappe, con la stessa porta delle task: quello che questo ruolo
@@ -41,6 +44,7 @@ export default async function WorkspaceAdHocPage() {
       clients={(clients ?? []).map((c: { id: string; company_name: string; display_name: string | null }) =>
         ({ id: c.id, name: c.display_name || c.company_name }))}
       projects={(projects ?? []) as { id: string; name: string; client_id: string | null }[]}
+      workstreams={(workstreams ?? []) as { id: string; name: string; project_id: string }[]}
       milestones={(milestones ?? []) as MilestoneInput[]}
       profiles={(profiles ?? []).map(p => ({ ...p, client_id: clientOf.get(p.id) ?? null }))}
       canManage

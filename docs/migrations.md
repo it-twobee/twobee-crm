@@ -33,7 +33,25 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > applicate**, nate in due sessioni parallele che non si vedevano. Il numero
 > doppio non ha rotto niente — Supabase registra la sua versione, non il nome
 > del file — ma il registro è una tabella ordinata e due righe con la stessa
-> chiave sono una trappola per chi arriva dopo. Dopo la 229, la prossima libera è la **230**.
+> chiave sono una trappola per chi arriva dopo. Dopo la 230, la prossima libera è la **231**.
+
+## 230 — via la riga «task», fantasma della sezione Task (§346)
+
+`230_workspace_task_section_cleanup.sql`: **da applicare** (dopo la 229).
+`workspace_sections` aveva due righe per la stessa cosa — `ad_hoc` («Task»,
+`/workspace/ad-hoc`, attiva) e `task` («Task», `/workspace/task`, spenta e senza
+pagina dal reset 144/146). Dopo la 229 si chiamano anche uguali, e quella morta
+si porta dietro i permessi di cinque ruoli: una spunta di distanza dal diventare
+una voce di menu che rimbalza (§211). I permessi se ne vanno con lei
+(`ON DELETE CASCADE`, 079).
+
+Con la riga sparisce anche il suo aggiramento nel codice: `task` esce da
+`HIDDEN_WORKSPACE_KEYS` in `app/(workspace)/layout.tsx`. Le altre chiavi
+restano — chat, portfolio, workload, cestino sono funzioni tolte che possono
+tornare, e la riga conserva ordine, gruppo e permessi; `task` no, perché è già
+tornata con un altro nome.
+
+Rilanciabile: il secondo giro non trova più niente da cancellare.
 
 ## 229 — nel workspace la sezione si chiama «Task» (§346)
 
