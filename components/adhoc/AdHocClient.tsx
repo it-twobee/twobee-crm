@@ -136,6 +136,7 @@ export function AdHocClient({
     const ws = r.workstream_id ? (workstreams.find(w => w.id === r.workstream_id)?.name ?? null) : null
     return {
       progetto: by === 'progetto' ? null : (progettoBreve(pj?.name, cl) || null),
+      progettoEsteso: pj?.name ?? null,
       workstream: workstreamBreve(ws, pj?.name) || null,
       cliente: by === 'cliente' ? null : (cl ?? 'Nessun cliente'),
       esteso: [cl ?? 'Nessun cliente', pj?.name, ws].filter(Boolean).join('  ›  '),
@@ -404,7 +405,7 @@ export function AdHocClient({
                         leggono solo se qualcuno dice cosa sono. */}
                     <div className={`${GRID} px-3 sm:px-4 py-1.5 bg-surface-active/40`}>
                       <span className="text-2xs font-bold uppercase tracking-wide text-text-tertiary pl-[42px]">Attività</span>
-                      <span className="hidden sm:block text-2xs font-bold uppercase tracking-wide text-text-tertiary">Dove</span>
+                      <span className="hidden sm:block text-2xs font-bold uppercase tracking-wide text-text-tertiary">Progetto</span>
                       <span className="hidden sm:block text-2xs font-bold uppercase tracking-wide text-text-tertiary">Scadenza</span>
                       <span className="hidden sm:block text-2xs font-bold uppercase tracking-wide text-text-tertiary">Chi</span>
                       <span className="hidden sm:block text-2xs font-bold uppercase tracking-wide text-text-tertiary text-right">Stato</span>
@@ -418,6 +419,12 @@ export function AdHocClient({
                            larghezza che serve al resto. */
                         contesto={contestoDi(r, groupBy)}
                         clientHref={r.client_id ? `${clientBase}/${r.client_id}` : null}
+                        /* §346 — il nome del progetto **è** la porta del
+                           progetto: si legge lì e per aprirlo si tornava
+                           indietro a cercarlo in un elenco. Dal workspace resta
+                           nel workspace, perché la rotta si costruisce da
+                           `projectBase` e non a mano (§211). */
+                        projectHref={r.project_id ? `${projectBase}/${r.project_id}` : null}
                         showAssignee={groupBy !== 'assegnatario'}
                         person={person(r.assignee_id)}
                         onOpen={() => setDetail(r)}
@@ -475,6 +482,8 @@ export function AdHocClient({
  */
 export type ContestoTask = {
   progetto: string | null
+  /** il nome intero del progetto, per il titolo del link */
+  progettoEsteso: string | null
   workstream: string | null
   cliente: string | null
   /** il nome intero, per il titolo del puntatore: accorciare non è nascondere */
@@ -482,7 +491,7 @@ export type ContestoTask = {
 }
 
 function Row({
-  r, profiles, person, contesto, clientHref, showAssignee, canManage, pending,
+  r, profiles, person, contesto, clientHref, projectHref, showAssignee, canManage, pending,
   onOpen, onToggle, onPatch, onDelete,
 }: {
   r: AdHocRow
@@ -490,6 +499,8 @@ function Row({
   person: Person | null
   contesto: ContestoTask
   clientHref: string | null
+  /** §346 — dove porta il nome del progetto: la sua scheda */
+  projectHref: string | null
   showAssignee: boolean
   canManage: boolean
   pending: boolean
@@ -533,7 +544,12 @@ function Row({
       <div className="col-start-1 sm:col-auto row-start-2 sm:row-auto min-w-0 pl-[42px] sm:pl-0 flex flex-col leading-tight"
         title={contesto.esteso || undefined}>
         {contesto.progetto && (
-          <span className="text-2xs font-semibold text-info truncate">{contesto.progetto}</span>
+          projectHref
+            ? <Link href={projectHref} title={`Apri ${contesto.progettoEsteso ?? contesto.progetto}`}
+                className="text-2xs font-semibold text-info hover:text-gold-text transition-colors truncate">
+                {contesto.progetto}
+              </Link>
+            : <span className="text-2xs font-semibold text-info truncate">{contesto.progetto}</span>
         )}
         {contesto.workstream && (
           <span className="text-2xs text-text-tertiary truncate">{contesto.workstream}</span>

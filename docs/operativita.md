@@ -446,7 +446,13 @@ due righe identiche.
 
 - **Intestazione e righe da una griglia sola** (`GRID` in `AdHocClient`): due
   elenchi di colonne scritti a mano divergono al primo ritocco, e
-  un'intestazione disallineata è peggio di nessuna intestazione.
+  un'intestazione disallineata è peggio di nessuna intestazione. La colonna si
+  chiama **Progetto** e non «Dove»: il nome dice la cosa che ci si legge sotto.
+- **Il nome del progetto è la porta del progetto** (§345): si legge lì e per
+  aprirlo si tornava indietro a cercarlo in un elenco. Dal workspace resta nel
+  workspace, perché la rotta si costruisce da `projectBase` e non a mano (§211).
+  Quando si raggruppa **per** progetto il link non c'è: quel nome è già il
+  titolo del gruppo, e la riga tace quello che il gruppo dice.
 - **Il contesto non si ripete**: `progettoBreve` toglie dal nome del progetto il
   cliente che è già scritto accanto (o in testa al gruppo), `workstreamBreve`
   toglie dal workstream il prefisso che ripete il progetto e resta muto quando
