@@ -103,12 +103,12 @@ console.log('\n— I giorni non lavorativi sono spenti (§354/§355) —')
 /* La banda del fine settimana deve stare **sotto** le corsie e non intercettare
    il puntatore: se coprisse le bandierine, il calendario diventerebbe bello e
    inservibile — e un difetto così si vede solo provando a cliccare. */
-/* §355 — `bg-overlay/[0.05]` **non esisteva nel CSS compilato**: la classe non
-   veniva generata, quindi la banda c'era nel markup e sullo schermo non si
-   vedeva niente. Il gate contava il markup e diceva «ok» — un controllo che
-   guarda la classe e non il colore non può accorgersene, ma almeno deve
-   contare la classe che il progetto genera davvero. */
-const bande = (html.match(/<span class="absolute top-0 bottom-0 bg-overlay\/(5|10)"/g) ?? []).length
+/* §355 — due difetti in fila, e nessuno dei due si vedeva dal codice: la classe
+   `bg-overlay/[0.05]` **non esisteva nel CSS compilato** (banda nel markup,
+   niente sullo schermo), e `bg-overlay` prende il tono del **testo**, quindi al
+   buio schiariva le colonne invece di spegnerle. Il colore adesso è un token
+   opaco per tema, e il gate conta quello. */
+const bande = (html.match(/<span class="absolute top-0 bottom-0 bg-cal-fermo"/g) ?? []).length
 const giorniHeader = (html.match(/flex flex-col items-center justify-center/g) ?? []).length
 /* La testata usa la stessa tinta: contare la classe e basta contava due volte
    lo stesso giorno, e l'asserzione «meno della metà» cadeva per un pelo. La

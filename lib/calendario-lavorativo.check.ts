@@ -7,7 +7,7 @@
    si dichiarava «18». Un errore di un giorno non alza nessuna eccezione: si
    vede solo se qualcuno guarda il calendario sapendo che giorno è. */
 import {
-  giornoUTC, isoUTC, oggiLocale, pasqua, pasquetta, isFestivo, isWeekend, nonLavorativo, perche,
+  giornoUTC, isoUTC, oggiLocale, pasqua, pasquetta, isFestivo, isWeekend, nonLavorativo, perche, nomeFestivo,
 } from '@/lib/calendario-lavorativo'
 
 let fail = 0
@@ -81,6 +81,17 @@ is('Natale 2026 è venerdì: festa, non weekend',
   [false, true, true])
 is('il 26 aprile 2026 è domenica', nonLavorativo('2026-04-26'), true)
 is('un martedì di lavoro', nonLavorativo('2026-09-22'), false)
+
+console.log('\n— La festa ha un nome —')
+/* Una colonna spenta di lunedì senza spiegazione si legge come un errore del
+   calendario, non come il 25 aprile: il nome è quello che il puntatore mostra. */
+is('25 aprile', nomeFestivo('2026-04-25'), 'Liberazione')
+is('Pasquetta 2026', nomeFestivo('2026-04-06'), 'Pasquetta')
+is('la domenica di Pasqua ha il suo nome', nomeFestivo('2026-04-05'), 'Pasqua')
+is('Ferragosto', nomeFestivo('2026-08-15'), 'Ferragosto')
+is('un giorno di lavoro non ha nome', nomeFestivo('2026-09-16'), null)
+is('e «perché» preferisce la festa al giorno della settimana',
+  [perche('2026-12-26'), perche('2026-09-19')], ['Santo Stefano', 'Sabato'])
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

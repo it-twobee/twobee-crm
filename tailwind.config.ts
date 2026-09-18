@@ -36,6 +36,8 @@ const config: Config = {
         "row-late-edge": "var(--color-row-late-edge)",
         "row-soon": "var(--color-row-soon)",
         "row-soon-edge": "var(--color-row-soon-edge)",
+        // §355 — la colonna dei giorni fermi nel calendario milestone
+        "cal-fermo": "var(--color-cal-fermo)",
         info: "var(--color-info)",
         "info-dim": "var(--color-info-dim)",
         accent: "var(--color-accent)",

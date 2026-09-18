@@ -11,7 +11,7 @@ import {
 import type { ProjectWorkstream, Milestone, Task } from '@/lib/types/database'
 import { collapseSeries } from '@/lib/recurrence'
 import {
-  giornoUTC, isoUTC, oggiLocale, nonLavorativo, isFestivo, perche,
+  giornoUTC, isoUTC, oggiLocale, nonLavorativo, perche,
 } from '@/lib/calendario-lavorativo'
 import {
   thumbGeometry, thumbOffset, scrolledPercent, scrollFromDrag, scrollFromTrack, stepOf,
@@ -562,7 +562,7 @@ export function ProjectGantt({
                   const isToday = iso === todayIso
                   return (
                     <div key={i} title={perche(iso) ?? undefined}
-                      className={`absolute top-0 bottom-0 flex flex-col items-center justify-center gap-0.5 border-l ${fermo ? 'bg-overlay/5' : ''} border-border/30`}
+                      className={`absolute top-0 bottom-0 flex flex-col items-center justify-center gap-0.5 border-l ${fermo ? 'bg-cal-fermo' : ''} border-border/30`}
                       style={{ left: i * DAY_W, width: DAY_W }}>
                       <span className={`text-2xs leading-none ${isToday ? 'text-gold-text font-bold' : 'text-text-tertiary/70'}`}>{WEEKDAY_SHORT[d.getUTCDay()]}</span>
                       <span className={`text-2xs tabular leading-none ${isToday ? 'text-gold-text font-bold' : fermo ? 'text-text-tertiary/60' : 'text-text-secondary'}`}>{d.getUTCDate()}</span>
@@ -586,11 +586,16 @@ export function ProjectGantt({
               {model.days.map((d, i) => {
                 const iso = isoUTC(d.getTime())
                 if (!nonLavorativo(iso)) return null
-                /* Il festivo pesa il doppio del weekend: un lunedì spento in
-                   mezzo alla settimana è la cosa che si dimentica facendo un
-                   piano, e deve saltare all'occhio più di un sabato. */
+                /* §355 — **colore opaco, non velatura.** `bg-overlay` prende il
+                   tono del testo: al buio era bianco, quindi schiariva le
+                   colonne invece di spegnerle. `bg-cal-fermo` è la superficie
+                   della tabella più scura, definita una volta per tema. Weekend
+                   e festivi hanno lo stesso peso: il piano si legge alla stessa
+                   maniera, e a dire *quale* festa è ci pensa il titolo in
+                   testata — un lunedì spento senza spiegazione sembra un errore
+                   del calendario. */
                 return (
-                  <span key={i} className={`absolute top-0 bottom-0 ${isFestivo(iso) ? 'bg-overlay/10' : 'bg-overlay/5'}`}
+                  <span key={i} className="absolute top-0 bottom-0 bg-cal-fermo"
                     style={{ left: i * DAY_W, width: DAY_W }} />
                 )
               })}

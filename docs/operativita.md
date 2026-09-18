@@ -711,16 +711,23 @@ Tre cose sulla sezione Progetti, tutte sullo stesso schermo.
   si legge come un giorno di lavoro qualunque, e un piano fatto contando quei due
   giorni sfora di due giorni a settimana. La banda sta **sotto** le corsie e non
   intercetta il puntatore — se coprisse le bandierine il calendario diventerebbe
-  bello e inservibile. I **festivi** pesano il doppio del weekend: un lunedì
-  spento in mezzo alla settimana è la cosa che si dimentica facendo un piano.
-  Sono le feste nazionali italiane più Pasquetta, che è l'unica mobile e si
-  calcola; il patrono resta fuori, perché cambia da città a città e spegnere un
-  giorno lavorativo per metà squadra fa più danno che non spegnerne nessuno.
+  bello e inservibile. Sono le feste nazionali italiane più Pasquetta, che è
+  l'unica mobile e si calcola; il patrono resta fuori, perché cambia da città a
+  città e spegnere un giorno lavorativo per metà squadra fa più danno che non
+  spegnerne nessuno. Weekend e festivi hanno lo **stesso peso** — il piano si
+  legge alla stessa maniera — e *quale* festa sia lo dice il titolo della
+  colonna in testata: un lunedì spento senza spiegazione sembra un errore del
+  calendario, non il 25 aprile.
 
-  La banda non si vedeva nemmeno dopo averla scritta: usava `bg-overlay/[0.05]`,
-  una classe che **il CSS compilato non conteneva** — il markup c'era e sullo
-  schermo non cambiava niente. Adesso usa `bg-overlay/5` e `/10`, che il
-  progetto genera davvero, e il gate conta le bande cercando la classe emessa.
+  **Il colore è opaco, non una velatura**, e questa è la parte che avevo
+  sbagliato due volte. Prima con `bg-overlay/[0.05]`, una classe che il CSS
+  compilato **non conteneva**: banda nel markup, niente sullo schermo. Poi con
+  `bg-overlay/5`, che esiste ma prende il tono del **testo**: al buio è bianco,
+  quindi quelle colonne risultavano più **chiare** dello sfondo — l'opposto di
+  spegnerle. Adesso c'è `--color-cal-fermo`, un colore pieno per tema: la
+  superficie della tabella spinta verso il fondo pagina (#0D0D0F al buio,
+  #ECEFF3 sulla carta). Una velatura prende il colore di chi sta sotto; un token
+  per tema dice esattamente che colore vuoi, in tutti e due i temi.
 
 Gate: `npx tsx lib/gantt-lanes.check.ts` rende il componente e conta le bande —
 «zero» e «tutti i giorni» sono i due modi in cui questa cosa si rompe, e nessuno

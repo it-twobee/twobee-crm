@@ -53,19 +53,23 @@ export function pasqua(anno: number): string {
   return `${anno}-${p(mese)}-${p(giorno)}`
 }
 
-/** `MM-DD` delle feste nazionali a data fissa */
-const FISSE = new Set([
-  '01-01', // Capodanno
-  '01-06', // Epifania
-  '04-25', // Liberazione
-  '05-01', // Festa del lavoro
-  '06-02', // Repubblica
-  '08-15', // Ferragosto
-  '11-01', // Ognissanti
-  '12-08', // Immacolata
-  '12-25', // Natale
-  '12-26', // Santo Stefano
-])
+/**
+ * Le feste nazionali a data fissa, **col nome**: una colonna spenta di lunedì
+ * senza una spiegazione si legge come un errore del calendario, non come il 25
+ * aprile.
+ */
+const FISSE: Record<string, string> = {
+  '01-01': 'Capodanno',
+  '01-06': 'Epifania',
+  '04-25': 'Liberazione',
+  '05-01': 'Festa del lavoro',
+  '06-02': 'Festa della Repubblica',
+  '08-15': 'Ferragosto',
+  '11-01': 'Ognissanti',
+  '12-08': 'Immacolata',
+  '12-25': 'Natale',
+  '12-26': 'Santo Stefano',
+}
 
 const cachePasquetta = new Map<number, string>()
 /** il lunedì dopo Pasqua */
@@ -77,10 +81,16 @@ export function pasquetta(anno: number): string {
   return v
 }
 
-export function isFestivo(iso: string): boolean {
-  if (FISSE.has(iso.slice(5))) return true
-  return iso === pasquetta(Number(iso.slice(0, 4)))
+/** il nome della festa, o null se quel giorno si lavora */
+export function nomeFestivo(iso: string): string | null {
+  const fissa = FISSE[iso.slice(5)]
+  if (fissa) return fissa
+  const anno = Number(iso.slice(0, 4))
+  if (iso === pasqua(anno)) return 'Pasqua'
+  return iso === pasquetta(anno) ? 'Pasquetta' : null
 }
+
+export const isFestivo = (iso: string) => nomeFestivo(iso) !== null
 
 /** sabato o domenica, **contati in UTC** come le colonne della griglia */
 export function isWeekend(iso: string): boolean {
@@ -93,7 +103,8 @@ export const nonLavorativo = (iso: string) => isWeekend(iso) || isFestivo(iso)
 
 /** l'etichetta del perché: serve al titolo della colonna spenta */
 export function perche(iso: string): string | null {
-  if (isFestivo(iso)) return 'Festivo'
+  const festa = nomeFestivo(iso)
+  if (festa) return festa
   if (isWeekend(iso)) return new Date(giornoUTC(iso)).getUTCDay() === 6 ? 'Sabato' : 'Domenica'
   return null
 }

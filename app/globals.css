@@ -59,6 +59,14 @@
   --color-row-soon: #2A2414;
   --color-row-soon-edge: rgba(255,197,1,0.45);
 
+  /* §355 — la colonna dei giorni in cui non si consegna: sabato, domenica,
+     festivi. È **la superficie della tabella, più scura** — un colore opaco e
+     non una velatura: la velatura prendeva il tono del testo, quindi al buio
+     schiariva le colonne invece di spegnerle, cioè faceva l'opposto. Qui va
+     verso il fondo pagina (#0B0B0C), che è il modo in cui una colonna «esce»
+     dal piano senza coprire quello che ci sta sopra. */
+  --color-cal-fermo: #0D0D0F;
+
   --overlay-tint: 255,255,255;
   --shadow-color: rgba(0,0,0,0.45);
   --color-scrim: rgba(0,0,0,0.72);
@@ -127,6 +135,9 @@
   --color-row-late-edge: rgba(192,38,27,0.45);
   --color-row-soon: #FEF7EB;
   --color-row-soon-edge: rgba(122,83,0,0.40);
+
+  /* sulla carta si scende dal bianco verso il grigio del fondo pagina */
+  --color-cal-fermo: #ECEFF3;
 
   --overlay-tint: 16,24,40;
   --shadow-color: rgba(16,24,40,0.10);
