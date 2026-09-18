@@ -277,3 +277,116 @@ export function sottotitoloSezione(chiave: Sezione, m: Momento, seme: number): s
 
 /** tutte le chiavi, per il gate: una sezione senza frasi è una sezione muta */
 export const SEZIONI_CHIAVI = Object.keys(SEZIONI) as Sezione[]
+
+// ── §352 · il saluto che sa chi sei e come stai messo ────────────────────────
+
+/**
+ * La riga sotto «Ciao, nome 👋» nella home operativa.
+ *
+ * Un saluto uguale per tutti e uguale ogni giorno è carta da parati: si legge
+ * due volte e poi diventa parte dello sfondo. Questo guarda **i numeri veri di
+ * chi apre la pagina** — quante ne ha in ritardo, quante ne scadono oggi,
+ * quante ne ha chiuse — e il suo **ruolo**, perché a uno stage e a un manager
+ * la stessa frase non dice la stessa cosa.
+ *
+ * Le regole sono quelle di §351, con una in più: **il ruolo non si usa per
+ * fare la morale.** Un junior non si tratta come un incapace e un manager non
+ * si tratta come un capo: il ruolo cambia *di cosa* si parla — chiedere aiuto,
+ * il lavoro degli altri, il pezzo difficile — non il rispetto.
+ */
+export type Ruolo =
+  | 'super_admin' | 'founder' | 'admin' | 'manager' | 'senior'
+  | 'junior' | 'stage' | 'freelance' | 'partner' | 'viewer' | null
+
+export type StatoPersona = {
+  aperte: number
+  late: number
+  oggi: number
+  chiuseOggi: number
+  chiuseSettimana: number
+  /** progetti di cui è PM: zero per chi non ne governa nessuno */
+  progetti: number
+  ruolo: Ruolo
+}
+
+type VocePersona = {
+  quando?: (m: Momento) => boolean
+  chi?: (r: Ruolo) => boolean
+  frase: (s: StatoPersona, m: Momento) => string
+}
+
+const capo = (r: Ruolo) => r === 'admin' || r === 'founder' || r === 'super_admin' || r === 'manager'
+const giovane = (r: Ruolo) => r === 'junior' || r === 'stage'
+const esterno = (r: Ruolo) => r === 'freelance' || r === 'partner'
+
+function pescaPersona(voci: VocePersona[], s: StatoPersona, m: Momento, seme: number): VocePersona {
+  const buone = voci.filter(v => (!v.quando || v.quando(m)) && (!v.chi || v.chi(s.ruolo)))
+  const pool = buone.length ? buone : voci.filter(v => !v.quando && !v.chi)
+  return pool[Math.abs(Math.trunc(seme)) % pool.length]
+}
+
+const P_RITARDO: VocePersona[] = [
+  { frase: s => `${s.late} in ritardo. Cominciamo la giornata con una piccola bugia: «le chiudo oggi».` },
+  { frase: s => `${s.late} scadute che ti aspettano. Sono pazienti, non permalose.` },
+  { frase: s => `Hai ${s.late} task fuori tempo. Il resto del mondo non se n'è accorto. Per ora.` },
+  { chi: capo, frase: s => `${s.late} in ritardo tue. E sei quello che dovrebbe dare l'esempio.` },
+  { chi: giovane, frase: s => `${s.late} in ritardo: se una si è incagliata, chiedi. Non è una sconfitta.` },
+  { chi: esterno, frase: s => `${s.late} oltre la data concordata. Il «concordata» è la parte delicata.` },
+  { quando: mattina, frase: s => `${s.late} scadute e la giornata è ancora intera. Matematicamente si recupera.` },
+  { quando: sera, frase: s => `${s.late} in ritardo a fine giornata. Domani, ma davvero.` },
+  { quando: lunedi, frase: s => `${s.late} in ritardo di lunedì mattina. Eredità del venerdì.` },
+]
+
+const P_SPRINT: VocePersona[] = [
+  { frase: s => `${s.chiuseOggi} chiuse oggi. Qualcuno si è alzato con l'intenzione giusta.` },
+  { frase: s => `${s.chiuseOggi} task completate oggi: continua e ti tocca inventarti del lavoro.` },
+  { frase: s => `${s.chiuseOggi} chiuse. Sospettosamente produttivo, ci piace.` },
+  { chi: giovane, frase: s => `${s.chiuseOggi} chiuse oggi. Nessuno te lo dirà, quindi te lo diciamo noi: bene.` },
+  { chi: capo, frase: s => `${s.chiuseOggi} chiuse oggi. E il team? Anche loro, si spera.` },
+]
+
+const P_OGGI: VocePersona[] = [
+  { frase: s => `${s.oggi} scadono oggi. Oggi oggi, non «entro fine settimana».` },
+  { frase: s => `${s.oggi} in scadenza. Le prossime otto ore hanno già un programma.` },
+  { frase: s => `${s.oggi} per oggi. Poche, se cominci adesso.` },
+  { chi: capo, frase: s => `${s.oggi} in scadenza oggi, e ${s.progetti > 0 ? `${s.progetti} progetti` : 'il team'} che guardano te.` },
+  { quando: pomeriggio, frase: s => `${s.oggi} in scadenza oggi e il pomeriggio è già cominciato. Niente panico. Poco panico.` },
+  { quando: sera, frase: s => `${s.oggi} scadono oggi, e «oggi» sta per finire.` },
+]
+
+const P_PULITO: VocePersona[] = [
+  { frase: s => `Zero aperte, ${s.chiuseSettimana} chiuse questa settimana. Giornata da manuale.` },
+  { frase: () => 'Elenco pulito. Adesso però non farti vedere troppo in giro.' },
+  { frase: s => `${s.chiuseSettimana} chiuse e niente in coda. Rara combinazione.` },
+  { chi: capo, frase: () => 'Tutto chiuso da parte tua. Resta da controllare il resto del mondo.' },
+  { quando: venerdi, frase: () => 'Tutto chiuso di venerdì. Questo sì che è saper vivere.' },
+]
+
+const P_FERMO: VocePersona[] = [
+  { frase: () => 'Nessuna task assegnata. O meriti una vacanza, o ti hanno dimenticato.' },
+  { frase: () => 'Lista vuota. Il silenzio è d\'oro, finché qualcuno non se ne accorge.' },
+  { chi: giovane, frase: () => 'Niente in lista: è il momento di chiedere qualcosa da fare. Funziona.' },
+  { chi: capo, frase: () => 'Niente di tuo in lista. Sospetto: di solito vuol dire che è tutto degli altri.' },
+  { chi: esterno, frase: () => 'Nessuna task aperta. Quando serviamo, sai dove trovarci.' },
+]
+
+const P_NORMALE: VocePersona[] = [
+  { frase: s => `${s.aperte} aperte, zero in ritardo. Situazione dignitosa.` },
+  { frase: s => `${s.aperte} sul tavolo e niente di scaduto: si può lavorare in pace.` },
+  { frase: s => `${s.aperte} aperte. Nessuna emergenza, il che è già una notizia.` },
+  { chi: capo, frase: s => `${s.aperte} aperte tue, più quelle che hai dato agli altri. Quelle contano doppio.` },
+  { chi: giovane, frase: s => `${s.aperte} aperte. Una alla volta, in ordine di scadenza: funziona sempre.` },
+  { quando: mattina, frase: s => `${s.aperte} aperte e la giornata intera davanti. Scegli bene la prima.` },
+  { quando: venerdi, frase: s => `${s.aperte} aperte di venerdì: decidi tu quali diventano un problema di lunedì.` },
+]
+
+export function salutoPersonale(s: StatoPersona, m: Momento, seme: number): string {
+  const pool =
+    s.late > 0 ? P_RITARDO
+    : s.chiuseOggi >= 3 ? P_SPRINT
+    : s.oggi > 0 ? P_OGGI
+    : s.aperte === 0 && s.chiuseSettimana > 0 ? P_PULITO
+    : s.aperte === 0 ? P_FERMO
+    : P_NORMALE
+  return pescaPersona(pool, s, m, seme).frase(s, m)
+}

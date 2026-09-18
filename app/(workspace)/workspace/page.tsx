@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import type { Task } from '@/lib/types/database'
 import { SalutoDinamico } from '@/components/workspace/SalutoDinamico'
-import { seme } from '@/lib/task-mood'
+import { seme, type Ruolo } from '@/lib/task-mood'
 
 export const revalidate = 0
 
@@ -85,6 +85,13 @@ export default async function WorkspaceDashboardPage() {
      attività» — e cliccarla portava a una pagina dove non c'era più, perché
      lì le completate stanno nel raccoglitore in fondo. */
   const open = tasks.filter(x => x.status !== 'completato')
+  /* §352 — quante ne ha chiuse: le righe ci sono già (§283 carica anche le
+     completate di recente, perché una spunta per sbaglio si deve poter
+     disfare), quindi è un filtro, non una query in più. */
+  const settimanaFa = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10)
+  const chiuse = tasks.filter(x => x.status === 'completato' && x.completed_at)
+  const chiuseOggi = chiuse.filter(x => (x.completed_at ?? '').slice(0, 10) === t).length
+  const chiuseSettimana = chiuse.filter(x => (x.completed_at ?? '').slice(0, 10) >= settimanaFa).length
   const dueToday = open.filter(x => x.due_date === t).length
   const dueWeek = open.filter(x => x.due_date && x.due_date > t && x.due_date <= weekEnd).length
   const overdue = open.filter(x => x.due_date && x.due_date < t).length
@@ -100,10 +107,19 @@ export default async function WorkspaceDashboardPage() {
         <p className="text-text-secondary text-sm mt-1 capitalize">
           {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
-        {/* §351 — il seme si calcola qui, dove la data è una sola: calcolarlo nel
-            browser farebbe scegliere una frase diversa da quella già scritta
-            nell'HTML, e React se ne accorgerebbe. */}
-        <SalutoDinamico seme={seme(new Date().toISOString().slice(0, 10), name.length)} />
+        {/* §352 — la riga parla **di chi la legge**: i suoi numeri di oggi e il
+            suo ruolo. Sono già tutti qui sopra — nessuna query in più — e il
+            seme si calcola in questa pagina, dove la data è una sola: nel
+            browser sceglierebbe una frase diversa da quella già scritta
+            nell'HTML, e React se ne accorgerebbe (§351). */}
+        <SalutoDinamico
+          seme={seme(t, overdue, dueToday, chiuseOggi, open.length)}
+          stato={{
+            aperte: open.length, late: overdue, oggi: dueToday,
+            chiuseOggi, chiuseSettimana,
+            progetti: (mgr ?? []).length,
+            ruolo: (profile.app_role ?? null) as Ruolo,
+          }} />
       </div>
 
       {!googleConnected && (

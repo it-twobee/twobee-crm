@@ -604,6 +604,35 @@ un modulo sulla lunghezza del gruppo, e una serie a passo sette copriva un resto
 su sette, bocciando frasi che non aveva mai pescato. Un test che campiona male
 accusa il codice del proprio difetto.
 
+## Il saluto sa chi sei e come stai messo (§352)
+
+Sotto «Ciao, nome 👋» c'era la data, e basta. Adesso c'è una riga che guarda **i
+numeri di chi apre la pagina** — in ritardo, in scadenza oggi, chiuse in
+giornata, aperte in tutto — e il suo **ruolo**, perché a uno stage e a un manager
+la stessa frase non dice la stessa cosa:
+
+- *junior, 3 in ritardo* → «3 in ritardo: se una si è incagliata, chiedi. Non è
+  una sconfitta.»
+- *manager, 3 in ritardo* → «3 in ritardo tue. E sei quello che dovrebbe dare
+  l'esempio.»
+- *chi ha chiuso 5 task oggi* → «5 chiuse. Sospettosamente produttivo, ci piace.»
+
+**Il ruolo cambia di cosa si parla, non il rispetto**: chiedere aiuto, il lavoro
+degli altri, il pezzo difficile. Un junior non si tratta da incapace e un
+manager non si tratta da capo — e a chi non ha niente in lista non si rinfaccia
+niente, perché è il caso di chi è appena arrivato e sarebbe un benvenuto pessimo.
+Il gate lo verifica su tutti e nove i ruoli.
+
+**Nessuna query in più**: i numeri erano già tutti nella pagina, comprese le
+completate di recente che §283 carica per poter disfare una spunta.
+
+Sui numeri il gate ha una regola diversa da §351, e più giusta: **un numero
+scritto nel testo dev'essere un numero dei dati** — cerca ogni cifra nella frase
+e la confronta con lo stato — mentre *pretendere* che ogni frase ne citi uno
+bocciava «Elenco pulito», che un numero non ce l'ha perché non c'è niente da
+contare. Dove però il numero **è** la notizia — ritardi, scadenze di oggi, chiuse
+in giornata, carico aperto — la frase deve dirlo.
+
 ## Progetti: filtrabili e raggruppati per cliente (§341)
 
 L'elenco sotto il calendario era una griglia piatta di trenta schede, coi

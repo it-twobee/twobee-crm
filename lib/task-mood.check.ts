@@ -3,7 +3,8 @@
    che il numero ci sia sempre, che la stessa situazione dia sempre la stessa
    frase, e che nessuna variante sfori la riga. */
 import {
-  verdetto, sottotitolo, saluto, seme, sottotitoloSezione, SEZIONI_CHIAVI, type Momento,
+  verdetto, sottotitolo, saluto, seme, sottotitoloSezione, SEZIONI_CHIAVI,
+  salutoPersonale, type Momento, type Ruolo, type StatoPersona,
 } from '@/lib/task-mood'
 
 let fail = 0
@@ -121,6 +122,64 @@ is('nessuna sezione muta', sezioniMute, 0)
 is('nessun sottotitolo di sezione sfora la riga', sezioniLunghe, 0)
 for (const k of SEZIONI_CHIAVI) sempreDisponibile(`${k}: senza ora vale a ogni ora`, (m, s) => sottotitoloSezione(k, m, s))
 is('le sezioni coperte sono undici', SEZIONI_CHIAVI.length, 11)
+
+console.log('\n— Il saluto personale: numeri di chi guarda, e il suo ruolo —')
+const RUOLI: Ruolo[] = ['super_admin', 'admin', 'manager', 'senior', 'junior', 'stage', 'freelance', 'partner', null]
+const persona = (o: Partial<StatoPersona> = {}): StatoPersona =>
+  ({ aperte: 5, late: 0, oggi: 0, chiuseOggi: 0, chiuseSettimana: 0, progetti: 0, ruolo: 'senior', ...o })
+
+/* Due regole diverse, e la prima vale per **tutte** le frasi: un numero scritto
+   nel testo dev'essere un numero dei dati. La versione precedente pretendeva
+   invece che ogni frase ne citasse uno, e bocciava «Elenco pulito» — che un
+   numero non ce l'ha perché non c'è niente da contare. Un test che chiede più
+   della regola fa riscrivere il codice giusto. */
+let pInventati = 0, pLunghe = 0, pVuote = 0, pMuteDoveConta = 0
+for (const r of RUOLI) for (const m of MOMENTI) for (const s of SEMI) {
+  const stati: [StatoPersona, number | null][] = [
+    [persona({ ruolo: r, late: 3 }), 3],
+    [persona({ ruolo: r, late: 0, oggi: 2 }), 2],
+    [persona({ ruolo: r, late: 0, chiuseOggi: 4 }), 4],
+    [persona({ ruolo: r, aperte: 6 }), 6],
+    [persona({ ruolo: r, aperte: 0, chiuseSettimana: 9 }), null],
+  ]
+  for (const [st, obbligatorio] of stati) {
+    const t = salutoPersonale(st, m, s)
+    const veri = new Set([st.aperte, st.late, st.oggi, st.chiuseOggi, st.chiuseSettimana, st.progetti].map(String))
+    for (const num of t.match(/\d+/g) ?? []) if (!veri.has(num)) pInventati++
+    /* Dove il numero **è** la notizia — ritardi, scadenze di oggi, chiuse in
+       giornata, carico aperto — la frase deve dirlo: girarci intorno lì
+       significherebbe togliere l'unica informazione della riga. */
+    if (obbligatorio !== null && !t.includes(String(obbligatorio))) pMuteDoveConta++
+    if (t.length > 96) pLunghe++
+    if (!t.trim()) pVuote++
+  }
+}
+is('nessun numero inventato', pInventati, 0)
+is('dove il numero è la notizia, la frase lo dice', pMuteDoveConta, 0)
+is('nessun saluto sfora la riga (96 caratteri)', pLunghe, 0)
+is('nessun saluto vuoto', pVuote, 0)
+
+console.log('\n— Il ruolo cambia di cosa si parla, non il rispetto —')
+const perRuolo = (r: Ruolo, st: Partial<StatoPersona>) =>
+  new Set(MOMENTI.flatMap(m => SEMI.map(s => salutoPersonale(persona({ ...st, ruolo: r }), m, s))))
+const stage = perRuolo('stage', { late: 3 })
+const manager = perRuolo('manager', { late: 3 })
+is('uno stage e un manager non leggono la stessa cosa',
+  Array.from(stage).some(t => !manager.has(t)), true)
+/* A chi non ha niente in lista non si rinfaccia niente: è il caso di chi è
+   appena arrivato, e sarebbe un benvenuto pessimo. */
+const fermo = Array.from(perRuolo('junior', { aperte: 0, late: 0, oggi: 0 }))
+is('a lista vuota non si parla di ritardi', fermo.filter(t => /ritard|scadut/i.test(t)).length, 0)
+is('e non si dà la colpa a nessuno', fermo.filter(t => /colpa|pigr|sveglia/i.test(t)).length, 0)
+
+console.log('\n— Stessa persona, stessa giornata, stessa frase —')
+const st = persona({ late: 2, ruolo: 'junior' })
+is('due letture uguali',
+  salutoPersonale(st, { ora: 9, giorno: 2 }, 12) === salutoPersonale(st, { ora: 9, giorno: 2 }, 12), true)
+is('ma domani cambia',
+  salutoPersonale(st, { ora: 9, giorno: 2 }, 12) !== salutoPersonale(st, { ora: 9, giorno: 3 }, 13), true)
+sempreDisponibile('il saluto personale senza ora vale a ogni ora',
+  (m, s) => salutoPersonale(persona({ late: 2 }), m, s))
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

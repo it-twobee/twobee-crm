@@ -11,13 +11,22 @@
  */
 
 import { useState, useEffect } from 'react'
-import { saluto, type Momento } from '@/lib/task-mood'
+import { saluto, salutoPersonale, type Momento, type StatoPersona } from '@/lib/task-mood'
 
-export function SalutoDinamico({ seme }: { seme: number }) {
+/**
+ * §352 — con `stato` la riga parla **di chi la legge**: quante ne ha in ritardo,
+ * quante ne scadono oggi, quante ne ha chiuse, e che ruolo ha. Senza, resta il
+ * saluto generico di §351 — che è quello che vede chi non ha ancora numeri.
+ */
+export function SalutoDinamico({ seme, stato }: { seme: number; stato?: StatoPersona }) {
   const [momento, setMomento] = useState<Momento>({ ora: null, giorno: null })
   useEffect(() => {
     const d = new Date()
     setMomento({ ora: d.getHours(), giorno: d.getDay() })
   }, [])
-  return <p className="text-text-tertiary text-2xs mt-1">{saluto(momento, seme)}</p>
+  return (
+    <p className="text-text-secondary text-sm mt-1">
+      {stato ? salutoPersonale(stato, momento, seme) : saluto(momento, seme)}
+    </p>
+  )
 }
