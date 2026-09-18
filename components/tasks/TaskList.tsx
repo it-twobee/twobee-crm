@@ -15,7 +15,7 @@ import {
   setAdHocTaskStatus, deleteAdHocTask, updateAdHocTask,
 } from '@/app/actions/ad-hoc-tasks'
 import { TaskComposer } from './TaskComposer'
-import { AdHocDetailModal, type AssignablePerson, type AdHocPatch } from '@/components/adhoc/AdHocDetailModal'
+import { TaskDetailModal, type AssignablePerson, type TaskPatch } from '@/components/tasks/TaskDetailModal'
 import { MilestoneBand } from './MilestoneBand'
 import { BoardView, CalendarView } from './TaskViews'
 import {
@@ -311,6 +311,18 @@ export function TaskList({
     return m
   }, [rows])
   const accentOf = (r: TaskRow) => projAccent.get(r.project_id ?? `adhoc:${r.client_id}`)
+  /**
+   * §349 — dove sta, per esteso: è l'occhiello del dettaglio, e deve dire la
+   * verità anche quando la task **non** è ad hoc. Le tre specie hanno tre
+   * risposte diverse, e nessuna è «ad hoc» per tutte.
+   */
+  const contestoTestuale = (r: TaskRow) => {
+    const cl = clientName(r.client_id)
+    if ((r.task_type ?? 'ad_hoc') === 'ad_hoc') return `Ad hoc · ${cl}`
+    const c = contestoDi(r, 'nessuno')
+    return c.esteso || cl
+  }
+
   /** dove sta, in una riga sola: serve alle schede della bacheca e del calendario */
   const doveBreve = (r: TaskRow) => {
     const pj = r.project_id ? projects.find(p => p.id === r.project_id) ?? null : null
@@ -570,11 +582,11 @@ export function TaskList({
       )}
 
       {detail && (
-        <AdHocDetailModal task={detail} clientLabel={clientName(detail.client_id)}
+        <TaskDetailModal task={detail} contesto={contestoTestuale(detail)}
           people={profiles} assegnante={person(assignedBy[detail.id] ?? null)}
           canManage={canManage} pending={pending}
           onClose={() => setDetail(null)}
-          onSave={(patch: AdHocPatch) => { act(() => updateAdHocTask(detail.id, detail.client_id, patch), 'Task aggiornata'); setDetail(null) }}
+          onSave={(patch: TaskPatch) => { act(() => updateAdHocTask(detail.id, detail.client_id, patch), 'Task aggiornata'); setDetail(null) }}
           onDelete={() => { act(() => deleteAdHocTask(detail.id, detail.client_id), 'Task eliminata'); setDetail(null) }} />
       )}
     </div>

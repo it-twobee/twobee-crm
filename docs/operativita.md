@@ -543,7 +543,21 @@ una lista propria è la prima cosa che si legge.
   di rosso o d'ambra; il bordo di sinistra è l'unico segno vivo e resta sotto
   metà opacità.
 - Il dettaglio è lo stesso modale in tutte e due le pagine, con dentro chi ha
-  assegnato (§347).
+  assegnato (§347). Il pannello laterale di «Le mie attività» non c'è più: era
+  un secondo modo di aprire la stessa cosa.
+
+**E il modale dice la verità** (§349). Si intitolava «Dettaglio task ad hoc» su
+**qualunque** task, comprese quelle di progetto — un titolo che afferma una cosa
+falsa su metà delle righe insegna a non leggere i titoli. Adesso è «Dettaglio
+task» e l'occhiello dice dove sta: `Ad hoc · Cliente` oppure
+`Cliente › Progetto › Corsia`. Il file si chiama `TaskDetailModal`, come la cosa
+che è.
+
+Dentro mancava uno stato su cinque — **Supporto** — e non era solo una voce
+assente: lo stato di partenza ripiegava su «Da fare» quando non lo riconosceva,
+quindi aprire una task in supporto e salvare qualunque altra modifica la
+retrocedeva in silenzio. Gli stati arrivano da `task-ui`, dove sono scritti una
+volta sola.
 
 ## Progetti: filtrabili e raggruppati per cliente (§341)
 

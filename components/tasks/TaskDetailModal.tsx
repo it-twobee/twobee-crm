@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { ModalShell, Field, Segmented, Avatar, inputCls } from '@/components/shared/formkit'
 import { isExternalResource, CLIENT_ROLES } from '@/lib/permissions'
+import { COLUMNS } from './task-ui'
 import type { AppRole, Priority, Visibility, TaskStatusV2 } from '@/lib/types/database'
 
 export type AssignablePerson = {
@@ -17,7 +18,7 @@ export type AssignablePerson = {
   client_id?: string | null
 }
 
-export type AdHocDetail = {
+export type TaskDetail = {
   id: string
   client_id: string | null
   title: string
@@ -29,7 +30,7 @@ export type AdHocDetail = {
   assignee_id: string | null
 }
 
-export type AdHocPatch = {
+export type TaskPatch = {
   title?: string
   description?: string | null
   status?: TaskStatusV2
@@ -39,12 +40,18 @@ export type AdHocPatch = {
   visibility?: Visibility
 }
 
-const STATUSES: { value: TaskStatusV2; label: string }[] = [
-  { value: 'da_fare', label: 'Da fare' },
-  { value: 'in_corso', label: 'In corso' },
-  { value: 'in_review', label: 'In review' },
-  { value: 'completato', label: 'Completata' },
-]
+/**
+ * §349 — **tutti e cinque gli stati**, e dal vocabolario condiviso.
+ *
+ * Qui ne stavano quattro: mancava «Supporto». Finché questo era il dettaglio
+ * delle sole task ad hoc si vedeva poco; adesso lo è di tutte, comprese quelle
+ * di progetto, che quello stato lo usano. E non era solo una voce assente: lo
+ * stato di partenza ripiegava su «Da fare» quando non lo riconosceva, quindi
+ * aprire una task in supporto e salvare **qualunque** altra modifica la
+ * retrocedeva in silenzio — la categoria di errore che nessuno va a controllare.
+ */
+const STATUSES: { value: TaskStatusV2; label: string }[] =
+  COLUMNS.map(c => ({ value: c.key, label: c.label }))
 
 type Bucket = 'interni' | 'esterni' | 'cliente'
 const bucketOf = (p: AssignablePerson): Bucket =>
@@ -57,18 +64,24 @@ const BUCKET_META: Record<Bucket, { label: string; icon: React.ReactNode; hint: 
   cliente: { label: 'Lato cliente', icon: <Building2 className="w-3.5 h-3.5" />, hint: 'Referenti dell\'anagrafica' },
 }
 
-export function AdHocDetailModal({
-  task, clientLabel, people, assegnante, canManage, pending, onClose, onSave, onDelete,
+export function TaskDetailModal({
+  task, contesto, people, assegnante, canManage, pending, onClose, onSave, onDelete,
 }: {
-  task: AdHocDetail
-  clientLabel: string
+  task: TaskDetail
+  /**
+   * §349 — dove sta questa task: cliente, progetto, corsia — oppure «Ad hoc ·
+   * cliente». Il titolo diceva «Dettaglio task ad hoc» su **qualunque** task,
+   * comprese quelle di progetto, che ad hoc non sono: un titolo che afferma una
+   * cosa falsa su metà delle righe insegna a non leggere i titoli.
+   */
+  contesto: string
   people: AssignablePerson[]
   /** §347 — chi ha deciso l'assegnazione; nullo = non risulta */
   assegnante?: AssignablePerson | null
   canManage: boolean
   pending: boolean
   onClose: () => void
-  onSave: (patch: AdHocPatch) => void
+  onSave: (patch: TaskPatch) => void
   onDelete: () => void
 }) {
   const [title, setTitle] = useState(task.title)
@@ -113,7 +126,7 @@ export function AdHocDetailModal({
   })
 
   return (
-    <ModalShell title="Dettaglio task ad hoc" hint={clientLabel}
+    <ModalShell title="Dettaglio task" hint={contesto}
       icon={<ListTodo className="w-4 h-4 text-gold-text" />}
       onClose={onClose} onSubmit={save} pending={pending}
       canSubmit={canManage && dirty && !!title.trim()}

@@ -10,7 +10,7 @@ import { setAdHocTaskStatus, deleteAdHocTask, updateAdHocTask } from '@/app/acti
 import { Avatar, SearchInput, Empty } from '@/components/shared/formkit'
 import { TaskComposer } from '@/components/tasks/TaskComposer'
 import { CompletedTasks } from '@/components/tasks/CompletedTasks'
-import { AdHocDetailModal, type AssignablePerson, type AdHocPatch } from '@/components/adhoc/AdHocDetailModal'
+import { TaskDetailModal, type AssignablePerson, type TaskPatch } from '@/components/tasks/TaskDetailModal'
 import { SUPERVISOR_ROLE } from '@/lib/task-roles'
 import type { Profile, Priority, Visibility, TaskStatusV2 } from '@/lib/types/database'
 
@@ -304,10 +304,10 @@ export function ClientAdHocTab({
       )}
 
       {detail && (
-        <AdHocDetailModal task={{ ...detail, client_id: clientId }} clientLabel={clientName ?? 'Cliente'}
+        <TaskDetailModal task={{ ...detail, client_id: clientId }} contesto={`Ad hoc · ${clientName ?? 'Cliente'}`}
           people={assignable} canManage={canManage} pending={pending}
           onClose={() => setDetail(null)}
-          onSave={(patch: AdHocPatch) => start(async () => {
+          onSave={(patch: TaskPatch) => start(async () => {
             try { await updateAdHocTask(detail.id, clientId, patch); toast.success('Task aggiornata'); setDetail(null); reload() }
             catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
           })}
