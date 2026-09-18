@@ -688,6 +688,26 @@ Tre cose sulla sezione Progetti, tutte sullo stesso schermo.
   sparisce** dal nome del progetto: era scritto due volte, e la seconda mangiava
   il servizio — l'unica cosa che distingue due righe dello stesso cliente
   (`progettoBreve`, la stessa regola delle task §346).
+- **Si apre sull'area di chi guarda** (§358). La prima domanda di un manager
+  growth non è «cosa fa l'agenzia», è «cosa faccio io». L'idea era leggere
+  `profiles.area`: misurata prima di scriverci sopra, è **nulla per tutte e
+  sette le persone attive** — un default costruito lì non avrebbe selezionato
+  niente per nessuno, lo stesso difetto di §339. Quindi l'area si **deduce dal
+  lavoro**: quella che compare di più fra i progetti in cui la persona è dentro,
+  come membro o come PM. Sui dati veri esce netta. Chi governa — admin, founder,
+  super admin — parte da «Tutte», perché governa tutto. Resta un default, non un
+  confine: si cambia con un clic, e a parità vince l'ordine dell'elenco, perché
+  un default che cambia da solo a ogni ricarico è peggio di nessun default.
+- **I progetti in cui sei dentro non spariscono mai.** Filtrare per area è utile
+  finché non nasconde il lavoro tuo: un manager growth che presidia un digital
+  deve continuare a vederne le scadenze anche con «growth» scelto, o il
+  calendario gli racconta una settimana che non è la sua.
+- **Ogni cambio di filtro riporta il calendario su oggi.** Le corsie cambiano
+  sotto i piedi e la finestra resta dov'era: restare fermi a dicembre davanti a
+  una griglia vuota fa sembrare che il filtro abbia cancellato tutto. §345 aveva
+  tolto il ritorno **automatico** — che ripartiva a ogni ridisegno e rendeva le
+  milestone lontane irraggiungibili — non quello **richiesto**: questo è
+  richiesto, come il pulsante «Oggi».
 - **Il filtro area governa anche il calendario.** Era solo dell'elenco qui
   sotto: scegliendo «growth» le bandierine sopra continuavano a mostrare tutto,
   e le due metà della pagina rispondevano a due domande diverse. Adesso è un

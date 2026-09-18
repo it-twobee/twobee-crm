@@ -8,6 +8,7 @@ import { ProjectWizard } from './ProjectWizard'
 import { ProjectGantt, type GanttLane } from './ProjectGantt'
 import { countsInDelivery, type InternalKind } from '@/lib/clients'
 import { progettoBreve } from '@/lib/task-board'
+import { AREE, type AreaFiltro } from '@/lib/area-persona'
 import { VoceSezione } from '@/components/workspace/VoceSezione'
 import type { Sezione } from '@/lib/task-mood'
 import type {
@@ -33,7 +34,10 @@ const STATUS_LABEL: Record<string, string> = {
 const AREA_TONE: Record<string, string> = {
   marketing: 'text-accent', growth: 'text-gold-text', digital: 'text-info',
 }
-const AREAS = ['marketing', 'growth', 'digital'] as const
+/* §358 — l'ordine è quello: growth, digital, marketing. Sta in
+   `lib/area-persona.ts` insieme alla regola che sceglie quale parte selezionata,
+   perché la stessa sequenza serve a tutte e due. */
+const AREAS = AREE
 // stati "in corso": una riga di calendario per ognuno, anche senza milestone datate
 const LIVE_STATUSES = ['active', 'draft', 'on_hold']
 
@@ -88,10 +92,14 @@ function quietBadge(info: ReturnType<typeof quietInfo>) {
 
 export function ProgettiClient({
   clients, profiles, services, templates, nodes, projects, workstreams, milestones, calTasks, initialClientId, openWizard,
-  basePath = '/progetti', canCreate = true, voce,
+  basePath = '/progetti', canCreate = true, voce, areaIniziale = '', progettiMiei = [],
 }: {
   /** §351 — la riga sotto il titolo, solo nel portale operativo */
   voce?: Sezione
+  /** §358 — l'area con cui si apre: quella di chi guarda, vuota per chi governa */
+  areaIniziale?: AreaFiltro
+  /** §358 — i progetti in cui la persona è dentro: non spariscono mai dal filtro */
+  progettiMiei?: string[]
   clients: { id: string; name: string; client_label?: ClientLabel | null; is_internal?: boolean | null; internal_kind?: InternalKind | null }[]
   profiles: { id: string; full_name: string; app_role: string | null; avatar_url?: string | null }[]
   services: ServiceCatalogEntry[]
@@ -109,7 +117,15 @@ export function ProgettiClient({
   const router = useRouter()
   const [wizard, setWizard] = useState(!!initialClientId || !!openWizard)
   const [q, setQ] = useState('')
-  const [area, setArea] = useState<string>('')
+  /* §358 — si apre sull'area di chi guarda (vuota per chi governa): la prima
+     domanda di un manager growth non è «cosa fa l'agenzia», è «cosa faccio io».
+     Resta un default: si cambia con un clic. */
+  const [area, setArea] = useState<AreaFiltro>(areaIniziale)
+  /* Ogni cambio di filtro riporta il calendario su oggi: le corsie cambiano
+     sotto i piedi, e restare fermi a dicembre davanti a una griglia vuota fa
+     sembrare che il filtro abbia cancellato tutto. */
+  const [tornaAOggi, setTornaAOggi] = useState(0)
+  const cambiaArea = (v: AreaFiltro) => { setArea(v); setTornaAOggi(n => n + 1) }
   /* §341 — l'elenco in fondo era una griglia piatta di trenta schede in cui i
      progetti dello stesso cliente stavano sparsi: per sapere cosa c'è aperto su
      iCura bisognava scorrere tutto e tenerlo a mente. Il calendario qui sopra è
@@ -147,7 +163,13 @@ export function ProgettiClient({
        continuavano a mostrare tutto e le due metà della pagina rispondevano a
        due domande diverse. Stesso stato, un solo comando — che sta sia in
        testata al calendario sia nella barra dell'elenco. */
-    const live = projects.filter(p => LIVE_STATUSES.includes(p.status) && (!area || p.area === area))
+    /* §358 — **i progetti in cui sei dentro restano sempre**. Filtrare per area
+       è utile finché non nasconde il lavoro tuo: un manager growth che presidia
+       un digital deve continuare a vederne le scadenze anche con «growth»
+       scelto, o il calendario gli racconta una settimana che non è la sua. */
+    const miei = new Set(progettiMiei)
+    const live = projects.filter(p =>
+      LIVE_STATUSES.includes(p.status) && (!area || p.area === area || miei.has(p.id)))
     const byClient = new Map<string, ProjectRow[]>()
     live.forEach(p => {
       const key = p.client_id ?? INTERNAL_KEY
@@ -174,7 +196,7 @@ export function ProgettiClient({
       const db = nextOpen(b.milestones) ?? FAR
       return da === db ? a.name.localeCompare(b.name) : (da < db ? -1 : 1)
     })
-  }, [projects, clients, msByProject, area]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [projects, clients, msByProject, area, progettiMiei]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const lanes: GanttLane[] = useMemo(() => {
     const out: GanttLane[] = []
@@ -241,7 +263,7 @@ export function ProgettiClient({
   }
 
   const filtered = useMemo(() => projects.filter(p =>
-    (!area || p.area === area) &&
+    (!area || p.area === area || progettiMiei.includes(p.id)) &&
     (!projClient || (p.client_id ?? INTERNAL_KEY) === projClient) &&
     (!q || p.name.toLowerCase().includes(q.toLowerCase()) || clientName(p.client_id).toLowerCase().includes(q.toLowerCase())),
   ), [projects, area, projClient, q]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -319,7 +341,8 @@ export function ProgettiClient({
            progetto arrivava ai puntini dopo tre parole. Qui ci sta intero, e
            accanto resta posto per il badge dei fermi. */
         labelWidth={320}
-        headerControls={<AreaPicker value={area} onChange={setArea} />}
+        headerControls={<AreaPicker value={area} onChange={cambiaArea} />}
+        vaiAOggi={tornaAOggi}
       />
 
       {/* toolbar filtri */}
@@ -329,7 +352,7 @@ export function ProgettiClient({
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Cerca progetto o cliente…"
             className="w-full bg-surface border border-border-interactive rounded-xl pl-9 pr-3 py-2 text-sm text-text-primary" />
         </div>
-        <AreaPicker value={area} onChange={setArea} />
+        <AreaPicker value={area} onChange={cambiaArea} />
         {/* §341 — il cliente come filtro: l'elenco è lungo trenta schede, e la
             domanda che ci si porta è quasi sempre «cosa c'è aperto su questo». */}
         <select value={projClient} onChange={e => setProjClient(e.target.value)}
@@ -451,10 +474,10 @@ function ProjectCard({ p, basePath, clientName, serviceLabel, showClient }: {
  * calendario — dove si vede l'effetto — e nella barra dell'elenco, dove stava
  * già: stesso stato, quindi non possono divergere.
  */
-function AreaPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function AreaPicker({ value, onChange }: { value: AreaFiltro; onChange: (v: AreaFiltro) => void }) {
   return (
     <div className="flex bg-surface-active rounded-xl p-0.5 shrink-0" role="radiogroup" aria-label="Filtra per area">
-      {([['', 'Tutte'], ...AREAS.map(a => [a, a] as const)] as [string, string][]).map(([v, label]) => (
+      {([['', 'Tutte'], ...AREAS.map(a => [a, a] as const)] as [AreaFiltro, string][]).map(([v, label]) => (
         <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onChange(v)}
           className={`px-2.5 py-1 rounded-lg text-2xs font-semibold capitalize whitespace-nowrap transition-colors ${
             value === v ? 'bg-gold text-on-gold' : 'text-text-secondary hover:text-text-primary'

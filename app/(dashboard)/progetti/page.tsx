@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { ProgettiClient } from '@/components/projects/ProgettiClient'
+import { areaDiPartenza } from '@/lib/area-persona'
 import type {
   ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode,
   ProjectWorkstream, Milestone, Task,
@@ -25,9 +26,24 @@ export default async function ProgettiPage({ searchParams }: { searchParams: { c
     supabase.from('service_catalog').select('*').order('area').order('sort_order'),
     supabase.from('project_templates').select('*').order('sort_order'),
     supabase.from('project_template_nodes').select('*').order('sort_order'),
-    supabase.from('projects').select('id, name, status, area, service_type, client_id, created_at')
+    supabase.from('projects').select('id, name, status, area, service_type, client_id, created_at, manager_id')
       .is('deleted_at', null).order('created_at', { ascending: false }),
   ])
+
+  /* §358 — qui ci arriva solo chi governa, quindi il calendario si apre su
+     «Tutte» (`areaDiPartenza` lo decide dal ruolo). I progetti propri servono
+     lo stesso: se un admin sceglie un'area, i suoi non devono sparire. */
+  const { data: membri } = await supabase.from('project_members')
+    .select('project_id').eq('profile_id', user.id)
+  const progettiMiei = Array.from(new Set([
+    ...(membri ?? []).map(m => m.project_id as string),
+    ...(projects ?? []).filter(p => (p as { manager_id?: string | null }).manager_id === user.id).map(p => p.id),
+  ]))
+  const areaIniziale = areaDiPartenza({
+    appRole: profile?.app_role,
+    areaProfilo: (profile as { area?: string | null } | null)?.area,
+    areeDeiProgetti: (projects ?? []).filter(p => progettiMiei.includes(p.id)).map(p => p.area),
+  })
 
   // Dati per il calendario milestone globale: progetti in corso (esclude completati/archiviati)
   const activeIds = (projects ?? []).filter(p => ['active', 'draft', 'on_hold'].includes(p.status)).map(p => p.id)
@@ -46,6 +62,8 @@ export default async function ProgettiPage({ searchParams }: { searchParams: { c
 
   return (
     <ProgettiClient
+      areaIniziale={areaIniziale}
+      progettiMiei={progettiMiei}
       clients={clientOpts}
       profiles={(profiles ?? []) as { id: string; full_name: string; app_role: string | null; avatar_url: string | null }[]}
       services={(services ?? []) as ServiceCatalogEntry[]}

@@ -98,7 +98,7 @@ const WEEKDAY_SHORT = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab']
 
 export function ProjectGantt({
   workstreams = NO_WS, milestones = NO_MS, tasks, profiles, onOpenMilestone,
-  title = 'Calendario milestone', laneSubtitle, laneAccent, labelWidth = LABEL_W, headerControls,
+  title = 'Calendario milestone', laneSubtitle, laneAccent, labelWidth = LABEL_W, headerControls, vaiAOggi,
   lanes: externalLanes, laneLabel = 'workstream', milestoneContext, emptyHint, emptyAction,
   onAddMilestone, headerNote, headerHint, laneHref, milestoneHref, contextHref,
 }: {
@@ -115,6 +115,15 @@ export function ProjectGantt({
   /** §345 — dove porta il nome della corsia derivata da una workstream */
   laneHref?: (ws: ProjectWorkstream) => string | null
   labelWidth?: number
+  /**
+   * §358 — cambia valore → il calendario torna su oggi. Serve a chi filtra: le
+   * corsie cambiano sotto i piedi e la finestra resta dov'era, magari a
+   * dicembre, davanti a un calendario che sembra vuoto. §345 aveva tolto il
+   * ritorno **automatico** — che ripartiva a ogni ridisegno e rendeva le
+   * milestone lontane irraggiungibili — non quello **richiesto**: questo è
+   * richiesto, come il pulsante «Oggi».
+   */
+  vaiAOggi?: number
   /** §354 — comandi del chiamante nella testata, accanto allo zoom: il filtro
       che decide **cosa** si vede sta dove si vede il risultato. */
   headerControls?: React.ReactNode
@@ -211,6 +220,18 @@ export function ProjectGantt({
     })
     return { min, max, totalDays, width: totalDays * DAY_W, x, days, monthSegs, todayLeft: x(todayT) }
   }, [lanes, DAY_W, todayIso])
+
+  /* §358 — il ritorno **richiesto**: scatta quando il chiamante cambia
+     `vaiAOggi`, non a ogni ridisegno. Il primo valore si ignora, o si
+     sovrapporrebbe all'apertura di §345 qui sotto. */
+  const primoVaiAOggi = useRef(true)
+  useEffect(() => {
+    if (vaiAOggi === undefined) return
+    if (primoVaiAOggi.current) { primoVaiAOggi.current = false; return }
+    const el = scrollRef.current
+    if (!el || !model) return
+    el.scrollTo({ left: Math.max(0, model.todayLeft - 260), behavior: 'smooth' })
+  }, [vaiAOggi]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /* §345 — su oggi ci si apre **una volta sola**. Rifarlo a ogni modello nuovo
      voleva dire riportare la vista su oggi ogni volta che il componente si
