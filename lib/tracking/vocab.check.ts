@@ -1,5 +1,5 @@
 /* Verifica del vocabolario tracking. Esegui: npx tsx lib/tracking/vocab.check.ts */
-import { trackingBadge, channelsFor, ARCHETYPES, PLATFORMS, AGENCY_CREDENTIALS, type TrackingStatusRow } from '@/lib/tracking/vocab'
+import { trackingBadge, channelsFor, ARCHETYPES, PLATFORMS, SHARED_CREDENTIALS, type TrackingStatusRow } from '@/lib/tracking/vocab'
 
 let fail = 0
 const is = (label: string, got: unknown, want: unknown) => {
@@ -31,7 +31,7 @@ is('ecommerce: klaviyo conta',
 
 is('tre archetipi', ARCHETYPES.map(a => a.value), ['ecommerce', 'leadgen-b2b', 'hospitality'])
 is('quattro slot chiave', PLATFORMS.map(p => p.key), ['ga4', 'google_ads', 'meta', 'klaviyo'])
-is('google_ads agenzia non implementato', AGENCY_CREDENTIALS.find(c => c.key === 'google_ads')?.implemented, false)
+is('google_ads condivisa non implementata', SHARED_CREDENTIALS.find(c => c.key === 'google_ads')?.implemented, false)
 
 console.log(fail ? `\n${fail} controlli falliti` : '\nTutti i controlli passano')
 process.exit(fail ? 1 : 0)

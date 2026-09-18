@@ -88,14 +88,14 @@ export function canSeeTrackingSecrets(appRole: string | null | undefined): boole
 }
 
 /**
- * Chiavi d'agenzia del tracking (service account GA4, token Meta): valgono per
+ * Chiavi condivise del tracking (service account GA4, token Meta): valgono per
  * tutto il portafoglio, quindi le tocca chi risponde del portafoglio — admin e
  * manager. Senior, junior e stage generano i report ma non le sostituiscono.
  */
-export const TRACKING_AGENCY_ROLES: AppRole[] = [...ADMIN_ROLES, 'manager']
+export const TRACKING_SHARED_ROLES: AppRole[] = [...ADMIN_ROLES, 'manager']
 
 export function canManageAgencyKeys(appRole: string | null | undefined): boolean {
-  return TRACKING_AGENCY_ROLES.includes(appRole as AppRole)
+  return TRACKING_SHARED_ROLES.includes(appRole as AppRole)
 }
 
 /**

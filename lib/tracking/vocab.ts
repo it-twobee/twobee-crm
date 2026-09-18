@@ -54,7 +54,7 @@ export function channelsFor(archetype: string | null | undefined): ChannelKey[] 
 }
 
 /**
- * Slot di chiave per cliente. Per Meta il token è d'agenzia: qui va l'Ad
+ * Slot di chiave per cliente. Per Meta il token è condiviso: qui va l'Ad
  * Account ID del cliente. Vale lo stesso per Google Ads con il Customer ID.
  */
 export const PLATFORMS: { key: PlatformKey; label: string; hint: string }[] = [
@@ -100,10 +100,10 @@ export const ACCOUNT_SERVICE_GROUPS = Array.from(new Set(ACCOUNT_SERVICES.map(s 
 export const accountServiceLabel = (key: string) => ACCOUNT_SERVICES.find(s => s.key === key)?.label ?? key
 
 /**
- * Segreti d'agenzia per il reporting. `implemented: false` = connettore da
+ * Segreti condivisi per il reporting. `implemented: false` = connettore da
  * scrivere: la UI lo mostra come non attivo invece di fingere che funzioni.
  */
-export const AGENCY_CREDENTIALS: {
+export const SHARED_CREDENTIALS: {
   key: AgencyPlatformKey; label: string; kind: 'json' | 'text'; hint: string
   clientFieldLabel: string; clientFieldHint: string; implemented: boolean
 }[] = [
@@ -126,7 +126,7 @@ export const AGENCY_CREDENTIALS: {
     implemented: false,
   },
 ]
-export const AGENCY_CREDENTIAL_KEYS = AGENCY_CREDENTIALS.map(c => c.key)
+export const AGENCY_CREDENTIAL_KEYS = SHARED_CREDENTIALS.map(c => c.key)
 export const isAgencyPlatformKey = (v: string): v is AgencyPlatformKey => AGENCY_CREDENTIAL_KEYS.includes(v as AgencyPlatformKey)
 
 export const CMS_SUGGESTIONS = ['Shopify', 'WooCommerce', 'WordPress', 'PrestaShop', 'Magento', 'Wix', 'Squarespace', 'Custom']

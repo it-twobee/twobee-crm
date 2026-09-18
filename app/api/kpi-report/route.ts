@@ -199,7 +199,7 @@ async function generateAnalysis(
     return `${fmtMonth(k.month.slice(0,7))}: ${vals}${k.notes?` [nota: ${k.notes}]`:''}`
   }).join('\n')
 
-  const prompt = `Sei un senior analyst di ${isGrowth?'performance marketing':'digital strategy'} che lavora per TWO BEE, un'agenzia italiana.
+  const prompt = `Sei un senior analyst di ${isGrowth?'performance marketing':'digital strategy'} che lavora per TWO BEE, società italiana di consulenza digitale.
 Stai preparando un report professionale per il cliente "${client.company_name}"${client.industry?` (settore: ${client.industry}, area: ${client.market_area??'n/d'})`:''}.
 Periodo analizzato: ${fmtMonth(from)} – ${fmtMonth(to)} (${sorted.length} ${sorted.length===1?'mese':'mesi'}).
 

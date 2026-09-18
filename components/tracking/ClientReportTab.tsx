@@ -104,7 +104,7 @@ export function ClientReportTab({ clientId, clientName }: { clientId: string; cl
 
   return (
     <div className="space-y-4">
-      <Card title="Connessione GA4" hint="Il service account è d'agenzia (Impostazioni → Chiavi tracking); qui il Property ID di questo cliente e l'evento del lead.">
+      <Card title="Connessione GA4" hint="Il service account è condiviso (Impostazioni → Chiavi tracking); qui il Property ID di questo cliente e l'evento del lead.">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Property ID GA4" hint="solo il numero, non G-XXXX">
             <input value={form.propertyId} onChange={e => setForm(f => ({ ...f, propertyId: e.target.value }))} className={`${inputCls} font-mono`} placeholder="123456789" inputMode="numeric" />

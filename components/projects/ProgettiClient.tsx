@@ -118,7 +118,7 @@ export function ProgettiClient({
   const [wizard, setWizard] = useState(!!initialClientId || !!openWizard)
   const [q, setQ] = useState('')
   /* §358 — si apre sull'area di chi guarda (vuota per chi governa): la prima
-     domanda di un manager growth non è «cosa fa l'agenzia», è «cosa faccio io».
+     domanda di un manager growth non è «cosa fa la società», è «cosa faccio io».
      Resta un default: si cambia con un clic. */
   const [area, setArea] = useState<AreaFiltro>(areaIniziale)
   /* Ogni cambio di filtro riporta il calendario su oggi: le corsie cambiano

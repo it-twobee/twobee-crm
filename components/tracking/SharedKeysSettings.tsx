@@ -14,10 +14,10 @@ export type DefinitionSummary = { archetype: string; title: string; version: num
 export type TemplateSummary = { archetype: string; title: string; version: number; sections: number; items: number }
 
 /**
- * Segreti d'agenzia: una copia per tutto il portafoglio. Il dato che cambia
+ * Segreti condivisi: una copia per tutto il portafoglio. Il dato che cambia
  * da cliente a cliente (Property ID, Ad Account ID) sta nella scheda cliente.
  */
-export function AgencyKeysSettings({ vaultConfigured, cronConfigured, definitions, templates, backHref }: {
+export function SharedKeysSettings({ vaultConfigured, cronConfigured, definitions, templates, backHref }: {
   vaultConfigured: boolean; cronConfigured: boolean; definitions: DefinitionSummary[]; templates: TemplateSummary[]
   backHref: string
 }) {
@@ -36,7 +36,7 @@ export function AgencyKeysSettings({ vaultConfigured, cronConfigured, definition
       <Suspense fallback={null}><BackLink fallback={backHref} label="Tracking" /></Suspense>
       <div>
         <h1 className="text-2xl font-bold text-text-primary font-heading">Chiavi tracking</h1>
-        <p className="text-2xs text-text-tertiary mt-1">Connettori a livello agenzia per report e controllo giornaliero, gestiti da admin e manager. Cifrati a riposo con la chiave del server.</p>
+        <p className="text-2xs text-text-tertiary mt-1">Connettori condivisi fra tutti i clienti, per report e controllo giornaliero, gestiti da admin e manager. Cifrati a riposo con la chiave del server.</p>
       </div>
 
       {!vaultConfigured && (

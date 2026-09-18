@@ -132,7 +132,7 @@ const TEMPLATES: Template[] = [
     id: 'direzione',
     name: 'Direzione',
     emoji: '👑',
-    question: 'Come sta l\'agenzia?',
+    question: 'Come sta TwoBee?',
     desc: 'Numeri commerciali e consegna nella stessa schermata.',
     color: 'var(--color-success)',
     widgets: ['metrics', 'delivery', 'pulse', 'risk', 'nextdue', 'insights'],

@@ -62,7 +62,7 @@ export async function POST(req: Request) {
       .map(m => `[${m.created_at.slice(0, 16).replace('T', ' ')}] ${m.sender?.full_name ?? 'Sconosciuto'} (${m.sender?.role === 'client' ? 'CLIENTE' : 'TEAM'}): ${m.content}`)
       .join('\n')
 
-    const prompt = `Sei l'assistente interno del team di customer care di un'agenzia. Leggi la conversazione con il cliente e proponi al TEAM cosa fare.
+    const prompt = `Sei l'assistente interno del team di customer care di una società di consulenza digitale. Leggi la conversazione con il cliente e proponi al TEAM cosa fare.
 
 Non stai parlando col cliente: i tuoi suggerimenti li legge solo il team, che deciderà se usarli.
 

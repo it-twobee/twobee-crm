@@ -13,7 +13,7 @@ import {
 import { parseServiceAccount } from '@/lib/tracking/ga4'
 import { normalizeUrl, text } from '@/lib/tracking/validate'
 import {
-  PLATFORMS, AGENCY_CREDENTIALS, isPlatformKey, isAgencyPlatformKey, type PlatformKey, type AgencyPlatformKey,
+  PLATFORMS, SHARED_CREDENTIALS, isPlatformKey, isAgencyPlatformKey, type PlatformKey, type AgencyPlatformKey,
 } from '@/lib/tracking/vocab'
 import type { PlatformKeyStatus, AgencyKeyStatus, ClientLoginRow } from '@/lib/types/database'
 
@@ -29,7 +29,7 @@ function assertPlatform(platform: string): PlatformKey {
 
 function assertAgencyPlatform(platform: string): AgencyPlatformKey {
   if (!isAgencyPlatformKey(platform)) throw new TrackingError(400, `Piattaforma sconosciuta: ${platform}`)
-  const meta = AGENCY_CREDENTIALS.find(c => c.key === platform)!
+  const meta = SHARED_CREDENTIALS.find(c => c.key === platform)!
   if (!meta.implemented) throw new TrackingError(409, `${meta.label}: connettore non ancora attivo`)
   return platform
 }
@@ -170,7 +170,7 @@ export async function deleteLogin(clientId: string, id: string) {
   })
 }
 
-/* ── Chiavi d'agenzia (admin e manager) ────────────────────────────────── */
+/* ── Chiavi condivise (admin e manager) ────────────────────────────────── */
 
 function revalidateAgency() {
   revalidatePath('/impostazioni/tracking')
@@ -183,7 +183,7 @@ export async function listAgencyKeys() {
     const { data, error } = await createAdminClient().from('agency_platform_keys').select('platform, updated_at')
     if (error) throw new Error(error.message)
     const byPlatform = new Map((data ?? []).map(r => [r.platform as string, r.updated_at as string]))
-    return AGENCY_CREDENTIALS.map(c => ({
+    return SHARED_CREDENTIALS.map(c => ({
       platform: c.key, label: c.label, hint: c.hint, kind: c.kind, implemented: c.implemented,
       hasValue: byPlatform.has(c.key), updatedAt: byPlatform.get(c.key) ?? null,
     }))

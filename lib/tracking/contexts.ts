@@ -30,7 +30,7 @@ export type MetaPrepared =
   | { context: MetaContext; adAccountId: string; error: null }
   | { context: null; adAccountId: null; error: string }
 
-/** Token d'agenzia + Ad Account ID del cliente (slot Chiavi `meta`). */
+/** Token condiviso + Ad Account ID del cliente (slot Chiavi `meta`). */
 export async function metaContextFor(admin: SupabaseClient, clientId: string): Promise<MetaPrepared> {
   if (!isVaultConfigured()) return { context: null, adAccountId: null, error: 'VAULT_KEY non configurata' }
   try {

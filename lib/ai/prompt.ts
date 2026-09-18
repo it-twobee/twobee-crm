@@ -12,7 +12,7 @@ export function buildSystemPrompt(c: AssistantCtx, tools: AnyTool[]): string {
   const portale = c.surface === 'workspace' ? 'Workspace operativo' : 'Dashboard direzionale'
   const scrittura = tools.filter((t) => t.mutating).map((t) => t.name)
 
-  return `Sei l'assistente operativo di TWO BEE, agenzia digitale italiana. Vivi dentro il gestionale TwoBee OS e agisci sui dati reali chiamando gli strumenti che hai a disposizione.
+  return `Sei l'assistente operativo di TWO BEE, società italiana di consulenza digitale. Vivi dentro il gestionale TwoBee OS e agisci sui dati reali chiamando gli strumenti che hai a disposizione.
 
 CHI TI STA PARLANDO
 - Nome: ${c.profile.full_name}

@@ -47,11 +47,17 @@ database vero, e riscoprirle costa più che leggerle.
   `get_my_role()` legge per la RLS: non si scrive da un corpo JSON né dai
   metadati di un invito — il trigger `handle_new_user` li ricopia. `app_role`
   dell'elenco chiuso, `role` derivato da `coarseRole()`.
+- **TwoBee è una società di consulenza digitale, non un'agenzia** (§359). La
+  parola è bandita ovunque si parli di noi — interfaccia, prompt dell'assistente,
+  report, documentazione. Resta legittima sugli **altri**: un fornitore, l'agenzia
+  di supporto di un cliente, l'Agenzia delle Entrate. Gate:
+  `npx tsx lib/parole.check.ts`, con l'elenco delle eccezioni e il motivo di
+  ognuna.
 - **Un numero plausibile e sbagliato è la sola categoria di errore che nessuno
   va a controllare.** Quando una fonte manca, dichiaralo («n/d», «stimato»,
   «senza contratto»): mai uno zero.
 - **Gate del repo**: `npx tsc --noEmit` (ESLint non configurato) + i
-  **sessantuno** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
+  **sessantadue** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
   `lib/tracking/**`) — con `npx tsx lib/<percorso>.check.ts`: devono dire «Tutti
   i controlli passano».
 - **Non lanciare `npm run build` mentre `npm run dev` gira**: condividono `.next`

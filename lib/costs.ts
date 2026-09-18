@@ -473,7 +473,7 @@ export const SUGGESTED_CENTERS: { name: string; description: string; why: string
   {
     name: 'Formazione & Certificazioni',
     description: 'Certificazioni Google/Meta partner, corsi, community',
-    why: 'Un\'agenzia growth vende competenza certificata. Oggi non c\'è una riga: o non si investe, o si investe e non si vede. Nessuna delle due è una buona notizia.',
+    why: 'Una società di consulenza digitale vende competenza certificata. Oggi non c\'è una riga: o non si investe, o si investe e non si vede. Nessuna delle due è una buona notizia.',
     budget: 0,
   },
   {

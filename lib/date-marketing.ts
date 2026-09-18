@@ -8,7 +8,7 @@
  *
  * **Poche e vere.** Ogni data in più abbassa il valore di tutte le altre: una
  * colonna colorata dice «guarda qui» solo finché resta rara. Qui ci sono i
- * giorni che in un'agenzia cambiano davvero il piano editoriale — non le
+ * giorni che cambiano davvero il piano editoriale di un cliente — non le
  * giornate mondiali di qualcosa, che sono trecentosessantacinque.
  *
  * **La Black Week è una settimana, non un venerdì**: le creatività partono il

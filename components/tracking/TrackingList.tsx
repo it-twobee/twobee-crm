@@ -43,7 +43,7 @@ export function TrackingList({ rows, lastRun, clientBase, settingsHref, voce }: 
     pagina, dal portale admin, si apre davanti a un cliente in call. */
   voce?: Sezione;
   rows: TrackingListRow[]; lastRun: TrackingQaRun | null; clientBase: string
-  /** chiavi d'agenzia: solo per chi può gestirle (admin e manager) */
+  /** chiavi condivise: solo per chi può gestirle (admin e manager) */
   settingsHref?: string | null
 }) {
   const [q, setQ] = useState('')
@@ -92,7 +92,7 @@ export function TrackingList({ rows, lastRun, clientBase, settingsHref, voce }: 
         <div className="flex items-center gap-2">
           {settingsHref && (
             <Link href={settingsHref} className="inline-flex items-center gap-1.5 text-sm font-semibold rounded-xl border border-border px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-surface-hover">
-              <KeyRound className="w-4 h-4" /> Chiavi d&apos;agenzia
+              <KeyRound className="w-4 h-4" /> Chiavi condivise
             </Link>
           )}
           <GoldButton onClick={checkAll} pending={pending}><RefreshCw className="w-4 h-4" /> Controlla ora</GoldButton>

@@ -141,7 +141,7 @@ const MIE: Voce[] = [
   { quando: sera, frase: () => 'Quello che resta. Domani ritrovi questo elenco, identico, che ti aspetta.' },
 ]
 const TUTTE: Voce[] = [
-  { frase: () => 'Tutte le task dell\'agenzia, dentro e fuori dai progetti.' },
+  { frase: () => 'Tutte le task, dentro e fuori dai progetti. Nessuna esclusa.' },
   { frase: () => 'Tutto il lavoro in circolazione, in un posto solo. Coraggio.' },
   { frase: () => 'Niente più nascosto nella scheda di un progetto che nessuno apre.' },
 ]

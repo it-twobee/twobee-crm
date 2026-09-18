@@ -31,7 +31,7 @@ export function ClientKeysTab({ clientId }: { clientId: string }) {
   return (
     <div className="space-y-4">
       <Notice tone="muted">
-        Un solo valore per servizio, cifrato a riposo. Per Meta va l&apos;Ad Account ID del cliente: il token è d&apos;agenzia
+        Un solo valore per servizio, cifrato a riposo. Per Meta va l&apos;Ad Account ID del cliente: il token è condiviso
         e sta in Impostazioni → Chiavi tracking. Gli accessi con utente e password stanno nel tab Accessi.
       </Notice>
       {slots.map(slot => <KeySlot key={slot.platform} clientId={clientId} slot={slot} onChanged={reload} />)}

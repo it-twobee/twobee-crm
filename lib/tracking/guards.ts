@@ -27,7 +27,7 @@ export async function requireInternalStaff(): Promise<Viewer> {
   return v
 }
 
-/** Admin: chiavi d'agenzia e impostazioni. */
+/** Admin: chiavi condivise e impostazioni. */
 export async function requireAdmin(): Promise<Viewer> {
   const v = await requireStaff()
   const ok = v.profile.role === 'admin' || isAdminRole(v.profile.app_role) || isSuperAdminRaw(v.profile.email, v.profile.app_role)
@@ -35,10 +35,10 @@ export async function requireAdmin(): Promise<Viewer> {
   return v
 }
 
-/** Chiavi d'agenzia: admin e manager (`TRACKING_AGENCY_ROLES`). */
+/** Chiavi condivise: admin e manager (`TRACKING_SHARED_ROLES`). */
 export async function requireAgencyKeyManager(): Promise<Viewer> {
   const v = await requireStaff()
   const ok = canManageAgencyKeys(v.profile.app_role) || v.profile.role === 'admin' || isSuperAdminRaw(v.profile.email, v.profile.app_role)
-  if (!ok) throw new TrackingError(403, 'Le chiavi d\'agenzia le gestiscono admin e manager')
+  if (!ok) throw new TrackingError(403, 'Le chiavi condivise le gestiscono admin e manager')
   return v
 }

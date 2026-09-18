@@ -526,7 +526,7 @@ export function taxInsights(i: TaxInput): TaxFinding[] {
     out.push({
       id: 'training', severity: 'opportunità',
       title: 'Nessuna spesa di formazione a piano',
-      detail: 'Per un\'agenzia che vende competenza certificata è insolito. Oltre alla deducibilità, la formazione del personale ha avuto negli anni crediti d\'imposta dedicati.',
+      detail: 'Per una società che vende competenza certificata è insolito. Oltre alla deducibilità, la formazione del personale ha avuto negli anni crediti d\'imposta dedicati.',
       action: 'Verifica le misure in vigore prima di programmare i corsi dell\'anno.',
     })
   }

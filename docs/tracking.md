@@ -8,7 +8,7 @@ portali esistenti. Il DB del collega era vuoto: nessun travaso.
 6–9: Tracking · Report · Chiavi · Accessi), condivise da `/clienti/[id]` e
 `/workspace/clienti/[id]`; pagina elenco `/tracking` e `/workspace/tracking`
 (badge per cliente, colonna QA, «Controlla ora»); `/impostazioni/tracking`
-(admin) e `/workspace/tracking/impostazioni` (manager) per le chiavi d'agenzia. Le action rispondono con `ActionResult`
+(admin) e `/workspace/tracking/impostazioni` (manager) per le chiavi condivise. Le action rispondono con `ActionResult`
 (`lib/tracking/action-result.ts`) e **non lanciano**: in produzione Next
 maschera il messaggio di un throw da server action, e qui i messaggi sono la
 sostanza («Pixel ID non valido», «manca il service account»).
@@ -29,10 +29,10 @@ dentro una server action, e **chi vede** lo decide `TRACKING_SECRET_ROLES` in
 partner, viewer) — unica fonte per i tab montati e per `requireInternalStaff`.
 Le liste restituiscono solo `hasValue`/`has_secret`; il valore esce solo dalle
 azioni `reveal*`. Non c'è rekey per scelta: persa la chiave, i segreti si
-reinseriscono dalle piattaforme. Le chiavi d'agenzia le gestiscono **admin e manager**
-(`TRACKING_AGENCY_ROLES`, guard `requireAgencyKeyManager`): valgono per tutto il
+reinseriscono dalle piattaforme. Le chiavi condivise le gestiscono **admin e manager**
+(`TRACKING_SHARED_ROLES`, guard `requireAgencyKeyManager`): valgono per tutto il
 portafoglio, e i manager vivono nel workspace, da cui il portale admin non si
-raggiunge. Per Meta il token è d'agenzia e nello slot
+raggiunge. Per Meta il token è condiviso e nello slot
 Chiavi del cliente va l'**Ad Account ID**; Google Ads è dichiarato
 `implemented: false` e la UI lo mostra come non attivo invece di fingere.
 
@@ -56,7 +56,7 @@ rispondi 202» senza toccare `runQa`.
 
 **Report.** GA4 via service account (JWT RS256 fatto a mano con `node:crypto`,
 niente `google-auth-library`), Klaviyo con chiave per cliente, Meta con token
-d'agenzia; 30 giorni che **chiudono ieri** più i 30 precedenti; funnel B2B a
+condiviso; 30 giorni che **chiudono ieri** più i 30 precedenti; funnel B2B a
 due query (la Data API v1beta non ha un endpoint funnel); parametri custom
 saltati con il motivo, non fatali; la definizione usata viene **congelata nel
 run**; 30 run per cliente, anche quelli falliti. Template checklist e

@@ -689,7 +689,7 @@ Tre cose sulla sezione Progetti, tutte sullo stesso schermo.
   il servizio — l'unica cosa che distingue due righe dello stesso cliente
   (`progettoBreve`, la stessa regola delle task §346).
 - **Si apre sull'area di chi guarda** (§358). La prima domanda di un manager
-  growth non è «cosa fa l'agenzia», è «cosa faccio io». L'idea era leggere
+  growth non è «cosa fa la società», è «cosa faccio io». L'idea era leggere
   `profiles.area`: misurata prima di scriverci sopra, è **nulla per tutte e
   sette le persone attive** — un default costruito lì non avrebbe selezionato
   niente per nessuno, lo stesso difetto di §339. Quindi l'area si **deduce dal
@@ -785,6 +785,33 @@ verso l'accento: «qui succede qualcosa», non «qui non si fa niente».
   cui capita, cioè col piano già in mano al cliente. Il test fissa cinque anni
   di Black Friday, e controlla che festa della mamma cada di domenica, i saldi
   estivi di sabato e il rientro di lunedì.
+
+## La parola che non ci descrive (§359)
+
+TwoBee è una **società di consulenza digitale**, non un'agenzia: è la cosa più
+lontana da come lavoriamo, e la parola era in quarantotto punti fra codice,
+interfaccia e documentazione. Non tutti uguali, ed è la ragione per cui non è
+bastato un cerca-e-sostituisci:
+
+- **su di noi** se n'è andata: i prompt dell'assistente («Sei l'assistente di
+  TWO BEE, società italiana di consulenza digitale»), i report KPI, «Come sta
+  TwoBee?» in dashboard, i sottotitoli delle liste, gli insight economici;
+- **sugli altri resta**, perché è vera: un fornitore può essere un'agenzia, il
+  cliente può avere la sua agenzia di supporto, e l'Agenzia delle Entrate si
+  chiama così;
+- nel tracking la famiglia delle **«chiavi d'agenzia»** — le credenziali che
+  valgono per tutto il portafoglio, contro quelle del singolo cliente — diventa
+  **«chiavi condivise»**: dice meglio cosa sono e non nomina nessun tipo di
+  azienda. Rinominati anche gli identificatori (`SHARED_CREDENTIALS`,
+  `TRACKING_SHARED_ROLES`, `SharedKeysSettings`), o la parola sarebbe tornata su
+  dalla prima frase scritta leggendo il codice. **La tabella
+  `agency_platform_keys` resta**: rinominarla vuol dire una migration, le RLS e
+  un rischio vero per una parola che nessuno vede.
+
+Gate: `npx tsx lib/parole.check.ts` — cerca la parola in `app`, `components`,
+`lib` e `docs`, e la ammette solo dove l'elenco delle eccezioni dice **perché**
+parla di altri. Una regola di lingua che vive nella testa di chi l'ha detta dura
+fino al prossimo che scrive un testo.
 
 ## Progetti: filtrabili e raggruppati per cliente (§341)
 

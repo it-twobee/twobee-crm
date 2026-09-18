@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
       messages: [
         {
           role: 'system',
-          content: `Sei un esperto di marketing digitale e performance KPI per agenzie italiane.
+          content: `Sei un esperto di marketing digitale e performance KPI per società di consulenza digitale italiane.
 Conosci i benchmark reali di settore per campagne digitali, SEO, lead generation, e-commerce.
 Per i KPI "lower is better" (CPA, CPL, bounce rate, abbandono carrello, posizione SEO):
 - low = valore peggiore (più alto)

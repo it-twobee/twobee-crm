@@ -1,10 +1,10 @@
 import { listDefinitions } from './reporting'
 import { listTemplates } from './checklist'
 import { isVaultConfigured } from './crypto'
-import type { DefinitionSummary, TemplateSummary } from '@/components/tracking/AgencyKeysSettings'
+import type { DefinitionSummary, TemplateSummary } from '@/components/tracking/SharedKeysSettings'
 
 /** Le stesse prop per la pagina admin e per quella del workspace. */
-export function agencySettingsProps(): {
+export function sharedSettingsProps(): {
   vaultConfigured: boolean; cronConfigured: boolean; definitions: DefinitionSummary[]; templates: TemplateSummary[]
 } {
   const definitions = listDefinitions().map(d => ({

@@ -25,13 +25,13 @@ async function groq(prompt: string, system: string): Promise<string> {
 }
 
 const GROWTH_CONTEXT = `
-Sei un consulente marketing esperto che aiuta a definire gli obiettivi KPI per un cliente Growth di un'agenzia digitale.
+Sei un consulente marketing esperto che aiuta a definire gli obiettivi KPI per un cliente Growth di una società di consulenza digitale.
 Un cliente Growth si occupa di: performance marketing, lead generation, advertising (Meta, Google), marketing automation, ecommerce, campagne a pagamento.
 I KPI tipici Growth sono: ROAS, CTR, CPA, CPL, lead generati, conversion rate, revenue attribuita, ad spend.
 `
 
 const DIGITAL_CONTEXT = `
-Sei un consulente IT e digitale esperto che aiuta a definire gli obiettivi KPI per un cliente Digital di un'agenzia.
+Sei un consulente IT e digitale esperto che aiuta a definire gli obiettivi KPI per un cliente Digital di una società di consulenza digitale.
 Un cliente Digital si occupa di: implementazione AI, CRM, gestionali, applicativi web, siti web, SEO, social media management, contenuti organici.
 I KPI tipici Digital sono: follower guadagnati, sessioni organiche, nuovi utenti, reach, engagement rate, posizione SEO, bounce rate, lead generati.
 `

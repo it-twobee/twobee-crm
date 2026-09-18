@@ -1,7 +1,7 @@
 /**
  * Client Meta Marketing API (Graph API), senza dipendenze esterne.
  *
- * Il token del System User è d'agenzia, l'Ad Account ID cambia per cliente:
+ * Il token del System User è condiviso, l'Ad Account ID cambia per cliente:
  * il chiamante passa entrambi, qui non si legge nulla. Il token viaggia
  * nell'header Authorization e non nella query string, così non finisce nei
  * log intermedi.
