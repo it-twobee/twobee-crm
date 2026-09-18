@@ -7,6 +7,8 @@ import { Plus, FolderKanban, Search, ChevronRight, Users } from 'lucide-react'
 import { ProjectWizard } from './ProjectWizard'
 import { ProjectGantt, type GanttLane } from './ProjectGantt'
 import { countsInDelivery, type InternalKind } from '@/lib/clients'
+import { VoceSezione } from '@/components/workspace/VoceSezione'
+import type { Sezione } from '@/lib/task-mood'
 import type {
   ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode,
   ProjectWorkstream, Milestone, Task, ClientLabel,
@@ -85,8 +87,10 @@ function quietBadge(info: ReturnType<typeof quietInfo>) {
 
 export function ProgettiClient({
   clients, profiles, services, templates, nodes, projects, workstreams, milestones, calTasks, initialClientId, openWizard,
-  basePath = '/progetti', canCreate = true,
+  basePath = '/progetti', canCreate = true, voce,
 }: {
+  /** §351 — la riga sotto il titolo, solo nel portale operativo */
+  voce?: Sezione
   clients: { id: string; name: string; client_label?: ClientLabel | null; is_internal?: boolean | null; internal_kind?: InternalKind | null }[]
   profiles: { id: string; full_name: string; app_role: string | null; avatar_url?: string | null }[]
   services: ServiceCatalogEntry[]
@@ -257,6 +261,7 @@ export function ProgettiClient({
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-text-primary font-heading">Progetti</h1>
+          {voce && <VoceSezione sezione={voce} />}
           <p className="text-sm text-text-secondary mt-1">
             <span className="tabular font-semibold text-text-primary">{projects.length}</span> totali ·{' '}
             <span className="tabular font-semibold text-success">{activeCount}</span> attivi

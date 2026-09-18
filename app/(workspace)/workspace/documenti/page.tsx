@@ -21,7 +21,7 @@ export default async function WorkspaceDocumentiPage() {
   ])
 
   return (
-    <DocumentiClient
+    <DocumentiClient voce="documenti"
       documents={(docsRes.data ?? []) as unknown as Parameters<typeof DocumentiClient>[0]['documents']}
       clients={(clientsRes.data ?? []) as unknown as { id: string; company_name: string }[]}
     />

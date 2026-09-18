@@ -8,6 +8,7 @@ import { User, Save, Loader2, Calendar, CheckCircle2, Lock } from 'lucide-react'
 import { ROLE_LABELS } from '@/lib/permissions'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import type { Profile } from '@/lib/types/database'
+import { VoceSezione } from '@/components/workspace/VoceSezione'
 
 export function ProfiloClient({ profile, googleConnected }: {
   profile: Profile
@@ -62,6 +63,7 @@ export function ProfiloClient({ profile, googleConnected }: {
           Profilo
         </h1>
         <p className="text-text-tertiary text-sm mt-0.5">Dati personali, competenze e integrazioni.</p>
+        <VoceSezione sezione="profilo" className="text-2xs text-text-tertiary mt-1" />
       </header>
 
       {/* Identità */}

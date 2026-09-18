@@ -15,5 +15,5 @@ export default async function WorkspaceTrackingPage() {
   // clients_workspace = VIEW senza dati economici, filtrata per chi guarda
   const { rows, lastRun } = await loadTrackingOverview(supabase, 'clients_workspace')
   const canManage = profile.role === 'admin' || canManageAgencyKeys(profile.app_role)
-  return <TrackingList rows={rows} lastRun={lastRun} clientBase="/workspace/clienti" settingsHref={canManage ? '/workspace/tracking/impostazioni' : null} />
+  return <TrackingList voce="tracking" rows={rows} lastRun={lastRun} clientBase="/workspace/clienti" settingsHref={canManage ? '/workspace/tracking/impostazioni' : null} />
 }

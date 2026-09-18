@@ -584,6 +584,26 @@ e a chi non ha nemmeno una task non si parla di ritardi: il caso vuoto viene
 prima di tutti, o la lista di chi è appena arrivato lo accoglierebbe con un
 rimprovero.
 
+**La voce copre undici sezioni del workspace**, non solo le task: clienti,
+progetti, ticket, documenti, documenti personali, buste paga, richieste HR,
+feedback, cronologia, profilo, tracking — più il saluto della home.
+`VoceSezione` sta **solo nel portale operativo**: sei di quelle pagine sono le
+stesse del portale admin, che si apre davanti a un cliente in call, quindi la
+riga arriva per prop e la passa solo la pagina del workspace. Calendario e
+customer care restano fuori: le loro intestazioni sono barre compatte con dentro
+un conteggio, e una riga in più le spezzerebbe — meglio due sezioni senza voce
+che due barre rotte, e nessun gruppo di frasi che non legge nessuno.
+
+**Il gate guarda la struttura, non le parole.** La prima versione cercava
+«mattina» nel testo per dire se una frase dipendeva dall'orologio, e bocciava
+righe legittime che il mattino lo nominano per modo di dire («carte che servono
+sempre di lunedì mattina»). Adesso prova la proprietà vera: una frase pescabile
+senza momento deve restare pescabile a ogni ora e ogni giorno — cosa vera solo
+per quelle senza condizione. E i semi di prova sono **consecutivi**: la scelta è
+un modulo sulla lunghezza del gruppo, e una serie a passo sette copriva un resto
+su sette, bocciando frasi che non aveva mai pescato. Un test che campiona male
+accusa il codice del proprio difetto.
+
 ## Progetti: filtrabili e raggruppati per cliente (§341)
 
 L'elenco sotto il calendario era una griglia piatta di trenta schede, coi

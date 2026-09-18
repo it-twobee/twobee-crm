@@ -23,6 +23,8 @@ import { NewClientModal } from './NewClientModal'
 import { SUPER_ADMIN_EMAILS, canCreateClients } from '@/lib/permissions'
 import { deleteClients, previewClientDeletion, type DeletionPreview } from '@/app/actions/delete-client'
 import { PrioritaOggi } from './PrioritaOggi'
+import { VoceSezione } from '@/components/workspace/VoceSezione'
+import type { Sezione } from '@/lib/task-mood'
 
 /**
  * §176/§177: l'economics del cliente, calcolata dai contratti dei progetti.
@@ -236,7 +238,7 @@ function SortValue(c: Client, key: SortKey, eco?: ClientEconomicsSummary, risk?:
 const STORAGE_PINS = 'twobee_pinned_clients'
 const STORAGE_PIN_ORDER = 'twobee_pinned_order'
 
-export function ClientiList({ clients: initialClients, currentProfile, hideEconomics = false, economics = {}, risks = {} }: ClientiListProps) {
+export function ClientiList({ clients: initialClients, currentProfile, hideEconomics = false, economics = {}, risks = {}, voce }: ClientiListProps & { voce?: Sezione }) {
   const canSeeMrr = !hideEconomics && (!currentProfile || SUPER_ADMIN_EMAILS.includes(currentProfile.email) || ['admin', 'manager'].includes(currentProfile.app_role ?? ''))
   /* §317 — creare un cliente non è vedere i suoi numeri: il bottone non passa
      più da `hideEconomics`, che è il gate delle economics, ma dal ruolo. Stessa
@@ -830,6 +832,7 @@ export function ClientiList({ clients: initialClients, currentProfile, hideEcono
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-text-primary font-heading">Clienti</h1>
+          {voce && <VoceSezione sezione={voce} />}
           <p className="text-text-secondary text-sm mt-0.5">
             {allFiltered.length} clienti
             {canSeeMrr && (totalMrr > 0

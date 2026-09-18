@@ -14,6 +14,8 @@ import {
 import type { QaSummary } from '@/lib/tracking/qa'
 import type { ClientTracking, TrackingQaRun } from '@/lib/types/database'
 import { Chip, GoldButton, StatusChip, fmtDate } from './ui'
+import { VoceSezione } from '@/components/workspace/VoceSezione'
+import type { Sezione } from '@/lib/task-mood'
 
 export type TrackingListRow = {
   id: string
@@ -36,7 +38,10 @@ const FILTERS: { value: Filter; label: string }[] = [
 
 const QA_LABEL: Record<string, string> = Object.fromEntries(QA_CHECKS.map(c => [c.key, c.label]))
 
-export function TrackingList({ rows, lastRun, clientBase, settingsHref }: {
+export function TrackingList({ rows, lastRun, clientBase, settingsHref, voce }: {
+  /** §351 — la riga sotto il titolo, **solo** nel portale operativo: la stessa
+    pagina, dal portale admin, si apre davanti a un cliente in call. */
+  voce?: Sezione;
   rows: TrackingListRow[]; lastRun: TrackingQaRun | null; clientBase: string
   /** chiavi d'agenzia: solo per chi può gestirle (admin e manager) */
   settingsHref?: string | null
@@ -78,6 +83,7 @@ export function TrackingList({ rows, lastRun, clientBase, settingsHref }: {
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-text-primary font-heading">Tracking</h1>
+          {voce && <VoceSezione sezione={voce} />}
           <p className="text-2xs text-text-tertiary mt-1">
             Stato dei canali per cliente e controllo giornaliero.
             {lastRun ? ` Ultimo giro ${fmtDate(lastRun.finished_at ?? lastRun.started_at)}: ${lastRun.clients} clienti, ${lastRun.problems} problemi.` : ' Nessun giro ancora eseguito.'}

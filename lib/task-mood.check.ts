@@ -2,7 +2,9 @@
    Le frasi sono libere di essere simpatiche, non di mentire: qui si controlla
    che il numero ci sia sempre, che la stessa situazione dia sempre la stessa
    frase, e che nessuna variante sfori la riga. */
-import { verdetto, sottotitolo, saluto, seme, type Momento } from '@/lib/task-mood'
+import {
+  verdetto, sottotitolo, saluto, seme, sottotitoloSezione, SEZIONI_CHIAVI, type Momento,
+} from '@/lib/task-mood'
 
 let fail = 0
 const is = (label: string, got: unknown, want: unknown) => {
@@ -15,7 +17,11 @@ const MOMENTI: Momento[] = [
   { ora: null, giorno: null },
   ...[7, 11, 13, 17, 20, 23].flatMap(ora => [0, 1, 3, 5, 6].map(giorno => ({ ora, giorno }))),
 ]
-const SEMI = Array.from({ length: 40 }, (_, i) => i * 7 + 1)
+/* Semi **consecutivi**: la scelta è un modulo sulla lunghezza del gruppo, e una
+   serie a passo sette copriva un solo resto su sette — il controllo bocciava
+   frasi legittime perché non le aveva mai pescate. Un test che campiona male
+   accusa il codice del proprio difetto. */
+const SEMI = Array.from({ length: 40 }, (_, i) => i)
 const conti = (o: Partial<Parameters<typeof verdetto>[0]> = {}) =>
   ({ aperte: 10, late: 4, soon: 2, tutte: 16, ...o })
 
@@ -60,18 +66,31 @@ is('e cambia se cambiano i numeri', seme('2026-09-18', 4, 10) !== seme('2026-09-
 is('ma non cambia scrivendo nella ricerca', seme('2026-09-18', 4, 10), seme('2026-09-18', 4, 10))
 
 console.log('\n— Prima che si sappia che ore sono —')
-/* Il server sta su UTC e chi legge no: se il primo render scegliesse una frase
-   dell'orologio, il browser ne scriverebbe un'altra e React protesterebbe. */
-let orarieAlPrimoRender = 0
-for (const s of SEMI) {
-  const t = [
-    verdetto(conti(), { ora: null, giorno: null }, s).testo,
-    sottotitolo({ origin: 'tutte', personale: true }, { ora: null, giorno: null }, s),
-    saluto({ ora: null, giorno: null }, s),
-  ].join(' ')
-  if (/caffè|mattina|pomeriggio|venerdì|lunedì|weekend|18:00|stasera/i.test(t)) orarieAlPrimoRender++
+/* Il server sta su UTC e chi legge no: se il primo render pescasse una frase
+   legata all'orologio, il browser ne scriverebbe un'altra e React protesterebbe.
+   Il controllo è **strutturale, non sulle parole**: una frase pescabile senza
+   momento deve restare pescabile a ogni ora e ogni giorno — è vero solo per
+   quelle senza condizione. Cercare «mattina» nel testo bocciava invece frasi
+   legittime che il mattino lo nominano per modo di dire («carte che servono
+   sempre di lunedì mattina»): un test che guarda le parole al posto della
+   regola boccia il codice giusto e lascia passare quello sbagliato. */
+const insieme = (fn: (m: Momento, s: number) => string, m: Momento) =>
+  new Set(SEMI.map(s => fn(m, s)))
+
+const sempreDisponibile = (nome: string, fn: (m: Momento, s: number) => string) => {
+  const neutre = insieme(fn, { ora: null, giorno: null })
+  const fuori: string[] = []
+  for (const m of MOMENTI.slice(1)) {
+    const qui = insieme(fn, m)
+    Array.from(neutre).forEach(t => { if (!qui.has(t)) fuori.push(`${t} @${m.ora}/${m.giorno}`) })
+  }
+  is(nome, fuori.slice(0, 2), [])
 }
-is('senza ora non si pescano frasi dell\'orologio', orarieAlPrimoRender, 0)
+sempreDisponibile('il verdetto senza ora vale a ogni ora',
+  (m, s) => verdetto(conti(), m, s).testo)
+sempreDisponibile('il sottotitolo senza ora vale a ogni ora',
+  (m, s) => sottotitolo({ origin: 'tutte', personale: true }, m, s))
+sempreDisponibile('il saluto senza ora vale a ogni ora', (m, s) => saluto(m, s))
 
 console.log('\n— Ce n\'è per ogni situazione —')
 const combinazioni = MOMENTI.flatMap(m => SEMI.map(s => [m, s] as const))
@@ -88,6 +107,20 @@ const distinte = (fn: (m: Momento, s: number) => string) =>
 is('il verdetto in ritardo ha più di quattro varianti',
   distinte((m, s) => verdetto(conti({ late: 4 }), m, s).testo) > 4, true)
 is('il saluto ne ha più di quattro', distinte((m, s) => saluto(m, s)) > 4, true)
+
+console.log('\n— Ogni sezione del workspace ha una voce —')
+/* Una sezione senza frasi è una sezione muta, e si scopre solo aprendola: qui
+   si prova ogni chiave per ogni ora e ogni giorno. */
+let sezioniMute = 0, sezioniLunghe = 0
+for (const k of SEZIONI_CHIAVI) for (const m of MOMENTI) for (const s of SEMI) {
+  const t = sottotitoloSezione(k, m, s)
+  if (!t.trim()) sezioniMute++
+  if (t.length > 92) sezioniLunghe++
+}
+is('nessuna sezione muta', sezioniMute, 0)
+is('nessun sottotitolo di sezione sfora la riga', sezioniLunghe, 0)
+for (const k of SEZIONI_CHIAVI) sempreDisponibile(`${k}: senza ora vale a ogni ora`, (m, s) => sottotitoloSezione(k, m, s))
+is('le sezioni coperte sono undici', SEZIONI_CHIAVI.length, 11)
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

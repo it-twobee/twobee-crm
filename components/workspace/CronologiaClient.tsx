@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { History, Search, ArrowUpRight, Plus, Pencil, Trash2 } from 'lucide-react'
 import type { ActivityLog, ActivityAction } from '@/lib/types/database'
+import { VoceSezione } from '@/components/workspace/VoceSezione'
 
 const ACTION_UI: Record<ActivityAction, { label: string; cls: string; Icon: typeof Plus }> = {
   create: { label: 'Creato',    cls: 'text-success bg-success-dim', Icon: Plus },
@@ -83,6 +84,7 @@ export function CronologiaClient({ logs }: { logs: ActivityLog[] }) {
         <p className="text-text-tertiary text-sm mt-0.5">
           Le tue attività recenti. Nessuno vede questa pagina al posto tuo.
         </p>
+        <VoceSezione sezione="cronologia" className="text-2xs text-text-tertiary mt-1" />
       </header>
 
       <div className="flex flex-wrap items-center gap-2">

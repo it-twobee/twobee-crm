@@ -61,50 +61,61 @@ function pesca(voci: Voce[], m: Momento, seme: number): Voce {
 
 // ── in ritardo ───────────────────────────────────────────────────────────────
 const IN_RITARDO: Voce[] = [
-  { frase: n => `${n} in ritardo. Il passato bussa, e ha portato gli amici.` },
-  { frase: n => `${n} già scadute: il tempo è passato, loro no.` },
-  { frase: n => `${n} in ritardo. Qualcuno disse «lo faccio dopo». Dopo è adesso.` },
-  { frase: n => `${n} scadute. Nessun giudizio — solo un conteggio molto preciso.` },
-  { quando: mattina, frase: n => `${n} in ritardo, e il caffè non le chiude da solo.` },
-  { quando: sera, frase: n => `${n} in ritardo: domani mattina saranno ancora lì, fedeli.` },
-  { quando: venerdi, frase: n => `${n} in ritardo di venerdì. Il weekend le aspetta con te.` },
-  { quando: lunedi, frase: n => `${n} in ritardo già di lunedì. Partenza sprint, direzione opposta.` },
-  { quando: weekend, frase: n => `${n} in ritardo, ed è weekend. Nessuno ti guarda: chiudine una.` },
+  { frase: n => `${n} in ritardo. Il passato bussa, e stavolta ha le chiavi.` },
+  { frase: n => `${n} scadute. Il tempo è passato, loro sono rimaste.` },
+  { frase: n => `${n} in ritardo. «Lo faccio dopo» ha vinto ${n} volte su ${n}.` },
+  { frase: n => `${n} scadute. Nessun giudizio, solo un conteggio imbarazzantemente preciso.` },
+  { frase: n => `${n} in ritardo. Il cliente non lo sa ancora. Ancora.` },
+  { frase: n => `${n} fuori tempo massimo. Il calendario ha già voltato pagina, tu no.` },
+  { quando: mattina, frase: n => `${n} in ritardo e il caffè è già finito. Iniziamo bene.` },
+  { quando: mattina, frase: n => `Buongiorno: ${n} scadute ti hanno aspettato tutta la notte.` },
+  { quando: pomeriggio, frase: n => `${n} in ritardo. Sono le ore in cui si decide se diventano ${n + 1}.` },
+  { quando: sera, frase: n => `${n} in ritardo. Domani alle 9 saranno ancora lì, puntualissime.` },
+  { quando: venerdi, frase: n => `${n} in ritardo di venerdì: il weekend parte con un peso a bordo.` },
+  { quando: lunedi, frase: n => `${n} in ritardo già di lunedì. Record personale?` },
+  { quando: weekend, frase: n => `${n} in ritardo, ed è weekend. Nessuno guarda: chiudine una di nascosto.` },
 ]
 
 // ── scadono a breve ──────────────────────────────────────────────────────────
 const IN_ARRIVO: Voce[] = [
-  { frase: n => `${n} in scadenza entro sette giorni. Sette, non «una settimana circa».` },
-  { frase: n => `${n} in arrivo. Il futuro è quella cosa che poi diventa oggi.` },
-  { frase: n => `${n} in scadenza. Ancora in tempo, tecnicamente.` },
-  { quando: mattina, frase: n => `${n} in scadenza questa settimana: si comincia adesso o alle 18?` },
-  { quando: pomeriggio, frase: n => `${n} in scadenza a breve. Il pomeriggio è lungo, ma non infinito.` },
-  { quando: venerdi, frase: n => `${n} in scadenza, e il venerdì dura meno di quanto sembri.` },
+  { frase: n => `${n} in scadenza entro sette giorni. Sette. Non «una settimana circa».` },
+  { frase: n => `${n} in arrivo. Il futuro è quella cosa che verso giovedì diventa presente.` },
+  { frase: n => `${n} in scadenza: ancora in tempo, tecnicamente, per pochissimo.` },
+  { frase: n => `${n} in arrivo. Adesso sono progetti, fra sei giorni sono problemi.` },
+  { quando: mattina, frase: n => `${n} in scadenza. Si comincia adesso o alle 18 col fiatone?` },
+  { quando: pomeriggio, frase: n => `${n} in scadenza. Il pomeriggio sembra lungo e non lo è mai.` },
+  { quando: sera, frase: n => `${n} in scadenza. Domani è già uno di quei sette giorni.` },
+  { quando: venerdi, frase: n => `${n} in scadenza, ed è venerdì: il lunedì arriva prima di quanto meriti.` },
 ]
 
 // ── tutto chiuso ─────────────────────────────────────────────────────────────
 const PULITO: Voce[] = [
-  { frase: () => 'Tutto chiuso. Screenshot, che nessuno ci crederà.' },
-  { frase: () => 'Zero aperte. O sei bravissimo, o sta per arrivare qualcosa.' },
-  { frase: () => 'Niente da fare qui. Sospetto, ma bello.' },
-  { quando: venerdi, frase: () => 'Tutto chiuso di venerdì. Questa è tecnica.' },
-  { quando: sera, frase: () => 'Tutto chiuso a fine giornata. Si può anche smettere.' },
+  { frase: () => 'Tutto chiuso. Fai uno screenshot, nessuno ti crederà.' },
+  { frase: () => 'Zero aperte. O sei bravissimo, o qualcuno sta per rimediare.' },
+  { frase: () => 'Niente da fare qui. Goditelo: dura il tempo di una mail.' },
+  { frase: () => 'Elenco vuoto. Sospettosamente vuoto.' },
+  { quando: venerdi, frase: () => 'Tutto chiuso di venerdì. Questa non è fortuna, è mestiere.' },
+  { quando: sera, frase: () => 'Tutto chiuso a fine giornata. Spegni tutto e vattene, davvero.' },
+  { quando: lunedi, frase: () => 'Lunedì e già zero aperte. Chi sei e cosa hai fatto?' },
 ]
 
 // ── in pari ──────────────────────────────────────────────────────────────────
 const IN_PARI: Voce[] = [
-  { frase: n => `Niente in ritardo, ${n} aperte. Equilibrio precario ma dignitoso.` },
-  { frase: n => `${n} aperte e nessun ritardo: la situazione è sotto controllo. Per ora.` },
-  { frase: n => `Zero scadute, ${n} in lavorazione. Continua così e diventa noioso.` },
-  { quando: lunedi, frase: n => `Lunedì con ${n} aperte e zero ritardi: parte bene.` },
+  { frase: n => `Zero ritardi, ${n} aperte. Equilibrio precario, ma è pur sempre equilibrio.` },
+  { frase: n => `${n} aperte, niente scaduto. Tutto sotto controllo — finché non arriva una mail.` },
+  { frase: n => `Zero scadute, ${n} in lavorazione. Continua così e diventi noioso.` },
+  { frase: n => `${n} aperte e nessun rimorso. Raro.` },
+  { quando: lunedi, frase: n => `Lunedì, ${n} aperte, zero ritardi. Partenza da manuale.` },
+  { quando: sera, frase: n => `${n} aperte e niente di scaduto: si chiude la giornata da vincitori.` },
 ]
 
 // ── niente di niente ─────────────────────────────────────────────────────────
 const VUOTO: Voce[] = [
-  { frase: () => 'Nessuna task assegnata. Goditela finché dura.' },
-  { frase: () => 'Zero task. O è un miracolo, o si sono dimenticati di te.' },
-  { frase: () => 'Niente in lista. Il momento perfetto per farsi assegnare qualcosa.' },
-  { quando: weekend, frase: () => 'Nessuna task, ed è weekend. Combinazione consigliata.' },
+  { frase: () => 'Nessuna task assegnata. Goditela: non è uno stato stabile.' },
+  { frase: () => 'Zero task. O è un miracolo, o si sono scordati di te. Scommetto sul secondo.' },
+  { frase: () => 'Lista vuota. Il momento giusto per chiedere lavoro, o per sparire.' },
+  { quando: weekend, frase: () => 'Niente da fare ed è weekend. Combinazione perfetta, chiudi la scheda.' },
+  { quando: lunedi, frase: () => 'Lunedì e lista vuota. Durerà fino alle 10:30.' },
 ]
 
 /**
@@ -123,25 +134,26 @@ export function verdetto(c: ContiUmore, m: Momento, seme: number): Umore {
 
 // ── sottotitolo dell'elenco ──────────────────────────────────────────────────
 const MIE: Voce[] = [
-  { frase: () => 'Tutto quello che ti hanno messo in mano, progetti compresi.' },
-  { frase: () => 'Le tue: quelle dei progetti e quelle arrivate «al volo».' },
-  { frase: () => 'Roba tua. Chi te l\'ha data è scritto sulla riga.' },
-  { quando: mattina, frase: () => 'La giornata, per intero. Niente sorprese nascoste altrove.' },
-  { quando: sera, frase: () => 'Quello che resta. Domani è un altro elenco, uguale a questo.' },
+  { frase: () => 'Tutto quello che ti hanno messo in mano. Sì, anche quella lì.' },
+  { frase: () => 'Le tue: quelle dei progetti e quelle arrivate «al volo», che poi restano.' },
+  { frase: () => 'Roba tua. Chi te l\'ha rifilata è scritto sulla riga: nessun mistero.' },
+  { quando: mattina, frase: () => 'La giornata per intero, senza sorprese nascoste in altre schede.' },
+  { quando: sera, frase: () => 'Quello che resta. Domani ritrovi questo elenco, identico, che ti aspetta.' },
 ]
 const TUTTE: Voce[] = [
-  { frase: () => 'Tutte le task, dentro e fuori dai progetti.' },
-  { frase: () => 'Tutto il lavoro in giro per l\'agenzia, in un posto solo.' },
-  { frase: () => 'Niente resta nascosto nella scheda di un progetto.' },
+  { frase: () => 'Tutte le task dell\'agenzia, dentro e fuori dai progetti.' },
+  { frase: () => 'Tutto il lavoro in circolazione, in un posto solo. Coraggio.' },
+  { frase: () => 'Niente più nascosto nella scheda di un progetto che nessuno apre.' },
 ]
 const DI_PROGETTO: Voce[] = [
-  { frase: () => 'Quelle dentro un progetto: c\'è un cliente che aspetta.' },
-  { frase: () => 'Lavoro di consegna, con un nome e una scadenza sopra.' },
+  { frase: () => 'Quelle dentro un progetto: in fondo a ognuna c\'è un cliente che aspetta.' },
+  { frase: () => 'Lavoro di consegna, con un nome e una data sopra. Entrambi veri.' },
+  { frase: () => 'Roba promessa a qualcuno. La promessa l\'abbiamo fatta noi.' },
 ]
 const AD_HOC: Voce[] = [
-  { frase: () => 'Fuori progetto: i «cinque minuti» che non sono mai cinque.' },
-  { frase: () => 'Richieste veloci, extra, favori. Poi però esistono.' },
-  { frase: () => 'Quelle che non stanno in nessun piano, ma tocca farle.' },
+  { frase: () => 'Fuori progetto: i «cinque minuti» che non sono mai stati cinque.' },
+  { frase: () => 'Richieste veloci, extra, favori. Non fatturati, ma vivissimi.' },
+  { frase: () => 'Quelle che non stanno in nessun piano e si fanno lo stesso.' },
 ]
 
 export function sottotitolo(
@@ -155,14 +167,16 @@ export function sottotitolo(
 
 // ── saluto della home operativa ──────────────────────────────────────────────
 const SALUTO: Voce[] = [
-  { frase: () => 'Qui c\'è quello che ti riguarda. Il resto può aspettare.' },
-  { frase: () => 'Un altro giorno, un altro elenco. Andiamo.' },
+  { frase: () => 'Qui c\'è quello che ti riguarda. Il resto può aspettare, come sempre.' },
+  { frase: () => 'Un altro giorno, un altro elenco. Fingiamo entusiasmo.' },
   { quando: mattina, frase: () => 'Buongiorno. Il caffè è tuo, le scadenze pure.' },
-  { quando: pomeriggio, frase: () => 'Pomeriggio: l\'ora in cui le task diventano improvvisamente urgenti.' },
-  { quando: sera, frase: () => 'È tardi. Chiudi una cosa e vai, che domani c\'è di nuovo.' },
-  { quando: lunedi, frase: () => 'Lunedì. Si riparte, e l\'elenco se lo ricorda tutto.' },
-  { quando: venerdi, frase: () => 'Venerdì. Quello che chiudi oggi non ti guarda male domenica sera.' },
-  { quando: weekend, frase: () => 'È weekend e sei qui. Ammirevole, e un filo preoccupante.' },
+  { quando: mattina, frase: () => 'Mattina: l\'unico momento in cui il piano della giornata regge ancora.' },
+  { quando: pomeriggio, frase: () => 'Pomeriggio, l\'ora in cui tutto diventa improvvisamente urgente.' },
+  { quando: pomeriggio, frase: () => 'Metà giornata. Metà lista. Fai tu i conti.' },
+  { quando: sera, frase: () => 'È tardi. Chiudi una cosa e vai: domani c\'è di nuovo, garantito.' },
+  { quando: lunedi, frase: () => 'Lunedì. L\'elenco si ricorda tutto quello che venerdì hai lasciato lì.' },
+  { quando: venerdi, frase: () => 'Venerdì. Quello che chiudi oggi non ti citofona domenica sera.' },
+  { quando: weekend, frase: () => 'È weekend e sei qui. Ammirevole. Anche un filo preoccupante.' },
 ]
 
 export function saluto(m: Momento, seme: number): string {
@@ -180,3 +194,86 @@ export function seme(oggi: string, ...numeri: number[]): number {
   const base = Number(oggi.replace(/\D/g, '')) || 0
   return numeri.reduce((acc, n, i) => acc + n * (i + 3), base)
 }
+
+// ── §351 · la voce delle altre sezioni del workspace ─────────────────────────
+
+/**
+ * Ogni sezione dice cosa c'è dentro, e lo dice con la faccia di chi ci lavora.
+ *
+ * La regola qui è più stretta che altrove: queste righe stanno **sotto un
+ * titolo**, quindi non devono spiegare (lo fa il titolo) né promettere. Devono
+ * dire perché guardarla adesso — o ammettere che non c'è motivo.
+ */
+/* Calendario e customer care non ci sono: le loro intestazioni sono barre
+   compatte con dentro un conteggio, e una riga in più le spezzerebbe. Meglio
+   due sezioni senza voce che due barre rotte — e nessun gruppo di frasi che
+   non legge nessuno. */
+export type Sezione =
+  | 'clienti' | 'progetti' | 'ticket'
+  | 'documenti' | 'documenti_personali' | 'buste_paga' | 'hr'
+  | 'feedback' | 'cronologia' | 'profilo' | 'tracking'
+
+const SEZIONI: Record<Sezione, Voce[]> = {
+  clienti: [
+    { frase: () => 'Chi paga, chi chiede, chi scrive alle 23. Spesso la stessa persona.' },
+    { frase: () => 'L\'anagrafica vera. Quella nella tua testa non conta più.' },
+    { frase: () => 'Tutti i clienti attivi. Sì, anche quello.' },
+    { quando: lunedi, frase: () => 'Lunedì: il giorno in cui si ricordano tutti di noi insieme.' },
+  ],
+  progetti: [
+    { frase: () => 'Il piano. Poi c\'è la realtà, ma intanto il piano c\'è.' },
+    { frase: () => 'Ogni progetto ha una data che qualcuno, a un certo punto, ha promesso.' },
+    { frase: () => 'Quello che stiamo consegnando davvero, non quello che raccontiamo in call.' },
+    { quando: venerdi, frase: () => 'Venerdì: ottimo giorno per scoprire cosa scade lunedì.' },
+  ],
+  ticket: [
+    { frase: () => 'Ogni riga è una persona che aspetta. Non un numero: una persona.' },
+    { frase: () => 'Il ticket invecchia male. Come il pane, non come il vino.' },
+    { quando: mattina, frase: () => 'Apri i più vecchi: sono quelli che stanno diventando telefonate.' },
+  ],
+  documenti: [
+    { frase: () => 'Cercali qui prima di chiederli nel gruppo. Grazie da tutti.' },
+    { frase: () => 'I file condivisi. Sì, c\'è anche quello che stai per chiedere.' },
+    { frase: () => 'L\'archivio comune. Funziona solo se ci metti dentro anche tu.' },
+  ],
+  documenti_personali: [
+    { frase: () => 'Contratti, certificati, carte che servono sempre di lunedì mattina.' },
+    { frase: () => 'Roba tua, visibile solo a te. Nemmeno l\'admin ci guarda.' },
+  ],
+  buste_paga: [
+    { frase: () => 'L\'unica sezione che tutti trovano al primo colpo.' },
+    { frase: () => 'Le tue buste paga. Scaricale, controllale, poi lamentati pure.' },
+    { quando: mattina, frase: () => 'Se è fine mese hai già capito perché sei qui.' },
+  ],
+  hr: [
+    { frase: () => 'Ferie, permessi, note spese. Chiedi bene e chiedi presto.' },
+    { frase: () => 'Le richieste si approvano più in fretta se hanno una data sensata.' },
+    { quando: venerdi, frase: () => 'Venerdì: il momento statisticamente migliore per chiedere ferie.' },
+  ],
+  feedback: [
+    { frase: () => 'Dicci cosa non va. Finisce in una lista vera, non in un cassetto.' },
+    { frase: () => 'Se una cosa ti fa perdere tempo ogni giorno, scrivila. Vale doppio.' },
+    { frase: () => 'Lamentarsi qui è produttivo. Lamentarsi al bar no.' },
+  ],
+  cronologia: [
+    { frase: () => 'Chi ha toccato cosa, e quando. Nessuna accusa, solo date precise.' },
+    { frase: () => 'Serve per ritrovare quello che «era lì ieri». Di solito c\'è ancora.' },
+    { frase: () => 'La memoria del sistema. Più affidabile della tua, senza offesa.' },
+  ],
+  profilo: [
+    { frase: () => 'Il tuo profilo. La foto la vedono tutti: regolati.' },
+    { frase: () => 'Dati tuoi. Tienili aggiornati, poi ti serviranno di corsa.' },
+  ],
+  tracking: [
+    { frase: () => 'I numeri che dicono se quello che facciamo funziona davvero.' },
+    { frase: () => 'Qui non si discute di opinioni. Si guardano le curve.' },
+    { quando: lunedi, frase: () => 'Lunedì: il giorno giusto per scoprire com\'è andato il weekend.' },
+  ],
+}
+
+export function sottotitoloSezione(chiave: Sezione, m: Momento, seme: number): string {
+  return pesca(SEZIONI[chiave], m, seme).frase(0, m)
+}
+
+/** tutte le chiavi, per il gate: una sezione senza frasi è una sezione muta */
+export const SEZIONI_CHIAVI = Object.keys(SEZIONI) as Sezione[]

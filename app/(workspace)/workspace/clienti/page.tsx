@@ -28,7 +28,7 @@ export default async function WorkspaceClientiPage() {
   })) as unknown as Client[]
 
   return (
-    <ClientiList
+    <ClientiList voce="clienti"
       clients={clients}
       currentProfile={profile as Profile}
       hideEconomics

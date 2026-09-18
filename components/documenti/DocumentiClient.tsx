@@ -9,6 +9,8 @@ import { formatDate } from '@/lib/utils'
 import { isDriveUrl, driveKind, DRIVE_KIND_LABEL } from '@/lib/drive'
 import { DriveEmbed } from '@/components/shared/DriveEmbed'
 import type { Profile } from '@/lib/types/database'
+import { VoceSezione } from '@/components/workspace/VoceSezione'
+import type { Sezione } from '@/lib/task-mood'
 
 // §11 / §11.1 (D9): i Documenti workspace sono la raccolta dei riferimenti Drive di
 // clienti e progetti — nessun upload, nessuna Drive API. L'alberatura è
@@ -23,7 +25,10 @@ interface DocItem {
   client: { id: string; company_name: string } | null
 }
 
-export function DocumentiClient({ documents, clients }: {
+export function DocumentiClient({ documents, clients, voce }: {
+  /** §351 — la riga sotto il titolo, **solo** nel portale operativo: la stessa
+    pagina, dal portale admin, si apre davanti a un cliente in call. */
+  voce?: Sezione;
   documents: DocItem[]
   clients: { id: string; company_name: string }[]
 }) {
@@ -79,6 +84,7 @@ export function DocumentiClient({ documents, clients }: {
         <div className="flex items-center justify-between mb-3">
           <div>
             <h1 className="text-2xl sm:text-3xl font-black text-text-primary font-heading">Documenti</h1>
+          {voce && <VoceSezione sezione={voce} />}
             <p className="text-xs text-text-secondary mt-0.5">
               {docCount} riferimenti Drive · {clients.length} clienti
             </p>

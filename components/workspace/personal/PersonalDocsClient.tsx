@@ -9,6 +9,7 @@ import {
   upsertPersonalDoc, getPersonalDocUrl, deletePersonalDoc, attachPersonalDocFile,
 } from '@/app/actions/personal-documents'
 import type { PersonalDocument } from '@/lib/types/database'
+import { VoceSezione } from '@/components/workspace/VoceSezione'
 
 const STATUS_UI: Record<DocStatus, { label: string; cls: string; Icon: typeof CheckCircle2 }> = {
   valido:         { label: 'Valido',        cls: 'text-success bg-success-dim', Icon: CheckCircle2 },
@@ -68,6 +69,7 @@ export function PersonalDocsClient({ documents, profileId }: {
           <p className="text-text-tertiary text-sm mt-0.5">
             Scadenze e rinnovi. Solo tu vedi questi documenti.
           </p>
+          <VoceSezione sezione="documenti_personali" className="text-2xs text-text-tertiary mt-1" />
         </div>
         <button onClick={() => setShowNew(true)}
           className="flex items-center gap-2 px-4 py-2 bg-gold text-on-gold text-sm font-semibold rounded-xl hover:bg-gold/90 transition-colors shrink-0">

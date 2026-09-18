@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { TicketSystem } from '@/components/ticket/TicketSystem'
 import { isSuperAdmin } from '@/lib/permissions'
 import type { Profile, Client } from '@/lib/types/database'
+import { VoceSezione } from '@/components/workspace/VoceSezione'
 
 export const revalidate = 0
 
@@ -30,7 +31,7 @@ export default async function WorkspaceTicketsPage() {
     <div className="p-6 max-w-6xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-black text-text-primary">Ticket & Supporto</h1>
-        <p className="text-text-secondary text-sm mt-1">Sistema di ticketing per richieste e assistenza clienti</p>
+        <VoceSezione sezione="ticket" />
       </div>
       <TicketSystem
         tickets={(ticketRes.data ?? []) as any[]}

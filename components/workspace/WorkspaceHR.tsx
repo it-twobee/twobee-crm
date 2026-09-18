@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { HrRequest, VacationBalance } from '@/lib/types/database'
+import { VoceSezione } from '@/components/workspace/VoceSezione'
 
 const TYPE_LABELS: Record<string, string> = {
   ferie: 'Ferie',
@@ -169,6 +170,7 @@ export function WorkspaceHR({ requests: initialRequests, profileId, vacationBala
       <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-text-primary font-heading">Richieste HR</h1>
+          <VoceSezione sezione="hr" />
           <p className="text-text-secondary text-sm mt-1">
             Ferie, permessi, malattie, note spese e documenti. Le decide un admin.
           </p>

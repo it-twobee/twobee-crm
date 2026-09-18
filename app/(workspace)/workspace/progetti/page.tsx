@@ -49,7 +49,7 @@ export default async function WorkspaceProgettiPage({ searchParams }: { searchPa
     ({ id: c.id, name: c.display_name || c.company_name, client_label: c.client_label }))
 
   return (
-    <ProgettiClient
+    <ProgettiClient voce="progetti"
       clients={clientOpts}
       profiles={(profiles ?? []) as { id: string; full_name: string; app_role: string | null; avatar_url: string | null }[]}
       services={(services ?? []) as ServiceCatalogEntry[]}

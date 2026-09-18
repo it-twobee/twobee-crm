@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Receipt, Download, Upload, Loader2, X, Trash2, Lock } from 'lucide-react'
 import { getPayslipUrl, uploadPayslip, deletePayslip } from '@/app/actions/payslips'
 import type { Payslip } from '@/lib/types/database'
+import { VoceSezione } from '@/components/workspace/VoceSezione'
 
 const MONTHS = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre']
 
@@ -45,6 +46,7 @@ export function PayslipsClient({ payslips, isAdmin, currentUserId, team }: {
             <Lock className="w-3.5 h-3.5" aria-hidden="true" />
             {isAdmin ? 'Vedi e gestisci le buste paga del team' : 'Solo tu puoi vedere le tue buste paga'}
           </p>
+          <VoceSezione sezione="buste_paga" className="text-2xs text-text-tertiary mt-1" />
         </div>
         {isAdmin && (
           <button

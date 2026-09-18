@@ -11,6 +11,7 @@ import { createFeedback, voteFeedback } from '@/app/actions/feedback'
 import { ImagePicker, AttachmentThumbs, uploadFeedbackImages, MAX_IMAGES } from './attachments'
 import { FeedbackItem, FeedbackSection, FeedbackKind, STATUS_LABELS, STATUS_STYLE, KIND_LABELS, IMPACT_LABELS } from './types'
 import { SearchInput } from '@/components/shared/formkit'
+import { VoceSezione } from '@/components/workspace/VoceSezione'
 
 type FormKind = Extract<FeedbackKind, 'improvement' | 'new_section' | 'idea'>
 
@@ -96,6 +97,7 @@ export function FeedbackWorkspaceClient({ currentUserId, sections, feedback, vot
     <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6 sm:space-y-8">
       <header>
         <h1 className="text-2xl font-bold text-text-primary">Feedback</h1>
+          <VoceSezione sezione="feedback" />
         <p className="text-text-secondary text-sm mt-1">
           Aiutaci a migliorare gli strumenti che usi ogni giorno. Proponi un affinamento a una
           sezione esistente o l&apos;idea di una sezione tutta nuova.
