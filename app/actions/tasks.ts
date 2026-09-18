@@ -22,6 +22,8 @@ export async function createProjectTask(input: {
   workstream_id: string
   milestone_id: string
   title: string
+  /** §353 — `tasks.description`: si chiama «Dettagli» ovunque nella UI */
+  description?: string | null
   priority?: Priority
   assignee_id?: string | null
   due_date?: string | null
@@ -34,16 +36,24 @@ export async function createProjectTask(input: {
   const { data, error } = await admin.from('tasks').insert({
     client_id: input.client_id, task_type: 'project',
     project_id: input.project_id, workstream_id: input.workstream_id, milestone_id: input.milestone_id,
-    title: input.title.trim(), priority: input.priority ?? 'media',
+    title: input.title.trim(), description: input.description?.trim() || null,
+    priority: input.priority ?? 'media',
     due_date: input.due_date || null, visibility: input.visibility ?? 'internal',
     parent_task_id: input.parent_task_id || null,
     created_by: uid,
   }).select('id').single()
   if (error) throw new Error(error.message)
   if (input.assignee_id) {
+    /* §347 — chi ha assegnato, anche da qui: era l'unico percorso di creazione
+       che scriveva il ponte senza autore, e una task nata assegnata è
+       esattamente quella per cui si va a cercare a chi chiedere. */
     const { error: e2 } = await admin.from('task_assignees')
-      .insert({ task_id: data.id, profile_id: input.assignee_id, is_primary_owner: true })
+      .insert({ task_id: data.id, profile_id: input.assignee_id, is_primary_owner: true, assigned_by: uid })
     if (e2) throw new Error(e2.message)
+    // §350 — e chi la riceve lo deve sapere adesso, non al prossimo ricarico
+    await notificaAssegnazione({
+      destinatario: input.assignee_id, autore: uid, titolo: input.title.trim(), db: admin,
+    })
   }
   revalidatePath(`/progetti/${input.project_id}`)
   return data.id as string

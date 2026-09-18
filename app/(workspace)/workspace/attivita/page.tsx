@@ -42,13 +42,12 @@ export default async function MieAttivitaPage() {
   const { data: tasks } = await supabase
     .from('tasks').select('*').is('deleted_at', null).or(orFilter).order('due_date', { ascending: true, nullsFirst: false })
 
-  const projectIds = Array.from(new Set([
-    ...(tasks ?? []).map(t => t.project_id),
-    ...(tappe ?? []).map(m => m.project_id),
-  ].filter(Boolean))) as string[]
-
   const [{ data: projects }, { data: workstreams }, { data: msTasks }] = await Promise.all([
-    projectIds.length ? supabase.from('projects').select('id, name, client_id').in('id', projectIds) : Promise.resolve({ data: [] }),
+    /* §353 — **tutti** i progetti attivi, non solo quelli dove ho già una task:
+       da «Nuova task» si sceglie anche una milestone di un progetto, e un
+       elenco che mostra solo i propri obbliga a uscire dalla pagina per
+       aggiungere una riga altrove. I nomi servono comunque alle righe. */
+    supabase.from('projects').select('id, name, client_id').is('deleted_at', null),
     supabase.from('project_workstreams').select('id, name, project_id'),
     msIds.length ? supabase.from('tasks').select('milestone_id, status').is('deleted_at', null).in('milestone_id', msIds)
       : Promise.resolve({ data: [] }),

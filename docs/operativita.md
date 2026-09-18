@@ -646,10 +646,27 @@ occupa niente. Sotto il bottone restano **ore e priorità**, che sono
 impostazioni, non contenuto — e infatti il bottone ha cambiato nome: due cose
 diverse non possono chiamarsi tutte e due «dettagli».
 
-**Il campo si chiama «Dettagli» ovunque** — wizard, modale, pannello laterale del
-progetto — perché è sempre la stessa colonna (`tasks.description`). Si chiamava
-«Descrizione» in due posti su quattro, e un campo con due nomi fa cercare due
-campi.
+**Il campo si chiama «Dettagli» ovunque** — composer, wizard, modale, pannello
+laterale del progetto — perché è sempre la stessa colonna (`tasks.description`).
+Si chiamava «Descrizione» in due posti su quattro, e un campo con due nomi fa
+cercare due campi.
+
+**E si chiede dove la task nasce**, cioè nel composer di «Nuova task»: lì non
+c'era affatto, quindi la richiesta arrivava a chi la riceve senza una riga di
+contesto. Subito sotto il titolo, facoltativo.
+
+**Da «Nuova task» si crea anche dentro un progetto.** Il composer offriva solo
+«Ad hoc» e «Al cliente», mentre quella sezione le contiene tutte (§340): per
+aggiungere una task a una milestone bisognava aprire il progetto, poi la
+workstream, poi la tappa. La cascata progetto → workstream → milestone il
+composer ce l'ha da sempre — era il chiamante a non offrirla. Le pagine
+personali passano **tutti** i progetti attivi e non solo i propri, o si
+potrebbe creare una task solo dove se ne ha già una.
+
+Nel passaggio è emerso che `createProjectTask` scriveva il ponte degli
+assegnatari **senza autore** e senza avvisare nessuno: era l'unico percorso di
+creazione rimasto fuori da §347 e §350, e proprio quello che crea task già
+assegnate.
 
 ## Progetti: filtrabili e raggruppati per cliente (§341)
 

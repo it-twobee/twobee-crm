@@ -576,8 +576,19 @@ export function TaskList({
 
       {adding && (
         <TaskComposer
+          /* §353 — **anche dentro un progetto.** Da qui si potevano creare solo
+             le task fuori progetto, mentre questa sezione le contiene tutte
+             (§340): chi voleva aggiungerne una a una milestone doveva aprire il
+             progetto, poi la workstream, poi la tappa. Il composer la cascata
+             progetto → workstream → milestone ce l'ha da sempre — era il
+             chiamante a non offrirla. */
           destination={{
-            mode: 'pick', allow: ['ad_hoc', 'cliente'], clients, projects: [],
+            mode: 'pick', allow: ['project', 'ad_hoc', 'cliente'],
+            clients,
+            // il composer vuole `client_id` sempre presente: qui è facoltativo
+            // perché a una riga di elenco basta il nome
+            projects: projects.map(p => ({ ...p, client_id: p.client_id ?? null })),
+            defaultKind: 'ad_hoc',
             defaultClientId: clientId || undefined, canCreateClient,
           }}
           profiles={profiles}

@@ -95,6 +95,11 @@ export function TaskComposer({
   const [creating, setCreating] = useState<'stabile' | 'lead' | null>(null)
 
   const [title, setTitle] = useState('')
+  /* §353 — i **dettagli**: stessa colonna (`tasks.description`) e stesso nome
+     del modale e del wizard. Si scrivono qui, dove la task nasce: chiederli
+     dopo, aprendo il dettaglio, vuol dire non averli mai — il contesto finisce
+     nel titolo e chi la riceve legge una riga lunga il doppio e incompleta. */
+  const [description, setDescription] = useState('')
   const [assignee, setAssignee] = useState('')
   const [supervisor, setSupervisor] = useState('')
   const [due, setDue] = useState(fixed?.defaultDue ?? '')
@@ -245,13 +250,15 @@ export function TaskComposer({
           workstream_id: fixed?.workstreamId ?? wsId,
           milestone_id: fixed?.milestoneId ?? msId,
           parent_task_id: fixed?.parentTaskId ?? null,
-          title: title.trim(), assignee_id: assignee || null, due_date: due || null,
+          title: title.trim(), description: description.trim() || null,
+          assignee_id: assignee || null, due_date: due || null,
           priority, visibility: clientVisible ? 'client_visible' : 'internal',
         })
       } else {
         id = await createAdHocTask({
           client_id: effectiveClientId, task_type: kind === 'cliente' ? 'cliente' : 'ad_hoc',
-          title: title.trim(), assignee_id: assignee || null,
+          title: title.trim(), description: description.trim() || null,
+          assignee_id: assignee || null,
           supervisor_id: kind === 'cliente' ? (supervisor || null) : null,
           due_date: due || null, priority,
           visibility: clientVisible ? 'client_visible' : 'internal',
@@ -262,7 +269,7 @@ export function TaskComposer({
         id, kind, clientId: effectiveClientId,
         projectId: fixed?.projectId ?? projectId, workstreamId: fixed?.workstreamId ?? wsId,
       })
-      if (again) { setTitle(''); setDue(fixed?.defaultDue ?? '') }
+      if (again) { setTitle(''); setDescription(''); setDue(fixed?.defaultDue ?? '') }
       else onClose()
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
   })
@@ -421,6 +428,15 @@ export function TaskComposer({
         {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
         <input value={title} onChange={e => setTitle(e.target.value)} autoFocus={!!fixed}
           className={inputCls} placeholder="Cosa va fatto?" />
+      </Field>
+
+      {/* §353 — subito dopo il titolo, non dietro un pannello: è il campo che
+          spiega la richiesta a chi la riceve, e se non si chiede adesso non si
+          compila mai. Facoltativo: se non serve resta vuoto. */}
+      <Field label="Dettagli" hint="contesto, link, cosa serve per chiuderla">
+        <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3}
+          className={`${inputCls} resize-none`}
+          placeholder="Cosa serve, entro quando, con quali riferimenti." />
       </Field>
 
       <div className="grid gap-3 sm:grid-cols-2">
