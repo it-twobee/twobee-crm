@@ -11,6 +11,9 @@ import {
 import type { ProjectWorkstream, Milestone, Task } from '@/lib/types/database'
 import { collapseSeries } from '@/lib/recurrence'
 import {
+  giornoUTC, isoUTC, oggiLocale, nonLavorativo, isFestivo, perche,
+} from '@/lib/calendario-lavorativo'
+import {
   thumbGeometry, thumbOffset, scrolledPercent, scrollFromDrag, scrollFromTrack, stepOf,
   centerDay, scrollForCenterDay,
 } from '@/lib/gantt-scroll'
@@ -82,7 +85,12 @@ const LANE_H = 56   // altezza corsia (più respiro)
 const NO_WS: ProjectWorkstream[] = []
 const NO_MS: Milestone[] = []
 
-function parse(d: string) { return new Date(d + 'T00:00:00').getTime() }
+/* §355 — **mezzanotte UTC, non locale.** Con la mezzanotte locale le colonne si
+   costruivano a Roma e si rileggevano con `toISOString()`, che è UTC: due ore
+   indietro, quindi la cella del 19 si dichiarava «18» e il segno di oggi finiva
+   sul giorno dopo. Le date del dominio sono `date` senza ora: contarle in UTC è
+   l'unico modo di non perderne una per strada (stessa regola di §337). */
+const parse = giornoUTC
 function addDays(t: number, n: number) { return t + n * MS }
 const MONTHS = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
 const WEEKDAY_SHORT = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab']
@@ -159,7 +167,9 @@ export function ProjectGantt({
      mai stata» non possono leggersi uguali. Le consegne vere passano intere.
      Il taglio sta qui e non nelle due pagine che costruiscono le corsie: una
      regola scritta due volte non è una regola. */
-  const todayIso = new Date().toISOString().slice(0, 10)
+  /* §355 — «oggi» è quello di **chi guarda**: `toISOString()` dopo le 22 a Roma
+     dà già il giorno dopo, e il segno finirebbe domani per due ore ogni sera. */
+  const todayIso = oggiLocale()
 
   const lanes: GanttLane[] = useMemo(() => {
     const collassa = (ms: Milestone[]) => collapseSeries(ms, todayIso)
@@ -183,7 +193,7 @@ export function ProjectGantt({
       if (l.bar?.start) dates.push(parse(l.bar.start))
       if (l.bar?.end) dates.push(parse(l.bar.end))
     })
-    const todayT = parse(new Date().toISOString().slice(0, 10))
+    const todayT = parse(todayIso)
     dates.push(todayT)
     if (lanes.length === 0) return null
     const min = addDays(Math.min(...dates), -5)
@@ -194,12 +204,12 @@ export function ProjectGantt({
     const monthSegs: { left: number; width: number; label: string }[] = []
     days.forEach((d, i) => {
       const last = monthSegs[monthSegs.length - 1]
-      const label = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`
+      const label = `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`
       if (last && last.label === label) last.width += DAY_W
       else monthSegs.push({ left: i * DAY_W, width: DAY_W, label })
     })
     return { min, max, totalDays, width: totalDays * DAY_W, x, days, monthSegs, todayLeft: x(todayT) }
-  }, [lanes, DAY_W])
+  }, [lanes, DAY_W, todayIso])
 
   /* §345 — su oggi ci si apre **una volta sola**. Rifarlo a ogni modello nuovo
      voleva dire riportare la vista su oggi ogni volta che il componente si
@@ -547,13 +557,15 @@ export function ProjectGantt({
             {showDays && (
               <div className="relative h-10 border-b border-border">
                 {model.days.map((d, i) => {
-                  const iso = d.toISOString().slice(0, 10)
-                  const weekend = d.getDay() === 0 || d.getDay() === 6
+                  const iso = isoUTC(d.getTime())
+                  const fermo = nonLavorativo(iso)
                   const isToday = iso === todayIso
                   return (
-                    <div key={i} className={`absolute top-0 bottom-0 flex flex-col items-center justify-center gap-0.5 border-l ${weekend ? 'bg-overlay/[0.03]' : ''} border-border/30`} style={{ left: i * DAY_W, width: DAY_W }}>
-                      <span className={`text-2xs leading-none ${isToday ? 'text-gold-text font-bold' : 'text-text-tertiary/70'}`}>{WEEKDAY_SHORT[d.getDay()]}</span>
-                      <span className={`text-2xs tabular leading-none ${isToday ? 'text-gold-text font-bold' : weekend ? 'text-text-tertiary/60' : 'text-text-secondary'}`}>{d.getDate()}</span>
+                    <div key={i} title={perche(iso) ?? undefined}
+                      className={`absolute top-0 bottom-0 flex flex-col items-center justify-center gap-0.5 border-l ${fermo ? 'bg-overlay/5' : ''} border-border/30`}
+                      style={{ left: i * DAY_W, width: DAY_W }}>
+                      <span className={`text-2xs leading-none ${isToday ? 'text-gold-text font-bold' : 'text-text-tertiary/70'}`}>{WEEKDAY_SHORT[d.getUTCDay()]}</span>
+                      <span className={`text-2xs tabular leading-none ${isToday ? 'text-gold-text font-bold' : fermo ? 'text-text-tertiary/60' : 'text-text-secondary'}`}>{d.getUTCDate()}</span>
                     </div>
                   )
                 })}
@@ -569,15 +581,20 @@ export function ProjectGantt({
                 copre né le bandierine né i loro gesti.
                 Sotto i 20px per giorno non si disegna: a scala mensile sarebbe
                 una zebratura che nasconde quello che deve far vedere. */}
-            {DAY_W >= 20 && (
-              <div className="absolute inset-x-0 bottom-0 pointer-events-none" aria-hidden
-                style={{ top: showDays ? 68 : 28 }}>
-                {model.days.map((d, i) => (d.getDay() === 0 || d.getDay() === 6) ? (
-                  <span key={i} className="absolute top-0 bottom-0 bg-overlay/[0.05]"
+            <div className="absolute inset-x-0 bottom-0 pointer-events-none" aria-hidden
+              style={{ top: showDays ? 68 : 28 }}>
+              {model.days.map((d, i) => {
+                const iso = isoUTC(d.getTime())
+                if (!nonLavorativo(iso)) return null
+                /* Il festivo pesa il doppio del weekend: un lunedì spento in
+                   mezzo alla settimana è la cosa che si dimentica facendo un
+                   piano, e deve saltare all'occhio più di un sabato. */
+                return (
+                  <span key={i} className={`absolute top-0 bottom-0 ${isFestivo(iso) ? 'bg-overlay/10' : 'bg-overlay/5'}`}
                     style={{ left: i * DAY_W, width: DAY_W }} />
-                ) : null)}
-              </div>
-            )}
+                )
+              })}
+            </div>
 
             {/* marker oggi verticale */}
             <div className="absolute bottom-0 w-0.5 bg-gold z-20 pointer-events-none" style={{ left: model.todayLeft + DAY_W / 2, top: showDays ? 68 : 28 }}>

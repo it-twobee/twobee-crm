@@ -20,6 +20,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
    configurazione da tenere allineata alla prima. */
 ;(globalThis as unknown as { React: unknown }).React = React
 import { ProjectGantt, type GanttLane } from '@/components/projects/ProjectGantt'
+import { oggiLocale } from '@/lib/calendario-lavorativo'
 import type { Milestone } from '@/lib/types/database'
 
 let fail = 0
@@ -98,17 +99,38 @@ is('nessun array creato nelle prop di default', /=\s*\[\]\s*,/.test(src.slice(0,
 is('su oggi ci si apre una volta sola', src.includes('avviato.current'), true)
 is('e cambiare scala tiene il giorno al centro', src.includes('scrollForCenterDay('), true)
 
-console.log('\n— Sabato e domenica sono spenti (§354) —')
+console.log('\n— I giorni non lavorativi sono spenti (§354/§355) —')
 /* La banda del fine settimana deve stare **sotto** le corsie e non intercettare
    il puntatore: se coprisse le bandierine, il calendario diventerebbe bello e
    inservibile — e un difetto così si vede solo provando a cliccare. */
-const bande = (html.match(/bg-overlay\/\[0\.05\]/g) ?? []).length
+/* §355 — `bg-overlay/[0.05]` **non esisteva nel CSS compilato**: la classe non
+   veniva generata, quindi la banda c'era nel markup e sullo schermo non si
+   vedeva niente. Il gate contava il markup e diceva «ok» — un controllo che
+   guarda la classe e non il colore non può accorgersene, ma almeno deve
+   contare la classe che il progetto genera davvero. */
+const bande = (html.match(/<span class="absolute top-0 bottom-0 bg-overlay\/(5|10)"/g) ?? []).length
 const giorniHeader = (html.match(/flex flex-col items-center justify-center/g) ?? []).length
-is('le bande del fine settimana ci sono', bande > 0, true)
+/* La testata usa la stessa tinta: contare la classe e basta contava due volte
+   lo stesso giorno, e l'asserzione «meno della metà» cadeva per un pelo. La
+   banda è l'unico `<span>` che la porta. */
+is('le bande dei giorni fermi ci sono', bande > 0, true)
 /* Due giorni su sette: «zero» e «tutti» sono i due modi in cui questa cosa si
    rompe, e nessuno dei due si vede leggendo il codice. */
 is('e sono una minoranza dei giorni', bande > 0 && bande < giorniHeader / 2, true)
 is('non intercettano il puntatore', html.includes('bottom-0 pointer-events-none'), true)
+
+console.log('\n— Il segno di oggi sta su oggi (§355) —')
+/* Il difetto che ha aperto §355: le colonne nascevano a mezzanotte **locale** e
+   si rileggevano con `toISOString()`, che è UTC. A Roma sono due ore indietro,
+   quindi la cella del 19 si dichiarava «18» e l'evidenziato finiva su domani.
+   Non alza nessuna eccezione: si vede solo guardando il calendario sapendo che
+   giorno è. Qui si controlla che la colonna in oro sia quella di oggi. */
+const oggi = oggiLocale()
+const giornoOggi = Number(oggi.slice(8))
+const celleOro = Array.from(html.matchAll(/text-gold-text font-bold[^>]*>(\d{1,2})</g)).map(m => m[1])
+is('la colonna in oro porta il numero di oggi',
+  celleOro.length > 0 && celleOro.every(n => Number(n) === giornoOggi), true)
+is('ed è una sola', new Set(celleOro).size <= 1, true)
 
 console.log(fail ? `\n${fail} controlli falliti.` : '\nTutti i controlli passano.')
 process.exit(fail ? 1 : 0)

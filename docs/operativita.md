@@ -696,13 +696,31 @@ Tre cose sulla sezione Progetti, tutte sullo stesso schermo.
   Con un'area scelta restano solo i clienti che in quell'area hanno qualcosa: una
   riga «nessun progetto in corso» sotto il filtro «growth» direbbe una cosa
   falsa, perché i progetti quel cliente ce li ha — solo non di quell'area.
-- **Sabato e domenica sono spenti su tutta l'altezza.** In testata erano già in
+- **Il segno di oggi stava su domani** (§355). Le colonne nascevano a mezzanotte
+  **locale** e si rileggevano con `toISOString()`, che è UTC: a Roma sono due ore
+  indietro, quindi la cella del 19 si dichiarava «18» e l'oro finiva sul giorno
+  dopo. Un errore di un giorno non alza nessuna eccezione — si vede solo
+  guardando il calendario sapendo che giorno è. Adesso le colonne si contano in
+  **UTC** (come le ricorrenze, §337) e «oggi» si legge dall'**orologio di chi
+  guarda**, perché `toISOString()` dopo le 22 a Roma dà già il giorno dopo.
+  `lib/calendario-lavorativo.ts`, sotto gate, con il giro completo: costruire un
+  giorno e rileggerlo deve restituire la stessa data, comprese le due domeniche
+  del cambio d'ora.
+- **Sabato, domenica e festivi sono spenti su tutta l'altezza, a ogni scala.** In testata erano già in
   ombra, ma sotto le corsie il fine settimana spariva: una bandierina di sabato
   si legge come un giorno di lavoro qualunque, e un piano fatto contando quei due
   giorni sfora di due giorni a settimana. La banda sta **sotto** le corsie e non
   intercetta il puntatore — se coprisse le bandierine il calendario diventerebbe
-  bello e inservibile — e sotto i 20px per giorno non si disegna: a scala mensile
-  sarebbe una zebratura che nasconde quello che deve far vedere.
+  bello e inservibile. I **festivi** pesano il doppio del weekend: un lunedì
+  spento in mezzo alla settimana è la cosa che si dimentica facendo un piano.
+  Sono le feste nazionali italiane più Pasquetta, che è l'unica mobile e si
+  calcola; il patrono resta fuori, perché cambia da città a città e spegnere un
+  giorno lavorativo per metà squadra fa più danno che non spegnerne nessuno.
+
+  La banda non si vedeva nemmeno dopo averla scritta: usava `bg-overlay/[0.05]`,
+  una classe che **il CSS compilato non conteneva** — il markup c'era e sullo
+  schermo non cambiava niente. Adesso usa `bg-overlay/5` e `/10`, che il
+  progetto genera davvero, e il gate conta le bande cercando la classe emessa.
 
 Gate: `npx tsx lib/gantt-lanes.check.ts` rende il componente e conta le bande —
 «zero» e «tutti i giorni» sono i due modi in cui questa cosa si rompe, e nessuno
