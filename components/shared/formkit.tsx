@@ -49,15 +49,26 @@ export function SearchInput({
   )
 }
 
+/**
+ * §347 — **non deborda mai dal suo riquadro.**
+ *
+ * `flex-1` porta la base a zero ma non il minimo, che resta il contenuto: con
+ * quattro voci in mezza larghezza il gruppo cresceva oltre la sua colonna e
+ * finiva **sopra** quello accanto — nel dettaglio di una task «Completata» si
+ * leggeva «Con» sotto il selettore della priorità. `min-w-0` lascia che le voci
+ * si stringano e `truncate` taglia l'ultima invece del vicino; il nome intero
+ * resta nel titolo del puntatore. Chi ha quattro voci e poco spazio le metta su
+ * tutta la riga — questo è il pavimento, non il modo di risolverlo.
+ */
 export function Segmented<T extends string>({
   value, onChange, options, ariaLabel,
 }: { value: T; onChange: (v: T) => void; options: { value: T; label: string }[]; ariaLabel: string }) {
   return (
-    <div role="radiogroup" aria-label={ariaLabel} className="flex bg-surface-active rounded-xl p-0.5 w-full">
+    <div role="radiogroup" aria-label={ariaLabel} className="flex bg-surface-active rounded-xl p-0.5 w-full min-w-0">
       {options.map(o => (
-        <button key={o.value} type="button" role="radio" aria-checked={value === o.value}
+        <button key={o.value} type="button" role="radio" aria-checked={value === o.value} title={o.label}
           onClick={() => onChange(o.value)}
-          className={`flex-1 px-2.5 py-1.5 rounded-lg text-2xs font-semibold transition-colors whitespace-nowrap ${
+          className={`flex-1 min-w-0 truncate px-2.5 py-1.5 rounded-lg text-2xs font-semibold transition-colors ${
             value === o.value ? 'bg-surface text-text-primary shadow-soft' : 'text-text-secondary hover:text-text-primary'
           }`}>{o.label}</button>
       ))}

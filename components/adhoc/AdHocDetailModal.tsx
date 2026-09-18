@@ -130,10 +130,14 @@ export function AdHocDetailModal({
           placeholder="Descrivi la richiesta: cosa serve, entro quando, con quali riferimenti." />
       </Field>
 
+      {/* §347 — lo stato ha quattro voci e in mezza larghezza non ci sta: prende
+          la riga intera, la priorità (tre voci corte) resta sotto a metà. */}
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Stato">
-          <Segmented ariaLabel="Stato" value={status} onChange={setStatus} options={STATUSES} />
-        </Field>
+        <div className="sm:col-span-2">
+          <Field label="Stato">
+            <Segmented ariaLabel="Stato" value={status} onChange={setStatus} options={STATUSES} />
+          </Field>
+        </div>
         <Field label="Priorità">
           <Segmented ariaLabel="Priorità" value={priority} onChange={setPriority}
             options={[{ value: 'alta', label: 'Alta' }, { value: 'media', label: 'Media' }, { value: 'bassa', label: 'Bassa' }]} />

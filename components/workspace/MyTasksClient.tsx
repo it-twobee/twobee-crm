@@ -298,7 +298,10 @@ export function MyTasksClient({
         </div>
         <div className="flex-1 min-w-[150px]"><SearchInput value={q} onChange={setQ} placeholder="Cerca attività o progetto…" /></div>
         {view === 'elenco' && (
-          <div className="w-64 shrink-0">
+          <div className="w-72 shrink-0">
+            {/* §347 — 18rem e non 16: con quattro voci «Priorità» finiva
+                tagliata. Il gruppo adesso si stringe invece di debordare, ma
+                stringersi fin lì vuol dire non leggersi. */}
             <Segmented ariaLabel="Raggruppa per" value={groupBy} onChange={setGroupBy}
               options={[
                 { value: 'scadenza', label: 'Scadenza' }, { value: 'progetto', label: 'Progetto' },
