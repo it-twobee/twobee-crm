@@ -156,11 +156,11 @@ export function MyTasksClient({
 
   const verdict = useMemo(() => {
     /* «Nessuna attività assegnata» con tre consegne in carico è la frase che fa
-       chiudere la pagina: le tappe sono lavoro, e vanno nominate qui. */
+       chiudere la pagina: le milestone sono lavoro, e vanno nominate qui. */
     if (tasks.length === 0) return {
       tone: 'neutral' as const,
       text: tappeAperte
-        ? `Nessuna task assegnata: hai ${tappeAperte} tappe in carico.`
+        ? `Nessuna task assegnata: hai ${tappeAperte} milestone in carico.`
         : 'Nessuna attività assegnata.',
     }
     if (counts.overdue > 0) return { tone: 'error' as const, text: `${counts.overdue} in ritardo: recuperale prima di aprire altro.` }
@@ -319,7 +319,7 @@ export function MyTasksClient({
         <span className="text-2xs text-text-tertiary tabular shrink-0">{shown.length}</span>
       </div>
 
-      <MilestoneBand rows={tappeView} people={profiles} title="Tappe che hai in carico" showOwner={false}
+      <MilestoneBand rows={tappeView} people={profiles} title="Milestone che hai in carico" showOwner={false}
         hint="Consegne di cui sei responsabile: si aprono sulla workstream, dove si spostano e si chiudono."
         hrefOf={r => `${projectBase}/${r.projectId}/workstream/${r.workstreamId}`} />
 

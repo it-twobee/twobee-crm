@@ -67,7 +67,7 @@ export default async function LeMieAttivitaPage() {
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6">
       <h1 className="text-2xl sm:text-3xl font-bold text-text-primary font-heading mb-1">Le mie attività</h1>
-      <p className="text-sm text-text-secondary mb-5">Task assegnate a te e tappe che hai in carico, da tutti i progetti.</p>
+      <p className="text-sm text-text-secondary mb-5">Task assegnate a te e milestone che hai in carico, da tutti i progetti.</p>
       <MyTasksClient
         tasks={(tasks ?? []) as Task[]}
         profiles={(profiles ?? []) as { id: string; full_name: string; avatar_url: string | null }[]}

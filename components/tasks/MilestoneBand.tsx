@@ -1,13 +1,18 @@
 'use client'
 
 /**
- * §346 — la fascia delle tappe, sopra l'elenco delle task.
+ * §346 — la fascia delle milestone, sopra l'elenco delle task.
  *
- * Una tappa non è una task e non si mescola alle task (il perché sta in
+ * Sullo schermo la parola è **milestone**: è quella che il team usa e quella
+ * che sta sul calendario del progetto. Nel codice il tipo si chiama `TappaRow`
+ * perché è il nome del dominio nei doc — stessa cosa, due registri.
+ *
+ * Una milestone non è una task e non si mescola alle task (il perché sta in
  * `lib/task-board.ts`), ma **è lavoro in scadenza di qualcuno** e finora non
  * compariva in nessuna lista: né nella sezione Task, né in «Le mie attività».
- * Qui sta in cima, contata e richiudibile, e ogni riga porta dove la tappa si
- * modifica davvero — la pagina della workstream.
+ * Qui sta in cima, contata e apribile — **chiusa di default**, perché il motivo
+ * per cui si apre questa pagina sono le task — e ogni riga porta dove la
+ * milestone si modifica davvero: la pagina della workstream.
  *
  * La riga **è** il link (§345): il bersaglio è tutta la riga con uno strato
  * invisibile, non il solo titolo, perché su un titolo corto sono quaranta pixel
@@ -40,19 +45,28 @@ const quando = (iso: string) => {
 }
 
 export function MilestoneBand({
-  rows, people = [], hrefOf, title = 'Tappe', hint, showOwner = true, showClient = true,
+  rows, people = [], hrefOf, title = 'Milestone', hint,
+  showOwner = true, showClient = true, defaultOpen = false,
 }: {
   rows: TappaRow[]
   people?: Person[]
-  /** dove porta la riga: la workstream, che è dove la tappa si modifica */
+  /** dove porta la riga: la workstream, che è dove la milestone si modifica */
   hrefOf: (r: TappaRow) => string
   title?: string
   hint?: string
   showOwner?: boolean
   showClient?: boolean
+  /**
+   * **Parte chiusa.** La fascia sta sopra l'elenco delle task, e aperta occupa
+   * lo schermo prima di quello per cui si è arrivati qui: la domanda che porta
+   * in questa pagina è «cosa c'è da fare», le consegne sono il contesto. Da
+   * chiusa l'intestazione dice già quante sono, quante in ritardo e quante
+   * senza responsabile — cioè tutto quello per cui uno la aprirebbe.
+   */
+  defaultOpen?: boolean
 }) {
-  const [chiusa, setChiusa] = useState(false)
-  /* niente fascia vuota: un riquadro che dice «nessuna tappa» occupa lo spazio
+  const [aperta, setAperta] = useState(defaultOpen)
+  /* niente fascia vuota: un riquadro che dice «nessuna milestone» occupa lo spazio
      delle cose da fare per annunciare che non c'è niente da fare (§223) */
   if (!rows.length) return null
 
@@ -61,9 +75,9 @@ export function MilestoneBand({
 
   return (
     <section>
-      <button onClick={() => setChiusa(c => !c)} aria-expanded={!chiusa}
+      <button onClick={() => setAperta(a => !a)} aria-expanded={aperta}
         className="w-full flex items-center gap-2 px-1 pb-2 text-left">
-        <ChevronDown className={`w-3.5 h-3.5 text-text-tertiary transition-transform ${chiusa ? '-rotate-90' : ''}`} />
+        <ChevronDown className={`w-3.5 h-3.5 text-text-tertiary transition-transform ${aperta ? '' : '-rotate-90'}`} />
         <Flag className="w-3.5 h-3.5 text-gold-text shrink-0" />
         <span className="text-2xs font-bold uppercase tracking-wide text-text-secondary truncate">{title}</span>
         <span className="text-2xs text-text-tertiary tabular">{n.aperte}</span>
@@ -72,7 +86,7 @@ export function MilestoneBand({
             {n.ritardo} in ritardo
           </span>
         )}
-        {/* §346 — una tappa senza responsabile non arriva a nessuno, esattamente
+        {/* §346 — una milestone senza responsabile non arriva a nessuno, esattamente
             come una regola ricorrente senza responsabile: si dichiara, non si
             lascia dedurre da un avatar mancante in fondo alla riga */}
         {showOwner && n.senzaResponsabile > 0 && (
@@ -83,7 +97,7 @@ export function MilestoneBand({
         {n.chiuse > 0 && <span className="text-2xs text-text-tertiary ml-auto shrink-0">{n.chiuse} consegnate</span>}
       </button>
 
-      {!chiusa && (
+      {aperta && (
         <div className="rounded-2xl border border-border shadow-soft overflow-hidden divide-y divide-border">
           {hint && (
             <p className="px-3 sm:px-4 py-2 text-2xs text-text-tertiary bg-surface-active/40">{hint}</p>
@@ -103,7 +117,7 @@ export function MilestoneBand({
                         r.aperta ? 'text-text-primary' : 'text-text-tertiary'
                       }`}>{r.title}</Link>
                     {r.ricorrente && (
-                      <Repeat className="w-3 h-3 text-success shrink-0 z-10" aria-label="Tappa ricorrente" />
+                      <Repeat className="w-3 h-3 text-success shrink-0 z-10" aria-label="Milestone ricorrente" />
                     )}
                     {r.approvazione && (
                       <ShieldCheck className="w-3 h-3 text-warning shrink-0 z-10" aria-label="Richiede approvazione" />

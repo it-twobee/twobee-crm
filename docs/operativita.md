@@ -388,7 +388,7 @@ chiamava nessuno. Quattro cause in fila, e ognuna bastava da sola.
   dell'ultima generazione. Un motore fermo e un motore che gira non possono
   avere la stessa faccia.
 
-## La sezione Task mostra anche le tappe (§346)
+## La sezione Task mostra anche le milestone (§346)
 
 Una milestone non compariva in **nessun** elenco di lavoro: non nella sezione
 Task (§340), che pure «le contiene tutte», e nemmeno in «Le mie attività». Chi
@@ -396,8 +396,12 @@ ne aveva una in carico la trovava solo aprendo il calendario del progetto, cioè
 solo se sapeva già di doverla cercare — sedici tappe con un responsabile, zero
 liste personali che le nominano.
 
-- **Una fascia loro, sopra l'elenco**, richiudibile e contata: in ritardo, senza
-  responsabile, consegnate. Non righe mescolate, e la ragione non è estetica: le
+- **Una fascia loro, sopra l'elenco**, contata (in ritardo, senza responsabile,
+  consegnate) e **chiusa di default**: la domanda che porta in quelle pagine è
+  «cosa c'è da fare», le consegne sono il contesto — e da chiusa l'intestazione
+  dice già tutto quello per cui uno la aprirebbe. Sullo schermo la parola è
+  **milestone**, quella che il team usa e quella che sta sul calendario; nel
+  codice il tipo resta `TappaRow`, il nome del dominio nei doc. Non righe mescolate, e la ragione non è estetica: le
   task di una tappa sono **già** nell'elenco, quindi in una lista sola lo stesso
   lavoro si conta due volte e «12 in ritardo» diventa un numero che non esiste da
   nessuna parte; lo stato parla un'altra lingua (`in_approvazione`/`completata`

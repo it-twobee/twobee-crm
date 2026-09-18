@@ -313,7 +313,7 @@ export function WorkstreamPageClient({
                   <div className="w-11 h-11 rounded-full bg-info-dim flex items-center justify-center mx-auto mb-2.5">
                     <Flag className="w-5 h-5 text-info" />
                   </div>
-                  <p className="text-sm text-text-secondary">Nessuna tappa di consegna.</p>
+                  <p className="text-sm text-text-secondary">Nessuna milestone di consegna.</p>
                   <p className="text-2xs text-text-tertiary mt-1">Una milestone con una data compare sul calendario del progetto.</p>
                   {canEdit && (
                     <button onClick={() => setAddingMs(true)}
@@ -588,7 +588,7 @@ function MilestoneNode({
               cambiarla è la regola, non la tappa. */}
           {m.is_recurring_instance && (
             <span className="flex items-center gap-1 text-2xs font-semibold px-1.5 py-0.5 rounded-full bg-success-dim text-success shrink-0"
-              title="Nata da una tappa ricorrente: per cambiarla tutte, modifica la regola qui sopra">
+              title="Nata da una milestone ricorrente: per cambiarla tutte, modifica la regola qui sopra">
               <Repeat className="w-3 h-3" aria-hidden="true" />ricorrente
             </span>
           )}
@@ -930,7 +930,7 @@ function RecurringMilestonePanel({
     <div className="bg-surface border border-border rounded-2xl shadow-soft p-4">
       <div className="flex items-center justify-between mb-2.5">
         <div className="text-sm font-bold text-text-primary flex items-center gap-2">
-          <Flag className="w-4 h-4 text-gold-text" aria-hidden="true" />Tappe ricorrenti
+          <Flag className="w-4 h-4 text-gold-text" aria-hidden="true" />Milestone ricorrenti
         </div>
         {canEdit && editing !== 'new' && (
           <button onClick={() => setEditing('new')}
@@ -942,7 +942,7 @@ function RecurringMilestonePanel({
       <div className="space-y-1">
         {recurring.length === 0 && editing !== 'new' && (
           <p className="text-2xs text-text-tertiary">
-            Nessuna tappa ricorrente. Una chiusura mensile o una review trimestrale si scrivono
+            Nessuna milestone ricorrente. Una chiusura mensile o una review trimestrale si scrivono
             una volta sola: sul calendario compare sempre e solo la più vicina.
           </p>
         )}
@@ -959,10 +959,10 @@ function RecurringMilestonePanel({
             accent="text-gold-text" Icon={Flag}
             profiles={profiles} canEdit={canEdit} pending={pending}
             onOwner={v => act(() => updateRecurringMilestone(r.id, projectId, { owner_id: v }),
-              v ? 'Assegnata: le prossime tappe sono sue' : 'Responsabile tolto')}
+              v ? 'Assegnata: le prossime milestone sono sue' : 'Responsabile tolto')}
             onToggle={() => act(() => updateRecurringMilestone(r.id, projectId, { active: !r.active }), r.active ? 'Sospesa' : 'Riattivata')}
             onEdit={() => setEditing(r.id)}
-            onDelete={() => { if (confirm(`Eliminare "${r.title}"? Le tappe già generate restano.`)) act(() => deleteRecurringMilestone(r.id, projectId), 'Eliminata') }} />
+            onDelete={() => { if (confirm(`Eliminare "${r.title}"? Le milestone già generate restano.`)) act(() => deleteRecurringMilestone(r.id, projectId), 'Eliminata') }} />
         ))}
         {editing === 'new' && (
           <RecurringForm profiles={profiles} pending={pending} onCancel={() => setEditing(null)}

@@ -150,7 +150,7 @@ export async function createRecurringMilestone(input: {
   visibility?: Visibility
 }) {
   const uid = await requireStaff()
-  if (!input.title.trim()) throw new Error('La tappa ha bisogno di un nome')
+  if (!input.title.trim()) throw new Error('La milestone ha bisogno di un nome')
   const { data, error } = await createAdminClient().from('recurring_milestone_templates').insert({
     client_id: input.client_id,
     project_id: input.project_id,

@@ -111,12 +111,19 @@ is('nessuna tappa, nessun numero',
   tappeCounts(rows([])), { totali: 0, aperte: 0, chiuse: 0, ritardo: 0, vicine: 0, senzaResponsabile: 0, senzaData: 0 })
 
 console.log('\n— La fascia, resa davvero —')
-const html = (ms0: MilestoneInput[]) => renderToStaticMarkup(createElement(MilestoneBand, {
+const html = (ms0: MilestoneInput[], defaultOpen = true) => renderToStaticMarkup(createElement(MilestoneBand, {
   rows: filtraTappe(rows(ms0, [{ milestone_id: 'a', status: 'da_fare' }]), { mode: 'aperte', today: OGGI }),
   people: [{ id: 'u1', full_name: 'Sabrina Nastro' }],
   hrefOf: (r: { projectId: string; workstreamId: string }) =>
     `/progetti/${r.projectId}/workstream/${r.workstreamId}`,
+  defaultOpen,
 }))
+/* Parte **chiusa**: la fascia sta sopra l'elenco delle task, e aperta occupa lo
+   schermo prima di quello per cui si è arrivati qui. Chiusa deve però dire già
+   tutto quello per cui uno la aprirebbe — quante sono e quante sono ferme. */
+const chiusa = html([ms({ id: 'a' })], false)
+is('chiusa non stampa le righe', chiusa.includes('M1 · Consegna'), false)
+is('ma il titolo e il conteggio sì', /MILESTONE|Milestone/.test(chiusa) && chiusa.includes('>1<'), true)
 const uno = html([ms({ id: 'a' })])
 is('la riga porta alla workstream', /href="\/progetti\/p1\/workstream\/w1"/.test(uno), true)
 /* §345 — il bersaglio è tutta la riga: col link sul solo titolo la risposta è
@@ -126,7 +133,7 @@ is('dice quante task restano sotto', uno.includes('1 task aperta su 1'), true)
 is('nomina il responsabile', uno.includes('Sabrina Nastro'), true)
 /* Una fascia vuota che dice «nessuna tappa» occupa lo spazio delle cose da fare
    per annunciare che non ce n'è nessuna. */
-is('senza tappe non si stampa niente', html([ms({ id: 'a', milestone_type: 'system', due_date: null })]), '')
+is('senza milestone non si stampa niente', html([ms({ id: 'a', milestone_type: 'system', due_date: null })]), '')
 is('senza responsabile lo scrive',
   html([ms({ id: 'a', owner_id: null })]).includes('senza responsabile'), true)
 

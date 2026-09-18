@@ -345,7 +345,7 @@ export function AdHocClient({
           )}
         </div>
       ) : view.length === 0 && !done.length ? (
-        <Empty>{rows.length ? 'Nessuna task per i filtri attivi.' : 'Nessuna task: qui sopra restano le tappe.'}</Empty>
+        <Empty>{rows.length ? 'Nessuna task per i filtri attivi.' : 'Nessuna task: qui sopra restano le milestone.'}</Empty>
       ) : (
         <div className="space-y-3 animate-fade-in">
           {groups.map(g => {
