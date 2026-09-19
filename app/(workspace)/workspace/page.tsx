@@ -10,6 +10,7 @@ import {
 import type { Task } from '@/lib/types/database'
 import { SalutoDinamico } from '@/components/workspace/SalutoDinamico'
 import { seme, type Ruolo } from '@/lib/task-mood'
+import { giornoAzienda, leggiFatti, conCaricoFresco, rigaDiOggi, nomiCitabili } from '@/lib/person-copy'
 
 export const revalidate = 0
 
@@ -97,6 +98,34 @@ export default async function WorkspaceDashboardPage() {
   const overdue = open.filter(x => x.due_date && x.due_date < t).length
   const upcoming = open.filter(x => x.due_date).slice(0, 6)
 
+  /* §360 — la riga scritta stanotte, se c'è. Una lettura sola, sulla chiave
+     primaria, e la RLS fa passare solo la propria: non è una query in più che
+     si sente. I **conteggi** però sono quelli di adesso, calcolati qui sopra:
+     il template è del mattino, i numeri no. Se la scena è cambiata durante il
+     giorno — le scadute chiuse — `rigaDiOggi` restituisce null e torna il
+     testo deterministico di §352.
+
+     La chiave è il giorno **di Roma**, come quello con cui il cron ha scritto:
+     `t` qui sopra è UTC, e fra mezzanotte e le due sarebbero due giorni
+     diversi. Peggio che può andare, la riga non si trova e si torna al
+     deterministico — ma tanto vale cercarla dove è stata messa. */
+  const { data: copyRow } = await supabase
+    .from('person_copy')
+    .select('template, situazione, fatti')
+    .eq('profile_id', userId).eq('giorno', giornoAzienda()).eq('chiave', 'saluto')
+    .maybeSingle()
+
+  const salvati = leggiFatti((copyRow as { fatti?: unknown } | null)?.fatti)
+  const rigaGenerata = salvati && copyRow
+    ? rigaDiOggi(
+        copyRow as { template: string; situazione: string },
+        conCaricoFresco(salvati, {
+          aperte: open.length, late: overdue, scadonoOggi: dueToday, chiuseOggi, chiuseSettimana,
+        }),
+        { rosa: nomiCitabili(salvati) },
+      )
+    : null
+
   const googleConnected = Boolean(profile.google_connected)
   const name = profile.full_name?.split(' ')[0] ?? 'ciao'
 
@@ -119,7 +148,8 @@ export default async function WorkspaceDashboardPage() {
             chiuseOggi, chiuseSettimana,
             progetti: (mgr ?? []).length,
             ruolo: (profile.app_role ?? null) as Ruolo,
-          }} />
+          }}
+          riga={rigaGenerata} />
       </div>
 
       {!googleConnected && (

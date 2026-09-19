@@ -380,13 +380,28 @@ const P_NORMALE: VocePersona[] = [
   { quando: venerdi, frase: s => `${s.aperte} aperte di venerdì: decidi tu quali diventano un problema di lunedì.` },
 ]
 
+/**
+ * §360 — in che situazione è chi legge. Era una catena di ternari dentro
+ * `salutoPersonale`, e serve **anche** al precalcolo notturno: il testo scritto
+ * la mattina vale finché la situazione è quella, e se nel pomeriggio cambia si
+ * torna alle frasi deterministiche. Scritta due volte, sarebbe divergita al
+ * primo gruppo aggiunto.
+ */
+export type Situazione = 'ritardo' | 'sprint' | 'oggi' | 'pulito' | 'fermo' | 'normale'
+
+export function situazione(s: StatoPersona): Situazione {
+  if (s.late > 0) return 'ritardo'
+  if (s.chiuseOggi >= 3) return 'sprint'
+  if (s.oggi > 0) return 'oggi'
+  if (s.aperte === 0) return s.chiuseSettimana > 0 ? 'pulito' : 'fermo'
+  return 'normale'
+}
+
+const POOL: Record<Situazione, VocePersona[]> = {
+  ritardo: P_RITARDO, sprint: P_SPRINT, oggi: P_OGGI,
+  pulito: P_PULITO, fermo: P_FERMO, normale: P_NORMALE,
+}
+
 export function salutoPersonale(s: StatoPersona, m: Momento, seme: number): string {
-  const pool =
-    s.late > 0 ? P_RITARDO
-    : s.chiuseOggi >= 3 ? P_SPRINT
-    : s.oggi > 0 ? P_OGGI
-    : s.aperte === 0 && s.chiuseSettimana > 0 ? P_PULITO
-    : s.aperte === 0 ? P_FERMO
-    : P_NORMALE
-  return pescaPersona(pool, s, m, seme).frase(s, m)
+  return pescaPersona(POOL[situazione(s)], s, m, seme).frase(s, m)
 }
