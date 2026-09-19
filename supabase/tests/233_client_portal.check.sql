@@ -24,9 +24,11 @@ INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES
  ('f2330000-0000-4000-8000-000000000003','portal-b@example.invalid','{}'),
  ('f2330000-0000-4000-8000-000000000004','portal-reader@example.invalid','{}'),
  ('f2330000-0000-4000-8000-000000000005','portal-collaborator@example.invalid','{}'),
- ('f2330000-0000-4000-8000-000000000006','portal-limited@example.invalid','{}');
+ ('f2330000-0000-4000-8000-000000000006','portal-limited@example.invalid','{}'),
+ ('f2330000-0000-4000-8000-000000000007','portal-manager@example.invalid','{}');
 UPDATE public.profiles SET role='client',app_role='client',is_active=true WHERE email LIKE 'portal-%@example.invalid';
 UPDATE public.profiles SET role='admin',app_role='super_admin' WHERE id='f2330000-0000-4000-8000-000000000001';
+UPDATE public.profiles SET role='team',app_role='manager' WHERE id='f2330000-0000-4000-8000-000000000007';
 SELECT set_config('request.headers','{"x-actor-id":"f2330000-0000-4000-8000-000000000001"}',true);
 SELECT set_config('request.jwt.claim.sub','',true);
 
@@ -131,6 +133,18 @@ SELECT pg_temp.check_portal((SELECT count(*)=0 FROM public.portal_deliverable_ve
 SELECT pg_temp.check_portal((SELECT count(*)=0 FROM public.portal_activities),'ritiro progetto nasconde attività');
 RESET ROLE;
 
+SELECT set_config('request.jwt.claim.sub','',true);
+UPDATE public.clients SET workspace_hidden=true WHERE id='f2331000-0000-4000-8000-000000000002';
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub','f2330000-0000-4000-8000-000000000007',true);
+SELECT pg_temp.check_portal((SELECT count(*)=1 FROM public.portal_companies WHERE id='f2331000-0000-4000-8000-000000000001'),'manager vede azienda workspace senza membership cliente');
+SELECT pg_temp.check_portal((SELECT count(*)=0 FROM public.portal_companies WHERE id='f2331000-0000-4000-8000-000000000002'),'manager non vede azienda nascosta al workspace');
+SELECT pg_temp.check_portal((SELECT count(*)=0 FROM public.portal_projects WHERE id='f2332000-0000-4000-8000-000000000002'),'manager non vede progetti azienda nascosta');
+SELECT pg_temp.check_portal((SELECT count(*)=1 FROM public.portal_projects WHERE id='f2332000-0000-4000-8000-000000000003'),'manager vede progetto pubblicato autorizzato');
+SELECT pg_temp.reject_portal('UPDATE public.portal_memberships SET portal_role=''referente''','42501');
+SELECT set_config('request.jwt.claim.sub','f2330000-0000-4000-8000-000000000001',true);
+SELECT pg_temp.check_portal((SELECT count(*)=1 FROM public.portal_companies WHERE id='f2331000-0000-4000-8000-000000000002'),'super admin conserva anteprima amministrativa');
+RESET ROLE;
 SELECT pg_temp.check_portal(NOT EXISTS (SELECT 1 FROM public.portal_events WHERE actor_id IS NULL),'cronologia attribuita');
 SELECT pg_temp.check_portal((SELECT count(*)>0 FROM public.portal_events),'cronologia realmente scritta');
 ROLLBACK;

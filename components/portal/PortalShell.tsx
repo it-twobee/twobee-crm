@@ -17,8 +17,8 @@ const SECTIONS = [
   { href: '/portale/richieste', label: 'Richieste', icon: MessageSquare },
 ]
 
-export function PortalShell({ children, companies, selected, preview, name }: {
-  children: React.ReactNode; companies: PortalCompany[]; selected: string | null; preview: boolean; name: string
+export function PortalShell({ children, companies, selected, preview, canAccessAdmin, name }: {
+  children: React.ReactNode; companies: PortalCompany[]; selected: string | null; preview: boolean; canAccessAdmin: boolean; name: string
 }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -50,7 +50,7 @@ export function PortalShell({ children, companies, selected, preview, name }: {
             <span className="font-heading text-xl font-semibold tracking-tight">TwoBee <span className="ml-2 font-sans text-xs font-normal text-text-secondary">Spazio cliente</span></span>
           </Link>
           <div className="flex items-center gap-2">
-            {preview && <PortalSwitcher canPreviewClient />}
+            {preview && <PortalSwitcher canPreviewClient canAccessAdmin={canAccessAdmin} />}
             <ThemeToggle collapsed className="min-h-11 min-w-11" />
             <button onClick={signOut} disabled={signingOut} aria-label="Esci dal portale" className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm text-text-secondary hover:bg-surface-hover disabled:opacity-50"><LogOut className="h-4 w-4" /><span className="hidden sm:inline">Esci</span></button>
           </div>
@@ -70,7 +70,7 @@ export function PortalShell({ children, companies, selected, preview, name }: {
           ) : <p className="min-w-0 break-words text-sm font-medium">{company?.name ?? 'Il tuo spazio condiviso'}</p>}
           <p className="text-xs text-text-secondary">{name}{company && !preview ? ` · ${company.role}` : ''}</p>
         </div>
-        {preview && <p className="mb-4 rounded-lg bg-info-dim px-4 py-3 text-sm text-info">Anteprima super admin · contenuti condivisi dell’azienda, in sola lettura. Gli accessi dei singoli referenti possono essere più limitati.</p>}
+        {preview && <p className="mb-4 rounded-lg bg-info-dim px-4 py-3 text-sm text-info">Anteprima cliente · contenuti condivisi dell’azienda, in sola lettura. Gli accessi dei singoli referenti possono essere più limitati.</p>}
         {error && <p role="alert" className="text-sm text-error">{error}</p>}
       </div>
       <div className="sticky top-0 z-30 border-y border-border bg-background">

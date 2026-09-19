@@ -5,6 +5,7 @@ import { TicketSystem } from '@/components/ticket/TicketSystem'
 import { isSuperAdmin } from '@/lib/permissions'
 import type { Profile, Client } from '@/lib/types/database'
 import { VoceSezione } from '@/components/workspace/VoceSezione'
+import { ClientPortalPreviewLink } from '@/components/portal/ClientPortalPreviewLink'
 
 export const revalidate = 0
 
@@ -32,6 +33,7 @@ export default async function WorkspaceTicketsPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-black text-text-primary">Ticket & Supporto</h1>
         <VoceSezione sezione="ticket" />
+        <ClientPortalPreviewLink />
       </div>
       <TicketSystem
         tickets={(ticketRes.data ?? []) as any[]}

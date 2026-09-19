@@ -1,5 +1,5 @@
 -- Primo incremento portale cliente. SCRITTA, NON APPLICATA.
--- Prerequisiti: schema Project V2 (147/148), documenti (080), profili (224).
+-- Prerequisiti: Project V2 (147/148), documenti (080), workspace_hidden (213), profili (224).
 -- Nessun backfill: assegnazione interna e visibilità da template non pubblicano.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
@@ -47,11 +47,13 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
     AND (p.app_role IN ('super_admin','founder','admin','manager','senior','junior','stage') OR p.role = 'admin'));
 $$;
 
-CREATE OR REPLACE FUNCTION public.portal_is_super()
+CREATE OR REPLACE FUNCTION public.portal_can_preview(p_client uuid)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   SELECT EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid()
     AND p.is_active IS DISTINCT FROM false
-    AND (p.app_role = 'super_admin' OR p.email = 'm.lucci@twobee.it'));
+    AND (p.app_role IN ('super_admin','founder','admin') OR p.email = 'm.lucci@twobee.it'
+      OR (p.app_role = 'manager' AND EXISTS (SELECT 1 FROM public.clients c
+        WHERE c.id = p_client AND c.workspace_hidden IS DISTINCT FROM true))));
 $$;
 
 -- Nessun parametro user_id: la lettura riguarda esclusivamente auth.uid().
@@ -246,7 +248,7 @@ CREATE POLICY portal_message_read ON public.portal_request_messages FOR SELECT T
 CREATE OR REPLACE VIEW public.portal_companies WITH (security_barrier = true) AS
   SELECT c.id, coalesce(nullif(c.display_name,''), c.company_name) AS name
   FROM public.clients c
-  WHERE public.portal_is_super() OR EXISTS (
+  WHERE public.portal_can_preview(c.id) OR EXISTS (
     SELECT 1 FROM public.portal_memberships m JOIN public.profiles p ON p.id = m.profile_id
     WHERE m.client_id = c.id AND m.profile_id = auth.uid() AND m.revoked_at IS NULL
       AND p.is_active IS DISTINCT FROM false AND p.role IN ('client','guest') AND p.app_role IN ('client','guest'));
@@ -259,7 +261,7 @@ CREATE OR REPLACE VIEW public.portal_projects WITH (security_barrier = true) AS
     p.portal_date_kind AS date_kind, p.portal_phase AS phase
   FROM public.projects p
   WHERE p.portal_published_at IS NOT NULL AND p.deleted_at IS NULL
-    AND (public.portal_is_super() OR public.portal_can_access(p.client_id, p.id));
+    AND (public.portal_can_preview(p.client_id) OR public.portal_can_access(p.client_id, p.id));
 REVOKE ALL ON public.portal_companies, public.portal_projects FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.portal_companies, public.portal_projects TO authenticated, service_role;
 
@@ -527,8 +529,8 @@ CREATE INDEX IF NOT EXISTS portal_versions_project ON public.portal_deliverable_
 CREATE INDEX IF NOT EXISTS portal_messages_request ON public.portal_request_messages(request_id, created_at);
 CREATE INDEX IF NOT EXISTS portal_events_client ON public.portal_events(client_id, created_at DESC);
 
-REVOKE ALL ON FUNCTION public.portal_is_staff(), public.portal_is_super(), public.portal_can_access(uuid,uuid) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.portal_is_staff(), public.portal_is_super(), public.portal_can_access(uuid,uuid) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.portal_is_staff(), public.portal_can_preview(uuid), public.portal_can_access(uuid,uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.portal_is_staff(), public.portal_can_preview(uuid), public.portal_can_access(uuid,uuid) TO authenticated, service_role;
 REVOKE ALL ON FUNCTION public.portal_assert_actor(uuid,uuid,uuid,boolean), public.portal_guard_project_publication(),
   public.portal_guard_version(), public.portal_guard_approval(), public.portal_guard_request(), public.portal_guard_response(),
   public.portal_guard_task_link(), public.portal_immutable(), public.portal_log_event(), public.portal_request_version_review(),

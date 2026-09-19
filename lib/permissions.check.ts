@@ -1,5 +1,5 @@
 /* Verifica dei permessi di governo progetto (§339). Esegui: npx tsx lib/permissions.check.ts */
-import { canGovernProjects, PROJECT_GOVERN_ROLES, canCreateClients, isAdminRole, coarseRole } from '@/lib/permissions'
+import { canGovernProjects, PROJECT_GOVERN_ROLES, canCreateClients, isAdminRole, coarseRole, canPreviewClientPortal } from '@/lib/permissions'
 
 let fail = 0
 const is = (label: string, got: unknown, want: unknown) => {
@@ -41,6 +41,20 @@ is('ogni ruolo admin governa', PROJECT_GOVERN_ROLES.filter(isAdminRole).length >
 /* Il governo non è il portale: un manager governa i progetti e resta confinato
    al workspace (§234). Le due domande sono diverse e vanno tenute diverse. */
 is('un manager resta workspace', coarseRole('manager'), 'team')
+
+console.log('\n— Anteprima cliente: manager e amministrativi —')
+for (const app_role of ['super_admin', 'founder', 'admin', 'manager']) {
+  is(`${app_role}: anteprima consentita`, canPreviewClientPortal({ app_role }), true)
+  is(`${app_role} disattivo: anteprima negata`, canPreviewClientPortal({ app_role, is_active: false }), false)
+}
+for (const app_role of ['senior', 'junior', 'stage', 'freelance', 'partner', 'viewer', 'client', 'guest', null]) {
+  is(`${app_role}: niente anteprima interna`, canPreviewClientPortal({ app_role }), false)
+}
+is('manager autorizzato dal ruolo, non dall’indirizzo', canPreviewClientPortal({ email: 'm.cristallo@twobee.it', app_role: 'manager' }), true)
+is('indirizzo da solo non eleva il ruolo', canPreviewClientPortal({ email: 'm.cristallo@twobee.it', app_role: 'junior' }), false)
+is('super admin storico riconosciuto', canPreviewClientPortal({ email: 'm.lucci@twobee.it' }), true)
+is('account sviluppo senza promozione implicita', canPreviewClientPortal({ email: 'marco.d.lucci@gmail.com' }), false)
+is('nessuna sessione: niente anteprima', canPreviewClientPortal(null), false)
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

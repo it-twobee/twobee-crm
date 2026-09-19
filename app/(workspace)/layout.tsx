@@ -10,7 +10,7 @@ import { HeaderActions } from '@/components/shared/HeaderActions'
 import Link from 'next/link'
 import { GlobalSearch } from '@/components/shared/GlobalSearch'
 import { workspaceSearch } from '@/app/actions/global-search'
-import { isAdminRole, isWorkspaceRole } from '@/lib/permissions'
+import { isAdminRole, isWorkspaceRole, canPreviewClientPortal } from '@/lib/permissions'
 import { Suspense } from 'react'
 import { NavMemory } from '@/components/shared/BackLink'
 import { AssistantLauncher } from '@/components/ai/AssistantLauncher'
@@ -114,7 +114,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
           <Link href="/workspace" aria-label="TwoBee — workspace" className="lg:hidden flex items-center">
             <Logo variant="mark" className="w-6 h-6" priority />
           </Link>
-          {isAdminLevel && <PortalSwitcher canPreviewClient={isSuperAdmin} />}
+          {(isAdminLevel || canPreviewClientPortal(profile)) && <PortalSwitcher canPreviewClient={canPreviewClientPortal(profile)} canAccessAdmin={isAdminLevel} />}
           <div className="flex-1 max-w-md">
             <GlobalSearch
               search={workspaceSearch}

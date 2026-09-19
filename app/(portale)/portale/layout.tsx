@@ -9,5 +9,5 @@ export const metadata: Metadata = { title: 'Spazio cliente · TwoBee', descripti
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const requested = (await headers()).get('x-portal-client') || undefined
   const context = await getPortalContext(requested)
-  return <PortalShell companies={context.companies} selected={context.company?.id ?? null} preview={context.preview} name={context.name}>{children}</PortalShell>
+  return <PortalShell companies={context.companies} selected={context.company?.id ?? null} preview={context.preview} canAccessAdmin={context.canAccessAdmin} name={context.name}>{children}</PortalShell>
 }

@@ -45,7 +45,8 @@ note interne separate, ponte task e cronologia attribuita. Nessun backfill di
 accessi o pubblicazioni. Le scritture browser sono chiuse.
 
 Rilanciabile: `IF NOT EXISTS`, `CREATE OR REPLACE`, policy e trigger ricreati.
-Prerequisiti: 080, 147/148, 224. Suite
+Prerequisiti: 080, 147/148, 213 (aziende nascoste al workspace), 224. Anteprima
+per manager e amministrativi; manager limitati alle aziende del workspace. Suite
 `supabase/tests/233_client_portal.check.sql`, **solo staging**, `BEGIN/ROLLBACK`.
 Non eseguirla sul database condiviso con la produzione. Prima del rilascio va
 verificato anche l'effetto delle policy restrittive sugli accessi legacy a

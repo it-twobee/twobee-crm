@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { GlobalSearch } from '@/components/shared/GlobalSearch'
 import type { Profile } from '@/lib/types/database'
-import { isSuperAdminRaw, isAdminRole } from '@/lib/permissions'
+import { isSuperAdminRaw, isAdminRole, canPreviewClientPortal } from '@/lib/permissions'
 import { MobileNav } from '@/components/shared/MobileNav'
 import { Logo } from '@/components/shared/Logo'
 import { PortalSwitcher } from '@/components/shared/PortalSwitcher'
@@ -25,7 +25,7 @@ export function Header({ profile }: HeaderProps) {
       <Link href="/dashboard" aria-label="TwoBee — dashboard" className="lg:hidden flex items-center">
         <Logo variant="mark" className="w-6 h-6" priority />
       </Link>
-      {canSwitchPortal && <PortalSwitcher canPreviewClient={isGod} />}
+      {canSwitchPortal && <PortalSwitcher canPreviewClient={canPreviewClientPortal(profile)} />}
 
       <div className="flex-1 max-w-md">
         <GlobalSearch />

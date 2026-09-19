@@ -29,7 +29,7 @@ quel database. Le future prove SQL sono esclusivamente per staging.
 | `/customer-care`, `/workspace/customer-care`, `CustomerCareClient` | Punto interno dove inserire «Da gestire», senza altra voce di menu. |
 | `tickets`, `ticket_messages`, portale ticket a token | Dominio già usato, stati e autenticazione diversi; non convertire automaticamente conversazioni interne in richieste pubbliche. |
 | `chat_messages`, `client_notes` | Conversazioni e note interne: non vengono lette dal portale. |
-| Logo, ThemeToggle, token, font, PortalSwitcher | Identità coerente nei due temi; anteprima cliente per il solo super admin. |
+| Logo, ThemeToggle, token, font, PortalSwitcher | Identità coerente nei due temi; anteprima cliente per manager e amministrativi. |
 
 `/portale` non esisteva. La 232 è l'ultimo file migration presente alla partenza.
 Le descrizioni dei portali in `CLAUDE.md` anticipavano codice assente.
@@ -66,8 +66,10 @@ aggiungere guard dentro ogni azione e usare `createActorClient(userId)`.
 - Senza 233: associazioni legacy lette con sessione e RLS; solo ID/nome azienda e
   ID/nome/area/stato dei progetti `client_visible`, non eliminati. Nessuna
   descrizione, task, URL file o milestone ereditata dai template.
-- Super admin: selezione azienda in anteprima, sempre in sola lettura; non si
-  dichiara di impersonare i permessi di uno specifico referente.
+- Manager e amministrativi: selezione azienda in anteprima, sempre in sola
+  lettura; non si dichiara di impersonare i permessi di uno specifico referente.
+  Il manager vede le aziende di `clients_workspace` e resta escluso dal tool
+  admin. Regola condivisa: `canPreviewClientPortal()`.
 - Con 233: le nuove associazioni diventano canoniche. Una revoca o un elenco
   vuoto **non** riattivano il fallback legacy. Solo l'errore di schema mancante
   consente il fallback; errori di rete/permessi hanno uno stato d'errore.
@@ -133,7 +135,7 @@ e quelle non eseguite vengono registrate a fine incremento.
   schema assente e proiezione che scarta note, costi e date interne).
 - `git diff --check`: nessun errore di whitespace.
 - Parser PostgreSQL **pglast 8.4**, senza connessione a un database: sintassi
-  della 233 (87 statement, 20 corpi SQL/PLpgSQL) e della suite (80 statement,
+  della 233 (87 statement, 20 corpi SQL/PLpgSQL) e della suite (93 statement,
   2 corpi) valida. Questo **non** verifica l'esecuzione, i tipi risolti contro
   lo schema reale o le policy RLS.
 - `scripts/check-portal-browser.mjs`: Playwright/Chromium contro Next su
@@ -145,7 +147,7 @@ e quelle non eseguite vengono registrate a fine incremento.
   ricarica, progetto precompilato e campi contestuali, invio disabilitato.
   A 390 e 1440 px, nei due temi: nessun overflow, focus tastiera visibile e
   contrasto WCAG AA misurato sul DOM (transizioni disabilitate).
-  Ultimo giro: **132 richieste HTTP al mock, zero scritture**.
+  Ultimo giro: **171 richieste HTTP al mock, zero scritture**.
 - Screenshot ispezionati in `/tmp/opencode/portal-browser/`: le home popolate
   rappresentano **fixture locali**, non clienti o contenuti pubblicati reali.
 - Dev reale avviato in locale su **http://localhost:3000**. Verifica HTTP:
@@ -162,6 +164,27 @@ NODE_PATH=/tmp/opencode/node_modules node scripts/check-portal-browser.mjs
 
 Il test chiude i propri processi, usa `.next-build` e non applica SQL.
 Il normale `npm run dev` usa `.next` e rimane separato.
+Eseguire TypeScript **dopo** il test browser: l'avvio di Next rigenera i file
+di tipi in `.next-build/types` inclusi dal compilatore.
+
+### Accesso manager dopo la prova del committente
+
+Il committente usa `m.cristallo@twobee.it` e ha richiesto accesso al livello
+**manager**, senza usare le credenziali del super admin. La regola è per ruolo,
+non un'eccezione sull'indirizzo: manager, admin, founder e super admin possono
+consultare l'anteprima. Nessun profilo è stato modificato sul database.
+
+Il selettore del manager mostra Workspace/Portale cliente. Il Customer Care e
+la pagina Ticket hanno il link diretto **«Apri portale cliente»**. La vecchia
+scheda «Portali Cliente», che generava magic link ticket, si chiama **«Link
+ticket»**; se manca la chiave di servizio l'azione restituisce un messaggio
+gestito, senza bloccare la pagina con un'eccezione.
+
+Verificato nel browser: ingresso manager dalla pagina ticket, selettore senza
+Admin, rifiuto di `/dashboard`, aziende nascoste escluse anche con URL alterato,
+junior escluso dall'anteprima, chiave ticket mancante gestita senza scritture.
+La suite SQL include anche lo scope manager nelle VIEW della 233; resta da
+eseguire su staging.
 
 ### Configurazione locale e verifiche ancora aperte
 

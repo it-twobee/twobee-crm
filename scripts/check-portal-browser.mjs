@@ -13,10 +13,11 @@ const output = join(tmpdir(), 'opencode', 'portal-browser')
 await mkdir(output, { recursive: true })
 const a = 'f2331000-0000-4000-8000-000000000001'
 const b = 'f2331000-0000-4000-8000-000000000002'
+const hidden = 'f2331000-0000-4000-8000-000000000003'
 const pa = 'f2332000-0000-4000-8000-000000000001'
 const pb = 'f2332000-0000-4000-8000-000000000002'
-const ids = Object.fromEntries(['client', 'other', 'super', 'unassigned', 'revoked', 'broken', 'inactive'].map((name, i) => [name, `f2330000-0000-4000-8000-00000000000${i + 1}`]))
-const companies = [{ id: a, company_name: 'Azienda di prova A', display_name: null }, { id: b, company_name: 'Azienda di prova B', display_name: null }]
+const ids = Object.fromEntries(['client', 'other', 'super', 'unassigned', 'revoked', 'broken', 'inactive', 'manager', 'junior'].map((name, i) => [name, `f2330000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`]))
+const companies = [{ id: a, company_name: 'Azienda di prova A', display_name: null }, { id: b, company_name: 'Azienda di prova B', display_name: null }, { id: hidden, company_name: 'Società riservata', display_name: null }]
 const projects = [
   { id: pa, client_id: a, name: 'Sito web · esperienza e contenuti', area: 'digital', status: 'active' },
   { id: pb, client_id: b, name: 'Progetto riservato azienda B', area: 'growth', status: 'active' },
@@ -48,10 +49,11 @@ const mock = createServer((req, res) => {
   if (url.pathname === '/auth/v1/user') return userId ? reply(200, identity(userId)) : reply(401, { message: 'No session' })
   const table = url.pathname.split('/').pop()
   const eq = key => url.searchParams.get(key)?.replace(/^eq\./, '')
-  const allowed = userId === ids.super ? [a, b] : userId === ids.other ? [b] : [a]
+  const allowed = userId === ids.super ? [a, b, hidden] : userId === ids.manager ? [a, b] : userId === ids.other ? [b] : [a]
   let rows = []
   if (table === 'profiles') {
-    rows = [{ ...identity(userId), full_name: 'Referente di prova', role: userId === ids.super ? 'admin' : 'client', app_role: userId === ids.super ? 'super_admin' : 'client', is_active: userId !== ids.inactive }]
+    const staffRole = userId === ids.manager ? 'manager' : userId === ids.junior ? 'junior' : null
+    rows = [{ ...identity(userId), full_name: 'Referente di prova', role: userId === ids.super ? 'admin' : staffRole ? 'team' : 'client', app_role: userId === ids.super ? 'super_admin' : staffRole ?? 'client', is_active: userId !== ids.inactive }]
   } else if (table === 'portal_memberships') {
     if (userId === ids.broken) return reply(403, { code: '42501', message: 'portal_memberships permission denied' })
     if (schema === 'legacy') return reply(404, { code: 'PGRST205', message: "Could not find the table 'public.portal_memberships' in the schema cache" })
@@ -59,8 +61,9 @@ const mock = createServer((req, res) => {
   } else if (table === 'client_assignments') {
     if (schema !== 'legacy') violations.push('Fallback legacy dopo attivazione schema')
     rows = userId === ids.unassigned ? [] : allowed.map(client_id => ({ client_id }))
-  } else if (table === 'clients') {
-    if (url.searchParams.get('select') !== 'id,company_name,display_name') violations.push('Proiezione aziende non sicura')
+  } else if (table === 'clients' || table === 'clients_workspace') {
+    if (!['id,company_name,display_name', 'id,company_name'].includes(url.searchParams.get('select'))) violations.push('Proiezione aziende non sicura')
+    if (userId === ids.manager && table === 'clients') violations.push('Anteprima manager fuori da clients_workspace')
     rows = companies.filter(c => allowed.includes(c.id))
   } else if (table === 'projects') {
     if (url.searchParams.get('select') !== 'id,client_id,name,area,status' || eq('visibility') !== 'client_visible' || url.searchParams.get('deleted_at') !== 'is.null') violations.push('Proiezione progetti non sicura')
@@ -81,7 +84,7 @@ const mock = createServer((req, res) => {
   } else if (table === 'portal_requests') {
     if (schema === 'legacy') return reply(404, { code: 'PGRST205', message: "Could not find the table 'public.portal_requests' in the schema cache" })
     rows = [{ id: 'request-a', project_id: pa, title: 'Chiarimento sui contenuti', body: 'Quali contenuti prepariamo per la prossima revisione?', kind: 'supporto', status: 'in_valutazione', created_at: '2026-09-19T10:00:00Z' }]
-  } else if (!['workspace_sections', 'workspace_section_permissions', 'notifications', 'profile_permissions'].includes(table)) {
+  } else if (!['workspace_sections', 'workspace_section_permissions', 'notifications', 'profile_permissions', 'tickets'].includes(table)) {
     violations.push(`Query inattesa: ${table}`)
   }
   return reply(200, req.headers.accept?.includes('vnd.pgrst.object') ? rows[0] ?? null : rows)
@@ -91,7 +94,7 @@ const log = await open(join(output, 'next.log'), 'w')
 const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', '-p', '3100', '--hostname', '127.0.0.1'], {
   cwd: process.cwd(), detached: true, stdio: ['ignore', log.fd, log.fd],
   env: { ...process.env, NEXT_BUILD_DIR: '.next-build', NEXT_TELEMETRY_DISABLED: '1',
-    NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54329', NEXT_PUBLIC_SUPABASE_ANON_KEY: 'portal-test-only', SUPABASE_SERVICE_ROLE_KEY: 'portal-test-only' },
+    NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54329', NEXT_PUBLIC_SUPABASE_ANON_KEY: 'portal-test-only', SUPABASE_SERVICE_ROLE_KEY: '' },
 })
 let browser
 try {
@@ -221,6 +224,33 @@ try {
   assert.equal(await preview.page.getByRole('navigation', { name: 'Customer Care', exact: true }).getByRole('link', { name: 'Conversazioni' }).count(), 1)
   await preview.context.close()
   console.log('OK anteprima super admin, selezione azienda e coda integrata nel workspace')
+
+  const manager = await session('manager')
+  await open(manager.page, '/workspace/customer-care/tickets')
+  await manager.page.getByRole('button', { name: 'Link ticket', exact: true }).click()
+  await manager.page.getByRole('button', { name: 'Genera link', exact: true }).first().click()
+  await manager.page.getByText('La generazione dei link ticket non è configurata in questo ambiente.', { exact: false }).waitFor()
+  assert.equal(await manager.page.getByRole('button', { name: 'Genera link', exact: true }).first().isEnabled(), true)
+  await manager.page.getByRole('link', { name: 'Apri portale cliente', exact: false }).click()
+  await manager.page.waitForURL(url => url.pathname === '/portale')
+  await manager.page.getByLabel('Azienda in anteprima').waitFor()
+  assert.equal(await manager.page.getByRole('option', { name: 'Società riservata' }).count(), 0)
+  await manager.page.getByRole('button', { name: 'Cambia portale', exact: true }).click()
+  assert.equal(await manager.page.getByRole('button', { name: 'Portale Admin', exact: false }).count(), 0)
+  assert.equal(await manager.page.getByRole('button', { name: 'Workspace Vista risorsa' }).count(), 1)
+  await manager.page.getByRole('button', { name: 'Cambia portale', exact: true }).click()
+  const adminRedirect = await manager.context.request.get('http://127.0.0.1:3100/dashboard', { maxRedirects: 0 })
+  assert.equal(adminRedirect.status(), 307)
+  assert.match(adminRedirect.headers().location, /\/workspace/)
+  await open(manager.page, `/portale?client=${hidden}`)
+  assert.match(await manager.page.locator('body').innerText(), /Contenuto non disponibile\.|404/)
+  await manager.context.close()
+  const junior = await session('junior')
+  const denied = await junior.context.request.get('http://127.0.0.1:3100/portale', { maxRedirects: 0 })
+  assert.equal(denied.status(), 307)
+  assert.match(denied.headers().location, /\/workspace/)
+  await junior.context.close()
+  console.log('OK manager dai ticket al portale, aziende workspace, nessun accesso admin; junior escluso; chiave ticket mancante gestita')
 
   schema = 'ready'
   const revoked = await session('revoked')

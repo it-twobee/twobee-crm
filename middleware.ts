@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { isWorkspaceRole, isAdminRole, isSuperAdminRaw } from '@/lib/permissions'
+import { isWorkspaceRole, isAdminRole, isSuperAdminRaw, canPreviewClientPortal } from '@/lib/permissions'
 import { isPortalRole } from '@/lib/portal/model'
 
 /**
@@ -139,6 +139,8 @@ export async function middleware(request: NextRequest) {
   // WORKSPACE_ROLES (manager…partner): un `viewer`, o un legacy con role='team'
   // e app_role fuori lista, altrimenti raggiungerebbe il tool admin completo.
   const isWorkspace = !isAdminLevel && (isWorkspaceRole(appRole) || role === 'team')
+  const isClientPortal = pathname === '/portale' || pathname.startsWith('/portale/')
+  if (isClientPortal && canPreviewClientPortal(profile)) return supabaseResponse
 
   if (isWorkspace) {
     const allowedForWorkspace =
@@ -165,7 +167,7 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse
   }
 
-  if ((pathname === '/portale' || pathname.startsWith('/portale/')) && !isSuper) {
+  if (isClientPortal) {
     return redirectTo('/dashboard')
   }
 

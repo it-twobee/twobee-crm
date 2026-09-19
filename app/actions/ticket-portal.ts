@@ -66,6 +66,9 @@ export async function getOrCreatePortal(clientId: string): Promise<{ token: stri
   try { await requireStaff() } catch (e) {
     return { error: e instanceof Error ? e.message : 'Non autorizzato' }
   }
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return { error: 'La generazione dei link ticket non è configurata in questo ambiente. Per l’anteprima usa «Apri portale cliente».' }
+  }
 
   const sb = serviceClient()
   const { data: existing } = await sb.from('ticket_portals').select('token').eq('client_id', clientId).single()

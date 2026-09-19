@@ -3,6 +3,7 @@ import { cache } from 'react'
 import { redirect, notFound } from 'next/navigation'
 import { getViewer } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
+import { canPreviewClientPortal } from '@/lib/permissions'
 import { isMissingPortalSchema, isPortalRole, legacyProject, selectCompany } from './model'
 import type { PortalCompany, PortalProject, PortalActivity, PortalRequest, PortalVersion } from './model'
 
@@ -10,10 +11,11 @@ export const requirePortalViewer = cache(async () => {
   const viewer = await getViewer()
   if (!viewer.user) redirect('/login')
   if (!viewer.profile || viewer.profile.is_active === false) redirect('/login?accesso=revocato')
-  if (!viewer.isSuperAdmin && !isPortalRole(viewer.profile)) {
+  const preview = canPreviewClientPortal(viewer.profile)
+  if (!preview && !isPortalRole(viewer.profile)) {
     redirect(viewer.isWorkspace ? '/workspace' : '/dashboard')
   }
-  return { userId: viewer.user.id, name: viewer.profile.full_name, preview: viewer.isSuperAdmin }
+  return { userId: viewer.user.id, name: viewer.profile.full_name, preview, canAccessAdmin: viewer.isAdmin }
 })
 
 export const getPortalContext = cache(async (requested?: string) => {
@@ -26,7 +28,7 @@ export const getPortalContext = cache(async (requested?: string) => {
 
   let companies: PortalCompany[] = []
   if (viewer.preview) {
-    const result = await db.from('clients').select('id, company_name, display_name').order('company_name')
+    const result = await db.from(viewer.canAccessAdmin ? 'clients' : 'clients_workspace').select('id, company_name, display_name').order('company_name')
     if (result.error) throw new Error('Non è stato possibile caricare le aziende per l’anteprima.')
     companies = (result.data ?? []).map(c => ({ id: c.id, name: c.display_name || c.company_name, role: 'lettore' }))
   } else if (legacy) {
@@ -71,7 +73,7 @@ export const getPortalData = cache(async (requested?: string) => {
   ])
   if (results.some(r => r.error)) throw new Error('Non è stato possibile caricare tutti i contenuti condivisi. Riprova.')
   const projects = (results[0].data ?? []) as PortalProject[]
-  // Anche l'anteprima super admin rispetta la pubblicazione del progetto padre.
+  // Anche l'anteprima interna rispetta la pubblicazione del progetto padre.
   const ids = new Set(projects.map(p => p.id))
   return {
     ...context, projects,

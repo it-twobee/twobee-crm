@@ -13,7 +13,7 @@ const PORTALS: Portal[] = [
   { key: 'client', label: 'Portale cliente', hint: 'Anteprima in sola lettura', route: '/portale', icon: Building2 },
 ]
 
-export function PortalSwitcher({ canPreviewClient = false }: { canPreviewClient?: boolean }) {
+export function PortalSwitcher({ canPreviewClient = false, canAccessAdmin = true }: { canPreviewClient?: boolean; canAccessAdmin?: boolean }) {
   const pathname = usePathname()
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -43,7 +43,7 @@ export function PortalSwitcher({ canPreviewClient = false }: { canPreviewClient?
           <div className="px-2.5 py-1.5 text-2xs font-semibold uppercase tracking-wider text-text-tertiary flex items-center gap-1.5">
             <Crown className="w-3 h-3 text-gold-text" /> Cambia portale
           </div>
-          {PORTALS.filter(p => p.key !== 'client' || canPreviewClient).map(p => {
+          {PORTALS.filter(p => (p.key !== 'client' || canPreviewClient) && (p.key !== 'admin' || canAccessAdmin)).map(p => {
             const active = p.key === current.key
             return (
               <button key={p.key}

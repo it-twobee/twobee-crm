@@ -179,6 +179,14 @@ export function isSuperAdminRaw(email: string | null | undefined, appRole: strin
   return (!!email && SUPER_ADMIN_EMAILS.includes(email)) || appRole === 'super_admin'
 }
 
+export function canPreviewClientPortal(profile: {
+  email?: string | null; app_role?: string | null; is_active?: boolean | null
+} | null | undefined): boolean {
+  return !!profile && profile.is_active !== false && (
+    isSuperAdminRaw(profile.email, profile.app_role) || isAdminRole(profile.app_role) || profile.app_role === 'manager'
+  )
+}
+
 /** True se può gestire utenti e permessi */
 export function isAdminOrAbove(profile: Profile | null): boolean {
   if (!profile) return false
