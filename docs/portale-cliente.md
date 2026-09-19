@@ -99,7 +99,8 @@ solo dopo preferenze e integrazione email (priorità successiva, rischio rumore)
 ## Decisioni umane prima del rilascio
 
 - Confermare chi può approvare: proposta referente; collaboratore invia materiali
-  e richieste, lettore consulta. Nessuna approvazione implicita.
+  e richieste, lettore consulta. Un esito definitivo per versione; dopo una
+  richiesta di modifiche si pubblica una nuova versione. Nessuna approvazione implicita.
 - Confermare chi autorizza/ritira pubblicazioni e accessi azienda/progetto.
 - Stabilire storage privato, tipi/dimensioni file e conservazione dei materiali.
 - Predisporre staging e due aziende con utenti distinti; decidere quando applicare
@@ -123,3 +124,59 @@ e quelle non eseguite vengono registrate a fine incremento.
   non modificato qui perché indipendente dal portale cliente.
 - Il login instrada il recupero password come un accesso ordinario: flusso da
   verificare separatamente prima del rilascio degli inviti ai clienti.
+
+## Verifiche eseguite — 19 settembre 2026
+
+- `npx tsc --noEmit`: zero errori, anche dopo la compilazione delle nuove rotte.
+- Tutti i **63** `lib/**/*.check.ts`: exit 0, compreso
+  `lib/portal/model.check.ts` (ruoli, azienda non autorizzata, fallback solo per
+  schema assente e proiezione che scarta note, costi e date interne).
+- `git diff --check`: nessun errore di whitespace.
+- Parser PostgreSQL **pglast 8.4**, senza connessione a un database: sintassi
+  della 233 (87 statement, 20 corpi SQL/PLpgSQL) e della suite (80 statement,
+  2 corpi) valida. Questo **non** verifica l'esecuzione, i tipi risolti contro
+  lo schema reale o le policy RLS.
+- `scripts/check-portal-browser.mjs`: Playwright/Chromium contro Next su
+  `127.0.0.1:3100` e un Supabase **simulato** su `127.0.0.1:54329`.
+  Verificati anonimo→login, cliente confinato al portale, quattro sezioni,
+  scheda progetto, URL azienda/progetto estraneo, account senza associazione,
+  account disattivo, errore permessi distinto dal vuoto, revoca senza fallback,
+  anteprima super admin e coda dentro il workspace. Bozza conservata dopo
+  ricarica, progetto precompilato e campi contestuali, invio disabilitato.
+  A 390 e 1440 px, nei due temi: nessun overflow, focus tastiera visibile e
+  contrasto WCAG AA misurato sul DOM (transizioni disabilitate).
+  Ultimo giro: **132 richieste HTTP al mock, zero scritture**.
+- Screenshot ispezionati in `/tmp/opencode/portal-browser/`: le home popolate
+  rappresentano **fixture locali**, non clienti o contenuti pubblicati reali.
+- Dev reale avviato in locale su **http://localhost:3000**. Verifica HTTP:
+  `/portale` senza sessione → 307 a `/login`; `/login` → 200.
+
+### Ripetere la prova browser
+
+Playwright è stato installato solo in `/tmp/opencode`, senza cambiare le
+dipendenze del prodotto. Per la prova servono liberi 3100 e 54329:
+
+```bash
+NODE_PATH=/tmp/opencode/node_modules node scripts/check-portal-browser.mjs
+```
+
+Il test chiude i propri processi, usa `.next-build` e non applica SQL.
+Il normale `npm run dev` usa `.next` e rimane separato.
+
+### Configurazione locale e verifiche ancora aperte
+
+La `.env.local` aveva URL Supabase ma chiave pubblica vuota: anche il login
+restituiva 500. È stata impostata la **chiave publishable già distribuita dal
+bundle pubblico** di `os.twobee.it`, verificandola con una lettura di
+`/auth/v1/settings` sul progetto locale. Nessuna chiave segreta recuperata;
+`.env.local` è ignorata da Git. La service role locale resta assente: il
+portale legge con la sessione e la RLS, mentre altre funzioni del gestionale
+possono richiedere quella configurazione preesistente.
+
+**Non eseguiti**: migration, suite SQL su staging, login con credenziali reali,
+prove RLS con due account sul database reale, upload/download, invio richieste,
+approvazioni e azioni operative della coda. Questi ultimi flussi dipendono dal
+secondo incremento e dalle decisioni elencate sopra. La coda non ha ancora le
+azioni dirette del brief; aggiornamenti da controllare e gestione accessi
+richiedono l'interfaccia interna di pubblicazione. Nessun build di produzione
+o deploy eseguito. I test applicativi con mock **non certificano la RLS**.
