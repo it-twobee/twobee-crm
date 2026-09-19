@@ -66,7 +66,7 @@ export function CashRunway({ runway: r, bankReady, month }: {
 
   const tone = view.verdict === 'negativo'
     ? { frame: 'border-error/50', bg: 'bg-error-dim', text: 'text-error',
-        chip: 'bg-error text-on-gold', label: 'Non ci arrivi',
+        chip: 'bg-error text-on-error', label: 'Non ci arrivi',
         icon: <ShieldAlert className="w-4 h-4 text-error" /> }
     : view.verdict === 'stretto'
       ? { frame: 'border-warning/50', bg: 'bg-warning-dim', text: 'text-warning',

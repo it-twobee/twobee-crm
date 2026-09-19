@@ -28,6 +28,12 @@
   --color-gold-text: #FFC501;
   --color-gold-dim: rgba(255,197,1,0.14);
   --color-on-gold: #0B0B0C;
+  /* §362 — l'inchiostro su un riempimento `--color-error`, e cambia col tema
+     per la stessa ragione dei due gold: nel tema scuro l'errore è un rosso
+     chiaro (#FCA5A5) e vuole testo nero (10.4:1); nel chiaro è un rosso cupo
+     (#C0261B) e lo stesso nero darebbe 3.3:1. Un colore solo non può fare da
+     fondo in un tema e da inchiostro nell'altro. */
+  --color-on-error: #0B0B0C;
 
   --color-text-primary: #FFFFFF;
   --color-text-secondary: rgba(255,255,255,0.62);
@@ -133,6 +139,7 @@
   --color-warning-dim: rgba(245,158,11,0.20);
   --color-error: #C0261B;
   --color-error-dim: rgba(239,68,68,0.14);
+  --color-on-error: #FFFFFF;   /* 5.94:1 su #C0261B */
   --color-info: #0369A1;
   --color-info-dim: rgba(14,165,233,0.16);
   --color-accent: #6D28D9;
