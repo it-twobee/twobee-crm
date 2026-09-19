@@ -61,7 +61,7 @@ export const ADMIN_ROLES: AppRole[] = ['super_admin', 'founder', 'admin']
 /** Dipendenti, collaboratori e partner: vivono solo dentro /workspace */
 export const WORKSPACE_ROLES: AppRole[] = ['manager', 'senior', 'junior', 'stage', 'freelance', 'partner']
 
-/** Il cliente: il portale è demolito, resta il ruolo per la ricostruzione */
+/** Il cliente accede a /portale; azienda e progetto si verificano per richiesta. */
 export const CLIENT_ROLES: AppRole[] = ['client']
 
 /**

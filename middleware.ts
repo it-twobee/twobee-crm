@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { isWorkspaceRole, isAdminRole, isSuperAdminRaw } from '@/lib/permissions'
+import { isPortalRole } from '@/lib/portal/model'
 
 /**
  * Il middleware gira su **ogni** navigazione e su ogni prefetch che Next fa per
@@ -17,7 +18,7 @@ import { isWorkspaceRole, isAdminRole, isSuperAdminRaw } from '@/lib/permissions
  */
 const ROLE_TTL_MS = 30_000
 const ROLE_CACHE_MAX = 500
-type CachedRole = { role?: string | null; app_role?: string | null; email?: string | null; at: number }
+type CachedRole = { role?: string | null; app_role?: string | null; email?: string | null; is_active?: boolean | null; at: number }
 const roleCache = new Map<string, CachedRole>()
 
 function readRole(userId: string): CachedRole | null {
@@ -50,6 +51,11 @@ const PROTECTED_PATHS = [
   '/hr',
   '/feedback',
   '/tracking',
+  '/portale',
+  '/progetti',
+  '/economics',
+  '/ad-hoc',
+  '/le-mie-attivita',
 ]
 
 export async function middleware(request: NextRequest) {
@@ -61,6 +67,7 @@ export async function middleware(request: NextRequest) {
   const forward = () => {
     const headers = new Headers(request.headers)
     headers.set('x-pathname', pathname)
+    headers.set('x-portal-client', request.nextUrl.searchParams.get('client') ?? '')
     return NextResponse.next({ request: { headers } })
   }
 
@@ -113,17 +120,18 @@ export async function middleware(request: NextRequest) {
   // porte d'ingresso. Su tutto il resto la query non cambierebbe la risposta.
   if (!isProtected && !isEntryPoint) return supabaseResponse
 
-  // Routing per ruolo: workspace → /workspace · staff → /dashboard · client/guest → solo profilo
+  // Routing per ruolo; i layout e i lettori rivalidano senza cache del ruolo.
   let profile = readRole(user.id)
   if (!profile) {
     const { data } = await supabase
-      .from('profiles').select('role, app_role, email').eq('id', user.id).single()
+      .from('profiles').select('role, app_role, email, is_active').eq('id', user.id).single()
     profile = { ...(data ?? {}), at: Date.now() }
     if (data) writeRole(user.id, data)
   }
 
   const role = profile?.role
   const appRole = profile?.app_role
+  if (profile?.is_active === false) return pathname === '/login' ? supabaseResponse : redirectTo('/login')
 
   const isSuper = isSuperAdminRaw(profile?.email, appRole)
   const isAdminLevel = isSuper || role === 'admin' || isAdminRole(appRole)
@@ -148,16 +156,17 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse
   }
 
-  // Portale cliente e portale risorsa sono stati demoliti insieme al flusso
-  // progetto: finché non vengono ricostruiti, client/guest vedono solo il
-  // proprio profilo. Nessun redirect verso rotte inesistenti.
-  const isPortalUser = role === 'client' || role === 'guest'
+  const isPortalUser = isPortalRole(profile)
   if (isPortalUser) {
     const allowed =
-      pathname === '/impostazioni/profilo' ||
+      pathname === '/portale' || pathname.startsWith('/portale/') ||
       pathname.startsWith('/onboarding')
-    if (!allowed) return redirectTo('/impostazioni/profilo')
+    if (!allowed) return redirectTo('/portale')
     return supabaseResponse
+  }
+
+  if ((pathname === '/portale' || pathname.startsWith('/portale/')) && !isSuper) {
+    return redirectTo('/dashboard')
   }
 
   if (isEntryPoint) return redirectTo('/dashboard')

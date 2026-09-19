@@ -7,6 +7,7 @@ import { AssistantLauncher } from '@/components/ai/AssistantLauncher'
 import type { Profile } from '@/lib/types/database'
 import { Suspense } from 'react'
 import { NavMemory } from '@/components/shared/BackLink'
+import { isPortalRole } from '@/lib/portal/model'
 
 export default async function DashboardLayout({
   children,
@@ -18,6 +19,7 @@ export default async function DashboardLayout({
   // component: il costo di una risorsa finiva nel browser di chi apriva il tool.
   const { user, profile, isWorkspace } = await getViewer()
   if (!user) redirect('/login')
+  if (isPortalRole(profile)) redirect('/portale')
 
   // Il gate non sta solo nel middleware: lì il ruolo è tenuto in memoria per
   // mezzo minuto, qui si rilegge dal database a ogni caricamento. Chi viene

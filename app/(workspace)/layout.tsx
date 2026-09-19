@@ -16,6 +16,7 @@ import { NavMemory } from '@/components/shared/BackLink'
 import { AssistantLauncher } from '@/components/ai/AssistantLauncher'
 import { getSalesAccess } from '@/lib/sales-guard'
 import type { AppRole } from '@/lib/types/database'
+import { isPortalRole } from '@/lib/portal/model'
 
 // group_key/group_order arrivano dalla migration 087: opzionali finché non è
 // applicata, la sidebar ha un fallback per chiave.
@@ -29,6 +30,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   // lettura invece di richiedere identità e profilo una seconda volta.
   const { user, profile, isSuperAdmin } = await getViewer()
   if (!user) redirect('/login')
+  if (isPortalRole(profile)) redirect('/portale')
 
   const isAdminLevel = isSuperAdmin || isAdminRole(profile?.app_role)
   const isWorkspaceUser = isWorkspaceRole(profile?.app_role)
@@ -112,7 +114,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
           <Link href="/workspace" aria-label="TwoBee — workspace" className="lg:hidden flex items-center">
             <Logo variant="mark" className="w-6 h-6" priority />
           </Link>
-          {isAdminLevel && <PortalSwitcher />}
+          {isAdminLevel && <PortalSwitcher canPreviewClient={isSuperAdmin} />}
           <div className="flex-1 max-w-md">
             <GlobalSearch
               search={workspaceSearch}

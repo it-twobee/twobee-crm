@@ -2,18 +2,18 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Briefcase, ChevronsUpDown, Crown, Check } from 'lucide-react'
+import { LayoutDashboard, Briefcase, ChevronsUpDown, Crown, Check, Building2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type Portal = { key: string; label: string; hint: string; route: string; icon: typeof LayoutDashboard }
 
-// Portali reali oggi. Il Portale Cliente si aggiunge qui quando esiste.
 const PORTALS: Portal[] = [
   { key: 'admin', label: 'Portale Admin', hint: 'Gestione completa', route: '/dashboard', icon: LayoutDashboard },
   { key: 'workspace', label: 'Workspace', hint: 'Vista risorsa', route: '/workspace', icon: Briefcase },
+  { key: 'client', label: 'Portale cliente', hint: 'Anteprima in sola lettura', route: '/portale', icon: Building2 },
 ]
 
-export function PortalSwitcher() {
+export function PortalSwitcher({ canPreviewClient = false }: { canPreviewClient?: boolean }) {
   const pathname = usePathname()
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -25,7 +25,7 @@ export function PortalSwitcher() {
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
-  const current = pathname.startsWith('/workspace') ? PORTALS[1] : PORTALS[0]
+  const current = pathname.startsWith('/portale') ? PORTALS[2] : pathname.startsWith('/workspace') ? PORTALS[1] : PORTALS[0]
 
   return (
     <div className="relative" ref={ref}>
@@ -43,7 +43,7 @@ export function PortalSwitcher() {
           <div className="px-2.5 py-1.5 text-2xs font-semibold uppercase tracking-wider text-text-tertiary flex items-center gap-1.5">
             <Crown className="w-3 h-3 text-gold-text" /> Cambia portale
           </div>
-          {PORTALS.map(p => {
+          {PORTALS.filter(p => p.key !== 'client' || canPreviewClient).map(p => {
             const active = p.key === current.key
             return (
               <button key={p.key}
