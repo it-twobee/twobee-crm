@@ -23,6 +23,7 @@ const projects = [
   { id: pb, client_id: b, name: 'Progetto riservato azienda B', area: 'growth', status: 'active' },
 ]
 let schema = 'legacy'
+let emptyHome = false
 const writes = []
 const violations = []
 let requests = 0
@@ -87,6 +88,7 @@ const mock = createServer((req, res) => {
   } else if (!['workspace_sections', 'workspace_section_permissions', 'notifications', 'profile_permissions', 'tickets'].includes(table)) {
     violations.push(`Query inattesa: ${table}`)
   }
+  if (emptyHome && ['projects', 'portal_projects', 'portal_activities', 'portal_deliverable_versions', 'portal_requests'].includes(table)) rows = []
   return reply(200, req.headers.accept?.includes('vnd.pgrst.object') ? rows[0] ?? null : rows)
 })
 await new Promise(resolve => mock.listen(54329, '127.0.0.1', resolve))
@@ -133,7 +135,7 @@ try {
       const blend = (front, back) => front.slice(0, 3).map((v, i) => v * front[3] + back[i] * (1 - front[3]))
       const luminance = color => color.slice(0, 3).map(c => c / 255).map(c => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4).reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0)
       const out = []
-      for (const el of document.querySelectorAll('main h1, main h2, main p, main label, main input, main select, nav a, header button, a.bg-gold')) {
+      for (const el of document.querySelectorAll('main h1, main h2, main p, main a, main label, main input, main select, nav a, header button, a.bg-gold')) {
         if (!el.getBoundingClientRect().height || el.disabled) continue
         const style = getComputedStyle(el)
         let background = [255, 255, 255]
@@ -252,6 +254,23 @@ try {
   await junior.context.close()
   console.log('OK manager dai ticket al portale, aziende workspace, nessun accesso admin; junior escluso; chiave ticket mancante gestita')
 
+  emptyHome = true
+  const emptyDashboard = await session('super', 1280)
+  await emptyDashboard.page.setViewportSize({ width: 1280, height: 720 })
+  await open(emptyDashboard.page, `/portale?client=${a}`)
+  for (const theme of ['light', 'dark']) {
+    await emptyDashboard.page.evaluate(theme => document.documentElement.setAttribute('data-theme', theme), theme)
+    await emptyDashboard.page.addStyleTag({ content: '*{transition:none!important}' })
+    await checkContrast(emptyDashboard.page)
+    await emptyDashboard.page.screenshot({ path: join(output, `home-vuota-laptop-${theme}.png`), fullPage: true })
+    const dimensions = await emptyDashboard.page.evaluate(() => ({ height: document.documentElement.scrollHeight, viewport: innerHeight, width: document.documentElement.scrollWidth, viewportWidth: innerWidth }))
+    assert.ok(dimensions.height <= dimensions.viewport + 1, `Home vuota senza scroll iniziale: ${JSON.stringify(dimensions)}`)
+    assert.ok(dimensions.width <= dimensions.viewportWidth + 1)
+  }
+  await emptyDashboard.context.close()
+  emptyHome = false
+  console.log('OK Home vuota su laptop 1280×720: tutte le card visibili senza scroll, nei due temi')
+
   schema = 'ready'
   const revoked = await session('revoked')
   await open(revoked.page, '/portale')
@@ -262,9 +281,12 @@ try {
   await populated.page.getByText('Rivedi la proposta di navigazione', { exact: true }).waitFor()
   await populated.page.getByText('versione 2', { exact: false }).waitFor()
   assert.ok(await populated.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1))
+  await populated.page.addStyleTag({ content: '*{transition:none!important}' })
+  await checkContrast(populated.page)
   await populated.page.screenshot({ path: join(output, 'home-fixture-mobile.png'), fullPage: true })
   await populated.page.setViewportSize({ width: 1440, height: 1100 })
   await populated.page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'))
+  await checkContrast(populated.page)
   await populated.page.screenshot({ path: join(output, 'home-fixture-desktop.png'), fullPage: true })
   await populated.context.close()
   assert.deepEqual(writes, [], 'nessuna scrittura verso il mock')

@@ -21,6 +21,7 @@ export function PortalShell({ children, companies, selected, preview, canAccessA
   children: React.ReactNode; companies: PortalCompany[]; selected: string | null; preview: boolean; canAccessAdmin: boolean; name: string
 }) {
   const pathname = usePathname()
+  const isHome = pathname === '/portale'
   const router = useRouter()
   const [signingOut, setSigningOut] = useState(false)
   const [error, setError] = useState('')
@@ -44,7 +45,7 @@ export function PortalShell({ children, companies, selected, preview, canAccessA
     <div className="min-h-screen bg-background text-text-primary">
       <a href="#portal-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-gold focus:text-on-gold focus:p-3">Vai al contenuto</a>
       <header className="border-b border-border bg-surface">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-8">
+        <div className={`mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 sm:px-8 ${isHome ? 'py-2' : 'py-4'}`}>
           <Link href={portalHref('/portale', selected)} aria-label="TwoBee — home cliente" className="flex items-center gap-4">
             <Logo variant="mark" className="h-8 w-8" priority />
             <span className="font-heading text-xl font-semibold tracking-tight">TwoBee <span className="ml-2 font-sans text-xs font-normal text-text-secondary">Spazio cliente</span></span>
@@ -57,7 +58,7 @@ export function PortalShell({ children, companies, selected, preview, canAccessA
         </div>
       </header>
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        <div className="flex flex-wrap items-center justify-between gap-4 py-5">
+        <div className={`flex flex-wrap items-center justify-between gap-4 ${isHome ? 'py-3' : 'py-5'}`}>
           {companies.length > 1 ? (
             <label className="flex min-w-0 max-w-full items-center gap-3 text-sm text-text-secondary">
               <span className="shrink-0">{preview ? 'Anteprima' : 'Azienda'}</span>
@@ -68,9 +69,12 @@ export function PortalShell({ children, companies, selected, preview, canAccessA
               </select>
             </label>
           ) : <p className="min-w-0 break-words text-sm font-medium">{company?.name ?? 'Il tuo spazio condiviso'}</p>}
-          <p className="text-xs text-text-secondary">{name}{company && !preview ? ` · ${company.role}` : ''}</p>
+          <div className="flex flex-wrap items-center gap-3">
+            {isHome && preview && <span className="text-xs font-medium text-info" title="Anteprima in sola lettura. Gli accessi dei singoli referenti possono essere più limitati.">Anteprima cliente</span>}
+            <p className="text-xs text-text-secondary">{name}{company && !preview ? ` · ${company.role}` : ''}</p>
+          </div>
         </div>
-        {preview && <p className="mb-4 rounded-lg bg-info-dim px-4 py-3 text-sm text-info">Anteprima cliente · contenuti condivisi dell’azienda, in sola lettura. Gli accessi dei singoli referenti possono essere più limitati.</p>}
+        {preview && !isHome && <p className="mb-4 rounded-lg bg-info-dim px-4 py-3 text-sm text-info">Anteprima cliente · contenuti condivisi dell’azienda, in sola lettura. Gli accessi dei singoli referenti possono essere più limitati.</p>}
         {error && <p role="alert" className="text-sm text-error">{error}</p>}
       </div>
       <div className="sticky top-0 z-30 border-y border-border bg-background">
@@ -89,8 +93,8 @@ export function PortalShell({ children, companies, selected, preview, canAccessA
           </Link>
         </div>
       </div>
-      <main id="portal-content" tabIndex={-1} className="mx-auto max-w-7xl px-5 py-8 sm:px-8 sm:py-12">{children}</main>
-      <footer className="mx-auto max-w-7xl border-t border-border px-5 py-6 text-xs text-text-secondary sm:px-8">TwoBee · Il lavoro condiviso, nello stesso posto.</footer>
+      <main id="portal-content" tabIndex={-1} className={`mx-auto max-w-7xl px-5 sm:px-8 ${isHome ? 'py-5 sm:py-6' : 'py-8 sm:py-12'}`}>{children}</main>
+      {!isHome && <footer className="mx-auto max-w-7xl border-t border-border px-5 py-6 text-xs text-text-secondary sm:px-8">TwoBee · Il lavoro condiviso, nello stesso posto.</footer>}
     </div>
   )
 }

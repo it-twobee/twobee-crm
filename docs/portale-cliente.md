@@ -147,7 +147,7 @@ e quelle non eseguite vengono registrate a fine incremento.
   ricarica, progetto precompilato e campi contestuali, invio disabilitato.
   A 390 e 1440 px, nei due temi: nessun overflow, focus tastiera visibile e
   contrasto WCAG AA misurato sul DOM (transizioni disabilitate).
-  Ultimo giro: **171 richieste HTTP al mock, zero scritture**.
+  Ultimo giro: **177 richieste HTTP al mock, zero scritture**.
 - Screenshot ispezionati in `/tmp/opencode/portal-browser/`: le home popolate
   rappresentano **fixture locali**, non clienti o contenuti pubblicati reali.
 - Dev reale avviato in locale su **http://localhost:3000**. Verifica HTTP:
@@ -185,6 +185,21 @@ Admin, rifiuto di `/dashboard`, aziende nascoste escluse anche con URL alterato,
 junior escluso dall'anteprima, chiave ticket mancante gestita senza scritture.
 La suite SQL include anche lo scope manager nelle VIEW della 233; resta da
 eseguire su staging.
+
+### Home compatta a card
+
+Su richiesta del committente, la Home usa tre colonne su desktop: **Serve da
+te**, **I tuoi progetti**, **Ultime novità**. Sotto: incontro e referente, con
+larghezze diverse. I riepiloghi mostrano al massimo due elementi e rimandano
+agli elenchi completi; le novità riuniscono consegne e aggiornamenti in ordine
+di pubblicazione. Nessuna card vuota contiene un secondo riquadro.
+
+Oro per il contributo del cliente, info per i progetti, accento per le novità:
+solo token del tema, sempre accompagnati da titoli e icone. Testata della Home
+compatta e avviso di consultazione sintetico. Verificato nel browser con
+fixture senza contenuti: **1280×720, tutte le card visibili senza scroll**,
+anche con selettore azienda e anteprima interna, sia in chiaro sia in scuro.
+Verificati anche Home popolata, disposizione mobile e contrasto AA sul DOM.
 
 ### Configurazione locale e verifiche ancora aperte
 
