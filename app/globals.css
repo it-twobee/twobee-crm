@@ -34,6 +34,8 @@
      (#C0261B) e lo stesso nero darebbe 3.3:1. Un colore solo non può fare da
      fondo in un tema e da inchiostro nell'altro. */
   --color-on-error: #0B0B0C;
+  /* idem per il verde pieno: qui è #34D9AC e vuole nero (10.9:1) */
+  --color-on-success: #0B0B0C;
 
   --color-text-primary: #FFFFFF;
   --color-text-secondary: rgba(255,255,255,0.62);
@@ -134,6 +136,7 @@
   /* Inchiostro scuro per il testo, velatura viva per il chip: un chip ricavato
      dall'inchiostro scuro diventa grigio sporco e i sei stati si somigliano. */
   --color-success: #05604A;
+  --color-on-success: #FFFFFF; /* 7.56:1 su #05604A; il nero dava 2.6:1 */
   --color-success-dim: rgba(16,185,129,0.16);
   --color-warning: #7A5300;
   --color-warning-dim: rgba(245,158,11,0.20);

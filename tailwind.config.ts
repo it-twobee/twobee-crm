@@ -23,6 +23,7 @@ const config: Config = {
         "gold-dim": "var(--color-gold-dim)",
         "on-gold": "var(--color-on-gold)",
         "on-error": "var(--color-on-error)",
+        "on-success": "var(--color-on-success)",
         "text-primary": "var(--color-text-primary)",
         "text-secondary": "var(--color-text-secondary)",
         "text-tertiary": "var(--color-text-tertiary)",
