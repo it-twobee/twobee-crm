@@ -218,3 +218,41 @@ secondo incremento e dalle decisioni elencate sopra. La coda non ha ancora le
 azioni dirette del brief; aggiornamenti da controllare e gestione accessi
 richiedono l'interfaccia interna di pubblicazione. Nessun build di produzione
 o deploy eseguito. I test applicativi con mock **non certificano la RLS**.
+
+## Ripresa del lavoro sulla VPS
+
+Stato salvato il 19 settembre 2026: ultimo commit di implementazione **485e3f8**,
+branch **`feat/portale-cliente`**. Il committente ha confermato di essere entrato
+nel portale con il proprio account dopo l'apertura ai manager. La Home è stata
+poi riorganizzata in card compatte e colorate. Al momento di questo salvataggio
+il branch è **locale, senza upstream e non pushato**; il checkout è allineato
+alla base `origin/main`. Nessun merge in main effettuato.
+
+### Cosa serve per continuare da un altro computer
+
+1. Pubblicare il branch su origin con `git push -u origin feat/portale-cliente`
+   quando richiesto dal committente. Solo allora il checkout sulla VPS potrà
+   recuperare questi commit. Non trasferire `.env.local` tramite Git.
+2. Sulla VPS fare fetch, verificare lo stato del checkout e recuperare il branch
+   in un worktree separato da quello usato per il deploy. Leggere `CLAUDE.md`,
+   questo documento e `docs/brief-portale-cliente.md` prima di proseguire.
+3. Completare il secondo incremento: azioni server autorizzate, gestione
+   accessi, pubblicazione dal lavoro interno, richieste/risposte, materiali,
+   approvazioni versionate e azioni della coda. Il codice attuale resta in
+   consultazione anche se sono presenti schema e chiave di servizio.
+4. Verificare la 233 contro lo schema aggiornato e provarla con la suite SQL
+   **su staging**, inclusi accessi incrociati e compatibilità con i flussi
+   esistenti. L'applicazione su produzione e l'integrazione in main richiedono
+   un incarico esplicito: non sono autorizzate dal primo giro.
+
+### Perché le chiavi non riempiono il portale
+
+Localhost legge già lo stesso progetto Supabase della produzione, con sessione
+utente e chiave pubblica. La VPS non è necessaria per visualizzare dati reali:
+servono record autorizzati e condivisi. La service role serve alle operazioni
+privilegiate del server, **non** a bypassare la RLS nelle letture del cliente.
+
+La 233 non crea dati dimostrativi né pubblica automaticamente ciò che esiste.
+Associazioni utente/azienda, accessi ai progetti e contenuti pubblici devono
+essere impostati esplicitamente. Gli stati vuoti attuali non vanno sostituiti
+con copie indiscriminate delle task, delle note o dei documenti interni.
