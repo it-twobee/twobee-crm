@@ -122,7 +122,7 @@ for (const k of SEZIONI_CHIAVI) for (const m of MOMENTI) for (const s of SEMI) {
 is('nessuna sezione muta', sezioniMute, 0)
 is('nessun sottotitolo di sezione sfora la riga', sezioniLunghe, 0)
 for (const k of SEZIONI_CHIAVI) sempreDisponibile(`${k}: senza ora vale a ogni ora`, (m, s) => sottotitoloSezione(k, m, s))
-is('le sezioni coperte sono undici', SEZIONI_CHIAVI.length, 11)
+is('le sezioni coperte sono dodici', SEZIONI_CHIAVI.length, 12)
 
 console.log('\n— Il saluto personale: numeri di chi guarda, e il suo ruolo —')
 const RUOLI: Ruolo[] = ['super_admin', 'admin', 'manager', 'senior', 'junior', 'stage', 'freelance', 'partner', null]

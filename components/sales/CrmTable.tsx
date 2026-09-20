@@ -26,7 +26,8 @@ import { NewClientModal } from '@/components/clients/NewClientModal'
 import type { Client } from '@/lib/types/database'
 import { CrmCella } from './CrmCella'
 import { CrmAnalytics } from './CrmAnalytics'
-import type { RigaAnalisi } from '@/lib/sales-analytics'
+import { tassoDi, type RigaAnalisi } from '@/lib/sales-analytics'
+import { VoceSezione } from '@/components/workspace/VoceSezione'
 
 export type RigaCrm = Record<string, unknown> & {
   id: string
@@ -47,6 +48,9 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
   const [pending, start] = useTransition()
 
   const colonne: Colonna[] = tutteLeColonne ? COLONNE : COLONNE_PRINCIPALI
+  /* Gli stessi numeri del pannello, in testata: chi apre la pagina vede
+     subito quanti clienti e quanti aperti, come in Clienti vede il canone. */
+  const t = useMemo(() => tassoDi(righe as unknown as RigaAnalisi[]), [righe])
 
   const viste = useMemo(() => {
     const q = cerca.trim().toLowerCase()
@@ -119,38 +123,48 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-4">
+    <div className="max-w-none p-4 sm:p-6 space-y-5">
+      {/* §373 — la stessa intestazione di Clienti, Progetti e Tracking: titolo,
+          la riga di §351 che cambia con l'ora, poi i conteggi. Una sezione che
+          si presenta in un modo suo sembra un pezzo attaccato dopo — ed è
+          esattamente quello che era. */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-text-primary font-heading">Commerciale</h1>
-          <p className="text-sm text-text-secondary mt-1">
+          <h1 className="text-2xl sm:text-3xl font-black text-text-primary font-heading">Commerciale</h1>
+          <VoceSezione sezione="commerciale" />
+          <p className="text-text-secondary text-sm mt-0.5">
             <span className="tabular font-semibold text-text-primary">{viste.length}</span> righe
             {gruppo !== 'tutti' && <> in {ETICHETTA_GRUPPO[gruppo as 'todo']}</>}
+            {t.vinti > 0 && <> · <span className="text-success font-semibold tabular">{t.vinti}</span> clienti</>}
+            {t.aperti > 0 && <> · <span className="text-gold-text font-semibold tabular">{t.aperti}</span> ancora aperti</>}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => setVista(v => v === 'tabella' ? 'numeri' : 'tabella')}
-            className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary border border-border px-3 py-1.5 rounded-lg hover:text-text-primary transition-colors">
+            className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary border border-border px-3 py-2 rounded-xl hover:text-text-primary hover:bg-surface-hover transition-colors">
             {vista === 'tabella' ? <><BarChart3 className="w-3.5 h-3.5" />Numeri</> : <><Table2 className="w-3.5 h-3.5" />Tabella</>}
           </button>
           {vista === 'tabella' && (
             <button onClick={() => setTutteLeColonne(v => !v)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary border border-border px-3 py-1.5 rounded-lg hover:text-text-primary transition-colors">
+              className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary border border-border px-3 py-2 rounded-xl hover:text-text-primary hover:bg-surface-hover transition-colors">
               <Columns3 className="w-3.5 h-3.5" />
               {tutteLeColonne ? `${COLONNE_PRINCIPALI.length} colonne` : `Tutte (${COLONNE.length})`}
             </button>
           )}
+          {/* L'azione primaria della pagina, quindi piena e con `press` come
+              «Nuova task» e «Nuovo Cliente»: l'oro è il riempimento, non
+              l'inchiostro (§design system). */}
           <button onClick={aggiorna} disabled={aggiorno}
             title="Rilegge il foglio dei lead: inserisce solo le righe nuove, non tocca quelle che ci sono"
-            className="flex items-center gap-1.5 text-xs font-semibold text-gold-text border border-gold/30 px-3 py-1.5 rounded-lg hover:bg-gold/10 transition-colors disabled:opacity-40">
-            <RefreshCw className={`w-3.5 h-3.5 ${aggiorno ? 'animate-spin' : ''}`} />
+            className="flex items-center gap-1.5 text-sm font-semibold bg-gold text-on-gold px-4 py-2.5 rounded-xl shadow-soft press disabled:opacity-40">
+            <RefreshCw className={`w-4 h-4 ${aggiorno ? 'animate-spin' : ''}`} />
             {aggiorno ? 'Leggo il foglio…' : 'Aggiorna dal foglio'}
           </button>
         </div>
       </div>
 
       {esitoSync && (
-        <p className="text-2xs text-text-secondary bg-surface border border-border rounded-lg px-3 py-2">{esitoSync}</p>
+        <p className="text-2xs text-text-secondary bg-surface border border-border rounded-xl px-3 py-2">{esitoSync}</p>
       )}
 
       {/* Nella vista numeri i filtri non filtrano niente — l'analisi guarda
@@ -162,11 +176,11 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" aria-hidden />
           <input value={cerca} onChange={e => setCerca(e.target.value)} aria-label="Cerca fra i lead"
             placeholder="Azienda, referente, telefono…"
-            className="w-full bg-surface border border-border-interactive rounded-lg pl-8 pr-3 py-2 text-sm text-text-primary" />
+            className="w-full bg-surface border border-border-interactive rounded-xl pl-8 pr-3 py-2 text-sm text-text-primary" />
         </label>
         {(['tutti', ...GRUPPI] as const).map(g => (
           <button key={g} onClick={() => setGruppo(g)}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+            className={`text-xs font-semibold px-3 py-2 rounded-xl border transition-colors ${
               gruppo === g ? 'border-gold/40 bg-gold/10 text-gold-text' : 'border-border text-text-secondary hover:text-text-primary'}`}>
             {g === 'tutti' ? 'Tutti' : ETICHETTA_GRUPPO[g]}
             <span className="ml-1.5 tabular text-text-tertiary">{perGruppo[g] ?? 0}</span>

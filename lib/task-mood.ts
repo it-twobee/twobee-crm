@@ -207,11 +207,22 @@ export function seme(oggi: string, ...numeri: number[]): number {
    due sezioni senza voce che due barre rotte — e nessun gruppo di frasi che
    non legge nessuno. */
 export type Sezione =
-  | 'clienti' | 'progetti' | 'ticket'
+  | 'clienti' | 'progetti' | 'ticket' | 'commerciale'
   | 'documenti' | 'documenti_personali' | 'buste_paga' | 'hr'
   | 'feedback' | 'cronologia' | 'profilo' | 'tracking'
 
 const SEZIONI: Record<Sezione, Voce[]> = {
+  /* §373 — il commerciale è l'unica sezione dove una riga non si chiude: si
+     richiama. Le frasi lo dicono senza mettere fretta — è già un mestiere
+     abbastanza fatto di no. */
+  commerciale: [
+    { frase: () => 'Chi è arrivato, a che punto è, e chi aspetta una risposta.' },
+    { frase: () => 'Le righe si scorrono e si modificano al volo: clicca una cella.' },
+    { frase: () => 'Un no detto presto vale più di un forse tenuto in caldo.' },
+    { quando: lunedi, frase: () => 'Lunedì: il giorno in cui rispondono quelli che venerdì non potevano.' },
+    { quando: venerdi, frase: () => 'Venerdì: chi non richiami oggi diventa un problema di lunedì, ma un problema piccolo.' },
+    { quando: mattina, frase: () => 'La mattina è l\'ora in cui si risponde al telefono. Approfittane.' },
+  ],
   clienti: [
     { frase: () => 'Chi paga, chi chiede, chi scrive alle 23. Spesso la stessa persona.' },
     { frase: () => 'L\'anagrafica vera. Quella nella tua testa non conta più.' },
