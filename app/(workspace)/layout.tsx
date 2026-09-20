@@ -14,6 +14,9 @@ import { isAdminRole, isWorkspaceRole } from '@/lib/permissions'
 import { Suspense } from 'react'
 import { NavMemory } from '@/components/shared/BackLink'
 import { AssistantLauncher } from '@/components/ai/AssistantLauncher'
+import { MessaggiTwoBee } from '@/components/workspace/MessaggiTwoBee'
+import { giornoAzienda, leggiFatti, valida } from '@/lib/person-copy'
+import { momentiDiOggi, OGNI_MINUTI } from '@/lib/popup-copy'
 import { getSalesAccess } from '@/lib/sales-guard'
 import type { AppRole } from '@/lib/types/database'
 
@@ -38,14 +41,29 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   }
 
   const supabase = await createClient()
-  const [sectionsRes, permsRes] = await Promise.all([
+  const oggiRoma = giornoAzienda()
+  const [sectionsRes, permsRes, momentiRes, rosaRes] = await Promise.all([
     // `*` di proposito: group_key/group_order arrivano dalla 087 e un elenco
     // esplicito fallirebbe dove non fosse applicata. Sono quindici righe.
     supabase.from('workspace_sections').select('*').eq('is_active', true).order('sort_order'),
     isAdminLevel
       ? supabase.from('workspace_section_permissions').select('section_id, can_view').eq('can_view', true)
       : supabase.from('workspace_section_permissions').select('section_id, can_view').eq('app_role', profile.app_role),
+    /* §366 — le righe di oggi: il saluto porta la fotografia dei fatti, i
+       momenti portano i template. Una lettura sola, sulla chiave primaria, e
+       la RLS lascia passare solo le proprie. */
+    supabase.from('person_copy').select('chiave, template, fatti')
+      .eq('profile_id', user.id).eq('giorno', oggiRoma),
+    supabase.from('profiles').select('full_name').eq('is_active', true),
   ])
+
+  /* I nomi di tutta l'azienda: servono al validatore per riconoscere un
+     collega citato che con chi legge non condivide niente. */
+  const rosa = ((rosaRes.data ?? []) as { full_name: string | null }[])
+    .map(r => (r.full_name ?? '').split(' ')[0]).filter(Boolean)
+  const righeCopy = (momentiRes.data ?? []) as { chiave: string; template: string; fatti: unknown }[]
+  const fattiOggi = leggiFatti(righeCopy.find(r => r.chiave === 'saluto')?.fatti)
+  const momenti = fattiOggi ? momentiDiOggi(righeCopy, fattiOggi, rosa, { valida }) : []
 
   let visibleSections: typeof sectionsRes.data
   if (isAdminLevel) {
@@ -141,6 +159,9 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
         </main>
       </div>
       <AssistantLauncher surface="workspace" userName={profile.full_name} />
+      {momenti.length > 0 && (
+        <MessaggiTwoBee momenti={momenti} giorno={oggiRoma} ogniMinuti={OGNI_MINUTI} />
+      )}
     </div>
   )
 }

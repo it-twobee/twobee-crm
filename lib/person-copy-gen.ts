@@ -37,6 +37,7 @@ import {
   osserva, vocabolarioAttivita, utenteAttivita, SISTEMA_ATTIVITA,
   type IngressoAttivita, type Osservazione,
 } from './attivita-copy'
+import { ANGOLI, SISTEMA_POPUP, utentePopup, vocabolarioPopup } from './popup-copy'
 
 type Admin = SupabaseClient
 
@@ -188,6 +189,22 @@ export const scrivi = (f: FattiPersona) => scriviRiga({
   vocab: vocabolarioSaluto(f, nomiCitabili(f)),
   situazione: scenaDi(f),
 })
+
+/** §366 — un momento del popup: stessa voce, vocabolario senza contatori */
+export const scriviMomento = (
+  angolo: { chiave: string; istruzione: string },
+  f: FattiPersona,
+  rosa: string[],
+  seme: number,
+) => {
+  const vocab = vocabolarioPopup(f, rosa)
+  return scriviRiga({
+    sistema: SISTEMA_POPUP,
+    messaggio: utentePopup(angolo, f, vocab, offerte(vocab), seme),
+    vocab,
+    situazione: angolo.chiave,
+  })
+}
 
 /** «Le mie attività»: c'è solo quando `osserva` ha trovato qualcosa */
 export const scriviAttivita = (o: Osservazione, nome: string, rosa: string[]) => {
@@ -374,6 +391,18 @@ export async function generaTutti(admin: Admin, oggi: string): Promise<Riepilogo
       continue
     }
     await salva(fatti.profileId, 'attivita', await scriviAttivita(o, fatti.nome, rosa), o, fatti.nome)
+  }
+
+  /* §366 — i momenti del popup, dopo tutto il resto: sono la parte che può
+     saltare senza che nessuno se ne accorga, e se il giro si interrompe a
+     metà è meglio che manchino questi del saluto. Dieci a testa, un angolo
+     ciascuno, e il seme li tiene diversi fra persona e persona. */
+  for (const { fatti } of bundle) {
+    for (let n = 0; n < ANGOLI.length; n++) {
+      const seme = Number(oggi.slice(8, 10)) + fatti.nome.length + n
+      const e = await scriviMomento(ANGOLI[n], fatti, rosa, seme)
+      await salva(fatti.profileId, ANGOLI[n].chiave, e, { angolo: ANGOLI[n].chiave }, fatti.nome)
+    }
   }
 
   /* La storia serve a indagare una frase strana, non ad accumulare: oltre il
