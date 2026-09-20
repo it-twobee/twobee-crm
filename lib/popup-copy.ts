@@ -26,11 +26,19 @@ import { CHIAVI, valori, nomiCitabili, type Chiave, type FattiPersona, type Voca
 import { drammaDelGiorno } from './voce-twobee'
 import { sistemaPer } from './person-copy-prompt'
 
-/** quanti messaggi al giorno, a persona. Dieci × venti minuti ≈ le prime tre ore */
+/** quanti messaggi al giorno, a persona: dieci, e a un'ora l'uno coprono la giornata */
 export const MOMENTI = 10
 
-/** ogni quanto ricompare, in minuti */
-export const OGNI_MINUTI = 20
+/**
+ * Ogni quanto **può** ricomparire, in minuti. È una distanza minima fra due
+ * messaggi, non una sveglia: l'orologio corre anche quando il portale è
+ * chiuso. Chi apre alle nove ne vede uno, chi riapre alle nove e mezza non
+ * vede niente, chi torna a mezzogiorno ne vede **uno** — non i tre che
+ * avrebbe «perso». Le ore saltate non si recuperano, e non è una rinuncia:
+ * un arretrato di battute è il modo più veloce di trasformare una cosa
+ * simpatica in una coda da smaltire.
+ */
+export const OGNI_MINUTI = 60
 
 /**
  * Le chiavi che **non si muovono durante il giorno**.
@@ -155,4 +163,31 @@ export function momentiDiOggi(
       return esito.ok ? { chiave: r.chiave, testo: esito.testo } : null
     })
     .filter((m): m is Momento => m !== null)
+}
+
+/**
+ * §366 — quale messaggio mostrare adesso, o `null`.
+ *
+ * È la regola dell'orologio, estratta dal componente perché è l'unica cosa
+ * qui dentro che si può sbagliare in silenzio — e dentro un `useEffect` non
+ * la proverebbe nessuno.
+ *
+ * Due proprietà, e la seconda è quella che chi la usa ha chiesto per nome:
+ *
+ * - **la distanza è fra due messaggi, non fra due aperture.** Aprire il
+ *   portale dieci volte in mezz'ora non ne mostra dieci: ne mostra zero, e il
+ *   primo torna quando l'ora è passata;
+ * - **le ore saltate si bruciano.** Chi torna dopo tre ore trova **un**
+ *   messaggio, non tre: il secondo e il terzo non sono in coda da qualche
+ *   parte, non sono mai esistiti. Un arretrato di battute è il modo più
+ *   veloce di trasformare una cosa simpatica in una cosa da smaltire.
+ */
+export function prossimoMomento(
+  momenti: Momento[],
+  stato: { viste: string[]; ultimo: number },
+  adesso: number,
+  ogniMinuti: number,
+): Momento | null {
+  if (adesso - stato.ultimo < ogniMinuti * 60_000) return null
+  return momenti.find(m => !stato.viste.includes(m.chiave)) ?? null
 }

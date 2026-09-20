@@ -25,62 +25,85 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { X, Sparkles } from 'lucide-react'
+import { prossimoMomento } from '@/lib/popup-copy'
 
 export type Momento = { chiave: string; testo: string }
 
-/** per-persona e per-giorno: domani la chiave cambia e il serbatoio si riapre */
+/**
+ * Quello che il browser ricorda: cosa hai già visto e **quando**.
+ *
+ * Il «quando» è la parte che conta. Senza, ogni apertura del portale mostrava
+ * un messaggio — dieci pagine aperte in mezz'ora e il serbatoio del giorno era
+ * finito prima di pranzo. Con il timestamp, l'orologio va per conto suo: se
+ * l'ora non è passata non compare niente, per quante volte tu apra il tool.
+ */
+type Stato = { viste: string[]; ultimo: number }
+
 const chiaveVista = (giorno: string) => `twobee-momenti-${giorno}`
 
-function lette(giorno: string): string[] {
+function leggi(giorno: string): Stato {
   try {
     const raw = localStorage.getItem(chiaveVista(giorno))
-    return raw ? (JSON.parse(raw) as string[]) : []
-  } catch { return [] }
+    if (!raw) return { viste: [], ultimo: 0 }
+    const v = JSON.parse(raw) as Partial<Stato>
+    return { viste: Array.isArray(v.viste) ? v.viste : [], ultimo: typeof v.ultimo === 'number' ? v.ultimo : 0 }
+  } catch { return { viste: [], ultimo: 0 } }
 }
 
-function segna(giorno: string, chiavi: string[]) {
-  try { localStorage.setItem(chiaveVista(giorno), JSON.stringify(chiavi)) } catch { /* private browsing */ }
+function salva(giorno: string, s: Stato) {
+  try { localStorage.setItem(chiaveVista(giorno), JSON.stringify(s)) } catch { /* private browsing */ }
 }
+
+/** ogni minuto: la scheda lasciata aperta deve accorgersi dell'ora che scocca */
+const BATTITO_MS = 60_000
 
 export function MessaggiTwoBee({ momenti, giorno, ogniMinuti }: {
   momenti: Momento[]
   giorno: string
   ogniMinuti: number
 }) {
-  const [viste, setViste] = useState<string[] | null>(null)
+  const [pronto, setPronto] = useState(false)
   const [corrente, setCorrente] = useState<Momento | null>(null)
 
   // al montaggio, non prima: sul server `localStorage` non esiste e il primo
   // render deve combaciare con quello del browser
-  useEffect(() => { setViste(lette(giorno)) }, [giorno])
+  useEffect(() => { setPronto(true) }, [])
 
-  const mostraProssimo = useCallback(() => {
-    setViste(prev => {
-      const già = prev ?? []
-      const next = momenti.find(m => !già.includes(m.chiave))
-      if (!next) { setCorrente(null); return già }
-      setCorrente(next)
-      const aggiornate = [...già, next.chiave]
-      segna(giorno, aggiornate)
-      return aggiornate
-    })
-  }, [momenti, giorno])
+  /**
+   * Fa comparire il prossimo **solo se l'ora è passata**.
+   *
+   * Lo stato si rilegge da `localStorage` a ogni colpo invece di tenerlo in
+   * React, e sono due problemi risolti con la stessa riga: due schede aperte
+   * condividono l'orologio — altrimenti ognuna avrebbe il suo e ne uscirebbero
+   * due — e non si scrive dentro l'aggiornamento di un altro stato, che in
+   * sviluppo React esegue due volte e brucerebbe due messaggi al posto di uno.
+   *
+   * Le ore in cui il portale era chiuso non si recuperano: chi torna dopo tre
+   * ore trova **un** messaggio, non tre. I due che ha saltato non li ha persi,
+   * semplicemente non sono mai esistiti.
+   */
+  const forse = useCallback(() => {
+    const s = leggi(giorno)
+    const next = prossimoMomento(momenti, s, Date.now(), ogniMinuti)
+    if (!next) return
+    salva(giorno, { viste: [...s.viste, next.chiave], ultimo: Date.now() })
+    setCorrente(next)
+  }, [momenti, giorno, ogniMinuti])
 
-  // uno all'apertura, poi uno ogni `ogniMinuti`
   useEffect(() => {
-    if (viste === null) return
-    mostraProssimo()
-    const id = setInterval(mostraProssimo, ogniMinuti * 60_000)
+    if (!pronto) return
+    forse()
+    const id = setInterval(forse, BATTITO_MS)
     return () => clearInterval(id)
-    // `viste` serve solo a sapere che la lettura iniziale è avvenuta
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viste === null, mostraProssimo, ogniMinuti])
+  }, [pronto, forse])
 
   if (!corrente) return null
 
+  /* Chiudere non rimette indietro l'orologio: il messaggio è stato mostrato,
+     e la prossima ora si conta da quando è comparso, non da quando l'hai
+     tolto di mezzo. */
   const bastaPerOggi = () => {
-    segna(giorno, momenti.map(m => m.chiave))
-    setViste(momenti.map(m => m.chiave))
+    salva(giorno, { viste: momenti.map(m => m.chiave), ultimo: Date.now() })
     setCorrente(null)
   }
 

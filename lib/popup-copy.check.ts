@@ -6,6 +6,7 @@
 
 import {
   MOMENTI, OGNI_MINUTI, ANGOLI, SISTEMA_POPUP, vocabolarioPopup, utentePopup, momentiDiOggi,
+  prossimoMomento,
 } from '@/lib/popup-copy'
 import { valida, offerte, rendiCon, type FattiPersona } from '@/lib/person-copy'
 import { VIETATE } from '@/lib/voce-twobee'
@@ -51,11 +52,13 @@ is('dieci messaggi al giorno', MOMENTI, 10)
 is('tanti angoli quanti messaggi', ANGOLI.length, MOMENTI)
 is('ogni angolo ha una chiave sua', new Set(ANGOLI.map(a => a.chiave)).size, MOMENTI)
 is('e un\'istruzione diversa', new Set(ANGOLI.map(a => a.istruzione)).size, MOMENTI)
-is('venti minuti', OGNI_MINUTI, 20)
-/* Dieci × venti minuti ≈ tre ore e mezza: accompagna la mattina e poi tace.
-   Se un giorno lo si vuole più lungo, la leva è MOMENTI — non l'intervallo,
-   che è quanto spesso interrompe. */
-is('copre poco più di tre ore, non la giornata', MOMENTI * OGNI_MINUTI <= 240, true)
+is('un\'ora fra un messaggio e l\'altro', OGNI_MINUTI, 60)
+/* Dieci × un'ora copre una giornata lavorativa intera senza mai raddoppiare:
+   è la combinazione che rende inutile il riciclo. Se il serbatoio fosse più
+   piccolo dell'orario di lavoro, il pomeriggio resterebbe muto; se
+   l'intervallo fosse più stretto, finirebbe prima di pranzo. */
+is('copre una giornata di lavoro', MOMENTI * OGNI_MINUTI >= 480, true)
+is('e non due', MOMENTI * OGNI_MINUTI <= 720, true)
 
 console.log('\n— Quello che arriva alla pagina —')
 const righe = ANGOLI.map(a => ({ chiave: a.chiave, template: 'Bevi qualcosa, {nome}: sei fatto per lo più di quello.' }))
@@ -97,6 +100,57 @@ const scarno = vocabolarioPopup(senzaNiente, ROSA)
 is('davvero senza fatti', offerte(scarno).length, 0)
 is('senza fatti, lo dice invece di offrire il vuoto',
   /Nessun segnaposto disponibile/.test(utentePopup(ANGOLI[0], senzaNiente, scarno, offerte(scarno), 1)), true)
+
+console.log('\n— L\'orologio, non la sessione —')
+const POOL = ANGOLI.map(a => ({ chiave: a.chiave, testo: `riga ${a.chiave}` }))
+const T0 = Date.parse('2026-09-20T09:00:00Z')
+const ORA = 60 * 60_000
+const dopo = (n: number) => T0 + Math.round(n * ORA)
+const vuoto = { viste: [] as string[], ultimo: 0 }
+const prossimo = (st: { viste: string[]; ultimo: number }, quando: number) =>
+  prossimoMomento(POOL, st, quando, OGNI_MINUTI)?.chiave ?? null
+
+is('alla prima apertura del giorno c\'è sempre', prossimo(vuoto, T0), 'momento-1')
+
+/* Il caso che ha fatto cambiare la regola: dieci aperture in mezz'ora non
+   sono dieci messaggi. La distanza è fra due messaggi, non fra due aperture. */
+const dopoIlPrimo = { viste: ['momento-1'], ultimo: T0 }
+is('riaprendo dopo mezz\'ora, niente', prossimo(dopoIlPrimo, dopo(0.5)), null)
+is('a cinquantanove minuti ancora niente', prossimo(dopoIlPrimo, dopo(59 / 60)), null)
+is('all\'ora esatta, il secondo', prossimo(dopoIlPrimo, dopo(1)), 'momento-2')
+
+/* «Se riapro dopo due o tre ore ritrovo **un** nuovo messaggio»: le ore in cui
+   il portale era chiuso non lasciano un arretrato. */
+is('tornando dopo tre ore, uno solo', prossimo(dopoIlPrimo, dopo(3)), 'momento-2')
+is('e dopo altre tre, il successivo',
+  prossimo({ viste: ['momento-1', 'momento-2'], ultimo: dopo(3) }, dopo(6)), 'momento-3')
+is('non si recupera quello che si è saltato',
+  prossimo({ viste: ['momento-1'], ultimo: T0 }, dopo(8)), 'momento-2')
+
+console.log('\n— Quando il serbatoio è finito, tace —')
+const tutti = { viste: POOL.map(m => m.chiave), ultimo: T0 }
+is('niente da mostrare, anche a ore di distanza', prossimo(tutti, dopo(9)), null)
+is('e non ricomincia da capo', prossimo(tutti, dopo(48)), null)
+is('«basta per oggi» ha lo stesso effetto',
+  prossimo({ viste: POOL.map(m => m.chiave), ultimo: dopo(0.1) }, dopo(5)), null)
+
+console.log('\n— Una giornata intera, simulata —')
+/* Il controllo che conta davvero: nove ore di lavoro con aperture sparse a
+   caso non devono mai produrre due messaggi nella stessa ora, né ripeterne uno. */
+let st = { viste: [] as string[], ultimo: 0 }
+const usciti: string[] = []
+for (const q of [0, 0.2, 0.4, 0.9, 1.0, 1.1, 1.5, 2.0, 2.3, 3.0, 3.2, 4.0, 5.0, 5.5, 6.0, 7.0, 8.0, 9.0]) {
+  const m = prossimoMomento(POOL, st, dopo(q), OGNI_MINUTI)
+  if (m) { usciti.push(m.chiave); st = { viste: [...st.viste, m.chiave], ultimo: dopo(q) } }
+}
+is('nessun messaggio ripetuto', new Set(usciti).size, usciti.length)
+is('e nessuno fuori dall\'elenco', usciti.every(k => POOL.some(m => m.chiave === k)), true)
+/* Diciotto aperture, dieci messaggi: quello dell'apertura più uno per ogni ora
+   passata. Il numero che conta non è dieci, è che non sono diciotto. */
+is('diciotto aperture, dieci messaggi', [POOL.length, usciti.length], [10, 10])
+is('nell\'ordine degli angoli', usciti, ANGOLI.map(a => a.chiave))
+is('e l\'undicesima apertura non produce niente',
+  prossimoMomento(POOL, st, dopo(12), OGNI_MINUTI), null)
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)
