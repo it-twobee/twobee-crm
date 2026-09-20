@@ -67,6 +67,29 @@ export const MODELLO = MOTORE === 'anthropic'
 /** oltre il terzo tentativo non è sfortuna, è il prompt: si smette e si registra */
 const MAX_TENTATIVI = 3
 
+/**
+ * Quante chiamate in volo insieme.
+ *
+ * Il primo giro vero è durato **diciassette minuti**: ottantaquattro richieste
+ * una dietro l'altra, dodici secondi l'una, e chi aveva premuto il bottone
+ * guardava un pallino girare. Con sei in parallelo scende sotto i tre minuti,
+ * e il tetto di Groq non si sfiora nemmeno: ogni turno costa sul filo dei
+ * tremila token, sei alla volta fanno circa settantacinquemila al minuto
+ * contro i duecentocinquantamila del piano. Alzarlo ancora non servirebbe a
+ * niente e avvicinerebbe il 429, che costa più di quanto farebbe risparmiare.
+ */
+const IN_VOLO = 6
+
+/**
+ * Esegue a gruppi, non tutti insieme: un `Promise.all` su ottantaquattro
+ * richieste le manda davvero tutte insieme, e il provider risponde 429 a metà.
+ */
+async function aGruppi<T>(voci: T[], quanti: number, fn: (v: T) => Promise<void>) {
+  for (let i = 0; i < voci.length; i += quanti) {
+    await Promise.all(voci.slice(i, i + quanti).map(fn))
+  }
+}
+
 /** le righe più vecchie non servono a niente: restano un mese per poter indagare una frase strana */
 const GIORNI_DI_STORIA = 30
 
@@ -377,7 +400,7 @@ export async function generaTutti(admin: Admin, oggi: string): Promise<Riepilogo
     base.ritentate += e.tentativi - 1
   }
 
-  for (const { fatti, attivita } of bundle) {
+  await aGruppi(bundle, IN_VOLO, async ({ fatti, attivita }) => {
     await salva(fatti.profileId, 'saluto', await scrivi(fatti), fatti, fatti.nome)
 
     /* §363 — qui il silenzio è un esito, non un guasto: se non c'è niente da
@@ -388,22 +411,21 @@ export async function generaTutti(admin: Admin, oggi: string): Promise<Riepilogo
       base.taciute++
       await admin.from('person_copy').delete()
         .eq('profile_id', fatti.profileId).eq('giorno', oggi).eq('chiave', 'attivita')
-      continue
+      return
     }
     await salva(fatti.profileId, 'attivita', await scriviAttivita(o, fatti.nome, rosa), o, fatti.nome)
-  }
+  })
 
   /* §366 — i momenti del popup, dopo tutto il resto: sono la parte che può
      saltare senza che nessuno se ne accorga, e se il giro si interrompe a
      metà è meglio che manchino questi del saluto. Dieci a testa, un angolo
      ciascuno, e il seme li tiene diversi fra persona e persona. */
-  for (const { fatti } of bundle) {
-    for (let n = 0; n < ANGOLI.length; n++) {
-      const seme = Number(oggi.slice(8, 10)) + fatti.nome.length + n
-      const e = await scriviMomento(ANGOLI[n], fatti, rosa, seme)
-      await salva(fatti.profileId, ANGOLI[n].chiave, e, { angolo: ANGOLI[n].chiave }, fatti.nome)
-    }
-  }
+  const daScrivere = bundle.flatMap(({ fatti }) =>
+    ANGOLI.map((angolo, n) => ({ fatti, angolo, seme: Number(oggi.slice(8, 10)) + fatti.nome.length + n })))
+  await aGruppi(daScrivere, IN_VOLO, async ({ fatti, angolo, seme }) => {
+    const e = await scriviMomento(angolo, fatti, rosa, seme)
+    await salva(fatti.profileId, angolo.chiave, e, { angolo: angolo.chiave }, fatti.nome)
+  })
 
   /* La storia serve a indagare una frase strana, non ad accumulare: oltre il
      mese non l'aprirebbe nessuno, e sono righe che parlano delle persone. */
