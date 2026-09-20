@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useTransition } from 'react'
-import { Users, Shield, Bell, Mail, Crown, X, Check, ChevronDown, Loader2, Trash2, Plus, AlertCircle, Pencil, KeyRound, AtSign, User, Copy, Link2, RefreshCw, UserMinus, ShieldAlert } from 'lucide-react'
+import { Users, Shield, Bell, Mail, Crown, X, Check, ChevronDown, Loader2, Trash2, Plus, AlertCircle, Pencil, KeyRound, AtSign, User, Copy, Link2, RefreshCw, UserMinus, ShieldAlert, Sparkles } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Profile, RolePermission, Invitation, AppRole, PermissionSection, PermissionAction } from '@/lib/types/database'
@@ -462,6 +462,33 @@ function UsersTab({ currentProfile, profiles: initialProfiles, clients }: { curr
 
   const [deleting, setDeleting] = useState<Profile | null>(null)
 
+  /* §360 — far partire i saluti a mano. Il cron gira alle 05:30, ma chi tocca
+     il prompt deve poter vedere **adesso** cosa produce: aspettare l'alba per
+     scoprire che una regola nuova non regge è il modo più lento di scrivere un
+     prompt. Il riepilogo resta sotto al bottone, non in un avviso che sparisce:
+     `scartate` e `ritentate` sono i numeri da guardare, e si guardano due volte. */
+  const [generando, setGenerando] = useState(false)
+  const [esito, setEsito] = useState<string | null>(null)
+
+  const generaSaluti = async () => {
+    setGenerando(true); setEsito(null)
+    try {
+      const r = await fetch('/api/person-copy/run', { method: 'POST' })
+      const j = await r.json() as {
+        error?: string; saltato?: string; motore?: string; modello?: string
+        persone?: number; scritte?: number; scartate?: number; ritentate?: number; motivi?: string[]
+      }
+      if (!r.ok) { toast.error(j.error ?? 'Giro fallito'); setEsito(j.error ?? 'Giro fallito'); return }
+      if (j.saltato) { toast.error(j.saltato); setEsito(j.saltato); return }
+      const riga = `${j.scritte}/${j.persone} scritte · ${j.scartate} scartate · ${j.ritentate} ritentativi · ${j.modello}`
+      setEsito(j.motivi?.length ? `${riga}\n${j.motivi.join('\n')}` : riga)
+      toast.success(`${j.scritte} saluti scritti`)
+    } catch (e) {
+      const m = (e as Error).message
+      toast.error(m); setEsito(m)
+    } finally { setGenerando(false) }
+  }
+
   const deactivate = async (profileId: string) => {
     try {
       await adminUpdateUserProfile(profileId, { isActive: false })
@@ -476,9 +503,20 @@ function UsersTab({ currentProfile, profiles: initialProfiles, clients }: { curr
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between gap-3 mb-4">
         <p className="text-sm text-text-secondary">{profiles.length} utenti totali · {profiles.filter((p) => p.is_active).length} attivi</p>
+        {godMode && (
+          <button onClick={generaSaluti} disabled={generando}
+            title="Riscrive la riga di saluto di tutti per oggi. Se non passa il controllo, resta quella di prima."
+            className="flex items-center gap-1.5 text-xs font-semibold text-gold-text border border-gold/30 px-3 py-1.5 rounded-lg hover:bg-gold/10 transition-colors disabled:opacity-40 shrink-0">
+            {generando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+            {generando ? 'Sto scrivendo…' : 'Genera i saluti di oggi'}
+          </button>
+        )}
       </div>
+      {esito && (
+        <p className="text-xs text-text-secondary bg-surface border border-border rounded-lg px-3 py-2 mb-4 whitespace-pre-line">{esito}</p>
+      )}
 
       <div className="space-y-2">
         {profiles.map((p) => {
