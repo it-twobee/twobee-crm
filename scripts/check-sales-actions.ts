@@ -36,33 +36,15 @@ internals._load = function (name, ...rest) {
 
 async function main() {
   const actions = require('../app/actions/sales') as typeof import('../app/actions/sales')
-  const input = { outcome: 'ricontattare' as const, content: 'Richiamare', date: '2026-09-16', next_action: 'Telefonare', proposal_ref: '' }
-  access = null
-  await assert.rejects(() => actions.recordSalesOutcome(other, actor, 0, input), /non abilitato/)
-  assert.equal(rpcCalls, 0)
-  access = 'owner'; owner = other
-  await assert.rejects(() => actions.recordSalesOutcome(other, actor, 0, input), /non accessibile/)
-  assert.equal(rpcCalls, 0)
-  owner = actor
-  await assert.rejects(() => actions.recordSalesOutcome(other, actor, 0, { ...input, outcome: '__proto__' as never }), /non valido/)
-  await assert.rejects(() => actions.recordSalesOutcome(other, actor, 0, { ...input, date: '2026-02-30' }), /Data/)
-  await assert.rejects(() => actions.recordSalesOutcome(other, actor, NaN, input), /Versione/)
-  await assert.rejects(() => actions.addSalesContact(other, actor, 0, { full_name: 'Nome', email: '', phone: '', role: '' }), /recapito/)
-  assert.equal(rpcCalls, 0)
-  await actions.recordSalesOutcome(other, actor, 2, input)
-  assert.equal(rpcCalls, 1)
-  assert.equal(args.p_actor, actor)
-  assert.equal(args.p_request, other)
-  assert.equal((args.p_input as { revision: number }).revision, 2)
-  assert.equal(invalidated.includes('/clienti'), false)
-  await assert.rejects(() => actions.recordSalesOutcome(other, actor, 2, { ...input, outcome: 'vinta', client_id: 'non-uuid' }), /Identificativo/)
-  await actions.recordSalesOutcome(other, actor, 2, { ...input, outcome: 'vinta', client_id: other, proposal_ref: 'Accettata v1' })
-  assert.equal((args.p_input as { client_id: string }).client_id, other)
-  for (const path of ['/clienti', '/workspace/clienti', '/clienti/[id]', '/workspace/clienti/[id]']) assert.ok(invalidated.includes(path))
-  await assert.rejects(() => actions.saveSalesDelivery(other, actor, 2, {
-    delivery: {}, delivery_owner_id: actor, project_id: null, service_id: null,
-    contact_id: null, proposal_ref: '', complete: true,
-  }), /responsabile commerciale/)
+
+  /* §371 — le azioni della pipeline vecchia sono state rimosse insieme alla
+     UI che le chiamava: restano il permesso commerciale, il salvataggio di una
+     cella e il collegamento del lead all'anagrafica. Questo file copre quello
+     che è rimasto — buttarlo avrebbe tolto in silenzio la copertura sui
+     controlli di accesso, che è la parte che conta. */
+
+  // ── il permesso commerciale ──────────────────────────────────────────────
+  access = 'owner'
   await assert.rejects(() => actions.setSalesPermission(other, true), /Solo gli admin/)
   assert.equal(permissionWrites, 0)
   access = 'admin'; targetRole = 'client'
@@ -71,6 +53,23 @@ async function main() {
   targetRole = 'senior'
   await actions.setSalesPermission(other, true)
   assert.equal(permissionWrites, 1)
-  console.log('Tutti i controlli passano: chiamate dirette, isolamento owner, validazione, attore verificato e grant commerciali.')
+
+  // ── salvare una cella: il campo non arriva libero ────────────────────────
+  access = null
+  await assert.rejects(() => actions.salvaCellaDeal(other, 'company_name', 'X'), /non abilitato/)
+  access = 'admin'
+  /* La barriera vera: un file `'use server'` esporta un endpoint, e chi ha il
+     codice davanti conosce i nomi delle colonne (§329). */
+  await assert.rejects(() => actions.salvaCellaDeal(other, 'client_id', other), /Colonna sconosciuta/)
+  await assert.rejects(() => actions.salvaCellaDeal(other, 'sheet_row_id', 'x'), /Colonna sconosciuta/)
+  await assert.rejects(() => actions.salvaCellaDeal(other, 'sheet_status', 'Chiuso'), /non si modifica/)
+  await assert.rejects(() => actions.salvaCellaDeal(other, 'stage', 'vinta'), /non è una fase/)
+  await assert.rejects(() => actions.salvaCellaDeal(other, 'company_name', '  '), /non può restare vuoto/)
+
+  // ── la conversione non è aperta a chiunque ───────────────────────────────
+  access = null
+  await assert.rejects(() => actions.collegaLeadACliente(other, actor), /non abilitato/)
+
+  console.log('Tutti i controlli passano: grant commerciali, whitelist delle celle e accesso alla conversione.')
 }
 main().finally(() => { internals._load = original }).catch(error => { console.error(error); process.exitCode = 1 })
