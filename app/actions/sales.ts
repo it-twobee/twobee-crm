@@ -5,6 +5,7 @@ import { createActorClient } from '@/lib/supabase/admin'
 import { requireSalesAccess } from '@/lib/sales-guard'
 import { OUTCOMES, canReadDeal, uuid, validDate, validateDeal, type DealInput, type Delivery, type SalesData, type SalesDeal, type SalesOutcome, type SalesActivity } from '@/lib/sales'
 import { isWorkspaceRole } from '@/lib/permissions'
+import { validaCella } from '@/lib/sales-table'
 import { generaSubito } from '@/lib/recurrence-kick'
 
 const DEAL_FIELDS = 'id,title,company_name,client_id,contact_id,assigned_to,stage,source,need,blocker,next_action,next_action_on,resume_on,monthly_value,setup_value,one_off_value,proposal_ref,loss_reason,created_at,updated_at,closed_at,last_interaction_at,revision,delivery,delivery_project_id,delivery_completed_at,delivery_owner_id'
@@ -198,4 +199,60 @@ export async function collegaLeadACliente(dealId: string, clientId: string) {
   revalidatePath('/clienti')
   revalidatePath('/workspace/clienti')
   return { collegato: true as const }
+}
+
+/**
+ * §371 — salva **una** cella.
+ *
+ * Il campo non arriva libero: passa da `validaCella`, che conosce le colonne
+ * e i loro tipi e rifiuta tutto il resto. Non è pignoleria di forma — un file
+ * `'use server'` esporta un endpoint, e chi ha il codice davanti conosce i
+ * nomi delle colonne di `deals` (§329). Senza quel controllo si potrebbe
+ * scrivere su `client_id`, `revision` o `sheet_row_id` mandando il campo
+ * giusto nel corpo della richiesta, e nascondere una cella nella tabella non
+ * è una barriera.
+ *
+ * Una cella per volta e nessuna revisione da confrontare: due persone che
+ * modificano la **stessa** cella dello **stesso** lead nello stesso minuto
+ * sono un caso che in sette non capita, e chiedere una conferma di versione a
+ * ogni tasto renderebbe l'editing in cella più lento che aprire una scheda.
+ * Chi scrive per ultimo vince, e lo vede subito perché la tabella si aggiorna.
+ */
+export async function salvaCellaDeal(dealId: string, campo: string, valore: unknown) {
+  const { actor } = await requireSalesAccess()
+  const esito = validaCella(campo, valore)
+  if (!esito.ok) throw new Error(esito.motivo)
+
+  const { error } = await createActorClient(actor)
+    .from('deals')
+    .update({ [campo]: esito.valore, updated_at: new Date().toISOString() })
+    .eq('id', dealId)
+  if (error) dbError(error)
+
+  refreshSales()
+  return { valore: esito.valore }
+}
+
+/**
+ * §371 — chi segue la trattativa: zero, uno o due persone.
+ *
+ * Sostituisce l'elenco invece di aggiungere e togliere: su Notion è un campo
+ * multi-persona che si sceglie da un menu, e replicare quel gesto con due
+ * azioni separate vorrebbe dire una finestra in cui la riga ha zero owner.
+ */
+export async function impostaOwnerDeal(dealId: string, profileIds: string[]) {
+  const { actor } = await requireSalesAccess()
+  const db = createActorClient(actor)
+  const unici = Array.from(new Set(profileIds.filter(Boolean)))
+
+  const { error: eCancella } = await db.from('deal_owners').delete().eq('deal_id', dealId)
+  if (eCancella) dbError(eCancella)
+
+  if (unici.length) {
+    const { error } = await db.from('deal_owners')
+      .insert(unici.map(profile_id => ({ deal_id: dealId, profile_id })))
+    if (error) dbError(error)
+  }
+  refreshSales()
+  return { owner: unici }
 }
