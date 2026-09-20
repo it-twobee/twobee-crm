@@ -61,61 +61,59 @@ function pesca(voci: Voce[], m: Momento, seme: number): Voce {
 
 // ── in ritardo ───────────────────────────────────────────────────────────────
 const IN_RITARDO: Voce[] = [
-  { frase: n => `${n} in ritardo. Il passato bussa, e stavolta ha le chiavi.` },
-  { frase: n => `${n} scadute. Il tempo è passato, loro sono rimaste.` },
-  { frase: n => `${n} in ritardo. «Lo faccio dopo» ha vinto ${n} volte su ${n}.` },
-  { frase: n => `${n} scadute. Nessun giudizio, solo un conteggio imbarazzantemente preciso.` },
-  { frase: n => `${n} in ritardo. Il cliente non lo sa ancora. Ancora.` },
-  { frase: n => `${n} fuori tempo massimo. Il calendario ha già voltato pagina, tu no.` },
-  { quando: mattina, frase: n => `${n} in ritardo e il caffè è già finito. Iniziamo bene.` },
-  { quando: mattina, frase: n => `Buongiorno: ${n} scadute ti hanno aspettato tutta la notte.` },
-  { quando: pomeriggio, frase: n => `${n} in ritardo. Sono le ore in cui si decide se diventano ${n + 1}.` },
-  { quando: sera, frase: n => `${n} in ritardo. Domani alle 9 saranno ancora lì, puntualissime.` },
-  { quando: venerdi, frase: n => `${n} in ritardo di venerdì: il weekend parte con un peso a bordo.` },
-  { quando: lunedi, frase: n => `${n} in ritardo già di lunedì. Record personale?` },
-  { quando: weekend, frase: n => `${n} in ritardo, ed è weekend. Nessuno guarda: chiudine una di nascosto.` },
+  { frase: n => `${n} in ritardo. Si recuperano una alla volta, non tutte insieme.` },
+  { frase: n => `${n} scadute. La più vecchia per prima: è quella che pesa.` },
+  { frase: n => `${n} oltre la data. Se qualcuna non serve più, chiuderla è lavoro fatto.` },
+  { frase: n => `${n} in ritardo. Nessun dramma: scegli, sposta, riparti.` },
+  { frase: n => `${n} fuori tempo. Se dipendono da qualcun altro, non sono tue: scrivilo.` },
+  { frase: n => `${n} arretrate. Una data spostata onestamente vale più di una promessa tirata.` },
+  { quando: mattina, frase: n => `${n} in ritardo e il caffè è ancora caldo. Comincia dalla più corta.` },
+  { quando: sera, frase: n => `${n} in ritardo. Domani rendono di più: adesso stacca.` },
+  { quando: venerdi, frase: n => `${n} in ritardo di venerdì. Scegline una e il weekend è più leggero.` },
+  { quando: lunedi, frase: n => `${n} in ritardo di lunedì. Settimana nuova: metà se ne va senza accorgersene.` },
+  { quando: weekend, frase: n => `${n} in ritardo, ed è weekend. Lasciale lì: ci sono anche lunedì.` },
 ]
 
 // ── scadono a breve ──────────────────────────────────────────────────────────
 const IN_ARRIVO: Voce[] = [
-  { frase: n => `${n} in scadenza entro sette giorni. Sette. Non «una settimana circa».` },
-  { frase: n => `${n} in arrivo. Il futuro è quella cosa che verso giovedì diventa presente.` },
-  { frase: n => `${n} in scadenza: ancora in tempo, tecnicamente, per pochissimo.` },
-  { frase: n => `${n} in arrivo. Adesso sono progetti, fra sei giorni sono problemi.` },
-  { quando: mattina, frase: n => `${n} in scadenza. Si comincia adesso o alle 18 col fiatone?` },
-  { quando: pomeriggio, frase: n => `${n} in scadenza. Il pomeriggio sembra lungo e non lo è mai.` },
-  { quando: sera, frase: n => `${n} in scadenza. Domani è già uno di quei sette giorni.` },
-  { quando: venerdi, frase: n => `${n} in scadenza, ed è venerdì: il lunedì arriva prima di quanto meriti.` },
+  { frase: n => `${n} in scadenza entro sette giorni. C'è tempo, se si comincia.` },
+  { frase: n => `${n} in arrivo. Guardarle adesso costa meno che guardarle giovedì.` },
+  { frase: n => `${n} in scadenza: ancora in tempo, e senza correre.` },
+  { frase: n => `${n} in arrivo. Se una è troppo grande, spezzala in due.` },
+  { quando: mattina, frase: n => `${n} in scadenza. La mattina è il momento buono per la più difficile.` },
+  { quando: pomeriggio, frase: n => `${n} in scadenza. Dieci minuti in piedi e poi si riparte.` },
+  { quando: sera, frase: n => `${n} in scadenza. Domani è un altro dei sette giorni: adesso basta.` },
+  { quando: venerdi, frase: n => `${n} in scadenza, ed è venerdì. Decidi tu cosa vale la pena finire oggi.` },
 ]
 
 // ── tutto chiuso ─────────────────────────────────────────────────────────────
 const PULITO: Voce[] = [
-  { frase: () => 'Tutto chiuso. Fai uno screenshot, nessuno ti crederà.' },
-  { frase: () => 'Zero aperte. O sei bravissimo, o qualcuno sta per rimediare.' },
-  { frase: () => 'Niente da fare qui. Goditelo: dura il tempo di una mail.' },
-  { frase: () => 'Elenco vuoto. Sospettosamente vuoto.' },
+  { frase: () => 'Tutto chiuso. Bel lavoro — e non capita per caso.' },
+  { frase: () => 'Zero aperte. Momento buono per guardarsi intorno, o per respirare.' },
+  { frase: () => 'Niente da fare qui. Goditelo davvero, senza cercarti altro.' },
+  { frase: () => 'Elenco vuoto. Se hai un\'idea in sospeso, oggi c\'è lo spazio.' },
   { quando: venerdi, frase: () => 'Tutto chiuso di venerdì. Questa non è fortuna, è mestiere.' },
   { quando: sera, frase: () => 'Tutto chiuso a fine giornata. Spegni tutto e vattene, davvero.' },
-  { quando: lunedi, frase: () => 'Lunedì e già zero aperte. Chi sei e cosa hai fatto?' },
+  { quando: lunedi, frase: () => 'Lunedì e già zero aperte. Partenza come si deve.' },
 ]
 
 // ── in pari ──────────────────────────────────────────────────────────────────
 const IN_PARI: Voce[] = [
-  { frase: n => `Zero ritardi, ${n} aperte. Equilibrio precario, ma è pur sempre equilibrio.` },
-  { frase: n => `${n} aperte, niente scaduto. Tutto sotto controllo — finché non arriva una mail.` },
-  { frase: n => `Zero scadute, ${n} in lavorazione. Continua così e diventi noioso.` },
-  { frase: n => `${n} aperte e nessun rimorso. Raro.` },
+  { frase: n => `Zero ritardi, ${n} aperte. Situazione che si governa.` },
+  { frase: n => `${n} aperte, niente scaduto. Si può lavorare con calma.` },
+  { frase: n => `Zero scadute, ${n} in lavorazione. Continua così, funziona.` },
+  { frase: n => `${n} aperte e nessun arretrato. Rara, e te la sei costruita.` },
   { quando: lunedi, frase: n => `Lunedì, ${n} aperte, zero ritardi. Partenza da manuale.` },
-  { quando: sera, frase: n => `${n} aperte e niente di scaduto: si chiude la giornata da vincitori.` },
+  { quando: sera, frase: n => `${n} aperte e niente di scaduto: chiudi la giornata tranquillo.` },
 ]
 
 // ── niente di niente ─────────────────────────────────────────────────────────
 const VUOTO: Voce[] = [
-  { frase: () => 'Nessuna task assegnata. Goditela: non è uno stato stabile.' },
-  { frase: () => 'Zero task. O è un miracolo, o si sono scordati di te. Scommetto sul secondo.' },
-  { frase: () => 'Lista vuota. Il momento giusto per chiedere lavoro, o per sparire.' },
-  { quando: weekend, frase: () => 'Niente da fare ed è weekend. Combinazione perfetta, chiudi la scheda.' },
-  { quando: lunedi, frase: () => 'Lunedì e lista vuota. Durerà fino alle 10:30.' },
+  { frase: () => 'Nessuna task assegnata. Capita, ed è il momento buono per respirare.' },
+  { frase: () => 'Zero task. Se cercavi lavoro, chiedere è la mossa giusta.' },
+  { frase: () => 'Lista vuota. Buon momento per portare avanti una cosa tua.' },
+  { quando: weekend, frase: () => 'Niente da fare ed è weekend. Combinazione perfetta: chiudi la scheda.' },
+  { quando: lunedi, frase: () => 'Lunedì e lista vuota. Comincia con calma.' },
 ]
 
 /**
@@ -326,58 +324,58 @@ function pescaPersona(voci: VocePersona[], s: StatoPersona, m: Momento, seme: nu
 }
 
 const P_RITARDO: VocePersona[] = [
-  { frase: s => `${s.late} in ritardo. Cominciamo la giornata con una piccola bugia: «le chiudo oggi».` },
-  { frase: s => `${s.late} scadute che ti aspettano. Sono pazienti, non permalose.` },
-  { frase: s => `Hai ${s.late} task fuori tempo. Il resto del mondo non se n'è accorto. Per ora.` },
-  { chi: capo, frase: s => `${s.late} in ritardo tue. E sei quello che dovrebbe dare l'esempio.` },
+  { frase: s => `${s.late} in ritardo. Non si chiudono oggi, e nessuno se lo aspetta: scegline una.` },
+  { frase: s => `${s.late} scadute che ti aspettano. Una alla volta è il modo più veloce.` },
+  { frase: s => `Hai ${s.late} task oltre la data. Succede: la più vecchia per prima.` },
+  { chi: capo, frase: s => `${s.late} in ritardo tue. Se sono troppe, è il momento di darne via qualcuna.` },
   { chi: giovane, frase: s => `${s.late} in ritardo: se una si è incagliata, chiedi. Non è una sconfitta.` },
-  { chi: esterno, frase: s => `${s.late} oltre la data concordata. Il «concordata» è la parte delicata.` },
-  { quando: mattina, frase: s => `${s.late} scadute e la giornata è ancora intera. Matematicamente si recupera.` },
-  { quando: sera, frase: s => `${s.late} in ritardo a fine giornata. Domani, ma davvero.` },
-  { quando: lunedi, frase: s => `${s.late} in ritardo di lunedì mattina. Eredità del venerdì.` },
+  { chi: esterno, frase: s => `${s.late} oltre la data concordata. Se le stime erano strette, dillo: si rivedono.` },
+  { quando: mattina, frase: s => `${s.late} scadute e la giornata intera davanti. Comincia dalla più corta.` },
+  { quando: sera, frase: s => `${s.late} in ritardo a fine giornata. Adesso però stacca: domani rendono di più.` },
+  { quando: lunedi, frase: s => `${s.late} in ritardo di lunedì. Settimana nuova: se ne recupera metà senza accorgersene.` },
 ]
 
 const P_SPRINT: VocePersona[] = [
-  { frase: s => `${s.chiuseOggi} chiuse oggi. Qualcuno si è alzato con l'intenzione giusta.` },
-  { frase: s => `${s.chiuseOggi} task completate oggi: continua e ti tocca inventarti del lavoro.` },
-  { frase: s => `${s.chiuseOggi} chiuse. Sospettosamente produttivo, ci piace.` },
-  { chi: giovane, frase: s => `${s.chiuseOggi} chiuse oggi. Nessuno te lo dirà, quindi te lo diciamo noi: bene.` },
-  { chi: capo, frase: s => `${s.chiuseOggi} chiuse oggi. E il team? Anche loro, si spera.` },
+  { frase: s => `${s.chiuseOggi} chiuse oggi. Bel ritmo: adesso bevi qualcosa e riparti.` },
+  { frase: s => `${s.chiuseOggi} task completate oggi. Te lo diciamo noi perché nessun altro lo farà: bene.` },
+  { frase: s => `${s.chiuseOggi} chiuse. Giornata che gira — non tirare troppo la corda.` },
+  { chi: giovane, frase: s => `${s.chiuseOggi} chiuse oggi. Stai andando meglio di quanto pensi.` },
+  { chi: capo, frase: s => `${s.chiuseOggi} chiuse oggi, e il team gira. Anche questo è lavoro fatto.` },
 ]
 
 const P_OGGI: VocePersona[] = [
-  { frase: s => `${s.oggi} scadono oggi. Oggi oggi, non «entro fine settimana».` },
-  { frase: s => `${s.oggi} in scadenza. Le prossime otto ore hanno già un programma.` },
-  { frase: s => `${s.oggi} per oggi. Poche, se cominci adesso.` },
-  { chi: capo, frase: s => `${s.oggi} in scadenza oggi, e ${s.progetti > 0 ? `${s.progetti} progetti` : 'il team'} che guardano te.` },
-  { quando: pomeriggio, frase: s => `${s.oggi} in scadenza oggi e il pomeriggio è già cominciato. Niente panico. Poco panico.` },
-  { quando: sera, frase: s => `${s.oggi} scadono oggi, e «oggi» sta per finire.` },
+  { frase: s => `${s.oggi} scadono oggi. Se ne salta una il mondo regge: scegli tu quale.` },
+  { frase: s => `${s.oggi} in scadenza. Le prossime ore hanno un programma — e va bene così.` },
+  { frase: s => `${s.oggi} per oggi. Poche, se cominci dalla più breve.` },
+  { chi: capo, frase: s => `${s.oggi} in scadenza oggi. Se non ci stanno tutte, spostane una tu: puoi.` },
+  { quando: pomeriggio, frase: s => `${s.oggi} in scadenza e il pomeriggio è cominciato. Dieci minuti in piedi, poi si riparte.` },
+  { quando: sera, frase: s => `${s.oggi} scadono oggi, ma la giornata è finita. Quello che resta, resta.` },
 ]
 
 const P_PULITO: VocePersona[] = [
-  { frase: s => `Zero aperte, ${s.chiuseSettimana} chiuse questa settimana. Giornata da manuale.` },
-  { frase: () => 'Elenco pulito. Adesso però non farti vedere troppo in giro.' },
-  { frase: s => `${s.chiuseSettimana} chiuse e niente in coda. Rara combinazione.` },
-  { chi: capo, frase: () => 'Tutto chiuso da parte tua. Resta da controllare il resto del mondo.' },
+  { frase: s => `Zero aperte, ${s.chiuseSettimana} chiuse questa settimana. Te la sei guadagnata.` },
+  { frase: () => 'Elenco pulito. Goditelo: non capita spesso, e non è un caso.' },
+  { frase: s => `${s.chiuseSettimana} chiuse e niente in coda. Bel lavoro, davvero.` },
+  { chi: capo, frase: () => 'Tutto chiuso da parte tua. Se il team è messo così, è merito anche tuo.' },
   { quando: venerdi, frase: () => 'Tutto chiuso di venerdì. Questo sì che è saper vivere.' },
 ]
 
 const P_FERMO: VocePersona[] = [
-  { frase: () => 'Nessuna task assegnata. O meriti una vacanza, o ti hanno dimenticato.' },
-  { frase: () => 'Lista vuota. Il silenzio è d\'oro, finché qualcuno non se ne accorge.' },
-  { chi: giovane, frase: () => 'Niente in lista: è il momento di chiedere qualcosa da fare. Funziona.' },
-  { chi: capo, frase: () => 'Niente di tuo in lista. Sospetto: di solito vuol dire che è tutto degli altri.' },
-  { chi: esterno, frase: () => 'Nessuna task aperta. Quando serviamo, sai dove trovarci.' },
+  { frase: () => 'Niente in lista oggi. Capita, ed è il momento buono per respirare.' },
+  { frase: () => 'Lista vuota. Se hai un\'idea da portare avanti, oggi c\'è lo spazio.' },
+  { chi: giovane, frase: () => 'Niente in lista: chiedere qualcosa da fare è la mossa giusta, non un disturbo.' },
+  { chi: capo, frase: () => 'Niente di tuo in lista. Buon momento per guardare come stanno gli altri.' },
+  { chi: esterno, frase: () => 'Nessuna task aperta. Quando serviremo, ci sentiamo — grazie del lavoro fatto.' },
 ]
 
 const P_NORMALE: VocePersona[] = [
-  { frase: s => `${s.aperte} aperte, zero in ritardo. Situazione dignitosa.` },
-  { frase: s => `${s.aperte} sul tavolo e niente di scaduto: si può lavorare in pace.` },
-  { frase: s => `${s.aperte} aperte. Nessuna emergenza, il che è già una notizia.` },
-  { chi: capo, frase: s => `${s.aperte} aperte tue, più quelle che hai dato agli altri. Quelle contano doppio.` },
+  { frase: s => `${s.aperte} aperte, zero in ritardo. Giornata che si può governare.` },
+  { frase: s => `${s.aperte} sul tavolo e niente di scaduto: oggi si lavora con calma.` },
+  { frase: s => `${s.aperte} aperte. Nessuna emergenza, e è una buona notizia.` },
+  { chi: capo, frase: s => `${s.aperte} aperte tue, più quelle che segui. Ricordati che anche seguire è lavoro.` },
   { chi: giovane, frase: s => `${s.aperte} aperte. Una alla volta, in ordine di scadenza: funziona sempre.` },
   { quando: mattina, frase: s => `${s.aperte} aperte e la giornata intera davanti. Scegli bene la prima.` },
-  { quando: venerdi, frase: s => `${s.aperte} aperte di venerdì: decidi tu quali diventano un problema di lunedì.` },
+  { quando: venerdi, frase: s => `${s.aperte} aperte di venerdì: decidi tu cosa vale la pena finire oggi.` },
 ]
 
 /**

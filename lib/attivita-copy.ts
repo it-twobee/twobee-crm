@@ -215,11 +215,11 @@ export const GLOSSARIO_ATTIVITA: Record<ChiaveAttivita, string> = {
 }
 
 export const ESEMPI_ATTIVITA: string[] = [
-  '{collega} parte fra {collegaGiorni} {collegaGiorni|giorno|giorni} e avete {collegaTask} task insieme. Parlatene oggi.',
-  '{collega} è già via, e {collegaTask} task vi aspettavano insieme. Adesso aspettano te.',
-  'La tua milestone scade fra {milestoneGiorni} {milestoneGiorni|giorno|giorni}. Qualcuno ci conta.',
-  '{scaduteVecchie} {scaduteVecchie|ferma|ferme} da oltre due settimane: la più vecchia da {scaduteGiorni}.',
-  'Una task non si muove da {fermaGiorni} {fermaGiorni|giorno|giorni}. Non è in ritardo: è dimenticata.',
+  '{collega} parte fra {collegaGiorni} {collegaGiorni|giorno|giorni} e avete {collegaTask} task insieme: sentitevi oggi.',
+  '{collega} \u00e8 gi\u00e0 in ferie. {collegaTask} task restano a te: se serve una mano, chiedila.',
+  'La tua milestone scade fra {milestoneGiorni} {milestoneGiorni|giorno|giorni}. Se non ci arrivi, dillo adesso: si sposta.',
+  '{scaduteVecchie} {scaduteVecchie|ferma|ferme} da settimane, la pi\u00f9 vecchia da {scaduteGiorni}. Chiudine una o spostale.',
+  'Una task non si muove da {fermaGiorni} {fermaGiorni|giorno|giorni}. Se \u00e8 bloccata da qualcuno, non \u00e8 tua: scrivilo.',
   '{senzaData} {senzaData|aperta|aperte} senza una data: senza data non salgono mai in cima.',
 ]
 

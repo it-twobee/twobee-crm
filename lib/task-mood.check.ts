@@ -181,5 +181,46 @@ is('ma domani cambia',
 sempreDisponibile('il saluto personale senza ora vale a ogni ora',
   (m, s) => salutoPersonale(persona({ late: 2 }), m, s))
 
+console.log('\n— §364 · dalla parte di chi legge —')
+/* Il tono è una regola, non una riscrittura una tantum: queste frasi le legge
+   da sola, la mattina, una persona che sta già facendo del suo meglio. Se
+   domani qualcuno rimette una battuta che fa colpa, si ferma qui — come per
+   «agenzia» (§359). Le stesse parole sono vietate al modello nel validatore di
+   `person-copy.ts`: una regola sola, applicata ai due generatori. */
+const COLPA = /\b(pigr|sfaticat|incapac|colpa tua|vergogn|dovresti|datti una mossa|non hai scuse|record personale|scommetto sul secondo|fiatone|imbarazzant)/i
+const PRESSIONE = /\b(sii felice|sorridi|pensa positivo|ultimo avviso|ti conviene)\b/i
+
+const tutte: string[] = []
+for (const m of MOMENTI) for (const seme of SEMI) {
+  for (const c of [conti({ late: 4 }), conti({ late: 0, soon: 3 }),
+    conti({ late: 0, soon: 0, aperte: 7 }), conti({ late: 0, soon: 0, aperte: 0, tutte: 9 }),
+    conti({ late: 0, soon: 0, aperte: 0, tutte: 0 })]) {
+    tutte.push(verdetto(c, m, seme).testo)
+  }
+  for (const ruolo of ['founder', 'manager', 'junior', 'stage', 'freelance', null] as Ruolo[]) {
+    for (const st of [{ late: 3 }, { late: 0, chiuseOggi: 4 }, { late: 0, chiuseOggi: 0, oggi: 2 },
+      { aperte: 0, late: 0, oggi: 0, chiuseOggi: 0, chiuseSettimana: 4 },
+      { aperte: 0, late: 0, oggi: 0, chiuseOggi: 0, chiuseSettimana: 0 },
+      { aperte: 6, late: 0, oggi: 0, chiuseOggi: 0 }]) {
+      const base: StatoPersona = {
+        aperte: 10, late: 0, oggi: 0, chiuseOggi: 0, chiuseSettimana: 0, progetti: 2, ruolo,
+      }
+      tutte.push(salutoPersonale({ ...base, ...st }, m, seme))
+    }
+  }
+}
+const colpevoli = Array.from(new Set(tutte.filter(t => COLPA.test(t))))
+const pressioni = Array.from(new Set(tutte.filter(t => PRESSIONE.test(t))))
+colpevoli.forEach(t => console.log(`     ${t}`))
+pressioni.forEach(t => console.log(`     ${t}`))
+is('nessuna frase fa colpa a chi legge', colpevoli.length, 0)
+is('e nessuna ordina di stare bene', pressioni.length, 0)
+is('su un campione vero, non su tre frasi', tutte.length > 2000, true)
+
+/* La controprova: se il filtro non trovasse niente nemmeno in una frase
+   scritta apposta per fallire, non starebbe controllando niente. */
+is('e il filtro funziona davvero',
+  COLPA.test('4 in ritardo. Datti una mossa.') && PRESSIONE.test('Sii felice!'), true)
+
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

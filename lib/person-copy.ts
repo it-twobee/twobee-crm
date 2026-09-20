@@ -355,7 +355,9 @@ const SEGNAPOSTO = /\{([a-zA-Z0-9]+)(?:\|([^|{}]+)\|([^|{}]+))?\}/g
 const NUMERICHE: Chiave[] = [
   'aperte', 'late', 'oggi', 'chiuseOggi', 'chiuseSettimana', 'progetti',
   'anzianitaMesi', 'anniversario', 'compleanno', 'twobeeAnni', 'twobeeGiorni',
-  'ferieGiorni', 'ferieDurata', 'assenteDa', 'collega1Task', 'collega2Task',
+  // `festivoGiorni` mancava: una chiave numerica fuori da qui non può reggere
+  // una concordanza, e il validatore rifiutava una frase corretta
+  'festivoGiorni', 'ferieGiorni', 'ferieDurata', 'assenteDa', 'collega1Task', 'collega2Task',
 ]
 
 /**
@@ -441,6 +443,17 @@ const BANDITE: { schema: RegExp; motivo: string }[] = [
   { schema: /\bagenzi[ae]\b/i, motivo: 'TwoBee non è un\'agenzia (§359)' },
   { schema: /\b(licenzi|stipendi|fatturat|margin|compens)\w*/i, motivo: 'la riga non parla di soldi né di posto di lavoro' },
   { schema: /\b(pigr|sfaticat|incapac|colpa tua|vergogn)\w*/i, motivo: 'si prende in giro la situazione, non la persona' },
+  /* §364 — il tono sta dalla parte di chi legge, e questo è il posto dove lo
+     si difende: un prompt si può ignorare, un validatore no. Non è pudore,
+     è che una riga che fa colpa la legge una persona che sta già facendo del
+     suo meglio — e la legge da sola, la mattina, prima di cominciare. */
+  { schema: /\b(dovresti|datti una mossa|sveglia\b|non hai scuse|giustificazion|ti conviene|ultimo avviso)\w*/i,
+    motivo: 'la riga aiuta, non fa la predica né minaccia' },
+  /* Il benessere a comando è peggio del silenzio: «sii felice» sopra una lista
+     di ritardi si legge come pressione, non come cura. Una pausa concreta sì
+     — «dieci minuti», «un bicchiere d'acqua» — l'imperativo sull'umore no. */
+  { schema: /\b(sii felice|sorridi|pensa positivo|buon umore obbligatorio|carica a mille)\b/i,
+    motivo: 'la felicità non si ordina: offri una pausa vera, non un umore' },
 ]
 
 /** parole che trasformano il bentornato in un richiamo */
