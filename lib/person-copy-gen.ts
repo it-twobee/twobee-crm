@@ -23,6 +23,7 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { chatWithTools, activeModel, activeProvider } from './ai/provider'
 import { ADMIN_ROLES, WORKSPACE_ROLES } from './permissions'
 import { normalize, type RawLeave, type RawRequest } from './leave-calendar'
 import type { Ruolo } from './task-mood'
@@ -35,7 +36,28 @@ import { valori } from './person-copy'
 
 type Admin = SupabaseClient
 
-export const MODELLO = process.env.PERSON_COPY_MODEL ?? 'claude-opus-5'
+/**
+ * **Quale motore scrive la riga.** Il default è quello che l'app ha già acceso
+ * — Groq, la stessa chiave dell'assistente Ctrl+J — e non per risparmiare:
+ * perché qui la domanda «basta un modello più piccolo?» non è un'opinione, è
+ * una **misura**. Il validatore boccia tutto quello che non rispetta il patto,
+ * `tentativi` conta quanto spesso succede, e `scartate` quanto spesso non ce la
+ * fa in tre giri. Se quei due numeri restano bassi, un modello più caro
+ * comprerebbe niente.
+ *
+ * `PERSON_COPY_PROVIDER=anthropic` sposta tutto sull'SDK Anthropic senza
+ * toccare il resto: stesso prompt, stesso validatore, stessa tabella. Così il
+ * confronto si fa sullo stesso carico, come si è fatto per scegliere Qwen
+ * (`lib/ai/model.ts`), e non a impressioni.
+ */
+export type Motore = 'groq' | 'anthropic'
+
+export const MOTORE: Motore =
+  (process.env.PERSON_COPY_PROVIDER ?? '').toLowerCase() === 'anthropic' ? 'anthropic' : 'groq'
+
+export const MODELLO = MOTORE === 'anthropic'
+  ? (process.env.PERSON_COPY_MODEL ?? 'claude-opus-5')
+  : activeModel()
 
 /** oltre il terzo tentativo non è sfortuna, è il prompt: si smette e si registra */
 const MAX_TENTATIVI = 3
@@ -46,37 +68,66 @@ const GIORNI_DI_STORIA = 30
 // ── la chiamata ──────────────────────────────────────────────────────────────
 
 /**
- * `ANTHROPIC_API_KEY` assente non è un errore: è lo stato normale finché
- * l'organizzazione su console.anthropic.com non esiste. Il giro si fa lo
- * stesso, non scrive niente, e lo dice — così il cron si può accendere prima
- * della chiave e il workspace non se ne accorge.
+ * Una chiave assente non è un errore: è lo stato normale finché quel motore
+ * non è acceso. Il giro si fa lo stesso, non scrive niente, e lo dice — così
+ * il cron si può accendere prima della chiave e il workspace non se ne accorge.
  */
-export const chiaveConfigurata = () => Boolean(process.env.ANTHROPIC_API_KEY)
+export const chiaveConfigurata = () => Boolean(
+  MOTORE === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.GROQ_API_KEY,
+)
+
+/* Tetto largo di proposito, in entrambi i casi. Qwen 3.6 e Opus 5 ragionano
+   tutti e due, e i token di ragionamento escono da qui: un budget stretto su
+   un modello che ragiona non accorcia la risposta, la **svuota** — lezione già
+   pagata in questo progetto (`lib/ai/model.ts`). La riga costa trenta token. */
+const TETTO = 3000
+
+/* Più alta di quella dell'assistente (0.2), che deve essere preciso. Qui il
+   difetto da evitare è l'opposto: sette persone che ricevono la stessa frase
+   con un nome diverso dentro. */
+const TEMPERATURA = 0.8
 
 async function chiedi(messaggio: string): Promise<string> {
-  const client = new Anthropic()
-  const res = await client.messages.create({
-    model: MODELLO,
-    /* Largo apposta. Opus 5 ragiona di suo, e un tetto stretto su un modello
-       che ragiona non accorcia la risposta: la **svuota** — è già successo in
-       questo progetto con Qwen (`lib/ai/model.ts`). La riga costa trenta
-       token; il resto è il ragionamento, che non paghiamo in lunghezza. */
-    max_tokens: 2000,
-    // una riga di saluto non è un problema difficile, e l'effort basso costa meno
-    output_config: { effort: 'low' },
-    system: SISTEMA,
-    messages: [{ role: 'user', content: messaggio }],
+  if (MOTORE === 'anthropic') {
+    const res = await new Anthropic().messages.create({
+      model: MODELLO,
+      max_tokens: TETTO,
+      // una riga di saluto non è un problema difficile, e l'effort basso costa meno
+      output_config: { effort: 'low' },
+      system: SISTEMA,
+      messages: [{ role: 'user', content: messaggio }],
+    })
+    if (res.stop_reason === 'refusal') throw new Error('rifiutata dal modello')
+    return res.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map(b => b.text)
+      .join('')
+  }
+
+  /* Lo stesso adattatore dell'assistente: gestisce chiave, modello e il 429
+     con una riprova. Non ci sono strumenti da esporre — qui si chiede una
+     frase, non un'azione. */
+  const r = await chatWithTools({
+    messages: [{ role: 'system', content: SISTEMA }, { role: 'user', content: messaggio }],
+    maxTokens: TETTO,
+    temperature: TEMPERATURA,
   })
-  if (res.stop_reason === 'refusal') throw new Error('rifiutata dal modello')
-  return res.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map(b => b.text)
-    .join('')
+  return r.content ?? ''
 }
 
-/** toglie solo l'involucro: virgolette attorno alla frase, trattini d'elenco, righe vuote */
+/**
+ * Toglie solo l'involucro: il ragionamento di un reasoning model, le virgolette
+ * attorno alla frase, il trattino d'elenco, le righe in più.
+ *
+ * **Sbucciare non è correggere.** Una cifra resta una cifra e il validatore la
+ * boccia: se questa funzione cominciasse a sistemare il contenuto, il gate
+ * smetterebbe di misurare il modello e comincerebbe a misurare noi.
+ */
 export function ripulisci(grezzo: string): string {
-  let t = grezzo.trim().split('\n').map(r => r.trim()).filter(Boolean)[0] ?? ''
+  // Qwen 3.6 ragiona: senza questo la «prima riga» sarebbe l'inizio del pensiero
+  const senzaPensiero = grezzo.replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/^[\s\S]*?<\/think>/i, '')
+  let t = senzaPensiero.trim().split('\n').map(r => r.trim()).filter(Boolean)[0] ?? ''
   t = t.replace(/^[-*•]\s+/, '')
   const coppie: [string, string][] = [['"', '"'], ['“', '”'], ['«', '»'], ["'", "'"]]
   for (const [a, b] of coppie) {
@@ -194,6 +245,7 @@ export async function caricaFatti(admin: Admin, oggi: string): Promise<FattiPers
 
 export type Riepilogo = {
   giorno: string
+  motore: Motore
   modello: string
   persone: number
   scritte: number
@@ -207,11 +259,11 @@ export type Riepilogo = {
 export async function generaTutti(admin: Admin, oggi: string): Promise<Riepilogo> {
   const fatti = await caricaFatti(admin, oggi)
   const base: Riepilogo = {
-    giorno: oggi, modello: MODELLO, persone: fatti.length,
+    giorno: oggi, motore: MOTORE, modello: MODELLO, persone: fatti.length,
     scritte: 0, scartate: 0, ritentate: 0, motivi: [],
   }
   if (!chiaveConfigurata()) {
-    return { ...base, saltato: 'ANTHROPIC_API_KEY non configurata: nessuna riga scritta, resta il testo deterministico' }
+    return { ...base, saltato: `Chiave mancante per ${MOTORE} (${activeProvider()}): nessuna riga scritta, resta il testo deterministico` }
   }
 
   for (const f of fatti) {

@@ -285,6 +285,13 @@ is('le caporali', ripulisci('«{late} in ritardo.»'), '{late} in ritardo.')
 is('il trattino d\'elenco', ripulisci('- {late} in ritardo.'), '{late} in ritardo.')
 is('le righe in più: si tiene la prima', ripulisci('\n{late} in ritardo.\nOppure: altro.'), '{late} in ritardo.')
 is('una riga già pulita non si tocca', ripulisci('{late} in ritardo.'), '{late} in ritardo.')
+/* Qwen 3.6 è un modello di reasoning: senza togliere il pensiero, la «prima
+   riga» sarebbe l'inizio del ragionamento invece della frase. */
+is('il ragionamento di un reasoning model si butta',
+  ripulisci('<think>\nDevo scrivere una riga ironica.\nNiente cifre.\n</think>\n{late} in ritardo.'),
+  '{late} in ritardo.')
+is('anche se il tag di apertura manca',
+  ripulisci('Sto pensando a cosa dire.\n</think>\n{late} in ritardo.'), '{late} in ritardo.')
 /* Sbucciare non è correggere: una cifra resta una cifra, e il validatore la
    boccia. Se `ripulisci` cominciasse a sistemare il contenuto, il gate
    smetterebbe di misurare il modello e comincerebbe a misurare noi. */
