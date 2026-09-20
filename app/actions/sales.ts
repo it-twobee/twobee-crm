@@ -1,7 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createActorClient } from '@/lib/supabase/admin'
+import { createActorClient, createAdminClient } from '@/lib/supabase/admin'
+import { sincronizzaLead } from '@/lib/sales-sync'
 import { requireSalesAccess } from '@/lib/sales-guard'
 import { OUTCOMES, canReadDeal, uuid, validDate, validateDeal, type DealInput, type Delivery, type SalesData, type SalesDeal, type SalesOutcome, type SalesActivity } from '@/lib/sales'
 import { isWorkspaceRole } from '@/lib/permissions'
@@ -145,4 +146,27 @@ export async function impostaOwnerDeal(dealId: string, profileIds: string[]) {
   }
   refreshSales()
   return { owner: unici }
+}
+
+/**
+ * §372 — «Aggiorna dal foglio», premuto da una persona.
+ *
+ * Stessa funzione del cron notturno, non una sua copia: se la sincronizzazione
+ * a mano e quella automatica facessero due cose leggermente diverse, il giorno
+ * in cui il cron sbaglia nessuno riuscirebbe a riprodurlo premendo il bottone.
+ *
+ * Il riepilogo torna a chi ha premuto — quanti nuovi, quanti già c'erano,
+ * quanti scartati — perché «fatto» non è una risposta: chi preme quel bottone
+ * lo preme dopo aver aggiunto una riga al foglio, e vuole sapere se quella
+ * riga è arrivata. Zero nuovi con ventotto già presenti è un esito sano; zero
+ * nuovi e zero letti vuol dire che il foglio non si apre.
+ */
+export async function aggiornaDaFoglio() {
+  const { access } = await requireSalesAccess()
+  if (access !== 'admin' && access !== 'manager') {
+    throw new Error('Solo admin e manager possono aggiornare dal foglio')
+  }
+  const esito = await sincronizzaLead(createAdminClient())
+  refreshSales()
+  return esito
 }

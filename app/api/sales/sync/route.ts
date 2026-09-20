@@ -7,17 +7,18 @@ import { sincronizzaLead } from '@/lib/sales-sync'
 /**
  * §370 — i lead dal foglio, una volta all'ora.
  *
- * Task pianificato di Coolify, come gli altri tre (§316, §337, §366):
+ * Task pianificato di Coolify alle 03:00, come gli altri tre (§316, §337, §366):
  *   sh -c 'wget -qO- -T 120 --header="Authorization: Bearer $SALES_SYNC_SECRET" --post-data= http://127.0.0.1:3000/api/sales/sync'
  *
- * **Ogni ora e non ogni cinque minuti**: un lead che arriva alle 10:05 e
- * compare alle 11:00 è arrivato in tempo — nessuno richiama entro l'ora — e
- * dodici giri più frequenti sarebbero dodici scaricamenti in più per trovare
- * le stesse ventotto righe.
+ * **Di notte e non ogni ora**, perché c'è il bottone. Un giro automatico
+ * serve a non dover pensare al foglio; chi invece ci ha appena scritto dentro
+ * non aspetta né la notte né l'ora — preme «Aggiorna dal foglio» e vede
+ * subito se la riga è arrivata. Con il bottone, dodici giri al giorno
+ * sarebbero dodici scaricamenti per trovare le stesse righe.
  *
- * Seconda porta per gli admin, come le ricorrenze: chi aggiunge una riga al
- * foglio deve poterla vedere **adesso** invece di scoprire all'ora dopo che
- * la colonna si chiamava in un altro modo. Il riepilogo torna nella risposta.
+ * La seconda porta resta per gli admin, ed è la stessa funzione che chiama il
+ * bottone: se a mano e in automatico facessero due cose diverse, il giorno in
+ * cui il cron sbaglia nessuno riuscirebbe a riprodurlo.
  *
  * Il giro non cancella e non riscrive niente: inserisce solo quello che non
  * c'era. Il peggio che può fare è non inserire — e un lead che manca si vede,

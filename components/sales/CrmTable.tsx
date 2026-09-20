@@ -18,13 +18,15 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Search, Columns3, UserPlus, Loader2 } from 'lucide-react'
+import { Search, Columns3, UserPlus, Loader2, RefreshCw, BarChart3, Table2 } from 'lucide-react'
 import { COLONNE, COLONNE_PRINCIPALI, type Colonna } from '@/lib/sales-table'
 import { FASI, GRUPPI, ETICHETTA_GRUPPO, classiFase, etichettaFase, fasiDelGruppo } from '@/lib/sales-stages'
-import { salvaCellaDeal, collegaLeadACliente } from '@/app/actions/sales'
+import { salvaCellaDeal, collegaLeadACliente, aggiornaDaFoglio } from '@/app/actions/sales'
 import { NewClientModal } from '@/components/clients/NewClientModal'
 import type { Client } from '@/lib/types/database'
 import { CrmCella } from './CrmCella'
+import { CrmAnalytics } from './CrmAnalytics'
+import type { RigaAnalisi } from '@/lib/sales-analytics'
 
 export type RigaCrm = Record<string, unknown> & {
   id: string
@@ -39,6 +41,9 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
   const [gruppo, setGruppo] = useState<string>('tutti')
   const [tutteLeColonne, setTutteLeColonne] = useState(false)
   const [converto, setConverto] = useState<RigaCrm | null>(null)
+  const [vista, setVista] = useState<'tabella' | 'numeri'>('tabella')
+  const [aggiorno, setAggiorno] = useState(false)
+  const [esitoSync, setEsitoSync] = useState<string | null>(null)
   const [pending, start] = useTransition()
 
   const colonne: Colonna[] = tutteLeColonne ? COLONNE : COLONNE_PRINCIPALI
@@ -81,6 +86,26 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
     }
   }
 
+  /* §372 — lo stesso giro del cron notturno, non una sua copia: se a mano e
+     in automatico facessero due cose diverse, il giorno in cui il cron
+     sbaglia nessuno riuscirebbe a riprodurlo premendo il bottone.
+
+     Il riepilogo resta sotto, non in un avviso che sparisce: chi preme ha
+     appena aggiunto una riga al foglio e vuole sapere se è arrivata. */
+  const aggiorna = async () => {
+    setAggiorno(true); setEsitoSync(null)
+    try {
+      const e = await aggiornaDaFoglio()
+      if (e.errore) { setEsitoSync(e.errore); toast.error(e.errore); return }
+      setEsitoSync(`${e.nuovi} nuovi · ${e.giaPresenti} già presenti · ${e.scartati} scartati (prove o senza azienda)`)
+      if (e.nuovi) { toast.success(`${e.nuovi} lead importati`); location.reload() }
+      else toast.success('Nessun lead nuovo: il foglio è allineato')
+    } catch (err) {
+      const m = (err as Error).message
+      setEsitoSync(m); toast.error(m)
+    } finally { setAggiorno(false) }
+  }
+
   const convertito = (riga: RigaCrm) => (cliente: Client) => {
     start(async () => {
       try {
@@ -103,13 +128,35 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
             {gruppo !== 'tutti' && <> in {ETICHETTA_GRUPPO[gruppo as 'todo']}</>}
           </p>
         </div>
-        <button onClick={() => setTutteLeColonne(v => !v)}
-          className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary border border-border px-3 py-1.5 rounded-lg hover:text-text-primary transition-colors">
-          <Columns3 className="w-3.5 h-3.5" />
-          {tutteLeColonne ? `${COLONNE_PRINCIPALI.length} colonne` : `Tutte (${COLONNE.length})`}
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => setVista(v => v === 'tabella' ? 'numeri' : 'tabella')}
+            className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary border border-border px-3 py-1.5 rounded-lg hover:text-text-primary transition-colors">
+            {vista === 'tabella' ? <><BarChart3 className="w-3.5 h-3.5" />Numeri</> : <><Table2 className="w-3.5 h-3.5" />Tabella</>}
+          </button>
+          {vista === 'tabella' && (
+            <button onClick={() => setTutteLeColonne(v => !v)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary border border-border px-3 py-1.5 rounded-lg hover:text-text-primary transition-colors">
+              <Columns3 className="w-3.5 h-3.5" />
+              {tutteLeColonne ? `${COLONNE_PRINCIPALI.length} colonne` : `Tutte (${COLONNE.length})`}
+            </button>
+          )}
+          <button onClick={aggiorna} disabled={aggiorno}
+            title="Rilegge il foglio dei lead: inserisce solo le righe nuove, non tocca quelle che ci sono"
+            className="flex items-center gap-1.5 text-xs font-semibold text-gold-text border border-gold/30 px-3 py-1.5 rounded-lg hover:bg-gold/10 transition-colors disabled:opacity-40">
+            <RefreshCw className={`w-3.5 h-3.5 ${aggiorno ? 'animate-spin' : ''}`} />
+            {aggiorno ? 'Leggo il foglio…' : 'Aggiorna dal foglio'}
+          </button>
+        </div>
       </div>
 
+      {esitoSync && (
+        <p className="text-2xs text-text-secondary bg-surface border border-border rounded-lg px-3 py-2">{esitoSync}</p>
+      )}
+
+      {/* Nella vista numeri i filtri non filtrano niente — l'analisi guarda
+          tutte le righe — e un controllo che non fa niente si prova due volte
+          e poi si smette di credere anche agli altri. */}
+      {vista === 'tabella' && (
       <div className="flex items-center gap-2 flex-wrap">
         <label className="relative flex-1 min-w-48 max-w-sm">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" aria-hidden />
@@ -126,7 +173,9 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
           </button>
         ))}
       </div>
+      )}
 
+      {vista === 'numeri' ? <CrmAnalytics righe={righe as unknown as RigaAnalisi[]} /> : <>
       {/* §371 — `overflow-x-auto`, mai `overflow-hidden`: ventitré colonne non
           entrano in uno schermo e comprimerle le rende tutte illeggibili. */}
       <div className="border border-border rounded-xl overflow-x-auto">
@@ -174,6 +223,7 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
           </tbody>
         </table>
       </div>
+      </>}
 
       {/* §368 — non un form ridotto: **il** modale di anagrafica, precompilato
           con quello che il lead ha già detto. */}
