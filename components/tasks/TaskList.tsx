@@ -8,6 +8,7 @@ import {
   Plus, Check, Trash2, ListTodo, AlertTriangle, Clock, Users, Eye,
   RotateCcw, ChevronDown, CalendarDays, Building2,
   List, LayoutGrid, PartyPopper, Inbox,
+  Sparkles,
 } from 'lucide-react'
 import { Avatar, SearchInput, Segmented, Empty } from '@/components/shared/formkit'
 import { CompletedTasks } from '@/components/tasks/CompletedTasks'
@@ -78,7 +79,7 @@ type ProjectOpt = { id: string; name: string; client_id?: string | null }
 export function TaskList({
   rows, clients, clientiPerCrea, projects = [], workstreams = [], milestones = [], milestoneTasks, assignedBy = {}, profiles, canManage,
   canCreateClient = false, clientBase = '/clienti', projectBase = '/progetti',
-  personale = false, titolo,
+  personale = false, titolo, segnalazione,
 }: {
   rows: TaskRow[]
   /** l'anagrafica che compare **nel filtro**: solo chi ha righe in elenco (§341) */
@@ -120,6 +121,8 @@ export function TaskList({
    */
   personale?: boolean
   titolo?: string
+  /** §363 — la riga che segnala una cosa sola, quando c'è. Il più delle volte non c'è */
+  segnalazione?: string | null
 }) {
   const router = useRouter()
   const [pending, start] = useTransition()
@@ -364,6 +367,17 @@ export function TaskList({
             <span className="tabular font-semibold text-text-primary">{counts.aperte}</span> aperte su{' '}
             <span className="tabular">{counts.tutte}</span>
           </p>
+          {/* §363 — compare **solo** quando c'è qualcosa che la lista non
+              mostra: una consegna tua in arrivo, un collega che parte, una
+              task ferma da settimane. Quando non c'è, non c'è neanche lo
+              spazio: una riga che sta sempre lì diventa il bordo della
+              pagina, ed è il difetto che questo sistema doveva togliere. */}
+          {segnalazione && (
+            <p className="text-sm text-gold-text mt-1.5 flex items-start gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden />
+              <span>{segnalazione}</span>
+            </p>
+          )}
         </div>
         {canManage && (
           <button onClick={() => setAdding(true)}

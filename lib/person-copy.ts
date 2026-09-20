@@ -358,11 +358,58 @@ const NUMERICHE: Chiave[] = [
   'ferieGiorni', 'ferieDurata', 'assenteDa', 'collega1Task', 'collega2Task',
 ]
 
+/**
+ * §363 — **il vocabolario di una superficie.**
+ *
+ * Le regole (niente cifre, niente nomi inventati, niente tag, la concordanza)
+ * valgono per ogni riga che un modello scrive in questo prodotto. Le **parole**
+ * no: il saluto parla di scadute e colleghi, «Le mie attività» parla della task
+ * più vecchia e di chi va in ferie mentre la sua milestone scade.
+ *
+ * Copiare il validatore per la seconda superficie avrebbe prodotto due regole
+ * dove ne serve una — e una regola scritta due volte è il posto dove la prossima
+ * modifica ne aggiorna una sola. Quindi le regole stanno qui, una volta, e ogni
+ * superficie porta il suo vocabolario.
+ */
+export type Vocabolario = {
+  /** tutte le chiavi che questa superficie conosce, anche quelle vuote oggi */
+  dichiarate: string[]
+  /** i valori di adesso; `null` = fatto assente, quindi segnaposto non offerto */
+  valori: Record<string, string | number | null>
+  /** le chiavi il cui valore è un numero: le sole che reggono una concordanza */
+  numeriche: string[]
+  /** i contatori: a zero non sono un fatto, sono l'assenza di un fatto */
+  contatori: string[]
+  /** i nomi propri che la riga può contenere */
+  citabili: string[]
+  /** i nomi di tutta l'azienda: uno fuori dai citabili è un rapporto inventato */
+  rosa: string[]
+}
+
+/** i segnaposto usabili adesso: niente fatti assenti, niente contatori a zero */
+export function offerte(v: Vocabolario): string[] {
+  return v.dichiarate.filter(k =>
+    v.valori[k] !== null && v.valori[k] !== undefined
+    && !(v.contatori.includes(k) && v.valori[k] === 0))
+}
+
+/** sostituisce i segnaposto; le chiavi non risolte restano visibili apposta */
+export function rendiCon(tpl: string, v: Vocabolario): string {
+  return tpl.replace(SEGNAPOSTO, (intero, k: string, sing?: string, plur?: string) => {
+    const val = v.valori[k]
+    if (val === null || val === undefined) return intero
+    // con le due forme esce **la parola**, non il numero: il numero ha il suo segnaposto
+    if (sing && plur) return val === 1 ? sing : plur
+    return String(val)
+  })
+}
+
 /** i plurali che compaiono in queste frasi: al singolare cambiano, e si sente */
 const PLURALI = 'scadute|aperte|chiuse|nuove|giorni|progetti|anni|mesi|volte|ore|consegne|riunioni|cose|persone|colleghi|task aperte'
 
 /** `{late} scadute` è giusto a cinque e sbagliato a uno: il modello deve dichiarare le due forme */
-const CONCORDANZA_NUDA = new RegExp(`\\{(${NUMERICHE.join('|')})\\}\\s+(${PLURALI})\\b`, 'i')
+const concordanzaNuda = (numeriche: string[]) =>
+  new RegExp(`\\{(${numeriche.join('|')})\\}\\s+(${PLURALI})\\b`, 'i')
 
 /** i segnaposto usati nel template, in ordine di apparizione e senza ripetizioni */
 export function chiaviUsate(tpl: string): string[] {
@@ -422,7 +469,7 @@ export type ContestoValidazione = {
  * Dopo l'interpolazione si ricontrolla solo quello che dipende dai valori — la
  * lunghezza — perché `{chiuseSettimana}` occupa quindici caratteri e `12` due.
  */
-export function validaTemplate(tpl: string, f: FattiPersona, ctx: ContestoValidazione): Verdetto {
+export function valida(tpl: string, v: Vocabolario): Verdetto {
   const t = tpl.trim()
   if (!t) return { ok: false, motivo: 'riga vuota' }
   if (t.includes('\n')) return { ok: false, motivo: 'più di una riga' }
@@ -446,23 +493,24 @@ export function validaTemplate(tpl: string, f: FattiPersona, ctx: ContestoValida
     return { ok: false, motivo: 'emoji: ce n\'è già una nel titolo' }
   }
 
-  if (CONCORDANZA_NUDA.test(t)) {
-    const m = t.match(CONCORDANZA_NUDA)
+  const nuda = concordanzaNuda(v.numeriche)
+  if (nuda.test(t)) {
+    const m = t.match(nuda)
     return {
       ok: false,
       motivo: `«${m?.[0].trim()}» è sbagliato quando il numero è uno: scrivi {${m?.[1]}} {${m?.[1]}|singolare|plurale}`,
     }
   }
   for (const m of Array.from(t.matchAll(SEGNAPOSTO))) {
-    if (m[2] && !NUMERICHE.includes(m[1] as Chiave)) {
+    if (m[2] && !v.numeriche.includes(m[1])) {
       return { ok: false, motivo: `{${m[1]}} non è un numero: non ha singolare e plurale` }
     }
   }
 
-  const offerte = chiaviOfferte(f)
+  const usabili = offerte(v)
   for (const k of chiaviUsate(t)) {
-    if (!(CHIAVI as readonly string[]).includes(k)) return { ok: false, motivo: `segnaposto sconosciuto: {${k}}` }
-    if (!offerte.includes(k as Chiave)) return { ok: false, motivo: `fatto non offerto oggi: {${k}}` }
+    if (!v.dichiarate.includes(k)) return { ok: false, motivo: `segnaposto sconosciuto: {${k}}` }
+    if (!usabili.includes(k)) return { ok: false, motivo: `fatto non offerto oggi: {${k}}` }
   }
 
   for (const b of BANDITE) if (b.schema.test(t)) return { ok: false, motivo: b.motivo }
@@ -472,8 +520,8 @@ export function validaTemplate(tpl: string, f: FattiPersona, ctx: ContestoValida
      scritto lo stesso: il prompt li nomina, e ogni nome che entra nel prompt
      deve essere un nome che qui passa — altrimenti si chiede al modello di
      usare una parola che poi si rifiuta. Gate: `nomiCitabili`. */
-  const ammessi = new Set(nomiCitabili(f).map(n => n.toLowerCase()))
-  for (const n of ctx.rosa) {
+  const ammessi = new Set(v.citabili.map(n => n.toLowerCase()))
+  for (const n of v.rosa) {
     const scritto = new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(t)
     if (scritto && !ammessi.has(n.toLowerCase())) {
       return { ok: false, motivo: `cita ${n}, con cui non condivide task aperte` }
@@ -484,7 +532,7 @@ export function validaTemplate(tpl: string, f: FattiPersona, ctx: ContestoValida
     return { ok: false, motivo: 'l\'assenza si saluta, non si rinfaccia' }
   }
 
-  const reso = rendi(t, f)
+  const reso = rendiCon(t, v)
   if (reso.length > MAX_CARATTERI) {
     return { ok: false, motivo: `${reso.length} caratteri, il massimo è ${MAX_CARATTERI}` }
   }
@@ -503,6 +551,26 @@ export function validaTemplate(tpl: string, f: FattiPersona, ctx: ContestoValida
  */
 export function giornoAzienda(d = new Date()): string {
   return d.toLocaleDateString('en-CA', { timeZone: 'Europe/Rome' })
+}
+
+/**
+ * Il vocabolario del **saluto**: i fatti della persona, nella forma che le
+ * regole condivise capiscono. Gli altri usi di `valida` portano il proprio.
+ */
+export function vocabolarioSaluto(f: FattiPersona, rosa: string[] = []): Vocabolario {
+  return {
+    dichiarate: [...CHIAVI],
+    valori: valori(f),
+    numeriche: NUMERICHE,
+    contatori: CONTATORI,
+    citabili: nomiCitabili(f),
+    rosa,
+  }
+}
+
+/** la firma di sempre, sopra le regole condivise: i chiamanti del saluto non cambiano */
+export function validaTemplate(tpl: string, f: FattiPersona, ctx: ContestoValidazione): Verdetto {
+  return valida(tpl, vocabolarioSaluto(f, ctx.rosa))
 }
 
 // ── il lato lettura ──────────────────────────────────────────────────────────

@@ -78,10 +78,13 @@ const SCENA: Record<Situazione, string> = {
   normale: 'ha del lavoro aperto e niente di scaduto',
 }
 
-export const SISTEMA = [
-  'Scrivi UNA riga in italiano per la home del gestionale interno di TwoBee.',
-  'La riga sta sotto «Ciao, <nome> 👋» e la legge la persona che ha appena aperto la pagina.',
-  '',
+/**
+ * §363 — le regole valgono per **ogni** riga che un modello scrive qui dentro,
+ * come il validatore che le applica. Una superficie nuova porta il proprio
+ * attacco e i propri esempi, non una seconda copia del regolamento: due copie
+ * sono il posto dove la prossima modifica ne aggiorna una sola.
+ */
+export const REGOLE = [
   'TONO: asciutto, ironico, un po\' impertinente — come un collega che ti conosce.',
   'Prende in giro la situazione, mai la persona. Niente incoraggiamenti da poster motivazionale.',
   'Massimo 110 caratteri. Una frase, al massimo due brevissime.',
@@ -108,10 +111,22 @@ export const SISTEMA = [
   '- non parlare di stipendi, fatturato, margini o posto di lavoro.',
   '',
   'Rispondi con la sola riga. Nessuna spiegazione, nessuna alternativa, nessun a capo.',
-  '',
-  'ESEMPI (nota: zero cifre, tutti i numeri sono segnaposto)',
-  ...ESEMPI.map(e => `- ${e}`),
-].join('\n')
+]
+
+/** attacco + regole condivise + esempi: la forma di ogni prompt di questo sistema */
+export function sistemaPer(attacco: string[], esempi: string[]): string {
+  return [
+    ...attacco, '',
+    ...REGOLE, '',
+    'ESEMPI (nota: zero cifre, tutti i numeri sono segnaposto)',
+    ...esempi.map(e => `- ${e}`),
+  ].join('\n')
+}
+
+export const SISTEMA = sistemaPer([
+  'Scrivi UNA riga in italiano per la home del gestionale interno di TwoBee.',
+  'La riga sta sotto «Ciao, <nome> 👋» e la legge la persona che ha appena aperto la pagina.',
+], ESEMPI)
 
 export function utente(
   f: FattiPersona,
