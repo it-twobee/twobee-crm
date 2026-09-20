@@ -145,3 +145,57 @@ export async function setSalesPermission(profileId: string, enabled: boolean) {
   refreshSales()
   revalidatePath('/workspace', 'layout')
 }
+
+/**
+ * §368 — «Lead convertito»: lega la riga commerciale all'anagrafica appena
+ * creata e la porta in fondo alla pipeline.
+ *
+ * Si chiama **dopo** che il cliente esiste, non prima: il modale di anagrafica
+ * è già la porta buona — chiede ragione sociale, tipo, settore, referenti — e
+ * duplicarne una versione ridotta qui dentro avrebbe prodotto due modi di
+ * creare un cliente, che è il modo di ottenerne due con lo stesso nome. Il
+ * commerciale precompila quello che sa (azienda, referente, telefono, mail) e
+ * chi converte controlla: è spesso il momento in cui si scopre che la ragione
+ * sociale vera è un'altra.
+ *
+ * **Non tocca i numeri.** Una conversione non crea contratti, rate, MRR o
+ * fatture: quelli nascono in Economics dal primo contratto venduto, e restano
+ * l'unica scrittura di valore del prodotto. Qui si dice solo «questa
+ * trattativa adesso è quel cliente».
+ *
+ * Idempotente: se la riga è già collegata a quel cliente non fa niente e non
+ * si lamenta — un doppio clic sulla CTA è un doppio clic, non un errore.
+ */
+export async function collegaLeadACliente(dealId: string, clientId: string) {
+  const { actor } = await requireSalesAccess()
+  const db = createActorClient(actor)
+
+  const { data: riga, error: eLettura } = await db
+    .from('deals').select('id,client_id,stage').eq('id', dealId).maybeSingle()
+  if (eLettura) dbError(eLettura)
+  if (!riga) throw new Error('Questa opportunità non esiste più')
+
+  const attuale = riga as { id: string; client_id: string | null; stage: string }
+  if (attuale.client_id && attuale.client_id !== clientId) {
+    throw new Error('Questa opportunità è già collegata a un altro cliente')
+  }
+  if (attuale.client_id === clientId && attuale.stage === 'active_client') {
+    refreshSales()
+    return { collegato: true as const }
+  }
+
+  const { error } = await db.from('deals').update({
+    client_id: clientId,
+    stage: 'active_client',
+    closed_at: new Date().toISOString(),
+  }).eq('id', dealId)
+  if (error) dbError(error)
+
+  /* L'anagrafica nuova cambia gli elenchi di entrambi i portali, e chi
+     converte di solito ci va subito dopo: senza questo troverebbe la lista
+     di prima e penserebbe che non abbia funzionato. */
+  refreshSales()
+  revalidatePath('/clienti')
+  revalidatePath('/workspace/clienti')
+  return { collegato: true as const }
+}
