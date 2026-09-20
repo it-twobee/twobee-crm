@@ -20,6 +20,7 @@
  */
 
 import { chiaviOfferte, type Chiave, type FattiPersona } from './person-copy'
+import { VOCE, drammaDelGiorno } from './voce-twobee'
 import type { Situazione } from './task-mood'
 
 /** cosa significa ogni segnaposto, in italiano: è l'unica descrizione che il modello legge */
@@ -67,6 +68,11 @@ export const ESEMPI: string[] = [
   '{anniversario} {anniversario|anno|anni} in TwoBee oggi. Grazie di esserci, davvero.',
   'TwoBee compie {twobeeAnni} {twobeeAnni|anno|anni} fra {twobeeGiorni} {twobeeGiorni|giorno|giorni}. Ci siamo arrivati insieme.',
   'Giornata carica, {nome}. Dieci minuti in piedi adesso valgono pi\u00f9 di un\'ora forzata.',
+  'Luned\u00ec. Qui dentro non ha capito niente nessuno prima delle undici: sei in buona compagnia.',
+  '{aperte} {aperte|aperta|aperte} e il traffico ha gi\u00e0 fatto la sua parte. Il resto \u00e8 in discesa.',
+  'Ci sentiamo tutti degli impostori certe mattine. Poi si chiude una task e passa.',
+  'Giornata di quelle. {aperte} {aperte|aperta|aperte} aspettano, ma non tutte oggi.',
+  'Zero in ritardo. Al supermercato avranno finito la tua roba, ma qui sei a posto.',
 ]
 
 /** cosa sta guardando la persona, detto al modello in una riga */
@@ -86,16 +92,9 @@ const SCENA: Record<Situazione, string> = {
  * sono il posto dove la prossima modifica ne aggiorna una sola.
  */
 export const REGOLE = [
-  'TONO: caldo e concreto, dalla parte di chi legge — un collega più avanti che ti copre le spalle,',
-  'non un capo che controlla. Può essere spiritoso, mai a spese della persona.',
-  'Massimo 110 caratteri. Una frase, al massimo due brevissime.',
+  ...VOCE,
   '',
-  'DA CHE PARTE STAI: TwoBee è dalla parte di chi ci lavora. Se i numeri sono brutti,',
-  'la riga aiuta a scegliere da dove ripartire — non fa pesare il ritardo e non chiede conto.',
-  'Chi legge sta già facendo del suo meglio: parti da lì.',
-  '  no:  «{late} scadute. Il passato bussa, e stavolta ha le chiavi.»',
-  '  sì:  «{late} in ritardo: non si chiudono oggi, e nessuno se lo aspetta. Scegline una.»',
-  'Mai colpa, mai vergogna, mai fretta finta. Mai «dovresti».',
+  'FORMA: massimo 110 caratteri. Una frase, al massimo due brevissime.',
   '',
   'REGOLA ASSOLUTA — non scrivere MAI un numero.',
   'Né in cifre («4»), né in lettere («quattro task»). I numeri li mette il codice:',
@@ -118,9 +117,7 @@ export const REGOLE = [
   '- TwoBee è una società di consulenza digitale, non un\'agenzia: la parola «agenzia» non si usa;',
   '- non parlare di stipendi, fatturato, margini o posto di lavoro;',
   '- se la giornata è pesante puoi ricordare una pausa vera (dieci minuti, un bicchiere',
-  '  d\'acqua, due passi): **una cosa sola e solo quando il carico la giustifica**.',
-  '  Mai «sii felice» a comando, mai benessere di facciata sopra una lista di ritardi:',
-  '  detto il giorno sbagliato suona come pressione, ed è peggio del silenzio;',
+  '  d\'acqua, due passi): una cosa sola, e solo quando il carico la giustifica;',
   '- la squadra si nomina quando c\'è davvero — un collega, un lavoro condiviso —',
   '  non come slogan. «Siamo una grande squadra» senza un fatto sotto non lo legge nessuno.',
   '',
@@ -183,6 +180,18 @@ export function utente(
   } else if (f.twobeeInGiorni === 0) {
     righe.push('', 'Oggi è il compleanno di TwoBee: parla di quello.')
   }
+  /* §365 — il dramma minore arriva **solo quando non c'è di meglio**: se ci
+     sono scadute, una ricorrenza o un collega che parte, quella è la notizia.
+     E ne arriva **uno**, scelto dal giorno e dal nome: un sistema che pesca a
+     caso da nove battute è un sistema che le ripete tutte e nove in due
+     settimane, e che a volte fa due volte di fila quella sul traffico. */
+  const calma = scena === 'pulito' || scena === 'fermo' || scena === 'normale'
+  const nessunaRicorrenza = f.compleanno === null && f.anniversario === null && f.twobeeInGiorni !== 0
+  if (calma && nessunaRicorrenza) {
+    const seme = Number(f.oggi.slice(8, 10)) + f.nome.length
+    righe.push('', `Niente di urgente oggi. Se ti serve un appiglio, puoi prendertela con ${drammaDelGiorno(seme)} — ma solo se ne esce una riga migliore del silenzio.`)
+  }
+
   righe.push('', 'Scrivi la riga.')
   return righe.join('\n')
 }

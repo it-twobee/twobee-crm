@@ -6,6 +6,7 @@ import {
   verdetto, sottotitolo, saluto, seme, sottotitoloSezione, SEZIONI_CHIAVI,
   salutoPersonale, type Momento, type Ruolo, type StatoPersona,
 } from '@/lib/task-mood'
+import { VIETATE } from '@/lib/voce-twobee'
 
 let fail = 0
 const is = (label: string, got: unknown, want: unknown) => {
@@ -187,8 +188,12 @@ console.log('\n— §364 · dalla parte di chi legge —')
    domani qualcuno rimette una battuta che fa colpa, si ferma qui — come per
    «agenzia» (§359). Le stesse parole sono vietate al modello nel validatore di
    `person-copy.ts`: una regola sola, applicata ai due generatori. */
-const COLPA = /\b(pigr|sfaticat|incapac|colpa tua|vergogn|dovresti|datti una mossa|non hai scuse|record personale|scommetto sul secondo|fiatone|imbarazzant)/i
-const PRESSIONE = /\b(sii felice|sorridi|pensa positivo|ultimo avviso|ti conviene)\b/i
+/* I divieti arrivano da `lib/voce-twobee.ts`, dove stanno accanto alla ragione
+   e dove li legge anche il validatore del testo generato: una definizione
+   sola, applicata alle frasi scritte a mano **e** a quelle scritte dal
+   modello. Se divergessero, il fallback potrebbe dire quello che al modello
+   vietiamo — ed è proprio il fallback che si legge quando il modello sbaglia. */
+const vietata = (t: string) => VIETATE.some(v => v.schema.test(t))
 
 const tutte: string[] = []
 for (const m of MOMENTI) for (const seme of SEMI) {
@@ -209,18 +214,20 @@ for (const m of MOMENTI) for (const seme of SEMI) {
     }
   }
 }
-const colpevoli = Array.from(new Set(tutte.filter(t => COLPA.test(t))))
-const pressioni = Array.from(new Set(tutte.filter(t => PRESSIONE.test(t))))
+/* §365 — anche i sottotitoli di sezione: stanno nel workspace come le altre
+   righe, e una voce che cambia da pagina a pagina non è una voce. */
+for (const k of SEZIONI_CHIAVI) for (const m of MOMENTI) for (const seme of SEMI) {
+  tutte.push(sottotitoloSezione(k, m, seme))
+}
+const colpevoli = Array.from(new Set(tutte.filter(vietata)))
 colpevoli.forEach(t => console.log(`     ${t}`))
-pressioni.forEach(t => console.log(`     ${t}`))
-is('nessuna frase fa colpa a chi legge', colpevoli.length, 0)
-is('e nessuna ordina di stare bene', pressioni.length, 0)
+is('nessuna frase scritta a mano infrange la voce', colpevoli.length, 0)
 is('su un campione vero, non su tre frasi', tutte.length > 2000, true)
 
 /* La controprova: se il filtro non trovasse niente nemmeno in una frase
    scritta apposta per fallire, non starebbe controllando niente. */
 is('e il filtro funziona davvero',
-  COLPA.test('4 in ritardo. Datti una mossa.') && PRESSIONE.test('Sii felice!'), true)
+  vietata('4 in ritardo. Datti una mossa.') && vietata('Sii felice!') && vietata('Sei a pezzi.'), true)
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)
