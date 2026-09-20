@@ -18,7 +18,7 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Search, Loader2, RefreshCw, BarChart3, List } from 'lucide-react'
+import { Search, Loader2, RefreshCw, BarChart3, List, ArrowUpDown, SlidersHorizontal, X } from 'lucide-react'
 
 import { FASI, GRUPPI, ETICHETTA_GRUPPO, classiFase, etichettaFase } from '@/lib/sales-stages'
 import { salvaCellaDeal, collegaLeadACliente, aggiornaDaFoglio } from '@/app/actions/sales'
@@ -27,6 +27,10 @@ import type { Client } from '@/lib/types/database'
 import { CrmScheda } from './CrmScheda'
 import { CrmAnalytics } from './CrmAnalytics'
 import { tassoDi, type RigaAnalisi } from '@/lib/sales-analytics'
+import {
+  ordina, applica, cerca as cercaIn, opzioni, quantiFiltri,
+  ORDINABILI, FILTRABILI, type Verso, type Scelte,
+} from '@/lib/sales-filtri'
 import { VoceSezione } from '@/components/workspace/VoceSezione'
 
 export type RigaCrm = Record<string, unknown> & {
@@ -36,12 +40,33 @@ export type RigaCrm = Record<string, unknown> & {
   client_id: string | null
 }
 
+/**
+ * Giorno e ora del lead, all'italiana: `20/09 15:41`.
+ *
+ * L'ora non è un vezzo — è la differenza fra un lead arrivato alle nove del
+ * mattino e uno delle undici di sera, che si richiamano in due momenti
+ * diversi. L'anno si scrive solo quando non è quello in corso, o sarebbero
+ * cinque caratteri ripetuti su ventinove righe.
+ */
+function quando(v: unknown): string {
+  if (typeof v !== 'string' || !v) return ''
+  const d = new Date(v)
+  if (Number.isNaN(d.getTime())) return ''
+  const p = (n: number) => String(n).padStart(2, '0')
+  const anno = d.getFullYear() === new Date().getFullYear() ? '' : `/${String(d.getFullYear()).slice(2)}`
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}${anno} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
 export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
   const [righe, setRighe] = useState(iniziali)
   const [cerca, setCerca] = useState('')
   const [gruppo, setGruppo] = useState<string>('tutti')
   const [converto, setConverto] = useState<RigaCrm | null>(null)
   const [apertaId, setApertaId] = useState<string | null>(null)
+  const [campoOrd, setCampoOrd] = useState('created_at')
+  const [verso, setVerso] = useState<Verso>('giu')
+  const [scelte, setScelte] = useState<Scelte>({})
+  const [pannello, setPannello] = useState(false)
   const [vista, setVista] = useState<'tabella' | 'numeri'>('tabella')
   const [aggiorno, setAggiorno] = useState(false)
   const [esitoSync, setEsitoSync] = useState<string | null>(null)
@@ -53,32 +78,29 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
   /* La scheda si tiene per **id**, non per oggetto: salvando una cella la riga
      viene ricreata, e un riferimento vecchio mostrerebbe il valore di prima
      accanto a quello nuovo nell'elenco. */
+  const attivi = quantiFiltri(scelte)
   const aperta = apertaId ? righe.find(r => r.id === apertaId) ?? null : null
   const setAperta = (r: RigaCrm | null) => setApertaId(r?.id ?? null)
 
+  /* §376 — cercare, filtrare, ordinare: in quest'ordine, e tutto e tre nel
+     modulo puro. Il gruppo resta un filtro a parte perché è l'unico che si
+     usa a colpo d'occhio, senza aprire niente. */
   const viste = useMemo(() => {
-    const q = cerca.trim().toLowerCase()
-    return righe.filter(r => {
-      if (gruppo !== 'tutti' && FASI.find(f => f.chiave === r.stage)?.gruppo !== gruppo) return false
-      if (!q) return true
-      return ['company_name', 'contact_name', 'contact_email', 'contact_phone', 'referral', 'owner_name']
-        .some(c => String(r[c] ?? '').toLowerCase().includes(q))
-    })
-  }, [righe, cerca, gruppo])
+    let out = cercaIn(righe as unknown as Record<string, unknown>[], cerca)
+    if (gruppo !== 'tutti') out = out.filter(r => FASI.find(f => f.chiave === r.stage)?.gruppo === gruppo)
+    out = applica(out, scelte)
+    return ordina(out, campoOrd, verso) as unknown as RigaCrm[]
+  }, [righe, cerca, gruppo, scelte, campoOrd, verso])
 
   /* Il conteggio per fase si fa sulle righe **filtrate dalla ricerca** ma non
      dal gruppo: altrimenti scegliendo un gruppo gli altri direbbero zero, e
      il numero accanto al filtro serve proprio a sapere quanto c'è di là. */
   const perGruppo = useMemo(() => {
-    const q = cerca.trim().toLowerCase()
-    const base = q
-      ? righe.filter(r => ['company_name', 'contact_name', 'contact_email']
-          .some(c => String(r[c] ?? '').toLowerCase().includes(q)))
-      : righe
+    const base = applica(cercaIn(righe as unknown as Record<string, unknown>[], cerca), scelte)
     const conta: Record<string, number> = { tutti: base.length }
     for (const g of GRUPPI) conta[g] = base.filter(r => FASI.find(f => f.chiave === r.stage)?.gruppo === g).length
     return conta
-  }, [righe, cerca])
+  }, [righe, cerca, scelte])
 
   const salva = async (riga: RigaCrm, campo: string, valore: unknown) => {
     const prima = riga[campo]
@@ -183,7 +205,72 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
             <span className="ml-1.5 tabular text-text-tertiary">{perGruppo[g] ?? 0}</span>
           </button>
         ))}
+
+        {/* §376 — ordinare su qualunque colonna. Il verso è un bottone a
+            parte e non due voci nel menu: raddoppierebbe un elenco già lungo
+            per dire una cosa che è sì/no. */}
+        <label className="flex items-center gap-1.5 text-xs text-text-secondary">
+          <ArrowUpDown className="w-3.5 h-3.5 shrink-0" aria-hidden />
+          <select value={campoOrd} onChange={e => setCampoOrd(e.target.value)} aria-label="Ordina per"
+            className="bg-surface border border-border-interactive rounded-xl px-2 py-2 text-xs text-text-primary">
+            {ORDINABILI.map(c => <option key={c.campo} value={c.campo}>{c.etichetta}</option>)}
+          </select>
+        </label>
+        <button onClick={() => setVerso(v => v === 'su' ? 'giu' : 'su')}
+          aria-label={verso === 'su' ? 'Ordine crescente, premi per invertire' : 'Ordine decrescente, premi per invertire'}
+          className="text-xs font-semibold text-text-secondary border border-border px-3 py-2 rounded-xl hover:text-text-primary transition-colors">
+          {verso === 'su' ? '↑' : '↓'}
+        </button>
+
+        <button onClick={() => setPannello(p => !p)}
+          className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border transition-colors ${
+            attivi ? 'border-gold/40 bg-gold/10 text-gold-text' : 'border-border text-text-secondary hover:text-text-primary'}`}>
+          <SlidersHorizontal className="w-3.5 h-3.5" />
+          Filtri{attivi > 0 && <span className="tabular">{attivi}</span>}
+        </button>
+        {attivi > 0 && (
+          <button onClick={() => setScelte({})}
+            className="flex items-center gap-1 text-xs text-text-tertiary hover:text-text-primary">
+            <X className="w-3.5 h-3.5" />Azzera
+          </button>
+        )}
       </div>
+      )}
+
+      {/* Un riquadro per variabile, con i valori che **esistono davvero** e
+          quanti sono: offrire un valore che nessuna riga ha porta a zero
+          risultati, e si impara in fretta a non usare i filtri. */}
+      {vista === 'tabella' && pannello && (
+        <div className="border border-border rounded-xl p-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {FILTRABILI.map(f => {
+            const ops = opzioni(righe as unknown as Record<string, unknown>[], f)
+            if (!ops.length) return null
+            const scelti = scelte[f.campo] ?? []
+            return (
+              <div key={f.campo}>
+                <p className="text-2xs font-semibold text-text-tertiary uppercase tracking-wide mb-1.5">{f.etichetta}</p>
+                <div className="flex flex-wrap gap-1">
+                  {ops.map(o => {
+                    const on = scelti.includes(o.valore)
+                    return (
+                      <button key={o.valore}
+                        onClick={() => setScelte(p => ({
+                          ...p,
+                          [f.campo]: on ? scelti.filter(x => x !== o.valore) : [...scelti, o.valore],
+                        }))}
+                        aria-pressed={on}
+                        className={`text-2xs px-2 py-1 rounded-lg border transition-colors ${
+                          on ? 'border-gold/40 bg-gold/10 text-gold-text' : 'border-border text-text-secondary hover:text-text-primary'}`}>
+                        {f.campo === 'stage' ? etichettaFase(o.valore) : o.valore}
+                        <span className="ml-1 tabular text-text-tertiary">{o.quante}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
       )}
 
       {vista === 'numeri' ? <CrmAnalytics righe={righe as unknown as RigaAnalisi[]} /> : (
@@ -201,6 +288,8 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
               const scelta = aperta?.id === r.id
               const telefono = typeof r.contact_phone === 'string' ? r.contact_phone : ''
               const referente = typeof r.contact_name === 'string' ? r.contact_name : ''
+              const email = typeof r.contact_email === 'string' ? r.contact_email : ''
+              const arrivo = quando(r.created_at)
               const org = (r.lead_origine ?? {}) as Record<string, string>
               const contorno = [org.piattaforma, org.tipologia, org.tempistica].filter(Boolean).join(' · ')
               return (
@@ -216,12 +305,22 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
                       {etichettaFase(r.stage)}
                     </span>
                   </span>
+                  {/* §376 — referente, email e telefono si leggono senza
+                      aprire la scheda: sono le tre cose che servono per
+                      decidere se chiamare adesso, e tenerle dietro un clic
+                      voleva dire aprire ventinove schede per trovarne una. */}
                   <span className="block text-2xs text-text-secondary truncate mt-0.5">
-                    {[referente, telefono].filter(Boolean).join(' · ') || 'Nessun recapito'}
+                    {[referente, telefono, email].filter(Boolean).join(' · ') || 'Nessun recapito'}
                   </span>
-                  {contorno && (
-                    <span className="block text-2xs text-text-tertiary truncate mt-px">{contorno}</span>
-                  )}
+                  <span className="flex items-center gap-2 mt-px">
+                    {contorno && <span className="text-2xs text-text-tertiary truncate">{contorno}</span>}
+                    {arrivo && (
+                      /* Giorno **e ora**: due lead dello stesso giorno non
+                         sono la stessa cosa se uno è arrivato alle nove e
+                         l'altro alle ventitré. */
+                      <span className="text-2xs text-text-tertiary tabular ml-auto shrink-0">{arrivo}</span>
+                    )}
+                  </span>
                 </button>
               )
             })}
