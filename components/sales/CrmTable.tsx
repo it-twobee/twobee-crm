@@ -18,13 +18,13 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Search, Columns3, UserPlus, Loader2, RefreshCw, BarChart3, Table2 } from 'lucide-react'
-import { COLONNE, COLONNE_PRINCIPALI, type Colonna } from '@/lib/sales-table'
-import { FASI, GRUPPI, ETICHETTA_GRUPPO, classiFase, etichettaFase, fasiDelGruppo } from '@/lib/sales-stages'
+import { Search, Loader2, RefreshCw, BarChart3, List } from 'lucide-react'
+
+import { FASI, GRUPPI, ETICHETTA_GRUPPO, classiFase, etichettaFase } from '@/lib/sales-stages'
 import { salvaCellaDeal, collegaLeadACliente, aggiornaDaFoglio } from '@/app/actions/sales'
 import { NewClientModal } from '@/components/clients/NewClientModal'
 import type { Client } from '@/lib/types/database'
-import { CrmCella } from './CrmCella'
+import { CrmScheda } from './CrmScheda'
 import { CrmAnalytics } from './CrmAnalytics'
 import { tassoDi, type RigaAnalisi } from '@/lib/sales-analytics'
 import { VoceSezione } from '@/components/workspace/VoceSezione'
@@ -40,17 +40,21 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
   const [righe, setRighe] = useState(iniziali)
   const [cerca, setCerca] = useState('')
   const [gruppo, setGruppo] = useState<string>('tutti')
-  const [tutteLeColonne, setTutteLeColonne] = useState(false)
   const [converto, setConverto] = useState<RigaCrm | null>(null)
+  const [apertaId, setApertaId] = useState<string | null>(null)
   const [vista, setVista] = useState<'tabella' | 'numeri'>('tabella')
   const [aggiorno, setAggiorno] = useState(false)
   const [esitoSync, setEsitoSync] = useState<string | null>(null)
   const [pending, start] = useTransition()
 
-  const colonne: Colonna[] = tutteLeColonne ? COLONNE : COLONNE_PRINCIPALI
   /* Gli stessi numeri del pannello, in testata: chi apre la pagina vede
      subito quanti clienti e quanti aperti, come in Clienti vede il canone. */
   const t = useMemo(() => tassoDi(righe as unknown as RigaAnalisi[]), [righe])
+  /* La scheda si tiene per **id**, non per oggetto: salvando una cella la riga
+     viene ricreata, e un riferimento vecchio mostrerebbe il valore di prima
+     accanto a quello nuovo nell'elenco. */
+  const aperta = apertaId ? righe.find(r => r.id === apertaId) ?? null : null
+  const setAperta = (r: RigaCrm | null) => setApertaId(r?.id ?? null)
 
   const viste = useMemo(() => {
     const q = cerca.trim().toLowerCase()
@@ -142,15 +146,8 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => setVista(v => v === 'tabella' ? 'numeri' : 'tabella')}
             className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary border border-border px-3 py-2 rounded-xl hover:text-text-primary hover:bg-surface-hover transition-colors">
-            {vista === 'tabella' ? <><BarChart3 className="w-3.5 h-3.5" />Numeri</> : <><Table2 className="w-3.5 h-3.5" />Tabella</>}
+            {vista === 'tabella' ? <><BarChart3 className="w-3.5 h-3.5" />Numeri</> : <><List className="w-3.5 h-3.5" />Elenco</>}
           </button>
-          {vista === 'tabella' && (
-            <button onClick={() => setTutteLeColonne(v => !v)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary border border-border px-3 py-2 rounded-xl hover:text-text-primary hover:bg-surface-hover transition-colors">
-              <Columns3 className="w-3.5 h-3.5" />
-              {tutteLeColonne ? `${COLONNE_PRINCIPALI.length} colonne` : `Tutte (${COLONNE.length})`}
-            </button>
-          )}
           {/* L'azione primaria della pagina, quindi piena e con `press` come
               «Nuova task» e «Nuovo Cliente»: l'oro è il riempimento, non
               l'inchiostro (§design system). */}
@@ -189,55 +186,65 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
       </div>
       )}
 
-      {vista === 'numeri' ? <CrmAnalytics righe={righe as unknown as RigaAnalisi[]} /> : <>
-      {/* §371 — `overflow-x-auto`, mai `overflow-hidden`: ventitré colonne non
-          entrano in uno schermo e comprimerle le rende tutte illeggibili. */}
-      <div className="border border-border rounded-xl overflow-x-auto">
-        <table className="w-max min-w-full text-left">
-          <thead className="sticky top-0 z-10 bg-surface">
-            <tr className="border-b border-border">
-              {colonne.map((c, i) => (
-                <th key={c.campo} style={{ width: `${c.largh}rem`, minWidth: `${c.largh}rem` }}
-                  className={`px-2 py-2 text-2xs font-semibold text-text-tertiary uppercase tracking-wide ${
-                    i === 0 ? 'sticky left-0 z-20 bg-surface' : ''}`}>
-                  {c.etichetta}
-                </th>
-              ))}
-              <th className="px-2 py-2 w-28 min-w-28" />
-            </tr>
-          </thead>
-          <tbody>
-            {viste.map(r => (
-              <tr key={r.id} className="border-b border-border last:border-0 hover:bg-surface-hover transition-colors align-top">
-                {colonne.map((c, i) => (
-                  <td key={c.campo} style={{ width: `${c.largh}rem`, minWidth: `${c.largh}rem` }}
-                    className={`px-2 py-1.5 ${i === 0 ? 'sticky left-0 z-10 bg-surface' : ''}`}>
-                    <CrmCella colonna={c} valore={r[c.campo]}
-                      onSalva={v => salva(r, c.campo, v)} />
-                  </td>
-                ))}
-                <td className="px-2 py-1.5">
-                  {r.client_id ? (
-                    <span className="text-2xs text-success">in anagrafica</span>
-                  ) : (
-                    <button onClick={() => setConverto(r)} disabled={pending}
-                      className="flex items-center gap-1 text-2xs font-semibold text-gold-text border border-gold/30 px-2 py-1 rounded-lg hover:bg-gold/10 transition-colors disabled:opacity-40">
-                      {pending ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserPlus className="w-3 h-3" />}
-                      Lead convertito
-                    </button>
+      {vista === 'numeri' ? <CrmAnalytics righe={righe as unknown as RigaAnalisi[]} /> : (
+        /* §374 — elenco a sinistra, scheda a destra. Prima era una tabella da
+           ventitré colonne che scorreva di lato: fedele a Notion e inutile per
+           lavorare. L'elenco adesso mostra **solo quello che serve a decidere
+           chi chiamare** — azienda, fase, referente, telefono, provenienza — e
+           tutto il resto vive nella scheda, con lo spazio per essere letto.
+
+           Sotto i 1024px la scheda prende tutto lo schermo invece di
+           schiacciare l'elenco a una colonna di dieci caratteri. */
+        <div className="flex gap-4 items-start">
+          <div className={`flex-1 min-w-0 border border-border rounded-xl divide-y divide-border overflow-hidden ${aperta ? 'hidden lg:block lg:max-w-md xl:max-w-lg' : ''}`}>
+            {viste.map(r => {
+              const scelta = aperta?.id === r.id
+              const telefono = typeof r.contact_phone === 'string' ? r.contact_phone : ''
+              const referente = typeof r.contact_name === 'string' ? r.contact_name : ''
+              const org = (r.lead_origine ?? {}) as Record<string, string>
+              const contorno = [org.piattaforma, org.tipologia, org.tempistica].filter(Boolean).join(' · ')
+              return (
+                <button key={r.id} onClick={() => setAperta(scelta ? null : r)}
+                  aria-current={scelta ? 'true' : undefined}
+                  className={`w-full text-left px-3 py-2.5 transition-colors ${
+                    scelta ? 'bg-gold/10' : 'hover:bg-surface-hover'}`}>
+                  <span className="flex items-center gap-2">
+                    <span className="flex-1 min-w-0 text-sm font-semibold text-text-primary truncate">
+                      {r.company_name || 'Senza nome'}
+                    </span>
+                    <span className={`text-2xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${classiFase(r.stage)}`}>
+                      {etichettaFase(r.stage)}
+                    </span>
+                  </span>
+                  <span className="block text-2xs text-text-secondary truncate mt-0.5">
+                    {[referente, telefono].filter(Boolean).join(' · ') || 'Nessun recapito'}
+                  </span>
+                  {contorno && (
+                    <span className="block text-2xs text-text-tertiary truncate mt-px">{contorno}</span>
                   )}
-                </td>
-              </tr>
-            ))}
+                </button>
+              )
+            })}
             {!viste.length && (
-              <tr><td colSpan={colonne.length + 1} className="px-3 py-10 text-center text-sm text-text-tertiary">
+              <p className="px-3 py-10 text-center text-sm text-text-tertiary">
                 Nessuna riga{cerca ? ' per questa ricerca' : ''}.
-              </td></tr>
+              </p>
             )}
-          </tbody>
-        </table>
-      </div>
-      </>}
+          </div>
+
+          {aperta && (
+            <div className="fixed inset-0 z-40 bg-background p-4 lg:static lg:inset-auto lg:z-auto lg:p-0 lg:flex-1 lg:min-w-0 lg:max-h-[calc(100vh-14rem)]">
+              <CrmScheda
+                riga={aperta}
+                pending={pending}
+                onChiudi={() => setAperta(null)}
+                onSalva={(campo, valore) => salva(aperta, campo, valore)}
+                onConverti={() => setConverto(aperta)}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* §368 — non un form ridotto: **il** modale di anagrafica, precompilato
           con quello che il lead ha già detto. */}

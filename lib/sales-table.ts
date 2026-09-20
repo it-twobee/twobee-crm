@@ -32,6 +32,25 @@ export type TipoCella =
   | 'persone'
   | 'sola_lettura'
 
+/**
+ * §374 — dove sta il campo nella scheda.
+ *
+ * Ventitré campi in fila sono un modulo del catasto. Raggruppati per **cosa
+ * stai facendo** diventano leggibili: chi devi chiamare, a che punto è,
+ * com'è fatta l'azienda, come l'hai classificata, da dove è arrivata. Gli
+ * ultimi due gruppi si guardano una volta ogni tanto e stanno in fondo.
+ */
+export const GRUPPI_SCHEDA = ['contatto', 'trattativa', 'azienda', 'classificazione', 'provenienza'] as const
+export type GruppoScheda = (typeof GRUPPI_SCHEDA)[number]
+
+export const TITOLO_GRUPPO: Record<GruppoScheda, string> = {
+  contatto: 'Chi chiamare',
+  trattativa: 'A che punto è',
+  azienda: 'L\'azienda',
+  classificazione: 'Come l\'abbiamo classificata',
+  provenienza: 'Da dove arriva',
+}
+
 export type Colonna = {
   /** la colonna di `deals`, o una chiave sintetica per quelle calcolate */
   campo: string
@@ -42,8 +61,10 @@ export type Colonna = {
   largh: number
   /** i valori ammessi, per `scelta` */
   valori?: readonly string[]
-  /** fuori dalla vista stretta: le colonne che non servono per lavorare */
+  /** fuori dall'elenco: i campi che non servono per decidere chi chiamare */
   secondaria?: boolean
+  /** in quale riquadro della scheda finisce */
+  gruppo: GruppoScheda
 }
 
 export const PRIORITA = ['High', 'Medium', 'Low'] as const
@@ -55,29 +76,29 @@ export const MEMBERSHIP = ['Member', 'Not Member', 'Potential'] as const
  * a che punto è, poi come lo si raggiunge, poi il contorno.
  */
 export const COLONNE: Colonna[] = [
-  { campo: 'company_name',    etichetta: 'Company',        tipo: 'testo',     largh: 15 },
-  { campo: 'stage',           etichetta: 'Status',         tipo: 'fase',      largh: 12 },
-  { campo: 'priority',        etichetta: 'Priority',       tipo: 'scelta',    largh: 7,  valori: PRIORITA },
-  { campo: 'contact_name',    etichetta: 'Contact Person', tipo: 'testo',     largh: 12 },
-  { campo: 'contact_phone',   etichetta: 'Phone',          tipo: 'telefono',  largh: 11 },
-  { campo: 'contact_email',   etichetta: 'Email',          tipo: 'email',     largh: 15 },
-  { campo: 'owners',          etichetta: 'Account Owner',  tipo: 'persone',   largh: 12 },
-  { campo: 'membership',      etichetta: 'Membership',     tipo: 'scelta',    largh: 9,  valori: MEMBERSHIP },
-  { campo: 'tags',            etichetta: 'Tags',           tipo: 'etichette', largh: 14 },
-  { campo: 'services',        etichetta: 'Services',       tipo: 'etichette', largh: 14 },
-  { campo: 'referral',        etichetta: 'Referral',       tipo: 'testo',     largh: 8 },
-  { campo: 'source',          etichetta: 'Lead Source',    tipo: 'testo',     largh: 11 },
-  { campo: 'last_interaction_at', etichetta: 'Last Contact', tipo: 'data',    largh: 9 },
-  { campo: 'started_on',      etichetta: 'Start',          tipo: 'data',      largh: 9 },
-  { campo: 'fatturato',       etichetta: 'Fatturato',      tipo: 'numero',    largh: 10, secondaria: true },
-  { campo: 'owner_name',      etichetta: 'Owner',          tipo: 'testo',     largh: 12, secondaria: true },
-  { campo: 'website',         etichetta: 'Sito web',       tipo: 'url',       largh: 13, secondaria: true },
-  { campo: 'address',         etichetta: 'Address',        tipo: 'lunga',     largh: 16, secondaria: true },
-  { campo: 'drive_url',       etichetta: 'Drive',          tipo: 'url',       largh: 8,  secondaria: true },
-  { campo: 'audit_requested', etichetta: 'Richiesta Audit', tipo: 'si_no',    largh: 7,  secondaria: true },
-  { campo: 'notes',           etichetta: 'Note',           tipo: 'lunga',     largh: 18, secondaria: true },
-  { campo: 'sheet_status',    etichetta: 'Status dal foglio', tipo: 'sola_lettura', largh: 11, secondaria: true },
-  { campo: 'created_at',      etichetta: 'Added',          tipo: 'sola_lettura', largh: 9, secondaria: true },
+  { campo: 'company_name',    etichetta: 'Company',        tipo: 'testo',     largh: 15, gruppo: 'contatto' },
+  { campo: 'stage',           etichetta: 'Status',         tipo: 'fase',      largh: 12, gruppo: 'trattativa' },
+  { campo: 'priority',        etichetta: 'Priority',       tipo: 'scelta',    largh: 7,  valori: PRIORITA, gruppo: 'trattativa' },
+  { campo: 'contact_name',    etichetta: 'Contact Person', tipo: 'testo',     largh: 12, gruppo: 'contatto' },
+  { campo: 'contact_phone',   etichetta: 'Phone',          tipo: 'telefono',  largh: 11, gruppo: 'contatto' },
+  { campo: 'contact_email',   etichetta: 'Email',          tipo: 'email',     largh: 15, gruppo: 'contatto' },
+  { campo: 'owners',          etichetta: 'Account Owner',  tipo: 'persone',   largh: 12, gruppo: 'trattativa' },
+  { campo: 'membership',      etichetta: 'Membership',     tipo: 'scelta',    largh: 9,  valori: MEMBERSHIP, gruppo: 'trattativa' },
+  { campo: 'tags',            etichetta: 'Tags',           tipo: 'etichette', largh: 14, gruppo: 'classificazione' },
+  { campo: 'services',        etichetta: 'Services',       tipo: 'etichette', largh: 14, gruppo: 'classificazione' },
+  { campo: 'referral',        etichetta: 'Referral',       tipo: 'testo',     largh: 8, gruppo: 'classificazione' },
+  { campo: 'source',          etichetta: 'Lead Source',    tipo: 'testo',     largh: 11, gruppo: 'classificazione' },
+  { campo: 'last_interaction_at', etichetta: 'Last Contact', tipo: 'data',    largh: 9, gruppo: 'trattativa' },
+  { campo: 'started_on',      etichetta: 'Start',          tipo: 'data',      largh: 9, gruppo: 'trattativa' },
+  { campo: 'fatturato',       etichetta: 'Fatturato',      tipo: 'numero',    largh: 10, secondaria: true, gruppo: 'azienda' },
+  { campo: 'owner_name',      etichetta: 'Owner',          tipo: 'testo',     largh: 12, secondaria: true, gruppo: 'azienda' },
+  { campo: 'website',         etichetta: 'Sito web',       tipo: 'url',       largh: 13, secondaria: true, gruppo: 'azienda' },
+  { campo: 'address',         etichetta: 'Address',        tipo: 'lunga',     largh: 16, secondaria: true, gruppo: 'azienda' },
+  { campo: 'drive_url',       etichetta: 'Drive',          tipo: 'url',       largh: 8,  secondaria: true, gruppo: 'azienda' },
+  { campo: 'audit_requested', etichetta: 'Richiesta Audit', tipo: 'si_no',    largh: 7,  secondaria: true, gruppo: 'trattativa' },
+  { campo: 'notes',           etichetta: 'Note',           tipo: 'lunga',     largh: 18, secondaria: true, gruppo: 'trattativa' },
+  { campo: 'sheet_status',    etichetta: 'Status dal foglio', tipo: 'sola_lettura', largh: 11, secondaria: true, gruppo: 'provenienza' },
+  { campo: 'created_at',      etichetta: 'Added',          tipo: 'sola_lettura', largh: 9, secondaria: true, gruppo: 'provenienza' },
 ]
 
 /** i tipi che non si modificano: leggere non è scrivere */

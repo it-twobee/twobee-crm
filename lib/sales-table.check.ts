@@ -10,7 +10,7 @@
 
 import {
   COLONNE, COLONNE_PRINCIPALI, CAMPI_SCRIVIBILI, PRIORITA, MEMBERSHIP,
-  colonnaDi, modificabile, validaCella,
+  colonnaDi, modificabile, validaCella, GRUPPI_SCHEDA, TITOLO_GRUPPO,
 } from '@/lib/sales-table'
 import { CHIAVI_FASE } from '@/lib/sales-stages'
 
@@ -92,6 +92,24 @@ is('un telefono si può togliere', validaCella('contact_phone', ''), { ok: true,
 is('una nota pure', validaCella('notes', '  '), { ok: true, valore: null })
 is('il nome azienda no: senza, la riga non è una riga',
   validaCella('company_name', '').ok, false)
+
+console.log('\n— §374 · i riquadri della scheda —')
+/* Ventitré campi in fila sono un modulo del catasto. Il controllo che conta
+   è che **nessuno resti fuori**: un campo senza gruppo non comparirebbe in
+   nessun riquadro, e sparirebbe dalla scheda senza che nessuno lo noti —
+   è la stessa classe di errore di una colonna di Notion lasciata indietro. */
+is('ogni colonna sta in un riquadro',
+  COLONNE.filter(c => !GRUPPI_SCHEDA.includes(c.gruppo)).map(c => c.campo), [])
+is('ogni riquadro ha almeno un campo',
+  GRUPPI_SCHEDA.filter(g => !COLONNE.some(c => c.gruppo === g)), [])
+is('e un titolo', GRUPPI_SCHEDA.filter(g => !TITOLO_GRUPPO[g]?.trim()), [])
+is('la provenienza è tutta in sola lettura',
+  COLONNE.filter(c => c.gruppo === 'provenienza' && modificabile(c)).map(c => c.campo), [])
+/* Il primo riquadro è quello per cui si apre la scheda: il telefono. */
+is('«chi chiamare» ha azienda, referente e telefono',
+  ['company_name', 'contact_name', 'contact_phone'].filter(f =>
+    colonnaDi(f)?.gruppo !== 'contatto'), [])
+is('e la fase sta in «a che punto è»', colonnaDi('stage')?.gruppo, 'trattativa')
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)
