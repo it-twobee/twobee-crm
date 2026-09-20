@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, FolderOpen, Settings, CalendarDays, Headphones,
   Ticket, UserCircle2, History, Lightbulb, FolderKanban, Briefcase, ListChecks, ListTodo,
-  Wallet, Target, Landmark, Users2, Banknote, FileText, Share2, Table2, Radar, KeyRound,
+  Wallet, Target, Handshake, Landmark, Users2, Banknote, FileText, Share2, Table2, Radar, KeyRound,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -29,7 +29,12 @@ export const navSections: NavSection[] = [
     label: 'Clienti',
     items: [
       { href: '/clienti', icon: Users, label: 'Clienti' },
-      { href: '/commerciale', icon: Target, label: 'Commerciale', adminOnly: true },
+      /* §375 — `Handshake` e non `Target`: `Target` era l'unica icona usata
+         due volte in tutta la barra, qui e su «Costi e budget». Due sezioni
+         diverse con lo stesso simbolo sono due sezioni che si confondono, e
+         l'icona è la prima cosa che si cerca quando si sa dove si vuole
+         andare ma non come si chiama la voce. */
+      { href: '/commerciale', icon: Handshake, label: 'Commerciale', adminOnly: true },
       { href: '/progetti', icon: Briefcase, label: 'Progetti' },
       { href: '/ad-hoc', icon: ListTodo, label: 'Task' },
       // §316 — stato tracking e QA giornaliero, per tutti i clienti
