@@ -18,13 +18,14 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Search, Loader2, RefreshCw, BarChart3, List, ArrowUpDown, SlidersHorizontal, X } from 'lucide-react'
+import { Search, Loader2, RefreshCw, BarChart3, List, ArrowUpDown, SlidersHorizontal, X, Plus } from 'lucide-react'
 
 import { FASI, GRUPPI, ETICHETTA_GRUPPO, classiFase, etichettaFase } from '@/lib/sales-stages'
 import { salvaCellaDeal, collegaLeadACliente, aggiornaDaFoglio } from '@/app/actions/sales'
 import { NewClientModal } from '@/components/clients/NewClientModal'
 import type { Client } from '@/lib/types/database'
 import { CrmScheda } from './CrmScheda'
+import { NuovoLead } from './NuovoLead'
 import { CrmAnalytics } from './CrmAnalytics'
 import { tassoDi, type RigaAnalisi } from '@/lib/sales-analytics'
 import {
@@ -67,6 +68,7 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
   const [verso, setVerso] = useState<Verso>('giu')
   const [scelte, setScelte] = useState<Scelte>({})
   const [pannello, setPannello] = useState(false)
+  const [nuovo, setNuovo] = useState(false)
   const [vista, setVista] = useState<'tabella' | 'numeri'>('tabella')
   const [aggiorno, setAggiorno] = useState(false)
   const [esitoSync, setEsitoSync] = useState<string | null>(null)
@@ -173,10 +175,16 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
           {/* L'azione primaria della pagina, quindi piena e con `press` come
               «Nuova task» e «Nuovo Cliente»: l'oro è il riempimento, non
               l'inchiostro (§design system). */}
+          {/* «Nuovo lead» viene prima di «Aggiorna»: aggiungere è la cosa
+              che si fa più spesso, e il foglio si rilegge da solo di notte. */}
+          <button onClick={() => setNuovo(true)}
+            className="flex items-center gap-1.5 text-sm font-semibold bg-gold text-on-gold px-4 py-2.5 rounded-xl shadow-soft press">
+            <Plus className="w-4 h-4" />Nuovo lead
+          </button>
           <button onClick={aggiorna} disabled={aggiorno}
             title="Rilegge il foglio dei lead: inserisce solo le righe nuove, non tocca quelle che ci sono"
-            className="flex items-center gap-1.5 text-sm font-semibold bg-gold text-on-gold px-4 py-2.5 rounded-xl shadow-soft press disabled:opacity-40">
-            <RefreshCw className={`w-4 h-4 ${aggiorno ? 'animate-spin' : ''}`} />
+            className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary border border-border px-3 py-2 rounded-xl hover:text-text-primary hover:bg-surface-hover transition-colors disabled:opacity-40">
+            <RefreshCw className={`w-3.5 h-3.5 ${aggiorno ? 'animate-spin' : ''}`} />
             {aggiorno ? 'Leggo il foglio…' : 'Aggiorna dal foglio'}
           </button>
         </div>
@@ -343,6 +351,10 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
             </div>
           )}
         </div>
+      )}
+
+      {nuovo && (
+        <NuovoLead onChiudi={() => setNuovo(false)} onFatto={() => { setNuovo(false); location.reload() }} />
       )}
 
       {/* §368 — non un form ridotto: **il** modale di anagrafica, precompilato
