@@ -339,7 +339,30 @@ export function chiaviOfferte(f: FattiPersona): Chiave[] {
   return CHIAVI.filter(k => v[k] !== null && !(CONTATORI.includes(k) && v[k] === 0))
 }
 
-const SEGNAPOSTO = /\{([a-zA-Z0-9]+)\}/g
+/**
+ * `{late}` è il numero. `{late|scaduta|scadute}` è **la parola che lo
+ * accompagna**, scelta dal codice sul valore.
+ *
+ * Non è una raffinatezza: il template è scritto la notte e il numero cambia
+ * durante il giorno, quindi «una scaduta» scritto quando ne aveva una diventa
+ * «5 scaduta» nel pomeriggio. La concordanza non può stare nel testo fisso per
+ * la stessa ragione per cui non ci sta il numero — e la si toglie al modello
+ * per lo stesso motivo: non perché sbagli, perché non può saperlo.
+ */
+const SEGNAPOSTO = /\{([a-zA-Z0-9]+)(?:\|([^|{}]+)\|([^|{}]+))?\}/g
+
+/** le chiavi il cui valore è un numero: le uniche che possono reggere una concordanza */
+const NUMERICHE: Chiave[] = [
+  'aperte', 'late', 'oggi', 'chiuseOggi', 'chiuseSettimana', 'progetti',
+  'anzianitaMesi', 'anniversario', 'compleanno', 'twobeeAnni', 'twobeeGiorni',
+  'ferieGiorni', 'ferieDurata', 'assenteDa', 'collega1Task', 'collega2Task',
+]
+
+/** i plurali che compaiono in queste frasi: al singolare cambiano, e si sente */
+const PLURALI = 'scadute|aperte|chiuse|nuove|giorni|progetti|anni|mesi|volte|ore|consegne|riunioni|cose|persone|colleghi|task aperte'
+
+/** `{late} scadute` è giusto a cinque e sbagliato a uno: il modello deve dichiarare le due forme */
+const CONCORDANZA_NUDA = new RegExp(`\\{(${NUMERICHE.join('|')})\\}\\s+(${PLURALI})\\b`, 'i')
 
 /** i segnaposto usati nel template, in ordine di apparizione e senza ripetizioni */
 export function chiaviUsate(tpl: string): string[] {
@@ -349,9 +372,12 @@ export function chiaviUsate(tpl: string): string[] {
 /** sostituisce i segnaposto coi valori; le chiavi non risolte restano visibili apposta */
 export function rendi(tpl: string, f: FattiPersona): string {
   const v = valori(f)
-  return tpl.replace(SEGNAPOSTO, (intero, k: string) => {
+  return tpl.replace(SEGNAPOSTO, (intero, k: string, sing?: string, plur?: string) => {
     const val = v[k as Chiave]
-    return val === null || val === undefined ? intero : String(val)
+    if (val === null || val === undefined) return intero
+    // con le due forme esce **la parola**, non il numero: il numero ha il suo segnaposto
+    if (sing && plur) return val === 1 ? sing : plur
+    return String(val)
   })
 }
 
@@ -408,11 +434,29 @@ export function validaTemplate(tpl: string, f: FattiPersona, ctx: ContestoValida
   if (/\b(due|tre|quattro|cinque|sei|sette|otto|nove|dieci)\s+(task|progett|client|giorn|scadenz|attività|consegn|ore\b)/i.test(senzaChiavi)) {
     return { ok: false, motivo: 'quantità scritta in lettere: usa il segnaposto' }
   }
-  if (/[*_#`~|]|\[[^\]]*\]\(/.test(t)) return { ok: false, motivo: 'formattazione: è testo semplice' }
+  /* `<` e `>` non compaiono in nessun saluto italiano, e compaiono in ogni tag:
+     senza questo controllo «<think>» passava tutto — niente cifre, niente nomi,
+     niente parole bandite — e finiva sotto il nome di un collega. Un validatore
+     che accetta una cosa che non è una frase non sta validando. */
+  if (/[*_#`~<>]|\[[^\]]*\]\(/.test(t)) return { ok: false, motivo: 'formattazione o tag: è testo semplice' }
+  if (t.replace(SEGNAPOSTO, 'X').length < 15) return { ok: false, motivo: 'troppo corta per essere una frase' }
   // coppie surrogate (tutto il piano astrale) + i simboli BMP: il flag `u` non
   // è disponibile col target di questo progetto
   if (/[\uD800-\uDBFF][\uDC00-\uDFFF]|[☀-➿⬀-⯿️]/.test(t)) {
     return { ok: false, motivo: 'emoji: ce n\'è già una nel titolo' }
+  }
+
+  if (CONCORDANZA_NUDA.test(t)) {
+    const m = t.match(CONCORDANZA_NUDA)
+    return {
+      ok: false,
+      motivo: `«${m?.[0].trim()}» è sbagliato quando il numero è uno: scrivi {${m?.[1]}} {${m?.[1]}|singolare|plurale}`,
+    }
+  }
+  for (const m of Array.from(t.matchAll(SEGNAPOSTO))) {
+    if (m[2] && !NUMERICHE.includes(m[1] as Chiave)) {
+      return { ok: false, motivo: `{${m[1]}} non è un numero: non ha singolare e plurale` }
+    }
   }
 
   const offerte = chiaviOfferte(f)

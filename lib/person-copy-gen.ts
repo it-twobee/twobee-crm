@@ -124,9 +124,17 @@ async function chiedi(messaggio: string): Promise<string> {
  * smetterebbe di misurare il modello e comincerebbe a misurare noi.
  */
 export function ripulisci(grezzo: string): string {
-  // Qwen 3.6 ragiona: senza questo la «prima riga» sarebbe l'inizio del pensiero
-  const senzaPensiero = grezzo.replace(/<think>[\s\S]*?<\/think>/gi, '')
-    .replace(/^[\s\S]*?<\/think>/i, '')
+  /* Qwen 3.6 ragiona, e il pensiero esce in `content` dentro <think>. Se il
+     tag non si chiude, il modello **non ha finito di pensare**: si è fermato
+     sul tetto dei token e una risposta non c'è. Restituire la prima riga
+     darebbe «<think>» — ed è successo davvero, in produzione, a un collega.
+     Stringa vuota: il validatore la boccia e si riprova, che è la cosa giusta
+     da fare quando non c'è una risposta. */
+  const fine = grezzo.toLowerCase().lastIndexOf('</think>')
+  // chiuso: quello che conta viene **dopo** l'ultima chiusura, anche se l'apertura manca
+  // aperto e mai chiuso: il modello si è fermato sul tetto dei token e una risposta non c'è
+  if (fine < 0 && /<think>/i.test(grezzo)) return ''
+  const senzaPensiero = fine >= 0 ? grezzo.slice(fine + '</think>'.length) : grezzo
   let t = senzaPensiero.trim().split('\n').map(r => r.trim()).filter(Boolean)[0] ?? ''
   t = t.replace(/^[-*•]\s+/, '')
   const coppie: [string, string][] = [['"', '"'], ['“', '”'], ['«', '»'], ["'", "'"]]

@@ -8,15 +8,20 @@ import { giornoAzienda } from '@/lib/person-copy'
 /**
  * §360 — scrive la riga di saluto di tutti, una volta al giorno.
  *
- * Task pianificato di Coolify alle 05:30, come il QA del tracking (§316) e le
+ * Task pianificato di Coolify alle 06:00, come il QA del tracking (§316) e le
  * ricorrenze (§337):
  *   sh -c 'wget -qO- -T 600 --header="Authorization: Bearer $PERSON_COPY_CRON_SECRET" --post-data= http://127.0.0.1:3000/api/person-copy/run'
  *
- * **Alle 05:30 e non a mezzanotte**: i fatti sono quelli del giorno che sta per
- * cominciare — scadenze di oggi, colleghi in ferie oggi — e a mezzanotte in
- * fuso locale il giorno UTC è ancora quello prima. Mezz'ora prima del primo che
- * apre basta, e se il giro fallisce nessuno se ne accorge: resta il testo
- * deterministico di `task-mood.ts`.
+ * **Alle 06:00 e non a mezzanotte**: i fatti sono quelli del giorno che sta per
+ * cominciare — scadenze di oggi, colleghi in ferie oggi — e a mezzanotte il
+ * giorno UTC è ancora quello prima. Prima del primo che apre basta, e se il
+ * giro fallisce nessuno se ne accorge: resta il testo deterministico di
+ * `task-mood.ts`.
+ *
+ * L'ora è **di Roma**, e va detto al cron: se la pianificazione gira in UTC,
+ * `0 6 * * *` sarebbe le otto d'estate. `giornoAzienda()` indicizza comunque
+ * la riga sul giorno romano, quindi uno scarto di un'ora non sbaglia la data —
+ * ma sbaglierebbe la promessa fatta a chi apre alle sette.
  *
  * Seconda porta, per la stessa ragione di §337: un admin deve poter rilanciare
  * **adesso** dopo aver toccato il prompt, senza aspettare l'alba per sapere se

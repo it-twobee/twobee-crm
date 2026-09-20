@@ -161,9 +161,9 @@ bocciato('una riga troppo lunga',
 console.log('\n— L\'assenza si saluta, non si rinfaccia —')
 const ASSENTE: FattiPersona = { ...F, assenteDaGiorni: 4 }
 is('il bentornato passa',
-  v('Bentornato dopo {assenteDa} giorni: {late} ti hanno aspettato.', ASSENTE).ok, true)
-bocciato('il richiamo no', 'Dopo {assenteDa} giorni finalmente ti degni di passare.', ASSENTE)
-bocciato('nemmeno travestito da battuta', 'Spariti per {assenteDa} giorni, eh?', ASSENTE)
+  v('Bentornato dopo {assenteDa} {assenteDa|giorno|giorni}: ti aspettavano.', ASSENTE).ok, true)
+bocciato('il richiamo no', 'Dopo {assenteDa} {assenteDa|giorno|giorni} finalmente ti degni di passare.', ASSENTE)
+bocciato('nemmeno travestito da battuta', 'Spariti per {assenteDa} {assenteDa|giorno|giorni}, eh?', ASSENTE)
 
 console.log('\n— Il raccordo col fallback —')
 is('ogni chiave dichiarata ha un valore', Object.keys(valori(F)).sort(), [...CHIAVI].sort())
@@ -323,7 +323,7 @@ for (const f of [F, PIENO, ZERI, PARTENZA, magro]) {
   const msg = utente(f, valori(f), scenaDi(f))
   for (const k of CHIAVI) {
     const offerto = new RegExp(`\\{${k}\\}`).test(msg)
-    const accettato = validaTemplate(`prova {${k}} prova`, f, { rosa: nomiCitabili(f) }).ok
+    const accettato = validaTemplate(`Una frase di prova lunga abbastanza con {${k}} dentro.`, f, { rosa: nomiCitabili(f) }).ok
     if (offerto !== accettato) incoerenti++
   }
 }
@@ -379,6 +379,34 @@ is('e le ricorrenze pure', FRESCO.compleanno, 38)
 is('la riga segue i numeri nuovi',
   rigaDiOggi({ template: BUONO, situazione: scenaDi(FRESCO) }, FRESCO, ROSA),
   '5 in ritardo e Giulia ti aspetta su 2. Niente panico.')
+
+console.log('\n— Il pensiero del modello non è la risposta —')
+/* Successo in produzione: la riga di un collega era letteralmente «<think>».
+   Il validatore la faceva passare — niente cifre, niente nomi, niente parole
+   bandite — perché non guardava i tag. Un validatore che accetta una cosa che
+   non è una frase non sta validando. */
+is('un tag non è una frase', v('<think>').ok, false)
+is('né lo è mezza parola', v('ok').ok, false)
+is('il pensiero chiuso si butta e resta la frase',
+  ripulisci('<think>rifletto</think>\n{late} in ritardo, e si vede.'), '{late} in ritardo, e si vede.')
+is('la chiusura senza apertura pure',
+  ripulisci('sto riflettendo\n</think>\n{late} in ritardo, e si vede.'), '{late} in ritardo, e si vede.')
+is('un pensiero mai chiuso non è una risposta: stringa vuota, e si riprova',
+  ripulisci('<think>rifletto e mi fermo qui perché finiscono i token'), '')
+is('che il validatore boccia', v(ripulisci('<think>mai chiuso')).ok, false)
+
+console.log('\n— La concordanza la sceglie il codice, come i numeri —')
+/* Il template è di stamattina e il numero si muove: «1 scadute» è quello che
+   si legge oggi, «5 scaduta» è quello che si leggerebbe stasera. */
+bocciato('un plurale nudo dopo un numero', '{late} scadute ti aspettano da ieri.')
+const CONC = 'Ne hai {late} {late|scaduta|scadute} da ieri, e si vede.'
+is('con le due forme passa', v(CONC).ok, true)
+is('a cinque il plurale', rendi(CONC, { ...F, late: 5 }), 'Ne hai 5 scadute da ieri, e si vede.')
+is('a uno il singolare', rendi(CONC, { ...F, late: 1 }), 'Ne hai 1 scaduta da ieri, e si vede.')
+is('a zero il plurale, come si dice', rendi(CONC, { ...F, late: 0 }), 'Ne hai 0 scadute da ieri, e si vede.')
+bocciato('le due forme su una parola non hanno senso', 'Ciao {nome|tizio|tizi}, come va oggi?')
+is('una parola che non cambia non chiede niente',
+  v('Ne hai {late} in ritardo, e nessuno se n\'è accorto.').ok, true)
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

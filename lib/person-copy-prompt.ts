@@ -53,19 +53,19 @@ export const GLOSSARIO: Record<Chiave, string> = {
  * non un tono.
  */
 export const ESEMPI: string[] = [
-  '{late} in ritardo. «Lo faccio dopo» ha vinto {late} volte su {late}.',
+  '{late} in ritardo. «Lo faccio dopo» ha vinto {late} {late|volta|volte} su {late}.',
   '{oggi} scadono oggi. Oggi oggi, non «entro fine settimana».',
-  '{chiuseOggi} chiuse prima di pranzo. Sospettosamente produttivo, ci piace.',
-  'Zero aperte e {chiuseSettimana} chiuse in settimana. Giornata da manuale.',
+  '{chiuseOggi} {chiuseOggi|chiusa|chiuse} prima di pranzo. Sospettosamente produttivo, ci piace.',
+  'Zero aperte e {chiuseSettimana} {chiuseSettimana|chiusa|chiuse} in settimana. Da manuale.',
   'Niente in lista. O meriti una vacanza, o ti hanno dimenticato.',
-  '{aperte} aperte e nessuna scaduta: si può lavorare in pace.',
-  '{collega1} ti aspetta su {collega1Task} task. Non farti desiderare.',
-  'Mancano {ferieGiorni} giorni alle ferie e {late} scadute vogliono venire con te.',
+  '{aperte} {aperte|aperta|aperte} e nessuna scaduta: si può lavorare in pace.',
+  '{collega1} ti aspetta su {collega1Task} task. Non farti desiderare.',  // «task» non cambia
+  'Mancano {ferieGiorni} {ferieGiorni|giorno|giorni} alle ferie e le scadute vogliono venire.',
   '{festivo} fra {festivoGiorni} giorni: il calendario ha già deciso, tu no.',
-  'Sei qui da {anzianitaMesi} mesi e hai ancora {aperte} cose da fare. Coerenza.',
-  'Buon compleanno. Le {late} scadute fanno finta di niente, oggi passa.',
-  '{anniversario} anni in TwoBee oggi. Nessuno se l\'è segnato, noi sì.',
-  'TwoBee compie {twobeeAnni} anni fra {twobeeGiorni} giorni. Segnatelo.',
+  'Sei qui da {anzianitaMesi} {anzianitaMesi|mese|mesi} e non hai ancora finito. Coerenza.',
+  'Buon compleanno. Le scadute fanno finta di niente: oggi passa.',
+  '{anniversario} {anniversario|anno|anni} in TwoBee oggi. Nessuno se l\'è segnato, noi sì.',
+  'TwoBee compie {twobeeAnni} {twobeeAnni|anno|anni} fra {twobeeGiorni} {twobeeGiorni|giorno|giorni}. Segnatelo.',
 ]
 
 /** cosa sta guardando la persona, detto al modello in una riga */
@@ -90,6 +90,14 @@ export const SISTEMA = [
   'Né in cifre («4»), né in lettere («quattro task»). I numeri li mette il codice:',
   'tu scrivi il segnaposto fra graffe e basta. Puoi ripetere lo stesso segnaposto più volte.',
   'Una riga che contiene una cifra viene buttata e non la legge nessuno.',
+  '',
+  'CONCORDANZA — il numero cambia durante la giornata.',
+  'Se dopo un numero metti una parola che al singolare cambia (scadute/scaduta,',
+  'giorni/giorno, progetti/progetto…), NON scriverla: dichiara le due forme così',
+  'e la sceglie il codice.',
+  '  sbagliato: {late} scadute        → diventa «1 scadute» quando ne resta una',
+  '  giusto:    {late} {late|scaduta|scadute}',
+  'Le parole che non cambiano non hanno bisogno di niente: «{late} in ritardo» va bene.',
   '',
   'ALTRE REGOLE:',
   '- usa solo i segnaposto che ti vengono elencati: gli altri non esistono oggi;',
