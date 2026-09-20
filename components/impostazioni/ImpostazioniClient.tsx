@@ -476,13 +476,22 @@ function UsersTab({ currentProfile, profiles: initialProfiles, clients }: { curr
       const r = await fetch('/api/person-copy/run', { method: 'POST' })
       const j = await r.json() as {
         error?: string; saltato?: string; motore?: string; modello?: string
-        persone?: number; scritte?: number; scartate?: number; ritentate?: number; motivi?: string[]
+        persone?: number; scritte?: number; scartate?: number; ritentate?: number
+        taciute?: number; motivi?: string[]
       }
       if (!r.ok) { toast.error(j.error ?? 'Giro fallito'); setEsito(j.error ?? 'Giro fallito'); return }
       if (j.saltato) { toast.error(j.saltato); setEsito(j.saltato); return }
-      const riga = `${j.scritte}/${j.persone} scritte · ${j.scartate} scartate · ${j.ritentate} ritentativi · ${j.modello}`
+      /* Non «scritte/persone»: da §366 le righe sono dodici a testa, e
+         «58/7» non vuol dire niente. Le taciute sono un esito, non un buco. */
+      const riga = [
+        `${j.persone} persone · ${j.scritte} righe scritte`,
+        `${j.scartate} scartate`,
+        `${j.ritentate} ritentativi`,
+        `${j.taciute} taciute`,
+        j.modello,
+      ].join(' · ')
       setEsito(j.motivi?.length ? `${riga}\n${j.motivi.join('\n')}` : riga)
-      toast.success(`${j.scritte} saluti scritti`)
+      toast.success(`${j.scritte} righe scritte`)
     } catch (e) {
       const m = (e as Error).message
       toast.error(m); setEsito(m)

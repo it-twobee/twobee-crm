@@ -23,7 +23,7 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { chatWithTools, activeModel, activeProvider } from './ai/provider'
+import { chatWithTools, activeModel, activeProvider, ProviderError } from './ai/provider'
 import { ADMIN_ROLES, WORKSPACE_ROLES } from './permissions'
 import { normalize, type RawLeave, type RawRequest } from './leave-calendar'
 import type { Ruolo } from './task-mood'
@@ -72,13 +72,20 @@ const MAX_TENTATIVI = 3
  *
  * Il primo giro vero è durato **diciassette minuti**: ottantaquattro richieste
  * una dietro l'altra, dodici secondi l'una, e chi aveva premuto il bottone
- * guardava un pallino girare. Con sei in parallelo scende sotto i tre minuti,
- * e il tetto di Groq non si sfiora nemmeno: ogni turno costa sul filo dei
- * tremila token, sei alla volta fanno circa settantacinquemila al minuto
- * contro i duecentocinquantamila del piano. Alzarlo ancora non servirebbe a
- * niente e avvicinerebbe il 429, che costa più di quanto farebbe risparmiare.
+ * guardava un pallino girare.
+ *
+ * **Sei era troppo, e il conto che l'aveva scelto guardava la cosa sbagliata.**
+ * Avevo calcolato i token al minuto — con margine larghissimo — ma il limite
+ * che si prende in faccia è quello delle **richieste** al minuto: sei in volo
+ * a dodici secondi l'una fanno trenta chiamate al minuto, ed è esattamente la
+ * soglia. Ventiquattro righe perse su ottantadue, quasi tutte 429.
+ *
+ * Tre: quindici chiamate al minuto, cinque minuti e mezzo per il giro intero,
+ * e il margine è sul numero giusto. La velocità qui vale meno
+ * dell'affidabilità: il giro vero è un cron notturno, e l'unico che aspetta
+ * davanti a un pallino è chi sta tarando il prompt.
  */
-const IN_VOLO = 6
+const IN_VOLO = 3
 
 /**
  * Esegue a gruppi, non tutti insieme: un `Promise.all` su ottantaquattro
@@ -104,22 +111,45 @@ export const chiaveConfigurata = () => Boolean(
   MOTORE === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.GROQ_API_KEY,
 )
 
-/* Tetto largo di proposito, in entrambi i casi. Qwen 3.6 e Opus 5 ragionano
-   tutti e due, e i token di ragionamento escono da qui: un budget stretto su
-   un modello che ragiona non accorcia la risposta, la **svuota** — lezione già
-   pagata in questo progetto (`lib/ai/model.ts`). La riga costa trenta token. */
-const TETTO = 3000
+/**
+ * Il tetto dei token, che **sale a ogni tentativo**.
+ *
+ * Qwen 3.6 ragiona, e i token di ragionamento escono da qui: un budget stretto
+ * su un modello che ragiona non accorcia la risposta, la **svuota** — lezione
+ * già pagata in questo progetto (`lib/ai/model.ts`). Quando si ferma a metà
+ * pensiero il tag `<think>` non si chiude, `ripulisci` restituisce vuoto e il
+ * validatore boccia: riprovare alle stesse condizioni è chiedere di nuovo
+ * l'impossibile. Il secondo tentativo ha più spazio, il terzo ancora.
+ *
+ * Partono da tremila e non da seimila perché i tremila bastano quasi sempre, e
+ * il tetto si paga in limite di richieste: allargarlo per tutti per il dieci
+ * per cento che ne ha bisogno è il modo di far fallire anche gli altri.
+ */
+const TETTI = [3000, 4500, 6000]
+
+/**
+ * Le attese dopo un 429, in millisecondi.
+ *
+ * **Un limite di richieste non è una risposta sbagliata.** Prima lo era: il
+ * loop lo prendeva come errore fatale e si arrendeva al primo colpo, e infatti
+ * ventiquattro righe su ottantadue sono andate perse senza che il modello
+ * avesse sbagliato niente. Adesso si aspetta e si ripete, e l'attesa **non
+ * consuma** un tentativo di validazione: sono due fallimenti diversi e vanno
+ * contati a parte, o il numero che dice «il prompt sbaglia» conterebbe anche
+ * la rete.
+ */
+const ATTESE_429 = [4_000, 12_000, 30_000]
 
 /* Più alta di quella dell'assistente (0.2), che deve essere preciso. Qui il
    difetto da evitare è l'opposto: sette persone che ricevono la stessa frase
    con un nome diverso dentro. */
 const TEMPERATURA = 0.8
 
-async function chiedi(sistema: string, messaggio: string): Promise<string> {
+async function chiedi(sistema: string, messaggio: string, tetto: number): Promise<string> {
   if (MOTORE === 'anthropic') {
     const res = await new Anthropic().messages.create({
       model: MODELLO,
-      max_tokens: TETTO,
+      max_tokens: tetto,
       // una riga di saluto non è un problema difficile, e l'effort basso costa meno
       output_config: { effort: 'low' },
       system: sistema,
@@ -137,10 +167,23 @@ async function chiedi(sistema: string, messaggio: string): Promise<string> {
      frase, non un'azione. */
   const r = await chatWithTools({
     messages: [{ role: 'system', content: sistema }, { role: 'user', content: messaggio }],
-    maxTokens: TETTO,
+    maxTokens: tetto,
     temperature: TEMPERATURA,
   })
   return r.content ?? ''
+}
+
+/** Aspetta e ripete finché il limite non si apre; gli altri errori passano subito */
+async function chiediPaziente(sistema: string, messaggio: string, tetto: number): Promise<string> {
+  for (let i = 0; ; i++) {
+    try {
+      return await chiedi(sistema, messaggio, tetto)
+    } catch (e) {
+      const limite = e instanceof ProviderError && e.kind === 'rate_limit'
+      if (!limite || i >= ATTESE_429.length) throw e
+      await new Promise(r => setTimeout(r, ATTESE_429[i]))
+    }
+  }
 }
 
 /**
@@ -194,7 +237,7 @@ export async function scriviRiga(o: {
       : o.messaggio
     let grezzo: string
     try {
-      grezzo = ripulisci(await chiedi(o.sistema, messaggio))
+      grezzo = ripulisci(await chiediPaziente(o.sistema, messaggio, TETTI[i - 1] ?? TETTI[TETTI.length - 1]))
     } catch (e) {
       return { ok: false, motivo: e instanceof Error ? e.message : 'chiamata fallita', tentativi: i }
     }
