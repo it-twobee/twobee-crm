@@ -40,6 +40,51 @@ export type ParseResult = {
   rows: ParsedTx[]
   /** righe scartate e perché: un import che tace su cosa ha perso non è verificabile */
   skipped: string[]
+  /** §380 — righe tolte da una regola, non da un errore: si dicono a parte */
+  ignored: string[]
+}
+
+/**
+ * §380 — i movimenti che non devono entrare, e perché è una regola.
+ *
+ * Non sono righe illeggibili — si leggono benissimo — e non sono righe
+ * sbagliate della banca: sono spese che non riguardano la società e che
+ * qualcuno ha già deciso di tenere fuori dai conti. La differenza conta
+ * perché il posto in cui si applica una decisione del genere è **l'import**,
+ * non il database: cancellarle a mano dopo vuol dire ricancellarle a ogni
+ * estratto conto che si sovrappone, e la volta che ci si dimentica tornano
+ * dentro senza dirlo.
+ *
+ * Si tolgono **in tutti e due i sensi**. L'addebito e il suo rimborso sono lo
+ * stesso errore visto due volte: escludendo solo l'uscita, il giorno del
+ * rimborso comparirebbe un incasso da 20,99 € senza causa — e un ricavo che
+ * non è un ricavo è peggio di una spesa che non è una spesa. Fino a che il
+ * rimborso non arriva il saldo letto qui resta più alto di quello vero
+ * dell'importo escluso: è il prezzo dichiarato della scelta.
+ */
+export const ESCLUSI: { motivo: string; quando: (t: ParsedTx) => boolean }[] = [
+  {
+    motivo: 'Google Play 20,99 €: addebiti per errore, fuori da ogni conto',
+    quando: t =>
+      /google\s*\*?\s*google play|google play/i.test(`${t.counterparty_raw ?? ''} ${t.description}`)
+      && Math.abs(t.amount) === 20.99,
+  },
+]
+
+/** applica le regole di §380 e dice quante righe ha tolto e perché */
+function senzaEsclusi(r: ParseResult): ParseResult {
+  const rows: ParsedTx[] = []
+  const conta = new Map<string, number>()
+  for (const t of r.rows) {
+    const regola = ESCLUSI.find(e => e.quando(t))
+    if (!regola) { rows.push(t); continue }
+    conta.set(regola.motivo, (conta.get(regola.motivo) ?? 0) + 1)
+  }
+  return {
+    ...r,
+    rows,
+    ignored: [...r.ignored, ...Array.from(conta, ([motivo, n]) => `${n} × ${motivo}`)],
+  }
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100
@@ -224,13 +269,13 @@ function parseCamt(xml: string): ParseResult {
     })
   })
 
-  return { dialect: 'camt', rows, skipped }
+  return { dialect: 'camt', rows, skipped, ignored: [] }
 }
 
 export function parseStatement(csv: string): ParseResult {
   /* Il formato si riconosce dal contenuto, non dall'estensione (§277): un camt
      salvato come `.txt` è sempre un camt, e un CSV rinominato `.xml` non lo è. */
-  if (/<Document[^>]*camt\.053/i.test(csv) || /<Ntry>/.test(csv)) return parseCamt(csv)
+  if (/<Document[^>]*camt\.053/i.test(csv) || /<Ntry>/.test(csv)) return senzaEsclusi(parseCamt(csv))
 
   const lines = csv.split(/\r?\n/).filter(l => l.trim())
   if (!lines.length) throw new Error('Il file è vuoto')
@@ -302,7 +347,7 @@ export function parseStatement(csv: string): ParseResult {
     })
   }
 
-  return { dialect, rows, skipped }
+  return senzaEsclusi({ dialect, rows, skipped, ignored: [] })
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

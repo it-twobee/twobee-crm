@@ -74,6 +74,26 @@ Tre cose che il camt dice diversamente, e ognuna è un modo di sbagliare:
   ovunque cancellava il nome di un paese toscano e lasciava «WWWARUBAIT,, IT».
   Il BIC si toglie solo dopo che un IBAN è stato tolto.
 
+**§380 — le righe che non devono entrare, e perché è una regola** (`ESCLUSI`
+in `lib/bank-import.ts`). Non sono righe illeggibili — quelle vanno in
+`skipped` con la ragione — e non sono errori della banca: sono spese che non
+riguardano la società e che qualcuno ha deciso di tenere fuori. Il posto dove
+si applica una decisione così è **l'import**, non il database: cancellarle a
+mano dopo vuol dire ricancellarle a ogni estratto conto che si sovrappone, e
+la volta che ci si dimentica tornano dentro senza dirlo.
+
+Si tolgono **in tutti e due i sensi**: l'addebito e il suo rimborso sono lo
+stesso errore visto due volte, e escludendo solo l'uscita il giorno del
+rimborso comparirebbe un incasso senza causa — un ricavo che non è un ricavo
+è peggio di una spesa che non è una spesa. Finché il rimborso non arriva, il
+saldo letto qui resta **più alto** di quello vero dell'importo escluso: è il
+prezzo dichiarato della scelta, e va saputo prima di cercare lo scarto.
+
+L'esito dell'import le conta a parte da quelle scartate (`ignored`), e la
+pagina lo dice: una regola che lavora in silenzio è una regola che nessuno si
+ricorda di avere finché non gli sballa un saldo. Prima voce dell'elenco: i
+cinque addebiti Google Play da 20,99 € del 20 settembre 2026.
+
 - **Giroconti fra conti propri**: `pairTransfers` appaia i due lati per importo
   opposto e data vicina. Senza, la liquidità totale sembra scendere e la lista da
   riconciliare chiede due volte lo stesso fatto.

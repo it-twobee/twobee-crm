@@ -148,6 +148,12 @@ export function BankClient({
       if (r.scartati) {
         toast.warning(`${r.scartati} righe non lette · ${r.motivi.join(' · ')}`, { duration: 9000 })
       }
+      /* §380 — le righe tolte da una regola non sono righe perse, e si dicono
+         comunque: una regola che lavora in silenzio è una regola che nessuno
+         si ricorda di avere finché non gli sballa un saldo. */
+      if (r.ignorati.length) {
+        toast.info(`Escluse per regola · ${r.ignorati.join(' · ')}`, { duration: 9000 })
+      }
       setPaste(null)
       router.refresh()
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Import fallito') }

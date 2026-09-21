@@ -288,5 +288,42 @@ console.log('\n— §277: le virgolette tengono insieme il campo —')
     r.rows[0].description.includes('fattura fpr 43/26'), true)
 }
 
+{
+  console.log('\n— §380 · le righe escluse da una regola —')
+  /* Non sono righe illeggibili e non sono errori della banca: sono spese che
+     qualcuno ha deciso di tenere fuori dai conti. Il posto dove si applica
+     una decisione così è l'import, non il database — cancellarle a mano vuol
+     dire ricancellarle a ogni estratto conto che si sovrappone, e la volta
+     che ci si dimentica tornano dentro senza dirlo. */
+  const riga = (importo: string, desc: string) => [
+    '"Data contabile";"Importo";"Descrizione"',
+    `"20/09/2026";"${importo}";"${desc}"`,
+  ].join('\n')
+
+  const fuori = parseStatement(riga('-20,99', 'Google Play Apps, Dublin, IE'))
+  is('l\'addebito Google Play da 20,99 non entra', fuori.rows.length, 0)
+  is('e si dice che è una regola, non uno scarto',
+    [fuori.ignored.length, fuori.skipped.length], [1, 0])
+  is('con il motivo scritto', /Google Play/.test(fuori.ignored[0] ?? ''), true)
+
+  /* L'altra grafia con cui il circuito lo scrive: una regola che riconosce
+     una sola delle due lascia passare metà degli addebiti. */
+  is('anche scritto «GOOGLE *Google Play Ap»',
+    parseStatement(riga('-20,99', 'GOOGLE *Google Play Ap, g.co/HelpPay#, IE')).rows.length, 0)
+
+  /* In tutti e due i sensi: escludendo solo l'uscita, il giorno del rimborso
+     comparirebbe un incasso da 20,99 € senza causa — e un ricavo che non è un
+     ricavo è peggio di una spesa che non è una spesa. */
+  is('e il rimborso esce con lui',
+    parseStatement(riga('20,99', 'Google Play Apps, Dublin, IE')).rows.length, 0)
+
+  /* La regola è l'importo **e** il nome: Google Play a un'altra cifra è una
+     spesa vera, e un altro fornitore a 20,99 non c'entra niente. */
+  is('un Google Play di importo diverso resta',
+    parseStatement(riga('-9,99', 'Google Play Apps, Dublin, IE')).rows.length, 1)
+  is('e 20,99 di un altro fornitore pure',
+    parseStatement(riga('-20,99', 'ASANA.COM, DUBLIN, IE')).rows.length, 1)
+}
+
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

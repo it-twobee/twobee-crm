@@ -43,11 +43,13 @@ export async function importBankCsv(accountId: string, csv: string): Promise<{
   dal: string | null; al: string | null; dialetto: string
   /** §277 — perché una riga è stata scartata: il conteggio da solo non si corregge */
   motivi: string[]
+  /** §380 — righe tolte da una regola, non da un errore: si dicono a parte */
+  ignorati: string[]
 }> {
   await requireAdmin()
   const admin = createAdminClient()
 
-  const { dialect, rows: parsed, skipped } = parseStatement(csv)
+  const { dialect, rows: parsed, skipped, ignored } = parseStatement(csv)
   if (!parsed.length) throw new Error('Nessun movimento riconosciuto nel file')
 
   /* Le impronte già in archivio, contate per movimento. L'ultimo campo è il
@@ -72,6 +74,7 @@ export async function importBankCsv(accountId: string, csv: string): Promise<{
     scartati: skipped.length, dialetto: dialect,
     dal: date[0] ?? null, al: date.at(-1) ?? null,
     motivi: skipped.slice(0, 3),
+    ignorati: ignored,
   }
 }
 
