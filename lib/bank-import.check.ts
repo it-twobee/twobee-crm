@@ -289,7 +289,47 @@ console.log('\n— §277: le virgolette tengono insieme il campo —')
 }
 
 {
-  console.log('\n— §381 · le righe nascoste: nel saldo sì, nei conti no —')
+  console.log('\n— §382 · il saldo che dichiara la banca —')
+{
+  /* Il nostro saldo è ricostruito e da solo non sa dire se è completo: se
+     una riga manca, il totale resta plausibile e non c'è niente con cui
+     confrontarlo. Il camt il suo lo scrive, e questo è il secondo numero. */
+  const bal = (cd: string, amt: string, ind: string, dt: string) =>
+    `<Bal><Tp><CdOrPrtry><Cd>${cd}</Cd></CdOrPrtry></Tp><Amt Ccy="EUR">${amt}</Amt>`
+    + `<CdtDbtInd>${ind}</CdtDbtInd><Dt><Dt>${dt}</Dt></Dt></Bal>`
+  const camt = (saldi: string) => `<?xml version="1.0"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08"><BkToCstmrStmt>
+<GrpHdr><CreDtTm>2026-09-21T11:06:06+02:00</CreDtTm></GrpHdr><Stmt>${saldi}
+  <Ntry><Amt Ccy="EUR">10</Amt><CdtDbtInd>DBIT</CdtDbtInd><BookgDt><Dt>2026-09-20</Dt></BookgDt>
+    <AddtlNtryInf>Card transaction ASANA.COM, DUBLIN, IE</AddtlNtryInf></Ntry>
+</Stmt></BkToCstmrStmt></Document>`
+
+  /* Si prende la **chiusura**, non l'apertura: `OPBD` viene prima nel file e
+     un parser distratto piglia quella, cioè il saldo di tre settimane fa. */
+  const due = parseStatement(camt(bal('OPBD', '247.18', 'CRDT', '2026-09-01')
+    + bal('CLBD', '381.43', 'CRDT', '2026-09-21')))
+  eq('legge la chiusura e non l\'apertura', due.declared?.amount ?? 0, 381.43)
+  is('con la data a cui si riferisce', due.declared?.on, '2026-09-21')
+  /* L'ora in cui l'estratto è stato generato è il taglio vero: al giorno non
+     basta: un estratto delle 11:06 e il saldo guardato a mezzogiorno dello
+     stesso giorno sono due numeri diversi, ed è la confusione da togliere. */
+  is('e l\'ora in cui è stato generato',
+    (due.declared?.at ?? '').startsWith('2026-09-21T11:06'), true)
+
+  /* Il segno sta in `CdtDbtInd` anche qui: un conto in rosso dichiarato
+     positivo sarebbe uno scarto pari al doppio del saldo. */
+  eq('un conto in rosso resta in rosso',
+    parseStatement(camt(bal('CLBD', '120.50', 'DBIT', '2026-09-21'))).declared?.amount ?? 0, -120.50)
+
+  /* Senza saldi non si inventa: `undefined` vuol dire «non lo sappiamo», e
+     zero direbbe che la banca è in disaccordo con noi di tutto il saldo. */
+  is('un camt senza saldi non dichiara niente', parseStatement(camt('')).declared, undefined)
+  is('e i CSV nemmeno, perché non li contengono',
+    parseStatement('"Data contabile";"Importo";"Descrizione"\n"20/09/2026";"-10,00";"x"').declared,
+    undefined)
+}
+
+console.log('\n— §381 · le righe nascoste: nel saldo sì, nei conti no —')
   /* La §380 le **scartava**, e il saldo ne pagava il prezzo: se i soldi dal
      conto sono usciti davvero, non scriverli rende il totale letto qui più
      alto di quello della banca. La riga entra e porta scritto perché non si

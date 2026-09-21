@@ -200,6 +200,8 @@ export function BankClient({
   const open = useMemo(() => unreconciled(visibili), [visibili])
   /** §297 — quale movimento si sta spartendo fra più righe */
   const [splitting, setSplitting] = useState<string | null>(null)
+  /** §383 — il disponibile si legge nell'app della banca e si scrive qui */
+  const [disponibile, setDisponibile] = useState<string>('')
   /* §276 — gli abbinamenti in cui non c'è niente da giudicare: importo lordo
      esatto, nome che torna, e nessuna ambiguità nei due sensi. Restano una
      conferma umana — una sola invece di venti. */
@@ -355,6 +357,85 @@ export function BankClient({
                 ? `saldo all'ultimo movimento registrato, ${new Date(bal.lastBookedOn).toLocaleDateString('it-IT')}`
                 : 'nessun movimento caricato'}
             </p>
+            {/* §382 — il secondo numero, quello che dichiara la banca.
+                Il nostro saldo è **ricostruito** — apertura più movimenti — e
+                da solo non sa dire se è completo: se una riga manca il totale
+                resta plausibile e non c'è niente con cui confrontarlo. Il camt
+                il suo saldo lo scrive, quindi si mostrano vicini. Coincidono:
+                l'archivio è integro. Divergono: manca o avanza qualcosa, e si
+                vede adesso invece che per caso fra due mesi.
+
+                L'ora conta e non è un vezzo: un estratto delle 11:06 e il
+                saldo guardato a mezzogiorno dello stesso giorno sono due cose
+                diverse, ed è la confusione che questa riga esiste per togliere. */}
+            {account.statement_balance != null && (() => {
+              const scarto = Math.round((bal.real - account.statement_balance!) * 100) / 100
+              const quando = account.statement_at
+                ? new Date(account.statement_at).toLocaleString('it-IT',
+                    { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+                : new Date(account.statement_on + 'T00:00:00').toLocaleDateString('it-IT')
+              return (
+                <p className={`text-2xs mt-1 ${scarto === 0 ? 'text-success' : 'text-warning'}`}>
+                  {scarto === 0
+                    ? <>La banca dice lo stesso: <strong className="tabular">{eur2(account.statement_balance!)}</strong> al {quando}.</>
+                    : <>La banca dice <strong className="tabular">{eur2(account.statement_balance!)}</strong> al {quando}
+                        {' '}— <strong className="tabular">{eur2(Math.abs(scarto))}</strong> di
+                        {scarto > 0 ? ' più' : ' meno'} qui: manca o avanza un movimento.</>}
+                </p>
+              )
+            })()}
+            {/* §383 — il terzo saldo, e l'unico che nessun file dichiara.
+                È quello che serve per sapere se una carta passa: il contabile
+                meno le autorizzazioni non ancora registrate. Si scrive a
+                mano, quindi porta l'ora — un disponibile senza la data di
+                lettura è vecchio dopo cinque minuti e non lo sa nessuno. */}
+            {account.available_balance != null ? (
+              <p className="text-2xs text-text-secondary mt-1">
+                Disponibile nell&apos;app: <strong className="tabular text-text-primary">
+                  {eur2(account.available_balance)}
+                </strong>
+                {account.available_at && <> — letto il {new Date(account.available_at)
+                  .toLocaleString('it-IT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</>}
+                {account.statement_balance != null && (
+                  <> · <strong className="tabular">
+                    {eur2(Math.round((account.statement_balance - account.available_balance) * 100) / 100)}
+                  </strong> di autorizzazioni non ancora contabilizzate</>
+                )}
+                .{' '}
+                <button onClick={() => setDisponibile(String(account.available_balance))}
+                  className="text-gold-text hover:underline">aggiorna</button>
+              </p>
+            ) : (
+              <button onClick={() => setDisponibile('0')}
+                className="text-2xs text-gold-text hover:underline mt-1">
+                Scrivi il saldo disponibile dell&apos;app
+              </button>
+            )}
+            {disponibile !== '' && (
+              <form className="flex items-center gap-2 mt-1.5"
+                onSubmit={e => {
+                  e.preventDefault()
+                  const n = Number(disponibile.replace(/\./g, '').replace(',', '.'))
+                  if (!Number.isFinite(n)) { toast.error('Importo non valido'); return }
+                  start(async () => {
+                    try {
+                      await updateAccount(account.id, { available_balance: n })
+                      setDisponibile(''); router.refresh()
+                      toast.success('Disponibile aggiornato')
+                    } catch (err) { toast.error((err as Error).message) }
+                  })
+                }}>
+                <input autoFocus value={disponibile} onChange={e => setDisponibile(e.target.value)}
+                  inputMode="decimal" aria-label="Saldo disponibile letto nell'app della banca"
+                  className="w-28 bg-surface border border-border-interactive rounded-lg px-2 py-1 text-2xs tabular text-text-primary" />
+                <button type="submit" disabled={pending}
+                  className="text-2xs font-semibold bg-gold text-on-gold px-2.5 py-1 rounded-lg press disabled:opacity-40">
+                  Salva
+                </button>
+                <button type="button" onClick={() => setDisponibile('')}
+                  className="text-2xs text-text-tertiary hover:text-text-primary">Annulla</button>
+              </form>
+            )}
             {account.purpose && (
               <p className="text-2xs text-text-secondary mt-1.5 max-w-md">{account.purpose}</p>
             )}

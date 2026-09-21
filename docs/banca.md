@@ -113,6 +113,66 @@ In `BankClient` la stessa lista si legge due volte e i nomi lo dicono:
 `ownTxs` è tutto e ci si calcolano saldo e andamento, `visibili` è quello che
 si mostra e si conta.
 
+**§382 — il saldo che dichiara la banca, accanto al nostro** (`declared` in
+`parseCamt`, colonne `statement_*` su `bank_accounts`, migration 241).
+
+Il saldo di un conto qui dentro è **ricostruito**: apertura più tutti i
+movimenti. È il modo giusto di calcolarlo e ha un punto cieco — non sa dire
+se è completo. Se una riga manca, o ne entra una di troppo, il totale resta
+plausibile e non c'è un secondo numero con cui confrontarlo. In una mattina
+la stessa verifica è stata fatta tre volte a mano, aprendo l'XML.
+
+Il camt.053 quel numero ce l'ha: `CLBD` è la chiusura dichiarata, con la sua
+data, e l'intestazione dice a che ora l'estratto è stato generato. Adesso si
+salva e la pagina mostra i due vicini. Coincidono: l'archivio è integro.
+Divergono: manca o avanza qualcosa, e si vede subito.
+
+Tre cose che questa lettura sbaglia se fatta di fretta:
+
+- **Si prende `CLBD`, non `OPBD`.** L'apertura viene prima nel file, e un
+  parser distratto piglia quella: il saldo di tre settimane fa.
+- **Il segno sta in `CdtDbtInd`**, come per i movimenti. Un conto in rosso
+  dichiarato positivo è uno scarto pari al doppio del saldo.
+- **La data è annidata** (`<Dt><Dt>2026-09-21</Dt></Dt>`) e un lettore di tag
+  non goloso si ferma alla prima chiusura restituendo mezzo tag.
+
+**Lo dichiara solo il camt.** I CSV — home banking e Vivid — portano le righe
+e non i saldi: per quei conti le colonne restano vuote, e vuote devono
+sembrare. Zero direbbe che la banca è in disaccordo con noi di tutto il
+saldo.
+
+Si scrive **solo se l'estratto è più recente** di quello già registrato:
+riscaricare un periodo vecchio è normale — lo si fa per recuperare una riga —
+e farebbe tornare indietro il saldo dichiarato a una data passata, cioè un
+disaccordo inventato.
+
+**§383 — e c'è un terzo saldo** (`available_balance`, migration 242). Su un
+conto ce ne sono tre e fino a ieri ne mostravamo due:
+
+| | da dove viene |
+|---|---|
+| contabile ricostruito | apertura + movimenti: lo calcoliamo noi |
+| contabile dichiarato | `CLBD` del camt: lo scrive la banca (§382) |
+| **disponibile** | contabile meno le autorizzazioni: lo mostra l'app |
+
+Il terzo è quello che serve per sapere se una carta passa e quanto
+bonificare, ed è l'unico che **nessun file dichiara**: le autorizzazioni
+compaiono nell'app appena si paga e nell'estratto un giorno o due dopo. Sul
+Vivid il 21 settembre erano 111,08 € su 381,43 contabili — chi guardava il
+saldo per sapere se poteva spendere leggeva un numero più alto di un terzo.
+
+**Si scrive a mano, e per questo porta l'ora.** È l'eccezione che conferma
+l'invariante: i valori economici non si digitano perché si derivano dai
+contratti, ma questo non si deriva da niente che abbiamo — come
+`opening_balance`, a mano dal primo giorno. Quello che non si può fare è
+lasciarlo senza data: un disponibile senza l'ora di lettura è vecchio dopo
+cinque minuti e non lo sa nessuno. L'ora la mette `updateAccount`, **non chi
+chiama**, e azzerare il valore azzera anche l'ora.
+
+Le autorizzazioni in sospeso **non si salvano**: sono la differenza fra i
+due, e un terzo campo da tenere allineato a mano è un terzo campo che va
+fuori sincrono.
+
 - **Giroconti fra conti propri**: `pairTransfers` appaia i due lati per importo
   opposto e data vicina. Senza, la liquidità totale sembra scendere e la lista da
   riconciliare chiede due volte lo stesso fatto.

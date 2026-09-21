@@ -47,7 +47,7 @@ async function main() {
     : accounts[0]
   if (!account) throw new Error(`conto «${wanted}» non trovato fra: ${accounts.map(a => a.label).join(', ')}`)
 
-  const { dialect, rows: parsed, skipped, ignored } = parseStatement(readFileSync(file, 'utf8'))
+  const { dialect, rows: parsed, skipped, ignored, declared } = parseStatement(readFileSync(file, 'utf8'))
   if (!parsed.length) throw new Error('nessun movimento riconosciuto')
 
   const have = await api<{ import_hash: string | null }[]>(
@@ -62,7 +62,24 @@ async function main() {
     }
   }
 
+  /* §382 — stessa regola dell'azione: si scrive solo se l'estratto è più
+     recente di quello già registrato, o riscaricare un periodo vecchio
+     inventerebbe un disaccordo con la banca. */
+  if (declared && !prova) {
+    const [conto] = await api<{ statement_on: string | null }[]>(
+      `bank_accounts?select=statement_on&id=eq.${account.id}`)
+    if (declared.on >= (conto?.statement_on ?? '')) {
+      await api(`bank_accounts?id=eq.${account.id}`, { method: 'PATCH', body: JSON.stringify({
+        statement_balance: declared.amount, statement_on: declared.on,
+        statement_at: declared.at, statement_seen_at: new Date().toISOString(),
+      }) })
+    }
+  }
+
   console.log(`\n${account.label} · dialetto ${dialect}${prova ? '  ⟨PROVA: non scrive niente⟩' : ''}`)
+  console.log(declared
+    ? `  la banca dichiara ${declared.amount.toFixed(2)} al ${declared.on} (estratto generato ${declared.at ?? '—'})`
+    : '  questo formato non dichiara un saldo: si può solo ricostruirlo dai movimenti')
   console.log(`  ${nuovi.length} movimenti importati su ${rows.length} letti`
     + ` · ${rows.length - nuovi.length} già presenti`
     + (skipped.length ? ` · ${skipped.length} scartati` : ''))

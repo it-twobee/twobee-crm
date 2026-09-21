@@ -45,11 +45,13 @@ export async function importBankCsv(accountId: string, csv: string): Promise<{
   motivi: string[]
   /** §381 — righe nascoste da una regola: entrano nel saldo, non nei conti */
   nascosti: string[]
+  /** §382 — il saldo dichiarato dalla banca, se il formato lo dice */
+  dichiarato: { amount: number; on: string } | null
 }> {
   await requireAdmin()
   const admin = createAdminClient()
 
-  const { dialect, rows: parsed, skipped, ignored } = parseStatement(csv)
+  const { dialect, rows: parsed, skipped, ignored, declared } = parseStatement(csv)
   if (!parsed.length) throw new Error('Nessun movimento riconosciuto nel file')
 
   /* Le impronte già in archivio, contate per movimento. L'ultimo campo è il
@@ -67,6 +69,25 @@ export async function importBankCsv(accountId: string, csv: string): Promise<{
     if (error) throw new Error(error.message)
   }
 
+  /* §382 — il saldo che la banca dichiara, quando il file lo dice (solo camt).
+     Si scrive **solo se questo estratto è più recente** di quello già
+     registrato: riscaricare un periodo vecchio è normale — lo si fa per
+     recuperare una riga — e farebbe tornare indietro il saldo dichiarato a
+     una data passata, cioè un disaccordo inventato con la banca. */
+  if (declared) {
+    const { data: prima } = await admin.from('bank_accounts')
+      .select('statement_on').eq('id', accountId).maybeSingle()
+    const vecchia = (prima as { statement_on?: string | null } | null)?.statement_on ?? ''
+    if (declared.on >= vecchia) {
+      await admin.from('bank_accounts').update({
+        statement_balance: declared.amount,
+        statement_on: declared.on,
+        statement_at: declared.at,
+        statement_seen_at: new Date().toISOString(),
+      }).eq('id', accountId)
+    }
+  }
+
   const date = rows.map(r => r.booked_on).sort()
   rev()
   return {
@@ -75,6 +96,7 @@ export async function importBankCsv(accountId: string, csv: string): Promise<{
     dal: date[0] ?? null, al: date.at(-1) ?? null,
     motivi: skipped.slice(0, 3),
     nascosti: ignored,
+    dichiarato: declared ? { amount: declared.amount, on: declared.on } : null,
   }
 }
 
@@ -264,9 +286,19 @@ export async function updateAccount(id: string, patch: Partial<{
   opening_balance: number; opening_date: string; note: string | null
   /** §191 — il bonifico ricorrente, quando si accetta quello suggerito */
   funding_amount: number | null; funding_day: number | null
+  /** §383 — il disponibile letto dall'app: l'ora la mette l'azione, non chi chiama */
+  available_balance: number | null
 }>) {
   await requireAdmin()
-  const { error } = await createAdminClient().from('bank_accounts').update(patch).eq('id', id)
+  /* §383 — valore e ora si muovono **insieme**, e l'ora non arriva dal
+     client: un disponibile senza la data di lettura è vecchio dopo cinque
+     minuti senza che si veda, ed è esattamente il numero plausibile e
+     sbagliato che nessuno va a controllare. Azzerarlo azzera anche l'ora,
+     o resterebbe la data di una lettura che non c'è più. */
+  const completo = 'available_balance' in patch
+    ? { ...patch, available_at: patch.available_balance == null ? null : new Date().toISOString() }
+    : patch
+  const { error } = await createAdminClient().from('bank_accounts').update(completo).eq('id', id)
   if (error) throw new Error(error.message)
   rev()
 }

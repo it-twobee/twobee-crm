@@ -44,6 +44,12 @@ export type ParseResult = {
   skipped: string[]
   /** §381 — righe nascoste da una regola, non da un errore: si dicono a parte */
   ignored: string[]
+  /**
+   * §382 — il saldo di chiusura **dichiarato dalla banca**, quando il file lo
+   * dice. Lo fa solo il camt (`CLBD`); i CSV portano le righe e non i saldi,
+   * e per quelli resta `undefined` — che non è zero: è «non lo sappiamo».
+   */
+  declared?: { amount: number; on: string; at: string | null }
 }
 
 /**
@@ -229,6 +235,34 @@ function parseCamt(xml: string): ParseResult {
   const blocks = xml.match(/<Ntry>[\s\S]*?<\/Ntry>/g) ?? []
   if (!blocks.length) throw new Error('Nessun movimento (<Ntry>) nel file camt.053')
 
+  /* §382 — il saldo che dichiara la banca. `CLBD` è la chiusura; `OPBD`
+     l'apertura, e non serve qui perché l'apertura nostra è un'altra data.
+     Il segno sta in `CdtDbtInd` come per i movimenti: un conto in rosso
+     dichiarato positivo sarebbe uno scarto del doppio del saldo. */
+  const bal = (xml.match(/<Bal>[\s\S]*?<\/Bal>/g) ?? [])
+    .find(b => /<Cd>\s*CLBD\s*<\/Cd>/.test(b))
+  let declared: ParseResult['declared']
+  if (bal) {
+    const amt = Number(tag(bal, 'Amt'))
+    /* La data sta annidata — `<Dt><Dt>2026-09-21</Dt></Dt>` — e un `tag()`
+       non goloso si ferma alla prima chiusura restituendo mezzo tag. Si
+       cerca direttamente la data: è l'unica cosa con quella forma qui
+       dentro. */
+    const on = bal.match(/<Dt>\s*(\d{4}-\d{2}-\d{2})/)?.[1] ?? ''
+    if (Number.isFinite(amt) && /^\d{4}-\d{2}-\d{2}$/.test(on)) {
+      const dbit = /<CdtDbtInd>\s*DBIT\s*<\/CdtDbtInd>/.test(bal)
+      declared = {
+        amount: r2(dbit ? -amt : amt),
+        on,
+        /* L'ora in cui l'estratto è stato generato è il **taglio vero**: al
+           giorno non basta, perché è esattamente il caso che ci ha fregato —
+           un estratto delle 11:06 e un saldo guardato a mezzogiorno dello
+           stesso giorno sono due cose diverse. */
+        at: (xml.match(/<CreDtTm>([^<]+)<\/CreDtTm>/)?.[1] ?? '').trim() || null,
+      }
+    }
+  }
+
   blocks.forEach((b, i) => {
     const booked = tag(tag(b, 'BookgDt'), 'Dt').slice(0, 10)
     const value = tag(tag(b, 'ValDt'), 'Dt').slice(0, 10)
@@ -277,7 +311,7 @@ function parseCamt(xml: string): ParseResult {
     })
   })
 
-  return { dialect: 'camt', rows, skipped, ignored: [] }
+  return { dialect: 'camt', rows, skipped, ignored: [], declared }
 }
 
 export function parseStatement(csv: string): ParseResult {

@@ -69,6 +69,25 @@ export type BankAccount = {
    * sottratta dall'erogato in denaro.
    */
   allowance_amount?: number | null
+  /**
+   * §382 — il saldo di chiusura **dichiarato dalla banca** nell'ultimo camt
+   * importato, con la data a cui si riferisce e l'ora in cui l'estratto è
+   * stato generato. `null` per i conti i cui estratti non dichiarano saldi:
+   * vuoto vuol dire «non lo sappiamo», e non zero.
+   */
+  statement_balance?: number | null
+  statement_on?: string | null
+  statement_at?: string | null
+  statement_seen_at?: string | null
+  /**
+   * §383 — il saldo **disponibile** letto dall'app della banca: il contabile
+   * meno le autorizzazioni delle carte non ancora contabilizzate. È l'unico
+   * dei tre che nessun file dichiara, quindi si scrive a mano — e per questo
+   * porta l'ora: vale quanto è recente, e senza la data nessuno saprebbe di
+   * quanto fidarsi.
+   */
+  available_balance?: number | null
+  available_at?: string | null
 }
 
 export type BankTx = {
