@@ -253,6 +253,43 @@ c'è — quella almeno si nota.
   è già da fare, e «le mie attività» smette di servire a organizzarsi la
   settimana. Resta per template: chi produce troppo si abbassa da solo.
 
+**§388–§390 — i periodi di un progetto.** Alcuni servizi hanno un ritmo, e
+il ritmo non è lo stesso per tutti: `service_catalog.period_shape` dice
+`quarter` (Lead Generation, E-commerce, SaaS), `month` (Social Media
+Management, Continuing Design) o `none` (tutto il resto). Sta nel catalogo e
+non in uno `switch (area)` perché «Sito Web» sta in Marketing e dura tre
+settimane: i mesi non gli servono, e il catalogo è già modificabile da admin.
+
+**I trimestri sono quelli della stagione, non del calendario**: Q1 gen-mar ·
+Q2 apr-giu · Q3 **lug-ago** · Q4 **set-dic**. Per chi fa advertising il
+blocco che conta va dal rientro al Natale, e spezzarlo in due avrebbe diviso
+a metà la parte dell'anno in cui si lavora di più. Lo dicevano già i dati:
+nove corsie in archivio si chiamano «Set-Dic 2026» e nessuna «Q3».
+
+Un trimestre è una **corsia** (visibile al cliente), un mese è una **tappa**
+dentro la continuativa del progetto — se non c'è, si crea «Piano
+editoriale», perché `milestones.workstream_id` è obbligatorio e ha ragione:
+una tappa senza corsia non comparirebbe da nessuna parte.
+
+**Cosa è già aperto si legge da `project_periods`, per chiave** (`2026-Q4`)
+e non dal nome della corsia: i nomi si cambiano, e alla prima rinomina il
+generatore riaprirebbe lo stesso trimestre. La riga si scrive **subito dopo**
+la corsia, non alla fine del giro: se si interrompe a metà, quello che è
+stato creato risulta creato.
+
+**E si guardano anche le date delle corsie che ci sono.** Nove corsie in
+archivio *sono* un periodo senza saperlo, e un generatore che legge solo il
+registro ne aprirebbe un secondo accanto. La soglia è metà del periodo: una
+campagna di dieci giorni che ci capita dentro non è il trimestre, una corsia
+che ne copre la metà è la stessa cosa con un altro nome. Quello che salta lo
+**dice**, con il nome della corsia che lo copriva — saltare in silenzio è
+indistinguibile da un generatore rotto.
+
+Il bottone «Apri i periodi» sta sulla pagina del progetto e viene **prima**
+del giro automatico, apposta: il primo periodo si apre a mano e si guarda.
+`npx tsx scripts/prova-periodi.ts` stampa cosa farebbe su tutti i progetti
+senza scrivere niente.
+
 **Le tappe ricorrenti** (§337, `recurring_milestone_templates`). Il doc 16 dice
 «mai una workstream nuova per settimana/mese» e ha ragione — il contenitore è
 stabile — ma la **tappa** dentro quel contenitore torna eccome: chiusura del

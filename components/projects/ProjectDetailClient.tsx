@@ -7,11 +7,12 @@ import { toast } from 'sonner'
 import {
   FolderTree, Flag, Repeat, ChevronRight,
   Calendar, ListChecks, AlertTriangle, CheckSquare, Users, Clock, Plus, Pencil, Check, Trash2,
-  MoreHorizontal, TrendingUp, ShieldCheck, Gauge, Wand2, SlidersHorizontal, RotateCcw,
+  MoreHorizontal, TrendingUp, ShieldCheck, Gauge, Wand2, SlidersHorizontal, RotateCcw, CalendarRange,
 } from 'lucide-react'
 import { updateProjectStatus, updateProjectBrief, deleteProject } from '@/app/actions/projects'
 import { generateRecurrencesNow } from '@/app/actions/recurring'
 import { createWorkstream } from '@/app/actions/workstreams'
+import { apriPeriodi } from '@/app/actions/periodi'
 import { createMilestone, updateMilestone } from '@/app/actions/milestones'
 import { NewMilestoneModal, type NewMilestoneValues } from './NewMilestoneModal'
 import {
@@ -609,6 +610,31 @@ export function ProjectDetailClient({
                   <button onClick={genRecurring} disabled={pending}
                     className="flex items-center gap-1 text-2xs font-semibold text-gold-text hover:opacity-80 press">
                     <Repeat className="w-3.5 h-3.5" />Genera ricorrenti
+                  </button>
+                )}
+                {/* §390 — i periodi del progetto: trimestri della stagione per
+                    il Growth, mesi per il Marketing. Il bottone c'è prima del
+                    giro automatico apposta: il primo periodo si apre a mano,
+                    si guarda cosa ha creato, e solo dopo si accende il cron.
+                    Dice anche cosa **non** ha fatto — un periodo saltato
+                    perché una corsia lo copre già è la risposta giusta, ma
+                    solo se si vede. */}
+                {canManageProject && (
+                  <button onClick={() => start(async () => {
+                    try {
+                      const e = await apriPeriodi(project.id)
+                      if (e.creati.length) {
+                        toast.success(`${e.riepilogo}: ${e.creati.map(x => x.etichetta).join(', ')}`
+                          + (e.contenitoreCreato ? ` · creata la corsia «${e.contenitoreCreato}»` : ''))
+                      } else {
+                        toast.info(e.riepilogo
+                          + (e.saltati.find(x => x.corsia) ? ` («${e.saltati.find(x => x.corsia)!.corsia}»)` : ''))
+                      }
+                      router.refresh()
+                    } catch (err) { toast.error((err as Error).message) }
+                  })}
+                    className="flex items-center gap-1 text-2xs font-semibold text-gold-text hover:opacity-80 press">
+                    <CalendarRange className="w-3.5 h-3.5" />Apri i periodi
                   </button>
                 )}
                 {canManageProject && (
