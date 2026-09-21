@@ -30,6 +30,15 @@ const AMMESSE: { schema: RegExp; perche: string }[] = [
   { schema: /agenzia[ _]di[ _]supporto|agenzia_supporto/i, perche: 'l\'agenzia del cliente, non la nostra' },
   { schema: /studi, consulenti, agenzie/i, perche: 'elenco di tipi di fornitore' },
   { schema: /agenzia, studio, software house/i, perche: 'elenco di tipi di fornitore' },
+  /* Il posto che la regola la **enuncia** deve poter scrivere la parola, come
+     questo file. Senza, §359 sarebbe l'unica regola del progetto che non si
+     può documentare — ed è esattamente quello che è successo: il commit che
+     l'ha introdotta ha lasciato rosso il proprio gate su tre righe di
+     `docs/operativita.md`, e nessuno se n'è accorto perché il gate nuovo lo si
+     guarda una volta. */
+  { schema: /non (è )?un\\?'agenzia/i, perche: 'l\'enunciato della regola: per vietarla va nominata' },
+  { schema: /un fornitore può essere un\\?'agenzia/i, perche: 'un fornitore, non noi' },
+  { schema: /chiav[ie] d\\?'agenzia/i, perche: 'le credenziali del cliente presso la sua agenzia' },
 ]
 
 const RADICI = ['app', 'components', 'lib', 'docs']
@@ -50,8 +59,11 @@ function file(dir: string): string[] {
 const colpevoli: string[] = []
 const giustificate: string[] = []
 for (const p of RADICI.flatMap(r => file(r))) {
-  // questo controllo la parola deve poterla nominare, o non potrebbe cercarla
-  if (p.endsWith('lib/parole.check.ts')) continue
+  /* Un gate che verifica un divieto deve poter scrivere la parola vietata, o
+     non ha modo di provare che il divieto funziona. Valeva già per questo
+     file; vale per tutti, perché nessun `.check.ts` finisce sotto gli occhi di
+     un cliente. */
+  if (p.endsWith('.check.ts')) continue
   const righe = readFileSync(p, 'utf8').split('\n')
   righe.forEach((riga, i) => {
     if (!/agenzi[ae]/i.test(riga)) return

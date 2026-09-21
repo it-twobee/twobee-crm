@@ -3269,7 +3269,7 @@ function Check({ on, onToggle, disabled, label }: { on: boolean; onToggle: () =>
       aria-label={label} title={label}
       className="w-8 h-8 grid place-items-center rounded-lg hover:bg-surface-active transition-colors disabled:opacity-40 no-tap-highlight press mx-auto">
       <span className={`w-5 h-5 rounded-md border-2 grid place-items-center transition-colors ${
-        on ? 'bg-success border-success text-on-gold' : 'border-border-strong hover:border-border-interactive'
+        on ? 'bg-success border-success text-on-success' : 'border-border-strong hover:border-border-interactive'
       }`}>
         {on && (
           <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" aria-hidden>

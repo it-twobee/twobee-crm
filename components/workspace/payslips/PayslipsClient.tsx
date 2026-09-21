@@ -135,7 +135,7 @@ function DeleteButton({ payslipId }: { payslipId: string }) {
           else toast.success('Busta paga eliminata')
         })}
         disabled={pending}
-        className="px-2 py-1 rounded-lg bg-error text-xs font-semibold text-on-gold disabled:opacity-50"
+        className="px-2 py-1 rounded-lg bg-error text-xs font-semibold text-on-error disabled:opacity-50"
       >
         {pending ? '…' : 'Conferma'}
       </button>

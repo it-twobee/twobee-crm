@@ -6,6 +6,7 @@ import {
   verdetto, sottotitolo, saluto, seme, sottotitoloSezione, SEZIONI_CHIAVI,
   salutoPersonale, type Momento, type Ruolo, type StatoPersona,
 } from '@/lib/task-mood'
+import { VIETATE } from '@/lib/voce-twobee'
 
 let fail = 0
 const is = (label: string, got: unknown, want: unknown) => {
@@ -121,7 +122,7 @@ for (const k of SEZIONI_CHIAVI) for (const m of MOMENTI) for (const s of SEMI) {
 is('nessuna sezione muta', sezioniMute, 0)
 is('nessun sottotitolo di sezione sfora la riga', sezioniLunghe, 0)
 for (const k of SEZIONI_CHIAVI) sempreDisponibile(`${k}: senza ora vale a ogni ora`, (m, s) => sottotitoloSezione(k, m, s))
-is('le sezioni coperte sono undici', SEZIONI_CHIAVI.length, 11)
+is('le sezioni coperte sono dodici', SEZIONI_CHIAVI.length, 12)
 
 console.log('\n— Il saluto personale: numeri di chi guarda, e il suo ruolo —')
 const RUOLI: Ruolo[] = ['super_admin', 'admin', 'manager', 'senior', 'junior', 'stage', 'freelance', 'partner', null]
@@ -180,6 +181,53 @@ is('ma domani cambia',
   salutoPersonale(st, { ora: 9, giorno: 2 }, 12) !== salutoPersonale(st, { ora: 9, giorno: 3 }, 13), true)
 sempreDisponibile('il saluto personale senza ora vale a ogni ora',
   (m, s) => salutoPersonale(persona({ late: 2 }), m, s))
+
+console.log('\n— §364 · dalla parte di chi legge —')
+/* Il tono è una regola, non una riscrittura una tantum: queste frasi le legge
+   da sola, la mattina, una persona che sta già facendo del suo meglio. Se
+   domani qualcuno rimette una battuta che fa colpa, si ferma qui — come per
+   «agenzia» (§359). Le stesse parole sono vietate al modello nel validatore di
+   `person-copy.ts`: una regola sola, applicata ai due generatori. */
+/* I divieti arrivano da `lib/voce-twobee.ts`, dove stanno accanto alla ragione
+   e dove li legge anche il validatore del testo generato: una definizione
+   sola, applicata alle frasi scritte a mano **e** a quelle scritte dal
+   modello. Se divergessero, il fallback potrebbe dire quello che al modello
+   vietiamo — ed è proprio il fallback che si legge quando il modello sbaglia. */
+const vietata = (t: string) => VIETATE.some(v => v.schema.test(t))
+
+const tutte: string[] = []
+for (const m of MOMENTI) for (const seme of SEMI) {
+  for (const c of [conti({ late: 4 }), conti({ late: 0, soon: 3 }),
+    conti({ late: 0, soon: 0, aperte: 7 }), conti({ late: 0, soon: 0, aperte: 0, tutte: 9 }),
+    conti({ late: 0, soon: 0, aperte: 0, tutte: 0 })]) {
+    tutte.push(verdetto(c, m, seme).testo)
+  }
+  for (const ruolo of ['founder', 'manager', 'junior', 'stage', 'freelance', null] as Ruolo[]) {
+    for (const st of [{ late: 3 }, { late: 0, chiuseOggi: 4 }, { late: 0, chiuseOggi: 0, oggi: 2 },
+      { aperte: 0, late: 0, oggi: 0, chiuseOggi: 0, chiuseSettimana: 4 },
+      { aperte: 0, late: 0, oggi: 0, chiuseOggi: 0, chiuseSettimana: 0 },
+      { aperte: 6, late: 0, oggi: 0, chiuseOggi: 0 }]) {
+      const base: StatoPersona = {
+        aperte: 10, late: 0, oggi: 0, chiuseOggi: 0, chiuseSettimana: 0, progetti: 2, ruolo,
+      }
+      tutte.push(salutoPersonale({ ...base, ...st }, m, seme))
+    }
+  }
+}
+/* §365 — anche i sottotitoli di sezione: stanno nel workspace come le altre
+   righe, e una voce che cambia da pagina a pagina non è una voce. */
+for (const k of SEZIONI_CHIAVI) for (const m of MOMENTI) for (const seme of SEMI) {
+  tutte.push(sottotitoloSezione(k, m, seme))
+}
+const colpevoli = Array.from(new Set(tutte.filter(vietata)))
+colpevoli.forEach(t => console.log(`     ${t}`))
+is('nessuna frase scritta a mano infrange la voce', colpevoli.length, 0)
+is('su un campione vero, non su tre frasi', tutte.length > 2000, true)
+
+/* La controprova: se il filtro non trovasse niente nemmeno in una frase
+   scritta apposta per fallire, non starebbe controllando niente. */
+is('e il filtro funziona davvero',
+  vietata('4 in ritardo. Datti una mossa.') && vietata('Sii felice!') && vietata('Sei a pezzi.'), true)
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

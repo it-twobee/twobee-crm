@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { Users, Shield, Bell, Mail, Crown, X, Check, ChevronDown, Loader2, Trash2, Plus, AlertCircle, Pencil, KeyRound, AtSign, User, Copy, Link2, RefreshCw } from 'lucide-react'
+import { useState, useEffect, useTransition } from 'react'
+import { Users, Shield, Bell, Mail, Crown, X, Check, ChevronDown, Loader2, Trash2, Plus, AlertCircle, Pencil, KeyRound, AtSign, User, Copy, Link2, RefreshCw, UserMinus, ShieldAlert, Sparkles } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Profile, RolePermission, Invitation, AppRole, PermissionSection, PermissionAction } from '@/lib/types/database'
@@ -9,7 +9,7 @@ import {
   SUPER_ADMIN_EMAILS, ROLE_LABELS, ROLE_COLORS, SECTIONS, ACTIONS,
   SECTION_LABELS, ACTION_LABELS, isSuperAdmin, buildPermMap,
 } from '@/lib/permissions'
-import { adminChangeUserEmail, adminChangeUserName, adminSendPasswordReset, adminUpdateUserProfile } from '@/app/actions/admin-user'
+import { adminChangeUserEmail, adminChangeUserName, adminSendPasswordReset, adminUpdateUserProfile, adminUserTraces, adminDeleteUser, type Traccia } from '@/app/actions/admin-user'
 
 const EDITABLE_ROLES: Exclude<AppRole, 'super_admin'>[] = ['admin', 'manager', 'senior', 'junior', 'stage', 'freelance', 'partner', 'viewer', 'client', 'guest']
 const AREAS = ['growth', 'digital', 'ops', 'hr']
@@ -65,6 +65,8 @@ function UserEditModal({
   const [jobTitle, setJobTitle] = useState(user.job_title ?? '')
   const [competencies, setCompetencies] = useState<string[]>(user.competencies ?? [])
   const [isActive, setIsActive] = useState(user.is_active)
+  const [hireDate, setHireDate] = useState(user.hire_date ?? '')
+  const [birthDate, setBirthDate] = useState(user.birth_date ?? '')
   const [savingProfile, setSavingProfile] = useState(false)
 
   // ── Email ──
@@ -95,7 +97,11 @@ function UserEditModal({
 
   const saveProfile = async () => {
     setSavingProfile(true)
-    const updates = { app_role: appRole, area: area || null, job_title: jobTitle || null, competencies, is_active: isActive }
+    const updates = {
+      app_role: appRole, area: area || null, job_title: jobTitle || null,
+      competencies, is_active: isActive,
+      hire_date: hireDate || null, birth_date: birthDate || null,
+    }
     try {
       // Tutto via server action (service role): l'RLS su profiles consente
       // l'update solo del proprio profilo, quindi l'admin deve passare da qui.
@@ -103,6 +109,7 @@ function UserEditModal({
       if (fullName !== user.full_name) await adminChangeUserName(user.id, fullName)
       await adminUpdateUserProfile(user.id, {
         appRole, area: area || null, jobTitle: jobTitle || null, competencies, isActive,
+        hireDate: hireDate || null, birthDate: birthDate || null,
       })
     } catch (e) { toast.error((e as Error).message); setSavingProfile(false); return }
     setSavingProfile(false)
@@ -211,6 +218,22 @@ function UserEditModal({
                 <label className="block text-xs text-text-secondary mb-1">Titolo / ruolo aziendale</label>
                 <input value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} placeholder="es. Social Media Manager" className={ic} />
               </div>
+              {/* §361 — due date della **persona**, non della busta paga: le
+                  omonime di `hr_people` riguardano i contratti possibili e
+                  valgono solo per chi è a libro paga. Vuote non fanno danno:
+                  quello che manca non viene detto (mai una data inventata). */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor={`hire-${user.id}`} className="block text-xs text-text-secondary mb-1">In TwoBee dal</label>
+                  <input id={`hire-${user.id}`} type="date" value={hireDate}
+                    onChange={(e) => setHireDate(e.target.value)} className={ic} />
+                </div>
+                <div>
+                  <label htmlFor={`birth-${user.id}`} className="block text-xs text-text-secondary mb-1">Data di nascita</label>
+                  <input id={`birth-${user.id}`} type="date" value={birthDate}
+                    onChange={(e) => setBirthDate(e.target.value)} className={ic} />
+                </div>
+              </div>
               <div>
                 <label className="block text-xs text-text-secondary mb-2">Competenze</label>
                 <div className="flex flex-wrap gap-1.5">
@@ -304,10 +327,176 @@ function UserEditModal({
   )
 }
 
+/**
+ * §362 — la conferma di un'eliminazione definitiva.
+ *
+ * Prima di chiedere «sei sicuro?» va detto **di cosa**: la finestra interroga
+ * lo schema (`tracce_membro`) e mostra cosa la persona si porta dietro. Tre
+ * esiti, e sono diversi fra loro:
+ *
+ * - **niente**: è un account che non ha mai lavorato — un invito di prova, un
+ *   doppione. Si elimina;
+ * - **roba che si cancella con lui**: si elimina, ma l'elenco si legge prima.
+ *   Nessuno deve scoprire dopo cosa è sparito;
+ * - **roba che blocca**: non si elimina, e non perché lo diciamo noi — il
+ *   database rifiuterebbe comunque. Qui si disattiva, e la storia resta intera.
+ *
+ * Il nome da riscrivere non è teatro: è l'unico modo perché un clic partito
+ * sulla riga sbagliata non diventi una cancellazione.
+ */
+function DeleteUserDialog({ user, onClose, onDeleted }: {
+  user: Profile
+  onClose: () => void
+  onDeleted: (id: string) => void
+}) {
+  const [tracce, setTracce] = useState<Traccia[] | null>(null)
+  const [errore, setErrore] = useState<string | null>(null)
+  const [conferma, setConferma] = useState('')
+  const [pending, setPending] = useState(false)
+
+  useEffect(() => {
+    let vivo = true
+    adminUserTraces(user.id)
+      .then((t) => { if (vivo) setTracce(t) })
+      .catch((e: Error) => { if (vivo) { setErrore(e.message); setTracce([]) } })
+    return () => { vivo = false }
+  }, [user.id])
+
+  const bloccanti = (tracce ?? []).filter((t) => t.azione === 'no action' || t.azione === 'restrict')
+  const inCascata = (tracce ?? []).filter((t) => t.azione === 'cascade')
+  const atteso = (user.full_name || user.email).trim()
+  const puo = tracce !== null && !errore && bloccanti.length === 0 && conferma.trim() === atteso
+
+  const elimina = async () => {
+    setPending(true)
+    try {
+      await adminDeleteUser(user.id)
+      toast.success(`${atteso} eliminato definitivamente`)
+      onDeleted(user.id)
+    } catch (e) { toast.error((e as Error).message); setPending(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-scrim backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="bg-surface border border-border rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+        <div className="flex items-center gap-3 px-6 py-5 border-b border-border">
+          <ShieldAlert className="w-5 h-5 text-error shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-black text-text-primary">Elimina definitivamente</p>
+            <p className="text-xs text-text-secondary truncate">{atteso} · {user.email}</p>
+          </div>
+          <button onClick={onClose} aria-label="Chiudi" className="text-text-secondary hover:text-text-primary">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {tracce === null ? (
+            <div className="flex items-center gap-2 text-xs text-text-secondary">
+              <Loader2 className="w-4 h-4 animate-spin" /> Controllo cosa si porta dietro…
+            </div>
+          ) : errore ? (
+            <p className="text-xs text-error">{errore}</p>
+          ) : bloccanti.length > 0 ? (
+            <>
+              <p className="text-sm text-text-primary">
+                Ha lavorato qui: questi dati non si possono cancellare, e il database rifiuterebbe.
+              </p>
+              <ul className="space-y-1">
+                {bloccanti.map((t) => (
+                  <li key={`${t.tabella}.${t.colonna}`} className="text-xs text-text-secondary">
+                    <span className="text-text-primary">{t.righe}</span> in {t.tabella}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-text-secondary">
+                Disattivalo: esce dagli elenchi e non entra più, ma la sua storia resta leggibile.
+              </p>
+            </>
+          ) : (
+            <>
+              {inCascata.length > 0 ? (
+                <>
+                  <p className="text-sm text-text-primary">Insieme a lui sparisce:</p>
+                  <ul className="space-y-1">
+                    {inCascata.map((t) => (
+                      <li key={`${t.tabella}.${t.colonna}`} className="text-xs text-text-secondary">
+                        <span className="text-text-primary">{t.righe}</span> in {t.tabella}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <p className="text-sm text-text-primary">
+                  Non ha lasciato niente: nessuna task, nessuna cronologia, nessun documento.
+                </p>
+              )}
+              <p className="text-xs text-text-secondary">Non si annulla. Scrivi <span className="text-text-primary">{atteso}</span> per confermare.</p>
+              <input value={conferma} onChange={(e) => setConferma(e.target.value)} autoFocus
+                aria-label="Riscrivi il nome per confermare" placeholder={atteso}
+                className="w-full bg-background border border-border-interactive rounded-lg px-3 py-2 text-sm text-text-primary" />
+            </>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-border">
+          <button onClick={onClose} className="text-xs text-text-secondary hover:text-text-primary px-3 py-2">Annulla</button>
+          {bloccanti.length === 0 && !errore && (
+            <button onClick={elimina} disabled={!puo || pending}
+              className="flex items-center gap-1.5 text-xs font-semibold bg-error text-on-error px-4 py-2 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed">
+              {pending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+              Elimina per sempre
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function UsersTab({ currentProfile, profiles: initialProfiles, clients }: { currentProfile: Profile; profiles: Profile[]; clients: { id: string; company_name: string }[] }) {
   const [profiles, setProfiles] = useState(initialProfiles)
   const [editingUser, setEditingUser] = useState<Profile | null>(null)
   const godMode = isSuperAdmin(currentProfile)
+
+  const [deleting, setDeleting] = useState<Profile | null>(null)
+
+  /* §360 — far partire i saluti a mano. Il cron gira alle 05:30, ma chi tocca
+     il prompt deve poter vedere **adesso** cosa produce: aspettare l'alba per
+     scoprire che una regola nuova non regge è il modo più lento di scrivere un
+     prompt. Il riepilogo resta sotto al bottone, non in un avviso che sparisce:
+     `scartate` e `ritentate` sono i numeri da guardare, e si guardano due volte. */
+  const [generando, setGenerando] = useState(false)
+  const [esito, setEsito] = useState<string | null>(null)
+
+  const generaSaluti = async () => {
+    setGenerando(true); setEsito(null)
+    try {
+      const r = await fetch('/api/person-copy/run', { method: 'POST' })
+      const j = await r.json() as {
+        error?: string; saltato?: string; motore?: string; modello?: string
+        persone?: number; scritte?: number; scartate?: number; ritentate?: number
+        taciute?: number; motivi?: string[]
+      }
+      if (!r.ok) { toast.error(j.error ?? 'Giro fallito'); setEsito(j.error ?? 'Giro fallito'); return }
+      if (j.saltato) { toast.error(j.saltato); setEsito(j.saltato); return }
+      /* Non «scritte/persone»: da §366 le righe sono dodici a testa, e
+         «58/7» non vuol dire niente. Le taciute sono un esito, non un buco. */
+      const riga = [
+        `${j.persone} persone · ${j.scritte} righe scritte`,
+        `${j.scartate} scartate`,
+        `${j.ritentate} ritentativi`,
+        `${j.taciute} taciute`,
+        j.modello,
+      ].join(' · ')
+      setEsito(j.motivi?.length ? `${riga}\n${j.motivi.join('\n')}` : riga)
+      toast.success(`${j.scritte} righe scritte`)
+    } catch (e) {
+      const m = (e as Error).message
+      toast.error(m); setEsito(m)
+    } finally { setGenerando(false) }
+  }
 
   const deactivate = async (profileId: string) => {
     try {
@@ -323,9 +512,20 @@ function UsersTab({ currentProfile, profiles: initialProfiles, clients }: { curr
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between gap-3 mb-4">
         <p className="text-sm text-text-secondary">{profiles.length} utenti totali · {profiles.filter((p) => p.is_active).length} attivi</p>
+        {godMode && (
+          <button onClick={generaSaluti} disabled={generando}
+            title="Riscrive la riga di saluto di tutti per oggi. Se non passa il controllo, resta quella di prima."
+            className="flex items-center gap-1.5 text-xs font-semibold text-gold-text border border-gold/30 px-3 py-1.5 rounded-lg hover:bg-gold/10 transition-colors disabled:opacity-40 shrink-0">
+            {generando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+            {generando ? 'Sto scrivendo…' : 'Genera i saluti di oggi'}
+          </button>
+        )}
       </div>
+      {esito && (
+        <p className="text-xs text-text-secondary bg-surface border border-border rounded-lg px-3 py-2 mb-4 whitespace-pre-line">{esito}</p>
+      )}
 
       <div className="space-y-2">
         {profiles.map((p) => {
@@ -365,7 +565,18 @@ function UsersTab({ currentProfile, profiles: initialProfiles, clients }: { curr
                       <Pencil className="w-3.5 h-3.5" /> Modifica
                     </button>
                     {!isSelf && !isSA && p.is_active && (
-                      <button onClick={() => deactivate(p.id)} className="text-error hover:text-error p-1.5"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => deactivate(p.id)} title="Disattiva: esce dagli elenchi, i suoi dati restano"
+                        aria-label={`Disattiva ${p.full_name}`} className="text-text-secondary hover:text-text-primary p-1.5">
+                        <UserMinus className="w-4 h-4" />
+                      </button>
+                    )}
+                    {/* §362 — eliminare non è disattivare, e le due cose non
+                        possono avere la stessa icona: la prima non si disfa. */}
+                    {!isSelf && !isSA && (
+                      <button onClick={() => setDeleting(p)} title="Elimina definitivamente"
+                        aria-label={`Elimina definitivamente ${p.full_name}`} className="text-error hover:text-error p-1.5">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     )}
                   </div>
                 )}
@@ -374,6 +585,14 @@ function UsersTab({ currentProfile, profiles: initialProfiles, clients }: { curr
           )
         })}
       </div>
+
+      {deleting && (
+        <DeleteUserDialog
+          user={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={(id) => { setProfiles((p) => p.filter((u) => u.id !== id)); setDeleting(null) }}
+        />
+      )}
 
       {editingUser && (
         <UserEditModal

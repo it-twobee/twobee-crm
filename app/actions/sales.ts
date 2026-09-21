@@ -1,10 +1,14 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createActorClient } from '@/lib/supabase/admin'
+import { createActorClient, createAdminClient } from '@/lib/supabase/admin'
+import { sincronizzaLead } from '@/lib/sales-sync'
 import { requireSalesAccess } from '@/lib/sales-guard'
 import { OUTCOMES, canReadDeal, uuid, validDate, validateDeal, type DealInput, type Delivery, type SalesData, type SalesDeal, type SalesOutcome, type SalesActivity } from '@/lib/sales'
 import { isWorkspaceRole } from '@/lib/permissions'
+import { validaCella } from '@/lib/sales-table'
+import { CHIAVI_FASE, FASE_INGRESSO } from '@/lib/sales-stages'
+import { somiglianze, spiegaSomiglianza, type Candidato } from '@/lib/sales-dedup'
 import { generaSubito } from '@/lib/recurrence-kick'
 
 const DEAL_FIELDS = 'id,title,company_name,client_id,contact_id,assigned_to,stage,source,need,blocker,next_action,next_action_on,resume_on,monthly_value,setup_value,one_off_value,proposal_ref,loss_reason,created_at,updated_at,closed_at,last_interaction_at,revision,delivery,delivery_project_id,delivery_completed_at,delivery_owner_id'
@@ -18,116 +22,6 @@ function dbError(error: { code?: string; message: string }): never {
   if (error.code === 'P0001') throw new Error(error.message)
   console.error('Commerciale', error.code, error.message)
   throw new Error('Operazione non riuscita. I dati inseriti restano disponibili; riprova.')
-}
-
-export async function getSalesData(): Promise<SalesData> {
-  const { actor, access, sb } = await requireSalesAccess()
-  const { data: options, error } = await createActorClient(actor).rpc('sales_options', { p_actor: actor })
-  if (error) dbError(error)
-  const deals: SalesDeal[] = []
-  for (let offset = 0; ; offset += 500) {
-    const res = await sb.from('deals').select(DEAL_FIELDS).order('created_at', { ascending: false }).order('id').range(offset, offset + 499)
-    if (res.error) dbError(res.error)
-    deals.push(...(res.data ?? []) as SalesDeal[])
-    if ((res.data?.length ?? 0) < 500) break
-  }
-  const names = new Map<string, string>((options.clients as SalesData['clients']).map(c => [c.id, c.name]))
-  return { ...options, actor, access, deals: deals.map(d => ({ ...d, company_name: names.get(d.client_id ?? '') ?? d.company_name })), loadedAt: new Date().toISOString() }
-}
-
-export async function getSalesActivities(dealId: string, offset = 0): Promise<SalesActivity[]> {
-  const { sb } = await requireSalesAccess()
-  uuid(dealId)
-  if (!Number.isSafeInteger(offset) || offset < 0) throw new Error('Pagina non valida')
-  const { data, error } = await sb.from('deal_activities')
-    .select('id,deal_id,content,outcome,created_at,created_by,next_action_on')
-    .eq('deal_id', dealId).order('created_at', { ascending: false }).order('id').range(offset, offset + 49)
-  if (error) dbError(error)
-  return data ?? []
-}
-
-async function command(requestId: string, kind: string, dealId: string | null, input: Record<string, unknown>) {
-  const { actor, access, sb } = await requireSalesAccess()
-  uuid(requestId)
-  if (dealId) {
-    uuid(dealId)
-    const { data, error } = await sb.from('deals').select('assigned_to').eq('id', dealId).maybeSingle()
-    if (error) dbError(error)
-    if (!data || !canReadDeal(access, actor, data.assigned_to)) throw new Error('Opportunità non accessibile')
-    if (!Number.isSafeInteger(input.revision) || Number(input.revision) < 0) throw new Error('Versione scheda non valida')
-  }
-  const { data, error } = await createActorClient(actor).rpc('sales_command', {
-    p_actor: actor, p_request: requestId, p_command: kind, p_deal: dealId, p_input: input,
-  })
-  if (error) dbError(error)
-  refreshSales()
-  if (kind === 'create' || kind === 'delivery_complete' || (kind === 'outcome' && input.outcome === 'vinta')) {
-    /* §346 — un'opportunità vinta apre un progetto da template dentro la RPC
-       (225), quindi anche da qui nascono regole ricorrenti che nessuno
-       materializzava. Il progetto nato non torna da `sales_command`, che
-       restituisce l'opportunità: il giro è sull'archivio, ma parte solo sui
-       comandi che un progetto lo creano davvero. */
-    await generaSubito()
-    revalidatePath('/clienti'); revalidatePath('/workspace/clienti')
-    revalidatePath('/clienti/[id]', 'page'); revalidatePath('/workspace/clienti/[id]', 'page')
-    revalidatePath('/progetti'); revalidatePath('/workspace/progetti')
-  }
-  return data as string
-}
-
-export async function createSalesDeal(requestId: string, input: DealInput) {
-  await requireSalesAccess()
-  validateDeal(input, true)
-  return command(requestId, 'create', null, input)
-}
-
-export async function updateSalesDeal(requestId: string, dealId: string, revision: number, input: DealInput) {
-  await requireSalesAccess()
-  validateDeal(input)
-  return command(requestId, 'update', dealId, { ...input, revision })
-}
-
-export async function addSalesContact(requestId: string, dealId: string, revision: number, input: {
-  full_name: string; email: string; phone: string; role: string
-}) {
-  await requireSalesAccess()
-  for (const key of ['full_name', 'email', 'phone', 'role'] as const) {
-    if (typeof input?.[key] !== 'string' || input[key].length > 500) throw new Error('Referente non valido')
-  }
-  if (!input.full_name.trim() || (!input.email.trim() && !input.phone.trim())) throw new Error('Indica nome e almeno un recapito')
-  if (input.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email)) throw new Error('Email non valida')
-  return command(requestId, 'contact', dealId, { ...input, revision })
-}
-
-export async function recordSalesOutcome(requestId: string, dealId: string, revision: number, input: {
-  outcome: SalesOutcome; content: string; date: string | null; next_action: string; proposal_ref: string; client_id?: string | null
-}) {
-  await requireSalesAccess()
-  if (!input || !Object.hasOwn(OUTCOMES, input.outcome)) throw new Error('Esito non valido')
-  for (const key of ['content', 'next_action', 'proposal_ref'] as const) {
-    if (typeof input[key] !== 'string' || input[key].length > 8000) throw new Error('Testo non valido')
-  }
-  if (!input.content.trim()) throw new Error('Indica cosa è successo')
-  if (input.date && !validDate(input.date)) throw new Error('Data non valida')
-  if (input.client_id) uuid(input.client_id)
-  return command(requestId, 'outcome', dealId, { ...input, revision })
-}
-
-export async function saveSalesDelivery(requestId: string, dealId: string, revision: number, input: {
-  delivery: Delivery; delivery_owner_id: string | null; project_id: string | null; service_id: string | null
-  contact_id: string | null; proposal_ref: string; complete: boolean
-}) {
-  const { access } = await requireSalesAccess()
-  if (input.complete && access === 'owner') throw new Error('Il responsabile commerciale deve confermare il passaggio')
-  for (const key of ['delivery_owner_id', 'project_id', 'service_id', 'contact_id'] as const) if (input[key]) uuid(input[key])
-  const delivery: Delivery = {}
-  for (const key of ['goals', 'services', 'included', 'excluded', 'promises', 'materials', 'missing'] as const) {
-    const text = input.delivery?.[key] ?? ''
-    if (typeof text !== 'string' || text.length > 8000) throw new Error('Riepilogo troppo lungo')
-    delivery[key] = text.trim()
-  }
-  if (typeof input.proposal_ref !== 'string' || input.proposal_ref.length > 500) throw new Error('Proposta non valida')
-  return command(requestId, input.complete ? 'delivery_complete' : 'delivery_save', dealId, { ...input, delivery, revision })
 }
 
 export async function setSalesPermission(profileId: string, enabled: boolean) {
@@ -144,4 +38,296 @@ export async function setSalesPermission(profileId: string, enabled: boolean) {
   if (result.error) dbError(result.error)
   refreshSales()
   revalidatePath('/workspace', 'layout')
+}
+
+/**
+ * §368 — «Lead convertito»: lega la riga commerciale all'anagrafica appena
+ * creata e la porta in fondo alla pipeline.
+ *
+ * Si chiama **dopo** che il cliente esiste, non prima: il modale di anagrafica
+ * è già la porta buona — chiede ragione sociale, tipo, settore, referenti — e
+ * duplicarne una versione ridotta qui dentro avrebbe prodotto due modi di
+ * creare un cliente, che è il modo di ottenerne due con lo stesso nome. Il
+ * commerciale precompila quello che sa (azienda, referente, telefono, mail) e
+ * chi converte controlla: è spesso il momento in cui si scopre che la ragione
+ * sociale vera è un'altra.
+ *
+ * **Non tocca i numeri.** Una conversione non crea contratti, rate, MRR o
+ * fatture: quelli nascono in Economics dal primo contratto venduto, e restano
+ * l'unica scrittura di valore del prodotto. Qui si dice solo «questa
+ * trattativa adesso è quel cliente».
+ *
+ * Idempotente: se la riga è già collegata a quel cliente non fa niente e non
+ * si lamenta — un doppio clic sulla CTA è un doppio clic, non un errore.
+ */
+export async function collegaLeadACliente(dealId: string, clientId: string) {
+  const { actor } = await requireSalesAccess()
+  const db = createActorClient(actor)
+
+  const { data: riga, error: eLettura } = await db
+    .from('deals').select('id,client_id,stage').eq('id', dealId).maybeSingle()
+  if (eLettura) dbError(eLettura)
+  if (!riga) throw new Error('Questa opportunità non esiste più')
+
+  const attuale = riga as { id: string; client_id: string | null; stage: string }
+  if (attuale.client_id && attuale.client_id !== clientId) {
+    throw new Error('Questa opportunità è già collegata a un altro cliente')
+  }
+  if (attuale.client_id === clientId && attuale.stage === 'active_client') {
+    refreshSales()
+    return { collegato: true as const }
+  }
+
+  const { error } = await db.from('deals').update({
+    client_id: clientId,
+    stage: 'active_client',
+    closed_at: new Date().toISOString(),
+  }).eq('id', dealId)
+  if (error) dbError(error)
+
+  /* L'anagrafica nuova cambia gli elenchi di entrambi i portali, e chi
+     converte di solito ci va subito dopo: senza questo troverebbe la lista
+     di prima e penserebbe che non abbia funzionato. */
+  refreshSales()
+  revalidatePath('/clienti')
+  revalidatePath('/workspace/clienti')
+  return { collegato: true as const }
+}
+
+/**
+ * §371 — salva **una** cella.
+ *
+ * Il campo non arriva libero: passa da `validaCella`, che conosce le colonne
+ * e i loro tipi e rifiuta tutto il resto. Non è pignoleria di forma — un file
+ * `'use server'` esporta un endpoint, e chi ha il codice davanti conosce i
+ * nomi delle colonne di `deals` (§329). Senza quel controllo si potrebbe
+ * scrivere su `client_id`, `revision` o `sheet_row_id` mandando il campo
+ * giusto nel corpo della richiesta, e nascondere una cella nella tabella non
+ * è una barriera.
+ *
+ * Una cella per volta e nessuna revisione da confrontare: due persone che
+ * modificano la **stessa** cella dello **stesso** lead nello stesso minuto
+ * sono un caso che in sette non capita, e chiedere una conferma di versione a
+ * ogni tasto renderebbe l'editing in cella più lento che aprire una scheda.
+ * Chi scrive per ultimo vince, e lo vede subito perché la tabella si aggiorna.
+ */
+export async function salvaCellaDeal(dealId: string, campo: string, valore: unknown) {
+  const { actor } = await requireSalesAccess()
+  const esito = validaCella(campo, valore)
+  if (!esito.ok) throw new Error(esito.motivo)
+
+  const { error } = await createActorClient(actor)
+    .from('deals')
+    .update({ [campo]: esito.valore, updated_at: new Date().toISOString() })
+    .eq('id', dealId)
+  if (error) dbError(error)
+
+  refreshSales()
+  return { valore: esito.valore }
+}
+
+/**
+ * §371 — chi segue la trattativa: zero, uno o due persone.
+ *
+ * Sostituisce l'elenco invece di aggiungere e togliere: su Notion è un campo
+ * multi-persona che si sceglie da un menu, e replicare quel gesto con due
+ * azioni separate vorrebbe dire una finestra in cui la riga ha zero owner.
+ */
+export async function impostaOwnerDeal(dealId: string, profileIds: string[]) {
+  const { actor } = await requireSalesAccess()
+  const db = createActorClient(actor)
+  const unici = Array.from(new Set(profileIds.filter(Boolean)))
+
+  const { error: eCancella } = await db.from('deal_owners').delete().eq('deal_id', dealId)
+  if (eCancella) dbError(eCancella)
+
+  if (unici.length) {
+    const { error } = await db.from('deal_owners')
+      .insert(unici.map(profile_id => ({ deal_id: dealId, profile_id })))
+    if (error) dbError(error)
+  }
+  refreshSales()
+  return { owner: unici }
+}
+
+/**
+ * §372 — «Aggiorna dal foglio», premuto da una persona.
+ *
+ * Stessa funzione del cron notturno, non una sua copia: se la sincronizzazione
+ * a mano e quella automatica facessero due cose leggermente diverse, il giorno
+ * in cui il cron sbaglia nessuno riuscirebbe a riprodurlo premendo il bottone.
+ *
+ * Il riepilogo torna a chi ha premuto — quanti nuovi, quanti già c'erano,
+ * quanti scartati — perché «fatto» non è una risposta: chi preme quel bottone
+ * lo preme dopo aver aggiunto una riga al foglio, e vuole sapere se quella
+ * riga è arrivata. Zero nuovi con ventotto già presenti è un esito sano; zero
+ * nuovi e zero letti vuol dire che il foglio non si apre.
+ */
+export async function aggiornaDaFoglio() {
+  const { access } = await requireSalesAccess()
+  if (access !== 'admin' && access !== 'manager') {
+    throw new Error('Solo admin e manager possono aggiornare dal foglio')
+  }
+  const esito = await sincronizzaLead(createAdminClient())
+  refreshSales()
+  return esito
+}
+
+// ── §377 · aggiungere un lead, a mano o da un CSV ───────────────────────────
+
+export type NuovoLead = {
+  companyName: string
+  contactName?: string | null
+  contactEmail?: string | null
+  contactPhone?: string | null
+  stage?: string
+  source?: string | null
+  priority?: string | null
+  notes?: string | null
+}
+
+export type EsitoCreazione =
+  | { ok: true; id: string }
+  | { ok: false; doppioni: { id: string; testo: string; certo: boolean }[] }
+
+/** i campi su cui si cerca un doppione: sono pochi e bastano tutti e tre */
+const CAMPI_DEDUP = 'id,company_name,contact_phone,contact_email,sheet_row_id,stage'
+
+/**
+ * Crea un lead, **dopo** aver guardato se c'è già.
+ *
+ * Non unisce e non decide: se trova qualcosa di simile si ferma e restituisce
+ * cosa ha trovato e perché. È la regola dei clienti (§326) applicata qui, e
+ * vale per lo stesso motivo — solo chi sta inserendo sa se «Rossi Srl» e
+ * «Rossi S.r.l.» sono la stessa azienda o due fratelli in due capannoni.
+ *
+ * `forza` esiste ed è esplicito: chi ha letto l'elenco dei somiglianti e sa
+ * che sono aziende diverse deve poter procedere, o il controllo diventa un
+ * muro e si smette di usare la funzione.
+ */
+export async function creaLead(input: NuovoLead, forza = false): Promise<EsitoCreazione> {
+  const { actor } = await requireSalesAccess()
+  const db = createActorClient(actor)
+
+  const nome = input.companyName.trim()
+  if (!nome) throw new Error('Il nome azienda è obbligatorio')
+
+  if (!forza) {
+    /* Si leggono solo i candidati plausibili, non tutta la tabella: con
+       cinquantacinque righe sarebbe uguale, con cinquemila no. */
+    const { data, error } = await db.from('deals').select(CAMPI_DEDUP)
+    if (error) dbError(error)
+    const trovati = somiglianze(
+      {
+        companyName: nome,
+        contactPhone: input.contactPhone,
+        contactEmail: input.contactEmail,
+      },
+      (data ?? []) as unknown as Candidato[],
+    )
+    if (trovati.length) {
+      return {
+        ok: false,
+        doppioni: trovati.map(s => ({
+          id: s.esistente.id,
+          testo: spiegaSomiglianza(s),
+          certo: s.certo,
+        })),
+      }
+    }
+  }
+
+  const { data, error } = await db.from('deals').insert({
+    title: nome,
+    company_name: nome,
+    contact_name: input.contactName?.trim() || null,
+    contact_email: input.contactEmail?.trim() || null,
+    contact_phone: input.contactPhone?.trim() || null,
+    stage: input.stage && CHIAVI_FASE.includes(input.stage) ? input.stage : FASE_INGRESSO,
+    source: input.source?.trim() || null,
+    priority: input.priority || null,
+    notes: input.notes?.trim() || null,
+    created_by: actor,
+  }).select('id').single()
+  if (error) dbError(error)
+
+  refreshSales()
+  return { ok: true, id: (data as { id: string }).id }
+}
+
+export type RigaCsv = Record<string, string>
+
+export type EsitoImport = {
+  letti: number
+  nuovi: number
+  doppioni: { riga: number; azienda: string; testo: string }[]
+  scartati: number
+  errore?: string
+}
+
+/**
+ * Importa un CSV esterno: inserisce **solo** le righe che non somigliano a
+ * niente, e restituisce l'elenco di quelle saltate con il motivo.
+ *
+ * Non c'è un «forza» qui, ed è voluto: su una riga sola chi inserisce legge
+ * e decide, su duecento righe non legge — e un «importa tutto lo stesso»
+ * riempirebbe la tabella di doppioni in un clic, che è esattamente la cosa
+ * che questa funzione dovrebbe impedire. Le righe saltate si guardano nel
+ * riepilogo e si aggiungono a mano, una per una, con la decisione davanti.
+ */
+export async function importaLeadCsv(righe: NuovoLead[]): Promise<EsitoImport> {
+  const { access, actor } = await requireSalesAccess()
+  if (access !== 'admin' && access !== 'manager') {
+    throw new Error('Solo admin e manager possono importare un CSV')
+  }
+  const db = createActorClient(actor)
+
+  const { data, error } = await db.from('deals').select(CAMPI_DEDUP)
+  if (error) dbError(error)
+  const esistenti = (data ?? []) as unknown as Candidato[]
+
+  const esito: EsitoImport = { letti: righe.length, nuovi: 0, doppioni: [], scartati: 0 }
+  const daInserire: NuovoLead[] = []
+
+  righe.forEach((r, i) => {
+    const nome = (r.companyName ?? '').trim()
+    if (!nome) { esito.scartati++; return }
+    /* Si confronta anche con quelle già accettate in **questo** giro: un CSV
+       che contiene due volte la stessa azienda le inserirebbe entrambe, e il
+       controllo avrebbe guardato solo il passato. */
+    const contro = [...esistenti, ...daInserire.map((d, k) => ({
+      id: `nuovo-${k}`,
+      company_name: d.companyName,
+      contact_phone: d.contactPhone ?? null,
+      contact_email: d.contactEmail ?? null,
+    }))]
+    const trovati = somiglianze(
+      { companyName: nome, contactPhone: r.contactPhone, contactEmail: r.contactEmail },
+      contro,
+    )
+    if (trovati.length) {
+      esito.doppioni.push({ riga: i + 2, azienda: nome, testo: spiegaSomiglianza(trovati[0]) })
+      return
+    }
+    daInserire.push({ ...r, companyName: nome })
+  })
+
+  if (daInserire.length) {
+    const { error: eIns } = await db.from('deals').insert(daInserire.map(d => ({
+      title: d.companyName,
+      company_name: d.companyName,
+      contact_name: d.contactName?.trim() || null,
+      contact_email: d.contactEmail?.trim() || null,
+      contact_phone: d.contactPhone?.trim() || null,
+      stage: d.stage && CHIAVI_FASE.includes(d.stage) ? d.stage : FASE_INGRESSO,
+      source: d.source?.trim() || 'CSV',
+      notes: d.notes?.trim() || null,
+      created_by: actor,
+    })))
+    if (eIns) return { ...esito, errore: `Inserimento fallito: ${eIns.message}` }
+    esito.nuovi = daInserire.length
+  }
+
+  refreshSales()
+  return esito
 }

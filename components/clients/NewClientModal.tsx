@@ -23,10 +23,42 @@ type Contact = { full_name: string; email: string; phone: string; role: string; 
 const iso = (d: Date) => d.toISOString().slice(0, 10)
 const num = (v: string) => (v.trim() ? Number(v) : null)
 
-export function NewClientModal({ onClose, onCreated }: { onClose: () => void; onCreated: (client: Client) => void }) {
+/**
+ * §368 — quello che il modale sa già prima di aprirsi.
+ *
+ * Arriva dal commerciale: un lead ha già azienda, referente, telefono e mail,
+ * e farli riscrivere è il modo più sicuro di ottenere due anagrafiche con lo
+ * stesso nome scritto in due modi. Sono **valori iniziali**, non un blocco:
+ * chi apre può correggerli tutti prima di salvare, ed è spesso il momento in
+ * cui si scopre che la ragione sociale vera è un'altra.
+ */
+export type PrecompilazioneCliente = {
+  nome?: string | null
+  referente?: {
+    nome?: string | null
+    email?: string | null
+    telefono?: string | null
+  }
+}
+
+/** un referente si crea solo se ha almeno un dato: una riga vuota non aiuta nessuno */
+function referenteIniziale(p?: PrecompilazioneCliente): Contact[] {
+  const r = p?.referente
+  const nome = r?.nome?.trim() ?? ''
+  const email = r?.email?.trim() ?? ''
+  const phone = r?.telefono?.trim() ?? ''
+  if (!nome && !email && !phone) return []
+  return [{ full_name: nome, email, phone, role: '', is_primary: true }]
+}
+
+export function NewClientModal({ onClose, onCreated, precompilato }: {
+  onClose: () => void
+  onCreated: (client: Client) => void
+  precompilato?: PrecompilazioneCliente
+}) {
   const [pending, start] = useTransition()
 
-  const [name, setName] = useState('')
+  const [name, setName] = useState(precompilato?.nome?.trim() ?? '')
   const [legalName, setLegalName] = useState('')
   const [type, setType] = useState<ClientType>('growth')
   const [label, setLabel] = useState<ClientLabel>('stabile')
@@ -50,7 +82,7 @@ export function NewClientModal({ onClose, onCreated }: { onClose: () => void; on
   const [tFollowers, setTFollowers] = useState('')
   const [goalsNotes, setGoalsNotes] = useState('')
 
-  const [contacts, setContacts] = useState<Contact[]>([])
+  const [contacts, setContacts] = useState<Contact[]>(() => referenteIniziale(precompilato))
 
   const benchmark = INDUSTRY_BENCHMARKS[industry]
   const applyBenchmark = () => {
@@ -219,7 +251,11 @@ export function NewClientModal({ onClose, onCreated }: { onClose: () => void; on
         </Field>
       </Disclosure>
 
-      <Disclosure title="Referenti" hint={contacts.length ? `${contacts.length} da creare` : 'puoi aggiungerli dopo'}>
+      {/* §368 — se il referente arriva già compilato dal lead, la sezione si
+          apre: un dato precompilato dentro un pannello chiuso è un dato che
+          nessuno rilegge, e questo è esattamente quello da ricontrollare. */}
+      <Disclosure title="Referenti" defaultOpen={contacts.length > 0}
+        hint={contacts.length ? `${contacts.length} da creare` : 'puoi aggiungerli dopo'}>
         {contacts.map((c, i) => (
           <div key={i} className="rounded-xl border border-border p-3 space-y-2">
             <div className="flex items-center justify-between">

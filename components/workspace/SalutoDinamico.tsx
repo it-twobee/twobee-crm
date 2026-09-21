@@ -17,8 +17,18 @@ import { saluto, salutoPersonale, type Momento, type StatoPersona } from '@/lib/
  * §352 — con `stato` la riga parla **di chi la legge**: quante ne ha in ritardo,
  * quante ne scadono oggi, quante ne ha chiuse, e che ruolo ha. Senza, resta il
  * saluto generico di §351 — che è quello che vede chi non ha ancora numeri.
+ *
+ * §360 — `riga` è il testo scritto stanotte da un modello, già reso coi numeri
+ * di adesso e **già passato dal validatore** sul server: qui arriva una stringa
+ * o niente. Non dipende dall'ora, quindi non aspetta il montaggio come fa il
+ * resto — e quando non c'è (cron non passato, scena cambiata, template non più
+ * valido) si torna alle frasi deterministiche senza che si veda il salto.
  */
-export function SalutoDinamico({ seme, stato }: { seme: number; stato?: StatoPersona }) {
+export function SalutoDinamico({ seme, stato, riga }: {
+  seme: number
+  stato?: StatoPersona
+  riga?: string | null
+}) {
   const [momento, setMomento] = useState<Momento>({ ora: null, giorno: null })
   useEffect(() => {
     const d = new Date()
@@ -26,7 +36,7 @@ export function SalutoDinamico({ seme, stato }: { seme: number; stato?: StatoPer
   }, [])
   return (
     <p className="text-text-secondary text-sm mt-1">
-      {stato ? salutoPersonale(stato, momento, seme) : saluto(momento, seme)}
+      {riga ?? (stato ? salutoPersonale(stato, momento, seme) : saluto(momento, seme))}
     </p>
   )
 }
