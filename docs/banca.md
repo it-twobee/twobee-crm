@@ -173,6 +173,35 @@ Le autorizzazioni in sospeso **non si salvano**: sono la differenza fra i
 due, e un terzo campo da tenere allineato a mano è un terzo campo che va
 fuori sincrono.
 
+**§384 — una distinta paga più cedolini** (`bank_tx_payslips`, migration 243,
+`linkPayslipsToTx`). Gli stipendi escono in **una riga sola** — «favore
+beneficiari vari distinta», 3.945 € — e dentro ci sono tre persone. Su
+`bank_transactions` c'erano `payslip_id` e `hr_invoice_id`: singoli, e
+soprattutto **non li scriveva nessuno** — servivano solo a togliere un
+movimento dai «da riconciliare», ma niente li popolava. Sette distinte da
+giugno a settembre, ventitremila euro, senza una risposta a «di chi sono
+questi soldi».
+
+**L'importo sta sul collegamento, non sul cedolino.** I cedolini in archivio
+sono PDF con `amount` a zero: nessuno sa quanto è stato pagato a chi. La
+cifra si scrive mentre si collega, e la somma deve fare la distinta — se non
+torna, o manca una persona o un importo è sbagliato. È la differenza fra un
+aggancio che **controlla** e uno che si limita a dichiarare, ed è la ragione
+per cui l'azione rifiuta invece di salvare in silenzio. `forza` esiste ed è
+esplicito (§377): una distinta può pagare anche chi un cedolino qui non ce
+l'ha, e chi ha letto la differenza deve poter procedere — quello che non può
+succedere è procedere **senza saperlo**.
+
+Non si scrive su `payslips.amount`: una distinta può pagare un arretrato,
+mezzo mese o due mensilità insieme, e quel campo direbbe una cosa per
+un'altra. Qui c'è **quanto è uscito dal conto con quel bonifico**, che è
+l'unica cosa che il conto sa.
+
+**Un cedolino sta in una distinta sola** (indice unico): pagarlo due volte
+raddoppierebbe il costo del personale senza che nessuno lo cerchi. Il
+controllo è anche nell'azione, prima del vincolo, per poter dire **chi** è
+già pagato invece di un «duplicate key».
+
 - **Giroconti fra conti propri**: `pairTransfers` appaia i due lati per importo
   opposto e data vicina. Senza, la liquidità totale sembra scendere e la lista da
   riconciliare chiede due volte lo stesso fatto.

@@ -20,12 +20,14 @@ import {
   unreconciled, forecast, bankInsights, byCounterparty, byKind, daysToCash,
   grossOf, isStructural, liquidity, fundingNeed, allowanceView, suggestFunding,
   type BankAccount, type BankTx, type PlLineRef, type Expected,
-  type Granularity, type TxKind,
+  type Granularity, type TxKind, type CedolinoScelta,
 } from '@/lib/bank'
 import {
   importBankCsv, reconcile, unreconcile, markNoMatch, addManualTx, deleteTx,
   pushPartnerSpend, setAllowance, updateAccount, pushAccountSpend,
+  linkPayslipsToTx, unlinkPayslipsFromTx,
 } from '@/app/actions/bank'
+import { DistintaDialog } from './DistintaDialog'
 import {
   spendSplit, CHECK_FAMILIES, DEDUCTIBILITY, merchant, FAMILY_LABEL as FAMILY_LABEL_UI,
 } from '@/lib/bank-import'
@@ -69,7 +71,7 @@ type PlMonth = {
 }
 
 export function BankClient({
-  month, today, setupNeeded, accounts, txs, openLines, expected, months, plByMonth, unproven,
+  month, today, setupNeeded, accounts, cedolini, txs, openLines, expected, months, plByMonth, unproven,
   payableNow = 0,
   clientNames, spendItems, centers = [],
 }: {
@@ -77,6 +79,8 @@ export function BankClient({
   today: string
   setupNeeded: boolean
   accounts: BankAccount[]
+  /** §384 — i cedolini fra cui scegliere quando si collega una distinta */
+  cedolini?: CedolinoScelta[]
   txs: BankTx[]
   openLines: PlLineRef[]
   /**
@@ -202,6 +206,8 @@ export function BankClient({
   const [splitting, setSplitting] = useState<string | null>(null)
   /** §383 — il disponibile si legge nell'app della banca e si scrive qui */
   const [disponibile, setDisponibile] = useState<string>('')
+  /** §384 — la distinta di cui si sta dicendo chi paga */
+  const [distinta, setDistinta] = useState<string | null>(null)
   /* §276 — gli abbinamenti in cui non c'è niente da giudicare: importo lordo
      esatto, nome che torna, e nessuna ambiguità nei due sensi. Restano una
      conferma umana — una sola invece di venti. */
@@ -727,6 +733,17 @@ export function BankClient({
                       className="text-2xs font-semibold text-gold-text hover:underline shrink-0">
                       paga più righe
                     </button>
+                    {/* §384 — la quarta risposta: questo movimento paga delle
+                        **persone**, non delle righe di conto economico. Una
+                        distinta esce in una riga sola e dentro ci sono tre
+                        cedolini, e finora non c'era modo di dirlo — sette
+                        distinte da giugno a settembre senza una risposta. */}
+                    {t.amount < 0 && (
+                      <button onClick={() => setDistinta(t.id)} disabled={pending}
+                        className="text-2xs font-semibold text-gold-text hover:underline shrink-0">
+                        paga dei cedolini
+                      </button>
+                    )}
                     <button onClick={() => run(() => markNoMatch(t.id), 'Segnato: niente da riconciliare')}
                       disabled={pending}
                       className="text-2xs font-semibold text-text-tertiary hover:text-text-secondary shrink-0">
@@ -1078,6 +1095,31 @@ export function BankClient({
       </p>
 
       {/* §297 — spartire un movimento fra più righe */}
+      {distinta && (() => {
+        const t = ownTxs.find(x => x.id === distinta)
+        if (!t) return null
+        return (
+          <DistintaDialog tx={t} cedolini={cedolini ?? []} pending={pending}
+            onChiudi={() => setDistinta(null)}
+            onSlega={() => start(async () => {
+              try {
+                await unlinkPayslipsFromTx(t.id)
+                toast.success('Distinta slegata: torna fra i movimenti da riconciliare')
+                setDistinta(null); router.refresh()
+              } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+            })}
+            onSalva={(righe, forza) => start(async () => {
+              try {
+                const r = await linkPayslipsToTx(t.id, righe, forza)
+                toast.success(r.totale === r.distinta
+                  ? `${r.collegati} cedolini collegati: la somma fa la distinta`
+                  : `${r.collegati} cedolini collegati · ${eur2(Math.abs(r.totale - r.distinta))} di differenza, confermata`)
+                setDistinta(null); router.refresh()
+              } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+            })} />
+        )
+      })()}
+
       {splitting && (() => {
         const t = ownTxs.find(x => x.id === splitting)
         if (!t) return null

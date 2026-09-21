@@ -107,6 +107,13 @@ export type BankTx = {
   cost_line_id: string | null
   payslip_id?: string | null
   hr_invoice_id?: string | null
+  /**
+   * §384 — i cedolini che questa distinta paga, con l'importo di ciascuno.
+   * `payslip_id` era singolo e non lo scriveva nessuno: una distinta ne paga
+   * tre, e la somma dei collegamenti è quello che rende l'aggancio
+   * verificabile invece che dichiarato.
+   */
+  payslipLinks?: { payslipId: string; amount: number; who: string }[]
   matched_at: string | null
   no_match_needed: boolean
   /**
@@ -435,7 +442,17 @@ export function matchCandidates(tx: BankTx, lines: PlLineRef[], tolerance = 0.01
 /** Movimenti che aspettano una risposta: né agganciati né dichiarati inutili. */
 export const unreconciled = (txs: BankTx[]) => txs.filter(t =>
   t.source === 'banca' && !t.no_match_needed && !t.revenue_line_id && !t.cost_line_id
-  && !t.payslip_id && !t.hr_invoice_id && !isStructural(t))
+  && !t.payslip_id && !t.hr_invoice_id && !t.payslipLinks?.length && !isStructural(t))
+
+/** §384 — un cedolino per persona e mese, con chi è e se è già pagato */
+export type CedolinoScelta = {
+  id: string
+  who: string
+  year: number
+  month: number
+  /** l'id della distinta che lo paga già, se c'è: un cedolino si paga una volta */
+  linkedTo: string | null
+}
 
 export type TransferSide = {
   id: string

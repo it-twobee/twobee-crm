@@ -754,3 +754,105 @@ export async function pushAccountSpend(accountId: string, month: string, overrid
     gruppi: gruppi.sort((a, b) => b.total - a.total),
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// §384 — la distinta e i cedolini che paga
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type RigaDistinta = { payslipId: string; amount: number }
+
+/**
+ * Collega una distinta ai cedolini che paga, con l'importo di ciascuno.
+ *
+ * Gli stipendi escono in una riga sola — «favore beneficiari vari distinta» —
+ * e dentro ci sono tre persone. Finora quella riga non aveva risposta: la
+ * colonna `payslip_id` esisteva, era singola, e non la scriveva nessuno.
+ *
+ * **L'importo si scrive qui perché è l'unico modo di verificare l'aggancio.**
+ * La somma dei cedolini deve fare la distinta: se non torna, o manca qualcuno
+ * o una cifra è sbagliata, e il conto lo dice **prima** invece di lasciare un
+ * aggancio che sembra un controllo e non lo è. I cedolini in archivio hanno
+ * `amount` a zero — sono PDF caricati — quindi la cifra la legge una persona
+ * dalla busta e la scrive mentre collega.
+ *
+ * `forza` esiste ed è esplicito, come nel commerciale (§377): una distinta
+ * può pagare anche qualcuno che un cedolino qui dentro non ce l'ha, e chi ha
+ * visto la differenza deve poter procedere — o il controllo diventa un muro e
+ * si smette di usarlo. Quello che non può succedere è procedere **senza
+ * saperlo**: il messaggio dice le due cifre e la differenza.
+ *
+ * Sostituisce l'elenco invece di aggiungere: ricollegare una distinta dopo
+ * aver corretto un importo è il gesto normale, e due azioni separate
+ * lascerebbero una finestra in cui la distinta è scollegata da tutto.
+ */
+export async function linkPayslipsToTx(
+  txId: string, righe: RigaDistinta[], forza = false,
+): Promise<{ collegati: number; totale: number; distinta: number }> {
+  const uid = await requireAdmin()
+  const admin = createAdminClient()
+
+  if (!righe.length) throw new Error('Scegli almeno un cedolino')
+  if (righe.length > 50) throw new Error('Troppi cedolini in una distinta: al massimo cinquanta')
+
+  const { data: tx } = await admin.from('bank_transactions')
+    .select('id, amount, kind, source').eq('id', txId).maybeSingle()
+  if (!tx) throw new Error('Questo movimento non esiste più')
+  const mov = tx as { id: string; amount: number; source: string }
+  if (mov.amount >= 0) throw new Error('Una distinta è un’uscita: questo movimento è un accredito')
+
+  for (const r of righe) {
+    if (!Number.isFinite(r.amount) || r.amount <= 0) {
+      throw new Error('Ogni cedolino vuole un importo maggiore di zero')
+    }
+  }
+  const ids = righe.map(r => r.payslipId)
+  if (new Set(ids).size !== ids.length) throw new Error('Lo stesso cedolino è stato scelto due volte')
+
+  const totale = Math.round(righe.reduce((n, r) => n + r.amount, 0) * 100) / 100
+  const distinta = Math.round(Math.abs(mov.amount) * 100) / 100
+  if (!forza && Math.abs(totale - distinta) > 0.009) {
+    const eur = (n: number) => n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    throw new Error(
+      `I cedolini fanno ${eur(totale)} € e la distinta è ${eur(distinta)} €: `
+      + `${eur(Math.abs(totale - distinta))} € di differenza. `
+      + 'Correggi gli importi, aggiungi chi manca, oppure conferma che è così.')
+  }
+
+  /* Un cedolino sta in una distinta sola (indice unico della 243). Si
+     controlla prima per poterlo **dire**: l'errore del vincolo direbbe solo
+     «duplicate key», e chi lo legge non sa quale persona è già pagata. */
+  const { data: presi } = await admin.from('bank_tx_payslips')
+    .select('payslip_id, tx_id').in('payslip_id', ids).neq('tx_id', txId)
+  if ((presi ?? []).length) {
+    const quali = (presi as { payslip_id: string }[]).map(p => p.payslip_id)
+    const { data: chi } = await admin.from('payslips')
+      .select('id, file_name').in('id', quali)
+    const nomi = (chi ?? []).map((c: { file_name: string | null }) => c.file_name ?? 'senza nome')
+    throw new Error(`Già pagati da un'altra distinta: ${nomi.join(', ')}`)
+  }
+
+  const { error: eDel } = await admin.from('bank_tx_payslips').delete().eq('tx_id', txId)
+  if (eDel) throw new Error(eDel.message)
+
+  const { error } = await admin.from('bank_tx_payslips').insert(
+    righe.map(r => ({ tx_id: txId, payslip_id: r.payslipId, amount: r.amount, created_by: uid })))
+  if (error) {
+    if (['42P01', 'PGRST205'].includes(error.code ?? '')) {
+      throw new Error('Manca la migration 243: senza, una distinta non può dire chi paga.')
+    }
+    throw new Error(error.message)
+  }
+
+  rev()
+  revalidatePath('/economics/personale')
+  return { collegati: righe.length, totale, distinta }
+}
+
+/** Slega una distinta dai suoi cedolini: torna fra i movimenti da riconciliare. */
+export async function unlinkPayslipsFromTx(txId: string) {
+  await requireAdmin()
+  const { error } = await createAdminClient().from('bank_tx_payslips').delete().eq('tx_id', txId)
+  if (error) throw new Error(error.message)
+  rev()
+  revalidatePath('/economics/personale')
+}

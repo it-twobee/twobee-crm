@@ -4,7 +4,8 @@ import { redirect } from 'next/navigation'
 import { BankClient } from '@/components/bank/BankClient'
 import { monthKey, shiftMonth } from '@/lib/pl'
 import { rowToPlConfig, computeMonth, type RevenueLine, type CostLine, type Partner } from '@/lib/pl'
-import type { BankAccount, BankTx, PlLineRef, Expected } from '@/lib/bank'
+import type { BankAccount, BankTx, PlLineRef, Expected, CedolinoScelta } from '@/lib/bank'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { dueOf, collectionIndex } from '@/lib/cash-calendar'
 import { rowContext, toRevenueLines, toCostLines } from '@/lib/pl-rows'
 import { buildWindow, takenIn, marginCostsFor } from '@/lib/payout-window'
@@ -107,6 +108,41 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
   const clientNames = Object.fromEntries(nameOf)
 
   // ── i movimenti ────────────────────────────────────────────────────────────
+  /* §384 — i cedolini e i collegamenti alle distinte. Si leggono col service
+     role come le altre letture di questa pagina: il permesso l'ha già dato il
+     gate del layout, e la RLS di `payslips` è scritta per la persona a cui il
+     cedolino appartiene — un admin che riconcilia non è quella persona. */
+  const svc = createAdminClient()
+  const [{ data: cedRows }, { data: linkRows }] = await Promise.all([
+    svc.from('payslips').select('id, profile_id, year, month, file_name')
+      .order('year', { ascending: false }).order('month', { ascending: false }),
+    svc.from('bank_tx_payslips').select('tx_id, payslip_id, amount'),
+  ])
+  const chiSono = new Map<string, string>(
+    ((await svc.from('profiles').select('id, full_name')).data ?? [])
+      .map((p: { id: string; full_name: string | null }) => [p.id, p.full_name ?? 'Senza nome']))
+  const nomeCedolino = (c: Record<string, unknown>) =>
+    chiSono.get(String(c.profile_id)) ?? String(c.file_name ?? 'Senza nome')
+
+  const perTx = new Map<string, { payslipId: string; amount: number; who: string }[]>()
+  const cedolinoPreso = new Map<string, string>()
+  const cedolinoDi = new Map<string, Record<string, unknown>>(
+    (cedRows ?? []).map((c: Record<string, unknown>) => [String(c.id), c]))
+  for (const l of (linkRows ?? []) as { tx_id: string; payslip_id: string; amount: number }[]) {
+    const c = cedolinoDi.get(l.payslip_id)
+    perTx.set(l.tx_id, [...(perTx.get(l.tx_id) ?? []), {
+      payslipId: l.payslip_id, amount: num(l.amount),
+      who: c ? nomeCedolino(c) : 'Cedolino non trovato',
+    }])
+    cedolinoPreso.set(l.payslip_id, l.tx_id)
+  }
+
+  const cedolini: CedolinoScelta[] = (cedRows ?? []).map((c: Record<string, unknown>) => ({
+    id: String(c.id), who: nomeCedolino(c),
+    year: Number(c.year), month: Number(c.month),
+    linkedTo: cedolinoPreso.get(String(c.id)) ?? null,
+  }))
+
   const txs: BankTx[] = (txRows ?? []).map((t: Record<string, unknown>) => ({
     id: String(t.id), account_id: String(t.account_id),
     booked_on: String(t.booked_on).slice(0, 10),
@@ -126,6 +162,7 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
     note: (t.note as string) ?? null,
     transfer_pair_id: (t.transfer_pair_id as string) ?? null,
     transfer_account_id: (t.transfer_account_id as string) ?? null,
+    payslipLinks: perTx.get(String(t.id)) ?? [],
   }))
 
   /* Le righe aperte: crediti e debiti che aspettano un movimento. Sono i
@@ -345,6 +382,7 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
       today={today}
       setupNeeded={false}
       accounts={accounts}
+      cedolini={cedolini}
       spendItems={spendItems}
       txs={txs}
       openLines={openLines}
