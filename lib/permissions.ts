@@ -187,6 +187,10 @@ export function canPreviewClientPortal(profile: {
   )
 }
 
+export function canManageClientPortal(profile: Parameters<typeof canPreviewClientPortal>[0]): boolean {
+  return canPreviewClientPortal(profile)
+}
+
 /** True se può gestire utenti e permessi */
 export function isAdminOrAbove(profile: Profile | null): boolean {
   if (!profile) return false

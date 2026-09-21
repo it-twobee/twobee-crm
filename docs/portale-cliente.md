@@ -3,6 +3,101 @@
 19 settembre 2026 · branch `feat/portale-cliente` · sviluppo sul PC locale.
 Specifica: `docs/brief-portale-cliente.md`, confrontata con il PDF v1.0.
 
+## Accessi dalla scheda cliente — rilascio del 21 settembre 2026
+
+Su richiesta del committente, nella scheda condivisa admin/workspace compare
+**Portale cliente** (`?tab=10`), dopo Tracking, Report, Chiavi e Accessi. È
+presente per i clienti effettivi, anche preesistenti: creazione manuale e
+«Lead convertito» dal commerciale usano entrambi `NewClientModal` e la stessa
+scheda. Non serve un secondo record da generare o un trigger di provisioning.
+I lead non ancora acquisiti non aprono accessi al portale.
+
+Manager e amministrativi attivi possono:
+
+- copiare il link stabile `/portale?client=<id>` e aprire l'anteprima;
+- invitare una persona, anche precompilando nome/email dai contatti;
+- scegliere referente/collaboratore/lettore e tutti i progetti condivisi
+  (anche futuri) oppure soltanto quelli selezionati;
+- modificare permessi, revocare e riattivare l'accesso a quella sola azienda;
+- rigenerare l'invito oppure generare il link **Reimposta password**.
+
+La tab non crea automaticamente account per ogni contatto. L'abilitazione è
+esplicita e personale. `canManageClientPortal()` è condiviso fra UI e guard;
+il manager gestisce soltanto le aziende visibili in `clients_workspace`.
+Le action verificano sessione, profilo attivo, azienda, account e membership;
+il service role arriva dopo la lettura autorizzata del cliente. Le RPC 245
+rifanno i controlli per la scrittura atomica di permessi e progetti e usano
+revisioni per non riattivare un accesso revocato con un form obsoleto.
+
+**Invito e password:** `generateLink(type: invite)` di Supabase Auth crea
+l'account nuovo con il profilo guest/guest previsto dal trigger 224. L'accesso
+cliente viene dalla membership 244, non dai metadati dell'invito. Un account
+cliente già attivo viene riutilizzato, senza cambiarne password o ruolo; un
+account staff non può essere gestito con queste action. Il link personale si
+copia e si condivide con il referente: **nessuna email automatica** è dichiarata
+o inviata. I segreti restano nel frammento URL, vengono rimossi dalla barra
+all'apertura e non sono registrati nell'elenco accessi o nella cronologia.
+Il token viene verificato al salvataggio della password, non alla semplice
+apertura della pagina. Scadenza e utilizzo singolo sono quelli di Supabase Auth.
+Una pagina aperta con un invito scaduto non aggiorna la password.
+
+Il reset genera un token recovery soltanto per un account cliente attivo con
+membership non revocata; non cambia subito la password e non la rende mai
+leggibile al team. Il cliente imposta la nuova password e torna al portale
+dell'azienda indicata, dove i permessi vengono riletti. La revoca della membership
+toglie l'accesso ai dati aziendali; non elimina l'account personale né gli
+eventuali accessi ad altre aziende.
+
+**Correzione del flusso legacy:** la rotta `/ticket-portal/[token]` era stata
+eliminata dal reset del 23 luglio (`57708d1`), ma il generatore era rimasto.
+Customer Care → Ticket & Supporto → Portale cliente ora rimanda alla tab della
+scheda. `getOrCreatePortal` non distribuisce più token; i vecchi URL mostrano
+una pagina esplicativa e il collegamento all'accesso con account.
+
+**Attivazione autorizzata e database aggiornato il 21 settembre:** **244 e 245
+applicate in produzione**, versioni `20260921133528` e `20260921133529`.
+Distribuzione applicativa tramite push su main e deploy automatico Coolify.
+Senza schema/chiave di servizio la tab resta visibile e dichiara la dipendenza,
+senza creare account parziali. Servono
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+`SUPABASE_SERVICE_ROLE_KEY` e `NEXT_PUBLIC_APP_URL` (oppure
+`NEXT_PUBLIC_SITE_URL`): tutte presenti nel container di produzione.
+Verificata la configurazione Auth: site URL `https://os.twobee.it`, redirect
+`https://os.twobee.it/**` già autorizzato (include `/reset-password`), scadenza
+OTP **3600 secondi**. Nessun invito spedito né account di prova creato in
+produzione; il flusso completo di autenticazione è stato collaudato con mock.
+
+I prerequisiti sono stati riletti sul database reale: mancava
+`documents.project_id`, ora aggiunta nullable dalla 244 senza backfill. Le
+verifiche post-migration in sola lettura confermano RLS su 11 tabelle, RPC di
+gestione riservate al service role, scope dell'anteprima manager e nessun
+accesso senza membership. Conteggi aziendali e ruoli invariati; nessuna
+pubblicazione o associazione implicita. Dettagli in `docs/migrations.md`.
+
+TypeScript senza errori e tutti i **79 check** di dominio superati
+(`TZ=Europe/Rome`). Suite Next del portale: **221 richieste al mock, zero
+scritture**, inclusi il vecchio URL e il passaggio Customer Care → scheda cliente
+con la tab corretta già aperta. Verifiche dedicate:
+
+```bash
+npx tsx lib/portal/access.check.ts
+npx tsx scripts/check-portal-access-actions.ts
+node scripts/check-portal-sql.mjs
+NODE_PATH=/tmp/opencode/node_modules PLAYWRIGHT_BROWSERS_PATH=/tmp/opencode/browsers node scripts/check-portal-access-browser.mjs
+NODE_PATH=/tmp/opencode/node_modules PLAYWRIGHT_BROWSERS_PATH=/tmp/opencode/browsers node scripts/check-portal-browser.mjs
+```
+
+Le action sono provate con Auth/database simulati, inclusi ruoli negati,
+aziende nascoste, schema assente prima di ogni effetto Auth, account staff,
+progetti estranei, retry, revoca concorrente, reset e payload senza segreti.
+Il browser usa i componenti reali con i confini simulati: invito, errore e
+conservazione del form, selezione progetti, copia, modifica/revoca/riattivazione,
+primo accesso, reset, token scaduto, 390/1440 px, due temi e tastiera. Il runner
+SQL esegue entrambe le migration due volte e le due suite su PostgreSQL 16
+effimero senza rete: struttura minima dichiarata, non copia del database reale.
+
+## Stato del primo incremento distribuito
+
 **Aggiornamento 21 settembre 2026:** primo incremento integrato in main su
 richiesta del committente, sopra `9c3789b`, per il deploy automatico Coolify.
 Migration e suite SQL rinumerate **244** (239–243 già occupate su main), senza
@@ -19,9 +114,10 @@ composizione della richiesta e coda «Da gestire» nel Customer Care esistente.
 Le funzioni prive di dati/schema dichiarano la dipendenza: nessun invio,
 caricamento o approvazione viene simulato come riuscito.
 
-La migration 244 è scritta, **non applicata** (prima numerata 233, poi 239). `.env.local` usa il database
-di produzione anche da localhost: nessun dato di prova, deploy o scrittura su
-quel database. Le future prove SQL sono esclusivamente per staging.
+Nel primo incremento la migration 244 era scritta e non applicata (prima
+numerata 233, poi 239); è stata applicata nel rilascio accessi descritto sopra.
+`.env.local` usa il database di produzione anche da localhost: nessun dato di
+prova su quel database. Le prove SQL con fixture sono esclusivamente per staging.
 
 ## Ricognizione verificata nel codice
 
@@ -132,8 +228,8 @@ e quelle non eseguite vengono registrate a fine incremento.
   la 244 aggiunge policy restrittive alle sorgenti interne del nuovo portale.
 - Il workspace esclude `viewer` nel layout pur riconoscendolo nel middleware;
   non modificato qui perché indipendente dal portale cliente.
-- Il login instrada il recupero password come un accesso ordinario: flusso da
-  verificare separatamente prima del rilascio degli inviti ai clienti.
+- Il login instradava il recupero password come un accesso ordinario: corretto
+  nell'intervento accessi del 21 settembre, ancora da distribuire.
 
 ## Verifiche eseguite — 19 settembre 2026
 
@@ -264,8 +360,8 @@ nessuna migration è stata applicata.
 2. Sulla macchina di lavoro recuperare il branch
    in un worktree separato da quello usato per il deploy. Leggere `CLAUDE.md`,
    questo documento e `docs/brief-portale-cliente.md` prima di proseguire.
-3. Completare il secondo incremento: azioni server autorizzate, gestione
-   accessi, pubblicazione dal lavoro interno, richieste/risposte, materiali,
+3. Distribuire e attivare la gestione accessi descritta sopra. Completare il
+   secondo incremento: pubblicazione dal lavoro interno, richieste/risposte, materiali,
    approvazioni versionate e azioni della coda. Il codice attuale resta in
    consultazione anche se sono presenti schema e chiave di servizio.
 4. Verificare la 244 contro lo schema aggiornato e provarla con la suite SQL

@@ -1,4 +1,4 @@
--- 244 — Primo incremento portale cliente. SCRITTA, NON APPLICATA.
+-- 244 — Primo incremento portale cliente. Stato di applicazione in docs/migrations.md.
 -- Prerequisiti: Project V2 (147/148), documenti (080), workspace_hidden (213), profili (224).
 -- Nessun backfill: assegnazione interna e visibilità da template non pubblicano.
 BEGIN;
@@ -17,6 +17,11 @@ ALTER TABLE public.projects
   ADD COLUMN IF NOT EXISTS portal_published_at timestamptz,
   ADD COLUMN IF NOT EXISTS portal_published_by uuid REFERENCES public.profiles(id);
 CREATE UNIQUE INDEX IF NOT EXISTS portal_projects_client_key ON public.projects(id, client_id);
+
+-- Il reset progetto aveva rimosso questo collegamento dai documenti reali.
+-- Resta vuoto finché una pubblicazione non collega esplicitamente il documento.
+ALTER TABLE public.documents
+  ADD COLUMN IF NOT EXISTS project_id uuid REFERENCES public.projects(id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS public.portal_memberships (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

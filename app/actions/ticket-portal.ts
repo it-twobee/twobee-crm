@@ -61,22 +61,12 @@ async function requireStaff(): Promise<string> {
   return user.id
 }
 
-// Team: genera o recupera portal token per cliente
+// La rotta legacy è stata rimossa: non distribuire nuove credenziali senza destinazione.
 export async function getOrCreatePortal(clientId: string): Promise<{ token: string } | { error: string }> {
   try { await requireStaff() } catch (e) {
     return { error: e instanceof Error ? e.message : 'Non autorizzato' }
   }
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return { error: 'La generazione dei link ticket non è configurata in questo ambiente. Per l’anteprima usa «Apri portale cliente».' }
-  }
-
-  const sb = serviceClient()
-  const { data: existing } = await sb.from('ticket_portals').select('token').eq('client_id', clientId).single()
-  if (existing) return { token: existing.token }
-
-  const { data, error } = await sb.from('ticket_portals').insert({ client_id: clientId }).select('token').single()
-  if (error) return { error: error.message }
-  return { token: data.token }
+  return { error: 'I link ospite ai ticket sono stati ritirati. Apri la scheda cliente → Portale cliente per gestire inviti e accessi.' }
 }
 
 // Guest: recupera info portale da token

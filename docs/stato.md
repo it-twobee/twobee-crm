@@ -1,5 +1,28 @@
 # Dove siamo
 
+## Accessi cliente — rilascio e migration applicate, 2026-09-21
+
+Nuova tab **Portale cliente** nella scheda cliente, dopo Tracking/Report/Chiavi/
+Accessi. Compare automaticamente per i clienti effettivi creati manualmente o
+dal commerciale e per quelli già presenti. Manager e amministrativi gestiscono
+inviti personali, link stabile, ruoli, scope progetti, revoca/riattivazione e
+link per reimpostare la password. Il cliente sceglie la propria password;
+nessuna password del cliente è conservata o mostrata al team.
+
+Ritirato il generatore di URL `/ticket-portal/...` senza pagina: il Customer
+Care porta alla scheda cliente; i vecchi URL hanno una pagina esplicativa.
+**Migration 244 e 245 applicate in produzione**, versioni `20260921133528` e
+`20260921133529`; codice distribuito tramite il push di questo intervento.
+Riletti schema, permessi e prerequisiti; aggiunta dalla 244 la colonna
+`documents.project_id` che il reset aveva eliminato. Verificate in sola lettura
+le aziende visibili al manager e l'isolamento senza membership. Nessun accesso,
+progetto pubblicato, account o ruolo creato/modificato implicitamente. Auth:
+redirect produzione già autorizzato e link personali con scadenza di un'ora.
+TypeScript senza errori e **79 check** superati. Test action, browser e suite
+SQL eseguiti con confini simulati/PostgreSQL isolato, senza account o scritture
+di prova in produzione. Dettagli e comandi
+in `docs/portale-cliente.md` e `docs/migrations.md`.
+
 ## Portale cliente — integrazione in main, 2026-09-21
 
 Integrato **`feat/portale-cliente`** (`bbcba7f`) sul main aggiornato a

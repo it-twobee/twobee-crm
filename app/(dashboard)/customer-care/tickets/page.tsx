@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { TicketSystem } from '@/components/ticket/TicketSystem'
-import { SUPER_ADMIN_EMAILS, isSuperAdmin } from '@/lib/permissions'
+import { isSuperAdmin, canManageClientPortal } from '@/lib/permissions'
 import type { Profile, Client } from '@/lib/types/database'
 import { PROFILE_COLUMNS } from '@/lib/profile-columns'
 import { ClientPortalPreviewLink } from '@/components/portal/ClientPortalPreviewLink'
@@ -15,7 +15,7 @@ export default async function TicketsPage() {
   const supabase = await createClient()
 
   const profile = await getSessionProfile()
-  const canAccess = SUPER_ADMIN_EMAILS.includes(profile?.email ?? '') || ['admin', 'manager'].includes(profile?.app_role ?? '')
+  const canAccess = canManageClientPortal(profile)
   if (!canAccess) redirect('/dashboard')
 
   const [ticketRes, profilesRes, clientsRes] = await Promise.all([
@@ -28,7 +28,7 @@ export default async function TicketsPage() {
       assignee:profiles!tickets_assigned_to_fkey(id,full_name)
     `).order('created_at', { ascending: false }).limit(200),
     supabase.from('profiles').select('id,full_name,email,avatar_url').eq('is_active', true).order('full_name'),
-    supabase.from('clients').select('id,company_name').order('company_name'),
+    supabase.from('clients').select('id,company_name,client_label').order('company_name'),
   ])
 
   return (
@@ -44,6 +44,7 @@ export default async function TicketsPage() {
         clients={(clientsRes.data ?? []) as Pick<Client, 'id' | 'company_name'>[]}
         currentUserId={user.id}
         isSuperAdmin={isSuperAdmin(profile as any)}
+        canManagePortal={canManageClientPortal(profile)}
       />
     </div>
   )

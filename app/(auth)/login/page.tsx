@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
 import { Logo } from '@/components/shared/Logo'
+import { portalLoginDestination } from '@/lib/portal/access'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -17,8 +18,10 @@ export default function LoginPage() {
   useEffect(() => {
     const supabase = createClient()
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session && (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY' || event === 'TOKEN_REFRESHED')) {
-        router.push('/dashboard')
+      if (session && event === 'PASSWORD_RECOVERY') {
+        router.replace('/reset-password')
+      } else if (session && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+        router.push(portalLoginDestination(window.location.search))
         router.refresh()
       }
     })
@@ -38,7 +41,7 @@ export default function LoginPage() {
       return
     }
 
-    router.push('/dashboard')
+    router.push(portalLoginDestination(window.location.search))
     router.refresh()
   }
 

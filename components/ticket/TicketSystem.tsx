@@ -1,14 +1,16 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import {
   Plus, CheckCircle2, X, Loader2, MessageSquare, Lock,
-  Users, ExternalLink, Copy, Link2, Filter, Trash2,
+  Users, ExternalLink, Link2, Filter, Trash2,
   BarChart2, TrendingUp, Clock, Shield,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { getOrCreatePortal } from '@/app/actions/ticket-portal'
+import { portalAccessPath } from '@/lib/portal/access'
+import { isLead } from '@/lib/clients'
 import { deleteTicket } from '@/app/actions/ticket-chat'
 import type { Ticket, TicketMessage, TicketStatus, TicketPriority, Profile, Client } from '@/lib/types/database'
 
@@ -23,9 +25,11 @@ interface TicketWithClient extends Ticket {
 interface Props {
   tickets: TicketWithClient[]
   profiles: Profile[]
-  clients: Pick<Client, 'id' | 'company_name'>[]
+  clients: (Pick<Client, 'id' | 'company_name'> & Partial<Pick<Client, 'client_label'>>)[]
   currentUserId: string
   isSuperAdmin?: boolean
+  canManagePortal?: boolean
+  workspace?: boolean
 }
 
 const ic = 'w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-gold/50'
@@ -523,38 +527,19 @@ function AnalyticsView({ tickets, clients }: { tickets: TicketWithClient[]; clie
 }
 
 // ─── Vista portali cliente ─────────────────────────────────────────────────────
-function PortaliView({ clients, tickets }: { clients: Pick<Client, 'id' | 'company_name'>[]; tickets: TicketWithClient[] }) {
-  const [loading, setLoading] = useState<string | null>(null)
-  const [links, setLinks] = useState<Record<string, string>>({})
-
-  const getLink = async (clientId: string) => {
-    if (links[clientId]) {
-      await navigator.clipboard.writeText(links[clientId])
-      toast.success('Link copiato!')
-      return
-    }
-    setLoading(clientId)
-    const res = await getOrCreatePortal(clientId)
-    setLoading(null)
-    if ('error' in res) { toast.error(res.error); return }
-    const url = `${window.location.origin}/ticket-portal/${res.token}`
-    setLinks(p => ({ ...p, [clientId]: url }))
-    await navigator.clipboard.writeText(url)
-    toast.success('Link portale copiato negli appunti!')
-  }
-
+function PortaliView({ clients, tickets, workspace }: { clients: Props['clients']; tickets: TicketWithClient[]; workspace: boolean }) {
   return (
     <div className="space-y-4">
       <div className="bg-background border border-border rounded-xl p-4 flex items-start gap-3">
         <Link2 className="w-4 h-4 text-gold-text mt-0.5 flex-shrink-0" />
         <div>
-          <p className="text-sm font-bold text-text-primary mb-0.5">Accesso ospite ai ticket</p>
-          <p className="text-xs text-text-secondary">Genera un link personale per aprire e consultare ticket senza registrazione. Per vedere progetti, attività e richieste condivise usa «Apri portale cliente».</p>
+          <p className="text-sm font-bold text-text-primary mb-0.5">Accessi al portale cliente</p>
+          <p className="text-sm text-text-secondary">Inviti, link al portale e recupero password si gestiscono nella scheda di ciascun cliente. I vecchi link ospite ai ticket sono stati ritirati.</p>
         </div>
       </div>
 
       <div className="space-y-2">
-        {clients.map(c => {
+        {clients.filter(c => !isLead(c)).map(c => {
           const clientTickets = tickets.filter(t => t.client_id === c.id)
           const openCount = clientTickets.filter(t => !['risolto', 'chiuso'].includes(t.status)).length
           return (
@@ -567,25 +552,11 @@ function PortaliView({ clients, tickets }: { clients: Pick<Client, 'id' | 'compa
                     : <span>Nessun ticket aperto</span>}
                   {clientTickets.length > 0 && <span className="text-text-tertiary"> · {clientTickets.length} totali</span>}
                 </p>
-                {links[c.id] && (
-                  <p className="text-2xs text-text-tertiary mt-1 truncate font-mono">{links[c.id]}</p>
-                )}
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                <button
-                  onClick={() => getLink(c.id)}
-                  disabled={loading === c.id}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-border rounded-lg text-xs text-text-primary hover:border-gold/30 transition-colors disabled:opacity-50"
-                >
-                  {loading === c.id ? <Loader2 className="w-3 h-3 animate-spin" /> : links[c.id] ? <Copy className="w-3 h-3" /> : <Link2 className="w-3 h-3" />}
-                  {links[c.id] ? 'Copia' : 'Genera link'}
-                </button>
-                {links[c.id] && (
-                  <a href={links[c.id]} target="_blank" rel="noopener noreferrer"
-                    className="p-1.5 bg-surface border border-border rounded-lg text-text-secondary hover:text-text-primary transition-colors">
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                )}
+                <Link href={portalAccessPath(c.id, workspace)} className="flex items-center gap-2 rounded-lg border border-border-interactive px-3 py-2 text-sm text-text-primary hover:bg-surface-hover">
+                  <ExternalLink className="h-4 w-4" /> Gestisci portale
+                </Link>
               </div>
             </div>
           )
@@ -596,7 +567,7 @@ function PortaliView({ clients, tickets }: { clients: Pick<Client, 'id' | 'compa
 }
 
 // ─── Main export ───────────────────────────────────────────────────────────────
-export function TicketSystem({ tickets: initialTickets, profiles, clients, currentUserId, isSuperAdmin = false }: Props) {
+export function TicketSystem({ tickets: initialTickets, profiles, clients, currentUserId, isSuperAdmin = false, canManagePortal = false, workspace = false }: Props) {
   const [tickets, setTickets] = useState(initialTickets)
   const [view, setView] = useState<'interno' | 'analytics' | 'portali'>('interno')
   const [showModal, setShowModal] = useState(false)
@@ -663,16 +634,16 @@ export function TicketSystem({ tickets: initialTickets, profiles, clients, curre
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${view === 'analytics' ? 'bg-surface text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}>
           <BarChart2 className="w-3.5 h-3.5" /> Analitiche
         </button>
-        <button onClick={() => setView('portali')}
+        {canManagePortal && <button onClick={() => setView('portali')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${view === 'portali' ? 'bg-surface text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}>
-          <Users className="w-3.5 h-3.5" /> Link ticket
-        </button>
+          <Users className="w-3.5 h-3.5" /> Portale cliente
+        </button>}
       </div>
 
       {view === 'analytics' ? (
         <AnalyticsView tickets={tickets} clients={clients} />
-      ) : view === 'portali' ? (
-        <PortaliView clients={clients} tickets={tickets} />
+      ) : view === 'portali' && canManagePortal ? (
+        <PortaliView clients={clients} tickets={tickets} workspace={workspace} />
       ) : (
         <>
           {/* Filtri + nuovo */}

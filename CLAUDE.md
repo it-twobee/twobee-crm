@@ -24,6 +24,7 @@ database vero, e riscoprirle costa più che leggerle.
 | `/asana` (sezione temporanea, da togliere a travaso finito) | `docs/asana.md` |
 | «a che punto siamo», cosa è applicato, cosa è aperto | `docs/stato.md` |
 | commerciale, opportunità, lead commerciali, esiti, passaggio alla delivery | `docs/commerciale.md` |
+| portale cliente, inviti, accessi azienda/progetto e recupero password | `docs/portale-cliente.md` |
 
 ## Invarianti — valgono anche senza aprire i doc
 - **Nessun valore economico si digita**: contratti e rate sono l'unica scrittura,
@@ -57,7 +58,7 @@ database vero, e riscoprirle costa più che leggerle.
   va a controllare.** Quando una fonte manca, dichiaralo («n/d», «stimato»,
   «senza contratto»): mai uno zero.
 - **Gate del repo**: `npx tsc --noEmit` (ESLint non configurato) + i
-  **settantotto** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
+  **settantanove** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
   `lib/tracking/**`) — con `npx tsx lib/<percorso>.check.ts`: devono dire «Tutti
   i controlli passano».
 - **Non lanciare `npm run build` mentre `npm run dev` gira**: condividono `.next`

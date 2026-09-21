@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { TicketSystem } from '@/components/ticket/TicketSystem'
-import { isSuperAdmin } from '@/lib/permissions'
+import { isSuperAdmin, canManageClientPortal } from '@/lib/permissions'
 import type { Profile, Client } from '@/lib/types/database'
 import { VoceSezione } from '@/components/workspace/VoceSezione'
 import { ClientPortalPreviewLink } from '@/components/portal/ClientPortalPreviewLink'
@@ -25,7 +25,7 @@ export default async function WorkspaceTicketsPage() {
     `).order('created_at', { ascending: false }).limit(200),
     supabase.from('profiles').select('id,full_name,email,avatar_url').eq('is_active', true).order('full_name'),
     // §211 — la VIEW del workspace, non la tabella: stessa ragione di attivita
-    supabase.from('clients_workspace').select('id,company_name').order('company_name'),
+    supabase.from('clients_workspace').select('id,company_name,client_label').order('company_name'),
   ])
 
   return (
@@ -41,6 +41,8 @@ export default async function WorkspaceTicketsPage() {
         clients={(clientsRes.data ?? []) as Pick<Client, 'id' | 'company_name'>[]}
         currentUserId={profile.id}
         isSuperAdmin={isSuperAdmin(profile as any)}
+        canManagePortal={canManageClientPortal(profile)}
+        workspace
       />
     </div>
   )

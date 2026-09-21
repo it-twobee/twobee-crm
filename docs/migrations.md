@@ -34,11 +34,37 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > doppio non ha rotto niente — Supabase registra la sua versione, non il nome
 > del file — ma il registro è una tabella ordinata e due righe con la stessa
 > chiave sono una trappola per chi arriva dopo. La **244 è del portale
-> cliente**, integrato in main; la prossima libera è la **245**.
+> cliente**, integrato in main; la **245** aggiunge la gestione accessi.
+> La prossima libera è la **246**.
 
-## 244 — portale cliente (integrata in main, non applicata)
+## 245 — accessi al portale dalla scheda cliente (applicata il 2026-09-21)
 
-`244_client_portal.sql`: **scritta, NON applicata**. Associazioni azienda/progetto
+`245_portal_access_management.sql`: **applicata in produzione**, versione
+**`20260921133529`**, dopo la **244**. Aggiunge la revisione della
+membership e RPC service-role-only per salvare permessi/scope, revocare e
+riattivare l'accesso. Il database rilegge il ruolo e lo stato dell'attore
+(`x-actor-id`), esclude aziende nascoste ai manager e lead non acquisiti,
+controlla il ruolo cliente dell'account destinatario e la proprietà dei
+progetti. Ambito e membership si aggiornano nella stessa transazione; una
+revisione obsoleta non può annullare una revoca. Audit tramite i trigger 244.
+
+Nessun account o invito viene creato dalla migration né alla creazione di
+un'anagrafica: la tab è parte della scheda condivisa e compare automaticamente.
+Gli inviti personali e i link per reimpostare la password passano da Supabase
+Auth, dopo il controllo server e la verifica che le migration siano presenti.
+
+Runner: `node scripts/check-portal-sql.mjs`. PostgreSQL 16 effimero, senza rete,
+con struttura minima dichiarata in `scripts/fixtures/portal-base.sql`: 244 e
+245 eseguite due volte e suite `supabase/tests/244_client_portal.check.sql` e
+`supabase/tests/245_portal_access_management.check.sql` superate. Verifica
+esecuzione, vincoli e isolamento sullo schema di test, **non** certificazione
+dello schema reale di produzione. Prima di applicare la 244 verificare tutti
+i prerequisiti e gli effetti sugli accessi legacy; nessuna fixture in produzione.
+
+## 244 — portale cliente (applicata il 2026-09-21)
+
+`244_client_portal.sql`: **applicata in produzione**, versione
+**`20260921133528`**. Associazioni azienda/progetto
 revocabili, proiezioni dei soli campi pubblici, pubblicazione esplicita, attività
 cliente, versioni immutabili e approvazioni, richieste con messaggi pubblici e
 note interne separate, ponte task e cronologia attribuita. Nessun backfill di
@@ -64,6 +90,20 @@ Al merge in main del 2026-09-21 rinumerata nuovamente a **244**: 239–243 sono
 ora occupate da lead eliminati, movimenti nascosti, saldi e distinte cedolini.
 Il deploy del primo incremento usa il fallback di lettura già previsto e non
 applica questa migration.
+
+**Attivazione autorizzata il 2026-09-21:** prerequisiti verificati sul progetto
+`ujkrrryitfqboskdqhwf`. Mancava `documents.project_id`, eliminata dal reset:
+la 244 ora la aggiunge nullable con FK a `projects`, senza backfill. Il test
+isolato parte dalla stessa assenza e passa anche in riesecuzione.
+
+Dopo 244/245: **11 tabelle portale con RLS**, 11 policy restrittive sulle
+sorgenti interne, 3 RPC di gestione eseguibili solo dal service role. Verifica
+SQL in transazione **READ ONLY**: il manager vede le sole aziende del workspace,
+il guard service-role riconosce l'attore, senza membership non si leggono né
+le aziende del portale né la tabella clienti. Nessun progetto pubblicato o
+accesso creato implicitamente; nessun ruolo modificato. Conteggi prima/dopo:
+17 clienti, 42 progetti, 7 profili, 0 documenti; nuove membership/eventi: 0.
+Le suite con fixture restano esclusivamente sul database isolato.
 
 ## 232 — una notifica, un destinatario (§350)
 

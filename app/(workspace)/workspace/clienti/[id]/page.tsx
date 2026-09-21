@@ -9,10 +9,12 @@ export const revalidate = 0
 
 interface Props {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ tab?: string }>
 }
 
-export default async function WorkspaceClientePage({ params }: Props) {
+export default async function WorkspaceClientePage({ params, searchParams }: Props) {
   const { id } = await params
+  const { tab } = await searchParams
   const currentProfile = await getSessionProfile()
   if (!currentProfile) redirect('/login')
 
@@ -63,6 +65,7 @@ export default async function WorkspaceClientePage({ params }: Props) {
       openTickets={openTickets ?? 0}
       hideEconomics
       backHref="/workspace/clienti"
+      initialTab={tab === undefined ? undefined : Number(tab)}
     />
   )
 }

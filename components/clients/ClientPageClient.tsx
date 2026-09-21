@@ -8,10 +8,11 @@ import { BackLink } from '@/components/shared/BackLink'
 import { formatCurrency, formatDate, getPaymentBadge } from '@/lib/utils'
 import type { Client, ClientContact, ClientKpi, Profile, ClientStakeholder, ClientInteraction, ClientLabel } from '@/lib/types/database'
 import { setClientLabel } from '@/app/actions/clients'
-import { SUPER_ADMIN_EMAILS, canSeeTrackingSecrets, canSeeClientAnagrafica } from '@/lib/permissions'
+import { SUPER_ADMIN_EMAILS, canSeeTrackingSecrets, canSeeClientAnagrafica, canManageClientPortal } from '@/lib/permissions'
+import { PORTAL_TAB } from '@/lib/portal/access'
 import { clientName } from '@/lib/utils'
 import { mrrOrigin, economicsHref, CONTRACT_PERIOD_HINT, PAYMENT_STATUS_HINT } from '@/lib/economics-source'
-import { paymentLabel } from '@/lib/clients'
+import { paymentLabel, isLead } from '@/lib/clients'
 import dynamic from 'next/dynamic'
 // una scheda sola è a video per volta: le altre non devono pesare sul primo
 // carico. /clienti/[id] era la rotta più grossa dell'app.
@@ -24,6 +25,7 @@ const ClientTrackingTab = dynamic(() => import('@/components/tracking/ClientTrac
 const ClientReportTab = dynamic(() => import('@/components/tracking/ClientReportTab').then(m => ({ default: m.ClientReportTab })))
 const ClientKeysTab = dynamic(() => import('@/components/tracking/ClientKeysTab').then(m => ({ default: m.ClientKeysTab })))
 const ClientLoginsTab = dynamic(() => import('@/components/tracking/ClientLoginsTab').then(m => ({ default: m.ClientLoginsTab })))
+const ClientPortalTab = dynamic(() => import('./tabs/ClientPortalTab').then(m => ({ default: m.ClientPortalTab })))
 import { ClientAlertBanner } from './ClientAlertBanner'
 import type { RiskResult } from '@/lib/risk'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
@@ -207,6 +209,7 @@ export function ClientPageClient({
   const isAdmin = SUPER_ADMIN_EMAILS.includes(currentProfile?.email ?? '') || currentProfile?.app_role === 'admin'
   const isAdminLevel = isAdmin || currentProfile?.app_role === 'manager'
   const canSeeAnagrafica = canSeeClientAnagrafica(currentProfile)
+  const canManagePortal = canManageClientPortal(currentProfile) && !isLead(client)
   const canSeeMrr = isAdminLevel && !hideEconomics
   // chiavi e password: staff interno, mai esterni (TRACKING_SECRET_ROLES)
   const canSeeSecrets = isAdmin || canSeeTrackingSecrets(currentProfile?.app_role)
@@ -227,6 +230,7 @@ export function ClientPageClient({
     { label: 'Tracking', index: 6 },
     { label: 'Report', index: 7 },
     ...(canSeeSecrets ? [{ label: 'Chiavi', index: 8 }, { label: 'Accessi', index: 9 }] : []),
+    ...(canManagePortal ? [{ label: 'Portale cliente', index: PORTAL_TAB }] : []),
     // Economics: dati economici aggregati, admin-only e mai nel workspace
     ...(economics ? [{ label: 'Economics', index: 5 }] : []),
   ]
@@ -386,6 +390,7 @@ export function ClientPageClient({
         {activeTab === 7 && <ClientReportTab clientId={client.id} clientName={clientName(client)} />}
         {activeTab === 8 && canSeeSecrets && <ClientKeysTab clientId={client.id} />}
         {activeTab === 9 && canSeeSecrets && <ClientLoginsTab clientId={client.id} clientName={clientName(client)} />}
+        {activeTab === PORTAL_TAB && canManagePortal && <ClientPortalTab key={client.id} clientId={client.id} contacts={contacts} />}
       </div>
     </div>
   )

@@ -40,9 +40,10 @@ const mock = createServer((req, res) => {
   res.setHeader('Content-Type', 'application/json')
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] ?? '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
   const reply = (code, value) => { res.statusCode = code; res.end(JSON.stringify(value)) }
   if (req.method === 'OPTIONS') { res.statusCode = 204; return res.end() }
+  if (req.method === 'HEAD' && url.pathname === '/rest/v1/tickets') { res.setHeader('Content-Range', '*/0'); res.statusCode = 200; return res.end() }
   if (req.method !== 'GET') { writes.push(`${req.method} ${url.pathname}`); return reply(405, { message: 'No writes in portal checks' }) }
   if (url.pathname === '/realtime/v1/websocket') return reply(426, { message: 'Realtime workspace non simulato' })
   let userId
@@ -60,12 +61,15 @@ const mock = createServer((req, res) => {
     if (schema === 'legacy') return reply(404, { code: 'PGRST205', message: "Could not find the table 'public.portal_memberships' in the schema cache" })
     rows = [ids.revoked, ids.unassigned].includes(userId) ? [] : allowed.map(client_id => ({ client_id, portal_role: 'referente' }))
   } else if (table === 'client_assignments') {
-    if (schema !== 'legacy') violations.push('Fallback legacy dopo attivazione schema')
-    rows = userId === ids.unassigned ? [] : allowed.map(client_id => ({ client_id }))
+    const detail = url.searchParams.get('select') === 'profile_id,profiles(*)'
+    if (!detail && schema !== 'legacy') violations.push('Fallback legacy dopo attivazione schema')
+    rows = detail || userId === ids.unassigned ? [] : allowed.map(client_id => ({ client_id }))
   } else if (table === 'clients' || table === 'clients_workspace') {
-    if (!['id,company_name,display_name', 'id,company_name'].includes(url.searchParams.get('select'))) violations.push('Proiezione aziende non sicura')
+    const detail = table === 'clients_workspace' && userId === ids.manager && eq('id') === a
+    if (!['id,company_name,display_name', 'id,company_name', 'id,company_name,client_label'].includes(url.searchParams.get('select')) && !(detail && ['*', 'id,client_label'].includes(url.searchParams.get('select')))) violations.push('Proiezione aziende non sicura')
     if (userId === ids.manager && table === 'clients') violations.push('Anteprima manager fuori da clients_workspace')
-    rows = companies.filter(c => allowed.includes(c.id))
+    rows = companies.filter(c => allowed.includes(c.id) && (!url.searchParams.get('id')?.startsWith('eq.') || c.id === eq('id')))
+    if (detail) rows = rows.map(c => ({ ...c, client_type: 'digital', client_label: 'stabile', created_at: '2026-01-01', active_channels: [] }))
   } else if (table === 'projects') {
     if (url.searchParams.get('select') !== 'id,client_id,name,area,status' || eq('visibility') !== 'client_visible' || url.searchParams.get('deleted_at') !== 'is.null') violations.push('Proiezione progetti non sicura')
     rows = projects.filter(p => allowed.includes(p.client_id) && p.client_id === eq('client_id'))
@@ -85,7 +89,7 @@ const mock = createServer((req, res) => {
   } else if (table === 'portal_requests') {
     if (schema === 'legacy') return reply(404, { code: 'PGRST205', message: "Could not find the table 'public.portal_requests' in the schema cache" })
     rows = [{ id: 'request-a', project_id: pa, title: 'Chiarimento sui contenuti', body: 'Quali contenuti prepariamo per la prossima revisione?', kind: 'supporto', status: 'in_valutazione', created_at: '2026-09-19T10:00:00Z' }]
-  } else if (!['workspace_sections', 'workspace_section_permissions', 'notifications', 'profile_permissions', 'tickets', 'person_copy'].includes(table)) {
+  } else if (!['workspace_sections', 'workspace_section_permissions', 'notifications', 'profile_permissions', 'tickets', 'person_copy', 'client_contacts', 'client_stakeholders', 'client_kpis', 'client_interactions'].includes(table)) {
     violations.push(`Query inattesa: ${table}`)
   }
   if (emptyHome && ['projects', 'portal_projects', 'portal_activities', 'portal_deliverable_versions', 'portal_requests'].includes(table)) rows = []
@@ -155,6 +159,10 @@ try {
   const anon = await session()
   await open(anon.page, '/portale')
   assert.match(anon.page.url(), /\/login/)
+  await open(anon.page, `/portale?client=${a}`)
+  assert.equal(new URL(anon.page.url()).searchParams.get('client'), a)
+  assert.equal((await open(anon.page, '/ticket-portal/old-token')).status(), 200)
+  await anon.page.getByRole('heading', { name: 'Il portale cliente ha un nuovo accesso' }).waitFor()
   await anon.context.close()
   console.log('OK anonimo → login')
 
@@ -229,10 +237,16 @@ try {
 
   const manager = await session('manager')
   await open(manager.page, '/workspace/customer-care/tickets')
-  await manager.page.getByRole('button', { name: 'Link ticket', exact: true }).click()
-  await manager.page.getByRole('button', { name: 'Genera link', exact: true }).first().click()
-  await manager.page.getByText('La generazione dei link ticket non è configurata in questo ambiente.', { exact: false }).waitFor()
-  assert.equal(await manager.page.getByRole('button', { name: 'Genera link', exact: true }).first().isEnabled(), true)
+  await manager.page.getByRole('button', { name: 'Portale cliente', exact: true }).click()
+  assert.equal(await manager.page.getByRole('link', { name: 'Gestisci portale', exact: true }).first().getAttribute('href'), `/workspace/clienti/${a}?tab=10`)
+  assert.equal(await manager.page.getByRole('button', { name: 'Genera link', exact: true }).count(), 0)
+  await manager.page.getByRole('link', { name: 'Gestisci portale', exact: true }).first().click()
+  await manager.page.waitForURL(url => url.pathname === `/workspace/clienti/${a}` && url.searchParams.get('tab') === '10')
+  await manager.page.getByRole('heading', { name: 'Portale cliente', exact: true }).waitFor()
+  await manager.page.getByText('Gestione accessi non configurata in questo ambiente.', { exact: true }).waitFor()
+  const tabs = await manager.page.locator('button').allTextContents()
+  assert.ok(tabs.indexOf('Portale cliente') > tabs.indexOf('Accessi'), 'la scheda portale segue Tracking, Report, Chiavi e Accessi')
+  await open(manager.page, '/workspace/customer-care/tickets')
   await manager.page.getByRole('link', { name: 'Apri portale cliente', exact: false }).click()
   await manager.page.waitForURL(url => url.pathname === '/portale')
   await manager.page.getByLabel('Azienda in anteprima').waitFor()
@@ -252,7 +266,7 @@ try {
   assert.equal(denied.status(), 307)
   assert.match(denied.headers().location, /\/workspace/)
   await junior.context.close()
-  console.log('OK manager dai ticket al portale, aziende workspace, nessun accesso admin; junior escluso; chiave ticket mancante gestita')
+  console.log('OK manager dai ticket al portale, aziende workspace, nessun accesso admin; junior escluso; gestione accessi nella scheda cliente')
 
   emptyHome = true
   const emptyDashboard = await session('super', 1280)
