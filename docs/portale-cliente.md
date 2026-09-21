@@ -11,7 +11,7 @@ composizione della richiesta e coda «Da gestire» nel Customer Care esistente.
 Le funzioni prive di dati/schema dichiarano la dipendenza: nessun invio,
 caricamento o approvazione viene simulato come riuscito.
 
-La migration 233 viene scritta, **non applicata**. `.env.local` usa il database
+La migration 239 è scritta, **non applicata** (originariamente numerata 233). `.env.local` usa il database
 di produzione anche da localhost: nessun dato di prova, deploy o scrittura su
 quel database. Le future prove SQL sono esclusivamente per staging.
 
@@ -34,7 +34,7 @@ quel database. Le future prove SQL sono esclusivamente per staging.
 `/portale` non esisteva. La 232 è l'ultimo file migration presente alla partenza.
 Le descrizioni dei portali in `CLAUDE.md` anticipavano codice assente.
 
-## Modello dati della 233
+## Modello dati della 239
 
 | Tabella nuova | Perché non basta l'esistente |
 |---|---|
@@ -63,14 +63,14 @@ aggiungere guard dentro ogni azione e usare `createActorClient(userId)`.
 
 ## Lettura prima e dopo la migration
 
-- Senza 233: associazioni legacy lette con sessione e RLS; solo ID/nome azienda e
+- Senza 239: associazioni legacy lette con sessione e RLS; solo ID/nome azienda e
   ID/nome/area/stato dei progetti `client_visible`, non eliminati. Nessuna
   descrizione, task, URL file o milestone ereditata dai template.
 - Manager e amministrativi: selezione azienda in anteprima, sempre in sola
   lettura; non si dichiara di impersonare i permessi di uno specifico referente.
   Il manager vede le aziende di `clients_workspace` e resta escluso dal tool
   admin. Regola condivisa: `canPreviewClientPortal()`.
-- Con 233: le nuove associazioni diventano canoniche. Una revoca o un elenco
+- Con 239: le nuove associazioni diventano canoniche. Una revoca o un elenco
   vuoto **non** riattivano il fallback legacy. Solo l'errore di schema mancante
   consente il fallback; errori di rete/permessi hanno uno stato d'errore.
 - Ogni pagina rilegge l'autorizzazione server-side. `?client=` sceglie soltanto
@@ -121,7 +121,7 @@ e quelle non eseguite vengono registrate a fine incremento.
 
 - Le policy legacy su `clients` sono per riga: possono consentire la lettura
   diretta di colonne interne. Le nuove VIEW da sole non chiudono tale accesso:
-  la 233 aggiunge policy restrittive alle sorgenti interne del nuovo portale.
+  la 239 aggiunge policy restrittive alle sorgenti interne del nuovo portale.
 - Il workspace esclude `viewer` nel layout pur riconoscendolo nel middleware;
   non modificato qui perché indipendente dal portale cliente.
 - Il login instrada il recupero password come un accesso ordinario: flusso da
@@ -135,7 +135,7 @@ e quelle non eseguite vengono registrate a fine incremento.
   schema assente e proiezione che scarta note, costi e date interne).
 - `git diff --check`: nessun errore di whitespace.
 - Parser PostgreSQL **pglast 8.4**, senza connessione a un database: sintassi
-  della 233 (87 statement, 20 corpi SQL/PLpgSQL) e della suite (93 statement,
+  della migration portale, allora 233 e ora 239 (87 statement, 20 corpi SQL/PLpgSQL), e della suite (93 statement,
   2 corpi) valida. Questo **non** verifica l'esecuzione, i tipi risolti contro
   lo schema reale o le policy RLS.
 - `scripts/check-portal-browser.mjs`: Playwright/Chromium contro Next su
@@ -183,7 +183,7 @@ gestito, senza bloccare la pagina con un'eccezione.
 Verificato nel browser: ingresso manager dalla pagina ticket, selettore senza
 Admin, rifiuto di `/dashboard`, aziende nascoste escluse anche con URL alterato,
 junior escluso dall'anteprima, chiave ticket mancante gestita senza scritture.
-La suite SQL include anche lo scope manager nelle VIEW della 233; resta da
+La suite SQL include anche lo scope manager nelle VIEW della 239; resta da
 eseguire su staging.
 
 ### Home compatta a card
@@ -221,26 +221,46 @@ o deploy eseguito. I test applicativi con mock **non certificano la RLS**.
 
 ## Ripresa del lavoro sulla VPS
 
-Stato salvato il 19 settembre 2026: ultimo commit di implementazione **485e3f8**,
-branch **`feat/portale-cliente`**. Il committente ha confermato di essere entrato
+Il primo incremento è stato pubblicato su **`origin/feat/portale-cliente`** fino
+al commit **3464e2a** (ultimo intervento UI **485e3f8**). Il committente ha confermato di essere entrato
 nel portale con il proprio account dopo l'apertura ai manager. La Home è stata
-poi riorganizzata in card compatte e colorate. Al momento di questo salvataggio
-il branch è **locale, senza upstream e non pushato**; il checkout è allineato
-alla base `origin/main`. Nessun merge in main effettuato.
+poi riorganizzata in card compatte e colorate. Il branch ha upstream e può
+essere recuperato da un'altra macchina; non serve pubblicarlo nuovamente per
+iniziare. Il portale resta separato da main, senza deploy.
+
+### Allineamento al commit e307084 — 21 settembre 2026
+
+Su richiesta del committente, il commit **e307084** di origin/main è stato
+integrato **dentro `feat/portale-cliente`**, con un merge che conserva i sette
+commit già pubblicati. Il tentativo iniziale di rebase era solo locale ed è
+stato annullato prima di qualsiasi push. Nessun force push e nessuna modifica
+al branch main. Per i prossimi allineamenti di questo branch condiviso usare
+merge verso il feature branch, mantenendo la storia remota.
+
+La migration e la suite SQL sono diventate **239**: 233–238 sono già occupate
+su main. Il modello dati e gli UUID delle fixture sono invariati. Dopo
+l'allineamento i check sono **75** (74 di main più quello del portale).
+
+Verifiche ripetute sulla base aggiornata: `npx tsc --noEmit` senza errori,
+tutti i **75 check** con exit 0, prova browser completata con **181 richieste
+HTTP al mock e zero scritture**. Confermati accesso manager, esclusione
+dell'area admin, URL alterati, revoca, bozze e Home vuota senza scroll a
+1280×720 nei due temi. Il mock comprende anche la lettura `person_copy`
+aggiunta dal nuovo layout workspace. La suite SQL resta non eseguita;
+nessuna migration è stata applicata.
 
 ### Cosa serve per continuare da un altro computer
 
-1. Pubblicare il branch su origin con `git push -u origin feat/portale-cliente`
-   quando richiesto dal committente. Solo allora il checkout sulla VPS potrà
-   recuperare questi commit. Non trasferire `.env.local` tramite Git.
-2. Sulla VPS fare fetch, verificare lo stato del checkout e recuperare il branch
+1. Fare `git fetch origin` e verificare lo stato del checkout: il branch
+   `origin/feat/portale-cliente` è già pubblicato. Non trasferire `.env.local` tramite Git.
+2. Sulla macchina di lavoro recuperare il branch
    in un worktree separato da quello usato per il deploy. Leggere `CLAUDE.md`,
    questo documento e `docs/brief-portale-cliente.md` prima di proseguire.
 3. Completare il secondo incremento: azioni server autorizzate, gestione
    accessi, pubblicazione dal lavoro interno, richieste/risposte, materiali,
    approvazioni versionate e azioni della coda. Il codice attuale resta in
    consultazione anche se sono presenti schema e chiave di servizio.
-4. Verificare la 233 contro lo schema aggiornato e provarla con la suite SQL
+4. Verificare la 239 contro lo schema aggiornato e provarla con la suite SQL
    **su staging**, inclusi accessi incrociati e compatibilità con i flussi
    esistenti. L'applicazione su produzione e l'integrazione in main richiedono
    un incarico esplicito: non sono autorizzate dal primo giro.
@@ -252,7 +272,7 @@ utente e chiave pubblica. La VPS non è necessaria per visualizzare dati reali:
 servono record autorizzati e condivisi. La service role serve alle operazioni
 privilegiate del server, **non** a bypassare la RLS nelle letture del cliente.
 
-La 233 non crea dati dimostrativi né pubblica automaticamente ciò che esiste.
+La 239 non crea dati dimostrativi né pubblica automaticamente ciò che esiste.
 Associazioni utente/azienda, accessi ai progetti e contenuti pubblici devono
 essere impostati esplicitamente. Gli stati vuoti attuali non vanno sostituiti
 con copie indiscriminate delle task, delle note o dei documenti interni.

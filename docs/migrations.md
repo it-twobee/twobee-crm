@@ -33,12 +33,12 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > applicate**, nate in due sessioni parallele che non si vedevano. Il numero
 > doppio non ha rotto niente — Supabase registra la sua versione, non il nome
 > del file — ma il registro è una tabella ordinata e due righe con la stessa
-> chiave sono una trappola per chi arriva dopo. La **233 è riservata al portale
+> chiave sono una trappola per chi arriva dopo. La **239 è riservata al portale
 > cliente** sul branch `feat/portale-cliente`.
 
-## 233 — portale cliente (solo branch, non applicata)
+## 239 — portale cliente (solo branch, non applicata)
 
-`233_client_portal.sql`: **scritta, NON applicata**. Associazioni azienda/progetto
+`239_client_portal.sql`: **scritta, NON applicata**. Associazioni azienda/progetto
 revocabili, proiezioni dei soli campi pubblici, pubblicazione esplicita, attività
 cliente, versioni immutabili e approvazioni, richieste con messaggi pubblici e
 note interne separate, ponte task e cronologia attribuita. Nessun backfill di
@@ -47,11 +47,18 @@ accessi o pubblicazioni. Le scritture browser sono chiuse.
 Rilanciabile: `IF NOT EXISTS`, `CREATE OR REPLACE`, policy e trigger ricreati.
 Prerequisiti: 080, 147/148, 213 (aziende nascoste al workspace), 224. Anteprima
 per manager e amministrativi; manager limitati alle aziende del workspace. Suite
-`supabase/tests/233_client_portal.check.sql`, **solo staging**, `BEGIN/ROLLBACK`.
+`supabase/tests/239_client_portal.check.sql`, **solo staging**, `BEGIN/ROLLBACK`.
 Non eseguirla sul database condiviso con la produzione. Prima del rilascio va
 verificato anche l'effetto delle policy restrittive sugli accessi legacy a
 documenti e canali; la VIEW da sola non protegge le tabelle di origine.
 Ricognizione, limiti del primo giro e piano: `docs/portale-cliente.md`.
+
+Rinumerata da 233 a 239 dopo l'allineamento del branch al commit **e307084**:
+su main i numeri 233–238 sono già occupati da `233_person_copy.sql`,
+`234_tracce_membro.sql`, `235_sales_notion_stages.sql`,
+`236_sales_notion_columns.sql`, `237_workspace_commerciale.sql` e
+`238_commerciale_icona.sql`. È una verifica dei file nel repository, non
+dell'applicazione di queste migration sul database.
 
 ## 232 — una notifica, un destinatario (§350)
 

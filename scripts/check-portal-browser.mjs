@@ -85,7 +85,7 @@ const mock = createServer((req, res) => {
   } else if (table === 'portal_requests') {
     if (schema === 'legacy') return reply(404, { code: 'PGRST205', message: "Could not find the table 'public.portal_requests' in the schema cache" })
     rows = [{ id: 'request-a', project_id: pa, title: 'Chiarimento sui contenuti', body: 'Quali contenuti prepariamo per la prossima revisione?', kind: 'supporto', status: 'in_valutazione', created_at: '2026-09-19T10:00:00Z' }]
-  } else if (!['workspace_sections', 'workspace_section_permissions', 'notifications', 'profile_permissions', 'tickets'].includes(table)) {
+  } else if (!['workspace_sections', 'workspace_section_permissions', 'notifications', 'profile_permissions', 'tickets', 'person_copy'].includes(table)) {
     violations.push(`Query inattesa: ${table}`)
   }
   if (emptyHome && ['projects', 'portal_projects', 'portal_activities', 'portal_deliverable_versions', 'portal_requests'].includes(table)) rows = []

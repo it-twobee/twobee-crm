@@ -1,4 +1,4 @@
--- Primo incremento portale cliente. SCRITTA, NON APPLICATA.
+-- 239 — Primo incremento portale cliente. SCRITTA, NON APPLICATA.
 -- Prerequisiti: Project V2 (147/148), documenti (080), workspace_hidden (213), profili (224).
 -- Nessun backfill: assegnazione interna e visibilità da template non pubblicano.
 BEGIN;

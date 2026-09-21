@@ -1,5 +1,5 @@
 -- Solo database di staging. NON eseguire sul progetto Supabase di produzione.
--- Prerequisito: migration 233. Fixture riconoscibili, tutto annullato a fine suite.
+-- Prerequisito: migration 239. Fixture riconoscibili, tutto annullato a fine suite.
 BEGIN;
 
 CREATE FUNCTION pg_temp.check_portal(ok boolean, label text) RETURNS void LANGUAGE plpgsql AS $$
