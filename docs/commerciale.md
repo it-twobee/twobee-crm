@@ -1,5 +1,116 @@
 # Area commerciale — il CRM di Notion, qui dentro
 
+## Foglio attivo e follow-up nel calendario — 21 settembre 2026
+
+Branch di sviluppo: `feat/commerciale-calendar`, partito da `main` **eaeb732**.
+
+### Foglio Google: attivo in produzione
+
+Su Coolify, applicazione `twobee-crm` / `os.twobee.it`, sono configurate in
+runtime `SALES_SHEET_CSV_URL` e `SALES_SYNC_SECRET`. Il foglio usa la scheda
+`gid=0` del documento `1JO5tPW_47VtyNsrDdbD7xy9V22T3dNa5UlqPVBhM8dM`.
+Task **`sales-sheet-daily`**, `0 3 * * *` nel fuso dello scheduler Coolify,
+timeout 150 secondi:
+
+```sh
+sh -c 'wget -qO- -T 120 --header="Authorization: Bearer $SALES_SYNC_SECRET" --post-data= http://127.0.0.1:3000/api/sales/sync'
+```
+
+Riavvio con ricostruzione completato sullo stesso commit **eaeb732**, senza
+integrare branch di sviluppo. Verifica reale dell'endpoint:
+
+- primo giro: **31 letti, 3 nuovi, 28 già presenti, 3 prove scartate**;
+- secondo giro: **31 letti, 0 nuovi, 31 già presenti, 3 prove scartate**.
+
+La pianificazione è stata riletta e risulta abilitata; la prima esecuzione
+notturna non è ancora avvenuta. La prova preventiva è ripetibile senza
+database e senza mostrare recapiti:
+
+```sh
+npx tsx scripts/check-sales-sheet.ts 'https://docs.google.com/spreadsheets/d/1JO5tPW_47VtyNsrDdbD7xy9V22T3dNa5UlqPVBhM8dM/export?format=csv&gid=0'
+```
+
+Nel nuovo codice la sincronizzazione verifica le intestazioni prima di
+accedere al database e conta record CSV, non gli a capo contenuti nelle note.
+Il download ha un timeout di 30 secondi. La colonna `Follow up` continua a
+essere testo nelle note: non genera appuntamenti e non sovrascrive lead già
+importati.
+
+### Follow-up: dalla scheda del lead al proprio Google Calendar
+
+`SalesFollowUps`, dentro `CrmScheda`, permette di pianificare, rivedere,
+modificare e annullare i propri appuntamenti. Data e ora nel fuso del browser,
+durata iniziale 30 minuti, titolo precompilato. **Invita il contatto** è
+disattivato inizialmente: attivandolo l'indirizzo viene riletto dal lead sul
+server. Le note interne non vengono copiate in Google né nell'invito.
+
+Il calendario è **`primary` dell'utente autenticato**, mai scelto da un ID
+ricevuto dal browser. La route `/api/sales/follow-up` verifica grant commerciale,
+profilo attivo tramite il guard esistente, RLS del lead e account TwoBee.
+Solo dopo apre le credenziali Google del chiamante. Le scritture accettano
+JSON; la lettura del calendario riguarda solo i follow-up del lead richiesto.
+
+Il collegamento vive nelle **proprietà private dell'evento Google**
+(`twobeeDeal`, `twobeeActor`), non nella descrizione visibile agli invitati.
+Nessuna nuova migration. Il mirror `calendar_events` esistente viene aggiornato
+dopo la scrittura Google; un errore del mirror è dichiarato senza far ripetere
+la creazione già riuscita. L'elenco legge Google e riflette le modifiche e le
+cancellazioni esterne quando lo si aggiorna. Il calendario generale vede gli
+stessi eventi attraverso l'integrazione esistente.
+
+- ID evento deterministico per utente/lead/invio: retry e doppio clic non
+  creano altri appuntamenti e non reinviano l'invito.
+- Un invio riutilizzato con dati diversi è respinto; il modulo resta compilato
+  in caso di errore. Dopo una risposta incerta, si può aggiornare l'elenco.
+- Modifiche e annullamenti confrontano l'ETag Google, anche nella richiesta
+  HTTP: una versione vecchia non sovrascrive l'appuntamento aggiornato altrove.
+- Gli altri partecipanti aggiunti su Google sono preservati. Rimuovere il
+  contatto invitato invia l'annullamento; gli aggiornamenti notificano gli
+  eventuali invitati. Un contatto rimosso su Google non resta indicato come invitato.
+- Eventi trasformati su Google in ricorrenze o giornate intere si gestiscono
+  da Google; nessuna cancellazione involontaria dell'intera serie dal lead.
+- Ogni commerciale vede qui i **propri** follow-up. Eliminare il lead non
+  cancella implicitamente appuntamenti o inviti Google già inviati.
+
+OAuth ora usa `state` casuale in cookie HttpOnly/SameSite, vincolato alla
+sessione che ha iniziato il collegamento, e ritorni nell'elenco chiuso delle
+pagine autorizzate. Dal Commerciale si torna al Commerciale. Errori di consenso
+e scambio codice sono gestiti con un redirect, senza esporre messaggi del provider.
+
+### Blocco di attivazione e verifiche
+
+**Il nuovo codice resta sul feature branch.** Su Coolify mancano
+`GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`. Esiste un account con refresh token
+nel database, ma questo non sostituisce le credenziali dell'applicazione OAuth:
+occorre recuperare il client Google usato, oppure creare un client web e
+ricollegare gli account. Abilitare Google Calendar API e registrare i redirect:
+
+- `https://os.twobee.it/api/google/callback`
+- `http://localhost:3000/api/google/callback` per lo sviluppo locale.
+
+Le due variabili sono documentate in `.env.local.example`. Dopo configurazione
+e distribuzione del branch va eseguito il consenso del titolare e un collaudo
+reale di creazione, modifica, invito e annullamento. Nessun appuntamento reale
+o invito è stato creato durante questo intervento.
+
+Verificati: TypeScript; **76 check di dominio** (il check preesistente
+`calendario-lavorativo` assume `TZ=Europe/Rome` e fallisce su UTC: rieseguito con
+quel fuso, passa); route con sessione/RLS/Google simulati; OAuth con state
+alterato, sessione diversa e callback valido; retry dopo timeout Google,
+isolamento lead/utente, inviti e revisioni. Browser sul componente reale con API
+simulate: creazione, conservazione modulo dopo errore, stesso ID al retry,
+modifica/invito, annullamento, account scollegato, conversione Europe/Rome→UTC,
+390/1440 px nei due temi, contrasto AA misurato sul DOM, focus tastiera.
+
+```sh
+npx tsx scripts/check-sales-follow-up-routes.ts
+npx tsx scripts/check-google-oauth.ts
+PLAYWRIGHT_BROWSERS_PATH=/tmp/opencode/browsers NODE_PATH=/tmp/opencode/node_modules node scripts/check-sales-follow-up-browser.mjs
+```
+
+Il test browser richiede Playwright ed esbuild installati in `/tmp/opencode`,
+con Chromium; non cambia le dipendenze del prodotto e non usa credenziali reali.
+
 Stato al 21 settembre 2026: **riscritta da zero (§367–§371)**. Migration 235,
 236 e 239 applicate. Tre viste: elenco, bacheca (§379), numeri. Il modulo precedente (§223–§225) è stato sostituito: descriveva
 pipeline, esiti e handoff, ma erano quattrocentosessanta righe di codice con

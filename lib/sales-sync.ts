@@ -13,7 +13,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { leggiFoglio, type LeadImportato } from './sales-import'
+import { analizzaFoglio, type LeadImportato } from './sales-import'
 
 type Admin = SupabaseClient
 
@@ -37,7 +37,7 @@ export type RiepilogoSync = {
  * parole — «HTTP 200» manderebbe a cercare il problema dalla parte sbagliata.
  */
 export async function scaricaFoglio(url: string): Promise<string> {
-  const res = await fetch(url, { redirect: 'follow', cache: 'no-store' })
+  const res = await fetch(url, { redirect: 'follow', cache: 'no-store', signal: AbortSignal.timeout(30_000) })
   const testo = await res.text()
   if (!res.ok) {
     throw new Error(res.status === 401 || res.status === 403
@@ -54,20 +54,19 @@ export async function sincronizzaLead(admin: Admin, url = URL_FOGLIO): Promise<R
   const vuoto: RiepilogoSync = { letti: 0, nuovi: 0, giaPresenti: 0, scartati: 0, ignorati: 0 }
   if (!url) return { ...vuoto, errore: 'SALES_SHEET_CSV_URL non configurata: nessun foglio da leggere' }
 
-  let csv: string
+  let analisi: ReturnType<typeof analizzaFoglio>
   try {
-    csv = await scaricaFoglio(url)
+    analisi = analizzaFoglio(await scaricaFoglio(url))
   } catch (e) {
     return { ...vuoto, errore: e instanceof Error ? e.message : 'Scaricamento fallito' }
   }
 
-  const righeTotali = csv.split('\n').filter(r => r.trim()).length - 1
-  const lead = leggiFoglio(csv)
+  const lead = analisi.lead
   const base: RiepilogoSync = {
     letti: lead.length,
     nuovi: 0,
     giaPresenti: 0,
-    scartati: Math.max(0, righeTotali - lead.length),
+    scartati: analisi.scartati + analisi.duplicati,
     ignorati: 0,
   }
   if (!lead.length) return base

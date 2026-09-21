@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   leggiCsv, conIntestazioni, leggibile, eDiProva, faseDaStatus, normalizza,
-  leggiFoglio, DA_STATUS_FOGLIO,
+  leggiFoglio, DA_STATUS_FOGLIO, analizzaFoglio,
 } from '@/lib/sales-import'
 import { CHIAVI_FASE, FASE_INGRESSO } from '@/lib/sales-stages'
 
@@ -75,6 +75,13 @@ console.log('\n— Il foglio vero, quello scaricato il 20 settembre —')
 const csv = readFileSync(join(process.cwd(), 'lib/fixtures/lead-foglio.csv'), 'utf8')
 const tutte = conIntestazioni(leggiCsv(csv))
 const lead = leggiFoglio(csv)
+const analisi = analizzaFoglio(csv)
+is('il riepilogo conta record CSV, non righe di testo', analisi.righe, 31)
+is('gli a capo nelle note non sono scarti', analisi.scartati, 3)
+is('nessun duplicato nel fixture', analisi.duplicati, 0)
+let schemaRespinto = false
+try { analizzaFoglio('id,company_name\n1,Acme') } catch { schemaRespinto = true }
+is('schema incompleto respinto prima di importare', schemaRespinto, true)
 is('trentuno righe nel foglio', tutte.length, 31)
 is('ventotto lead veri: tre sono prove', lead.length, 28)
 is('nessuno senza azienda', lead.filter(l => !l.companyName.trim()).length, 0)

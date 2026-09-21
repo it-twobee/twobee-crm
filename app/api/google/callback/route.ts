@@ -2,11 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { GOOGLE_OAUTH_COOKIE, readGoogleOAuthCookie } from '@/lib/google-oauth'
 
 export async function GET(req: NextRequest) {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin
+  const pending = readGoogleOAuthCookie(req.cookies.get(GOOGLE_OAUTH_COOKIE)?.value)
+  const finish = (error?: string) => {
+    const url = new URL(pending?.returnTo ?? '/workspace/calendario', base)
+    url.searchParams.set(error ? 'error' : 'connected', error ?? 'true')
+    const response = NextResponse.redirect(url)
+    response.cookies.set(GOOGLE_OAUTH_COOKIE, '', { httpOnly: true, sameSite: 'lax', secure: new URL(base).protocol === 'https:', path: '/api/google', maxAge: 0 })
+    return response
+  }
+  if (!pending || req.nextUrl.searchParams.get('state') !== pending.state) return finish('google_invalid_state')
+  if (req.nextUrl.searchParams.has('error')) return finish('google_consent_denied')
   const code = req.nextUrl.searchParams.get('code')
-  if (!code) return NextResponse.redirect(`${base}/workspace/calendario?error=no_code`)
+  if (!code) return finish('no_code')
 
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
@@ -17,12 +28,15 @@ export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.redirect(`${base}/login`)
+  if (user.id !== pending.userId) return finish('google_invalid_state')
   // D4 (Fase 0): difesa in profondità — non salvare token per email non-@twobee.it.
   if (!user.email?.toLowerCase().endsWith('@twobee.it')) {
-    return NextResponse.redirect(`${base}/workspace/calendario?error=google_domain_not_allowed`)
+    return finish('google_domain_not_allowed')
   }
 
-  const { tokens } = await oauth2Client.getToken(code)
+  let tokens
+  try { ({ tokens } = await oauth2Client.getToken(code)) }
+  catch { return finish('google_connection_failed') }
 
   // I token NON vanno in user_metadata: il client dell'utente lo legge e lo
   // riscrive. Stanno in google_credentials, tabella deny-all raggiungibile solo
@@ -41,7 +55,7 @@ export async function GET(req: NextRequest) {
   } as never, { onConflict: 'profile_id' })
 
   if (error) {
-    return NextResponse.redirect(`${base}/workspace/calendario?error=${encodeURIComponent(error.message)}`)
+    return finish('google_connection_failed')
   }
 
   await admin.from('profiles').update({ google_connected: true } as never).eq('id', user.id)
@@ -57,5 +71,5 @@ export async function GET(req: NextRequest) {
     data: { google_access_token: null, google_refresh_token: null, google_token_expiry: null },
   })
 
-  return NextResponse.redirect(`${base}/workspace/calendario?connected=true`)
+  return finish()
 }

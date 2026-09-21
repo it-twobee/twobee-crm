@@ -1,5 +1,24 @@
 # Dove siamo
 
+## Commerciale — foglio attivo, follow-up pronti sul branch, 2026-09-21
+
+Attivato il foglio Meta su Coolify: variabili runtime e task giornaliero alle
+03:00 (fuso scheduler), riavvio del `main` **eaeb732** completato. Primo import
+reale: 3 nuovi + 28 già presenti; secondo import: 0 nuovi + 31 già presenti.
+Tre righe di test scartate in entrambi. Prima esecuzione notturna da osservare.
+
+Sul branch **`feat/commerciale-calendar`**: follow-up dalla scheda commerciale
+al calendario personale, invito al contatto facoltativo, retry senza duplicati,
+modifica/annullamento con controllo revisioni Google, guard commerciale e RLS
+del lead, collegamento privato sull'evento. Nessuna migration. Verificati
+TypeScript, 76 check (calendario lavorativo con `TZ=Europe/Rome`), route/OAuth
+simulati e browser nei due temi, mobile e tastiera.
+
+**Calendario non ancora attivabile in produzione**: mancano le credenziali
+OAuth `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` su Coolify, il nuovo codice deve
+essere integrato e distribuito, e serve il consenso del titolare. Il branch
+del portale cliente resta separato. Dettagli e comandi in `docs/commerciale.md`.
+
 ## Progetti — il calendario si scorre e si apre, 2026-09-16
 
 Il calendario milestone ha una **barra di navigazione orizzontale** sotto la

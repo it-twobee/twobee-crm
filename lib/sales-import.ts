@@ -216,3 +216,17 @@ export function leggiFoglio(csv: string): LeadImportato[] {
   }
   return out
 }
+
+export function analizzaFoglio(csv: string) {
+  const righe = leggiCsv(csv)
+  const intestazioni = (righe[0] ?? []).map(h => h.trim())
+  const richieste = ['id', 'created_time', 'full_name', 'phone_number', 'work_email', 'company_name', 'STATUS', 'Note', 'Follow up']
+  const mancanti = richieste.filter(h => !intestazioni.includes(h))
+  if (mancanti.length) throw new Error(`Colonne mancanti nel foglio: ${mancanti.join(', ')}. Nessun lead importato.`)
+  if (new Set(intestazioni).size !== intestazioni.length) throw new Error('Il foglio contiene intestazioni duplicate. Nessun lead importato.')
+  const lead = leggiFoglio(csv)
+  const valide = conIntestazioni(righe).filter(r => normalizza(r) !== null).length
+  const perFase: Record<string, number> = {}
+  for (const l of lead) perFase[l.stage] = (perFase[l.stage] ?? 0) + 1
+  return { intestazioni, righe: righe.length - 1, lead, scartati: righe.length - 1 - valide, duplicati: valide - lead.length, perFase }
+}

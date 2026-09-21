@@ -24,6 +24,7 @@ import { COLONNE, GRUPPI_SCHEDA, TITOLO_GRUPPO, type Colonna } from '@/lib/sales
 import { classiFase, etichettaFase } from '@/lib/sales-stages'
 import { CrmCella } from './CrmCella'
 import type { RigaCrm } from './CrmTable'
+import { SalesFollowUps } from './SalesFollowUps'
 
 const ORIGINE: [string, string][] = [
   ['piattaforma', 'Piattaforma'], ['campagna', 'Campagna'], ['adset', 'Adset'],
@@ -132,6 +133,8 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pend
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        <SalesFollowUps key={riga.id} dealId={riga.id} company={riga.company_name || 'Lead'}
+          email={typeof riga.contact_email === 'string' ? riga.contact_email : null} />
         {GRUPPI_SCHEDA.filter(g => g !== 'provenienza').map(g => (
           <Riquadro key={g} titolo={TITOLO_GRUPPO[g]}>
             {COLONNE.filter(c => c.gruppo === g).map(c => (
