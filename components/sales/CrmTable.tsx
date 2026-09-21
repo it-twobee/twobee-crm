@@ -365,14 +365,24 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
               return (
                 /* La casella è **accanto** al bottone e non dentro: un
                    `<button>` dentro un `<button>` non è valido, e sceglierne
-                   uno aprirebbe la scheda invece di spuntare la riga. */
+                   uno aprirebbe la scheda invece di spuntare la riga.
+
+                   Compare all'hover, ma lo spazio resta occupato: nasconderla
+                   con `hidden` farebbe saltare di lato il nome dell'azienda a
+                   ogni passaggio del mouse, su tutte le righe. E resta visibile
+                   in tre casi in cui sparire sarebbe un difetto — quando è
+                   spuntata (o non si vedrebbe cosa si sta per eliminare),
+                   quando ha il fuoco da tastiera, e dove l'hover non esiste
+                   (`hover: none`): sul telefono non comparirebbe mai. */
                 <div key={r.id}
-                  className={`flex items-start gap-2.5 px-3 transition-colors ${
+                  className={`group flex items-center gap-2.5 px-3 transition-colors ${
                     scelta ? 'bg-gold/10' : 'hover:bg-surface-hover'}`}>
                   {puoiEliminare && (
                     <input type="checkbox" checked={selezione.includes(r.id)} onChange={() => scegli(r.id)}
                       aria-label={`Seleziona ${r.company_name || 'il lead senza nome'}`}
-                      className="accent-gold w-3.5 h-3.5 cursor-pointer mt-3 shrink-0" />
+                      className="accent-gold w-3.5 h-3.5 cursor-pointer shrink-0 opacity-0 transition-opacity
+                        group-hover:opacity-100 focus-visible:opacity-100 checked:opacity-100
+                        [@media(hover:none)]:opacity-100" />
                   )}
                 <button onClick={() => setAperta(scelta ? null : r)}
                   aria-current={scelta ? 'true' : undefined}
