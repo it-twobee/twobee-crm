@@ -1,7 +1,7 @@
 # Area commerciale — il CRM di Notion, qui dentro
 
-Stato al 20 settembre 2026: **riscritta da zero (§367–§371)**. Migration 235 e
-236 applicate. Il modulo precedente (§223–§225) è stato sostituito: descriveva
+Stato al 21 settembre 2026: **riscritta da zero (§367–§371)**. Migration 235,
+236 e 239 applicate. Il modulo precedente (§223–§225) è stato sostituito: descriveva
 pipeline, esiti e handoff, ma erano quattrocentosessanta righe di codice con
 due componenti da sedici, e una riga sola nel database.
 
@@ -86,11 +86,45 @@ Senza, ventotto lead entrerebbero tutti come «New Lead» e il lavoro già fatto
 sarebbe buttato: la distribuzione vera è su sette fasi. **«Chiuso» vuol dire
 perso**, e l'ha deciso chi il foglio lo compila.
 
-Configurazione: `SALES_SHEET_CSV_URL` (il foglio condiviso in lettura),
-`SALES_SYNC_SECRET`, e un task pianificato `0 * * * *` su
-`POST /api/sales/sync`. Seconda porta per gli admin, come le ricorrenze: chi
+Configurazione: `SALES_SHEET_CSV_URL` (l'indirizzo **CSV** del foglio
+condiviso in lettura: `.../d/<ID>/export?format=csv&gid=<GID>`, non il link
+che si copia dalla barra), `SALES_SYNC_SECRET`, e un task pianificato
+`0 3 * * *` su `POST /api/sales/sync`. Entrambe sono in
+`.env.local.example`. Seconda porta per gli admin, come le ricorrenze: chi
 aggiunge una riga al foglio deve poterla vedere adesso invece di scoprire
 all'ora dopo che la colonna si chiamava in un altro modo.
+
+## Eliminare un lead — §378
+
+`eliminaLead` in `app/actions/sales.ts`, dalla scheda (uno) o dalla barra
+della selezione (fino a duecento). Admin e manager, la stessa coppia
+dell'import CSV: chi può riempire l'elenco può ripulirlo, e chi vede solo i
+propri lead no — è l'unica operazione qui dentro che nessun'altra rimette a
+posto.
+
+**Prima la lapide, poi la cancellazione**, e l'ordine è tutto il punto.
+`sheet_row_id` è la chiave con cui il giro decide se inserire (§370):
+cancellata la riga quella chiave non esiste più in `deals`, quindi la notte
+dopo il lead **rientra come nuovo**. La tabella `sales_sheet_ignored`
+(migration 239) tiene l'id del foglio, il nome, chi ha eliminato e quando —
+è l'unica cosa che distingue «non l'abbiamo mai vista» da «l'abbiamo tolta
+apposta». Il nome si conserva perché `1036…` non risponde a «perché quel
+lead non entra».
+
+Se la cancellazione fallisce dopo la lapide resta una lapide su una riga
+viva, che non fa danno: il giro la trova comunque in `deals`. L'ordine
+opposto riporta indietro quello che qualcuno ha tolto, ed è il motivo per cui
+non si scrive così.
+
+**Il foglio non si tocca**: la riga là resta, viene solo segnata qui. E
+**il cliente non si tocca**: eliminare un lead già convertito toglie la riga
+di CRM, non l'anagrafica — `client_id` è un riferimento, non un possesso.
+Sparisce invece la storia della trattativa, per cascata: `deal_owners`,
+`deal_activities`, `sales_handoffs`.
+
+Il riepilogo della sincronizzazione ha un quarto numero, `ignorati`, e
+compare solo quando è diverso da zero: uno «0 eliminati» fisso in coda
+insegna a non leggere la riga.
 
 ## «Lead convertito» — §368
 

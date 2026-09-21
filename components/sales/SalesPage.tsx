@@ -18,7 +18,8 @@ import { CrmTable, type RigaCrm } from './CrmTable'
  * anche la delivery e la provenienza Meta, che qui non si leggono.
  */
 export async function SalesPage({ base }: { base: string }) {
-  if (!await getSalesAccess()) redirect(base ? '/workspace' : '/dashboard')
+  const contesto = await getSalesAccess()
+  if (!contesto) redirect(base ? '/workspace' : '/dashboard')
 
   const campi = Array.from(new Set(['id', 'client_id', ...COLONNE.map(c => c.campo)]))
     .filter(c => c !== 'owners')
@@ -40,5 +41,14 @@ export async function SalesPage({ base }: { base: string }) {
     )
   }
 
-  return <CrmTable righe={(data ?? []) as unknown as RigaCrm[]} />
+  /* §378 — chi può eliminare è la stessa coppia che può importare un CSV
+     (§377): admin e manager. Chi vede solo i propri lead non vede le caselle,
+     e la porta vera resta dentro `eliminaLead` — nascondere una casella non
+     è una barriera (§329). */
+  return (
+    <CrmTable
+      righe={(data ?? []) as unknown as RigaCrm[]}
+      puoiEliminare={contesto.access === 'admin' || contesto.access === 'manager'}
+    />
+  )
 }

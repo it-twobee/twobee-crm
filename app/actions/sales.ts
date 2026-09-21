@@ -331,3 +331,82 @@ export async function importaLeadCsv(righe: NuovoLead[]): Promise<EsitoImport> {
   refreshSales()
   return esito
 }
+
+// ── §378 · eliminare un lead, uno o molti ───────────────────────────────────
+
+export type EsitoEliminazione = {
+  eliminati: number
+  /** quanti arrivavano dal foglio: sono quelli che il giro rimetterebbe */
+  dalFoglio: number
+}
+
+/**
+ * Elimina i lead scelti, e **prima** mette la lapide.
+ *
+ * L'ordine non è estetico. La riga che arriva dal foglio si riconosce dal
+ * `sheet_row_id`, ed è la stessa chiave con cui il giro decide se inserire:
+ * cancellata la riga, quella chiave non esiste più in `deals` e la notte
+ * dopo il lead rientra come se fosse nuovo. Si scrive la lapide, poi si
+ * cancella — se la cancellazione fallisce resta una lapide su una riga
+ * ancora viva, che non fa danno (il giro la trova comunque in `deals`),
+ * mentre l'ordine opposto riporta indietro quello che qualcuno ha tolto.
+ *
+ * Non è un cestino e lo dice: spariscono anche gli owner, le attività e la
+ * scheda di handoff, per cascata. Quello che **non** sparisce è il cliente:
+ * un lead convertito è una riga di CRM sopra un'anagrafica vera, e togliere
+ * la prima non tocca la seconda — `client_id` è un riferimento, non un
+ * possesso.
+ *
+ * Admin e manager, come l'import CSV (§377): chi può riempire l'elenco può
+ * anche ripulirlo, e chi vede solo i propri lead no — eliminare è l'unica
+ * operazione qui dentro che nessun'altra rimette a posto.
+ */
+export async function eliminaLead(ids: string[]): Promise<EsitoEliminazione> {
+  const { access, actor } = await requireSalesAccess()
+  if (access !== 'admin' && access !== 'manager') {
+    throw new Error('Solo admin e manager possono eliminare un lead')
+  }
+  const unici = Array.from(new Set(ids))
+  if (!unici.length) throw new Error('Nessun lead da eliminare')
+  /* Un tetto perché l'azione è un endpoint (§329): senza, una sola chiamata
+     svuota la tabella. Duecento è più di quante righe si selezionano
+     guardandole, che è l'unico modo sensato di eliminarne tante. */
+  if (unici.length > 200) throw new Error('Troppi lead in una volta: al massimo duecento')
+  unici.forEach(uuid)
+
+  const db = createActorClient(actor)
+
+  const { data, error } = await db
+    .from('deals').select('id,company_name,sheet_row_id').in('id', unici)
+  if (error) dbError(error)
+  const righe = (data ?? []) as { id: string; company_name: string | null; sheet_row_id: string | null }[]
+  if (!righe.length) return { eliminati: 0, dalFoglio: 0 }
+
+  const dalFoglio = righe.filter(r => r.sheet_row_id)
+  if (dalFoglio.length) {
+    const { error: eLapide } = await db.from('sales_sheet_ignored').upsert(
+      dalFoglio.map(r => ({
+        sheet_row_id: r.sheet_row_id as string,
+        company_name: r.company_name,
+        deleted_by: actor,
+        deleted_at: new Date().toISOString(),
+      })),
+      { onConflict: 'sheet_row_id' },
+    )
+    /* Un messaggio suo: `dbError` manderebbe a cercare la 223, e qui manca
+       la 239 — mandare a guardare la migration sbagliata costa più che non
+       dire niente. */
+    if (eLapide) {
+      if (['42P01', 'PGRST205'].includes(eLapide.code ?? '')) {
+        throw new Error('Manca la migration 239: senza, un lead eliminato tornerebbe al primo giro dal foglio.')
+      }
+      dbError(eLapide)
+    }
+  }
+
+  const { error: eDelete } = await db.from('deals').delete().in('id', righe.map(r => r.id))
+  if (eDelete) dbError(eDelete)
+
+  refreshSales()
+  return { eliminati: righe.length, dalFoglio: dalFoglio.length }
+}

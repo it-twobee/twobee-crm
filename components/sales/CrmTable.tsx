@@ -18,13 +18,14 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Search, Loader2, RefreshCw, BarChart3, List, ArrowUpDown, SlidersHorizontal, X, Plus } from 'lucide-react'
+import { Search, Loader2, RefreshCw, BarChart3, List, ArrowUpDown, SlidersHorizontal, X, Plus, Trash2 } from 'lucide-react'
 
 import { FASI, GRUPPI, ETICHETTA_GRUPPO, classiFase, etichettaFase } from '@/lib/sales-stages'
-import { salvaCellaDeal, collegaLeadACliente, aggiornaDaFoglio } from '@/app/actions/sales'
+import { salvaCellaDeal, collegaLeadACliente, aggiornaDaFoglio, eliminaLead } from '@/app/actions/sales'
 import { NewClientModal } from '@/components/clients/NewClientModal'
 import type { Client } from '@/lib/types/database'
 import { CrmScheda } from './CrmScheda'
+import { EliminaLead } from './EliminaLead'
 import { NuovoLead } from './NuovoLead'
 import { CrmAnalytics } from './CrmAnalytics'
 import { tassoDi, type RigaAnalisi } from '@/lib/sales-analytics'
@@ -58,7 +59,11 @@ function quando(v: unknown): string {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}${anno} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
+export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
+  righe: RigaCrm[]
+  /** §378 — admin e manager. Chi non può non vede le caselle, non le vede spente */
+  puoiEliminare?: boolean
+}) {
   const [righe, setRighe] = useState(iniziali)
   const [cerca, setCerca] = useState('')
   const [gruppo, setGruppo] = useState<string>('tutti')
@@ -72,6 +77,13 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
   const [vista, setVista] = useState<'tabella' | 'numeri'>('tabella')
   const [aggiorno, setAggiorno] = useState(false)
   const [esitoSync, setEsitoSync] = useState<string | null>(null)
+  /* La selezione vive sugli **id** e non sulle righe, come in Clienti: una
+     riga eliminata esce da sé invece di restare a gonfiare il contatore di
+     una barra che agirebbe su niente. */
+  const [selezione, setSelezione] = useState<string[]>([])
+  /** id in attesa di conferma: uno solo dalla scheda, N dalla selezione */
+  const [daEliminare, setDaEliminare] = useState<string[] | null>(null)
+  const [elimino, setElimino] = useState(false)
   const [pending, start] = useTransition()
 
   /* Gli stessi numeri del pannello, in testata: chi apre la pagina vede
@@ -129,13 +141,51 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
     try {
       const e = await aggiornaDaFoglio()
       if (e.errore) { setEsitoSync(e.errore); toast.error(e.errore); return }
-      setEsitoSync(`${e.nuovi} nuovi · ${e.giaPresenti} già presenti · ${e.scartati} scartati (prove o senza azienda)`)
+      setEsitoSync([
+        `${e.nuovi} nuovi`,
+        `${e.giaPresenti} già presenti`,
+        `${e.scartati} scartati (prove o senza azienda)`,
+        /* §378 — si dice solo quando ce ne sono: uno «0 eliminati» fisso in
+           coda insegna a non leggere la riga. */
+        ...(e.ignorati ? [`${e.ignorati} eliminati a mano, non rientrano`] : []),
+      ].join(' · '))
       if (e.nuovi) { toast.success(`${e.nuovi} lead importati`); location.reload() }
       else toast.success('Nessun lead nuovo: il foglio è allineato')
     } catch (err) {
       const m = (err as Error).message
       setEsitoSync(m); toast.error(m)
     } finally { setAggiorno(false) }
+  }
+
+  const scegli = (id: string) =>
+    setSelezione(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])
+  const idVisti = useMemo(() => viste.map(r => r.id), [viste])
+  const tuttiScelti = idVisti.length > 0 && idVisti.every(id => selezione.includes(id))
+  const scegliTutti = () => setSelezione(p => tuttiScelti
+    ? p.filter(id => !idVisti.includes(id))
+    : Array.from(new Set([...p, ...idVisti])))
+
+  /* §378 — eliminare non è modificare: niente ottimismo, niente `location
+     .reload()`. Le righe si tolgono dallo stato quando il server ha detto
+     che sono andate, e il riepilogo dice quante non rientreranno dal foglio
+     — è l'unica parte che non si vede guardando l'elenco. */
+  const elimina = async () => {
+    if (!daEliminare?.length) return
+    setElimino(true)
+    try {
+      const esito = await eliminaLead(daEliminare)
+      const tolti = new Set(daEliminare)
+      setRighe(rs => rs.filter(r => !tolti.has(r.id)))
+      setSelezione(p => p.filter(id => !tolti.has(id)))
+      if (apertaId && tolti.has(apertaId)) setApertaId(null)
+      setDaEliminare(null)
+      const quanti = esito.eliminati === 1 ? 'Lead eliminato' : `${esito.eliminati} lead eliminati`
+      toast.success(esito.dalFoglio
+        ? `${quanti} · il giro dal foglio non li rimette`
+        : quanti)
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally { setElimino(false) }
   }
 
   const convertito = (riga: RigaCrm) => (cliente: Client) => {
@@ -292,6 +342,18 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
            schiacciare l'elenco a una colonna di dieci caratteri. */
         <div className="flex gap-4 items-start">
           <div className={`flex-1 min-w-0 border border-border rounded-xl divide-y divide-border overflow-hidden ${aperta ? 'hidden lg:block lg:max-w-md xl:max-w-lg' : ''}`}>
+            {puoiEliminare && viste.length > 0 && (
+              <div className="flex items-center gap-2.5 px-3 py-1.5 bg-surface">
+                <input type="checkbox" checked={tuttiScelti} onChange={scegliTutti}
+                  aria-label={tuttiScelti ? 'Deseleziona tutti' : 'Seleziona tutti i lead in elenco'}
+                  className="accent-gold w-3.5 h-3.5 cursor-pointer" />
+                <span className="text-2xs text-text-tertiary">
+                  {selezione.length
+                    ? `${selezione.length} selezionat${selezione.length === 1 ? 'o' : 'i'}`
+                    : 'Seleziona tutti'}
+                </span>
+              </div>
+            )}
             {viste.map(r => {
               const scelta = aperta?.id === r.id
               const telefono = typeof r.contact_phone === 'string' ? r.contact_phone : ''
@@ -301,10 +363,20 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
               const org = (r.lead_origine ?? {}) as Record<string, string>
               const contorno = [org.piattaforma, org.tipologia, org.tempistica].filter(Boolean).join(' · ')
               return (
-                <button key={r.id} onClick={() => setAperta(scelta ? null : r)}
-                  aria-current={scelta ? 'true' : undefined}
-                  className={`w-full text-left px-3 py-2.5 transition-colors ${
+                /* La casella è **accanto** al bottone e non dentro: un
+                   `<button>` dentro un `<button>` non è valido, e sceglierne
+                   uno aprirebbe la scheda invece di spuntare la riga. */
+                <div key={r.id}
+                  className={`flex items-start gap-2.5 px-3 transition-colors ${
                     scelta ? 'bg-gold/10' : 'hover:bg-surface-hover'}`}>
+                  {puoiEliminare && (
+                    <input type="checkbox" checked={selezione.includes(r.id)} onChange={() => scegli(r.id)}
+                      aria-label={`Seleziona ${r.company_name || 'il lead senza nome'}`}
+                      className="accent-gold w-3.5 h-3.5 cursor-pointer mt-3 shrink-0" />
+                  )}
+                <button onClick={() => setAperta(scelta ? null : r)}
+                  aria-current={scelta ? 'true' : undefined}
+                  className="flex-1 min-w-0 text-left py-2.5">
                   <span className="flex items-center gap-2">
                     <span className="flex-1 min-w-0 text-sm font-semibold text-text-primary truncate">
                       {r.company_name || 'Senza nome'}
@@ -330,6 +402,7 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
                     )}
                   </span>
                 </button>
+                </div>
               )
             })}
             {!viste.length && (
@@ -347,10 +420,39 @@ export function CrmTable({ righe: iniziali }: { righe: RigaCrm[] }) {
                 onChiudi={() => setAperta(null)}
                 onSalva={(campo, valore) => salva(aperta, campo, valore)}
                 onConverti={() => setConverto(aperta)}
+                onElimina={puoiEliminare ? () => setDaEliminare([aperta.id]) : undefined}
               />
             </div>
           )}
         </div>
+      )}
+
+      {/* Sta sopra tutto e in fondo allo schermo, come in Clienti: agisce su
+          righe che possono essere state scelte prima di filtrare, senza
+          doverle ritrovare. */}
+      {puoiEliminare && selezione.length > 0 && (
+        <div className="fixed inset-x-4 bottom-4 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-40 flex items-center gap-3 bg-surface border border-border-strong rounded-2xl shadow-pop px-4 py-2.5 animate-slide-up">
+          <span className="text-sm font-bold text-text-primary whitespace-nowrap">
+            {selezione.length} selezionat{selezione.length === 1 ? 'o' : 'i'}
+          </span>
+          <button onClick={() => setSelezione([])} className="text-xs text-text-secondary hover:text-text-primary transition-colors">
+            Annulla
+          </button>
+          <button onClick={() => setDaEliminare(selezione)}
+            className="ml-auto sm:ml-2 flex items-center gap-1.5 text-sm font-semibold bg-error-dim border border-error/40 text-error px-3 py-1.5 rounded-xl hover:bg-error/20 transition-colors press">
+            <Trash2 className="w-3.5 h-3.5" /> Elimina
+          </button>
+        </div>
+      )}
+
+      {daEliminare && daEliminare.length > 0 && (
+        <EliminaLead
+          nomi={daEliminare.map(id => righe.find(r => r.id === id)?.company_name || 'Senza nome')}
+          inAnagrafica={daEliminare.filter(id => righe.find(r => r.id === id)?.client_id).length}
+          pending={elimino}
+          onAnnulla={() => { if (!elimino) setDaEliminare(null) }}
+          onConferma={elimina}
+        />
       )}
 
       {nuovo && (

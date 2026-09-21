@@ -19,7 +19,7 @@
  * lavorasse.
  */
 
-import { X, UserPlus, Loader2, ExternalLink } from 'lucide-react'
+import { X, UserPlus, Loader2, ExternalLink, Trash2 } from 'lucide-react'
 import { COLONNE, GRUPPI_SCHEDA, TITOLO_GRUPPO, type Colonna } from '@/lib/sales-table'
 import { classiFase, etichettaFase } from '@/lib/sales-stages'
 import { CrmCella } from './CrmCella'
@@ -59,11 +59,13 @@ function Campo({ colonna, riga, onSalva }: {
   )
 }
 
-export function CrmScheda({ riga, onChiudi, onSalva, onConverti, pending }: {
+export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pending }: {
   riga: RigaCrm
   onChiudi: () => void
   onSalva: (campo: string, valore: unknown) => Promise<void>
   onConverti: () => void
+  /** assente per chi non può eliminare: il bottone non c'è, non è spento */
+  onElimina?: () => void
   pending: boolean
 }) {
   const origine = (riga.lead_origine ?? {}) as Record<string, string>
@@ -115,6 +117,16 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, pending }: {
             className="flex items-center gap-1.5 text-xs font-semibold bg-gold text-on-gold px-3 py-1.5 rounded-xl shadow-soft press disabled:opacity-40 ml-auto">
             {pending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
             Lead convertito
+          </button>
+        )}
+        {/* §378 — in fondo alla riga e in rosso soltanto di bordo: eliminare
+            è la sola azione qui dentro che nessun'altra rimette a posto, ma
+            un bottone pieno accanto a «Chiama» si preme per sbaglio. */}
+        {onElimina && (
+          <button onClick={onElimina} disabled={pending}
+            aria-label={`Elimina il lead ${riga.company_name ?? ''}`.trim()}
+            className={`flex items-center gap-1.5 text-xs font-semibold text-error border border-error/30 px-3 py-1.5 rounded-xl hover:bg-error-dim transition-colors disabled:opacity-40 ${riga.client_id ? 'ml-auto' : ''}`}>
+            <Trash2 className="w-3.5 h-3.5" />Elimina
           </button>
         )}
       </div>

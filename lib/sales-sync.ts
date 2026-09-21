@@ -25,6 +25,8 @@ export type RiepilogoSync = {
   nuovi: number
   giaPresenti: number
   scartati: number
+  /** §378 — righe che qualcuno ha eliminato a mano: il giro non le rimette */
+  ignorati: number
   errore?: string
 }
 
@@ -49,7 +51,7 @@ export async function scaricaFoglio(url: string): Promise<string> {
 }
 
 export async function sincronizzaLead(admin: Admin, url = URL_FOGLIO): Promise<RiepilogoSync> {
-  const vuoto: RiepilogoSync = { letti: 0, nuovi: 0, giaPresenti: 0, scartati: 0 }
+  const vuoto: RiepilogoSync = { letti: 0, nuovi: 0, giaPresenti: 0, scartati: 0, ignorati: 0 }
   if (!url) return { ...vuoto, errore: 'SALES_SHEET_CSV_URL non configurata: nessun foglio da leggere' }
 
   let csv: string
@@ -66,6 +68,7 @@ export async function sincronizzaLead(admin: Admin, url = URL_FOGLIO): Promise<R
     nuovi: 0,
     giaPresenti: 0,
     scartati: Math.max(0, righeTotali - lead.length),
+    ignorati: 0,
   }
   if (!lead.length) return base
 
@@ -77,10 +80,23 @@ export async function sincronizzaLead(admin: Admin, url = URL_FOGLIO): Promise<R
     .from('deals').select('sheet_row_id').in('sheet_row_id', lead.map(l => l.sheetRowId))
   if (eLettura) return { ...base, errore: `Lettura fallita: ${eLettura.message}` }
 
+  /* §378 — le righe eliminate a mano non rientrano.
+     Senza questa lettura «Elimina» sarebbe una promessa che il giro rompe la
+     notte stessa: la riga cancellata non è più in `deals`, quindi al giro
+     dopo risulta nuova e torna. La lapide è l'unica cosa che distingue «non
+     l'abbiamo mai vista» da «l'abbiamo tolta apposta». */
+  const { data: tolte, error: eTolte } = await admin
+    .from('sales_sheet_ignored').select('sheet_row_id').in('sheet_row_id', lead.map(l => l.sheetRowId))
+  if (eTolte) return { ...base, errore: `Lettura fallita: ${eTolte.message}` }
+
+  const ignorati = new Set(((tolte ?? []) as { sheet_row_id: string }[]).map(r => r.sheet_row_id))
+  const restanti = lead.filter(l => !ignorati.has(l.sheetRowId))
+  base.ignorati = lead.length - restanti.length
+
   const visti = new Set(((noti ?? []) as { sheet_row_id: string | null }[])
     .map(r => r.sheet_row_id).filter(Boolean) as string[])
-  const nuovi = lead.filter(l => !visti.has(l.sheetRowId))
-  base.giaPresenti = lead.length - nuovi.length
+  const nuovi = restanti.filter(l => !visti.has(l.sheetRowId))
+  base.giaPresenti = restanti.length - nuovi.length
   if (!nuovi.length) return base
 
   const adesso = new Date().toISOString()
