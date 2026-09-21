@@ -316,6 +316,35 @@ del giro automatico, apposta: il primo periodo si apre a mano e si guarda.
 `npx tsx scripts/prova-periodi.ts` stampa cosa farebbe su tutti i progetti
 senza scrivere niente.
 
+**§393 — le ricorrenze commerciali, nel wizard.** Black Friday, Natale,
+saldi: si sanno da un anno e si aprono a novembre, quando serviva già tutto
+pronto. Il blocco sta in `StepStruttura` **prima** dell'albero, non in fondo:
+si spuntano mentre si pensa a come sarà fatto il progetto, che è l'unico
+momento in cui qualcuno le guarda con calma — dopo aver montato dodici
+milestone non le guarda più nessuno.
+
+**La prossima occorrenza non è «quella di quest'anno».** Il 21 settembre il
+Black Friday è davanti, San Valentino è passato da sette mesi e quello che
+interessa è quello dopo. Si guarda **il giorno dell'evento** e non l'inizio
+del lavoro: il Natale ha settantacinque giorni di anticipo, quindi il 20
+ottobre la finestra è aperta da un mese ma proporre il Natale del 2027
+sarebbe assurdo.
+
+Ogni corsia vive **fra l'inizio del lavoro e il giorno dell'evento**, non per
+tutto il progetto: `WWorkstream` ha le sue date e vincono su quelle del
+progetto, o il Black Friday in Gantt coprirebbe l'anno. L'ordine è per
+inizio del lavoro — quello che va aperto prima viene prima — e quelle senza
+data vanno in fondo, non perché contino meno ma perché non si può dire
+quando servono.
+
+I saldi restano senza data finché nessuno la scrive, e la voce lo dichiara:
+proporli senza data è meglio che non proporli, perché chi li vede si ricorda
+che esistono.
+
+L'elenco si legge dal browser: `commercial_events` ha una policy di lettura
+aperta perché è un calendario di feste, e farlo passare dalle **tre** pagine
+che montano il wizard sarebbe stato tre posti in cui dimenticarsene.
+
 **§392 — il giro su tutti** (`POST /api/periods/run`, `PERIODS_CRON_SECRET`,
 task pianificato alle 04:00). Una volta al giorno e non più spesso: un
 periodo si apre una volta ogni due mesi, e il giro serve a non doverci

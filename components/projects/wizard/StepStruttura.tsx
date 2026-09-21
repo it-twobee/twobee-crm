@@ -13,7 +13,9 @@ import {
   countTree, recOwner, FREQUENCIES, FREQ_LABEL, PRIORITIES,
   newTask, newMilestone, newRecurring, newWorkstream,
   type WWorkstream, type WMilestone, type WTask, type Person, type Priority,
+  type ProjectArea,
 } from './types'
+import { RicorrenzeCommerciali } from './RicorrenzeCommerciali'
 
 /** riscrive tutto l'albero secondo la convention (idempotente) */
 export function applyNaming(structure: WWorkstream[], ctx: NamingCtx): WWorkstream[] {

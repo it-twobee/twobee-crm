@@ -39,6 +39,14 @@ export type WWorkstream = {
   owner_id: string | null; visibility: Visibility; description: string | null
   milestones: WMilestone[]; recurring: WRecurring[]
   collapsed?: boolean
+  /**
+   * §393 — le date **sue**, quando non sono quelle del progetto. Una corsia
+   * di ricorrenza commerciale vive fra l'inizio del lavoro e il giorno
+   * dell'evento: prendere le date del progetto le farebbe durare un anno, e
+   * il Black Friday in Gantt coprirebbe tutto.
+   */
+  start_date?: string | null
+  end_date?: string | null
 }
 
 /** Costruttori: i default stanno in un posto solo, non sparsi in ogni «Aggiungi». */

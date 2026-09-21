@@ -251,8 +251,11 @@ export function ProjectWizard({
         status: 'active',
         owner_id: w.owner_id,
         visibility: w.visibility,
-        start_date: w.workstream_type === 'project' ? info.startDate || null : null,
-        end_date: w.workstream_type === 'project' ? info.targetEnd || null : null,
+        /* §393 — le date della corsia vincono su quelle del progetto: una
+           ricorrenza commerciale ha le sue, e prendere quelle del progetto
+           le farebbe durare un anno. */
+        start_date: w.workstream_type === 'project' ? (w.start_date ?? info.startDate) || null : null,
+        end_date: w.workstream_type === 'project' ? (w.end_date ?? info.targetEnd) || null : null,
         sort_order: i * 10,
         milestones: w.milestones.map((m, j) => ({
           title: m.title, description: m.description, deliverable: m.deliverable,
