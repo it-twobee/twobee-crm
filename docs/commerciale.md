@@ -301,6 +301,55 @@ Il riepilogo della sincronizzazione ha un quarto numero, `ignorati`, e
 compare solo quando è diverso da zero: uno «0 eliminati» fisso in coda
 insegna a non leggere la riga.
 
+## Il controllo — §385, `lib/sales-igiene.ts`
+
+Quarta vista accanto a elenco, bacheca e numeri. `somiglianze` (§377) guarda
+**un lead alla volta, quando entra**: è la barriera giusta e non vede niente
+di quello che è già dentro. I doppioni entrano lo stesso da tre porte —
+l'import CSV, il «aggiungi comunque» premuto per fretta, e il giro dal
+foglio, che riconosce una riga dal suo `sheet_row_id` e non dal telefono: la
+stessa azienda che ricompila il modulo fa due righe, legittime per il foglio
+e una sola per chi chiama. Qui si guarda la tabella intera.
+
+**I doppioni si trovano a gruppi, non a coppie.** Tre righe della stessa
+azienda fanno tre coppie, e mostrarle come tre problemi porta a risolverne
+una e credere di aver finito. Si uniscono per contagio con una union-find: se
+A ha il telefono di B e B la mail di C, sono la stessa storia anche se A e C
+non hanno niente in comune. Il gruppo dice **su cosa** si somigliano, e
+distingue le chiavi che identificano una persona (telefono, email, riga del
+foglio) da quella che identifica un nome — «Rossi» e «Rossi» possono essere
+due fratelli in due capannoni.
+
+Gli altri controlli: aperti **senza recapito** (né telefono né mail: non è un
+lead, è un nome), `Active Client` **senza anagrafica** (la pipeline
+dichiarerebbe clienti che non esistono, §379), collegati a un cliente ma
+**ancora in lavorazione** (uno dei due mente e il conto degli aperti ci
+crede), **fase sconosciuta** (la riga non si filtra e non si conta, ma è in
+tabella) e **fermi** da più di 45 giorni.
+
+**Niente si corregge da qui**, e non è pigrizia: unire due lead non si disfa,
+e solo chi guarda sa se sono la stessa azienda. I rilievi portano alle righe
+— si aprono con un clic — e la decisione resta lì.
+
+Due cose che tengono il pannello utile invece che rumoroso, e che il gate
+prova al contrario:
+
+- **Tace quando non c'è niente.** Un pannello che mostra sempre qualcosa
+  smette di essere letto dopo due giorni.
+- **I recapiti vuoti non sono una chiave.** Senza questo, tutte le righe
+  senza telefono diventerebbero un unico doppione gigante — il modo più
+  veloce di rendere inutile il controllo. Stessa cosa per un telefono di tre
+  cifre, una mail malformata o un nome di due lettere.
+
+Il numero sul bottone si conta su **tutte** le righe, non su quelle filtrate:
+un controllo che sparisce quando cerchi altro fa credere di averlo risolto.
+E conta le **righe** toccate, non i rilievi — una riga che sbaglia tre cose è
+un problema, e dire «tre» farebbe sembrare l'archivio peggio di com'è.
+
+Alla prima passata sui dati veri: 34 righe, **3 doppioni certi**
+(Pubbliservice, Scuppoz Liquori, Gruppo Bonifacio — tutti con telefono,
+email e nome coincidenti) e 11 trattative ferme.
+
 ## «Lead convertito» — §368
 
 La CTA **non crea il cliente**: apre `NewClientModal`, quello vero,

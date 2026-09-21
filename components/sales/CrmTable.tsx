@@ -26,7 +26,7 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Search, Loader2, RefreshCw, BarChart3, List, Columns3, ArrowUpDown, SlidersHorizontal, X, Plus, Trash2 } from 'lucide-react'
+import { Search, Loader2, RefreshCw, BarChart3, List, Columns3, ShieldCheck, ArrowUpDown, SlidersHorizontal, X, Plus, Trash2 } from 'lucide-react'
 
 import { FASI, GRUPPI, ETICHETTA_GRUPPO, classiFase, etichettaFase } from '@/lib/sales-stages'
 import { salvaCellaDeal, collegaLeadACliente, aggiornaDaFoglio, eliminaLead } from '@/app/actions/sales'
@@ -36,6 +36,9 @@ import { CrmScheda } from './CrmScheda'
 import { EliminaLead } from './EliminaLead'
 import { CrmBacheca } from './CrmBacheca'
 import { ConfermaFase } from './ConfermaFase'
+import { CrmControllo } from './CrmControllo'
+import { controlla, quanteGravi } from '@/lib/sales-igiene'
+import type { RigaIgiene } from '@/lib/sales-igiene'
 import { NuovoLead } from './NuovoLead'
 import { CrmAnalytics } from './CrmAnalytics'
 import { tassoDi, type RigaAnalisi } from '@/lib/sales-analytics'
@@ -84,7 +87,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
   const [scelte, setScelte] = useState<Scelte>({})
   const [pannello, setPannello] = useState(false)
   const [nuovo, setNuovo] = useState(false)
-  const [vista, setVista] = useState<'tabella' | 'bacheca' | 'numeri'>('tabella')
+  const [vista, setVista] = useState<'tabella' | 'bacheca' | 'numeri' | 'controllo'>('tabella')
   const [aggiorno, setAggiorno] = useState(false)
   const [esitoSync, setEsitoSync] = useState<string | null>(null)
   /* La selezione vive sugli **id** e non sulle righe, come in Clienti: una
@@ -102,6 +105,14 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
   /* Gli stessi numeri del pannello, in testata: chi apre la pagina vede
      subito quanti clienti e quanti aperti, come in Clienti vede il canone. */
   const t = useMemo(() => tassoDi(righe as unknown as RigaAnalisi[]), [righe])
+  /* §385 — il numero sul bottone si conta su **tutte** le righe e non su
+     quelle filtrate: un controllo che sparisce quando cerchi qualcos'altro
+     ti fa credere di averlo risolto. Conta le righe toccate, non i rilievi:
+     una riga che sbaglia tre cose è un problema, e dire «tre» farebbe
+     sembrare l'archivio peggio di com'è. */
+  const daControllare = useMemo(
+    () => quanteGravi(controlla(righe as unknown as RigaIgiene[], new Date().toISOString().slice(0, 10))),
+    [righe])
   /* La scheda si tiene per **id**, non per oggetto: salvando una cella la riga
      viene ricreata, e un riferimento vecchio mostrerebbe il valore di prima
      accanto a quello nuovo nell'elenco. */
@@ -254,6 +265,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
               ['tabella', 'Elenco', List],
               ['bacheca', 'Bacheca', Columns3],
               ['numeri', 'Numeri', BarChart3],
+              ['controllo', 'Controllo', ShieldCheck],
             ] as const).map(([v, etichetta, Icona]) => (
               <button key={v} onClick={() => setVista(v)} aria-pressed={vista === v}
                 /* `bg-gold-dim` e non `bg-gold/10`: i token sono
@@ -263,6 +275,11 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
                 className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-2 transition-colors ${
                   vista === v ? 'bg-gold-dim text-gold-text' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'}`}>
                 <Icona className="w-3.5 h-3.5" />{etichetta}
+                {v === 'controllo' && daControllare > 0 && (
+                  <span className="tabular text-2xs font-bold bg-error-dim text-error px-1.5 rounded-full">
+                    {daControllare}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -293,7 +310,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
           e poi si smette di credere anche agli altri. Sulla bacheca invece
           servono: il filtro dei gruppi è quello che la porta da dodici
           colonne a quattro. */}
-      {vista !== 'numeri' && (
+      {(vista === 'tabella' || vista === 'bacheca') && (
       <div className="flex items-center gap-2 flex-wrap">
         <label className="relative flex-1 min-w-48 max-w-sm">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" aria-hidden />
@@ -344,7 +361,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
       {/* Un riquadro per variabile, con i valori che **esistono davvero** e
           quanti sono: offrire un valore che nessuna riga ha porta a zero
           risultati, e si impara in fretta a non usare i filtri. */}
-      {vista !== 'numeri' && pannello && (
+      {(vista === 'tabella' || vista === 'bacheca') && pannello && (
         <div className="border border-border rounded-xl p-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {FILTRABILI.map(f => {
             const ops = opzioni(righe as unknown as Record<string, unknown>[], f)
@@ -377,7 +394,13 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
         </div>
       )}
 
-      {vista === 'numeri' ? <CrmAnalytics righe={righe as unknown as RigaAnalisi[]} /> : (
+      {vista === 'numeri' ? <CrmAnalytics righe={righe as unknown as RigaAnalisi[]} />
+      : vista === 'controllo' ? (
+        /* §385 — i controlli guardano **tutte** le righe, non quelle
+           filtrate: un doppione che sta fuori dalla ricerca è un doppione
+           che resta. */
+        <CrmControllo righe={righe} onApri={id => { setVista('tabella'); setApertaId(id) }} />
+      ) : (
         /* §374 — elenco a sinistra, scheda a destra. Prima era una tabella da
            ventitré colonne che scorreva di lato: fedele a Notion e inutile per
            lavorare. L'elenco adesso mostra **solo quello che serve a decidere

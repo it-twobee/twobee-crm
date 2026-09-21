@@ -133,7 +133,15 @@ export const CAMPI_SCRIVIBILI: string[] = COLONNE
  * Da qui in poi l'elenco delle colonne da leggere è uno, e sta accanto a
  * quello delle colonne da mostrare.
  */
-export const CAMPI_LETTURA = ['lead_origine']
+export const CAMPI_LETTURA = [
+  'lead_origine',
+  /* §385 — la riga del foglio da cui il lead è entrato. Non è una cella e
+     non si modifica, ma è una delle quattro chiavi con cui i controlli
+     riconoscono due righe che sono la stessa azienda. */
+  'sheet_row_id',
+  /* e le date con cui si misura da quanto una trattativa è ferma */
+  'last_interaction_at',
+]
 
 /** quello che la pagina chiede al database: da mostrare, da leggere, e le chiavi */
 export const CAMPI_RIGA: string[] = Array.from(new Set([
