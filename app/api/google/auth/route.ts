@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
 import { createClient } from '@/lib/supabase/server'
+import { randomBytes } from 'node:crypto'
+import { GOOGLE_OAUTH_COOKIE, googleReturnTo } from '@/lib/google-oauth'
 
 // D4 (Fase 0): solo gli account @twobee.it possono collegare Google Calendar.
 // Verifica lato server: nascondere la CTA non è una barriera. Freelance/partner
@@ -44,6 +46,7 @@ export async function GET(req: NextRequest) {
   }
 
   const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, `${base}/api/google/callback`)
+  const state = randomBytes(32).toString('hex')
 
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
@@ -52,7 +55,11 @@ export async function GET(req: NextRequest) {
       'https://www.googleapis.com/auth/calendar.events',
     ],
     prompt: 'consent',
+    state,
   })
 
-  return NextResponse.redirect(url)
+  const response = NextResponse.redirect(url)
+  response.cookies.set(GOOGLE_OAUTH_COOKIE, JSON.stringify({ userId: user.id, state, returnTo: googleReturnTo(req.nextUrl.searchParams.get('returnTo')) }),
+    { httpOnly: true, secure: new URL(base).protocol === 'https:', sameSite: 'lax', path: '/api/google', maxAge: 600 })
+  return response
 }

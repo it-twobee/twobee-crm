@@ -4,6 +4,17 @@ import type { createAdminClient } from '@/lib/supabase/admin'
 
 type Admin = ReturnType<typeof createAdminClient>
 
+export async function personalGoogleCalendar(admin: Admin, profileId: string) {
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    throw new Error('google_not_configured')
+  }
+  const { data: cred, error } = await admin.from('google_credentials')
+    .select('access_token, refresh_token').eq('profile_id', profileId).maybeSingle()
+  if (error) throw new Error('google_credentials_unavailable')
+  if (!cred?.access_token && !cred?.refresh_token) throw new Error('not_connected')
+  return google.calendar({ version: 'v3', auth: oc(cred.access_token, cred.refresh_token, profileId, admin) })
+}
+
 // OAuth client con persistenza del refresh token (come in /api/google/events).
 function oc(accessToken: string | null, refreshToken: string | null, profileId: string, admin: Admin) {
   const c = new google.auth.OAuth2(
