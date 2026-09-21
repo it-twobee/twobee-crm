@@ -61,7 +61,7 @@ export const ADMIN_ROLES: AppRole[] = ['super_admin', 'founder', 'admin']
 /** Dipendenti, collaboratori e partner: vivono solo dentro /workspace */
 export const WORKSPACE_ROLES: AppRole[] = ['manager', 'senior', 'junior', 'stage', 'freelance', 'partner']
 
-/** Il cliente: il portale è demolito, resta il ruolo per la ricostruzione */
+/** Il cliente accede a /portale; azienda e progetto si verificano per richiesta. */
 export const CLIENT_ROLES: AppRole[] = ['client']
 
 /**
@@ -177,6 +177,14 @@ export function isSuperAdmin(profile: Profile | null): boolean {
 /** Variante per il middleware, dove abbiamo email e app_role sciolti (niente Profile completo) */
 export function isSuperAdminRaw(email: string | null | undefined, appRole: string | null | undefined): boolean {
   return (!!email && SUPER_ADMIN_EMAILS.includes(email)) || appRole === 'super_admin'
+}
+
+export function canPreviewClientPortal(profile: {
+  email?: string | null; app_role?: string | null; is_active?: boolean | null
+} | null | undefined): boolean {
+  return !!profile && profile.is_active !== false && (
+    isSuperAdminRaw(profile.email, profile.app_role) || isAdminRole(profile.app_role) || profile.app_role === 'manager'
+  )
 }
 
 /** True se può gestire utenti e permessi */

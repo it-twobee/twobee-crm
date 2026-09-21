@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { GlobalSearch } from '@/components/shared/GlobalSearch'
 import type { Profile } from '@/lib/types/database'
-import { SUPER_ADMIN_EMAILS, isAdminRole } from '@/lib/permissions'
+import { isSuperAdminRaw, isAdminRole, canPreviewClientPortal } from '@/lib/permissions'
 import { MobileNav } from '@/components/shared/MobileNav'
 import { Logo } from '@/components/shared/Logo'
 import { PortalSwitcher } from '@/components/shared/PortalSwitcher'
@@ -13,7 +13,7 @@ import { HeaderActions } from '@/components/shared/HeaderActions'
 interface HeaderProps { profile: Profile | null }
 
 export function Header({ profile }: HeaderProps) {
-  const isGod = SUPER_ADMIN_EMAILS.includes(profile?.email ?? '')
+  const isGod = isSuperAdminRaw(profile?.email, profile?.app_role)
   /* §234 — fra i due portali si muovono **admin e super admin**, e nessun
      altro: chi è confinato al workspace non vedrebbe comunque passare il
      middleware, e un selettore che rimbalza è peggio di un selettore assente. */
@@ -25,7 +25,7 @@ export function Header({ profile }: HeaderProps) {
       <Link href="/dashboard" aria-label="TwoBee — dashboard" className="lg:hidden flex items-center">
         <Logo variant="mark" className="w-6 h-6" priority />
       </Link>
-      {canSwitchPortal && <PortalSwitcher />}
+      {canSwitchPortal && <PortalSwitcher canPreviewClient={canPreviewClientPortal(profile)} />}
 
       <div className="flex-1 max-w-md">
         <GlobalSearch />

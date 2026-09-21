@@ -4,12 +4,15 @@ import { redirect } from 'next/navigation'
 import { CustomerCareClient } from '@/components/customer-care/CustomerCareClient'
 import type { Profile, ChatChannel } from '@/lib/types/database'
 import { PROFILE_COLUMNS } from '@/lib/profile-columns'
+import { CustomerCareTabs } from '@/components/customer-care/CustomerCareTabs'
+import { PortalQueue } from '@/components/portal/PortalQueue'
 
 export const revalidate = 0
 
-export default async function CustomerCarePage() {
+export default async function CustomerCarePage({ searchParams }: { searchParams: { vista?: string } }) {
   const profile = await getSessionProfile()
   if (!profile) redirect('/login')
+  if (searchParams.vista === 'da-gestire') return <><CustomerCareTabs base="/customer-care" active="coda" /><PortalQueue /></>
   const supabase = await createClient()
 
   // Colleghi e clienti non si aspettano a vicenda: erano tre giri in fila.
@@ -66,12 +69,15 @@ export default async function CustomerCarePage() {
   })
 
   return (
-    <div className="h-full">
+    <div className="flex h-full flex-col">
+      <CustomerCareTabs base="/customer-care" active="conversazioni" />
+      <div className="min-h-0 flex-1">
       <CustomerCareClient
         projects={rows as Parameters<typeof CustomerCareClient>[0]['projects']}
         currentProfile={profile as Profile}
         allProfiles={(allProfiles ?? []) as Profile[]}
       />
+      </div>
     </div>
   )
 }

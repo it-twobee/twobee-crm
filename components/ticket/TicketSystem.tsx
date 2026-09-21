@@ -548,8 +548,8 @@ function PortaliView({ clients, tickets }: { clients: Pick<Client, 'id' | 'compa
       <div className="bg-background border border-border rounded-xl p-4 flex items-start gap-3">
         <Link2 className="w-4 h-4 text-gold-text mt-0.5 flex-shrink-0" />
         <div>
-          <p className="text-sm font-bold text-text-primary mb-0.5">Portale Clienti</p>
-          <p className="text-xs text-text-secondary">Ogni cliente ha un link univoco. Il cliente accede senza registrarsi, crea ticket con urgenza e dettagli, e segue lo stato in tempo reale.</p>
+          <p className="text-sm font-bold text-text-primary mb-0.5">Accesso ospite ai ticket</p>
+          <p className="text-xs text-text-secondary">Genera un link personale per aprire e consultare ticket senza registrazione. Per vedere progetti, attività e richieste condivise usa «Apri portale cliente».</p>
         </div>
       </div>
 
@@ -665,7 +665,7 @@ export function TicketSystem({ tickets: initialTickets, profiles, clients, curre
         </button>
         <button onClick={() => setView('portali')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${view === 'portali' ? 'bg-surface text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}>
-          <Users className="w-3.5 h-3.5" /> Portali Cliente
+          <Users className="w-3.5 h-3.5" /> Link ticket
         </button>
       </div>
 

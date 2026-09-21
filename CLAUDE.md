@@ -57,7 +57,7 @@ database vero, e riscoprirle costa più che leggerle.
   va a controllare.** Quando una fonte manca, dichiaralo («n/d», «stimato»,
   «senza contratto»): mai uno zero.
 - **Gate del repo**: `npx tsc --noEmit` (ESLint non configurato) + i
-  **settantasei** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
+  **settantotto** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
   `lib/tracking/**`) — con `npx tsx lib/<percorso>.check.ts`: devono dire «Tutti
   i controlli passano».
 - **Non lanciare `npm run build` mentre `npm run dev` gira**: condividono `.next`
@@ -267,7 +267,7 @@ Etichette da `paymentLabel()` in `lib/clients.ts`, mai inline.
 
 ## Architettura portali
 - **Admin** (`/dashboard`, tutto): `super_admin`, `founder`, `admin`.
-- **Workspace** (`/workspace/**` e nient'altro): `manager`, `senior`, `junior`, `stage`, `freelance`, `partner`.
+- **Workspace** (`/workspace/**`): `manager`, `senior`, `junior`, `stage`, `freelance`, `partner`. I manager possono anche consultare l'anteprima cliente.
 - **Cliente** (`/portale/**`): `client`, `guest` non-risorsa.
 - **Risorsa esterna** (`/risorsa/**`): `guest` con `resource_profiles.can_access_resource_portal`.
 
@@ -275,12 +275,13 @@ Il gate è in `middleware.ts` **e** nei layout: nascondere una voce di menu non 
 una barriera. I gruppi di ruolo stanno in `lib/permissions.ts`
 (`ADMIN_ROLES` / `WORKSPACE_ROLES`), unica fonte di verità: non riscriverli inline.
 
-**Fra i due portali si muovono admin e super admin** (§234), e nessun altro:
-`PortalSwitcher` compare quando `isAdminRole(app_role) || isSuperAdmin`, in
-testata e nel workspace. A chi è confinato non si mostra un selettore che il
-middleware rimbalzerebbe — un link che rimbalza è peggio di un link assente
-(§211). In `/portale` (anteprima cliente, `?client=<id>`) entra solo il super
-admin.
+**Fra tool amministrativo e workspace si muovono gli amministrativi** (§234).
+L'anteprima cliente `/portale?client=<id>` è aperta anche ai **manager**, su
+richiesta del committente: `canPreviewClientPortal()` è il gate condiviso tra
+middleware, lettore server e navigazione. Il manager vede nel selettore solo
+Workspace e Portale cliente, e le aziende di `clients_workspace` (quindi non
+quelle nascoste). L'anteprima è in sola lettura e non modifica i ruoli dei
+profili. Un link che rimbalza è peggio di un link assente (§211).
 
 **I breadcrumb non attraversano il confine** (§234, `samePortal` in
 `BackLink.tsx`). Le due sorgenti del ritorno arrivano da fuori: `?from=`, che

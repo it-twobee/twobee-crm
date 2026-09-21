@@ -5,6 +5,7 @@ import { TicketSystem } from '@/components/ticket/TicketSystem'
 import { SUPER_ADMIN_EMAILS, isSuperAdmin } from '@/lib/permissions'
 import type { Profile, Client } from '@/lib/types/database'
 import { PROFILE_COLUMNS } from '@/lib/profile-columns'
+import { ClientPortalPreviewLink } from '@/components/portal/ClientPortalPreviewLink'
 
 export const revalidate = 0
 
@@ -35,6 +36,7 @@ export default async function TicketsPage() {
       <div className="mb-6">
         <h1 className="text-2xl sm:text-3xl font-black text-text-primary font-heading">Ticket & Supporto</h1>
         <p className="text-text-secondary text-sm mt-1">Sistema di ticketing per richieste e assistenza clienti</p>
+        <ClientPortalPreviewLink />
       </div>
       <TicketSystem
         tickets={(ticketRes.data ?? []) as any[]}

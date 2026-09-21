@@ -1,5 +1,20 @@
 # Dove siamo
 
+## Portale cliente — integrazione in main, 2026-09-21
+
+Integrato **`feat/portale-cliente`** (`bbcba7f`) sul main aggiornato a
+**9c3789b**, per il deploy automatico Coolify. `/portale` offre Home, Progetti,
+Da fare e Richieste in consultazione; anteprima per manager e amministrativi,
+accesso dal selettore portali e dal Customer Care. Invio richieste, upload,
+approvazioni e azioni operative della coda restano al secondo incremento.
+
+Migration portale rinumerata **244**, perché 239–243 sono già occupate:
+**non applicata**, il primo incremento gestisce lo schema assente con letture
+legacy limitate. Verificati sul merge: TypeScript senza errori, **78 check**
+con exit 0 (`TZ=Europe/Rome`) e suite browser isolata con **182 richieste al
+mock, zero scritture**, inclusi ruoli, revoca, URL alterati e i due temi.
+Dettagli e limiti in `docs/portale-cliente.md`.
+
 ## Commerciale — foglio attivo, follow-up integrati in main, 2026-09-21
 
 Attivato il foglio Meta su Coolify: variabili runtime e task giornaliero alle
@@ -17,8 +32,8 @@ simulati e browser nei due temi, mobile e tastiera.
 
 **Calendario non ancora attivabile in produzione**: mancano le credenziali
 OAuth `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` su Coolify; dopo il deploy del
-main integrato serve il consenso del titolare. Il branch
-del portale cliente resta separato. Dettagli e comandi in `docs/commerciale.md`.
+main integrato serve il consenso del titolare. Il portale cliente è ora
+integrato come descritto sopra. Dettagli e comandi in `docs/commerciale.md`.
 
 ## Progetti — il calendario si scorre e si apre, 2026-09-16
 
