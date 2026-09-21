@@ -22,7 +22,8 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { decidi, riassumi, type CorsiaEsistente } from '@/lib/generatore-periodi'
-import type { Forma } from '@/lib/periodi'
+import { scheletro, type NodoScheletro } from '@/lib/scheletro-periodo'
+import type { Forma, Periodo } from '@/lib/periodi'
 
 async function requireStaff(): Promise<string> {
   const sb = await createClient()
@@ -40,6 +41,11 @@ export type EsitoPeriodi = {
   saltati: { etichetta: string; perche: string; corsia?: string }[]
   /** la corsia che ha dovuto creare per contenere i mesi, se non c'era */
   contenitoreCreato: string | null
+  /** §391 — quante tappe e task sono nate dentro i periodi */
+  tappe: number
+  task: number
+  /** nessuno scheletro per questo servizio: i periodi nascono vuoti */
+  senzaScheletro: boolean
 }
 
 /**
@@ -89,7 +95,10 @@ export async function apriPeriodi(projectId: string): Promise<EsitoPeriodi> {
   const forma: Forma = (righe.find(r => (r.service_subtype ?? null) === (p.service_subtype ?? null))
     ?? righe[0])?.period_shape ?? 'none'
 
-  const vuoto: EsitoPeriodi = { riepilogo: 'Questo servizio non ha periodi', creati: [], saltati: [], contenitoreCreato: null }
+  const vuoto: EsitoPeriodi = {
+    riepilogo: 'Questo servizio non ha periodi', creati: [], saltati: [],
+    contenitoreCreato: null, tappe: 0, task: 0, senzaScheletro: false,
+  }
   if (forma === 'none') return vuoto
 
   const [{ data: ws }, { data: pp }] = await Promise.all([
@@ -110,9 +119,15 @@ export async function apriPeriodi(projectId: string): Promise<EsitoPeriodi> {
     creati: [],
     saltati: decisioni.flatMap(d => d.fare === 'salta'
       ? [{ etichetta: d.periodo.etichetta, perche: d.perche, corsia: d.corsia }] : []),
-    contenitoreCreato: null,
+    contenitoreCreato: null, tappe: 0, task: 0, senzaScheletro: false,
   }
   if (!daFare.length) return esito
+
+  /* §391 — lo scheletro si legge **una volta**, prima del giro: è lo stesso
+     per tutti i periodi che si stanno aprendo, e rileggerlo per ognuno
+     vorrebbe dire quattro query identiche per aprire quattro mesi. */
+  const nodi = await scheletroDi(admin, p.service_type, p.service_subtype, forma)
+  esito.senzaScheletro = nodi.length === 0
 
   /* Il contenitore si cerca una volta sola e solo se serve: cercarlo per
      ogni mese vorrebbe dire crearne quattro il primo giro. */
@@ -176,10 +191,108 @@ export async function apriPeriodi(projectId: string): Promise<EsitoPeriodi> {
       throw new Error(`Registro di «${periodo.etichetta}»: ${eReg.message}`)
     }
     esito.creati.push({ chiave: periodo.chiave, etichetta: periodo.etichetta })
+
+    if (nodi.length) {
+      const n = await riempi(admin, {
+        projectId, nodi, periodo, forma,
+        workstreamId: forma === 'quarter' ? workstreamId! : dentro!,
+        milestoneId,
+      })
+      esito.tappe += n.tappe
+      esito.task += n.task
+    }
   }
 
   revalidatePath(`/progetti/${projectId}`)
   revalidatePath('/progetti')
   revalidatePath(`/workspace/progetti/${projectId}`)
   return esito
+}
+
+/**
+ * Lo scheletro del servizio, o niente.
+ *
+ * Si cerca per tipo **e** sottotipo, con il tipo come ripiego: la
+ * Digitalizzazione ha tre righe di catalogo e potrebbe averne uno solo.
+ * Se non c'è, il periodo nasce vuoto e l'esito lo dice — un contenitore
+ * vuoto è una risposta legittima, ma silenziosa sembra uno scheletro che
+ * non ha funzionato.
+ */
+async function scheletroDi(
+  admin: ReturnType<typeof createAdminClient>,
+  serviceType: string | null, serviceSubtype: string | null, forma: Forma,
+): Promise<NodoScheletro[]> {
+  if (forma === 'none' || !serviceType) return []
+  const { data: tpl, error } = await admin.from('project_templates')
+    .select('id, service_subtype')
+    .eq('kind', 'period').eq('period_shape', forma).eq('service_type', serviceType)
+  /* Senza la 248 non c'è la colonna `kind`: i periodi nascono vuoti, che è
+     esattamente come nascevano prima. Non è un errore da fermare tutto. */
+  if (error) return []
+  const righe = (tpl ?? []) as { id: string; service_subtype: string | null }[]
+  const scelto = righe.find(r => (r.service_subtype ?? null) === (serviceSubtype ?? null)) ?? righe[0]
+  if (!scelto) return []
+
+  const { data } = await admin.from('project_template_nodes')
+    .select('id, parent_id, node_type, name, description, relative_due_days, suggested_owner_role, priority, visibility, estimated_hours, sort_order')
+    .eq('template_id', scelto.id).order('sort_order')
+  return ((data ?? []) as NodoScheletro[]).filter(n => n.node_type === 'milestone' || n.node_type === 'task')
+}
+
+/**
+ * Le tappe e i task dentro un periodo appena nato.
+ *
+ * `tasks_hierarchy_chk` vuole tutti e tre i legami — progetto, corsia e
+ * **tappa** — su una task di progetto: una task senza tappa non è una task
+ * incompleta, è una riga che il database rifiuta. Quindi un task il cui
+ * nodo padre non c'è finisce nella prima tappa creata, e se non ce n'è
+ * nessuna non si scrive: meglio una task in meno che un giro che si ferma
+ * a metà lasciando il periodo mezzo pieno.
+ */
+async function riempi(
+  admin: ReturnType<typeof createAdminClient>,
+  x: {
+    projectId: string; nodi: NodoScheletro[]; periodo: Periodo; forma: Forma
+    workstreamId: string; milestoneId: string | null
+  },
+): Promise<{ tappe: number; task: number }> {
+  const forma = x.forma === 'quarter' ? 'quarter' : 'month'
+  const { tappe, task } = scheletro(x.nodi, x.periodo, forma)
+
+  /** dal nodo del template alla tappa vera */
+  const idDi = new Map<string, string>()
+  for (const t of tappe) {
+    const { data, error } = await admin.from('milestones').insert({
+      project_id: x.projectId,
+      workstream_id: x.workstreamId,
+      title: t.title,
+      description: t.description,
+      milestone_type: 'delivery',
+      due_date: t.due_date,
+      visibility: t.visibility,
+      sort_order: t.sort_order,
+    }).select('id').single()
+    if (error) throw new Error(`Tappa «${t.title}»: ${error.message}`)
+    idDi.set(t.chiaveNodo, (data as { id: string }).id)
+  }
+
+  const primaTappa = tappe.length ? idDi.get(tappe[0].chiaveNodo)! : null
+  const righe = task.map(t => ({
+    project_id: x.projectId,
+    workstream_id: x.workstreamId,
+    milestone_id: t.dentro ? (idDi.get(t.dentro) ?? primaTappa) : (x.milestoneId ?? primaTappa),
+    title: t.title,
+    description: t.description,
+    task_type: 'project',
+    status: 'da_fare',
+    priority: t.priority ?? 'media',
+    due_date: t.due_date,
+    estimated_hours: t.estimated_hours,
+  })).filter(r => r.milestone_id)
+
+  if (righe.length) {
+    const { error } = await admin.from('tasks').insert(righe)
+    if (error) throw new Error(`Task di «${x.periodo.etichetta}»: ${error.message}`)
+  }
+  return { tappe: tappe.length, task: righe.length }
 }

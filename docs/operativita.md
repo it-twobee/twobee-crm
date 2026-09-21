@@ -285,6 +285,32 @@ che ne copre la metà è la stessa cosa con un altro nome. Quello che salta lo
 **dice**, con il nome della corsia che lo copriva — saltare in silenzio è
 indistinguibile da un generatore rotto.
 
+**§391 — dentro il periodo nasce uno scheletro**, e non è un sistema nuovo:
+è un template con `kind='period'` invece di `'project'`. Stesse tabelle,
+stesso albero, stesso modo di seminarlo e di modificarlo — un secondo
+sistema avrebbe voluto dire due editor, due formati e due posti dove
+dimenticarsi di aggiornare le stesse cose.
+
+L'unica differenza è cosa vuol dire `relative_due_days`: su un template di
+progetto sono i giorni dall'avvio, qui sono i giorni dal primo del periodo, e
+possono essere **negativi** — contati dalla fine, dove `-1` è l'ultimo
+giorno. Serve perché i periodi non durano uguale: Q3 sono due mesi, Q4
+quattro, febbraio ventotto giorni. Un report messo a «giorno 100» starebbe in
+Q4 e finirebbe fuori da Q3, cioè dentro il trimestre dopo, dove nessuno lo
+cerca; con `-1` sta in fondo a tutti e due. Quello che esce comunque dal
+periodo si schiaccia sull'ultimo giorno: tardi, ma dentro.
+
+Su un **trimestre** lo scheletro fa tappe con dentro i loro task. Su un
+**mese** no: il periodo *è* già una tappa, e una tappa dentro una tappa il
+modello non ce l'ha — i nodi milestone spariscono e i task si attaccano al
+periodo. E `tasks_hierarchy_chk` vuole tutti e tre i legami su una task di
+progetto, quindi un task il cui nodo padre non c'è finisce nella prima tappa
+creata invece di far fallire l'inserimento.
+
+Senza scheletro il periodo nasce vuoto, ed è una risposta legittima — ma
+l'esito lo **dice**, perché un contenitore vuoto in silenzio sembra un
+modello che non ha funzionato.
+
 Il bottone «Apri i periodi» sta sulla pagina del progetto e viene **prima**
 del giro automatico, apposta: il primo periodo si apre a mano e si guarda.
 `npx tsx scripts/prova-periodi.ts` stampa cosa farebbe su tutti i progetti

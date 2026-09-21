@@ -624,7 +624,10 @@ export function ProjectDetailClient({
                     try {
                       const e = await apriPeriodi(project.id)
                       if (e.creati.length) {
-                        toast.success(`${e.riepilogo}: ${e.creati.map(x => x.etichetta).join(', ')}`
+                        const dentro = e.tappe || e.task
+                          ? ` · ${[e.tappe && `${e.tappe} tappe`, e.task && `${e.task} task`].filter(Boolean).join(' e ')} dal modello`
+                          : e.senzaScheletro ? ' · vuoti: per questo servizio non c\u2019è un modello di periodo' : ''
+                        toast.success(`${e.riepilogo}: ${e.creati.map(x => x.etichetta).join(', ')}${dentro}`
                           + (e.contenitoreCreato ? ` · creata la corsia «${e.contenitoreCreato}»` : ''))
                       } else {
                         toast.info(e.riepilogo
