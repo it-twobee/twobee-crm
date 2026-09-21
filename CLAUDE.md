@@ -25,6 +25,7 @@ database vero, e riscoprirle costa più che leggerle.
 | «a che punto siamo», cosa è applicato, cosa è aperto | `docs/stato.md` |
 | commerciale, opportunità, lead commerciali, esiti, passaggio alla delivery | `docs/commerciale.md` |
 | portale cliente, inviti, accessi azienda/progetto e recupero password | `docs/portale-cliente.md` |
+| file interni, cartelle, upload/download e link pubblici (`lib/storage/**`, `/api/files/**`) | `docs/storage-access.md` |
 
 ## Invarianti — valgono anche senza aprire i doc
 - **Nessun valore economico si digita**: contratti e rate sono l'unica scrittura,
@@ -58,7 +59,7 @@ database vero, e riscoprirle costa più che leggerle.
   va a controllare.** Quando una fonte manca, dichiaralo («n/d», «stimato»,
   «senza contratto»): mai uno zero.
 - **Gate del repo**: `npx tsc --noEmit` (ESLint non configurato) + i
-  **settantanove** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
+  **ottanta** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
   `lib/tracking/**`) — con `npx tsx lib/<percorso>.check.ts`: devono dire «Tutti
   i controlli passano».
 - **Non lanciare `npm run build` mentre `npm run dev` gira**: condividono `.next`

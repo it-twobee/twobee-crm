@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { getCaller } from '@/lib/storage/guard'
+import { getCaller, canWriteStorage, canAccessStorageContext, validStorageParent } from '@/lib/storage/guard'
 import { putObject, deleteObject, buildObjectKey, S3_BUCKET } from '@/lib/storage/s3'
-import { isStorageFolder } from '@/lib/storage/shared'
+import { isStorageUuid, parseStorageContext } from '@/lib/storage/access'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,6 +12,7 @@ const MAX_BYTES = 50 * 1024 * 1024 // 50 MB
 export async function POST(req: Request) {
   const caller = await getCaller()
   if (!caller) return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
+  if (!canWriteStorage(caller)) return NextResponse.json({ error: 'Accesso in sola lettura' }, { status: 403 })
 
   let form: FormData
   try {
@@ -21,23 +22,26 @@ export async function POST(req: Request) {
   }
 
   const file = form.get('file')
-  const folder = (form.get('folder') as string | null) ?? 'misc'
-  const entityType = (form.get('entityType') as string | null) || null
-  const entityId = (form.get('entityId') as string | null) || null
-  const folderId = (form.get('folderId') as string | null) || null
+  const context = parseStorageContext(form.get('folder') ?? 'misc', form.get('entityType'), form.get('entityId'))
+  const folderId = form.get('folderId') || null
 
   if (!(file instanceof File)) return NextResponse.json({ error: 'File mancante' }, { status: 400 })
-  if (!isStorageFolder(folder)) return NextResponse.json({ error: `Cartella non valida: ${folder}` }, { status: 400 })
+  if (!context || (folderId !== null && !isStorageUuid(folderId))) return NextResponse.json({ error: 'Contesto del file non valido' }, { status: 400 })
   if (file.size === 0) return NextResponse.json({ error: 'File vuoto' }, { status: 400 })
   if (file.size > MAX_BYTES) return NextResponse.json({ error: 'File troppo grande (max 50MB)' }, { status: 413 })
+
+  if (!await canAccessStorageContext(caller, context, true) || !await validStorageParent(caller, context, folderId, true)) {
+    return NextResponse.json({ error: 'Contesto o cartella non autorizzati' }, { status: 403 })
+  }
+  const { folder, entity_type: entityType, entity_id: entityId } = context
 
   const key = buildObjectKey(folder, file.name, entityId)
   const buffer = Buffer.from(await file.arrayBuffer())
 
   try {
     await putObject(key, buffer, file.type || 'application/octet-stream')
-  } catch (e) {
-    return NextResponse.json({ error: 'Storage non disponibile: ' + (e as Error).message }, { status: 502 })
+  } catch {
+    return NextResponse.json({ error: 'Storage non disponibile' }, { status: 502 })
   }
 
   const { data, error } = await caller.admin
@@ -60,7 +64,7 @@ export async function POST(req: Request) {
   if (error) {
     // Rollback: niente oggetti orfani su MinIO se il metadato non si salva.
     try { await deleteObject(key) } catch {}
-    return NextResponse.json({ error: 'Errore salvataggio metadati: ' + error.message }, { status: 500 })
+    return NextResponse.json({ error: 'Errore nel salvataggio del file. Riprova.' }, { status: 500 })
   }
 
   return NextResponse.json({ file: data })

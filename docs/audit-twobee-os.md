@@ -1,5 +1,29 @@
 # Audit TwoBee OS — registro
 
+## Aggiornamento 2026-09-21 — A-05, storage interno e portale cliente
+
+**Difetto verificato nel codice:** `getCaller()` accettava qualunque sessione
+e creava il service client; `canReadFile()` ammetteva tutte le cartelle non
+sensibili senza controllare ruolo/azienda. Anche le cartelle erano lette senza
+filtro e gli upload accettavano contesti arbitrari. Le policy owner di 108/109
+consentivano inoltre al browser di inserire metadati/file share a proprio nome,
+senza vincolare la chiave dell'oggetto o il file condiviso.
+
+**Corretto nel rilascio storage del 21 settembre; migration 246 applicata**
+(`20260921150329`). Staff attivo prima
+del service role, letture RLS, contesti e parent autorizzati, scritture dirette
+revocate, gate anche per nomi cartelle e CASCADE, link pubblici esclusi per
+aziende/progetti/sensibili. Revoca e rinnovo dei token serializzati; il download
+rilegge stato e permessi del creatore. Dettagli in `docs/storage-access.md`.
+
+**Come verificato:** matrice ruoli e header, handler API con guard reali e
+confini simulati, migration 246 rilanciata su PostgreSQL effimero e test SQL
+di RLS/grant/contesti/atomicità. Dopo l'applicazione in produzione verificati
+6 policy restrittive, 3 trigger e grant di scrittura riservati al backend.
+Transazione READ ONLY: letture staff e scope feedback coerenti, nessun accesso
+senza profilo valido. Restano 4 file, 1 cartella e nessun link pubblico; nessuna
+fixture in produzione. Non è stata verificata un'esfiltrazione effettiva.
+
 ## Aggiornamento 2026-09-15 — DB verificato, 224 e 223 applicate
 
 La premessa storica sotto descrive l'11 settembre, non lo stato attuale.

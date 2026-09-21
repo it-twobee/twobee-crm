@@ -3,6 +3,25 @@
 19 settembre 2026 · branch `feat/portale-cliente` · sviluppo sul PC locale.
 Specifica: `docs/brief-portale-cliente.md`, confrontata con il PDF v1.0.
 
+## Completamento PDF — step 1 isolamento file, 21 settembre 2026
+
+**Migration 246 applicata il 21 settembre** (`20260921150329`), codice incluso
+nel rilascio su main. La gestione
+degli accessi già online non basta a proteggere le API preesistenti dello
+storage: queste usavano il service role dopo il solo controllo di sessione.
+Ora file e cartelle interni passano da staff attivo, RLS e contesto verificato;
+clienti/ospiti sono esclusi anche dalle vecchie policy owner. Link anonimi non
+ammessi per file cliente/progetto o sensibili, anche se il token esiste già.
+Verificati revoca/scadenza, creatore disattivato, upload su contesti estranei,
+proprietà dei figli nelle cancellazioni ricorsive e scritture dirette dal
+browser. Regole e prove in `docs/storage-access.md`.
+
+**Step successivo:** pubblicazione/ritiro dei contenuti dal lavoro interno,
+collegamento delle attività cliente e download autenticato delle sole versioni
+pubblicate. I pulsanti operativi del portale restano da completare: questo step
+chiude le vie d'accesso allo storage interno e non dichiara completato il §14
+del PDF. Seguono richieste/coda, materiali/approvazioni e collaudo end-to-end.
+
 ## Accessi dalla scheda cliente — rilascio del 21 settembre 2026
 
 Su richiesta del committente, nella scheda condivisa admin/workspace compare

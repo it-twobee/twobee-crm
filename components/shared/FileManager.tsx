@@ -314,18 +314,23 @@ function ShareModal({ file, sensitive, onClose }: { file: StorageFile; sensitive
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
+  const [sharingAllowed, setSharingAllowed] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     (async () => {
       try {
         const res = await fetch(`/api/files/${file.id}/share`)
         const json = await res.json()
-        if (res.ok && json.share) setShare(json.share)
-      } finally { setLoading(false) }
+        if (!res.ok) throw new Error(json.error || 'Non è stato possibile leggere i permessi')
+        setSharingAllowed(json.sharingAllowed === true)
+        if (json.share) setShare(json.share)
+      } catch (e) { setError((e as Error).message) } finally { setLoading(false) }
     })()
   }, [file.id])
 
   const createOrRenew = async () => {
+    if (!sharingAllowed || busy) return
     setBusy(true)
     try {
       const res = await fetch(`/api/files/${file.id}/share`, {
@@ -361,19 +366,18 @@ function ShareModal({ file, sensitive, onClose }: { file: StorageFile; sensitive
       <div className="w-full max-w-lg bg-surface border border-border rounded-card p-5 space-y-4">
         <div className="flex items-center justify-between">
           <p className="text-sm font-bold text-text-primary flex items-center gap-2"><Share2 className="w-4 h-4 text-gold-text" /> Condividi “{file.name}”</p>
-          <button onClick={onClose} className="text-text-secondary hover:text-text-primary"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} aria-label="Chiudi condivisione" className="text-text-secondary hover:text-text-primary"><X className="w-5 h-5" /></button>
         </div>
 
-        <p className="text-xs text-text-secondary">
+        {sharingAllowed && <p className="text-xs text-text-secondary">
           Chi ha il link può aprire il file <b>senza login</b>, anche fuori dal progetto. Il link è unico e non indovinabile; puoi revocarlo quando vuoi.
-        </p>
-        {sensitive && (
-          <p className="text-xs text-amber-400 flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" /> File in cartella sensibile: condividilo solo se davvero necessario.</p>
-        )}
+        </p>}
 
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-text-secondary py-4 justify-center"><Loader2 className="w-4 h-4 animate-spin" /> …</div>
-        ) : share ? (
+        ) : error ? <p role="alert" className="text-sm text-error">{error}</p>
+          : !sharingAllowed ? <p className="text-sm text-text-secondary">{sensitive ? 'Questo file è riservato: si apre soltanto con un account autorizzato.' : 'I documenti cliente e progetto richiedono un accesso personale. La condivisione passa dalla pubblicazione nel portale cliente.'}</p>
+          : share ? (
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <input readOnly value={share.url}

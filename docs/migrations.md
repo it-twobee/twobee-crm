@@ -35,7 +35,32 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > del file — ma il registro è una tabella ordinata e due righe con la stessa
 > chiave sono una trappola per chi arriva dopo. La **244 è del portale
 > cliente**, integrato in main; la **245** aggiunge la gestione accessi.
-> La prossima libera è la **246**.
+> La **246** introduce l'isolamento file; la prossima libera è la **247**.
+
+## 246 — isolamento degli allegati interni (applicata il 2026-09-21)
+
+`246_storage_isolation.sql`: **applicata in produzione**, versione
+**`20260921150329`**, dopo verifica dei prerequisiti sul database reale.
+Prerequisiti: metadati storage 108/109, `profiles` con ruoli/stato,
+`clients.workspace_hidden`, `projects.deleted_at`, `feedback.author_id` e
+`chat_channels`. Chiude l'accesso diretto a file/cartelle/token per clienti,
+ospiti e profili disattivati; gli utenti autenticati conservano solo SELECT
+con RLS. Le scritture passano dalle API autorizzate.
+
+`storage_context_access` è invoker e usa la RLS della sorgente; il database
+impedisce parent/cartelle di contesti diversi e cicli. Il DELETE ricorsivo
+verifica anche i proprietari dei figli e dei file rimasti. Rinnovo/revoca dei
+link passano da una RPC service-only con lock sul file. Nessun backfill o
+cancellazione di oggetti esistenti. Dettagli in `docs/storage-access.md`.
+
+Verificata due volte su PostgreSQL 16 isolato, con suite
+`supabase/tests/246_storage_isolation.check.sql`. Dopo l'applicazione: 6 policy
+restrittive, 3 trigger, nessun grant di scrittura ad authenticated né SELECT ad
+anon sulle tre tabelle; `storage_replace_share` eseguibile solo da service role.
+Verifica in transazione READ ONLY delle letture staff e dell'isolamento senza
+profilo valido: superata. Conteggi invariati: 4 file, 1 cartella, 0 condivisioni.
+Rilascio accompagnato dal codice delle API storage, che ora legge via RLS e
+chiama le nuove funzioni per scrivere e condividere.
 
 ## 245 — accessi al portale dalla scheda cliente (applicata il 2026-09-21)
 

@@ -1,5 +1,19 @@
 # Dove siamo
 
+## Portale cliente — rilascio step 1 file isolati, 2026-09-21
+
+Chiuse nel codice le API degli allegati interni a clienti, ospiti e account
+disattivati. Letture tramite RLS, contesto/parent verificati prima di upload,
+nomi delle cartelle sensibili protetti e DELETE ricorsivo con controllo dei
+proprietari. I file cliente/progetto non producono link anonimi; i vecchi token
+privati non vengono più accettati. Rinnovo/revoca delle condivisioni ammisse
+sono atomici. **Migration 246 applicata**, versione `20260921150329`; codice
+distribuito tramite il push di questo intervento. Riletti grant/policy/trigger
+e verificate le letture RLS in produzione, senza scrivere fixture. Conteggi
+invariati: 4 file, 1 cartella, 0 link pubblici. TypeScript, **80 check**, prove
+API e PostgreSQL isolato superati. Il prossimo step è la
+pubblicazione dal lavoro interno al portale. Dettagli: `docs/storage-access.md`.
+
 ## Accessi cliente — rilascio e migration applicate, 2026-09-21
 
 Nuova tab **Portale cliente** nella scheda cliente, dopo Tracking/Report/Chiavi/
