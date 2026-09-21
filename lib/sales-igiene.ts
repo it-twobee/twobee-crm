@@ -23,6 +23,7 @@
 
 import { telefonoChiave, emailChiave, nomeChiave, SPIEGA, type Motivo } from './sales-dedup'
 import { CHIAVI_FASE, faseDi } from './sales-stages'
+import { COLONNE } from './sales-table'
 
 export type RigaIgiene = {
   id: string
@@ -246,3 +247,134 @@ export function controlla(
 /** quante righe sono toccate da almeno un rilievo grave */
 export const quanteGravi = (rilievi: Rilievo[]): number =>
   new Set(rilievi.filter(r => r.peso === 'grave').flatMap(r => r.gruppi.flatMap(g => g.ids))).size
+
+// ── il confronto fra due righe che sono la stessa azienda ────────────────
+
+/**
+ * §386 — quale delle due tenere, e cosa si perde tenendola.
+ *
+ * Trovare il doppione è metà del lavoro. L'altra metà è la domanda che si fa
+ * subito dopo, con le due righe davanti: **quale sovrascrive l'altra**. A
+ * occhio si sceglie quella aperta per prima, o quella in cima, e si scopre
+ * dopo che sull'altra c'erano le note della telefonata.
+ *
+ * Quindi non basta dire «tieni questa»: serve dire anche **cosa c'è
+ * sull'altra e qui no**. È l'unica parte che rende sicuro l'accorpamento,
+ * perché è l'elenco di quello che va ricopiato prima di eliminare.
+ *
+ * L'ordine delle regole è quello del danno, non della comodità:
+ *
+ *  1. **Chi è collegato a un cliente vince sempre.** Eliminare quella riga
+ *     romperebbe il collegamento con l'anagrafica, che è l'unica cosa qui
+ *     dentro che non si ricostruisce guardando i campi.
+ *  2. **Poi chi è più avanti nel percorso**: una proposta inviata porta con
+ *     sé un lavoro che una riga appena arrivata non ha.
+ *  3. **Poi chi ha più campi pieni**, che è la definizione letterale della
+ *     domanda.
+ *  4. A parità, **la più vecchia**: è quella a cui puntano le cose nate
+ *     prima, ed è la storia più lunga.
+ */
+
+
+export type RigaConfronto = Record<string, unknown> & { id: string }
+
+/** i campi che si guardano, con l'etichetta di Notion: una fonte sola (§378) */
+export const CAMPI_CONFRONTO: { campo: string; etichetta: string }[] = [
+  ...COLONNE.filter(c => c.campo !== 'owners' && c.campo !== 'stage')
+    .map(c => ({ campo: c.campo, etichetta: c.etichetta })),
+]
+
+/** il valore come si legge, o `null` se è vuoto: `[]`, `''` e `0` sono vuoti */
+export function mostra(v: unknown): string | null {
+  if (v === null || v === undefined || v === '' || v === false) return null
+  if (Array.isArray(v)) return v.length ? v.join(', ') : null
+  if (typeof v === 'object') {
+    const n = Object.values(v as Record<string, unknown>).filter(Boolean).length
+    return n ? `${n} voci` : null
+  }
+  if (typeof v === 'number') return v === 0 ? null : String(v)
+  const t = String(v).trim()
+  return t && t !== '-' ? t : null
+}
+
+/** quanti campi pieni ha questa riga, fra quelli che si confrontano */
+export const completezza = (r: RigaConfronto): number =>
+  CAMPI_CONFRONTO.filter(c => mostra(r[c.campo]) !== null).length
+
+/**
+ * A che punto del percorso è, in tre gradini.
+ *
+ * Non è l'indice in `FASI`: quell'ordine è la colonna di Notion, dove `lost`
+ * e `inactive_client` stanno **in cima** (§367). Ordinare per indice
+ * direbbe che un perso è più indietro di un lead nuovo, che è vero, e che un
+ * lead nuovo è più indietro di un perso, che non lo è.
+ */
+export function rangoFase(stage: string | null | undefined): number {
+  const f = faseDi(stage)
+  if (!f) return 0
+  if (f.chiave === 'active_client') return 3
+  if (f.chiusa) return 1          // uscite: una storia finita, ma una storia
+  return f.gruppo === 'in_progress' ? 2 : 1.5
+}
+
+export type Confronto = {
+  ids: string[]
+  /** l'id della riga da tenere */
+  tieni: string
+  /** perché quella: in ordine, la prima ragione che ha deciso */
+  perche: string[]
+  /** cosa hanno le altre e la scelta no: da ricopiare **prima** di eliminare */
+  daPortare: { campo: string; etichetta: string; da: string; valore: string }[]
+  /** i campi in cui le righe si differenziano, per metterle in parallelo */
+  campi: { campo: string; etichetta: string; valori: (string | null)[] }[]
+}
+
+export function confronta(righe: RigaConfronto[]): Confronto | null {
+  if (righe.length < 2) return null
+
+  const punteggio = (r: RigaConfronto) => ({
+    cliente: r.client_id ? 1 : 0,
+    fase: rangoFase(r.stage as string),
+    campi: completezza(r),
+    /* il meno: a parità, la più vecchia vince, quindi la data più piccola
+       deve dare il punteggio più alto */
+    eta: -Date.parse(String(r.created_at ?? '2999-01-01')),
+  })
+
+  const ordinate = [...righe].sort((a, b) => {
+    const [pa, pb] = [punteggio(a), punteggio(b)]
+    return pb.cliente - pa.cliente || pb.fase - pa.fase || pb.campi - pa.campi || pb.eta - pa.eta
+  })
+  const vince = ordinate[0]
+  const altre = ordinate.slice(1)
+
+  const perche: string[] = []
+  if (vince.client_id && altre.every(r => !r.client_id)) {
+    perche.push('è l’unica collegata a un cliente in anagrafica')
+  }
+  if (altre.some(r => rangoFase(vince.stage as string) > rangoFase(r.stage as string))) {
+    perche.push('è più avanti nel percorso')
+  }
+  const piu = completezza(vince)
+  if (altre.some(r => piu > completezza(r))) {
+    perche.push(`ha più campi compilati (${piu} contro ${altre.map(completezza).join(' e ')})`)
+  }
+  if (!perche.length) perche.push('è la più vecchia, e le altre non aggiungono niente')
+
+  const daPortare: Confronto['daPortare'] = []
+  for (const c of CAMPI_CONFRONTO) {
+    if (mostra(vince[c.campo]) !== null) continue
+    for (const r of altre) {
+      const v = mostra(r[c.campo])
+      if (v !== null) { daPortare.push({ campo: c.campo, etichetta: c.etichetta, da: r.id, valore: v }); break }
+    }
+  }
+
+  /* Solo i campi in cui le righe **dicono cose diverse**: affiancare
+     ventitré righe uguali nasconde le tre che contano. */
+  const campi = CAMPI_CONFRONTO
+    .map(c => ({ campo: c.campo, etichetta: c.etichetta, valori: ordinate.map(r => mostra(r[c.campo])) }))
+    .filter(x => new Set(x.valori.map(v => v ?? '')).size > 1)
+
+  return { ids: ordinate.map(r => r.id), tieni: vince.id, perche, daPortare, campi }
+}

@@ -350,6 +350,40 @@ Alla prima passata sui dati veri: 34 righe, **3 doppioni certi**
 (Pubbliservice, Scuppoz Liquori, Gruppo Bonifacio — tutti con telefono,
 email e nome coincidenti) e 11 trattative ferme.
 
+### §386 — affiancate, e con la riga da tenere già indicata
+
+Trovare il doppione era metà del lavoro. L'altra metà è la domanda che si fa
+subito dopo, con le due righe davanti: **quale sovrascrive quale**. A occhio
+si sceglie quella in cima, e si scopre dopo che sull'altra c'erano le note
+della telefonata.
+
+Le righe si mostrano in parallelo, **solo sui campi in cui dicono cose
+diverse** — affiancarne ventitré uguali nasconde le tre che contano — e la
+colonna consigliata è marcata. L'ordine delle regole è quello del danno:
+
+1. **Chi è collegato a un cliente vince sempre.** Eliminare quella riga
+   romperebbe il collegamento con l'anagrafica, che è l'unica cosa qui
+   dentro che non si ricostruisce guardando i campi.
+2. **Poi chi è più avanti nel percorso**: una proposta inviata porta un
+   lavoro che una riga appena arrivata non ha. Il rango non è l'indice in
+   `FASI` — quell'ordine è la colonna di Notion, dove `lost` sta in cima
+   (§367), e ordinare per indice direbbe che un lead nuovo è più indietro di
+   un perso.
+3. **Poi chi ha più campi pieni**, che è la domanda alla lettera.
+4. A parità, **la più vecchia**: la storia più lunga.
+
+**Sotto il suggerimento c'è l'elenco di cosa ricopiare prima di eliminare**,
+cioè i campi che l'altra ha e la scelta no. È la parte che rende sicuro
+l'accorpamento: senza, «tieni questa» è un consiglio che fa perdere dei dati
+e se ne accorge qualcuno fra un mese. Ed è il motivo per cui la regola 1 non
+basta da sola — una riga collegata al cliente può essere anche la più
+spoglia.
+
+Sul caso vero: i tre doppioni del 21 settembre venivano tutti dall'**import
+CSV delle 07:41**, sopra righe arrivate da Meta Ads il giorno prima. Il
+confronto tiene la riga del foglio — ha l'ultimo contatto e la provenienza —
+e la copia da CSV non aveva niente in più da salvare.
+
 ## «Lead convertito» — §368
 
 La CTA **non crea il cliente**: apre `NewClientModal`, quello vero,

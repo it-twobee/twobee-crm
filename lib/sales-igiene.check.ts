@@ -4,7 +4,10 @@
    di rilievi con dentro dei falsi si smette di guardare dopo due giorni, e
    allora tanto vale non averlo. Per questo metà di queste prove sono al
    contrario — righe che si somigliano e non devono finire insieme. */
-import { gruppiDoppioni, controlla, quanteGravi, type RigaIgiene } from '@/lib/sales-igiene'
+import {
+  gruppiDoppioni, controlla, quanteGravi, confronta, completezza, rangoFase, mostra,
+  type RigaIgiene, type RigaConfronto,
+} from '@/lib/sales-igiene'
 
 let fail = 0
 const is = (label: string, got: unknown, want: unknown) => {
@@ -119,6 +122,74 @@ console.log('\n— Il conteggio in testata —')
   const ril = controlla(righe, OGGI)
   is('due righe con due problemi ciascuna contano due', quanteGravi(ril), 2)
   is('e i gravi vengono prima', ril[0].peso, 'grave')
+}
+
+console.log('\n— §386 · quale delle due tenere, e cosa si perde —')
+{
+  const c = (id: string, o: Record<string, unknown> = {}): RigaConfronto =>
+    ({ id, company_name: id, stage: 'new_lead', created_at: '2026-09-01', ...o })
+
+  /* 1 · Il collegamento all'anagrafica è l'unica cosa che non si ricostruisce
+     guardando i campi: chi ce l'ha vince anche se è più spoglio. */
+  const cliente = confronta([
+    c('vuota', { client_id: 'cli', stage: 'active_client' }),
+    c('piena', { contact_phone: '333', contact_email: 'a@b.it', notes: 'tante note', website: 'x.it' }),
+  ])
+  is('chi è collegato a un cliente vince', cliente?.tieni, 'vuota')
+  is('e lo dice', cliente?.perche[0].includes('collegata a un cliente'), true)
+  /* …e proprio per questo l'elenco di cosa ricopiare diventa lungo: è la
+     ragione per cui non basta dire «tieni questa». */
+  is('ma avvisa di cosa c\'è sull\'altra',
+    (cliente?.daPortare ?? []).map(d => d.campo).includes('contact_phone'), true)
+
+  // 2 · più avanti nel percorso
+  is('a pari campi vince chi è più avanti',
+    confronta([c('nuovo'), c('proposta', { stage: 'strategia_preventivo' })])?.tieni, 'proposta')
+
+  // 3 · più campi pieni
+  is('poi vince chi ha più campi',
+    confronta([c('scarna'), c('ricca', { contact_phone: '333', notes: 'x' })])?.tieni, 'ricca')
+
+  // 4 · a parità, la più vecchia: è quella con la storia più lunga
+  is('a parità vince la più vecchia',
+    confronta([c('nuova', { created_at: '2026-09-10' }), c('vecchia', { created_at: '2026-01-10' })])?.tieni,
+    'vecchia')
+
+  /* Il caso vero del 21 settembre: l'import CSV ha ricopiato righe arrivate
+     dal foglio il giorno prima. La riga del foglio ha l'ultimo contatto, la
+     copia no — e vince quella giusta. */
+  const vero = confronta([
+    c('csv', { source: 'CSV', contact_phone: 'p:+393396786964', contact_email: 'a@b.it', created_at: '2026-09-21' }),
+    c('meta', { source: 'Meta Ads', contact_phone: '+393396786964', contact_email: 'a@b.it',
+      last_interaction_at: '2026-09-20', created_at: '2026-09-20' }),
+  ])
+  is('fra la riga del foglio e la copia da CSV vince il foglio', vero?.tieni, 'meta')
+
+  /* In parallelo si mostrano **solo** i campi che dicono cose diverse:
+     ventitré righe uguali nascondono le tre che contano. */
+  const diff = confronta([
+    c('a', { company_name: 'Uguale', notes: 'x' }),
+    c('b', { company_name: 'Uguale', notes: 'x', website: 'y.it' }),
+  ])
+  is('affianca solo i campi che differiscono',
+    (diff?.campi ?? []).map(x => x.campo), ['website'])
+
+  // e i vuoti sono vuoti, in tutte le forme in cui si presentano
+  is('array vuoto, stringa vuota, zero e trattino sono vuoti',
+    [mostra([]), mostra(''), mostra(0), mostra('-'), mostra(null)], [null, null, null, null, null])
+  is('ma un array pieno si legge', mostra(['a', 'b']), 'a, b')
+  /* Quattro: nome azienda, data di arrivo, note e sito. La data di arrivo
+     c'è sempre, quindi entra nel conto di tutte e non sposta il confronto. */
+  is('completezza conta i campi veri', completezza(c('x', { notes: 'n', website: 'w' })), 4)
+
+  /* `lost` sta in cima alla colonna di Notion (§367): ordinare per indice
+     direbbe che un lead nuovo è più indietro di un perso. */
+  is('un perso non è «più avanti» di un lead vivo',
+    rangoFase('qualified') > rangoFase('lost'), true)
+  is('e il cliente attivo è in fondo a tutti',
+    rangoFase('active_client') > rangoFase('qualified'), true)
+
+  is('una riga sola non è un confronto', confronta([c('a')]), null)
 }
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
