@@ -316,6 +316,26 @@ del giro automatico, apposta: il primo periodo si apre a mano e si guarda.
 `npx tsx scripts/prova-periodi.ts` stampa cosa farebbe su tutti i progetti
 senza scrivere niente.
 
+**§392 — il giro su tutti** (`POST /api/periods/run`, `PERIODS_CRON_SECRET`,
+task pianificato alle 04:00). Una volta al giorno e non più spesso: un
+periodo si apre una volta ogni due mesi, e il giro serve a non doverci
+pensare, non a reagire in fretta. Chi ha bisogno di un periodo adesso ha il
+bottone, ed è **la stessa funzione** — `apriPerProgetto` in
+`lib/periodi-apertura.ts`, non in `app/actions/`, perché un file
+`'use server'` esporta endpoint (§329) e esportarla da lì apriva una porta
+senza guardia: il gate delle azioni l'ha vista passare da sedici a
+diciassette.
+
+Solo i progetti **attivi**: una bozza non ha ancora un calendario, un
+completato non deve ricominciare a produrre trimestri. E **un progetto che
+fallisce non ferma gli altri** — con ventidue in fila, un errore su uno
+lascerebbe i venti dopo senza periodi e nessuno saprebbe perché. I
+fallimenti si contano e i primi dieci si dicono.
+
+Dal cron `created_by` resta **nullo**: «Sistema» è la verità, e attribuire a
+un admin di passaggio una corsia che non ha aperto è peggio che non
+attribuirla.
+
 **Le tappe ricorrenti** (§337, `recurring_milestone_templates`). Il doc 16 dice
 «mai una workstream nuova per settimana/mese» e ha ragione — il contenitore è
 stabile — ma la **tappa** dentro quel contenitore torna eccome: chiusura del
