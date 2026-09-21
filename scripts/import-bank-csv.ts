@@ -1,7 +1,11 @@
 /**
  * Importa un estratto conto CSV nel conto indicato.
  *
- *   npx tsx scripts/import-bank-csv.ts <file.csv> [etichetta-conto]
+ *   npx tsx scripts/import-bank-csv.ts <file.csv> [etichetta-conto] [--prova]
+ *
+ * Con `--prova` non scrive niente e stampa cosa entrerebbe: su un estratto
+ * conto che si sovrappone a mesi già importati la domanda vera è «quali sono
+ * le righe nuove», e vederle prima costa meno che guardarle dopo in archivio.
  *
  * Usa `classify` di `lib/bank.ts` — la stessa normalizzazione della UI — e la
  * stessa impronta di `importBankCsv`, quindi rilanciarlo non duplica niente.
@@ -29,9 +33,11 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 async function main() {
-  const file = process.argv[2]
-  const wanted = process.argv[3]
-  if (!file) throw new Error('uso: npx tsx scripts/import-bank-csv.ts <file.csv> [etichetta-conto]')
+  const argv = process.argv.slice(2).filter(a => a !== '--prova')
+  const prova = process.argv.includes('--prova')
+  const file = argv[0]
+  const wanted = argv[1]
+  if (!file) throw new Error('uso: npx tsx scripts/import-bank-csv.ts <file.csv> [etichetta-conto] [--prova]')
 
   const accounts = await api<{ id: string; label: string; is_primary: boolean }[]>(
     'bank_accounts?select=id,label,is_primary&is_active=eq.true&order=is_primary.desc')
@@ -41,7 +47,7 @@ async function main() {
     : accounts[0]
   if (!account) throw new Error(`conto «${wanted}» non trovato fra: ${accounts.map(a => a.label).join(', ')}`)
 
-  const { dialect, rows: parsed, skipped } = parseStatement(readFileSync(file, 'utf8'))
+  const { dialect, rows: parsed, skipped, ignored } = parseStatement(readFileSync(file, 'utf8'))
   if (!parsed.length) throw new Error('nessun movimento riconosciuto')
 
   const have = await api<{ import_hash: string | null }[]>(
@@ -50,15 +56,29 @@ async function main() {
     account.id, parsed, have.map(r => r.import_hash).filter((h): h is string => !!h))
   const nuovi = rows.filter(r => !r.duplicate).map(({ duplicate: _, ...r }) => r)
 
-  for (let i = 0; i < nuovi.length; i += 100) {
-    await api('bank_transactions', { method: 'POST', body: JSON.stringify(nuovi.slice(i, i + 100)) })
+  if (!prova) {
+    for (let i = 0; i < nuovi.length; i += 100) {
+      await api('bank_transactions', { method: 'POST', body: JSON.stringify(nuovi.slice(i, i + 100)) })
+    }
   }
 
-  console.log(`\n${account.label} · dialetto ${dialect}`)
+  console.log(`\n${account.label} · dialetto ${dialect}${prova ? '  ⟨PROVA: non scrive niente⟩' : ''}`)
   console.log(`  ${nuovi.length} movimenti importati su ${rows.length} letti`
     + ` · ${rows.length - nuovi.length} già presenti`
     + (skipped.length ? ` · ${skipped.length} scartati` : ''))
   for (const s2 of skipped.slice(0, 5)) console.log(`    scartata ${s2}`)
+  /* §380 — le righe tolte da una regola non sono righe perse: si dicono, o la
+     regola lavora in silenzio finché non sballa un saldo. */
+  for (const i of ignored) console.log(`    esclusa per regola: ${i}`)
+
+  if (prova) {
+    console.log(`\n  le ${nuovi.length} righe che entrerebbero:`)
+    for (const r of nuovi) {
+      console.log(`    ${r.booked_on}  ${String(r.amount.toFixed(2)).padStart(10)}  ${(r.counterparty ?? '—').slice(0, 34).padEnd(34)} ${r.kind.padEnd(12)} ${r.description.slice(0, 60)}`)
+    }
+    console.log()
+    return
+  }
 
   const all = await api<{ amount: number; kind: string; counterparty: string | null; doc_ref: string | null }[]>(
     `bank_transactions?select=amount,kind,counterparty,doc_ref&account_id=eq.${account.id}`)

@@ -1,7 +1,11 @@
 /**
  * Carica in archivio gli XML dello SdI da una o più cartelle.
  *
- *   npx tsx scripts/import-fatture.ts ~/Downloads/XML\ 2 ~/Downloads/XML\ 3
+ *   npx tsx scripts/import-fatture.ts ~/Downloads/XML\ 2 ~/Downloads/XML\ 3 [--prova]
+ *
+ * Con `--prova` non scrive niente e stampa i documenti che entrerebbero: una
+ * cartella dello SdI contiene sempre roba già in archivio, e la domanda è
+ * quali sono i nuovi.
  *
  * Stessa strada della pagina — `parseFattura` e la stessa impronta — quindi
  * quello che entra da qui e quello che entra dal pulsante sono la stessa cosa.
@@ -35,7 +39,8 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 const eur = (n: number) => `€${n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 async function main() {
-  const dirs = process.argv.slice(2)
+  const prova = process.argv.includes('--prova')
+  const dirs = process.argv.slice(2).filter(a => a !== '--prova')
   if (!dirs.length) throw new Error('Passa almeno una cartella di XML')
 
   const cfg = await api<{ company_vat: string }[]>('pl_config?select=company_vat&id=eq.true')
@@ -68,6 +73,14 @@ async function main() {
       già.add(key)
 
       const w = invoiceWarnings(inv)
+      if (prova) {
+        nuovi++
+        const d0 = f.path.split('/').slice(0, -1).join('/')
+        perDir[d0] = perDir[d0] ?? { em: 0, ri: 0 }
+        if (inv.direction === 'emessa') perDir[d0].em++; else perDir[d0].ri++
+        console.log(`  + ${inv.issuedOn}  ${inv.direction.padEnd(8)} ${String(inv.number).padEnd(12)} ${eur(inv.total ?? 0).padStart(12)}  ${inv.counterparty.name}${w.length ? `   ⚠ ${w.join(' · ')}` : ''}`)
+        continue
+      }
       const [row] = await api<{ id: string }[]>('invoices', {
         method: 'POST',
         body: JSON.stringify({
@@ -125,11 +138,13 @@ async function main() {
     }
   }
 
-  const linked = await api<number>('rpc/link_invoices_to_clients', { method: 'POST', body: '{}' })
-  const stornate = await api<number>('rpc/link_invoice_rectifications', { method: 'POST', body: '{}' })
-    .catch(() => -1)
+  const linked = prova ? 0
+    : await api<number>('rpc/link_invoices_to_clients', { method: 'POST', body: '{}' })
+  const stornate = prova ? 0
+    : await api<number>('rpc/link_invoice_rectifications', { method: 'POST', body: '{}' })
+      .catch(() => -1)
 
-  console.log(`${files.length} file · ${nuovi} fatture nuove · ${dup} già in archivio · ${falliti} illeggibili`)
+  console.log(`${prova ? '⟨PROVA: non scrive niente⟩  ' : ''}${files.length} file · ${nuovi} fatture nuove · ${dup} già in archivio · ${falliti} illeggibili`)
   for (const [d, c] of Object.entries(perDir)) {
     console.log(`  ${d.split('/').at(-1)}: ${c.em} emesse, ${c.ri} ricevute`)
   }
