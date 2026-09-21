@@ -67,9 +67,9 @@ async function main() {
     + ` · ${rows.length - nuovi.length} già presenti`
     + (skipped.length ? ` · ${skipped.length} scartati` : ''))
   for (const s2 of skipped.slice(0, 5)) console.log(`    scartata ${s2}`)
-  /* §380 — le righe tolte da una regola non sono righe perse: si dicono, o la
-     regola lavora in silenzio finché non sballa un saldo. */
-  for (const i of ignored) console.log(`    esclusa per regola: ${i}`)
+  /* §381 — le righe nascoste entrano e contano nel saldo: si dicono lo
+     stesso, o la regola lavora in silenzio finché non sballa un conto. */
+  for (const i of ignored) console.log(`    nascosta dai conti (conta nel saldo): ${i}`)
 
   if (prova) {
     console.log(`\n  le ${nuovi.length} righe che entrerebbero:`)
@@ -93,8 +93,11 @@ async function main() {
   console.log(`  controparte riconosciuta su ${all.filter(t => t.counterparty).length} di ${all.length}`)
 
   // le famiglie di spesa: dicono se il conto fa il lavoro per cui è stato aperto
-  const full = await api<{ amount: number; counterparty: string | null; description: string }[]>(
-    `bank_transactions?select=amount,counterparty,description&account_id=eq.${account.id}`)
+  /* §381 — `hidden_reason` va **chiesto**, o `byFamily` non può saltarle e
+     le righe nascoste ricompaiono proprio nel riepilogo delle spese. */
+  const full = await api<{ amount: number; counterparty: string | null; description: string
+    hidden_reason: string | null }[]>(
+    `bank_transactions?select=amount,counterparty,description,hidden_reason&account_id=eq.${account.id}`)
   const fam = byFamily(full)
   if (fam.length) {
     console.log('\n  uscite per famiglia di spesa:')

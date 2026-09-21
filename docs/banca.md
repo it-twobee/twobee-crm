@@ -74,25 +74,44 @@ Tre cose che il camt dice diversamente, e ognuna è un modo di sbagliare:
   ovunque cancellava il nome di un paese toscano e lasciava «WWWARUBAIT,, IT».
   Il BIC si toglie solo dopo che un IBAN è stato tolto.
 
-**§380 — le righe che non devono entrare, e perché è una regola** (`ESCLUSI`
-in `lib/bank-import.ts`). Non sono righe illeggibili — quelle vanno in
-`skipped` con la ragione — e non sono errori della banca: sono spese che non
-riguardano la società e che qualcuno ha deciso di tenere fuori. Il posto dove
-si applica una decisione così è **l'import**, non il database: cancellarle a
-mano dopo vuol dire ricancellarle a ogni estratto conto che si sovrappone, e
-la volta che ci si dimentica tornano dentro senza dirlo.
+**§381 — i movimenti che il conto ha e i conti non devono vedere**
+(`NASCOSTI` in `lib/bank-import.ts`, colonna `hidden_reason`, migration 240).
+Non sono righe illeggibili — quelle vanno in `skipped` con la ragione — e non
+sono errori della banca: sono spese che non riguardano la società.
 
-Si tolgono **in tutti e due i sensi**: l'addebito e il suo rimborso sono lo
-stesso errore visto due volte, e escludendo solo l'uscita il giorno del
-rimborso comparirebbe un incasso senza causa — un ricavo che non è un ricavo
-è peggio di una spesa che non è una spesa. Finché il rimborso non arriva, il
-saldo letto qui resta **più alto** di quello vero dell'importo escluso: è il
-prezzo dichiarato della scelta, e va saputo prima di cercare lo scarto.
+**La §380 le scartava all'import, ed era sbagliato.** Se i soldi dal conto
+sono usciti davvero, non scriverli rende il totale letto qui più alto di
+quello della banca: sul Vivid erano 104,95 € su 381,43, un quarto del saldo.
+La domanda giusta non era «entrano o no» — era **in quale dei due mestieri di
+`bank_transactions`** devono comparire. Un movimento dice due cose insieme:
+quanti soldi ci sono, e a cosa sono serviti. Una spesa personale finita per
+errore sulla carta della società è un fatto di cassa **vero** e un costo che
+**non esiste**.
 
-L'esito dell'import le conta a parte da quelle scartate (`ignored`), e la
-pagina lo dice: una regola che lavora in silenzio è una regola che nessuno si
-ricorda di avere finché non gli sballa un saldo. Prima voce dell'elenco: i
-cinque addebiti Google Play da 20,99 € del 20 settembre 2026.
+Quindi la riga entra e porta scritto perché non si guarda:
+
+| la contano | la saltano |
+|---|---|
+| saldo, liquidità, previsione, ponte di cassa | elenco movimenti |
+| | famiglie di spesa (`byFamily`, e quindi `spendSplit`) |
+| | spinta a costo (`pushAccountSpend`, filtro **nella query**) |
+| | riconciliazione (`no_match_needed` d'ufficio) |
+
+`hidden_reason` è **un testo e non un booleano**: «nascosto = true»
+sopravvive sei mesi e poi nessuno sa più di cosa si trattava, mentre «Google
+Play 20,99 €: addebiti per errore» si legge da solo il giorno che qualcuno
+chiede perché il conto economico non torna con l'estratto. In pagina le righe
+nascoste si dichiarano sotto i numeri del periodo, con motivo e importo: una
+regola che lavora in silenzio è una regola che nessuno si ricorda di avere
+finché non gli sballa un conto.
+
+Vale **in tutti e due i sensi**: l'addebito e il suo rimborso sono lo stesso
+errore visto due volte, e nascondendo solo l'uscita il giorno del rimborso
+comparirebbe un incasso senza causa fra i movimenti da riconciliare.
+
+In `BankClient` la stessa lista si legge due volte e i nomi lo dicono:
+`ownTxs` è tutto e ci si calcolano saldo e andamento, `visibili` è quello che
+si mostra e si conta.
 
 - **Giroconti fra conti propri**: `pairTransfers` appaia i due lati per importo
   opposto e data vicina. Senza, la liquidità totale sembra scendere e la lista da

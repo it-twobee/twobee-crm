@@ -106,6 +106,20 @@ export function BankClient({
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? '')
   const account = accounts.find(a => a.id === accountId) ?? accounts[0] ?? null
   const ownTxs = useMemo(() => txs.filter(t => t.account_id === account?.id), [txs, account])
+  /**
+   * §381 — la stessa lista vista dai due mestieri della tabella.
+   *
+   * `ownTxs` è **tutto**, e ci si calcolano saldo, previsione e andamento: i
+   * soldi di un movimento nascosto dal conto sono usciti davvero, e toglierli
+   * di lì farebbe dire al tool un saldo che la banca non conferma — è
+   * esattamente il difetto della §380.
+   *
+   * `visibili` è quello che si mostra e si conta: elenco, tipi, controparti,
+   * famiglie di spesa. Una spesa che non è della società non appartiene a
+   * nessuna di quelle risposte.
+   */
+  const visibili = useMemo(() => ownTxs.filter(t => !t.hidden_reason), [ownTxs])
+  const nascosti = useMemo(() => ownTxs.filter(t => t.hidden_reason), [ownTxs])
   const liq = useMemo(() => liquidity(accounts, txs), [accounts, txs])
 
   const [gran, setGran] = useState<Granularity>('month')
@@ -148,11 +162,12 @@ export function BankClient({
       if (r.scartati) {
         toast.warning(`${r.scartati} righe non lette · ${r.motivi.join(' · ')}`, { duration: 9000 })
       }
-      /* §380 — le righe tolte da una regola non sono righe perse, e si dicono
-         comunque: una regola che lavora in silenzio è una regola che nessuno
-         si ricorda di avere finché non gli sballa un saldo. */
-      if (r.ignorati.length) {
-        toast.info(`Escluse per regola · ${r.ignorati.join(' · ')}`, { duration: 9000 })
+      /* §381 — le righe nascoste da una regola non sono righe perse, e si
+         dicono comunque: una regola che lavora in silenzio è una regola che
+         nessuno si ricorda di avere finché non gli sballa un saldo. */
+      if (r.nascosti.length) {
+        toast.info(`Nascoste dai conti (contano nel saldo) · ${r.nascosti.join(' · ')}`,
+          { duration: 9000 })
       }
       setPaste(null)
       router.refresh()
@@ -182,16 +197,16 @@ export function BankClient({
     today, bal, txs: ownTxs, fc, overdueIn, overdueOut,
   }), [today, bal, ownTxs, fc, overdueIn, overdueOut])
 
-  const open = useMemo(() => unreconciled(ownTxs), [ownTxs])
+  const open = useMemo(() => unreconciled(visibili), [visibili])
   /** §297 — quale movimento si sta spartendo fra più righe */
   const [splitting, setSplitting] = useState<string | null>(null)
   /* §276 — gli abbinamenti in cui non c'è niente da giudicare: importo lordo
      esatto, nome che torna, e nessuna ambiguità nei due sensi. Restano una
      conferma umana — una sola invece di venti. */
   const sure = useMemo(() => sureMatches(txs, openLines), [txs, openLines])
-  const kinds = useMemo(() => byKind(ownTxs), [ownTxs])
-  const topIn = useMemo(() => byCounterparty(ownTxs, 'in').slice(0, 6), [ownTxs])
-  const topOut = useMemo(() => byCounterparty(ownTxs, 'out').slice(0, 6), [ownTxs])
+  const kinds = useMemo(() => byKind(visibili), [visibili])
+  const topIn = useMemo(() => byCounterparty(visibili, 'in').slice(0, 6), [visibili])
+  const topOut = useMemo(() => byCounterparty(visibili, 'out').slice(0, 6), [visibili])
 
   /* Giorni per farsi pagare: dal mese di competenza al bonifico. Si calcola solo
      sui movimenti riconciliati — sugli altri non si sa a cosa appartengono. */
@@ -223,14 +238,14 @@ export function BankClient({
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
-    return ownTxs.filter(t => {
+    return visibili.filter(t => {
       if (t.source === 'derivato') return false
       if (kindFilter !== 'tutti' && t.kind !== kindFilter) return false
       if (!needle) return true
       return [t.description, t.counterparty ?? '', t.doc_ref ?? '', String(t.amount)]
         .join(' ').toLowerCase().includes(needle)
     })
-  }, [ownTxs, q, kindFilter])
+  }, [visibili, q, kindFilter])
 
   const byDay = useMemo(() => {
     const m = new Map<string, BankTx[]>()
@@ -458,10 +473,10 @@ export function BankClient({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi label="Entrate registrate" value={eur(bal.inflow)}
           icon={<ArrowDownLeft className="w-4 h-4 text-success" />}
-          sub={`${ownTxs.filter(t => t.source === 'banca' && t.amount > 0).length} accrediti`} />
+          sub={`${visibili.filter(t => t.source === 'banca' && t.amount > 0).length} accrediti`} />
         <Kpi label="Uscite registrate" value={eur(Math.abs(bal.outflow))}
           icon={<ArrowUpRight className="w-4 h-4 text-error" />}
-          sub={`${ownTxs.filter(t => t.source === 'banca' && t.amount < 0).length} addebiti`} />
+          sub={`${visibili.filter(t => t.source === 'banca' && t.amount < 0).length} addebiti`} />
         <Kpi label="Crediti scaduti" value={eur(overdueIn)}
           icon={<AlertTriangle className={`w-4 h-4 ${overdueIn > 0 ? 'text-warning' : 'text-text-tertiary'}`} />}
           sub={overdueIn > bal.real ? 'più del saldo attuale' : 'fatture emesse e non incassate'}
@@ -470,6 +485,22 @@ export function BankClient({
           icon={<CalendarClock className="w-4 h-4 text-info" />}
           sub={dtc.avg !== null ? `media su ${dtc.count} incassi · peggiore ${dtc.worst}` : 'serve riconciliare gli incassi'} />
       </div>
+
+      {/* §381 — una regola che lavora in silenzio è una regola che nessuno si
+          ricorda di avere finché non gli sballa un conto. Le righe nascoste
+          si dicono qui, con il motivo e quanto pesano: stanno nel saldo, e
+          l'unico posto dove la loro assenza si noterebbe senza spiegazione è
+          proprio l'elenco che si sta guardando. */}
+      {nascosti.length > 0 && (
+        <p className="text-2xs text-text-tertiary bg-surface border border-border rounded-xl px-3 py-2">
+          <span className="tabular font-semibold text-text-secondary">{nascosti.length}</span>
+          {nascosti.length === 1 ? ' movimento nascosto' : ' movimenti nascosti'} per
+          {' '}<span className="tabular font-semibold text-text-secondary">
+            {eur(nascosti.reduce((n, t) => n + t.amount, 0))}
+          </span>: {Array.from(new Set(nascosti.map(t => t.hidden_reason))).join(' · ')}.
+          {' '}Contano nel saldo, non nell&apos;elenco né nelle spese.
+        </p>
+      )}
 
       {/* ══ cosa non torna ══ */}
       {findings.length > 0 && (
@@ -508,7 +539,7 @@ export function BankClient({
 
       {/* ══ le spese che il piano non prevede: costi della società, non erogato ══ */}
       {!account.parent_id && (
-        <OffPlanSpend account={account} txs={ownTxs} month={month} />
+        <OffPlanSpend account={account} txs={visibili} month={month} />
       )}
 
       {/* ══ §199 · dal conto economico al saldo, e il cumulato ══ */}

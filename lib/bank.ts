@@ -90,6 +90,13 @@ export type BankTx = {
   hr_invoice_id?: string | null
   matched_at: string | null
   no_match_needed: boolean
+  /**
+   * §381 — non nullo: il movimento **conta nel saldo** (i soldi dal conto sono
+   * usciti) e sta fuori da elenco, famiglie di spesa, spinta a costo e
+   * riconciliazione. Il testo è il motivo, e serve a chi lo rileggerà fra sei
+   * mesi: «nascosto = true» non dice di cosa si trattava.
+   */
+  hidden_reason?: string | null
   note?: string | null
   /** §190 — l'altro lato dello stesso giroconto, e il conto di destinazione */
   transfer_pair_id?: string | null

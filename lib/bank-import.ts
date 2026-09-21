@@ -33,6 +33,8 @@ export type ParsedTx = {
   counterparty_raw: string | null
   causal_code: string | null
   channel: string | null
+  /** §381 — non nullo: conta nel saldo, sta fuori da elenco e statistiche */
+  hidden_reason?: string | null
 }
 
 export type ParseResult = {
@@ -40,46 +42,52 @@ export type ParseResult = {
   rows: ParsedTx[]
   /** righe scartate e perché: un import che tace su cosa ha perso non è verificabile */
   skipped: string[]
-  /** §380 — righe tolte da una regola, non da un errore: si dicono a parte */
+  /** §381 — righe nascoste da una regola, non da un errore: si dicono a parte */
   ignored: string[]
 }
 
 /**
- * §380 — i movimenti che non devono entrare, e perché è una regola.
+ * §380/§381 — i movimenti che il conto ha e i conti non devono vedere.
  *
- * Non sono righe illeggibili — si leggono benissimo — e non sono righe
- * sbagliate della banca: sono spese che non riguardano la società e che
- * qualcuno ha già deciso di tenere fuori dai conti. La differenza conta
- * perché il posto in cui si applica una decisione del genere è **l'import**,
- * non il database: cancellarle a mano dopo vuol dire ricancellarle a ogni
- * estratto conto che si sovrappone, e la volta che ci si dimentica tornano
- * dentro senza dirlo.
+ * Non sono righe illeggibili — quelle vanno in `skipped` con la ragione — e
+ * non sono errori della banca: sono spese che non riguardano la società, e
+ * che qualcuno ha deciso di tenere fuori dai conti.
  *
- * Si tolgono **in tutti e due i sensi**. L'addebito e il suo rimborso sono lo
- * stesso errore visto due volte: escludendo solo l'uscita, il giorno del
- * rimborso comparirebbe un incasso da 20,99 € senza causa — e un ricavo che
- * non è un ricavo è peggio di una spesa che non è una spesa. Fino a che il
- * rimborso non arriva il saldo letto qui resta più alto di quello vero
- * dell'importo escluso: è il prezzo dichiarato della scelta.
+ * **La §380 le scartava, e il saldo ne pagava il prezzo.** Se i soldi dal
+ * conto sono usciti davvero, non scriverli rende il totale letto qui più
+ * alto di quello della banca: sul Vivid erano 104,95 € su 381,43, un quarto
+ * del saldo. La domanda giusta non era «entrano o no» — era **in quale dei
+ * due mestieri di questa tabella** devono comparire. Un movimento dice due
+ * cose insieme: quanti soldi ci sono, e a cosa sono serviti. Una spesa
+ * personale finita per errore sulla carta della società è un fatto di cassa
+ * vero e un costo che non esiste.
+ *
+ * Quindi la riga **entra** e porta scritto perché non si guarda: conta nel
+ * saldo, nella liquidità e nel ponte di cassa, e sparisce da elenco,
+ * famiglie di spesa, spinta a costo e riconciliazione.
+ *
+ * Vale **in tutti e due i sensi**: l'addebito e il suo rimborso sono lo
+ * stesso errore visto due volte, e nascondendo solo l'uscita il giorno del
+ * rimborso comparirebbe un incasso senza causa fra i da riconciliare.
  */
-export const ESCLUSI: { motivo: string; quando: (t: ParsedTx) => boolean }[] = [
+export const NASCOSTI: { motivo: string; quando: (t: ParsedTx) => boolean }[] = [
   {
-    motivo: 'Google Play 20,99 €: addebiti per errore, fuori da ogni conto',
+    motivo: 'Google Play 20,99 €: addebiti per errore, fuori dai conti',
     quando: t =>
       /google\s*\*?\s*google play|google play/i.test(`${t.counterparty_raw ?? ''} ${t.description}`)
       && Math.abs(t.amount) === 20.99,
   },
 ]
 
-/** applica le regole di §380 e dice quante righe ha tolto e perché */
-function senzaEsclusi(r: ParseResult): ParseResult {
-  const rows: ParsedTx[] = []
+/** §381 — marca le righe invece di buttarle, e dice quante e perché */
+function conNascosti(r: ParseResult): ParseResult {
   const conta = new Map<string, number>()
-  for (const t of r.rows) {
-    const regola = ESCLUSI.find(e => e.quando(t))
-    if (!regola) { rows.push(t); continue }
+  const rows = r.rows.map(t => {
+    const regola = NASCOSTI.find(e => e.quando(t))
+    if (!regola) return t
     conta.set(regola.motivo, (conta.get(regola.motivo) ?? 0) + 1)
-  }
+    return { ...t, hidden_reason: regola.motivo }
+  })
   return {
     ...r,
     rows,
@@ -275,7 +283,7 @@ function parseCamt(xml: string): ParseResult {
 export function parseStatement(csv: string): ParseResult {
   /* Il formato si riconosce dal contenuto, non dall'estensione (§277): un camt
      salvato come `.txt` è sempre un camt, e un CSV rinominato `.xml` non lo è. */
-  if (/<Document[^>]*camt\.053/i.test(csv) || /<Ntry>/.test(csv)) return senzaEsclusi(parseCamt(csv))
+  if (/<Document[^>]*camt\.053/i.test(csv) || /<Ntry>/.test(csv)) return conNascosti(parseCamt(csv))
 
   const lines = csv.split(/\r?\n/).filter(l => l.trim())
   if (!lines.length) throw new Error('Il file è vuoto')
@@ -347,7 +355,7 @@ export function parseStatement(csv: string): ParseResult {
     })
   }
 
-  return senzaEsclusi({ dialect, rows, skipped, ignored: [] })
+  return conNascosti({ dialect, rows, skipped, ignored: [] })
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -367,6 +375,8 @@ export type ImportRow = {
   doc_ref: string | null
   source: 'banca'
   no_match_needed: boolean
+  /** §381 — non nullo: conta nel saldo, sta fuori da elenco e statistiche */
+  hidden_reason: string | null
   import_hash: string
   /** l'archivio ce l'ha già: è la stessa riga, non una nuova */
   duplicate: boolean
@@ -435,7 +445,11 @@ export function buildImportRows(
         : auto.kind) as TxKind,
       doc_ref: auto.docRef,
       source: 'banca' as const,
-      no_match_needed: isOwnTransfer || named?.family === 'banca',
+      /* Una riga nascosta non si riconcilia: non ha una controparte nel conto
+         economico, e lasciarla fra i «da agganciare» la farebbe ricomparire
+         proprio nell'elenco da cui deve stare fuori. */
+      no_match_needed: !!p.hidden_reason || isOwnTransfer || named?.family === 'banca',
+      hidden_reason: p.hidden_reason ?? null,
       import_hash,
       duplicate,
     }
@@ -537,13 +551,22 @@ export function merchant(raw: string): { name: string; family: SpendFamily } {
   return { name: pretty || 'Non riconosciuto', family: 'altro' }
 }
 
-/** Le spese per famiglia: dice se un conto fa il lavoro per cui è stato aperto. */
+/**
+ * Le spese per famiglia: dice se un conto fa il lavoro per cui è stato aperto.
+ *
+ * §381 — le righe nascoste non ci sono. È **l'unico** punto in cui filtrarle
+ * per le statistiche di spesa, perché `spendSplit` passa da qui: una spesa
+ * che non è della società non appartiene a nessuna famiglia, e contarla
+ * gonfierebbe proprio il numero che serve a decidere se un conto sta
+ * facendo il suo mestiere.
+ */
 export function byFamily(
-  txs: { amount: number; counterparty: string | null; description: string }[],
+  txs: { amount: number; counterparty: string | null; description: string
+    hidden_reason?: string | null }[],
 ): { family: SpendFamily; label: string; total: number; count: number; names: string[] }[] {
   const map = new Map<SpendFamily, { total: number; count: number; names: Set<string> }>()
   for (const t of txs) {
-    if (t.amount >= 0) continue
+    if (t.amount >= 0 || t.hidden_reason) continue
     const { name, family } = merchant(t.counterparty ?? t.description)
     const cur = map.get(family) ?? { total: 0, count: 0, names: new Set<string>() }
     cur.total = Math.round((cur.total + Math.abs(t.amount)) * 100) / 100
@@ -579,7 +602,8 @@ export const CHECK_FAMILIES: SpendFamily[] = ['rappresentanza', 'spesa', 'carbur
  * vuoto che ha speso bene e uno pieno che ha speso male hanno lo stesso saldo.
  */
 export function spendSplit(
-  txs: { amount: number; counterparty: string | null; description: string }[],
+  txs: { amount: number; counterparty: string | null; description: string
+    hidden_reason?: string | null }[],
 ): {
   total: number; operativo: number; daGiustificare: number; share: number
   families: ReturnType<typeof byFamily>

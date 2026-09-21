@@ -43,8 +43,8 @@ export async function importBankCsv(accountId: string, csv: string): Promise<{
   dal: string | null; al: string | null; dialetto: string
   /** §277 — perché una riga è stata scartata: il conteggio da solo non si corregge */
   motivi: string[]
-  /** §380 — righe tolte da una regola, non da un errore: si dicono a parte */
-  ignorati: string[]
+  /** §381 — righe nascoste da una regola: entrano nel saldo, non nei conti */
+  nascosti: string[]
 }> {
   await requireAdmin()
   const admin = createAdminClient()
@@ -74,7 +74,7 @@ export async function importBankCsv(accountId: string, csv: string): Promise<{
     scartati: skipped.length, dialetto: dialect,
     dal: date[0] ?? null, al: date.at(-1) ?? null,
     motivi: skipped.slice(0, 3),
-    ignorati: ignored,
+    nascosti: ignored,
   }
 }
 
@@ -631,9 +631,14 @@ export async function pushAccountSpend(accountId: string, month: string, overrid
 
   const last = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)
   const to = `${month.slice(0, 7)}-${String(last.getDate()).padStart(2, '0')}`
+  /* §381 — le righe nascoste non diventano un costo: sono uscite di cassa
+     vere, ma non sono spese della società. Il filtro sta nella query e non
+     dopo, o la prima riscrittura che dimentica il `.filter` le riporta nel
+     conto economico senza che nessuno se ne accorga. */
   const { data: txRows } = await admin.from('bank_transactions')
     .select('id, amount, counterparty, description, kind')
     .eq('account_id', accountId).gte('booked_on', first).lte('booked_on', to).lt('amount', 0)
+    .is('hidden_reason', null)
 
   const fuoriPiano: SpendFamily[] = [...CHECK_FAMILIES, 'ufficio']
   const remap = (f: SpendFamily): SpendFamily =>
