@@ -329,6 +329,26 @@ export type Confronto = {
   campi: { campo: string; etichetta: string; valori: (string | null)[] }[]
 }
 
+/**
+ * Cosa hanno le altre righe e la scelta no.
+ *
+ * Sta fuori da `confronta` perché serve **anche quando il vincitore non è
+ * quello suggerito**: chi unisce può scegliere l'altra riga, e in quel caso
+ * l'elenco di ciò che si perde cambia tutto. L'unione lo ricalcola sul
+ * vincitore vero, e non si fida di quello che il browser ha visto (§329).
+ */
+export function daPortareSu(vince: RigaConfronto, altre: RigaConfronto[]): Confronto['daPortare'] {
+  const out: Confronto['daPortare'] = []
+  for (const c of CAMPI_CONFRONTO) {
+    if (mostra(vince[c.campo]) !== null) continue
+    for (const r of altre) {
+      const v = mostra(r[c.campo])
+      if (v !== null) { out.push({ campo: c.campo, etichetta: c.etichetta, da: r.id, valore: v }); break }
+    }
+  }
+  return out
+}
+
 export function confronta(righe: RigaConfronto[]): Confronto | null {
   if (righe.length < 2) return null
 
@@ -361,14 +381,7 @@ export function confronta(righe: RigaConfronto[]): Confronto | null {
   }
   if (!perche.length) perche.push('è la più vecchia, e le altre non aggiungono niente')
 
-  const daPortare: Confronto['daPortare'] = []
-  for (const c of CAMPI_CONFRONTO) {
-    if (mostra(vince[c.campo]) !== null) continue
-    for (const r of altre) {
-      const v = mostra(r[c.campo])
-      if (v !== null) { daPortare.push({ campo: c.campo, etichetta: c.etichetta, da: r.id, valore: v }); break }
-    }
-  }
+  const daPortare = daPortareSu(vince, altre)
 
   /* Solo i campi in cui le righe **dicono cose diverse**: affiancare
      ventitré righe uguali nasconde le tre che contano. */

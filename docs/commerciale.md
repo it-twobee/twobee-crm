@@ -384,6 +384,38 @@ CSV delle 07:41**, sopra righe arrivate da Meta Ads il giorno prima. Il
 confronto tiene la riga del foglio — ha l'ultimo contatto e la provenienza —
 e la copia da CSV non aveva niente in più da salvare.
 
+### §387 — e unirle, dallo stesso pannello
+
+`unisciLead(tieniId, eliminaIds)`. La riga scelta sopravvive, le altre
+spariscono, e in mezzo succedono quattro cose:
+
+- **I campi vuoti si riempiono** da quelli che le altre hanno pieni. Niente
+  di già scritto viene sovrascritto, mai: è la regola che rende l'unione
+  incapace di far perdere quello che si è deciso di tenere. Chi vuole il
+  valore dell'altra su un campo pieno lo cambia a mano, guardandolo.
+- **L'elenco dei campi lo ricalcola il server.** Il pannello mostra la stessa
+  cosa, ma un file `'use server'` esporta un endpoint (§329): accettare una
+  mappa da chi chiama vorrebbe dire lasciar scrivere su `client_id` o
+  `revision` passando dal nome giusto. Si riparte dalle righe e si filtra su
+  `CAMPI_SCRIVIBILI` — `Added` e «Status dal foglio» restano quelli della
+  riga che sopravvive, perché sono la sua storia e non un dato da fondere.
+- **La storia si sposta**: owner, attività, comandi, preventivi e scheda di
+  passaggio alla delivery passano alla riga tenuta. Senza, unire sarebbe un
+  modo elegante di cancellare il lavoro di qualcuno. `deal_owners` ha la
+  coppia come chiave, quindi gli owner in comune si tolgono prima o lo
+  spostamento fallisce; `sales_handoffs` ha una scheda per trattativa,
+  quindi si sposta solo se la tenuta non ce l'ha.
+- **La riga del foglio si eredita quando si può** (§378). Se la tenuta non ne
+  ha una, la prende: il giro notturno continua a riconoscerla come già
+  importata. Se ce l'ha già, gli id delle altre si **murano** — o alle tre
+  del mattino il doppione appena unito tornerebbe dentro, che è il modo più
+  sicuro di far smettere di usare la funzione.
+
+**Il suggerimento resta un suggerimento**: dalla testata si sceglie l'altra
+colonna, e l'elenco di quello che passa si ricalcola. La conferma dice tutto
+quello che succede, **compreso quello che non si vede** — la storia che si
+sposta e la riga del foglio — perché unire non si disfa.
+
 ## «Lead convertito» — §368
 
 La CTA **non crea il cliente**: apre `NewClientModal`, quello vero,

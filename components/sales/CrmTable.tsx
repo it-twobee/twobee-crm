@@ -399,7 +399,8 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
         /* §385 — i controlli guardano **tutte** le righe, non quelle
            filtrate: un doppione che sta fuori dalla ricerca è un doppione
            che resta. */
-        <CrmControllo righe={righe} onApri={id => { setVista('tabella'); setApertaId(id) }} />
+        <CrmControllo righe={righe} onApri={id => { setVista('tabella'); setApertaId(id) }}
+          onFatto={() => location.reload()} />
       ) : (
         /* §374 — elenco a sinistra, scheda a destra. Prima era una tabella da
            ventitré colonne che scorreva di lato: fedele a Notion e inutile per

@@ -6,9 +6,10 @@ import { sincronizzaLead } from '@/lib/sales-sync'
 import { requireSalesAccess } from '@/lib/sales-guard'
 import { OUTCOMES, canReadDeal, uuid, validDate, validateDeal, type DealInput, type Delivery, type SalesData, type SalesDeal, type SalesOutcome, type SalesActivity } from '@/lib/sales'
 import { isWorkspaceRole } from '@/lib/permissions'
-import { validaCella } from '@/lib/sales-table'
+import { validaCella, CAMPI_SCRIVIBILI } from '@/lib/sales-table'
 import { CHIAVI_FASE, FASE_INGRESSO } from '@/lib/sales-stages'
 import { somiglianze, spiegaSomiglianza, type Candidato } from '@/lib/sales-dedup'
+import { daPortareSu, type RigaConfronto } from '@/lib/sales-igiene'
 import { generaSubito } from '@/lib/recurrence-kick'
 
 const DEAL_FIELDS = 'id,title,company_name,client_id,contact_id,assigned_to,stage,source,need,blocker,next_action,next_action_on,resume_on,monthly_value,setup_value,one_off_value,proposal_ref,loss_reason,created_at,updated_at,closed_at,last_interaction_at,revision,delivery,delivery_project_id,delivery_completed_at,delivery_owner_id'
@@ -409,4 +410,141 @@ export async function eliminaLead(ids: string[]): Promise<EsitoEliminazione> {
 
   refreshSales()
   return { eliminati: righe.length, dalFoglio: dalFoglio.length }
+}
+
+// ── §387 · unire due righe che sono la stessa azienda ───────────────────────
+
+export type EsitoUnione = {
+  /** i campi copiati sulla riga tenuta, con l'etichetta di Notion */
+  portati: { campo: string; etichetta: string; valore: string }[]
+  eliminati: number
+  /** owner, attività, comandi e schede di passaggio spostati */
+  spostati: number
+  /** la riga del foglio è passata alla riga tenuta, invece di essere murata */
+  ereditaFoglio: boolean
+  /** id del foglio murati: il giro notturno non li rimetterà */
+  murati: number
+}
+
+/**
+ * Unisce più righe in una: la scelta sopravvive, le altre spariscono.
+ *
+ * **Non sovrascrive mai un campo pieno.** Si copiano solo i campi che la
+ * riga tenuta ha vuoti e un'altra ha pieni — è la stessa regola che il
+ * pannello mostra prima di premere, e l'unica per cui unire non può far
+ * perdere niente di quello che si è deciso di tenere. Chi vuole il valore
+ * dell'altra riga su un campo già pieno lo cambia a mano, guardandolo.
+ *
+ * **L'elenco dei campi lo ricalcola il server.** Il browser mostra la stessa
+ * cosa, ma un file `'use server'` esporta un endpoint (§329): accettare una
+ * mappa di campi da chi chiama vorrebbe dire lasciar scrivere su `client_id`
+ * o `revision` passando dal nome giusto. Qui si riparte dalle righe vere e
+ * si filtra su `CAMPI_SCRIVIBILI`.
+ *
+ * **La storia si sposta, non si perde**: owner, attività, comandi, preventivi
+ * e la scheda di passaggio alla delivery passano alla riga tenuta. Senza,
+ * unire sarebbe un modo elegante di cancellare il lavoro di qualcuno.
+ *
+ * **La riga del foglio si eredita quando si può.** Se la riga tenuta non ne
+ * ha una e una di quelle eliminate sì, la prende: così il giro notturno
+ * continua a riconoscere quella riga come già importata. Quando invece la
+ * tenuta ce l'ha già, gli id delle altre si murano (§378) — o alle tre del
+ * mattino il doppione appena unito tornerebbe dentro.
+ */
+export async function unisciLead(tieniId: string, eliminaIds: string[]): Promise<EsitoUnione> {
+  const { access, actor } = await requireSalesAccess()
+  if (access !== 'admin' && access !== 'manager') {
+    throw new Error('Solo admin e manager possono unire due lead')
+  }
+  uuid(tieniId)
+  const altriIds = Array.from(new Set(eliminaIds)).filter(id => id !== tieniId)
+  if (!altriIds.length) throw new Error('Nessuna riga da unire')
+  if (altriIds.length > 10) throw new Error('Troppe righe in una volta: al massimo dieci')
+  altriIds.forEach(uuid)
+
+  const db = createActorClient(actor)
+  const { data, error } = await db.from('deals').select('*').in('id', [tieniId, ...altriIds])
+  if (error) dbError(error)
+  const righe = (data ?? []) as unknown as RigaConfronto[]
+  const tieni = righe.find(r => r.id === tieniId)
+  const altre = righe.filter(r => r.id !== tieniId)
+  if (!tieni) throw new Error('La riga da tenere non esiste più')
+  if (!altre.length) throw new Error('Le righe da unire non esistono più')
+
+  /* Solo i campi vuoti sulla tenuta, e solo quelli scrivibili: `Added`,
+     «Status dal foglio» e gli altri di sola lettura restano quelli della
+     riga che sopravvive, perché sono la sua storia e non un dato da fondere. */
+  const candidati = daPortareSu(tieni, altre)
+  const portati = candidati.filter(c => CAMPI_SCRIVIBILI.includes(c.campo))
+  if (portati.length) {
+    const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    for (const c of portati) {
+      const da = altre.find(r => r.id === c.da)
+      if (da) patch[c.campo] = da[c.campo]
+    }
+    const { error: eUp } = await db.from('deals').update(patch).eq('id', tieniId)
+    if (eUp) dbError(eUp)
+  }
+
+  /* La storia passa di mano. `deal_owners` ha la coppia come chiave, quindi
+     un owner che c'è già su tutte e due farebbe fallire lo spostamento: si
+     tolgono prima i doppioni. `sales_handoffs` ha `deal_id` come chiave
+     primaria — una sola scheda per trattativa — quindi si sposta solo se la
+     tenuta non ce l'ha. */
+  let spostati = 0
+  const sposta = async (tabella: string) => {
+    const { data: r, error: e } = await db.from(tabella)
+      .update({ deal_id: tieniId }).in('deal_id', altriIds).select('deal_id')
+    if (e && !['42P01', 'PGRST205'].includes(e.code ?? '')) throw new Error(`${tabella}: ${e.message}`)
+    spostati += (r ?? []).length
+  }
+
+  const { data: giaOwner } = await db.from('deal_owners').select('profile_id').eq('deal_id', tieniId)
+  const suoi = new Set(((giaOwner ?? []) as { profile_id: string }[]).map(o => o.profile_id))
+  if (suoi.size) {
+    await db.from('deal_owners').delete().in('deal_id', altriIds).in('profile_id', Array.from(suoi))
+  }
+  await sposta('deal_owners')
+  await sposta('deal_activities')
+  await sposta('sales_commands')
+  await sposta('quotes')
+  await sposta('proposal_documents')
+
+  const { data: haScheda } = await db.from('sales_handoffs').select('deal_id').eq('deal_id', tieniId).maybeSingle()
+  if (!haScheda) {
+    const { data: r } = await db.from('sales_handoffs')
+      .update({ deal_id: tieniId }).in('deal_id', altriIds).select('deal_id').limit(1)
+    spostati += (r ?? []).length
+  }
+
+  /* La provenienza dal foglio: si eredita se si può, si mura se no (§378). */
+  const dalFoglio = altre.filter(r => typeof r.sheet_row_id === 'string' && r.sheet_row_id)
+  let ereditaFoglio = false
+  let murati = 0
+  const miei = typeof tieni.sheet_row_id === 'string' && tieni.sheet_row_id ? 1 : 0
+
+  const { error: eDel } = await db.from('deals').delete().in('id', altriIds)
+  if (eDel) dbError(eDel)
+
+  if (dalFoglio.length) {
+    if (!miei) {
+      const { error: eEr } = await db.from('deals')
+        .update({ sheet_row_id: dalFoglio[0].sheet_row_id }).eq('id', tieniId)
+      if (!eEr) ereditaFoglio = true
+    }
+    const daMurare = dalFoglio.slice(ereditaFoglio ? 1 : 0)
+    if (daMurare.length) {
+      const { error: eL } = await db.from('sales_sheet_ignored').upsert(
+        daMurare.map(r => ({
+          sheet_row_id: String(r.sheet_row_id),
+          company_name: String(r.company_name ?? ''),
+          deleted_by: actor,
+          deleted_at: new Date().toISOString(),
+        })), { onConflict: 'sheet_row_id' })
+      if (!eL) murati = daMurare.length
+    }
+  }
+
+  refreshSales()
+  return { portati, eliminati: altre.length, spostati, ereditaFoglio, murati }
 }
