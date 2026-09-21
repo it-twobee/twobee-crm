@@ -324,6 +324,18 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
     owner_partner_id: (a.owner_partner_id as string) ?? null,
     owner_label: (a.owner_label as string) ?? null,
     allowance_amount: a.allowance_amount == null ? null : num(a.allowance_amount),
+    /* §382/§383 — i due saldi che non calcoliamo noi: quello che dichiara la
+       banca nel camt e quello disponibile letto nell'app. Vanno elencati qui
+       o non arrivano: la query chiede `*`, ma questa mappatura **ridichiara
+       la forma**, e un campo che manca non è un errore — è un `undefined`
+       che la pagina legge come «non lo sappiamo» e non mostra. È costato un
+       giro: i valori erano in tabella e la pagina diceva di non averli. */
+    statement_balance: a.statement_balance == null ? null : num(a.statement_balance),
+    statement_on: (a.statement_on as string) ?? null,
+    statement_at: (a.statement_at as string) ?? null,
+    statement_seen_at: (a.statement_seen_at as string) ?? null,
+    available_balance: a.available_balance == null ? null : num(a.available_balance),
+    available_at: (a.available_at as string) ?? null,
     centerIds: coverage.get(String(a.id)) ?? [],
   }))
 
