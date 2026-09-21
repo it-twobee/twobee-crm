@@ -117,6 +117,32 @@ export const CAMPI_SCRIVIBILI: string[] = COLONNE
   .filter(c => modificabile(c) && c.campo !== 'owners')
   .map(c => c.campo)
 
+/**
+ * §378 — le colonne che la pagina **legge** senza mostrarle in cella.
+ *
+ * `lead_origine` è un `jsonb` con dentro campagna, adset, annuncio,
+ * piattaforma e le risposte del modulo: non è una colonna editabile, quindi
+ * non sta in `COLONNE` — ma la pagina la usa in quattro punti (la riga di
+ * contorno nell'elenco, il riquadro «Da dove arriva», i quattro filtri di
+ * provenienza e il raggruppamento per campagna nei numeri).
+ *
+ * Restare fuori dalla `select` è esattamente quello che è successo: la
+ * query si costruiva da `COLONNE`, il campo non c'era, e i quattro punti
+ * mostravano il vuoto **senza dire niente** — nessun errore, nessuna riga
+ * rossa, solo un riquadro che non compare e dei filtri con zero opzioni.
+ * Da qui in poi l'elenco delle colonne da leggere è uno, e sta accanto a
+ * quello delle colonne da mostrare.
+ */
+export const CAMPI_LETTURA = ['lead_origine']
+
+/** quello che la pagina chiede al database: da mostrare, da leggere, e le chiavi */
+export const CAMPI_RIGA: string[] = Array.from(new Set([
+  'id', 'client_id',
+  // `owners` è una tabella a parte (236), non una colonna di `deals`
+  ...COLONNE.filter(c => c.campo !== 'owners').map(c => c.campo),
+  ...CAMPI_LETTURA,
+]))
+
 export const colonnaDi = (campo: string): Colonna | null =>
   COLONNE.find(c => c.campo === campo) ?? null
 

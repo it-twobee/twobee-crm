@@ -9,10 +9,11 @@
    conosce i nomi delle colonne (§329). */
 
 import {
-  COLONNE, COLONNE_PRINCIPALI, CAMPI_SCRIVIBILI, PRIORITA, MEMBERSHIP,
+  COLONNE, COLONNE_PRINCIPALI, CAMPI_SCRIVIBILI, CAMPI_RIGA, PRIORITA, MEMBERSHIP,
   colonnaDi, modificabile, validaCella, GRUPPI_SCHEDA, TITOLO_GRUPPO,
 } from '@/lib/sales-table'
 import { CHIAVI_FASE } from '@/lib/sales-stages'
+import { FILTRABILI, ORDINABILI } from '@/lib/sales-filtri'
 
 let fail = 0
 const is = (label: string, got: unknown, want: unknown) => {
@@ -92,6 +93,32 @@ is('un telefono si può togliere', validaCella('contact_phone', ''), { ok: true,
 is('una nota pure', validaCella('notes', '  '), { ok: true, valore: null })
 is('il nome azienda no: senza, la riga non è una riga',
   validaCella('company_name', '').ok, false)
+
+console.log('\n— §378 · quello che la pagina legge, la query lo chiede —')
+/* Il difetto che questo blocco esiste per non far tornare: la `select` si
+   costruiva da `COLONNE`, e `lead_origine` non è una colonna — è un `jsonb`
+   di sola lettura. Risultato: riquadro «Da dove arriva» vuoto, quattro
+   filtri di provenienza con zero opzioni e il raggruppamento per campagna
+   nei numeri tutto a niente, **senza un errore da nessuna parte**. Leggere
+   un campo che non si è chiesto non rompe: restituisce `undefined`, ed è la
+   categoria di errore che nessuno va a controllare. */
+is('la provenienza Meta si chiede al database', CAMPI_RIGA.includes('lead_origine'), true)
+is('e con lei le chiavi della riga',
+  ['id', 'client_id'].filter(f => !CAMPI_RIGA.includes(f)), [])
+is('ogni colonna mostrata è anche chiesta',
+  COLONNE.filter(c => c.campo !== 'owners' && !CAMPI_RIGA.includes(c.campo)).map(c => c.campo), [])
+/* `owners` non è una colonna di `deals`: sta in `deal_owners` (236), e
+   chiederla al database farebbe fallire la query intera — la pagina non
+   mostrerebbe una colonna in meno, mostrerebbe l'avviso rosso. */
+is('gli owner no: non sono una colonna di `deals`', CAMPI_RIGA.includes('owners'), false)
+is('nessun doppione nella select', new Set(CAMPI_RIGA).size, CAMPI_RIGA.length)
+/* La regola vera, quella che vale anche per il filtro che qualcuno
+   aggiungerà: un filtro che legge da una colonna non chiesta non filtra —
+   offre zero opzioni e sembra che i dati non ci siano. */
+is('ogni filtro legge da una colonna chiesta',
+  FILTRABILI.filter(f => !CAMPI_RIGA.includes(f.da ?? f.campo)).map(f => f.campo), [])
+is('e ogni ordinamento pure',
+  ORDINABILI.filter(o => !CAMPI_RIGA.includes(o.campo)).map(o => o.campo), [])
 
 console.log('\n— §374 · i riquadri della scheda —')
 /* Ventitré campi in fila sono un modulo del catasto. Il controllo che conta

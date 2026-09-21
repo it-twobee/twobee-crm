@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getSalesAccess } from '@/lib/sales-guard'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { COLONNE } from '@/lib/sales-table'
+import { CAMPI_RIGA } from '@/lib/sales-table'
 import { CrmTable, type RigaCrm } from './CrmTable'
 
 /**
@@ -14,19 +14,19 @@ import { CrmTable, type RigaCrm } from './CrmTable'
  * passerebbe il controllo e poi non vedrebbe niente — un permesso che non
  * apre niente è peggio di un permesso negato, perché non si capisce.
  *
- * Si chiedono solo le colonne che la tabella mostra: `select('*')` porterebbe
- * anche la delivery e la provenienza Meta, che qui non si leggono.
+ * Si chiedono solo le colonne che servono e non `select('*')`: la delivery è
+ * roba della scheda progetto. L'elenco è `CAMPI_RIGA` e sta in
+ * `lib/sales-table.ts`, accanto alle colonne — costruirlo qui da `COLONNE`
+ * aveva lasciato fuori `lead_origine`, che non è una cella ma la pagina la
+ * legge in quattro punti, e tutti e quattro mostravano il vuoto in silenzio
+ * (§378).
  */
 export async function SalesPage({ base }: { base: string }) {
   const contesto = await getSalesAccess()
   if (!contesto) redirect(base ? '/workspace' : '/dashboard')
 
-  const campi = Array.from(new Set(['id', 'client_id', ...COLONNE.map(c => c.campo)]))
-    .filter(c => c !== 'owners')
-    .join(',')
-
   const { data, error } = await createAdminClient()
-    .from('deals').select(campi).order('created_at', { ascending: false })
+    .from('deals').select(CAMPI_RIGA.join(',')).order('created_at', { ascending: false })
 
   if (error) {
     return (

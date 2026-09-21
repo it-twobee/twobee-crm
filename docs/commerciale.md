@@ -32,6 +32,27 @@ tema chiaro. Quattro coppie condividono la tinta, scelte fra fasi lontane nel
 percorso; il gate verifica che due fasi **adiacenti** non abbiano mai lo stesso
 colore.
 
+## La query è un elenco, e sta accanto alle colonne — §378
+
+`CAMPI_RIGA` in `lib/sales-table.ts`: chiavi, colonne mostrate, colonne
+lette. `SalesPage` lo usa e basta.
+
+Prima la `select` si costruiva da `COLONNE`, e ci stava un buco grosso:
+`lead_origine` non è una colonna — è il `jsonb` con campagna, adset,
+annuncio, piattaforma e le risposte del modulo, di sola lettura — quindi non
+era in `COLONNE` e **non veniva chiesta**. La pagina però la legge in quattro
+punti: la riga di contorno nell'elenco, il riquadro «Da dove arriva», i
+quattro filtri di provenienza e il raggruppamento per campagna nei numeri.
+Tutti e quattro mostravano il vuoto, e nessuno dei quattro si lamentava:
+leggere un campo che non si è chiesto restituisce `undefined`, non un errore.
+Un riquadro che non compare si scambia per «questo lead non ha provenienza»,
+e dei filtri con zero opzioni per «non ci sono dati».
+
+Il gate sta in `lib/sales-table.check.ts` e controlla la regola, non il caso:
+ogni colonna mostrata, ogni filtro e ogni ordinamento devono leggere da un
+campo che sta in `CAMPI_RIGA` — e `owners` non ci sta, perché è la tabella
+`deal_owners` (236) e chiederla farebbe fallire la query intera.
+
 ## Le colonne — `lib/sales-table.ts`
 
 Ventuno di Notion più due nostre (`Status dal foglio`, `Added`). Tre colonne di
