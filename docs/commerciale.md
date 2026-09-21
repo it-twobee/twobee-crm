@@ -1,7 +1,7 @@
 # Area commerciale — il CRM di Notion, qui dentro
 
 Stato al 21 settembre 2026: **riscritta da zero (§367–§371)**. Migration 235,
-236 e 239 applicate. Il modulo precedente (§223–§225) è stato sostituito: descriveva
+236 e 239 applicate. Tre viste: elenco, bacheca (§379), numeri. Il modulo precedente (§223–§225) è stato sostituito: descriveva
 pipeline, esiti e handoff, ma erano quattrocentosessanta righe di codice con
 due componenti da sedici, e una riga sola nel database.
 
@@ -31,6 +31,47 @@ design system ne ha sette per gli stati, e inventare degli hex romperebbe il
 tema chiaro. Quattro coppie condividono la tinta, scelte fra fasi lontane nel
 percorso; il gate verifica che due fasi **adiacenti** non abbiano mai lo stesso
 colore.
+
+## Le tre viste, e perché la bacheca è arrivata dopo — §379
+
+`CrmTable` tiene lo stato, `CrmBacheca` disegna le colonne. Tutte e tre le
+viste leggono lo **stesso** `viste` — già cercato, filtrato e ordinato —
+perché due viste che mostrano insiemi diversi sotto gli stessi filtri sono
+due viste di cui una mente.
+
+L'elenco resta quella di casa: risponde a «chi chiamo adesso», che è la
+domanda per cui si apre la pagina. La bacheca risponde a un'altra — «com'è
+messa la pipeline, dove si è accumulato» — e per quella dodici colonne
+valgono più di ventinove righe. Per questo si **aggiunge** e non sostituisce:
+§371 diceva «una tabella e non una bacheca» e aveva ragione sulla domanda di
+allora, non su tutte.
+
+**Dodici colonne scorrono, non si comprimono**, come le colonne della
+tabella di prima. Chi vuole restringere usa il filtro dei gruppi, che sulla
+bacheca **nasconde** le colonne invece di svuotarle: una colonna vuota che
+non può riempirsi è rumore. Lo scroll verticale resta della pagina — una
+colonna con lo scroll suo dentro la pagina che scorre è lo scroll dentro lo
+scroll.
+
+**Il trascinamento è quello nativo**, quattro eventi e nessuna libreria. Il
+prezzo è dichiarato: col dito non funziona, perché il trascinamento HTML5
+sul touch non esiste. Per questo la fase resta modificabile dalla scheda, che
+è la strada di chi lavora dal telefono.
+
+**Ogni spostamento chiede conferma**, e qui il prodotto fa il contrario di
+quello che fa altrove. Una modifica non distruttiva di solito si salva e
+basta; il trascinamento però è l'unico gesto che cambia un dato **passando
+sopra a qualcosa**. Un clic mancato non fa niente, un trascinamento mancato
+sposta una trattativa — e chi lo ha fatto spesso non se ne accorge, perché la
+scheda è sparita da dove la stava guardando. La conferma dice da dove a dove,
+che è l'unica cosa che rende l'errore evidente prima invece che dopo. Se il
+salvataggio fallisce la conferma **resta aperta**: chiuderla lascerebbe la
+scheda tornata al suo posto senza spiegazione.
+
+`Active Client` ha una riga in più: spostarci una scheda **non crea il
+cliente** in anagrafica — per quello c'è «Lead convertito» (§368) — e senza
+dirlo si otterrebbe una pipeline che dichiara clienti che in anagrafica non
+esistono.
 
 ## La query è un elenco, e sta accanto alle colonne — §378
 

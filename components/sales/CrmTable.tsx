@@ -1,24 +1,32 @@
 'use client'
 
 /**
- * §371 — il CRM commerciale: la tabella di Notion, qui dentro.
+ * §371/§374/§379 — il CRM commerciale, e le tre viste delle stesse righe.
  *
- * **Una tabella e non una bacheca**, perché è così che il commerciale la usa:
- * su Notion le righe si scorrono e si modificano in cella, e le colonne sono
- * ventitré. Una bacheca a colonne mostrerebbe bene la fase e male tutto il
- * resto — e il resto è il motivo per cui si apre la pagina.
+ * **L'elenco è la vista di casa**, e il motivo è che risponde alla domanda
+ * che si fa aprendo la pagina: chi chiamo adesso. Referente, telefono, mail
+ * e provenienza si leggono senza aprire niente; il resto vive nella scheda,
+ * con lo spazio per essere letto. Prima era la tabella di Notion a ventitré
+ * colonne che scorreva di lato — fedele al millimetro e inutile per lavorare
+ * (§374).
  *
- * **Le colonne scorrono, non si comprimono.** Ventitré colonne in mille pixel
- * vorrebbero dire ventitré colonne illeggibili: la tabella ha una larghezza
- * sua e si scorre di lato, con l'azienda ancorata a sinistra perché è
- * l'unica cosa che dice di chi stai leggendo la riga. Le colonne di contorno
- * — fatturato, indirizzo, Drive — stanno dietro un interruttore: ci sono, e
- * non sono fra te e il telefono di chi devi chiamare.
+ * **La bacheca risponde a un'altra domanda** — com'è messa la pipeline, dove
+ * si è accumulato — e a quella l'elenco risponde peggio. Sta in
+ * `CrmBacheca`, si trascina per cambiare fase, e ogni spostamento passa da
+ * una conferma: è l'unico gesto del prodotto che cambia un dato passando
+ * sopra a qualcosa, e un trascinamento mancato non si nota (§379).
+ *
+ * **I numeri sono la terza** e guardano tutte le righe, non quelle filtrate:
+ * per questo lì i filtri spariscono invece di restare senza effetto.
+ *
+ * Tutte e tre leggono lo **stesso** `viste`, già cercato, filtrato e
+ * ordinato: due viste che mostrano insiemi diversi sotto gli stessi filtri
+ * sono due viste di cui una mente.
  */
 
 import { useState, useMemo, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Search, Loader2, RefreshCw, BarChart3, List, ArrowUpDown, SlidersHorizontal, X, Plus, Trash2 } from 'lucide-react'
+import { Search, Loader2, RefreshCw, BarChart3, List, Columns3, ArrowUpDown, SlidersHorizontal, X, Plus, Trash2 } from 'lucide-react'
 
 import { FASI, GRUPPI, ETICHETTA_GRUPPO, classiFase, etichettaFase } from '@/lib/sales-stages'
 import { salvaCellaDeal, collegaLeadACliente, aggiornaDaFoglio, eliminaLead } from '@/app/actions/sales'
@@ -26,6 +34,8 @@ import { NewClientModal } from '@/components/clients/NewClientModal'
 import type { Client } from '@/lib/types/database'
 import { CrmScheda } from './CrmScheda'
 import { EliminaLead } from './EliminaLead'
+import { CrmBacheca } from './CrmBacheca'
+import { ConfermaFase } from './ConfermaFase'
 import { NuovoLead } from './NuovoLead'
 import { CrmAnalytics } from './CrmAnalytics'
 import { tassoDi, type RigaAnalisi } from '@/lib/sales-analytics'
@@ -74,7 +84,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
   const [scelte, setScelte] = useState<Scelte>({})
   const [pannello, setPannello] = useState(false)
   const [nuovo, setNuovo] = useState(false)
-  const [vista, setVista] = useState<'tabella' | 'numeri'>('tabella')
+  const [vista, setVista] = useState<'tabella' | 'bacheca' | 'numeri'>('tabella')
   const [aggiorno, setAggiorno] = useState(false)
   const [esitoSync, setEsitoSync] = useState<string | null>(null)
   /* La selezione vive sugli **id** e non sulle righe, come in Clienti: una
@@ -84,6 +94,9 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
   /** id in attesa di conferma: uno solo dalla scheda, N dalla selezione */
   const [daEliminare, setDaEliminare] = useState<string[] | null>(null)
   const [elimino, setElimino] = useState(false)
+  /** §379 — lo spostamento chiesto trascinando, in attesa di conferma */
+  const [daSpostare, setDaSpostare] = useState<{ riga: RigaCrm; fase: string } | null>(null)
+  const [sposto, setSposto] = useState(false)
   const [pending, start] = useTransition()
 
   /* Gli stessi numeri del pannello, in testata: chi apre la pagina vede
@@ -116,17 +129,33 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
     return conta
   }, [righe, cerca, scelte])
 
-  const salva = async (riga: RigaCrm, campo: string, valore: unknown) => {
+  const salva = async (riga: RigaCrm, campo: string, valore: unknown): Promise<boolean> => {
     const prima = riga[campo]
     // ottimistico: chi modifica venti celle di fila non aspetta venti volte
     setRighe(rs => rs.map(r => r.id === riga.id ? { ...r, [campo]: valore } : r))
     try {
       const { valore: confermato } = await salvaCellaDeal(riga.id, campo, valore)
       setRighe(rs => rs.map(r => r.id === riga.id ? { ...r, [campo]: confermato } : r))
+      return true
     } catch (e) {
       // il database ha ancora il valore di prima: la cella deve dire quello
       setRighe(rs => rs.map(r => r.id === riga.id ? { ...r, [campo]: prima } : r))
       toast.error((e as Error).message)
+      return false
+    }
+  }
+
+  /* §379 — la conferma resta aperta se il salvataggio fallisce: chiuderla
+     comunque lascerebbe la scheda tornata al suo posto senza spiegazione,
+     e il trascinamento sembrerebbe non aver fatto niente. */
+  const confermaSposta = async () => {
+    if (!daSpostare) return
+    setSposto(true)
+    const fatto = await salva(daSpostare.riga, 'stage', daSpostare.fase)
+    setSposto(false)
+    if (fatto) {
+      toast.success(`${daSpostare.riga.company_name || 'Il lead'} è in ${etichettaFase(daSpostare.fase)}`)
+      setDaSpostare(null)
     }
   }
 
@@ -218,10 +247,25 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <button onClick={() => setVista(v => v === 'tabella' ? 'numeri' : 'tabella')}
-            className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary border border-border px-3 py-2 rounded-xl hover:text-text-primary hover:bg-surface-hover transition-colors">
-            {vista === 'tabella' ? <><BarChart3 className="w-3.5 h-3.5" />Numeri</> : <><List className="w-3.5 h-3.5" />Elenco</>}
-          </button>
+          {/* §379 — tre viste, quindi tre bottoni e non un interruttore che
+              cicla: con due, «cosa c'è dopo» si indovinava premendo. */}
+          <div className="flex items-center border border-border rounded-xl overflow-hidden">
+            {([
+              ['tabella', 'Elenco', List],
+              ['bacheca', 'Bacheca', Columns3],
+              ['numeri', 'Numeri', BarChart3],
+            ] as const).map(([v, etichetta, Icona]) => (
+              <button key={v} onClick={() => setVista(v)} aria-pressed={vista === v}
+                /* `bg-gold-dim` e non `bg-gold/10`: i token sono
+                   `var(--color-*)` senza `<alpha-value>`, quindi le classi
+                   con l'opacità non vengono generate e lo stato attivo non
+                   si vedrebbe. */
+                className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-2 transition-colors ${
+                  vista === v ? 'bg-gold-dim text-gold-text' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'}`}>
+                <Icona className="w-3.5 h-3.5" />{etichetta}
+              </button>
+            ))}
+          </div>
           {/* L'azione primaria della pagina, quindi piena e con `press` come
               «Nuova task» e «Nuovo Cliente»: l'oro è il riempimento, non
               l'inchiostro (§design system). */}
@@ -246,8 +290,10 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
 
       {/* Nella vista numeri i filtri non filtrano niente — l'analisi guarda
           tutte le righe — e un controllo che non fa niente si prova due volte
-          e poi si smette di credere anche agli altri. */}
-      {vista === 'tabella' && (
+          e poi si smette di credere anche agli altri. Sulla bacheca invece
+          servono: il filtro dei gruppi è quello che la porta da dodici
+          colonne a quattro. */}
+      {vista !== 'numeri' && (
       <div className="flex items-center gap-2 flex-wrap">
         <label className="relative flex-1 min-w-48 max-w-sm">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" aria-hidden />
@@ -298,7 +344,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
       {/* Un riquadro per variabile, con i valori che **esistono davvero** e
           quanti sono: offrire un valore che nessuna riga ha porta a zero
           risultati, e si impara in fretta a non usare i filtri. */}
-      {vista === 'tabella' && pannello && (
+      {vista !== 'numeri' && pannello && (
         <div className="border border-border rounded-xl p-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {FILTRABILI.map(f => {
             const ops = opzioni(righe as unknown as Record<string, unknown>[], f)
@@ -341,6 +387,21 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
            Sotto i 1024px la scheda prende tutto lo schermo invece di
            schiacciare l'elenco a una colonna di dieci caratteri. */
         <div className="flex gap-4 items-start">
+          {vista === 'bacheca' ? (
+            /* §379 — la bacheca prende le **stesse** righe dell'elenco, già
+               cercate, filtrate e ordinate: due viste che mostrano insiemi
+               diversi sotto gli stessi filtri sono due viste di cui una
+               mente. */
+            <div className={`flex-1 min-w-0 ${aperta ? 'hidden lg:block' : ''}`}>
+              <CrmBacheca
+                righe={viste}
+                gruppo={gruppo}
+                apertaId={apertaId}
+                onApri={r => setAperta(apertaId === r.id ? null : r)}
+                onSposta={(riga, fase) => setDaSpostare({ riga, fase })}
+              />
+            </div>
+          ) : (
           <div className={`flex-1 min-w-0 border border-border rounded-xl divide-y divide-border overflow-hidden ${aperta ? 'hidden lg:block lg:max-w-md xl:max-w-lg' : ''}`}>
             {puoiEliminare && viste.length > 0 && (
               <div className="flex items-center gap-2.5 px-3 py-1.5 bg-surface">
@@ -421,6 +482,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
               </p>
             )}
           </div>
+          )}
 
           {aperta && (
             <div className="fixed inset-0 z-40 bg-background p-4 lg:static lg:inset-auto lg:z-auto lg:p-0 lg:flex-1 lg:min-w-0 lg:max-h-[calc(100vh-14rem)]">
@@ -428,7 +490,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
                 riga={aperta}
                 pending={pending}
                 onChiudi={() => setAperta(null)}
-                onSalva={(campo, valore) => salva(aperta, campo, valore)}
+                onSalva={async (campo, valore) => { await salva(aperta, campo, valore) }}
                 onConverti={() => setConverto(aperta)}
                 onElimina={puoiEliminare ? () => setDaEliminare([aperta.id]) : undefined}
               />
@@ -462,6 +524,18 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
           pending={elimino}
           onAnnulla={() => { if (!elimino) setDaEliminare(null) }}
           onConferma={elimina}
+        />
+      )}
+
+      {daSpostare && (
+        <ConfermaFase
+          azienda={daSpostare.riga.company_name || 'Senza nome'}
+          da={daSpostare.riga.stage}
+          a={daSpostare.fase}
+          creaCliente={daSpostare.fase === 'active_client' && !daSpostare.riga.client_id}
+          pending={sposto}
+          onAnnulla={() => { if (!sposto) setDaSpostare(null) }}
+          onConferma={confermaSposta}
         />
       )}
 
