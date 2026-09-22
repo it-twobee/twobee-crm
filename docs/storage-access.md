@@ -164,9 +164,34 @@ Il **PDF non ha anteprima**, e non è una dimenticanza: la risposta porta
 non lo apre. Togliere quell'header per far vedere un'anteprima sarebbe scambiare
 una comodità con la ragione per cui i file sono privati.
 
-Niente miniature nell'elenco: la risposta è `private, no-store`, quindi ogni
-miniatura sarebbe un download intero del file a ogni scorrimento. L'anteprima si
-apre a richiesta.
+### Miniature (§401)
+
+Le immagini si vedono **nell'elenco**, al posto dell'icona: cercare fra venti
+foto aprendole una per una non è cercare. Non è il file rimpicciolito dal CSS —
+quello sarebbe un download intero per riga, e con venti foto da 8 MB sarebbero
+160 MB per scorrere una cartella.
+
+`GET /api/portale/materiali/:id/miniatura` genera una webp da 320 px con
+`sharp` e la **lascia accanto all'originale** su MinIO
+(`materiali/miniature/<id>.webp`): la seconda visita la trova già fatta, e il
+ritiro del file se la porta via. L'autorizzazione è la stessa del download, la
+RLS: una miniatura è il file.
+
+Scelte dichiarate:
+
+- `Cache-Control: private, max-age=300`. Cinque minuti bastano a scorrere un
+  elenco senza rigenerare niente e sono pochi perché **una revoca si senta
+  subito**; `private` tiene la copia nel browser di chi guarda e fuori da ogni
+  cache condivisa.
+- `rotate()` senza argomenti applica l'orientamento EXIF: senza, le foto
+  scattate col telefono arrivano coricate.
+- Oltre 40 MB l'originale non si apre in memoria per farne un francobollo:
+  resta l'icona.
+- **`sharp` è un di più.** È un modulo nativo e in produzione si gira su musl:
+  se il binario non carica, la rotta risponde 404 e l'elenco torna alle icone.
+  Una miniatura assente non è un guasto, e non deve diventarlo.
+- I video non hanno ancora un fotogramma di copertina: servirebbe `ffmpeg`, che
+  sulla macchina non c'è. Restano icona più anteprima a richiesta.
 
 **File di progetto** (`.afdesign`, `.afphoto`, `.afpub`, `.psd`, `.ai`, `.eps`,
 `.indd`, `.sketch`, `.xd`, `.fig`): si riconoscono dall'**estensione**, perché il

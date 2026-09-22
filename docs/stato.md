@@ -1,5 +1,26 @@
 # Dove siamo
 
+## Miniature nell'elenco — §401, 2026-09-22
+
+L'anteprima a richiesta (§399) risolveva il problema sbagliato: fra venti
+immagini non si clicca una alla volta. Adesso le immagini si vedono
+**nell'elenco**, al posto dell'icona, in Documenti e nel portale.
+
+Non è il file rimpicciolito dal CSS: una webp da 320 px generata con `sharp` e
+lasciata accanto all'originale su MinIO, così la seconda visita la trova già
+fatta e il ritiro del file se la porta via. Autorizzazione identica al download,
+cioè la RLS. `Cache-Control: private, max-age=300`: abbastanza per scorrere,
+abbastanza poco perché una revoca si senta.
+
+`sharp` è una dipendenza nuova, ed è **un di più**: modulo nativo, in produzione
+si gira su musl, quindi se il binario non carica la rotta risponde 404 e
+l'elenco torna alle icone. Una miniatura assente non è un guasto. I video non
+hanno ancora un fotogramma di copertina: servirebbe `ffmpeg`, che non c'è.
+
+TypeScript senza errori, **87 check** — quello delle rotte usa sharp vero e
+verifica che da un PNG esca davvero una webp più piccola — e browser con **290
+richieste al mock e zero scritture**.
+
 ## Anteprima dei file e file di progetto — §399, 2026-09-22
 
 Immagini, video e audio si guardano dall'area cliente senza scaricarli, in

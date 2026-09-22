@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronDown, ChevronRight, Download, Eye, FileAudio, FileText, FileVideo, Folder, FolderUp, Image as ImageIcon, Loader2, Trash2, Upload } from 'lucide-react'
 import { MaterialPreview, hasPreview } from '@/components/shared/MaterialPreview'
+import { MaterialThumb } from '@/components/shared/MaterialThumb'
 import {
   MATERIAL_MAX_BYTES, MATERIAL_QUOTA_BYTES, buildMaterialTree, countTree, folderPathOf,
   humanBytes, materialDownloadHref, quotaLeft, quotaWarning, rejectMaterial,
@@ -185,7 +186,11 @@ function FolderView({ node, depth, open, toggle, projects, canWrite, viewerName,
       const project = m.project_id ? projects.find(p => p.id === m.project_id)?.title : null
       return <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
         <span className="flex min-w-0 flex-1 items-center gap-3">
-          <Icon className="h-5 w-5 shrink-0 text-text-secondary" aria-hidden="true" />
+          {hasPreview(m.mime, m.name)
+            ? <button type="button" onClick={() => onPreview(m)} aria-label={`Apri l’anteprima di ${m.name}`} className="rounded-md">
+                <MaterialThumb file={m} size={44} fallback={<Icon className="h-5 w-5 text-text-secondary" aria-hidden="true" />} />
+              </button>
+            : <MaterialThumb file={m} size={44} fallback={<Icon className="h-5 w-5 text-text-secondary" aria-hidden="true" />} />}
           <span className="min-w-0">
             <span className="block break-words text-sm font-medium">{m.name}</span>
             <span className="block text-2xs text-text-secondary">

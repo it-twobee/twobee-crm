@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCaller, canWriteStorage } from '@/lib/storage/guard'
 import { deleteObject } from '@/lib/storage/s3'
+import { thumbObjectKey } from '@/lib/portal/materials'
 import { isStorageUuid } from '@/lib/storage/access'
 import { isAdminRole, isSuperAdminRaw } from '@/lib/permissions'
 
@@ -45,6 +46,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       .eq('id', params.id).is('deleted_at', null).select('storage_key, file_id').maybeSingle()
     if (removed.error || !removed.data) return NextResponse.json({ error: 'Non è stato possibile eliminare il file. Riprova.' }, { status: 500 })
     try { await deleteObject(removed.data.storage_key) } catch { /* oggetto già assente */ }
+    try { await deleteObject(thumbObjectKey(params.id)) } catch { /* miniatura mai generata */ }
     if (removed.data.file_id) await caller.admin.from('files').delete().eq('id', removed.data.file_id)
     return NextResponse.json({ ok: true })
   }

@@ -136,6 +136,15 @@ export function materialDownloadHref(id: string): string {
   return `/api/portale/materiali/${id}`
 }
 
+export function materialThumbHref(id: string): string {
+  return `/api/portale/materiali/${id}/miniatura`
+}
+
+/** §401 — la miniatura sta accanto all'originale, e se ne va con lui. */
+export function thumbObjectKey(id: string): string {
+  return `materiali/miniature/${id}.webp`
+}
+
 /* ── Cartelle (§398) ───────────────────────────────────────────────────────
    Il percorso viaggia col file: `brand/logo/logo.svg` arriva dal browser
    quando si carica una cartella intera. L'albero si ricostruisce da qui,

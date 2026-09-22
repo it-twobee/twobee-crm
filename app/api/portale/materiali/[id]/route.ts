@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { deleteObject } from '@/lib/storage/s3'
+import { thumbObjectKey } from '@/lib/portal/materials'
 import { isStorageUuid } from '@/lib/storage/access'
 import { serveStoredFile } from '@/lib/portal/serve'
 import { requirePortalWriter, isWriterError } from '@/lib/portal/writer'
@@ -60,6 +61,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   // Prima il binario, poi il metadato dello storage: la riga del portale resta
   // come traccia, ma il file non si scarica più da nessuna porta.
   try { await deleteObject(removed.data.storage_key) } catch { /* oggetto già assente */ }
+  try { await deleteObject(thumbObjectKey(params.id)) } catch { /* miniatura mai generata */ }
   await createAdminClient().from('files').delete().eq('id', removed.data.file_id)
   return NextResponse.json({ ok: true })
 }

@@ -7,6 +7,7 @@ import {
   FolderOpen, FolderUp, Loader2, Search, Trash2, Upload, Users, X,
 } from 'lucide-react'
 import { MaterialPreview, hasPreview } from '@/components/shared/MaterialPreview'
+import { MaterialThumb } from '@/components/shared/MaterialThumb'
 import { formatDate } from '@/lib/utils'
 import { isDriveUrl, driveKind, DRIVE_KIND_LABEL } from '@/lib/drive'
 import { DriveEmbed } from '@/components/shared/DriveEmbed'
@@ -305,7 +306,11 @@ function MaterialTree({ node, depth, openFolders, toggle, onAct, canRemove, canW
     })}
     {node.files.map(m => (
       <li key={m.id} className="group flex flex-wrap items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-hover">
-        <FileText className="w-3.5 h-3.5 shrink-0 text-text-tertiary" aria-hidden="true" />
+        {hasPreview(m.mime, m.name)
+          ? <button type="button" onClick={() => onPreview(m)} aria-label={`Apri l’anteprima di ${m.name}`} className="rounded-md focus-visible:outline-none">
+              <MaterialThumb file={m} size={40} fallback={<FileText className="w-3.5 h-3.5 text-text-tertiary" aria-hidden="true" />} />
+            </button>
+          : <MaterialThumb file={m} size={40} fallback={<FileText className="w-3.5 h-3.5 text-text-tertiary" aria-hidden="true" />} />}
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm text-text-primary">{m.name}{m.archived_at ? ' · archiviato' : ''}</span>
           <span className="block text-2xs text-text-tertiary">{humanBytes(Number(m.size))} · {m.uploaded_by_name} · {formatDate(m.created_at)}</span>

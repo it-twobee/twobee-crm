@@ -24,9 +24,16 @@ let usedBytes = 0
 class StorageTooLarge extends Error {}
 
 let files: any[] = [], materials: any[] = [], objects: string[] = []
+let png = Buffer.alloc(0)
+const stream = (buffer: Buffer) => new ReadableStream<Uint8Array>({
+  start(controller) { controller.enqueue(new Uint8Array(buffer)); controller.close() },
+})
+let thumbs: Record<string, Buffer> = {}
+let sourceBroken = false, generated = 0
 const calls: string[] = []
 function reset() {
   files = []; objects = []; calls.length = 0; usedBytes = 0
+  thumbs = {}; sourceBroken = false; generated = 0
   materials = [{
     id: materialId, client_id: client, project_id: null, file_id: 'f2506000-0000-4000-8000-000000000001',
     storage_key: 'materiali/logo.png', name: 'logo.png', mime: 'image/png', size: 1000, kind: 'immagine',
@@ -119,9 +126,15 @@ internal._load = function (name, ...args) {
       isStorageConfigured: () => true,
       buildObjectKey: (folder: string, filename: string, scopeId?: string) => `${folder}/${scopeId}/${filename}`,
       deleteObject: async (k: string) => { calls.push('s3:delete'); objects = objects.filter(o => o !== k) },
+      putObject: async (k: string, body: Buffer) => { thumbs[k] = body; generated += 1 },
       getObject: async (k: string, range?: string) => {
         const size = 1000
-        if (!range) return { body: 'byte', contentType: 'image/png', contentLength: size }
+        if (k.startsWith('materiali/miniature/')) {
+          if (!thumbs[k]) throw new Error('assente')
+          return { body: stream(thumbs[k]), contentType: 'image/webp', contentLength: thumbs[k].length }
+        }
+        if (sourceBroken) throw new Error('storage giù')
+        if (!range) return { body: stream(png), contentType: 'image/png', contentLength: size }
         const [start, end] = range.replace('bytes=', '').split('-').map(Number)
         return { body: 'byte', contentType: 'image/png', contentLength: end - start + 1, contentRange: `bytes ${start}-${end}/${size}` }
       },
@@ -146,6 +159,9 @@ const good = { 'content-type': 'image/png', 'x-file-name': 'logo.png', 'x-idempo
 
 async function main() {
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-only'
+  // Un PNG vero, piccolo: la miniatura la genera sharp per davvero.
+  const sharp = (await import('sharp')).default
+  png = await sharp({ create: { width: 900, height: 600, channels: 3, background: { r: 200, g: 30, b: 30 } } }).png().toBuffer()
   const route = require('../app/api/portale/materiali/route') as typeof import('../app/api/portale/materiali/route')
   const one = require('../app/api/portale/materiali/[id]/route') as typeof import('../app/api/portale/materiali/[id]/route')
   reset()
@@ -257,7 +273,50 @@ async function main() {
   assert.ok(materials[0].deleted_at && materials[0].deleted_by === referente)
   assert.equal((await one.DELETE(del(materialId), params)).status, 404, 'due volte no')
 
-  console.log('Tutti i controlli passano: ruoli e membership prima dello storage, tipi rifiutati, scope progetto, spazio pieno, limite, idempotenza, ritorno indietro, Range e rimozione.')
+  // ── §401 Miniature: generate una volta, e mai promesse a vuoto ───────────
+  reset()
+  // sharp è quello vero: la rotta lo importa dal caricatore ESM, non dal mock.
+  // Meglio — così si prova che un PNG diventi davvero una webp più piccola.
+  const thumb = require('../app/api/portale/materiali/[id]/miniatura/route') as typeof import('../app/api/portale/materiali/[id]/miniatura/route')
+  const ask = (id = materialId) => thumb.GET(new Request('https://os.example.test/'), { params: { id } })
+  userId = null
+  assert.equal((await ask()).status, 401)
+  userId = referente
+  assert.equal((await ask('non-un-uuid')).status, 404)
+  assert.equal(generated, 0, 'niente immagini aperte prima dei permessi')
+
+  const first = await ask()
+  assert.equal(first.status, 200)
+  assert.equal(first.headers.get('Content-Type'), 'image/webp')
+  assert.equal(first.headers.get('Cache-Control'), 'private, max-age=300', 'la copia resta nel browser di chi guarda, e scade presto')
+  assert.equal(first.headers.get('X-Content-Type-Options'), 'nosniff')
+  assert.equal(generated, 1)
+  const stored = thumbs[`materiali/miniature/${materialId}.webp`]
+  assert.ok(stored, 'la miniatura resta accanto all’originale')
+  assert.ok(stored.length < png.length, 'e pesa meno dell’originale')
+  assert.equal(stored.subarray(8, 12).toString(), 'WEBP', 'ed è davvero una webp')
+
+  const second = await ask()
+  assert.equal(second.status, 200)
+  assert.equal(generated, 1, 'la seconda visita la trova già fatta')
+
+  // Un file che non è un'immagine non ha miniatura, e non la promette.
+  materials[0].mime = 'application/pdf'; materials[0].name = 'contratto.pdf'
+  assert.equal((await ask()).status, 404)
+  materials[0].mime = 'image/vnd.adobe.photoshop'; materials[0].name = 'logo.psd'
+  assert.equal((await ask()).status, 404, 'un psd non è un’immagine che il browser disegna')
+  materials[0].mime = 'image/png'; materials[0].name = 'logo.png'
+  materials[0].size = 200 * 1024 * 1024
+  assert.equal((await ask()).status, 404, 'un originale enorme non si apre per farne un francobollo')
+  materials[0].size = 1000
+
+  // Se la generazione fallisce — storage giù, binario assente, formato strano —
+  // si risponde 404 e l'elenco torna alle icone: una miniatura mancante non è
+  // un guasto.
+  reset(); sourceBroken = true
+  assert.equal((await ask()).status, 404, 'generazione fallita: nessun guasto, nessuna miniatura')
+
+  console.log('Tutti i controlli passano: ruoli e membership prima dello storage, tipi rifiutati, scope progetto, spazio pieno, limite, idempotenza, ritorno indietro, Range, rimozione e miniature generate una volta sola.')
 }
 
 main().catch(error => { console.error(error); process.exit(1) })
