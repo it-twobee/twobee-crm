@@ -1,5 +1,25 @@
 # Dove siamo
 
+## Anteprima dei file e file di progetto — §399, 2026-09-22
+
+Immagini, video e audio si guardano dall'area cliente senza scaricarli, in
+Documenti e nel portale: l'anteprima usa la stessa porta autenticata del
+download, che li serve `inline` e risponde al Range — nessun indirizzo pubblico,
+e il video si fa scorrere.
+
+Provando è venuto fuori che l'elenco dei tipi ammessi era più stretto del
+mestiere: un `.afdesign` non si caricava affatto, e un `.psd` passava
+spacciandosi per immagine — l'anteprima gli avrebbe disegnato sopra un
+rettangolo rotto. Adesso i file di progetto si riconoscono dall'estensione e
+contano come documenti, e l'elenco di ciò che si anteprima è chiuso e corto:
+fuori da lì il bottone non compare. Il PDF resta senza anteprima apposta,
+perché la risposta è sandboxata e quell'header non si toglie per una comodità.
+
+Nessuna migration: il tipo dei file di progetto è `documento`, che è quello che
+sono per noi. TypeScript senza errori, **87 check**, browser con **289 richieste
+al mock e zero scritture**, inclusa l'anteprima che prende i byte dalla porta
+autenticata e si chiude con Esc.
+
 ## Area file dei clienti — §398, 2026-09-22
 
 Lo spazio del cliente (§397) era metà del lavoro. Adesso l'area file di

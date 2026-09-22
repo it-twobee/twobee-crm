@@ -2,7 +2,8 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, ChevronRight, Download, FileAudio, FileText, FileVideo, Folder, FolderUp, Image as ImageIcon, Loader2, Trash2, Upload } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, Eye, FileAudio, FileText, FileVideo, Folder, FolderUp, Image as ImageIcon, Loader2, Trash2, Upload } from 'lucide-react'
+import { MaterialPreview, hasPreview } from '@/components/shared/MaterialPreview'
 import {
   MATERIAL_MAX_BYTES, MATERIAL_QUOTA_BYTES, buildMaterialTree, countTree, folderPathOf,
   humanBytes, materialDownloadHref, quotaLeft, quotaWarning, rejectMaterial,
@@ -30,6 +31,7 @@ export function MaterialUploader({ clientId, projects, materials, canWrite, used
   const input = useRef<HTMLInputElement>(null)
   const folderInput = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState<Set<string>>(new Set())
+  const [preview, setPreview] = useState<PortalMaterial | null>(null)
   const [project, setProject] = useState('')
   const [busy, setBusy] = useState<{ name: string; percent: number } | null>(null)
   const [error, setError] = useState('')
@@ -144,12 +146,13 @@ export function MaterialUploader({ clientId, projects, materials, canWrite, used
     </div> : <section aria-label="I tuoi file">
       <FolderView node={tree} depth={0} open={open} toggle={path => setOpen(p => {
         const next = new Set(p); next.has(path) ? next.delete(path) : next.add(path); return next
-      })} projects={projects} canWrite={canWrite} viewerName={viewerName} onRemove={remove} />
+      })} projects={projects} canWrite={canWrite} viewerName={viewerName} onRemove={remove} onPreview={setPreview} />
     </section>}
+    {preview && <MaterialPreview file={preview} onClose={() => setPreview(null)} />}
   </div>
 }
 
-function FolderView({ node, depth, open, toggle, projects, canWrite, viewerName, onRemove }: {
+function FolderView({ node, depth, open, toggle, projects, canWrite, viewerName, onRemove, onPreview }: {
   node: MaterialFolder<PortalMaterial>
   depth: number
   open: Set<string>
@@ -158,8 +161,9 @@ function FolderView({ node, depth, open, toggle, projects, canWrite, viewerName,
   canWrite: boolean
   viewerName: string
   onRemove: (material: PortalMaterial) => void
+  onPreview: (material: PortalMaterial) => void
 }) {
-  return <ul className={depth ? 'ml-4 border-l border-border pl-3' : 'divide-y divide-border border-y border-border'}>
+  return <ul className={depth ? 'ml-1 border-l border-border pl-2 sm:ml-4 sm:pl-3' : 'divide-y divide-border border-y border-border'}>
     {node.folders.map(child => {
       const expanded = open.has(child.path)
       const Chevron = expanded ? ChevronDown : ChevronRight
@@ -172,7 +176,7 @@ function FolderView({ node, depth, open, toggle, projects, canWrite, viewerName,
           <span className="text-2xs font-normal text-text-secondary">{countTree(child)}</span>
         </button>
         {expanded && <FolderView node={child} depth={depth + 1} open={open} toggle={toggle}
-          projects={projects} canWrite={canWrite} viewerName={viewerName} onRemove={onRemove} />}
+          projects={projects} canWrite={canWrite} viewerName={viewerName} onRemove={onRemove} onPreview={onPreview} />}
       </li>
     })}
     {node.files.map(m => {
@@ -180,7 +184,7 @@ function FolderView({ node, depth, open, toggle, projects, canWrite, viewerName,
       const mine = m.uploaded_by_name === viewerName
       const project = m.project_id ? projects.find(p => p.id === m.project_id)?.title : null
       return <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-        <span className="flex min-w-0 items-center gap-3">
+        <span className="flex min-w-0 flex-1 items-center gap-3">
           <Icon className="h-5 w-5 shrink-0 text-text-secondary" aria-hidden="true" />
           <span className="min-w-0">
             <span className="block break-words text-sm font-medium">{m.name}</span>
@@ -189,7 +193,9 @@ function FolderView({ node, depth, open, toggle, projects, canWrite, viewerName,
             </span>
           </span>
         </span>
-        <span className="flex shrink-0 items-center gap-2">
+        <span className="flex flex-wrap items-center gap-2">
+          {hasPreview(m.mime, m.name) && <button type="button" className={button} onClick={() => onPreview(m)}>
+            <Eye className="h-4 w-4" aria-hidden="true" />Anteprima<span className="sr-only"> {m.name}</span></button>}
           <a href={materialDownloadHref(m.id)} className={button}><Download className="h-4 w-4" aria-hidden="true" />Scarica<span className="sr-only"> {m.name}</span></a>
           {canWrite && mine && <button type="button" className={button} onClick={() => onRemove(m)}>
             <Trash2 className="h-4 w-4" aria-hidden="true" />Rimuovi<span className="sr-only"> {m.name}</span>

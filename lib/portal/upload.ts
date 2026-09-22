@@ -78,7 +78,7 @@ export async function storeMaterial(input: MaterialUpload): Promise<UploadResult
 
   const material = await input.actor.from('portal_materials').insert({
     client_id: input.clientId, project_id: input.projectId, file_id: file.data.id, storage_key: key,
-    name: input.name, mime: input.mime, size, kind: materialKind(input.mime)!,
+    name: input.name, mime: input.mime, size, kind: materialKind(input.mime, input.name)!,
     source: input.source, path: input.path,
     uploaded_by: input.actorId, uploaded_by_name: input.actorName,
     activity_id: input.activityId, idempotency_key: input.idempotencyKey,

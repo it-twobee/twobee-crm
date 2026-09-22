@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import {
   MATERIAL_MAX_BYTES, MATERIAL_QUOTA_BYTES, PATH_DEPTH, buildMaterialTree, countTree,
   extensionOf, folderPathOf, humanBytes, materialDownloadHref, materialKind, normalizePath,
-  parseRange, quotaLeft, quotaWarning, rejectMaterial,
+  parseRange, quotaLeft, quotaWarning, rejectMaterial, renderableKind,
 } from './materials'
 
 const ok = { name: 'girato.mp4', mime: 'video/mp4', size: 40 * 1024 * 1024 }
@@ -19,6 +19,23 @@ assert.equal(materialKind('image/svg+xml'), null, 'un SVG è un documento che es
 assert.equal(materialKind('text/html'), null)
 assert.equal(materialKind('application/x-msdownload'), null)
 assert.equal(materialKind(null), null)
+// §399 — i file sorgente si riconoscono dall'estensione: il tipo dichiarato mente.
+for (const name of ['brand.afdesign', 'brand.afphoto', 'brand.afpub', 'logo.ai', 'impaginato.indd', 'schermo.sketch', 'schermo.fig'])
+  assert.equal(materialKind('application/octet-stream', name), 'documento', name)
+assert.equal(materialKind('', 'brand.afphoto'), 'documento', 'anche senza tipo dichiarato')
+assert.equal(materialKind('image/vnd.adobe.photoshop', 'logo.psd'), 'documento', 'un psd non è un’immagine che il browser disegna')
+assert.equal(materialKind('image/png', 'logo.png'), 'immagine')
+
+// Quello che il browser disegna davvero: elenco chiuso, niente promesse.
+assert.equal(renderableKind('image/png', 'logo.png'), 'image')
+assert.equal(renderableKind('IMAGE/JPEG', 'foto.jpg'), 'image')
+assert.equal(renderableKind('video/mp4; codecs=avc1', 'spot.mp4'), 'video')
+assert.equal(renderableKind('audio/mpeg', 'voce.mp3'), 'audio')
+assert.equal(renderableKind('image/vnd.adobe.photoshop', 'logo.psd'), null, 'niente anteprima rotta')
+assert.equal(renderableKind('image/tiff', 'scansione.tif'), null)
+assert.equal(renderableKind('application/pdf', 'contratto.pdf'), null, 'il PDF resta da scaricare: la risposta è sandboxata')
+assert.equal(renderableKind('application/octet-stream', 'brand.afdesign'), null)
+assert.equal(renderableKind(null, 'misterioso'), null)
 
 assert.equal(extensionOf('cartella/girato.finale.MP4'), 'mp4')
 assert.equal(extensionOf('senza-estensione'), '')
@@ -33,6 +50,9 @@ assert.match(rejectMaterial({ ...ok, name: `${'x'.repeat(241)}.mp4` })!, /nome/)
 // Il tipo dichiarato non basta: conta anche come si chiama.
 for (const name of ['pagina.html', 'logo.svg', 'installa.exe', 'script.js', 'archivio.jar'])
   assert.match(rejectMaterial({ ...ok, name })!, /non è ammesso/, name)
+// E l'elenco dei bloccati batte quello dei file di progetto.
+assert.equal(rejectMaterial({ name: 'brand.afdesign', mime: 'application/octet-stream', size: 1000 }), null)
+assert.match(rejectMaterial({ name: 'brand.html', mime: 'application/octet-stream', size: 1000 })!, /non è ammesso/)
 
 assert.equal(quotaLeft(0), MATERIAL_QUOTA_BYTES)
 assert.equal(quotaLeft(MATERIAL_QUOTA_BYTES * 2), 0, 'la quota non va sotto zero')
@@ -87,4 +107,4 @@ assert.equal(tree.folders[1].folders[0].folders[0].path, 'progetto/2026/estate')
 assert.equal(countTree(tree), 5)
 assert.equal(countTree(buildMaterialTree([])), 0)
 
-console.log('Tutti i controlli passano: tipi ammessi, estensioni bloccate, limite per file, quota d’azienda, formati leggibili, Range e cartelle dal percorso.')
+console.log('Tutti i controlli passano: tipi ammessi, estensioni bloccate, limite per file, quota d’azienda, formati leggibili, Range, file di progetto, anteprime senza promesse e cartelle dal percorso.')

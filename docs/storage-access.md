@@ -145,6 +145,35 @@ livelli. `PATCH /api/area-cliente/file/:id` archivia, rimette in vista ed
 elimina: archiviare vale solo per i nostri elenchi, eliminare un file del
 cliente è riservato agli amministratori.
 
+## Anteprima dei file (§399)
+
+Immagini, video e audio si guardano senza scaricarli: l'anteprima punta alla
+**stessa porta autenticata** del download, che li serve `inline` e risponde al
+Range — quindi un video si fa scorrere e non c'è nessun indirizzo pubblico da
+inventare. Si chiude la scheda e il file resta dov'era.
+
+L'elenco di ciò che si anteprima è **chiuso e corto** (`renderableKind`): png,
+jpeg, gif, webp, avif; mp4, webm, ogg, quicktime; i formati audio comuni. Fuori
+da lì il bottone non compare. Il motivo non è prudenza generica: un `.psd` si
+presenta come `image/vnd.adobe.photoshop`, e fidandosi del tipo dichiarato
+l'anteprima avrebbe disegnato un rettangolo rotto. **Una miniatura promessa e
+non mostrata è peggio di nessuna miniatura.**
+
+Il **PDF non ha anteprima**, e non è una dimenticanza: la risposta porta
+`Content-Security-Policy: sandbox`, e un PDF in un iframe sandboxato il browser
+non lo apre. Togliere quell'header per far vedere un'anteprima sarebbe scambiare
+una comodità con la ragione per cui i file sono privati.
+
+Niente miniature nell'elenco: la risposta è `private, no-store`, quindi ogni
+miniatura sarebbe un download intero del file a ogni scorrimento. L'anteprima si
+apre a richiesta.
+
+**File di progetto** (`.afdesign`, `.afphoto`, `.afpub`, `.psd`, `.ai`, `.eps`,
+`.indd`, `.sketch`, `.xd`, `.fig`): si riconoscono dall'**estensione**, perché il
+tipo dichiarato o manca o mente, e contano come documenti — si scaricano, non si
+aprono nel browser. L'elenco dei bloccati (HTML, SVG, script, eseguibili)
+continua a battere questo.
+
 ## Verifiche
 
 ```bash

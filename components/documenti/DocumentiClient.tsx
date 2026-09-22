@@ -6,6 +6,7 @@ import {
   Archive, ArchiveRestore, ChevronDown, ChevronRight, Eye, ExternalLink, FileText, Folder,
   FolderOpen, FolderUp, Loader2, Search, Trash2, Upload, Users, X,
 } from 'lucide-react'
+import { MaterialPreview, hasPreview } from '@/components/shared/MaterialPreview'
 import { formatDate } from '@/lib/utils'
 import { isDriveUrl, driveKind, DRIVE_KIND_LABEL } from '@/lib/drive'
 import { DriveEmbed } from '@/components/shared/DriveEmbed'
@@ -55,6 +56,7 @@ export function DocumentiClient({ documents, materials, clients, canWrite, canDe
   const [openClients, setOpenClients] = useState<Set<string>>(new Set())
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set())
   const [preview, setPreview] = useState<DocItem | null>(null)
+  const [previewFile, setPreviewFile] = useState<DocMaterial | null>(null)
   const [busy, setBusy] = useState<{ name: string; percent: number } | null>(null)
   const [error, setError] = useState('')
 
@@ -200,12 +202,12 @@ export function DocumentiClient({ documents, materials, clients, canWrite, canDe
               <Group title="Caricati dal cliente" hint="Quello che ci ha mandato dal suo portale."
                 items={row.cliente} openFolders={openFolders}
                 toggle={path => toggle(openFolders, path, setOpenFolders)}
-                onAct={act} canRemove={canRemove} canWrite={canWrite} />
+                onAct={act} canRemove={canRemove} canWrite={canWrite} onPreview={setPreviewFile} />
 
               <Group title="Nostri" hint="Il cliente non li vede: la sua policy non gliene passa le righe."
                 items={row.nostri} openFolders={openFolders}
                 toggle={path => toggle(openFolders, path, setOpenFolders)}
-                onAct={act} canRemove={canRemove} canWrite={canWrite} />
+                onAct={act} canRemove={canRemove} canWrite={canWrite} onPreview={setPreviewFile} />
 
               {row.drive.length > 0 && <section>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Link Drive</h3>
@@ -217,6 +219,8 @@ export function DocumentiClient({ documents, materials, clients, canWrite, canDe
           </div>
         ))}
       </div>
+
+      {previewFile && <MaterialPreview file={previewFile} onClose={() => setPreviewFile(null)} />}
 
       {preview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim p-4"
@@ -259,28 +263,30 @@ function UploadBar({ clientId, busy, onFiles }: {
   </div>
 }
 
-function Group({ title, hint, items, openFolders, toggle, onAct, canRemove, canWrite }: {
+function Group({ title, hint, items, openFolders, toggle, onAct, canRemove, canWrite, onPreview }: {
   title: string; hint: string; items: DocMaterial[]
   openFolders: Set<string>; toggle: (path: string) => void
   onAct: (m: DocMaterial, azione: 'archivia' | 'ripristina' | 'elimina') => void
   canRemove: (m: DocMaterial) => boolean
   canWrite: boolean
+  onPreview: (m: DocMaterial) => void
 }) {
   const tree = useMemo(() => buildMaterialTree(items), [items])
   return <section>
     <h3 className="text-xs font-semibold uppercase tracking-wide text-text-secondary">{title} <span className="font-normal normal-case text-text-tertiary">· {items.length}</span></h3>
     <p className="mt-0.5 text-2xs text-text-tertiary">{hint}</p>
     {!items.length ? <p className="mt-2 text-2xs text-text-tertiary">Niente qui.</p>
-      : <div className="mt-2"><MaterialTree node={tree} depth={0} openFolders={openFolders} toggle={toggle} onAct={onAct} canRemove={canRemove} canWrite={canWrite} /></div>}
+      : <div className="mt-2"><MaterialTree node={tree} depth={0} openFolders={openFolders} toggle={toggle} onAct={onAct} canRemove={canRemove} canWrite={canWrite} onPreview={onPreview} /></div>}
   </section>
 }
 
-function MaterialTree({ node, depth, openFolders, toggle, onAct, canRemove, canWrite }: {
+function MaterialTree({ node, depth, openFolders, toggle, onAct, canRemove, canWrite, onPreview }: {
   node: MaterialFolder<DocMaterial>; depth: number
   openFolders: Set<string>; toggle: (path: string) => void
   onAct: (m: DocMaterial, azione: 'archivia' | 'ripristina' | 'elimina') => void
   canRemove: (m: DocMaterial) => boolean
   canWrite: boolean
+  onPreview: (m: DocMaterial) => void
 }) {
   return <ul className={depth ? 'ml-3 border-l border-border pl-3' : ''}>
     {node.folders.map(child => {
@@ -294,7 +300,7 @@ function MaterialTree({ node, depth, openFolders, toggle, onAct, canRemove, canW
           <span className="truncate">{child.name}</span>
           <span className="text-2xs text-text-tertiary">{countTree(child)}</span>
         </button>
-        {open && <MaterialTree node={child} depth={depth + 1} openFolders={openFolders} toggle={toggle} onAct={onAct} canRemove={canRemove} canWrite={canWrite} />}
+        {open && <MaterialTree node={child} depth={depth + 1} openFolders={openFolders} toggle={toggle} onAct={onAct} canRemove={canRemove} canWrite={canWrite} onPreview={onPreview} />}
       </li>
     })}
     {node.files.map(m => (
@@ -304,6 +310,8 @@ function MaterialTree({ node, depth, openFolders, toggle, onAct, canRemove, canW
           <span className="block truncate text-sm text-text-primary">{m.name}{m.archived_at ? ' · archiviato' : ''}</span>
           <span className="block text-2xs text-text-tertiary">{humanBytes(Number(m.size))} · {m.uploaded_by_name} · {formatDate(m.created_at)}</span>
         </span>
+        {hasPreview(m.mime, m.name) && <button type="button" className={button} onClick={() => onPreview(m)}>
+          <Eye className="w-3.5 h-3.5" aria-hidden="true" />Anteprima<span className="sr-only"> {m.name}</span></button>}
         <a href={materialDownloadHref(m.id)} className={button}>Scarica<span className="sr-only"> {m.name}</span></a>
         {canWrite && (m.archived_at
           ? <button type="button" className={button} onClick={() => onAct(m, 'ripristina')}>

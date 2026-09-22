@@ -352,6 +352,13 @@ try {
   const aperto = await space.page.locator('body').innerText()
   assert.match(aperto, /Logo definitivo\.png/, 'la cartella caricata si ritrova com’era')
   assert.equal(await space.page.getByRole('link', { name: /Scarica Logo definitivo\.png/ }).getAttribute('href'), '/api/portale/materiali/materiale-a')
+  // §399 — l'anteprima si apre solo su ciò che il browser disegna davvero.
+  await space.page.getByRole('button', { name: /Anteprima Logo definitivo\.png/ }).click()
+  const dialog = space.page.getByRole('dialog', { name: /Anteprima di Logo definitivo\.png/ })
+  await dialog.waitFor()
+  assert.equal(await dialog.locator('img').getAttribute('src'), '/api/portale/materiali/materiale-a', 'i byte arrivano dalla porta autenticata')
+  await space.page.keyboard.press('Escape')
+  await dialog.waitFor({ state: 'detached' })
   const scarica = space.page.getByRole('link', { name: /Scarica Spot 30 secondi\.mp4/ })
   assert.equal(await scarica.getAttribute('href'), '/api/portale/materiali/materiale-b')
   await space.page.getByRole('navigation', { name: 'Portale cliente' }).getByRole('link', { name: 'I tuoi file', exact: true }).click()

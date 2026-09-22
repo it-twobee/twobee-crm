@@ -22,13 +22,23 @@ const DOCUMENT_TYPES = [
   'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   'application/zip', 'application/x-zip-compressed',
 ]
+/* I file sorgente di chi fa grafica: il browser non sa che tipo siano — un
+   `.afdesign` arriva come `application/octet-stream` e un `.psd` si presenta
+   come `image/…`, che è peggio, perché poi l'anteprima proverebbe a disegnarlo.
+   Si riconoscono dall'estensione, e restano documenti: non si aprono nel
+   browser, si scaricano. (§399) */
+const DESIGN_EXTENSIONS = [
+  'afdesign', 'afphoto', 'afpub', 'psd', 'psb', 'ai', 'eps', 'indd', 'sketch', 'xd', 'fig',
+]
 const BLOCKED_EXTENSIONS = [
   'exe', 'msi', 'bat', 'cmd', 'com', 'scr', 'ps1', 'sh', 'jar', 'app', 'deb', 'rpm',
   'html', 'htm', 'svg', 'xhtml', 'js', 'mjs', 'php', 'phtml',
 ]
 
-export function materialKind(mime: string | null | undefined): MaterialKind | null {
+export function materialKind(mime: string | null | undefined, name?: string): MaterialKind | null {
   const type = (mime ?? '').toLowerCase().split(';')[0].trim()
+  // L'estensione prima del tipo dichiarato: è l'unica cosa affidabile su questi.
+  if (name && DESIGN_EXTENSIONS.includes(extensionOf(name))) return 'documento'
   if (type.startsWith('image/') && type !== 'image/svg+xml') return 'immagine'
   if (type.startsWith('video/')) return 'video'
   if (type.startsWith('audio/')) return 'audio'
@@ -49,7 +59,7 @@ export function rejectMaterial(input: { name: string; mime: string | null; size:
   if (BLOCKED_EXTENSIONS.includes(extensionOf(name))) return 'Questo tipo di file non è ammesso nel portale.'
   if (!Number.isFinite(input.size) || input.size <= 0) return 'Il file è vuoto.'
   if (input.size > MATERIAL_MAX_BYTES) return `Il file supera ${humanBytes(MATERIAL_MAX_BYTES)}. Per un girato lungo, mandaci il link.`
-  if (!materialKind(input.mime)) return 'Ammettiamo immagini, video, audio e documenti. Questo tipo no.'
+  if (!materialKind(input.mime, name)) return 'Ammettiamo immagini, video, audio, documenti e file di progetto. Questo tipo no.'
   return null
 }
 
@@ -100,6 +110,26 @@ export function parseRange(header: string | null | undefined, size: number): Byt
   }
   if (!Number.isInteger(start) || !Number.isInteger(end) || start > end || start >= size) return 'invalid'
   return { start, end: Math.min(end, size - 1) }
+}
+
+/* Quello che il browser **disegna davvero**. Elenco chiuso e corto apposta: una
+   miniatura promessa e non mostrata è peggio di nessuna miniatura, e un `.psd`
+   con tipo `image/vnd.adobe.photoshop` diventerebbe un rettangolo rotto. */
+const RENDERABLE = {
+  image: ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif'],
+  video: ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'],
+  audio: ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/mp4', 'audio/aac', 'audio/webm'],
+} as const
+
+export type RenderableKind = keyof typeof RENDERABLE | null
+
+export function renderableKind(mime: string | null | undefined, name?: string): RenderableKind {
+  if (name && DESIGN_EXTENSIONS.includes(extensionOf(name))) return null
+  const type = (mime ?? '').toLowerCase().split(';')[0].trim()
+  for (const kind of Object.keys(RENDERABLE) as (keyof typeof RENDERABLE)[]) {
+    if ((RENDERABLE[kind] as readonly string[]).includes(type)) return kind
+  }
+  return null
 }
 
 export function materialDownloadHref(id: string): string {
