@@ -83,9 +83,16 @@ const mock = createServer((req, res) => {
       contact: 'Il team di progetto', published_at: '2026-09-19T10:00:00Z', target_date: '2026-09-25', date_kind: 'prevista', phase: 'verifica',
     }))
   } else if (table === 'portal_activities') {
-    rows = [{ id: 'activity-a', project_id: pa, title: 'Rivedi la proposta di navigazione', reason: 'Il tuo riscontro ci aiuta a confermare la struttura del sito.', kind: 'approvazione', due_date: '2026-09-25', contact_name: 'Il team di progetto', status: 'da_fare', version_id: 'version-a' }]
+    rows = eq('client_id') === a ? [
+      { id: 'activity-a', project_id: pa, title: 'Rivedi la proposta di navigazione', reason: 'Il tuo riscontro ci aiuta a confermare la struttura del sito.', kind: 'approvazione', due_date: '2026-09-25', contact_name: 'Il team di progetto', status: 'da_fare', version_id: 'version-a' },
+      // §395 — nasce da una task al cliente: nessun progetto, è dell'azienda
+      { id: 'activity-azienda', project_id: null, title: 'Inviaci il logo in vettoriale', reason: 'Serve per chiudere la home.', kind: 'materiale', due_date: '2026-09-30', contact_name: 'Il team di progetto', status: 'da_fare', version_id: null },
+    ] : []
   } else if (table === 'portal_deliverable_versions') {
-    rows = [{ id: 'version-a', project_id: pa, title: 'Proposta di navigazione', version: 2, author_name: 'Il team di progetto', published_at: '2026-09-19T10:00:00Z', approval_required: true }]
+    rows = eq('client_id') === a ? [
+      { id: 'version-a', project_id: pa, deliverable_id: 'consegna-a', title: 'Proposta di navigazione', version: 2, author_name: 'Il team di progetto', published_at: '2026-09-19T10:00:00Z', approval_required: true },
+      { id: 'version-a1', project_id: pa, deliverable_id: 'consegna-a', title: 'Proposta di navigazione', version: 1, author_name: 'Il team di progetto', published_at: '2026-09-10T10:00:00Z', approval_required: false },
+    ] : []
   } else if (table === 'portal_requests') {
     if (schema === 'legacy') return reply(404, { code: 'PGRST205', message: "Could not find the table 'public.portal_requests' in the schema cache" })
     rows = [{ id: 'request-a', project_id: pa, title: 'Chiarimento sui contenuti', body: 'Quali contenuti prepariamo per la prossima revisione?', kind: 'supporto', status: 'in_valutazione', created_at: '2026-09-19T10:00:00Z' }]
@@ -303,6 +310,32 @@ try {
   await checkContrast(populated.page)
   await populated.page.screenshot({ path: join(output, 'home-fixture-desktop.png'), fullPage: true })
   await populated.context.close()
+
+  // §395 — quello che la pubblicazione porta davvero al cliente.
+  const shared = await session('client')
+  await open(shared.page, `/portale/progetti/${pa}?client=${a}`)
+  const download = shared.page.getByRole('link', { name: /Scarica/ }).first()
+  await download.waitFor()
+  assert.equal(await download.getAttribute('href'), '/api/portale/consegne/version-a', 'download della versione corrente')
+  assert.match(await shared.page.locator('body').innerText(), /Versioni precedenti \(1\)/, 'le versioni superate restano leggibili')
+  assert.equal((await shared.page.content()).includes('Download protetto disponibile dopo l’attivazione'), false)
+  await open(shared.page, `/portale/da-fare?client=${a}`)
+  const attivita = await shared.page.locator('article', { hasText: 'Inviaci il logo in vettoriale' }).innerText()
+  assert.match(attivita, /Riguarda/)
+  assert.match(attivita, /Azienda di prova A/, 'un’attività senza progetto dichiara l’azienda, non ne inventa uno')
+  assert.match(attivita, /Serve per chiudere la home\./)
+  await shared.context.close()
+
+  const outsider = await session('other')
+  await open(outsider.page, `/portale/da-fare?client=${b}`)
+  const altro = await outsider.page.locator('body').innerText()
+  assert.equal(altro.includes('Inviaci il logo in vettoriale'), false, 'B non vede le attività di A')
+  assert.equal(altro.includes('Proposta di navigazione'), false, 'B non vede le consegne di A')
+  await open(outsider.page, `/portale/progetti/${pa}?client=${b}`)
+  await outsider.page.getByText('Contenuto non disponibile.').waitFor()
+  await outsider.context.close()
+  console.log('OK consegne scaricabili, versioni precedenti, attività d’azienda e isolamento fra due aziende')
+
   assert.deepEqual(writes, [], 'nessuna scrittura verso il mock')
   assert.deepEqual(violations, [], 'nessuna query non prevista o fallback aperto')
   console.log(`Tutti i controlli passano. ${requests} richieste HTTP al mock locale, zero scritture. Screenshot: ${output}`)

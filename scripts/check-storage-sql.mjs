@@ -25,6 +25,10 @@ try {
   sql('supabase/migrations/109_storage_folders_shares.sql')
   sql('supabase/migrations/246_storage_isolation.sql')
   sql('supabase/migrations/246_storage_isolation.sql')
+  // La 249 riscrive storage_context_access per la cartella delle consegne:
+  // il contratto dello storage si verifica sulla versione che gira davvero.
+  sql('supabase/migrations/244_client_portal.sql')
+  sql('supabase/migrations/249_portal_publishing.sql')
   sql('supabase/tests/246_storage_isolation.check.sql')
   console.log('Tutti i controlli passano: isolamento file, contesti, condivisioni e migration rilanciabile su PostgreSQL effimero.')
 } finally {

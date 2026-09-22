@@ -69,7 +69,7 @@ export const getPortalData = cache(async (requested?: string) => {
     db.from('portal_projects').select('id, client_id, title, area, status, objective, scope, update, next_step, contact, published_at, target_date, date_kind, phase').eq('client_id', clientId).order('title'),
     db.from('portal_activities').select('id, project_id, title, reason, kind, due_date, contact_name, status, version_id').eq('client_id', clientId).not('published_at', 'is', null).order('due_date', { nullsFirst: false }),
     db.from('portal_requests').select('id, project_id, title, body, kind, status, created_at').eq('client_id', clientId).order('created_at', { ascending: false }).limit(100),
-    db.from('portal_deliverable_versions').select('id, project_id, title, version, author_name, published_at, approval_required').eq('client_id', clientId).not('published_at', 'is', null).order('published_at', { ascending: false }).limit(100),
+    db.from('portal_deliverable_versions').select('id, project_id, deliverable_id, title, version, author_name, published_at, approval_required').eq('client_id', clientId).not('published_at', 'is', null).order('published_at', { ascending: false }).limit(100),
   ])
   if (results.some(r => r.error)) throw new Error('Non è stato possibile caricare tutti i contenuti condivisi. Riprova.')
   const projects = (results[0].data ?? []) as PortalProject[]
@@ -77,7 +77,9 @@ export const getPortalData = cache(async (requested?: string) => {
   const ids = new Set(projects.map(p => p.id))
   return {
     ...context, projects,
-    activities: ((results[1].data ?? []) as PortalActivity[]).filter(a => ids.has(a.project_id)),
+    // Un'attività senza progetto è dell'azienda: il database l'ha già filtrata
+    // per membership, e non dipende dalla pubblicazione di un progetto.
+    activities: ((results[1].data ?? []) as PortalActivity[]).filter(a => a.project_id === null || ids.has(a.project_id)),
     requests: ((results[2].data ?? []) as PortalRequest[]).filter(r => !r.project_id || ids.has(r.project_id)),
     versions: ((results[3].data ?? []) as PortalVersion[]).filter(v => ids.has(v.project_id)),
   }

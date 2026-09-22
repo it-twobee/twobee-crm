@@ -21,12 +21,19 @@ try {
     } catch (error) { console.error(error.stderr?.toString()); throw error }
   }
   sql('scripts/fixtures/portal-base.sql')
+  sql('scripts/fixtures/storage-base.sql')
+  // La 249 collega le consegne ai file veri: senza lo storage non si prova niente.
+  sql('supabase/migrations/108_files_storage.sql')
+  sql('supabase/migrations/109_storage_folders_shares.sql')
   for (let i = 0; i < 2; i++) {
     sql('supabase/migrations/244_client_portal.sql')
     sql('supabase/migrations/245_portal_access_management.sql')
+    sql('supabase/migrations/246_storage_isolation.sql')
+    sql('supabase/migrations/249_portal_publishing.sql')
   }
   sql('supabase/tests/244_client_portal.check.sql')
   sql('supabase/tests/245_portal_access_management.check.sql')
+  sql('supabase/tests/249_portal_publishing.check.sql')
   console.log('Tutti i controlli passano: migration rilanciabili e isolamento SQL su PostgreSQL effimero.')
 } finally {
   execFileSync('docker', ['rm', '-f', name], { stdio: 'pipe' })

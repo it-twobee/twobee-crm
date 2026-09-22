@@ -43,7 +43,7 @@ export default async function PortalHome({ searchParams }: { searchParams: { cli
         <h1 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">{phase ? PHASE_LABELS[phase] ?? 'Il punto sul nostro lavoro.' : 'Il punto sul nostro lavoro.'}</h1>
         <p className="mt-1 text-sm text-text-secondary">Cosa serve da te, cosa stiamo facendo, le ultime novità.</p>
       </div>
-      {data.company && <span className="rounded-lg bg-info-dim px-3 py-2 text-xs font-medium text-info">Portale in preparazione · sola lettura</span>}
+      {data.company && <span className="rounded-lg bg-info-dim px-3 py-2 text-xs font-medium text-info">Consultazione · gli invii dal portale non sono ancora attivi</span>}
     </div>
     {!data.company ? <NoCompany /> : <>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

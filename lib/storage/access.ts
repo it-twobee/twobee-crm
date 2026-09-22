@@ -51,6 +51,8 @@ export function parseStorageContext(folder: unknown, entityType: unknown, entity
   if (type !== null && (typeof type !== 'string' || !['client', 'project', 'profile', 'feedback', 'channel'].includes(type) || !isStorageUuid(id))) return null
   if (folder === 'clients' && type !== 'client') return null
   if (folder === 'feedback' && type !== 'feedback') return null
+  // Una consegna senza progetto non si può pubblicare né autorizzare (§395).
+  if (folder === 'deliverables' && type !== 'project') return null
   return { folder, entity_type: type as string | null, entity_id: id as string | null }
 }
 

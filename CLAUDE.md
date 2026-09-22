@@ -58,8 +58,8 @@ database vero, e riscoprirle costa più che leggerle.
 - **Un numero plausibile e sbagliato è la sola categoria di errore che nessuno
   va a controllare.** Quando una fonte manca, dichiaralo («n/d», «stimato»,
   «senza contratto»): mai uno zero.
-- **Gate del repo**: `npx tsc --noEmit` (ESLint non configurato) + i
-  **ottantacinque** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
+- **Gate del repo**: `npx tsc --noEmit` (ESLint non configurato) + gli
+  **ottantasei** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
   `lib/tracking/**`) — con `npx tsx lib/<percorso>.check.ts`: devono dire «Tutti
   i controlli passano».
 - **Non lanciare `npm run build` mentre `npm run dev` gira**: condividono `.next`

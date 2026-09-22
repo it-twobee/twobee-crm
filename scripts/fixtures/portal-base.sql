@@ -21,7 +21,9 @@ CREATE TABLE public.clients(id uuid PRIMARY KEY,company_name text,display_name t
 CREATE TABLE public.projects(id uuid PRIMARY KEY,client_id uuid REFERENCES public.clients(id),name text,area text,status text DEFAULT 'active',
   service_type text,manager_id uuid REFERENCES public.profiles(id),visibility text,deleted_at timestamptz);
 CREATE TABLE public.documents(id uuid PRIMARY KEY,client_id uuid REFERENCES public.clients(id),name text,file_url text);
-CREATE TABLE public.tasks(id uuid PRIMARY KEY,client_id uuid REFERENCES public.clients(id),project_id uuid REFERENCES public.projects(id));
+CREATE TABLE public.tasks(id uuid PRIMARY KEY,client_id uuid REFERENCES public.clients(id),project_id uuid REFERENCES public.projects(id),
+  task_type text DEFAULT 'ad_hoc',title text DEFAULT 'task',description text,status text DEFAULT 'da_fare',
+  due_date date,visibility text,created_by uuid REFERENCES public.profiles(id),deleted_at timestamptz);
 CREATE TABLE public.project_workstreams(id uuid PRIMARY KEY);
 CREATE TABLE public.milestones(id uuid PRIMARY KEY);
 CREATE TABLE public.task_comments(id uuid PRIMARY KEY);

@@ -12,7 +12,7 @@ export const revalidate = 0
 export default async function WorkspaceCustomerCarePage({ searchParams }: { searchParams: { vista?: string } }) {
   const profile = await getSessionProfile()
   if (!profile) redirect('/login')
-  if (searchParams.vista === 'da-gestire') return <><CustomerCareTabs base="/workspace/customer-care" active="coda" /><PortalQueue /></>
+  if (searchParams.vista === 'da-gestire') return <><CustomerCareTabs base="/workspace/customer-care" active="coda" /><PortalQueue base="/workspace" /></>
   const supabase = await createClient()
 
   // L'elenco dei colleghi e quello dei clienti non si aspettano a vicenda: era

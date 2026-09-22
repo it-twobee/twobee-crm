@@ -1,5 +1,43 @@
 # Dove siamo
 
+## Portale cliente — pubblicazione dei contenuti (step 2), 2026-09-22
+
+Il portale aveva schema, RLS e pagine, e **nessuna riga di codice che ci
+scrivesse dentro**: i contenuti si popolavano solo a mano col service role.
+Adesso la scheda del progetto ha la tab **Portale**: pubblica e ritira il
+progetto, tiene i campi condivisi (titolo, obiettivo, perimetro, aggiornamento,
+prossimo passo, referente, data prevista o confermata, momento della relazione)
+e mostra **l'anteprima con i componenti veri** del portale, non una loro imitazione.
+
+Le **task «al cliente»** diventano le attività del portale senza reinserirle:
+`portal_activities.source_task_id` le collega, e un trigger propaga titolo,
+perché, scadenza e stato. Eliminare la task ritira l'attività. Una task al
+cliente non può avere un progetto (vincolo della 158), quindi l'attività vive
+sull'**azienda**: la vede solo chi ha l'accesso a tutta l'azienda.
+
+Le **consegne** si caricano dentro il progetto (cartella storage `deliverables`,
+sempre legata a un progetto), diventano una versione immutabile con autore e
+data, e si pubblicano una per volta. Il cliente le scarica da
+`/api/portale/consegne/:id`: l'autorizzazione **è** la RLS, `storage_key` non è
+fra le colonne concesse al browser e il service role arriva solo dopo. Una
+versione pubblicata non si corregge: si ritira, o se ne pubblica una nuova.
+
+**Migration 249 applicata in produzione**, versione `20260922084609` (il file
+era numerato 247: rinumerato dopo l'applicazione perché main aveva preso 247 e
+248 — `docs/migrations.md`), dopo
+aver riletto i prerequisiti sul database reale: 244, 246 e 108 presenti, 247
+assente, e **0 attività, 0 versioni, 0 progetti pubblicati, 0 task al cliente**.
+È additiva e non ha pubblicato niente: i conteggi sono rimasti a zero, nessun
+dato di prova creato, e ad `authenticated` non è concessa nessuna scrittura né
+la lettura di `storage_key`. Il **codice va rilasciato insieme**: senza, il
+database ha le colonne e nessuno le scrive. Verificata anche due volte su
+PostgreSQL 16 isolato con `supabase/tests/249_portal_publishing.check.sql`,
+insieme alle 244/245/246. TypeScript senza errori, **81 check**, prove delle action e della
+rotta di download con Supabase simulato, suite browser con **258 richieste al
+mock e zero scritture**, inclusi download, versioni precedenti, attività
+d'azienda e isolamento fra due aziende con utenti distinti. Dettagli in
+`docs/portale-cliente.md`, `docs/migrations.md` e `docs/storage-access.md`.
+
 ## Portale cliente — rilascio step 1 file isolati, 2026-09-21
 
 Chiuse nel codice le API degli allegati interni a clienti, ospiti e account

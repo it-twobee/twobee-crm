@@ -54,7 +54,7 @@ const isOverdue = (t: Task) => !!t.due_date && t.status !== 'completato' && t.du
 
 export function ProjectDetailClient({
   project, clientName, workstreams, milestones, tasks, recurring, memberIds, profiles,
-  backHref = '/progetti', canManageProject = true, canEditTasks = true, initialTab, economics,
+  backHref = '/progetti', canManageProject = true, canEditTasks = true, initialTab, economics, portale,
 }: {
   project: Project
   clientName: string
@@ -67,9 +67,11 @@ export function ProjectDetailClient({
   backHref?: string
   canManageProject?: boolean
   canEditTasks?: boolean
-  initialTab?: 'panoramica' | 'workstream' | 'economics'
+  initialTab?: 'panoramica' | 'workstream' | 'economics' | 'portale'
   /** l'economics è admin-only: nel workspace la scheda non compare proprio */
   economics?: React.ReactNode
+  /** §395 — la scheda compare solo a chi può pubblicare, e su un progetto di un cliente */
+  portale?: React.ReactNode
 }) {
   const router = useRouter()
   const [pending, start] = useTransition()
@@ -78,7 +80,7 @@ export function ProjectDetailClient({
      è «a che punto sono le lavorazioni», non «quante ne ho in tutto». Le
      statistiche restano dove servono — dentro la Panoramica, che è il posto
      giusto per i numeri d'insieme — a un clic di distanza. */
-  const [tab, setTab] = useState<'panoramica' | 'workstream' | 'economics'>(initialTab ?? 'workstream')
+  const [tab, setTab] = useState<'panoramica' | 'workstream' | 'economics' | 'portale'>(initialTab ?? 'workstream')
   const [creatingWs, setCreatingWs] = useState(false)
   // le milestone si aggiungono anche da qui: dopo il wizard nessuno ci rientra,
   // e aprire la pagina della workstream per una tappa in più non si trovava
@@ -363,10 +365,11 @@ export function ProjectDetailClient({
       {/* tabs — restano raggiungibili mentre il resto scorre */}
       <div className="flex border-b border-border px-4 sm:px-6 scroll-x-touch
                       sticky top-0 z-20 bg-background/95 backdrop-blur-sm">
-        {(economics
-          ? [['workstream', 'Workstream'], ['panoramica', 'Panoramica'], ['economics', 'Economics']] as const
-          : [['workstream', 'Workstream'], ['panoramica', 'Panoramica']] as const
-        ).map(([key, label]) => (
+        {([
+          ['workstream', 'Workstream'], ['panoramica', 'Panoramica'],
+          ...(economics ? [['economics', 'Economics'] as const] : []),
+          ...(portale ? [['portale', 'Portale'] as const] : []),
+        ] as const).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`px-4 py-3.5 text-sm font-semibold border-b-2 whitespace-nowrap transition-colors ${
               tab === key ? 'border-gold text-gold-text' : 'border-transparent text-text-secondary hover:text-text-primary'
@@ -376,6 +379,7 @@ export function ProjectDetailClient({
 
       <div className="p-4 sm:p-6">
         {tab === 'economics' && economics}
+        {tab === 'portale' && portale}
 
         {tab === 'panoramica' && (
           <div className="space-y-4 max-w-6xl animate-fade-in">

@@ -825,6 +825,19 @@ export interface Project {
   created_at: string
   updated_at: string
   deleted_at: string | null
+  /* §395 — i contenuti condivisi nel portale cliente. Sono campi a parte, non
+     una proiezione di quelli interni: `description` resta del team. */
+  portal_title: string | null
+  portal_objective: string | null
+  portal_scope: string | null
+  portal_update: string | null
+  portal_next_step: string | null
+  portal_contact: string | null
+  portal_target_date: string | null
+  portal_date_kind: 'prevista' | 'confermata'
+  portal_phase: 'avvio' | 'lavorazione' | 'verifica' | 'continuativo' | null
+  portal_published_at: string | null
+  portal_published_by: string | null
 }
 
 export interface ProjectMember {

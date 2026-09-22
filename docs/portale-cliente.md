@@ -1,4 +1,130 @@
-# Portale cliente — primo incremento
+# Portale cliente
+
+## Pubblicazione dei contenuti — step 2, 22 settembre 2026
+
+Fino a ieri il portale aveva schema, RLS, VIEW, trigger e pagine, e **nessuna
+riga di codice che ci scrivesse dentro**: un grep su `app/`, `lib/` e
+`components/` non trovava un solo `insert` o `update` su `portal_activities`,
+`portal_deliverable_versions` o `projects.portal_published_at`. I contenuti si
+popolavano solo a mano col service role, quindi al cliente non arrivava niente.
+Nel frattempo due frasi dell'interfaccia interna promettevano il contrario: il
+composer delle task diceva «La deve fare il cliente: compare nel suo portale» e
+`ClientAdHocTab` «Sempre visibili nel suo portale». Adesso è vero.
+
+### Dove si pubblica
+
+Nella **scheda del progetto**, tab **Portale** (`?tab=portale`), accanto a
+Workstream, Panoramica ed Economics, in entrambi i portali —
+`components/projects/ProjectPortalPanel.tsx` (server, legge con la sessione e la
+RLS) e `ProjectPortalTab.tsx` (client, form e anteprima). Compare solo a chi
+passa `canManageClientPortal` — **admin, founder, super admin e manager
+attivi**, la stessa regola che apre e revoca gli accessi — e solo su un progetto
+di un cliente: un progetto interno non ha un portale dove comparire. Nascondere
+la tab non è una barriera: la porta vera è `requirePortalPublisher` dentro
+`app/actions/portal-publish.ts`, che rilegge ruolo e azienda e usa
+`clients_workspace` per i manager (§213), rifiuta i lead (§321) e crea il client
+di servizio **dopo**.
+
+L'**anteprima** non è un'imitazione: monta `ProjectList`, `ActivityList` e
+`VersionList` da `components/portal/PortalContent.tsx`, cioè i componenti che il
+cliente vede davvero, con i valori scritti in quel momento.
+
+### Ripubblicare è esplicito
+
+Il trigger `portal_guard_project_publication` rifiuta una modifica ai campi
+condivisi che non alzi `portal_published_at`. Quindi, finché il progetto è
+pubblicato, **salvare è ripubblicare**, e l'interfaccia lo dice: «Salva bozza»
+esiste solo prima della prima pubblicazione, dopo c'è «Pubblica aggiornamento».
+`needsRepublish` in `lib/portal/publish.ts` avvisa quando il cliente sta ancora
+leggendo la versione precedente. Ritirando il progetto spariscono insieme a lui
+le sue consegne e le sue attività, perché `portal_can_access` pretende
+`portal_published_at IS NOT NULL`.
+
+### Le task al cliente non si reinseriscono
+
+`portal_activities.source_task_id` collega l'attività alla task
+`task_type='cliente'` che l'ha generata; un trigger propaga titolo, descrizione
+(il «perché»), scadenza e stato, e `deleted_at` ritira l'attività. Una
+descrizione svuotata non cancella il perché già pubblicato: non si inventa una
+motivazione, e senza descrizione la task **non si pubblica** — la tab lo dice
+invece di pubblicare un'attività muta.
+
+Una task al cliente **non può avere un progetto** (CHECK della 158), quindi
+l'attività vive sull'**azienda**: `project_id` è nullo e
+`portal_can_access(client, NULL)` esige già `project_scope='all'`, così la vede
+solo chi ha l'accesso a tutta l'azienda. In «Da fare» la colonna «Riguarda»
+mostra il nome dell'azienda invece di inventare un progetto.
+
+Nel verso opposto, la risposta del cliente porta l'attività `in_verifica` e la
+task interna a `in_review`: il materiale è arrivato, non è stato approvato.
+
+### Consegne e download
+
+Una **consegna** (`portal_deliverables`) raggruppa le versioni; una versione
+punta a un **file vero** su MinIO (`files.id`), non a una riga `documents`, che
+è un elenco di collegamenti Drive: un link esterno non è una versione immutabile
+e non si scarica dal portale. Il flusso è carica → crea versione → pubblica, con
+la cartella storage `deliverables`, sempre legata a un progetto
+(`docs/storage-access.md`).
+
+Una versione pubblicata è immutabile. L'unica modifica ammessa dopo la
+pubblicazione è il **ritiro** (`retired_at`/`retired_by`): senza, togliere un
+file sbagliato voleva dire ritirare l'intero progetto. Una versione ritirata
+sparisce dal portale, non dalla storia, e non si approva.
+
+Il download è `GET /api/portale/consegne/:versionId`, **mai**
+`/api/files/:id/download`, che è dello staff. L'autorizzazione **è** la RLS: si
+legge la versione con la sessione, e se la riga non torna, per chi chiede non
+esiste. `storage_key` e `file_id` non sono fra le colonne concesse ad
+`authenticated`; il service role arriva solo dopo, per leggere la chiave e
+servire i byte con gli header degli allegati interni.
+
+### Cosa resta non attivo, e lo dichiara
+
+Invio richieste, risposte pubbliche, caricamento dei materiali dal cliente e
+approvazioni sono **scritture del cliente**: un dominio a sé, con idempotenza e
+limiti di upload propri, e restano al giro successivo. Il portale lo dice
+(«l'invio dal portale non è ancora attivo»), non finge un invio riuscito. Il
+badge della Home non dice più «Portale in preparazione · sola lettura», perché
+consegne e aggiornamenti pubblicati adesso arrivano davvero.
+
+### Verifiche eseguite — 22 settembre 2026
+
+```bash
+npx tsc --noEmit                                   # zero errori
+npx tsx lib/portal/publish.check.ts                # nuovo
+TZ=Europe/Rome <tutti gli 81 lib/**/*.check.ts>    # exit 0
+npx tsx scripts/check-portal-publish-actions.ts
+npx tsx scripts/check-portal-download-route.ts
+node scripts/check-portal-sql.mjs                  # 244+245+246+249 ×2 + suite
+node scripts/check-storage-sql.mjs
+NODE_PATH=/tmp/opencode/node_modules PLAYWRIGHT_BROWSERS_PATH=/tmp/opencode/browsers \
+  node scripts/check-portal-browser.mjs            # 258 richieste, zero scritture
+```
+
+Le action sono provate con Supabase simulato: ruoli negati, profilo disattivato,
+sessione assente, azienda nascosta al workspace, lead, schema assente, campi non
+validi che non pubblicano niente, bozza rifiutata su un progetto pubblicato,
+ripubblicazione che non crea doppioni e non riscrive il tipo, file di un altro
+progetto o di un'altra cartella rifiutati, numerazione delle versioni, ritiro ed
+eliminazione della sola bozza. **Nessun client di servizio nasce prima del
+controllo di ruolo**, ed è una cosa che si verifica contando.
+
+La rotta di download è provata su anonimo, id non valido, riga non autorizzata
+(404), errore di lettura (503, non un «non esiste»), chiave che non coincide col
+file (409), alias fuori dal prefisso, storage giù (502) e contenuti attivi
+scaricati come allegato.
+
+**Migration 249 applicata in produzione** il 22 settembre, versione
+`20260922084609`, dopo la rilettura dei prerequisiti sul database reale e con
+zero attività, versioni, progetti pubblicati e task al cliente da disturbare.
+Verifica in sola lettura dopo l'applicazione in `docs/migrations.md`: struttura,
+policy, vincoli, nessuna scrittura concessa ad `authenticated` e `storage_key`
+fuori dalle colonne leggibili. Nessun dato di prova creato.
+
+**Non eseguito**: le prove con account cliente reali sul database di produzione,
+e il deploy del codice — che va rilasciato insieme, altrimenti il database ha le
+colonne e nessuno le scrive.
 
 19 settembre 2026 · branch `feat/portale-cliente` · sviluppo sul PC locale.
 Specifica: `docs/brief-portale-cliente.md`, confrontata con il PDF v1.0.
@@ -16,11 +142,10 @@ Verificati revoca/scadenza, creatore disattivato, upload su contesti estranei,
 proprietà dei figli nelle cancellazioni ricorsive e scritture dirette dal
 browser. Regole e prove in `docs/storage-access.md`.
 
-**Step successivo:** pubblicazione/ritiro dei contenuti dal lavoro interno,
-collegamento delle attività cliente e download autenticato delle sole versioni
-pubblicate. I pulsanti operativi del portale restano da completare: questo step
-chiude le vie d'accesso allo storage interno e non dichiara completato il §14
-del PDF. Seguono richieste/coda, materiali/approvazioni e collaudo end-to-end.
+**Step successivo (fatto il 22 settembre, vedi sopra):** pubblicazione/ritiro
+dei contenuti dal lavoro interno, collegamento delle attività cliente e download
+autenticato delle sole versioni pubblicate. Restano richieste/coda,
+materiali/approvazioni e collaudo end-to-end.
 
 ## Accessi dalla scheda cliente — rilascio del 21 settembre 2026
 
@@ -207,10 +332,11 @@ aggiungere guard dentro ogni azione e usare `createActorClient(userId)`.
 2. **Flussi su staging** (stima 4–6 giorni): richieste e risposte idempotenti,
    assegnazione al PM o coda non assegnata, stati con motivazione,
    attività/materiali in verifica, approvazioni versionate, coda con azioni dirette.
-3. **Pubblicazione e file** (stima 3–5 giorni): azione nel progetto/documento
-   esistente, preview dei soli campi pubblici, storage privato e download
-   autorizzato, limiti upload, prove a due aziende. Date e impegni richiedono
-   ripubblicazione esplicita; non propagare descrizioni interne.
+3. **Pubblicazione e file** — **fatto il 22 settembre** (migration 249 da
+   applicare): tab Portale nella scheda progetto, anteprima dei soli campi
+   pubblici, storage privato e download autorizzato, limiti upload, prove a due
+   aziende. Date e impegni richiedono ripubblicazione esplicita; le descrizioni
+   interne non vengono propagate.
 4. **Successivi**: onboarding, report, decisioni, digest e aggiornamenti assistiti
    secondo brief, dopo verifica integrazioni e preferenze.
 

@@ -1,6 +1,7 @@
 import Link from 'next/link'
-import { ArrowRight, Clock3 } from 'lucide-react'
+import { ArrowRight, Clock3, Download } from 'lucide-react'
 import { ACTIVITY_STATUS, PROJECT_STATUS, portalDate, portalHref } from '@/lib/portal/model'
+import { deliverableDownloadHref } from '@/lib/portal/publish'
 import type { PortalActivity, PortalProject, PortalVersion } from '@/lib/portal/model'
 
 export function PortalHeading({ eyebrow, title, children }: { eyebrow: string; title: string; children?: React.ReactNode }) {
@@ -28,17 +29,37 @@ export function ProjectList({ projects, clientId }: { projects: PortalProject[];
   </Link>)}</div>
 }
 
-export function ActivityList({ activities, projects, clientId, legacy }: { activities: PortalActivity[]; projects: PortalProject[]; clientId: string; legacy: boolean }) {
+export function ActivityList({ activities, projects, clientId, legacy, companyName }: { activities: PortalActivity[]; projects: PortalProject[]; clientId: string; legacy: boolean; companyName: string }) {
   if (!activities.length) return <EmptyState title={legacy ? 'Le attività cliente non sono ancora attive.' : 'Non ci sono attività richieste in questo momento.'}>{legacy ? 'Qui troverai materiali da inviare, domande a cui rispondere e versioni da approvare. Le attività del team restano nel loro spazio operativo.' : 'Quando servirà il tuo contributo, troverai qui cosa fare, perché serve e la scadenza.'}</EmptyState>
   return <div className="divide-y divide-border border-y border-border">{activities.map(a => <article key={a.id} className="py-6">
     <div className="flex flex-wrap items-baseline justify-between gap-3"><h3 className="text-lg font-semibold">{a.title}</h3><span className="text-sm text-text-secondary">{ACTIVITY_STATUS[a.status] ?? 'Da verificare'}</span></div>
     <p className="mt-2 whitespace-pre-wrap break-words text-sm text-text-secondary">{a.reason}</p>
-    <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3 text-sm"><div><dt className="text-xs text-text-secondary">Entro quando</dt><dd>{portalDate(a.due_date)}</dd></div><div><dt className="text-xs text-text-secondary">A chi rivolgerti</dt><dd>{a.contact_name}</dd></div><div><dt className="text-xs text-text-secondary">Progetto</dt><dd><Link className="text-gold-text underline underline-offset-4" href={portalHref(`/portale/progetti/${a.project_id}`, clientId)}>{projects.find(p => p.id === a.project_id)?.title ?? 'Apri progetto'}</Link></dd></div></dl>
-    <p className="mt-4 text-xs text-text-secondary">{a.kind === 'approvazione' ? 'Rivedi e approva' : a.kind === 'materiale' ? 'Allega il materiale' : 'Rispondi'} · azione disponibile dopo l’attivazione.{a.kind === 'materiale' && ' Il materiale passerà in verifica al team.'}</p>
+    <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3 text-sm"><div><dt className="text-xs text-text-secondary">Entro quando</dt><dd>{portalDate(a.due_date)}</dd></div><div><dt className="text-xs text-text-secondary">A chi rivolgerti</dt><dd>{a.contact_name}</dd></div><div><dt className="text-xs text-text-secondary">Riguarda</dt><dd>{a.project_id
+      /* Senza progetto l'attività è dell'azienda: non si inventa un lavoro a cui appartiene. */
+      ? <Link className="text-gold-text underline underline-offset-4" href={portalHref(`/portale/progetti/${a.project_id}`, clientId)}>{projects.find(p => p.id === a.project_id)?.title ?? 'Apri progetto'}</Link>
+      : companyName}</dd></div></dl>
+    <p className="mt-4 text-xs text-text-secondary">{a.kind === 'approvazione' ? 'Rivedi e approva' : a.kind === 'materiale' ? 'Allega il materiale' : 'Rispondi'} · scrivi al tuo referente: l’invio dal portale non è ancora attivo.{a.kind === 'materiale' && ' Il materiale passerà in verifica al team.'}</p>
   </article>)}</div>
 }
 
 export function VersionList({ versions }: { versions: PortalVersion[] }) {
   if (!versions.length) return <EmptyState title="Nessuna consegna pubblicata.">Le consegne compariranno qui con versione, autore e data di pubblicazione.</EmptyState>
-  return <ul className="divide-y divide-border">{versions.map(v => <li key={v.id} className="py-4"><p className="font-medium">{v.title} <span className="text-sm text-text-secondary">· versione {v.version}</span></p><p className="mt-1 text-xs text-text-secondary">{v.author_name} · {portalDate(v.published_at)}</p>{v.approval_required && <p className="mt-2 text-sm text-warning">Questa versione richiede una verifica. Consultarla non equivale ad approvarla.</p>}<p className="mt-2 text-xs text-text-secondary">Download protetto disponibile dopo l’attivazione.</p></li>)}</ul>
+  /* Raggruppate per consegna: quello che conta è l’ultima versione, ma le
+     precedenti restano leggibili — un’approvazione riguardava quella. */
+  const groups = new Map<string, PortalVersion[]>()
+  for (const v of versions) {
+    const key = v.deliverable_id ?? v.id
+    groups.set(key, [...(groups.get(key) ?? []), v])
+  }
+  return <ul className="divide-y divide-border">{Array.from(groups.entries()).map(([key, group]) => {
+    const ordered = [...group].sort((a, b) => b.version - a.version)
+    const current = ordered[0]
+    return <li key={key} className="py-4">
+      <p className="font-medium">{current.title} <span className="text-sm text-text-secondary">· versione {current.version}</span></p>
+      <p className="mt-1 text-xs text-text-secondary">{current.author_name} · {portalDate(current.published_at)}</p>
+      <a href={deliverableDownloadHref(current.id)} className="mt-2 inline-flex min-h-10 items-center gap-2 text-sm font-medium text-gold-text hover:underline"><Download className="h-4 w-4" aria-hidden="true" />Scarica <span className="sr-only">{current.title}, versione {current.version}</span></a>
+      {current.approval_required && <p className="mt-2 text-sm text-warning">Questa versione richiede una verifica. Consultarla o scaricarla non equivale ad approvarla.</p>}
+      {ordered.length > 1 && <details className="mt-3"><summary className="cursor-pointer text-xs text-text-secondary">Versioni precedenti ({ordered.length - 1})</summary><ul className="mt-2 space-y-2">{ordered.slice(1).map(v => <li key={v.id} className="text-xs text-text-secondary">versione {v.version} · {v.author_name} · {portalDate(v.published_at)} · <a href={deliverableDownloadHref(v.id)} className="text-gold-text hover:underline">scarica</a></li>)}</ul></details>}
+    </li>
+  })}</ul>
 }

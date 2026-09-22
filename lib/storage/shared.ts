@@ -9,6 +9,7 @@ export const STORAGE_FOLDERS = [
   'chat',         // allegati chat
   'knowledge',    // knowledge base
   'feedback',     // screenshot/allegati alle proposte feedback (staff-wide)
+  'deliverables', // consegne al cliente: sempre legate a un progetto (§395)
   'misc',         // generico
 ] as const
 
@@ -25,6 +26,7 @@ export const FOLDER_LABELS: Record<StorageFolder, string> = {
   chat: 'Allegati chat',
   knowledge: 'Knowledge',
   feedback: 'Allegati feedback',
+  deliverables: 'Consegne al cliente',
   misc: 'Generico',
 }
 

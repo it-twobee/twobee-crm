@@ -4,6 +4,8 @@ import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect, notFound } from 'next/navigation'
 import { ProjectDetailClient } from '@/components/projects/ProjectDetailClient'
 import { ProjectEconomics } from '@/components/projects/ProjectEconomics'
+import { ProjectPortalPanel } from '@/components/projects/ProjectPortalPanel'
+import { canManageClientPortal } from '@/lib/permissions'
 import type { RevenueStream, Installment } from '@/lib/revenue'
 import type { CostItem, CostActual } from '@/lib/costs'
 import { monthKey } from '@/lib/pl'
@@ -106,7 +108,14 @@ export default async function ProjectDetailPage({ params, searchParams }: { para
          alle workstream, quindi un link che la voleva deve poterla chiedere. */
       initialTab={searchParams.tab === 'workstream' ? 'workstream'
         : searchParams.tab === 'economics' ? 'economics'
-        : searchParams.tab === 'panoramica' ? 'panoramica' : undefined}
+        : searchParams.tab === 'panoramica' ? 'panoramica'
+        : searchParams.tab === 'portale' ? 'portale' : undefined}
+      /* §395 — la pubblicazione è un gesto di chi tiene il rapporto: stessa
+         regola degli accessi al portale, e solo su un progetto di un cliente */
+      portale={canManageClientPortal(profile) && project.client_id ? (
+        <ProjectPortalPanel project={project as Project}
+          clientName={(client?.display_name || client?.company_name) ?? '—'} />
+      ) : undefined}
       /* §176: l'economics nasce dal cliente. Un progetto interno o esterno non
          ha un accordo economico da gestire: la scheda non compare proprio */
       economics={streamErr || !project.client_id ? undefined : (

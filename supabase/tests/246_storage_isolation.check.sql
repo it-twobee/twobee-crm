@@ -49,6 +49,10 @@ INSERT INTO public.files(id,folder,entity_type,entity_id,name,object_key,uploade
 INSERT INTO public.file_shares(file_id,token,created_by) VALUES
  ('f2463000-0000-4000-8000-000000000002',repeat('L',32),'f2460000-0000-4000-8000-000000000004');
 
+-- 249: la cartella delle consegne al cliente esiste solo dentro un progetto.
+INSERT INTO public.projects(id,client_id,name,area) VALUES
+ ('f2467000-0000-4000-8000-000000000001','f2461000-0000-4000-8000-000000000001','Progetto consegne','digital');
+
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub','f2460000-0000-4000-8000-000000000004',true);
 SELECT pg_temp.check_storage((SELECT count(*)=0 FROM public.files),'cliente A non legge neppure file legacy di cui era owner');
@@ -69,6 +73,9 @@ SELECT pg_temp.check_storage((SELECT count(*)=0 FROM public.file_folders WHERE f
 SELECT pg_temp.check_storage(public.storage_context_access('feedback','feedback','f2466000-0000-4000-8000-000000000001',true),'upload feedback proprio');
 SELECT pg_temp.check_storage(NOT public.storage_context_access('feedback','feedback','f2466000-0000-4000-8000-000000000002',true),'upload feedback altrui negato');
 SELECT pg_temp.check_storage(public.storage_context_access('feedback','feedback','f2466000-0000-4000-8000-000000000002',false),'feedback altrui resta leggibile');
+SELECT pg_temp.check_storage(public.storage_context_access('deliverables','project','f2467000-0000-4000-8000-000000000001',true),'consegne: si caricano nel progetto');
+SELECT pg_temp.check_storage(NOT public.storage_context_access('deliverables','client','f2461000-0000-4000-8000-000000000001',true),'consegne: il contesto azienda non basta');
+SELECT pg_temp.check_storage(NOT public.storage_context_access('deliverables',NULL,NULL,false),'consegne: senza contesto non si legge');
 SELECT pg_temp.reject_storage($q$INSERT INTO public.files(folder,name,object_key,uploaded_by) VALUES('misc','alias','personal/private.pdf',auth.uid())$q$,'42501');
 SELECT pg_temp.reject_storage('UPDATE public.file_folders SET entity_id=NULL','42501');
 SELECT set_config('request.headers','{"x-actor-id":"f2460000-0000-4000-8000-000000000001"}',true);

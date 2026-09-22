@@ -35,7 +35,99 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > del file — ma il registro è una tabella ordinata e due righe con la stessa
 > chiave sono una trappola per chi arriva dopo. La **244 è del portale
 > cliente**, integrato in main; la **245** aggiunge la gestione accessi.
-> La **246** introduce l'isolamento file; la prossima libera è la **247**.
+> La **246** introduce l'isolamento file; la **247** e la **248** i periodi e lo
+> scheletro dei progetti; la **249** la pubblicazione nel portale. La prossima
+> libera è la **250**.
+
+> **La 249 è nata 247.** È stata scritta e **applicata in produzione** mentre su
+> main arrivavano `247_periodi_e_ricorrenze` e `248_scheletro_periodi`, da una
+> sessione che non le vedeva. Il file è stato rinumerato **dopo** l'applicazione,
+> come già successo alla 244 (233 → 239 → 244): Supabase registra la **sua**
+> versione — qui `20260922084609`, nome `portal_publishing` — non il nome del
+> file, quindi il rinumero non cambia niente sul database e **non va
+> riapplicata**. Il numero nel nome serve a chi legge il repo, e due file con lo
+> stesso numero sono una trappola per chi arriva dopo.
+
+## 249 — pubblicazione nel portale cliente (applicata il 2026-09-22)
+
+`249_portal_publishing.sql`: **applicata in produzione**, versione
+**`20260922084609`**. Additiva e rilanciabile, senza backfill: nessun progetto,
+task o file è diventato pubblico per effetto della migration. Prerequisiti
+riletti sul database reale prima di applicarla — `portal_activities` (244),
+`storage_context_access` (246) e `files` (108) presenti, `portal_deliverables` e
+`source_task_id` assenti — e con **0 attività, 0 versioni, 0 progetti pubblicati
+e 0 task al cliente**: non c'era niente da disturbare. Prerequisiti dichiarati:
+**244** (portale), **246** (isolamento storage), **158**
+(`tasks.task_type='cliente'`), **108/109** (metadati file).
+
+Cosa cambia:
+
+- `portal_activities.project_id` diventa **nullable** e arriva
+  `source_task_id uuid UNIQUE → tasks(id)`. Una task al cliente non può avere un
+  progetto (CHECK della 158): pretenderlo avrebbe significato reinserirla a
+  mano. Con il progetto nullo la FK composta `(project_id, client_id)` è MATCH
+  SIMPLE e non vincola più, quindi si aggiunge la **FK esplicita su
+  `client_id`** — senza, l'azienda resterebbe senza controllo.
+  `portal_can_access(client, NULL)` esige già `project_scope='all'`: le attività
+  d'azienda le vede **solo** chi ha l'accesso a tutta l'azienda, e le policy di
+  lettura non sono state toccate per ottenerlo.
+- Trigger `portal_sync_task_activity` su `tasks`: propaga titolo, descrizione
+  (come «perché»), scadenza e stato all'attività collegata; `deleted_at` la
+  ritira. Una descrizione svuotata **non** cancella il perché già pubblicato.
+  `portal_log_event` pretende un attore e **solleva** se manca: dentro un UPDATE
+  su `tasks` avrebbe bloccato scritture interne che oggi passano (cron,
+  ricorrenti), quindi la sincronizzazione dichiara il proprio autore nel GUC di
+  transazione `portal.sync_actor` e l'evento viene registrato con `action='sync'`.
+- Nuova tabella `portal_deliverables` (consegna = raggruppamento delle versioni).
+  `portal_deliverable_versions` prende `deliverable_id` e `file_id → files(id)`,
+  `document_id` diventa nullable: la versione punta a un **file vero** su MinIO,
+  non a una riga `documents`, che è un elenco di collegamenti Drive. Un link
+  esterno non è una versione immutabile e non si scarica dal portale.
+  `portal_guard_version` verifica che il file sia nella cartella `deliverables`
+  del progetto e che `storage_key = files.object_key`.
+- `retired_at`/`retired_by` sulle versioni: **l'unica modifica ammessa dopo la
+  pubblicazione**. Senza, togliere un file sbagliato voleva dire ritirare
+  l'intero progetto. Le policy di lettura di versioni, consegne e attività
+  escludono le versioni ritirate; una versione ritirata non si approva.
+- `storage_context_access` (246) riscritta con la cartella **`deliverables`**,
+  ammessa solo con `entity_type='project'`: l'elenco delle cartelle sta dentro
+  la funzione, quindi si sostituisce tutta. I link anonimi restano esclusi
+  (`canShareFile` ammette solo `misc|knowledge|feedback`).
+- `retired_at` è concessa in SELECT ad `authenticated` perché la policy delle
+  attività la interroga in sottoquery: per il cliente vale sempre NULL, le righe
+  ritirate non le vede. `storage_key` e `file_id` restano **fuori**.
+
+Verificata due volte su PostgreSQL 16 effimero, insieme a 244/245/246 e alla
+suite `supabase/tests/249_portal_publishing.check.sql`:
+
+```bash
+node scripts/check-portal-sql.mjs      # 244, 245, 246, 249 + suite portale
+node scripts/check-storage-sql.mjs     # 246 + 249 + suite storage
+```
+
+La suite prova attività d'azienda invisibile a uno scope `selected`, risposta
+ammessa solo allo scope `all`, sincronizzazione e ritiro dalla task, UPDATE su
+`tasks` **senza attore** che non si rompe, file di un altro progetto rifiutato,
+versione pubblicata immutabile, ritiro della singola versione, versione superata
+non approvabile, ritiro del progetto che porta via consegne e attività, e
+accesso incrociato fra due aziende con utenti distinti.
+
+Verifica in sola lettura dopo l'applicazione: `portal_activities.project_id`
+nullable, `source_task_id` presente, quattro colonne nuove sulle versioni
+(`deliverable_id`, `file_id`, `retired_at`, `retired_by`), trigger
+`portal_sync_task_activity` su `tasks`, 2 policy su `portal_deliverables`
+(`portal_staff_read`, `portal_deliverable_read`) e 2 sulle versioni, nessun
+privilegio di scrittura ad `authenticated`, e i vincoli `portal_activities_client_fk`,
+`portal_activities_project_required`, `portal_version_deliverable`,
+`portal_version_source`, `portal_version_has_source`, `portal_version_retired`.
+Le colonne concesse in SELECT ad `authenticated` sulle versioni sono **14** e
+**non comprendono `storage_key` né `file_id`**. Conteggi invariati: 0 consegne,
+0 attività da task, 0 progetti pubblicati, 0 file nella cartella `deliverables`.
+Nessun dato di prova creato.
+
+Il rilascio del **codice** va fatto insieme: senza, il database ha le colonne e
+nessuno le scrive; senza il database, la tab Portale dichiara la dipendenza e
+non pubblica niente.
 
 ## 246 — isolamento degli allegati interni (applicata il 2026-09-21)
 

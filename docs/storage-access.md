@@ -1,7 +1,10 @@
-# Accesso ai file — step 1 portale cliente
+# Accesso ai file
 
 21 settembre 2026 · migration 246 **applicata in produzione**
 (`20260921150329`); codice nel rilascio su main per Coolify.
+22 settembre 2026 · migration **249 applicata in produzione**
+(`20260922084609`): aggiunge la cartella `deliverables` e il download
+autenticato delle consegne pubblicate.
 
 ## Il confine
 
@@ -14,9 +17,10 @@ dopo il controllo d'identità/ruolo e le scritture dichiarano `x-actor-id`.
 
 La visibilità sul portale richiede un'altra domanda: **questa versione è
 pubblicata per il mio progetto e la mia membership è ancora valida?** Il
-download autenticato delle versioni pubblicate e l'upload dei materiali cliente
-sono nello step successivo. Non usare il download generico o un link anonimo
-per collegarli in fretta: aggirerebbe pubblicazione, scope progetto e revoca.
+download autenticato delle versioni pubblicate ha una porta sua, più sotto;
+l'upload dei **materiali del cliente** resta allo step successivo. Non usare il
+download generico o un link anonimo per collegarli in fretta: aggirerebbe
+pubblicazione, scope progetto e revoca.
 
 ## Regole condivise
 
@@ -29,7 +33,8 @@ per collegarli in fretta: aggirerebbe pubblicazione, scope progetto e revoca.
   workspace restano esclusi per il team, anche se il file era suo.
 - Contesti ammessi: `client`, `project`, `profile`, `feedback`, `channel`,
   oppure nessun contesto dove la categoria lo permette. Tipo e ID viaggiano
-  insieme. `clients` richiede `client`; `feedback` richiede `feedback`.
+  insieme. `clients` richiede `client`; `feedback` richiede `feedback`;
+  `deliverables` richiede `project` (249).
 - Scrivere sul feedback richiede autore o admin; leggerne gli allegati resta
   consentito allo staff. Un `viewer` legge ma non crea, elimina o condivide.
 - Cartelle sensibili (`payslips`, `personal`, `best_ideas`): proprietario o
@@ -75,11 +80,35 @@ nessun referrer. HTML/SVG/script vengono scaricati come allegato; non possono
 eseguire contenuti attivi nell'origine autenticata del gestionale. Immagini
 raster, PDF, audio, video e testo semplice mantengono l'anteprima inline.
 
+## Le consegne al cliente — cartella `deliverables` (249)
+
+Una consegna pubblicata è un file interno come gli altri, ma con due regole in
+più: vive **solo dentro un progetto** (`entity_type='project'`, come `clients`
+esige `client`) e **non produce link anonimi** — `canShareFile` ammette
+condivisioni pubbliche solo per `misc`, `knowledge` e `feedback`, quindi la
+cartella ne resta fuori senza eccezioni da scrivere.
+
+L'upload riusa `POST /api/files/upload` con `folder=deliverables`: stesse guard,
+stesso limite di 50 MB, stesso rollback dell'oggetto se il metadato non si
+salva. Il passo successivo è una riga `portal_deliverable_versions` con
+`file_id`, `storage_key` e l'autore: il database verifica che il file sia di
+quel progetto e che la chiave coincida con `files.object_key`.
+
+Il download del cliente passa da **`GET /api/portale/consegne/:versionId`**, mai
+da `/api/files/:id/download`. La sequenza è: lettura della versione con la
+**sessione e la RLS** — se la riga non torna, per chi chiede non esiste — poi il
+service role per leggere `storage_key`, che al browser non è concesso, e infine
+lo stream con gli stessi header degli allegati interni (`private, no-store`,
+`nosniff`, sandbox, HTML/SVG come allegato). Un errore di lettura risponde 503,
+non 404: un guasto non è un «non esiste». Prove in
+`scripts/check-portal-download-route.ts`.
+
 ## Verifiche
 
 ```bash
 npx tsx lib/storage/access.check.ts
 npx tsx scripts/check-storage-routes.ts
+npx tsx scripts/check-portal-download-route.ts
 node scripts/check-storage-sql.mjs
 ```
 

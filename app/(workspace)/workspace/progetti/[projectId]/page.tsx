@@ -6,7 +6,8 @@ import { ProjectDetailClient } from '@/components/projects/ProjectDetailClient'
 import type {
   Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate,
 } from '@/lib/types/database'
-import { canGovernProjects } from '@/lib/permissions'
+import { canGovernProjects, canManageClientPortal } from '@/lib/permissions'
+import { ProjectPortalPanel } from '@/components/projects/ProjectPortalPanel'
 
 export const revalidate = 0
 
@@ -59,7 +60,14 @@ export default async function WorkspaceProjectDetailPage({ params, searchParams 
       canManageProject={canManageProject}
       canEditTasks
       initialTab={searchParams.tab === 'workstream' ? 'workstream'
-        : searchParams.tab === 'panoramica' ? 'panoramica' : undefined}
+        : searchParams.tab === 'panoramica' ? 'panoramica'
+        : searchParams.tab === 'portale' ? 'portale' : undefined}
+      /* §395 — stessa regola degli accessi al portale: il manager pubblica
+         per le aziende che il workspace gli mostra, l'action ricontrolla */
+      portale={canManageClientPortal(profile) && (project as Project).client_id ? (
+        <ProjectPortalPanel project={project as Project}
+          clientName={(client?.display_name || client?.company_name) ?? '—'} />
+      ) : undefined}
     /></>
   )
 }

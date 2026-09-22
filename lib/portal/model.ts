@@ -6,7 +6,10 @@ export type PortalProject = {
   target_date: string | null; date_kind: 'prevista' | 'confermata'; phase: string | null
 }
 export type PortalActivity = {
-  id: string; project_id: string; title: string; reason: string; kind: string
+  /* §395 — nasce da una task al cliente, che un progetto non può averlo:
+     senza progetto è un'attività dell'azienda, e la vede solo chi ha
+     l'accesso a tutta l'azienda. */
+  id: string; project_id: string | null; title: string; reason: string; kind: string
   due_date: string | null; contact_name: string; status: string; version_id: string | null
 }
 export type PortalRequest = {
@@ -14,7 +17,8 @@ export type PortalRequest = {
   status: string; created_at: string
 }
 export type PortalVersion = {
-  id: string; project_id: string; title: string; version: number; author_name: string
+  id: string; project_id: string; deliverable_id: string | null
+  title: string; version: number; author_name: string
   published_at: string; approval_required: boolean
 }
 
