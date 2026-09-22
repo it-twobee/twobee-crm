@@ -86,6 +86,17 @@ export function applyRelativeDates(structure: WWorkstream[], start: string): WWo
   }))
 }
 
+/**
+ * §400 — una corsia scelta allo step 3, fra quelle che il servizio ha di
+ * solito. Non è un servizio: non entra nel nome del progetto né nel suo
+ * `service_type`, diventa solo una riga dell'albero.
+ */
+export type CorsiaScelta = {
+  key: string
+  nome: string
+  tipo: 'project' | 'recurring'
+}
+
 /** Workstream selezionato allo step 3: voce di catalogo o creato su misura. */
 export type WsPick = {
   key: string

@@ -7,7 +7,7 @@
    quattro modi e nessuno sa più quale progetto contiene cosa. */
 import {
   proposte, suMisura, tipoServizio, normalizza, formaDelProgetto, trimestriMancanti,
-  type CatalogRow,
+  corsieDeiTemplate, type CatalogRow,
 } from '@/lib/workstream-presets'
 import {
   workstreamPrefixFromProjectName, applyWorkstreamPrefix, stripWorkstreamPrefix,
@@ -166,6 +166,47 @@ console.log('\n— Quale trimestre manca —')
     trimestriMancanti({ oggi: '2026-09-22', forma: 'month', corsie: [] }).mancanti.length, 0)
   is('e nemmeno sui servizi senza periodi',
     trimestriMancanti({ oggi: '2026-09-22', forma: 'none', corsie: [] }).mancanti.length, 0)
+}
+
+console.log('\n— Le corsie che stanno dentro un servizio (§400) —')
+{
+  const tpl = [
+    { id: 't1', service_type: 'lead_generation', service_subtype: null, is_active: true },
+    { id: 't2', service_type: 'lead_generation', service_subtype: null, is_active: true },
+    { id: 't3', service_type: 'lead_generation', service_subtype: null, is_active: false },
+    { id: 't4', service_type: 'lead_generation', service_subtype: null, is_active: true, kind: 'period' },
+    { id: 't5', service_type: 'branding', service_subtype: null, is_active: true },
+  ]
+  const w = (template_id: string, name: string, sort_order: number, workstream_type = 'project') =>
+    ({ template_id, parent_id: null, node_type: 'workstream', name, sort_order, workstream_type })
+  const nodi = [
+    w('t1', 'Setup e tracciamento', 10), w('t1', 'Advertising', 20), w('t1', 'Governance', 30, 'recurring'),
+    w('t2', 'Advertising', 10), w('t2', 'Governance', 20, 'recurring'),
+    w('t3', 'Corsia di un template spento', 10),
+    w('t4', 'Piano del trimestre', 10),
+    w('t5', 'Identità visiva', 10),
+    { template_id: 't1', parent_id: 'n1', node_type: 'milestone', name: 'Una tappa', sort_order: 40 },
+  ]
+  const servizi = [{ service_type: 'lead_generation', service_subtype: null }]
+  const c = corsieDeiTemplate(tpl, nodi, servizi)
+
+  /* Le più comuni per prime: quella che c'è in tutti i template è quella che
+     serve quasi sempre. A parità resta l'ordine del template. */
+  is('le più comuni per prime', c.map(x => x.nome),
+    ['Advertising', 'Governance', 'Setup e tracciamento'])
+  is('e si dice in quanti template stanno', c.map(x => x.quante), [2, 2, 1])
+  is('il tipo della corsia viene dal template', c.find(x => x.nome === 'Governance')?.tipo, 'recurring')
+
+  is('niente dai template di altri servizi', c.some(x => x.nome === 'Identità visiva'), false)
+  is('niente dai template spenti', c.some(x => x.nome.includes('spento')), false)
+  /* Lo scheletro di periodo descrive cosa nasce **dentro** un trimestre: non
+     sono corsie del progetto, e proporle qui sarebbe proporre due volte la
+     stessa cosa. */
+  is('e niente dagli scheletri di periodo', c.some(x => x.nome === 'Piano del trimestre'), false)
+  is('le tappe non sono corsie', c.some(x => x.nome === 'Una tappa'), false)
+
+  is('un servizio senza template non propone niente',
+    corsieDeiTemplate(tpl, nodi, [{ service_type: 'audit', service_subtype: null }]).length, 0)
 }
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)

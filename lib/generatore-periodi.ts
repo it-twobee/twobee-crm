@@ -90,6 +90,15 @@ export function decidi(input: {
   /** le corsie a termine del progetto, con le loro date */
   corsie: CorsiaEsistente[]
   orizzonte?: number
+  /**
+   * §400 — **appena creato non c'è niente da coprire.** Le corsie di un
+   * progetto appena nato sono quelle che il wizard ha appena scritto, e
+   * prendono le date del progetto: «Advertising» da gennaio a dicembre copre
+   * il trimestre al cento per cento senza essere quel trimestre, e il primo
+   * periodo non nascerebbe mai. La copertura serve contro le nove corsie in
+   * archivio (§389), che per definizione qui non esistono ancora.
+   */
+  coperture?: boolean
 }): Decisione[] {
   const { oggi, forma, chiaviAperte, corsie } = input
   if (forma === 'none') return []
@@ -103,7 +112,7 @@ export function decidi(input: {
     /* Le date contano solo per i trimestri: un mese è una **tappa** dentro
        una corsia continuativa, non una corsia, quindi non c'è niente che
        possa coprirlo per sovrapposizione. */
-    if (forma === 'quarter') {
+    if (forma === 'quarter' && input.coperture !== false) {
       const c = giaCoperto(periodo, corsie)
       if (c) return { fare: 'salta', periodo, perche: 'coperto da una corsia che c’è già', corsia: c.name }
     }

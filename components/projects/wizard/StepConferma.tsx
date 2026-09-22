@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import {
   AlertTriangle, Info, CheckCircle2, Pencil, FileStack, Sparkles,
-  FolderTree, Flag, CheckSquare, Repeat,
+  FolderTree, Flag, CheckSquare, Repeat, CalendarRange,
 } from 'lucide-react'
 import { StepHead, Segmented, inputCls, Avatar } from '@/components/shared/formkit'
 import { countTree, type WWorkstream, type Person, type ClientChoice } from './types'
@@ -18,7 +18,7 @@ type Check = {
 export function StepConferma({
   client, area, serviceLabel, name, description, startDate, targetEnd,
   managerId, priority, visibility, team, profiles, structure, offConvention,
-  status, setStatus, saveTpl, setSaveTpl, goTo, quickFix,
+  periodi = [], status, setStatus, saveTpl, setSaveTpl, goTo, quickFix,
 }: {
   client: ClientChoice
   area: string
@@ -34,6 +34,9 @@ export function StepConferma({
   profiles: Person[]
   structure: WWorkstream[]
   offConvention: number
+  /** §400 — i periodi che il motore aprirà appena il progetto esiste: non
+   *  sono righe dell'albero, e il conteggio qui sopra non li vede */
+  periodi?: string[]
   status: 'draft' | 'active'
   setStatus: (s: 'draft' | 'active') => void
   saveTpl: { on: boolean; name: string }
@@ -123,6 +126,18 @@ export function StepConferma({
           </span>
           <Pencil className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
         </button>
+        {/* §400 — quello che nasce **dopo** il progetto, e che nessun conteggio
+            dell'albero mostra: dirlo qui è l'unico modo perché chi conferma
+            sappia cosa troverà aperto. */}
+        {periodi.length > 0 && (
+          <div className="flex items-center gap-3 px-3 py-2.5 border-t border-border">
+            <span className="text-2xs text-text-tertiary w-32 shrink-0">Periodi</span>
+            <span className="flex-1 flex items-center gap-1.5 text-2xs text-text-secondary">
+              <CalendarRange className="w-3 h-3 text-gold-text shrink-0" />
+              {periodi.join(' · ')} — aperti alla creazione, con le loro tappe
+            </span>
+          </div>
+        )}
       </div>
 
       {checks.length === 0 ? (

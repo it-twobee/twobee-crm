@@ -424,6 +424,55 @@ Il blocco si apre da sé solo quando non c'è niente da aprire: se un periodo
 manca, la prima risposta è quella. Il wizard resta com'è — alla creazione i
 periodi non esistono ancora, li apre il primo giro.
 
+**§400 — scelto il servizio, il wizard dice cosa ci va dentro.** Allo step
+«Cosa consegniamo» si sceglieva il servizio e il progetto nasceva con **una
+corsia sola**, che si chiamava come il servizio: «ACME · Lead Generation». Le
+corsie di quel lavoro però le sappiamo già — stanno nei suoi template, e sono
+dieci su Lead Generation: Setup e tracciamento, Advertising, Tracking e dati,
+Governance… Chiederle di nuovo a chi crea il progetto vuol dire farsele
+riscrivere ogni volta con un nome diverso, che è il problema del §394 un passo
+più indietro.
+
+Adesso, appena c'è un servizio selezionato, compare un riquadro con **le corsie
+che quel lavoro ha di solito** (`corsieDeiTemplate`), le più comuni per prime —
+una corsia che sta in tutti e quattro i template è quella che serve quasi
+sempre; a parità resta l'ordine del template, che è quello del lavoro. Si
+spuntano, e **si aggiungono** a quella del servizio: il lavoro ha un nome e
+dentro ha i suoi filoni. Gli scheletri di periodo (§391) restano fuori
+dall'elenco: descrivono cosa nasce *dentro* un trimestre, non le corsie del
+progetto.
+
+**Il trimestre invece non è una riga dell'albero.** Sul Growth il riquadro
+comincia con una spunta — «Apri subito Q4 2026» — e quella spunta non aggiunge
+niente alla struttura: alla creazione il wizard chiama `apriPeriodi`, cioè lo
+stesso motore del bottone e del giro notturno (§396), che scrive la corsia con
+le date della stagione, la riga in `project_periods` e dentro lo scheletro.
+Metterlo nell'albero avrebbe dato una corsia che *sembra* un periodo senza
+esserlo: niente registro, niente tappe, e le tre milestone del trimestre non
+sarebbero mai arrivate. Sul Marketing a mese la spunta dice l'altra verità: i
+mesi sono tappe dentro la continuativa.
+
+**Alla creazione la copertura non si guarda** (`allaCreazione`, che spegne il
+controllo di `decidi`). Le corsie di un progetto appena nato prendono le date
+del progetto: «Advertising» da gennaio a dicembre copre Q4 al cento per cento
+senza essere Q4, e il primo periodo non nascerebbe mai. La copertura di §389
+difende dalle nove corsie in archivio, che su un progetto appena creato per
+definizione non esistono. Il registro invece vale sempre: quello che abbiamo
+già aperto non si riapre, perché la chiave è certa.
+
+**E non si è alzato un limite di lunghezza**, che era la strada breve: sui dati
+veri «Instagram/TikTok Set-Dic 2026» copre da aprile 2026 ad aprile 2027 ed *è*
+il Q4 di Visionark. Un tetto sulla durata lo avrebbe scartato e avrebbe aperto
+un secondo Q4 accanto — la prova su tutti i progetti passava da 48 periodi a 49,
+e quel quarantanovesimo era un doppione. Il gate lo diceva prima dei dati:
+`npx tsx scripts/prova-periodi.ts` è lì per questo.
+
+La conferma finale dichiara i periodi che nasceranno: il conteggio dell'albero
+non li vede, e un progetto che si apre con due corsie in più di quelle contate
+sembra un progetto che ha fatto qualcosa di suo. Gate:
+`npx tsx lib/workstream-presets.check.ts` (48 controlli) e
+`npx tsx lib/generatore-periodi.check.ts` (23).
+
 **§392 — il giro su tutti** (`POST /api/periods/run`, `PERIODS_CRON_SECRET`,
 task pianificato alle 04:00). Una volta al giorno e non più spesso: un
 periodo si apre una volta ogni due mesi, e il giro serve a non doverci

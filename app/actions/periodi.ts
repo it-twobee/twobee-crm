@@ -25,9 +25,14 @@ async function requireStaff(): Promise<string> {
   return user.id
 }
 
-export async function apriPeriodi(projectId: string): Promise<EsitoPeriodi> {
+export async function apriPeriodi(
+  projectId: string,
+  /** §400 — dal wizard, sul progetto appena creato: niente copertura da corsie
+   *  che sono nate un istante fa e hanno le date del progetto */
+  opzioni: { allaCreazione?: boolean } = {},
+): Promise<EsitoPeriodi> {
   const uid = await requireStaff()
-  const esito = await apriPerProgetto(createAdminClient(), uid, projectId)
+  const esito = await apriPerProgetto(createAdminClient(), uid, projectId, opzioni)
   revalidatePath(`/progetti/${projectId}`)
   revalidatePath('/progetti')
   revalidatePath(`/workspace/progetti/${projectId}`)

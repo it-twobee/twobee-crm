@@ -148,3 +148,54 @@ export function trimestriMancanti(input: {
     coperti: d.flatMap(x => x.fare === 'salta' ? [{ periodo: x.periodo, corsia: x.corsia }] : []),
   }
 }
+
+/**
+ * §400 — le corsie che di solito stanno dentro un servizio, dai suoi template.
+ *
+ * Scegliere «Lead Generation» e ritrovarsi una corsia sola che si chiama come
+ * il servizio è il punto in cui il wizard smette di aiutare: le corsie di quel
+ * lavoro le sappiamo già — stanno nei template, «Setup e tracciamento»,
+ * «Advertising», «Governance» — e chiederle di nuovo a chi crea il progetto
+ * vuol dire farsele riscrivere ogni volta con un nome diverso.
+ *
+ * Le più comuni per prime: una corsia che compare in tutti e quattro i template
+ * del servizio è quella che serve quasi sempre. A parità resta l'ordine del
+ * template, che è quello del lavoro.
+ */
+export type CorsiaProposta = {
+  key: string
+  nome: string
+  tipo: 'project' | 'recurring'
+  /** in quanti template del servizio compare */
+  quante: number
+}
+
+export function corsieDeiTemplate(
+  templates: { id: string; service_type: string; service_subtype: string | null; is_active?: boolean; kind?: string | null }[],
+  nodi: { template_id: string; parent_id: string | null; node_type: string; name: string; workstream_type?: string | null; sort_order?: number }[],
+  servizi: { service_type: string; service_subtype: string | null }[],
+): CorsiaProposta[] {
+  /* Gli scheletri di periodo (§391) sono un'altra cosa: descrivono cosa nasce
+     **dentro** un trimestre, non le corsie del progetto. */
+  const miei = new Set(templates
+    .filter(t => t.is_active !== false && (t.kind ?? 'project') !== 'period'
+      && servizi.some(s => s.service_type === t.service_type
+        && (s.service_subtype ?? null) === (t.service_subtype ?? null)))
+    .map(t => t.id))
+
+  const per = new Map<string, CorsiaProposta>()
+  nodi
+    .filter(n => !n.parent_id && n.node_type === 'workstream' && miei.has(n.template_id))
+    .slice()
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .forEach(n => {
+      const k = normalizza(n.name)
+      const gia = per.get(k)
+      if (gia) { gia.quante++; return }
+      per.set(k, {
+        key: k, nome: n.name.trim(), quante: 1,
+        tipo: n.workstream_type === 'recurring' ? 'recurring' : 'project',
+      })
+    })
+  return Array.from(per.values()).sort((a, b) => b.quante - a.quante)
+}

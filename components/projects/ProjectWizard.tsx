@@ -6,6 +6,10 @@ import { toast } from 'sonner'
 import { X, ChevronLeft, ChevronRight, Check, Loader2, Sparkles } from 'lucide-react'
 import { createProjectFromWizard, attachWizardEconomics, type WizardPayload } from '@/app/actions/create-project'
 import { saveWizardTemplate } from '@/app/actions/wizard'
+import { apriPeriodi } from '@/app/actions/periodi'
+import { formaDelProgetto } from '@/lib/workstream-presets'
+import { periodiDaAprire } from '@/lib/periodi'
+import { ORIZZONTE } from '@/lib/generatore-periodi'
 import {
   projectName, workstreamName, bareWorkstream, bareMilestone, bareTask, type NamingCtx,
 } from '@/lib/project-naming'
@@ -25,7 +29,7 @@ import { StepEconomics, emptyEconomics, specOf, type EconomicsState } from './wi
 import {
   STEPS, nk, countTree, recOwner, applyRelativeDates,
   newTask, newMilestone, newRecurring, newWorkstream,
-  type Person, type ClientOpt, type ClientChoice, type WsPick,
+  type Person, type ClientOpt, type ClientChoice, type WsPick, type CorsiaScelta,
   type WWorkstream, type WMilestone, type WRecurring, type WTask,
 } from './wizard/types'
 
@@ -62,6 +66,11 @@ export function ProjectWizard({
 
   const [area, setArea] = useState<ProjectArea | ''>('')
   const [picks, setPicks] = useState<WsPick[]>([])
+  /* §400 — le corsie scelte fra quelle del servizio, e se aprire i periodi
+     appena il progetto esiste. Sono due cose diverse: le prime diventano righe
+     dell'albero, i periodi no — li scrive il motore, con registro e scheletro. */
+  const [corsie, setCorsie] = useState<CorsiaScelta[]>([])
+  const [apriSubito, setApriSubito] = useState(true)
   const [info, setInfo] = useState<InfoState>({
     name: '', description: '', startDate: '', targetEnd: '',
     managerId: '', priority: 'media' as Priority, visibility: 'internal' as Visibility,
@@ -90,6 +99,11 @@ export function ProjectWizard({
   const areaServices = useMemo(
     () => services.filter(s => s.is_active && s.area === area),
     [services, area])
+  /* §400 — il ritmo del servizio principale: decide se alla creazione tocca
+     anche al motore dei periodi. */
+  const forma = useMemo(
+    () => primary ? formaDelProgetto(services, primary) : 'none',
+    [services, primary])
   const areaCounts = useMemo(() => {
     const m: Record<string, number> = {}
     services.filter(s => s.is_active).forEach(s => { m[s.area] = (m[s.area] ?? 0) + 1 })
@@ -102,9 +116,15 @@ export function ProjectWizard({
   }, [profiles, team, info.managerId])
 
   // ── struttura: seed dai workstream scelti oppure espansione del template ───
-  const seedFromPicks = useCallback((): WWorkstream[] => picks.map(p =>
-    newWorkstream(workstreamName(ctx, p.label), info.managerId || null),
-  ), [picks, ctx, info.managerId])
+  const seedFromPicks = useCallback((): WWorkstream[] => [
+    ...picks.map(p => newWorkstream(workstreamName(ctx, p.label), info.managerId || null)),
+    /* §400 — le corsie scelte si **aggiungono** a quella del servizio: il
+       lavoro ha un nome e dentro ha i suoi filoni. */
+    ...corsie.map(c => ({
+      ...newWorkstream(workstreamName(ctx, c.nome), info.managerId || null),
+      workstream_type: c.tipo,
+    })),
+  ], [picks, corsie, ctx, info.managerId])
 
   const expandTemplate = useCallback((tid: string): WWorkstream[] => {
     const byOrder = (a: ProjectTemplateNode, b: ProjectTemplateNode) => a.sort_order - b.sort_order
@@ -284,6 +304,21 @@ export function ProjectWizard({
       try {
         const id = await createProjectFromWizard(buildPayload())
 
+        /* §400 — i periodi non sono righe dell'albero: li scrive il motore,
+           che mette anche la riga in `project_periods` e lo scheletro dentro.
+           `allaCreazione` spegne il controllo di copertura: le corsie appena
+           nate hanno le date del progetto e coprirebbero il trimestre senza
+           essere quel trimestre. Se fallisce resta il progetto — i periodi si
+           aprono dal bottone sulla sua scheda. */
+        if (apriSubito && forma !== 'none') {
+          try {
+            const e = await apriPeriodi(id, { allaCreazione: true })
+            if (e.creati.length) toast.success(`${e.riepilogo}: ${e.creati.map(x => x.etichetta).join(', ')}`)
+          } catch (e) {
+            toast.error(`Progetto creato, i periodi no: ${e instanceof Error ? e.message : 'errore'}`)
+          }
+        }
+
         /* L'accordo economico è una scrittura a parte: se fallisce resta il
            progetto, e la quotazione si rifà dalla sua scheda. Meglio un
            progetto senza numeri che nessun progetto. */
@@ -420,10 +455,11 @@ export function ProjectWizard({
 
             <div className="flex-1 overflow-y-auto p-4 sm:p-5 min-h-0">
               {steps[step].key === 'cliente' && <StepCliente clients={clients} value={client} onChange={setClient} />}
-              {steps[step].key === 'area' && <StepArea value={area} onChange={a => { setArea(a); setPicks([]) }} counts={areaCounts} />}
+              {steps[step].key === 'area' && <StepArea value={area} onChange={a => { setArea(a); setPicks([]); setCorsie([]) }} counts={areaCounts} />}
               {steps[step].key === 'workstream' && area && (
-                <StepWorkstream area={area} services={areaServices} templates={templates}
-                  picks={picks} setPicks={setPicks} canPersist />
+                <StepWorkstream area={area} services={areaServices} templates={templates} nodes={nodes}
+                  picks={picks} setPicks={setPicks} corsie={corsie} setCorsie={setCorsie}
+                  apriPeriodi={apriSubito} setApriPeriodi={setApriSubito} canPersist />
               )}
               {steps[step].key === 'info' && (
                 <StepInfo state={info} suggestedName={suggestedName} profiles={profiles}
@@ -455,6 +491,9 @@ export function ProjectWizard({
                   startDate={info.startDate} targetEnd={info.targetEnd}
                   managerId={info.managerId} priority={info.priority} visibility={info.visibility}
                   team={team} profiles={profiles} structure={structure} offConvention={offConvention}
+                  periodi={apriSubito && forma !== 'none'
+                    ? periodiDaAprire(new Date().toISOString().slice(0, 10), forma, ORIZZONTE[forma]).map(p => p.etichetta)
+                    : []}
                   status={status} setStatus={setStatus} saveTpl={saveTpl} setSaveTpl={setSaveTpl}
                   goTo={goTo} quickFix={quickFix} />
               )}

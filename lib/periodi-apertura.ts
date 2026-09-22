@@ -71,6 +71,8 @@ export async function apriPerProgetto(
    *  a un admin di passaggio una corsia che non ha aperto è peggio */
   uid: string | null,
   projectId: string,
+  /** §400 — dal wizard: le corsie appena scritte non sono periodi da coprire */
+  opzioni: { allaCreazione?: boolean } = {},
 ): Promise<EsitoPeriodi> {
   const { data: prog } = await admin.from('projects')
     .select('id, name, service_type, service_subtype, status').eq('id', projectId).maybeSingle()
@@ -100,7 +102,7 @@ export async function apriPerProgetto(
   const chiaviAperte = ((pp ?? []) as { period_key: string }[]).map(x => x.period_key)
 
   const oggi = new Date().toISOString().slice(0, 10)
-  const decisioni = decidi({ oggi, forma, chiaviAperte, corsie })
+  const decisioni = decidi({ oggi, forma, chiaviAperte, corsie, coperture: !opzioni.allaCreazione })
   const daFare = decisioni.filter(d => d.fare === 'crea')
 
   const esito: EsitoPeriodi = {

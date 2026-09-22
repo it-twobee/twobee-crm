@@ -1010,6 +1010,8 @@ export interface ProjectTemplate {
   id: string
   service_type: string
   service_subtype: string | null
+  /** §391: `period` è lo scheletro di un periodo, non la struttura di un progetto */
+  kind?: 'project' | 'period'
   name: string
   description: string | null
   is_active: boolean

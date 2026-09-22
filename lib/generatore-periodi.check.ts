@@ -38,6 +38,25 @@ console.log('\n— Il caso vero: le nove corsie «Set-Dic 2026» —')
     chiavi(decidi({ oggi: OGGI, forma: 'quarter', chiaviAperte: [], corsie: lunga }), 'crea'), [])
 }
 
+console.log('\n— Il progetto appena creato (§400) —')
+{
+  /* Le corsie di un progetto appena nato hanno le date del progetto:
+     «Advertising» da gennaio a dicembre copre il trimestre al cento per cento
+     senza essere quel trimestre, e il primo periodo non nascerebbe mai. Alla
+     creazione la copertura non si guarda: quello da cui difende — le nove
+     corsie in archivio — per definizione non esiste ancora. */
+  const annuale = [c('ACME · Lead Generation — Advertising', '2026-01-01', '2026-12-31')]
+  is('di norma una corsia annuale copre il trimestre',
+    chiavi(decidi({ oggi: OGGI, forma: 'quarter', chiaviAperte: [], corsie: annuale }), 'crea'), [])
+  is('ma alla creazione il periodo nasce lo stesso',
+    chiavi(decidi({ oggi: OGGI, forma: 'quarter', chiaviAperte: [], corsie: annuale, coperture: false }), 'crea'),
+    ['2026-Q4'])
+  /* Quello che abbiamo aperto noi resta escluso anche alla creazione: la
+     chiave è certa, e riaprire un periodo che c'è sarebbe un doppione vero. */
+  is('il registro vale comunque',
+    chiavi(decidi({ oggi: OGGI, forma: 'quarter', chiaviAperte: ['2026-Q4'], corsie: [], coperture: false }), 'crea'), [])
+}
+
 console.log('\n— E soprattutto: non salta dove non deve —')
 {
   /* Una campagna di dieci giorni dentro il trimestre non è il trimestre. Se
