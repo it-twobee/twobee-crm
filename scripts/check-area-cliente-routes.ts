@@ -23,8 +23,9 @@ const profiles: Record<string, { role: string; app_role: string; email: string; 
 }
 class StorageTooLarge extends Error {}
 let materials: any[] = [], files: any[] = [], objects: string[] = []
+let memberships: any[] = []
 function reset() {
-  files = []; objects = []
+  files = []; objects = []; memberships = []
   materials = [
     { id: suoFile, client_id: client, source: 'cliente', uploaded_by: 'cliente', storage_key: 'materiali/logo.png', file_id: 'f1', deleted_at: null, archived_at: null, size: 10 },
     { id: nostroFile, client_id: client, source: 'team', uploaded_by: junior, storage_key: 'materiali/ds.pdf', file_id: 'f2', deleted_at: null, archived_at: null, size: 20 },
@@ -51,6 +52,15 @@ class Query {
       const p = userId ? profiles[userId] : null
       return resolve({ data: p ? { ...p, id: userId } : null, error: p ? null : { code: 'PGRST116' } })
     }
+    if (this.table === 'clients' || this.table === 'clients_workspace') {
+      const rows = [{ id: client }, ...(this.table === 'clients' ? [{ id: hidden }] : [])]
+      const found = rows.filter(r => this.filters.every(f => f(r)))
+      return resolve({ data: this.one ? found[0] ?? null : found, error: null })
+    }
+    if (this.table === 'portal_memberships') {
+      const found = memberships.filter(r => this.filters.every(f => f(r)))
+      return resolve({ data: this.one ? found[0] ?? null : found, error: null })
+    }
     const table = this.table === 'files' ? files : this.table === 'portal_materials' ? materials : null
     assert.ok(table, `tabella inattesa: ${this.table}`)
     const matched = table.filter(r => this.filters.every(f => f(r)))
@@ -76,6 +86,12 @@ const internal = Module as unknown as { _load: (name: string, ...args: unknown[]
 const original = internal._load
 internal._load = function (name, ...args) {
   if (name === 'server-only') return {}
+  if (name === '@/lib/auth') {
+    return { getViewer: async () => ({
+      user: userId ? { id: userId } : null,
+      profile: userId ? { id: userId, ...profiles[userId] } : null,
+    }) }
+  }
   if (name === '@/lib/supabase/server') {
     return { createClient: async () => ({
       auth: { getUser: async () => ({ data: { user: userId ? { id: userId } : null } }) },
@@ -184,7 +200,36 @@ async function main() {
   assert.ok(materials.find(m => m.id === suoFile).deleted_at)
   assert.equal((await one.PATCH(patch('archivia'), { params: { id: suoFile } })).status, 404, 'un file rimosso non si tocca più')
 
-  console.log('Tutti i controlli passano: solo staff attivo, azienda nascosta esclusa, percorsi e tipi rifiutati prima dello storage, file nostri che nascono nostri, archiviazione reversibile e cancellazioni per ruolo.')
+  // ── §403 La scheda cliente: lo spazio c'è prima del portale ──────────────
+  reset()
+  const { getClientFiles } = require('../app/actions/client-files') as typeof import('../app/actions/client-files')
+  userId = 'cliente'
+  assert.ok((await getClientFiles(client)).error, 'un account cliente non apre l’area dalla scheda')
+  userId = null
+  assert.ok((await getClientFiles(client)).error)
+  userId = junior
+  assert.ok((await getClientFiles('non-un-uuid')).error)
+  assert.ok((await getClientFiles(hidden)).error, 'azienda nascosta al workspace')
+
+  const senzaPortale = await getClientFiles(client)
+  assert.equal(senzaPortale.error, undefined)
+  assert.equal(senzaPortale.data!.portalActive, false, 'senza referente il mezzo spazio del cliente è spento')
+  assert.equal(senzaPortale.data!.canWrite, true, 'ma il nostro c’è da subito')
+  assert.equal(senzaPortale.data!.canDeleteClientFiles, false, 'un junior non elimina i file del cliente')
+  assert.equal(senzaPortale.data!.materials.length, 3)
+
+  memberships = [{ id: 'membership', client_id: client, revoked_at: null }]
+  const conPortale = await getClientFiles(client)
+  assert.equal(conPortale.data!.portalActive, true, 'invitato un referente, si accende')
+
+  userId = admin
+  assert.equal((await getClientFiles(client)).data!.canDeleteClientFiles, true)
+  userId = 'viewer'
+  const soloLettura = await getClientFiles(client)
+  assert.equal(soloLettura.error, undefined, 'il viewer guarda')
+  assert.equal(soloLettura.data!.canWrite, false, 'ma non carica')
+
+  console.log('Tutti i controlli passano: solo staff attivo, azienda nascosta esclusa, percorsi e tipi rifiutati prima dello storage, file nostri che nascono nostri, archiviazione reversibile, cancellazioni per ruolo e area della scheda cliente attiva prima del portale.')
 }
 
 main().catch(error => { console.error(error); process.exit(1) })

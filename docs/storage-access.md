@@ -199,6 +199,24 @@ tipo dichiarato o manca o mente, e contano come documenti — si scaricano, non 
 aprono nel browser. L'elenco dei bloccati (HTML, SVG, script, eseguibili)
 continua a battere questo.
 
+## Lo spazio c'è prima del portale (§403)
+
+L'area file di un cliente è **una sola** e sta in due posti: la scheda del
+cliente, scheda **File**, e la sezione Documenti. È lo stesso componente
+(`components/shared/ClientFileArea.tsx`), perché la stessa domanda non può avere
+due risposte a seconda della pagina da cui ci si arriva.
+
+La scheda File **c'è per ogni cliente, dal primo giorno**: il nostro mezzo
+spazio non dipende dal portale, e la guard di scrittura
+(`POST /api/area-cliente/file`) non ha mai chiesto una membership. Quello del
+cliente si accende quando gli si manda un invito, e finché non succede il gruppo
+«Caricati dal cliente» lo dice a parole, con il link alla scheda Portale cliente,
+invece di restare un riquadro vuoto senza motivo.
+
+La lettura per la scheda passa da `getClientFiles` (`app/actions/client-files.ts`):
+staff attivo, azienda visibile in `clients_workspace` per chi non è admin (§213),
+e nient'altro — le scritture restano nelle rotte.
+
 ## Verifiche
 
 ```bash
@@ -206,7 +224,7 @@ npx tsx lib/storage/access.check.ts
 npx tsx scripts/check-storage-routes.ts
 npx tsx scripts/check-portal-download-route.ts
 npx tsx scripts/check-portal-materials-routes.ts
-npx tsx scripts/check-area-cliente-routes.ts
+npx tsx scripts/check-area-cliente-routes.ts   # rotte del team + scheda File
 node scripts/check-storage-sql.mjs
 ```
 

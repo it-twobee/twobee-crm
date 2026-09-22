@@ -1,5 +1,25 @@
 # Dove siamo
 
+## Lo spazio file c'è prima del portale — §403, 2026-09-22
+
+Nella scheda di ogni cliente compare la scheda **File**. C'è dal primo giorno,
+per ogni anagrafica, senza dover prima invitare un referente: il mezzo spazio
+nostro non è mai dipeso dal portale — la guard di scrittura non ha mai chiesto
+una membership — ma non c'era un posto nella scheda cliente da cui usarlo, e la
+sezione Documenti mostrava un'azienda solo se aveva già dei file. Sembrava
+spento, ed era invisibile.
+
+Quello del cliente si accende con l'invito, e finché non succede il gruppo
+«Caricati dal cliente» lo dice con una frase e un link alla scheda Portale
+cliente, invece di restare un riquadro vuoto.
+
+L'area è **lo stesso componente** nei due posti: la stessa domanda non può avere
+due risposte a seconda della pagina da cui ci si arriva. Nessuna migration.
+TypeScript senza errori, **87 check**, prove dell'azione con Supabase simulato
+(account cliente rifiutato, azienda nascosta esclusa, `viewer` che guarda e non
+carica, portale spento e acceso) e browser con **290 richieste al mock e zero
+scritture**.
+
 ## Miniature nell'elenco — §401, 2026-09-22
 
 L'anteprima a richiesta (§399) risolveva il problema sbagliato: fra venti

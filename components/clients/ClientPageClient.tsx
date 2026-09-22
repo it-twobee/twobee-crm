@@ -10,6 +10,7 @@ import type { Client, ClientContact, ClientKpi, Profile, ClientStakeholder, Clie
 import { setClientLabel } from '@/app/actions/clients'
 import { SUPER_ADMIN_EMAILS, canSeeTrackingSecrets, canSeeClientAnagrafica, canManageClientPortal } from '@/lib/permissions'
 import { PORTAL_TAB } from '@/lib/portal/access'
+import { ClientFilesTab } from '@/components/clients/tabs/ClientFilesTab'
 import { clientName } from '@/lib/utils'
 import { mrrOrigin, economicsHref, CONTRACT_PERIOD_HINT, PAYMENT_STATUS_HINT } from '@/lib/economics-source'
 import { paymentLabel, isLead } from '@/lib/clients'
@@ -230,6 +231,9 @@ export function ClientPageClient({
     { label: 'Tracking', index: 6 },
     { label: 'Report', index: 7 },
     ...(canSeeSecrets ? [{ label: 'Chiavi', index: 8 }, { label: 'Accessi', index: 9 }] : []),
+    /* §403 — lo spazio file c'è per ogni cliente, senza aspettare il portale:
+       è dove mettiamo la roba nostra del lavoro, e dove arriva la sua. */
+    { label: 'File', index: 11 },
     ...(canManagePortal ? [{ label: 'Portale cliente', index: PORTAL_TAB }] : []),
     // Economics: dati economici aggregati, admin-only e mai nel workspace
     ...(economics ? [{ label: 'Economics', index: 5 }] : []),
@@ -390,6 +394,8 @@ export function ClientPageClient({
         {activeTab === 7 && <ClientReportTab clientId={client.id} clientName={clientName(client)} />}
         {activeTab === 8 && canSeeSecrets && <ClientKeysTab clientId={client.id} />}
         {activeTab === 9 && canSeeSecrets && <ClientLoginsTab clientId={client.id} clientName={clientName(client)} />}
+        {activeTab === 11 && <ClientFilesTab key={client.id} clientId={client.id}
+          portalTabHref={canManagePortal ? `${portalBase}/clienti/${client.id}?tab=${PORTAL_TAB}` : undefined} />}
         {activeTab === PORTAL_TAB && canManagePortal && <ClientPortalTab key={client.id} clientId={client.id} contacts={contacts} />}
       </div>
     </div>
