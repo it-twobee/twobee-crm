@@ -105,3 +105,64 @@ export function parseRange(header: string | null | undefined, size: number): Byt
 export function materialDownloadHref(id: string): string {
   return `/api/portale/materiali/${id}`
 }
+
+/* ── Cartelle (§398) ───────────────────────────────────────────────────────
+   Il percorso viaggia col file: `brand/logo/logo.svg` arriva dal browser
+   quando si carica una cartella intera. L'albero si ricostruisce da qui,
+   quindi non esistono cartelle fantasma e non c'è un albero da tenere
+   integro — ma un percorso è pur sempre testo che arriva da fuori. */
+export const PATH_MAX = 400
+export const PATH_DEPTH = 10
+const SEGMENT_MAX = 120
+
+export function normalizePath(raw: unknown): string | null {
+  if (raw == null || raw === '') return null
+  if (typeof raw !== 'string') throw new Error('Percorso della cartella non valido.')
+  const segments = raw.replace(/\\/g, '/').split('/').map(s => s.trim()).filter(Boolean)
+  if (!segments.length) return null
+  if (segments.length > PATH_DEPTH) throw new Error(`Le cartelle sono annidate troppo in profondità (massimo ${PATH_DEPTH}).`)
+  for (const segment of segments) {
+    if (segment === '.' || segment === '..') throw new Error('Percorso della cartella non valido.')
+    if (segment.length > SEGMENT_MAX) throw new Error('Il nome di una cartella è troppo lungo.')
+    // Caratteri che nei nomi di cartella non hanno mai un buon motivo.
+    if (/[\u0000-\u001f\u007f]/.test(segment)) throw new Error('Percorso della cartella non valido.')
+  }
+  const path = segments.join('/')
+  if (path.length > PATH_MAX) throw new Error('Il percorso della cartella è troppo lungo.')
+  return path
+}
+
+/** Il percorso di una cartella caricata dal browser: `webkitRelativePath` meno il file. */
+export function folderPathOf(relativePath: string | null | undefined): string | null {
+  if (!relativePath) return null
+  const parts = relativePath.replace(/\\/g, '/').split('/')
+  parts.pop()
+  return normalizePath(parts.join('/'))
+}
+
+export type MaterialFolder<T> = { name: string; path: string; folders: MaterialFolder<T>[]; files: T[] }
+
+/** Albero dalla sola lista dei percorsi. Le cartelle intermedie nascono da sole. */
+export function buildMaterialTree<T extends { path?: string | null }>(items: T[]): MaterialFolder<T> {
+  const root: MaterialFolder<T> = { name: '', path: '', folders: [], files: [] }
+  for (const item of items) {
+    let node = root
+    for (const segment of (item.path ?? '').split('/').filter(Boolean)) {
+      const path = node.path ? `${node.path}/${segment}` : segment
+      let next = node.folders.find(f => f.name === segment)
+      if (!next) { next = { name: segment, path, folders: [], files: [] }; node.folders.push(next) }
+      node = next
+    }
+    node.files.push(item)
+  }
+  const sort = (node: MaterialFolder<T>) => {
+    node.folders.sort((a, b) => a.name.localeCompare(b.name, 'it'))
+    node.folders.forEach(sort)
+  }
+  sort(root)
+  return root
+}
+
+export function countTree<T>(node: MaterialFolder<T>): number {
+  return node.files.length + node.folders.reduce((sum, f) => sum + countTree(f), 0)
+}

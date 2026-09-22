@@ -1,5 +1,42 @@
 # Dove siamo
 
+## Area file dei clienti — §398, 2026-09-22
+
+Lo spazio del cliente (§397) era metà del lavoro. Adesso l'area file di
+un'azienda è **una sola**, con due gruppi dichiarati: **Caricati dal cliente** e
+**Nostri**, che lui non vede. Il confine è `portal_materials.source` dentro la
+policy di lettura del cliente — una riga, nel posto in cui non si può
+dimenticare, non un filtro sparso nelle pagine.
+
+Si caricano **cartelle intere**: il browser consegna ogni file con il suo
+percorso relativo, quel percorso si salva accanto al file e l'albero si
+ricostruisce da lì. Niente tabella delle cartelle da tenere integra. Il prezzo,
+dichiarato: una cartella vuota non esiste.
+
+La sezione **Documenti** smette di essere una finestra su una tabella che
+nessuno poteva riempire — non esisteva una sola scrittura su `documents` in
+tutto il codice, e lo stato vuoto mandava a cercare una porta inesistente nella
+scheda cliente. Adesso il filtro in alto sceglie l'azienda e sotto ci sono i tre
+gruppi: i suoi file, i nostri e i link Drive. Da lì si carica, si archivia e si
+elimina.
+
+**Archiviare toglie dai nostri elenchi, non dai suoi**: il cliente continua a
+vedere quello che ha caricato. Eliminare è irreversibile — un file del cliente
+lo elimina solo un amministratore, uno nostro chi l'ha caricato.
+
+Corretto un difetto preesistente: la tendina dei clienti passava da
+`clients_workspace`, la query dei documenti no. Un documento di un'azienda
+nascosta sarebbe comparso nell'albero col nome dell'azienda sopra.
+
+**Migration 251 applicata in produzione**, versione `20260922113154`: quattro
+colonne nuove, le due policy al loro posto, zero colonne riservate esposte, e
+l'espressione di `portal_material_read` che contiene davvero `source` — il
+confine è nel database. Verificato anche che `documents` in produzione ha **0
+righe**: la sezione Documenti non mostrava niente perché non c'era niente, e
+perché non esisteva un modo di metterci qualcosa. TypeScript senza errori, **87 check**, prove delle rotte con Supabase e storage simulati, suite
+SQL 244→251 due volte su PostgreSQL 16 effimero, browser con **288 richieste al
+mock e zero scritture**.
+
 ## Portale cliente — lo spazio file del cliente (§397), 2026-09-22
 
 Fin qui il portale leggeva soltanto. Adesso il cliente ha **il suo spazio**:

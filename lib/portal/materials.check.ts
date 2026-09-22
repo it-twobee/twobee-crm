@@ -4,8 +4,9 @@
    un player va in loop o quando entra un file che esegue qualcosa. */
 import assert from 'node:assert/strict'
 import {
-  MATERIAL_MAX_BYTES, MATERIAL_QUOTA_BYTES, extensionOf, humanBytes, materialDownloadHref,
-  materialKind, parseRange, quotaLeft, quotaWarning, rejectMaterial,
+  MATERIAL_MAX_BYTES, MATERIAL_QUOTA_BYTES, PATH_DEPTH, buildMaterialTree, countTree,
+  extensionOf, folderPathOf, humanBytes, materialDownloadHref, materialKind, normalizePath,
+  parseRange, quotaLeft, quotaWarning, rejectMaterial,
 } from './materials'
 
 const ok = { name: 'girato.mp4', mime: 'video/mp4', size: 40 * 1024 * 1024 }
@@ -56,4 +57,34 @@ assert.equal(parseRange('bytes=0-99', 0), 'invalid', 'un oggetto senza lunghezza
 
 assert.equal(materialDownloadHref('f2500000-0000-4000-8000-000000000001'), '/api/portale/materiali/f2500000-0000-4000-8000-000000000001')
 
-console.log('Tutti i controlli passano: tipi ammessi, estensioni bloccate, limite per file, quota d’azienda, formati leggibili e Range.')
+// ── Cartelle: il percorso arriva da fuori, quindi si guarda ────────────────
+assert.equal(normalizePath('brand/logo'), 'brand/logo')
+assert.equal(normalizePath('/brand/logo/'), 'brand/logo', 'le barre appese si tolgono')
+assert.equal(normalizePath('brand//logo'), 'brand/logo')
+assert.equal(normalizePath('brand\\logo'), 'brand/logo', 'anche il separatore di Windows')
+assert.equal(normalizePath('  brand / logo  '), 'brand/logo')
+assert.equal(normalizePath(null), null)
+assert.equal(normalizePath(''), null)
+assert.equal(normalizePath('   /  '), null)
+for (const bad of ['..', 'brand/../fuori', './qui', 'brand/./qui', 'a/'.repeat(PATH_DEPTH + 1), `${'x'.repeat(121)}/logo`, 'brand/lo\u0000go', 42])
+  assert.throws(() => normalizePath(bad as never), `percorso accettato: ${String(bad)}`)
+
+assert.equal(folderPathOf('brand/logo/logo.svg'), 'brand/logo')
+assert.equal(folderPathOf('logo.svg'), null, 'un file alla radice non ha cartella')
+assert.equal(folderPathOf(null), null)
+assert.throws(() => folderPathOf('../fuori/logo.svg'))
+
+const tree = buildMaterialTree([
+  { path: 'brand/logo', id: 1 }, { path: 'brand/logo', id: 2 },
+  { path: 'brand/tipografia', id: 3 }, { path: null, id: 4 }, { path: 'progetto/2026/estate', id: 5 },
+])
+assert.equal(tree.files.length, 1, 'i file senza cartella stanno alla radice')
+assert.deepEqual(tree.folders.map(f => f.name), ['brand', 'progetto'])
+assert.deepEqual(tree.folders[0].folders.map(f => f.name), ['logo', 'tipografia'])
+assert.equal(tree.folders[0].folders[0].files.length, 2)
+assert.equal(tree.folders[0].files.length, 0, 'una cartella intermedia nasce vuota')
+assert.equal(tree.folders[1].folders[0].folders[0].path, 'progetto/2026/estate')
+assert.equal(countTree(tree), 5)
+assert.equal(countTree(buildMaterialTree([])), 0)
+
+console.log('Tutti i controlli passano: tipi ammessi, estensioni bloccate, limite per file, quota d’azienda, formati leggibili, Range e cartelle dal percorso.')

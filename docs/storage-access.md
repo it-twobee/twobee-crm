@@ -4,6 +4,9 @@
 (`20260921150329`); codice nel rilascio su main per Coolify.
 22 settembre 2026 · migration **249 applicata in produzione**
 (`20260922084609`): cartella `deliverables` e download autenticato delle consegne.
+22 settembre 2026 · migration **251 applicata in produzione**
+(`20260922113154`): il verso nostro dell'area cliente (`source`, cartelle dal
+percorso, archiviazione).
 22 settembre 2026 · migration **250 applicata in produzione**
 (`20260922093617`): cartella `materiali`, lo spazio file del cliente, e il Range
 su tutte e due le porte del portale.
@@ -126,6 +129,22 @@ materiali — con il **Range**: 206 e `Content-Range` per un intervallo, 416 per
 uno fuori dal file, `Accept-Ranges` sempre. Senza, un video si scarica tutto e
 non si può far scorrere.
 
+## Il verso nostro dell'area cliente (251)
+
+Nella stessa cartella `materiali` scrive anche il team, con
+`portal_materials.source = 'team'`: stesso spazio, stessa quota, stesso limite,
+e una riga nella policy di lettura del cliente che gli passa solo `'cliente'`.
+La porta è `POST /api/area-cliente/file` — `getCaller` per lo staff attivo,
+`canAccessStorageContext` per il contesto azienda, che tiene fuori le aziende
+nascoste al workspace — e nel database `portal_assert_staff_actor` rifà il
+controllo sull'attore, perché l'header non è un permesso.
+
+Il percorso della cartella viaggia col file (`path`), normalizzato in TypeScript
+e ricontrollato da un CHECK: niente `..`, niente barre appese, al massimo dieci
+livelli. `PATCH /api/area-cliente/file/:id` archivia, rimette in vista ed
+elimina: archiviare vale solo per i nostri elenchi, eliminare un file del
+cliente è riservato agli amministratori.
+
 ## Verifiche
 
 ```bash
@@ -133,6 +152,7 @@ npx tsx lib/storage/access.check.ts
 npx tsx scripts/check-storage-routes.ts
 npx tsx scripts/check-portal-download-route.ts
 npx tsx scripts/check-portal-materials-routes.ts
+npx tsx scripts/check-area-cliente-routes.ts
 node scripts/check-storage-sql.mjs
 ```
 

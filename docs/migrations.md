@@ -37,7 +37,8 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > cliente**, integrato in main; la **245** aggiunge la gestione accessi.
 > La **246** introduce l'isolamento file; la **247** e la **248** i periodi e lo
 > scheletro dei progetti; la **249** la pubblicazione nel portale; la **250** lo
-> spazio file del cliente. La prossima libera è la **251**.
+> spazio file del cliente; la **251** l'area file condivisa. La prossima libera
+> è la **252**.
 
 > **La 249 è nata 247.** È stata scritta e **applicata in produzione** mentre su
 > main arrivavano `247_periodi_e_ricorrenze` e `248_scheletro_periodi`, da una
@@ -47,6 +48,41 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > file, quindi il rinumero non cambia niente sul database e **non va
 > riapplicata**. Il numero nel nome serve a chi legge il repo, e due file con lo
 > stesso numero sono una trappola per chi arriva dopo.
+
+## 251 — l'area file di un cliente (§398, applicata il 2026-09-22)
+
+`251_area_cliente.sql`: **applicata in produzione**, versione
+**`20260922113154`**. Additiva: le righe esistenti restano `source='cliente'`,
+che è quello che sono. Prerequisiti: **244**, **246**, **250**.
+
+Su `portal_materials` arrivano tre cose. **`source`** (`cliente`|`team`) è il
+confine, e sta in una riga sola della policy `portal_material_read`: il cliente
+legge solo ciò che ha caricato lui. **`path`** è il percorso relativo con cui il
+file è arrivato dal browser — l'albero si ricostruisce da lì, quindi non esiste
+una tabella delle cartelle da tenere integra; un CHECK rifiuta `.`, `..`, barre
+appese, doppie barre e più di dieci livelli. **`archived_at`/`archived_by`**
+tolgono il file dai nostri elenchi e non da quelli del cliente: la policy del
+cliente non guarda l'archiviazione.
+
+`portal_assert_staff_actor` verifica che un file `team` lo carichi staff attivo,
+dato che `portal_is_staff()` guarda `auth.uid()` e le scritture arrivano dal
+service role con l'attore nell'header. `portal_guard_material` diventa a due
+rami — il nostro e il suo — e ammette dopo il caricamento solo archiviare,
+rimuovere e staccare il metadato. Un file nostro non risponde a un'attività del
+cliente (CHECK) e non porta l'etichetta di un progetto di un'altra azienda.
+
+`path`, `source`, `archived_at` e `archived_by` sono concesse in SELECT ad
+`authenticated` perché anche lo staff legge da lì: al cliente non raccontano
+niente, visto che la sua policy gli passa solo `source='cliente'`.
+
+Provata due volte su PostgreSQL 16 effimero con
+`supabase/tests/251_area_cliente.check.sql`. Verifica in sola lettura dopo
+l'applicazione: quattro colonne nuove, le due policy al loro posto,
+`portal_assert_staff_actor` presente, zero colonne riservate esposte, e — la
+riga che conta — **l'espressione di `portal_material_read` contiene davvero
+`source`**: il confine è nel database, non in una pagina. Conteggi: 0 materiali,
+0 file nostri, 0 link Drive (la tabella `documents` in produzione è vuota, che è
+il motivo per cui la sezione Documenti non mostrava niente).
 
 ## 250 — lo spazio file del cliente (§397, applicata il 2026-09-22)
 

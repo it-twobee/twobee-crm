@@ -1,5 +1,88 @@
 # Portale cliente
 
+## L'area file di un cliente — §398, 22 settembre 2026
+
+Lo spazio del cliente (§397) era metà del lavoro: lui carica, noi guardiamo.
+Mancava il nostro verso, e mancava il posto da cui guardarlo. Adesso l'**area
+file di un cliente** è una sola, con due gruppi dichiarati e un confine solo:
+
+- **Caricati dal cliente** — quello che ci manda dal suo portale;
+- **Nostri** — quello che carichiamo noi, e che **lui non vede**.
+
+Il confine non è un filtro nelle pagine: è `portal_materials.source` dentro la
+policy di lettura del cliente (`source = 'cliente'`). Una riga sola, nel posto in
+cui non si può dimenticare. Un flag controllato in una pagina è il modo classico
+di far arrivare al cliente il design system che stavamo preparando.
+
+### Cartelle: il percorso viaggia col file
+
+Il browser sa caricare una cartella intera e consegna ogni file con il suo
+percorso relativo (`brand/logo/logo.svg`). Quel percorso si salva accanto al
+file, e l'albero si ricostruisce da lì: niente tabella delle cartelle, niente
+alberatura da tenere integra, niente cartelle fantasma. Il prezzo, dichiarato:
+una cartella vuota non esiste, e rinominarne una vorrebbe dire riscrivere il
+percorso dei file dentro.
+
+Un percorso è testo che arriva da fuori, quindi si guarda due volte:
+`normalizePath` toglie le barre appese, accetta anche il separatore di Windows,
+e rifiuta `.`, `..`, segmenti oltre 120 caratteri e più di dieci livelli. Il
+database ripete la stessa regola in un CHECK, perché una guard applicativa non
+è una barriera.
+
+### La sezione Documenti
+
+Non è più la finestra su una tabella che nessuno poteva riempire. Il filtro in
+alto sceglie l'azienda, e sotto compaiono i tre gruppi: i file del cliente, i
+nostri e i **link Drive** — che restano quello che erano, collegamenti esterni.
+Da qui si carica, si archivia e si elimina, con l'albero delle cartelle.
+
+Il caricamento del team passa da `POST /api/area-cliente/file`, non da
+`/api/files/upload`: gli stessi limiti del cliente (1 GB per file, 20 GB per
+azienda, elenco chiuso di tipi, caricamento a flusso) e la stessa quota, perché
+lo spazio è uno solo. La porta è `getCaller` — staff attivo, non `viewer` — più
+`canAccessStorageContext`, che tiene fuori le aziende nascoste al workspace
+(§213). Nel database `portal_assert_staff_actor` rifà il controllo sull'attore.
+
+**Un difetto preesistente corretto**: la tendina dei clienti passava da
+`clients_workspace`, ma la query dei documenti no. Un documento di un'azienda
+nascosta sarebbe comparso nell'albero col nome dell'azienda sopra. Adesso
+entrambe le pagine filtrano sulle aziende che quel portale mostra davvero.
+
+### Archiviare non è cancellare, e non è del cliente
+
+**Archiviare toglie dai nostri elenchi, non dai suoi.** Il cliente continua a
+vedere il file che ha caricato: fargli sparire una cosa sua senza dirglielo è il
+modo peggiore di fargli perdere un logo. È reversibile, e lo fa qualsiasi
+persona del team.
+
+**Eliminare** è irreversibile: i byte spariscono e la riga resta come traccia.
+Un file **del cliente** lo elimina solo un amministratore; un file **nostro** lo
+elimina chi l'ha caricato, oltre agli amministratori. Agli altri resta
+archiviare — che è quasi sempre quello che serve davvero.
+
+**Migration 251 applicata in produzione** il 22 settembre, versione
+`20260922113154`, con 0 materiali e 0 file nostri: niente da convertire, e le
+righe esistenti sarebbero comunque rimaste `source='cliente'`.
+
+### Verifiche — §398
+
+```bash
+npx tsx lib/portal/materials.check.ts        # percorsi e albero
+npx tsx scripts/check-area-cliente-routes.ts
+npx tsx scripts/check-portal-materials-routes.ts
+node scripts/check-portal-sql.mjs            # 244+245+246+249+250+251 ×2 + suite
+```
+
+La suite SQL prova che un file `source='team'` sia invisibile al referente, al
+collaboratore con scope limitato **e** al lettore, e visibile al team; che un
+account cliente non possa crearne uno; che un profilo disattivato non possa
+caricare; che sette forme di percorso storto vengano rifiutate; che archiviare
+non tolga niente al cliente; e che `source` e `path` siano immutabili dopo il
+caricamento. Le rotte sono provate con Supabase e storage simulati: account
+cliente e `viewer` rifiutati, azienda nascosta esclusa, percorsi e tipi rifiutati
+**prima** di aprire lo storage, file nostri che nascono nostri, archiviazione
+reversibile e cancellazioni per ruolo.
+
 ## Lo spazio file del cliente — §397, 22 settembre 2026
 
 Fin qui il portale leggeva soltanto: noi pubblicavamo, il cliente scaricava.

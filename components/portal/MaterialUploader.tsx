@@ -2,11 +2,12 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Download, FileAudio, FileText, FileVideo, Image as ImageIcon, Loader2, Trash2, Upload } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, FileAudio, FileText, FileVideo, Folder, FolderUp, Image as ImageIcon, Loader2, Trash2, Upload } from 'lucide-react'
 import {
-  MATERIAL_MAX_BYTES, MATERIAL_QUOTA_BYTES, humanBytes, materialDownloadHref,
-  quotaLeft, quotaWarning, rejectMaterial,
+  MATERIAL_MAX_BYTES, MATERIAL_QUOTA_BYTES, buildMaterialTree, countTree, folderPathOf,
+  humanBytes, materialDownloadHref, quotaLeft, quotaWarning, rejectMaterial,
 } from '@/lib/portal/materials'
+import type { MaterialFolder } from '@/lib/portal/materials'
 import { portalDate } from '@/lib/portal/model'
 import type { PortalMaterial } from '@/lib/portal/model'
 
@@ -27,20 +28,15 @@ export function MaterialUploader({ clientId, projects, materials, canWrite, used
 }) {
   const router = useRouter()
   const input = useRef<HTMLInputElement>(null)
+  const folderInput = useRef<HTMLInputElement>(null)
+  const [open, setOpen] = useState<Set<string>>(new Set())
   const [project, setProject] = useState('')
   const [busy, setBusy] = useState<{ name: string; percent: number } | null>(null)
   const [error, setError] = useState('')
 
   const left = quotaLeft(usedBytes)
   const warning = quotaWarning(usedBytes)
-  const grouped = useMemo(() => {
-    const byProject = new Map<string, PortalMaterial[]>()
-    for (const m of materials) {
-      const key = m.project_id ?? ''
-      byProject.set(key, [...(byProject.get(key) ?? []), m])
-    }
-    return byProject
-  }, [materials])
+  const tree = useMemo(() => buildMaterialTree(materials), [materials])
 
   /* XHR e non fetch: su un video da mezzo giga la barra di avanzamento è la
      differenza fra «sta caricando» e «si è piantato». */
@@ -48,6 +44,10 @@ export function MaterialUploader({ clientId, projects, materials, canWrite, used
     return new Promise<void>((resolve, reject) => {
       const params = new URLSearchParams({ client: clientId })
       if (project) params.set('progetto', project)
+      // Caricando una cartella il browser dà a ogni file il suo percorso: è
+      // quello che ricostruisce l'albero, senza cartelle da creare a mano.
+      const folder = folderPathOf((file as File & { webkitRelativePath?: string }).webkitRelativePath)
+      if (folder) params.set('percorso', folder)
       const request = new XMLHttpRequest()
       request.open('POST', `/api/portale/materiali?${params}`)
       request.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
@@ -95,7 +95,7 @@ export function MaterialUploader({ clientId, projects, materials, canWrite, used
     {canWrite ? <section aria-labelledby="carica" className="rounded-xl border border-border bg-surface p-5">
       <h2 id="carica" className="font-heading text-xl font-semibold">Carica un file</h2>
       <p className="mt-1 text-sm text-text-secondary">
-        Immagini, video, audio e documenti, fino a {humanBytes(MATERIAL_MAX_BYTES)} l’uno.
+        Immagini, video, audio e documenti, fino a {humanBytes(MATERIAL_MAX_BYTES)} l’uno. Puoi caricare anche una cartella intera: la ritrovi qui com’era.
         I file restano privati fra te e il team: nessun link pubblico.
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -109,9 +109,17 @@ export function MaterialUploader({ clientId, projects, materials, canWrite, used
         </label>}
         <input ref={input} type="file" multiple className="sr-only" aria-label="Scegli i file da caricare"
           onChange={e => { if (e.target.files?.length) upload(e.target.files); e.target.value = '' }} />
+        {/* Caricare una cartella intera: il browser consegna ogni file con il
+            suo percorso relativo, e l'albero si ricostruisce da quello. */}
+        <input ref={folderInput} type="file" multiple className="sr-only" aria-label="Scegli una cartella da caricare"
+          {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
+          onChange={e => { if (e.target.files?.length) upload(e.target.files); e.target.value = '' }} />
         <button type="button" className={button} disabled={!!busy} onClick={() => input.current?.click()}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />}
           {busy ? 'Caricamento in corso…' : 'Scegli i file'}
+        </button>
+        <button type="button" className={button} disabled={!!busy} onClick={() => folderInput.current?.click()}>
+          <FolderUp className="h-4 w-4" aria-hidden="true" />Carica una cartella
         </button>
       </div>
       {busy && <div className="mt-4">
@@ -133,31 +141,61 @@ export function MaterialUploader({ clientId, projects, materials, canWrite, used
       <p className="mt-2 max-w-2xl text-sm text-text-secondary">
         Questo è lo spazio della tua azienda: quello che carichi resta disponibile a te, ai tuoi colleghi con accesso al portale e al team TwoBee.
       </p>
-    </div> : <div className="space-y-8">{Array.from(grouped.entries()).map(([key, files]) => (
-      <section key={key || 'senza-progetto'} aria-labelledby={`gruppo-${key || 'nessuno'}`}>
-        <h2 id={`gruppo-${key || 'nessuno'}`} className="mb-3 font-heading text-lg font-semibold">
-          {key ? projects.find(p => p.id === key)?.title ?? 'Progetto' : 'Senza progetto'}
-        </h2>
-        <ul className="divide-y divide-border border-y border-border">{files.map(m => {
-          const Icon = ICONS[m.kind] ?? FileText
-          const mine = m.uploaded_by_name === viewerName
-          return <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-            <span className="flex min-w-0 items-center gap-3">
-              <Icon className="h-5 w-5 shrink-0 text-text-secondary" aria-hidden="true" />
-              <span className="min-w-0">
-                <span className="block break-words text-sm font-medium">{m.name}</span>
-                <span className="block text-2xs text-text-secondary">{humanBytes(Number(m.size))} · {m.uploaded_by_name} · {portalDate(m.created_at)}</span>
-              </span>
-            </span>
-            <span className="flex shrink-0 items-center gap-2">
-              <a href={materialDownloadHref(m.id)} className={button}><Download className="h-4 w-4" aria-hidden="true" />Scarica<span className="sr-only"> {m.name}</span></a>
-              {canWrite && mine && <button type="button" className={button} onClick={() => remove(m)}>
-                <Trash2 className="h-4 w-4" aria-hidden="true" />Rimuovi<span className="sr-only"> {m.name}</span>
-              </button>}
-            </span>
-          </li>
-        })}</ul>
-      </section>
-    ))}</div>}
+    </div> : <section aria-label="I tuoi file">
+      <FolderView node={tree} depth={0} open={open} toggle={path => setOpen(p => {
+        const next = new Set(p); next.has(path) ? next.delete(path) : next.add(path); return next
+      })} projects={projects} canWrite={canWrite} viewerName={viewerName} onRemove={remove} />
+    </section>}
   </div>
+}
+
+function FolderView({ node, depth, open, toggle, projects, canWrite, viewerName, onRemove }: {
+  node: MaterialFolder<PortalMaterial>
+  depth: number
+  open: Set<string>
+  toggle: (path: string) => void
+  projects: UploaderProject[]
+  canWrite: boolean
+  viewerName: string
+  onRemove: (material: PortalMaterial) => void
+}) {
+  return <ul className={depth ? 'ml-4 border-l border-border pl-3' : 'divide-y divide-border border-y border-border'}>
+    {node.folders.map(child => {
+      const expanded = open.has(child.path)
+      const Chevron = expanded ? ChevronDown : ChevronRight
+      return <li key={child.path} className="py-1">
+        <button type="button" onClick={() => toggle(child.path)} aria-expanded={expanded}
+          className="flex min-h-11 w-full items-center gap-2 text-left text-sm font-medium hover:text-gold-text">
+          <Chevron className="h-4 w-4 shrink-0 text-text-secondary" aria-hidden="true" />
+          <Folder className="h-4 w-4 shrink-0 text-text-secondary" aria-hidden="true" />
+          <span className="break-words">{child.name}</span>
+          <span className="text-2xs font-normal text-text-secondary">{countTree(child)}</span>
+        </button>
+        {expanded && <FolderView node={child} depth={depth + 1} open={open} toggle={toggle}
+          projects={projects} canWrite={canWrite} viewerName={viewerName} onRemove={onRemove} />}
+      </li>
+    })}
+    {node.files.map(m => {
+      const Icon = ICONS[m.kind] ?? FileText
+      const mine = m.uploaded_by_name === viewerName
+      const project = m.project_id ? projects.find(p => p.id === m.project_id)?.title : null
+      return <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+        <span className="flex min-w-0 items-center gap-3">
+          <Icon className="h-5 w-5 shrink-0 text-text-secondary" aria-hidden="true" />
+          <span className="min-w-0">
+            <span className="block break-words text-sm font-medium">{m.name}</span>
+            <span className="block text-2xs text-text-secondary">
+              {humanBytes(Number(m.size))} · {m.uploaded_by_name} · {portalDate(m.created_at)}{project ? ` · ${project}` : ''}
+            </span>
+          </span>
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          <a href={materialDownloadHref(m.id)} className={button}><Download className="h-4 w-4" aria-hidden="true" />Scarica<span className="sr-only"> {m.name}</span></a>
+          {canWrite && mine && <button type="button" className={button} onClick={() => onRemove(m)}>
+            <Trash2 className="h-4 w-4" aria-hidden="true" />Rimuovi<span className="sr-only"> {m.name}</span>
+          </button>}
+        </span>
+      </li>
+    })}
+  </ul>
 }

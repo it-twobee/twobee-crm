@@ -70,7 +70,7 @@ export const getPortalData = cache(async (requested?: string) => {
     db.from('portal_activities').select('id, project_id, title, reason, kind, due_date, contact_name, status, version_id').eq('client_id', clientId).not('published_at', 'is', null).order('due_date', { nullsFirst: false }),
     db.from('portal_requests').select('id, project_id, title, body, kind, status, created_at').eq('client_id', clientId).order('created_at', { ascending: false }).limit(100),
     db.from('portal_deliverable_versions').select('id, project_id, deliverable_id, title, version, author_name, published_at, approval_required').eq('client_id', clientId).not('published_at', 'is', null).order('published_at', { ascending: false }).limit(100),
-    db.from('portal_materials').select('id, project_id, name, mime, size, kind, uploaded_by_name, created_at').eq('client_id', clientId).is('deleted_at', null).order('created_at', { ascending: false }).limit(500),
+    db.from('portal_materials').select('id, project_id, name, mime, size, kind, path, uploaded_by_name, created_at').eq('client_id', clientId).is('deleted_at', null).order('created_at', { ascending: false }).limit(500),
   ])
   if (results.some(r => r.error)) throw new Error('Non è stato possibile caricare tutti i contenuti condivisi. Riprova.')
   const projects = (results[0].data ?? []) as PortalProject[]

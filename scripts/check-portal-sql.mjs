@@ -31,11 +31,13 @@ try {
     sql('supabase/migrations/246_storage_isolation.sql')
     sql('supabase/migrations/249_portal_publishing.sql')
     sql('supabase/migrations/250_portal_materials.sql')
+    sql('supabase/migrations/251_area_cliente.sql')
   }
   sql('supabase/tests/244_client_portal.check.sql')
   sql('supabase/tests/245_portal_access_management.check.sql')
   sql('supabase/tests/249_portal_publishing.check.sql')
   sql('supabase/tests/250_portal_materials.check.sql')
+  sql('supabase/tests/251_area_cliente.check.sql')
   console.log('Tutti i controlli passano: migration rilanciabili e isolamento SQL su PostgreSQL effimero.')
 } finally {
   execFileSync('docker', ['rm', '-f', name], { stdio: 'pipe' })

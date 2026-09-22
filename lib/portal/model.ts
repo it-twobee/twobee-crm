@@ -30,7 +30,7 @@ export type PortalVersion = {
 
 export type PortalMaterial = {
   id: string; project_id: string | null; name: string; mime: string | null
-  size: number; kind: string; uploaded_by_name: string; created_at: string
+  size: number; kind: string; path: string | null; uploaded_by_name: string; created_at: string
 }
 
 export const REQUEST_KINDS = {

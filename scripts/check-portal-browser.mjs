@@ -94,10 +94,15 @@ const mock = createServer((req, res) => {
       { id: 'version-a1', project_id: pa, deliverable_id: 'consegna-a', title: 'Proposta di navigazione', version: 1, author_name: 'Il team di progetto', published_at: '2026-09-10T10:00:00Z', approval_required: false },
     ] : []
   } else if (table === 'portal_materials') {
+    // §398 — il mock fa quello che fa la policy: al cliente arrivano soltanto
+    // le righe `source='cliente'`. Che la regola sia nel database lo prova la
+    // suite SQL; qui si prova che la pagina mostri quello che riceve.
+    const staff = [ids.super, ids.manager, ids.junior].includes(userId)
     rows = eq('client_id') === a ? [
-      { id: 'materiale-a', project_id: pa, name: 'Logo definitivo.png', mime: 'image/png', size: 204800, kind: 'immagine', uploaded_by_name: 'Referente di prova', created_at: '2026-09-20T10:00:00Z' },
-      { id: 'materiale-b', project_id: null, name: 'Spot 30 secondi.mp4', mime: 'video/mp4', size: 48234496, kind: 'video', uploaded_by_name: 'Referente di prova', created_at: '2026-09-21T10:00:00Z' },
-    ] : []
+      { id: 'materiale-a', project_id: pa, name: 'Logo definitivo.png', mime: 'image/png', size: 204800, kind: 'immagine', path: 'brand/logo', source: 'cliente', uploaded_by_name: 'Referente di prova', created_at: '2026-09-20T10:00:00Z' },
+      { id: 'materiale-b', project_id: null, name: 'Spot 30 secondi.mp4', mime: 'video/mp4', size: 48234496, kind: 'video', path: null, source: 'cliente', uploaded_by_name: 'Referente di prova', created_at: '2026-09-21T10:00:00Z' },
+      { id: 'materiale-nostro', project_id: pa, name: 'Design system interno.pdf', mime: 'application/pdf', size: 1024, kind: 'documento', path: null, source: 'team', uploaded_by_name: 'Team TwoBee', created_at: '2026-09-21T11:00:00Z' },
+    ].filter(m => staff || m.source === 'cliente') : []
   } else if (table === 'portal_requests') {
     if (schema === 'legacy') return reply(404, { code: 'PGRST205', message: "Could not find the table 'public.portal_requests' in the schema cache" })
     rows = [{ id: 'request-a', project_id: pa, title: 'Chiarimento sui contenuti', body: 'Quali contenuti prepariamo per la prossima revisione?', kind: 'supporto', status: 'in_valutazione', created_at: '2026-09-19T10:00:00Z' }]
@@ -339,7 +344,14 @@ try {
   const spaceText = await space.page.locator('body').innerText()
   assert.match(spaceText, /Spot 30 secondi\.mp4/)
   assert.match(spaceText, /46 MB/, 'la dimensione si legge, non si conta a mano')
-  assert.match(spaceText, /Senza progetto/, 'i file senza progetto hanno un posto dichiarato')
+  assert.equal(spaceText.includes('Design system interno.pdf'), false, 'quello che carichiamo noi non arriva al cliente')
+  // La cartella caricata si ritrova com'era: «brand» → «logo» → il file.
+  assert.equal(spaceText.includes('Logo definitivo.png'), false, 'un file dentro una cartella non sta alla radice')
+  await space.page.getByRole('button', { name: /^brand/ }).click()
+  await space.page.getByRole('button', { name: /^logo/ }).click()
+  const aperto = await space.page.locator('body').innerText()
+  assert.match(aperto, /Logo definitivo\.png/, 'la cartella caricata si ritrova com’era')
+  assert.equal(await space.page.getByRole('link', { name: /Scarica Logo definitivo\.png/ }).getAttribute('href'), '/api/portale/materiali/materiale-a')
   const scarica = space.page.getByRole('link', { name: /Scarica Spot 30 secondi\.mp4/ })
   assert.equal(await scarica.getAttribute('href'), '/api/portale/materiali/materiale-b')
   await space.page.getByRole('navigation', { name: 'Portale cliente' }).getByRole('link', { name: 'I tuoi file', exact: true }).click()

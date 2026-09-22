@@ -25,7 +25,7 @@ database vero, e riscoprirle costa più che leggerle.
 | «a che punto siamo», cosa è applicato, cosa è aperto | `docs/stato.md` |
 | commerciale, opportunità, lead commerciali, esiti, passaggio alla delivery | `docs/commerciale.md` |
 | portale cliente, inviti, accessi azienda/progetto e recupero password | `docs/portale-cliente.md` |
-| file interni, cartelle, upload/download e link pubblici (`lib/storage/**`, `/api/files/**`) | `docs/storage-access.md` |
+| file interni, cartelle, upload/download e link pubblici (`lib/storage/**`, `/api/files/**`), area file dei clienti e sezione Documenti | `docs/storage-access.md` |
 
 ## Invarianti — valgono anche senza aprire i doc
 - **Nessun valore economico si digita**: contratti e rate sono l'unica scrittura,
