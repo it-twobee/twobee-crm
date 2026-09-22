@@ -5,10 +5,12 @@ import {
   Plus, Trash2, FolderTree, Flag, CheckSquare, Repeat, ChevronDown,
   Wand2, CalendarRange, Eye, EyeOff, Clock, SlidersHorizontal, Package, AlignLeft,
 } from 'lucide-react'
-import { StepHead, Segmented, inputCls, Avatar, Empty } from '@/components/shared/formkit'
+import { StepHead, Segmented, SearchInput, inputCls, Avatar, Empty } from '@/components/shared/formkit'
+import { WorkstreamPresets } from '@/components/projects/WorkstreamPresets'
 import {
-  workstreamName, milestoneName, taskName, isConform, type NamingCtx,
+  workstreamName, bareWorkstream, milestoneName, taskName, isConform, type NamingCtx,
 } from '@/lib/project-naming'
+import type { ServiceCatalogEntry } from '@/lib/types/database'
 import {
   countTree, recOwner, FREQUENCIES, FREQ_LABEL, PRIORITIES,
   newTask, newMilestone, newRecurring, newWorkstream,
@@ -61,12 +63,15 @@ export function spreadDueDates(structure: WWorkstream[], start: string, end: str
 }
 
 export function StepStruttura({
-  structure, setStructure, team, ctx, startDate, targetEnd, managerId = null,
+  structure, setStructure, team, ctx, area, services, startDate, targetEnd, managerId = null,
 }: {
   structure: WWorkstream[]
   setStructure: React.Dispatch<React.SetStateAction<WWorkstream[]>>
   team: Person[]
   ctx: NamingCtx
+  /** §394 — l'area e il catalogo: una corsia in più si sceglie, non si battezza */
+  area: ProjectArea
+  services: ServiceCatalogEntry[]
   startDate: string
   targetEnd: string
   /** §346 — l'ultimo anello della catena del responsabile di una ricorrente */
@@ -78,6 +83,8 @@ export function StepStruttura({
   // c'è quando serve. Aprire tutto trasformerebbe la struttura in un modulo.
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const toggle = (k: string) => setOpen(o => ({ ...o, [k]: !o[k] }))
+  const [aggiungo, setAggiungo] = useState(false)
+  const [wsQ, setWsQ] = useState('')
 
   const updWs = (key: string, fn: (w: WWorkstream) => WWorkstream) =>
     setStructure(s => s.map(w => w.key === key ? fn(w) : w))
@@ -86,7 +93,8 @@ export function StepStruttura({
   const updTask = (wk: string, mk: string, tk: string, fn: (t: WTask) => WTask) =>
     updMs(wk, mk, m => ({ ...m, tasks: m.tasks.map(t => t.key === tk ? fn(t) : t) }))
 
-  const addWs = () => setStructure(s => [...s, newWorkstream(workstreamName(ctx, 'Nuovo workstream'), null)])
+  const addWs = (nome: string) =>
+    setStructure(s => [...s, newWorkstream(workstreamName(ctx, nome), null)])
   const addMs = (wk: string) => updWs(wk, w => ({
     ...w,
     milestones: [...w.milestones, newMilestone(
@@ -333,10 +341,27 @@ export function StepStruttura({
         </div>
       )}
 
-      <button type="button" onClick={addWs}
-        className="mt-3 flex items-center gap-1.5 text-2xs font-semibold text-gold-text hover:opacity-80">
-        <Plus className="w-3.5 h-3.5" />Workstream
-      </button>
+      {/* §394 — «Workstream» apriva una corsia chiamata «Nuovo workstream», e
+          quel nome è arrivato fino in fondo più di una volta. Qui si sceglie
+          dalla stessa lista del passo «Cosa consegniamo», o si scrive. */}
+      {aggiungo ? (
+        <div className="mt-3 border border-border rounded-xl p-2.5 space-y-2.5 bg-surface">
+          <SearchInput value={wsQ} onChange={setWsQ} placeholder="Cerca a catalogo o scrivi un workstream nuovo…" autoFocus />
+          <WorkstreamPresets area={area} services={services} query={wsQ} canPersist
+            presenti={structure.map(w => bareWorkstream(w.name, ctx))} notaPresente="già nell'albero"
+            maxH="max-h-[30vh]"
+            onPick={pick => { addWs(pick.label); setWsQ(''); setAggiungo(false) }} />
+          <button type="button" onClick={() => { setWsQ(''); setAggiungo(false) }}
+            className="text-2xs font-semibold text-text-secondary hover:text-text-primary">
+            Annulla
+          </button>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setAggiungo(true)}
+          className="mt-3 flex items-center gap-1.5 text-2xs font-semibold text-gold-text hover:opacity-80">
+          <Plus className="w-3.5 h-3.5" />Workstream
+        </button>
+      )}
     </div>
   )
 }

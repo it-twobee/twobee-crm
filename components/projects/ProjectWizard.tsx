@@ -441,7 +441,8 @@ export function ProjectWizard({
               )}
               {steps[step].key === 'struttura' && (
                 <StepStruttura structure={structure} setStructure={editStructure} team={teamPeople}
-                  ctx={ctx} startDate={info.startDate} targetEnd={info.targetEnd}
+                  ctx={ctx} area={area || 'marketing'} services={areaServices}
+                  startDate={info.startDate} targetEnd={info.targetEnd}
                   managerId={info.managerId || null} />
               )}
               {steps[step].key === 'economics' && client?.kind === 'client' && (

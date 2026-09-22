@@ -14,11 +14,12 @@ import { createWorkstream } from '@/app/actions/workstreams'
 import {
   ModalShell, Group, Field, SearchInput, PickRow, Segmented, Empty, inputCls,
 } from '@/components/shared/formkit'
-import { workstreamPrefixFromProjectName, applyWorkstreamPrefix } from '@/lib/project-naming'
-import { canCreateClients } from '@/lib/permissions'
+import { workstreamPrefixFromProjectName, applyWorkstreamPrefix, stripWorkstreamPrefix } from '@/lib/project-naming'
+import { canCreateClients, canGovernProjects } from '@/lib/permissions'
 import { TaskComposer } from '@/components/tasks/TaskComposer'
+import { WorkstreamPresets, useServiceCatalog } from '@/components/projects/WorkstreamPresets'
 import type {
-  WorkstreamType, ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode,
+  WorkstreamType, ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode, ProjectArea,
 } from '@/lib/types/database'
 
 // componenti pesanti: caricati solo all'apertura (fuori dal bundle dell'header globale)
@@ -26,7 +27,7 @@ const ProjectWizard = dynamic(() => import('@/components/projects/ProjectWizard'
 const NewClientModal = dynamic(() => import('@/components/clients/NewClientModal').then(m => ({ default: m.NewClientModal })), { ssr: false })
 
 type ClientOpt = { id: string; name: string }
-type ProjectOpt = { id: string; name: string; client_id: string }
+type ProjectOpt = { id: string; name: string; client_id: string; area: ProjectArea }
 type PersonOpt = { id: string; full_name: string; app_role: string | null; avatar_url?: string | null }
 type WsOpt = { id: string; name: string }
 type MsOpt = { id: string; title: string; milestone_type: string }
@@ -49,6 +50,10 @@ export function QuickCreate({ context = 'admin' }: { context?: 'admin' | 'worksp
      aprire un'anagrafica. La porta vera resta `requireClientCreator()` nell'
      azione; questo evita di mostrare un pulsante che rimbalzerebbe (§211). */
   const [canCreateClient, setCanCreateClient] = useState(false)
+  /* §394 — chi può aggiungere una voce al catalogo dei workstream: la porta
+     vera è `createCatalogService`, qui si evita di offrire la spunta a chi la
+     vedrebbe fallire (§211). */
+  const [canPersistCatalog, setCanPersistCatalog] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [rect, setRect] = useState<DOMRect | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
@@ -60,13 +65,15 @@ export function QuickCreate({ context = 'admin' }: { context?: 'admin' | 'worksp
     const { data: { user } } = await sb.auth.getUser()
     const [c, p, pr, me] = await Promise.all([
       sb.from('clients').select('id, company_name, display_name').order('company_name'),
-      sb.from('projects').select('id, name, client_id').is('deleted_at', null).order('created_at', { ascending: false }),
+      sb.from('projects').select('id, name, client_id, area').is('deleted_at', null).order('created_at', { ascending: false }),
       sb.from('profiles').select('id, full_name, app_role, avatar_url').eq('is_active', true).order('full_name'),
       user
-        ? sb.from('profiles').select('app_role').eq('id', user.id).maybeSingle()
+        ? sb.from('profiles').select('app_role, role').eq('id', user.id).maybeSingle()
         : Promise.resolve({ data: null }),
     ])
-    setCanCreateClient(canCreateClients((me.data as { app_role?: string | null } | null)?.app_role))
+    const io = me.data as { app_role?: string | null; role?: string | null } | null
+    setCanCreateClient(canCreateClients(io?.app_role))
+    setCanPersistCatalog(canGovernProjects(io))
     setClients((c.data ?? []).map((x: { id: string; company_name: string; display_name: string | null }) => ({ id: x.id, name: x.display_name || x.company_name })))
     setProjects((p.data ?? []) as ProjectOpt[])
     setProfiles((pr.data ?? []) as PersonOpt[])
@@ -138,7 +145,8 @@ export function QuickCreate({ context = 'admin' }: { context?: 'admin' | 'worksp
         <ProjectWizard clients={clients} profiles={profiles} services={services} templates={templates} nodes={nodes}
           basePath={`${base}/progetti`} onClose={() => setMode(null)} />, document.body)}
       {mounted && mode === 'workstream' && createPortal(
-        <WorkstreamModal projects={projects} base={base} onClose={() => setMode(null)} onDone={() => setMode(null)} notify={notifyCreated} />, document.body)}
+        <WorkstreamModal projects={projects} base={base} canPersist={canPersistCatalog}
+          onClose={() => setMode(null)} onDone={() => setMode(null)} notify={notifyCreated} />, document.body)}
       {mounted && mode === 'task' && createPortal(
         <TaskComposer
           destination={{ mode: 'pick', allow: ['project', 'ad_hoc', 'cliente'], clients, projects, canCreateClient }}
@@ -168,14 +176,31 @@ function MenuRow({ icon, title, hint, onClick }: { icon: React.ReactNode; title:
   )
 }
 
-function WorkstreamModal({ projects, base, onClose, onDone, notify }: { projects: ProjectOpt[]; base: string; onClose: () => void; onDone: () => void; notify: (l: string, h: string) => void }) {
+function WorkstreamModal({ projects, base, canPersist, onClose, onDone, notify }: {
+  projects: ProjectOpt[]; base: string; canPersist: boolean
+  onClose: () => void; onDone: () => void; notify: (l: string, h: string) => void
+}) {
   const [pending, start] = useTransition()
   const [projectId, setProjectId] = useState('')
   const [q, setQ] = useState('')
   const [name, setName] = useState('')
+  const [scelto, setScelto] = useState(false)
   const [type, setType] = useState<WorkstreamType>('project')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  // §394 — il catalogo serve solo dopo che il progetto c'è: prima non si sa l'area
+  const { services, loading } = useServiceCatalog(!!projectId)
+  /* Le corsie che il progetto ha già: qui si marcano in elenco, come nella
+     scheda progetto — la stessa domanda non può avere due risposte a seconda
+     della pagina da cui ci si arriva. */
+  const [esistenti, setEsistenti] = useState<string[]>([])
+  useEffect(() => {
+    if (!projectId) { setEsistenti([]); return }
+    let vivo = true
+    void createBrowserClient().from('project_workstreams').select('name').eq('project_id', projectId)
+      .then(({ data }) => { if (vivo) setEsistenti((data ?? []).map((w: { name: string }) => w.name)) })
+    return () => { vivo = false }
+  }, [projectId])
 
   const project = projects.find(p => p.id === projectId)
   const filtered = useMemo(() => {
@@ -224,7 +249,7 @@ function WorkstreamModal({ projects, base, onClose, onDone, notify }: { projects
         )}
       </Group>
 
-      {projectId && (
+      {project && (
         <>
           <Group label="Tipo">
             <Segmented ariaLabel="Tipo workstream" value={type} onChange={setType}
@@ -236,11 +261,11 @@ function WorkstreamModal({ projects, base, onClose, onDone, notify }: { projects
             </p>
           </Group>
 
-          <Field label="Nome">
+          <Field label="Nome" hint="Scegli a catalogo, oppure scrivi come si chiama questa corsia.">
             <div className="flex gap-2">
-              <input value={name} onChange={e => setName(e.target.value)} className={inputCls}
+              <input value={name} onChange={e => { setName(e.target.value); setScelto(false) }} className={inputCls}
                 // eslint-disable-next-line jsx-a11y/no-autofocus
-                autoFocus placeholder="Setup, Produzione, Reporting…" />
+                autoFocus placeholder="Cerca a catalogo o scrivi un workstream nuovo…" />
               {offConvention && (
                 <button type="button" onClick={() => setName(conform)} title={`Riallinea a: ${conform}`}
                   className="flex items-center gap-1.5 px-3 rounded-xl border border-border-interactive text-2xs font-semibold text-gold-text hover:bg-surface-hover shrink-0">
@@ -250,6 +275,22 @@ function WorkstreamModal({ projects, base, onClose, onDone, notify }: { projects
             </div>
             {offConvention && <span className="block text-2xs text-text-tertiary mt-1.5 truncate">Convention: {conform}</span>}
           </Field>
+
+          {scelto ? (
+            <button type="button" onClick={() => setScelto(false)}
+              className="flex items-center gap-1.5 text-2xs font-semibold text-gold-text hover:opacity-80">
+              <FolderTree className="w-3.5 h-3.5" />Scegli un altro workstream
+            </button>
+          ) : (
+            <WorkstreamPresets area={project.area} services={services} loading={loading}
+              query={prefix ? stripWorkstreamPrefix(prefix, name) : name}
+              presenti={esistenti.map(n => prefix ? stripWorkstreamPrefix(prefix, n) : n)}
+              canPersist={canPersist} maxH="max-h-[28vh]"
+              onPick={pick => {
+                setName(prefix ? applyWorkstreamPrefix(prefix, pick.label) : pick.label)
+                setScelto(true)
+              }} />
+          )}
 
           {type === 'project' && (
             <Group label="Periodo">

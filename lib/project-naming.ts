@@ -83,10 +83,22 @@ export function workstreamPrefixFromProjectName(name: string): string | null {
   return `${parts[0]} · ${parts.slice(2).join(' · ')}`
 }
 
+/** toglie il prefisso, se c'è: quello che resta è il nome del workstream */
+export function stripWorkstreamPrefix(prefix: string, title: string): string {
+  const t = clean(title)
+  if (t === prefix) return ''
+  return t.startsWith(`${prefix} — `) ? clean(t.slice(prefix.length + 3)) : t
+}
+
 /** applica (una sola volta) il prefisso di workstream a un titolo */
 export function applyWorkstreamPrefix(prefix: string, title: string): string {
-  const t = clean(title)
-  if (t === prefix) return prefix
-  const bare = t.startsWith(`${prefix} — `) ? clean(t.slice(prefix.length + 3)) : t
-  return bare ? `${prefix} — ${bare}` : prefix
+  const bare = stripWorkstreamPrefix(prefix, title)
+  if (!bare) return prefix
+  /* §394 — stessa regola di `workstreamName`: il workstream che dà il nome al
+     progetto non ripete se stesso. Scegliendo a catalogo la voce che il
+     progetto porta nel nome, senza questa riga usciva «ACME · Lead Generation
+     — Lead Generation». */
+  const servizio = prefix.split('·').slice(1).join('·').trim()
+  if (servizio && bare.toLowerCase() === servizio.toLowerCase()) return prefix
+  return `${prefix} — ${bare}`
 }

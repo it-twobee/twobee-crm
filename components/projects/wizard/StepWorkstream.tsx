@@ -1,14 +1,15 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
-import { toast } from 'sonner'
-import { Plus, X, ArrowUp, ArrowDown, FolderTree, Sparkles, Loader2, Layers } from 'lucide-react'
-import { StepHead, SearchInput, PickRow, Empty } from '@/components/shared/formkit'
-import { createCatalogService } from '@/app/actions/wizard'
+import { useState, useMemo } from 'react'
+import { X, ArrowUp, ArrowDown, FolderTree, Sparkles, Layers } from 'lucide-react'
+import { StepHead, SearchInput } from '@/components/shared/formkit'
+import { WorkstreamPresets } from '@/components/projects/WorkstreamPresets'
 import { nk, type WsPick, type ProjectArea } from './types'
+import type { Preset } from '@/lib/workstream-presets'
 import type { ServiceCatalogEntry, ProjectTemplate } from '@/lib/types/database'
 
-const keyOf = (s: ServiceCatalogEntry) => s.service_type + (s.service_subtype ? `::${s.service_subtype}` : '')
+const keyOf = (s: { service_type: string; service_subtype: string | null }) =>
+  s.service_type + (s.service_subtype ? `::${s.service_subtype}` : '')
 
 export function StepWorkstream({
   area, services, templates, picks, setPicks, canPersist,
@@ -21,8 +22,6 @@ export function StepWorkstream({
   canPersist: boolean
 }) {
   const [q, setQ] = useState('')
-  const [persist, setPersist] = useState(true)
-  const [pending, start] = useTransition()
 
   const tplCount = useMemo(() => {
     const m = new Map<string, number>()
@@ -32,43 +31,6 @@ export function StepWorkstream({
     })
     return m
   }, [templates])
-
-  const filtered = useMemo(() => {
-    const t = q.trim().toLowerCase()
-    return t ? services.filter(s => s.label.toLowerCase().includes(t)) : services
-  }, [services, q])
-
-  const has = (k: string) => picks.some(p => p.key === k)
-  const toggle = (s: ServiceCatalogEntry) => {
-    const k = keyOf(s)
-    setPicks(ps => has(k)
-      ? ps.filter(p => p.key !== k)
-      : [...ps, { key: k, label: s.label, service_type: s.service_type, service_subtype: s.service_subtype, custom: false }])
-  }
-
-  const typed = q.trim()
-  const exactExists = services.some(s => s.label.toLowerCase() === typed.toLowerCase())
-    || picks.some(p => p.label.toLowerCase() === typed.toLowerCase())
-
-  const addCustom = () => {
-    if (!typed) return
-    const finish = (service_type: string) => {
-      setPicks(ps => [...ps, { key: `custom:${nk()}`, label: typed, service_type, service_subtype: null, custom: true }])
-      setQ('')
-    }
-    if (!persist || !canPersist) { finish(typed.toLowerCase().replace(/[^a-z0-9]+/gi, '_')); return }
-    start(async () => {
-      try {
-        const svc = await createCatalogService({ area, label: typed })
-        finish((svc as ServiceCatalogEntry).service_type)
-        toast.success('Workstream aggiunto al catalogo')
-      } catch (e) {
-        // il catalogo è un di più: se fallisce, il workstream resta comunque nel progetto
-        finish(typed.toLowerCase().replace(/[^a-z0-9]+/gi, '_'))
-        toast.message('Aggiunto solo a questo progetto', { description: e instanceof Error ? e.message : undefined })
-      }
-    })
-  }
 
   const move = (i: number, d: -1 | 1) => setPicks(ps => {
     const j = i + d
@@ -120,42 +82,31 @@ export function StepWorkstream({
       <div className="space-y-3">
         <SearchInput value={q} onChange={setQ} placeholder="Cerca a catalogo o scrivi un workstream nuovo…" autoFocus />
 
-        {typed && !exactExists && (
-          <div className="rounded-xl border border-gold/40 bg-gold-dim p-3">
-            <button type="button" onClick={addCustom} disabled={pending}
-              className="flex items-center gap-2 text-sm font-semibold text-text-primary disabled:opacity-50">
-              {pending ? <Loader2 className="w-4 h-4 animate-spin text-gold-text" /> : <Plus className="w-4 h-4 text-gold-text" />}
-              Crea «{typed}» come workstream
-            </button>
-            {canPersist && (
-              <label className="flex items-center gap-2 mt-2 cursor-pointer">
-                <input type="checkbox" checked={persist} onChange={e => setPersist(e.target.checked)} />
-                <span className="text-2xs text-text-secondary">Salvalo anche a catalogo, così lo ritrovi nei prossimi progetti</span>
-              </label>
-            )}
-          </div>
-        )}
-
-        {filtered.length === 0 && !typed ? (
-          <Empty>Nessun workstream a catalogo per quest&apos;area: scrivine uno qui sopra.</Empty>
-        ) : (
-          <div className="space-y-1.5 max-h-[36vh] overflow-y-auto pr-1">
-            {filtered.map(s => {
-              const k = keyOf(s)
-              const n = tplCount.get(k) ?? 0
-              return (
-                <PickRow key={k} selected={has(k)} onClick={() => toggle(s)}
-                  icon={<FolderTree className="w-4 h-4 text-gold-text shrink-0" />}
-                  title={s.label}
-                  subtitle={s.service_subtype ? s.service_subtype.replace(/_/g, ' ') : undefined}
-                  meta={n > 0
-                    ? <span className="flex items-center gap-1 text-2xs text-info shrink-0"><Layers className="w-3 h-3" />{n} template</span>
-                    : undefined}
-                />
-              )
-            })}
-          </div>
-        )}
+        {/* §394 — l'elenco è quello di ogni altro «nuovo workstream»: qui si
+            sceglie anche il servizio del progetto, quindi niente altre aree. */}
+        <WorkstreamPresets
+          area={area} services={services} query={q} altreAree={false} canPersist={canPersist}
+          presenti={picks.map(p => p.label)} notaPresente=""
+          maxH="max-h-[36vh]"
+          scelto={(p: Preset) => picks.some(x => x.key === keyOf(p))}
+          metaOf={(p: Preset) => {
+            const n = tplCount.get(keyOf(p)) ?? 0
+            return n > 0
+              ? <span className="flex items-center gap-1 text-2xs text-info shrink-0"><Layers className="w-3 h-3" />{n} template</span>
+              : undefined
+          }}
+          onPick={pick => {
+            if (pick.custom) {
+              setPicks(ps => [...ps, { key: `custom:${nk()}`, label: pick.label, service_type: pick.service_type, service_subtype: null, custom: true }])
+              setQ('')
+              return
+            }
+            const k = keyOf(pick)
+            setPicks(ps => ps.some(p => p.key === k)
+              ? ps.filter(p => p.key !== k)
+              : [...ps, { key: k, label: pick.label, service_type: pick.service_type, service_subtype: pick.service_subtype, custom: false }])
+          }}
+        />
       </div>
     </div>
   )

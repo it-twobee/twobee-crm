@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
+import { tipoServizio } from '@/lib/workstream-presets'
 import type { ProjectArea, Visibility } from '@/lib/types/database'
 
 /**
@@ -20,16 +21,14 @@ async function requireProjectCreator(): Promise<string> {
   return user.id
 }
 
-const slug = (s: string) =>
-  s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 48)
-
 // ── 1) Workstream su misura → voce di catalogo riutilizzabile ───────────────
 export async function createCatalogService(input: { area: ProjectArea; label: string }) {
   await requireProjectCreator()
   const label = input.label.trim()
   if (!label) throw new Error('Nome mancante')
-  const service_type = slug(label)
+  /* §394 — lo slug è quello che il client propone come su misura: due regole
+     per la stessa parola sono due voci di catalogo che sembrano una. */
+  const service_type = tipoServizio(label)
   if (!service_type) throw new Error('Nome non valido')
 
   const admin = createAdminClient()

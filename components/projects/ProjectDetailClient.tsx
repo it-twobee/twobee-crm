@@ -18,11 +18,12 @@ import { NewMilestoneModal, type NewMilestoneValues } from './NewMilestoneModal'
 import {
   ModalShell, Field, Segmented, SearchInput, Avatar, inputCls,
 } from '@/components/shared/formkit'
-import { workstreamPrefixFromProjectName, applyWorkstreamPrefix } from '@/lib/project-naming'
+import { workstreamPrefixFromProjectName, applyWorkstreamPrefix, stripWorkstreamPrefix } from '@/lib/project-naming'
 import { ProjectGantt } from './ProjectGantt'
+import { WorkstreamPresets, useServiceCatalog } from './WorkstreamPresets'
 // La gestione workstream → milestone → task è nella pagina dedicata /workstream/[wsId]
 import type {
-  Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate, ProjectStatus, WorkstreamType,
+  Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate, ProjectStatus, WorkstreamType, ProjectArea,
 } from '@/lib/types/database'
 import { Suspense } from 'react'
 import { BackLink } from '@/components/shared/BackLink'
@@ -758,6 +759,8 @@ export function ProjectDetailClient({
 
       {creatingWs && (
         <NewWorkstreamModal projectId={project.id} projectName={project.name} prefix={wsPrefix}
+          area={project.area} canPersist={canManageProject}
+          esistenti={workstreams.map(w => wsPrefix ? stripWorkstreamPrefix(wsPrefix, w.name) : w.name)}
           defaults={{ start: project.start_date, end: project.target_end_date }} pending={pending}
           onClose={() => setCreatingWs(false)}
           onCreate={(input) => start(async () => {
@@ -1049,22 +1052,31 @@ function WsGroup({ title, hint, items, onOpen, progress, health, nextMs, overdue
   )
 }
 
-// Modale creazione workstream — stessa grammatica del wizard progetto
-function NewWorkstreamModal({ projectId, projectName, prefix, defaults, pending, onClose, onCreate }: {
-  projectId: string; projectName: string; prefix: string | null
+/* Modale creazione workstream — stessa grammatica del wizard progetto, e
+   §394 la stessa lista: il nome si sceglie a catalogo, o si scrive. */
+function NewWorkstreamModal({ projectId, projectName, area, prefix, esistenti, canPersist, defaults, pending, onClose, onCreate }: {
+  projectId: string; projectName: string; area: ProjectArea; prefix: string | null
+  /** i nomi delle corsie che ci sono già, senza prefisso */
+  esistenti: string[]
+  canPersist: boolean
   defaults: { start: string | null; end: string | null }
   pending: boolean
   onClose: () => void
   onCreate: (input: { project_id: string; name: string; workstream_type: WorkstreamType; start_date?: string | null; end_date?: string | null }) => void
 }) {
   const [name, setName] = useState('')
+  const [scelto, setScelto] = useState(false)
   const [type, setType] = useState<WorkstreamType>('project')
   const [start, setStart] = useState(defaults.start ?? '')
   const [end, setEnd] = useState(defaults.end ?? '')
+  const { services, loading } = useServiceCatalog()
 
   const conform = prefix ? applyWorkstreamPrefix(prefix, name) : name
   const offConvention = !!prefix && !!name.trim() && name.trim() !== conform
   const badRange = !!start && !!end && end < start
+  // il catalogo si cerca sul nome nudo: dopo un «Convention» il campo contiene
+  // anche cliente e servizio, che a catalogo non ci sono
+  const query = prefix ? stripWorkstreamPrefix(prefix, name) : name
 
   return (
     <ModalShell title="Nuova workstream" hint={projectName} icon={<FolderTree className="w-4 h-4 text-gold-text" />}
@@ -1085,11 +1097,11 @@ function NewWorkstreamModal({ projectId, projectName, prefix, defaults, pending,
         </p>
       </div>
 
-      <Field label="Nome">
+      <Field label="Nome" hint="Scegli a catalogo, oppure scrivi come si chiama questa corsia.">
         <div className="flex gap-2">
           {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
-          <input value={name} onChange={e => setName(e.target.value)} autoFocus className={inputCls}
-            placeholder="Setup, Produzione, Reporting…" />
+          <input value={name} onChange={e => { setName(e.target.value); setScelto(false) }} autoFocus className={inputCls}
+            placeholder="Cerca a catalogo o scrivi un workstream nuovo…" />
           {offConvention && (
             <button type="button" onClick={() => setName(conform)} title={`Riallinea a: ${conform}`}
               className="flex items-center gap-1.5 px-3 rounded-xl border border-border-interactive text-2xs font-semibold text-gold-text hover:bg-surface-hover shrink-0">
@@ -1099,6 +1111,20 @@ function NewWorkstreamModal({ projectId, projectName, prefix, defaults, pending,
         </div>
         {offConvention && <span className="block text-2xs text-text-tertiary mt-1.5 truncate">Convention: {conform}</span>}
       </Field>
+
+      {scelto ? (
+        <button type="button" onClick={() => setScelto(false)}
+          className="flex items-center gap-1.5 text-2xs font-semibold text-gold-text hover:opacity-80">
+          <FolderTree className="w-3.5 h-3.5" />Scegli un altro workstream
+        </button>
+      ) : (
+        <WorkstreamPresets area={area} services={services} loading={loading} query={query}
+          presenti={esistenti} canPersist={canPersist} maxH="max-h-[28vh]"
+          onPick={pick => {
+            setName(prefix ? applyWorkstreamPrefix(prefix, pick.label) : pick.label)
+            setScelto(true)
+          }} />
+      )}
 
       {type === 'project' && (
         <div>

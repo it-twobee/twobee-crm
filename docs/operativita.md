@@ -345,6 +345,48 @@ L'elenco si legge dal browser: `commercial_events` ha una policy di lettura
 aperta perché è un calendario di feste, e farlo passare dalle **tre** pagine
 che montano il wizard sarebbe stato tre posti in cui dimenticarsene.
 
+**§394 — un workstream non si battezza, si sceglie.** Il catalogo
+(`service_catalog`) è l'elenco di cosa sappiamo consegnare, e il wizard ci
+faceva già nascere le corsie del progetto nuovo. Fuori da quel passo non
+c'era: «Nuova workstream» — dalla scheda progetto, dal menu «Crea» e persino
+dall'albero del lavoro dello stesso wizard — apriva un campo vuoto, e da lì
+esce «Setup», «setup» e «Impostazioni» sullo stesso lavoro: nomi che non si
+raggruppano, non si confrontano fra progetti e non dicono a chi arriva dopo
+che quella corsia è la stessa cosa che facciamo altrove. Dall'albero usciva
+perfino «Nuovo workstream», che era il valore di partenza.
+
+I quattro punti montano adesso la stessa lista (`WorkstreamPresets`, che legge
+il catalogo **dal browser** come le ricorrenze del §393), e la scelta — cosa
+proporre, in che ordine, quando il testo scritto è un nome nuovo — sta in
+`lib/workstream-presets.ts`, non in ognuno dei quattro. Gate:
+`npx tsx lib/workstream-presets.check.ts`.
+
+**Prima l'area del progetto, poi le altre, e niente sparisce.** Un progetto
+Growth propone Lead Generation ed E-commerce, ma «Branding» sta in Marketing e
+capita di volerlo: le altre aree restano sotto uno stacco che dice da dove
+vengono. Quello che è **già** una corsia del progetto resta in elenco,
+marcato: toglierlo farebbe sembrare che il catalogo l'abbia perso, e chi cerca
+«Reporting» per sapere come si chiama da noi lo cerca proprio lì. Nel passo
+«Cosa consegniamo» le altre aree non compaiono — là la scelta decide anche il
+servizio del progetto, e mescolarle vorrebbe dire scriverlo per sbaglio.
+
+**Il su misura resta, e può restare.** Un nome che a catalogo non c'è si crea
+lo stesso, con la spunta «salvalo anche a catalogo» che lo rende disponibile
+ai prossimi progetti: era solo nel wizard, adesso è ovunque. La porta è
+`createCatalogService` (admin e manager); se rifiuta, **il workstream nasce
+comunque** e il messaggio lo dice — il catalogo è un di più, perdere la corsia
+sarebbe il danno peggiore. Lo slug lo calcola `tipoServizio()` da una parte
+sola, client e azione: due regole per la stessa parola sono due voci di
+catalogo che sembrano una.
+
+**La convention si applica alla scelta, non dopo.** Scegliendo a catalogo il
+nome esce già conforme (`ACME · Lead Generation — Reporting`), e la corsia che
+dà il nome al progetto **non lo ripete**: `applyWorkstreamPrefix` ha adesso la
+stessa regola di `workstreamName`, o scegliendo «Lead Generation» su un
+progetto Lead Generation usciva il nome due volte. Il campo resta un campo:
+chi riscrive sopra torna a vedere l'elenco, perché la ricerca riparte dal nome
+nudo (`stripWorkstreamPrefix`) e non dal prefisso.
+
 **§392 — il giro su tutti** (`POST /api/periods/run`, `PERIODS_CRON_SECRET`,
 task pianificato alle 04:00). Una volta al giorno e non più spesso: un
 periodo si apre una volta ogni due mesi, e il giro serve a non doverci
