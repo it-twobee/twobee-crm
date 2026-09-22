@@ -1,5 +1,27 @@
 # Dove siamo
 
+## Il numero del paragrafo si prende alla fine — §406, 2026-09-22
+
+Su `main` spingono tre sessioni in parallelo, su sezioni diverse. Ognuna sceglie
+il prossimo `§NNN` leggendo il repository, e nessuna vede il lavoro non ancora
+spinto delle altre: in una giornata sono uscite **sei collisioni**, tutte
+scoperte al push, tutte rinumerate a mano.
+
+La regola che costa meno è non prendere il numero all'inizio: si scrive il
+codice, e un attimo prima del commit si lancia `npm run paragrafo`, che fa il
+fetch e guarda `origin/main`, i titoli dei commit e il lavoro locale non ancora
+spinto. `npm run paragrafo 406` dice se quel numero è ancora libero ed esce 1 se
+non lo è. La finestra di collisione passa da tutta la lavorazione a trenta
+secondi.
+
+**Nessun check**, ed è una scelta: 52 `§` sono citati nel codice e in nessun
+documento, quindi una regola tipo «ogni § deve avere una sua riga nei doc»
+nascerebbe rossa su roba preesistente — e un gate che nasce rosso è un gate che
+qualcuno spegne. La collisione non si può nemmeno riconoscere a macchina dal
+numero soltanto: riusare un `§` per correggere la stessa cosa è legittimo, ed è
+il caso del `§393` che compare due volte su main — una funzione e la sua
+correzione, non un doppione.
+
 ## Lo spazio file c'è prima del portale — §403, 2026-09-22
 
 Nella scheda di ogni cliente compare la scheda **File**. C'è dal primo giorno,

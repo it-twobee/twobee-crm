@@ -62,6 +62,16 @@ database vero, e riscoprirle costa più che leggerle.
   **ottantasette** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
   `lib/tracking/**`) — con `npx tsx lib/<percorso>.check.ts`: devono dire «Tutti
   i controlli passano».
+- **Il numero del paragrafo si prende alla fine** (§406). I `§NNN` sono etichette
+  condivise — «vedi §329» deve portare a una cosa sola — e su `main` spingono
+  **tre sessioni in parallelo**. Chi sceglie il numero a inizio lavorazione lo
+  sceglie senza vedere quello che gli altri stanno per spingere, e se ne accorge
+  al push: in una sola giornata è successo sei volte. Quindi si scrive il
+  codice, si lancia `npm run paragrafo` un attimo prima del commit, e si
+  rinumera solo lì. `npm run paragrafo 406` risponde se quel numero è ancora
+  libero ed esce 1 se non lo è, così si può mettere in uno script. Riusare un
+  `§NNN` per **correggere la stessa cosa** è giusto e va fatto: la collisione è
+  due lavori diversi con lo stesso numero.
 - **Non lanciare `npm run build` mentre `npm run dev` gira**: condividono `.next`
   e la pagina si apre senza stili. Se succede: ferma il dev, `rm -rf .next`, riavvia.
 
@@ -91,8 +101,9 @@ database vero, e riscoprirle costa più che leggerle.
 
 ## Comandi
 ```bash
-npm run dev    # :3000
-npm run build  # mai mentre gira il dev: condividono .next
+npm run dev        # :3000
+npm run build      # mai mentre gira il dev: condividono .next
+npm run paragrafo  # qual è il prossimo §NNN libero (vedi sotto)
 ```
 `npm run lint` è nel `package.json` ma **non è un gate**: `eslint-config-next` è
 installato e il file di configurazione non c'è, quindi `next lint` apre la
