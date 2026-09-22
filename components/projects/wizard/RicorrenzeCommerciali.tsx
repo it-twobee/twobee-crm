@@ -59,7 +59,7 @@ export function RicorrenzeCommerciali({ area, structure, setStructure, ownerId }
 
   if (elenco === null) {
     return (
-      <p className="flex items-center gap-2 text-2xs text-text-tertiary">
+      <p className="flex items-center gap-2 text-2xs text-text-tertiary mb-3">
         <Loader2 className="w-3.5 h-3.5 animate-spin" /> Cerco le ricorrenze del periodo…
       </p>
     )
@@ -83,7 +83,7 @@ export function RicorrenzeCommerciali({ area, structure, setStructure, ownerId }
   })
 
   return (
-    <section className="border border-border rounded-xl overflow-hidden">
+    <section className="border border-border rounded-xl overflow-hidden mb-3">
       <header className="flex items-start gap-2.5 px-3 py-2.5 border-b border-border bg-surface">
         <CalendarHeart className="w-4 h-4 text-gold-text shrink-0 mt-0.5" aria-hidden />
         <div>

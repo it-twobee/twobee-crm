@@ -137,6 +137,11 @@ export function StepStruttura({
         </div>
       </div>
 
+      {/* §393 — prima dell'albero, non in fondo: si spuntano mentre si pensa a
+          come sarà fatto il progetto. Dopo dodici milestone non le guarda più
+          nessuno. Il responsabile della corsia è il PM, come per le ricorrenti. */}
+      <RicorrenzeCommerciali area={area} structure={structure} setStructure={setStructure} ownerId={managerId} />
+
       {structure.length === 0 ? (
         <Empty>Nessun workstream. Aggiungine uno qui sotto, o torna al passo Template.</Empty>
       ) : (
