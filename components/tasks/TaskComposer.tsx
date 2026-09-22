@@ -13,7 +13,7 @@ import { createClientQuick } from '@/app/actions/clients'
 import {
   ModalShell, Group, Field, Segmented, SearchInput, PickRow, Avatar, Empty, inputCls,
 } from '@/components/shared/formkit'
-import { CLIENT_ROLES } from '@/lib/permissions'
+import { isPortalAccount } from '@/lib/permissions'
 import { SuggerimentiModello, useServiceCatalog } from '@/components/projects/WorkstreamPresets'
 import { modelliDiTipo } from '@/lib/workstream-presets'
 import type { AppRole, Priority, Visibility } from '@/lib/types/database'
@@ -173,8 +173,11 @@ export function TaskComposer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, effectiveClientId])
 
-  // chi può essere titolare, e chi può presidiare
-  const isClientProfile = (p: Person) => CLIENT_ROLES.includes(p.app_role as AppRole)
+  /* chi può essere titolare, e chi può presidiare.
+     §409 — si guardava `CLIENT_ROLES`, che è solo `client`: un invito al
+     portale crea un profilo **guest**, e il referente di un cliente finiva fra
+     le persone a cui assegnare del lavoro nostro. */
+  const isClientProfile = (p: Person) => isPortalAccount(p)
   const assigneeOptions = kind === 'cliente' ? (contacts ?? []) : profiles.filter(p => !isClientProfile(p))
   const supervisorOptions = profiles.filter(p => !isClientProfile(p))
 

@@ -5,7 +5,7 @@ import { redirect, notFound } from 'next/navigation'
 import { ProjectDetailClient } from '@/components/projects/ProjectDetailClient'
 import { ProjectEconomics } from '@/components/projects/ProjectEconomics'
 import { ProjectPortalPanel } from '@/components/projects/ProjectPortalPanel'
-import { canManageClientPortal } from '@/lib/permissions'
+import { INTERNAL_COARSE_ROLES, canManageClientPortal } from '@/lib/permissions'
 import type { RevenueStream, Installment } from '@/lib/revenue'
 import type { CostItem, CostActual } from '@/lib/costs'
 import { monthKey } from '@/lib/pl'
@@ -36,7 +36,7 @@ export default async function ProjectDetailPage({ params, searchParams }: { para
     supabase.from('tasks').select('*').eq('project_id', params.projectId).is('deleted_at', null).order('created_at'),
     supabase.from('recurring_task_templates').select('*').eq('project_id', params.projectId).order('created_at'),
     supabase.from('project_members').select('profile_id, role_in_project').eq('project_id', params.projectId),
-    supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true),
+    supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true).in('role', INTERNAL_COARSE_ROLES),
   ])
 
   const memberIds = (members ?? []).map(m => m.profile_id)

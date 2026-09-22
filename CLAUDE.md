@@ -45,6 +45,13 @@ database vero, e riscoprirle costa più che leggerle.
   è un permesso. Chi lavora sulla roba di chi chiama può affidarsi alla RLS —
   ma allora deve *passarci*, non usare `createAdminClient()`. Gate:
   `npx tsx lib/actions-guard.check.ts`.
+- **Un account del portale cliente non assegna il nostro lavoro** (§409).
+  `isPortalAccount()` in `lib/permissions.ts` è l'unica fonte, e il filtro sta
+  **nella query** (`.in('role', INTERNAL_COARSE_ROLES)`), non nelle pagine: così
+  i profili del portale non arrivano nemmeno al browser. `CLIENT_ROLES` da solo
+  non basta — è solo `client`, e un invito al portale crea un **guest**. Se
+  serve qualcosa dal cliente si usa la **task al cliente**, che sceglie fra i
+  referenti di quell'azienda.
 - **Il ruolo non arriva mai dal client.** `profiles.role` è ciò che
   `get_my_role()` legge per la RLS: non si scrive da un corpo JSON né dai
   metadati di un invito — il trigger `handle_new_user` li ricopia. `app_role`

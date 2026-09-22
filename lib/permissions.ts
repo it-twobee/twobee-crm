@@ -64,6 +64,35 @@ export const WORKSPACE_ROLES: AppRole[] = ['manager', 'senior', 'junior', 'stage
 /** Il cliente accede a /portale; azienda e progetto si verificano per richiesta. */
 export const CLIENT_ROLES: AppRole[] = ['client']
 
+/* §409 — Chi è «uno di noi», per gli elenchi di assegnazione.
+   `profiles.role` è NOT NULL e vincolato a admin|team|client|guest, ed è quello
+   che la RLS legge da `get_my_role()`: è la definizione affidabile, e si usa
+   **nella query**, così i profili del portale non arrivano nemmeno al browser.
+   `app_role` si guarda comunque perché un invito al portale crea un profilo
+   guest/guest e un profilo vecchio può avere l'uno senza l'altro allineato. */
+export const INTERNAL_COARSE_ROLES = ['admin', 'team'] as const
+
+/**
+ * Un account del portale cliente non è un assegnatario del nostro lavoro.
+ *
+ * `CLIENT_ROLES` da solo non basta e il difetto si è visto: copre `client` e
+ * non `guest`, mentre `inviteClientPortal` crea proprio un **guest** (trigger
+ * della 224). Risultato: il referente di un cliente compariva fra le persone a
+ * cui assegnare una milestone, su qualunque progetto di qualunque azienda.
+ *
+ * Una milestone è lavoro nostro. Se serve qualcosa dal cliente la strada è la
+ * **task al cliente**, che sceglie fra i referenti di quell'azienda e gli
+ * arriva nel portale come attività.
+ */
+export function isPortalAccount(p: {
+  role?: string | null
+  app_role?: string | null
+} | null | undefined): boolean {
+  if (!p) return false
+  return p.role === 'client' || p.role === 'guest'
+    || p.app_role === 'client' || p.app_role === 'guest'
+}
+
 /**
  * Risorse ESTERNE: freelance (P.IVA) e partner. Hanno role='team' come il resto
  * del workspace. Lo scoping per progetto (RLS 106) è caduto con la 146: va

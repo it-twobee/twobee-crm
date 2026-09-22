@@ -6,7 +6,7 @@ import { ProjectDetailClient } from '@/components/projects/ProjectDetailClient'
 import type {
   Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate,
 } from '@/lib/types/database'
-import { canGovernProjects, canManageClientPortal } from '@/lib/permissions'
+import { INTERNAL_COARSE_ROLES, canGovernProjects, canManageClientPortal } from '@/lib/permissions'
 import { ProjectPortalPanel } from '@/components/projects/ProjectPortalPanel'
 
 export const revalidate = 0
@@ -33,7 +33,7 @@ export default async function WorkspaceProjectDetailPage({ params, searchParams 
     supabase.from('tasks').select('*').eq('project_id', params.projectId).is('deleted_at', null).order('created_at'),
     supabase.from('recurring_task_templates').select('*').eq('project_id', params.projectId).order('created_at'),
     supabase.from('project_members').select('profile_id, role_in_project').eq('project_id', params.projectId),
-    supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true),
+    supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true).in('role', INTERNAL_COARSE_ROLES),
   ])
 
   if (!project) notFound()

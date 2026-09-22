@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { INTERNAL_COARSE_ROLES } from '@/lib/permissions'
 import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect, notFound } from 'next/navigation'
 import { WorkstreamPageClient } from '@/components/projects/WorkstreamPageClient'
@@ -28,7 +29,7 @@ export default async function WorkstreamPage({
     supabase.from('recurring_task_templates').select('*').eq('workstream_id', params.wsId).order('created_at'),
     // §337 — le tappe che tornano: una regola, non dodici righe scritte a mano
     supabase.from('recurring_milestone_templates').select('*').eq('workstream_id', params.wsId).order('created_at'),
-    supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true).order('full_name'),
+    supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true).in('role', INTERNAL_COARSE_ROLES).order('full_name'),
   ])
   if (!project) notFound()
 

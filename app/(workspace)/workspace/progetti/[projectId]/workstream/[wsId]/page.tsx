@@ -3,7 +3,7 @@ import { getSessionProfile } from '@/lib/auth'
 import { redirect, notFound } from 'next/navigation'
 import { WorkstreamPageClient } from '@/components/projects/WorkstreamPageClient'
 import type { Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate, RecurringMilestoneTemplate } from '@/lib/types/database'
-import { canGovernProjects } from '@/lib/permissions'
+import { INTERNAL_COARSE_ROLES, canGovernProjects } from '@/lib/permissions'
 
 export const revalidate = 0
 
@@ -29,7 +29,7 @@ export default async function WorkspaceWorkstreamPage({
     supabase.from('recurring_task_templates').select('*').eq('workstream_id', params.wsId).order('created_at'),
     // §337 — le tappe che tornano: una regola, non dodici righe scritte a mano
     supabase.from('recurring_milestone_templates').select('*').eq('workstream_id', params.wsId).order('created_at'),
-    supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true).order('full_name'),
+    supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true).in('role', INTERNAL_COARSE_ROLES).order('full_name'),
   ])
   if (!project || !ws || ws.project_id !== params.projectId) notFound()
 

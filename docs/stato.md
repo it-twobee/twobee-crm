@@ -1,5 +1,40 @@
 # Dove siamo
 
+## Un referente del cliente non assegna il nostro lavoro — §409, 2026-09-22
+
+Un manager si è creato un accesso al portale di un cliente col proprio nome,
+per provare l'area file. Da quel momento «Michele Cristallo **guest**» compariva
+fra le persone a cui assegnare milestone e task — **su qualunque progetto, anche
+di aziende diverse**.
+
+Due difetti, e il secondo peggiore del primo.
+
+Le sei pagine dei progetti caricavano *ogni* profilo attivo senza guardare il
+ruolo, e quattro non chiedevano nemmeno `app_role`: l'interfaccia non avrebbe
+potuto filtrare neanche volendo. E dove un filtro c'era — il composer delle
+task — guardava `CLIENT_ROLES`, che è solo `client`, mentre un invito al portale
+crea un profilo **guest/guest** (trigger della 224). Chi l'ha scritto ha pensato
+«cliente» e ha coperto metà dei modi in cui un cliente esiste.
+
+La regola adesso è una sola e sta in `lib/permissions.ts`: un account del
+portale non è un assegnatario del nostro lavoro, mai — nemmeno sui progetti
+della sua azienda. Una milestone è roba nostra; se serve qualcosa dal cliente la
+strada è la **task al cliente**, che sceglie già fra i referenti di
+quell'azienda e gli arriva nel portale come attività. Il filtro sta **nella
+query** (`role IN ('admin','team')`, la stessa definizione che legge la RLS),
+così i profili del portale non arrivano nemmeno al browser.
+
+I collaboratori esterni restano assegnabili: sono `freelance` e `partner`, il
+cui ruolo grossolano è `team`. Nel manuale c'è scritto che i `guest` possono
+essere risorse esterne con un portale `/risorsa/**`: **quel portale non esiste
+nel codice** — nessuna rotta, nessuna riga nel middleware — quindi oggi nessun
+guest lavora per noi. Un'altra riga di manuale che descrive codice assente.
+
+Il check di `lib/permissions.check.ts` prova la regola e tiene l'inventario
+delle sei sorgenti. Non previene una **settima** pagina che se ne dimentichi —
+quello non si vede a macchina — ma se qualcuno toglie il filtro da una di
+queste, se ne accorge il gate invece di un cliente.
+
 ## `/api/version` dice di nuovo quale commit gira — §407, 2026-09-22
 
 L'endpoint esiste per rispondere a «l'ultimo push è arrivato?», e rispondeva

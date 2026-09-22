@@ -1,5 +1,6 @@
 /* Verifica dei permessi di governo progetto (§339). Esegui: npx tsx lib/permissions.check.ts */
-import { canGovernProjects, PROJECT_GOVERN_ROLES, canCreateClients, isAdminRole, coarseRole, canPreviewClientPortal } from '@/lib/permissions'
+import { readFileSync } from 'node:fs'
+import { canGovernProjects, PROJECT_GOVERN_ROLES, canCreateClients, isAdminRole, coarseRole, canPreviewClientPortal, isPortalAccount, INTERNAL_COARSE_ROLES } from '@/lib/permissions'
 
 let fail = 0
 const is = (label: string, got: unknown, want: unknown) => {
@@ -55,6 +56,47 @@ is('indirizzo da solo non eleva il ruolo', canPreviewClientPortal({ email: 'm.cr
 is('super admin storico riconosciuto', canPreviewClientPortal({ email: 'm.lucci@twobee.it' }), true)
 is('account sviluppo senza promozione implicita', canPreviewClientPortal({ email: 'marco.d.lucci@gmail.com' }), false)
 is('nessuna sessione: niente anteprima', canPreviewClientPortal(null), false)
+
+console.log('\n— Chi non è un assegnatario del nostro lavoro (§409) —')
+/* Il caso che ha fatto nascere la regola: un manager si è creato un accesso al
+   portale di un cliente col proprio nome, e «Michele Cristallo guest» è
+   comparso fra le persone a cui assegnare una milestone — su qualunque
+   progetto, anche di aziende diverse. Il filtro che esisteva guardava
+   `CLIENT_ROLES`, cioè solo `client`: ma un invito al portale crea un
+   **guest**, e passava. */
+is('guest del portale: non assegnabile', isPortalAccount({ role: 'guest', app_role: 'guest' }), true)
+is('client del portale: non assegnabile', isPortalAccount({ role: 'client', app_role: 'client' }), true)
+is('guest riconosciuto anche dal solo app_role', isPortalAccount({ app_role: 'guest' }), true)
+is('client riconosciuto anche dal solo role', isPortalAccount({ role: 'client' }), true)
+for (const app_role of ['super_admin', 'founder', 'admin', 'manager', 'senior', 'junior', 'stage', 'viewer']) {
+  is(`${app_role}: uno di noi`, isPortalAccount({ role: 'team', app_role }), false)
+}
+/* I collaboratori esterni lavorano: restano assegnabili. Il portale `/risorsa`
+   descritto nel manuale non esiste nel codice, quindi oggi nessun `guest`
+   lavora per noi. */
+is('freelance: assegnabile', isPortalAccount({ role: 'team', app_role: 'freelance' }), false)
+is('partner: assegnabile', isPortalAccount({ role: 'team', app_role: 'partner' }), false)
+is('nessun profilo: non si finge di saperlo', isPortalAccount(null), false)
+is('la definizione di «uno di noi» è quella della RLS', [...INTERNAL_COARSE_ROLES], ['admin', 'team'])
+
+/* Inventario: le pagine che costruiscono gli elenchi di assegnazione filtrano
+   nella query, non nella pagina. Non previene una **settima** pagina che se ne
+   dimentichi — quello non si vede a macchina — ma se qualcuno toglie il filtro
+   da una di queste sei, qui si accorge. */
+const SORGENTI_ASSEGNATARI = [
+  'app/(dashboard)/progetti/page.tsx',
+  'app/(dashboard)/progetti/[projectId]/page.tsx',
+  'app/(dashboard)/progetti/[projectId]/workstream/[wsId]/page.tsx',
+  'app/(workspace)/workspace/progetti/page.tsx',
+  'app/(workspace)/workspace/progetti/[projectId]/page.tsx',
+  'app/(workspace)/workspace/progetti/[projectId]/workstream/[wsId]/page.tsx',
+]
+const senzaFiltro = SORGENTI_ASSEGNATARI.filter(file => {
+  const src = readFileSync(file, 'utf8')
+  const query = /from\('profiles'\)[^\n]*/.exec(src)?.[0] ?? ''
+  return !query.includes("in('role', INTERNAL_COARSE_ROLES)")
+})
+is('i profili del portale non arrivano agli elenchi di assegnazione', senzaFiltro, [])
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)
