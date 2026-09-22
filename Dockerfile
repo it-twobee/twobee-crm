@@ -23,6 +23,13 @@ ARG NEXT_PUBLIC_SITE_URL
 # service-role a livello di modulo, valutato durante `next build` (collect page data).
 # Resta confinato al builder stage: non finisce nell'immagine runner nè nel bundle.
 ARG SUPABASE_SERVICE_ROLE_KEY
+# §407 — quale commit sta girando. `.dockerignore` esclude `.git`, quindi qui
+# dentro non c'è niente da interrogare: lo SHA può solo arrivare da fuori, e
+# `next.config.mjs` lo cattura a build time. Coolify espone il commit con uno
+# di questi due nomi a seconda della versione; senza, `/api/version` risponde
+# «sconosciuto» proprio nel momento in cui serve, cioè dopo un push.
+ARG COOLIFY_GIT_COMMIT
+ARG SOURCE_COMMIT
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 

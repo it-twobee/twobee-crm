@@ -1,5 +1,29 @@
 # Dove siamo
 
+## `/api/version` dice di nuovo quale commit gira — §407, 2026-09-22
+
+L'endpoint esiste per rispondere a «l'ultimo push è arrivato?», e rispondeva
+`sha: ""`. La causa: `.dockerignore` esclude `.git`, quindi nel container non
+c'è niente da interrogare e `next.config.mjs` può solo ricevere lo SHA dal
+build — ma il `Dockerfile` non dichiarava nessun `ARG` per farselo passare.
+Coolify poteva anche esporlo: non c'era la presa.
+
+Adesso il builder dichiara `ARG COOLIFY_GIT_COMMIT` e `ARG SOURCE_COMMIT` —
+due nomi perché Coolify usa l'uno o l'altro a seconda della versione — e la
+nota dell'endpoint, quando lo SHA manca, dice **cosa impostare** invece di
+limitarsi a dire che manca.
+
+Verificato con un build Docker isolato che riproduce la catena di
+`next.config.mjs`: senza build arg lo SHA resta vuoto, con `COOLIFY_GIT_COMMIT`
+o con `SOURCE_COMMIT` arriva. **Resta da fare una cosa a mano**: marcare la
+variabile come Build Variable nell'applicazione su Coolify. Finché non è fatta,
+l'endpoint continua a rispondere vuoto — con la nota che adesso spiega perché.
+
+Il perché è arrivato dal vivo: il deploy di `b8c800c` è fallito e quello dopo è
+passato, e per sapere quale codice stesse girando è servito incrociare
+`builtAt` con gli orari dei deploy. Con tre sessioni che spingono su `main` è
+una domanda che si fa ogni giorno.
+
 ## Il numero del paragrafo si prende alla fine — §406, 2026-09-22
 
 Su `main` spingono tre sessioni in parallelo, su sezioni diverse. Ognuna sceglie

@@ -21,10 +21,12 @@ export function GET() {
   return Response.json({
     sha: process.env.BUILD_SHA ?? 'sconosciuto',
     builtAt: process.env.BUILD_TIME ?? null,
-    /* Perché «sconosciuto» non è un errore: in sviluppo il build non passa da
-       git, e dirlo evita di andare a cercare un guasto che non c'è. */
+    /* §407 — «sconosciuto» non è un guasto, ma dire soltanto che manca lascia
+       chi legge a indovinare dove. In locale lo SHA arriva da `git rev-parse`;
+       nel container no, perché `.dockerignore` esclude `.git`: lì può solo
+       essere passato al build. Quindi la nota dice **cosa impostare**. */
     nota: process.env.BUILD_SHA
       ? undefined
-      : 'BUILD_SHA non impostata: succede in sviluppo, o se il build non parte da un checkout git',
+      : 'BUILD_SHA non impostata. Nel container lo SHA arriva solo dal build: in Coolify aggiungi COOLIFY_GIT_COMMIT (o SOURCE_COMMIT) fra le Build Variable dell\'applicazione. In sviluppo senza git è normale.',
   })
 }

@@ -412,6 +412,13 @@ time** in `next.config.mjs` — nel container non c'è nessun `.git` da
 interrogare — e l'endpoint è pubblico, perché la domanda «l'ultimo push è
 arrivato?» si fa prima di aver fatto login.
 
+Dal container lo SHA può **solo** arrivare dal build: `.dockerignore` esclude
+`.git`, quindi il `Dockerfile` dichiara `ARG COOLIFY_GIT_COMMIT` e
+`ARG SOURCE_COMMIT` (§407), e in Coolify uno dei due va marcato **Build
+Variable**. Senza, `/api/version` risponde `sha: ""` e tocca dedurre quale
+commit gira incrociando `builtAt` con la finestra del deploy — cosa che con tre
+sessioni che spingono su `main` si finisce a fare ogni volta.
+
 **Nel portale operativo le tre aree non esistono**: là sono tutti clienti allo
 stesso livello, ed è giusto — chi lavora una commessa non ha bisogno di sapere
 come si chiama nei conti. L'unica differenza che resta è `workspace_hidden`, che
