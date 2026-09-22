@@ -116,20 +116,12 @@ export function ProjectWizard({
   }, [profiles, team, info.managerId])
 
   // ── struttura: seed dai workstream scelti oppure espansione del template ───
-  const seedFromPicks = useCallback((): WWorkstream[] => [
-    ...picks.map(p => newWorkstream(workstreamName(ctx, p.label), info.managerId || null)),
-    /* §400 — le corsie scelte si **aggiungono** a quella del servizio: il
-       lavoro ha un nome e dentro ha i suoi filoni. */
-    ...corsie.map(c => ({
-      ...newWorkstream(workstreamName(ctx, c.nome), info.managerId || null),
-      workstream_type: c.tipo,
-    })),
-  ], [picks, corsie, ctx, info.managerId])
-
-  const expandTemplate = useCallback((tid: string): WWorkstream[] => {
+  /* §402 — una corsia del modello diventa una riga dell'albero **con quello che
+     ha dentro**. La stessa funzione la usano il template intero (passo 6) e le
+     corsie spuntate al passo 3: erano due espansioni della stessa cosa, e due
+     espansioni della stessa cosa divergono al primo campo aggiunto. */
+  const wsDaNodo = useCallback((w: ProjectTemplateNode): WWorkstream => {
     const byOrder = (a: ProjectTemplateNode, b: ProjectTemplateNode) => a.sort_order - b.sort_order
-    const wsNodes = nodes.filter(n => n.template_id === tid && !n.parent_id && n.node_type === 'workstream').sort(byOrder)
-
     const asRecurring = (n: ProjectTemplateNode): WRecurring => ({
       ...newRecurring(n.name, n.visibility, null),
       frequency: n.frequency ?? 'weekly', owner_role: n.suggested_owner_role,
@@ -142,36 +134,60 @@ export function ProjectWizard({
       rel_days: n.relative_due_days,
     })
 
-    return wsNodes.map(w => {
-      const children = nodes.filter(n => n.parent_id === w.id).sort(byOrder)
-      const recurring: WRecurring[] = []
-      const milestones: WMilestone[] = []
-      for (const c of children) {
-        if (c.node_type === 'recurring_task') {
-          recurring.push(asRecurring(c))
-        } else if (c.node_type === 'milestone') {
-          const tasks = nodes.filter(n => n.parent_id === c.id && n.node_type === 'task').sort(byOrder).map(asTask)
-          nodes.filter(n => n.parent_id === c.id && n.node_type === 'recurring_task').sort(byOrder)
-            .forEach(r => recurring.push(asRecurring(r)))
-          milestones.push({
-            ...newMilestone(c.name, c.visibility, null),
-            milestone_type: (c.milestone_type ?? 'delivery') as 'delivery' | 'system',
-            description: c.description, owner_role: c.suggested_owner_role,
-            rel_days: c.relative_due_days, tasks,
-          })
-        } else if (c.node_type === 'task') {
-          const ms = milestones.find(m => m.title === 'Attività')
-            ?? (() => { const m = newMilestone('Attività', 'internal', null); milestones.push(m); return m })()
-          ms.tasks.push(asTask(c))
-        }
+    const children = nodes.filter(n => n.parent_id === w.id).sort(byOrder)
+    const recurring: WRecurring[] = []
+    const milestones: WMilestone[] = []
+    for (const c of children) {
+      if (c.node_type === 'recurring_task') {
+        recurring.push(asRecurring(c))
+      } else if (c.node_type === 'milestone') {
+        const tasks = nodes.filter(n => n.parent_id === c.id && n.node_type === 'task').sort(byOrder).map(asTask)
+        nodes.filter(n => n.parent_id === c.id && n.node_type === 'recurring_task').sort(byOrder)
+          .forEach(r => recurring.push(asRecurring(r)))
+        milestones.push({
+          ...newMilestone(c.name, c.visibility, null),
+          milestone_type: (c.milestone_type ?? 'delivery') as 'delivery' | 'system',
+          description: c.description, owner_role: c.suggested_owner_role,
+          rel_days: c.relative_due_days, tasks,
+        })
+      } else if (c.node_type === 'task') {
+        const ms = milestones.find(m => m.title === 'Attività')
+          ?? (() => { const m = newMilestone('Attività', 'internal', null); milestones.push(m); return m })()
+        ms.tasks.push(asTask(c))
       }
-      return {
-        ...newWorkstream(w.name, null),
-        workstream_type: (w.workstream_type ?? 'recurring') as 'project' | 'recurring',
-        visibility: w.visibility, description: w.description, milestones, recurring,
-      }
-    })
+    }
+    return {
+      ...newWorkstream(w.name, null),
+      workstream_type: (w.workstream_type ?? 'recurring') as 'project' | 'recurring',
+      visibility: w.visibility, description: w.description, milestones, recurring,
+    }
   }, [nodes])
+
+  const seedFromPicks = useCallback((): WWorkstream[] => [
+    ...picks.map(p => newWorkstream(workstreamName(ctx, p.label), info.managerId || null)),
+    /* §400 — le corsie scelte si **aggiungono** a quella del servizio: il
+       lavoro ha un nome e dentro ha i suoi filoni. §402: e arrivano con quello
+       che hanno nel modello, o il passo Struttura resta a zero tappe e zero
+       task su un progetto che nel modello ne ha venti. */
+    ...corsie.map(c => {
+      const nodo = c.nodeId ? nodes.find(n => n.id === c.nodeId) : undefined
+      const base = nodo ? wsDaNodo(nodo) : newWorkstream(c.nome, null)
+      return {
+        ...base,
+        name: workstreamName(ctx, c.nome),
+        owner_id: info.managerId || null,
+        workstream_type: c.tipo,
+      }
+    }),
+  ], [picks, corsie, ctx, info.managerId, nodes, wsDaNodo])
+
+
+  const expandTemplate = useCallback((tid: string): WWorkstream[] => {
+    const byOrder = (a: ProjectTemplateNode, b: ProjectTemplateNode) => a.sort_order - b.sort_order
+    const wsNodes = nodes.filter(n => n.template_id === tid && !n.parent_id && n.node_type === 'workstream').sort(byOrder)
+
+    return wsNodes.map(wsDaNodo)
+  }, [nodes, wsDaNodo])
 
   const pickTemplate = (tid: string | null) => {
     setTemplateId(tid)
@@ -187,16 +203,23 @@ export function ProjectWizard({
     setStructure(s => applyRelativeDates(s, info.startDate))
   }, [templateId, structureTouched, info.startDate])
 
-  // finché non tocchi la struttura, resta agganciata ai workstream scelti
+  /* Finché non tocchi la struttura resta agganciata ai workstream scelti. Le
+     date relative si applicano anche qui: le corsie del §402 portano tappe con
+     un'ancora, e senza questo passaggio nascerebbero tutte senza scadenza. */
   useEffect(() => {
-    if (templateId === null && !structureTouched) setStructure(applyNaming(seedFromPicks(), ctx))
-  }, [templateId, structureTouched, seedFromPicks, ctx])
+    if (templateId === null && !structureTouched) {
+      setStructure(applyNaming(applyRelativeDates(seedFromPicks(), info.startDate), ctx))
+    }
+  }, [templateId, structureTouched, seedFromPicks, ctx, info.startDate])
 
   const editStructure: React.Dispatch<React.SetStateAction<WWorkstream[]>> = useCallback(v => {
     setStructureTouched(true)
     setStructure(v)
   }, [])
 
+  /* §402 — cosa ha composto il passo 3, per dirlo al passo Template: là un
+     template intero sostituisce tutto, e deve saperlo prima chi sceglie. */
+  const seedCounts = useMemo(() => countTree(seedFromPicks()), [seedFromPicks])
   const offConvention = useMemo(() => offConventionCount(structure, ctx), [structure, ctx])
   const counts = useMemo(() => countTree(structure), [structure])
 
@@ -473,7 +496,8 @@ export function ProjectWizard({
               {steps[step].key === 'template' && (
                 <StepTemplate templates={templates} nodes={nodes}
                   serviceType={primary?.service_type ?? ''} serviceSubtype={primary?.service_subtype ?? null}
-                  templateId={templateId} onPick={pickTemplate} structureTouched={structureTouched} />
+                  templateId={templateId} onPick={pickTemplate} structureTouched={structureTouched}
+                  seed={seedCounts} />
               )}
               {steps[step].key === 'struttura' && (
                 <StepStruttura structure={structure} setStructure={editStructure} team={teamPeople}

@@ -10,7 +10,7 @@ import {
   Wand2, AlertTriangle,
 } from 'lucide-react'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
-import { createWorkstream } from '@/app/actions/workstreams'
+import { createWorkstream, createWorkstreamDaModello } from '@/app/actions/workstreams'
 import { apriPeriodi } from '@/app/actions/periodi'
 import {
   ModalShell, Group, Field, SearchInput, PickRow, Segmented, Empty, inputCls,
@@ -18,8 +18,12 @@ import {
 import { workstreamPrefixFromProjectName, applyWorkstreamPrefix, stripWorkstreamPrefix } from '@/lib/project-naming'
 import { canCreateClients, canGovernProjects } from '@/lib/permissions'
 import { TaskComposer } from '@/components/tasks/TaskComposer'
-import { WorkstreamPresets, PeriodiDelProgetto, useServiceCatalog } from '@/components/projects/WorkstreamPresets'
-import { formaDelProgetto, trimestriMancanti, type CorsiaEsistente } from '@/lib/workstream-presets'
+import {
+  WorkstreamPresets, PeriodiDelProgetto, CorsieDelServizio, useServiceCatalog,
+} from '@/components/projects/WorkstreamPresets'
+import {
+  formaDelProgetto, trimestriMancanti, corsieDeiTemplate, type CorsiaEsistente,
+} from '@/lib/workstream-presets'
 import type {
   WorkstreamType, ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode, ProjectArea,
 } from '@/lib/types/database'
@@ -193,7 +197,7 @@ function WorkstreamModal({ projects, base, canPersist, onClose, onDone, notify }
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   // §394 — il catalogo serve solo dopo che il progetto c'è: prima non si sa l'area
-  const { services, loading } = useServiceCatalog(!!projectId)
+  const { services, templates, nodes, loading } = useServiceCatalog(!!projectId)
   /* Le corsie che il progetto ha già: qui si marcano in elenco, come nella
      scheda progetto — la stessa domanda non può avere due risposte a seconda
      della pagina da cui ci si arriva. */
@@ -235,8 +239,28 @@ function WorkstreamModal({ projects, base, canPersist, onClose, onDone, notify }
   const mancanti = trimestriMancanti({
     oggi: new Date().toISOString().slice(0, 10), forma, corsie: corsieDatate,
   }).mancanti.length
-  const fuori = fuoriScelto ?? (forma === 'none' || (forma === 'quarter' && mancanti === 0))
+  /* §402 — le stesse corsie del passo 3 del wizard: stessa funzione, stesso
+     risultato, da qualunque punto si entri. */
+  const modelli = project?.service_type
+    ? corsieDeiTemplate(templates, nodes, [{ service_type: project.service_type, service_subtype: project.service_subtype }])
+      .filter(c => !esistenti.some(e => (prefix ? stripWorkstreamPrefix(prefix, e) : e).toLowerCase() === c.nome.toLowerCase()))
+    : []
+  const fuori = fuoriScelto ?? (!modelli.length && (forma === 'none' || (forma === 'quarter' && mancanti === 0)))
   const canSubmit = !!projectId && fuori && !!name.trim() && !badRange
+
+  const creaDaModello = (c: { nodeId: string; nome: string }) => start(async () => {
+    try {
+      const r = await createWorkstreamDaModello({
+        project_id: projectId, node_id: c.nodeId,
+        name: prefix ? applyWorkstreamPrefix(prefix, c.nome) : c.nome,
+      })
+      const dentro = [r.tappe && `${r.tappe} tappe`, r.task && `${r.task} task`,
+        r.ricorrenti && `${r.ricorrenti} ricorrenti`].filter(Boolean).join(' · ')
+      notify(`«${c.nome}» creata${dentro ? `: ${dentro}` : ' vuota'}`, `${base}/progetti/${projectId}/workstream/${r.id}`)
+      onDone()
+      router.refresh()
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+  })
 
   const apriPeriodiOra = () => start(async () => {
     try {
@@ -288,10 +312,17 @@ function WorkstreamModal({ projects, base, canPersist, onClose, onDone, notify }
         <>
           <PeriodiDelProgetto forma={forma} corsie={corsieDatate} pending={pending} onApri={apriPeriodiOra} />
 
+          {modelli.length > 0 && (
+            <Group label="Le corsie di questo servizio">
+              <CorsieDelServizio corsie={modelli} pending={pending} onPick={creaDaModello} />
+            </Group>
+          )}
+
           {!fuori && (
             <button type="button" onClick={() => setFuoriScelto(true)}
               className="flex items-center gap-1.5 text-2xs font-semibold text-gold-text hover:opacity-80">
-              <Plus className="w-3.5 h-3.5" />Serve una corsia fuori dai periodi
+              <Plus className="w-3.5 h-3.5" />
+              {modelli.length ? 'Serve una corsia che non è nei modelli' : 'Serve una corsia fuori dai periodi'}
             </button>
           )}
 

@@ -16,16 +16,16 @@
 
 import { useEffect, useState, useMemo, useTransition } from 'react'
 import { toast } from 'sonner'
-import { FolderTree, Plus, Loader2, CalendarRange } from 'lucide-react'
+import { FolderTree, Plus, Loader2, CalendarRange, Repeat } from 'lucide-react'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import { PickRow, Empty } from '@/components/shared/formkit'
 import { createCatalogService } from '@/app/actions/wizard'
 import { areaLabel } from '@/lib/project-naming'
 import {
   proposte, suMisura, tipoServizio, trimestriMancanti,
-  type Preset, type Forma, type CorsiaEsistente,
+  type Preset, type Forma, type CorsiaEsistente, type CorsiaProposta,
 } from '@/lib/workstream-presets'
-import type { ProjectArea, ServiceCatalogEntry } from '@/lib/types/database'
+import type { ProjectArea, ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode } from '@/lib/types/database'
 
 export type WorkstreamPick = {
   label: string
@@ -35,20 +35,31 @@ export type WorkstreamPick = {
   custom: boolean
 }
 
-let catalogo: ServiceCatalogEntry[] | null = null
-let inCorso: Promise<ServiceCatalogEntry[]> | null = null
+type Catalogo = {
+  services: ServiceCatalogEntry[]
+  templates: ProjectTemplate[]
+  nodes: ProjectTemplateNode[]
+}
+let catalogo: Catalogo | null = null
+let inCorso: Promise<Catalogo> | null = null
+const VUOTO: Catalogo = { services: [], templates: [], nodes: [] }
 
 /** Una voce appena creata entra subito in cache: riaprire il modale deve mostrarla. */
 export function ricordaServizio(s: ServiceCatalogEntry) {
-  if (catalogo && !catalogo.some(x => x.id === s.id)) catalogo = [...catalogo, s]
+  if (catalogo && !catalogo.services.some(x => x.id === s.id)) {
+    catalogo = { ...catalogo, services: [...catalogo.services, s] }
+  }
 }
 
 /**
- * Il catalogo, una volta per sessione. Senza cache ogni apertura di modale è un
- * giro di rete su una lista di dodici righe che cambia due volte l'anno.
+ * Il catalogo e i modelli, una volta per sessione. Senza cache ogni apertura di
+ * modale è un giro di rete su liste che cambiano due volte l'anno.
+ *
+ * §402 — con i template e i loro nodi: una corsia nuova si sceglie fra quelle
+ * che il servizio ha di solito, e quelle stanno lì.
  */
 export function useServiceCatalog(enabled = true) {
-  const [services, setServices] = useState<ServiceCatalogEntry[]>(catalogo ?? [])
+  const [dati, setDati] = useState<Catalogo>(catalogo ?? VUOTO)
   const [loading, setLoading] = useState(enabled && !catalogo)
 
   useEffect(() => {
@@ -58,20 +69,27 @@ export function useServiceCatalog(enabled = true) {
     // progetto) il riquadro diceva «nessun workstream a catalogo» per un attimo
     setLoading(true)
     const giro = inCorso ?? (async () => {
-      const { data } = await createBrowserClient()
-        .from('service_catalog').select('*').eq('is_active', true)
-        .order('area').order('sort_order')
-      const list = (data ?? []) as ServiceCatalogEntry[]
-      catalogo = list
+      const sb = createBrowserClient()
+      const [s, t, n] = await Promise.all([
+        sb.from('service_catalog').select('*').eq('is_active', true).order('area').order('sort_order'),
+        sb.from('project_templates').select('*').order('sort_order'),
+        sb.from('project_template_nodes').select('*').order('sort_order'),
+      ])
+      const dati: Catalogo = {
+        services: (s.data ?? []) as ServiceCatalogEntry[],
+        templates: (t.data ?? []) as ProjectTemplate[],
+        nodes: (n.data ?? []) as ProjectTemplateNode[],
+      }
+      catalogo = dati
       inCorso = null
-      return list
+      return dati
     })()
     inCorso = giro
-    void giro.then(list => { if (vivo) { setServices(list); setLoading(false) } })
+    void giro.then(d => { if (vivo) { setDati(d); setLoading(false) } })
     return () => { vivo = false }
   }, [enabled])
 
-  return { services, loading }
+  return { ...dati, loading }
 }
 
 export function WorkstreamPresets({
@@ -247,5 +265,48 @@ export function PeriodiDelProgetto({ forma, corsie, pending, onApri }: {
         {mancanti.length > 1 ? `Apri i ${mancanti.length} periodi` : 'Apri i periodi'}
       </button>
     </section>
+  )
+}
+
+/**
+ * §402 — le corsie che il servizio ha di solito, con dentro quello che portano.
+ *
+ * È la stessa lista del passo 3 del wizard, e nasce dalla stessa funzione: la
+ * domanda «quali corsie ci vanno» non può avere due risposte a seconda che il
+ * progetto stia nascendo o esista già (§322). Qui però non si spunta: si sceglie
+ * e la corsia nasce, con le sue tappe e i suoi task.
+ */
+export function CorsieDelServizio({ corsie, pending, onPick }: {
+  corsie: CorsiaProposta[]
+  pending: boolean
+  onPick: (c: CorsiaProposta) => void
+}) {
+  if (!corsie.length) return null
+  return (
+    <div className="space-y-1.5 max-h-[30vh] overflow-y-auto pr-1">
+      {corsie.map(c => {
+        const dentro = [
+          c.tappe && `${c.tappe} ${c.tappe === 1 ? 'tappa' : 'tappe'}`,
+          c.task && `${c.task} task`,
+          c.ricorrenti && `${c.ricorrenti} ${c.ricorrenti === 1 ? 'ricorrente' : 'ricorrenti'}`,
+        ].filter(Boolean).join(' · ')
+        return (
+          <button key={c.key} type="button" onClick={() => onPick(c)} disabled={pending}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-border text-left hover:bg-surface-hover transition-colors disabled:opacity-50">
+            <FolderTree className="w-4 h-4 text-gold-text shrink-0" />
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm font-semibold text-text-primary truncate">{c.nome}</span>
+              <span className="block text-2xs text-text-tertiary truncate">{dentro || 'corsia vuota'}</span>
+            </span>
+            {c.tipo === 'recurring' && (
+              <span className="flex items-center gap-1 text-2xs text-success shrink-0">
+                <Repeat className="w-3 h-3" />continuativa
+              </span>
+            )}
+            <Plus className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
+          </button>
+        )
+      })}
+    </div>
   )
 }

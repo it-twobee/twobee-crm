@@ -113,7 +113,7 @@ export function StepWorkstream({
               Cosa mettiamo dentro {picks.map(p => p.label).join(' e ')}?
             </h3>
             <p className="text-2xs text-text-secondary mt-0.5">
-              Le corsie che questo lavoro ha di solito. Spunta quelle che servono: il resto si aggiunge dopo, dall&apos;albero.
+              Le corsie che questo lavoro ha di solito, con dentro quello che hanno nel modello. Spunta quelle che servono: il resto si aggiunge dopo, dall&apos;albero.
             </p>
           </header>
 
@@ -141,22 +141,34 @@ export function StepWorkstream({
             <div className="max-h-[30vh] overflow-y-auto divide-y divide-border">
               {proposte.map(c => (
                 <label key={c.key}
-                  className={`flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-colors ${
+                  className={`flex items-start gap-2.5 px-3 py-2 cursor-pointer transition-colors ${
                     scelta(c.key) ? 'bg-gold-dim' : 'hover:bg-surface-hover'}`}>
                   <input type="checkbox" checked={scelta(c.key)}
                     onChange={() => setCorsie(cs => scelta(c.key)
                       ? cs.filter(x => x.key !== c.key)
-                      : [...cs, { key: c.key, nome: c.nome, tipo: c.tipo }])}
-                    className="accent-gold w-3.5 h-3.5 cursor-pointer shrink-0" />
-                  <span className="flex-1 min-w-0 text-xs font-semibold text-text-primary truncate">{c.nome}</span>
+                      : [...cs, { key: c.key, nome: c.nome, tipo: c.tipo, nodeId: c.nodeId }])}
+                    className="accent-gold w-3.5 h-3.5 cursor-pointer shrink-0 mt-0.5" />
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-xs font-semibold text-text-primary truncate">{c.nome}</span>
+                    {/* §402 — cosa porta dentro: una corsia che arriva con tre
+                        tappe e otto task non è la stessa cosa di un contenitore
+                        vuoto, e spuntarla alla cieca era l'unica scelta. */}
+                    <span className="block text-2xs text-text-tertiary tabular truncate">
+                      {[
+                        c.tappe && `${c.tappe} ${c.tappe === 1 ? 'tappa' : 'tappe'}`,
+                        c.task && `${c.task} task`,
+                        c.ricorrenti && `${c.ricorrenti} ${c.ricorrenti === 1 ? 'ricorrente' : 'ricorrenti'}`,
+                      ].filter(Boolean).join(' · ') || 'corsia vuota'}
+                    </span>
+                  </span>
                   {c.tipo === 'recurring' && (
                     <span className="flex items-center gap-1 text-2xs text-success shrink-0">
                       <Repeat className="w-3 h-3" />continuativa
                     </span>
                   )}
-                  <span className="text-2xs text-text-tertiary shrink-0 tabular">
-                    {c.quante > 1 ? `in ${c.quante} template` : 'in 1 template'}
-                  </span>
+                  {c.quante > 1 && (
+                    <span className="text-2xs text-text-tertiary shrink-0 tabular">in {c.quante} template</span>
+                  )}
                 </label>
               ))}
             </div>

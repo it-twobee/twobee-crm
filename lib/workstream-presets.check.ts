@@ -177,15 +177,25 @@ console.log('\n— Le corsie che stanno dentro un servizio (§400) —')
     { id: 't4', service_type: 'lead_generation', service_subtype: null, is_active: true, kind: 'period' },
     { id: 't5', service_type: 'branding', service_subtype: null, is_active: true },
   ]
-  const w = (template_id: string, name: string, sort_order: number, workstream_type = 'project') =>
-    ({ template_id, parent_id: null, node_type: 'workstream', name, sort_order, workstream_type })
+  const w = (id: string, template_id: string, name: string, sort_order: number, workstream_type = 'project') =>
+    ({ id, template_id, parent_id: null, node_type: 'workstream', name, sort_order, workstream_type })
+  const dentro = (id: string, parent_id: string, node_type: string, name: string) =>
+    ({ id, template_id: 't1', parent_id, node_type, name, sort_order: 0 })
   const nodi = [
-    w('t1', 'Setup e tracciamento', 10), w('t1', 'Advertising', 20), w('t1', 'Governance', 30, 'recurring'),
-    w('t2', 'Advertising', 10), w('t2', 'Governance', 20, 'recurring'),
-    w('t3', 'Corsia di un template spento', 10),
-    w('t4', 'Piano del trimestre', 10),
-    w('t5', 'Identità visiva', 10),
-    { template_id: 't1', parent_id: 'n1', node_type: 'milestone', name: 'Una tappa', sort_order: 40 },
+    w('w1', 't1', 'Setup e tracciamento', 10), w('w2', 't1', 'Advertising', 20), w('w3', 't1', 'Governance', 30, 'recurring'),
+    w('w4', 't2', 'Advertising', 10), w('w5', 't2', 'Governance', 20, 'recurring'),
+    w('w6', 't3', 'Corsia di un template spento', 10),
+    w('w7', 't4', 'Piano del trimestre', 10),
+    w('w8', 't5', 'Identità visiva', 10),
+    /* «Advertising» sta in due template: vuota in t1, con due tappe, tre task e
+       una ricorrente in t2. Chi la spunta si aspetta quella piena. */
+    dentro('m1', 'w4', 'milestone', 'Piano media'),
+    dentro('m2', 'w4', 'milestone', 'Ottimizzazione'),
+    dentro('k1', 'm1', 'task', 'Brief creativo'),
+    dentro('k2', 'm1', 'task', 'Setup campagne'),
+    dentro('k3', 'm2', 'task', 'Report settimanale'),
+    dentro('r1', 'w4', 'recurring_task', 'Check budget'),
+    { id: 'x1', template_id: 't1', parent_id: 'n1', node_type: 'milestone', name: 'Una tappa', sort_order: 40 },
   ]
   const servizi = [{ service_type: 'lead_generation', service_subtype: null }]
   const c = corsieDeiTemplate(tpl, nodi, servizi)
@@ -207,6 +217,16 @@ console.log('\n— Le corsie che stanno dentro un servizio (§400) —')
 
   is('un servizio senza template non propone niente',
     corsieDeiTemplate(tpl, nodi, [{ service_type: 'audit', service_subtype: null }]).length, 0)
+
+  /* §402 — la corsia porta dentro quello che ha nel modello, e fra due
+     occorrenze vince la più piena: una vuota e una con cinque righe sono lo
+     stesso nome e due cose diverse. */
+  const adv = c.find(x => x.nome === 'Advertising')
+  is('il contenuto è quello dell\'occorrenza più ricca',
+    [adv?.tappe, adv?.task, adv?.ricorrenti], [2, 3, 1])
+  is('e si copia da quel nodo', adv?.nodeId, 'w4')
+  is('una corsia vuota resta vuota',
+    (() => { const g = c.find(x => x.nome === 'Governance'); return [g?.tappe, g?.task, g?.ricorrenti] })(), [0, 0, 0])
 }
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)

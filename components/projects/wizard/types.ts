@@ -95,6 +95,8 @@ export type CorsiaScelta = {
   key: string
   nome: string
   tipo: 'project' | 'recurring'
+  /** §402 — il nodo del modello da cui arriva, con dentro tappe e task */
+  nodeId?: string
 }
 
 /** Workstream selezionato allo step 3: voce di catalogo o creato su misura. */

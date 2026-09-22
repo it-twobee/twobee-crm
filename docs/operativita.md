@@ -473,6 +473,38 @@ sembra un progetto che ha fatto qualcosa di suo. Gate:
 `npx tsx lib/workstream-presets.check.ts` (48 controlli) e
 `npx tsx lib/generatore-periodi.check.ts` (23).
 
+**§402 — la corsia arriva piena, e arriva uguale da tutte le porte.** Il §400
+faceva spuntare le corsie del servizio e le creava **vuote**: cinque corsie,
+zero tappe, zero task, su un servizio che nei modelli ne ha venti. Adesso ogni
+corsia porta dentro quello che ha nel modello — tappe, task e ricorrenti — e la
+riga lo dichiara prima di spuntarla («2 tappe · 3 task»), perché una corsia
+piena e un contenitore vuoto sono due cose diverse e si sceglievano alla cieca.
+
+**Fra due occorrenze vince la più piena.** «Advertising» sta in due template di
+Lead Generation: vuota in uno, con due tappe e tre task nell'altro. Stesso nome,
+due cose diverse, e chi la spunta si aspetta quella che il lavoro ha davvero.
+Il conteggio «in N template» resta, ma piccolo: dice quanto è comune, non cosa
+porta.
+
+**La stessa corsia nasce uguale dalla modale** (`createWorkstreamDaModello`).
+Prima la modale «Nuova workstream» dava un contenitore col nome giusto e basta,
+e la stessa domanda aveva due risposte a seconda della pagina da cui ci si
+arrivava (§322). L'azione ricrea l'albero del nodo: tappe con la data ancorata
+all'avvio del progetto, task dentro le tappe, ricorrenti col responsabile della
+catena (§346) e `generaSubito` — una regola senza occorrenze non si vede. I task
+appesi direttamente alla corsia finiscono in una tappa «Attività», **come nel
+wizard**: `tasks_hierarchy_chk` vuole tutti e tre i legami, e due posti diversi
+per la stessa riga vorrebbero dire due corsie diverse a seconda di come è nata.
+
+**E il passo Template non propone più gli scheletri di periodo.** «Trimestre —
+standard» ha `kind='period'`: zero corsie e tre tappe, perché descrive cosa nasce
+*dentro* un trimestre (§391). Nella lista dei template di progetto compariva fra
+i «consigliati», e sceglierlo faceva nascere il progetto **senza corsie** — la
+conferma poi diceva «il progetto nasce vuoto» senza spiegare perché. Il passo
+dice anche cosa si perde: un template intero **sostituisce** le corsie composte
+al passo 3, e la card «Parti dai workstream scelti» adesso conta quello che hai
+messo insieme invece di promettere workstream vuoti.
+
 **§392 — il giro su tutti** (`POST /api/periods/run`, `PERIODS_CRON_SECRET`,
 task pianificato alle 04:00). Una volta al giorno e non più spesso: un
 periodo si apre una volta ogni due mesi, e il giro serve a non doverci

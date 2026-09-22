@@ -21,6 +21,7 @@ function countNodes(nodes: ProjectTemplateNode[], templateId: string) {
 
 export function StepTemplate({
   templates, nodes, serviceType, serviceSubtype, templateId, onPick, structureTouched,
+  seed = { ws: 0, ms: 0, tk: 0, rc: 0 },
 }: {
   templates: ProjectTemplate[]
   nodes: ProjectTemplateNode[]
@@ -29,11 +30,17 @@ export function StepTemplate({
   templateId: string | null
   onPick: (id: string | null) => void
   structureTouched: boolean
+  /** §402 — cosa ha già composto il passo 3: un template intero lo sostituisce */
+  seed?: { ws: number; ms: number; tk: number; rc: number }
 }) {
   const [showOthers, setShowOthers] = useState(false)
 
   const { matching, others } = useMemo(() => {
-    const active = templates.filter(t => t.is_active)
+    /* §402 — gli scheletri di periodo non sono template di progetto: «Trimestre
+       — standard» ha zero corsie e tre tappe, e sceglierlo qui faceva nascere
+       il progetto vuoto. Descrivono cosa va **dentro** un trimestre (§391), e
+       li semina il motore dei periodi. */
+    const active = templates.filter(t => t.is_active && (t.kind ?? 'project') !== 'period')
     const m = active.filter(t => t.service_type === serviceType && (t.service_subtype ?? null) === serviceSubtype)
     return { matching: m, others: active.filter(t => !m.includes(t)) }
   }, [templates, serviceType, serviceSubtype])
@@ -78,6 +85,15 @@ export function StepTemplate({
       <StepHead title="Da dove partiamo?"
         hint="Il template è solo un punto di partenza: al passo successivo lo modifichi riga per riga." />
 
+      {/* §402 — un template intero **sostituisce** quello che hai composto al
+          passo 3: dirlo prima è l'unico modo perché non sparisca in silenzio. */}
+      {seed.ws > 0 && templateId === null && matching.length > 0 && (
+        <p className="flex items-center gap-1.5 text-2xs text-text-secondary mb-3">
+          <FileStack className="w-3.5 h-3.5 shrink-0 text-gold-text" />
+          Un template intero sostituisce le {seed.ws} corsie del passo 3.
+        </p>
+      )}
+
       {structureTouched && (
         <p className="flex items-center gap-1.5 text-2xs text-warning mb-3">
           <Pencil className="w-3.5 h-3.5 shrink-0" />
@@ -95,7 +111,12 @@ export function StepTemplate({
             <span className="text-sm font-semibold text-text-primary">Parti dai workstream scelti</span>
           </div>
           <p className="text-2xs text-text-tertiary mt-1">
-            Un workstream vuoto per ogni voce selezionata al passo 3. La struttura la costruisci tu.
+            {seed.ws > 0
+              ? `Quello che hai composto al passo 3: ${seed.ws} ${seed.ws === 1 ? 'corsia' : 'corsie'}${
+                  seed.ms || seed.tk || seed.rc
+                    ? `, con ${[seed.ms && `${seed.ms} tappe`, seed.tk && `${seed.tk} task`, seed.rc && `${seed.rc} ricorrenti`].filter(Boolean).join(' e ')}`
+                    : ', vuote'}.`
+              : 'Un workstream vuoto per ogni voce selezionata al passo 3. La struttura la costruisci tu.'}
           </p>
         </button>
 

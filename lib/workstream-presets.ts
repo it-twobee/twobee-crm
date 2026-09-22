@@ -168,11 +168,26 @@ export type CorsiaProposta = {
   tipo: 'project' | 'recurring'
   /** in quanti template del servizio compare */
   quante: number
+  /** il nodo da cui copiarla: l'occorrenza più ricca (§402) */
+  nodeId: string
+  tappe: number
+  task: number
+  ricorrenti: number
+}
+
+type NodoModello = {
+  id?: string
+  template_id: string
+  parent_id: string | null
+  node_type: string
+  name: string
+  workstream_type?: string | null
+  sort_order?: number
 }
 
 export function corsieDeiTemplate(
   templates: { id: string; service_type: string; service_subtype: string | null; is_active?: boolean; kind?: string | null }[],
-  nodi: { template_id: string; parent_id: string | null; node_type: string; name: string; workstream_type?: string | null; sort_order?: number }[],
+  nodi: NodoModello[],
   servizi: { service_type: string; service_subtype: string | null }[],
 ): CorsiaProposta[] {
   /* Gli scheletri di periodo (§391) sono un'altra cosa: descrivono cosa nasce
@@ -183,6 +198,29 @@ export function corsieDeiTemplate(
         && (s.service_subtype ?? null) === (t.service_subtype ?? null)))
     .map(t => t.id))
 
+  const figliDi = new Map<string, NodoModello[]>()
+  nodi.forEach(n => {
+    if (!n.parent_id) return
+    const g = figliDi.get(n.parent_id)
+    if (g) g.push(n); else figliDi.set(n.parent_id, [n])
+  })
+
+  /** cosa porta dentro questa corsia: tappe, task (anche quelli appesi a lei) e ricorrenti */
+  const contenuto = (id: string | undefined) => {
+    let tappe = 0, task = 0, ricorrenti = 0
+    for (const f of (id ? figliDi.get(id) ?? [] : [])) {
+      if (f.node_type === 'milestone') {
+        tappe++
+        for (const g of (f.id ? figliDi.get(f.id) ?? [] : [])) {
+          if (g.node_type === 'task') task++
+          else if (g.node_type === 'recurring_task') ricorrenti++
+        }
+      } else if (f.node_type === 'task') task++
+      else if (f.node_type === 'recurring_task') ricorrenti++
+    }
+    return { tappe, task, ricorrenti }
+  }
+
   const per = new Map<string, CorsiaProposta>()
   nodi
     .filter(n => !n.parent_id && n.node_type === 'workstream' && miei.has(n.template_id))
@@ -190,12 +228,26 @@ export function corsieDeiTemplate(
     .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
     .forEach(n => {
       const k = normalizza(n.name)
+      const c = contenuto(n.id)
+      const peso = c.tappe + c.task + c.ricorrenti
       const gia = per.get(k)
-      if (gia) { gia.quante++; return }
-      per.set(k, {
-        key: k, nome: n.name.trim(), quante: 1,
-        tipo: n.workstream_type === 'recurring' ? 'recurring' : 'project',
-      })
+      if (!gia) {
+        per.set(k, {
+          key: k, nome: n.name.trim(), quante: 1, nodeId: n.id ?? '',
+          tipo: n.workstream_type === 'recurring' ? 'recurring' : 'project',
+          ...c,
+        })
+        return
+      }
+      gia.quante++
+      /* §402 — fra due occorrenze vince **la più piena**: una corsia vuota e
+         una con dentro cinque tappe sono lo stesso nome e due cose diverse, e
+         chi la spunta si aspetta quella che il lavoro ha davvero. */
+      if (peso > gia.tappe + gia.task + gia.ricorrenti) {
+        gia.nodeId = n.id ?? gia.nodeId
+        gia.tappe = c.tappe; gia.task = c.task; gia.ricorrenti = c.ricorrenti
+        gia.tipo = n.workstream_type === 'recurring' ? 'recurring' : 'project'
+      }
     })
   return Array.from(per.values()).sort((a, b) => b.quante - a.quante)
 }
