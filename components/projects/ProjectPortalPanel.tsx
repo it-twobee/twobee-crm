@@ -21,7 +21,7 @@ export async function ProjectPortalPanel({ project, clientName }: { project: Pro
   const visible = await db.from(admin ? 'clients' : 'clients_workspace').select('id').eq('id', clientId).maybeSingle()
   if (!visible.data) return null
 
-  const [tasks, activities, deliverables, versions, publisher] = await Promise.all([
+  const [tasks, activities, deliverables, versions, materials, publisher] = await Promise.all([
     db.from('tasks').select('id, title, description, due_date, deleted_at, task_type, client_id')
       .eq('client_id', clientId).eq('task_type', 'cliente').is('deleted_at', null)
       .order('created_at', { ascending: false }).limit(200),
@@ -32,12 +32,18 @@ export async function ProjectPortalPanel({ project, clientName }: { project: Pro
     db.from('portal_deliverable_versions')
       .select('id, deliverable_id, version, title, author_name, approval_required, published_at, retired_at')
       .eq('project_id', project.id).order('version', { ascending: false }),
+    // §397 — lo spazio file è dell'azienda: qui si vede tutto quello che ci ha
+    // mandato, non solo ciò che ha etichettato con questo progetto.
+    db.from('portal_materials')
+      .select('id, project_id, name, mime, size, kind, uploaded_by_name, created_at')
+      .eq('client_id', clientId).is('deleted_at', null).order('created_at', { ascending: false }).limit(200),
     project.portal_published_by
       ? db.from('profiles').select('full_name').eq('id', project.portal_published_by).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
   ])
 
   const schemaMissing = [activities.error, deliverables.error, versions.error].some(isMissingPortalSchema)
+  const materialsMissing = isMissingPortalSchema(materials.error)
   const byTask = new Map((activities.data ?? []).map(a => [a.source_task_id as string, a]))
   const versionsByDeliverable = new Map<string, PortalVersionRow[]>()
   for (const row of (versions.data ?? []) as (PortalVersionRow & { deliverable_id: string | null })[]) {
@@ -71,6 +77,8 @@ export async function ProjectPortalPanel({ project, clientName }: { project: Pro
     deliverables: ((deliverables.data ?? []) as { id: string; title: string }[]).map(d => ({
       id: d.id, title: d.title, versions: versionsByDeliverable.get(d.id) ?? [],
     })) as PortalDeliverableRow[],
+    materials: materialsMissing ? [] : ((materials.data ?? []) as ProjectPortalData['materials']),
+    materialsMissing,
     schemaMissing,
   }
 

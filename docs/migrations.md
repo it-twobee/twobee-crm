@@ -36,8 +36,8 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > chiave sono una trappola per chi arriva dopo. La **244 è del portale
 > cliente**, integrato in main; la **245** aggiunge la gestione accessi.
 > La **246** introduce l'isolamento file; la **247** e la **248** i periodi e lo
-> scheletro dei progetti; la **249** la pubblicazione nel portale. La prossima
-> libera è la **250**.
+> scheletro dei progetti; la **249** la pubblicazione nel portale; la **250** lo
+> spazio file del cliente. La prossima libera è la **251**.
 
 > **La 249 è nata 247.** È stata scritta e **applicata in produzione** mentre su
 > main arrivavano `247_periodi_e_ricorrenze` e `248_scheletro_periodi`, da una
@@ -47,6 +47,47 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > file, quindi il rinumero non cambia niente sul database e **non va
 > riapplicata**. Il numero nel nome serve a chi legge il repo, e due file con lo
 > stesso numero sono una trappola per chi arriva dopo.
+
+## 250 — lo spazio file del cliente (§397, applicata il 2026-09-22)
+
+`250_portal_materials.sql`: **applicata in produzione**, versione
+**`20260922093617`**. Additiva, nessun backfill. Prerequisiti: **244**
+(portale), **246** (isolamento storage), **249** (pubblicazione), **108/109**
+(metadati file).
+
+`portal_materials` tiene i file che carica il cliente: azienda obbligatoria,
+progetto **facoltativo** — è un'etichetta, non il perimetro, perché lo spazio è
+dell'azienda. Con il progetto nullo `portal_can_access` esige già
+`project_scope='all'`, quindi i file senza progetto restano a chi ha l'accesso
+completo: la policy di lettura non ha dovuto inventare niente.
+
+Le colonne di visualizzazione (`name`, `mime`, `size`, `kind`,
+`uploaded_by_name`) sono duplicate dalla riga `files` perché il cliente non legge
+né `files` né `profiles`. `storage_key` e `file_id` restano **fuori** dai grant:
+il download passa dal backend. `file_id` si stacca (`ON DELETE SET NULL`) quando
+il file viene rimosso davvero — la riga resta come traccia, i byte no — e un
+CHECK impedisce che un materiale vivo sia senza file.
+
+`portal_guard_material` verifica l'attore con `portal_assert_actor` (fuori il
+lettore), che il file stia nella cartella `materiali` di **quell'azienda**, e che
+dopo il caricamento si possa solo rimuovere: due sole transizioni ammesse, il
+soft delete e il distacco del metadato. `portal_material_marks_activity` porta in
+verifica l'attività a cui il materiale risponde, e la task interna a `in_review`:
+il file è arrivato, non è stato approvato. Il limite di 1 GB è un CHECK, quindi
+vale anche per il service role; la quota di 20 GB per azienda la fa rispettare la
+rotta, che è l'unica porta di scrittura.
+
+Riscrive `storage_context_access` aggiungendo la cartella **`materiali`**,
+ammessa solo con `entity_type='client'`.
+
+Provata due volte su PostgreSQL 16 effimero con
+`supabase/tests/250_portal_materials.check.sql`. Verifica in sola lettura dopo
+l'applicazione: tabella presente, 2 policy (`portal_staff_read`,
+`portal_material_read`), 3 trigger, **12 colonne leggibili da `authenticated` e
+zero fra quelle riservate** (`storage_key`, `file_id`), **nessun privilegio di
+tabella** ad `authenticated`, 0 materiali e 0 file nella cartella. Al momento
+dell'applicazione gli accessi portale attivi erano **0**: lo spazio esiste e non
+lo apre ancora nessuno, perché l'abilitazione resta esplicita e personale.
 
 ## 249 — pubblicazione nel portale cliente (applicata il 2026-09-22)
 

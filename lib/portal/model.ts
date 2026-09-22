@@ -1,4 +1,10 @@
-export type PortalCompany = { id: string; name: string; role: 'referente' | 'collaboratore' | 'lettore' }
+export type PortalCompany = {
+  id: string; name: string
+  role: 'referente' | 'collaboratore' | 'lettore'
+  /** §397 — con `selected` la persona vede solo alcuni progetti: lo spazio
+      dell'azienda le arriva in parte, e non si dichiara un totale che non è. */
+  scope: 'all' | 'selected'
+}
 export type PortalProject = {
   id: string; client_id: string; title: string; area: string; status: string
   objective: string | null; scope: string | null; update: string | null
@@ -20,6 +26,11 @@ export type PortalVersion = {
   id: string; project_id: string; deliverable_id: string | null
   title: string; version: number; author_name: string
   published_at: string; approval_required: boolean
+}
+
+export type PortalMaterial = {
+  id: string; project_id: string | null; name: string; mime: string | null
+  size: number; kind: string; uploaded_by_name: string; created_at: string
 }
 
 export const REQUEST_KINDS = {

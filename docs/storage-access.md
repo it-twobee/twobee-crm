@@ -3,8 +3,10 @@
 21 settembre 2026 · migration 246 **applicata in produzione**
 (`20260921150329`); codice nel rilascio su main per Coolify.
 22 settembre 2026 · migration **249 applicata in produzione**
-(`20260922084609`): aggiunge la cartella `deliverables` e il download
-autenticato delle consegne pubblicate.
+(`20260922084609`): cartella `deliverables` e download autenticato delle consegne.
+22 settembre 2026 · migration **250 applicata in produzione**
+(`20260922093617`): cartella `materiali`, lo spazio file del cliente, e il Range
+su tutte e due le porte del portale.
 
 ## Il confine
 
@@ -34,7 +36,7 @@ pubblicazione, scope progetto e revoca.
 - Contesti ammessi: `client`, `project`, `profile`, `feedback`, `channel`,
   oppure nessun contesto dove la categoria lo permette. Tipo e ID viaggiano
   insieme. `clients` richiede `client`; `feedback` richiede `feedback`;
-  `deliverables` richiede `project` (249).
+  `deliverables` richiede `project` (249); `materiali` richiede `client` (250).
 - Scrivere sul feedback richiede autore o admin; leggerne gli allegati resta
   consentito allo staff. Un `viewer` legge ma non crea, elimina o condivide.
 - Cartelle sensibili (`payslips`, `personal`, `best_ideas`): proprietario o
@@ -103,12 +105,34 @@ lo stream con gli stessi header degli allegati interni (`private, no-store`,
 non 404: un guasto non è un «non esiste». Prove in
 `scripts/check-portal-download-route.ts`.
 
+## Lo spazio file del cliente — cartella `materiali` (250)
+
+È l'unica cartella in cui scrive **il cliente**, e per questo non passa da
+`/api/files/**`: quelle API vogliono uno staff attivo, e la 246 le chiude ai
+clienti apposta. La porta è `POST /api/portale/materiali`, con la membership al
+posto del ruolo staff e `portal_assert_actor` nel database, che esclude il
+lettore. La cartella sta sempre sotto un'azienda (`entity_type='client'`) e resta
+fuori dai link anonimi, come tutte quelle legate a un cliente.
+
+Un file può arrivare a **1 GB**: non passa da `formData()`, che lo terrebbe in
+memoria. `putObjectStream` apre un multipart a pezzi da 8 MiB mentre i byte
+arrivano, conta mentre scrive e **annulla** l'upload appena supera il limite —
+un multipart lasciato aperto occuperebbe spazio senza comparire in elenco, quindi
+l'abort è nel `finally`. Tipi ammessi da elenco chiuso; HTML, SVG, script ed
+eseguibili restano fuori, guardando tipo dichiarato ed estensione insieme.
+
+`serveStoredFile` serve i byte a tutte e due le porte del portale — consegne e
+materiali — con il **Range**: 206 e `Content-Range` per un intervallo, 416 per
+uno fuori dal file, `Accept-Ranges` sempre. Senza, un video si scarica tutto e
+non si può far scorrere.
+
 ## Verifiche
 
 ```bash
 npx tsx lib/storage/access.check.ts
 npx tsx scripts/check-storage-routes.ts
 npx tsx scripts/check-portal-download-route.ts
+npx tsx scripts/check-portal-materials-routes.ts
 node scripts/check-storage-sql.mjs
 ```
 

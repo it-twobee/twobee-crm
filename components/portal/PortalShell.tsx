@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { ArrowUpRight, Home, FolderOpen, ListChecks, MessageSquare, LogOut } from 'lucide-react'
+import { ArrowUpRight, Home, FolderOpen, FolderUp, ListChecks, MessageSquare, LogOut } from 'lucide-react'
 import { Logo } from '@/components/shared/Logo'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { PortalSwitcher } from '@/components/shared/PortalSwitcher'
@@ -14,6 +14,10 @@ const SECTIONS = [
   { href: '/portale', label: 'Home', icon: Home },
   { href: '/portale/progetti', label: 'Progetti', icon: FolderOpen },
   { href: '/portale/da-fare', label: 'Da fare', icon: ListChecks },
+  /* §397 — uno spazio file non sta dentro nessun'altra sezione: la regola del
+     brief è non aggiungere voci per cose che stanno altrove, e questa non ha
+     un altrove. */
+  { href: '/portale/file', label: 'I tuoi file', icon: FolderUp },
   { href: '/portale/richieste', label: 'Richieste', icon: MessageSquare },
 ]
 
@@ -79,7 +83,7 @@ export function PortalShell({ children, companies, selected, preview, canAccessA
       </div>
       <div className="sticky top-0 z-30 border-y border-border bg-background">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 px-5 sm:px-8">
-          <nav aria-label="Portale cliente" className="grid w-full grid-cols-4 sm:flex sm:w-auto sm:gap-6">
+          <nav aria-label="Portale cliente" className="grid w-full grid-cols-3 sm:flex sm:w-auto sm:gap-6">
             {SECTIONS.map(s => {
               const active = s.href === '/portale' ? pathname === s.href : pathname.startsWith(s.href)
               return <Link key={s.href} href={portalHref(s.href, selected)} aria-current={active ? 'page' : undefined}

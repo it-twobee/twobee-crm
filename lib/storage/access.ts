@@ -53,6 +53,8 @@ export function parseStorageContext(folder: unknown, entityType: unknown, entity
   if (folder === 'feedback' && type !== 'feedback') return null
   // Una consegna senza progetto non si può pubblicare né autorizzare (§395).
   if (folder === 'deliverables' && type !== 'project') return null
+  // Lo spazio file è dell'azienda: un materiale senza azienda non è di nessuno (§397).
+  if (folder === 'materiali' && type !== 'client') return null
   return { folder, entity_type: type as string | null, entity_id: id as string | null }
 }
 

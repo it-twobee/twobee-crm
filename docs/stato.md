@@ -1,5 +1,38 @@
 # Dove siamo
 
+## Portale cliente — lo spazio file del cliente (§397), 2026-09-22
+
+Fin qui il portale leggeva soltanto. Adesso il cliente ha **il suo spazio**:
+`/portale/file`, voce «I tuoi file». Carica immagini, video, audio e documenti
+fino a **1 GB** l'uno, li riscarica quando vuole, e li rimuove se ha sbagliato.
+Lo spazio è **dell'azienda**: lo vedono tutti i suoi referenti nel limite dei
+progetti a cui sono abilitati, e il team. Carica chi partecipa — il lettore
+consulta e basta — e l'anteprima interna non scrive.
+
+Su richiesta del committente è stato valutato Google Drive al posto di S3. Due
+fatti hanno deciso: **S3 non era da configurare** (MinIO gira da mesi, le
+variabili sono in produzione, le consegne della §395 ci scrivono già), e nel
+repository Drive non è uno storage ma un convertitore di link — usarlo avrebbe
+richiesto service account, Drive condiviso e scope nuovi, cioè più
+configurazione, e un link di condivisione **sopravvive alla revoca**, che è ciò
+che la 246 vieta. Drive resta per i documenti che il cliente tiene suoi, come
+link. Dettagli e misure in `docs/portale-cliente.md`.
+
+Un giga non passa da `formData()`: il corpo della richiesta è il file grezzo e
+`putObjectStream` lo manda a pezzi mentre arriva, annullando l'upload al primo
+byte di troppo. In discesa arriva il **Range**, che mancava anche alle consegne:
+senza, un video si scarica tutto e non si può far scorrere.
+
+**Migration 250 applicata in produzione**, versione `20260922093617`: tabella,
+2 policy, 3 trigger, **zero colonne riservate esposte** e nessun privilegio di
+tabella ad `authenticated`; 0 materiali e 0 file. Al momento dell'applicazione
+gli accessi portale attivi erano **0** — lo spazio c'è e non lo apre ancora
+nessuno, perché invitare resta un gesto esplicito. Verificata anche due volte su
+PostgreSQL 16 isolato con
+`supabase/tests/250_portal_materials.check.sql`, insieme a 244/245/246/249.
+TypeScript senza errori, **87 check**, prove delle rotte con Supabase e storage
+simulati, suite browser con **287 richieste al mock e zero scritture**.
+
 ## Portale cliente — pubblicazione dei contenuti (step 2), 2026-09-22
 
 Il portale aveva schema, RLS e pagine, e **nessuna riga di codice che ci

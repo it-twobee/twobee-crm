@@ -16,6 +16,7 @@ import {
 } from '@/lib/portal/publish'
 import type { PortalActivityKind, PortalProjectFields } from '@/lib/portal/publish'
 import { portalDate } from '@/lib/portal/model'
+import { humanBytes, materialDownloadHref } from '@/lib/portal/materials'
 import type { PortalActivity, PortalProject, PortalVersion } from '@/lib/portal/model'
 import { ActivityList, ProjectList, VersionList } from '@/components/portal/PortalContent'
 
@@ -35,6 +36,11 @@ export type PortalVersionRow = {
 }
 export type PortalDeliverableRow = { id: string; title: string; versions: PortalVersionRow[] }
 
+export type PortalMaterialRow = {
+  id: string; project_id: string | null; name: string; mime: string | null
+  size: number; kind: string; uploaded_by_name: string; created_at: string
+}
+
 export type ProjectPortalData = {
   projectId: string
   clientId: string
@@ -49,6 +55,8 @@ export type ProjectPortalData = {
   publishedBy: string | null
   tasks: PortalTaskRow[]
   deliverables: PortalDeliverableRow[]
+  materials: PortalMaterialRow[]
+  materialsMissing: boolean
   schemaMissing: boolean
 }
 
@@ -276,6 +284,20 @@ export function ProjectPortalTab({ data }: { data: ProjectPortalData }) {
                   onClick={() => run(() => retireDeliverableVersion(data.projectId, v.id), 'Versione ritirata dal portale.')}>Ritira</button>}
               </span>
             </li>)}</ul>}
+        </li>)}</ul>}
+    </Section>
+    <Section title="Materiali dal cliente" hint="Lo spazio file dell’azienda: quello che ci manda arriva qui, etichettato per progetto quando lo dichiara.">
+      {data.materialsMissing ? <p className="text-sm text-text-secondary">Lo spazio file non è ancora attivo: richiede la migration 250 del portale.</p>
+        : !data.materials.length ? <p className="text-sm text-text-secondary">Niente ancora. Il cliente carica dal portale, sezione «I tuoi file».</p>
+        : <ul className="divide-y divide-border">{data.materials.map(m => <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
+          <span className="min-w-0">
+            <span className="block break-words text-sm font-medium">{m.name}</span>
+            <span className="block text-2xs text-text-secondary">
+              {humanBytes(Number(m.size))} · {m.uploaded_by_name} · {portalDate(m.created_at)}
+              {m.project_id ? (m.project_id === data.projectId ? ' · questo progetto' : ' · altro progetto') : ' · senza progetto'}
+            </span>
+          </span>
+          <a href={materialDownloadHref(m.id)} className={button}>Scarica<span className="sr-only"> {m.name}</span></a>
         </li>)}</ul>}
     </Section>
   </div>

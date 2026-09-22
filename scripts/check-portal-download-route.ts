@@ -11,7 +11,7 @@ const fileId = 'f2476000-0000-4000-8000-000000000001'
 
 let signedIn = true, visible = true, readError = false
 let storedKey = 'deliverables/consegna.pdf'
-const baseFile = { id: fileId, bucket: 'twobee-crm', folder: 'deliverables', object_key: 'deliverables/consegna.pdf', name: 'Consegna.pdf', mime: 'application/pdf' }
+const baseFile = { id: fileId, bucket: 'twobee-crm', folder: 'deliverables', object_key: 'deliverables/consegna.pdf', name: 'Consegna.pdf', mime: 'application/pdf', size: 1000 }
 let fileRow: any = { ...baseFile }
 let storageFails = false
 let adminClients = 0
@@ -43,6 +43,8 @@ class AdminQuery {
 const internal = Module as unknown as { _load: (name: string, ...args: unknown[]) => unknown }
 const original = internal._load
 internal._load = function (name, ...args) {
+  // `server-only` esiste solo dentro il bundler di Next.
+  if (name === 'server-only') return {}
   if (name === '@/lib/supabase/server') {
     return { createClient: async () => ({
       auth: { getUser: async () => ({ data: { user: signedIn ? { id: 'f2470000-0000-4000-8000-000000000002' } : null } }) },
@@ -55,10 +57,12 @@ internal._load = function (name, ...args) {
   if (name === '@/lib/storage/s3') {
     return {
       S3_BUCKET: 'twobee-crm',
-      getObject: async (key: string) => {
+      getObject: async (key: string, range?: string) => {
         if (storageFails) throw new Error('MinIO giù')
         assert.equal(key, fileRow.object_key)
-        return { body: 'byte', contentType: 'application/pdf', contentLength: 4 }
+        if (!range) return { body: 'byte', contentType: fileRow.mime, contentLength: fileRow.size }
+        const [start, end] = range.replace('bytes=', '').split('-').map(Number)
+        return { body: 'byte', contentType: fileRow.mime, contentLength: end - start + 1, contentRange: `bytes ${start}-${end}/${fileRow.size}` }
       },
     }
   }
@@ -123,12 +127,22 @@ async function main() {
   assert.equal(ok.headers.get('X-Content-Type-Options'), 'nosniff')
   assert.match(ok.headers.get('Content-Disposition')!, /^inline;/)
 
+  // §397 — un video si fa scorrere solo se rispondiamo al Range.
+  const ranged = await route.GET(new Request('https://os.example.test/', { headers: { range: 'bytes=0-99' } }), { params: { versionId: version } })
+  assert.equal(ranged.status, 206)
+  assert.equal(ranged.headers.get('Content-Range'), 'bytes 0-99/1000')
+  assert.equal(ranged.headers.get('Accept-Ranges'), 'bytes')
+  assert.equal((await call()).headers.get('Accept-Ranges'), 'bytes', 'lo dichiariamo anche senza Range')
+  const outside = await route.GET(new Request('https://os.example.test/', { headers: { range: 'bytes=5000-6000' } }), { params: { versionId: version } })
+  assert.equal(outside.status, 416, 'un intervallo fuori dal file non si serve come se fosse tutto')
+  assert.equal(outside.headers.get('Content-Range'), 'bytes */1000')
+
   fileRow = { ...baseFile, name: 'consegna.html', mime: 'text/html' }
   const active = await call()
   assert.match(active.headers.get('Content-Disposition')!, /^attachment;/, 'niente contenuti attivi nell’origine autenticata')
   assert.match(active.headers.get('Content-Security-Policy')!, /sandbox/)
 
-  console.log('Tutti i controlli passano: anonimo, id non valido, revoca come 404, errore distinto dal vuoto, chiave verificata, storage giù e contenuti attivi scaricati.')
+  console.log('Tutti i controlli passano: anonimo, id non valido, revoca come 404, errore distinto dal vuoto, chiave verificata, storage giù, Range e contenuti attivi scaricati.')
 }
 
 main().catch(error => { console.error(error); process.exit(1) })

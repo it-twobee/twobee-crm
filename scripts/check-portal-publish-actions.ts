@@ -132,6 +132,8 @@ class Query {
 const internal = Module as unknown as { _load: (name: string, ...args: unknown[]) => unknown }
 const original = internal._load
 internal._load = function (name, ...args) {
+  // `server-only` esiste solo dentro il bundler di Next.
+  if (name === 'server-only') return {}
   if (name === '@/lib/auth') {
     return { getViewer: async () => ({
       user: signedIn ? { id: actor } : null,

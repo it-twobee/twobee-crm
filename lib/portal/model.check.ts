@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs'
 import { isMissingPortalSchema, isPortalRole, legacyProject, portalHref, selectCompany } from './model'
 
 const companies = [
-  { id: 'azienda-a', name: 'A', role: 'referente' as const },
-  { id: 'azienda-b', name: 'B', role: 'lettore' as const },
+  { id: 'azienda-a', name: 'A', role: 'referente' as const, scope: 'all' as const },
+  { id: 'azienda-b', name: 'B', role: 'lettore' as const, scope: 'selected' as const },
 ]
 assert.equal(selectCompany(companies, 'azienda-estranea'), null, 'URL esterno non ripiega su azienda autorizzata')
 assert.equal(selectCompany(companies.slice(0, 1), 'azienda-b'), null, 'conoscere un ID non concede l’accesso')

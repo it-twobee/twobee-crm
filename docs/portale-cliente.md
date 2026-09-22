@@ -1,5 +1,99 @@
 # Portale cliente
 
+## Lo spazio file del cliente — §397, 22 settembre 2026
+
+Fin qui il portale leggeva soltanto: noi pubblicavamo, il cliente scaricava.
+Questa è la **prima scrittura che arriva dal portale**, e l'ha chiesta il
+committente così: «il cliente che ha accesso al portale deve avere il suo spazio
+per poter caricare le cose — immagini, video, audio — e ha sempre la possibilità
+di caricare e di scaricare».
+
+**Lo spazio è dell'azienda**, non della persona e non del progetto: `/portale/file`,
+voce «I tuoi file» nella navigazione. Un file può portare l'etichetta di un
+progetto, oppure nessuna. Lo vedono tutti i referenti di quell'azienda, **nel
+limite dei progetti a cui sono abilitati**: chi ha lo scope `selected` non vede i
+file senza progetto, perché `portal_can_access(client, NULL)` esige già
+`project_scope='all'`. Il totale dello spazio usato si dichiara solo a chi vede
+tutta l'azienda: agli altri la somma sarebbe un numero plausibile e sbagliato.
+
+**Carica chi partecipa, non chi consulta.** `portal_assert_actor` esclude il
+lettore, e l'anteprima interna non scrive: guardare non è partecipare. Rimuove
+un file solo chi l'ha caricato; la riga resta come traccia, i byte spariscono
+davvero, e il metadato si stacca dalla riga `files` eliminata.
+
+### Perché MinIO e non Google Drive
+
+La domanda è arrivata come «possiamo usare gdrive senza configurare uno storage
+S3». S3 **non era da configurare**: MinIO gira da mesi nella rete Docker, le
+cinque variabili `S3_*` sono nel container di produzione, e le consegne della
+§395 ci scrivono già dentro. Nel repository Drive non è uno storage: `lib/drive.ts`
+sono trentanove righe che trasformano un link di condivisione in un URL da
+incorporare, gli unici scope Google richiesti sono `calendar.readonly` e
+`calendar.events`, e sulla VPS non esiste nessun mount. Usarlo avrebbe voluto
+dire **costruirlo**: service account, Drive condiviso Workspace, scope nuovi —
+più configurazione, non meno. E si sarebbe rotto sulla cosa che tiene in piedi il
+portale: o i file passano comunque dal nostro backend, e allora Drive è un bucket
+più lento con le quote API sopra, oppure passano da link di condivisione, **e il
+link sopravvive alla revoca dell'accesso**, che è precisamente ciò che la 246
+vieta. Drive resta dov'era: i documenti che il cliente tiene suoi, come link.
+
+### Un giga non entra in memoria
+
+Il limite è **1 GB per file** e **20 GB per azienda**; sul disco della VPS ce ne
+sono 225 liberi. Un file così non può passare da `formData()`, quindi il corpo
+della richiesta è il file grezzo e `putObjectStream` lo manda a pezzi da 8 MiB
+mentre arriva: se supera il limite, l'upload viene **annullato** e il byte di
+troppo non tocca mai il disco. Il nome viaggia in `x-file-name`, il tipo in
+`Content-Type`, e `x-idempotency-key` impedisce che un reinvio lasci due copie.
+Lato pagina si usa `XMLHttpRequest` e non `fetch`, perché su mezzo giga la barra
+di avanzamento è la differenza fra «sta caricando» e «si è piantato».
+
+In discesa serve il **Range**: un player che chiede un pezzo e riceve 200 con
+l'inizio ricomincia da capo. `serveStoredFile` risponde 206 con `Content-Range`,
+416 per un intervallo fuori dal file, e dichiara `Accept-Ranges` anche quando
+serve tutto. Vale anche per le consegne della §395, che prima non lo facevano.
+
+### Cosa si può caricare
+
+Immagini, video, audio e documenti, da un elenco chiuso. Restano fuori HTML, SVG,
+script ed eseguibili — si guardano **il tipo dichiarato e l'estensione insieme**,
+perché rinominare un file è gratis. Un tipo rifiutato non apre nemmeno lo
+storage. Se la riga non si scrive, l'oggetto e il metadato vengono rimossi: mai
+un file senza riga, mai una riga senza file.
+
+### La porta
+
+`POST /api/portale/materiali`, `GET`/`DELETE /api/portale/materiali/:id`. Non
+passano da `/api/files/**`, che è dello staff e che la 246 chiude ai clienti
+apposta. In lettura l'autorizzazione **è** la RLS; `storage_key` e `file_id` non
+sono fra le colonne concesse ad `authenticated`, nemmeno allo staff.
+
+Lato interno i materiali compaiono nella tab **Portale** della scheda progetto e
+nella coda «Da gestire» del Customer Care, con il download autenticato.
+
+**Migration 250 applicata in produzione** il 22 settembre, versione
+`20260922093617`, con 0 accessi portale attivi al momento dell'applicazione:
+niente da disturbare, e nessuno che veda la novità finché non lo invitiamo.
+
+### Verifiche — §397
+
+```bash
+npx tsx lib/portal/materials.check.ts
+npx tsx scripts/check-portal-materials-routes.ts
+node scripts/check-portal-sql.mjs        # 244+245+246+249+250 ×2 + suite
+```
+
+Le rotte sono provate con Supabase e storage simulati: anonimo, profilo
+disattivato, staff che prova a caricare al posto del cliente, lettore, azienda
+senza membership, progetto fuori dallo scope, sei tipi rifiutati **prima** di
+aprire lo storage, spazio pieno, file oltre il limite interrotto senza lasciare
+residui, reinvio che non ricarica, ritorno indietro su errore di scrittura,
+Range, 416 e rimozione solo dei propri file. La suite SQL prova lettore escluso,
+file di un'altra azienda, cartella sbagliata, oltre il giga, immutabilità dopo il
+caricamento, scope limitato, isolamento fra due aziende, materiale che manda
+l'attività in verifica e la task al team, rimozione irreversibile e distacco del
+metadato.
+
 ## Pubblicazione dei contenuti — step 2, 22 settembre 2026
 
 Fino a ieri il portale aveva schema, RLS, VIEW, trigger e pagine, e **nessuna

@@ -59,7 +59,7 @@ const mock = createServer((req, res) => {
   } else if (table === 'portal_memberships') {
     if (userId === ids.broken) return reply(403, { code: '42501', message: 'portal_memberships permission denied' })
     if (schema === 'legacy') return reply(404, { code: 'PGRST205', message: "Could not find the table 'public.portal_memberships' in the schema cache" })
-    rows = [ids.revoked, ids.unassigned].includes(userId) ? [] : allowed.map(client_id => ({ client_id, portal_role: 'referente' }))
+    rows = [ids.revoked, ids.unassigned].includes(userId) ? [] : allowed.map(client_id => ({ client_id, portal_role: 'referente', project_scope: 'all' }))
   } else if (table === 'client_assignments') {
     const detail = url.searchParams.get('select') === 'profile_id,profiles(*)'
     if (!detail && schema !== 'legacy') violations.push('Fallback legacy dopo attivazione schema')
@@ -93,13 +93,18 @@ const mock = createServer((req, res) => {
       { id: 'version-a', project_id: pa, deliverable_id: 'consegna-a', title: 'Proposta di navigazione', version: 2, author_name: 'Il team di progetto', published_at: '2026-09-19T10:00:00Z', approval_required: true },
       { id: 'version-a1', project_id: pa, deliverable_id: 'consegna-a', title: 'Proposta di navigazione', version: 1, author_name: 'Il team di progetto', published_at: '2026-09-10T10:00:00Z', approval_required: false },
     ] : []
+  } else if (table === 'portal_materials') {
+    rows = eq('client_id') === a ? [
+      { id: 'materiale-a', project_id: pa, name: 'Logo definitivo.png', mime: 'image/png', size: 204800, kind: 'immagine', uploaded_by_name: 'Referente di prova', created_at: '2026-09-20T10:00:00Z' },
+      { id: 'materiale-b', project_id: null, name: 'Spot 30 secondi.mp4', mime: 'video/mp4', size: 48234496, kind: 'video', uploaded_by_name: 'Referente di prova', created_at: '2026-09-21T10:00:00Z' },
+    ] : []
   } else if (table === 'portal_requests') {
     if (schema === 'legacy') return reply(404, { code: 'PGRST205', message: "Could not find the table 'public.portal_requests' in the schema cache" })
     rows = [{ id: 'request-a', project_id: pa, title: 'Chiarimento sui contenuti', body: 'Quali contenuti prepariamo per la prossima revisione?', kind: 'supporto', status: 'in_valutazione', created_at: '2026-09-19T10:00:00Z' }]
   } else if (!['workspace_sections', 'workspace_section_permissions', 'notifications', 'profile_permissions', 'tickets', 'person_copy', 'client_contacts', 'client_stakeholders', 'client_kpis', 'client_interactions'].includes(table)) {
     violations.push(`Query inattesa: ${table}`)
   }
-  if (emptyHome && ['projects', 'portal_projects', 'portal_activities', 'portal_deliverable_versions', 'portal_requests'].includes(table)) rows = []
+  if (emptyHome && ['projects', 'portal_projects', 'portal_activities', 'portal_deliverable_versions', 'portal_requests', 'portal_materials'].includes(table)) rows = []
   return reply(200, req.headers.accept?.includes('vnd.pgrst.object') ? rows[0] ?? null : rows)
 })
 await new Promise(resolve => mock.listen(54329, '127.0.0.1', resolve))
@@ -326,15 +331,40 @@ try {
   assert.match(attivita, /Serve per chiudere la home\./)
   await shared.context.close()
 
+  // §397 — lo spazio file del cliente: carica lui, scarica lui.
+  const space = await session('client')
+  await open(space.page, `/portale/file?client=${a}`)
+  await space.page.getByRole('heading', { name: 'Lo spazio della tua azienda.' }).waitFor()
+  await space.page.getByRole('heading', { name: 'Carica un file' }).waitFor()
+  const spaceText = await space.page.locator('body').innerText()
+  assert.match(spaceText, /Spot 30 secondi\.mp4/)
+  assert.match(spaceText, /46 MB/, 'la dimensione si legge, non si conta a mano')
+  assert.match(spaceText, /Senza progetto/, 'i file senza progetto hanno un posto dichiarato')
+  const scarica = space.page.getByRole('link', { name: /Scarica Spot 30 secondi\.mp4/ })
+  assert.equal(await scarica.getAttribute('href'), '/api/portale/materiali/materiale-b')
+  await space.page.getByRole('navigation', { name: 'Portale cliente' }).getByRole('link', { name: 'I tuoi file', exact: true }).click()
+  await space.page.waitForURL(url => url.pathname === '/portale/file')
+  await space.page.addStyleTag({ content: '*{transition:none!important}' })
+  await checkContrast(space.page)
+  await space.page.setViewportSize({ width: 390, height: 1000 })
+  assert.ok(await space.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'nessun overflow su mobile')
+  await space.context.close()
+
   const outsider = await session('other')
   await open(outsider.page, `/portale/da-fare?client=${b}`)
   const altro = await outsider.page.locator('body').innerText()
   assert.equal(altro.includes('Inviaci il logo in vettoriale'), false, 'B non vede le attività di A')
   assert.equal(altro.includes('Proposta di navigazione'), false, 'B non vede le consegne di A')
+  await open(outsider.page, `/portale/file?client=${b}`)
+  const spazioB = await outsider.page.locator('body').innerText()
+  assert.equal(spazioB.includes('Spot 30 secondi.mp4'), false, 'B non vede i file di A')
+  assert.equal(spazioB.includes('Logo definitivo.png'), false)
+  await open(outsider.page, `/portale/file?client=${a}`)
+  assert.match(await outsider.page.locator('body').innerText(), /Contenuto non disponibile\.|404/, 'lo spazio di A non si apre con l’URL')
   await open(outsider.page, `/portale/progetti/${pa}?client=${b}`)
   await outsider.page.getByText('Contenuto non disponibile.').waitFor()
   await outsider.context.close()
-  console.log('OK consegne scaricabili, versioni precedenti, attività d’azienda e isolamento fra due aziende')
+  console.log('OK consegne scaricabili, spazio file del cliente e isolamento fra due aziende')
 
   assert.deepEqual(writes, [], 'nessuna scrittura verso il mock')
   assert.deepEqual(violations, [], 'nessuna query non prevista o fallback aperto')

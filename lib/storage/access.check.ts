@@ -34,6 +34,7 @@ for (const context of [file, { ...file, folder: 'misc' as const, entity_type: 'p
 assert.equal(canShareFile(manager, { ...file, folder: 'misc', entity_type: null }), true)
 // Un link anonimo a una consegna sopravviverebbe alla revoca dell'accesso.
 assert.equal(canShareFile({ ...manager, role: 'admin', appRole: 'admin' }, { ...file, folder: 'deliverables', entity_type: 'project' }), false)
+assert.equal(canShareFile({ ...manager, role: 'admin', appRole: 'admin' }, { ...file, folder: 'materiali', entity_type: 'client' }), false)
 assert.equal(canShareFile({ ...manager, active: false }, { ...file, folder: 'misc', entity_type: null }), false)
 assert.deepEqual(parseStorageContext('clients', 'client', client), { folder: 'clients', entity_type: 'client', entity_id: client })
 assert.equal(parseStorageContext('clients', null, null), null)
@@ -41,6 +42,9 @@ assert.equal(parseStorageContext('feedback', 'client', client), null)
 assert.deepEqual(parseStorageContext('deliverables', 'project', 'f2462000-0000-4000-8000-000000000001'), { folder: 'deliverables', entity_type: 'project', entity_id: 'f2462000-0000-4000-8000-000000000001' })
 assert.equal(parseStorageContext('deliverables', 'client', client), null)
 assert.equal(parseStorageContext('deliverables', null, null), null)
+assert.deepEqual(parseStorageContext('materiali', 'client', client), { folder: 'materiali', entity_type: 'client', entity_id: client })
+assert.equal(parseStorageContext('materiali', 'project', 'f2462000-0000-4000-8000-000000000001'), null)
+assert.equal(parseStorageContext('materiali', null, null), null)
 assert.equal(parseStorageContext('misc', 'invented', client), null)
 assert.equal(parseStorageContext('misc', 'client', '../other'), null)
 assert.equal(parseStorageContext('misc', null, client), null)
@@ -59,4 +63,4 @@ for (const mime of ['text/html', 'image/svg+xml', 'application/javascript']) {
   assert.match(headers.get('Content-Security-Policy')!, /sandbox/)
   assert.equal(headers.get('Cache-Control'), 'private, no-store')
 }
-console.log('Tutti i controlli passano: staff attivo, clienti esclusi, privacy cartelle, contesti, consegne legate a un progetto, condivisioni e contenuti attivi.')
+console.log('Tutti i controlli passano: staff attivo, clienti esclusi, privacy cartelle, contesti, consegne e materiali nel loro contesto, condivisioni e contenuti attivi.')

@@ -5,7 +5,7 @@ import { getViewer } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { canPreviewClientPortal } from '@/lib/permissions'
 import { isMissingPortalSchema, isPortalRole, legacyProject, selectCompany } from './model'
-import type { PortalCompany, PortalProject, PortalActivity, PortalRequest, PortalVersion } from './model'
+import type { PortalCompany, PortalProject, PortalActivity, PortalMaterial, PortalRequest, PortalVersion } from './model'
 
 export const requirePortalViewer = cache(async () => {
   const viewer = await getViewer()
@@ -22,7 +22,7 @@ export const getPortalContext = cache(async (requested?: string) => {
   const viewer = await requirePortalViewer()
   const db = await createClient()
   const memberships = await db.from('portal_memberships')
-    .select('client_id, portal_role').eq('profile_id', viewer.userId).is('revoked_at', null)
+    .select('client_id, portal_role, project_scope').eq('profile_id', viewer.userId).is('revoked_at', null)
   const legacy = isMissingPortalSchema(memberships.error)
   if (memberships.error && !legacy) throw new Error('Non è stato possibile verificare gli accessi al portale.')
 
@@ -30,7 +30,7 @@ export const getPortalContext = cache(async (requested?: string) => {
   if (viewer.preview) {
     const result = await db.from(viewer.canAccessAdmin ? 'clients' : 'clients_workspace').select('id, company_name, display_name').order('company_name')
     if (result.error) throw new Error('Non è stato possibile caricare le aziende per l’anteprima.')
-    companies = (result.data ?? []).map(c => ({ id: c.id, name: c.display_name || c.company_name, role: 'lettore' }))
+    companies = (result.data ?? []).map(c => ({ id: c.id, name: c.display_name || c.company_name, role: 'lettore' as const, scope: 'all' as const }))
   } else if (legacy) {
     const assignments = await db.from('client_assignments').select('client_id').eq('profile_id', viewer.userId)
     if (assignments.error) throw new Error('Non è stato possibile verificare l’associazione azienda.')
@@ -38,14 +38,14 @@ export const getPortalContext = cache(async (requested?: string) => {
     if (ids.length) {
       const result = await db.from('clients').select('id, company_name, display_name').in('id', ids).order('company_name')
       if (result.error) throw new Error('Non è stato possibile caricare la tua azienda.')
-      companies = (result.data ?? []).map(c => ({ id: c.id, name: c.display_name || c.company_name, role: 'lettore' }))
+      companies = (result.data ?? []).map(c => ({ id: c.id, name: c.display_name || c.company_name, role: 'lettore' as const, scope: 'all' as const }))
     }
   } else {
     const result = await db.from('portal_companies').select('id, name').order('name')
     if (result.error) throw new Error('Non è stato possibile caricare la tua azienda.')
     companies = (result.data ?? []).flatMap(c => {
       const membership = memberships.data?.find(m => m.client_id === c.id)
-      return membership ? [{ id: c.id, name: c.name, role: membership.portal_role as PortalCompany['role'] }] : []
+      return membership ? [{ id: c.id, name: c.name, role: membership.portal_role as PortalCompany['role'], scope: membership.project_scope as PortalCompany['scope'] }] : []
     })
   }
   const company = selectCompany(companies, requested)
@@ -55,7 +55,7 @@ export const getPortalContext = cache(async (requested?: string) => {
 
 export const getPortalData = cache(async (requested?: string) => {
   const context = await getPortalContext(requested)
-  const empty = { projects: [] as PortalProject[], activities: [] as PortalActivity[], requests: [] as PortalRequest[], versions: [] as PortalVersion[] }
+  const empty = { projects: [] as PortalProject[], activities: [] as PortalActivity[], requests: [] as PortalRequest[], versions: [] as PortalVersion[], materials: [] as PortalMaterial[] }
   if (!context.company) return { ...context, ...empty }
   const db = await createClient()
   const clientId = context.company.id
@@ -70,6 +70,7 @@ export const getPortalData = cache(async (requested?: string) => {
     db.from('portal_activities').select('id, project_id, title, reason, kind, due_date, contact_name, status, version_id').eq('client_id', clientId).not('published_at', 'is', null).order('due_date', { nullsFirst: false }),
     db.from('portal_requests').select('id, project_id, title, body, kind, status, created_at').eq('client_id', clientId).order('created_at', { ascending: false }).limit(100),
     db.from('portal_deliverable_versions').select('id, project_id, deliverable_id, title, version, author_name, published_at, approval_required').eq('client_id', clientId).not('published_at', 'is', null).order('published_at', { ascending: false }).limit(100),
+    db.from('portal_materials').select('id, project_id, name, mime, size, kind, uploaded_by_name, created_at').eq('client_id', clientId).is('deleted_at', null).order('created_at', { ascending: false }).limit(500),
   ])
   if (results.some(r => r.error)) throw new Error('Non è stato possibile caricare tutti i contenuti condivisi. Riprova.')
   const projects = (results[0].data ?? []) as PortalProject[]
@@ -82,5 +83,6 @@ export const getPortalData = cache(async (requested?: string) => {
     activities: ((results[1].data ?? []) as PortalActivity[]).filter(a => a.project_id === null || ids.has(a.project_id)),
     requests: ((results[2].data ?? []) as PortalRequest[]).filter(r => !r.project_id || ids.has(r.project_id)),
     versions: ((results[3].data ?? []) as PortalVersion[]).filter(v => ids.has(v.project_id)),
+    materials: ((results[4].data ?? []) as PortalMaterial[]).filter(m => m.project_id === null || ids.has(m.project_id)),
   }
 })
