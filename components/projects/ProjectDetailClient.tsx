@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import {
   FolderTree, Flag, Repeat, ChevronRight,
   Calendar, ListChecks, AlertTriangle, CheckSquare, Users, Clock, Plus, Pencil, Check, Trash2,
-  MoreHorizontal, TrendingUp, ShieldCheck, Gauge, Wand2, SlidersHorizontal, RotateCcw, CalendarRange,
+  MoreHorizontal, TrendingUp, ShieldCheck, Gauge, Wand2, SlidersHorizontal, RotateCcw, CalendarRange, Loader2,
 } from 'lucide-react'
 import { updateProjectStatus, updateProjectBrief, deleteProject } from '@/app/actions/projects'
 import { generateRecurrencesNow } from '@/app/actions/recurring'
@@ -20,7 +20,8 @@ import {
 } from '@/components/shared/formkit'
 import { workstreamPrefixFromProjectName, applyWorkstreamPrefix, stripWorkstreamPrefix } from '@/lib/project-naming'
 import { ProjectGantt } from './ProjectGantt'
-import { WorkstreamPresets, useServiceCatalog } from './WorkstreamPresets'
+import { WorkstreamPresets, PeriodiDelProgetto, useServiceCatalog } from './WorkstreamPresets'
+import { formaDelProgetto, trimestriMancanti, type CorsiaEsistente } from '@/lib/workstream-presets'
 // La gestione workstream → milestone → task è nella pagina dedicata /workstream/[wsId]
 import type {
   Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate, ProjectStatus, WorkstreamType, ProjectArea,
@@ -139,6 +140,29 @@ export function ProjectDetailClient({
       catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
     })
 
+  /* §390/§396 — il giro dei periodi: lo chiamano il bottone della toolbar e la
+     modale «Nuova workstream», e devono fare la stessa cosa. Dice anche cosa
+     **non** ha fatto: un periodo saltato perché una corsia lo copre già è la
+     risposta giusta, ma solo se si vede. */
+  const apriPeriodiOra = () =>
+    start(async () => {
+      try {
+        const e = await apriPeriodi(project.id)
+        if (e.creati.length) {
+          const dentro = e.tappe || e.task
+            ? ` · ${[e.tappe && `${e.tappe} tappe`, e.task && `${e.task} task`].filter(Boolean).join(' e ')} dal modello`
+            : e.senzaScheletro ? ' · vuoti: per questo servizio non c\u2019è un modello di periodo' : ''
+          toast.success(`${e.riepilogo}: ${e.creati.map(x => x.etichetta).join(', ')}${dentro}`
+            + (e.contenitoreCreato ? ` · creata la corsia «${e.contenitoreCreato}»` : ''))
+          setCreatingWs(false)
+        } else {
+          toast.info(e.riepilogo
+            + (e.saltati.find(x => x.corsia) ? ` («${e.saltati.find(x => x.corsia)!.corsia}»)` : ''))
+        }
+        router.refresh()
+      } catch (err) { toast.error((err as Error).message) }
+    })
+
   const deleteThisProject = () =>
     start(async () => {
       try { await deleteProject(project.id, project.client_id); toast.success('Progetto eliminato'); router.push(backHref); router.refresh() }
@@ -188,6 +212,9 @@ export function ProjectDetailClient({
     }
   })()
   const wsPrefix = workstreamPrefixFromProjectName(project.name)
+  const corsieDatate: CorsiaEsistente[] = workstreams
+    .filter(w => w.workstream_type === 'project')
+    .map(w => ({ id: w.id, name: w.name, dal: w.start_date, al: w.end_date }))
 
   // ── Segnali PM (per la Signal Bar del tab Workstream) ─────────────────────
   const todayStr = new Date().toISOString().slice(0, 10)
@@ -625,22 +652,7 @@ export function ProjectDetailClient({
                     perché una corsia lo copre già è la risposta giusta, ma
                     solo se si vede. */}
                 {canManageProject && (
-                  <button onClick={() => start(async () => {
-                    try {
-                      const e = await apriPeriodi(project.id)
-                      if (e.creati.length) {
-                        const dentro = e.tappe || e.task
-                          ? ` · ${[e.tappe && `${e.tappe} tappe`, e.task && `${e.task} task`].filter(Boolean).join(' e ')} dal modello`
-                          : e.senzaScheletro ? ' · vuoti: per questo servizio non c\u2019è un modello di periodo' : ''
-                        toast.success(`${e.riepilogo}: ${e.creati.map(x => x.etichetta).join(', ')}${dentro}`
-                          + (e.contenitoreCreato ? ` · creata la corsia «${e.contenitoreCreato}»` : ''))
-                      } else {
-                        toast.info(e.riepilogo
-                          + (e.saltati.find(x => x.corsia) ? ` («${e.saltati.find(x => x.corsia)!.corsia}»)` : ''))
-                      }
-                      router.refresh()
-                    } catch (err) { toast.error((err as Error).message) }
-                  })}
+                  <button onClick={apriPeriodiOra}
                     className="flex items-center gap-1 text-2xs font-semibold text-gold-text hover:opacity-80 press">
                     <CalendarRange className="w-3.5 h-3.5" />Apri i periodi
                   </button>
@@ -764,6 +776,8 @@ export function ProjectDetailClient({
       {creatingWs && (
         <NewWorkstreamModal projectId={project.id} projectName={project.name} prefix={wsPrefix}
           area={project.area} canPersist={canManageProject}
+          servizio={{ service_type: project.service_type, service_subtype: project.service_subtype }}
+          corsie={corsieDatate} onApriPeriodi={apriPeriodiOra}
           esistenti={workstreams.map(w => wsPrefix ? stripWorkstreamPrefix(wsPrefix, w.name) : w.name)}
           defaults={{ start: project.start_date, end: project.target_end_date }} pending={pending}
           onClose={() => setCreatingWs(false)}
@@ -1056,24 +1070,42 @@ function WsGroup({ title, hint, items, onOpen, progress, health, nextMs, overdue
   )
 }
 
-/* Modale creazione workstream — stessa grammatica del wizard progetto, e
-   §394 la stessa lista: il nome si sceglie a catalogo, o si scrive. */
-function NewWorkstreamModal({ projectId, projectName, area, prefix, esistenti, canPersist, defaults, pending, onClose, onCreate }: {
+/* Modale creazione workstream — stessa grammatica del wizard progetto.
+   §394 il nome si sceglie a catalogo o si scrive; §396 dove le corsie sono i
+   periodi la domanda è un'altra, e la risposta non è un nome. */
+function NewWorkstreamModal({
+  projectId, projectName, area, servizio, prefix, esistenti, corsie, canPersist,
+  defaults, pending, onClose, onCreate, onApriPeriodi,
+}: {
   projectId: string; projectName: string; area: ProjectArea; prefix: string | null
+  servizio: { service_type: string | null; service_subtype: string | null }
   /** i nomi delle corsie che ci sono già, senza prefisso */
   esistenti: string[]
+  /** le corsie a termine con le loro date: dicono quali trimestri sono già aperti */
+  corsie: CorsiaEsistente[]
   canPersist: boolean
   defaults: { start: string | null; end: string | null }
   pending: boolean
   onClose: () => void
   onCreate: (input: { project_id: string; name: string; workstream_type: WorkstreamType; start_date?: string | null; end_date?: string | null }) => void
+  onApriPeriodi: () => void
 }) {
   const [name, setName] = useState('')
   const [scelto, setScelto] = useState(false)
   const [type, setType] = useState<WorkstreamType>('project')
   const [start, setStart] = useState(defaults.start ?? '')
   const [end, setEnd] = useState(defaults.end ?? '')
+  const [fuoriScelto, setFuoriScelto] = useState<boolean | null>(null)
   const { services, loading } = useServiceCatalog()
+
+  const forma = formaDelProgetto(services, servizio)
+  const mancanti = trimestriMancanti({
+    oggi: new Date().toISOString().slice(0, 10), forma, corsie,
+  }).mancanti.length
+  /* Il nome a mano resta sempre raggiungibile, ma non è la prima risposta dove
+     le corsie sono i periodi: si apre da sé solo quando non c'è un periodo da
+     aprire, cioè quando una corsia in più è davvero quello che serve. */
+  const fuori = fuoriScelto ?? (forma === 'none' || (forma === 'quarter' && mancanti === 0))
 
   const conform = prefix ? applyWorkstreamPrefix(prefix, name) : name
   const offConvention = !!prefix && !!name.trim() && name.trim() !== conform
@@ -1084,63 +1116,84 @@ function NewWorkstreamModal({ projectId, projectName, area, prefix, esistenti, c
 
   return (
     <ModalShell title="Nuova workstream" hint={projectName} icon={<FolderTree className="w-4 h-4 text-gold-text" />}
-      onClose={onClose} pending={pending} canSubmit={!!name.trim() && !badRange}
+      onClose={onClose} pending={pending} canSubmit={fuori && !!name.trim() && !badRange}
       onSubmit={() => onCreate({
         project_id: projectId, name: name.trim(), workstream_type: type,
         start_date: type === 'project' ? start || null : null,
         end_date: type === 'project' ? end || null : null,
       })}>
-      <div>
-        <span className="block text-2xs font-semibold text-text-secondary mb-1.5">Tipo</span>
-        <Segmented ariaLabel="Tipo workstream" value={type} onChange={setType}
-          options={[{ value: 'project', label: 'A termine' }, { value: 'recurring', label: 'Continuativa' }]} />
-        <p className="text-2xs text-text-tertiary mt-1.5">
-          {type === 'project'
-            ? 'Ha un inizio e una fine: compare come barra sul calendario milestone.'
-            : 'Operatività continua: raccoglie le attività ricorrenti, senza data di fine.'}
+      {loading ? (
+        <p className="flex items-center gap-2 text-2xs text-text-tertiary">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Cerco come nascono le corsie di questo progetto…
         </p>
-      </div>
+      ) : (
+        <>
+          <PeriodiDelProgetto forma={forma} corsie={corsie} pending={pending} onApri={onApriPeriodi} />
 
-      <Field label="Nome" hint="Scegli a catalogo, oppure scrivi come si chiama questa corsia.">
-        <div className="flex gap-2">
-          {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
-          <input value={name} onChange={e => { setName(e.target.value); setScelto(false) }} autoFocus className={inputCls}
-            placeholder="Cerca a catalogo o scrivi un workstream nuovo…" />
-          {offConvention && (
-            <button type="button" onClick={() => setName(conform)} title={`Riallinea a: ${conform}`}
-              className="flex items-center gap-1.5 px-3 rounded-xl border border-border-interactive text-2xs font-semibold text-gold-text hover:bg-surface-hover shrink-0">
-              <Wand2 className="w-3.5 h-3.5" />Convention
+          {!fuori && (
+            <button type="button" onClick={() => setFuoriScelto(true)}
+              className="flex items-center gap-1.5 text-2xs font-semibold text-gold-text hover:opacity-80">
+              <Plus className="w-3.5 h-3.5" />Serve una corsia fuori dai periodi
             </button>
           )}
-        </div>
-        {offConvention && <span className="block text-2xs text-text-tertiary mt-1.5 truncate">Convention: {conform}</span>}
-      </Field>
 
-      {scelto ? (
-        <button type="button" onClick={() => setScelto(false)}
-          className="flex items-center gap-1.5 text-2xs font-semibold text-gold-text hover:opacity-80">
-          <FolderTree className="w-3.5 h-3.5" />Scegli un altro workstream
-        </button>
-      ) : (
-        <WorkstreamPresets area={area} services={services} loading={loading} query={query}
-          presenti={esistenti} canPersist={canPersist} maxH="max-h-[28vh]"
-          onPick={pick => {
-            setName(prefix ? applyWorkstreamPrefix(prefix, pick.label) : pick.label)
-            setScelto(true)
-          }} />
-      )}
+          {fuori && (
+            <>
+              <div>
+                <span className="block text-2xs font-semibold text-text-secondary mb-1.5">Tipo</span>
+                <Segmented ariaLabel="Tipo workstream" value={type} onChange={setType}
+                  options={[{ value: 'project', label: 'A termine' }, { value: 'recurring', label: 'Continuativa' }]} />
+                <p className="text-2xs text-text-tertiary mt-1.5">
+                  {type === 'project'
+                    ? 'Ha un inizio e una fine: compare come barra sul calendario milestone.'
+                    : 'Operatività continua: raccoglie le attività ricorrenti, senza data di fine.'}
+                </p>
+              </div>
 
-      {type === 'project' && (
-        <div>
-          <span className="block text-2xs font-semibold text-text-secondary mb-1.5">Periodo</span>
-          <div className="grid grid-cols-2 gap-3">
-            <input type="date" aria-label="Inizio" value={start} onChange={e => setStart(e.target.value)} className={inputCls} />
-            <input type="date" aria-label="Fine" value={end} onChange={e => setEnd(e.target.value)} className={inputCls} />
-          </div>
-          {badRange
-            ? <p className="flex items-center gap-1.5 text-2xs text-error mt-1.5"><AlertTriangle className="w-3.5 h-3.5" />La fine precede l&apos;inizio.</p>
-            : <p className="text-2xs text-text-tertiary mt-1.5">Ereditate dal progetto: cambiale se questo filone ha un suo calendario.</p>}
-        </div>
+              <Field label="Nome" hint="Scegli a catalogo, oppure scrivi come si chiama questa corsia.">
+                <div className="flex gap-2">
+                  {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+                  <input value={name} onChange={e => { setName(e.target.value); setScelto(false) }} autoFocus className={inputCls}
+                    placeholder="Cerca a catalogo o scrivi un workstream nuovo…" />
+                  {offConvention && (
+                    <button type="button" onClick={() => setName(conform)} title={`Riallinea a: ${conform}`}
+                      className="flex items-center gap-1.5 px-3 rounded-xl border border-border-interactive text-2xs font-semibold text-gold-text hover:bg-surface-hover shrink-0">
+                      <Wand2 className="w-3.5 h-3.5" />Convention
+                    </button>
+                  )}
+                </div>
+                {offConvention && <span className="block text-2xs text-text-tertiary mt-1.5 truncate">Convention: {conform}</span>}
+              </Field>
+
+              {scelto ? (
+                <button type="button" onClick={() => setScelto(false)}
+                  className="flex items-center gap-1.5 text-2xs font-semibold text-gold-text hover:opacity-80">
+                  <FolderTree className="w-3.5 h-3.5" />Scegli un altro workstream
+                </button>
+              ) : (
+                <WorkstreamPresets area={area} services={services} query={query}
+                  presenti={esistenti} canPersist={canPersist} maxH="max-h-[28vh]"
+                  onPick={pick => {
+                    setName(prefix ? applyWorkstreamPrefix(prefix, pick.label) : pick.label)
+                    setScelto(true)
+                  }} />
+              )}
+
+              {type === 'project' && (
+                <div>
+                  <span className="block text-2xs font-semibold text-text-secondary mb-1.5">Periodo</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input type="date" aria-label="Inizio" value={start} onChange={e => setStart(e.target.value)} className={inputCls} />
+                    <input type="date" aria-label="Fine" value={end} onChange={e => setEnd(e.target.value)} className={inputCls} />
+                  </div>
+                  {badRange
+                    ? <p className="flex items-center gap-1.5 text-2xs text-error mt-1.5"><AlertTriangle className="w-3.5 h-3.5" />La fine precede l&apos;inizio.</p>
+                    : <p className="text-2xs text-text-tertiary mt-1.5">Ereditate dal progetto: cambiale se questo filone ha un suo calendario.</p>}
+                </div>
+              )}
+            </>
+          )}
+        </>
       )}
     </ModalShell>
   )

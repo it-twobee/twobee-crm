@@ -11,13 +11,15 @@ import {
 } from 'lucide-react'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import { createWorkstream } from '@/app/actions/workstreams'
+import { apriPeriodi } from '@/app/actions/periodi'
 import {
   ModalShell, Group, Field, SearchInput, PickRow, Segmented, Empty, inputCls,
 } from '@/components/shared/formkit'
 import { workstreamPrefixFromProjectName, applyWorkstreamPrefix, stripWorkstreamPrefix } from '@/lib/project-naming'
 import { canCreateClients, canGovernProjects } from '@/lib/permissions'
 import { TaskComposer } from '@/components/tasks/TaskComposer'
-import { WorkstreamPresets, useServiceCatalog } from '@/components/projects/WorkstreamPresets'
+import { WorkstreamPresets, PeriodiDelProgetto, useServiceCatalog } from '@/components/projects/WorkstreamPresets'
+import { formaDelProgetto, trimestriMancanti, type CorsiaEsistente } from '@/lib/workstream-presets'
 import type {
   WorkstreamType, ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode, ProjectArea,
 } from '@/lib/types/database'
@@ -27,7 +29,7 @@ const ProjectWizard = dynamic(() => import('@/components/projects/ProjectWizard'
 const NewClientModal = dynamic(() => import('@/components/clients/NewClientModal').then(m => ({ default: m.NewClientModal })), { ssr: false })
 
 type ClientOpt = { id: string; name: string }
-type ProjectOpt = { id: string; name: string; client_id: string; area: ProjectArea }
+type ProjectOpt = { id: string; name: string; client_id: string; area: ProjectArea; service_type: string | null; service_subtype: string | null }
 type PersonOpt = { id: string; full_name: string; app_role: string | null; avatar_url?: string | null }
 type WsOpt = { id: string; name: string }
 type MsOpt = { id: string; title: string; milestone_type: string }
@@ -65,7 +67,7 @@ export function QuickCreate({ context = 'admin' }: { context?: 'admin' | 'worksp
     const { data: { user } } = await sb.auth.getUser()
     const [c, p, pr, me] = await Promise.all([
       sb.from('clients').select('id, company_name, display_name').order('company_name'),
-      sb.from('projects').select('id, name, client_id, area').is('deleted_at', null).order('created_at', { ascending: false }),
+      sb.from('projects').select('id, name, client_id, area, service_type, service_subtype').is('deleted_at', null).order('created_at', { ascending: false }),
       sb.from('profiles').select('id, full_name, app_role, avatar_url').eq('is_active', true).order('full_name'),
       user
         ? sb.from('profiles').select('app_role, role').eq('id', user.id).maybeSingle()
@@ -180,11 +182,13 @@ function WorkstreamModal({ projects, base, canPersist, onClose, onDone, notify }
   projects: ProjectOpt[]; base: string; canPersist: boolean
   onClose: () => void; onDone: () => void; notify: (l: string, h: string) => void
 }) {
+  const router = useRouter()
   const [pending, start] = useTransition()
   const [projectId, setProjectId] = useState('')
   const [q, setQ] = useState('')
   const [name, setName] = useState('')
   const [scelto, setScelto] = useState(false)
+  const [fuoriScelto, setFuoriScelto] = useState<boolean | null>(null)
   const [type, setType] = useState<WorkstreamType>('project')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -193,14 +197,23 @@ function WorkstreamModal({ projects, base, canPersist, onClose, onDone, notify }
   /* Le corsie che il progetto ha già: qui si marcano in elenco, come nella
      scheda progetto — la stessa domanda non può avere due risposte a seconda
      della pagina da cui ci si arriva. */
-  const [esistenti, setEsistenti] = useState<string[]>([])
+  const [corsie, setCorsie] = useState<{ id: string; name: string; dal: string | null; al: string | null; tipo: string }[]>([])
   useEffect(() => {
-    if (!projectId) { setEsistenti([]); return }
+    if (!projectId) { setCorsie([]); return }
     let vivo = true
-    void createBrowserClient().from('project_workstreams').select('name').eq('project_id', projectId)
-      .then(({ data }) => { if (vivo) setEsistenti((data ?? []).map((w: { name: string }) => w.name)) })
+    void createBrowserClient().from('project_workstreams')
+      .select('id, name, start_date, end_date, workstream_type').eq('project_id', projectId)
+      .then(({ data }) => {
+        if (!vivo) return
+        setCorsie((data ?? []).map((w: { id: string; name: string; start_date: string | null; end_date: string | null; workstream_type: string }) =>
+          ({ id: w.id, name: w.name, dal: w.start_date, al: w.end_date, tipo: w.workstream_type })))
+      })
     return () => { vivo = false }
   }, [projectId])
+  const esistenti = corsie.map(c => c.name)
+  const corsieDatate: CorsiaEsistente[] = corsie
+    .filter(c => c.tipo === 'project')
+    .map(({ id, name, dal, al }) => ({ id, name, dal, al }))
 
   const project = projects.find(p => p.id === projectId)
   const filtered = useMemo(() => {
@@ -214,7 +227,29 @@ function WorkstreamModal({ projects, base, canPersist, onClose, onDone, notify }
   const offConvention = !!prefix && !!name.trim() && name.trim() !== conform
 
   const badRange = !!startDate && !!endDate && endDate < startDate
-  const canSubmit = !!projectId && !!name.trim() && !badRange
+
+  /* §396 — dove le corsie sono i periodi la domanda non è «come si chiama»:
+     il trimestre si apre dalla stessa azione del bottone sulla scheda progetto
+     e del giro notturno, o nascerebbe senza registro e senza scheletro. */
+  const forma = project ? formaDelProgetto(services, project) : 'none'
+  const mancanti = trimestriMancanti({
+    oggi: new Date().toISOString().slice(0, 10), forma, corsie: corsieDatate,
+  }).mancanti.length
+  const fuori = fuoriScelto ?? (forma === 'none' || (forma === 'quarter' && mancanti === 0))
+  const canSubmit = !!projectId && fuori && !!name.trim() && !badRange
+
+  const apriPeriodiOra = () => start(async () => {
+    try {
+      const e = await apriPeriodi(projectId)
+      if (e.creati.length) {
+        notify(`${e.riepilogo}: ${e.creati.map(x => x.etichetta).join(', ')}`, `${base}/progetti/${projectId}`)
+        onDone()
+      } else {
+        toast.info(e.riepilogo + (e.saltati.find(x => x.corsia) ? ` («${e.saltati.find(x => x.corsia)!.corsia}»)` : ''))
+      }
+      router.refresh()
+    } catch (err) { toast.error((err as Error).message) }
+  })
 
   const submit = () => start(async () => {
     try {
@@ -251,59 +286,72 @@ function WorkstreamModal({ projects, base, canPersist, onClose, onDone, notify }
 
       {project && (
         <>
-          <Group label="Tipo">
-            <Segmented ariaLabel="Tipo workstream" value={type} onChange={setType}
-              options={[{ value: 'project', label: 'A termine' }, { value: 'recurring', label: 'Continuativa' }]} />
-            <p className="text-2xs text-text-tertiary mt-1.5">
-              {type === 'project'
-                ? 'Ha un inizio e una fine: compare come barra sul calendario.'
-                : 'Operatività continua: raccoglie le attività ricorrenti.'}
-            </p>
-          </Group>
+          <PeriodiDelProgetto forma={forma} corsie={corsieDatate} pending={pending} onApri={apriPeriodiOra} />
 
-          <Field label="Nome" hint="Scegli a catalogo, oppure scrivi come si chiama questa corsia.">
-            <div className="flex gap-2">
-              <input value={name} onChange={e => { setName(e.target.value); setScelto(false) }} className={inputCls}
-                // eslint-disable-next-line jsx-a11y/no-autofocus
-                autoFocus placeholder="Cerca a catalogo o scrivi un workstream nuovo…" />
-              {offConvention && (
-                <button type="button" onClick={() => setName(conform)} title={`Riallinea a: ${conform}`}
-                  className="flex items-center gap-1.5 px-3 rounded-xl border border-border-interactive text-2xs font-semibold text-gold-text hover:bg-surface-hover shrink-0">
-                  <Wand2 className="w-3.5 h-3.5" />Convention
-                </button>
-              )}
-            </div>
-            {offConvention && <span className="block text-2xs text-text-tertiary mt-1.5 truncate">Convention: {conform}</span>}
-          </Field>
-
-          {scelto ? (
-            <button type="button" onClick={() => setScelto(false)}
+          {!fuori && (
+            <button type="button" onClick={() => setFuoriScelto(true)}
               className="flex items-center gap-1.5 text-2xs font-semibold text-gold-text hover:opacity-80">
-              <FolderTree className="w-3.5 h-3.5" />Scegli un altro workstream
+              <Plus className="w-3.5 h-3.5" />Serve una corsia fuori dai periodi
             </button>
-          ) : (
-            <WorkstreamPresets area={project.area} services={services} loading={loading}
-              query={prefix ? stripWorkstreamPrefix(prefix, name) : name}
-              presenti={esistenti.map(n => prefix ? stripWorkstreamPrefix(prefix, n) : n)}
-              canPersist={canPersist} maxH="max-h-[28vh]"
-              onPick={pick => {
-                setName(prefix ? applyWorkstreamPrefix(prefix, pick.label) : pick.label)
-                setScelto(true)
-              }} />
           )}
 
-          {type === 'project' && (
-            <Group label="Periodo">
-              <div className="grid grid-cols-2 gap-3">
-                <input type="date" aria-label="Inizio" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputCls} />
-                <input type="date" aria-label="Fine" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputCls} />
-              </div>
-              {badRange && (
-                <p className="flex items-center gap-1.5 text-2xs text-error mt-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5" />La fine precede l&apos;inizio.
+          {fuori && (
+            <>
+              <Group label="Tipo">
+                <Segmented ariaLabel="Tipo workstream" value={type} onChange={setType}
+                  options={[{ value: 'project', label: 'A termine' }, { value: 'recurring', label: 'Continuativa' }]} />
+                <p className="text-2xs text-text-tertiary mt-1.5">
+                  {type === 'project'
+                    ? 'Ha un inizio e una fine: compare come barra sul calendario.'
+                    : 'Operatività continua: raccoglie le attività ricorrenti.'}
                 </p>
+              </Group>
+
+              <Field label="Nome" hint="Scegli a catalogo, oppure scrivi come si chiama questa corsia.">
+                <div className="flex gap-2">
+                  <input value={name} onChange={e => { setName(e.target.value); setScelto(false) }} className={inputCls}
+                    // eslint-disable-next-line jsx-a11y/no-autofocus
+                    autoFocus placeholder="Cerca a catalogo o scrivi un workstream nuovo…" />
+                  {offConvention && (
+                    <button type="button" onClick={() => setName(conform)} title={`Riallinea a: ${conform}`}
+                      className="flex items-center gap-1.5 px-3 rounded-xl border border-border-interactive text-2xs font-semibold text-gold-text hover:bg-surface-hover shrink-0">
+                      <Wand2 className="w-3.5 h-3.5" />Convention
+                    </button>
+                  )}
+                </div>
+                {offConvention && <span className="block text-2xs text-text-tertiary mt-1.5 truncate">Convention: {conform}</span>}
+              </Field>
+
+              {scelto ? (
+                <button type="button" onClick={() => setScelto(false)}
+                  className="flex items-center gap-1.5 text-2xs font-semibold text-gold-text hover:opacity-80">
+                  <FolderTree className="w-3.5 h-3.5" />Scegli un altro workstream
+                </button>
+              ) : (
+                <WorkstreamPresets area={project.area} services={services} loading={loading}
+                  query={prefix ? stripWorkstreamPrefix(prefix, name) : name}
+                  presenti={esistenti.map(n => prefix ? stripWorkstreamPrefix(prefix, n) : n)}
+                  canPersist={canPersist} maxH="max-h-[28vh]"
+                  onPick={pick => {
+                    setName(prefix ? applyWorkstreamPrefix(prefix, pick.label) : pick.label)
+                    setScelto(true)
+                  }} />
               )}
-            </Group>
+
+              {type === 'project' && (
+                <Group label="Periodo">
+                  <div className="grid grid-cols-2 gap-3">
+                    <input type="date" aria-label="Inizio" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputCls} />
+                    <input type="date" aria-label="Fine" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputCls} />
+                  </div>
+                  {badRange && (
+                    <p className="flex items-center gap-1.5 text-2xs text-error mt-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5" />La fine precede l&apos;inizio.
+                    </p>
+                  )}
+                </Group>
+              )}
+            </>
           )}
         </>
       )}

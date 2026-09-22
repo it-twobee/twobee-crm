@@ -361,6 +361,9 @@ proporre, in che ordine, quando il testo scritto è un nome nuovo — sta in
 `lib/workstream-presets.ts`, non in ognuno dei quattro. Gate:
 `npx tsx lib/workstream-presets.check.ts`.
 
+Il catalogo però **non** è la risposta dappertutto: dove le corsie sono i
+periodi la domanda è un'altra, e la risposta non è un nome (§396).
+
 **Prima l'area del progetto, poi le altre, e niente sparisce.** Un progetto
 Growth propone Lead Generation ed E-commerce, ma «Branding» sta in Marketing e
 capita di volerlo: le altre aree restano sotto uno stacco che dice da dove
@@ -386,6 +389,40 @@ stessa regola di `workstreamName`, o scegliendo «Lead Generation» su un
 progetto Lead Generation usciva il nome due volte. Il campo resta un campo:
 chi riscrive sopra torna a vedere l'elenco, perché la ricerca riparte dal nome
 nudo (`stripWorkstreamPrefix`) e non dal prefisso.
+
+**§396 — dove la corsia non si scrive, si apre.** `period_shape='quarter'`
+sta su `lead_generation`, `ecommerce` e `saas`: **tutto il Growth**. Su quei
+progetti la corsia *è* il trimestre (§388), e proporre «Lead Generation» come
+nome di una corsia su un progetto Lead Generation non è solo brutto — è la
+cosa sbagliata: quel progetto vuole «Q1 2027», con le date della stagione, la
+riga in `project_periods` e lo scheletro dentro, e niente di tutto questo
+nasce da un `createWorkstream` scritto a mano. Sul Marketing a mese
+(`social_media_management`, `continuing_design`) è ancora diverso: lì il
+periodo non è nemmeno una corsia, è una **tappa** dentro la continuativa, e
+chiederlo da «Nuova workstream» sarebbe chiederlo nel posto sbagliato.
+
+Le due modali che aprono una corsia a mano leggono adesso la forma dal
+catalogo (`formaDelProgetto`) e cominciano da lì: cosa sono le corsie qui,
+quali periodi mancano, e il bottone che li apre — **la stessa azione**
+(`apriPeriodi`) del bottone sulla scheda progetto e del giro notturno, perché
+a mano e in automatico devono fare la stessa cosa (§392). Il nome a mano
+resta, sotto «Serve una corsia fuori dai periodi»: le campagne una tantum e
+le ricorrenze commerciali (§393) sono corsie vere, e un progetto a trimestri
+ne ha comunque bisogno.
+
+**Quali trimestri mancano si legge dalle date delle corsie, non dal
+registro.** `project_periods` ha la RLS senza policy — lo vede solo il service
+role — e va bene così: per i trimestri le date sono la verità comunque
+(§389), perché un trimestre aperto *è* una corsia con quelle date, comprese
+le nove «Set-Dic 2026» fatte a mano prima che il motore esistesse. Per i
+**mesi** invece la modale non si pronuncia: non elenca e non conta, dice dove
+vivono e passa la parola all'azione. Un elenco inventato sarebbe peggio di
+nessun elenco — è la regola del numero plausibile e sbagliato, applicata a
+una lista.
+
+Il blocco si apre da sé solo quando non c'è niente da aprire: se un periodo
+manca, la prima risposta è quella. Il wizard resta com'è — alla creazione i
+periodi non esistono ancora, li apre il primo giro.
 
 **§392 — il giro su tutti** (`POST /api/periods/run`, `PERIODS_CRON_SECRET`,
 task pianificato alle 04:00). Una volta al giorno e non più spesso: un

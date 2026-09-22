@@ -798,6 +798,8 @@ export interface ServiceCatalogEntry {
   /** §165: listino di vendita, punto di partenza della quotazione sul progetto */
   standard_price?: number | null
   price_unit?: 'mese' | 'una_tantum'
+  /** §388: che ritmo ha il servizio — trimestri (corsie), mesi (tappe), niente */
+  period_shape?: 'quarter' | 'month' | 'none'
   is_active: boolean
   sort_order: number
   created_at: string

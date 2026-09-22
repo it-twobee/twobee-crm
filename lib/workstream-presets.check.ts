@@ -6,7 +6,8 @@
    se lo inventa chi sta creando. Sei mesi dopo lo stesso lavoro si chiama in
    quattro modi e nessuno sa più quale progetto contiene cosa. */
 import {
-  proposte, suMisura, tipoServizio, normalizza, type CatalogRow,
+  proposte, suMisura, tipoServizio, normalizza, formaDelProgetto, trimestriMancanti,
+  type CatalogRow,
 } from '@/lib/workstream-presets'
 import {
   workstreamPrefixFromProjectName, applyWorkstreamPrefix, stripWorkstreamPrefix,
@@ -114,6 +115,57 @@ console.log('\n— Il nome che esce dalla scelta —')
     'ACME · Lead Generation — Reporting')
   is('la ricerca a catalogo riparte dal nome nudo',
     stripWorkstreamPrefix(prefix!, 'ACME · Lead Generation — Reporting'), 'Reporting')
+}
+
+console.log('\n— Dove le corsie sono i periodi —')
+{
+  /* §396 — su un servizio a trimestri la corsia è il periodo: proporre il
+     nome del servizio sarebbe proporre la cosa sbagliata. La forma si legge
+     per tipo **e** sottotipo, perché la Digitalizzazione ha tre righe. */
+  const cat = [
+    { service_type: 'lead_generation', service_subtype: null, period_shape: 'quarter' as const },
+    { service_type: 'social_media_management', service_subtype: null, period_shape: 'month' as const },
+    { service_type: 'branding', service_subtype: null, period_shape: 'none' as const },
+    { service_type: 'digital_transformation', service_subtype: 'crm', period_shape: 'quarter' as const },
+    { service_type: 'digital_transformation', service_subtype: 'management_software', period_shape: 'none' as const },
+  ]
+  is('il Growth va a trimestri',
+    formaDelProgetto(cat, { service_type: 'lead_generation', service_subtype: null }), 'quarter')
+  is('il Social Media Management a mesi',
+    formaDelProgetto(cat, { service_type: 'social_media_management', service_subtype: null }), 'month')
+  is('il sottotipo sceglie la riga',
+    formaDelProgetto(cat, { service_type: 'digital_transformation', service_subtype: 'management_software' }), 'none')
+  is('e l\'altro sottotipo l\'altra',
+    formaDelProgetto(cat, { service_type: 'digital_transformation', service_subtype: 'crm' }), 'quarter')
+  /* Un servizio che il catalogo non conosce non ha periodi: inventarglieli
+     vorrebbe dire proporre di aprire corsie su un progetto che non le
+     aspetta. */
+  is('un servizio fuori catalogo non ha periodi',
+    formaDelProgetto(cat, { service_type: 'chissa', service_subtype: null }), 'none')
+}
+
+console.log('\n— Quale trimestre manca —')
+{
+  const q = trimestriMancanti({ oggi: '2026-09-22', forma: 'quarter', corsie: [] })
+  is('il trimestre in corso, se non c\'è nessuna corsia', q.mancanti.map(p => p.chiave), ['2026-Q4'])
+  is('con le date della stagione', [q.mancanti[0]?.dal, q.mancanti[0]?.al], ['2026-09-01', '2026-12-31'])
+
+  /* §389 — le nove corsie in archivio *sono* un periodo senza saperlo: si
+     guardano le date, non i nomi, o si aprirebbe Q4 accanto a «Set-Dic
+     2026» e chi ci lavora non saprebbe in quale mettere le task. */
+  const coperto = trimestriMancanti({
+    oggi: '2026-09-22', forma: 'quarter',
+    corsie: [{ id: 'w1', name: 'Set-Dic 2026', dal: '2026-09-01', al: '2026-12-31' }],
+  })
+  is('niente da aprire se una corsia lo copre già', coperto.mancanti.length, 0)
+  is('e si dice quale', coperto.coperti[0]?.corsia, 'Set-Dic 2026')
+
+  /* Dai mesi la risposta è **vuota**, non zero: il registro dal browser non si
+     legge, e un elenco inventato sarebbe peggio di nessun elenco. */
+  is('sui mesi non si pronuncia',
+    trimestriMancanti({ oggi: '2026-09-22', forma: 'month', corsie: [] }).mancanti.length, 0)
+  is('e nemmeno sui servizi senza periodi',
+    trimestriMancanti({ oggi: '2026-09-22', forma: 'none', corsie: [] }).mancanti.length, 0)
 }
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)

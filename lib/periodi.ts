@@ -50,6 +50,26 @@ const iso = (a: number, m: number, g: number) => `${a}-${due(m)}-${due(g)}`
 /** l'ultimo giorno del mese, senza fidarsi di una tabella: il 29 febbraio esiste */
 export const ultimoGiorno = (anno: number, mese: number) => new Date(anno, mese, 0).getDate()
 
+/**
+ * La forma di un servizio, date le righe di catalogo del suo `service_type`.
+ *
+ * Si cerca per tipo **e** sottotipo: la Digitalizzazione ha tre righe e
+ * potrebbero non volere lo stesso ritmo. Senza riga, `none` — un servizio
+ * che il catalogo non conosce non ha periodi, e inventarglieli vorrebbe dire
+ * aprire corsie su un progetto che non le aspetta.
+ *
+ * Sta qui e non dentro chi apre i periodi perché la domanda se la fanno in
+ * due: il motore, per sapere cosa creare, e la modale «nuova workstream»,
+ * per sapere **cosa proporre** (§396).
+ */
+export function formaDiServizio(
+  righe: { service_subtype?: string | null; period_shape?: Forma | null }[],
+  sottotipo: string | null,
+): Forma {
+  const riga = righe.find(r => (r.service_subtype ?? null) === (sottotipo ?? null)) ?? righe[0]
+  return riga?.period_shape ?? 'none'
+}
+
 /** in che trimestre commerciale cade questo mese (1..4) */
 export function trimestreDelMese(mese: number): number {
   const i = TRIMESTRI.findIndex(([a, b]) => mese >= a && mese <= b)

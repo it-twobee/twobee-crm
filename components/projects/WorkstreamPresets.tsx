@@ -16,12 +16,15 @@
 
 import { useEffect, useState, useMemo, useTransition } from 'react'
 import { toast } from 'sonner'
-import { FolderTree, Plus, Loader2 } from 'lucide-react'
+import { FolderTree, Plus, Loader2, CalendarRange } from 'lucide-react'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import { PickRow, Empty } from '@/components/shared/formkit'
 import { createCatalogService } from '@/app/actions/wizard'
 import { areaLabel } from '@/lib/project-naming'
-import { proposte, suMisura, tipoServizio, type Preset } from '@/lib/workstream-presets'
+import {
+  proposte, suMisura, tipoServizio, trimestriMancanti,
+  type Preset, type Forma, type CorsiaEsistente,
+} from '@/lib/workstream-presets'
 import type { ProjectArea, ServiceCatalogEntry } from '@/lib/types/database'
 
 export type WorkstreamPick = {
@@ -174,5 +177,75 @@ export function WorkstreamPresets({
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * §396 — dove la corsia non si scrive: si apre.
+ *
+ * Sul Growth (`period_shape='quarter'`) una corsia nuova è il trimestre
+ * successivo, e non nasce da un nome: nasce da `apriPeriodi`, che scrive anche
+ * la riga in `project_periods` e ci semina dentro lo scheletro. Sul Marketing a
+ * mese il periodo non è nemmeno una corsia — è una tappa dentro la
+ * continuativa — e chiederlo qui sarebbe chiederlo nel posto sbagliato.
+ *
+ * Quello che questo riquadro **non** fa è aprire i periodi per conto suo: mostra
+ * quali mancano e passa la parola alla stessa azione del bottone «Apri i
+ * periodi», perché a mano e in automatico devono fare la stessa cosa (§392).
+ */
+export function PeriodiDelProgetto({ forma, corsie, pending, onApri }: {
+  forma: Forma
+  corsie: CorsiaEsistente[]
+  pending: boolean
+  onApri: () => void
+}) {
+  if (forma === 'none') return null
+  const oggi = new Date().toISOString().slice(0, 10)
+  const { mancanti, coperti } = trimestriMancanti({ oggi, forma, corsie })
+  const giorno = (d: string) =>
+    new Date(d + 'T00:00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
+
+  return (
+    <section className="rounded-xl border border-gold/40 bg-gold-dim p-3">
+      <header className="flex items-start gap-2">
+        <CalendarRange className="w-4 h-4 text-gold-text shrink-0 mt-0.5" aria-hidden />
+        <div className="min-w-0">
+          <h3 className="text-xs font-bold text-text-primary">
+            {forma === 'quarter' ? 'Qui le corsie sono i trimestri' : 'Qui i mesi sono tappe, non corsie'}
+          </h3>
+          <p className="text-2xs text-text-secondary mt-0.5">
+            {forma === 'quarter'
+              ? 'Questo servizio lavora a trimestri della stagione: la corsia nuova è il periodo, con le sue date e lo scheletro dentro.'
+              : 'Il piano del mese nasce come tappa dentro la continuativa del progetto, non come corsia a sé.'}
+          </p>
+        </div>
+      </header>
+
+      {forma === 'quarter' && (
+        <div className="mt-2.5 space-y-1.5">
+          {mancanti.map(p => (
+            <div key={p.chiave} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-surface">
+              <span className="flex-1 text-sm font-semibold text-text-primary truncate">{p.etichetta}</span>
+              <span className="text-2xs text-text-tertiary tabular shrink-0">{giorno(p.dal)} – {giorno(p.al)}</span>
+            </div>
+          ))}
+          {!mancanti.length && (
+            <p className="text-2xs text-text-tertiary">
+              {coperti.length
+                ? `I trimestri di adesso ci sono già${coperti.find(c => c.corsia) ? `: «${coperti.find(c => c.corsia)!.corsia}»` : ''}.`
+                : 'Nessun trimestre da aprire adesso.'}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Il bottone resta anche quando non manca niente: l'azione è la stessa del
+          giro notturno e risponde «ci sono già tutti» invece di far dubitare. */}
+      <button type="button" onClick={onApri} disabled={pending}
+        className="mt-2.5 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gold text-on-gold text-2xs font-semibold press disabled:opacity-50">
+        {pending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CalendarRange className="w-3.5 h-3.5" />}
+        {mancanti.length > 1 ? `Apri i ${mancanti.length} periodi` : 'Apri i periodi'}
+      </button>
+    </section>
   )
 }

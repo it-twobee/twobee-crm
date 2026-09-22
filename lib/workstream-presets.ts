@@ -12,6 +12,11 @@
  * un workstream nuovo invece di uno che esiste già. La UI ci mette le righe.
  */
 
+import { formaDiServizio, type Forma, type Periodo } from './periodi'
+import { decidi, type CorsiaEsistente } from './generatore-periodi'
+
+export type { Forma, CorsiaEsistente }
+
 export type CatalogRow = {
   area: string
   service_type: string
@@ -98,4 +103,48 @@ export function suMisura(query: string, visibili: Preset[], presenti: string[] =
   if (visibili.some(p => normalizza(p.label) === q)) return null
   if (presenti.some(p => normalizza(p) === q)) return null
   return testo
+}
+
+// ── §396 — dove le corsie sono i periodi ────────────────────────────────────
+
+/**
+ * Il ritmo del progetto, letto dal catalogo che il client ha già in mano.
+ *
+ * Su un servizio a trimestri la corsia **è** il periodo (§388): proporre
+ * «Lead Generation» come nome di una corsia su un progetto Lead Generation
+ * non è solo brutto, è la cosa sbagliata — quel progetto vuole «Q1 2027»,
+ * con le sue date, la riga in `project_periods` e lo scheletro dentro, e
+ * niente di tutto questo nasce da un `createWorkstream` scritto a mano.
+ */
+export function formaDelProgetto(
+  services: { service_type: string; service_subtype?: string | null; period_shape?: Forma | null }[],
+  progetto: { service_type: string | null; service_subtype: string | null },
+): Forma {
+  const righe = services.filter(s => s.service_type === (progetto.service_type ?? ''))
+  return formaDiServizio(righe, progetto.service_subtype ?? null)
+}
+
+/**
+ * I trimestri che mancano, guardando **le date delle corsie** che il progetto
+ * ha già.
+ *
+ * Il registro (`project_periods`) dal browser non si legge — RLS senza policy,
+ * lo vede solo il service role — e va bene così: per i trimestri le date sono
+ * la verità comunque (§389), perché un trimestre aperto *è* una corsia con
+ * quelle date. Per i **mesi** invece la risposta è vuota e non zero: un mese è
+ * una tappa, quello che sappiamo qui non basta a dire quali ci sono, e
+ * un elenco inventato sarebbe peggio di nessun elenco.
+ */
+export function trimestriMancanti(input: {
+  oggi: string
+  forma: Forma
+  corsie: CorsiaEsistente[]
+  orizzonte?: number
+}): { mancanti: Periodo[]; coperti: { periodo: Periodo; corsia?: string }[] } {
+  if (input.forma !== 'quarter') return { mancanti: [], coperti: [] }
+  const d = decidi({ oggi: input.oggi, forma: 'quarter', chiaviAperte: [], corsie: input.corsie, orizzonte: input.orizzonte })
+  return {
+    mancanti: d.flatMap(x => x.fare === 'crea' ? [x.periodo] : []),
+    coperti: d.flatMap(x => x.fare === 'salta' ? [{ periodo: x.periodo, corsia: x.corsia }] : []),
+  }
 }

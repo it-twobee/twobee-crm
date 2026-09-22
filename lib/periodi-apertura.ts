@@ -17,7 +17,7 @@
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { decidi, riassumi, type CorsiaEsistente } from './generatore-periodi'
 import { scheletro, type NodoScheletro } from './scheletro-periodo'
-import type { Forma, Periodo } from './periodi'
+import { formaDiServizio, type Forma, type Periodo } from './periodi'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -82,8 +82,7 @@ export async function apriPerProgetto(
   const { data: cat } = await admin.from('service_catalog')
     .select('service_type, service_subtype, period_shape').eq('service_type', p.service_type ?? '')
   const righe = (cat ?? []) as { service_subtype: string | null; period_shape: Forma }[]
-  const forma: Forma = (righe.find(r => (r.service_subtype ?? null) === (p.service_subtype ?? null))
-    ?? righe[0])?.period_shape ?? 'none'
+  const forma: Forma = formaDiServizio(righe, p.service_subtype ?? null)
 
   const vuoto: EsitoPeriodi = {
     riepilogo: 'Questo servizio non ha periodi', creati: [], saltati: [],
