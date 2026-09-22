@@ -505,6 +505,53 @@ dice anche cosa si perde: un template intero **sostituisce** le corsie composte
 al passo 3, e la card «Parti dai workstream scelti» adesso conta quello che hai
 messo insieme invece di promettere workstream vuoti.
 
+**§404 — il wizard progetto: sette passi, e la domanda in un posto solo.**
+Erano nove, e tre di quei passi facevano la stessa domanda in momenti diversi:
+il servizio al 3, il template al 6, le ricorrenze commerciali sopra l'albero al
+7. Il 6 **buttava via** il 3 — scegliere un template riscriveva la struttura e
+le corsie composte sparivano senza dirlo — e il 7 arrivava quando l'albero era
+già montato, cioè quando nessuno guarda più niente (§393 lo diceva e lo aveva
+messo prima dell'albero; adesso è prima del tutto).
+
+  1 Cliente · 2 Area · 3 Workstream · 4 Info · 5 Team · 6 Struttura ·
+  7 Economics (admin, con cliente) · 8 Conferma
+
+**Al passo 3 si sceglie il servizio e da dove si parte.** Il modello intero è
+**uno solo** — due ossature sovrapposte sono due progetti nello stesso progetto
+— e sopra si aggiungono corsie del servizio (§402), ricorrenze commerciali e
+corsie su misura, quante ne servono. Le corsie che il modello porta già dentro
+non si ripropongono: sarebbero due righe con lo stesso nome, e chi ci lavora non
+saprebbe in quale mettere le task. Cambiare modello non fa cadere le aggiunte:
+sono scelte diverse.
+
+**La struttura è derivata, non scritta due volte.** Prima `pickTemplate`
+riscriveva lo stato di colpo e il seed dalle corsie lo riscriveva di nuovo: due
+strade per lo stesso stato, e una cancellava l'altra. Adesso l'albero è una
+funzione di (modello + corsie + ricorrenze + servizio), **finché non lo tocchi a
+mano**; da quel momento comanda la mano. Tornare al passo 3 e cambiare qualcosa
+riaggancia l'albero — e il riquadro lo dice prima, perché perdere le modifiche in
+silenzio è peggio che perderle.
+
+**Gli step si richiamano per chiave, mai per indice.** `goTo(6)` sparso nella
+Conferma puntava alla Struttura finché la Struttura era il settimo passo: dopo
+un riordino porta altrove, e senza dire niente. `goTo('struttura')` non si
+rompe. Il passo Struttura dichiara da dove viene l'albero e ha il «Cambia» che
+riporta al 3.
+
+**§405 — la cascata: tappe, task e ricorrenti dagli stessi modelli.** Dentro la
+corsia, «Nuova milestone» e «Nuova task» tornavano a chiedere un titolo in un
+campo vuoto — e un campo vuoto produce «Report mensile», «report» e
+«Reportistica» sullo stesso lavoro. `modelliDiTipo()` legge dai modelli del
+servizio quello che serve a ognuno dei tre, con la stessa regola del §402: le
+più comuni per prime, e fra due occorrenze vince la più piena.
+
+La differenza fra i tre non è di stile, è di forma: **una tappa ha dentro dei
+task** e va creata davvero (`createMilestoneDaModello`: la tappa, i suoi task,
+le sue ricorrenti col responsabile della catena §346 e `generaSubito`), mentre
+**un task e una ricorrente sono una riga sola** e il modello serve a riempire il
+modulo — titolo, descrizione, priorità, frequenza. Cliccare un suggerimento non
+crea niente: scrive nei campi, così quello che parte è quello che si vede.
+
 **§392 — il giro su tutti** (`POST /api/periods/run`, `PERIODS_CRON_SECRET`,
 task pianificato alle 04:00). Una volta al giorno e non più spesso: un
 periodo si apre una volta ogni due mesi, e il giro serve a non doverci

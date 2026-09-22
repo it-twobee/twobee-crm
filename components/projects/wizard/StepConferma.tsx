@@ -6,7 +6,7 @@ import {
   FolderTree, Flag, CheckSquare, Repeat, CalendarRange,
 } from 'lucide-react'
 import { StepHead, Segmented, inputCls, Avatar } from '@/components/shared/formkit'
-import { countTree, type WWorkstream, type Person, type ClientChoice } from './types'
+import { countTree, type WWorkstream, type Person, type ClientChoice, type StepKey } from './types'
 
 type Check = {
   id: string
@@ -18,7 +18,7 @@ type Check = {
 export function StepConferma({
   client, area, serviceLabel, name, description, startDate, targetEnd,
   managerId, priority, visibility, team, profiles, structure, offConvention,
-  periodi = [], status, setStatus, saveTpl, setSaveTpl, goTo, quickFix,
+  periodi = [], modello = null, status, setStatus, saveTpl, setSaveTpl, goTo, quickFix,
 }: {
   client: ClientChoice
   area: string
@@ -37,11 +37,13 @@ export function StepConferma({
   /** §400 — i periodi che il motore aprirà appena il progetto esiste: non
    *  sono righe dell'albero, e il conteggio qui sopra non li vede */
   periodi?: string[]
+  /** §404 — il modello intero scelto al passo 3, se c'è */
+  modello?: string | null
   status: 'draft' | 'active'
   setStatus: (s: 'draft' | 'active') => void
   saveTpl: { on: boolean; name: string }
   setSaveTpl: (v: { on: boolean; name: string }) => void
-  goTo: (step: number) => void
+  goTo: (step: StepKey) => void
   quickFix: {
     realignNaming: () => void
     spreadDates: () => void
@@ -57,19 +59,19 @@ export function StepConferma({
 
   const checks = useMemo<Check[]>(() => {
     const out: Check[] = []
-    if (counts.ws === 0) out.push({ id: 'ws', tone: 'error', text: 'Nessun workstream: il progetto nasce vuoto.', fix: { label: 'Struttura', run: () => goTo(6) } })
-    if (startDate && targetEnd && targetEnd < startDate) out.push({ id: 'range', tone: 'error', text: 'La data di fine precede quella di inizio.', fix: { label: 'Correggi', run: () => goTo(3) } })
-    if (!managerId) out.push({ id: 'pm', tone: 'warn', text: 'Nessun Project Manager: nessuno riceve il progetto in carico.', fix: { label: 'Scegli PM', run: () => goTo(3) } })
-    if (!startDate || !targetEnd) out.push({ id: 'dates', tone: 'warn', text: 'Progetto senza periodo: non compare nelle viste temporali.', fix: { label: 'Aggiungi date', run: () => goTo(3) } })
+    if (counts.ws === 0) out.push({ id: 'ws', tone: 'error', text: 'Nessun workstream: il progetto nasce vuoto.', fix: { label: 'Struttura', run: () => goTo('struttura') } })
+    if (startDate && targetEnd && targetEnd < startDate) out.push({ id: 'range', tone: 'error', text: 'La data di fine precede quella di inizio.', fix: { label: 'Correggi', run: () => goTo('info') } })
+    if (!managerId) out.push({ id: 'pm', tone: 'warn', text: 'Nessun Project Manager: nessuno riceve il progetto in carico.', fix: { label: 'Scegli PM', run: () => goTo('info') } })
+    if (!startDate || !targetEnd) out.push({ id: 'dates', tone: 'warn', text: 'Progetto senza periodo: non compare nelle viste temporali.', fix: { label: 'Aggiungi date', run: () => goTo('info') } })
     if (counts.ms > 0 && undated > 0) out.push({
       id: 'undated', tone: 'warn',
       text: `${undated} milestone su ${counts.ms} senza scadenza: restano fuori dal calendario.`,
-      fix: canSpread ? { label: 'Distribuisci', run: quickFix.spreadDates } : { label: 'Aggiungi date', run: () => goTo(3) },
+      fix: canSpread ? { label: 'Distribuisci', run: quickFix.spreadDates } : { label: 'Aggiungi date', run: () => goTo('info') },
     })
     if (counts.tk > 0 && unassigned > 0) out.push({
       id: 'unassigned', tone: 'warn',
       text: `${unassigned} task su ${counts.tk} senza assegnatario.`,
-      fix: managerId ? { label: 'Assegna al PM', run: quickFix.assignAllToPm } : { label: 'Struttura', run: () => goTo(6) },
+      fix: managerId ? { label: 'Assegna al PM', run: quickFix.assignAllToPm } : { label: 'Struttura', run: () => goTo('struttura') },
     })
     /* §346 — una ricorrente senza responsabile non è una task non assegnata:
        **non esiste affatto**. Il motore la salta, perché materializzarla vuol
@@ -79,12 +81,12 @@ export function StepConferma({
     if (counts.rc > 0 && counts.rc - counts.rcOwned > 0) out.push({
       id: 'recowner', tone: 'warn',
       text: `${counts.rc - counts.rcOwned} ricorrenti su ${counts.rc} senza responsabile: resteranno ferme, non generano niente.`,
-      fix: managerId ? { label: 'Assegna al PM', run: quickFix.assignAllToPm } : { label: 'Struttura', run: () => goTo(6) },
+      fix: managerId ? { label: 'Assegna al PM', run: quickFix.assignAllToPm } : { label: 'Struttura', run: () => goTo('struttura') },
     })
     if (offConvention > 0) out.push({ id: 'naming', tone: 'warn', text: `${offConvention} nomi fuori dalla naming convention.`, fix: { label: 'Riallinea', run: quickFix.realignNaming } })
-    if (team.length === 0) out.push({ id: 'team', tone: 'info', text: 'Nessun membro oltre al PM: solo admin e PM vedranno il progetto.', fix: { label: 'Team', run: () => goTo(4) } })
+    if (team.length === 0) out.push({ id: 'team', tone: 'info', text: 'Nessun membro oltre al PM: solo admin e PM vedranno il progetto.', fix: { label: 'Team', run: () => goTo('team') } })
     const recurringNoTasks = structure.filter(w => w.workstream_type === 'recurring' && w.recurring.length === 0).length
-    if (recurringNoTasks > 0) out.push({ id: 'rec', tone: 'info', text: `${recurringNoTasks} workstream continuative senza attività ricorrenti.`, fix: { label: 'Struttura', run: () => goTo(6) } })
+    if (recurringNoTasks > 0) out.push({ id: 'rec', tone: 'info', text: `${recurringNoTasks} workstream continuative senza attività ricorrenti.`, fix: { label: 'Struttura', run: () => goTo('struttura') } })
     return out
   }, [counts, undated, unassigned, offConvention, managerId, startDate, targetEnd, team.length, structure, canSpread, goTo, quickFix])
 
@@ -97,16 +99,19 @@ export function StepConferma({
         hint="Quello che segue è ciò che verrà creato. Clicca una riga per tornare a modificarla." />
 
       <div className="rounded-2xl border border-border overflow-hidden">
-        <Row label="Cliente" value={client.kind === 'internal' ? 'Progetto interno (TWO BEE)' : client.name} onClick={() => goTo(0)} />
-        <Row label="Area · Workstream" value={`${area} · ${serviceLabel}`} onClick={() => goTo(2)} />
-        <Row label="Nome" value={name || '—'} onClick={() => goTo(3)} strong />
-        {description && <Row label="Descrizione" value={description} onClick={() => goTo(3)} />}
-        <Row label="Periodo" value={startDate || targetEnd ? `${startDate || '?'} → ${targetEnd || '?'}` : 'non definito'} onClick={() => goTo(3)} />
-        <Row label="Priorità · Visibilità" value={`${priority} · ${visibility === 'client_visible' ? 'visibile al cliente' : 'interna'}`} onClick={() => goTo(3)} />
-        <Row label="Project Manager" onClick={() => goTo(3)}
+        <Row label="Cliente" value={client.kind === 'internal' ? 'Progetto interno (TWO BEE)' : client.name} onClick={() => goTo('cliente')} />
+        <Row label="Area · Workstream" value={`${area} · ${serviceLabel}`} onClick={() => goTo('workstream')} />
+        {/* §404 — da dove è partita la struttura: si sceglie al passo 3, e la
+            conferma è l'ultimo posto in cui si può ancora tornare indietro. */}
+        <Row label="Modello" value={modello ?? 'nessuno: composto a mano'} onClick={() => goTo('workstream')} />
+        <Row label="Nome" value={name || '—'} onClick={() => goTo('info')} strong />
+        {description && <Row label="Descrizione" value={description} onClick={() => goTo('info')} />}
+        <Row label="Periodo" value={startDate || targetEnd ? `${startDate || '?'} → ${targetEnd || '?'}` : 'non definito'} onClick={() => goTo('info')} />
+        <Row label="Priorità · Visibilità" value={`${priority} · ${visibility === 'client_visible' ? 'visibile al cliente' : 'interna'}`} onClick={() => goTo('info')} />
+        <Row label="Project Manager" onClick={() => goTo('info')}
           value={pm ? pm.full_name : 'nessuno'}
           icon={pm ? <Avatar name={pm.full_name} url={pm.avatar_url} size={20} /> : undefined} />
-        <Row label="Team" onClick={() => goTo(4)}
+        <Row label="Team" onClick={() => goTo('team')}
           value={team.length ? `${team.length} oltre al PM` : 'solo il PM'}
           icon={team.length ? (
             <span className="flex -space-x-1.5">
@@ -115,7 +120,7 @@ export function StepConferma({
               ))}
             </span>
           ) : undefined} />
-        <button type="button" onClick={() => goTo(6)}
+        <button type="button" onClick={() => goTo('struttura')}
           className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-hover">
           <span className="text-2xs text-text-tertiary w-32 shrink-0">Struttura</span>
           <span className="flex-1 flex items-center gap-3 text-2xs text-text-secondary tabular flex-wrap">

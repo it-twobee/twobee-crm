@@ -8,7 +8,7 @@ import {
   Plus, Flag, Trash2, Repeat, Check, CornerDownRight,
   Calendar, Pencil, AlertTriangle, Clock, Users, ListChecks, EyeOff, RotateCcw,
 } from 'lucide-react'
-import { createMilestone, updateMilestone, deleteMilestone } from '@/app/actions/milestones'
+import { createMilestone, updateMilestone, deleteMilestone, createMilestoneDaModello } from '@/app/actions/milestones'
 import { updateWorkstream, deleteWorkstream } from '@/app/actions/workstreams'
 import { createProjectTask, updateTaskStatus, deleteTask, setTaskAssignees } from '@/app/actions/tasks'
 import {
@@ -16,6 +16,9 @@ import {
   createRecurringMilestone, updateRecurringMilestone, deleteRecurringMilestone,
 } from '@/app/actions/recurring'
 import { nextOccurrence, ruleLabel, monthlyVolume, occurrencesBetween } from '@/lib/recurrence'
+import { milestoneName } from '@/lib/project-naming'
+import { SuggerimentiModello, useServiceCatalog } from '@/components/projects/WorkstreamPresets'
+import { modelliDiTipo, type ModelloNodo } from '@/lib/workstream-presets'
 import { Avatar, Segmented, inputCls } from '@/components/shared/formkit'
 import { TaskDetailDrawer } from './TaskDetailDrawer'
 import { TaskComposer } from '@/components/tasks/TaskComposer'
@@ -283,7 +286,9 @@ export function WorkstreamPageClient({
           {/* ricorrenti */}
           {ws.workstream_type === 'recurring' && (
             <RecurringPanel recurring={recurring} projectId={project.id} clientId={project.client_id}
-              wsId={ws.id} systemMilestoneId={systemMilestoneId} profiles={profiles} canEdit={canEdit} act={act} pending={pending} />
+              wsId={ws.id} systemMilestoneId={systemMilestoneId}
+              servizio={{ service_type: project.service_type, service_subtype: project.service_subtype }}
+              profiles={profiles} canEdit={canEdit} act={act} pending={pending} />
           )}
 
           {/* §337 — le tappe che tornano. Stanno accanto alle attività
@@ -389,7 +394,18 @@ export function WorkstreamPageClient({
       {addingMs && (
         <NewMilestoneModal context={ws.name} index={deliveryMs.length} profiles={profiles} pending={pending}
           clientVisibleAllowed={!!project.client_id} suggestedDue={ws.end_date}
-          onClose={() => setAddingMs(false)} onCreate={submitMilestone} />
+          servizio={{ service_type: project.service_type, service_subtype: project.service_subtype }}
+          onClose={() => setAddingMs(false)} onCreate={submitMilestone}
+          onCreaDaModello={m => {
+            act(async () => {
+              const r = await createMilestoneDaModello({
+                project_id: project.id, workstream_id: ws.id, node_id: m.nodeId,
+                title: milestoneName(deliveryMs.length, m.nome),
+              })
+              return r
+            }, 'Milestone creata dal modello')
+            setAddingMs(false)
+          }} />
       )}
 
       {taskDetail && (
@@ -853,14 +869,21 @@ function RecurringRow({
 }
 
 function RecurringPanel({
-  recurring, projectId, clientId, wsId, systemMilestoneId, profiles, canEdit, act, pending,
+  recurring, projectId, clientId, wsId, systemMilestoneId, servizio, profiles, canEdit, act, pending,
 }: {
   recurring: RecurringTaskTemplate[]
   projectId: string; clientId: string | null; wsId: string; systemMilestoneId: string
+  /** §405 — il servizio del progetto: dice quali ricorrenti propone il modello */
+  servizio: { service_type: string | null; service_subtype: string | null }
   profiles: Person[]; canEdit: boolean
   act: (fn: () => Promise<unknown>, ok?: string) => void; pending: boolean
 }) {
   const [editing, setEditing] = useState<string | null>(null)
+  const { templates, nodes } = useServiceCatalog(editing === 'new' && !!servizio.service_type)
+  const modelliRicorrenti = servizio.service_type
+    ? modelliDiTipo(templates, nodes, [{ service_type: servizio.service_type, service_subtype: servizio.service_subtype }], 'recurring_task')
+      .filter(m => !recurring.some(r => r.title.toLowerCase() === m.nome.toLowerCase()))
+    : []
   return (
     <div className="bg-surface border border-border rounded-2xl shadow-soft p-4">
       <div className="flex items-center justify-between mb-2.5">
@@ -894,7 +917,7 @@ function RecurringPanel({
             onDelete={() => { if (confirm(`Eliminare "${r.title}"? Le occorrenze già generate restano.`)) act(() => deleteRecurring(r.id, projectId), 'Eliminata') }} />
         ))}
         {editing === 'new' && (
-          <RecurringForm profiles={profiles} pending={pending} onCancel={() => setEditing(null)}
+          <RecurringForm profiles={profiles} pending={pending} modelli={modelliRicorrenti} onCancel={() => setEditing(null)}
             onSave={v => { act(() => createRecurring({ client_id: clientId, project_id: projectId, workstream_id: wsId, milestone_id: systemMilestoneId, ...v }), 'Creata'); setEditing(null) }} />
         )}
       </div>
@@ -973,8 +996,11 @@ function RecurringMilestonePanel({
   )
 }
 
-function RecurringForm({ initial, profiles, pending, onSave, onCancel }: {
-  initial?: RecInput; profiles: Person[]; pending: boolean; onSave: (v: RecInput) => void; onCancel: () => void
+function RecurringForm({ initial, profiles, pending, modelli = [], onSave, onCancel }: {
+  initial?: RecInput; profiles: Person[]; pending: boolean
+  /** §405 — le ricorrenti che questo servizio ha di solito: riempiono il modulo */
+  modelli?: ModelloNodo[]
+  onSave: (v: RecInput) => void; onCancel: () => void
 }) {
   const [title, setTitle] = useState(initial?.title ?? '')
   const [frequency, setFrequency] = useState<RecurrenceFrequency>(initial?.frequency ?? 'weekly')
@@ -1004,6 +1030,13 @@ function RecurringForm({ initial, profiles, pending, onSave, onCancel }: {
   const submit = () => onSave(value)
   return (
     <div className="bg-background border border-gold/30 rounded-xl p-3 space-y-2.5 my-1">
+      {!initial && modelli.length > 0 && (
+        <SuggerimentiModello voci={modelli} etichetta="Le ricorrenti di questo servizio"
+          onPick={m => {
+            setTitle(m.nome)
+            if (m.frequenza) setFrequency(m.frequenza as RecurrenceFrequency)
+          }} />
+      )}
       {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
       <input value={title} onChange={e => setTitle(e.target.value)} autoFocus aria-label="Titolo ricorrente"
         placeholder="Titolo (es. Check Ads)" className={inputCls} />

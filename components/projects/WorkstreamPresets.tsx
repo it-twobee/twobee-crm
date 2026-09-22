@@ -23,7 +23,7 @@ import { createCatalogService } from '@/app/actions/wizard'
 import { areaLabel } from '@/lib/project-naming'
 import {
   proposte, suMisura, tipoServizio, trimestriMancanti,
-  type Preset, type Forma, type CorsiaEsistente, type CorsiaProposta,
+  type Preset, type Forma, type CorsiaEsistente, type CorsiaProposta, type ModelloNodo,
 } from '@/lib/workstream-presets'
 import type { ProjectArea, ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode } from '@/lib/types/database'
 
@@ -276,10 +276,12 @@ export function PeriodiDelProgetto({ forma, corsie, pending, onApri }: {
  * progetto stia nascendo o esista già (§322). Qui però non si spunta: si sceglie
  * e la corsia nasce, con le sue tappe e i suoi task.
  */
-export function CorsieDelServizio({ corsie, pending, onPick }: {
+export function CorsieDelServizio({ corsie, pending, onPick, vuoto = 'corsia vuota' }: {
   corsie: CorsiaProposta[]
   pending: boolean
   onPick: (c: CorsiaProposta) => void
+  /** cosa dire quando non porta niente: una tappa vuota non è «una corsia vuota» */
+  vuoto?: string
 }) {
   if (!corsie.length) return null
   return (
@@ -296,7 +298,7 @@ export function CorsieDelServizio({ corsie, pending, onPick }: {
             <FolderTree className="w-4 h-4 text-gold-text shrink-0" />
             <span className="flex-1 min-w-0">
               <span className="block text-sm font-semibold text-text-primary truncate">{c.nome}</span>
-              <span className="block text-2xs text-text-tertiary truncate">{dentro || 'corsia vuota'}</span>
+              <span className="block text-2xs text-text-tertiary truncate">{dentro || vuoto}</span>
             </span>
             {c.tipo === 'recurring' && (
               <span className="flex items-center gap-1 text-2xs text-success shrink-0">
@@ -307,6 +309,47 @@ export function CorsieDelServizio({ corsie, pending, onPick }: {
           </button>
         )
       })}
+    </div>
+  )
+}
+
+/**
+ * §405 — i suggerimenti dai modelli, per quello che è una riga sola.
+ *
+ * Una tappa ha dentro dei task e va creata (§405, `createMilestoneDaModello`);
+ * un task e una ricorrente sono una riga, e il modello serve a **riempire il
+ * modulo**: titolo, ore, frequenza, ruolo. Cliccare non crea niente, scrive nei
+ * campi — così resta chiaro che quello che parte è quello che si vede.
+ */
+export function SuggerimentiModello({ voci, etichetta, onPick, max = 8 }: {
+  voci: ModelloNodo[]
+  etichetta: string
+  onPick: (v: ModelloNodo) => void
+  max?: number
+}) {
+  const [tutte, setTutte] = useState(false)
+  if (!voci.length) return null
+  const mostrate = tutte ? voci : voci.slice(0, max)
+  return (
+    <div>
+      <span className="block text-2xs font-semibold text-text-secondary mb-1.5">{etichetta}</span>
+      <div className="flex flex-wrap gap-1.5">
+        {mostrate.map(v => (
+          <button key={v.key} type="button" onClick={() => onPick(v)}
+            title={[v.descrizione, v.ruolo, v.ore ? `${v.ore}h` : null].filter(Boolean).join(' · ') || undefined}
+            className="flex items-center gap-1 px-2 py-1 rounded-lg border border-border text-2xs font-semibold text-text-primary hover:bg-surface-hover press">
+            <Plus className="w-3 h-3 text-gold-text shrink-0" />
+            {v.nome}
+            {v.figli > 0 && <span className="text-text-tertiary tabular">· {v.figli}</span>}
+          </button>
+        ))}
+        {voci.length > max && !tutte && (
+          <button type="button" onClick={() => setTutte(true)}
+            className="px-2 py-1 text-2xs font-semibold text-gold-text hover:opacity-80">
+            +{voci.length - max}
+          </button>
+        )}
+      </div>
     </div>
   )
 }

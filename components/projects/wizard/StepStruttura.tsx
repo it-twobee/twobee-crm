@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import {
   Plus, Trash2, FolderTree, Flag, CheckSquare, Repeat, ChevronDown,
-  Wand2, CalendarRange, Eye, EyeOff, Clock, SlidersHorizontal, Package, AlignLeft,
+  Wand2, CalendarRange, Eye, EyeOff, Clock, SlidersHorizontal, Package, AlignLeft, FileStack,
 } from 'lucide-react'
 import { StepHead, Segmented, SearchInput, inputCls, Avatar, Empty } from '@/components/shared/formkit'
 import { WorkstreamPresets } from '@/components/projects/WorkstreamPresets'
@@ -17,7 +17,6 @@ import {
   type WWorkstream, type WMilestone, type WTask, type Person, type Priority,
   type ProjectArea,
 } from './types'
-import { RicorrenzeCommerciali } from './RicorrenzeCommerciali'
 
 /** riscrive tutto l'albero secondo la convention (idempotente) */
 export function applyNaming(structure: WWorkstream[], ctx: NamingCtx): WWorkstream[] {
@@ -64,6 +63,7 @@ export function spreadDueDates(structure: WWorkstream[], start: string, end: str
 
 export function StepStruttura({
   structure, setStructure, team, ctx, area, services, startDate, targetEnd, managerId = null,
+  modello = null, onCambiaModello,
 }: {
   structure: WWorkstream[]
   setStructure: React.Dispatch<React.SetStateAction<WWorkstream[]>>
@@ -76,6 +76,9 @@ export function StepStruttura({
   targetEnd: string
   /** §346 — l'ultimo anello della catena del responsabile di una ricorrente */
   managerId?: string | null
+  /** §404 — il modello da cui è uscito l'albero, e come tornare a cambiarlo */
+  modello?: string | null
+  onCambiaModello?: () => void
 }) {
   const counts = useMemo(() => countTree(structure, managerId), [structure, managerId])
   const off = useMemo(() => offConventionCount(structure, ctx), [structure, ctx])
@@ -137,10 +140,21 @@ export function StepStruttura({
         </div>
       </div>
 
-      {/* §393 — prima dell'albero, non in fondo: si spuntano mentre si pensa a
-          come sarà fatto il progetto. Dopo dodici milestone non le guarda più
-          nessuno. Il responsabile della corsia è il PM, come per le ricorrenti. */}
-      <RicorrenzeCommerciali area={area} structure={structure} setStructure={setStructure} ownerId={managerId} />
+      {/* §404 — da dove viene questo albero. Le ricorrenze commerciali stavano
+          qui e sono tornate al passo 3, con modelli e corsie: la stessa domanda
+          in un posto solo, e prima che l'albero sia montato. */}
+      {onCambiaModello && (
+        <div className="flex items-center gap-2 mb-3 text-2xs">
+          <FileStack className="w-3.5 h-3.5 text-gold-text shrink-0" />
+          <span className="text-text-secondary truncate">
+            {modello ? <>Da: <span className="font-semibold text-text-primary">{modello}</span></> : 'Composto a mano dalle corsie scelte'}
+          </span>
+          <button type="button" onClick={onCambiaModello}
+            className="ml-auto font-semibold text-gold-text hover:opacity-80 shrink-0">
+            Cambia
+          </button>
+        </div>
+      )}
 
       {structure.length === 0 ? (
         <Empty>Nessun workstream. Aggiungine uno qui sotto, o torna al passo Template.</Empty>

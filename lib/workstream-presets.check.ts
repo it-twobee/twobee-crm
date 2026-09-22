@@ -7,7 +7,7 @@
    quattro modi e nessuno sa più quale progetto contiene cosa. */
 import {
   proposte, suMisura, tipoServizio, normalizza, formaDelProgetto, trimestriMancanti,
-  corsieDeiTemplate, type CatalogRow,
+  corsieDeiTemplate, modelliDiTipo, type CatalogRow,
 } from '@/lib/workstream-presets'
 import {
   workstreamPrefixFromProjectName, applyWorkstreamPrefix, stripWorkstreamPrefix,
@@ -227,6 +227,51 @@ console.log('\n— Le corsie che stanno dentro un servizio (§400) —')
   is('e si copia da quel nodo', adv?.nodeId, 'w4')
   is('una corsia vuota resta vuota',
     (() => { const g = c.find(x => x.nome === 'Governance'); return [g?.tappe, g?.task, g?.ricorrenti] })(), [0, 0, 0])
+}
+
+console.log('\n— Tappe, task e ricorrenti dai modelli (§405) —')
+{
+  const tpl = [
+    { id: 't1', service_type: 'lead_generation', service_subtype: null, is_active: true },
+    { id: 't2', service_type: 'lead_generation', service_subtype: null, is_active: true },
+    { id: 't3', service_type: 'lead_generation', service_subtype: null, is_active: true, kind: 'period' },
+    { id: 't4', service_type: 'branding', service_subtype: null, is_active: true },
+  ]
+  const n = (id: string, template_id: string, parent_id: string | null, node_type: string, name: string, extra: Record<string, unknown> = {}) =>
+    ({ id, template_id, parent_id, node_type, name, sort_order: 0, ...extra })
+  const nodi = [
+    n('w1', 't1', null, 'workstream', 'Advertising'),
+    n('m1', 't1', 'w1', 'milestone', 'Piano media', { relative_due_days: 14 }),
+    n('k1', 't1', 'm1', 'task', 'Brief creativo', { estimated_hours: 4, priority: 'alta', suggested_owner_role: 'Media Buyer' }),
+    n('k2', 't1', 'm1', 'task', 'Setup campagne'),
+    n('r1', 't1', 'w1', 'recurring_task', 'Check budget', { frequency: 'weekly', suggested_owner_role: 'Media Buyer' }),
+    // la stessa tappa, in un altro modello, con dentro di più: vince questa
+    n('m2', 't2', 'w2', 'milestone', 'Piano media'),
+    n('m3', 't2', 'w2', 'milestone', 'Report di fine periodo'),
+    n('k3', 't2', 'm3', 'task', 'Report'),
+    n('k4', 't2', 'm3', 'task', 'Presentazione'),
+    // dallo scheletro di periodo e da un altro servizio non si prende niente
+    n('m4', 't3', null, 'milestone', 'Piano del trimestre'),
+    n('m5', 't4', 'w9', 'milestone', 'Identità visiva'),
+  ]
+  const servizi = [{ service_type: 'lead_generation', service_subtype: null }]
+
+  const tappe = modelliDiTipo(tpl, nodi, servizi, 'milestone')
+  is('le tappe del servizio, le più comuni per prime', tappe.map(t => t.nome),
+    ['Piano media', 'Report di fine periodo'])
+  is('con quanti task portano', tappe.map(t => t.figli), [2, 2])
+  is('e l\'ancora relativa quando c\'è', tappe.find(t => t.nome === 'Piano media')?.giorni, 14)
+  is('niente dagli scheletri di periodo', tappe.some(t => t.nome === 'Piano del trimestre'), false)
+  is('e niente dagli altri servizi', tappe.some(t => t.nome === 'Identità visiva'), false)
+
+  const task = modelliDiTipo(tpl, nodi, servizi, 'task')
+  is('i task portano ore, priorità e ruolo',
+    (() => { const t = task.find(x => x.nome === 'Brief creativo'); return [t?.ore, t?.priorita, t?.ruolo] })(),
+    [4, 'alta', 'Media Buyer'])
+
+  const ric = modelliDiTipo(tpl, nodi, servizi, 'recurring_task')
+  is('le ricorrenti portano la frequenza',
+    [ric.length, ric[0]?.nome, ric[0]?.frequenza], [1, 'Check budget', 'weekly'])
 }
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)

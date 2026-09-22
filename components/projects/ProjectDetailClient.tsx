@@ -13,12 +13,12 @@ import { updateProjectStatus, updateProjectBrief, deleteProject } from '@/app/ac
 import { generateRecurrencesNow } from '@/app/actions/recurring'
 import { createWorkstream, createWorkstreamDaModello } from '@/app/actions/workstreams'
 import { apriPeriodi } from '@/app/actions/periodi'
-import { createMilestone, updateMilestone } from '@/app/actions/milestones'
+import { createMilestone, updateMilestone, createMilestoneDaModello } from '@/app/actions/milestones'
 import { NewMilestoneModal, type NewMilestoneValues } from './NewMilestoneModal'
 import {
   ModalShell, Field, Segmented, SearchInput, Avatar, inputCls,
 } from '@/components/shared/formkit'
-import { workstreamPrefixFromProjectName, applyWorkstreamPrefix, stripWorkstreamPrefix } from '@/lib/project-naming'
+import { workstreamPrefixFromProjectName, applyWorkstreamPrefix, stripWorkstreamPrefix, milestoneName } from '@/lib/project-naming'
 import { ProjectGantt } from './ProjectGantt'
 import {
   WorkstreamPresets, PeriodiDelProgetto, CorsieDelServizio, useServiceCatalog,
@@ -775,7 +775,18 @@ export function ProjectDetailClient({
         <NewMilestoneModal context={msWs.name} index={wsDeliveryMs(msWs.id).length} profiles={profiles}
           pending={pending} clientVisibleAllowed={!!project.client_id}
           suggestedDue={msWs.end_date ?? project.target_end_date}
-          onClose={() => setMsWs(null)} onCreate={v => submitMilestone(msWs, v)} />
+          servizio={{ service_type: project.service_type, service_subtype: project.service_subtype }}
+          onClose={() => setMsWs(null)} onCreate={v => submitMilestone(msWs, v)}
+          onCreaDaModello={m => start(async () => {
+            try {
+              const r = await createMilestoneDaModello({
+                project_id: project.id, workstream_id: msWs.id, node_id: m.nodeId,
+                title: milestoneName(wsDeliveryMs(msWs.id).length, m.nome),
+              })
+              toast.success(`«${m.nome}» creata${r.task ? `: ${r.task} task` : ''}`)
+              setMsWs(null); router.refresh()
+            } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+          })} />
       )}
 
       {creatingWs && (

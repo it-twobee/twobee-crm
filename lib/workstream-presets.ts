@@ -251,3 +251,99 @@ export function corsieDeiTemplate(
     })
   return Array.from(per.values()).sort((a, b) => b.quante - a.quante)
 }
+
+/**
+ * §405 — gli stessi modelli, un gradino più sotto: tappe, task e ricorrenti.
+ *
+ * La cascata del §402 si fermava alla corsia: dentro, «Nuova milestone» e
+ * «Nuova task» tornavano a chiedere un titolo in un campo vuoto — e un campo
+ * vuoto produce «Report mensile», «report», «Reportistica» sullo stesso lavoro.
+ * Quello che il servizio fa di solito sta nei suoi modelli anche a questo
+ * livello: qui si legge, uguale per tutti e tre.
+ */
+export type ModelloNodo = {
+  key: string
+  nome: string
+  nodeId: string
+  /** in quanti modelli del servizio compare */
+  quante: number
+  /** figli diretti: per una tappa sono i suoi task */
+  figli: number
+  descrizione: string | null
+  frequenza: string | null
+  priorita: string | null
+  ore: number | null
+  ruolo: string | null
+  /** giorni dall'avvio del progetto, se il modello ha un'ancora */
+  giorni: number | null
+}
+
+type NodoPieno = {
+  id?: string
+  template_id: string
+  parent_id: string | null
+  node_type: string
+  name: string
+  description?: string | null
+  frequency?: string | null
+  priority?: string | null
+  estimated_hours?: number | null
+  suggested_owner_role?: string | null
+  relative_due_days?: number | null
+  sort_order?: number
+}
+
+export function modelliDiTipo(
+  templates: { id: string; service_type: string; service_subtype: string | null; is_active?: boolean; kind?: string | null }[],
+  nodi: NodoPieno[],
+  servizi: { service_type: string; service_subtype: string | null }[],
+  tipo: 'milestone' | 'task' | 'recurring_task',
+): ModelloNodo[] {
+  const miei = new Set(templates
+    .filter(t => t.is_active !== false && (t.kind ?? 'project') !== 'period'
+      && servizi.some(s => s.service_type === t.service_type
+        && (s.service_subtype ?? null) === (t.service_subtype ?? null)))
+    .map(t => t.id))
+
+  const quantiFigli = new Map<string, number>()
+  nodi.forEach(n => {
+    if (!n.parent_id) return
+    quantiFigli.set(n.parent_id, (quantiFigli.get(n.parent_id) ?? 0) + 1)
+  })
+
+  const per = new Map<string, ModelloNodo>()
+  nodi
+    .filter(n => n.node_type === tipo && miei.has(n.template_id))
+    .slice()
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .forEach(n => {
+      const k = normalizza(n.name)
+      const figli = n.id ? quantiFigli.get(n.id) ?? 0 : 0
+      const gia = per.get(k)
+      if (!gia) {
+        per.set(k, {
+          key: k, nome: n.name.trim(), nodeId: n.id ?? '', quante: 1, figli,
+          descrizione: n.description ?? null,
+          frequenza: n.frequency ?? null,
+          priorita: n.priority ?? null,
+          ore: n.estimated_hours ?? null,
+          ruolo: n.suggested_owner_role ?? null,
+          giorni: n.relative_due_days ?? null,
+        })
+        return
+      }
+      gia.quante++
+      // §402 — fra due occorrenze vince la più piena, per la stessa ragione
+      if (figli > gia.figli) {
+        gia.nodeId = n.id ?? gia.nodeId
+        gia.figli = figli
+        gia.descrizione = n.description ?? null
+        gia.frequenza = n.frequency ?? null
+        gia.priorita = n.priority ?? null
+        gia.ore = n.estimated_hours ?? null
+        gia.ruolo = n.suggested_owner_role ?? null
+        gia.giorni = n.relative_due_days ?? null
+      }
+    })
+  return Array.from(per.values()).sort((a, b) => b.quante - a.quante)
+}

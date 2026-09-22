@@ -22,7 +22,6 @@ import { StepArea } from './wizard/StepArea'
 import { StepWorkstream } from './wizard/StepWorkstream'
 import { StepInfo, type InfoState } from './wizard/StepInfo'
 import { StepTeam } from './wizard/StepTeam'
-import { StepTemplate } from './wizard/StepTemplate'
 import { StepStruttura, applyNaming, offConventionCount, spreadDueDates } from './wizard/StepStruttura'
 import { StepConferma } from './wizard/StepConferma'
 import { StepEconomics, emptyEconomics, specOf, type EconomicsState } from './wizard/StepEconomics'
@@ -30,6 +29,7 @@ import {
   STEPS, nk, countTree, recOwner, applyRelativeDates,
   newTask, newMilestone, newRecurring, newWorkstream,
   type Person, type ClientOpt, type ClientChoice, type WsPick, type CorsiaScelta,
+  type EventoScelto, type StepKey,
   type WWorkstream, type WMilestone, type WRecurring, type WTask,
 } from './wizard/types'
 
@@ -70,6 +70,7 @@ export function ProjectWizard({
      appena il progetto esiste. Sono due cose diverse: le prime diventano righe
      dell'albero, i periodi no — li scrive il motore, con registro e scheletro. */
   const [corsie, setCorsie] = useState<CorsiaScelta[]>([])
+  const [eventi, setEventi] = useState<EventoScelto[]>([])
   const [apriSubito, setApriSubito] = useState(true)
   const [info, setInfo] = useState<InfoState>({
     name: '', description: '', startDate: '', targetEnd: '',
@@ -104,6 +105,10 @@ export function ProjectWizard({
   const forma = useMemo(
     () => primary ? formaDelProgetto(services, primary) : 'none',
     [services, primary])
+  const periodiDaAprirsi = useMemo(
+    () => forma === 'none' ? []
+      : periodiDaAprire(new Date().toISOString().slice(0, 10), forma, ORIZZONTE[forma]),
+    [forma])
   const areaCounts = useMemo(() => {
     const m: Record<string, number> = {}
     services.filter(s => s.is_active).forEach(s => { m[s.area] = (m[s.area] ?? 0) + 1 })
@@ -163,63 +168,75 @@ export function ProjectWizard({
     }
   }, [nodes])
 
-  const seedFromPicks = useCallback((): WWorkstream[] => [
-    ...picks.map(p => newWorkstream(workstreamName(ctx, p.label), info.managerId || null)),
-    /* §400 — le corsie scelte si **aggiungono** a quella del servizio: il
-       lavoro ha un nome e dentro ha i suoi filoni. §402: e arrivano con quello
-       che hanno nel modello, o il passo Struttura resta a zero tappe e zero
-       task su un progetto che nel modello ne ha venti. */
-    ...corsie.map(c => {
+  const expandTemplate = useCallback((tid: string): WWorkstream[] => nodes
+    .filter(n => n.template_id === tid && !n.parent_id && n.node_type === 'workstream')
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map(wsDaNodo), [nodes, wsDaNodo])
+
+  /**
+   * §404 — la struttura è **derivata**: modello intero + corsie + ricorrenze,
+   * finché non la tocchi a mano. Prima il template la riscriveva di colpo
+   * (`pickTemplate`) e le corsie scelte al passo 3 sparivano senza dirlo: due
+   * strade che scrivevano lo stesso stato, e una cancellava l'altra.
+   */
+  const seed = useCallback((): WWorkstream[] => {
+    const ossatura = templateId
+      ? expandTemplate(templateId)
+      : picks.map(p => newWorkstream(workstreamName(ctx, p.label), info.managerId || null))
+
+    /* §402 — le corsie scelte arrivano con quello che hanno nel modello; le
+       ricorrenze commerciali con le **loro** date, che vincono su quelle del
+       progetto (§393): il Black Friday dura sei settimane, non un anno. */
+    const aggiunte = corsie.map(c => {
       const nodo = c.nodeId ? nodes.find(n => n.id === c.nodeId) : undefined
       const base = nodo ? wsDaNodo(nodo) : newWorkstream(c.nome, null)
-      return {
-        ...base,
-        name: workstreamName(ctx, c.nome),
-        owner_id: info.managerId || null,
-        workstream_type: c.tipo,
-      }
-    }),
-  ], [picks, corsie, ctx, info.managerId, nodes, wsDaNodo])
+      return { ...base, name: workstreamName(ctx, c.nome), owner_id: info.managerId || null, workstream_type: c.tipo }
+    })
+    const ricorrenze = eventi.map(e => ({
+      ...newWorkstream(workstreamName(ctx, e.nome), info.managerId || null),
+      key: e.key,
+      description: e.descrizione,
+      visibility: 'client_visible' as Visibility,
+      start_date: e.dal,
+      end_date: e.al,
+    }))
+    return [...ossatura, ...aggiunte, ...ricorrenze]
+  }, [templateId, expandTemplate, picks, corsie, eventi, ctx, info.managerId, nodes, wsDaNodo])
 
+  /* Finché non tocchi la struttura resta agganciata a quello che hai scelto.
+     Le date relative si applicano qui: le corsie portano tappe con un'ancora,
+     e senza questo passaggio nascerebbero tutte senza scadenza. */
+  useEffect(() => {
+    if (!structureTouched) setStructure(applyNaming(applyRelativeDates(seed(), info.startDate), ctx))
+  }, [structureTouched, seed, ctx, info.startDate])
 
-  const expandTemplate = useCallback((tid: string): WWorkstream[] => {
-    const byOrder = (a: ProjectTemplateNode, b: ProjectTemplateNode) => a.sort_order - b.sort_order
-    const wsNodes = nodes.filter(n => n.template_id === tid && !n.parent_id && n.node_type === 'workstream').sort(byOrder)
-
-    return wsNodes.map(wsDaNodo)
-  }, [nodes, wsDaNodo])
-
-  const pickTemplate = (tid: string | null) => {
-    setTemplateId(tid)
-    const base = tid ? applyRelativeDates(expandTemplate(tid), info.startDate) : seedFromPicks()
-    setStructure(applyNaming(base, ctx))
+  /* §404 — tornare al passo 3 e cambiare qualcosa **riaggancia** l'albero a
+     quello che hai scelto: se restasse «toccato a mano», il modello nuovo o la
+     corsia aggiunta non comparirebbero da nessuna parte, e il passo direbbe di
+     aver fatto qualcosa che non è successo. La Struttura avvisa che le
+     modifiche a mano si perdono, prima di perderle. */
+  const scegliModello = useCallback((id: string | null) => {
+    setTemplateId(id)
     setStructureTouched(false)
-  }
-
-  // spostare l'avvio del progetto ridatta il piano che viene dal template:
-  // le date messe a mano restano dove sono (rel_days = null)
-  useEffect(() => {
-    if (!templateId || structureTouched || !info.startDate) return
-    setStructure(s => applyRelativeDates(s, info.startDate))
-  }, [templateId, structureTouched, info.startDate])
-
-  /* Finché non tocchi la struttura resta agganciata ai workstream scelti. Le
-     date relative si applicano anche qui: le corsie del §402 portano tappe con
-     un'ancora, e senza questo passaggio nascerebbero tutte senza scadenza. */
-  useEffect(() => {
-    if (templateId === null && !structureTouched) {
-      setStructure(applyNaming(applyRelativeDates(seedFromPicks(), info.startDate), ctx))
-    }
-  }, [templateId, structureTouched, seedFromPicks, ctx, info.startDate])
+  }, [])
+  const cambiaCorsie: React.Dispatch<React.SetStateAction<CorsiaScelta[]>> = useCallback(v => {
+    setCorsie(v)
+    setStructureTouched(false)
+  }, [])
+  const cambiaEventi: React.Dispatch<React.SetStateAction<EventoScelto[]>> = useCallback(v => {
+    setEventi(v)
+    setStructureTouched(false)
+  }, [])
+  const cambiaPicks: React.Dispatch<React.SetStateAction<WsPick[]>> = useCallback(v => {
+    setPicks(v)
+    setStructureTouched(false)
+  }, [])
 
   const editStructure: React.Dispatch<React.SetStateAction<WWorkstream[]>> = useCallback(v => {
     setStructureTouched(true)
     setStructure(v)
   }, [])
 
-  /* §402 — cosa ha composto il passo 3, per dirlo al passo Template: là un
-     template intero sostituisce tutto, e deve saperlo prima chi sceglie. */
-  const seedCounts = useMemo(() => countTree(seedFromPicks()), [seedFromPicks])
   const offConvention = useMemo(() => offConventionCount(structure, ctx), [structure, ctx])
   const counts = useMemo(() => countTree(structure), [structure])
 
@@ -242,7 +259,15 @@ export function ProjectWizard({
 
   const goTo = useCallback((s: number) => {
     if (s >= minStep && s < steps.length && reachable(s)) setStep(s)
-  }, [minStep, reachable])
+  }, [minStep, reachable, steps.length])
+
+  /* §404 — si va a un passo **per chiave**. Con gli indici, `goTo(6)` scritto
+     nella Conferma puntava alla Struttura finché la Struttura era la settima:
+     al primo riordino porta altrove, e senza dire niente. */
+  const goToKey = useCallback((k: StepKey) => {
+    const i = steps.findIndex(x => x.key === k)
+    if (i >= 0) goTo(i)
+  }, [steps, goTo])
 
   // ── quick fix richiamati dalla conferma ────────────────────────────────────
   const quickFix = useMemo(() => ({
@@ -478,11 +503,16 @@ export function ProjectWizard({
 
             <div className="flex-1 overflow-y-auto p-4 sm:p-5 min-h-0">
               {steps[step].key === 'cliente' && <StepCliente clients={clients} value={client} onChange={setClient} />}
-              {steps[step].key === 'area' && <StepArea value={area} onChange={a => { setArea(a); setPicks([]); setCorsie([]) }} counts={areaCounts} />}
+              {steps[step].key === 'area' && <StepArea value={area} onChange={a => {
+                setArea(a); setPicks([]); setCorsie([]); setEventi([]); setTemplateId(null); setStructureTouched(false)
+              }} counts={areaCounts} />}
               {steps[step].key === 'workstream' && area && (
                 <StepWorkstream area={area} services={areaServices} templates={templates} nodes={nodes}
-                  picks={picks} setPicks={setPicks} corsie={corsie} setCorsie={setCorsie}
-                  apriPeriodi={apriSubito} setApriPeriodi={setApriSubito} canPersist />
+                  picks={picks} setPicks={cambiaPicks}
+                  templateId={templateId} setTemplateId={scegliModello}
+                  corsie={corsie} setCorsie={cambiaCorsie} eventi={eventi} setEventi={cambiaEventi}
+                  periodi={periodiDaAprirsi} apriPeriodi={apriSubito} setApriPeriodi={setApriSubito}
+                  strutturaToccata={structureTouched} canPersist />
               )}
               {steps[step].key === 'info' && (
                 <StepInfo state={info} suggestedName={suggestedName} profiles={profiles}
@@ -493,17 +523,13 @@ export function ProjectWizard({
                 <StepTeam profiles={profiles} team={team} setTeam={setTeam}
                   managerId={info.managerId} canInvite />
               )}
-              {steps[step].key === 'template' && (
-                <StepTemplate templates={templates} nodes={nodes}
-                  serviceType={primary?.service_type ?? ''} serviceSubtype={primary?.service_subtype ?? null}
-                  templateId={templateId} onPick={pickTemplate} structureTouched={structureTouched}
-                  seed={seedCounts} />
-              )}
               {steps[step].key === 'struttura' && (
                 <StepStruttura structure={structure} setStructure={editStructure} team={teamPeople}
                   ctx={ctx} area={area || 'marketing'} services={areaServices}
                   startDate={info.startDate} targetEnd={info.targetEnd}
-                  managerId={info.managerId || null} />
+                  managerId={info.managerId || null}
+                  modello={templates.find(t => t.id === templateId)?.name ?? null}
+                  onCambiaModello={() => goToKey('workstream')} />
               )}
               {steps[step].key === 'economics' && client?.kind === 'client' && (
                 <StepEconomics value={eco} onChange={setEco} clientName={client.name} />
@@ -515,11 +541,10 @@ export function ProjectWizard({
                   startDate={info.startDate} targetEnd={info.targetEnd}
                   managerId={info.managerId} priority={info.priority} visibility={info.visibility}
                   team={team} profiles={profiles} structure={structure} offConvention={offConvention}
-                  periodi={apriSubito && forma !== 'none'
-                    ? periodiDaAprire(new Date().toISOString().slice(0, 10), forma, ORIZZONTE[forma]).map(p => p.etichetta)
-                    : []}
+                  periodi={apriSubito ? periodiDaAprirsi.map(p => p.etichetta) : []}
+                  modello={templates.find(t => t.id === templateId)?.name ?? null}
                   status={status} setStatus={setStatus} saveTpl={saveTpl} setSaveTpl={setSaveTpl}
-                  goTo={goTo} quickFix={quickFix} />
+                  goTo={goToKey} quickFix={quickFix} />
               )}
             </div>
           </div>
@@ -532,7 +557,7 @@ export function ProjectWizard({
           </button>
 
           <span className="ml-auto hidden sm:flex items-center gap-2 text-2xs text-text-tertiary">
-            {step === 6 && counts.ws > 0 && (
+            {steps[step].key === 'struttura' && counts.ws > 0 && (
               <span className="flex items-center gap-1"><Sparkles className="w-3 h-3" />{counts.ms} milestone · {counts.tk} task</span>
             )}
             <kbd className="px-1.5 py-0.5 rounded bg-surface-active font-sans">⌘⏎</kbd> avanti

@@ -99,6 +99,20 @@ export type CorsiaScelta = {
   nodeId?: string
 }
 
+/**
+ * §404 — una ricorrenza commerciale scelta al passo 3. Porta **due date**: il
+ * giorno dell'evento e da quando si comincia, che è la data meno l'anticipo.
+ * La corsia vive fra le due e non per tutto il progetto, o il Black Friday in
+ * Gantt coprirebbe l'anno (§393).
+ */
+export type EventoScelto = {
+  key: string
+  nome: string
+  dal: string | null
+  al: string | null
+  descrizione: string | null
+}
+
 /** Workstream selezionato allo step 3: voce di catalogo o creato su misura. */
 export type WsPick = {
   key: string
@@ -114,18 +128,28 @@ export const AREAS: { key: ProjectArea; label: string; hint: string }[] = [
   { key: 'digital', label: 'Digital', hint: 'AI Project · Digitalizzazione' },
 ]
 
+/**
+ * §404 — sette passi, otto con l'economics. Il passo «Template» non c'è più:
+ * era la stessa domanda del passo 3 fatta tre schermate dopo, e sceglierlo lì
+ * buttava via quello che avevi composto. Il modello si sceglie dove si sceglie
+ * il servizio, e la Struttura è dove si guarda cosa ne è uscito.
+ *
+ * Gli step si richiamano **per chiave**, mai per indice: `goTo(6)` sparso nella
+ * Conferma puntava al passo sbagliato al primo riordino, e in silenzio.
+ */
 export const STEPS = [
   { key: 'cliente', label: 'Cliente', hint: 'Per chi lavoriamo' },
   { key: 'area', label: 'Area', hint: 'Il perimetro' },
   { key: 'workstream', label: 'Workstream', hint: 'Cosa consegniamo' },
   { key: 'info', label: 'Info', hint: 'Nome, date, PM' },
   { key: 'team', label: 'Team', hint: 'Chi ci lavora' },
-  { key: 'template', label: 'Template', hint: 'Da dove partiamo' },
   { key: 'struttura', label: 'Struttura', hint: 'L\'albero del lavoro' },
   // solo per admin e solo con un cliente vero: il wizard lo toglie dagli altri
   { key: 'economics', label: 'Economics', hint: 'Quota, rate, subappalto' },
   { key: 'conferma', label: 'Conferma', hint: 'Ultimo controllo' },
 ] as const
+
+export type StepKey = (typeof STEPS)[number]['key']
 
 export const FREQUENCIES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly'] as const
 export const FREQ_LABEL: Record<string, string> = {

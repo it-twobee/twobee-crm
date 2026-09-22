@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Flag, Eye, EyeOff, CalendarDays } from 'lucide-react'
+import { Flag, Eye, EyeOff, CalendarDays, Loader2 } from 'lucide-react'
 import { ModalShell, Field, Avatar, inputCls } from '@/components/shared/formkit'
+import { CorsieDelServizio, useServiceCatalog } from '@/components/projects/WorkstreamPresets'
+import { modelliDiTipo, type ModelloNodo } from '@/lib/workstream-presets'
 import { milestoneName, bareMilestone } from '@/lib/project-naming'
 import type { Visibility } from '@/lib/types/database'
 
@@ -17,7 +19,8 @@ export type NewMilestoneValues = {
 }
 
 export function NewMilestoneModal({
-  context, index, profiles, pending, clientVisibleAllowed = true, suggestedDue, onClose, onCreate,
+  context, index, profiles, pending, clientVisibleAllowed = true, suggestedDue,
+  servizio = null, onClose, onCreate, onCreaDaModello,
 }: {
   context: string
   /** posizione nella timeline: alimenta il prefisso "M{n} ·" della convention */
@@ -26,8 +29,12 @@ export function NewMilestoneModal({
   pending: boolean
   clientVisibleAllowed?: boolean
   suggestedDue?: string | null
+  /** §405 — il servizio del progetto: dice quali tappe propone il modello */
+  servizio?: { service_type: string | null; service_subtype: string | null } | null
   onClose: () => void
   onCreate: (v: NewMilestoneValues) => void
+  /** senza, le tappe a modello non si propongono: chi non sa crearle non le offre */
+  onCreaDaModello?: (m: ModelloNodo) => void
 }) {
   const [title, setTitle] = useState('')
   const [due, setDue] = useState('')
@@ -38,6 +45,14 @@ export function NewMilestoneModal({
   const person = profiles.find(p => p.id === owner)
   const finalName = title.trim() ? milestoneName(index, bareMilestone(title)) : ''
 
+  /* §405 — le tappe che questo servizio ha di solito, con dentro i loro task.
+     Stessa lista del wizard, stessa funzione: la domanda «cosa si fa qui» non
+     cambia risposta a seconda della schermata. */
+  const { templates, nodes, loading } = useServiceCatalog(!!onCreaDaModello && !!servizio?.service_type)
+  const tappe = onCreaDaModello && servizio?.service_type
+    ? modelliDiTipo(templates, nodes, [{ service_type: servizio.service_type, service_subtype: servizio.service_subtype }], 'milestone')
+    : []
+
   return (
     <ModalShell title="Nuova milestone" hint={context} icon={<Flag className="w-4 h-4 text-gold-text" />}
       onClose={onClose} pending={pending} canSubmit={!!title.trim()}
@@ -45,6 +60,25 @@ export function NewMilestoneModal({
         title: finalName, due_date: due || null, owner_id: owner || null,
         visibility, approval_required: approval,
       })}>
+
+      {onCreaDaModello && servizio?.service_type && (loading ? (
+        <p className="flex items-center gap-2 text-2xs text-text-tertiary">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Cerco le tappe di questo servizio…
+        </p>
+      ) : tappe.length > 0 && (
+        <div>
+          <span className="block text-2xs font-semibold text-text-secondary mb-1.5">
+            Le tappe di questo servizio
+          </span>
+          <CorsieDelServizio
+            corsie={tappe.map(t => ({
+              key: t.key, nome: t.nome, nodeId: t.nodeId, quante: t.quante,
+              tipo: 'project' as const, tappe: 0, task: t.figli, ricorrenti: 0,
+            }))}
+            pending={pending} vuoto="tappa senza task"
+            onPick={c => { const m = tappe.find(t => t.key === c.key); if (m) onCreaDaModello(m) }} />
+        </div>
+      ))}
 
       <Field label="Titolo" hint="il prefisso M{n} lo mette la convention">
         {/* eslint-disable-next-line jsx-a11y/no-autofocus */}

@@ -14,6 +14,8 @@ import {
   ModalShell, Group, Field, Segmented, SearchInput, PickRow, Avatar, Empty, inputCls,
 } from '@/components/shared/formkit'
 import { CLIENT_ROLES } from '@/lib/permissions'
+import { SuggerimentiModello, useServiceCatalog } from '@/components/projects/WorkstreamPresets'
+import { modelliDiTipo } from '@/lib/workstream-presets'
 import type { AppRole, Priority, Visibility } from '@/lib/types/database'
 
 export type TaskKind = 'project' | 'ad_hoc' | 'cliente'
@@ -121,6 +123,24 @@ export function TaskComposer({
       .then(({ data }) => { setWs(data ?? []); setLoadingWs(false) })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, projectId])
+
+  /* §405 — i task che questo servizio ha di solito: riempiono il titolo, le ore
+     e la priorità. Il servizio si legge dal progetto scelto, non dal composer:
+     è l'unico posto che lo sa. */
+  const [servizio, setServizio] = useState<{ service_type: string | null; service_subtype: string | null } | null>(null)
+  useEffect(() => {
+    const id = fixed?.projectId ?? projectId
+    if (kind !== 'project' || !id) { setServizio(null); return }
+    let vivo = true
+    void createBrowserClient().from('projects').select('service_type, service_subtype').eq('id', id).maybeSingle()
+      .then(({ data }) => { if (vivo) setServizio((data as typeof servizio) ?? null) })
+    return () => { vivo = false }
+  }, [kind, projectId, fixed?.projectId])
+
+  const { templates, nodes } = useServiceCatalog(kind === 'project' && !!servizio?.service_type)
+  const modelliTask = servizio?.service_type
+    ? modelliDiTipo(templates, nodes, [{ service_type: servizio.service_type, service_subtype: servizio.service_subtype }], 'task')
+    : []
 
   useEffect(() => {
     if (!pick || !wsId) { setMs([]); setMsId(''); return }
@@ -428,6 +448,16 @@ export function TaskComposer({
         {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
         <input value={title} onChange={e => setTitle(e.target.value)} autoFocus={!!fixed}
           className={inputCls} placeholder="Cosa va fatto?" />
+        {!title.trim() && modelliTask.length > 0 && (
+          <div className="mt-2">
+            <SuggerimentiModello voci={modelliTask} etichetta="I task di questo servizio"
+              onPick={m => {
+                setTitle(m.nome)
+                if (m.descrizione) setDescription(d => d || m.descrizione || '')
+                if (m.priorita) setPriority(m.priorita as Priority)
+              }} />
+          </div>
+        )}
       </Field>
 
       {/* §353 — subito dopo il titolo, non dietro un pannello: è il campo che
