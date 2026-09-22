@@ -20,7 +20,8 @@ export type NewMilestoneValues = {
 
 export function NewMilestoneModal({
   context, index, profiles, pending, clientVisibleAllowed = true, suggestedDue,
-  servizio = null, onClose, onCreate, onCreaDaModello,
+  servizio = null, destinazione, destinazionePronta = true,
+  onClose, onCreate, onCreaDaModello,
 }: {
   context: string
   /** posizione nella timeline: alimenta il prefisso "M{n} ·" della convention */
@@ -31,6 +32,13 @@ export function NewMilestoneModal({
   suggestedDue?: string | null
   /** §405 — il servizio del progetto: dice quali tappe propone il modello */
   servizio?: { service_type: string | null; service_subtype: string | null } | null
+  /**
+   * §408 — dove va a finire, quando non lo sa già chi apre la modale: dal menu
+   * «Crea» la tappa nasce senza un progetto davanti, e il dove si sceglie qui
+   * invece che in una seconda modale con gli stessi campi scritti due volte.
+   */
+  destinazione?: React.ReactNode
+  destinazionePronta?: boolean
   onClose: () => void
   onCreate: (v: NewMilestoneValues) => void
   /** senza, le tappe a modello non si propongono: chi non sa crearle non le offre */
@@ -55,11 +63,13 @@ export function NewMilestoneModal({
 
   return (
     <ModalShell title="Nuova milestone" hint={context} icon={<Flag className="w-4 h-4 text-gold-text" />}
-      onClose={onClose} pending={pending} canSubmit={!!title.trim()}
+      onClose={onClose} pending={pending} canSubmit={!!title.trim() && destinazionePronta}
       onSubmit={() => onCreate({
         title: finalName, due_date: due || null, owner_id: owner || null,
         visibility, approval_required: approval,
       })}>
+
+      {destinazione}
 
       {onCreaDaModello && servizio?.service_type && (loading ? (
         <p className="flex items-center gap-2 text-2xs text-text-tertiary">

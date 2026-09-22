@@ -6,16 +6,18 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  Plus, Briefcase, FolderTree, CheckSquare, Users,
+  Plus, Briefcase, FolderTree, CheckSquare, Users, Flag,
   Wand2, AlertTriangle,
 } from 'lucide-react'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import { createWorkstream, createWorkstreamDaModello } from '@/app/actions/workstreams'
+import { createMilestone, updateMilestone, createMilestoneDaModello } from '@/app/actions/milestones'
+import { NewMilestoneModal } from '@/components/projects/NewMilestoneModal'
 import { apriPeriodi } from '@/app/actions/periodi'
 import {
   ModalShell, Group, Field, SearchInput, PickRow, Segmented, Empty, inputCls,
 } from '@/components/shared/formkit'
-import { workstreamPrefixFromProjectName, applyWorkstreamPrefix, stripWorkstreamPrefix } from '@/lib/project-naming'
+import { workstreamPrefixFromProjectName, applyWorkstreamPrefix, stripWorkstreamPrefix, milestoneName } from '@/lib/project-naming'
 import { canCreateClients, canGovernProjects } from '@/lib/permissions'
 import { TaskComposer } from '@/components/tasks/TaskComposer'
 import {
@@ -38,7 +40,7 @@ type PersonOpt = { id: string; full_name: string; app_role: string | null; avata
 type WsOpt = { id: string; name: string }
 type MsOpt = { id: string; title: string; milestone_type: string }
 
-type Mode = null | 'client' | 'project' | 'workstream' | 'task'
+type Mode = null | 'client' | 'project' | 'workstream' | 'milestone' | 'task'
 
 export function QuickCreate({ context = 'admin' }: { context?: 'admin' | 'workspace' }) {
   const router = useRouter()
@@ -136,6 +138,7 @@ export function QuickCreate({ context = 'admin' }: { context?: 'admin' | 'worksp
             )}
             <MenuRow icon={<Briefcase className="w-4 h-4 text-gold-text" />} title="Nuovo progetto" hint="Con il wizard" onClick={() => start('project')} />
             <MenuRow icon={<FolderTree className="w-4 h-4 text-gold-text" />} title="Nuovo workstream" hint="In un progetto" onClick={() => start('workstream')} />
+            <MenuRow icon={<Flag className="w-4 h-4 text-gold-text" />} title="Nuova milestone" hint="Una consegna in una corsia" onClick={() => start('milestone')} />
             <MenuRow icon={<CheckSquare className="w-4 h-4 text-gold-text" />} title="Nuova task" hint="In progetto, ad hoc o al cliente" onClick={() => start('task')} />
           </div>
         </>,
@@ -152,6 +155,9 @@ export function QuickCreate({ context = 'admin' }: { context?: 'admin' | 'worksp
           basePath={`${base}/progetti`} onClose={() => setMode(null)} />, document.body)}
       {mounted && mode === 'workstream' && createPortal(
         <WorkstreamModal projects={projects} base={base} canPersist={canPersistCatalog}
+          onClose={() => setMode(null)} onDone={() => setMode(null)} notify={notifyCreated} />, document.body)}
+      {mounted && mode === 'milestone' && createPortal(
+        <MilestoneModal projects={projects} base={base}
           onClose={() => setMode(null)} onDone={() => setMode(null)} notify={notifyCreated} />, document.body)}
       {mounted && mode === 'task' && createPortal(
         <TaskComposer
@@ -390,3 +396,137 @@ function WorkstreamModal({ projects, base, canPersist, onClose, onDone, notify }
   )
 }
 
+/**
+ * §408 — la milestone dal menu «Crea».
+ *
+ * Mancava, ed era l'unico anello: dal menu nascevano anagrafica, progetto,
+ * workstream e task, e la tappa — che è la consegna, cioè la cosa che il
+ * cliente vede — bisognava andarla a creare dentro il progetto. Qui si sceglie
+ * il dove (progetto → corsia) e poi è **la stessa modale** della scheda
+ * progetto, coi suggerimenti dai modelli (§405): una sola grammatica, o la
+ * stessa tappa nasce diversa a seconda della porta.
+ */
+function MilestoneModal({ projects, base, onClose, onDone, notify }: {
+  projects: ProjectOpt[]; base: string
+  onClose: () => void; onDone: () => void; notify: (l: string, h: string) => void
+}) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
+  const [projectId, setProjectId] = useState('')
+  const [wsId, setWsId] = useState('')
+  const [q, setQ] = useState('')
+  const [corsie, setCorsie] = useState<WsOpt[]>([])
+  const [tappe, setTappe] = useState<number>(0)
+  const [profili, setProfili] = useState<{ id: string; full_name: string; avatar_url: string | null }[]>([])
+
+  const project = projects.find(p => p.id === projectId)
+  const ws = corsie.find(c => c.id === wsId)
+
+  const filtered = useMemo(() => {
+    const t = q.trim().toLowerCase()
+    return t ? projects.filter(p => p.name.toLowerCase().includes(t)) : projects
+  }, [projects, q])
+
+  useEffect(() => {
+    let vivo = true
+    void createBrowserClient().from('profiles').select('id, full_name, avatar_url').eq('is_active', true).order('full_name')
+      .then(({ data }) => { if (vivo) setProfili((data ?? []) as typeof profili) })
+    return () => { vivo = false }
+  }, [])
+
+  useEffect(() => {
+    if (!projectId) { setCorsie([]); setWsId(''); return }
+    let vivo = true
+    void createBrowserClient().from('project_workstreams').select('id, name')
+      .eq('project_id', projectId).order('sort_order')
+      .then(({ data }) => {
+        if (!vivo) return
+        const list = (data ?? []) as WsOpt[]
+        setCorsie(list)
+        setWsId(list[0]?.id ?? '')
+      })
+    return () => { vivo = false }
+  }, [projectId])
+
+  /* Quante consegne ci sono già: è l'indice del prefisso «M{n}» della
+     convention, e senza si ricomincerebbe da M1 su una corsia già piena. */
+  useEffect(() => {
+    if (!wsId) { setTappe(0); return }
+    let vivo = true
+    void createBrowserClient().from('milestones').select('id, milestone_type').eq('workstream_id', wsId)
+      .then(({ data }) => {
+        if (!vivo) return
+        setTappe((data ?? []).filter((m: { milestone_type: string }) => m.milestone_type === 'delivery').length)
+      })
+    return () => { vivo = false }
+  }, [wsId])
+
+  const apri = (id: string) => `${base}/progetti/${projectId}/workstream/${wsId}?ms=${id}`
+
+  return (
+    <NewMilestoneModal
+      context={ws ? ws.name : project ? project.name : 'In quale corsia?'}
+      index={tappe} profiles={profili} pending={pending}
+      clientVisibleAllowed={!!project?.client_id}
+      servizio={project ? { service_type: project.service_type, service_subtype: project.service_subtype } : null}
+      destinazionePronta={!!projectId && !!wsId}
+      destinazione={
+        <>
+          <Group label="Progetto" meta={projectId
+            ? <button type="button" onClick={() => { setProjectId(''); setWsId('') }} className="text-2xs font-semibold text-gold-text">Cambia</button>
+            : undefined}>
+            {projectId && project ? (
+              <PickRow selected onClick={() => { setProjectId(''); setWsId('') }}
+                icon={<Briefcase className="w-4 h-4 text-gold-text shrink-0" />} title={project.name} />
+            ) : (
+              <div className="space-y-2">
+                <SearchInput value={q} onChange={setQ} placeholder="Cerca progetto…" autoFocus />
+                {filtered.length === 0 ? <Empty>Nessun progetto per «{q}».</Empty> : (
+                  <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                    {filtered.map(p => (
+                      <PickRow key={p.id} selected={false} onClick={() => { setProjectId(p.id); setQ('') }}
+                        icon={<Briefcase className="w-4 h-4 text-gold-text shrink-0" />} title={p.name} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </Group>
+
+          {projectId && (
+            <Group label="Workstream">
+              {corsie.length === 0 ? (
+                <Empty>Questo progetto non ha ancora workstream: creane uno prima.</Empty>
+              ) : (
+                <select value={wsId} onChange={e => setWsId(e.target.value)} aria-label="Workstream"
+                  className={inputCls}>
+                  {corsie.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              )}
+            </Group>
+          )}
+        </>
+      }
+      onClose={onClose}
+      onCreate={v => start(async () => {
+        try {
+          const id = await createMilestone({
+            project_id: projectId, workstream_id: wsId, title: v.title,
+            due_date: v.due_date, visibility: v.visibility, approval_required: v.approval_required,
+          })
+          if (v.owner_id) await updateMilestone(id, projectId, { owner_id: v.owner_id })
+          notify('Milestone creata', apri(id)); onDone(); router.refresh()
+        } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+      })}
+      onCreaDaModello={m => start(async () => {
+        try {
+          const r = await createMilestoneDaModello({
+            project_id: projectId, workstream_id: wsId, node_id: m.nodeId,
+            title: milestoneName(tappe, m.nome),
+          })
+          notify(`«${m.nome}» creata${r.task ? `: ${r.task} task` : ''}`, apri(r.id))
+          onDone(); router.refresh()
+        } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+      })} />
+  )
+}

@@ -552,6 +552,19 @@ le sue ricorrenti col responsabile della catena §346 e `generaSubito`), mentre
 modulo — titolo, descrizione, priorità, frequenza. Cliccare un suggerimento non
 crea niente: scrive nei campi, così quello che parte è quello che si vede.
 
+**§408 — la milestone, anche dal menu «Crea».** Era l'unico anello che
+mancava: dal menu nascevano anagrafica, progetto, workstream e task, e la
+**consegna** — cioè la cosa che il cliente vede — bisognava andarla a creare
+dentro il progetto. Adesso c'è, e non è una modale nuova: è **la stessa**
+(`NewMilestoneModal`) con un `destinazione` in cima, progetto → corsia, come
+fa il composer delle task. Due moduli con gli stessi campi divergono al primo
+campo aggiunto, e la stessa tappa nascerebbe diversa a seconda della porta.
+
+Il dove porta due cose che non si indovinano: **il servizio** del progetto, che
+dice quali tappe propone il modello (§405), e **quante consegne** ci sono già
+nella corsia, che è l'indice del prefisso «M{n}» della convention — senza, ogni
+tappa nuova ricomincerebbe da M1 su una corsia già piena.
+
 **§392 — il giro su tutti** (`POST /api/periods/run`, `PERIODS_CRON_SECRET`,
 task pianificato alle 04:00). Una volta al giorno e non più spesso: un
 periodo si apre una volta ogni due mesi, e il giro serve a non doverci
