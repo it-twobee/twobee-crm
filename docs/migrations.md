@@ -80,6 +80,27 @@ Verificata dal lato applicativo subito dopo: la tabella risponde, e
 che è giusto: il battito arriva col deploy). Additiva, rilanciabile, nessun
 prerequisito oltre `profiles` e `activity_log`.
 
+## 254 — una task sopravvive alla persona (§418, da applicare)
+
+`254_task_senza_persona.sql`: **da eseguire**. Rilanciabile, tocca solo vincoli.
+
+`tasks.assignee_id` puntava a `profiles` senza clausola di cancellazione, e
+senza clausola Postgres sceglie `NO ACTION`: bastava **una** task, anche chiusa,
+anche assegnata per sbaglio, perché quell'account non si potesse più eliminare.
+Omissione della **147**, la stessa che aveva perso i trigger di cronologia.
+Adesso `SET NULL`, come già `activity_log.user_id` e `files.uploaded_by`: la
+task resta, torna senza assegnatario, e la riga in `task_assignees` sparisce in
+cascata — quindi le due fonti restano d'accordo.
+
+Converte tutte le colonne di `tasks` verso `profiles` che sono nullable e
+bloccanti, chiedendole allo schema: è un elenco scritto a mano che ha creato il
+problema. Le colonne `NOT NULL` restano fuori, perché lì `SET NULL` violerebbe
+il vincolo.
+
+La **verifica 2** stampa l'inventario di chi blocca ancora in tutto lo schema:
+non è un elenco da svuotare — per certe tabelle bloccare è giusto — ma serve a
+vedere il prossimo vicolo cieco prima di aprirlo.
+
 ## 253 — la cronologia non vedeva più le task (§412, da applicare)
 
 `253_cronologia_cieca.sql`: **da eseguire**. Additiva e rilanciabile.

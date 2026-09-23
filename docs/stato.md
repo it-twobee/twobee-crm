@@ -1,5 +1,29 @@
 # Dove siamo
 
+## Eliminare un membro non era un vicolo cieco per caso — §418, 2026-09-23
+
+La finestra di eliminazione spiegava perché la porta è chiusa e offriva un
+bottone solo: «Annulla». L'azione giusta — disattivare — stava **scritta nel
+testo** e non si poteva fare da lì.
+
+Sotto c'erano due cose diverse. Una è un difetto vero: `tasks.assignee_id`
+puntava a `profiles` senza clausola di cancellazione, quindi `NO ACTION`, quindi
+una sola task in carico — anche completata, anche assegnata per sbaglio a un
+account del portale (§409) — bloccava per sempre l'eliminazione. Migration
+**254**: `SET NULL`, come le altre colonne di attribuzione dello stesso schema.
+La task resta e torna libera.
+
+L'altra non è un difetto: i file caricati nell'area di un cliente e i movimenti
+del portale **non devono sparire** perché cancelliamo un account. Quelli si
+tolgono dal posto in cui stanno, non da una finestra delle impostazioni, e
+adesso la finestra lo dice invece di limitarsi a rifiutare.
+
+In più le tracce si leggono: «1 task assegnata», «1 file caricato nell'area di
+un cliente» al posto di «1 in tasks», «1 in portal_materials»
+(`lib/tracce-membro.ts`). Una tabella che non conosciamo esce col **nome vero** e
+non con una parola rassicurante: travestirla da «altri dati» è il modo migliore
+per far cancellare a qualcuno una cosa che non ha capito.
+
 ## «Da quanto non c'è» aveva una risposta, in un'altra tabella — §417, 2026-09-23
 
 Il primo giorno la vista sull'utilizzo mostrava cinque righe su otto senza

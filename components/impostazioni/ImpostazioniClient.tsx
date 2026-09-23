@@ -10,6 +10,7 @@ import {
   SECTION_LABELS, ACTION_LABELS, isSuperAdmin, buildPermMap,
 } from '@/lib/permissions'
 import { adminChangeUserEmail, adminChangeUserName, adminSendPasswordReset, adminUpdateUserProfile, adminUserTraces, adminDeleteUser, type Traccia } from '@/app/actions/admin-user'
+import { etichettaTraccia } from '@/lib/tracce-membro'
 
 const EDITABLE_ROLES: Exclude<AppRole, 'super_admin'>[] = ['admin', 'manager', 'senior', 'junior', 'stage', 'freelance', 'partner', 'viewer', 'client', 'guest']
 const AREAS = ['growth', 'digital', 'ops', 'hr']
@@ -344,15 +345,20 @@ function UserEditModal({
  * Il nome da riscrivere non è teatro: è l'unico modo perché un clic partito
  * sulla riga sbagliata non diventi una cancellazione.
  */
-function DeleteUserDialog({ user, onClose, onDeleted }: {
+function DeleteUserDialog({ user, onClose, onDeleted, onDisattiva }: {
   user: Profile
   onClose: () => void
   onDeleted: (id: string) => void
+  /* §418 — la via d'uscita. Senza, questa finestra è un vicolo cieco: spiega
+     perché la porta è chiusa e lascia come unica scelta «Annulla», mentre
+     l'azione giusta — disattivare — sta scritta nel testo e non si può fare. */
+  onDisattiva: (id: string) => Promise<void>
 }) {
   const [tracce, setTracce] = useState<Traccia[] | null>(null)
   const [errore, setErrore] = useState<string | null>(null)
   const [conferma, setConferma] = useState('')
   const [pending, setPending] = useState(false)
+  const [disattivando, setDisattivando] = useState(false)
 
   useEffect(() => {
     let vivo = true
@@ -401,17 +407,23 @@ function DeleteUserDialog({ user, onClose, onDeleted }: {
           ) : bloccanti.length > 0 ? (
             <>
               <p className="text-sm text-text-primary">
-                Ha lavorato qui: questi dati non si possono cancellare, e il database rifiuterebbe.
+                Ha lasciato qualcosa che resta anche senza di lui, e il database non lo lascia cancellare.
               </p>
               <ul className="space-y-1">
                 {bloccanti.map((t) => (
-                  <li key={`${t.tabella}.${t.colonna}`} className="text-xs text-text-secondary">
-                    <span className="text-text-primary">{t.righe}</span> in {t.tabella}
+                  <li key={`${t.tabella}.${t.colonna}`} className="text-xs text-text-primary">
+                    {etichettaTraccia(t.tabella, t.righe)}
                   </li>
                 ))}
               </ul>
               <p className="text-xs text-text-secondary">
-                Disattivalo: esce dagli elenchi e non entra più, ma la sua storia resta leggibile.
+                Per eliminarlo davvero bisogna prima togliere queste cose dal posto in cui
+                stanno — dalla scheda del progetto o dall&apos;area file del cliente, non da qui:
+                sono dati di qualcun altro, e questa finestra non è il posto per cancellarli.
+              </p>
+              <p className="text-xs text-text-secondary">
+                Altrimenti <span className="text-text-primary">disattivalo</span>: esce dagli elenchi
+                e non entra più, ma la sua storia resta leggibile.
               </p>
             </>
           ) : (
@@ -442,6 +454,15 @@ function DeleteUserDialog({ user, onClose, onDeleted }: {
 
         <div className="flex justify-end gap-2 px-6 py-4 border-t border-border">
           <button onClick={onClose} className="text-xs text-text-secondary hover:text-text-primary px-3 py-2">Annulla</button>
+          {bloccanti.length > 0 && user.is_active && (
+            <button
+              onClick={async () => { setDisattivando(true); await onDisattiva(user.id); onClose() }}
+              disabled={disattivando}
+              className="flex items-center gap-1.5 text-xs font-semibold border border-border-interactive text-text-primary px-4 py-2 rounded-lg hover:bg-surface-hover disabled:opacity-40">
+              {disattivando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserMinus className="w-3.5 h-3.5" />}
+              Disattiva
+            </button>
+          )}
           {bloccanti.length === 0 && !errore && (
             <button onClick={elimina} disabled={!puo || pending}
               className="flex items-center gap-1.5 text-xs font-semibold bg-error text-on-error px-4 py-2 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed">
@@ -591,6 +612,7 @@ function UsersTab({ currentProfile, profiles: initialProfiles, clients }: { curr
           user={deleting}
           onClose={() => setDeleting(null)}
           onDeleted={(id) => { setProfiles((p) => p.filter((u) => u.id !== id)); setDeleting(null) }}
+          onDisattiva={deactivate}
         />
       )}
 
