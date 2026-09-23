@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, FolderOpen, Settings, CalendarDays, Headphones,
   Ticket, UserCircle2, History, Lightbulb, FolderKanban, Briefcase, ListChecks, ListTodo,
-  Wallet, Target, Handshake, Landmark, Users2, Banknote, FileText, Share2, Table2, Radar, KeyRound, Activity,
+  Wallet, Target, Handshake, Landmark, Users2, Banknote, FileText, Share2, Table2, Radar, KeyRound, Activity, GitBranch,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -96,6 +96,9 @@ export const navSections: NavSection[] = [
       { href: '/impostazioni/utilizzo', icon: Activity, label: 'Utilizzo', superAdminOnly: true },
       { href: '/impostazioni', icon: Settings, label: 'Impostazioni', adminOnly: true },
       { href: '/impostazioni/tracking', icon: KeyRound, label: 'Chiavi tracking', adminOnly: true },
+      /* §425 — la forma del percorso commerciale: riordinarla cambia la
+         bacheca a tutti, quindi è configurazione e non uno strumento di lavoro. */
+      { href: '/impostazioni/commerciale', icon: GitBranch, label: 'Fasi commerciale', adminOnly: true },
     ],
   },
 ]

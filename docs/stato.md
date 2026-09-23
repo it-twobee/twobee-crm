@@ -1,5 +1,28 @@
 # Dove siamo
 
+## L'editor delle fasi commerciali — §425, 2026-09-23
+
+`/impostazioni/commerciale`, admin e super admin: aggiungi, rinomini, riordini,
+ritiri. Chiude la Fase 1 del rifacimento.
+
+Tre scelte che vale la pena ricordare. **Si salva tutto insieme**, perché
+l'elenco è una forma e non otto righe indipendenti — «una sola fase vinta» non è
+una proprietà di una riga, e salvandone una alla volta si passerebbe da stati
+che non stanno in piedi. **I problemi si vedono mentre scrivi**, con la stessa
+funzione che controlla il server e che verifica il gate: tre copie della stessa
+regola sono tre regole diverse. **Si sposta con due bottoni**, non trascinando:
+il trascinamento HTML5 sul dito non esiste.
+
+Una fase con delle trattative sopra **non si elimina**: si ritira. La differenza
+è che ritirata resta leggibile sulle righe vecchie e sparisce dalle scelte
+nuove, mentre eliminarla lascerebbe righe che puntano a niente — e il vincolo lo
+impedisce comunque, ma con un messaggio da database. Qui si contano prima e si
+dice quante sono.
+
+Rinominare la chiave è permesso perché la chiave esterna è `ON UPDATE CASCADE`:
+le righe seguono. È l'unica ragione per cui si può lasciar cambiare invece di
+congelarla per sempre.
+
 ## Le fasi commerciali diventano dati — §424, 2026-09-23
 
 Fase 1 del rifacimento dell'area commerciale. Notion si spegne: cade la regola

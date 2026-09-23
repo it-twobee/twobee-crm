@@ -1,4 +1,54 @@
-# Area commerciale — il CRM di Notion, qui dentro
+# Area commerciale
+
+## Le fasi sono dati, e ognuna dichiara il suo ruolo — §424, §425
+
+Notion si spegne. Cade la regola che teneva dodici fasi trascritte lettera per
+lettera (§367): il percorso si accorcia a **otto stati** e l'elenco vive in
+`sales_stages` (migration 258), non più in `lib/sales-stages.ts`.
+
+Il **ruolo** — `nuovo`, `in_corso`, `vinto`, `perso`, `sospeso` — è la parte che
+rende possibile tutto il resto. Con le fasi configurabili il codice non può più
+nominarle: `active_client` stava dentro la conversione a cliente, tre controlli
+di igiene e il tasso di conversione, e il giorno in cui qualcuno la rinomina
+quei confronti smettono di combaciare **senza dare errore** — un `false` non è
+un'eccezione. Adesso si chiede «la fase che vince». Rinominarla non rompe
+niente; cambiarle ruolo sì, ed è giusto che si veda.
+
+**Due cose sono uscite dalla pipeline e sono diventate campi della riga.** La
+**qualifica** (in target / non in target / da valutare) è un giudizio su chi è
+il lead, non un punto del percorso: un lead in target può stare ovunque. I
+**tentativi** sono un contatore — «chiamata senza risposta» come fase fa
+rimbalzare avanti e indietro una riga e fa perdere dov'era davvero. Che fossero
+la cosa giusta si vede sui dati: due dei sette STATUS del foglio
+(«Qualificato», «Non in target») non erano fasi, e finora venivano schiacciati
+dentro la colonna delle fasi.
+
+`lib/sales-stages.ts` non contiene più l'elenco: contiene le **regole** che
+valgono su qualunque elenco, più il seme da cui parte il database. Le funzioni
+prendono le fasi come parametro — è l'unico modo perché restino pure adesso che
+l'elenco vero cambia mentre il tool gira. Il gate verifica gli invarianti, non i
+nomi: una sola porta d'ingresso, una sola vinta, almeno una persa, due fasi
+vicine mai dello stesso colore. **È la stessa funzione** (`problemiFasi`) che
+l'editor chiama prima di salvare e che il server rifà per conto suo.
+
+L'elenco scende dal server una volta per richiesta (`lib/sales-fasi.ts`) e sta
+in un contesto React (`FasiContext`): passarlo di proprietà in proprietà per sei
+livelli avrebbe messo la stessa cosa in trenta firme, dove prima o poi una si
+dimentica. Se la lettura fallisce si torna al seme — una pagina senza fasi
+mostra righe senza stato, che somiglia a un archivio vuoto.
+
+**L'editor** sta in `/impostazioni/commerciale`, admin e super admin
+(`requireSalesConfig`). Mostra quante trattative stanno su ogni fase, perché
+spostare qualcosa senza sapere quanto pesa è il modo di scoprirlo dopo. Una fase
+con delle righe **non si elimina**: si ritira — resta leggibile sulle righe
+vecchie e sparisce dalle scelte. Rinominare la chiave è permesso perché la
+chiave esterna è `ON UPDATE CASCADE` e le righe seguono.
+
+Quello che resta da fare dell'area commerciale è nel piano in nove fasi: elenco,
+scheda, filtri, numeri, import da file, foglio bidirezionale, configurazione
+estesa, campi personalizzati.
+
+## Com'era prima: il CRM di Notion, qui dentro
 
 ## Foglio attivo e follow-up nel calendario — 21 settembre 2026
 

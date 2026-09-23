@@ -40,6 +40,11 @@ const is = (label: string, got: unknown, want: unknown) => {
 const GUARD_CONDIVISE = [
   'requireEconomicsAdmin', 'requireInternalStaff', 'requireAgencyKeyManager',
   'requireStaff', 'requireAdmin', 'requireSalesAccess',
+  /* §425 — configurare l'area commerciale non è usarla: `requireSalesConfig`
+     (lib/sales-guard.ts) legge la sessione e guarda `app_role`, e ammette solo
+     admin e super admin. Chi ha `can_view_deals` lavora i lead, non riordina le
+     fasi a tutti. */
+  'requireSalesConfig',
 ]
 const LEGGE_SESSIONE = /auth\.getUser\(|getSessionProfile\(|getSessionUser\(|getViewer\(/
 /**
