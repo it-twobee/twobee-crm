@@ -99,6 +99,9 @@ const PAGE = 1000
 /* A pagine: PostgREST taglia a mille righe, e una somma sulle prime mille
    diceva «c'è spazio» a un'azienda che l'aveva finito. `null` = non lo so. */
 export async function usedMaterialBytes(db: SupabaseClient, clientId: string): Promise<number | null> {
+  // §413 — la somma la fa il database (254); senza la migration, a pagine.
+  const summed = await db.rpc('portal_material_usage', { p_client: clientId })
+  if (!summed.error && summed.data != null && Number.isFinite(Number(summed.data))) return Number(summed.data)
   let total = 0
   for (let from = 0; ; from += PAGE) {
     const page = await db.from('portal_materials').select('id, size')

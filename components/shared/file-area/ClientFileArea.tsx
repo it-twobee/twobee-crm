@@ -4,20 +4,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Archive, ArchiveRestore, FolderOpen, FolderUp, LayoutGrid, List, Loader2, Trash2, Upload,
+  Archive, ArchiveRestore, FolderInput, FolderOpen, FolderPlus, FolderUp, LayoutGrid, List, Loader2, Pencil, Trash2,
+  Upload, X,
 } from 'lucide-react'
 import { getClientFiles } from '@/app/actions/client-files'
 import type { ClientFilesData } from '@/app/actions/client-files'
 import { hasPreview, MaterialPreview } from '@/components/shared/MaterialPreview'
 import { SearchInput, Segmented } from '@/components/shared/formkit'
 import {
-  DEFAULT_DIR, SPACE_LABEL, listFolder, parentPath, searchMaterials, sortFiles, sortFolders,
+  DEFAULT_DIR, SPACE_LABEL, allFolders, folderMoveTarget, folderNameError, isInside, joinPath, lastSegment,
+  listFolder, parentPath, renameFile, searchMaterials, sortFiles, sortFolders, splitName,
 } from '@/lib/portal/explorer'
 import type { ClientMaterial, SearchResult, SortDir, SortKey, Space } from '@/lib/portal/explorer'
 import {
   Breadcrumb, ConfirmDialog, FileCard, FileRow, FolderCard, FolderRow, UploadPanel, buttonCls, locationOf,
 } from './items'
 import type { DropProps, MenuItem } from './items'
+import { MoveDialog, NameDialog } from './dialogs'
 import { pickedFromDrop, pickedFromInput, useUploads } from './uploads'
 
 /* §416 — L'area file di un cliente, vista da noi: un esploratore, non più un
@@ -64,6 +67,19 @@ function readPrefs(): Prefs {
 
 const URL_SPACE: Record<Space, string> = { team: 'nostri', cliente: 'cliente' }
 
+/* §413 — Cosa si trascina dentro l'area: file, o una cartella. Tipi propri,
+   così un trascinamento dal computer (`Files`) non si confonde con uno
+   spostamento, e un link trascinato da un'altra pagina non sposta niente. */
+const DRAG_FILES = 'application/x-twobee-files'
+const DRAG_FOLDER = 'application/x-twobee-folder'
+
+type Dialog =
+  | { kind: 'nuova' }
+  | { kind: 'rinomina-file'; m: ClientMaterial }
+  | { kind: 'rinomina-cartella'; path: string }
+  | { kind: 'sposta-file'; ids: string[] }
+  | { kind: 'sposta-cartella'; path: string }
+
 export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
   clientId: string
   portalTabHref?: string
@@ -80,7 +96,9 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
   const [query, setQuery] = useState('')
   const [showArchived, setShowArchived] = useState(false)
   const [preview, setPreview] = useState<ClientMaterial | null>(null)
-  const [toDelete, setToDelete] = useState<ClientMaterial | null>(null)
+  const [toDelete, setToDelete] = useState<ClientMaterial[] | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [dialog, setDialog] = useState<Dialog | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
   const [dropTarget, setDropTarget] = useState<string | null>(null)
@@ -134,13 +152,21 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
   }), [visible])
   const space = prefs.space
   const inSpace = useMemo(() => visible.filter(m => m.source === space), [visible, space])
+  const explicit = useMemo(() => (data?.folders ?? []).filter(f => f.source === space).map(f => f.path), [data, space])
   const listing = useMemo(() => {
-    const here = listFolder(inSpace, path)
+    const here = listFolder(inSpace, path, explicit)
     return { folders: sortFolders(here.folders, prefs.sort, prefs.dir), files: sortFiles(here.files, prefs.sort, prefs.dir) }
-  }, [inSpace, path, prefs.sort, prefs.dir])
+  }, [inSpace, path, explicit, prefs.sort, prefs.dir])
   const recent = useMemo(() => sortFiles(inSpace, 'data', 'desc'), [inSpace])
   const searching = query.trim().length > 0
-  const results = useMemo(() => searching ? searchMaterials(visible, query) : null, [searching, visible, query])
+  const results = useMemo(() => searching
+    ? searchMaterials(visible, query, (data?.folders ?? []).map(f => ({ space: f.source, path: f.path })))
+    : null, [searching, visible, query, data])
+  // Tutte le cartelle dello spazio, archiviati compresi: servono a «Sposta in…».
+  const spaceFolders = useMemo(() => allFolders(materials.filter(m => m.source === space), explicit), [materials, space, explicit])
+
+  // Una selezione vale per quello che si sta guardando: cambiata la vista, si riparte.
+  useEffect(() => { setSelected(new Set()) }, [path, space, view, query, showArchived])
 
   if (loading) return <p className="flex items-center gap-2 py-6 text-sm text-text-secondary">
     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Carico i file…
@@ -162,46 +188,102 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
     setPath(next); setView('cartelle'); setQuery('')
   }
 
-  async function act(m: ClientMaterial, azione: 'archivia' | 'ripristina' | 'elimina') {
-    setError(''); setPending(true)
+  /** Una richiesta, e poi si rilegge. Ritorna l'errore da mostrare, o `null`. */
+  async function send(url: string, method: 'POST' | 'PATCH', body: unknown, reloadAfter = true): Promise<string | null> {
     try {
-      const response = await fetch(`/api/area-cliente/file/${m.id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ azione }),
-      })
+      const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
-        setError(payload?.error ?? 'Operazione non riuscita.')
-        return false
+        return payload?.error ?? 'Operazione non riuscita.'
       }
-      await reload()
-      return true
-    } catch { setError('Connessione interrotta. Riprova.'); return false }
-    finally { setPending(false) }
+      if (reloadAfter) await reload()
+      return null
+    } catch { return 'Connessione interrotta. Riprova.' }
   }
 
+  async function act(list: ClientMaterial[], azione: 'archivia' | 'ripristina' | 'elimina') {
+    setError(''); setPending(true)
+    const failures: string[] = []
+    for (const m of list) {
+      const failure = await send(`/api/area-cliente/file/${m.id}`, 'PATCH', { azione }, false)
+      if (failure) failures.push(list.length > 1 ? `${m.name}: ${failure}` : failure)
+    }
+    await reload()
+    setPending(false)
+    setSelected(new Set())
+    if (failures.length) setError(failures.join(' · '))
+    return !failures.length
+  }
+
+  const moveFiles = async (ids: string[], destination: string) => {
+    setError('')
+    const failure = await send('/api/area-cliente/file/sposta', 'POST', { client: clientId, ids, destinazione: destination })
+    if (!failure) setSelected(new Set())
+    return failure
+  }
+  const folderAction = (percorso: string, azione: string, extra: Record<string, string> = {}) =>
+    send('/api/area-cliente/cartelle', 'PATCH', { client: clientId, spazio: space, percorso, azione, ...extra })
+  const moveFolder = async (from: string, toParent: string) => {
+    const target = folderMoveTarget(from, toParent)
+    if ('error' in target) return target.error
+    const failure = await folderAction(from, 'sposta', { destinazione: toParent })
+    // Chi stava guardando dentro la cartella spostata la segue.
+    if (!failure && isInside(path, from)) setPath(target.path + path.slice(from.length))
+    return failure
+  }
+
+  const canOrganize = data.canOrganize
   const menuFor = (m: ClientMaterial, outside: boolean): MenuItem[] => [
     ...(outside ? [{
       label: 'Apri la cartella', icon: <FolderOpen className="h-3.5 w-3.5" />,
       onSelect: () => openFolder(m.path ?? '', m.source),
     }] : []),
+    ...(canOrganize ? [
+      { label: 'Rinomina', icon: <Pencil className="h-3.5 w-3.5" />, onSelect: () => setDialog({ kind: 'rinomina-file', m }) },
+      ...(!outside ? [{ label: 'Sposta in…', icon: <FolderInput className="h-3.5 w-3.5" />, onSelect: () => setDialog({ kind: 'sposta-file', ids: [m.id] }) }] : []),
+    ] : []),
     ...(canWrite ? [m.archived_at
-      ? { label: 'Rimetti in vista', icon: <ArchiveRestore className="h-3.5 w-3.5" />, onSelect: () => { void act(m, 'ripristina') } }
-      : { label: 'Archivia', icon: <Archive className="h-3.5 w-3.5" />, onSelect: () => { void act(m, 'archivia') } }] : []),
+      ? { label: 'Rimetti in vista', icon: <ArchiveRestore className="h-3.5 w-3.5" />, onSelect: () => { void act([m], 'ripristina') } }
+      : { label: 'Archivia', icon: <Archive className="h-3.5 w-3.5" />, onSelect: () => { void act([m], 'archivia') } }] : []),
     ...(canWrite && canRemove(m) ? [{
-      label: 'Elimina', icon: <Trash2 className="h-3.5 w-3.5" />, danger: true, onSelect: () => setToDelete(m),
+      label: 'Elimina', icon: <Trash2 className="h-3.5 w-3.5" />, danger: true, onSelect: () => setToDelete([m]),
+    }] : []),
+  ]
+
+  const folderMenu = (folderPath: string, count: number): MenuItem[] => !canOrganize ? [] : [
+    { label: 'Rinomina', icon: <Pencil className="h-3.5 w-3.5" />, onSelect: () => setDialog({ kind: 'rinomina-cartella', path: folderPath }) },
+    { label: 'Sposta in…', icon: <FolderInput className="h-3.5 w-3.5" />, onSelect: () => setDialog({ kind: 'sposta-cartella', path: folderPath }) },
+    ...(count ? [{
+      label: 'Archivia la cartella', icon: <Archive className="h-3.5 w-3.5" />,
+      onSelect: () => { setPending(true); void folderAction(folderPath, 'archivia').then(f => { setPending(false); if (f) setError(f) }) },
+    }] : []),
+    ...(showArchived ? [{
+      label: 'Rimetti in vista il contenuto', icon: <ArchiveRestore className="h-3.5 w-3.5" />,
+      onSelect: () => { void folderAction(folderPath, 'ripristina').then(f => { if (f) setError(f) }) },
+    }] : []),
+    ...(!count ? [{
+      label: 'Elimina la cartella', icon: <Trash2 className="h-3.5 w-3.5" />, danger: true,
+      onSelect: () => { void folderAction(folderPath, 'elimina').then(f => { if (f) setError(f) }) },
     }] : []),
   ]
 
   const previewOf = (m: ClientMaterial) => hasPreview(m.mime, m.name) ? () => setPreview(m) : undefined
 
-  /* ── Trascinare dal computer ──────────────────────────────────────────── */
-  const carriesFiles = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes('Files')
+  /* ── Trascinare: dal computer si carica, dentro l'area si sposta ─────── */
+  const dragKind = (e: React.DragEvent) => {
+    const types = Array.from(e.dataTransfer.types)
+    if (types.includes(DRAG_FILES)) return 'files'
+    if (types.includes(DRAG_FOLDER)) return 'folder'
+    if (types.includes('Files')) return 'upload'
+    return null
+  }
   const dropProps = (target: string): DropProps => ({
     over: dropTarget === target,
     onDragOver: e => {
-      if (!carriesFiles(e)) return
+      const kind = dragKind(e)
+      if (!kind) return
       e.preventDefault(); e.stopPropagation()
-      e.dataTransfer.dropEffect = canUploadHere ? 'copy' : 'none'
+      e.dataTransfer.dropEffect = kind === 'upload' ? (canUploadHere ? 'copy' : 'none') : 'move'
       if (dropTarget !== target) setDropTarget(target)
     },
     onDragLeave: e => {
@@ -209,9 +291,24 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
       setDropTarget(current => current === target ? null : current)
     },
     onDrop: e => {
-      if (!carriesFiles(e)) return
+      const kind = dragKind(e)
+      if (!kind) return
       e.preventDefault(); e.stopPropagation()
       setDropTarget(null)
+      if (kind === 'files') {
+        let ids: string[] = []
+        try { ids = JSON.parse(e.dataTransfer.getData(DRAG_FILES)) } catch { /* trascinamento estraneo */ }
+        // Lasciati dove sono già: non c'è niente da spostare.
+        const moving = inSpace.filter(m => ids.includes(m.id) && (m.path ?? '') !== target).map(m => m.id)
+        if (moving.length) void moveFiles(moving, target).then(f => { if (f) setError(f) })
+        return
+      }
+      if (kind === 'folder') {
+        const from = e.dataTransfer.getData(DRAG_FOLDER)
+        if (!from || from === target || parentPath(from) === target) return
+        void moveFolder(from, target).then(f => { if (f) setError(f) })
+        return
+      }
       if (!canUploadHere) {
         setError(space === 'cliente'
           ? 'Qui carica il cliente, dal suo portale. Quello che carichi tu va in «Nostri».'
@@ -227,13 +324,36 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
   const area = dropProps(HERE)
   const showDropHint = dropTarget === HERE
 
-  const folderMenu = () => [] as MenuItem[]
   const grid = prefs.layout === 'griglia'
   const listCls = grid ? 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5' : 'space-y-0.5'
+  // Si sposta solo guardando una cartella: nella ricerca e nei recenti i file vengono da posti diversi.
+  const organizing = canOrganize && view === 'cartelle' && !searching
+
+  const fileDrag = (m: ClientMaterial) => organizing ? {
+    draggable: true,
+    onDragStart: (e: React.DragEvent) => {
+      const ids = selected.has(m.id) ? Array.from(selected) : [m.id]
+      e.dataTransfer.setData(DRAG_FILES, JSON.stringify(ids))
+      e.dataTransfer.effectAllowed = 'move'
+    },
+  } : undefined
+  const folderDrag = (folderPath: string) => organizing ? {
+    draggable: true,
+    onDragStart: (e: React.DragEvent) => { e.dataTransfer.setData(DRAG_FOLDER, folderPath); e.dataTransfer.effectAllowed = 'move' },
+  } : undefined
+  const selectionOf = (m: ClientMaterial) => organizing || (canWrite && view === 'cartelle' && !searching) ? {
+    checked: selected.has(m.id),
+    onChange: (checked: boolean) => setSelected(current => {
+      const next = new Set(current); if (checked) next.add(m.id); else next.delete(m.id); return next
+    }),
+  } : undefined
 
   const renderFile = (m: ClientMaterial, outside: boolean) => grid
-    ? <FileCard key={m.id} m={m} menu={menuFor(m, outside)} onPreview={previewOf(m)} where={outside ? locationOf(m) : undefined} />
-    : <FileRow key={m.id} m={m} menu={menuFor(m, outside)} onPreview={previewOf(m)} where={outside ? locationOf(m) : undefined} />
+    ? <FileCard key={m.id} m={m} menu={menuFor(m, outside)} onPreview={previewOf(m)} where={outside ? locationOf(m) : undefined}
+        drag={outside ? undefined : fileDrag(m)} selection={outside ? undefined : selectionOf(m)} />
+    : <FileRow key={m.id} m={m} menu={menuFor(m, outside)} onPreview={previewOf(m)} where={outside ? locationOf(m) : undefined}
+        drag={outside ? undefined : fileDrag(m)} selection={outside ? undefined : selectionOf(m)} />
+  const chosen = inSpace.filter(m => selected.has(m.id))
 
   const emptySpace = space === 'cliente'
     ? (data.portalActive === false
@@ -266,7 +386,7 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
     {!searching && <div className="flex flex-wrap items-center gap-2">
       <div className="min-w-0 flex-1">
         {view === 'cartelle'
-          ? <Breadcrumb space={space} path={path} onGo={setPath} />
+          ? <Breadcrumb space={space} path={path} onGo={setPath} dropFor={organizing ? dropProps : undefined} />
           : <p className="text-sm text-text-secondary">Tutti i file di «{SPACE_LABEL[space]}», dall’ultimo arrivato.</p>}
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -298,6 +418,30 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
       </div>
     </div>}
 
+    {!!chosen.length && <div role="region" aria-label="Selezione"
+      className="sticky top-14 z-10 flex flex-wrap items-center gap-2 rounded-xl border border-gold bg-surface p-2 shadow-soft">
+      <span className="px-1 text-2xs font-semibold text-text-primary">{chosen.length === 1 ? '1 file selezionato' : `${chosen.length} file selezionati`}</span>
+      {canOrganize && <button type="button" className={buttonCls} onClick={() => setDialog({ kind: 'sposta-file', ids: chosen.map(m => m.id) })}>
+        <FolderInput className="h-3.5 w-3.5" aria-hidden="true" />Sposta in…
+      </button>}
+      <button type="button" className={buttonCls} disabled={pending} onClick={() => { void act(chosen.filter(m => !m.archived_at), 'archivia') }}>
+        <Archive className="h-3.5 w-3.5" aria-hidden="true" />Archivia
+      </button>
+      {chosen.every(canRemove) && <button type="button" className={buttonCls} onClick={() => setToDelete(chosen)}>
+        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />Elimina
+      </button>}
+      <button type="button" className={`${buttonCls} ml-auto`} onClick={() => setSelected(new Set())}>
+        <X className="h-3.5 w-3.5" aria-hidden="true" />Deseleziona
+      </button>
+    </div>}
+
+    {canOrganize && !canUploadHere && !searching && view === 'cartelle' && <div className="flex flex-wrap items-center gap-2">
+      <button type="button" className={buttonCls} onClick={() => setDialog({ kind: 'nuova' })}>
+        <FolderPlus className="h-3.5 w-3.5" aria-hidden="true" />Nuova cartella
+      </button>
+      <span className="text-2xs text-text-tertiary">Per mettere in ordine i file del cliente: trascinali sulle cartelle.</span>
+    </div>}
+
     {canUploadHere && !searching && <div className="flex flex-wrap items-center gap-2">
       <input ref={fileInput} type="file" multiple className="sr-only" aria-label="Scegli i file da caricare"
         onChange={e => { if (e.target.files?.length) void uploads.start(pickedFromInput(e.target.files), path); e.target.value = '' }} />
@@ -310,6 +454,9 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
       <button type="button" className={buttonCls} disabled={uploads.active} onClick={() => folderInput.current?.click()}>
         <FolderUp className="h-3.5 w-3.5" aria-hidden="true" />Carica cartella
       </button>
+      {canOrganize && view === 'cartelle' && <button type="button" className={buttonCls} onClick={() => setDialog({ kind: 'nuova' })}>
+        <FolderPlus className="h-3.5 w-3.5" aria-hidden="true" />Nuova cartella
+      </button>}
       <span className="text-2xs text-text-tertiary">
         {path ? <>Finiscono in «{path.split('/').pop()}». </> : null}Puoi anche trascinarli qui sotto.
       </span>
@@ -349,18 +496,59 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
               </p>}
               {!!listing.folders.length && <ul className={`${listCls} ${listing.files.length ? 'mb-3' : ''}`}>
                 {listing.folders.map(folder => grid
-                  ? <FolderCard key={folder.path} folder={folder} onOpen={() => setPath(folder.path)} drop={dropProps(folder.path)} menu={folderMenu()} />
-                  : <FolderRow key={folder.path} folder={folder} onOpen={() => setPath(folder.path)} drop={dropProps(folder.path)} menu={folderMenu()} />)}
+                  ? <FolderCard key={folder.path} folder={folder} onOpen={() => setPath(folder.path)} drop={dropProps(folder.path)}
+                      menu={folderMenu(folder.path, folder.count)} drag={folderDrag(folder.path)} />
+                  : <FolderRow key={folder.path} folder={folder} onOpen={() => setPath(folder.path)} drop={dropProps(folder.path)}
+                      menu={folderMenu(folder.path, folder.count)} drag={folderDrag(folder.path)} />)}
               </ul>}
               {!!listing.files.length && <ul className={listCls}>{listing.files.map(m => renderFile(m, false))}</ul>}
             </>}
     </section>
 
     {preview && <MaterialPreview file={preview} onClose={() => setPreview(null)} />}
-    {toDelete && <ConfirmDialog title="Eliminare il file?" confirmLabel="Elimina" pending={pending}
-      body={<>«{toDelete.name}» sparisce per tutti{toDelete.source === 'cliente' ? ', anche per il cliente che l’ha caricato' : ''}. Non torna indietro: se vuoi solo toglierlo di mezzo, archivialo.</>}
+    {toDelete && <ConfirmDialog title={toDelete.length === 1 ? 'Eliminare il file?' : `Eliminare ${toDelete.length} file?`}
+      confirmLabel="Elimina" pending={pending}
+      body={<>{toDelete.length === 1 ? `«${toDelete[0].name}» sparisce` : `${toDelete.length} file spariscono`} per tutti{toDelete.some(m => m.source === 'cliente') ? ', anche per il cliente che li ha caricati' : ''}. Non torna indietro: se vuoi solo toglierli di mezzo, archiviali.</>}
       onClose={() => setToDelete(null)}
       onConfirm={() => { void act(toDelete, 'elimina').then(ok => { if (ok) setToDelete(null) }) }} />}
+
+    {dialog?.kind === 'nuova' && <NameDialog title="Nuova cartella" label={`Dentro «${lastSegment(path) || SPACE_LABEL[space]}»`}
+      initial="" confirmLabel="Crea" validate={value => {
+        const failure = folderNameError(value)
+        if (failure) return failure
+        return listing.folders.some(f => f.name.toLowerCase() === value.trim().toLowerCase()) ? 'Qui c’è già una cartella con questo nome.' : null
+      }}
+      onSubmit={async value => {
+        let percorso: string | null
+        try { percorso = joinPath(path, value) } catch (e) { return e instanceof Error ? e.message : 'Percorso non valido.' }
+        return send('/api/area-cliente/cartelle', 'POST', { client: clientId, spazio: space, percorso })
+      }}
+      onClose={() => setDialog(null)} />}
+    {dialog?.kind === 'rinomina-file' && <NameDialog title="Rinomina il file" label="Nome"
+      initial={splitName(dialog.m.name).base} suffix={splitName(dialog.m.name).ext} confirmLabel="Rinomina"
+      validate={value => { const next = renameFile(dialog.m.name, value); return 'error' in next ? next.error : null }}
+      onSubmit={value => send(`/api/area-cliente/file/${dialog.m.id}`, 'PATCH', { azione: 'rinomina', nome: value })}
+      onClose={() => setDialog(null)} />}
+    {dialog?.kind === 'rinomina-cartella' && <NameDialog title="Rinomina la cartella" label="Nome"
+      initial={lastSegment(dialog.path)} confirmLabel="Rinomina" validate={folderNameError}
+      onSubmit={async value => {
+        const failure = await folderAction(dialog.path, 'rinomina', { nome: value })
+        if (!failure && isInside(path, dialog.path)) setPath(`${[parentPath(dialog.path), value].filter(Boolean).join('/')}${path.slice(dialog.path.length)}`)
+        return failure
+      }}
+      onClose={() => setDialog(null)} />}
+    {dialog?.kind === 'sposta-file' && <MoveDialog
+      title={dialog.ids.length === 1 ? 'Sposta il file' : `Sposta ${dialog.ids.length} file`}
+      rootLabel={SPACE_LABEL[space]} folders={spaceFolders}
+      disabledReason={target => inSpace.filter(m => dialog.ids.includes(m.id)).every(m => (m.path ?? '') === target) ? 'È già qui' : null}
+      onSubmit={target => moveFiles(dialog.ids, target)}
+      onClose={() => setDialog(null)} />}
+    {dialog?.kind === 'sposta-cartella' && <MoveDialog title={`Sposta «${lastSegment(dialog.path)}»`}
+      rootLabel={SPACE_LABEL[space]} folders={spaceFolders}
+      disabledReason={target => isInside(target, dialog.path) ? (target === dialog.path ? 'È questa' : 'Ci sta dentro')
+        : parentPath(dialog.path) === target ? 'È già qui' : null}
+      onSubmit={target => moveFolder(dialog.path, target)}
+      onClose={() => setDialog(null)} />}
   </div>
 }
 

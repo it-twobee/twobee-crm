@@ -39,7 +39,8 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > scheletro dei progetti; la **249** la pubblicazione nel portale; la **250** lo
 > spazio file del cliente; la **251** l'area file condivisa; la **252** la misura
 > dell'utilizzo; la **253** rimette i trigger di cronologia persi nel reset del
-> dominio progetti. La prossima libera è la **254**.
+> dominio progetti; la **254** organizza l'area file (§413). La prossima libera è
+> la **255**.
 
 > **La 249 è nata 247.** È stata scritta e **applicata in produzione** mentre su
 > main arrivavano `247_periodi_e_ricorrenze` e `248_scheletro_periodi`, da una
@@ -49,6 +50,26 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > file, quindi il rinumero non cambia niente sul database e **non va
 > riapplicata**. Il numero nel nome serve a chi legge il repo, e due file con lo
 > stesso numero sono una trappola per chi arriva dopo.
+
+## 254 — l'area file si organizza (§413, **da applicare**)
+
+`254_area_file_cartelle.sql`: scritta e provata su PostgreSQL effimero
+(`node scripts/check-portal-sql.mjs`, rilanciata due volte), **non ancora
+applicata in produzione**. Prerequisiti: 244, 246, 250, 251. Additiva, nessun
+backfill.
+
+- Nuova tabella `portal_material_folders`, solo per lo staff, con un trigger
+  che firma la cartella con l'attore.
+- `portal_guard_material` riscritta: `name` e `path` cambiano sui file vivi.
+- Sette funzioni service-only: sposta, sposta o rinomina cartella, archivia
+  cartella, elimina cartella vuota, rinomina file, quota.
+
+La suite applica la 254 **dopo** le prove della 251: quelle raccontano la regola
+di allora (il percorso non si cambiava), e restano vere per il database di
+allora.
+
+Il codice regge la migration mancante. L'area si apre, le voci per organizzare
+non compaiono, e una rotta chiamata lo stesso risponde 503 e nomina la 254.
 
 ## 252 — quanto si usa il tool, contato sulle interazioni (§410, applicata il 2026-09-23)
 

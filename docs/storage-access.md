@@ -309,6 +309,62 @@ check.
 Il portale del cliente non cambia layout: condivide con noi solo anteprima,
 miniatura e regole dei percorsi.
 
+## Organizzare: cartelle vuote, spostare, rinominare (§413, migration 254)
+
+Il percorso resta la verità del file (§398), e il portale del cliente non
+cambia modello. La 254 aggiunge solo quello che mancava.
+
+- **Cartelle che esistono anche vuote**: `portal_material_folders` (azienda,
+  spazio, percorso), unica per azienda e spazio, con lo stesso CHECK sul
+  percorso dei file. L'albero è l'unione di queste cartelle e dei percorsi dei
+  file. Il cliente non ha una policy sulla tabella: una cartella vuota creata
+  da noi non gli dice niente, e quelle del suo spazio le vede quando dentro c'è
+  un file, come prima.
+- **`name` e `path` di un file vivo si possono cambiare.** Tutto il resto resta
+  immutabile, `source` compreso: spostare un file dal nostro spazio al suo è
+  una pubblicazione, non un trascinamento. Il nome cambia, l'estensione no —
+  lo dice la finestra, lo controlla la rotta (`renameFile`) e lo ricontrolla il
+  trigger — così `logo.png` non diventa `logo.html`.
+- **Le operazioni sono funzioni del database**, service-only, con l'attore
+  ricontrollato da `portal_material_actor`: stessa lista di `portal_is_staff`,
+  e un'azienda nascosta la tocca solo un admin anche se la rotta l'ha già
+  controllato, perché l'header non è un permesso.
+  - `portal_material_move` sposta N file in un colpo, dentro lo stesso spazio
+    della stessa azienda.
+  - `portal_material_folder_move` rinomina o sposta una cartella riscrivendo il
+    prefisso di file e cartelle in una transazione sola. Rifiuta una cartella
+    dentro sé stessa, e oltre dieci livelli rifiuta tutto, non metà. Se la
+    destinazione esiste i contenuti si uniscono. Il vincolo di unicità è
+    differibile: salire di un livello scambia i percorsi fra righe della stessa
+    operazione.
+  - `portal_material_folder_archive` archivia (e rimette in vista) quello che
+    c'è dentro una cartella.
+  - `portal_material_folder_delete` elimina solo una cartella vuota. Dentro non
+    devono esserci file, nemmeno archiviati: un archiviato è ancora lì.
+  - `portal_material_rename` rinomina il materiale e il metadato dello storage
+    insieme.
+  - `portal_material_usage` somma la quota. Senza la 254, `usedMaterialBytes`
+    somma a pagine.
+- **Il prefisso si confronta con `left()`, mai con LIKE**: in un nome di
+  cartella `%` e `_` sono caratteri come gli altri, e LIKE avrebbe spostato
+  anche «50xysconto» insieme a «50%_sconto».
+- **Una cartella da cui si toglie l'ultimo file non sparisce**: resta, vuota,
+  come in qualunque file system (`portal_material_keep_folder`).
+
+Nell'esploratore:
+- file e cartelle si trascinano su una cartella, o su una tappa del breadcrumb
+  per farli salire. I tipi del trascinamento sono propri
+  (`application/x-twobee-*`): un trascinamento dal computer carica, uno interno
+  sposta, un link trascinato da un'altra pagina non fa niente;
+- per chi usa la tastiera c'è «Sposta in…», con la cartella di partenza esclusa;
+- la selezione multipla sposta, archivia ed elimina più file insieme;
+- in una cartella si crea una «Nuova cartella»;
+- nello spazio del cliente non si carica, ma si mette in ordine.
+
+Senza la 254 l'area si apre lo stesso: `canOrganize` è falso, e le voci per
+organizzare non compaiono. Una rotta chiamata lo stesso risponde 503 e dice che
+serve la migration.
+
 ## Verifiche
 
 ```bash
@@ -317,7 +373,8 @@ npx tsx scripts/check-storage-routes.ts
 npx tsx scripts/check-portal-download-route.ts
 npx tsx scripts/check-portal-materials-routes.ts
 npx tsx scripts/check-area-cliente-routes.ts   # rotte del team + scheda File
-npx tsx lib/portal/explorer.check.ts           # cartelle, ordine, ricerca
+npx tsx lib/portal/explorer.check.ts           # cartelle, ordine, ricerca, nomi e spostamenti
+node scripts/check-portal-sql.mjs               # 244→251, poi 254 sopra le prove della 251
 NODE_PATH=<playwright> node scripts/check-area-file-browser.mjs   # l'esploratore in un browser vero
 node scripts/check-storage-sql.mjs
 ```

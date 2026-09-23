@@ -14,6 +14,10 @@ export type ClientFilesData = {
   materials: ClientMaterial[]
   /** Oltre `MAX_ROWS` righe l'elenco è parziale, e la pagina lo dice. */
   truncated: boolean
+  /** Le cartelle che esistono anche vuote (§413). */
+  folders: { source: 'cliente' | 'team'; path: string }[]
+  /** Spostare, rinominare e creare cartelle: c'è la 254, e chi guarda scrive. */
+  canOrganize: boolean
   /** Il cliente ha un accesso vivo al portale: se no, il suo mezzo spazio è spento. */
   portalActive: boolean
   canWrite: boolean
@@ -67,10 +71,13 @@ export async function getClientFiles(clientId: string): Promise<PortalResult<Cli
     if (visible.error) throw new Error('Non è stato possibile leggere l’azienda. Riprova.')
     if (!visible.data) throw new Error('Cliente non disponibile o non autorizzato.')
 
-    const [materials, memberships] = await Promise.all([
+    const [materials, memberships, folders] = await Promise.all([
       readAllMaterials(db, clientId),
       db.from('portal_memberships').select('id').eq('client_id', clientId).is('revoked_at', null).limit(1),
+      db.from('portal_material_folders').select('source, path').eq('client_id', clientId).order('path').limit(5000),
     ])
+    const foldersMissing = isMissingPortalSchema(folders.error)
+    if (folders.error && !foldersMissing) throw new Error('Non è stato possibile leggere le cartelle. Riprova.')
     const schemaMissing = isMissingPortalSchema(materials.error)
     if (materials.error && !schemaMissing) throw new Error('Non è stato possibile leggere i file. Riprova.')
 
@@ -78,6 +85,8 @@ export async function getClientFiles(clientId: string): Promise<PortalResult<Cli
       data: {
         materials: schemaMissing ? [] : materials.rows,
         truncated: materials.truncated,
+        folders: foldersMissing ? [] : ((folders.data ?? []) as ClientFilesData['folders']),
+        canOrganize: !foldersMissing && canWriteMaterials(actor),
         portalActive: !isMissingPortalSchema(memberships.error) && (memberships.data ?? []).length > 0,
         canWrite: canWriteMaterials(actor),
         canDeleteClientFiles: isStorageAdmin(actor),

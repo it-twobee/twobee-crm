@@ -1,5 +1,22 @@
 # Dove siamo
 
+## L'area file si organizza — §413, 2026-09-23
+
+Nell'esploratore si può mettere in ordine:
+- cartelle nuove, anche vuote;
+- file e cartelle trascinati su una cartella o su una tappa del breadcrumb, o
+  spostati con «Sposta in…»;
+- selezione multipla per spostare, archiviare ed eliminare;
+- rinomina di file (il nome, non il tipo) e di cartelle;
+- archiviazione di una cartella intera, ed eliminazione solo se è vuota.
+
+Nello spazio del cliente non si carica, ma si mette in ordine: le sue cartelle
+le vede anche lui.
+
+**Migration 254 da applicare.** Senza, l'area funziona come prima e le voci per
+organizzare non compaiono. Dettaglio in `docs/storage-access.md` e
+`docs/migrations.md`.
+
 ## L'area file è un esploratore — §416, 2026-09-23
 
 La scheda File di ogni cliente, e Documenti, non mostrano più due elenchi uno

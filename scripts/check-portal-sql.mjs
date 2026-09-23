@@ -38,6 +38,10 @@ try {
   sql('supabase/tests/249_portal_publishing.check.sql')
   sql('supabase/tests/250_portal_materials.check.sql')
   sql('supabase/tests/251_area_cliente.check.sql')
+  // La 254 cambia una regola della 251 (nome e percorso si possono cambiare):
+  // si applica dopo le prove della 251, che raccontano la regola di allora.
+  for (let i = 0; i < 2; i++) sql('supabase/migrations/254_area_file_cartelle.sql')
+  sql('supabase/tests/254_area_file_cartelle.check.sql')
   console.log('Tutti i controlli passano: migration rilanciabili e isolamento SQL su PostgreSQL effimero.')
 } finally {
   execFileSync('docker', ['rm', '-f', name], { stdio: 'pipe' })

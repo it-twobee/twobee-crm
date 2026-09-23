@@ -4,8 +4,9 @@
    una risposta sbagliata qui è un file che «non c'è». */
 import assert from 'node:assert/strict'
 import {
-  crumbsOf, extensionBadge, foldText, isInside, isJunkFile, joinPath, lastSegment, listFolder, parentPath,
-  searchMaterials, sortFiles, sortFolders,
+  allFolders, crumbsOf, extensionBadge, foldText, folderMoveTarget, folderNameError, folderRenameTarget, isInside,
+  isJunkFile, joinPath, lastSegment, listFolder, parentPath, renameFile, searchMaterials, sortFiles, sortFolders,
+  splitName,
 } from './explorer'
 
 let failures = 0
@@ -102,6 +103,28 @@ is('Thumbs.db di Windows', isJunkFile('Thumbs.db', null), true)
 is('tutto ciò che sta sotto __MACOSX', isJunkFile('logo.png', 'consegna/__MACOSX/Brand'), true)
 is('un file vero resta', isJunkFile('logo.png', 'Brand'), false)
 is('anche se comincia con un punto qualunque', isJunkFile('.gitignore', null), false)
+
+console.log('\n— Organizzare —')
+is('un nome di cartella normale', folderNameError('Consegne 2026'), null)
+is('le barre no: farebbero due cartelle', folderNameError('a/b') !== null, true)
+is('neanche quella rovescia', folderNameError('a\\b') !== null, true)
+is('le risalite no', folderNameError('..') !== null, true)
+is('vuoto no', folderNameError('   ') !== null, true)
+is('nome ed estensione', splitName('logo.bianco.png'), { base: 'logo.bianco', ext: '.png' })
+is('un file senza estensione', splitName('LEGGIMI'), { base: 'LEGGIMI', ext: '' })
+is('un file nascosto non ha estensione', splitName('.env'), { base: '.env', ext: '' })
+is('si rinomina il nome, l’estensione resta', renameFile('logo.png', ' Logo definitivo '), { name: 'Logo definitivo.png' })
+is('scrivere un’altra estensione non cambia il tipo', renameFile('logo.png', 'logo.html'), { name: 'logo.html.png' })
+is('le barre no', 'error' in renameFile('logo.png', 'su/giu'), true)
+is('sposta dentro un’altra cartella', folderMoveTarget('Brand/Loghi', 'Archivio'), { path: 'Archivio/Loghi' })
+is('sposta nella radice', folderMoveTarget('Brand/Loghi', ''), { path: 'Loghi' })
+is('non dentro sé stessa', 'error' in folderMoveTarget('Brand', 'Brand/Loghi'), true)
+is('né in sé stessa', 'error' in folderMoveTarget('Brand', 'Brand'), true)
+is('né dov’è già', 'error' in folderMoveTarget('Brand/Loghi', 'Brand'), true)
+is('ma sì in una cartella dal nome simile', folderMoveTarget('Brand', 'Brandizzati'), { path: 'Brandizzati/Brand' })
+is('rinominare tiene il padre', folderRenameTarget('Brand/Loghi', 'Marchi'), { path: 'Brand/Marchi' })
+is('lo stesso nome non è un rinomina', 'error' in folderRenameTarget('Brand/Loghi', 'Loghi'), true)
+is('tutte le cartelle, con i passaggi intermedi', allFolders([{ path: 'Brand/Loghi' }, { path: null }], ['Vuota']), ['Brand', 'Brand/Loghi', 'Vuota'])
 
 if (failures) { console.log(`\n${failures} controlli falliti.`); process.exit(1) }
 console.log('\nTutti i controlli passano.')

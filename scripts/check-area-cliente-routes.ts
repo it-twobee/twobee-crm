@@ -25,9 +25,13 @@ const profiles: Record<string, { role: string; app_role: string; email: string; 
 }
 class StorageTooLarge extends Error {}
 let materials: any[] = [], files: any[] = [], objects: string[] = []
-let memberships: any[] = []
+let memberships: any[] = [], folders: any[] = []
+// §413 — le funzioni del database: si registra chi le chiama e con cosa.
+let rpcCalls: { fn: string; args: any; actor: boolean }[] = []
+let rpcResult: { data: unknown; error: { code: string; message?: string } | null } = { data: 1, error: null }
+let foldersMissing = false
 function reset() {
-  files = []; objects = []; memberships = []
+  files = []; objects = []; memberships = []; folders = []; rpcCalls = []; rpcResult = { data: 1, error: null }; foldersMissing = false
   materials = [
     { id: suoFile, client_id: client, source: 'cliente', uploaded_by: 'cliente', storage_key: 'materiali/logo.png', file_id: 'f1', deleted_at: null, archived_at: null, size: 10 },
     { id: nostroFile, client_id: client, source: 'team', uploaded_by: junior, storage_key: 'materiali/ds.pdf', file_id: 'f2', deleted_at: null, archived_at: null, size: 20 },
@@ -43,6 +47,7 @@ class Query {
   select(_c?: string) { return this }
   eq(k: string, v: unknown) { this.filters.push(r => r[k] === v); return this }
   is(k: string, v: unknown) { this.filters.push(r => (r[k] ?? null) === v); return this }
+  in(k: string, v: unknown[]) { this.filters.push(r => v.includes(r[k])); return this }
   order() { return this }
   range(from: number, to: number) { this.window = [from, to]; return this }
   limit() { return this }
@@ -63,6 +68,19 @@ class Query {
     }
     if (this.table === 'portal_memberships') {
       const found = memberships.filter(r => this.filters.every(f => f(r)))
+      return resolve({ data: this.one ? found[0] ?? null : found, error: null })
+    }
+    if (this.table === 'portal_material_folders') {
+      if (foldersMissing) return resolve({ data: null, error: { code: 'PGRST205', message: "Could not find the table 'public.portal_material_folders'" } })
+      if (this.op === 'insert') {
+        assert.ok(this.actor, 'una cartella si crea con l’attore')
+        if (folders.some(f => f.client_id === this.value.client_id && f.source === this.value.source && f.path === this.value.path)) {
+          return resolve({ data: null, error: { code: '23505' } })
+        }
+        folders.push({ id: `cartella-${folders.length + 1}`, ...this.value })
+        return resolve({ data: { id: `cartella-${folders.length}` }, error: null })
+      }
+      const found = folders.filter(r => this.filters.every(f => f(r)))
       return resolve({ data: this.one ? found[0] ?? null : found, error: null })
     }
     const table = this.table === 'files' ? files : this.table === 'portal_materials' ? materials : null
@@ -109,8 +127,22 @@ internal._load = function (name, ...args) {
   }
   if (name === '@/lib/supabase/admin') {
     return {
-      createAdminClient: () => ({ from: (t: string) => new Query(t) }),
-      createActorClient: (id: string) => { assert.equal(id, userId); return { from: (t: string) => new Query(t, true) } },
+      createAdminClient: () => ({
+        from: (t: string) => new Query(t),
+        rpc: async (fn: string, args: any) => { rpcCalls.push({ fn, args, actor: false }); return { data: null, error: { code: 'PGRST202' } } },
+      }),
+      createActorClient: (id: string) => {
+        assert.equal(id, userId)
+        return {
+          from: (t: string) => new Query(t, true),
+          rpc: async (fn: string, args: any) => {
+            rpcCalls.push({ fn, args, actor: true })
+            // La quota: senza la funzione si somma a pagine.
+            if (fn === 'portal_material_usage') return { data: null, error: { code: 'PGRST202' } }
+            return rpcResult
+          },
+        }
+      },
     }
   }
   if (name === '@/lib/storage/s3') {
@@ -259,7 +291,89 @@ async function main() {
   assert.equal(molti.data!.materials.length, 2348, 'tutte le righe, non le prime mille')
   assert.equal(molti.data!.truncated, false)
 
-  console.log('Tutti i controlli passano: solo staff attivo, azienda nascosta esclusa, percorsi e tipi rifiutati prima dello storage, file nostri che nascono nostri, archiviazione reversibile, cancellazioni per ruolo e area della scheda cliente attiva prima del portale, porta unica con l’azienda nascosta anche sulla PATCH, letture a pagine.')
+  // ── §413 Organizzare: cartelle, spostamenti, rinomina ─────────────────────
+  reset()
+  const cartelle = require('../app/api/area-cliente/cartelle/route') as typeof import('../app/api/area-cliente/cartelle/route')
+  const sposta = require('../app/api/area-cliente/file/sposta/route') as typeof import('../app/api/area-cliente/file/sposta/route')
+  const json = (method: string, body: unknown) => new Request('https://os.example.test/', {
+    method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+  })
+  const fns = () => rpcCalls.filter(c => c.fn !== 'portal_material_usage').map(c => c.fn)
+
+  userId = 'viewer'
+  assert.equal((await cartelle.POST(json('POST', { client, spazio: 'team', percorso: 'Nuova' }))).status, 403, 'il viewer non organizza')
+  userId = junior
+  assert.equal((await cartelle.POST(json('POST', { client: hidden, spazio: 'team', percorso: 'Nuova' }))).status, 403, 'azienda nascosta')
+  assert.equal((await cartelle.POST(json('POST', { client, spazio: 'altrui', percorso: 'Nuova' }))).status, 400)
+  assert.equal((await cartelle.POST(json('POST', { client, spazio: 'team', percorso: '../fuori' }))).status, 400)
+  assert.equal((await cartelle.POST(json('POST', { client, spazio: 'team', percorso: '' }))).status, 400)
+  assert.equal(folders.length, 0, 'niente scritto prima dei controlli')
+  assert.equal((await cartelle.POST(json('POST', { client, spazio: 'team', percorso: 'Brand/Nuova' }))).status, 200)
+  assert.deepEqual(folders.map(f => [f.source, f.path, f.created_by]), [['team', 'Brand/Nuova', junior]], 'firmata da chi la crea')
+  assert.equal((await cartelle.POST(json('POST', { client, spazio: 'team', percorso: 'Brand/Nuova' }))).status, 409, 'due volte no')
+  assert.equal((await cartelle.POST(json('POST', { client, spazio: 'cliente', percorso: 'Foto' }))).status, 200, 'anche nello spazio del cliente, per mettere in ordine i suoi file')
+
+  const patchFolder = (body: Record<string, unknown>) => cartelle.PATCH(json('PATCH', { client, spazio: 'team', percorso: 'Brand', ...body }))
+  assert.equal((await patchFolder({ azione: 'rinomina', nome: 'Marchio' })).status, 200)
+  assert.deepEqual(rpcCalls.at(-1), { fn: 'portal_material_folder_move', args: { p_client: client, p_source: 'team', p_from: 'Brand', p_to: 'Marchio' }, actor: true })
+  assert.equal((await patchFolder({ azione: 'rinomina', nome: 'a/b' })).status, 400, 'una barra farebbe due cartelle')
+  assert.equal((await patchFolder({ azione: 'rinomina', nome: 'Brand' })).status, 400, 'lo stesso nome')
+  assert.equal((await patchFolder({ azione: 'sposta', destinazione: 'Brand/Loghi' })).status, 400, 'dentro sé stessa')
+  assert.equal((await patchFolder({ azione: 'sposta', destinazione: '' })).status, 400, 'è già nella radice')
+  const before = rpcCalls.length
+  assert.equal((await patchFolder({ azione: 'sposta', destinazione: '../fuori' })).status, 400)
+  assert.equal(rpcCalls.length, before, 'le mosse impossibili non arrivano al database')
+  assert.equal((await patchFolder({ azione: 'sposta', destinazione: 'Archivio', percorso: 'Brand/Loghi' })).status, 200)
+  assert.equal(rpcCalls.at(-1)!.args.p_to, 'Archivio/Loghi')
+  assert.equal((await patchFolder({ azione: 'archivia' })).status, 200)
+  assert.deepEqual(rpcCalls.at(-1)!.args, { p_client: client, p_source: 'team', p_path: 'Brand', p_archive: true })
+  assert.equal((await patchFolder({ azione: 'elimina' })).status, 200)
+  assert.equal(rpcCalls.at(-1)!.fn, 'portal_material_folder_delete')
+  assert.equal((await patchFolder({ azione: 'boh' })).status, 400)
+  rpcResult = { data: null, error: { code: '22023', message: 'Dentro ci sono ancora 2 file, anche archiviati: spostali o eliminali prima' } }
+  const nonVuota = await patchFolder({ azione: 'elimina' })
+  assert.equal(nonVuota.status, 400)
+  assert.match((await nonVuota.json()).error, /Dentro ci sono ancora 2 file/, 'la frase del database arriva a chi ha chiesto')
+  rpcResult = { data: null, error: { code: '42501' } }
+  assert.equal((await patchFolder({ azione: 'archivia' })).status, 403)
+  rpcResult = { data: null, error: { code: 'PGRST202' } }
+  const senza254 = await patchFolder({ azione: 'archivia' })
+  assert.equal(senza254.status, 503)
+  assert.match((await senza254.json()).error, /migration 254/, 'senza la migration lo si dice, non è un guasto')
+  rpcResult = { data: 2, error: null }
+
+  const move = (body: Record<string, unknown>) => sposta.POST(json('POST', { client, ...body }))
+  assert.equal((await move({ ids: [], destinazione: 'Brand' })).status, 400)
+  assert.equal((await move({ ids: ['non-un-uuid'], destinazione: 'Brand' })).status, 400)
+  assert.equal((await move({ ids: [nostroFile], destinazione: '../fuori' })).status, 400)
+  assert.equal((await move({ ids: [nostroFile, nascostoFile], destinazione: 'Brand' })).status, 404, 'un file di un’altra azienda non si porta dietro')
+  userId = 'viewer'
+  assert.equal((await move({ ids: [nostroFile], destinazione: 'Brand' })).status, 403)
+  userId = junior
+  const calls = fns().length
+  assert.equal((await move({ ids: [nostroFile, altruiFile], destinazione: 'Brand/Loghi' })).status, 200)
+  assert.equal(fns().length, calls + 1)
+  assert.deepEqual(rpcCalls.at(-1), { fn: 'portal_material_move', args: { p_ids: [nostroFile, altruiFile], p_path: 'Brand/Loghi' }, actor: true })
+  assert.equal((await move({ ids: [nostroFile], destinazione: '' })).status, 200)
+  assert.equal(rpcCalls.at(-1)!.args.p_path, '', 'nella radice')
+
+  materials.find(m => m.id === nostroFile).name = 'ds.pdf'
+  assert.equal((await one.PATCH(json('PATCH', { azione: 'rinomina', nome: ' Design system ' }), { params: { id: nostroFile } })).status, 200)
+  assert.deepEqual(rpcCalls.at(-1), { fn: 'portal_material_rename', args: { p_id: nostroFile, p_name: 'Design system.pdf' }, actor: true }, 'il tipo resta quello di prima')
+  assert.equal((await one.PATCH(json('PATCH', { azione: 'rinomina', nome: 'su/giu' }), { params: { id: nostroFile } })).status, 400)
+  assert.equal((await one.PATCH(json('PATCH', { azione: 'rinomina', nome: 'x' }), { params: { id: nascostoFile } })).status, 404, 'azienda nascosta')
+
+  // La scheda sa se si può organizzare: c'è la 254, e chi guarda scrive.
+  folders = [{ client_id: client, source: 'team', path: 'Vuota' }]
+  const conCartelle = await getClientFiles(client)
+  assert.deepEqual(conCartelle.data!.folders, [{ client_id: client, source: 'team', path: 'Vuota' }])
+  assert.equal(conCartelle.data!.canOrganize, true)
+  foldersMissing = true
+  const senzaCartelle = await getClientFiles(client)
+  assert.equal(senzaCartelle.error, undefined, 'senza la 254 l’area si apre lo stesso')
+  assert.equal(senzaCartelle.data!.canOrganize, false, 'ma non promette di spostare niente')
+
+  console.log('Tutti i controlli passano: solo staff attivo, azienda nascosta esclusa, percorsi e tipi rifiutati prima dello storage, file nostri che nascono nostri, archiviazione reversibile, cancellazioni per ruolo e area della scheda cliente attiva prima del portale, porta unica con l’azienda nascosta anche sulla PATCH, letture a pagine, cartelle create con l’attore, spostamenti e rinomina che arrivano al database solo se possibili, e la 254 mancante detta a parole.')
 }
 
 main().catch(error => { console.error(error); process.exit(1) })

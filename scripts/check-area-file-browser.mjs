@@ -34,6 +34,7 @@ const materials = [
   m(8, 'foto-evento.jpg', 'Brand', 15, { source: 'cliente', uploaded_by_name: 'Referente' }),
   m(9, 'brief.pdf', null, 18, { source: 'cliente', uploaded_by_name: 'Referente' }),
 ]
+const folders = []
 const writes = []
 let requests = 0
 const identity = id => ({ id, email: 'staff@example.invalid', aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: '2026-01-01T00:00:00Z' })
@@ -77,6 +78,8 @@ const mock = createServer((req, res) => {
     rows = rows.slice(offset, offset + limit)
   } else if (table === 'portal_memberships') {
     rows = [{ id: 'membership' }]
+  } else if (table === 'portal_material_folders') {
+    rows = folders.filter(f => f.client_id === eq('client_id'))
   }
   return reply(200, req.headers.accept?.includes('vnd.pgrst.object') ? rows[0] ?? null : rows)
 })
@@ -217,6 +220,92 @@ try {
   assert.equal(await page.getByRole('menuitem', { name: 'Elimina' }).count(), 0, 'il file di un collega non lo elimina un manager')
   await page.keyboard.press('Escape')
 
+  // ── §413 Organizzare: le richieste si simulano qui, sugli stessi dati del mock ──
+  const organize = []
+  const under = (p, prefix) => p === prefix || (p ?? '').startsWith(`${prefix}/`)
+  const rewrite = (from, to) => {
+    for (const x of materials) if (x.source === 'team' && under(x.path, from)) x.path = to + x.path.slice(from.length)
+    for (const f of folders) if (f.source === 'team' && under(f.path, from)) f.path = to + f.path.slice(from.length)
+  }
+  await page.route('**/api/area-cliente/cartelle', async route => {
+    const body = route.request().postDataJSON()
+    organize.push({ method: route.request().method(), ...body })
+    if (route.request().method() === 'POST') folders.push({ client_id: a, source: body.spazio, path: body.percorso })
+    else if (body.azione === 'rinomina') rewrite(body.percorso, [body.percorso.split('/').slice(0, -1).join('/'), body.nome].filter(Boolean).join('/'))
+    else if (body.azione === 'sposta') rewrite(body.percorso, [body.destinazione, body.percorso.split('/').pop()].filter(Boolean).join('/'))
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' })
+  })
+  await page.route('**/api/area-cliente/file/sposta', async route => {
+    const body = route.request().postDataJSON()
+    organize.push({ method: 'POST', sposta: true, ...body })
+    for (const x of materials) if (body.ids.includes(x.id)) x.path = body.destinazione || null
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' })
+  })
+  await page.route('**/api/area-cliente/file/f2418000-*', async route => {
+    const body = route.request().postDataJSON()
+    const id = route.request().url().split('/').pop()
+    organize.push({ method: 'PATCH', id, ...body })
+    if (body.azione === 'rinomina') { const x = materials.find(y => y.id === id); x.name = body.nome + x.name.slice(x.name.lastIndexOf('.')) }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' })
+  })
+
+  // Una cartella nuova, anche vuota.
+  await page.getByRole('button', { name: 'Nuova cartella' }).click()
+  const nuova = page.getByRole('dialog', { name: 'Nuova cartella' })
+  await nuova.getByLabel(/Dentro «Nostri»/).fill('Brand')
+  await nuova.getByText('Qui c’è già una cartella con questo nome.').waitFor()
+  await nuova.getByLabel(/Dentro «Nostri»/).fill('Consegne')
+  await nuova.getByRole('button', { name: 'Crea' }).click()
+  await nuova.waitFor({ state: 'detached' })
+  await area(page).getByRole('button', { name: /^Consegne\s*Vuota/ }).waitFor()
+  assert.deepEqual(organize.at(-1), { method: 'POST', client: a, spazio: 'team', percorso: 'Consegne' })
+
+  // Un file trascinato su una cartella ci finisce dentro.
+  await area(page).locator('li', { hasText: 'preventivo 9.pdf' }).dragTo(area(page).locator('li', { hasText: 'Consegne' }))
+  await page.waitForFunction(() => !document.querySelector('section[aria-label="Contenuto di Nostri"]')?.textContent?.includes('preventivo 9.pdf'))
+  assert.deepEqual(organize.at(-1), { method: 'POST', sposta: true, client: a, ids: [materials[4].id], destinazione: 'Consegne' })
+  await area(page).getByRole('button', { name: /^Consegne\s*1 file/ }).waitFor()
+
+  // Selezione multipla e «Sposta in…», con la cartella di partenza esclusa.
+  await area(page).getByRole('button', { name: /^Brand/ }).click()
+  await page.getByLabel('Seleziona manuale.pdf').check()
+  await page.getByRole('region', { name: 'Selezione' }).getByText('1 file selezionato').waitFor()
+  await page.getByRole('region', { name: 'Selezione' }).getByRole('button', { name: 'Sposta in…' }).click()
+  const spostaDialog = page.getByRole('dialog', { name: 'Sposta il file' })
+  assert.equal(await spostaDialog.getByRole('radio', { name: /Brand\s*È già qui/ }).isDisabled(), true, 'dov’è già non si sceglie')
+  await spostaDialog.getByRole('radio', { name: 'Consegne' }).click()
+  await spostaDialog.getByRole('button', { name: 'Sposta qui' }).click()
+  await spostaDialog.waitFor({ state: 'detached' })
+  assert.deepEqual(organize.at(-1).ids, [materials[2].id])
+  assert.equal(organize.at(-1).destinazione, 'Consegne')
+  assert.equal(await page.getByRole('region', { name: 'Selezione' }).count(), 0, 'fatto lo spostamento, la selezione si svuota')
+
+  // Rinominare un file: si cambia il nome, non il tipo.
+  await page.getByRole('navigation', { name: 'Cartella corrente' }).getByRole('button', { name: 'Nostri' }).click()
+  await page.getByRole('button', { name: 'Altre azioni per preventivo 10.pdf' }).click()
+  await page.getByRole('menuitem', { name: 'Rinomina' }).click()
+  const rinomina = page.getByRole('dialog', { name: 'Rinomina il file' })
+  assert.equal(await rinomina.getByLabel('Nome').inputValue(), 'preventivo 10')
+  await rinomina.getByText('.pdf', { exact: true }).waitFor()
+  await rinomina.getByLabel('Nome').fill('offerta')
+  await rinomina.getByRole('button', { name: 'Rinomina' }).click()
+  await rinomina.waitFor({ state: 'detached' })
+  assert.deepEqual(organize.at(-1), { method: 'PATCH', id: materials[3].id, azione: 'rinomina', nome: 'offerta' })
+  await area(page).getByText('offerta.pdf').waitFor()
+
+  // Rinominare una cartella, e poi trascinarla dentro un'altra.
+  await page.getByRole('button', { name: 'Altre azioni per Grafica' }).click()
+  await page.getByRole('menuitem', { name: 'Rinomina' }).click()
+  const cartella = page.getByRole('dialog', { name: 'Rinomina la cartella' })
+  await cartella.getByLabel('Nome').fill('Design')
+  await cartella.getByRole('button', { name: 'Rinomina' }).click()
+  await cartella.waitFor({ state: 'detached' })
+  assert.deepEqual(organize.at(-1), { method: 'PATCH', client: a, spazio: 'team', percorso: 'Grafica', azione: 'rinomina', nome: 'Design' })
+  await area(page).locator('li', { hasText: 'Design' }).dragTo(area(page).locator('li', { hasText: 'Brand' }).first())
+  await page.waitForFunction(() => !/Design/.test(document.querySelector('section[aria-label="Contenuto di Nostri"]')?.textContent ?? ''))
+  assert.deepEqual(organize.at(-1), { method: 'PATCH', client: a, spazio: 'team', percorso: 'Design', azione: 'sposta', destinazione: 'Brand' })
+  assert.equal(materials[5].path, 'Brand/Design')
+
   // ── Tema e telefono ──────────────────────────────────────────────────────
   await page.addStyleTag({ content: '*{transition:none!important}' })
   for (const theme of ['dark', 'light']) {
@@ -237,7 +326,7 @@ try {
   await outsider.context.close()
 
   assert.deepEqual(writes, [], 'nessuna scrittura verso le tabelle dell’area file')
-  console.log(`Tutti i controlli passano: cartelle, indirizzo, ordine, griglia, recenti, archiviati, ricerca nei due spazi, spazio del cliente in sola lettura, trascinamento nella cartella giusta, conferma nella pagina, contrasto nei due temi e telefono. ${requests} richieste al mock, zero scritture. Screenshot: ${output}`)
+  console.log(`Tutti i controlli passano: cartelle, indirizzo, ordine, griglia, recenti, archiviati, ricerca nei due spazi, spazio del cliente in sola lettura, trascinamento nella cartella giusta, conferma nella pagina, cartella nuova, file e cartelle spostati trascinandoli o da «Sposta in…», rinomina che tiene il tipo, contrasto nei due temi e telefono. ${requests} richieste al mock, zero scritture. Screenshot: ${output}`)
 } finally {
   await browser?.close()
   try { process.kill(-server.pid, 'SIGTERM') } catch { /* già terminato */ }

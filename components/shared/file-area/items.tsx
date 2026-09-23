@@ -95,15 +95,25 @@ function meta(m: ClientMaterial) {
   return `${humanBytes(Number(m.size))} · ${m.uploaded_by_name} · ${formatDate(m.created_at)}`
 }
 
-export function FileRow({ m, menu, onPreview, where, drag }: {
+export type Selection = { checked: boolean; onChange: (checked: boolean) => void }
+
+function SelectBox({ label, selection, className = '' }: { label: string; selection?: Selection; className?: string }) {
+  if (!selection) return null
+  return <input type="checkbox" checked={selection.checked} onChange={e => selection.onChange(e.target.checked)}
+    aria-label={`Seleziona ${label}`} className={`h-4 w-4 shrink-0 accent-[var(--color-gold)] ${className}`} />
+}
+
+export function FileRow({ m, menu, onPreview, where, drag, selection }: {
   m: ClientMaterial
   menu: MenuItem[]
   onPreview?: () => void
   /** Nella ricerca e nei recenti il file è fuori dalla sua cartella: si dice dove sta. */
   where?: string
   drag?: React.HTMLAttributes<HTMLLIElement> & { draggable?: boolean }
+  selection?: Selection
 }) {
-  return <li {...drag} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-surface-hover">
+  return <li {...drag} className={`flex items-center gap-3 rounded-lg px-2 py-1.5 ${selection?.checked ? 'bg-gold-dim' : 'hover:bg-surface-hover'}`}>
+    <SelectBox label={m.name} selection={selection} />
     <Thumb m={m} onPreview={onPreview} />
     <span className="min-w-0 flex-1">
       <span className="block truncate text-sm text-text-primary" title={m.name}>
@@ -123,14 +133,16 @@ export function FileRow({ m, menu, onPreview, where, drag }: {
   </li>
 }
 
-export function FileCard({ m, menu, onPreview, where, drag }: {
+export function FileCard({ m, menu, onPreview, where, drag, selection }: {
   m: ClientMaterial
   menu: MenuItem[]
   onPreview?: () => void
   where?: string
   drag?: React.HTMLAttributes<HTMLLIElement> & { draggable?: boolean }
+  selection?: Selection
 }) {
-  return <li {...drag} className="flex min-w-0 flex-col rounded-xl border border-border bg-surface">
+  return <li {...drag} className={`relative flex min-w-0 flex-col rounded-xl border bg-surface ${selection?.checked ? 'border-gold ring-2 ring-gold' : 'border-border'}`}>
+    <SelectBox label={m.name} selection={selection} className="absolute left-2 top-2 z-10" />
     <span className="block aspect-square overflow-hidden rounded-t-xl">
       <Thumb m={m} onPreview={onPreview} large />
     </span>
@@ -150,15 +162,16 @@ export function FileCard({ m, menu, onPreview, where, drag }: {
   </li>
 }
 
-export function FolderRow({ folder, onOpen, drop, where, menu = [] }: {
+export function FolderRow({ folder, onOpen, drop, where, menu = [], drag }: {
   folder: Pick<FolderSummary, 'name' | 'path' | 'count'> & Partial<Pick<FolderSummary, 'size' | 'latest'>>
   onOpen: () => void
   drop?: DropProps
   where?: string
   menu?: MenuItem[]
+  drag?: React.HTMLAttributes<HTMLLIElement> & { draggable?: boolean }
 }) {
   const { over, ...handlers } = drop ?? { over: false }
-  return <li {...handlers} className={`flex items-center gap-1 rounded-lg px-2 py-0.5 ${over ? 'bg-gold-dim ring-2 ring-gold' : 'hover:bg-surface-hover'}`}>
+  return <li {...drag} {...handlers} className={`flex items-center gap-1 rounded-lg px-2 py-0.5 ${over ? 'bg-gold-dim ring-2 ring-gold' : 'hover:bg-surface-hover'}`}>
     <button type="button" onClick={onOpen} className="flex min-h-12 min-w-0 flex-1 items-center gap-3 text-left">
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gold-dim">
         <Folder className="h-5 w-5 text-gold-text" aria-hidden="true" />
@@ -176,14 +189,15 @@ export function FolderRow({ folder, onOpen, drop, where, menu = [] }: {
   </li>
 }
 
-export function FolderCard({ folder, onOpen, drop, menu = [] }: {
+export function FolderCard({ folder, onOpen, drop, menu = [], drag }: {
   folder: FolderSummary
   onOpen: () => void
   drop?: DropProps
   menu?: MenuItem[]
+  drag?: React.HTMLAttributes<HTMLLIElement> & { draggable?: boolean }
 }) {
   const { over, ...handlers } = drop ?? { over: false }
-  return <li {...handlers} className={`flex min-w-0 flex-col rounded-xl border ${over ? 'border-gold bg-gold-dim ring-2 ring-gold' : 'border-border bg-surface hover:bg-surface-hover'}`}>
+  return <li {...drag} {...handlers} className={`flex min-w-0 flex-col rounded-xl border ${over ? 'border-gold bg-gold-dim ring-2 ring-gold' : 'border-border bg-surface hover:bg-surface-hover'}`}>
     <button type="button" onClick={onOpen} className="flex aspect-square items-center justify-center rounded-t-xl">
       <Folder className="h-12 w-12 text-gold-text" aria-hidden="true" />
     </button>

@@ -121,8 +121,12 @@ internal._load = function (name, ...args) {
   }
   if (name === '@/lib/supabase/admin') {
     return {
-      createAdminClient: () => ({ from: (t: string) => new Query(t, false) }),
-      createActorClient: (id: string) => { assert.equal(id, userId); return { from: (t: string) => new Query(t, false, true) } },
+      // §413 — la quota la somma il database: la funzione risponde con i byte usati.
+      createAdminClient: () => ({ from: (t: string) => new Query(t, false), rpc: async () => ({ data: usedBytes, error: null }) }),
+      createActorClient: (id: string) => {
+        assert.equal(id, userId)
+        return { from: (t: string) => new Query(t, false, true), rpc: async () => ({ data: usedBytes, error: null }) }
+      },
     }
   }
   if (name === '@/lib/storage/s3') {

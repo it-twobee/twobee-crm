@@ -186,3 +186,71 @@ export function isJunkFile(name: string, dir: string | null | undefined): boolea
   if (JUNK_FILES.includes(name.toLowerCase()) || name.startsWith('._')) return true
   return segments(dir).some(s => JUNK_FOLDERS.includes(s.toLowerCase()))
 }
+
+/* ── Organizzare (§413) ─────────────────────────────────────────────────────
+   Le stesse regole che il database ricontrolla: qui servono a dirlo prima,
+   nella finestra, invece che dopo, con un errore. */
+
+/** Il nome di una cartella: un segmento solo, senza barre e senza risalite. */
+export function folderNameError(raw: string): string | null {
+  const name = raw.trim()
+  if (!name) return 'Scrivi un nome.'
+  if (name.length > 120) return 'Il nome è troppo lungo (massimo 120 caratteri).'
+  if (/[/\\]/.test(name)) return 'Il nome di una cartella non può contenere barre.'
+  if (name === '.' || name === '..') return 'Nome non valido.'
+  if (/[\u0000-\u001f\u007f]/.test(name)) return 'Nome non valido.'
+  return null
+}
+
+/** Nome ed estensione separati: si rinomina il primo, il secondo resta. */
+export function splitName(name: string): { base: string; ext: string } {
+  const dot = name.lastIndexOf('.')
+  return dot > 0 ? { base: name.slice(0, dot), ext: name.slice(dot) } : { base: name, ext: '' }
+}
+
+/** Il nuovo nome di un file, o perché non va. Si rinomina il nome, non il tipo. */
+export function renameFile(oldName: string, base: string): { name: string } | { error: string } {
+  const clean = base.trim()
+  if (!clean) return { error: 'Scrivi un nome.' }
+  if (/[/\\]/.test(clean)) return { error: 'Il nome di un file non può contenere barre.' }
+  if (/[\u0000-\u001f\u007f]/.test(clean)) return { error: 'Nome non valido.' }
+  const name = `${clean}${splitName(oldName).ext}`
+  if (name.length > 240) return { error: 'Il nome è troppo lungo.' }
+  return { name }
+}
+
+/**
+ * Dove finisce una cartella spostata dentro un'altra (`''` = la radice), o
+ * perché non si può: dentro sé stessa, o dove è già.
+ */
+export function folderMoveTarget(from: string, toParent: string): { path: string } | { error: string } {
+  const name = lastSegment(from)
+  if (!from || !name) return { error: 'Cartella non valida.' }
+  if (isInside(toParent, from)) return { error: 'Una cartella non va dentro sé stessa.' }
+  if (parentPath(from) === segments(toParent).join('/')) return { error: 'È già lì.' }
+  try {
+    const path = joinPath(toParent, name)
+    return path ? { path } : { error: 'Cartella non valida.' }
+  } catch (e) { return { error: e instanceof Error ? e.message : 'Percorso non valido.' } }
+}
+
+/** Il nuovo percorso di una cartella rinominata: stesso padre, nome nuovo. */
+export function folderRenameTarget(from: string, newName: string): { path: string } | { error: string } {
+  const error = folderNameError(newName)
+  if (error) return { error }
+  try {
+    const path = joinPath(parentPath(from), newName.trim())
+    if (!path) return { error: 'Cartella non valida.' }
+    return path === from ? { error: 'Il nome è lo stesso.' } : { path }
+  } catch (e) { return { error: e instanceof Error ? e.message : 'Percorso non valido.' } }
+}
+
+/** Tutte le cartelle di uno spazio, per il selettore di «Sposta in…». */
+export function allFolders(items: { path: string | null }[], extraFolders: string[] = []): string[] {
+  const out = new Set<string>()
+  for (const p of [...items.map(i => i.path ?? ''), ...extraFolders]) {
+    const parts = segments(p)
+    for (let i = 1; i <= parts.length; i++) out.add(parts.slice(0, i).join('/'))
+  }
+  return Array.from(out).sort((a, b) => collator.compare(a, b))
+}

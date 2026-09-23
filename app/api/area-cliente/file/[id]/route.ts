@@ -3,27 +3,41 @@ import { requireMaterialRow } from '@/lib/storage/guard'
 import { deleteObject } from '@/lib/storage/s3'
 import { thumbObjectKey } from '@/lib/portal/materials'
 import { isAdminRole, isSuperAdminRaw } from '@/lib/permissions'
+import { renameFile } from '@/lib/portal/explorer'
+import { organizeFailure } from '@/lib/portal/organize'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-/* §398 — PATCH /api/area-cliente/file/:id — `{ azione: 'archivia' | 'ripristina' | 'elimina' }`
+/* §398 — PATCH /api/area-cliente/file/:id — `{ azione: 'archivia' | 'ripristina' | 'elimina' | 'rinomina', nome? }`
    Archiviare è **nostro e vale per noi**: toglie il file dai nostri elenchi e
    non da quelli del cliente. Far sparire a qualcuno una cosa sua senza dirglielo
    è il modo peggiore di fargli perdere un logo.
    Eliminare davvero un file del cliente lo possono solo admin, founder e super
    admin: i byte spariscono e non tornano. */
-type Row = { id: string; client_id: string; source: 'cliente' | 'team'; uploaded_by: string; archived_at: string | null }
+type Row = { id: string; client_id: string; source: 'cliente' | 'team'; uploaded_by: string; archived_at: string | null; name: string }
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const body = await req.json().catch(() => ({})) as { azione?: string }
-  if (!['archivia', 'ripristina', 'elimina'].includes(body?.azione ?? '')) {
+  const body = await req.json().catch(() => ({})) as { azione?: string; nome?: string }
+  if (!['archivia', 'ripristina', 'elimina', 'rinomina'].includes(body?.azione ?? '')) {
     return NextResponse.json({ error: 'Azione non valida' }, { status: 400 })
   }
 
-  const gate = await requireMaterialRow<Row>(params.id, true, 'id, client_id, source, uploaded_by, archived_at')
+  const gate = await requireMaterialRow<Row>(params.id, true, 'id, client_id, source, uploaded_by, archived_at, name')
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
   const { caller, material } = gate
+
+  // §413 — si rinomina il nome, non il tipo: l'estensione resta quella di prima.
+  if (body.azione === 'rinomina') {
+    const next = renameFile(material.name, typeof body.nome === 'string' ? body.nome : '')
+    if ('error' in next) return NextResponse.json({ error: next.error }, { status: 400 })
+    const renamed = await caller.admin.rpc('portal_material_rename', { p_id: params.id, p_name: next.name })
+    if (renamed.error) {
+      const failure = organizeFailure(renamed.error)
+      return NextResponse.json({ error: failure.error }, { status: failure.status })
+    }
+    return NextResponse.json({ ok: true, name: next.name })
+  }
 
   if (body.azione === 'elimina') {
     const admin = isAdminRole(caller.appRole) || isSuperAdminRaw(caller.email, caller.appRole)
