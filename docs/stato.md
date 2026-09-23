@@ -1,5 +1,14 @@
 # Dove siamo
 
+## Chi ha creato una cartella si può eliminare — §422, 2026-09-23
+
+La 256 aveva reso slegabili i file e i movimenti del portale e aveva lasciato
+fuori, dichiarandolo, le cartelle dell'area cliente. Bastava una cartella vuota
+creata da una persona perché quell'account non si eliminasse più.
+
+Migration **259** (applicata): la cartella resta, l'autore si slega. La
+guardia accetta questa sola modifica, e rifiuta il resto come prima.
+
 ## Zip: si scarica una cartella, e uno zip caricato si apre — §421, 2026-09-23
 
 - Si scarica come zip una cartella, tutto lo spazio o una selezione. Lo zip esce

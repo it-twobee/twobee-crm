@@ -47,8 +47,10 @@ try {
   for (let i = 0; i < 2; i++) {
     sql('supabase/migrations/256_autore_ignoto.sql')
     sql('supabase/migrations/257_cancellare_una_persona.sql')
+    sql('supabase/migrations/259_cartelle_senza_autore.sql')
   }
   sql('supabase/tests/254_area_file_cartelle.check.sql')
+  sql('supabase/tests/259_cartelle_senza_autore.check.sql')
   console.log('Tutti i controlli passano: migration rilanciabili e isolamento SQL su PostgreSQL effimero.')
 } finally {
   execFileSync('docker', ['rm', '-f', name], { stdio: 'pipe' })

@@ -42,7 +42,9 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > dominio progetti; la **254** organizza l'area file (§413); la **255** toglie il
 > blocco che impediva di eliminare un membro per una sola task; la **256** lascia
 > cancellare un account senza portarsi via i file del cliente; la **257** insegna
-> alle guardie del portale cos'è una cancellazione. La prossima libera è la **258**.
+> alle guardie del portale cos'è una cancellazione. La **258** è la bozza dei link
+> pubblici ai file dell'area cliente, non ancora su `main`; la **259** slega
+> l'autore delle cartelle. La prossima libera è la **260**.
 
 > **La 249 è nata 247.** È stata scritta e **applicata in produzione** mentre su
 > main arrivavano `247_periodi_e_ricorrenze` e `248_scheletro_periodi`, da una
@@ -52,6 +54,38 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > file, quindi il rinumero non cambia niente sul database e **non va
 > riapplicata**. Il numero nel nome serve a chi legge il repo, e due file con lo
 > stesso numero sono una trappola per chi arriva dopo.
+
+## 259 — chi ha creato una cartella si elimina (§422, applicata il 2026-09-23)
+
+`259_cartelle_senza_autore.sql`: **applicata in produzione** via MCP, versione
+`20260923144805 cartelle_senza_autore`, con la tabella ancora vuota. Verificata
+subito dopo: colonna nullable, vincolo `SET NULL`, guardia nuova con i due
+trigger al loro posto, guardia dei file della 256 intatta. Provata su PostgreSQL
+effimero, rilanciata due volte (`node scripts/check-portal-sql.mjs`, prova
+`supabase/tests/259_cartelle_senza_autore.check.sql`); senza la 259 la stessa
+prova muore su `portal_material_folders_created_by_fkey`, cioè riproduce il
+blocco. Prerequisiti: **254**, **256**. Rilanciabile.
+
+`portal_material_folders.created_by` diventa nullable e `ON DELETE SET NULL`:
+la cartella resta dov'è, e l'autore si slega. Nessuna pagina legge chi ha
+creato una cartella, quindi non serve un nome accanto all'id come per i file.
+
+La guardia delle cartelle impara la stessa eccezione della 256: passa solo se
+l'autore diventa NULL e **il resto della riga è identico**. Il confronto è
+sulla riga intera meno `created_by` (`to_jsonb(NEW) - 'created_by'`), non su un
+elenco: una colonna aggiunta domani resta protetta senza doversene ricordare.
+L'eccezione sta **prima** del controllo sull'attore, perché questa modifica non
+la fa una persona. Una cartella nuova senza firma, un autore riscritto o uno
+slegamento che si porta dietro un altro cambio restano rifiutati.
+
+Un rinomina successivo non ridà un autore alla cartella: `keep_folder` scrive
+l'attore solo sulle cartelle che crea.
+
+Nel portale restano **16 colonne** verso `profiles` che bloccano ancora
+un'eliminazione, contate sul database il 2026-09-23. Fra le altre
+`portal_materials.archived_by` e `deleted_by`: chi ha archiviato o rimosso un
+file non si elimina. Ognuna ha una guardia sua, da leggere prima di slegarla
+(vedi la verifica 2 della 256).
 
 ## 254 — l'area file si organizza (§413, applicata il 2026-09-23 **senza la sezione 3**)
 
@@ -68,9 +102,9 @@ Prerequisiti: 244, 246, 250, 251. Additiva, nessun backfill.
 > la tabella ha RLS e i due trigger, le funzioni sono concesse solo al service role.
 >
 > Quindi **non rilanciare la 254 da sola**: la sezione 3 riporta indietro la
-> 256. Se va rilanciata, subito dopo si rilancia la 256. La suite
-> (`scripts/check-portal-sql.mjs`) fa lo stesso: 254, poi 256 e 257, e rifà le
-> prove della 254 sopra la guardia della 256.
+> 256, e la sezione 2 la 259. Se va rilanciata, subito dopo si rilanciano la 256
+> e la 259. La suite (`scripts/check-portal-sql.mjs`) fa lo stesso: 254, poi
+> 256, 257 e 259, e rifà le prove della 254 sopra.
 
 - Nuova tabella `portal_material_folders`, solo per lo staff, con un trigger
   che firma la cartella con l'attore.
@@ -164,9 +198,8 @@ un UPDATE — quindi `portal_guard_material` rifiuterebbe. Il corpo è quello de
 solo se l'autore diventa NULL **e tutto il resto della riga è identico**. Se la
 254 viene riscritta dopo, questa aggiunta va rimessa.
 
-`portal_material_folders.created_by` è `NOT NULL` e **blocca**: chi ha creato
-una cartella nell'area di un cliente non si elimina. È il primo della lista qui
-sotto.
+`portal_material_folders.created_by` era `NOT NULL` e **bloccava**: chi aveva
+creato una cartella nell'area di un cliente non si eliminava. Lo slega la **259**.
 
 Restano fuori le altre colonne del portale che puntano a una persona
 (`portal_activities.author_id`, `portal_requests`, `portal_approvals`,
