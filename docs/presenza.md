@@ -81,6 +81,30 @@ un'assenza dichiarata.
 **Il passato.** La misura parte dal giorno in cui la migration è applicata.
 Prima di quella data non c'è un silenzio: non ci sono dati.
 
+## Le due fonti hanno due orizzonti, e la pagina lo dice (§412)
+
+Il tempo viene da `os_sessions` e parte dal giorno in cui la misura è stata
+accesa. Le modifiche vengono da `activity_log`, che si conserva a finestra
+(`activity_config.retention_days`) ed è stato **cieco su task e progetti dal 20
+luglio al 23 settembre 2026** — vedi `docs/cronologia.md`. Due fonti, due
+orizzonti, e una colonna a zero si legge in un modo o nell'altro a seconda di
+quale delle due si sta guardando.
+
+Quindi la pagina dichiara la provenienza in cima — da quando si misura il tempo,
+quanto conserva la cronologia — e dove il conteggio non ha sotto una fonte
+scrive **`n/d`**, non `0`. Per la stessa ragione una persona senza sessioni non
+è «mai entrata»: è **«nessuna sessione»**, perché quello che manca è la misura,
+non il suo lavoro. Il pallino accanto è un cerchio vuoto e non un allarme.
+`modificheParziali()` e `etichettaStato()` stanno in `lib/presenza.ts` con i
+loro controlli.
+
+**Le interazioni erano gonfiate** e si è visto il primo giorno: una sessione di
+cinque minuti ne segnava 599, un'altra 99 in un minuto solo. Rotella e
+scorrimento erano contati a evento, e una rotellata sul trackpad ne emette
+decine. Adesso passano dallo stesso freno (una ogni due secondi) e un tasto
+tenuto premuto conta una volta. Era il tipo di numero che resta plausibile per
+sempre, perché nessuno va a contare i click di una giornata.
+
 ## L'effetto collaterale che vale la pena
 
 `profiles.last_seen_at` esiste dalla migration 009 e **nessuno la scriveva**.

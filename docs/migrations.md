@@ -38,7 +38,8 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > La **246** introduce l'isolamento file; la **247** e la **248** i periodi e lo
 > scheletro dei progetti; la **249** la pubblicazione nel portale; la **250** lo
 > spazio file del cliente; la **251** l'area file condivisa; la **252** la misura
-> dell'utilizzo. La prossima libera è la **253**.
+> dell'utilizzo; la **253** rimette i trigger di cronologia persi nel reset del
+> dominio progetti. La prossima libera è la **254**.
 
 > **La 249 è nata 247.** È stata scritta e **applicata in produzione** mentre su
 > main arrivavano `247_periodi_e_ricorrenze` e `248_scheletro_periodi`, da una
@@ -57,6 +58,22 @@ Verificata dal lato applicativo subito dopo: la tabella risponde, e
 `ultime_sessioni` e `presenza_totali` rispondono senza errore (zero sessioni,
 che è giusto: il battito arriva col deploy). Additiva, rilanciabile, nessun
 prerequisito oltre `profiles` e `activity_log`.
+
+## 253 — la cronologia non vedeva più le task (§412, da applicare)
+
+`253_cronologia_cieca.sql`: **da eseguire**. Additiva e rilanciabile.
+
+Rimette `trg_log_*` su tutte le tabelle con cronologia che esistono davvero —
+chieste a `to_regclass`, non a un elenco scritto a mano — e insegna a
+`log_activity()` l'etichetta di `milestones` e `project_workstreams`. Il corpo
+della funzione è quello della **179** ricopiato per intero: `CREATE OR REPLACE`
+sostituisce tutto, e una versione «solo con le mie aggiunte» riporterebbe
+indietro l'attribuzione dall'header `x-actor-id`.
+
+Perché serviva: la **144** ha droppato il dominio progetti con `CASCADE` (che
+porta via i trigger) e la **147** l'ha ricostruito senza rimetterli, quindi dal
+20 luglio 2026 `tasks`, `projects` e `invoices` non scrivevano più una riga.
+Dettaglio in `docs/cronologia.md`.
 
 Porta `os_sessions` — una sessione **di interazioni**, non di login — e tre
 funzioni: `registra_presenza(text,text,integer)`, l'unica concessa ad

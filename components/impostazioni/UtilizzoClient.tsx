@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Activity, ChevronDown, ChevronRight, Search, ArrowUpDown } from 'lucide-react'
+import { Activity, ChevronDown, ChevronRight, Search, ArrowUpDown, AlertTriangle } from 'lucide-react'
 import {
-  durataTesto, assenzaTesto, ONLINE_MS, GAP_SESSIONE_MIN, SESSIONI_MOSTRATE,
+  durataTesto, etichettaStato, ONLINE_MS, GAP_SESSIONE_MIN, SESSIONI_MOSTRATE,
   type PersonaUtilizzo,
 } from '@/lib/presenza'
 import { ROLE_LABELS } from '@/lib/permissions'
@@ -25,9 +25,16 @@ interface Props {
   righe: RigaUtilizzo[]
   giorni: number
   opzioniGiorni: number[]
+  /** Quando è cominciata la misura: `null` se non c'è ancora nessuna sessione. */
+  misuraDa: string | null
+  /** Quanti giorni conserva la cronologia. 0 = non cancella mai. */
+  retentionGiorni: number
+  /** La finestra scelta scavalca un periodo in cui la cronologia non vedeva tutto. */
+  modificheParziali: boolean
 }
 
 const FMT_GIORNO = new Intl.DateTimeFormat('it-IT', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Rome' })
+const FMT_DATA = new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Rome' })
 const FMT_ORA = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' })
 const num = (n: number) => n.toLocaleString('it-IT')
 const MINUTI_ONLINE = Math.round(ONLINE_MS / 60_000)
@@ -41,7 +48,7 @@ type Filtro = 'tutti' | 'online' | 'assenti' | 'mai'
 type Campo = 'presenza' | 'nome' | 'tempo' | 'interazioni' | 'modifiche'
 
 const FILTRI: [Filtro, string][] = [
-  ['tutti', 'Tutti'], ['online', 'Online'], ['assenti', 'Assenti da 7+ giorni'], ['mai', 'Mai entrati'],
+  ['tutti', 'Tutti'], ['online', 'Online'], ['assenti', 'Assenti da 7+ giorni'], ['mai', 'Senza sessioni'],
 ]
 
 const PESO_STATO = { online: 0, offline: 1, mai: 2 } as const
@@ -61,7 +68,7 @@ const ORDINAMENTI: Record<Campo, { cmp: (a: RigaUtilizzo, b: RigaUtilizzo) => nu
   modifiche: { discendente: true, cmp: (a, b) => a.azioni - b.azioni },
 }
 
-export function UtilizzoClient({ righe, giorni, opzioniGiorni }: Props) {
+export function UtilizzoClient({ righe, giorni, opzioniGiorni, misuraDa, retentionGiorni, modificheParziali }: Props) {
   const [q, setQ] = useState('')
   const [filtro, setFiltro] = useState<Filtro>('tutti')
   const [aperta, setAperta] = useState<string | null>(null)
@@ -130,6 +137,26 @@ export function UtilizzoClient({ righe, giorni, opzioniGiorni }: Props) {
         </nav>
       </header>
 
+      {/* La provenienza sta in alto e non in una nota a piè di pagina: sono due
+          fonti con due orizzonti diversi, e una colonna a zero si legge in un
+          modo o nell'altro a seconda di quale dei due si sta guardando. */}
+      <p className="text-2xs text-text-tertiary">
+        Il tempo si misura {misuraDa ? <>dal <strong className="text-text-secondary font-semibold">{FMT_DATA.format(new Date(misuraDa))}</strong></> : <strong className="text-text-secondary font-semibold">da adesso</strong>}.
+        {' '}Le modifiche arrivano dalla cronologia, che conserva {retentionGiorni > 0 ? `${retentionGiorni} giorni` : 'tutto'}.
+      </p>
+
+      {modificheParziali && (
+        <p className="flex items-start gap-2 text-2xs text-warning bg-warning-dim border border-warning/30 rounded-xl px-3 py-2">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
+          <span>
+            In questa finestra le <strong className="font-semibold">modifiche sono incomplete</strong>: fino al 23 settembre 2026
+            le task, i progetti e le tappe non arrivavano in cronologia — i trigger erano andati persi
+            nella ricostruzione del dominio progetti. Dove il conteggio non ha sotto una fonte,
+            la colonna dice <strong className="font-semibold">n/d</strong> invece di zero.
+          </span>
+        </p>
+      )}
+
       {/* La spiegazione sta chiusa: serve una volta, e lasciarla aperta in cima
           ruba lo spazio ai numeri che si viene a leggere tutti i giorni. */}
       <details className="group bg-surface border border-border rounded-xl">
@@ -142,6 +169,7 @@ export function UtilizzoClient({ righe, giorni, opzioniGiorni }: Props) {
           <li>Dopo {GAP_SESSIONE_MIN} minuti senza interazioni la sessione si chiude; la successiva riparte da capo.</li>
           <li><strong className="text-text-primary font-semibold">Online</strong> vuol dire che ha toccato qualcosa negli ultimi {MINUTI_ONLINE} minuti.</li>
           <li><strong className="text-text-primary font-semibold">Modifiche</strong> sono le righe cambiate nei dati. Tempo e modifiche rispondono a due domande diverse: si può consultare per un&apos;ora senza toccare niente.</li>
+          <li>Le <strong className="text-text-primary font-semibold">modifiche</strong> vengono dalla cronologia, che si conserva a finestra: oltre quella non c&apos;è «zero modifiche», non c&apos;è niente — e la colonna lo scrive.</li>
           <li>Gli accessi al portale cliente non sono misurati.</li>
         </ul>
       </details>
@@ -151,7 +179,7 @@ export function UtilizzoClient({ righe, giorni, opzioniGiorni }: Props) {
           attivo={filtro === 'online'} onClick={() => setFiltro(filtro === 'online' ? 'tutti' : 'online')} />
         <Tile label="Attivi nel periodo" valore={`${stats.attivi}/${righe.length}`} nota={`in ${giorni} giorni`} />
         <Tile label="Tempo attivo" valore={durataTesto(stats.tempo)} nota="somma di tutti" />
-        <Tile label="Mai entrati" valore={num(stats.mai)} nota="da quando si misura"
+        <Tile label="Senza sessioni" valore={num(stats.mai)} nota="da quando si misura"
           attivo={filtro === 'mai'} onClick={() => setFiltro(filtro === 'mai' ? 'tutti' : 'mai')} />
       </div>
 
@@ -205,7 +233,8 @@ export function UtilizzoClient({ righe, giorni, opzioniGiorni }: Props) {
                 )}
                 {visibili.map(r => {
                   const espansa = aperta === r.profileId
-                  const soloLettura = r.attivoFinestraMs > 0 && r.azioni === 0
+                  const stato = etichettaStato(r.stato, r.assenteMs, misuraDa !== null)
+                  const soloLettura = r.attivoFinestraMs > 0 && r.azioni === 0 && !modificheParziali
                   return [
                     <tr key={r.profileId}
                       onClick={() => setAperta(espansa ? null : r.profileId)}
@@ -226,8 +255,10 @@ export function UtilizzoClient({ righe, giorni, opzioniGiorni }: Props) {
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <span className="flex items-center gap-1.5">
                           <Punto stato={r.stato} />
-                          <span className={r.stato === 'online' ? 'font-semibold text-success' : 'text-text-secondary'}>
-                            {r.stato === 'online' ? 'online' : assenzaTesto(r.assenteMs)}
+                          <span className={
+                            stato.tono === 'online' ? 'font-semibold text-success'
+                              : stato.tono === 'senza' ? 'text-text-tertiary' : 'text-text-secondary'}>
+                            {stato.testo}
                           </span>
                         </span>
                       </td>
@@ -250,10 +281,14 @@ export function UtilizzoClient({ righe, giorni, opzioniGiorni }: Props) {
 
                       <td className="px-3 py-2.5 text-right whitespace-nowrap">
                         {r.azioni > 0
-                          ? <span className="tabular-nums text-text-secondary">{num(r.azioni)}</span>
-                          : soloLettura
-                            ? <Badge tono="neutro">solo lettura</Badge>
-                            : <span className="text-text-tertiary">—</span>}
+                          ? <span className="tabular-nums text-text-secondary">
+                              {num(r.azioni)}{modificheParziali && <span className="text-warning" title="conteggio parziale: vedi l'avviso in cima">*</span>}
+                            </span>
+                          : modificheParziali
+                            ? <span className="text-text-tertiary" title="In questa finestra la cronologia non registrava task, progetti e tappe: questo numero non esiste, non è zero.">n/d</span>
+                            : soloLettura
+                              ? <Badge tono="neutro">solo lettura</Badge>
+                              : <span className="text-text-tertiary">—</span>}
                       </td>
 
                       <td className="px-3 py-2.5 text-text-tertiary">
@@ -375,8 +410,12 @@ function Th({
 }
 
 function Punto({ stato }: { stato: PersonaUtilizzo['stato'] }) {
-  const tono = stato === 'online' ? 'bg-success' : stato === 'offline' ? 'bg-border-strong' : 'bg-warning'
-  return <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${tono} ${stato === 'online' ? 'ring-2 ring-success/25' : ''}`} aria-hidden />
+  /* Chi non ha sessioni non è un allarme — è un cerchio vuoto: non sappiamo,
+     non «va male». Il giallo qui accusava qualcuno di non aver lavorato in un
+     periodo in cui nessuno lo stava guardando. */
+  const tono = stato === 'online' ? 'bg-success ring-2 ring-success/25'
+    : stato === 'offline' ? 'bg-border-strong' : 'border border-border-strong'
+  return <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${tono}`} aria-hidden />
 }
 
 function Badge({ children, tono }: { children: React.ReactNode; tono: 'neutro' | 'spento' }) {

@@ -5,6 +5,7 @@ import {
   INTERVALLO_BEAT_MS, GAP_SESSIONE_MIN, ONLINE_MS, SESSIONI_MOSTRATE,
   attivoMs, durataMs, sezionePrincipale, vistaSessione, statoDi, assenteMs,
   durataTesto, assenzaTesto, sezioniTop, componiUtilizzo, ordinaPerPresenza, portaleDi,
+  modificheParziali, etichettaStato, CRONOLOGIA_COMPLETA_DA,
   type SessioneRow, type TotaliRow,
 } from '@/lib/presenza'
 
@@ -108,6 +109,28 @@ is('workspace', portaleDi('/workspace/clienti/1'), 'workspace')
 is('portale cliente', portaleDi('/portale'), 'portale')
 is('risorsa esterna', portaleDi('/risorsa/task'), 'risorsa')
 is('tutto il resto è il tool admin', portaleDi('/economics/prospetto'), 'admin')
+
+console.log('\n— La colonna delle modifiche dichiara quando non sa —')
+/* §412 — la finestra che scavalca il giorno in cui la cronologia è tornata
+   completa conta solo una parte: uno zero lì dentro non è «non ha fatto
+   niente», ed è la categoria di errore che nessuno va a controllare. */
+is('trenta giorni indietro: parziale', modificheParziali(new Date(Date.parse(CRONOLOGIA_COMPLETA_DA) - 30 * 86_400_000).toISOString(), 90, ORA), true)
+is('il giorno stesso: parziale', modificheParziali(CRONOLOGIA_COMPLETA_DA, 90, ORA), false)
+is('un\'ora dopo: completa', modificheParziali(new Date(Date.parse(CRONOLOGIA_COMPLETA_DA) + 3_600_000).toISOString(), 90, ORA), false)
+/* Oltre la conservazione non c'è «zero modifiche»: non c'è niente. */
+const fraUnAnno = Date.parse(CRONOLOGIA_COMPLETA_DA) + 365 * 86_400_000
+is('finestra più lunga della conservazione', modificheParziali(new Date(fraUnAnno - 40 * 86_400_000).toISOString(), 20, fraUnAnno), true)
+is('finestra dentro la conservazione', modificheParziali(new Date(fraUnAnno - 10 * 86_400_000).toISOString(), 20, fraUnAnno), false)
+is('conservazione infinita: conta solo la data', modificheParziali(new Date(fraUnAnno - 300 * 86_400_000).toISOString(), 0, fraUnAnno), false)
+is('data illeggibile: parziale', modificheParziali('non una data', 90, ORA), true)
+
+console.log('\n— «Mai entrato» non è la frase giusta —')
+/* La misura è cominciata ieri, non la sua assenza: la riga dice che sessioni
+   non ce ne sono, e da quando si misura lo dichiara l'intestazione. */
+is('online', etichettaStato('online', 0, true), { testo: 'online', tono: 'online' })
+is('assente', etichettaStato('offline', 3 * 60 * 60_000, true), { testo: '3 ore fa', tono: 'assente' })
+is('senza sessioni, ma si misura', etichettaStato('mai', null, true), { testo: 'nessuna sessione', tono: 'senza' })
+is('senza sessioni perché non si misura ancora', etichettaStato('mai', null, false), { testo: 'misura non attiva', tono: 'senza' })
 
 console.log('\n— La stessa soglia in TypeScript e in SQL —')
 /* §410 — il gap che chiude una sessione vive in due posti: qui e nella

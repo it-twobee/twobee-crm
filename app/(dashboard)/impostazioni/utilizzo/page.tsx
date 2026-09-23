@@ -1,7 +1,10 @@
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { hasUsageAccess } from '@/lib/presenza-guard'
-import { componiUtilizzo, ordinaPerPresenza, SESSIONI_MOSTRATE, type SessioneRow, type TotaliRow } from '@/lib/presenza'
+import {
+  componiUtilizzo, ordinaPerPresenza, modificheParziali, SESSIONI_MOSTRATE,
+  type SessioneRow, type TotaliRow,
+} from '@/lib/presenza'
 import { UtilizzoClient, type RigaUtilizzo } from '@/components/impostazioni/UtilizzoClient'
 import type { AppRole } from '@/lib/types/database'
 
@@ -23,12 +26,20 @@ export default async function UtilizzoPage({
   const da = new Date(Date.now() - giorni * 86_400_000).toISOString()
 
   const admin = createAdminClient()
-  const [profiliRes, sessioniRes, totaliRes] = await Promise.all([
+  const [profiliRes, sessioniRes, totaliRes, primaRes, configRes] = await Promise.all([
     admin.from('profiles')
       .select('id, full_name, email, app_role, avatar_url, is_active, created_at')
       .order('full_name'),
     admin.rpc('ultime_sessioni', { p_quante: SESSIONI_MOSTRATE }),
     admin.rpc('presenza_totali', { p_da: da }),
+    /* Da quando esiste questa misura: la prima sessione mai registrata. Senza
+       questa data una riga vuota direbbe «mai entrato» di qualcuno che non è
+       ancora stato guardato — e un'assenza dichiarata vale più di uno zero. */
+    admin.from('os_sessions').select('started_at').order('started_at', { ascending: true }).limit(1),
+    /* Quanto indietro arriva la cronologia: oltre la conservazione non c'è
+       «zero modifiche», non c'è niente. */
+    admin.from('activity_config').select('retention_days').maybeSingle()
+      .then(r => (r.error ? { data: null } : r)),
   ])
 
   type ProfiloRiga = {
@@ -62,9 +73,21 @@ export default async function UtilizzoPage({
     }))
     .sort(ordinaPerPresenza)
 
+  const misuraDa = ((primaRes.data ?? []) as { started_at: string }[])[0]?.started_at ?? null
+  const retentionGiorni = (configRes.data as { retention_days: number } | null)?.retention_days ?? 0
+
   return (
     <div className="p-4 sm:p-6">
-      <UtilizzoClient righe={righe} giorni={giorni} opzioniGiorni={[...GIORNI_AMMESSI]} />
+      <UtilizzoClient
+        righe={righe}
+        giorni={giorni}
+        opzioniGiorni={[...GIORNI_AMMESSI]}
+        misuraDa={misuraDa}
+        retentionGiorni={retentionGiorni}
+        /* calcolata qui: `Date.now()` dentro il componente darebbe due risposte
+           diverse fra server e browser, e React se ne lamenta in idratazione */
+        modificheParziali={modificheParziali(da, retentionGiorni, Date.now())}
+      />
     </div>
   )
 }

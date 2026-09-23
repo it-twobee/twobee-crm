@@ -46,6 +46,21 @@ export const ONLINE_MS = 5 * 60_000
 /** Quante sessioni si mostrano per persona. */
 export const SESSIONI_MOSTRATE = 5
 
+/**
+ * §412 — la data da cui la cronologia è di nuovo completa.
+ *
+ * La colonna delle modifiche legge `activity_log`, e quel registro era **cieco
+ * sulle task**: la migration 144 ha droppato il dominio progetti con `CASCADE`
+ * — che porta via anche i trigger — e la 147 l'ha ricostruito senza rimettere
+ * `trg_log_tasks` e `trg_log_projects`. Dal 20 luglio 2026 al giorno qui sotto
+ * chi lavora in workspace ha mosso task ogni giorno senza lasciare una riga.
+ *
+ * La 253 rimette i trigger, ma **il passato non si ricostruisce**: una finestra
+ * che comincia prima di questa data conta solo una parte delle modifiche, e uno
+ * zero lì dentro non vuol dire «non ha fatto niente». Si dichiara, non si mostra.
+ */
+export const CRONOLOGIA_COMPLETA_DA = '2026-09-23'
+
 export type StatoPresenza = 'online' | 'offline' | 'mai'
 
 /** La riga come arriva dal database (migration 252). */
@@ -258,6 +273,38 @@ export function ordinaPerPresenza(a: PersonaUtilizzo, b: PersonaUtilizzo): numbe
   if (a.assenteMs === null) return b.assenteMs === null ? 0 : 1
   if (b.assenteMs === null) return -1
   return a.assenteMs - b.assenteMs
+}
+
+/**
+ * La finestra chiesta copre un periodo in cui il registro non vedeva tutto?
+ *
+ * Due ragioni, e bastano l'una o l'altra: comincia prima che la cronologia
+ * tornasse completa, oppure va più indietro di quanto la cronologia conservi —
+ * oltre la conservazione non c'è «zero modifiche», non c'è niente.
+ */
+export function modificheParziali(finestraDaIso: string, retentionGiorni: number, oraMs: number): boolean {
+  const da = Date.parse(finestraDaIso)
+  if (Number.isNaN(da)) return true
+  if (da < Date.parse(CRONOLOGIA_COMPLETA_DA)) return true
+  return retentionGiorni > 0 && oraMs - da > retentionGiorni * 86_400_000
+}
+
+export type EtichettaStato = { testo: string; tono: 'online' | 'assente' | 'senza' }
+
+/**
+ * Cosa si scrive nella colonna dello stato.
+ *
+ * «Mai entrato» era la frase sbagliata: per chi non ha sessioni la misura è
+ * cominciata ieri, non la sua assenza. La riga dice solo che sessioni non ce ne
+ * sono; **da quando** si misura lo dichiara l'intestazione, una volta per tutte,
+ * invece di ripeterlo su ogni riga.
+ */
+export function etichettaStato(
+  stato: StatoPresenza, assenteMs: number | null, misuraAttiva: boolean,
+): EtichettaStato {
+  if (stato === 'online') return { testo: 'online', tono: 'online' }
+  if (stato === 'offline') return { testo: assenzaTesto(assenteMs), tono: 'assente' }
+  return { testo: misuraAttiva ? 'nessuna sessione' : 'misura non attiva', tono: 'senza' }
 }
 
 /** Il portale da cui arriva il battito, dedotto dall'indirizzo. */

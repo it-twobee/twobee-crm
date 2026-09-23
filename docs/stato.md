@@ -1,5 +1,25 @@
 # Dove siamo
 
+## La cronologia era cieca sulle task — §412, 2026-09-23
+
+La vista sull'utilizzo diceva «0 modifiche» per quasi tutti, e non era un
+difetto della vista. `activity_log` **non riceveva una riga da `tasks` dal 20
+luglio 2026**: la 144 ha droppato il dominio progetti con `CASCADE` — che porta
+via anche i trigger — e la 147 l'ha ricostruito rimettendo solo quelli di
+`updated_at`. Stessa storia per `projects` e `invoices`. Nel frattempo le task
+si muovevano: 149 toccate negli ultimi trenta giorni, 45 chiuse.
+
+Nessuno se n'è accorto per due mesi perché una cronologia che si svuota non dà
+errore: dà una pagina vuota, che somiglia a una giornata tranquilla.
+
+Migration **253** (da applicare): i trigger tornano su tutte le tabelle con
+cronologia che esistono davvero, `milestones` e `project_workstreams` comprese.
+Il passato non si ricostruisce, quindi la vista **dichiara** la finestra
+parziale e scrive `n/d` dove il conteggio non ha sotto una fonte — mai uno zero.
+Nella stessa passata: chi non ha sessioni non è più «mai entrato» ma «nessuna
+sessione», e le interazioni non sono più gonfiate dalla rotella (una sessione di
+cinque minuti ne segnava 599).
+
 ## Chi usa il tool, misurato sulle interazioni — §410, 2026-09-23
 
 `/impostazioni/utilizzo`, solo super admin: chi è collegato adesso, da quanto

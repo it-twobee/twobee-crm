@@ -18,6 +18,13 @@ import { INTERVALLO_BEAT_MS, portaleDi } from '@/lib/presenza'
  * cambi di pagina. Non il movimento del mouse — un urto alla scrivania non è
  * lavoro — e non il semplice tornare sulla scheda.
  *
+ * §412 — rotella e scorrimento passano dallo stesso freno, e un tasto tenuto
+ * premuto conta una volta sola. Erano fuori: il primo giorno di misura una
+ * sessione di cinque minuti ha registrato **599 interazioni** e un'altra 99 in
+ * un minuto solo, perché una singola rotellata sul trackpad emette decine di
+ * eventi `wheel`. Il numero restava plausibile — nessuno va a contare i click
+ * di una giornata — e non misurava più niente.
+ *
  * Quello che viaggia è un numero e un percorso: nessun contenuto, nessun testo
  * digitato, nessun parametro dell'indirizzo (la query può contenere l'id di un
  * cliente e non serve a niente qui). Il nome di chi sta interagendo non si
@@ -39,8 +46,11 @@ export function PresenceBeat() {
   useEffect(() => {
     const conta = () => { interazioni.current += 1 }
 
-    // Lo scorrimento arriva a raffica: una rotellata sola conterebbe trenta
-    // interazioni e gonfierebbe la colonna senza dire niente di più.
+    // Un tasto tenuto premuto emette `keydown` a ripetizione: è un gesto solo.
+    const contaTasto = (e: Event) => { if (!(e as KeyboardEvent).repeat) interazioni.current += 1 }
+
+    // Rotella e scorrimento arrivano a raffica: una rotellata sola vale decine
+    // di eventi, e contarli tutti gonfia la colonna senza dire niente di più.
     let ultimoScorrimento = 0
     const contaScorrimento = () => {
       const ora = Date.now()
@@ -79,19 +89,25 @@ export function PresenceBeat() {
     const suVisibilita = () => { if (document.visibilityState === 'hidden') invia(true) }
     const suUscita = () => invia(true)
 
-    for (const evento of ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const) {
+    for (const evento of ['pointerdown', 'touchstart'] as const) {
       window.addEventListener(evento, conta, { passive: true })
     }
-    window.addEventListener('scroll', contaScorrimento, { passive: true })
+    window.addEventListener('keydown', contaTasto, { passive: true })
+    for (const evento of ['scroll', 'wheel'] as const) {
+      window.addEventListener(evento, contaScorrimento, { passive: true })
+    }
     document.addEventListener('visibilitychange', suVisibilita)
     window.addEventListener('pagehide', suUscita)
 
     return () => {
       clearInterval(timer)
-      for (const evento of ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const) {
+      for (const evento of ['pointerdown', 'touchstart'] as const) {
         window.removeEventListener(evento, conta)
       }
-      window.removeEventListener('scroll', contaScorrimento)
+      window.removeEventListener('keydown', contaTasto)
+      for (const evento of ['scroll', 'wheel'] as const) {
+        window.removeEventListener(evento, contaScorrimento)
+      }
       document.removeEventListener('visibilitychange', suVisibilita)
       window.removeEventListener('pagehide', suUscita)
     }
