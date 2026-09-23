@@ -462,7 +462,7 @@ npx tsx scripts/check-portal-download-route.ts
 npx tsx scripts/check-portal-materials-routes.ts
 npx tsx scripts/check-area-cliente-routes.ts   # rotte del team + scheda File
 npx tsx lib/portal/explorer.check.ts           # cartelle, ordine, ricerca, nomi e spostamenti
-node scripts/check-portal-sql.mjs               # 244→251, poi 254 sopra le prove della 251
+node scripts/check-portal-sql.mjs               # 244→251, poi 254 sopra le prove della 251, poi 256-257 e di nuovo le prove della 254
 npx tsx lib/portal/zip.check.ts               # nomi dentro lo zip e dello zip
 NODE_PATH=<playwright> node scripts/check-area-file-browser.mjs   # l'esploratore in un browser vero
 node scripts/check-storage-sql.mjs

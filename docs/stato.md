@@ -122,9 +122,9 @@ Nell'esploratore si può mettere in ordine:
 Nello spazio del cliente non si carica, ma si mette in ordine: le sue cartelle
 le vede anche lui.
 
-**Migration 254 da applicare.** Senza, l'area funziona come prima e le voci per
-organizzare non compaiono. Dettaglio in `docs/storage-access.md` e
-`docs/migrations.md`.
+**Migration 254 applicata** il 2026-09-23, senza la sezione 3 perché la 256 era
+già arrivata (dettaglio in `docs/migrations.md`). Senza la 254 l'area
+funzionerebbe come prima, solo senza le voci per organizzare.
 
 ## L'area file è un esploratore — §416, 2026-09-23
 
@@ -181,7 +181,7 @@ si muovevano: 149 toccate negli ultimi trenta giorni, 45 chiuse.
 Nessuno se n'è accorto per due mesi perché una cronologia che si svuota non dà
 errore: dà una pagina vuota, che somiglia a una giornata tranquilla.
 
-Migration **253** (da applicare): i trigger tornano su tutte le tabelle con
+Migration **253** (applicata): i trigger tornano su tutte le tabelle con
 cronologia che esistono davvero, `milestones` e `project_workstreams` comprese.
 Il passato non si ricostruisce, quindi la vista **dichiara** la finestra
 parziale e scrive `n/d` dove il conteggio non ha sotto una fonte — mai uno zero.

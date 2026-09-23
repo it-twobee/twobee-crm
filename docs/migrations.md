@@ -53,12 +53,24 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > riapplicata**. Il numero nel nome serve a chi legge il repo, e due file con lo
 > stesso numero sono una trappola per chi arriva dopo.
 
-## 254 — l'area file si organizza (§413, **da applicare**)
+## 254 — l'area file si organizza (§413, applicata il 2026-09-23 **senza la sezione 3**)
 
-`254_area_file_cartelle.sql`: scritta e provata su PostgreSQL effimero
-(`node scripts/check-portal-sql.mjs`, rilanciata due volte), **non ancora
-applicata in produzione**. Prerequisiti: 244, 246, 250, 251. Additiva, nessun
-backfill.
+`254_area_file_cartelle.sql`: provata su PostgreSQL effimero
+(`node scripts/check-portal-sql.mjs`, rilanciata due volte) e **applicata in
+produzione** via MCP, versione `20260923140832 area_file_cartelle`.
+Prerequisiti: 244, 246, 250, 251. Additiva, nessun backfill.
+
+> **In produzione è arrivata dopo la 256, e senza la sezione 3.** La 256 era già
+> applicata, e il suo `portal_guard_material` è il corpo della 254 più
+> l'eccezione §419 (l'autore che si slega). Riscriverlo con la sezione 3 avrebbe
+> tolto quell'eccezione, e un account che ha caricato un file sarebbe tornato
+> impossibile da eliminare. Verificato dopo: il guard ha lo stesso md5 di prima,
+> la tabella ha RLS e i due trigger, le funzioni sono concesse solo al service role.
+>
+> Quindi **non rilanciare la 254 da sola**: la sezione 3 riporta indietro la
+> 256. Se va rilanciata, subito dopo si rilancia la 256. La suite
+> (`scripts/check-portal-sql.mjs`) fa lo stesso: 254, poi 256 e 257, e rifà le
+> prove della 254 sopra la guardia della 256.
 
 - Nuova tabella `portal_material_folders`, solo per lo staff, con un trigger
   che firma la cartella con l'attore.
@@ -82,94 +94,6 @@ Verificata dal lato applicativo subito dopo: la tabella risponde, e
 che è giusto: il battito arriva col deploy). Additiva, rilanciabile, nessun
 prerequisito oltre `profiles` e `activity_log`.
 
-## 257 — le due guardie che non conoscevano la cancellazione (§420, da applicare)
-
-`257_cancellare_una_persona.sql`: **da eseguire**. Rilanciabile. Prerequisito:
-**256**.
-
-La 256 non bastava, e si è visto solo provando a cancellare davvero. Due cause,
-tutte e due invisibili leggendo il repository: i trigger colpevoli nascono dentro
-un `DO ... EXECUTE format(...)`, quindi cercarli per nome non li trova.
-
-**`portal_immutable`** sta su `portal_events` e rifiuta ogni UPDATE — ma
-`ON DELETE SET NULL` **è** un UPDATE, quindi svuotare `actor_id` era vietato e la
-cancellazione moriva lì. Adesso la guardia ammette una cosa sola: che **ogni**
-differenza fra riga vecchia e nuova sia una colonna di riferimento (`*_id`,
-`*_by`) che diventa NULL. Un testo riscritto o un esito cambiato restano
-rifiutati, che è il motivo per cui quella guardia esiste.
-
-**`portal_log_event`** pretende `x-actor-id` e la server action scriveva col
-service role nudo: si risolve nel codice, con `createActorClient` — la regola sta
-in `docs/cronologia.md` da sempre e a quell'azione non era stata applicata.
-
-La verifica in coda prova tutte e due le strade su un evento vero dentro una
-transazione che si annulla da sé: non scrive e non cancella niente.
-
-## 256 — un account si elimina, il file del cliente resta (§419, da applicare)
-
-`256_autore_ignoto.sql`: **da eseguire**. Rilanciabile. Prerequisiti: **250**,
-**251**, **254**.
-
-Decisione del committente, e va scritta perché non è ovvia: un account si
-elimina davvero, e quello che ha caricato nell'area di un cliente resta dov'è
-con l'autore **ignoto e dichiarato tale**. L'alternativa era tenere in eterno
-account inutilizzati solo perché una volta hanno caricato un file.
-
-`portal_materials.uploaded_by` e `portal_events.actor_id` diventano nullable e
-`ON DELETE SET NULL`. Il nome non si perde: `uploaded_by_name` è scritto accanto
-all'id dal giorno del caricamento, e l'interfaccia lo mostra con «non più nel
-sistema» (`autoreTesto` in `lib/portal/explorer.ts`).
-
-**La guardia va toccata**, ed è la parte delicata: `uploaded_by` sta nell'elenco
-di ciò che non cambia dopo il caricamento, e `ON DELETE SET NULL` è tecnicamente
-un UPDATE — quindi `portal_guard_material` rifiuterebbe. Il corpo è quello della
-**254** ricopiato per intero con una sola aggiunta in testa al ramo UPDATE: passa
-solo se l'autore diventa NULL **e tutto il resto della riga è identico**. Se la
-254 viene riscritta dopo, questa aggiunta va rimessa.
-
-Restano fuori le altre colonne del portale che puntano a una persona
-(`portal_activities.author_id`, `portal_requests`, `portal_approvals`,
-`portal_material_folders.created_by`…): hanno guardie proprie sull'UPDATE che
-vanno lette una per una. La **verifica 2** le elenca, così il prossimo vicolo
-cieco si vede prima di sbatterci.
-
-## 255 — una task sopravvive alla persona (§418, da applicare)
-
-`255_task_senza_persona.sql`: **da eseguire**. Rilanciabile, tocca solo vincoli.
-
-`tasks.assignee_id` puntava a `profiles` senza clausola di cancellazione, e
-senza clausola Postgres sceglie `NO ACTION`: bastava **una** task, anche chiusa,
-anche assegnata per sbaglio, perché quell'account non si potesse più eliminare.
-Omissione della **147**, la stessa che aveva perso i trigger di cronologia.
-Adesso `SET NULL`, come già `activity_log.user_id` e `files.uploaded_by`: la
-task resta, torna senza assegnatario, e la riga in `task_assignees` sparisce in
-cascata — quindi le due fonti restano d'accordo.
-
-Converte tutte le colonne di `tasks` verso `profiles` che sono nullable e
-bloccanti, chiedendole allo schema: è un elenco scritto a mano che ha creato il
-problema. Le colonne `NOT NULL` restano fuori, perché lì `SET NULL` violerebbe
-il vincolo.
-
-La **verifica 2** stampa l'inventario di chi blocca ancora in tutto lo schema:
-non è un elenco da svuotare — per certe tabelle bloccare è giusto — ma serve a
-vedere il prossimo vicolo cieco prima di aprirlo.
-
-## 253 — la cronologia non vedeva più le task (§412, da applicare)
-
-`253_cronologia_cieca.sql`: **da eseguire**. Additiva e rilanciabile.
-
-Rimette `trg_log_*` su tutte le tabelle con cronologia che esistono davvero —
-chieste a `to_regclass`, non a un elenco scritto a mano — e insegna a
-`log_activity()` l'etichetta di `milestones` e `project_workstreams`. Il corpo
-della funzione è quello della **179** ricopiato per intero: `CREATE OR REPLACE`
-sostituisce tutto, e una versione «solo con le mie aggiunte» riporterebbe
-indietro l'attribuzione dall'header `x-actor-id`.
-
-Perché serviva: la **144** ha droppato il dominio progetti con `CASCADE` (che
-porta via i trigger) e la **147** l'ha ricostruito senza rimetterli, quindi dal
-20 luglio 2026 `tasks`, `projects` e `invoices` non scrivevano più una riga.
-Dettaglio in `docs/cronologia.md`.
-
 Porta `os_sessions` — una sessione **di interazioni**, non di login — e tre
 funzioni: `registra_presenza(text,text,integer)`, l'unica concessa ad
 `authenticated`, e `ultime_sessioni(integer)` + `presenza_totali(timestamptz)`,
@@ -190,6 +114,107 @@ mai scritta da nessuno, da qui in poi ha un valore vero. La leggevano
 `lib/person-copy.ts` e la scheda della persona.
 
 Dettaglio in `docs/presenza.md`.
+
+## 257 — le due guardie che non conoscevano la cancellazione (§420, applicata il 2026-09-23)
+
+`257_cancellare_una_persona.sql`: **applicata in produzione**, verificata il
+2026-09-23 con la prova in coda rifatta in una transazione annullata: la guardia
+rifiuta una modifica vera e lascia slegare l'autore. Rilanciabile.
+Prerequisito: **256**.
+
+La 256 non bastava, e si è visto solo provando a cancellare davvero. Due cause,
+tutte e due invisibili leggendo il repository: i trigger colpevoli nascono dentro
+un `DO ... EXECUTE format(...)`, quindi cercarli per nome non li trova.
+
+**`portal_immutable`** sta su `portal_events` e rifiuta ogni UPDATE — ma
+`ON DELETE SET NULL` **è** un UPDATE, quindi svuotare `actor_id` era vietato e la
+cancellazione moriva lì. Adesso la guardia ammette una cosa sola: che **ogni**
+differenza fra riga vecchia e nuova sia una colonna di riferimento (`*_id`,
+`*_by`) che diventa NULL. Un testo riscritto o un esito cambiato restano
+rifiutati, che è il motivo per cui quella guardia esiste.
+
+**`portal_log_event`** pretende `x-actor-id` e la server action scriveva col
+service role nudo: si risolve nel codice, con `createActorClient` — la regola sta
+in `docs/cronologia.md` da sempre e a quell'azione non era stata applicata.
+
+La verifica in coda prova tutte e due le strade su un evento vero dentro una
+transazione che si annulla da sé: non scrive e non cancella niente.
+
+## 256 — un account si elimina, il file del cliente resta (§419, applicata il 2026-09-23)
+
+`256_autore_ignoto.sql`: **applicata in produzione** (verificato il 2026-09-23:
+le due colonne sono nullable e `ON DELETE SET NULL`). Rilanciabile. Prerequisiti:
+**250**, **251**, **254** — ed è arrivata **prima** della 254, che quindi è stata
+applicata senza la sua sezione 3 (vedi la 254).
+
+Decisione del committente, e va scritta perché non è ovvia: un account si
+elimina davvero, e quello che ha caricato nell'area di un cliente resta dov'è
+con l'autore **ignoto e dichiarato tale**. L'alternativa era tenere in eterno
+account inutilizzati solo perché una volta hanno caricato un file.
+
+`portal_materials.uploaded_by` e `portal_events.actor_id` diventano nullable e
+`ON DELETE SET NULL`. Il nome non si perde: `uploaded_by_name` è scritto accanto
+all'id dal giorno del caricamento, e l'interfaccia lo mostra con «non più nel
+sistema» (`autoreTesto` in `lib/portal/explorer.ts`).
+
+**La guardia va toccata**, ed è la parte delicata: `uploaded_by` sta nell'elenco
+di ciò che non cambia dopo il caricamento, e `ON DELETE SET NULL` è tecnicamente
+un UPDATE — quindi `portal_guard_material` rifiuterebbe. Il corpo è quello della
+**254** ricopiato per intero con una sola aggiunta in testa al ramo UPDATE: passa
+solo se l'autore diventa NULL **e tutto il resto della riga è identico**. Se la
+254 viene riscritta dopo, questa aggiunta va rimessa.
+
+`portal_material_folders.created_by` è `NOT NULL` e **blocca**: chi ha creato
+una cartella nell'area di un cliente non si elimina. È il primo della lista qui
+sotto.
+
+Restano fuori le altre colonne del portale che puntano a una persona
+(`portal_activities.author_id`, `portal_requests`, `portal_approvals`,
+`portal_material_folders.created_by`…): hanno guardie proprie sull'UPDATE che
+vanno lette una per una. La **verifica 2** le elenca, così il prossimo vicolo
+cieco si vede prima di sbatterci.
+
+## 255 — una task sopravvive alla persona (§418, applicata il 2026-09-23)
+
+`255_task_senza_persona.sql`: **applicata in produzione** (verificato il
+2026-09-23: `assignee_id` e `created_by` di `tasks` sono `SET NULL`).
+Rilanciabile, tocca solo vincoli.
+
+`tasks.assignee_id` puntava a `profiles` senza clausola di cancellazione, e
+senza clausola Postgres sceglie `NO ACTION`: bastava **una** task, anche chiusa,
+anche assegnata per sbaglio, perché quell'account non si potesse più eliminare.
+Omissione della **147**, la stessa che aveva perso i trigger di cronologia.
+Adesso `SET NULL`, come già `activity_log.user_id` e `files.uploaded_by`: la
+task resta, torna senza assegnatario, e la riga in `task_assignees` sparisce in
+cascata — quindi le due fonti restano d'accordo.
+
+Converte tutte le colonne di `tasks` verso `profiles` che sono nullable e
+bloccanti, chiedendole allo schema: è un elenco scritto a mano che ha creato il
+problema. Le colonne `NOT NULL` restano fuori, perché lì `SET NULL` violerebbe
+il vincolo.
+
+La **verifica 2** stampa l'inventario di chi blocca ancora in tutto lo schema:
+non è un elenco da svuotare — per certe tabelle bloccare è giusto — ma serve a
+vedere il prossimo vicolo cieco prima di aprirlo.
+
+## 253 — la cronologia non vedeva più le task (§412, applicata)
+
+`253_cronologia_cieca.sql`: **applicata in produzione** (verificato il
+2026-09-23: `trg_log_*` c'è su `tasks`, `projects`, `invoices`, `milestones` e
+`project_workstreams`, e `log_activity()` conosce le due etichette nuove).
+Additiva e rilanciabile.
+
+Rimette `trg_log_*` su tutte le tabelle con cronologia che esistono davvero —
+chieste a `to_regclass`, non a un elenco scritto a mano — e insegna a
+`log_activity()` l'etichetta di `milestones` e `project_workstreams`. Il corpo
+della funzione è quello della **179** ricopiato per intero: `CREATE OR REPLACE`
+sostituisce tutto, e una versione «solo con le mie aggiunte» riporterebbe
+indietro l'attribuzione dall'header `x-actor-id`.
+
+Perché serviva: la **144** ha droppato il dominio progetti con `CASCADE` (che
+porta via i trigger) e la **147** l'ha ricostruito senza rimetterli, quindi dal
+20 luglio 2026 `tasks`, `projects` e `invoices` non scrivevano più una riga.
+Dettaglio in `docs/cronologia.md`.
 
 ## 251 — l'area file di un cliente (§398, applicata il 2026-09-22)
 

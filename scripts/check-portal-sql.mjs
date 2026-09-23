@@ -42,6 +42,13 @@ try {
   // si applica dopo le prove della 251, che raccontano la regola di allora.
   for (let i = 0; i < 2; i++) sql('supabase/migrations/254_area_file_cartelle.sql')
   sql('supabase/tests/254_area_file_cartelle.check.sql')
+  // La 256 riscrive la guardia della 254 (l'autore che si slega), e in
+  // produzione c'è la sua: le prove della 254 devono reggere anche sopra.
+  for (let i = 0; i < 2; i++) {
+    sql('supabase/migrations/256_autore_ignoto.sql')
+    sql('supabase/migrations/257_cancellare_una_persona.sql')
+  }
+  sql('supabase/tests/254_area_file_cartelle.check.sql')
   console.log('Tutti i controlli passano: migration rilanciabili e isolamento SQL su PostgreSQL effimero.')
 } finally {
   execFileSync('docker', ['rm', '-f', name], { stdio: 'pipe' })

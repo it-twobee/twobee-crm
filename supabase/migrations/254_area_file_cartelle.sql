@@ -87,6 +87,9 @@ CREATE TRIGGER portal_log_event AFTER INSERT OR UPDATE OR DELETE ON public.porta
   FOR EACH ROW EXECUTE FUNCTION public.portal_log_event();
 
 -- ── 3) Un file vivo cambia nome e posto; nient'altro ─────────────────────────
+-- In produzione questa sezione NON è stata applicata: la 256 era già arrivata e
+-- la sua guardia è questa più l'autore che si slega (§419). Rilanciare la 254
+-- da sola la riporta indietro: dopo, si rilancia la 256.
 -- Riscrive la guardia della 251 con una sola differenza: `name` e `path` escono
 -- dalla lista dell'immutabile finché il file non è rimosso. `source` resta
 -- dentro: spostare un file dal nostro spazio al suo è una pubblicazione.
