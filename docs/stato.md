@@ -1,5 +1,29 @@
 # Dove siamo
 
+## Chi usa il tool, misurato sulle interazioni — §410, 2026-09-23
+
+`/impostazioni/utilizzo`, solo super admin: chi è collegato adesso, da quanto
+non entra chi non c'è, quanto tempo ha passato dentro nelle ultime cinque
+sessioni e quante righe ha toccato nella finestra.
+
+La scelta che regge tutto il resto: **non si misura la sessione, si misurano le
+interazioni**. Una scheda aperta non è una persona al lavoro — un tab
+dimenticato la mattina direbbe «online» fino a sera — quindi il browser manda un
+battito solo se nel minuto passato ha contato un click, un tasto, una rotellata
+o un cambio di pagina, e solo a scheda in primo piano. Due ore di tool aperto con
+dieci minuti di lavoro dentro valgono dieci minuti.
+
+Accanto al tempo c'è il lavoro lasciato sui dati (`activity_log`), perché sono
+due domande diverse e il confronto è l'informazione: si può stare due ore dentro
+senza cambiare una riga, e cambiarne dieci in cinque minuti.
+
+Migration **252 applicata**. Il portale cliente resta fuori di proposito (il
+battito non è montato lì) e la pagina lo dichiara, invece di mostrare «mai
+entrato» su gente che nessuno sta misurando. La misura parte da oggi: prima non
+c'è un silenzio, non ci sono dati. Effetto collaterale voluto:
+`profiles.last_seen_at`, aggiunta dalla 009 e mai scritta da nessuno, adesso ha
+un valore vero. Dettaglio in `docs/presenza.md`.
+
 ## Un referente del cliente non assegna il nostro lavoro — §409, 2026-09-22
 
 Un manager si è creato un accesso al portale di un cliente col proprio nome,

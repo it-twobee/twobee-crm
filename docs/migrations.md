@@ -37,8 +37,8 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > cliente**, integrato in main; la **245** aggiunge la gestione accessi.
 > La **246** introduce l'isolamento file; la **247** e la **248** i periodi e lo
 > scheletro dei progetti; la **249** la pubblicazione nel portale; la **250** lo
-> spazio file del cliente; la **251** l'area file condivisa. La prossima libera
-> è la **252**.
+> spazio file del cliente; la **251** l'area file condivisa; la **252** la misura
+> dell'utilizzo. La prossima libera è la **253**.
 
 > **La 249 è nata 247.** È stata scritta e **applicata in produzione** mentre su
 > main arrivavano `247_periodi_e_ricorrenze` e `248_scheletro_periodi`, da una
@@ -48,6 +48,36 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > file, quindi il rinumero non cambia niente sul database e **non va
 > riapplicata**. Il numero nel nome serve a chi legge il repo, e due file con lo
 > stesso numero sono una trappola per chi arriva dopo.
+
+## 252 — quanto si usa il tool, contato sulle interazioni (§410, applicata il 2026-09-23)
+
+`252_presenza_risorse.sql`: **applicata in produzione** dal SQL Editor, quindi
+senza una versione registrata da Supabase — come le altre di questo repo.
+Verificata dal lato applicativo subito dopo: la tabella risponde, e
+`ultime_sessioni` e `presenza_totali` rispondono senza errore (zero sessioni,
+che è giusto: il battito arriva col deploy). Additiva, rilanciabile, nessun
+prerequisito oltre `profiles` e `activity_log`.
+
+Porta `os_sessions` — una sessione **di interazioni**, non di login — e tre
+funzioni: `registra_presenza(text,text,integer)`, l'unica concessa ad
+`authenticated`, e `ultime_sessioni(integer)` + `presenza_totali(timestamptz)`,
+che restano al solo service role. La tabella ha RLS **senza policy**: dice chi
+lavora e quanto, e non è una cosa che si legge fra colleghi.
+
+Due cose vanno sapute prima di rilanciarla. La prima: `registra_presenza` scrive
+sulla riga di `auth.uid()` e **non** su un id che arriva dalla richiesta — se un
+giorno qualcuno la cambia per accettare un parametro, il conteggio diventa una
+cosa che chiunque può scrivere sul conto di chiunque. La seconda: il gap che
+chiude una sessione (`interval '15 minutes'`) è lo stesso numero di
+`GAP_SESSIONE_MIN` in `lib/presenza.ts`, e `lib/presenza.check.ts` **legge
+questo file** per verificarlo — rinominare la migration senza aggiornare il
+controllo lo fa fallire, ed è voluto.
+
+Effetto collaterale desiderato: `profiles.last_seen_at`, aggiunta dalla **009** e
+mai scritta da nessuno, da qui in poi ha un valore vero. La leggevano
+`lib/person-copy.ts` e la scheda della persona.
+
+Dettaglio in `docs/presenza.md`.
 
 ## 251 — l'area file di un cliente (§398, applicata il 2026-09-22)
 

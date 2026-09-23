@@ -631,6 +631,27 @@ export interface ActivityLog {
 // ─── Versioni del TwoBee OS (§179) ───────────────────────────
 export type OsVersionStatus = 'bozza' | 'pubblicata'
 
+/**
+ * §410 — una sessione di lavoro nel tool (migration 252).
+ *
+ * Non è una sessione di login: è una finestra di **interazioni**. Si apre al
+ * primo battito e si chiude da sola dopo quindici minuti di silenzio, quindi
+ * una scheda lasciata aperta non la allunga. `beats` sono i minuti in cui è
+ * successo qualcosa — il numero che risponde a «quanto ha lavorato»;
+ * `interactions` quante volte. Le regole di lettura stanno in `lib/presenza.ts`.
+ */
+export interface OsSession {
+  id: string
+  profile_id: string
+  portale: 'admin' | 'workspace' | 'portale' | 'risorsa' | 'altro'
+  started_at: string
+  last_beat_at: string
+  beats: number
+  interactions: number
+  last_route: string | null
+  sezioni: Record<string, number> | null
+}
+
 export interface OsVersion {
   id: string
   version: string

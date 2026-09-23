@@ -13,6 +13,7 @@ import { workspaceSearch } from '@/app/actions/global-search'
 import { isAdminRole, isWorkspaceRole, canPreviewClientPortal } from '@/lib/permissions'
 import { Suspense } from 'react'
 import { NavMemory } from '@/components/shared/BackLink'
+import { PresenceBeat } from '@/components/shared/PresenceBeat'
 import { AssistantLauncher } from '@/components/ai/AssistantLauncher'
 import { MessaggiTwoBee } from '@/components/workspace/MessaggiTwoBee'
 import { giornoAzienda, leggiFatti, valida } from '@/lib/person-copy'
@@ -157,6 +158,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
               qui ogni «indietro» cadeva sul fallback. Adesso c'è anche qui, e
               `samePortal` garantisce che quello che registra resti dentro. */}
           <Suspense fallback={null}><NavMemory /></Suspense>
+          <PresenceBeat />
           {children}
         </main>
       </div>

@@ -7,6 +7,7 @@ import { AssistantLauncher } from '@/components/ai/AssistantLauncher'
 import type { Profile } from '@/lib/types/database'
 import { Suspense } from 'react'
 import { NavMemory } from '@/components/shared/BackLink'
+import { PresenceBeat } from '@/components/shared/PresenceBeat'
 import { isPortalRole } from '@/lib/portal/model'
 
 export default async function DashboardLayout({
@@ -36,6 +37,7 @@ export default async function DashboardLayout({
         <Header profile={profile as Profile | null} />
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
           <Suspense fallback={null}><NavMemory /></Suspense>
+          <PresenceBeat />
           {children}
         </main>
       </div>

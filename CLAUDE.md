@@ -26,6 +26,7 @@ database vero, e riscoprirle costa più che leggerle.
 | commerciale, opportunità, lead commerciali, esiti, passaggio alla delivery | `docs/commerciale.md` |
 | portale cliente, inviti, accessi azienda/progetto e recupero password | `docs/portale-cliente.md` |
 | file interni, cartelle, upload/download e link pubblici (`lib/storage/**`, `/api/files/**`), area file dei clienti e sezione Documenti | `docs/storage-access.md` |
+| utilizzo del tool, presenza, `lib/presenza.ts`, `os_sessions`, `/impostazioni/utilizzo` | `docs/presenza.md` |
 
 ## Invarianti — valgono anche senza aprire i doc
 - **Nessun valore economico si digita**: contratti e rate sono l'unica scrittura,
@@ -66,7 +67,7 @@ database vero, e riscoprirle costa più che leggerle.
   va a controllare.** Quando una fonte manca, dichiaralo («n/d», «stimato»,
   «senza contratto»): mai uno zero.
 - **Gate del repo**: `npx tsc --noEmit` (ESLint non configurato) + gli
-  **ottantasette** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
+  **ottantotto** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
   `lib/tracking/**`) — con `npx tsx lib/<percorso>.check.ts`: devono dire «Tutti
   i controlli passano».
 - **Il numero del paragrafo si prende alla fine** (§406). I `§NNN` sono etichette
