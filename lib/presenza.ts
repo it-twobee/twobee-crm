@@ -307,6 +307,31 @@ export function etichettaStato(
   return { testo: misuraAttiva ? 'nessuna sessione' : 'misura non attiva', tono: 'senza' }
 }
 
+/**
+ * §417 — l'ultimo accesso, che è un fatto diverso dall'ultimo utilizzo.
+ *
+ * `auth.users.last_sign_in_at` esiste da sempre, anche per chi non è mai stato
+ * misurato: è l'unica risposta disponibile a «da quanto non c'è» per il periodo
+ * precedente al battito, ed è la ragione per cui sta in questa vista.
+ *
+ * Ma va chiamato col suo nome. È **l'ultima volta che ha messo le credenziali**,
+ * non l'ultima volta che ha lavorato: una sessione dura a lungo e si rinnova da
+ * sola, quindi si può usare il tool per mesi senza rifare login. Agostino ne è
+ * la prova: accesso il 10 luglio, interazioni oggi. Presentarlo come «ultimo
+ * utilizzo» direbbe che è sparito da settantacinque giorni una persona che
+ * stava lavorando mezz'ora fa.
+ */
+export function etichettaAccesso(ultimoAccesso: string | null, ora: number): string {
+  const t = ultimoAccesso ? Date.parse(ultimoAccesso) : NaN
+  if (Number.isNaN(t)) return 'nessun accesso'
+  const g = Math.floor(Math.max(0, ora - t) / 86_400_000)
+  if (g === 0) return 'accesso oggi'
+  if (g === 1) return 'accesso ieri'
+  if (g < 30) return `accesso ${g} giorni fa`
+  const mesi = Math.floor(g / 30)
+  return mesi === 1 ? 'accesso 1 mese fa' : `accesso ${mesi} mesi fa`
+}
+
 /** Il portale da cui arriva il battito, dedotto dall'indirizzo. */
 export function portaleDi(pathname: string): 'admin' | 'workspace' | 'portale' | 'risorsa' {
   if (pathname.startsWith('/workspace')) return 'workspace'

@@ -19,6 +19,9 @@ export type RigaUtilizzo = PersonaUtilizzo & {
   avatar: string | null
   attivo: boolean
   creato: string
+  /** `auth.users.last_sign_in_at`: l'ultima volta che ha messo le credenziali. */
+  ultimoAccesso: string | null
+  accessoTesto: string
 }
 
 interface Props {
@@ -59,8 +62,13 @@ const PESO_STATO = { online: 0, offline: 1, mai: 2 } as const
 const ORDINAMENTI: Record<Campo, { cmp: (a: RigaUtilizzo, b: RigaUtilizzo) => number; discendente: boolean }> = {
   presenza: {
     discendente: false,
+    /* Chi c'è, poi chi c'era da meno tempo, e in fondo chi non ha sessioni —
+       ordinato per accesso più vecchio, che lì dentro è l'unica cosa che
+       distingue una riga dall'altra: senza, sette righe «nessuna sessione»
+       sarebbero in ordine alfabetico e non direbbero chi manca da più tempo. */
     cmp: (a, b) => PESO_STATO[a.stato] - PESO_STATO[b.stato]
-      || (a.assenteMs ?? Number.MAX_SAFE_INTEGER) - (b.assenteMs ?? Number.MAX_SAFE_INTEGER),
+      || (a.assenteMs ?? Number.MAX_SAFE_INTEGER) - (b.assenteMs ?? Number.MAX_SAFE_INTEGER)
+      || (Date.parse(a.ultimoAccesso ?? '') || 0) - (Date.parse(b.ultimoAccesso ?? '') || 0),
   },
   nome: { discendente: false, cmp: (a, b) => a.nome.localeCompare(b.nome, 'it') },
   tempo: { discendente: true, cmp: (a, b) => a.attivoFinestraMs - b.attivoFinestraMs },
@@ -170,6 +178,7 @@ export function UtilizzoClient({ righe, giorni, opzioniGiorni, misuraDa, retenti
           <li><strong className="text-text-primary font-semibold">Online</strong> vuol dire che ha toccato qualcosa negli ultimi {MINUTI_ONLINE} minuti.</li>
           <li><strong className="text-text-primary font-semibold">Modifiche</strong> sono le righe cambiate nei dati. Tempo e modifiche rispondono a due domande diverse: si può consultare per un&apos;ora senza toccare niente.</li>
           <li>Le <strong className="text-text-primary font-semibold">modifiche</strong> vengono dalla cronologia, che si conserva a finestra: oltre quella non c&apos;è «zero modifiche», non c&apos;è niente — e la colonna lo scrive.</li>
+          <li>L&apos;<strong className="text-text-primary font-semibold">accesso</strong> è l&apos;ultima volta che ha messo le credenziali, non l&apos;ultima volta che ha lavorato: una sessione si rinnova da sola, quindi si può usare il tool per mesi senza rifare login. Sta lì perché esiste da prima della misura ed è la sola risposta disponibile per il periodo scoperto.</li>
           <li>Gli accessi al portale cliente non sono misurati.</li>
         </ul>
       </details>
@@ -200,16 +209,19 @@ export function UtilizzoClient({ righe, giorni, opzioniGiorni, misuraDa, retenti
         </div>
       </div>
 
-      {maiNessuno ? (
+      {maiNessuno && (
         <div className="bg-surface border border-border rounded-2xl">
           <EmptyState
             icon={<Activity className="w-5 h-5" />}
             title="Nessuna sessione registrata"
-            description="La misura parte da quando il tool ha iniziato a contare le interazioni: prima di quel momento non c'è un silenzio, non ci sono dati. Le righe si riempiono man mano che le persone lavorano."
+            description="La misura parte da quando il tool ha iniziato a contare le interazioni: prima di quel momento non c'è un silenzio, non ci sono dati. Nella tabella resta l'ultimo accesso, che c'era già."
           />
         </div>
-      ) : (
-        <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+      )}
+
+      {/* La tabella si mostra comunque: anche senza una sola sessione ha da dire
+          da quanto ognuno non entra, ed è la domanda che porta qui. */}
+      <div className="bg-surface border border-border rounded-2xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[780px] text-xs border-collapse">
               <thead>
@@ -261,6 +273,11 @@ export function UtilizzoClient({ righe, giorni, opzioniGiorni, misuraDa, retenti
                             {stato.testo}
                           </span>
                         </span>
+                        {/* Il battito misura da oggi; l'accesso c'era da prima.
+                            Per chi non ha ancora una sessione è l'unica risposta
+                            disponibile a «da quanto non c'è», e una riga muta
+                            sarebbe stata una risposta peggiore di una imprecisa. */}
+                        <span className="block text-2xs text-text-tertiary mt-0.5">{r.accessoTesto}</span>
                       </td>
 
                       <td className="px-3 py-2.5">
@@ -308,8 +325,7 @@ export function UtilizzoClient({ righe, giorni, opzioniGiorni, misuraDa, retenti
               </tbody>
             </table>
           </div>
-        </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -317,11 +333,14 @@ export function UtilizzoClient({ righe, giorni, opzioniGiorni, misuraDa, retenti
 /* ─────────────────────────────────────────────────────────────── */
 
 function Dettaglio({ riga, giorni, massimo }: { riga: RigaUtilizzo; giorni: number; massimo: number }) {
-  if (riga.sessioni.length === 0) {
-    return <p className="text-2xs text-text-tertiary py-2">Nessuna sessione registrata per questa persona.</p>
-  }
+  /* Anche senza sessioni il riquadro ha qualcosa da dire — l'accesso e l'ultima
+     modifica — e chiuderlo con una riga di scuse sarebbe stato il posto esatto
+     in cui chi apre questa scheda si aspetta una risposta. */
   return (
     <div className="space-y-3">
+      {riga.sessioni.length === 0 && (
+        <p className="text-2xs text-text-tertiary">Nessuna sessione registrata da quando il tool misura le interazioni.</p>
+      )}
       <ul className="space-y-1.5">
         {riga.sessioni.map(s => (
           <li key={s.id} className="flex items-center gap-3 flex-wrap text-2xs">
@@ -356,6 +375,12 @@ function Dettaglio({ riga, giorni, massimo }: { riga: RigaUtilizzo; giorni: numb
           </span>
         )}
         <span>{riga.sessioniFinestra} sessioni in {giorni} giorni</span>
+        <span>
+          Ultimo accesso:{' '}
+          {riga.ultimoAccesso
+            ? `${FMT_DATA.format(new Date(riga.ultimoAccesso))} (${riga.accessoTesto.replace('accesso ', '')})`
+            : 'mai'}
+        </span>
         <span>
           Ultima modifica:{' '}
           {riga.ultimaAzione

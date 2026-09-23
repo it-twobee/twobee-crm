@@ -5,7 +5,7 @@ import {
   INTERVALLO_BEAT_MS, GAP_SESSIONE_MIN, ONLINE_MS, SESSIONI_MOSTRATE,
   attivoMs, durataMs, sezionePrincipale, vistaSessione, statoDi, assenteMs,
   durataTesto, assenzaTesto, sezioniTop, componiUtilizzo, ordinaPerPresenza, portaleDi,
-  modificheParziali, etichettaStato, CRONOLOGIA_COMPLETA_DA,
+  modificheParziali, etichettaStato, etichettaAccesso, CRONOLOGIA_COMPLETA_DA,
   type SessioneRow, type TotaliRow,
 } from '@/lib/presenza'
 
@@ -131,6 +131,18 @@ is('online', etichettaStato('online', 0, true), { testo: 'online', tono: 'online
 is('assente', etichettaStato('offline', 3 * 60 * 60_000, true), { testo: '3 ore fa', tono: 'assente' })
 is('senza sessioni, ma si misura', etichettaStato('mai', null, true), { testo: 'nessuna sessione', tono: 'senza' })
 is('senza sessioni perché non si misura ancora', etichettaStato('mai', null, false), { testo: 'misura non attiva', tono: 'senza' })
+
+console.log('\n— L\'ultimo accesso non è l\'ultimo utilizzo —')
+/* §417 — `last_sign_in_at` è l'ultima volta che ha messo le credenziali. Una
+   sessione si rinnova da sola, quindi si lavora per mesi senza rifare login:
+   chiamarlo «ultimo utilizzo» darebbe per sparito chi stava lavorando adesso. */
+is('oggi', etichettaAccesso(t(120), ORA), 'accesso oggi')
+is('ieri', etichettaAccesso(t(30 * 60), ORA), 'accesso ieri')
+is('otto giorni', etichettaAccesso(new Date(ORA - 8 * 86_400_000).toISOString(), ORA), 'accesso 8 giorni fa')
+is('un mese e mezzo', etichettaAccesso(new Date(ORA - 46 * 86_400_000).toISOString(), ORA), 'accesso 1 mese fa')
+is('due mesi e mezzo', etichettaAccesso(new Date(ORA - 75 * 86_400_000).toISOString(), ORA), 'accesso 2 mesi fa')
+is('non ha mai fatto login', etichettaAccesso(null, ORA), 'nessun accesso')
+is('data illeggibile', etichettaAccesso('boh', ORA), 'nessun accesso')
 
 console.log('\n— La stessa soglia in TypeScript e in SQL —')
 /* §410 — il gap che chiude una sessione vive in due posti: qui e nella

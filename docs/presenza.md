@@ -105,6 +105,30 @@ decine. Adesso passano dallo stesso freno (una ogni due secondi) e un tasto
 tenuto premuto conta una volta. Era il tipo di numero che resta plausibile per
 sempre, perché nessuno va a contare i click di una giornata.
 
+## L'ultimo accesso, che non è l'ultimo utilizzo (§417)
+
+Il primo giorno la tabella era piena di righe mute: cinque persone su otto senza
+una sessione, e quindi senza niente da dire. Era vero — la misura era accesa da
+tre ore — ma «non lo so» scritto sette volte non è una vista, e la domanda che
+porta qui è proprio **da quanto non c'è**.
+
+La risposta per il periodo scoperto esiste da sempre e sta in un'altra tabella:
+`auth.users.last_sign_in_at`. La pagina la legge dall'API di amministrazione e la
+mette sotto lo stato, seconda riga.
+
+**Va chiamata col suo nome.** È l'ultima volta che ha messo le credenziali, non
+l'ultima volta che ha lavorato: una sessione si rinnova da sola, quindi si usa il
+tool per mesi senza rifare login. Agostino è la prova vivente — accesso il 10
+luglio 2026, interazioni il 23 settembre — e presentarlo come «ultimo utilizzo»
+avrebbe dato per sparito da settantacinque giorni qualcuno che stava lavorando
+mezz'ora prima. Per questo l'etichetta dice «accesso», non «visto», e il blocco
+«Come si conta» lo spiega.
+
+Con la stessa riga cade la ragione per cui la tabella spariva quando non c'era
+nessuna sessione: adesso ha sempre qualcosa da dire, e l'ordinamento per presenza
+mette in fondo chi non ha sessioni **dal login più vecchio**, che lì dentro è
+l'unica cosa che distingue una riga dall'altra.
+
 ## L'effetto collaterale che vale la pena
 
 `profiles.last_seen_at` esiste dalla migration 009 e **nessuno la scriveva**.

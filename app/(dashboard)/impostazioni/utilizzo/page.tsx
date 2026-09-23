@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { hasUsageAccess } from '@/lib/presenza-guard'
 import {
-  componiUtilizzo, ordinaPerPresenza, modificheParziali, SESSIONI_MOSTRATE,
+  componiUtilizzo, ordinaPerPresenza, modificheParziali, etichettaAccesso, SESSIONI_MOSTRATE,
   type SessioneRow, type TotaliRow,
 } from '@/lib/presenza'
 import { UtilizzoClient, type RigaUtilizzo } from '@/components/impostazioni/UtilizzoClient'
@@ -26,7 +26,7 @@ export default async function UtilizzoPage({
   const da = new Date(Date.now() - giorni * 86_400_000).toISOString()
 
   const admin = createAdminClient()
-  const [profiliRes, sessioniRes, totaliRes, primaRes, configRes] = await Promise.all([
+  const [profiliRes, sessioniRes, totaliRes, primaRes, configRes, utentiRes] = await Promise.all([
     admin.from('profiles')
       .select('id, full_name, email, app_role, avatar_url, is_active, created_at')
       .order('full_name'),
@@ -40,6 +40,13 @@ export default async function UtilizzoPage({
        «zero modifiche», non c'è niente. */
     admin.from('activity_config').select('retention_days').maybeSingle()
       .then(r => (r.error ? { data: null } : r)),
+    /* §417 — l'ultimo accesso esiste da sempre, anche per chi il battito non
+       l'ha mai visto: è la sola risposta disponibile a «da quanto non c'è» per
+       tutto il tempo precedente alla misura, ed è la ragione per cui una riga
+       senza sessioni non deve restare muta. Sta in `auth.users`, quindi passa
+       dall'API di amministrazione e non da una query. */
+    admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      .then(r => (r.error ? { data: { users: [] } } : r)),
   ])
 
   type ProfiloRiga = {
@@ -61,6 +68,10 @@ export default async function UtilizzoPage({
   const utilizzo = componiUtilizzo(profili.map(p => p.id), sessioni, totali, Date.now())
   const perId = new Map(utilizzo.map(u => [u.profileId, u]))
 
+  const accessi = new Map(
+    (utentiRes.data?.users ?? []).map(u => [u.id, u.last_sign_in_at ?? null]),
+  )
+
   const righe: RigaUtilizzo[] = profili
     .map(p => ({
       ...perId.get(p.id)!,
@@ -70,6 +81,10 @@ export default async function UtilizzoPage({
       avatar: p.avatar_url,
       attivo: p.is_active !== false,
       creato: p.created_at,
+      ultimoAccesso: accessi.get(p.id) ?? null,
+      /* Etichetta calcolata qui come tutte le altre distanze nel tempo: il
+         browser e il server non hanno lo stesso orologio, e React se ne accorge. */
+      accessoTesto: etichettaAccesso(accessi.get(p.id) ?? null, Date.now()),
     }))
     .sort(ordinaPerPresenza)
 

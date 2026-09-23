@@ -1,5 +1,22 @@
 # Dove siamo
 
+## «Da quanto non c'è» aveva una risposta, in un'altra tabella — §417, 2026-09-23
+
+Il primo giorno la vista sull'utilizzo mostrava cinque righe su otto senza
+niente: nessuna sessione, nessun tempo, nessuna interazione. Era vero — la misura
+era accesa da tre ore — ma una vista che risponde «non lo so» sette volte non
+risponde.
+
+`auth.users.last_sign_in_at` c'era da sempre: Annalisa 46 giorni, Gabriele 46,
+Sabrina 8, Michele 2, Toto 75. Adesso sta sotto lo stato, come seconda riga, e
+la tabella non sparisce più quando le sessioni sono zero.
+
+Con un'avvertenza che è metà del lavoro: **l'accesso non è l'utilizzo**. Una
+sessione si rinnova da sola, quindi Agostino ha l'ultimo login il 10 luglio e le
+interazioni di oggi. L'etichetta dice «accesso» e il blocco «Come si conta» lo
+scrive, perché la versione comoda di quella riga — «ultimo utilizzo» — avrebbe
+dato per sparito da due mesi e mezzo qualcuno che stava lavorando.
+
 ## Anteprime: il PDF si vede — §415, 2026-09-23
 
 - Il PDF si apre nell'anteprima, disegnato da pdf.js dai byte, e la risposta
