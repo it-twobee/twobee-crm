@@ -1,5 +1,17 @@
 # Dove siamo
 
+## Zip: si scarica una cartella, e uno zip caricato si apre — §421, 2026-09-23
+
+- Si scarica come zip una cartella, tutto lo spazio o una selezione. Lo zip esce
+  mentre si scrive, con la dimensione annunciata e i nomi che si creano anche su
+  Windows.
+- Uno zip caricato si apre sempre, nel browser, e diventa una cartella col suo
+  nome. Ogni file passa dalla stessa rotta di caricamento; `__MACOSX` ed
+  eseguibili restano fuori, e lo spazio si controlla prima di cominciare.
+- Rar e 7z si accettano (dall'estensione) e restano file.
+
+Vale anche per il portale del cliente. Nessuna migration.
+
 ## Le due guardie che non conoscevano la cancellazione — §420, 2026-09-23
 
 La 256 non bastava: eliminare un membro continuava a fallire, e in faccia

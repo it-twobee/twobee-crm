@@ -239,13 +239,17 @@ export function Breadcrumb({ space, path, onGo, dropFor }: {
   </nav>
 }
 
-export function UploadPanel({ jobs, active, totals, onCancel, onDismiss }: {
+export function UploadPanel({ jobs, active, opening, totals, onCancel, onDismiss }: {
   jobs: UploadJob[]
   active: boolean
+  opening?: boolean
   totals: { bytes: number; loaded: number; done: number; failed: number; cancelled: number }
   onCancel: () => void
   onDismiss: () => void
 }) {
+  if (opening) return <div role="status" aria-live="polite" className="flex items-center gap-2 rounded-xl border border-border bg-surface p-3 text-2xs text-text-secondary">
+    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Apro lo zip: i file che contiene diventano una cartella.
+  </div>
   if (!jobs.length) return null
   const failed = jobs.filter(job => job.status === 'errore')
   const counted = jobs.length - failed.filter(job => !job.loaded).length

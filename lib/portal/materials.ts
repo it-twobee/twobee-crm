@@ -30,6 +30,12 @@ const DOCUMENT_TYPES = [
 const DESIGN_EXTENSIONS = [
   'afdesign', 'afphoto', 'afpub', 'psd', 'psb', 'ai', 'eps', 'indd', 'sketch', 'xd', 'fig',
 ]
+/* §421 — Gli archivi si riconoscono dall'estensione, come i file di progetto:
+   il browser li dichiara spesso `application/octet-stream`, e un `.rar` del
+   cliente veniva rifiutato. Uno zip caricato dalla pagina si apre e diventa una
+   cartella; questi sono gli archivi che restano file — un rar, un 7z, uno zip
+   dentro uno zip. */
+const ARCHIVE_EXTENSIONS = ['zip', 'rar', '7z']
 const BLOCKED_EXTENSIONS = [
   'exe', 'msi', 'bat', 'cmd', 'com', 'scr', 'ps1', 'sh', 'jar', 'app', 'deb', 'rpm',
   'html', 'htm', 'svg', 'xhtml', 'js', 'mjs', 'php', 'phtml',
@@ -39,6 +45,7 @@ export function materialKind(mime: string | null | undefined, name?: string): Ma
   const type = (mime ?? '').toLowerCase().split(';')[0].trim()
   // L'estensione prima del tipo dichiarato: è l'unica cosa affidabile su questi.
   if (name && DESIGN_EXTENSIONS.includes(extensionOf(name))) return 'documento'
+  if (name && ARCHIVE_EXTENSIONS.includes(extensionOf(name))) return 'documento'
   if (type.startsWith('image/') && type !== 'image/svg+xml') return 'immagine'
   if (type.startsWith('video/')) return 'video'
   if (type.startsWith('audio/')) return 'audio'
@@ -50,6 +57,29 @@ export function extensionOf(name: string): string {
   const base = name.split(/[\\/]/).pop() ?? ''
   const dot = base.lastIndexOf('.')
   return dot > 0 ? base.slice(dot + 1).toLowerCase() : ''
+}
+
+/* Il tipo di un file che non lo dichiara — quello che esce da uno zip non ha
+   un tipo, ha solo un nome. Elenco corto: quello che non c'è resta senza tipo,
+   e allora decide l'estensione (file di progetto, archivi) o il rifiuto. */
+const MIME_BY_EXTENSION: Record<string, string> = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif',
+  heic: 'image/heic', tif: 'image/tiff', tiff: 'image/tiff', bmp: 'image/bmp',
+  mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm', avi: 'video/x-msvideo', mkv: 'video/x-matroska',
+  mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', aac: 'audio/aac', ogg: 'audio/ogg', flac: 'audio/flac',
+  pdf: 'application/pdf', txt: 'text/plain', md: 'text/plain', csv: 'text/csv',
+  doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  zip: 'application/zip',
+}
+
+export function mimeFromName(name: string): string | null {
+  return MIME_BY_EXTENSION[extensionOf(name)] ?? null
+}
+
+export function isZipName(name: string): boolean {
+  return extensionOf(name) === 'zip'
 }
 
 /** Perché questo file non si può caricare. `null` = si può. */

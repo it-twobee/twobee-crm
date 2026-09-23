@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Archive, ArchiveRestore, FolderInput, FolderOpen, FolderPlus, FolderUp, LayoutGrid, List, Loader2, Pencil, Trash2,
-  Upload, X,
+  Archive, ArchiveRestore, FileArchive, FolderInput, FolderOpen, FolderPlus, FolderUp, LayoutGrid, List, Loader2, Pencil,
+  Trash2, Upload, X,
 } from 'lucide-react'
 import { getClientFiles } from '@/app/actions/client-files'
+import { quotaLeft } from '@/lib/portal/materials'
 import type { ClientFilesData } from '@/app/actions/client-files'
 import { hasPreview, MaterialPreview } from '@/components/shared/MaterialPreview'
 import { SearchInput, Segmented } from '@/components/shared/formkit'
@@ -104,6 +105,7 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const folderInput = useRef<HTMLInputElement>(null)
+  const zipFrame = useRef<HTMLIFrameElement>(null)
 
   const reload = useCallback(async () => {
     try {
@@ -178,6 +180,9 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
   </p>
 
   const canWrite = data.canWrite
+  // Lo spazio si conta su tutto quello che c'è, archiviati compresi, come fa il server;
+  // con un elenco parziale non lo si sa, e allora decide il server file per file.
+  const spaceLeft = data.truncated ? undefined : quotaLeft(materials.reduce((sum, m) => sum + (Number(m.size) || 0), 0))
   const canUploadHere = canWrite && space === 'team'
   const canRemove = (m: ClientMaterial) =>
     m.source === 'cliente' ? data.canDeleteClientFiles : (data.canDeleteClientFiles || m.uploaded_by === data.viewerId)
@@ -233,6 +238,41 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
   }
 
   const canOrganize = data.canOrganize
+
+  /* §421 — Lo zip si scarica in un iframe nascosto: se va, il browser salva il
+     file e la pagina resta dov'è; se la rotta risponde con un errore, l'iframe
+     lo carica e lo si legge qui, invece di portare chi guarda su una pagina JSON. */
+  const downloadZip = (target: { path: string } | { ids: string[] }) => {
+    const frame = zipFrame.current
+    if (!frame) return
+    setError('')
+    frame.onload = () => {
+      const doc = frame.contentDocument
+      // Uno scarico riuscito non cambia documento: resta about:blank. Se c'è la
+      // pagina della rotta, è una risposta d'errore — con la sua frase, o senza.
+      if (!doc || !doc.URL.includes('/api/area-cliente/zip')) return
+      let message = 'Non è stato possibile preparare lo zip. Riprova.'
+      try { message = JSON.parse(doc.body?.innerText ?? '')?.error ?? message } catch { /* non JSON */ }
+      setError(message)
+    }
+    if ('path' in target) {
+      const params = new URLSearchParams({ client: clientId, spazio: space })
+      if (target.path) params.set('percorso', target.path)
+      frame.src = `/api/area-cliente/zip?${params}`
+      return
+    }
+    const doc = frame.contentDocument
+    if (!doc) return
+    const form = doc.createElement('form')
+    form.method = 'POST'; form.action = '/api/area-cliente/zip'
+    const add = (name: string, value: string) => {
+      const input = doc.createElement('input'); input.type = 'hidden'; input.name = name; input.value = value; form.appendChild(input)
+    }
+    add('client', clientId)
+    target.ids.forEach(id => add('id', id))
+    doc.body.appendChild(form)
+    form.submit()
+  }
   const menuFor = (m: ClientMaterial, outside: boolean): MenuItem[] => [
     ...(outside ? [{
       label: 'Apri la cartella', icon: <FolderOpen className="h-3.5 w-3.5" />,
@@ -250,7 +290,9 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
     }] : []),
   ]
 
-  const folderMenu = (folderPath: string, count: number): MenuItem[] => !canOrganize ? [] : [
+  const folderMenu = (folderPath: string, count: number): MenuItem[] => [
+    ...(count ? [{ label: 'Scarica .zip', icon: <FileArchive className="h-3.5 w-3.5" />, onSelect: () => downloadZip({ path: folderPath }) }] : []),
+    ...(!canOrganize ? [] : [
     { label: 'Rinomina', icon: <Pencil className="h-3.5 w-3.5" />, onSelect: () => setDialog({ kind: 'rinomina-cartella', path: folderPath }) },
     { label: 'Sposta in…', icon: <FolderInput className="h-3.5 w-3.5" />, onSelect: () => setDialog({ kind: 'sposta-cartella', path: folderPath }) },
     ...(count ? [{
@@ -265,6 +307,7 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
       label: 'Elimina la cartella', icon: <Trash2 className="h-3.5 w-3.5" />, danger: true,
       onSelect: () => { void folderAction(folderPath, 'elimina').then(f => { if (f) setError(f) }) },
     }] : []),
+    ]),
   ]
 
   const previewOf = (m: ClientMaterial) => hasPreview(m.mime, m.name, Number(m.size)) ? () => setPreview(m) : undefined
@@ -320,7 +363,7 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
       }
       setError('')
       // Le voci si leggono adesso, dentro l'evento: dopo il browser le svuota.
-      void pickedFromDrop(e.dataTransfer).then(picked => uploads.start(picked, target))
+      void pickedFromDrop(e.dataTransfer).then(picked => uploads.start(picked, target, spaceLeft))
     },
   })
   const HERE = path
@@ -418,6 +461,10 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
           <input type="checkbox" checked={showArchived} onChange={e => setShowArchived(e.target.checked)} />
           Mostra archiviati
         </label>
+        {view === 'cartelle' && inSpace.some(m => !m.archived_at && isInside(m.path, path)) && <button type="button" className={buttonCls}
+          onClick={() => downloadZip({ path })}>
+          <FileArchive className="h-3.5 w-3.5" aria-hidden="true" />{path ? 'Scarica la cartella' : 'Scarica tutto'}
+        </button>}
       </div>
     </div>}
 
@@ -426,6 +473,10 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
       <span className="px-1 text-2xs font-semibold text-text-primary">{chosen.length === 1 ? '1 file selezionato' : `${chosen.length} file selezionati`}</span>
       {canOrganize && <button type="button" className={buttonCls} onClick={() => setDialog({ kind: 'sposta-file', ids: chosen.map(m => m.id) })}>
         <FolderInput className="h-3.5 w-3.5" aria-hidden="true" />Sposta in…
+      </button>}
+      {chosen.some(m => !m.archived_at) && <button type="button" className={buttonCls}
+        onClick={() => downloadZip({ ids: chosen.filter(m => !m.archived_at).map(m => m.id) })}>
+        <FileArchive className="h-3.5 w-3.5" aria-hidden="true" />Scarica .zip
       </button>}
       <button type="button" className={buttonCls} disabled={pending} onClick={() => { void act(chosen.filter(m => !m.archived_at), 'archivia') }}>
         <Archive className="h-3.5 w-3.5" aria-hidden="true" />Archivia
@@ -447,10 +498,10 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
 
     {canUploadHere && !searching && <div className="flex flex-wrap items-center gap-2">
       <input ref={fileInput} type="file" multiple className="sr-only" aria-label="Scegli i file da caricare"
-        onChange={e => { if (e.target.files?.length) void uploads.start(pickedFromInput(e.target.files), path); e.target.value = '' }} />
+        onChange={e => { if (e.target.files?.length) void uploads.start(pickedFromInput(e.target.files), path, spaceLeft); e.target.value = '' }} />
       <input ref={folderInput} type="file" multiple className="sr-only" aria-label="Scegli una cartella da caricare"
         {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
-        onChange={e => { if (e.target.files?.length) void uploads.start(pickedFromInput(e.target.files), path); e.target.value = '' }} />
+        onChange={e => { if (e.target.files?.length) void uploads.start(pickedFromInput(e.target.files), path, spaceLeft); e.target.value = '' }} />
       <button type="button" className={buttonCls} disabled={uploads.active} onClick={() => fileInput.current?.click()}>
         <Upload className="h-3.5 w-3.5" aria-hidden="true" />Carica file
       </button>
@@ -465,7 +516,7 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
       </span>
     </div>}
 
-    <UploadPanel jobs={uploads.jobs} active={uploads.active} totals={uploads.totals}
+    <UploadPanel jobs={uploads.jobs} active={uploads.active} opening={uploads.opening} totals={uploads.totals}
       onCancel={uploads.cancel} onDismiss={uploads.dismiss} />
     {(error || loadError) && <p role="alert" className="text-sm text-error">{error || loadError}</p>}
     {data.truncated && <p className="text-2xs text-warning">L’area ha più di 20.000 file: qui ne vedi una parte. Scrivici per dividerla.</p>}
@@ -508,6 +559,7 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
             </>}
     </section>
 
+    <iframe ref={zipFrame} title="Scarico degli zip" aria-hidden="true" tabIndex={-1} className="hidden" src="about:blank" />
     {preview && <MaterialPreview file={preview} files={previewable} onNavigate={setPreview} onClose={() => setPreview(null)} />}
     {toDelete && <ConfirmDialog title={toDelete.length === 1 ? 'Eliminare il file?' : `Eliminare ${toDelete.length} file?`}
       confirmLabel="Elimina" pending={pending}

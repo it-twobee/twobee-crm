@@ -400,6 +400,59 @@ serve la migration.
 
 L'anteprima è la stessa per il portale del cliente, che vede i PDF come noi.
 
+## Zip: si scarica una cartella, e uno zip caricato si apre (§421)
+
+**Scaricare.** `GET /api/area-cliente/zip?client=&spazio=&percorso=` scarica
+una cartella, o tutto lo spazio. `POST` con i campi `client` e `id` ripetuti
+scarica una selezione.
+- Lo zip esce **mentre si scrive** (`yazl`, `addReadStreamLazy`): ogni oggetto
+  MinIO si apre solo quando tocca a lui, niente resta in memoria, e oltre i 4 GB
+  il formato passa a zip64 da solo.
+- I file non si ricomprimono, perché quasi tutti lo sono già. Così la dimensione
+  totale si sa prima di cominciare, va in `Content-Length`, e il browser mostra
+  quanto manca.
+- La cartella scaricata è la radice dello zip, e ci sono anche le sue cartelle
+  vuote.
+- I nomi dentro lo zip si creano su ogni sistema (`safeSegment`): niente
+  `:*?"<>|`, niente punti in fondo, niente `CON`. Due file che per Windows hanno
+  lo stesso nome diventano `logo.png` e `Logo (2).png` invece di sovrascriversi.
+- Il file si chiama «Azienda – Cartella.zip», con `filename*` per gli accenti.
+- Gli archiviati restano fuori, come dagli elenchi. Il limite è 5.000 file per
+  zip; la selezione si legge a blocchi di 200 id.
+- Chi chiude la pagina chiude anche lo zip (`request.signal`).
+- Nella pagina lo zip passa da un iframe nascosto. Uno scarico riuscito lascia
+  l'iframe su `about:blank`; se la rotta risponde con un errore, l'iframe carica
+  quella risposta e la pagina la dice a parole, invece di portare chi guarda su
+  un JSON.
+
+**Caricare: uno zip si apre, sempre.** Lo apre il browser
+(`components/shared/file-area/zips.ts`, con `@zip.js/zip.js` caricato solo
+quando serve). Ogni file che ne esce passa dalla **stessa rotta** di
+caricamento, con le stesse guard, la stessa quota e lo stesso elenco dei tipi.
+Aprirlo sul server avrebbe voluto dire una seconda porta con regole sue: i
+controlli su zip bomb e percorsi scritti due volte.
+- Lo zip si legge ad accesso casuale sul `File`: l'indice sta in fondo, e da lì
+  si arriva a ogni file senza tenere in memoria il resto. Ogni file si estrae
+  quando tocca a lui.
+- Il contenuto va in `<cartella corrente>/<nome dello zip>/…`, con i percorsi
+  interni.
+- `__MACOSX/`, `.DS_Store` e `._*` si saltano. Un tipo non ammesso (un `.exe`)
+  si salta, e finisce nel riepilogo con lo zip da cui arriva.
+- Prima di cominciare la somma delle dimensioni si confronta con lo spazio che
+  resta: se non basta, lo si dice subito e non si carica niente. Scoprirlo a
+  metà vorrebbe dire mezza cartella caricata.
+- Uno zip protetto da password, rovinato o in un formato che non leggiamo
+  (deflate64) non si apre: lo si dice, e si chiede di estrarlo sul computer.
+- Uno zip dentro uno zip resta un file: aprirli tutti vorrebbe dire non sapere
+  più dove si finisce.
+- Vale anche per il portale: uno zip del cliente arriva già aperto.
+
+Il server riconosce `.zip`, `.rar` e `.7z` dall'**estensione**
+(`ARCHIVE_EXTENSIONS`), come i file di progetto: il browser li dichiara come
+capita, e un `.rar` del cliente veniva rifiutato. Rar e 7z restano file, perché
+nel browser non si aprono. Il tipo di un file che esce da uno zip si deduce dal
+nome (`mimeFromName`).
+
 ## Verifiche
 
 ```bash
@@ -410,6 +463,7 @@ npx tsx scripts/check-portal-materials-routes.ts
 npx tsx scripts/check-area-cliente-routes.ts   # rotte del team + scheda File
 npx tsx lib/portal/explorer.check.ts           # cartelle, ordine, ricerca, nomi e spostamenti
 node scripts/check-portal-sql.mjs               # 244→251, poi 254 sopra le prove della 251
+npx tsx lib/portal/zip.check.ts               # nomi dentro lo zip e dello zip
 NODE_PATH=<playwright> node scripts/check-area-file-browser.mjs   # l'esploratore in un browser vero
 node scripts/check-storage-sql.mjs
 ```

@@ -6,9 +6,12 @@ import { ChevronDown, ChevronRight, Download, Eye, FileAudio, FileText, FileVide
 import { MaterialPreview, hasPreview } from '@/components/shared/MaterialPreview'
 import { MaterialThumb } from '@/components/shared/MaterialThumb'
 import {
-  MATERIAL_MAX_BYTES, MATERIAL_QUOTA_BYTES, buildMaterialTree, countTree, folderPathOf,
+  MATERIAL_MAX_BYTES, MATERIAL_QUOTA_BYTES, buildMaterialTree, countTree,
   humanBytes, materialDownloadHref, quotaLeft, quotaWarning, rejectMaterial,
 } from '@/lib/portal/materials'
+import { isJunkFile } from '@/lib/portal/explorer'
+import { pickedFromInput } from '@/components/shared/file-area/uploads'
+import { expandZips } from '@/components/shared/file-area/zips'
 import type { MaterialFolder } from '@/lib/portal/materials'
 import { portalDate } from '@/lib/portal/model'
 import type { PortalMaterial } from '@/lib/portal/model'
@@ -43,13 +46,13 @@ export function MaterialUploader({ clientId, projects, materials, canWrite, used
 
   /* XHR e non fetch: su un video da mezzo giga la barra di avanzamento è la
      differenza fra «sta caricando» e «si è piantato». */
-  function send(file: File) {
+  function send(file: File, folder: string | null) {
     return new Promise<void>((resolve, reject) => {
       const params = new URLSearchParams({ client: clientId })
       if (project) params.set('progetto', project)
       // Caricando una cartella il browser dà a ogni file il suo percorso: è
       // quello che ricostruisce l'albero, senza cartelle da creare a mano.
-      const folder = folderPathOf((file as File & { webkitRelativePath?: string }).webkitRelativePath)
+      // Uno zip si apre prima (§421), e i suoi file arrivano col percorso dentro lo zip.
       if (folder) params.set('percorso', folder)
       const request = new XMLHttpRequest()
       request.open('POST', `/api/portale/materiali?${params}`)
@@ -72,14 +75,27 @@ export function MaterialUploader({ clientId, projects, materials, canWrite, used
 
   async function upload(files: FileList) {
     setError('')
-    for (const file of Array.from(files)) {
-      const rejected = rejectMaterial({ name: file.name, mime: file.type || null, size: file.size })
-      if (rejected) { setError(rejected); continue }
-      if (showQuota && file.size > left) { setError(`Nello spazio dell’azienda restano ${humanBytes(left)}.`); continue }
-      setBusy({ name: file.name, percent: 0 })
-      try { await send(file) } catch (e) { setError(e instanceof Error ? e.message : 'Caricamento non riuscito.'); break }
-      finally { setBusy(null) }
+    setBusy({ name: 'Preparo i file…', percent: 0 })
+    const chosen = (await expandZips(pickedFromInput(files))).filter(item => !isJunkFile(item.name, item.dir))
+    const problems: string[] = []
+    const ready = chosen.filter(item => {
+      const rejected = item.error ?? rejectMaterial({ name: item.name, mime: item.type || null, size: item.size })
+      if (rejected) problems.push(`${item.name}: ${rejected}`)
+      return !rejected
+    })
+    const needed = ready.reduce((sum, item) => sum + item.size, 0)
+    if (showQuota && needed > left) {
+      setBusy(null)
+      setError(`Nello spazio dell’azienda restano ${humanBytes(left)}: questi file ne occupano ${humanBytes(needed)}.`)
+      return
     }
+    for (const item of ready) {
+      setBusy({ name: item.name, percent: 0 })
+      try { await send(typeof item.file === 'function' ? await item.file() : item.file, item.dir) }
+      catch (e) { problems.push(`${item.name}: ${e instanceof Error ? e.message : 'Caricamento non riuscito.'}`) }
+    }
+    setBusy(null)
+    if (problems.length) setError(problems.length === 1 ? problems[0] : `${problems.length} file non caricati. ${problems.join(' · ')}`)
     router.refresh()
   }
 

@@ -30,6 +30,7 @@ let memberships: any[] = [], folders: any[] = []
 let rpcCalls: { fn: string; args: any; actor: boolean }[] = []
 let rpcResult: { data: unknown; error: { code: string; message?: string } | null } = { data: 1, error: null }
 let foldersMissing = false
+let opened: string[] = []
 function reset() {
   files = []; objects = []; memberships = []; folders = []; rpcCalls = []; rpcResult = { data: 1, error: null }; foldersMissing = false
   materials = [
@@ -62,7 +63,7 @@ class Query {
       return resolve({ data: p ? { ...p, id: userId } : null, error: p ? null : { code: 'PGRST116' } })
     }
     if (this.table === 'clients' || this.table === 'clients_workspace') {
-      const rows = [{ id: client }, ...(this.table === 'clients' ? [{ id: hidden }] : [])]
+      const rows = [{ id: client, company_name: 'Città & Co' }, ...(this.table === 'clients' ? [{ id: hidden, company_name: 'GAV' }] : [])]
       const found = rows.filter(r => this.filters.every(f => f(r)))
       return resolve({ data: this.one ? found[0] ?? null : found, error: null })
     }
@@ -151,6 +152,12 @@ internal._load = function (name, ...args) {
       isStorageConfigured: () => true,
       buildObjectKey: (folder: string, filename: string, scope?: string) => `${folder}/${scope}/${filename}`,
       deleteObject: async (k: string) => { objects = objects.filter(o => o !== k) },
+      // §421 — i byte di ogni oggetto sono il suo nome: si ritrovano dentro lo zip.
+      getObject: async (k: string) => {
+        opened.push(k)
+        const bytes = new TextEncoder().encode(`contenuto di ${k}`)
+        return { body: new ReadableStream({ start(c) { c.enqueue(bytes); c.close() } }), contentLength: bytes.length }
+      },
       putObjectStream: async (k: string, stream: ReadableStream<Uint8Array>) => {
         let total = 0
         const reader = stream.getReader()
@@ -373,7 +380,74 @@ async function main() {
   assert.equal(senzaCartelle.error, undefined, 'senza la 254 l’area si apre lo stesso')
   assert.equal(senzaCartelle.data!.canOrganize, false, 'ma non promette di spostare niente')
 
-  console.log('Tutti i controlli passano: solo staff attivo, azienda nascosta esclusa, percorsi e tipi rifiutati prima dello storage, file nostri che nascono nostri, archiviazione reversibile, cancellazioni per ruolo e area della scheda cliente attiva prima del portale, porta unica con l’azienda nascosta anche sulla PATCH, letture a pagine, cartelle create con l’attore, spostamenti e rinomina che arrivano al database solo se possibili, e la 254 mancante detta a parole.')
+  // ── §421 Lo zip di una cartella, e di una selezione ──────────────────────
+  reset()
+  const zipRoute = require('../app/api/area-cliente/zip/route') as typeof import('../app/api/area-cliente/zip/route')
+  const { ZipReader, Uint8ArrayReader, TextWriter, configure } = await import('@zip.js/zip.js')
+  configure({ useWebWorkers: false })
+  const at = (n: number, fields: Record<string, unknown>) => ({
+    id: `f251c000-0000-4000-8000-${String(n).padStart(12, '0')}`, client_id: client, deleted_at: null, archived_at: null,
+    source: 'team', uploaded_by: junior, file_id: `z${n}`, created_at: '2026-09-20T10:00:00Z', ...fields,
+  })
+  const withSize = (m: any) => ({ ...m, size: new TextEncoder().encode(`contenuto di ${m.storage_key}`).length })
+  materials = [
+    withSize(at(1, { name: 'logo.png', path: 'Brand/Loghi', storage_key: 'materiali/1' })),
+    withSize(at(2, { name: 'Logo.png', path: 'Brand/Loghi', storage_key: 'materiali/2' })),
+    withSize(at(3, { name: 'manuale.pdf', path: 'Brand', storage_key: 'materiali/3' })),
+    withSize(at(4, { name: 'vecchio.pdf', path: 'Brand', storage_key: 'materiali/4', archived_at: '2026-09-01T00:00:00Z' })),
+    withSize(at(5, { name: 'fuori.pdf', path: null, storage_key: 'materiali/5' })),
+    withSize(at(6, { name: 'suo.jpg', path: 'Brand', storage_key: 'materiali/6', source: 'cliente' })),
+    withSize(at(7, { name: 'gav.pdf', path: 'Brand', storage_key: 'materiali/7', client_id: hidden })),
+  ]
+  folders = [{ client_id: client, source: 'team', path: 'Brand/Vuota' }]
+  const unzip = async (response: Response) => {
+    const bytes = new Uint8Array(await response.arrayBuffer())
+    assert.ok(response.headers.get('Content-Length'), 'la dimensione si annuncia: il browser mostra quanto manca')
+    assert.equal(Number(response.headers.get('Content-Length')), bytes.length, 'ed è quella vera')
+    const entries = await new ZipReader(new Uint8ArrayReader(bytes)).getEntries()
+    const out: Record<string, string> = {}
+    for (const entry of entries) out[entry.filename] = entry.directory ? '<cartella>' : await entry.getData!(new TextWriter())
+    return out
+  }
+  const folderZip = (query: string) => zipRoute.GET(new Request(`https://os.example.test/api/area-cliente/zip?${query}`))
+
+  userId = null
+  assert.equal((await folderZip(`client=${client}&spazio=team&percorso=Brand`)).status, 401)
+  userId = 'freelance'
+  assert.equal((await folderZip(`client=${client}&spazio=team&percorso=Brand`)).status, 403)
+  userId = junior
+  assert.equal((await folderZip(`client=${hidden}&spazio=team&percorso=Brand`)).status, 403, 'azienda nascosta')
+  assert.equal((await folderZip(`client=${client}&spazio=altro`)).status, 400)
+  assert.equal((await folderZip(`client=${client}&spazio=team&percorso=../fuori`)).status, 400)
+  assert.equal(opened.length, 0, 'nessun oggetto aperto prima dei permessi')
+  assert.equal((await folderZip(`client=${client}&spazio=team&percorso=Nessuna`)).status, 404, 'una cartella vuota non fa uno zip vuoto')
+
+  const brandZip = await folderZip(`client=${client}&spazio=team&percorso=Brand`)
+  assert.equal(brandZip.status, 200)
+  assert.equal(brandZip.headers.get('Content-Type'), 'application/zip')
+  assert.match(brandZip.headers.get('Content-Disposition')!, /filename\*=UTF-8''Citt%C3%A0%20%26%20Co%20%E2%80%93%20Brand\.zip/, 'lo zip si chiama come l’azienda e la cartella')
+  assert.equal(brandZip.headers.get('Cache-Control'), 'private, no-store')
+  const brand = await unzip(brandZip)
+  assert.deepEqual(Object.keys(brand).sort(), ['Brand/Loghi/Logo (2).png', 'Brand/Loghi/logo.png', 'Brand/Vuota/', 'Brand/manuale.pdf'].sort(),
+    'la cartella è la radice; i doppioni non si sovrascrivono; archiviati, altri spazi e altre aziende restano fuori; la cartella vuota c’è')
+  assert.equal(brand['Brand/manuale.pdf'], 'contenuto di materiali/3', 'dentro ci sono i byte veri')
+
+  const everything = await unzip(await folderZip(`client=${client}&spazio=team`))
+  assert.ok(everything['fuori.pdf'] && everything['Brand/manuale.pdf'], 'tutto lo spazio, senza cartella radice')
+  const theirs = await unzip(await folderZip(`client=${client}&spazio=cliente`))
+  assert.deepEqual(Object.keys(theirs), ['Brand/suo.jpg'], 'lo spazio del cliente è un altro zip')
+
+  const pickZip = (ids: string[], who = client) => {
+    const form = new FormData(); form.set('client', who); ids.forEach(id => form.append('id', id))
+    return zipRoute.POST(new Request('https://os.example.test/api/area-cliente/zip', { method: 'POST', body: form }))
+  }
+  assert.equal((await pickZip([])).status, 400)
+  assert.equal((await pickZip(['non-un-uuid'])).status, 400)
+  const picked = await unzip(await pickZip([materials[2].id, materials[4].id, materials[6].id, materials[3].id]))
+  assert.deepEqual(Object.keys(picked).sort(), ['Brand/manuale.pdf', 'fuori.pdf'], 'la selezione tiene le cartelle; un file di un’altra azienda o archiviato non entra')
+  assert.equal((await pickZip([materials[6].id])).status, 404, 'solo file di un’altra azienda: niente zip')
+
+  console.log('Tutti i controlli passano: solo staff attivo, azienda nascosta esclusa, percorsi e tipi rifiutati prima dello storage, file nostri che nascono nostri, archiviazione reversibile, cancellazioni per ruolo e area della scheda cliente attiva prima del portale, porta unica con l’azienda nascosta anche sulla PATCH, letture a pagine, cartelle create con l’attore, spostamenti e rinomina che arrivano al database solo se possibili, e la 254 mancante detta a parole; zip di cartelle e selezioni coi byte veri, i nomi giusti e la dimensione annunciata.')
 }
 
 main().catch(error => { console.error(error); process.exit(1) })

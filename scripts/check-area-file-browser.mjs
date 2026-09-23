@@ -60,6 +60,8 @@ const mock = createServer((req, res) => {
   if (url.pathname === '/auth/v1/user') return userId ? reply(200, identity(userId)) : reply(401, { message: 'No session' })
   const table = url.pathname.split('/').pop()
   if (req.method !== 'GET') {
+    // Il contesto azienda: visibile. Le altre funzioni qui non servono.
+    if (url.pathname === '/rest/v1/rpc/storage_context_access') return reply(200, true)
     if (url.pathname.startsWith('/rest/v1/rpc/')) return reply(200, null)
     if (table.startsWith('portal_') || table === 'files') writes.push(`${req.method} ${table}`)
     return reply(201, [])
@@ -94,7 +96,9 @@ const built = process.env.AREA_FILE_BUILD
 const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', built ? 'start' : 'dev', '-p', String(PORT), '--hostname', '127.0.0.1'], {
   cwd: process.cwd(), detached: true, stdio: ['ignore', log.fd, log.fd],
   env: { ...process.env, NEXT_BUILD_DIR: built || '.next-build', NEXT_TELEMETRY_DISABLED: '1',
-    NEXT_PUBLIC_SUPABASE_URL: `http://127.0.0.1:${MOCK}`, NEXT_PUBLIC_SUPABASE_ANON_KEY: 'area-file-test-only', SUPABASE_SERVICE_ROLE_KEY: '' },
+    NEXT_PUBLIC_SUPABASE_URL: `http://127.0.0.1:${MOCK}`, NEXT_PUBLIC_SUPABASE_ANON_KEY: 'area-file-test-only',
+    // Finta, verso il mock: le rotte creano il client con l'attore appena passata la guard.
+    SUPABASE_SERVICE_ROLE_KEY: 'area-file-test-only' },
 })
 let browser
 try {
@@ -148,8 +152,10 @@ try {
 
   const { context, page } = await session('manager')
   const posted = []
+  const uploadedNames = []
   await page.route('**/api/area-cliente/file?**', async route => {
     posted.push(new URL(route.request().url()).searchParams.get('percorso'))
+    uploadedNames.push(decodeURIComponent(route.request().headers()['x-file-name'] ?? ''))
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ material: { id: 'nuovo' } }) })
   })
   await page.goto(at(`/workspace/clienti/${a}?tab=11`), { waitUntil: 'networkidle' })
@@ -217,6 +223,7 @@ try {
   await drop('section[aria-label="Contenuto di Brand"] li')
   await page.waitForFunction(() => document.body.innerText.includes('Caricati 1 di 1'))
   assert.deepEqual(posted, ['Brand', 'Brand/Loghi'], 'nell’area va nella cartella corrente, su una cartella va dentro di lei')
+  assert.deepEqual(uploadedNames, ['nuovo.pdf', 'nuovo.pdf'])
 
   // ── Eliminare chiede conferma nella pagina ───────────────────────────────
   await page.getByRole('navigation', { name: 'Cartella corrente' }).getByRole('button', { name: 'Nostri' }).click()
@@ -346,6 +353,45 @@ try {
   await page.keyboard.press('Escape')
   await page.getByRole('navigation', { name: 'Cartella corrente' }).getByRole('button', { name: 'Nostri' }).click()
 
+  // ── §421 Uno zip trascinato si apre, e diventa una cartella ──────────────
+  const yazl = createRequire(import.meta.url)('yazl')
+  const zipBytes = await new Promise(resolve => {
+    const zip = new yazl.ZipFile()
+    zip.addBuffer(Buffer.from('png finto'), 'logo.png')
+    zip.addBuffer(Buffer.from('ciao'), 'sub/testo.txt')
+    zip.addBuffer(Buffer.from('mac'), '__MACOSX/._logo.png')
+    zip.addBuffer(Buffer.from('mac'), 'sub/.DS_Store')
+    zip.addBuffer(Buffer.from('MZ'), 'script.exe')
+    zip.end()
+    const chunks = []
+    zip.outputStream.on('data', c => chunks.push(c)).on('end', () => resolve(Buffer.concat(chunks)))
+  })
+  await area(page).getByRole('button', { name: /^Brand/ }).click()
+  posted.length = 0; uploadedNames.length = 0
+  await page.evaluate(({ bytes }) => {
+    const transfer = new DataTransfer()
+    transfer.items.add(new File([new Uint8Array(bytes)], 'consegna.zip', { type: 'application/zip' }))
+    const target = document.querySelector('section[aria-label="Contenuto di Brand"]')
+    for (const type of ['dragenter', 'dragover', 'drop']) target.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: transfer }))
+  }, { bytes: Array.from(zipBytes) })
+  await page.getByText(/Caricati 2 di 3 · 1 non caricati/).waitFor()
+  assert.deepEqual(posted.map((p, i) => `${p}/${uploadedNames[i]}`).sort(), ['Brand/consegna/logo.png', 'Brand/consegna/sub/testo.txt'],
+    'i file dello zip finiscono nella cartella col suo nome, dentro quella che si guardava; lo zip no')
+  await page.getByText('script.exe (da consegna.zip)').waitFor()
+  await page.getByRole('button', { name: 'Chiudi il riepilogo' }).click()
+
+  // Lo zip di una cartella: se la rotta dice di no, la pagina lo dice a parole.
+  await page.getByRole('button', { name: 'Scarica la cartella' }).click()
+  await page.getByRole('alert').getByText('Storage non configurato').waitFor({ timeout: 15000 }).catch(async error => {
+    console.log('[zip]', await page.evaluate(() => ({
+      frame: document.querySelector('iframe[title="Scarico degli zip"]')?.contentDocument?.body?.innerText,
+      src: document.querySelector('iframe[title="Scarico degli zip"]')?.getAttribute('src'),
+      alerts: Array.from(document.querySelectorAll('[role=alert]')).map(a => a.textContent),
+    })))
+    throw error
+  })
+  await page.getByRole('navigation', { name: 'Cartella corrente' }).getByRole('button', { name: 'Nostri' }).click()
+
   // ── Tema e telefono ──────────────────────────────────────────────────────
   await page.addStyleTag({ content: '*{transition:none!important}' })
   for (const theme of ['dark', 'light']) {
@@ -366,7 +412,7 @@ try {
   await outsider.context.close()
 
   assert.deepEqual(writes, [], 'nessuna scrittura verso le tabelle dell’area file')
-  console.log(`Tutti i controlli passano: cartelle, indirizzo, ordine, griglia, recenti, archiviati, ricerca nei due spazi, spazio del cliente in sola lettura, trascinamento nella cartella giusta, conferma nella pagina, cartella nuova, file e cartelle spostati trascinandoli o da «Sposta in…», rinomina che tiene il tipo, PDF disegnato nella pagina con zoom, frecce fra i file, contrasto nei due temi e telefono. ${requests} richieste al mock, zero scritture. Screenshot: ${output}`)
+  console.log(`Tutti i controlli passano: cartelle, indirizzo, ordine, griglia, recenti, archiviati, ricerca nei due spazi, spazio del cliente in sola lettura, trascinamento nella cartella giusta, conferma nella pagina, cartella nuova, file e cartelle spostati trascinandoli o da «Sposta in…», rinomina che tiene il tipo, PDF disegnato nella pagina con zoom, frecce fra i file, zip trascinato che diventa cartella (senza __MACOSX né eseguibili), errore dello zip detto nella pagina, contrasto nei due temi e telefono. ${requests} richieste al mock, zero scritture. Screenshot: ${output}`)
 } finally {
   await browser?.close()
   try { process.kill(-server.pid, 'SIGTERM') } catch { /* già terminato */ }

@@ -7,7 +7,7 @@ import {
   MATERIAL_MAX_BYTES, MATERIAL_QUOTA_BYTES, PATH_DEPTH, buildMaterialTree, countTree,
   extensionOf, folderPathOf, humanBytes, materialDownloadHref, materialKind, normalizePath,
   parseRange, quotaLeft, quotaWarning, rejectMaterial, renderableKind,
-  PDF_PREVIEW_MAX_BYTES, hasThumbnail, previewKind,
+  PDF_PREVIEW_MAX_BYTES, hasThumbnail, isZipName, mimeFromName, previewKind,
 } from './materials'
 import { csvSeparator, parseCsv } from './csv'
 
@@ -132,4 +132,17 @@ assert.deepEqual(parseCsv('nome;note\n"Rossi; Mario";"ha detto ""sì"""\r\nBianc
 assert.deepEqual(parseCsv('a,b\n1,2\n3,4', 2), [['a', 'b'], ['1', '2']], 'si ferma alle righe chieste')
 assert.deepEqual(parseCsv('a,"due\nrighe"'), [['a', 'due\nrighe']], 'un a capo fra virgolette resta nella cella')
 
-console.log('Tutti i controlli passano: tipi ammessi, estensioni bloccate, limite per file, quota d’azienda, formati leggibili, Range, file di progetto, anteprime senza promesse, PDF e testo nell’anteprima, CSV con le virgolette e cartelle dal percorso.')
+// §421 — Gli archivi si riconoscono dall'estensione: il browser li dichiara come capita.
+assert.equal(rejectMaterial({ name: 'consegna.rar', mime: 'application/octet-stream', size: 10 }), null, 'un rar del cliente entra')
+assert.equal(rejectMaterial({ name: 'sorgenti.7z', mime: '', size: 10 }), null)
+assert.equal(rejectMaterial({ name: 'dentro.zip', mime: 'application/x-zip', size: 10 }), null, 'uno zip dentro uno zip resta un file')
+assert.equal(materialKind('application/octet-stream', 'consegna.rar'), 'documento')
+assert.notEqual(rejectMaterial({ name: 'virus.exe', mime: 'application/zip', size: 10 }), null, 'l’estensione bloccata vince ancora')
+assert.equal(mimeFromName('Logo.PNG'), 'image/png', 'il tipo di un file che esce da uno zip')
+assert.equal(mimeFromName('spot.mov'), 'video/quicktime')
+assert.equal(mimeFromName('brand.afdesign'), null, 'i file di progetto li riconosce l’estensione, non un tipo')
+assert.equal(rejectMaterial({ name: 'brand.afdesign', mime: mimeFromName('brand.afdesign'), size: 10 }), null)
+assert.equal(isZipName('Consegna.ZIP'), true)
+assert.equal(isZipName('consegna.zip.pdf'), false)
+
+console.log('Tutti i controlli passano: tipi ammessi, estensioni bloccate, limite per file, quota d’azienda, formati leggibili, Range, file di progetto, anteprime senza promesse, PDF e testo nell’anteprima, CSV con le virgolette, archivi dall’estensione e cartelle dal percorso.')

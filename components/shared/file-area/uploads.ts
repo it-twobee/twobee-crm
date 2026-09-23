@@ -1,20 +1,34 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { folderPathOf, rejectMaterial } from '@/lib/portal/materials'
+import { folderPathOf, humanBytes, isZipName, rejectMaterial } from '@/lib/portal/materials'
 import { isJunkFile, joinPath } from '@/lib/portal/explorer'
+import { expandZips } from './zips'
 
 /* §416 — Caricare nell'area file: dai bottoni, o trascinando file e cartelle
    dal computer. Ogni file porta con sé la cartella da cui arriva, relativa al
    punto in cui lo si è lasciato cadere, e finisce **nella cartella che si sta
    guardando**, non più sempre nella radice. */
-export type PickedFile = { file: File; dir: string | null; error?: string }
+export type PickedFile = {
+  name: string
+  size: number
+  type: string
+  dir: string | null
+  /** Il file, o come ottenerlo quando tocca a lui: uno che esce da uno zip si estrae solo allora (§421). */
+  file: File | (() => Promise<File>)
+  /** Lo zip da cui arriva, per dirlo nel riepilogo. */
+  fromZip?: string
+  error?: string
+}
+
+const picked = (file: File, dir: string | null, error?: string): PickedFile =>
+  ({ name: file.name, size: file.size, type: file.type, dir, file, ...(error ? { error } : {}) })
 
 export function pickedFromInput(list: FileList): PickedFile[] {
   return Array.from(list).map(file => {
     const relative = (file as File & { webkitRelativePath?: string }).webkitRelativePath
-    try { return { file, dir: folderPathOf(relative) } }
-    catch (e) { return { file, dir: null, error: e instanceof Error ? e.message : 'Percorso non valido.' } }
+    try { return picked(file, folderPathOf(relative)) }
+    catch (e) { return picked(file, null, e instanceof Error ? e.message : 'Percorso non valido.') }
   })
 }
 
@@ -27,13 +41,13 @@ export function pickedFromDrop(transfer: DataTransfer): Promise<PickedFile[]> {
   const items = Array.from(transfer.items ?? []).filter(item => item.kind === 'file')
   const entries = items.map(item => item.webkitGetAsEntry?.() ?? null)
   const loose = items.map(item => item.getAsFile())
-  if (!entries.some(Boolean)) return Promise.resolve(Array.from(transfer.files).map(file => ({ file, dir: null })))
+  if (!entries.some(Boolean)) return Promise.resolve(Array.from(transfer.files).map(file => picked(file, null)))
   return (async () => {
     const out: PickedFile[] = []
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i]
       if (entry) await walk(entry, [], out)
-      else if (loose[i]) out.push({ file: loose[i]!, dir: null })
+      else if (loose[i]) out.push(picked(loose[i]!, null))
     }
     return out
   })()
@@ -42,7 +56,7 @@ export function pickedFromDrop(transfer: DataTransfer): Promise<PickedFile[]> {
 async function walk(entry: FileSystemEntry, parents: string[], out: PickedFile[]) {
   if (entry.isFile) {
     const file = await new Promise<File>((resolve, reject) => (entry as FileSystemFileEntry).file(resolve, reject))
-    out.push({ file, dir: parents.length ? parents.join('/') : null })
+    out.push(picked(file, parents.length ? parents.join('/') : null))
     return
   }
   if (!entry.isDirectory) return
@@ -70,6 +84,7 @@ const PARALLEL = 3
 /** La coda dei caricamenti: tre alla volta, un totale da leggere, gli errori tenuti insieme. */
 export function useUploads({ clientId, onFinished }: { clientId: string; onFinished: () => void }) {
   const [jobs, setJobs] = useState<UploadJob[]>([])
+  const [opening, setOpening] = useState(false)
   const requests = useRef(new Map<string, XMLHttpRequest>())
   const stopped = useRef(false)
 
@@ -99,29 +114,44 @@ export function useUploads({ clientId, onFinished }: { clientId: string; onFinis
     request.send(file)
   })
 
-  const start = useCallback(async (picked: PickedFile[], target: string) => {
+  const start = useCallback(async (chosen: PickedFile[], target: string, spaceLeft?: number) => {
     stopped.current = false
-    const queue: { job: UploadJob; file: File }[] = []
+    const zips = chosen.some(item => isZipName(item.name))
+    if (zips) { setJobs([]); setOpening(true) }
+    const expanded = await expandZips(chosen).finally(() => setOpening(false))
+    const queue: { job: UploadJob; file: PickedFile['file'] }[] = []
     const next: UploadJob[] = []
-    for (const { file, dir, error: pickError } of picked) {
-      if (isJunkFile(file.name, dir)) continue
+    for (const item of expanded) {
+      if (isJunkFile(item.name, item.dir)) continue
       const key = crypto.randomUUID()
       let path: string | null = null
-      let error = pickError ?? null
+      let error = item.error ?? null
       if (!error) {
-        try { path = joinPath(target, dir) } catch (e) { error = e instanceof Error ? e.message : 'Percorso non valido.' }
+        try { path = joinPath(target, item.dir) } catch (e) { error = e instanceof Error ? e.message : 'Percorso non valido.' }
       }
-      error ??= rejectMaterial({ name: file.name, mime: file.type || null, size: file.size })
-      const job: UploadJob = { key, name: file.name, size: file.size, path, status: error ? 'errore' : 'attesa', loaded: 0, ...(error ? { error } : {}) }
+      error ??= rejectMaterial({ name: item.name, mime: item.type || null, size: item.size })
+      const label = item.fromZip ? `${item.name} (da ${item.fromZip})` : item.name
+      const job: UploadJob = { key, name: label, size: item.size, path, status: error ? 'errore' : 'attesa', loaded: 0, ...(error ? { error } : {}) }
       next.push(job)
-      if (!error) queue.push({ job, file })
+      if (!error) queue.push({ job, file: item.file })
     }
-    if (!next.length) return
+    if (!next.length) { setJobs([]); return }
+    // Lo spazio si guarda prima di cominciare: scoprirlo a metà vuol dire mezza cartella caricata.
+    const needed = queue.reduce((sum, item) => sum + item.job.size, 0)
+    if (spaceLeft !== undefined && needed > spaceLeft) {
+      setJobs(next.map(job => job.status === 'attesa'
+        ? { ...job, status: 'errore', error: `Lo spazio dell’azienda non basta: servono ${humanBytes(needed)}, restano ${humanBytes(Math.max(0, spaceLeft))}.` }
+        : job))
+      return
+    }
     setJobs(next)
     const worker = async () => {
       for (let item = queue.shift(); item; item = queue.shift()) {
         if (stopped.current) { patch(item.job.key, { status: 'annullato' }); continue }
-        await send(item.job, item.file)
+        let file: File
+        try { file = typeof item.file === 'function' ? await item.file() : item.file }
+        catch { patch(item.job.key, { status: 'errore', error: 'Questo file dello zip non si estrae: estrailo sul computer.' }); continue }
+        await send(item.job, file)
       }
     }
     await Promise.all(Array.from({ length: Math.min(PARALLEL, queue.length) }, worker))
@@ -149,5 +179,5 @@ export function useUploads({ clientId, onFinished }: { clientId: string; onFinis
     }
   }, { bytes: 0, loaded: 0, done: 0, failed: 0, cancelled: 0 })
 
-  return { jobs, active, totals, start, cancel, dismiss }
+  return { jobs, active: active || opening, opening, totals, start, cancel, dismiss }
 }
