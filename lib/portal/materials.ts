@@ -132,6 +132,36 @@ export function renderableKind(mime: string | null | undefined, name?: string): 
   return null
 }
 
+/* §415 — Cosa si apre nell'anteprima, oltre a quello che il browser disegna da
+   sé. Il PDF lo disegna pdf.js nella pagina, dai byte: la risposta resta in
+   `sandbox`, e il file non diventa mai un documento della nostra origine. Il
+   testo si legge per il primo mega, che basta a capire cos'è. */
+export type PreviewKind = Exclude<RenderableKind, null> | 'pdf' | 'text' | 'csv' | null
+/** Oltre, un PDF si scarica: aprirlo in una scheda del browser vuol dire tenerlo tutto in memoria. */
+export const PDF_PREVIEW_MAX_BYTES = 100 * 1024 * 1024
+/** Quanto testo si legge per l'anteprima. */
+export const TEXT_PREVIEW_BYTES = 1024 * 1024
+
+export function previewKind(mime: string | null | undefined, name: string, size?: number): PreviewKind {
+  const rendered = renderableKind(mime, name)
+  if (rendered) return rendered
+  if (DESIGN_EXTENSIONS.includes(extensionOf(name))) return null
+  const type = (mime ?? '').toLowerCase().split(';')[0].trim()
+  const ext = extensionOf(name)
+  if (type === 'application/pdf' || ext === 'pdf') {
+    return size != null && size > PDF_PREVIEW_MAX_BYTES ? null : 'pdf'
+  }
+  if (type === 'text/csv' || ext === 'csv') return 'csv'
+  if (type === 'text/plain' || ['txt', 'md', 'log'].includes(ext)) return 'text'
+  return null
+}
+
+/** Ha una miniatura: le immagini (§401) e la prima pagina di un PDF (§415). */
+export function hasThumbnail(mime: string | null | undefined, name: string): boolean {
+  const kind = previewKind(mime, name)
+  return kind === 'image' || kind === 'pdf'
+}
+
 export function materialDownloadHref(id: string): string {
   return `/api/portale/materiali/${id}`
 }

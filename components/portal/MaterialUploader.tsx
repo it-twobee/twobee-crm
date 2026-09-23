@@ -186,7 +186,7 @@ function FolderView({ node, depth, open, toggle, projects, canWrite, viewerName,
       const project = m.project_id ? projects.find(p => p.id === m.project_id)?.title : null
       return <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
         <span className="flex min-w-0 flex-1 items-center gap-3">
-          {hasPreview(m.mime, m.name)
+          {hasPreview(m.mime, m.name, Number(m.size))
             ? <button type="button" onClick={() => onPreview(m)} aria-label={`Apri l’anteprima di ${m.name}`} className="rounded-md">
                 <MaterialThumb file={m} size={44} fallback={<Icon className="h-5 w-5 text-text-secondary" aria-hidden="true" />} />
               </button>
@@ -199,7 +199,7 @@ function FolderView({ node, depth, open, toggle, projects, canWrite, viewerName,
           </span>
         </span>
         <span className="flex flex-wrap items-center gap-2">
-          {hasPreview(m.mime, m.name) && <button type="button" className={button} onClick={() => onPreview(m)}>
+          {hasPreview(m.mime, m.name, Number(m.size)) && <button type="button" className={button} onClick={() => onPreview(m)}>
             <Eye className="h-4 w-4" aria-hidden="true" />Anteprima<span className="sr-only"> {m.name}</span></button>}
           <a href={materialDownloadHref(m.id)} className={button}><Download className="h-4 w-4" aria-hidden="true" />Scarica<span className="sr-only"> {m.name}</span></a>
           {canWrite && mine && <button type="button" className={button} onClick={() => onRemove(m)}>

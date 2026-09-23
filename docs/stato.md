@@ -1,5 +1,17 @@
 # Dove siamo
 
+## Anteprime: il PDF si vede — §415, 2026-09-23
+
+- Il PDF si apre nell'anteprima, disegnato da pdf.js dai byte, e la risposta
+  resta in sandbox.
+- La miniatura di un PDF è la sua prima pagina.
+- Testo e CSV (con il `;` italiano) si leggono per il primo mega.
+- Nell'anteprima si scorre fra i file con le frecce, e le immagini si guardano
+  anche a grandezza reale.
+
+Vale anche per il portale del cliente. Fuori, dichiarati: Office, fotogrammi dei
+video (manca `ffmpeg`), HEIC. Nessuna migration.
+
 ## L'area file si organizza — §413, 2026-09-23
 
 Nell'esploratore si può mettere in ordine:

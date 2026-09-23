@@ -2,6 +2,7 @@
 // Supabase simulato solo su loopback, nessun DB reale, nessuna scrittura: i
 // caricamenti si intercettano prima che escano dal browser.
 // NODE_PATH=<cartella con playwright> node scripts/check-area-file-browser.mjs
+// NODE_PATH=… AREA_FILE_BUILD=.next-prod node scripts/check-area-file-browser.mjs   (dopo un build lì)
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { createRequire } from 'node:module'
@@ -84,10 +85,15 @@ const mock = createServer((req, res) => {
   return reply(200, req.headers.accept?.includes('vnd.pgrst.object') ? rows[0] ?? null : rows)
 })
 await new Promise(resolve => mock.listen(MOCK, '127.0.0.1', resolve))
+// Il worker di pdf.js lo copia `npm run dev`; qui si lancia `next` direttamente.
+await import('./copia-pdfjs.mjs')
 const log = await open(join(output, 'next.log'), 'w')
-const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', '-p', String(PORT), '--hostname', '127.0.0.1'], {
+// Con AREA_FILE_BUILD=<cartella> si prova una build di produzione già fatta
+// (`next start`): pdf.js si impacchetta diverso in produzione, e va visto lì.
+const built = process.env.AREA_FILE_BUILD
+const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', built ? 'start' : 'dev', '-p', String(PORT), '--hostname', '127.0.0.1'], {
   cwd: process.cwd(), detached: true, stdio: ['ignore', log.fd, log.fd],
-  env: { ...process.env, NEXT_BUILD_DIR: '.next-build', NEXT_TELEMETRY_DISABLED: '1',
+  env: { ...process.env, NEXT_BUILD_DIR: built || '.next-build', NEXT_TELEMETRY_DISABLED: '1',
     NEXT_PUBLIC_SUPABASE_URL: `http://127.0.0.1:${MOCK}`, NEXT_PUBLIC_SUPABASE_ANON_KEY: 'area-file-test-only', SUPABASE_SERVICE_ROLE_KEY: '' },
 })
 let browser
@@ -105,7 +111,11 @@ try {
     const data = { access_token: token(id), refresh_token: 'test-only', expires_at: Math.floor(Date.now() / 1000) + 3600, expires_in: 3600, token_type: 'bearer', user: identity(id) }
     const value = `base64-${Buffer.from(JSON.stringify(data)).toString('base64url')}`
     await context.addCookies(['127.0.0.1', 'localhost'].map(domain => ({ name: 'sb-127-auth-token', value, domain, path: '/' })))
-    return { context, page: await context.newPage() }
+    const page = await context.newPage()
+    // Un errore nella pagina si legge qui, invece di indovinarlo da un timeout.
+    page.on('pageerror', e => console.log(`[pagina] ${e.message}`))
+    page.on('console', m => { if (m.type() === 'error') console.log(`[console] ${m.text()}`) })
+    return { context, page }
   }
   const at = path => `http://127.0.0.1:${PORT}${path}`
   const area = page => page.getByRole('region', { name: /^Contenuto di / })
@@ -291,7 +301,7 @@ try {
   await rinomina.getByRole('button', { name: 'Rinomina' }).click()
   await rinomina.waitFor({ state: 'detached' })
   assert.deepEqual(organize.at(-1), { method: 'PATCH', id: materials[3].id, azione: 'rinomina', nome: 'offerta' })
-  await area(page).getByText('offerta.pdf').waitFor()
+  await area(page).getByTitle('offerta.pdf').waitFor()
 
   // Rinominare una cartella, e poi trascinarla dentro un'altra.
   await page.getByRole('button', { name: 'Altre azioni per Grafica' }).click()
@@ -305,6 +315,36 @@ try {
   await page.waitForFunction(() => !/Design/.test(document.querySelector('section[aria-label="Contenuto di Nostri"]')?.textContent ?? ''))
   assert.deepEqual(organize.at(-1), { method: 'PATCH', client: a, spazio: 'team', percorso: 'Design', azione: 'sposta', destinazione: 'Brand' })
   assert.equal(materials[5].path, 'Brand/Design')
+
+  // ── §415 Anteprime: il PDF disegnato nella pagina, e le frecce ───────────
+  const pdf = Buffer.from(['%PDF-1.4', '1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj', '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj',
+    '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]/Contents 4 0 R>>endobj', '4 0 obj<</Length 27>>stream',
+    '0 0 1 rg 20 20 160 60 re f', 'endstream endobj', 'trailer<</Root 1 0 R>>', '%%EOF'].join('\n'))
+  await page.route('**/api/portale/materiali/f2418000-*', route => route.fulfill({
+    status: 200, body: pdf,
+    headers: { 'Content-Type': 'application/pdf', 'Content-Security-Policy': "sandbox; default-src 'none'", 'X-Content-Type-Options': 'nosniff' },
+  }))
+  await page.getByRole('button', { name: 'Apri l’anteprima di offerta.pdf' }).click()
+  const anteprima = page.getByRole('dialog', { name: 'Anteprima di offerta.pdf' })
+  await anteprima.getByRole('img', { name: 'offerta.pdf, pagina 1 di 1' }).waitFor({ timeout: 30000 }).catch(async error => {
+    await page.screenshot({ path: join(output, 'pdf-errore.png') })
+    console.log('[anteprima]', await anteprima.innerText())
+    throw error
+  })
+  assert.ok(await anteprima.locator('canvas').evaluate(c => c.width > 0), 'la pagina è disegnata, non un riquadro vuoto')
+  await anteprima.getByRole('button', { name: 'Ingrandisci' }).click()
+  await anteprima.getByText('125%').waitFor()
+  await page.keyboard.press('Escape')
+  await anteprima.waitFor({ state: 'detached' })
+  await area(page).getByRole('button', { name: /^Consegne/ }).click()
+  const primo = (await names(page))[0]
+  await page.getByRole('button', { name: `Apri l’anteprima di ${primo}` }).click()
+  await page.getByRole('dialog', { name: `Anteprima di ${primo}` }).getByText('1 di 2', { exact: false }).waitFor()
+  await page.keyboard.press('ArrowRight')
+  const secondo = (await names(page))[1]
+  await page.getByRole('dialog', { name: `Anteprima di ${secondo}` }).getByText('2 di 2', { exact: false }).waitFor()
+  await page.keyboard.press('Escape')
+  await page.getByRole('navigation', { name: 'Cartella corrente' }).getByRole('button', { name: 'Nostri' }).click()
 
   // ── Tema e telefono ──────────────────────────────────────────────────────
   await page.addStyleTag({ content: '*{transition:none!important}' })
@@ -326,7 +366,7 @@ try {
   await outsider.context.close()
 
   assert.deepEqual(writes, [], 'nessuna scrittura verso le tabelle dell’area file')
-  console.log(`Tutti i controlli passano: cartelle, indirizzo, ordine, griglia, recenti, archiviati, ricerca nei due spazi, spazio del cliente in sola lettura, trascinamento nella cartella giusta, conferma nella pagina, cartella nuova, file e cartelle spostati trascinandoli o da «Sposta in…», rinomina che tiene il tipo, contrasto nei due temi e telefono. ${requests} richieste al mock, zero scritture. Screenshot: ${output}`)
+  console.log(`Tutti i controlli passano: cartelle, indirizzo, ordine, griglia, recenti, archiviati, ricerca nei due spazi, spazio del cliente in sola lettura, trascinamento nella cartella giusta, conferma nella pagina, cartella nuova, file e cartelle spostati trascinandoli o da «Sposta in…», rinomina che tiene il tipo, PDF disegnato nella pagina con zoom, frecce fra i file, contrasto nei due temi e telefono. ${requests} richieste al mock, zero scritture. Screenshot: ${output}`)
 } finally {
   await browser?.close()
   try { process.kill(-server.pid, 'SIGTERM') } catch { /* già terminato */ }

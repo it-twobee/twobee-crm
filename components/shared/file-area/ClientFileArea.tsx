@@ -267,7 +267,10 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
     }] : []),
   ]
 
-  const previewOf = (m: ClientMaterial) => hasPreview(m.mime, m.name) ? () => setPreview(m) : undefined
+  const previewOf = (m: ClientMaterial) => hasPreview(m.mime, m.name, Number(m.size)) ? () => setPreview(m) : undefined
+  // Si scorre fra i file che si stanno guardando, nell'ordine in cui si vedono.
+  const previewable = (results ? results.files : view === 'recenti' ? recent : listing.files)
+    .filter(m => hasPreview(m.mime, m.name, Number(m.size)))
 
   /* ── Trascinare: dal computer si carica, dentro l'area si sposta ─────── */
   const dragKind = (e: React.DragEvent) => {
@@ -505,7 +508,7 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
             </>}
     </section>
 
-    {preview && <MaterialPreview file={preview} onClose={() => setPreview(null)} />}
+    {preview && <MaterialPreview file={preview} files={previewable} onNavigate={setPreview} onClose={() => setPreview(null)} />}
     {toDelete && <ConfirmDialog title={toDelete.length === 1 ? 'Eliminare il file?' : `Eliminare ${toDelete.length} file?`}
       confirmLabel="Elimina" pending={pending}
       body={<>{toDelete.length === 1 ? `«${toDelete[0].name}» sparisce` : `${toDelete.length} file spariscono`} per tutti{toDelete.some(m => m.source === 'cliente') ? ', anche per il cliente che li ha caricati' : ''}. Non torna indietro: se vuoi solo toglierli di mezzo, archiviali.</>}

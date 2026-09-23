@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getObject, putObject } from '@/lib/storage/s3'
 import { isStorageUuid } from '@/lib/storage/access'
-import { renderableKind, thumbObjectKey } from '@/lib/portal/materials'
+import { hasThumbnail, previewKind, thumbObjectKey } from '@/lib/portal/materials'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,7 +18,12 @@ export const dynamic = 'force-dynamic'
 
    `sharp` è un di più: se il binario non c'è — succede, è un modulo nativo e in
    produzione si gira su musl — questa rotta risponde 404 e l'elenco torna alle
-   icone di prima. Una miniatura assente non è un guasto. */
+   icone di prima. Una miniatura assente non è un guasto.
+
+   §415 — Anche un PDF ha la sua: la prima pagina, disegnata da pdf.js sul
+   server (`pdf-parse`, che lo porta con sé insieme al canvas nativo). Vale la
+   stessa regola di `sharp`: se il modulo non carica, niente miniatura, e resta
+   l'icona. */
 const THUMB_EDGE = 320
 /** Oltre questa soglia l'originale non si carica in memoria per farne un francobollo. */
 const SOURCE_MAX_BYTES = 40 * 1024 * 1024
@@ -58,7 +63,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     .select('id, name, mime, size').eq('id', params.id).is('deleted_at', null).maybeSingle()
   if (material.error) return NextResponse.json({ error: 'Non disponibile' }, { status: 503 })
   if (!material.data) return NextResponse.json({ error: 'Non trovato' }, { status: 404 })
-  if (renderableKind(material.data.mime, material.data.name) !== 'image') {
+  if (!hasThumbnail(material.data.mime, material.data.name)) {
     return NextResponse.json({ error: 'Senza miniatura' }, { status: 404 })
   }
   if (Number(material.data.size) > SOURCE_MAX_BYTES) {
@@ -79,7 +84,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   let thumb: Buffer
   try {
     const sharp = (await import('sharp')).default
-    const source = await readAll((await getObject(stored.data.storage_key)).body)
+    let source = await readAll((await getObject(stored.data.storage_key)).body)
+    if (previewKind(material.data.mime, material.data.name) === 'pdf') source = await firstPage(source)
     thumb = await sharp(source, { failOn: 'none' })
       // `rotate()` senza argomenti applica l'orientamento EXIF: senza, le foto
       // scattate col telefono arrivano coricate.
@@ -94,4 +100,18 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   // Se il salvataggio fallisce si serve lo stesso: la prossima visita riproverà.
   try { await putObject(key, thumb, 'image/webp') } catch { /* si rigenererà */ }
   return new Response(new Uint8Array(thumb), { headers: thumbHeaders(thumb.length) })
+}
+
+/** La prima pagina di un PDF, come PNG largo quanto la miniatura. */
+async function firstPage(pdf: Buffer): Promise<Buffer> {
+  const { PDFParse } = await import('pdf-parse')
+  const parser = new PDFParse({ data: new Uint8Array(pdf) })
+  try {
+    const shot = await parser.getScreenshot({ partial: [1], desiredWidth: THUMB_EDGE, imageDataUrl: false, imageBuffer: true })
+    const page = shot.pages[0]
+    if (!page?.data?.length) throw new Error('pagina vuota')
+    return Buffer.from(page.data)
+  } finally {
+    await parser.destroy()
+  }
 }

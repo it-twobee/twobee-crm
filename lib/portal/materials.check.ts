@@ -7,7 +7,9 @@ import {
   MATERIAL_MAX_BYTES, MATERIAL_QUOTA_BYTES, PATH_DEPTH, buildMaterialTree, countTree,
   extensionOf, folderPathOf, humanBytes, materialDownloadHref, materialKind, normalizePath,
   parseRange, quotaLeft, quotaWarning, rejectMaterial, renderableKind,
+  PDF_PREVIEW_MAX_BYTES, hasThumbnail, previewKind,
 } from './materials'
+import { csvSeparator, parseCsv } from './csv'
 
 const ok = { name: 'girato.mp4', mime: 'video/mp4', size: 40 * 1024 * 1024 }
 
@@ -107,4 +109,27 @@ assert.equal(tree.folders[1].folders[0].folders[0].path, 'progetto/2026/estate')
 assert.equal(countTree(tree), 5)
 assert.equal(countTree(buildMaterialTree([])), 0)
 
-console.log('Tutti i controlli passano: tipi ammessi, estensioni bloccate, limite per file, quota d’azienda, formati leggibili, Range, file di progetto, anteprime senza promesse e cartelle dal percorso.')
+// §415 — Cosa si apre nell'anteprima. Il PDF lo disegna pdf.js dai byte, e la
+// risposta resta in sandbox: renderableKind continua a dire di no, perché il
+// browser da solo non lo deve aprire.
+assert.equal(previewKind('application/pdf', 'contratto.pdf', 1000), 'pdf')
+assert.equal(previewKind(null, 'contratto.PDF'), 'pdf', 'anche quando il tipo non arriva')
+assert.equal(previewKind('application/pdf', 'enorme.pdf', PDF_PREVIEW_MAX_BYTES + 1), null, 'un PDF enorme si scarica')
+assert.equal(previewKind('text/plain', 'note.txt'), 'text')
+assert.equal(previewKind('text/csv', 'clienti.csv'), 'csv')
+assert.equal(previewKind('application/vnd.ms-excel', 'export.csv'), 'csv', 'Windows dichiara i CSV come Excel')
+assert.equal(previewKind('image/png', 'logo.png'), 'image')
+assert.equal(previewKind('application/postscript', 'logo.ai'), null, 'un file di progetto non si apre, nemmeno se è un PDF dentro')
+assert.equal(previewKind('application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'lettera.docx'), null, 'Office no: lo si dichiara')
+assert.equal(hasThumbnail('application/pdf', 'contratto.pdf'), true, 'la prima pagina di un PDF')
+assert.equal(hasThumbnail('image/png', 'logo.png'), true)
+assert.equal(hasThumbnail('video/mp4', 'spot.mp4'), false, 'niente fotogramma: sulla macchina manca ffmpeg')
+assert.equal(csvSeparator('nome;cognome;città'), ';')
+assert.equal(csvSeparator('nome,cognome'), ',')
+assert.equal(csvSeparator('nome\tcognome'), '\t')
+assert.equal(csvSeparator('una sola colonna'), ',')
+assert.deepEqual(parseCsv('nome;note\n"Rossi; Mario";"ha detto ""sì"""\r\nBianchi;'), [['nome', 'note'], ['Rossi; Mario', 'ha detto "sì"'], ['Bianchi', '']])
+assert.deepEqual(parseCsv('a,b\n1,2\n3,4', 2), [['a', 'b'], ['1', '2']], 'si ferma alle righe chieste')
+assert.deepEqual(parseCsv('a,"due\nrighe"'), [['a', 'due\nrighe']], 'un a capo fra virgolette resta nella cella')
+
+console.log('Tutti i controlli passano: tipi ammessi, estensioni bloccate, limite per file, quota d’azienda, formati leggibili, Range, file di progetto, anteprime senza promesse, PDF e testo nell’anteprima, CSV con le virgolette e cartelle dal percorso.')

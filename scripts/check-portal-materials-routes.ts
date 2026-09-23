@@ -25,6 +25,16 @@ class StorageTooLarge extends Error {}
 
 let files: any[] = [], materials: any[] = [], objects: string[] = []
 let png = Buffer.alloc(0)
+// §415 — un PDF di una pagina scritto a mano: un rettangolo blu. Niente xref,
+// come capita nei PDF veri usciti male: pdf.js la ricostruisce.
+const pdf = Buffer.from([
+  '%PDF-1.4',
+  '1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj',
+  '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj',
+  '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]/Contents 4 0 R>>endobj',
+  '4 0 obj<</Length 27>>stream', '0 0 1 rg 20 20 160 60 re f', 'endstream endobj',
+  'trailer<</Root 1 0 R>>', '%%EOF',
+].join('\n'))
 const stream = (buffer: Buffer) => new ReadableStream<Uint8Array>({
   start(controller) { controller.enqueue(new Uint8Array(buffer)); controller.close() },
 })
@@ -144,7 +154,7 @@ internal._load = function (name, ...args) {
           return { body: stream(thumbs[k]), contentType: 'image/webp', contentLength: thumbs[k].length }
         }
         if (sourceBroken) throw new Error('storage giù')
-        if (!range) return { body: stream(png), contentType: 'image/png', contentLength: size }
+        if (!range) return { body: stream(k.endsWith('.pdf') ? pdf : png), contentType: 'image/png', contentLength: size }
         const [start, end] = range.replace('bytes=', '').split('-').map(Number)
         return { body: 'byte', contentType: 'image/png', contentLength: end - start + 1, contentRange: `bytes ${start}-${end}/${size}` }
       },
@@ -313,8 +323,18 @@ async function main() {
   assert.equal(second.status, 200)
   assert.equal(generated, 1, 'la seconda visita la trova già fatta')
 
-  // Un file che non è un'immagine non ha miniatura, e non la promette.
-  materials[0].mime = 'application/pdf'; materials[0].name = 'contratto.pdf'
+  // §415 — un PDF sì: la prima pagina, disegnata sul server.
+  reset()
+  materials[0].mime = 'application/pdf'; materials[0].name = 'contratto.pdf'; materials[0].storage_key = 'materiali/contratto.pdf'
+  const prima = await ask()
+  assert.equal(prima.status, 200, 'la prima pagina di un PDF diventa una miniatura')
+  assert.equal(Buffer.from(await prima.arrayBuffer()).subarray(8, 12).toString(), 'WEBP')
+  // Un PDF che non si apre non è un guasto: resta l'icona.
+  reset()
+  materials[0].mime = 'application/pdf'; materials[0].name = 'rotto.pdf'
+  assert.equal((await ask()).status, 404, 'un PDF illeggibile non promette una miniatura')
+  // Un file che non si disegna non ha miniatura, e non la promette.
+  materials[0].mime = 'application/msword'; materials[0].name = 'lettera.doc'
   assert.equal((await ask()).status, 404)
   materials[0].mime = 'image/vnd.adobe.photoshop'; materials[0].name = 'logo.psd'
   assert.equal((await ask()).status, 404, 'un psd non è un’immagine che il browser disegna')

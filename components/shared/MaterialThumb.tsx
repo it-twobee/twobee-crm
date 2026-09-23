@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { materialThumbHref, renderableKind } from '@/lib/portal/materials'
+import { hasThumbnail, materialThumbHref } from '@/lib/portal/materials'
 
 /* §401 — La miniatura al posto dell'icona. Se il file non è un'immagine, o la
    miniatura non si è potuta generare, resta l'icona: un riquadro vuoto al posto
-   di un'anteprima è peggio di un'icona onesta. */
+   di un'anteprima è peggio di un'icona onesta.
+   §415 — anche la prima pagina di un PDF. */
 export function MaterialThumb({ file, size = 44, fallback, fill = false }: {
   file: { id: string; name: string; mime: string | null }
   size?: number
@@ -14,7 +15,7 @@ export function MaterialThumb({ file, size = 44, fallback, fill = false }: {
   fill?: boolean
 }) {
   const [failed, setFailed] = useState(false)
-  const shows = renderableKind(file.mime, file.name) === 'image' && !failed
+  const shows = hasThumbnail(file.mime, file.name) && !failed
   const box = fill ? { width: '100%', height: '100%' } : { width: size, height: size }
   if (!shows) return <span className="flex shrink-0 items-center justify-center" style={box}>{fallback}</span>
   return <img

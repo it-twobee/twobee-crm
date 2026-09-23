@@ -35,3 +35,5 @@ asana-import-map.json
 
 # export per analisi esterna (rigenerabile)
 _export/
+# §P3 — il worker di pdf.js, copiato da node_modules prima di dev e build
+/public/pdfjs/

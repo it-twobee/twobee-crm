@@ -159,10 +159,11 @@ presenta come `image/vnd.adobe.photoshop`, e fidandosi del tipo dichiarato
 l'anteprima avrebbe disegnato un rettangolo rotto. **Una miniatura promessa e
 non mostrata è peggio di nessuna miniatura.**
 
-Il **PDF non ha anteprima**, e non è una dimenticanza: la risposta porta
-`Content-Security-Policy: sandbox`, e un PDF in un iframe sandboxato il browser
-non lo apre. Togliere quell'header per far vedere un'anteprima sarebbe scambiare
-una comodità con la ragione per cui i file sono privati.
+Il **PDF non si apre in un iframe**, e non è una dimenticanza: la risposta
+porta `Content-Security-Policy: sandbox`, e un PDF in un iframe sandboxato il
+browser non lo apre. Togliere quell'header per far vedere un'anteprima sarebbe
+scambiare una comodità con la ragione per cui i file sono privati. Dal §415 il PDF
+si vede lo stesso, in un altro modo: qui sotto.
 
 ### Miniature (§401)
 
@@ -364,6 +365,40 @@ Nell'esploratore:
 Senza la 254 l'area si apre lo stesso: `canOrganize` è falso, e le voci per
 organizzare non compaiono. Una rotta chiamata lo stesso risponde 503 e dice che
 serve la migration.
+
+## Anteprime migliori (§415)
+
+- **Il PDF nella pagina.** `components/shared/PdfViewer.tsx` scarica i byte con
+  `fetch` dalla stessa porta autenticata e li disegna con pdf.js su canvas. La
+  risposta resta in `sandbox`: il file non diventa mai un documento della nostra
+  origine, quindi niente di quello che contiene gira con la sessione di chi
+  guarda.
+  - `isEvalSupported: false`: pdf.js non compila niente dal file.
+  - Le pagine si disegnano fino a 60, con zoom da 50% a 300%.
+  - Oltre 100 MB un PDF si scarica (`PDF_PREVIEW_MAX_BYTES`): aprirlo vorrebbe
+    dire tenerlo tutto in memoria nella scheda.
+  - `pdfjs-dist` è una dipendenza diretta alla stessa versione (5.4.296) che
+    `pdf-parse` porta già dentro, quindi non si duplica.
+  - Si importa la build **minificata** (`pdfjs-dist/build/pdf.min.mjs`, tipi in
+    `types/pdfjs-min.d.ts`): con quella normale il webpack di Next 14 si ferma
+    su «Object.defineProperty called on non-object».
+- **La miniatura di un PDF** è la prima pagina, disegnata sul server da
+  `pdf-parse` e salvata accanto all'originale come le altre. Vale la regola di
+  `sharp`: se il modulo nativo del canvas non carica, la rotta risponde 404 e
+  resta l'icona. Un PDF illeggibile non promette niente.
+- **Testo e CSV**: il primo mega, chiesto col Range. Il testo va in un `<pre>`,
+  il CSV in una tabella (prime 200 righe). Il separatore si indovina dalla prima
+  riga, perché in Italia è spesso `;`, e le virgolette di un CSV vero si
+  rispettano (`lib/portal/csv.ts`). Niente viene interpretato come HTML.
+- **Si scorre fra i file** della cartella con le frecce, o con i bottoni. Il
+  focus resta dentro la finestra. Un'immagine si guarda adattata o a grandezza
+  reale.
+- **Fuori, e lo si dichiara**:
+  - Office (docx, xlsx, pptx): si scarica;
+  - il fotogramma dei video: sulla macchina manca `ffmpeg`;
+  - HEIC: il `sharp` precompilato non lo decodifica.
+
+L'anteprima è la stessa per il portale del cliente, che vede i PDF come noi.
 
 ## Verifiche
 
