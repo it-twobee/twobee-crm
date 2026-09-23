@@ -20,7 +20,7 @@ import {
   tassoDi, imbuto, perDimensione, daOrigine, giorniPerChiudere, perCento,
   SOGLIA_AFFIDABILITA, type RigaAnalisi, type Riga,
 } from '@/lib/sales-analytics'
-import { classiFase } from '@/lib/sales-stages'
+import { useFasi } from './FasiContext'
 
 function Tabella({ titolo, spiega, righe }: { titolo: string; spiega: string; righe: Riga[] }) {
   if (!righe.length) return null
@@ -69,13 +69,14 @@ function Tabella({ titolo, spiega, righe }: { titolo: string; spiega: string; ri
 }
 
 export function CrmAnalytics({ righe }: { righe: RigaAnalisi[] }) {
-  const t = useMemo(() => tassoDi(righe), [righe])
-  const passi = useMemo(() => imbuto(righe).filter(p => p.quante > 0), [righe])
-  const tempo = useMemo(() => giorniPerChiudere(righe), [righe])
-  const perFonte = useMemo(() => perDimensione(righe, r => r.source), [righe])
-  const perCampagna = useMemo(() => perDimensione(righe, daOrigine('campagna')), [righe])
-  const perTipologia = useMemo(() => perDimensione(righe, daOrigine('tipologia')), [righe])
-  const perTempistica = useMemo(() => perDimensione(righe, daOrigine('tempistica')), [righe])
+  const { TUTTE, classiFase } = useFasi()
+  const t = useMemo(() => tassoDi(TUTTE, righe), [TUTTE, righe])
+  const passi = useMemo(() => imbuto(TUTTE, righe).filter(p => p.quante > 0), [TUTTE, righe])
+  const tempo = useMemo(() => giorniPerChiudere(TUTTE, righe), [TUTTE, righe])
+  const perFonte = useMemo(() => perDimensione(TUTTE, righe, r => r.source), [TUTTE, righe])
+  const perCampagna = useMemo(() => perDimensione(TUTTE, righe, daOrigine('campagna')), [TUTTE, righe])
+  const perTipologia = useMemo(() => perDimensione(TUTTE, righe, daOrigine('tipologia')), [TUTTE, righe])
+  const perTempistica = useMemo(() => perDimensione(TUTTE, righe, daOrigine('tempistica')), [TUTTE, righe])
 
   const massimo = Math.max(1, ...passi.map(p => p.quante))
 

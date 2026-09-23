@@ -17,7 +17,8 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Check, X } from 'lucide-react'
-import { classiFase, etichettaFase, FASI, fasiDelGruppo, GRUPPI, ETICHETTA_GRUPPO } from '@/lib/sales-stages'
+import { ETICHETTA_GRUPPO, GRUPPI } from '@/lib/sales-stages'
+import { useFasi } from './FasiContext'
 import type { Colonna } from '@/lib/sales-table'
 
 const inputCls = 'w-full bg-background border border-border-interactive rounded px-1.5 py-1 text-2xs text-text-primary'
@@ -37,6 +38,7 @@ export function CrmCella({ colonna, valore, onSalva, disabilitato }: {
   onSalva: (nuovo: unknown) => Promise<void>
   disabilitato?: boolean
 }) {
+  const { classiFase, etichettaFase, fasiDelGruppo } = useFasi()
   const [aperta, setAperta] = useState(false)
   const [bozza, setBozza] = useState('')
   const [pending, setPending] = useState(false)

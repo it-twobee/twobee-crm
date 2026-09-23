@@ -35,8 +35,8 @@ import {
   controlla, confronta, daPortareSu, type RigaIgiene, type RigaConfronto,
 } from '@/lib/sales-igiene'
 import { unisciLead } from '@/app/actions/sales'
-import { classiFase, etichettaFase } from '@/lib/sales-stages'
 import type { RigaCrm } from './CrmTable'
+import { useFasi } from './FasiContext'
 
 export function CrmControllo({ righe, onApri, onFatto }: {
   righe: RigaCrm[]
@@ -44,9 +44,10 @@ export function CrmControllo({ righe, onApri, onFatto }: {
   /** dopo un'unione le righe non sono più quelle: si ricarica */
   onFatto: () => void
 }) {
+  const { TUTTE, classiFase, etichettaFase } = useFasi()
   const oggi = new Date().toISOString().slice(0, 10)
   const rilievi = useMemo(
-    () => controlla(righe as unknown as RigaIgiene[], oggi), [righe, oggi])
+    () => controlla(TUTTE, righe as unknown as RigaIgiene[], oggi), [TUTTE, righe, oggi])
 
   const perId = useMemo(() => new Map(righe.map(r => [r.id, r])), [righe])
 
@@ -155,8 +156,9 @@ function Affiancate({ ids, perche, righe, onApri, onFatto }: {
   const [conferma, setConferma] = useState(false)
   const [pending, start] = useTransition()
 
+  const { TUTTE } = useFasi()
   const gruppo = ids.map(id => righe.find(r => r.id === id)).filter(Boolean) as RigaConfronto[]
-  const c = confronta(gruppo)
+  const c = confronta(TUTTE, gruppo)
   if (!c) return null
 
   const nome = (id: string) =>
@@ -167,7 +169,7 @@ function Affiancate({ ids, perche, righe, onApri, onFatto }: {
   /* Ricalcolato sul vincitore **vero**: se si tiene l'altra, quello che si
      perde è un altro elenco. Il server lo rifà comunque per conto suo. */
   const porta = daPortareSu(
-    gruppo.find(r => r.id === tieni)!, gruppo.filter(r => r.id !== tieni))
+    TUTTE, gruppo.find(r => r.id === tieni)!, gruppo.filter(r => r.id !== tieni))
 
   return (
     <div className="px-4 py-3">

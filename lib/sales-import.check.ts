@@ -10,10 +10,10 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
-  leggiCsv, conIntestazioni, leggibile, eDiProva, faseDaStatus, normalizza,
+  leggiCsv, conIntestazioni, leggibile, eDiProva, faseDaStatus, daStatusFoglio, normalizza,
   leggiFoglio, DA_STATUS_FOGLIO, analizzaFoglio,
 } from '@/lib/sales-import'
-import { CHIAVI_FASE, FASE_INGRESSO } from '@/lib/sales-stages'
+import { FASI_SEME, chiaveIngresso } from '@/lib/sales-stages'
 
 let fail = 0
 const is = (label: string, got: unknown, want: unknown) => {
@@ -56,20 +56,30 @@ is('un lead vero no', eDiProva({ lead_status: 'CREATED', full_name: 'Ada Lovelac
 is('e normalizza le scarta', normalizza({ id: 'l:1', company_name: 'Acme', lead_status: 'TEST' }), null)
 
 console.log('\n— Lo STATUS del foglio verso le fasi di Notion —')
-is('da richiamare', faseDaStatus('Da richiamare'), 'contacting')
-is('audit prenotata', faseDaStatus('Call/Meeting Audit prenotata'), 'audit_richiesto')
-is('qualificato', faseDaStatus('Qualificato'), 'qualified')
-is('proposta', faseDaStatus('Proposta inviare/inviata'), 'strategia_preventivo')
+is('da richiamare', faseDaStatus('Da richiamare'), 'in_contatto')
+is('audit prenotata', faseDaStatus('Call/Meeting Audit prenotata'), 'call_fissata')
+/* §424 — «Qualificato» non dice dove sta la trattativa, dice che il lead è
+   buono: entra dalla porta d'ingresso e si porta dietro il giudizio. */
+is('qualificato entra dalla porta e porta il giudizio',
+  daStatusFoglio('Qualificato'), { fase: chiaveIngresso(FASI_SEME), qualifica: 'in_target' })
+is('proposta', faseDaStatus('Proposta inviare/inviata'), 'preventivo_inviato')
 is('pending', faseDaStatus('Pending'), 'pending')
-is('non in target', faseDaStatus('Non in target (forse)'), 'lost')
+is('non in target', faseDaStatus('Non in target (forse)'), 'perso')
 /* «Chiuso» era ambiguo — poteva essere chiuso vinto — e l'ha deciso chi il
    foglio lo compila, non chi scrive il codice. */
-is('chiuso vuol dire perso', faseDaStatus('Chiuso'), 'lost')
-is('le maiuscole non contano', faseDaStatus('  QUALIFICATO '), 'qualified')
-is('vuoto entra dalla porta d\'ingresso', faseDaStatus(''), FASE_INGRESSO)
-is('e uno sconosciuto pure, invece di inventare', faseDaStatus('Boh'), FASE_INGRESSO)
-is('ogni traduzione punta a una fase vera',
-  Object.values(DA_STATUS_FOGLIO).filter(f => !CHIAVI_FASE.includes(f)), [])
+is('chiuso vuol dire perso', faseDaStatus('Chiuso'), 'perso')
+is('le maiuscole e gli spazi non contano', daStatusFoglio('  QUALIFICATO ').qualifica, 'in_target')
+is('vuoto entra dalla porta d\'ingresso', faseDaStatus(''), chiaveIngresso(FASI_SEME))
+is('e uno sconosciuto pure, invece di inventare', faseDaStatus('Boh'), chiaveIngresso(FASI_SEME))
+/* §424 — due degli status non sono fasi ma qualifiche: hanno `fase: null` e
+   entrano dalla porta d'ingresso portandosi dietro il giudizio. Le altre devono
+   puntare a una fase che esiste davvero. */
+is('ogni traduzione punta a una fase vera o a nessuna',
+  Object.values(DA_STATUS_FOGLIO)
+    .map(v => v.fase)
+    .filter(f => f !== null && !FASI_SEME.map(x => x.chiave).includes(f)), [])
+is('«Qualificato» è una qualifica, non una fase', DA_STATUS_FOGLIO['qualificato'], { fase: null, qualifica: 'in_target' })
+is('«Non in target» porta il giudizio e chiude', DA_STATUS_FOGLIO['non in target (forse)'], { fase: 'perso', qualifica: 'non_in_target' })
 
 console.log('\n— Il foglio vero, quello scaricato il 20 settembre —')
 const csv = readFileSync(join(process.cwd(), 'lib/fixtures/lead-foglio.csv'), 'utf8')
@@ -88,7 +98,7 @@ is('nessuno senza azienda', lead.filter(l => !l.companyName.trim()).length, 0)
 is('nessun id doppio', new Set(lead.map(l => l.sheetRowId)).size, lead.length)
 is('nessun prefisso rimasto negli id', lead.filter(l => /^[a-z]+:/i.test(l.sheetRowId)).length, 0)
 is('né nei telefoni', lead.filter(l => l.contactPhone && /^[a-z]+:/i.test(l.contactPhone)).length, 0)
-is('ogni fase assegnata esiste', lead.filter(l => !CHIAVI_FASE.includes(l.stage)).length, 0)
+is('ogni fase assegnata esiste', lead.filter(l => !FASI_SEME.map(f => f.chiave).includes(l.stage)).length, 0)
 is('nessun «test lead» sopravvissuto',
   lead.filter(l => /test lead/i.test(JSON.stringify(l))).length, 0)
 
@@ -99,7 +109,7 @@ for (const l of lead) perFase[l.stage] = (perFase[l.stage] ?? 0) + 1
 console.log('     distribuzione:', JSON.stringify(perFase))
 is('non entrano tutti dalla stessa porta', Object.keys(perFase).length > 1, true)
 is('e lo stato originale resta leggibile su chi ce l\'aveva',
-  lead.filter(l => l.stage !== FASE_INGRESSO && !l.sheetStatus).length, 0)
+  lead.filter(l => l.stage !== chiaveIngresso(FASI_SEME) && !l.sheetStatus).length, 0)
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

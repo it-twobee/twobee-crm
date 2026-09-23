@@ -28,7 +28,8 @@ import { useState, useMemo, useTransition } from 'react'
 import { toast } from 'sonner'
 import { Search, Loader2, RefreshCw, BarChart3, List, Columns3, ShieldCheck, ArrowUpDown, SlidersHorizontal, X, Plus, Trash2 } from 'lucide-react'
 
-import { FASI, GRUPPI, ETICHETTA_GRUPPO, classiFase, etichettaFase } from '@/lib/sales-stages'
+import { ETICHETTA_GRUPPO, GRUPPI, gruppoDi, type Gruppo } from '@/lib/sales-stages'
+import { useFasi } from './FasiContext'
 import { salvaCellaDeal, collegaLeadACliente, aggiornaDaFoglio, eliminaLead } from '@/app/actions/sales'
 import { NewClientModal } from '@/components/clients/NewClientModal'
 import type { Client } from '@/lib/types/database'
@@ -77,6 +78,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
   /** §378 — admin e manager. Chi non può non vede le caselle, non le vede spente */
   puoiEliminare?: boolean
 }) {
+  const { TUTTE, FASI, classiFase, etichettaFase, faseConRuolo } = useFasi()
   const [righe, setRighe] = useState(iniziali)
   const [cerca, setCerca] = useState('')
   const [gruppo, setGruppo] = useState<string>('tutti')
@@ -104,15 +106,15 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
 
   /* Gli stessi numeri del pannello, in testata: chi apre la pagina vede
      subito quanti clienti e quanti aperti, come in Clienti vede il canone. */
-  const t = useMemo(() => tassoDi(righe as unknown as RigaAnalisi[]), [righe])
+  const t = useMemo(() => tassoDi(TUTTE, righe as unknown as RigaAnalisi[]), [TUTTE, righe])
   /* §385 — il numero sul bottone si conta su **tutte** le righe e non su
      quelle filtrate: un controllo che sparisce quando cerchi qualcos'altro
      ti fa credere di averlo risolto. Conta le righe toccate, non i rilievi:
      una riga che sbaglia tre cose è un problema, e dire «tre» farebbe
      sembrare l'archivio peggio di com'è. */
   const daControllare = useMemo(
-    () => quanteGravi(controlla(righe as unknown as RigaIgiene[], new Date().toISOString().slice(0, 10))),
-    [righe])
+    () => quanteGravi(controlla(TUTTE, righe as unknown as RigaIgiene[], new Date().toISOString().slice(0, 10))),
+    [TUTTE, righe])
   /* La scheda si tiene per **id**, non per oggetto: salvando una cella la riga
      viene ricreata, e un riferimento vecchio mostrerebbe il valore di prima
      accanto a quello nuovo nell'elenco. */
@@ -125,9 +127,9 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
      usa a colpo d'occhio, senza aprire niente. */
   const viste = useMemo(() => {
     let out = cercaIn(righe as unknown as Record<string, unknown>[], cerca)
-    if (gruppo !== 'tutti') out = out.filter(r => FASI.find(f => f.chiave === r.stage)?.gruppo === gruppo)
+    if (gruppo !== 'tutti') { const g = gruppo as Gruppo; out = out.filter(r => { const f = FASI.find(x => x.chiave === r.stage); return f ? gruppoDi(f) === g : false }) }
     out = applica(out, scelte)
-    return ordina(out, campoOrd, verso) as unknown as RigaCrm[]
+    return ordina(TUTTE, out, campoOrd, verso) as unknown as RigaCrm[]
   }, [righe, cerca, gruppo, scelte, campoOrd, verso])
 
   /* Il conteggio per fase si fa sulle righe **filtrate dalla ricerca** ma non
@@ -136,7 +138,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
   const perGruppo = useMemo(() => {
     const base = applica(cercaIn(righe as unknown as Record<string, unknown>[], cerca), scelte)
     const conta: Record<string, number> = { tutti: base.length }
-    for (const g of GRUPPI) conta[g] = base.filter(r => FASI.find(f => f.chiave === r.stage)?.gruppo === g).length
+    for (const g of GRUPPI) conta[g] = base.filter(r => { const f = FASI.find(x => x.chiave === r.stage); return f ? gruppoDi(f) === g : false }).length
     return conta
   }, [righe, cerca, scelte])
 
@@ -233,7 +235,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
       try {
         await collegaLeadACliente(riga.id, cliente.id)
         setRighe(rs => rs.map(r => r.id === riga.id
-          ? { ...r, client_id: cliente.id, stage: 'active_client' } : r))
+          ? { ...r, client_id: cliente.id, stage: faseConRuolo('vinto')?.chiave ?? r.stage } : r))
         toast.success(`${cliente.company_name} è in anagrafica`)
         setConverto(null)
       } catch (e) { toast.error((e as Error).message) }
@@ -252,7 +254,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
           <VoceSezione sezione="commerciale" />
           <p className="text-text-secondary text-sm mt-0.5">
             <span className="tabular font-semibold text-text-primary">{viste.length}</span> righe
-            {gruppo !== 'tutti' && <> in {ETICHETTA_GRUPPO[gruppo as 'todo']}</>}
+            {gruppo !== 'tutti' && <> in {ETICHETTA_GRUPPO[gruppo as Gruppo]}</>}
             {t.vinti > 0 && <> · <span className="text-success font-semibold tabular">{t.vinti}</span> clienti</>}
             {t.aperti > 0 && <> · <span className="text-gold-text font-semibold tabular">{t.aperti}</span> ancora aperti</>}
           </p>
@@ -556,7 +558,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
           azienda={daSpostare.riga.company_name || 'Senza nome'}
           da={daSpostare.riga.stage}
           a={daSpostare.fase}
-          creaCliente={daSpostare.fase === 'active_client' && !daSpostare.riga.client_id}
+          creaCliente={daSpostare.fase === faseConRuolo('vinto')?.chiave && !daSpostare.riga.client_id}
           pending={sposto}
           onAnnulla={() => { if (!sposto) setDaSpostare(null) }}
           onConferma={confermaSposta}

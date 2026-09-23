@@ -15,11 +15,13 @@
  */
 
 import { COLONNE, colonnaDi, type TipoCella } from './sales-table'
-import { FASI } from './sales-stages'
+import { attive, type Fase } from './sales-stages'
 
-/* L'ordine della pipeline, non l'alfabeto: `Contacting` viene prima di
-   `Qualified` perché viene prima, non perché comincia per C. */
-const ORDINE_FASE = new Map(FASI.map((f, i) => [f.chiave, i]))
+/* L'ordine della pipeline, non l'alfabeto: «In contatto» viene prima di
+   «Preventivo inviato» perché viene prima, non perché comincia per I. Si
+   costruisce dall'elenco vero a ogni ordinamento: con le fasi configurabili una
+   mappa fatta all'import resterebbe quella di quando è partito il server. */
+const ordineFase = (fasi: Fase[]) => new Map(attive(fasi).map((f, i) => [f.chiave, i]))
 
 export type Verso = 'su' | 'giu'
 export type Riga = Record<string, unknown>
@@ -33,9 +35,9 @@ export const ORDINABILI = COLONNE.filter(c => c.tipo !== 'etichette' && c.campo 
  * `null` vuol dire «vuoto» e finisce in fondo: non è zero e non è stringa
  * vuota, che si ordinerebbero come valori veri.
  */
-function chiave(v: unknown, tipo: TipoCella): number | string | null {
+function chiave(fasi: Fase[], v: unknown, tipo: TipoCella): number | string | null {
   if (v === null || v === undefined || v === '') return null
-  if (tipo === 'fase') return ORDINE_FASE.get(String(v)) ?? null
+  if (tipo === 'fase') return ordineFase(fasi).get(String(v)) ?? null
   if (tipo === 'numero') { const n = Number(v); return Number.isFinite(n) ? n : null }
   if (tipo === 'data' || tipo === 'sola_lettura') {
     const t = Date.parse(String(v))
@@ -55,10 +57,10 @@ const ORDINE_SCELTA = new Map<string, number>([
   ['Member', 0], ['Potential', 1], ['Not Member', 2],
 ])
 
-export function confronta(a: Riga, b: Riga, campo: string, verso: Verso): number {
+export function confronta(fasi: Fase[], a: Riga, b: Riga, campo: string, verso: Verso): number {
   const tipo = colonnaDi(campo)?.tipo ?? 'testo'
-  const x = chiave(a[campo], tipo)
-  const y = chiave(b[campo], tipo)
+  const x = chiave(fasi, a[campo], tipo)
+  const y = chiave(fasi, b[campo], tipo)
   // i vuoti in fondo in entrambi i versi: chi non ha il dato non è «il primo»
   if (x === null && y === null) return 0
   if (x === null) return 1
@@ -68,8 +70,8 @@ export function confronta(a: Riga, b: Riga, campo: string, verso: Verso): number
   return String(x).localeCompare(String(y), 'it') * segno
 }
 
-export const ordina = (righe: Riga[], campo: string, verso: Verso): Riga[] =>
-  [...righe].sort((a, b) => confronta(a, b, campo, verso))
+export const ordina = (fasi: Fase[], righe: Riga[], campo: string, verso: Verso): Riga[] =>
+  [...righe].sort((a, b) => confronta(fasi, a, b, campo, verso))
 
 // ── i filtri ────────────────────────────────────────────────────────────────
 

@@ -15,7 +15,7 @@
  * lead, non quella dell'importazione.
  */
 
-import { FASI } from './sales-stages'
+import type { Fase } from './sales-stages'
 
 export type TipoCella =
   | 'testo'
@@ -171,7 +171,10 @@ const vuoto = (v: string) => v.trim() === ''
  * respinti qui, o finiscono nel database come `null` senza che nessuno lo
  * dica — e un campo che si svuota da solo è peggio di un errore.
  */
-export function validaCella(campo: string, grezzo: unknown): Verdetto {
+/* §424 — `fasi` arriva da fuori: con l'elenco configurabile, «è una fase vera?»
+   è una domanda a cui questo file non può rispondere da solo. Chi chiama passa
+   l'elenco letto dal database; senza, una fase qualunque passerebbe. */
+export function validaCella(campo: string, grezzo: unknown, fasi: Fase[] = []): Verdetto {
   const c = colonnaDi(campo)
   if (!c) return { ok: false, motivo: `Colonna sconosciuta: ${campo}` }
   if (!modificabile(c)) return { ok: false, motivo: `«${c.etichetta}» non si modifica` }
@@ -189,7 +192,7 @@ export function validaCella(campo: string, grezzo: unknown): Verdetto {
   const v = String(grezzo ?? '')
 
   if (c.tipo === 'fase') {
-    return FASI.some(f => f.chiave === v)
+    return (fasi ?? []).some(f => f.chiave === v)
       ? { ok: true, valore: v }
       : { ok: false, motivo: `«${v}» non è una fase` }
   }

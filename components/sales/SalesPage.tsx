@@ -3,6 +3,8 @@ import { getSalesAccess } from '@/lib/sales-guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CAMPI_RIGA } from '@/lib/sales-table'
 import { CrmTable, type RigaCrm } from './CrmTable'
+import { FasiProvider } from './FasiContext'
+import { leggiFasi } from '@/lib/sales-fasi'
 
 /**
  * §371 — il CRM commerciale, nei due portali.
@@ -45,10 +47,17 @@ export async function SalesPage({ base }: { base: string }) {
      (§377): admin e manager. Chi vede solo i propri lead non vede le caselle,
      e la porta vera resta dentro `eliminaLead` — nascondere una casella non
      è una barriera (§329). */
+  /* §424 — le fasi scendono dal server una volta e stanno a disposizione di
+     tutta la sezione: sono una tabella che un amministratore cambia mentre il
+     tool gira, non più una costante importata da otto componenti. */
+  const fasi = await leggiFasi()
+
   return (
-    <CrmTable
-      righe={(data ?? []) as unknown as RigaCrm[]}
-      puoiEliminare={contesto.access === 'admin' || contesto.access === 'manager'}
-    />
+    <FasiProvider fasi={fasi}>
+      <CrmTable
+        righe={(data ?? []) as unknown as RigaCrm[]}
+        puoiEliminare={contesto.access === 'admin' || contesto.access === 'manager'}
+      />
+    </FasiProvider>
   )
 }

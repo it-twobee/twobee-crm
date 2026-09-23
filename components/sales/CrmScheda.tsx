@@ -21,10 +21,10 @@
 
 import { X, UserPlus, Loader2, ExternalLink, Trash2 } from 'lucide-react'
 import { COLONNE, GRUPPI_SCHEDA, TITOLO_GRUPPO, type Colonna } from '@/lib/sales-table'
-import { classiFase, etichettaFase } from '@/lib/sales-stages'
 import { CrmCella } from './CrmCella'
 import type { RigaCrm } from './CrmTable'
 import { SalesFollowUps } from './SalesFollowUps'
+import { useFasi } from './FasiContext'
 
 const ORIGINE: [string, string][] = [
   ['piattaforma', 'Piattaforma'], ['campagna', 'Campagna'], ['adset', 'Adset'],
@@ -69,6 +69,7 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pend
   onElimina?: () => void
   pending: boolean
 }) {
+  const { classiFase, etichettaFase } = useFasi()
   const origine = (riga.lead_origine ?? {}) as Record<string, string>
   const voci = ORIGINE.filter(([k]) => origine[k])
 

@@ -21,7 +21,13 @@
  * Gate: `npx tsx lib/sales-import.check.ts`.
  */
 
-import { FASE_INGRESSO } from './sales-stages'
+/* §424 — la fase d'ingresso non è più una costante: la decide la tabella delle
+   fasi (quella con ruolo `nuovo`) e arriva da chi chiama. Il valore qui sotto è
+   solo la rete per quando l'elenco non si legge — un lead che entra senza fase
+   non si filtra e non si conta, ed è peggio di un lead nella fase sbagliata. */
+import { FASI_SEME, chiaveIngresso, type Fase } from './sales-stages'
+
+const INGRESSO_DI_RISERVA = chiaveIngresso(FASI_SEME)
 
 // ── leggere il CSV ───────────────────────────────────────────────────────────
 
@@ -115,18 +121,38 @@ export function eDiProva(r: Record<string, string>): boolean {
  * originale conservato in `sheet_status`: meglio una riga da guardare che una
  * fase inventata.
  */
-export const DA_STATUS_FOGLIO: Record<string, string> = {
-  'da richiamare': 'contacting',
-  'call/meeting audit prenotata': 'audit_richiesto',
-  'qualificato': 'qualified',
-  'proposta inviare/inviata': 'strategia_preventivo',
-  'pending': 'pending',
-  'non in target (forse)': 'lost',
-  'chiuso': 'lost',
+export type Qualifica = 'in_target' | 'non_in_target' | 'da_valutare'
+export type Ingresso = { fase: string | null; qualifica: Qualifica }
+
+/**
+ * §424 — **due dei sette STATUS del foglio non sono fasi.**
+ *
+ * «Qualificato» e «Non in target (forse)» sono giudizi su chi è il lead, non
+ * punti del percorso: un lead in target può stare in qualunque fase. Finché
+ * sono stati schiacciati dentro la colonna delle fasi quell'informazione si
+ * perdeva — «Non in target» diventava «Lost» e non si sapeva più perché.
+ *
+ * `fase: null` vuol dire «lo STATUS non dice dove sta»: entra dalla porta
+ * d'ingresso, ma la qualifica se la porta dietro.
+ */
+export const DA_STATUS_FOGLIO: Record<string, Ingresso> = {
+  'da richiamare':                { fase: 'in_contatto',        qualifica: 'da_valutare' },
+  'call/meeting audit prenotata': { fase: 'call_fissata',       qualifica: 'da_valutare' },
+  'proposta inviare/inviata':     { fase: 'preventivo_inviato', qualifica: 'da_valutare' },
+  'pending':                      { fase: 'pending',            qualifica: 'da_valutare' },
+  'chiuso':                       { fase: 'perso',              qualifica: 'da_valutare' },
+  'qualificato':                  { fase: null,                 qualifica: 'in_target' },
+  'non in target (forse)':        { fase: 'perso',              qualifica: 'non_in_target' },
 }
 
-export const faseDaStatus = (s: string | null | undefined): string =>
-  DA_STATUS_FOGLIO[(s ?? '').trim().toLowerCase()] ?? FASE_INGRESSO
+export function daStatusFoglio(s: string | null | undefined, ingresso: string = INGRESSO_DI_RISERVA): { fase: string; qualifica: Qualifica } {
+  const t = DA_STATUS_FOGLIO[(s ?? '').trim().toLowerCase()]
+  return { fase: t?.fase ?? ingresso, qualifica: t?.qualifica ?? 'da_valutare' }
+}
+
+/** la sola fase, per chi non ha bisogno della qualifica */
+export const faseDaStatus = (s: string | null | undefined, ingresso: string = INGRESSO_DI_RISERVA): string =>
+  daStatusFoglio(s, ingresso).fase
 
 // ── la riga pronta ──────────────────────────────────────────────────────────
 

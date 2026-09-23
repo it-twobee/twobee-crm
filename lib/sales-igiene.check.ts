@@ -4,6 +4,7 @@
    di rilievi con dentro dei falsi si smette di guardare dopo due giorni, e
    allora tanto vale non averlo. Per questo metà di queste prove sono al
    contrario — righe che si somigliano e non devono finire insieme. */
+import { FASI_SEME as F } from '@/lib/sales-stages'
 import {
   gruppiDoppioni, controlla, quanteGravi, confronta, completezza, rangoFase, mostra,
   type RigaIgiene, type RigaConfronto,
@@ -16,7 +17,7 @@ const is = (label: string, got: unknown, want: unknown) => {
   console.log(`${ok ? 'OK ' : 'NO '} ${label.padEnd(58)} ${JSON.stringify(got)}${ok ? '' : `  atteso ${JSON.stringify(want)}`}`)
 }
 const r = (id: string, o: Partial<RigaIgiene> = {}): RigaIgiene => ({
-  id, company_name: id, stage: 'new_lead', created_at: '2026-09-01', ...o,
+  id, company_name: id, stage: 'nuovo_lead', created_at: '2026-09-01', ...o,
 })
 const OGGI = '2026-09-21'
 
@@ -71,23 +72,23 @@ console.log('\n— E soprattutto non si trovano dove non ci sono —')
 
 console.log('\n— Gli altri controlli —')
 {
-  const chiavi = (righe: RigaIgiene[]) => controlla(righe, OGGI).map(x => x.chiave)
+  const chiavi = (righe: RigaIgiene[]) => controlla(F, righe, OGGI).map(x => x.chiave)
 
   is('senza telefono né mail, e aperto',
     chiavi([r('a')]).includes('senza_recapito'), true)
   /* Un perso senza recapito non è un problema: non lo deve chiamare nessuno. */
   is('ma non se la trattativa è chiusa',
-    chiavi([r('a', { stage: 'lost' })]).includes('senza_recapito'), false)
+    chiavi([r('a', { stage: 'perso' })]).includes('senza_recapito'), false)
 
   is('«Active Client» senza anagrafica collegata',
-    chiavi([r('a', { stage: 'active_client', contact_phone: '3331112222' })])
+    chiavi([r('a', { stage: 'cliente_acquisito', contact_phone: '3331112222' })])
       .includes('cliente_senza_anagrafica'), true)
   is('e non si lamenta se il cliente c\'è',
-    chiavi([r('a', { stage: 'active_client', client_id: 'cli', contact_phone: '3331112222' })])
+    chiavi([r('a', { stage: 'cliente_acquisito', client_id: 'cli', contact_phone: '3331112222' })])
       .includes('cliente_senza_anagrafica'), false)
 
   is('collegato a un cliente ma ancora in lavorazione',
-    chiavi([r('a', { stage: 'qualified', client_id: 'cli', contact_phone: '3331112222' })])
+    chiavi([r('a', { stage: 'in_contatto', client_id: 'cli', contact_phone: '3331112222' })])
       .includes('collegato_ma_aperto'), true)
 
   is('una fase che non esiste più',
@@ -107,8 +108,8 @@ console.log('\n— Gli altri controlli —')
   /* Un archivio pulito non deve produrre nessun rilievo, o il pannello
      mostra sempre qualcosa e si smette di aprirlo. */
   is('un lead sano non produce rilievi',
-    controlla([r('a', { contact_phone: '3331112222', last_interaction_at: '2026-09-20' })], OGGI).length, 0)
-  is('e nemmeno una tabella vuota', controlla([], OGGI).length, 0)
+    controlla(F, [r('a', { contact_phone: '3331112222', last_interaction_at: '2026-09-20' })], OGGI).length, 0)
+  is('e nemmeno una tabella vuota', controlla(F, [], OGGI).length, 0)
 }
 
 console.log('\n— Il conteggio in testata —')
@@ -116,10 +117,10 @@ console.log('\n— Il conteggio in testata —')
   /* Conta le **righe** toccate, non i rilievi: una riga che sbaglia tre cose
      è un problema, e dire «tre» farebbe sembrare l'archivio peggio di com'è. */
   const righe = [
-    r('a', { stage: 'active_client' }),
-    r('b', { stage: 'active_client' }),
+    r('a', { stage: 'cliente_acquisito' }),
+    r('b', { stage: 'cliente_acquisito' }),
   ]
-  const ril = controlla(righe, OGGI)
+  const ril = controlla(F, righe, OGGI)
   is('due righe con due problemi ciascuna contano due', quanteGravi(ril), 2)
   is('e i gravi vengono prima', ril[0].peso, 'grave')
 }
@@ -127,12 +128,12 @@ console.log('\n— Il conteggio in testata —')
 console.log('\n— §386 · quale delle due tenere, e cosa si perde —')
 {
   const c = (id: string, o: Record<string, unknown> = {}): RigaConfronto =>
-    ({ id, company_name: id, stage: 'new_lead', created_at: '2026-09-01', ...o })
+    ({ id, company_name: id, stage: 'nuovo_lead', created_at: '2026-09-01', ...o })
 
   /* 1 · Il collegamento all'anagrafica è l'unica cosa che non si ricostruisce
      guardando i campi: chi ce l'ha vince anche se è più spoglio. */
-  const cliente = confronta([
-    c('vuota', { client_id: 'cli', stage: 'active_client' }),
+  const cliente = confronta(F, [
+    c('vuota', { client_id: 'cli', stage: 'cliente_acquisito' }),
     c('piena', { contact_phone: '333', contact_email: 'a@b.it', notes: 'tante note', website: 'x.it' }),
   ])
   is('chi è collegato a un cliente vince', cliente?.tieni, 'vuota')
@@ -144,21 +145,21 @@ console.log('\n— §386 · quale delle due tenere, e cosa si perde —')
 
   // 2 · più avanti nel percorso
   is('a pari campi vince chi è più avanti',
-    confronta([c('nuovo'), c('proposta', { stage: 'strategia_preventivo' })])?.tieni, 'proposta')
+    confronta(F, [c('nuovo'), c('proposta', { stage: 'preventivo_inviato' })])?.tieni, 'proposta')
 
   // 3 · più campi pieni
   is('poi vince chi ha più campi',
-    confronta([c('scarna'), c('ricca', { contact_phone: '333', notes: 'x' })])?.tieni, 'ricca')
+    confronta(F, [c('scarna'), c('ricca', { contact_phone: '333', notes: 'x' })])?.tieni, 'ricca')
 
   // 4 · a parità, la più vecchia: è quella con la storia più lunga
   is('a parità vince la più vecchia',
-    confronta([c('nuova', { created_at: '2026-09-10' }), c('vecchia', { created_at: '2026-01-10' })])?.tieni,
+    confronta(F, [c('nuova', { created_at: '2026-09-10' }), c('vecchia', { created_at: '2026-01-10' })])?.tieni,
     'vecchia')
 
   /* Il caso vero del 21 settembre: l'import CSV ha ricopiato righe arrivate
      dal foglio il giorno prima. La riga del foglio ha l'ultimo contatto, la
      copia no — e vince quella giusta. */
-  const vero = confronta([
+  const vero = confronta(F, [
     c('csv', { source: 'CSV', contact_phone: 'p:+393396786964', contact_email: 'a@b.it', created_at: '2026-09-21' }),
     c('meta', { source: 'Meta Ads', contact_phone: '+393396786964', contact_email: 'a@b.it',
       last_interaction_at: '2026-09-20', created_at: '2026-09-20' }),
@@ -167,7 +168,7 @@ console.log('\n— §386 · quale delle due tenere, e cosa si perde —')
 
   /* In parallelo si mostrano **solo** i campi che dicono cose diverse:
      ventitré righe uguali nascondono le tre che contano. */
-  const diff = confronta([
+  const diff = confronta(F, [
     c('a', { company_name: 'Uguale', notes: 'x' }),
     c('b', { company_name: 'Uguale', notes: 'x', website: 'y.it' }),
   ])
@@ -185,11 +186,11 @@ console.log('\n— §386 · quale delle due tenere, e cosa si perde —')
   /* `lost` sta in cima alla colonna di Notion (§367): ordinare per indice
      direbbe che un lead nuovo è più indietro di un perso. */
   is('un perso non è «più avanti» di un lead vivo',
-    rangoFase('qualified') > rangoFase('lost'), true)
+    rangoFase(F, 'in_contatto') > rangoFase(F, 'perso'), true)
   is('e il cliente attivo è in fondo a tutti',
-    rangoFase('active_client') > rangoFase('qualified'), true)
+    rangoFase(F, 'cliente_acquisito') > rangoFase(F, 'in_contatto'), true)
 
-  is('una riga sola non è un confronto', confronta([c('a')]), null)
+  is('una riga sola non è un confronto', confronta(F, [c('a')]), null)
 }
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)

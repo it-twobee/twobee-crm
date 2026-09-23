@@ -164,6 +164,39 @@ mai scritta da nessuno, da qui in poi ha un valore vero. La leggevano
 
 Dettaglio in `docs/presenza.md`.
 
+## 258 — le fasi commerciali diventano dati (§424, applicata il 2026-09-23)
+
+`258_fasi_commerciali.sql`: **applicata in produzione**, verificata dal lato
+applicativo. Rilanciabile.
+
+Notion si spegne, quindi cade la regola che teneva dodici fasi trascritte
+lettera per lettera (§367). Nascono `sales_stages` — chiave, etichetta,
+**ruolo**, tinta, ordine, attiva — e `sales_motivi_perso`; su `deals` arrivano
+`qualifica`, `tentativi`, `ultimo_tentativo_at`, `motivo_perso`.
+
+Il **ruolo** (`nuovo`/`in_corso`/`vinto`/`perso`/`sospeso`) è la parte che regge
+il resto: con le fasi configurabili il codice non può più nominarle, e un
+`stage === 'active_client'` che smette di combaciare non è un errore — è un
+`false` silenzioso. Indici parziali garantiscono una sola fase d'ingresso e una
+sola vinta fra quelle attive.
+
+Due trappole trovate eseguendola davvero, e vale la pena ricordarle:
+
+- **`deals_stage_check`** (dalla 235) elenca a mano le dodici fasi vecchie e
+  faceva morire l'UPDATE sulla prima riga. Viene tolto e **non sostituito da un
+  altro elenco scritto a mano**: al suo posto c'è la chiave esterna verso
+  `sales_stages`, più stretta e che si aggiorna da sola.
+- il motivo «cliente inattivo» va scritto **prima** della riscrittura delle
+  fasi, o quelle righe sono già «perso» come tutte le altre.
+
+36 righe spostate: 12 perso, 9 in contatto, 6 preventivo inviato, 4 pending,
+4 call fissata, 1 contratto inviato, zero orfane. E tre qualifiche recuperate
+dal foglio (2 non in target, 1 in target), che prima erano schiacciate dentro
+la colonna delle fasi.
+
+Le due tabelle nuove nascono con RLS: lettura a chi ha una sessione, scrittura
+solo dal service role.
+
 ## 257 — le due guardie che non conoscevano la cancellazione (§420, applicata il 2026-09-23)
 
 `257_cancellare_una_persona.sql`: **applicata in produzione**, verificata il

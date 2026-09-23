@@ -12,7 +12,7 @@ import {
   COLONNE, COLONNE_PRINCIPALI, CAMPI_SCRIVIBILI, CAMPI_RIGA, PRIORITA, MEMBERSHIP,
   colonnaDi, modificabile, validaCella, GRUPPI_SCHEDA, TITOLO_GRUPPO,
 } from '@/lib/sales-table'
-import { CHIAVI_FASE } from '@/lib/sales-stages'
+import { FASI_SEME } from '@/lib/sales-stages'
 import { FILTRABILI, ORDINABILI } from '@/lib/sales-filtri'
 
 let fail = 0
@@ -60,39 +60,39 @@ is('ma le colonne vere sì',
   ['company_name', 'stage', 'priority', 'tags', 'fatturato'].filter(f => !CAMPI_SCRIVIBILI.includes(f)), [])
 
 console.log('\n— Quello che arriva dal browser si controlla —')
-is('una colonna inventata non passa', validaCella('password', 'x').ok, false)
-is('una sola lettura nemmeno', validaCella('sheet_status', 'Chiuso').ok, false)
-is('una fase vera passa', validaCella('stage', 'qualified'), { ok: true, valore: 'qualified' })
-is('una fase inventata no', validaCella('stage', 'vinta').ok, false)
-is('ogni fase reale è accettata', CHIAVI_FASE.filter(f => !validaCella('stage', f).ok), [])
-is('una priorità fuori elenco no', validaCella('priority', 'Urgentissima').ok, false)
-is('ogni priorità vera sì', PRIORITA.filter(p => !validaCella('priority', p).ok), [])
-is('e ogni membership', MEMBERSHIP.filter(m => !validaCella('membership', m).ok), [])
-is('svuotare una scelta si può', validaCella('priority', ''), { ok: true, valore: null })
+is('una colonna inventata non passa', validaCella('password', 'x', FASI_SEME).ok, false)
+is('una sola lettura nemmeno', validaCella('sheet_status', 'Chiuso', FASI_SEME).ok, false)
+is('una fase vera passa', validaCella('stage', 'in_contatto', FASI_SEME), { ok: true, valore: 'in_contatto' })
+is('una fase inventata no', validaCella('stage', 'vinta', FASI_SEME).ok, false)
+is('ogni fase reale è accettata', FASI_SEME.map(f => f.chiave).filter(f => !validaCella('stage', f, FASI_SEME).ok), [])
+is('una priorità fuori elenco no', validaCella('priority', 'Urgentissima', FASI_SEME).ok, false)
+is('ogni priorità vera sì', PRIORITA.filter(p => !validaCella('priority', p, FASI_SEME).ok), [])
+is('e ogni membership', MEMBERSHIP.filter(m => !validaCella('membership', m, FASI_SEME).ok), [])
+is('svuotare una scelta si può', validaCella('priority', '', FASI_SEME), { ok: true, valore: null })
 
 console.log('\n— I tipi convertono, non tirano a indovinare —')
-is('il fatturato con € e punti', validaCella('fatturato', '€ 1.500.000'), { ok: true, valore: 1500000 })
-is('e con la virgola decimale', validaCella('fatturato', '1500,50'), { ok: true, valore: 1500.5 })
+is('il fatturato con € e punti', validaCella('fatturato', '€ 1.500.000', FASI_SEME), { ok: true, valore: 1500000 })
+is('e con la virgola decimale', validaCella('fatturato', '1500,50', FASI_SEME), { ok: true, valore: 1500.5 })
 /* «tremila» come numero diventerebbe `null` in silenzio, e un campo che si
    svuota da solo è peggio di un errore: nessuno lo va a ricontrollare. */
-is('ma «tremila» viene respinto, non azzerato', validaCella('fatturato', 'tremila').ok, false)
-is('una data nel formato giusto', validaCella('started_on', '2026-03-10'), { ok: true, valore: '2026-03-10' })
-is('«domani» no', validaCella('started_on', 'domani').ok, false)
-is('un\'email storta no', validaCella('contact_email', 'pippo@').ok, false)
-is('una buona sì', validaCella('contact_email', ' a@b.it ').ok, true)
-is('un sito senza protocollo no', validaCella('website', 'twobee.it').ok, false)
-is('con https sì', validaCella('website', 'https://twobee.it').ok, true)
+is('ma «tremila» viene respinto, non azzerato', validaCella('fatturato', 'tremila', FASI_SEME).ok, false)
+is('una data nel formato giusto', validaCella('started_on', '2026-03-10', FASI_SEME), { ok: true, valore: '2026-03-10' })
+is('«domani» no', validaCella('started_on', 'domani', FASI_SEME).ok, false)
+is('un\'email storta no', validaCella('contact_email', 'pippo@', FASI_SEME).ok, false)
+is('una buona sì', validaCella('contact_email', ' a@b.it ', FASI_SEME).ok, true)
+is('un sito senza protocollo no', validaCella('website', 'twobee.it', FASI_SEME).ok, false)
+is('con https sì', validaCella('website', 'https://twobee.it', FASI_SEME).ok, true)
 is('le etichette si spezzano e si ripuliscono',
-  validaCella('tags', 'Beauty, , Marketing , Beauty'), { ok: true, valore: ['Beauty', 'Marketing'] })
-is('e accettano già un elenco', validaCella('services', ['Meta ads', 'Tracking']), { ok: true, valore: ['Meta ads', 'Tracking'] })
-is('il sì/no è sempre un booleano', validaCella('audit_requested', 'true'), { ok: true, valore: true })
-is('e «vuoto» vuol dire no', validaCella('audit_requested', ''), { ok: true, valore: false })
+  validaCella('tags', 'Beauty, , Marketing , Beauty', FASI_SEME), { ok: true, valore: ['Beauty', 'Marketing'] })
+is('e accettano già un elenco', validaCella('services', ['Meta ads', 'Tracking'], FASI_SEME), { ok: true, valore: ['Meta ads', 'Tracking'] })
+is('il sì/no è sempre un booleano', validaCella('audit_requested', 'true', FASI_SEME), { ok: true, valore: true })
+is('e «vuoto» vuol dire no', validaCella('audit_requested', '', FASI_SEME), { ok: true, valore: false })
 
 console.log('\n— Svuotare si può, tranne dove la riga sparirebbe —')
-is('un telefono si può togliere', validaCella('contact_phone', ''), { ok: true, valore: null })
-is('una nota pure', validaCella('notes', '  '), { ok: true, valore: null })
+is('un telefono si può togliere', validaCella('contact_phone', '', FASI_SEME), { ok: true, valore: null })
+is('una nota pure', validaCella('notes', '  ', FASI_SEME), { ok: true, valore: null })
 is('il nome azienda no: senza, la riga non è una riga',
-  validaCella('company_name', '').ok, false)
+  validaCella('company_name', '', FASI_SEME).ok, false)
 
 console.log('\n— §378 · quello che la pagina legge, la query lo chiede —')
 /* Il difetto che questo blocco esiste per non far tornare: la `select` si

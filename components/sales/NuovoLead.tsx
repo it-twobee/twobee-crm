@@ -22,8 +22,8 @@ import { X, Upload, Loader2, AlertTriangle, Check } from 'lucide-react'
 import { creaLead, importaLeadCsv, type EsitoImport } from '@/app/actions/sales'
 import { leggiCsv, conIntestazioni } from '@/lib/sales-import'
 import { riconosci, converti, spiegaMappa, NOME_CAMPO, type Mappa } from '@/lib/sales-csv-esterno'
-import { FASI, GRUPPI, ETICHETTA_GRUPPO, fasiDelGruppo } from '@/lib/sales-stages'
-import { FASE_INGRESSO } from '@/lib/sales-stages'
+import { ETICHETTA_GRUPPO, GRUPPI } from '@/lib/sales-stages'
+import { useFasi } from './FasiContext'
 import { PRIORITA } from '@/lib/sales-table'
 
 const input = 'w-full bg-background border border-border-interactive rounded-xl px-3 py-2 text-sm text-text-primary'
@@ -32,6 +32,7 @@ const label = 'block text-2xs text-text-tertiary mb-1'
 type Doppione = { id: string; testo: string; certo: boolean }
 
 export function NuovoLead({ onChiudi, onFatto }: { onChiudi: () => void; onFatto: () => void }) {
+  const { FASI, fasiDelGruppo, faseConRuolo } = useFasi()
   const [scheda, setScheda] = useState<'mano' | 'csv'>('mano')
 
   // ── a mano ───────────────────────────────────────────────────────────────
@@ -39,7 +40,7 @@ export function NuovoLead({ onChiudi, onFatto }: { onChiudi: () => void; onFatto
   const [referente, setReferente] = useState('')
   const [email, setEmail] = useState('')
   const [telefono, setTelefono] = useState('')
-  const [fase, setFase] = useState(FASE_INGRESSO)
+  const [fase, setFase] = useState((faseConRuolo('nuovo')?.chiave ?? FASI[0]?.chiave ?? ''))
   const [priorita, setPriorita] = useState('')
   const [fonte, setFonte] = useState('')
   const [note, setNote] = useState('')

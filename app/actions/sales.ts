@@ -7,7 +7,8 @@ import { requireSalesAccess } from '@/lib/sales-guard'
 import { OUTCOMES, canReadDeal, uuid, validDate, validateDeal, type DealInput, type Delivery, type SalesData, type SalesDeal, type SalesOutcome, type SalesActivity } from '@/lib/sales'
 import { isWorkspaceRole } from '@/lib/permissions'
 import { validaCella, CAMPI_SCRIVIBILI } from '@/lib/sales-table'
-import { CHIAVI_FASE, FASE_INGRESSO } from '@/lib/sales-stages'
+import { chiaveIngresso, faseDi } from '@/lib/sales-stages'
+import { leggiFasi } from '@/lib/sales-fasi'
 import { somiglianze, spiegaSomiglianza, type Candidato } from '@/lib/sales-dedup'
 import { daPortareSu, type RigaConfronto } from '@/lib/sales-igiene'
 import { generaSubito } from '@/lib/recurrence-kick'
@@ -114,7 +115,7 @@ export async function collegaLeadACliente(dealId: string, clientId: string) {
  */
 export async function salvaCellaDeal(dealId: string, campo: string, valore: unknown) {
   const { actor } = await requireSalesAccess()
-  const esito = validaCella(campo, valore)
+  const esito = validaCella(campo, valore, await leggiFasi())
   if (!esito.ok) throw new Error(esito.motivo)
 
   const { error } = await createActorClient(actor)
@@ -238,13 +239,14 @@ export async function creaLead(input: NuovoLead, forza = false): Promise<EsitoCr
     }
   }
 
+  const fasi = await leggiFasi()
   const { data, error } = await db.from('deals').insert({
     title: nome,
     company_name: nome,
     contact_name: input.contactName?.trim() || null,
     contact_email: input.contactEmail?.trim() || null,
     contact_phone: input.contactPhone?.trim() || null,
-    stage: input.stage && CHIAVI_FASE.includes(input.stage) ? input.stage : FASE_INGRESSO,
+    stage: faseDi(fasi, input.stage) ? input.stage! : chiaveIngresso(fasi),
     source: input.source?.trim() || null,
     priority: input.priority || null,
     notes: input.notes?.trim() || null,
@@ -313,6 +315,7 @@ export async function importaLeadCsv(righe: NuovoLead[]): Promise<EsitoImport> {
     daInserire.push({ ...r, companyName: nome })
   })
 
+  const fasi = await leggiFasi()
   if (daInserire.length) {
     const { error: eIns } = await db.from('deals').insert(daInserire.map(d => ({
       title: d.companyName,
@@ -320,7 +323,7 @@ export async function importaLeadCsv(righe: NuovoLead[]): Promise<EsitoImport> {
       contact_name: d.contactName?.trim() || null,
       contact_email: d.contactEmail?.trim() || null,
       contact_phone: d.contactPhone?.trim() || null,
-      stage: d.stage && CHIAVI_FASE.includes(d.stage) ? d.stage : FASE_INGRESSO,
+      stage: faseDi(fasi, d.stage) ? d.stage! : chiaveIngresso(fasi),
       source: d.source?.trim() || 'CSV',
       notes: d.notes?.trim() || null,
       created_by: actor,
@@ -474,7 +477,7 @@ export async function unisciLead(tieniId: string, eliminaIds: string[]): Promise
   /* Solo i campi vuoti sulla tenuta, e solo quelli scrivibili: `Added`,
      «Status dal foglio» e gli altri di sola lettura restano quelli della
      riga che sopravvive, perché sono la sua storia e non un dato da fondere. */
-  const candidati = daPortareSu(tieni, altre)
+  const candidati = daPortareSu(await leggiFasi(), tieni, altre)
   const portati = candidati.filter(c => CAMPI_SCRIVIBILI.includes(c.campo))
   if (portati.length) {
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }

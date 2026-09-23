@@ -35,7 +35,8 @@
  */
 
 import { useState } from 'react'
-import { FASI, GRUPPI, classiFase, etichettaFase, type Gruppo } from '@/lib/sales-stages'
+import { GRUPPI, gruppoDi, type Gruppo } from '@/lib/sales-stages'
+import { useFasi } from './FasiContext'
 import type { RigaCrm } from './CrmTable'
 
 /** giorno e ora, come nell'elenco: `20/09 15:41` */
@@ -57,11 +58,12 @@ export function CrmBacheca({ righe, gruppo, apertaId, onApri, onSposta }: {
   /** chiede lo spostamento: la conferma e il salvataggio stanno di sopra */
   onSposta: (riga: RigaCrm, fase: string) => void
 }) {
+  const { FASI, classiFase, etichettaFase } = useFasi()
   const [trascinato, setTrascinato] = useState<string | null>(null)
   const [sopra, setSopra] = useState<string | null>(null)
 
   const colonne = (GRUPPI as readonly string[]).includes(gruppo)
-    ? FASI.filter(f => f.gruppo === gruppo as Gruppo)
+    ? FASI.filter(f => gruppoDi(f) === gruppo as Gruppo)
     : FASI
 
   const lascia = (fase: string) => {

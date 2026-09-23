@@ -23,7 +23,7 @@
  * Gate: `npx tsx lib/sales-analytics.check.ts`.
  */
 
-import { FASI } from './sales-stages'
+import { attive, ruoloDi, type Fase } from './sales-stages'
 
 /** sotto questo numero di righe concluse il tasso si mostra, ma avvisato */
 export const SOGLIA_AFFIDABILITA = 8
@@ -36,10 +36,16 @@ export type RigaAnalisi = {
   lead_origine?: Record<string, string> | null
 }
 
-const perChiave = new Map(FASI.map(f => [f.chiave, f]))
-const vinta = (stage: string) => stage === 'active_client'
-const persa = (stage: string) => stage === 'lost' || stage === 'inactive_client'
-const conclusa = (stage: string) => perChiave.get(stage)?.chiusa === true
+/* §424 — il ruolo, non la chiave. Con le fasi configurabili un
+   `stage === 'active_client'` smetterebbe di combaciare il giorno in cui
+   qualcuno la rinomina, e un confronto che non combacia non è un errore: è un
+   `false` che fa scendere il tasso di conversione a zero senza dirlo. */
+const vinta = (fasi: Fase[], stage: string) => ruoloDi(fasi, stage) === 'vinto'
+const persa = (fasi: Fase[], stage: string) => ruoloDi(fasi, stage) === 'perso'
+const conclusa = (fasi: Fase[], stage: string) => {
+  const r = ruoloDi(fasi, stage)
+  return r === 'vinto' || r === 'perso'
+}
 
 export type Tasso = {
   vinti: number
@@ -53,15 +59,15 @@ export type Tasso = {
   affidabile: boolean
 }
 
-export function tassoDi(righe: RigaAnalisi[]): Tasso {
-  const vinti = righe.filter(r => vinta(r.stage)).length
-  const persi = righe.filter(r => persa(r.stage)).length
+export function tassoDi(fasi: Fase[], righe: RigaAnalisi[]): Tasso {
+  const vinti = righe.filter(r => vinta(fasi, r.stage)).length
+  const persi = righe.filter(r => persa(fasi, r.stage)).length
   const conclusi = vinti + persi
   return {
     vinti,
     persi,
     conclusi,
-    aperti: righe.filter(r => !conclusa(r.stage)).length,
+    aperti: righe.filter(r => !conclusa(fasi, r.stage)).length,
     tasso: conclusi ? vinti / conclusi : null,
     affidabile: conclusi >= SOGLIA_AFFIDABILITA,
   }
@@ -80,8 +86,8 @@ export type PassoImbuto = { chiave: string; etichetta: string; quante: number }
  * problemi opposti. Per il secondo servirebbe lo storico dei passaggi, che non
  * abbiamo: meglio un numero onesto che uno che sembra dire di più.
  */
-export function imbuto(righe: RigaAnalisi[]): PassoImbuto[] {
-  return FASI.map(f => ({
+export function imbuto(fasi: Fase[], righe: RigaAnalisi[]): PassoImbuto[] {
+  return attive(fasi).map(f => ({
     chiave: f.chiave,
     etichetta: f.etichetta,
     quante: righe.filter(r => r.stage === f.chiave).length,
@@ -99,6 +105,7 @@ export type Riga = { valore: string; totale: number } & Tasso
  * porta gente, non su quello che ha la frazione più bella.
  */
 export function perDimensione(
+  fasi: Fase[],
   righe: RigaAnalisi[],
   chiave: (r: RigaAnalisi) => string | null | undefined,
   etichettaVuoto = 'Non indicato',
@@ -111,7 +118,7 @@ export function perDimensione(
     gruppi.set(k, g)
   }
   return Array.from(gruppi.entries())
-    .map(([valore, g]) => ({ valore, totale: g.length, ...tassoDi(g) }))
+    .map(([valore, g]) => ({ valore, totale: g.length, ...tassoDi(fasi, g) }))
     .sort((a, b) => b.vinti - a.vinti || b.totale - a.totale || a.valore.localeCompare(b.valore))
 }
 
@@ -128,9 +135,9 @@ export const daOrigine = (campo: string) => (r: RigaAnalisi) => r.lead_origine?.
  * a nessuno. La mediana dice quanto ci mette il caso normale, che è la
  * domanda vera quando si decide se richiamare adesso o la settimana prossima.
  */
-export function giorniPerChiudere(righe: RigaAnalisi[]): { mediana: number | null; campione: number } {
+export function giorniPerChiudere(fasi: Fase[], righe: RigaAnalisi[]): { mediana: number | null; campione: number } {
   const giorni = righe
-    .filter(r => vinta(r.stage) && r.created_at && r.closed_at)
+    .filter(r => vinta(fasi, r.stage) && r.created_at && r.closed_at)
     .map(r => Math.round((Date.parse(r.closed_at as string) - Date.parse(r.created_at as string)) / 86_400_000))
     .filter(g => Number.isFinite(g) && g >= 0)
     .sort((a, b) => a - b)

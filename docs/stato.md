@@ -1,5 +1,33 @@
 # Dove siamo
 
+## Le fasi commerciali diventano dati — §424, 2026-09-23
+
+Fase 1 del rifacimento dell'area commerciale. Notion si spegne: cade la regola
+che teneva dodici fasi trascritte lettera per lettera (§367), il percorso si
+accorcia a **otto stati veri** e l'elenco passa dal codice a una tabella che si
+governa dalle impostazioni.
+
+**Ogni fase dichiara il suo ruolo**, ed è la ragione per cui la configurabilità
+non diventa una trappola: `active_client` stava scritto dentro la conversione a
+cliente, dentro tre controlli di igiene e dentro il tasso di conversione, e il
+giorno in cui qualcuno la rinomina quei confronti smettono di combaciare **in
+silenzio**. Adesso il codice chiede il ruolo — `vinto`, `perso`, `nuovo` — e
+rinominare una fase non rompe niente.
+
+**Due cose escono dalla pipeline e diventano campi della riga**: la qualifica
+(in target / non in target / da valutare), che è un giudizio e non un punto del
+percorso, e i **tentativi**, perché «chiamata senza risposta» come fase fa
+rimbalzare un lead avanti e indietro facendo perdere dov'era davvero. Si vede
+sui dati: due dei sette STATUS del foglio non erano fasi, erano qualifiche.
+
+**Il gate ha cambiato mestiere.** Non verifica più *quali* fasi esistono — le
+decide un amministratore mentre il tool gira — ma le regole che valgono su
+qualunque elenco, ed è la stessa funzione che l'editor chiamerà prima di
+salvare: una sola porta d'ingresso, una sola vinta, almeno una persa, nessuna
+coppia adiacente dello stesso colore.
+
+Migration **258 applicata**. Manca l'editor delle fasi, che chiude la Fase 1.
+
 ## Chi ha creato una cartella si può eliminare — §422, 2026-09-23
 
 La 256 aveva reso slegabili i file e i movimenti del portale e aveva lasciato

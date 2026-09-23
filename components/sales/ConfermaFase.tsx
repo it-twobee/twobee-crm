@@ -21,7 +21,7 @@
 
 import { useEffect } from 'react'
 import { ArrowRight, Loader2 } from 'lucide-react'
-import { classiFase, etichettaFase } from '@/lib/sales-stages'
+import { useFasi } from './FasiContext'
 
 export function ConfermaFase({ azienda, da, a, creaCliente, pending, onAnnulla, onConferma }: {
   azienda: string
@@ -33,6 +33,7 @@ export function ConfermaFase({ azienda, da, a, creaCliente, pending, onAnnulla, 
   onAnnulla: () => void
   onConferma: () => void
 }) {
+  const { classiFase, etichettaFase } = useFasi()
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onAnnulla() }
     window.addEventListener('keydown', onKey)

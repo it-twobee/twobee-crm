@@ -22,7 +22,7 @@
  */
 
 import { telefonoChiave, emailChiave, nomeChiave, SPIEGA, type Motivo } from './sales-dedup'
-import { CHIAVI_FASE, faseDi } from './sales-stages'
+import { faseConRuolo, faseDi, ruoloDi, rangoFase as rangoDiFase, type Fase } from './sales-stages'
 import { COLONNE } from './sales-table'
 
 export type RigaIgiene = {
@@ -138,10 +138,19 @@ const giorniDa = (iso: string | null | undefined, oggi: string): number | null =
  * proposta inviata sono una trattativa persa. Chi chiama decide.
  */
 export function controlla(
+  fasi: Fase[],
   righe: RigaIgiene[],
   oggi: string,
   fermiDa = 45,
 ): Rilievo[] {
+  /* §424 — la fase vinta si chiede al ruolo. Prima era scritta `active_client`
+     in tre punti: con le fasi configurabili, il giorno in cui la si rinomina
+     questi tre controlli smetterebbero di trovarla e direbbero «tutto a posto». */
+  const vinta = faseConRuolo(fasi, 'vinto')?.chiave ?? ''
+  const chiusa = (stage: string | null | undefined) => {
+    const r = ruoloDi(fasi, stage)
+    return r === 'vinto' || r === 'perso'
+  }
   const nomeDi = (id: string) =>
     righe.find(r => r.id === id)?.company_name || 'Senza nome'
   const out: Rilievo[] = []
@@ -167,7 +176,7 @@ export function controlla(
      lo chiamerà, e resta a gonfiare il conto delle trattative aperte. */
   const muti = righe.filter(r =>
     !telefonoChiave(r.contact_phone) && !emailChiave(r.contact_email)
-    && faseDi(r.stage)?.chiusa !== true)
+    && !chiusa(r.stage))
   if (muti.length) {
     out.push({
       chiave: 'senza_recapito',
@@ -182,7 +191,7 @@ export function controlla(
   /* «Active Client» è la casella di chi è diventato cliente, e qui dentro
      cliente vuol dire una riga d'anagrafica. Senza, la pipeline dichiara
      clienti che in anagrafica non esistono (§379). */
-  const senzaAnagrafica = righe.filter(r => r.stage === 'active_client' && !r.client_id)
+  const senzaAnagrafica = righe.filter(r => r.stage === vinta && !r.client_id)
   if (senzaAnagrafica.length) {
     out.push({
       chiave: 'cliente_senza_anagrafica',
@@ -197,7 +206,7 @@ export function controlla(
   /* L'opposto: collegato a un cliente e ancora in una fase di lavorazione.
      Uno dei due dice il falso, e il conto delle trattative aperte ci crede. */
   const chiusiMale = righe.filter(r =>
-    r.client_id && r.stage !== 'active_client' && faseDi(r.stage)?.chiusa !== true)
+    r.client_id && r.stage !== vinta && !chiusa(r.stage))
   if (chiusiMale.length) {
     out.push({
       chiave: 'collegato_ma_aperto',
@@ -211,7 +220,7 @@ export function controlla(
 
   /* Una fase che l'elenco non conosce non si filtra, non si conta e non si
      mostra: la riga sparisce da ogni vista senza essere sparita. */
-  const faseIgnota = righe.filter(r => !CHIAVI_FASE.includes(String(r.stage ?? '')))
+  const faseIgnota = righe.filter(r => !faseDi(fasi, String(r.stage ?? '')))
   if (faseIgnota.length) {
     out.push({
       chiave: 'fase_sconosciuta',
@@ -228,7 +237,7 @@ export function controlla(
      guarda tutte le righe insieme. */
   const fermi = righe
     .map(r => ({ r, g: giorniDa(r.last_interaction_at ?? r.created_at, oggi) }))
-    .filter(x => faseDi(x.r.stage)?.chiusa !== true && x.g !== null && x.g > fermiDa)
+    .filter(x => !chiusa(x.r.stage) && x.g !== null && x.g > fermiDa)
     .sort((a, b) => (b.g ?? 0) - (a.g ?? 0))
   if (fermi.length) {
     out.push({
@@ -309,12 +318,8 @@ export const completezza = (r: RigaConfronto): number =>
  * direbbe che un perso è più indietro di un lead nuovo, che è vero, e che un
  * lead nuovo è più indietro di un perso, che non lo è.
  */
-export function rangoFase(stage: string | null | undefined): number {
-  const f = faseDi(stage)
-  if (!f) return 0
-  if (f.chiave === 'active_client') return 3
-  if (f.chiusa) return 1          // uscite: una storia finita, ma una storia
-  return f.gruppo === 'in_progress' ? 2 : 1.5
+export function rangoFase(fasi: Fase[], stage: string | null | undefined): number {
+  return rangoDiFase(fasi, stage)
 }
 
 export type Confronto = {
@@ -337,7 +342,7 @@ export type Confronto = {
  * l'elenco di ciò che si perde cambia tutto. L'unione lo ricalcola sul
  * vincitore vero, e non si fida di quello che il browser ha visto (§329).
  */
-export function daPortareSu(vince: RigaConfronto, altre: RigaConfronto[]): Confronto['daPortare'] {
+export function daPortareSu(fasi: Fase[], vince: RigaConfronto, altre: RigaConfronto[]): Confronto['daPortare'] {
   const out: Confronto['daPortare'] = []
   for (const c of CAMPI_CONFRONTO) {
     if (mostra(vince[c.campo]) !== null) continue
@@ -349,12 +354,12 @@ export function daPortareSu(vince: RigaConfronto, altre: RigaConfronto[]): Confr
   return out
 }
 
-export function confronta(righe: RigaConfronto[]): Confronto | null {
+export function confronta(fasi: Fase[], righe: RigaConfronto[]): Confronto | null {
   if (righe.length < 2) return null
 
   const punteggio = (r: RigaConfronto) => ({
     cliente: r.client_id ? 1 : 0,
-    fase: rangoFase(r.stage as string),
+    fase: rangoFase(fasi, r.stage as string),
     campi: completezza(r),
     /* il meno: a parità, la più vecchia vince, quindi la data più piccola
        deve dare il punteggio più alto */
@@ -372,7 +377,7 @@ export function confronta(righe: RigaConfronto[]): Confronto | null {
   if (vince.client_id && altre.every(r => !r.client_id)) {
     perche.push('è l’unica collegata a un cliente in anagrafica')
   }
-  if (altre.some(r => rangoFase(vince.stage as string) > rangoFase(r.stage as string))) {
+  if (altre.some(r => rangoFase(fasi, vince.stage as string) > rangoFase(fasi, r.stage as string))) {
     perche.push('è più avanti nel percorso')
   }
   const piu = completezza(vince)
@@ -381,7 +386,7 @@ export function confronta(righe: RigaConfronto[]): Confronto | null {
   }
   if (!perche.length) perche.push('è la più vecchia, e le altre non aggiungono niente')
 
-  const daPortare = daPortareSu(vince, altre)
+  const daPortare = daPortareSu(fasi, vince, altre)
 
   /* Solo i campi in cui le righe **dicono cose diverse**: affiancare
      ventitré righe uguali nasconde le tre che contano. */
