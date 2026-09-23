@@ -22,6 +22,7 @@
 import { X, UserPlus, Loader2, ExternalLink, Trash2 } from 'lucide-react'
 import { COLONNE, GRUPPI_SCHEDA, TITOLO_GRUPPO, type Colonna } from '@/lib/sales-table'
 import { CrmCella } from './CrmCella'
+import { MenuFase } from './MenuFase'
 import type { RigaCrm } from './CrmTable'
 import { SalesFollowUps } from './SalesFollowUps'
 import { useFasi } from './FasiContext'
@@ -69,7 +70,6 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pend
   onElimina?: () => void
   pending: boolean
 }) {
-  const { classiFase, etichettaFase } = useFasi()
   const origine = (riga.lead_origine ?? {}) as Record<string, string>
   const voci = ORIGINE.filter(([k]) => origine[k])
 
@@ -84,9 +84,14 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pend
             {riga.company_name || 'Senza nome'}
           </h2>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <span className={`text-2xs font-semibold px-2 py-0.5 rounded-full ${classiFase(riga.stage)}`}>
-              {etichettaFase(riga.stage)}
-            </span>
+            {/* §426 — la fase si cambia da qui senza cercare la cella in
+                tabella: è il primo dato che si guarda aprendo una scheda, e
+                fino a ieri era l'unico che si poteva solo leggere. */}
+            <MenuFase
+              valore={riga.stage as string}
+              etichetta={`Fase di ${String(riga.company_name ?? 'questo lead')}`}
+              onScegli={fase => { void onSalva('stage', fase) }}
+            />
             {typeof riga.priority === 'string' && riga.priority && (
               <span className="text-2xs text-text-secondary">{riga.priority}</span>
             )}

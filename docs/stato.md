@@ -1,5 +1,22 @@
 # Dove siamo
 
+## L'elenco dei lead si legge — §426, 2026-09-23
+
+Fase 2 del rifacimento commerciale. I **persi** — un terzo dell'archivio —
+escono dal mezzo dell'elenco e finiscono in un blocco chiuso in fondo, col
+numero sopra: non nascosti, perché una riga che sparisce fa credere di averla
+persa. La **nota** si legge in riga, appiattita su una sola linea e tagliata su
+una parola. E il **chip della fase è un bottone ovunque**: elenco, cella larga,
+scheda.
+
+Il menu non è più un `select` nativo: nel menu di sistema il colore non si vede,
+e il colore è metà dell'informazione di una fase. Sta in un portale perché il
+contenitore dell'elenco ha `overflow-hidden` e un menu assoluto verrebbe
+tagliato sulle ultime righe.
+
+La regola dei persi guarda il **ruolo**, non la chiave: vale anche per la
+seconda fase persa che qualcuno creerà dall'editor.
+
 ## L'editor delle fasi commerciali — §425, 2026-09-23
 
 `/impostazioni/commerciale`, admin e super admin: aggiungi, rinomini, riordini,

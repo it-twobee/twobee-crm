@@ -48,6 +48,50 @@ Quello che resta da fare dell'area commerciale è nel piano in nove fasi: elenco
 scheda, filtri, numeri, import da file, foglio bidirezionale, configurazione
 estesa, campi personalizzati.
 
+## L'elenco si legge — §426
+
+Quattro cose, e tutte e quattro nascono dalla stessa osservazione: **nell'elenco
+si cerca chi chiamare adesso**, e il resto è rumore che si scorre.
+
+**I persi stanno in fondo, in un blocco chiuso.** Sono un terzo dell'archivio —
+dodici righe su trentasei — e stavano in mezzo a quelli vivi: chi scorre li
+legge, capisce che non servono, e ricomincia. Non si nascondono però, perché una
+riga che sparisce fa credere di averla persa e riprendere in mano un perso è un
+lavoro vero. La regola guarda il **ruolo** e non la chiave (`lib/sales-elenco.ts`),
+così vale anche per la seconda fase persa che qualcuno creerà domani. Il vinto
+resta in elenco: è un risultato, e vederlo fa piacere.
+
+**La nota si legge senza aprire niente.** È il campo che qualcuno ha scritto a
+mano — «Call venerdì 7 agosto alle ore 15.00» — e tenerlo dietro un clic voleva
+dire aprire trenta schede per ritrovare l'unica che diceva qualcosa. Una riga
+sola, appiattita e tagliata **su una parola**: le note del foglio hanno gli a
+capo dentro la cella e messe com'è spaccherebbero la riga in cinque.
+
+**Il chip della fase è un bottone, ovunque sia** — elenco, cella larga, scheda.
+Prima si poteva cambiare fase in due posti e altrove il chip era un'etichetta
+morta: il gesto è così ovvio che la gente lo fa comunque, e non succede niente
+per tre volte prima di smettere di provarci. Nell'elenco il chip sta **fuori**
+dal bottone della riga — un `<button>` dentro un `<button>` non è valido, e
+cliccarlo aprirebbe la scheda invece di cambiare fase.
+
+**Il menu non è un `select` nativo** (`MenuFase`), per tre ragioni: nel menu di
+sistema il colore non si vede, e il colore è metà dell'informazione di una fase;
+il ruolo non si vede, e «vinta», «persa» e «sospesa» in un elenco piatto
+sembrano tre voci uguali; su iOS diventa una ruota a tutto schermo. Sta in un
+**portale**, e non è un vezzo: il contenitore dell'elenco ha `overflow-hidden`
+per arrotondare gli angoli, e un menu assoluto lì dentro verrebbe tagliato sulle
+ultime righe. Si chiude anche allo scroll, perché un menu ancorato a un
+rettangolo calcolato una volta resterebbe fermo mentre la riga scivola via.
+
+Dall'elenco la fase si salva **senza conferma**, al contrario del trascinamento
+in bacheca (§379): la conferma lì serve perché un trascinamento mancato sposta
+una scheda senza che chi l'ha fatto se ne accorga, mentre un clic sul menu è un
+gesto dichiarato.
+
+Il pannello **Controllo** resta in sola lettura, ed è una scelta vecchia che
+regge (§385): lì i rilievi portano alle righe e la decisione si prende sulla
+riga, non dentro l'elenco dei problemi.
+
 ## Com'era prima: il CRM di Notion, qui dentro
 
 ## Foglio attivo e follow-up nel calendario — 21 settembre 2026

@@ -26,10 +26,12 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Search, Loader2, RefreshCw, BarChart3, List, Columns3, ShieldCheck, ArrowUpDown, SlidersHorizontal, X, Plus, Trash2 } from 'lucide-react'
+import { Search, Loader2, RefreshCw, BarChart3, List, Columns3, ShieldCheck, ArrowUpDown, SlidersHorizontal, X, Plus, Trash2, ChevronRight } from 'lucide-react'
 
 import { ETICHETTA_GRUPPO, GRUPPI, gruppoDi, type Gruppo } from '@/lib/sales-stages'
 import { useFasi } from './FasiContext'
+import { MenuFase } from './MenuFase'
+import { dividiPersi, notaInRiga } from '@/lib/sales-elenco'
 import { salvaCellaDeal, collegaLeadACliente, aggiornaDaFoglio, eliminaLead } from '@/app/actions/sales'
 import { NewClientModal } from '@/components/clients/NewClientModal'
 import type { Client } from '@/lib/types/database'
@@ -78,7 +80,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
   /** §378 — admin e manager. Chi non può non vede le caselle, non le vede spente */
   puoiEliminare?: boolean
 }) {
-  const { TUTTE, FASI, classiFase, etichettaFase, faseConRuolo } = useFasi()
+  const { TUTTE, FASI, etichettaFase, faseConRuolo } = useFasi()
   const [righe, setRighe] = useState(iniziali)
   const [cerca, setCerca] = useState('')
   const [gruppo, setGruppo] = useState<string>('tutti')
@@ -240,6 +242,93 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
         setConverto(null)
       } catch (e) { toast.error((e as Error).message) }
     })
+  }
+
+  /* I persi in fondo, e la regola guarda il **ruolo**: «Perso» è una fase che
+     si può rinominare o duplicare dalle impostazioni (§424), quindi chiedere la
+     chiave varrebbe finché nessuno tocca la configurazione. */
+  const { vive, persi } = useMemo(() => dividiPersi(TUTTE, viste as RigaCrm[]), [TUTTE, viste])
+
+  /* §426 — la riga è una funzione perché si disegna due volte: una per le
+     trattative vive e una dentro il blocco dei persi. Copiarla avrebbe
+     voluto dire due righe che divergono al primo ritocco. */
+  const rigaElenco = (r: RigaCrm) => {
+              const scelta = aperta?.id === r.id
+              const telefono = typeof r.contact_phone === 'string' ? r.contact_phone : ''
+              const referente = typeof r.contact_name === 'string' ? r.contact_name : ''
+              const email = typeof r.contact_email === 'string' ? r.contact_email : ''
+              const arrivo = quando(r.created_at)
+              const nota = notaInRiga(r.notes)
+              const org = (r.lead_origine ?? {}) as Record<string, string>
+              const contorno = [org.piattaforma, org.tipologia, org.tempistica].filter(Boolean).join(' · ')
+              return (
+                /* La casella è **accanto** al bottone e non dentro: un
+                   `<button>` dentro un `<button>` non è valido, e sceglierne
+                   uno aprirebbe la scheda invece di spuntare la riga.
+
+                   Compare all'hover, ma lo spazio resta occupato: nasconderla
+                   con `hidden` farebbe saltare di lato il nome dell'azienda a
+                   ogni passaggio del mouse, su tutte le righe. E resta visibile
+                   in tre casi in cui sparire sarebbe un difetto — quando è
+                   spuntata (o non si vedrebbe cosa si sta per eliminare),
+                   quando ha il fuoco da tastiera, e dove l'hover non esiste
+                   (`hover: none`): sul telefono non comparirebbe mai. */
+                <div key={r.id}
+                  className={`group flex items-center gap-2.5 px-3 transition-colors ${
+                    scelta ? 'bg-gold/10' : 'hover:bg-surface-hover'}`}>
+                  {puoiEliminare && (
+                    <input type="checkbox" checked={selezione.includes(r.id)} onChange={() => scegli(r.id)}
+                      aria-label={`Seleziona ${r.company_name || 'il lead senza nome'}`}
+                      className="accent-gold w-3.5 h-3.5 cursor-pointer shrink-0 opacity-0 transition-opacity
+                        group-hover:opacity-100 focus-visible:opacity-100 checked:opacity-100
+                        [@media(hover:none)]:opacity-100" />
+                  )}
+                <button onClick={() => setAperta(scelta ? null : r)}
+                  aria-current={scelta ? 'true' : undefined}
+                  className="flex-1 min-w-0 text-left py-2.5">
+                  <span className="block min-w-0 text-sm font-semibold text-text-primary truncate">
+                    {r.company_name || 'Senza nome'}
+                  </span>
+                  {/* §376 — referente, email e telefono si leggono senza
+                      aprire la scheda: sono le tre cose che servono per
+                      decidere se chiamare adesso, e tenerle dietro un clic
+                      voleva dire aprire ventinove schede per trovarne una. */}
+                  <span className="block text-2xs text-text-secondary truncate mt-0.5">
+                    {[referente, telefono, email].filter(Boolean).join(' · ') || 'Nessun recapito'}
+                  </span>
+                  {/* §426 — la nota si legge senza aprire niente: è il campo
+                      che qualcuno ha scritto a mano, e tenerlo dietro un clic
+                      voleva dire aprire trenta schede per ritrovare l'unica che
+                      diceva qualcosa. Una riga sola: il resto sta nella scheda. */}
+                  {nota && (
+                    <span className="block text-2xs text-text-primary/80 truncate mt-0.5" title={String(r.notes ?? '')}>
+                      {nota}
+                    </span>
+                  )}
+                  <span className="flex items-center gap-2 mt-px">
+                    {contorno && <span className="text-2xs text-text-tertiary truncate">{contorno}</span>}
+                    {arrivo && (
+                      /* Giorno **e ora**: due lead dello stesso giorno non
+                         sono la stessa cosa se uno è arrivato alle nove e
+                         l'altro alle ventitré. */
+                      <span className="text-2xs text-text-tertiary tabular ml-auto shrink-0">{arrivo}</span>
+                    )}
+                  </span>
+                </button>
+                {/* Fuori dal bottone: un `<button>` dentro un `<button>` non è
+                    valido, e cliccare il chip aprirebbe la scheda invece di
+                    cambiare fase. Qui si salva e basta, senza la conferma del
+                    trascinamento (§379): quella serve perché un trascinamento
+                    mancato sposta una scheda senza che chi l'ha fatto se ne
+                    accorga, mentre questo è un gesto dichiarato. */}
+                <MenuFase
+                  valore={r.stage as string}
+                  etichetta={`Fase di ${r.company_name || 'questo lead'}`}
+                  className="shrink-0 max-w-[10rem]"
+                  onScegli={fase => { void salva(r, 'stage', fase) }}
+                />
+                </div>
+              )
   }
 
   return (
@@ -441,67 +530,32 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
                 </span>
               </div>
             )}
-            {viste.map(r => {
-              const scelta = aperta?.id === r.id
-              const telefono = typeof r.contact_phone === 'string' ? r.contact_phone : ''
-              const referente = typeof r.contact_name === 'string' ? r.contact_name : ''
-              const email = typeof r.contact_email === 'string' ? r.contact_email : ''
-              const arrivo = quando(r.created_at)
-              const org = (r.lead_origine ?? {}) as Record<string, string>
-              const contorno = [org.piattaforma, org.tipologia, org.tempistica].filter(Boolean).join(' · ')
-              return (
-                /* La casella è **accanto** al bottone e non dentro: un
-                   `<button>` dentro un `<button>` non è valido, e sceglierne
-                   uno aprirebbe la scheda invece di spuntare la riga.
+            {vive.map(rigaElenco)}
+            {!vive.length && persi.length > 0 && (
+              <p className="px-3 py-8 text-center text-sm text-text-tertiary">
+                Nessuna trattativa aperta{cerca ? ' per questa ricerca' : ''}.
+              </p>
+            )}
 
-                   Compare all'hover, ma lo spazio resta occupato: nasconderla
-                   con `hidden` farebbe saltare di lato il nome dell'azienda a
-                   ogni passaggio del mouse, su tutte le righe. E resta visibile
-                   in tre casi in cui sparire sarebbe un difetto — quando è
-                   spuntata (o non si vedrebbe cosa si sta per eliminare),
-                   quando ha il fuoco da tastiera, e dove l'hover non esiste
-                   (`hover: none`): sul telefono non comparirebbe mai. */
-                <div key={r.id}
-                  className={`group flex items-center gap-2.5 px-3 transition-colors ${
-                    scelta ? 'bg-gold/10' : 'hover:bg-surface-hover'}`}>
-                  {puoiEliminare && (
-                    <input type="checkbox" checked={selezione.includes(r.id)} onChange={() => scegli(r.id)}
-                      aria-label={`Seleziona ${r.company_name || 'il lead senza nome'}`}
-                      className="accent-gold w-3.5 h-3.5 cursor-pointer shrink-0 opacity-0 transition-opacity
-                        group-hover:opacity-100 focus-visible:opacity-100 checked:opacity-100
-                        [@media(hover:none)]:opacity-100" />
-                  )}
-                <button onClick={() => setAperta(scelta ? null : r)}
-                  aria-current={scelta ? 'true' : undefined}
-                  className="flex-1 min-w-0 text-left py-2.5">
-                  <span className="flex items-center gap-2">
-                    <span className="flex-1 min-w-0 text-sm font-semibold text-text-primary truncate">
-                      {r.company_name || 'Senza nome'}
-                    </span>
-                    <span className={`text-2xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${classiFase(r.stage)}`}>
-                      {etichettaFase(r.stage)}
-                    </span>
+            {/* §426 — i persi sono un terzo dell'archivio e stanno in mezzo a
+                quelli vivi: chi scorre li legge, capisce che non servono, e
+                ricomincia. Non si nascondono però — una riga che sparisce fa
+                credere di averla persa, e riprendere in mano un perso è un
+                lavoro vero — quindi si incapsulano, chiusi, col numero sopra. */}
+            {persi.length > 0 && (
+              <details className="group/persi bg-surface">
+                <summary className="flex items-center gap-2 px-3 py-2.5 cursor-pointer select-none text-xs text-text-secondary hover:text-text-primary">
+                  <ChevronRight className="w-3.5 h-3.5 shrink-0 transition-transform group-open/persi:rotate-90" />
+                  <span className="font-semibold">Persi</span>
+                  <span className="text-2xs text-text-tertiary">
+                    {persi.length} {persi.length === 1 ? 'trattativa chiusa senza esito' : 'trattative chiuse senza esito'}
                   </span>
-                  {/* §376 — referente, email e telefono si leggono senza
-                      aprire la scheda: sono le tre cose che servono per
-                      decidere se chiamare adesso, e tenerle dietro un clic
-                      voleva dire aprire ventinove schede per trovarne una. */}
-                  <span className="block text-2xs text-text-secondary truncate mt-0.5">
-                    {[referente, telefono, email].filter(Boolean).join(' · ') || 'Nessun recapito'}
-                  </span>
-                  <span className="flex items-center gap-2 mt-px">
-                    {contorno && <span className="text-2xs text-text-tertiary truncate">{contorno}</span>}
-                    {arrivo && (
-                      /* Giorno **e ora**: due lead dello stesso giorno non
-                         sono la stessa cosa se uno è arrivato alle nove e
-                         l'altro alle ventitré. */
-                      <span className="text-2xs text-text-tertiary tabular ml-auto shrink-0">{arrivo}</span>
-                    )}
-                  </span>
-                </button>
+                </summary>
+                <div className="divide-y divide-border border-t border-border">
+                  {persi.map(rigaElenco)}
                 </div>
-              )
-            })}
+              </details>
+            )}
             {!viste.length && (
               <p className="px-3 py-10 text-center text-sm text-text-tertiary">
                 Nessuna riga{cerca ? ' per questa ricerca' : ''}.

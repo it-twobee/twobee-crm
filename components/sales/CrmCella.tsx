@@ -17,8 +17,8 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Check, X } from 'lucide-react'
-import { ETICHETTA_GRUPPO, GRUPPI } from '@/lib/sales-stages'
 import { useFasi } from './FasiContext'
+import { MenuFase } from './MenuFase'
 import type { Colonna } from '@/lib/sales-table'
 
 const inputCls = 'w-full bg-background border border-border-interactive rounded px-1.5 py-1 text-2xs text-text-primary'
@@ -38,7 +38,6 @@ export function CrmCella({ colonna, valore, onSalva, disabilitato }: {
   onSalva: (nuovo: unknown) => Promise<void>
   disabilitato?: boolean
 }) {
-  const { classiFase, etichettaFase, fasiDelGruppo } = useFasi()
   const [aperta, setAperta] = useState(false)
   const [bozza, setBozza] = useState('')
   const [pending, setPending] = useState(false)
@@ -90,24 +89,17 @@ export function CrmCella({ colonna, valore, onSalva, disabilitato }: {
 
   // ── la fase: sempre un menu, mai un testo libero ─────────────────────────
   if (colonna.tipo === 'fase') {
-    if (!aperta) {
-      return (
-        <button type="button" onClick={apri} disabled={disabilitato}
-          className={`inline-flex max-w-full truncate px-2 py-0.5 rounded-full text-2xs font-semibold ${classiFase(String(valore))}`}>
-          {etichettaFase(String(valore))}
-        </button>
-      )
-    }
+    /* §426 — un solo menu per tutta la sezione. Prima qui c'era un `select`
+       nativo e nella scheda un'etichetta morta: due comportamenti per lo stesso
+       chip, e il colore — che è metà dell'informazione di una fase — nel menu di
+       sistema non si vede. Niente doppio clic per aprirlo: il chip **è** il
+       bottone, come lo è ovunque altro. */
     return (
-      <select ref={r => { rif.current = r }} defaultValue={String(valore ?? '')} disabled={pending}
-        aria-label="Fase" className={inputCls}
-        onChange={e => salva(e.target.value)} onBlur={() => setAperta(false)}>
-        {GRUPPI.map(g => (
-          <optgroup key={g} label={ETICHETTA_GRUPPO[g]}>
-            {fasiDelGruppo(g).map(f => <option key={f.chiave} value={f.chiave}>{f.etichetta}</option>)}
-          </optgroup>
-        ))}
-      </select>
+      <MenuFase
+        valore={String(valore ?? '')}
+        disabilitato={disabilitato || pending}
+        onScegli={salva}
+      />
     )
   }
 
