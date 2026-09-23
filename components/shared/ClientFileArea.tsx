@@ -32,7 +32,7 @@ export type ClientMaterial = {
 const button = 'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-border-interactive bg-surface px-2.5 py-1.5 text-2xs text-text-primary hover:bg-surface-hover disabled:opacity-50'
 
 export function ClientFileArea({
-  clientId, materials, canWrite, canDeleteClientFiles, viewerId, portalActive, portalTabHref, onError,
+  clientId, materials, canWrite, canDeleteClientFiles, viewerId, portalActive, portalTabHref, onError, onChanged,
 }: {
   clientId: string
   materials: ClientMaterial[]
@@ -43,8 +43,11 @@ export function ClientFileArea({
   portalActive?: boolean
   portalTabHref?: string
   onError?: (message: string) => void
+  /** Chi tiene i dati in memoria li ricarica qui: `router.refresh()` rilegge solo i componenti server. */
+  onChanged?: () => void
 }) {
   const router = useRouter()
+  const changed = () => { if (onChanged) onChanged(); else router.refresh() }
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set())
   const [preview, setPreview] = useState<ClientMaterial | null>(null)
   const [busy, setBusy] = useState<{ name: string; percent: number } | null>(null)
@@ -87,7 +90,7 @@ export function ClientFileArea({
       try { await send(file) } catch (e) { fail(e instanceof Error ? e.message : 'Caricamento non riuscito.'); break }
       finally { setBusy(null) }
     }
-    router.refresh()
+    changed()
   }
 
   async function act(material: ClientMaterial, azione: 'archivia' | 'ripristina' | 'elimina') {
@@ -101,7 +104,7 @@ export function ClientFileArea({
       fail(payload?.error ?? 'Operazione non riuscita.')
       return
     }
-    router.refresh()
+    changed()
   }
 
   const canRemove = (m: ClientMaterial) =>
@@ -129,7 +132,7 @@ export function ClientFileArea({
             : null}. Il tuo, qui sotto, funziona già.</>
         : 'Niente qui.'} />
 
-    <Group title="Nostri" hint="Il cliente non li vede: la sua policy non gliene passa le righe."
+    <Group title="Nostri" hint="Il cliente non li vede."
       items={nostri} openFolders={openFolders} onToggle={setOpenFolders}
       onAct={act} canRemove={canRemove} canWrite={canWrite} onPreview={setPreview}
       empty="Niente qui. Carica quello che serve al lavoro: resta fra noi." />

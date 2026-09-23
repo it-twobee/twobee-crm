@@ -221,6 +221,25 @@ async function main() {
   const unavailable = await download.GET(request(), fileParams)
   assert.equal(unavailable.status, 502); assert.doesNotMatch(await unavailable.text(), /PRIVATE/)
   s3Error = false
-  console.log('Tutti i controlli passano: 10 endpoint interni, guard reali, RLS letture, contesti/parent, rollback upload, cartelle condivise, viewer, token privati/revocati/scaduti e zero accessi S3 prima dei permessi.')
+
+  // Lo spazio file del cliente ha le sue porte: da qui non si legge, non si
+  // cancella — la DELETE toglieva i byte e poi il trigger rifiutava il metadato —
+  // e non si carica.
+  const materiale = uid(3, 9)
+  files.push(newFile(materiale, 'materiali', actor, 'client', clientA))
+  Object.assign(profile, { role: 'admin', app_role: 'founder', is_active: true })
+  const beforeMaterial = storageCalls()
+  const listed = await (await list.GET(request())).json()
+  assert.ok(!listed.files.some((f: any) => f.id === materiale), 'l’elenco generico non mostra i materiali')
+  assert.equal((await download.GET(request(), { params: { id: materiale } })).status, 404)
+  assert.notEqual((await remove.DELETE(request(), { params: { id: materiale } })).status, 200)
+  assert.ok(files.some(f => f.id === materiale), 'il materiale resta intero')
+  const materialUpload = new FormData()
+  materialUpload.set('file', new File(['sample'], 'logo.png', { type: 'image/png' }))
+  materialUpload.set('folder', 'materiali'); materialUpload.set('entityType', 'client'); materialUpload.set('entityId', clientA)
+  assert.equal((await upload.POST(new Request('http://localhost/api/files/upload', { method: 'POST', body: materialUpload }))).status, 400)
+  assert.equal((await folder.POST(request({ name: 'Cartella', folder: 'materiali', entityType: 'client', entityId: clientA }))).status, 400)
+  assert.equal(storageCalls(), beforeMaterial, 'nessun accesso allo storage per i materiali dalle API generiche')
+  console.log('Tutti i controlli passano: 10 endpoint interni, guard reali, RLS letture, contesti/parent, rollback upload, cartelle condivise, viewer, token privati/revocati/scaduti, materiali fuori dalle API generiche e zero accessi S3 prima dei permessi.')
 }
 main().finally(() => { modules._load = original }).catch(error => { console.error(error); process.exitCode = 1 })

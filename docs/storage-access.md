@@ -217,6 +217,47 @@ La lettura per la scheda passa da `getClientFiles` (`app/actions/client-files.ts
 staff attivo, azienda visibile in `clients_workspace` per chi non è admin (§213),
 e nient'altro — le scritture restano nelle rotte.
 
+## Una porta sola, e che chiude davvero (§414)
+
+Prima di costruire l'esploratore sopra l'area file si è guardato il terreno, e
+c'erano quattro buchi. Stavano tutti nei posti da cui passa ogni scrittura.
+
+- **Le API generiche arrivavano ai materiali.** `/api/files/**` accettava
+  `folder='materiali'`. Una DELETE da lì toglieva i byte da MinIO, poi il trigger
+  della 251 rifiutava il metadato, e restava un materiale vivo senza file. Il
+  download li serviva a freelance, partner e viewer, che la RLS dei materiali
+  esclude. Adesso `materiali` è una cartella **con una porta sua**
+  (`OWN_DOOR_FOLDERS` in `lib/storage/access.ts`):
+  - `parseStorageContext` non la accetta;
+  - `canReadFile` e `canDeleteFile` la rifiutano.
+- **La PATCH del team aveva mezza porta**: guardava il ruolo e non l'azienda.
+  Un file di un'azienda nascosta al workspace restava archiviabile da chi ne
+  conosceva l'id. `requireMaterialAccess` e `requireMaterialRow`
+  (`lib/storage/guard.ts`) sono l'unica porta delle rotte `/api/area-cliente/**`.
+  Controllano ruolo, poi riga letta con la RLS, poi contesto azienda, e nessuna
+  arriva a MinIO prima di tutti e tre.
+- **Chi vede l'area** è la lista di `portal_is_staff()` (244), che è chi decide
+  davvero. `PORTAL_STAFF_ROLES` in `lib/permissions.ts` è la sua copia in
+  TypeScript, e `canReadMaterials`/`canWriteMaterials` la usano. Prima la pagina
+  lasciava entrare viewer, freelance e partner e la RLS gli passava zero righe:
+  un'area vuota che diceva «nessuno ancora», cioè un vuoto plausibile e sbagliato.
+  Adesso ricevono una frase.
+- **Staccare il file vuole un autore.** Il DELETE del portale cancellava la riga
+  `files` col service role nudo. Il `SET NULL` su `portal_materials.file_id` è un
+  UPDATE, e `portal_log_event` lo rifiuta senza `x-actor-id`. La rotta non
+  guardava l'errore: i byte sparivano e il metadato restava. Adesso passa da
+  `writer.db`; la prova sta in `251_area_cliente.check.sql`, e il mock delle
+  rotte rifiuta allo stesso modo.
+
+Due letture erano troncate da PostgREST a mille righe:
+- l'elenco della scheda (`getClientFiles`): adesso legge a pagine fino a
+  20.000 righe, e oltre lo dichiara (`truncated`);
+- la somma della quota (`usedMaterialBytes`): diceva «c'è spazio» a
+  un'azienda che l'aveva finito.
+
+La scheda File, inoltre, non si aggiornava: i dati stanno nello stato del
+componente, e `router.refresh()` rilegge solo i componenti server.
+
 ## Verifiche
 
 ```bash

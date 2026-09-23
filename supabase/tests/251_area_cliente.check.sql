@@ -118,4 +118,16 @@ SELECT pg_temp.reject_area($q$UPDATE public.portal_materials SET path='altrove' 
 UPDATE public.portal_materials SET deleted_at=now(),deleted_by='f2510000-0000-4000-8000-000000000001' WHERE id='f2518000-0000-4000-8000-000000000003';
 SELECT pg_temp.reject_area($q$UPDATE public.portal_materials SET archived_at=now(),archived_by='f2510000-0000-4000-8000-000000000001' WHERE id='f2518000-0000-4000-8000-000000000003'$q$,'P0001');
 
+-- ── Staccare il file vuole un autore ───────────────────────────────────────
+-- Cancellare la riga `files` mette a NULL `portal_materials.file_id`: è un
+-- UPDATE, e la cronologia del portale lo rifiuta senza x-actor-id. La rotta del
+-- portale lo faceva col service role nudo, e non guardava l'errore: i byte
+-- sparivano e il metadato restava.
+SELECT set_config('request.headers','{}',true);
+SELECT pg_temp.reject_area($q$DELETE FROM public.files WHERE id='f2516000-0000-4000-8000-000000000003'$q$);
+SELECT pg_temp.check_area((SELECT count(*)=1 FROM public.files WHERE id='f2516000-0000-4000-8000-000000000003'),'senza autore il metadato resta');
+SELECT set_config('request.headers','{"x-actor-id":"f2510000-0000-4000-8000-000000000001"}',true);
+DELETE FROM public.files WHERE id='f2516000-0000-4000-8000-000000000003';
+SELECT pg_temp.check_area((SELECT file_id IS NULL FROM public.portal_materials WHERE id='f2518000-0000-4000-8000-000000000003'),'con l’autore il file si stacca');
+
 ROLLBACK;

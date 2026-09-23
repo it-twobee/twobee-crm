@@ -123,6 +123,14 @@ export function canSeeTrackingSecrets(appRole: string | null | undefined): boole
  */
 export const TRACKING_SHARED_ROLES: AppRole[] = [...ADMIN_ROLES, 'manager']
 
+/**
+ * Chi apre l'area file dei clienti. È la stessa lista di `portal_is_staff()`
+ * (244) e di `portal_assert_staff_actor()` (251), che decidono davvero: il
+ * database passa le righe solo a loro. Freelance, partner e viewer ne restano
+ * fuori, e la pagina deve dirlo invece di mostrare uno spazio vuoto.
+ */
+export const PORTAL_STAFF_ROLES: AppRole[] = [...ADMIN_ROLES, 'manager', 'senior', 'junior', 'stage']
+
 export function canManageAgencyKeys(appRole: string | null | undefined): boolean {
   return TRACKING_SHARED_ROLES.includes(appRole as AppRole)
 }

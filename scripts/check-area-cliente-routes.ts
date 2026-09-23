@@ -12,6 +12,7 @@ const junior = 'f2510000-0000-4000-8000-000000000005'
 const suoFile = 'f2518000-0000-4000-8000-000000000001'
 const nostroFile = 'f2518000-0000-4000-8000-000000000002'
 const altruiFile = 'f2518000-0000-4000-8000-000000000003'
+const nascostoFile = 'f2518000-0000-4000-8000-000000000004'
 const key = 'f2517000-0000-4000-8000-000000000001'
 
 let userId: string | null = admin
@@ -20,6 +21,7 @@ const profiles: Record<string, { role: string; app_role: string; email: string; 
   [junior]: { role: 'team', app_role: 'junior', email: 'junior@example.invalid', full_name: 'Junior', is_active: true },
   cliente: { role: 'client', app_role: 'client', email: 'cliente@example.invalid', full_name: 'Referente', is_active: true },
   viewer: { role: 'team', app_role: 'viewer', email: 'viewer@example.invalid', full_name: 'Viewer', is_active: true },
+  freelance: { role: 'team', app_role: 'freelance', email: 'freelance@example.invalid', full_name: 'Freelance', is_active: true },
 }
 class StorageTooLarge extends Error {}
 let materials: any[] = [], files: any[] = [], objects: string[] = []
@@ -30,17 +32,19 @@ function reset() {
     { id: suoFile, client_id: client, source: 'cliente', uploaded_by: 'cliente', storage_key: 'materiali/logo.png', file_id: 'f1', deleted_at: null, archived_at: null, size: 10 },
     { id: nostroFile, client_id: client, source: 'team', uploaded_by: junior, storage_key: 'materiali/ds.pdf', file_id: 'f2', deleted_at: null, archived_at: null, size: 20 },
     { id: altruiFile, client_id: client, source: 'team', uploaded_by: admin, storage_key: 'materiali/altro.pdf', file_id: 'f3', deleted_at: null, archived_at: null, size: 30 },
+    { id: nascostoFile, client_id: hidden, source: 'team', uploaded_by: junior, storage_key: 'materiali/gav.pdf', file_id: 'f4', deleted_at: null, archived_at: null, size: 40 },
   ]
 }
 
 class Query {
   filters: ((r: any) => boolean)[] = []
-  one = false; op = 'read'; value: any
-  constructor(public table: string) {}
+  one = false; op = 'read'; value: any; window: [number, number] | null = null
+  constructor(public table: string, public actor = false) {}
   select(_c?: string) { return this }
   eq(k: string, v: unknown) { this.filters.push(r => r[k] === v); return this }
   is(k: string, v: unknown) { this.filters.push(r => (r[k] ?? null) === v); return this }
   order() { return this }
+  range(from: number, to: number) { this.window = [from, to]; return this }
   limit() { return this }
   single() { this.one = true; return this }
   maybeSingle() { this.one = true; return this }
@@ -74,10 +78,14 @@ class Query {
       return resolve({ data: this.one ? matched[0] ?? null : null, error: null })
     }
     if (this.op === 'delete') {
+      // Come nel database: staccare il file da un materiale passa dalla cronologia, che vuole un autore.
+      if (this.table === 'files' && !this.actor && matched.some(f => materials.some(m => m.file_id === f.id))) {
+        return resolve({ data: null, error: { code: 'P0001' } })
+      }
       for (const r of matched) table.splice(table.indexOf(r), 1)
       return resolve({ data: null, error: null })
     }
-    const copy = matched.map(r => ({ ...r }))
+    const copy = (this.window ? matched.slice(this.window[0], this.window[1] + 1) : matched).map(r => ({ ...r }))
     return resolve({ data: this.one ? copy[0] ?? null : copy, error: null })
   }
 }
@@ -102,7 +110,7 @@ internal._load = function (name, ...args) {
   if (name === '@/lib/supabase/admin') {
     return {
       createAdminClient: () => ({ from: (t: string) => new Query(t) }),
-      createActorClient: (id: string) => { assert.equal(id, userId); return { from: (t: string) => new Query(t) } },
+      createActorClient: (id: string) => { assert.equal(id, userId); return { from: (t: string) => new Query(t, true) } },
     }
   }
   if (name === '@/lib/storage/s3') {
@@ -187,13 +195,23 @@ async function main() {
   assert.equal(materials.find(m => m.id === suoFile).archived_at, null)
   assert.equal((await one.PATCH(patch('qualsiasi'), { params: { id: suoFile } })).status, 400)
   assert.equal((await one.PATCH(patch('archivia'), { params: { id: 'non-un-uuid' } })).status, 404)
+  // La PATCH aveva mezza porta: il ruolo sì, l'azienda no.
+  assert.equal((await one.PATCH(patch('archivia'), { params: { id: nascostoFile } })).status, 404, 'un file di un’azienda nascosta non si tocca')
+  assert.equal(materials.find(m => m.id === nascostoFile).archived_at, null)
+  userId = 'viewer'
+  assert.equal((await one.PATCH(patch('archivia'), { params: { id: suoFile } })).status, 403, 'il viewer non archivia')
+  userId = 'freelance'
+  assert.equal((await one.PATCH(patch('archivia'), { params: { id: suoFile } })).status, 403, 'un freelance non entra nell’area dei clienti')
+  assert.equal((await route.POST(upload(`client=${client}`, good))).status, 403)
+  userId = junior
 
   // ── Eliminare ────────────────────────────────────────────────────────────
   assert.equal((await one.PATCH(patch('elimina'), { params: { id: suoFile } })).status, 403, 'un file del cliente non lo elimina il team')
   assert.equal((await one.PATCH(patch('elimina'), { params: { id: altruiFile } })).status, 403, 'né il file di un collega')
+  files = [{ id: 'f2', object_key: 'materiali/ds.pdf' }]
   assert.equal((await one.PATCH(patch('elimina'), { params: { id: nostroFile } })).status, 200, 'il proprio sì')
   assert.ok(materials.find(m => m.id === nostroFile).deleted_at)
-  assert.equal(files.length, 0)
+  assert.equal(files.length, 0, 'e il metadato dello storage si stacca')
 
   userId = admin
   assert.equal((await one.PATCH(patch('elimina'), { params: { id: suoFile } })).status, 200, 'l’amministratore sì')
@@ -224,12 +242,24 @@ async function main() {
 
   userId = admin
   assert.equal((await getClientFiles(client)).data!.canDeleteClientFiles, true)
-  userId = 'viewer'
-  const soloLettura = await getClientFiles(client)
-  assert.equal(soloLettura.error, undefined, 'il viewer guarda')
-  assert.equal(soloLettura.data!.canWrite, false, 'ma non carica')
+  // La RLS dei materiali (`portal_is_staff`) esclude viewer, freelance e
+  // partner: per loro l'area era vuota e diceva «nessuno ancora». Adesso lo dice.
+  for (const who of ['viewer', 'freelance']) {
+    userId = who
+    const fuori = await getClientFiles(client)
+    assert.match(fuori.error ?? '', /riservata al team interno/, `${who}: una frase, non un'area vuota`)
+  }
 
-  console.log('Tutti i controlli passano: solo staff attivo, azienda nascosta esclusa, percorsi e tipi rifiutati prima dello storage, file nostri che nascono nostri, archiviazione reversibile, cancellazioni per ruolo e area della scheda cliente attiva prima del portale.')
+  // Mille righe erano il tetto di PostgREST, non dell'area.
+  userId = junior
+  for (let i = 0; i < 2345; i++) {
+    materials.push({ id: `f251b000-0000-4000-8000-${String(i).padStart(12, '0')}`, client_id: client, source: 'team', uploaded_by: junior, storage_key: `materiali/${i}.pdf`, file_id: `m${i}`, deleted_at: null, archived_at: null, size: 1 })
+  }
+  const molti = await getClientFiles(client)
+  assert.equal(molti.data!.materials.length, 2348, 'tutte le righe, non le prime mille')
+  assert.equal(molti.data!.truncated, false)
+
+  console.log('Tutti i controlli passano: solo staff attivo, azienda nascosta esclusa, percorsi e tipi rifiutati prima dello storage, file nostri che nascono nostri, archiviazione reversibile, cancellazioni per ruolo e area della scheda cliente attiva prima del portale, porta unica con l’azienda nascosta anche sulla PATCH, letture a pagine.')
 }
 
 main().catch(error => { console.error(error); process.exit(1) })

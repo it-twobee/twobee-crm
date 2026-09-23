@@ -1,9 +1,16 @@
-import { isAdminRole, isWorkspaceRole } from '@/lib/permissions'
+import { PORTAL_STAFF_ROLES, isAdminRole, isWorkspaceRole } from '@/lib/permissions'
+import type { AppRole } from '@/lib/types/database'
 import { SENSITIVE_FOLDERS, isStorageFolder } from './shared'
 import type { StorageFile, StorageFolderRow } from './shared'
 
 export type StorageActor = { userId: string; role: string | null; appRole: string | null; active: boolean }
 export type StorageContext = Pick<StorageFile, 'folder' | 'entity_type' | 'entity_id'>
+
+/* Cartelle con una porta loro. L'area file del cliente ha rotte, quota e
+   regole proprie (`/api/area-cliente/**`, `/api/portale/materiali/**`): dalle
+   API generiche un DELETE toglieva i byte e poi il trigger rifiutava il
+   metadato, e il download li serviva a chi la RLS dei materiali esclude. */
+const OWN_DOOR_FOLDERS: readonly string[] = ['materiali']
 
 export function isStorageStaff(actor: StorageActor) {
   return actor.active && ((actor.role === 'admin' && isAdminRole(actor.appRole))
@@ -18,12 +25,22 @@ export function canWriteStorage(actor: StorageActor) {
   return isStorageStaff(actor) && actor.appRole !== 'viewer'
 }
 
-export function canReadFile(actor: StorageActor, file: Pick<StorageFile, 'folder' | 'uploaded_by'>) {
-  return isStorageStaff(actor) && isStorageFolder(file.folder) && (isStorageAdmin(actor)
-    || file.uploaded_by === actor.userId || !SENSITIVE_FOLDERS.includes(file.folder))
+/** L'area file dei clienti: la stessa lista di `portal_is_staff()`, che è chi decide. */
+export function canReadMaterials(actor: StorageActor) {
+  return isStorageStaff(actor) && (actor.role === 'admin' || PORTAL_STAFF_ROLES.includes(actor.appRole as AppRole))
 }
 
-export function canDeleteFile(actor: StorageActor, file: Pick<StorageFile, 'uploaded_by'>) {
+export function canWriteMaterials(actor: StorageActor) {
+  return canReadMaterials(actor) && canWriteStorage(actor)
+}
+
+export function canReadFile(actor: StorageActor, file: Pick<StorageFile, 'folder' | 'uploaded_by'>) {
+  return isStorageStaff(actor) && isStorageFolder(file.folder) && !OWN_DOOR_FOLDERS.includes(file.folder)
+    && (isStorageAdmin(actor) || file.uploaded_by === actor.userId || !SENSITIVE_FOLDERS.includes(file.folder))
+}
+
+export function canDeleteFile(actor: StorageActor, file: Pick<StorageFile, 'uploaded_by'> & { folder?: string }) {
+  if (file.folder && OWN_DOOR_FOLDERS.includes(file.folder)) return false
   return canWriteStorage(actor) && (isStorageAdmin(actor) || file.uploaded_by === actor.userId)
 }
 
@@ -53,8 +70,8 @@ export function parseStorageContext(folder: unknown, entityType: unknown, entity
   if (folder === 'feedback' && type !== 'feedback') return null
   // Una consegna senza progetto non si può pubblicare né autorizzare (§395).
   if (folder === 'deliverables' && type !== 'project') return null
-  // Lo spazio file è dell'azienda: un materiale senza azienda non è di nessuno (§397).
-  if (folder === 'materiali' && type !== 'client') return null
+  // Lo spazio file del cliente non entra dalle API generiche: ha le sue porte.
+  if (OWN_DOOR_FOLDERS.includes(folder)) return null
   return { folder, entity_type: type as string | null, entity_id: id as string | null }
 }
 

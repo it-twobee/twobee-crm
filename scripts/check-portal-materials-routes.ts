@@ -45,11 +45,12 @@ function reset() {
 class Query {
   filters: ((row: any) => boolean)[] = []
   one = false; op = 'read'; value: any
-  constructor(public table: string, public session: boolean) {}
+  constructor(public table: string, public session: boolean, public actor = false) {}
   select(_c?: string) { return this }
   eq(k: string, v: unknown) { this.filters.push(r => r[k] === v); return this }
   is(k: string, v: unknown) { this.filters.push(r => (r[k] ?? null) === v); return this }
   order() { return this }
+  range() { return this }
   limit() { return this }
   single() { this.one = true; return this }
   maybeSingle() { this.one = true; return this }
@@ -58,7 +59,7 @@ class Query {
   delete() { this.op = 'delete'; return this }
   async then(resolve: (r: any) => unknown, reject?: (e: unknown) => unknown) {
     try {
-      calls.push(`${this.session ? 'session' : 'service'}:${this.table}:${this.op}`)
+      calls.push(`${this.session ? 'session' : this.actor ? 'actor' : 'service'}:${this.table}:${this.op}`)
       if (this.op !== 'read') assert.equal(this.session, false, `scrittura con la sessione su ${this.table}`)
       if (missingSchema && this.table.startsWith('portal_')) {
         return resolve({ data: null, error: { code: 'PGRST205', message: `Could not find the table 'public.${this.table}'` } })
@@ -85,6 +86,11 @@ class Query {
         return resolve({ data: this.one ? matched[0] ?? null : null, error: null })
       }
       if (this.op === 'delete') {
+        // Come nel database: staccare un file da un materiale è un UPDATE sulla
+        // riga del portale (SET NULL), e la sua cronologia vuole un autore.
+        if (this.table === 'files' && !this.actor && matched.some(f => materials.some(m => m.file_id === f.id))) {
+          return resolve({ data: null, error: { code: 'P0001', message: 'La scrittura portale richiede un autore verificato (x-actor-id)' } })
+        }
         for (const r of matched) table.splice(table.indexOf(r), 1)
         return resolve({ data: null, error: null })
       }
@@ -116,7 +122,7 @@ internal._load = function (name, ...args) {
   if (name === '@/lib/supabase/admin') {
     return {
       createAdminClient: () => ({ from: (t: string) => new Query(t, false) }),
-      createActorClient: (id: string) => { assert.equal(id, userId); return { from: (t: string) => new Query(t, false) } },
+      createActorClient: (id: string) => { assert.equal(id, userId); return { from: (t: string) => new Query(t, false, true) } },
     }
   }
   if (name === '@/lib/storage/s3') {
@@ -269,8 +275,11 @@ async function main() {
   userId = collega
   assert.equal((await one.DELETE(del(materialId), params)).status, 403, 'non si rimuove il file di un collega')
   userId = referente
+  files = [{ id: materials[0].file_id, object_key: materials[0].storage_key }]
   assert.equal((await one.DELETE(del(materialId), params)).status, 200)
   assert.ok(materials[0].deleted_at && materials[0].deleted_by === referente)
+  assert.equal(files.length, 0, 'il metadato dello storage si stacca, con l’autore: senza, restava lì a byte spariti')
+  assert.ok(calls.includes('actor:files:delete'))
   assert.equal((await one.DELETE(del(materialId), params)).status, 404, 'due volte no')
 
   // ── §401 Miniature: generate una volta, e mai promesse a vuoto ───────────

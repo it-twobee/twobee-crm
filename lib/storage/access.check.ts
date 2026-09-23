@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { canDeleteFile, canManageFolder, canReadFile, canReadFolder, canShareFile, canWriteStorage, fileResponseHeaders, isStorageStaff, parseStorageContext, sameStorageContext, validStorageObject } from './access'
+import { canDeleteFile, canManageFolder, canReadFile, canReadFolder, canReadMaterials, canShareFile, canWriteMaterials, canWriteStorage, fileResponseHeaders, isStorageStaff, parseStorageContext, sameStorageContext, validStorageObject } from './access'
 import type { StorageActor } from './access'
 
 const own = 'f2460000-0000-4000-8000-000000000001'
@@ -42,9 +42,27 @@ assert.equal(parseStorageContext('feedback', 'client', client), null)
 assert.deepEqual(parseStorageContext('deliverables', 'project', 'f2462000-0000-4000-8000-000000000001'), { folder: 'deliverables', entity_type: 'project', entity_id: 'f2462000-0000-4000-8000-000000000001' })
 assert.equal(parseStorageContext('deliverables', 'client', client), null)
 assert.equal(parseStorageContext('deliverables', null, null), null)
-assert.deepEqual(parseStorageContext('materiali', 'client', client), { folder: 'materiali', entity_type: 'client', entity_id: client })
+// Lo spazio file del cliente ha le sue porte: dalle API generiche non si entra,
+// né per caricare né per leggere, cancellare o creare cartelle.
+assert.equal(parseStorageContext('materiali', 'client', client), null)
 assert.equal(parseStorageContext('materiali', 'project', 'f2462000-0000-4000-8000-000000000001'), null)
 assert.equal(parseStorageContext('materiali', null, null), null)
+const material = { ...file, folder: 'materiali' as const, object_key: `materiali/${client}/logo.png` }
+const founder: StorageActor = { ...manager, role: 'admin', appRole: 'founder' }
+assert.equal(canReadFile(founder, material), false, 'il download generico non serve un materiale')
+assert.equal(canDeleteFile(founder, material), false, 'la DELETE generica non toglie i byte di un materiale')
+assert.equal(canDeleteFile(founder, { uploaded_by: own }), true, 'senza cartella resta la regola del proprietario')
+// Chi apre l'area file: la lista di portal_is_staff(), non quella dello storage.
+for (const appRole of ['manager', 'senior', 'junior', 'stage']) assert.equal(canReadMaterials({ ...manager, appRole }), true, appRole)
+assert.equal(canReadMaterials(founder), true)
+for (const appRole of ['freelance', 'partner', 'viewer']) {
+  assert.equal(isStorageStaff({ ...manager, appRole }), true, `${appRole} resta staff dello storage`)
+  assert.equal(canReadMaterials({ ...manager, appRole }), false, `${appRole} non vede l'area file dei clienti`)
+}
+assert.equal(canReadMaterials({ ...manager, active: false }), false)
+assert.equal(canReadMaterials({ ...manager, role: 'client', appRole: 'client' }), false)
+assert.equal(canWriteMaterials(manager), true)
+assert.equal(canWriteMaterials({ ...manager, appRole: 'viewer' }), false)
 assert.equal(parseStorageContext('misc', 'invented', client), null)
 assert.equal(parseStorageContext('misc', 'client', '../other'), null)
 assert.equal(parseStorageContext('misc', null, client), null)

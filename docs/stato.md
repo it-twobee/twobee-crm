@@ -1,5 +1,28 @@
 # Dove siamo
 
+## L'area file ha una porta sola, e chiude — §414, 2026-09-23
+
+Questo è il primo passo per togliere di mezzo il Google Drive interno. L'area
+file di ogni cliente deve diventare un esploratore vero: cartelle, spostamenti,
+zip, link e note. Prima di costruirci sopra si è guardato il terreno. Nessuna
+migration.
+
+- `/api/files/**` non tocca più `materiali`. Dalle API generiche una DELETE
+  toglieva i byte e lasciava il materiale vivo; il download li serviva a chi la
+  RLS esclude.
+- Tutte le rotte `/api/area-cliente/**` passano da `requireMaterialAccess` e
+  `requireMaterialRow`. La PATCH non guardava l'azienda: un file di un'azienda
+  nascosta al workspace restava archiviabile.
+- L'area la vede chi la vede il database (`PORTAL_STAFF_ROLES`, copia di
+  `portal_is_staff`). Viewer, freelance e partner vedevano un'area vuota che
+  diceva «nessuno ancora»: adesso ricevono una frase.
+- Il DELETE del portale stacca il file con l'autore. Senza, la cronologia
+  rifiutava il `SET NULL` e il metadato restava con i byte già spariti.
+- Letture a pagine (elenco e quota) e scheda File che si ricarica dopo ogni
+  modifica.
+
+Dettaglio in `docs/storage-access.md`.
+
 ## La cronologia era cieca sulle task — §412, 2026-09-23
 
 La vista sull'utilizzo diceva «0 modifiche» per quasi tutti, e non era un

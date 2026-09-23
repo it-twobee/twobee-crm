@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
-import { getCaller, canWriteStorage } from '@/lib/storage/guard'
+import { requireMaterialRow } from '@/lib/storage/guard'
 import { deleteObject } from '@/lib/storage/s3'
 import { thumbObjectKey } from '@/lib/portal/materials'
-import { isStorageUuid } from '@/lib/storage/access'
 import { isAdminRole, isSuperAdminRaw } from '@/lib/permissions'
 
 export const runtime = 'nodejs'
@@ -14,29 +13,25 @@ export const dynamic = 'force-dynamic'
    è il modo peggiore di fargli perdere un logo.
    Eliminare davvero un file del cliente lo possono solo admin, founder e super
    admin: i byte spariscono e non tornano. */
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const caller = await getCaller()
-  if (!caller) return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
-  if (!canWriteStorage(caller)) return NextResponse.json({ error: 'Accesso in sola lettura' }, { status: 403 })
-  if (!isStorageUuid(params.id)) return NextResponse.json({ error: 'File non trovato' }, { status: 404 })
+type Row = { id: string; client_id: string; source: 'cliente' | 'team'; uploaded_by: string; archived_at: string | null }
 
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const body = await req.json().catch(() => ({})) as { azione?: string }
   if (!['archivia', 'ripristina', 'elimina'].includes(body?.azione ?? '')) {
     return NextResponse.json({ error: 'Azione non valida' }, { status: 400 })
   }
 
-  const material = await caller.session.from('portal_materials')
-    .select('id, source, uploaded_by, archived_at').eq('id', params.id).is('deleted_at', null).maybeSingle()
-  if (material.error) return NextResponse.json({ error: 'File non disponibile' }, { status: 503 })
-  if (!material.data) return NextResponse.json({ error: 'File non trovato' }, { status: 404 })
+  const gate = await requireMaterialRow<Row>(params.id, true, 'id, client_id, source, uploaded_by, archived_at')
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
+  const { caller, material } = gate
 
   if (body.azione === 'elimina') {
     const admin = isAdminRole(caller.appRole) || isSuperAdminRaw(caller.email, caller.appRole)
     // I nostri file li toglie chi li ha caricati; quelli del cliente solo un admin.
-    const own = material.data.source === 'team' && material.data.uploaded_by === caller.userId
+    const own = material.source === 'team' && material.uploaded_by === caller.userId
     if (!admin && !own) {
       return NextResponse.json({
-        error: material.data.source === 'cliente'
+        error: material.source === 'cliente'
           ? 'Un file del cliente lo elimina solo un amministratore. Puoi archiviarlo.'
           : 'Puoi eliminare soltanto i file che hai caricato tu.',
       }, { status: 403 })
@@ -47,7 +42,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (removed.error || !removed.data) return NextResponse.json({ error: 'Non è stato possibile eliminare il file. Riprova.' }, { status: 500 })
     try { await deleteObject(removed.data.storage_key) } catch { /* oggetto già assente */ }
     try { await deleteObject(thumbObjectKey(params.id)) } catch { /* miniatura mai generata */ }
-    if (removed.data.file_id) await caller.admin.from('files').delete().eq('id', removed.data.file_id)
+    if (removed.data.file_id) {
+      // Il file per chi guarda è già sparito; resta da staccare il metadato dello storage.
+      const detached = await caller.admin.from('files').delete().eq('id', removed.data.file_id)
+      if (detached.error) console.error('area-cliente: metadato del file non staccato', params.id, detached.error.message)
+    }
     return NextResponse.json({ ok: true })
   }
 

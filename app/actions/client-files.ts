@@ -5,13 +5,15 @@
    pensano le rotte `/api/area-cliente/**`, che è dove sta la guard di scrittura. */
 import { getViewer } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { isStorageStaff, isStorageAdmin, canWriteStorage, isStorageUuid } from '@/lib/storage/access'
+import { canReadMaterials, canWriteMaterials, isStorageAdmin, isStorageUuid } from '@/lib/storage/access'
 import { isMissingPortalSchema } from '@/lib/portal/model'
 import type { ClientMaterial } from '@/components/shared/ClientFileArea'
 import type { PortalResult } from '@/lib/portal/access'
 
 export type ClientFilesData = {
   materials: ClientMaterial[]
+  /** Oltre `MAX_ROWS` righe l'elenco è parziale, e la pagina lo dice. */
+  truncated: boolean
   /** Il cliente ha un accesso vivo al portale: se no, il suo mezzo spazio è spento. */
   portalActive: boolean
   canWrite: boolean
@@ -28,8 +30,30 @@ async function requireFileStaff() {
     appRole: profile?.app_role ?? null,
     active: profile?.is_active !== false,
   }
-  if (!user || !isStorageStaff(actor)) throw new Error('Area riservata al team interno.')
+  // La stessa lista che usa il database: chi la RLS esclude vede una frase, non
+  // un'area vuota che dice «nessuno ancora».
+  if (!user || !canReadMaterials(actor)) throw new Error('L’area file dei clienti è riservata al team interno.')
   return actor
+}
+
+const MATERIAL_COLUMNS = 'id, client_id, project_id, name, mime, size, kind, path, source, uploaded_by, uploaded_by_name, created_at, archived_at'
+const PAGE = 1000
+/** Oltre, l'area va divisa: meglio dirlo che mostrare una parte come se fosse tutto. */
+const MAX_ROWS = 20000
+
+type Db = Awaited<ReturnType<typeof createClient>>
+
+async function readAllMaterials(db: Db, clientId: string) {
+  const rows: ClientMaterial[] = []
+  for (let from = 0; from < MAX_ROWS; from += PAGE) {
+    const page = await db.from('portal_materials').select(MATERIAL_COLUMNS)
+      .eq('client_id', clientId).is('deleted_at', null)
+      .order('created_at', { ascending: false }).order('id').range(from, from + PAGE - 1)
+    if (page.error) return { rows, error: page.error, truncated: false }
+    rows.push(...((page.data ?? []) as unknown as ClientMaterial[]))
+    if ((page.data ?? []).length < PAGE) return { rows, error: null, truncated: false }
+  }
+  return { rows, error: null, truncated: true }
 }
 
 export async function getClientFiles(clientId: string): Promise<PortalResult<ClientFilesData>> {
@@ -44,9 +68,7 @@ export async function getClientFiles(clientId: string): Promise<PortalResult<Cli
     if (!visible.data) throw new Error('Cliente non disponibile o non autorizzato.')
 
     const [materials, memberships] = await Promise.all([
-      db.from('portal_materials')
-        .select('id, client_id, project_id, name, mime, size, kind, path, source, uploaded_by, uploaded_by_name, created_at, archived_at')
-        .eq('client_id', clientId).is('deleted_at', null).order('created_at', { ascending: false }).limit(1000),
+      readAllMaterials(db, clientId),
       db.from('portal_memberships').select('id').eq('client_id', clientId).is('revoked_at', null).limit(1),
     ])
     const schemaMissing = isMissingPortalSchema(materials.error)
@@ -54,9 +76,10 @@ export async function getClientFiles(clientId: string): Promise<PortalResult<Cli
 
     return {
       data: {
-        materials: schemaMissing ? [] : ((materials.data ?? []) as unknown as ClientMaterial[]),
+        materials: schemaMissing ? [] : materials.rows,
+        truncated: materials.truncated,
         portalActive: !isMissingPortalSchema(memberships.error) && (memberships.data ?? []).length > 0,
-        canWrite: canWriteStorage(actor),
+        canWrite: canWriteMaterials(actor),
         canDeleteClientFiles: isStorageAdmin(actor),
         viewerId: actor.userId,
         schemaMissing,

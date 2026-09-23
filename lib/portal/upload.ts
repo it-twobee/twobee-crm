@@ -35,10 +35,8 @@ export async function storeMaterial(input: MaterialUpload): Promise<UploadResult
   if (existing.data) return { ok: true, id: existing.data.id, repeated: true, leftBytes: 0 }
 
   // La quota è dell'azienda e conta tutto: i suoi file e i nostri.
-  const used = await input.admin.from('portal_materials').select('size')
-    .eq('client_id', input.clientId).is('deleted_at', null)
-  if (used.error) return { ok: false, status: 503, error: 'Non è stato possibile verificare lo spazio. Riprova.' }
-  const usedBytes = (used.data ?? []).reduce((sum, row) => sum + Number(row.size ?? 0), 0)
+  const usedBytes = await usedMaterialBytes(input.admin, input.clientId)
+  if (usedBytes === null) return { ok: false, status: 503, error: 'Non è stato possibile verificare lo spazio. Riprova.' }
   const left = quotaLeft(usedBytes)
   if (left <= 0) {
     return { ok: false, status: 507, error: `Lo spazio dell’azienda è pieno (${humanBytes(MATERIAL_QUOTA_BYTES)}). Elimina qualcosa oppure scrivici.` }
@@ -94,4 +92,20 @@ export async function storeMaterial(input: MaterialUpload): Promise<UploadResult
     }
   }
   return { ok: true, id: material.data.id, repeated: false, leftBytes: quotaLeft(usedBytes + size) }
+}
+
+const PAGE = 1000
+
+/* A pagine: PostgREST taglia a mille righe, e una somma sulle prime mille
+   diceva «c'è spazio» a un'azienda che l'aveva finito. `null` = non lo so. */
+export async function usedMaterialBytes(db: SupabaseClient, clientId: string): Promise<number | null> {
+  let total = 0
+  for (let from = 0; ; from += PAGE) {
+    const page = await db.from('portal_materials').select('id, size')
+      .eq('client_id', clientId).is('deleted_at', null).order('id').range(from, from + PAGE - 1)
+    if (page.error) return null
+    const rows = page.data ?? []
+    total += rows.reduce((sum, row) => sum + Number(row.size ?? 0), 0)
+    if (rows.length < PAGE) return total
+  }
 }

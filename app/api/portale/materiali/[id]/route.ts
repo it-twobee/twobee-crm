@@ -62,6 +62,10 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   // come traccia, ma il file non si scarica più da nessuna porta.
   try { await deleteObject(removed.data.storage_key) } catch { /* oggetto già assente */ }
   try { await deleteObject(thumbObjectKey(params.id)) } catch { /* miniatura mai generata */ }
-  await createAdminClient().from('files').delete().eq('id', removed.data.file_id)
+  // Con l'attore: il `SET NULL` sulla riga del portale è un UPDATE, e la
+  // cronologia del portale rifiuta una scrittura senza autore. Senza, il
+  // metadato restava lì con i byte già spariti.
+  const detached = await writer.db.from('files').delete().eq('id', removed.data.file_id)
+  if (detached.error) console.error('portale: metadato del file non staccato', params.id, detached.error.message)
   return NextResponse.json({ ok: true })
 }

@@ -14,10 +14,12 @@ export function ClientFilesTab({ clientId, portalTabHref }: { clientId: string; 
   const [data, setData] = useState<ClientFilesData | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  // Dopo ogni scrittura si rilegge: i dati stanno qui, e `router.refresh()` non li tocca.
+  const [version, setVersion] = useState(0)
 
   useEffect(() => {
     let disposed = false
-    setLoading(true)
+    if (!version) setLoading(true)
     getClientFiles(clientId).then(result => {
       if (disposed) return
       if (result.error) setError(result.error)
@@ -25,7 +27,7 @@ export function ClientFilesTab({ clientId, portalTabHref }: { clientId: string; 
     }).catch(() => { if (!disposed) setError('Non è stato possibile caricare i file.') })
       .finally(() => { if (!disposed) setLoading(false) })
     return () => { disposed = true }
-  }, [clientId])
+  }, [clientId, version])
 
   if (loading) return <p className="flex items-center gap-2 p-6 text-sm text-text-secondary">
     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Carico i file…
@@ -52,6 +54,7 @@ export function ClientFilesTab({ clientId, portalTabHref }: { clientId: string; 
       viewerId={data.viewerId}
       portalActive={data.portalActive}
       portalTabHref={portalTabHref}
+      onChanged={() => setVersion(v => v + 1)}
     />
   </div>
 }
