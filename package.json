@@ -9,7 +9,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "paragrafo": "node scripts/prossimo-paragrafo.mjs"
+    "paragrafo": "node scripts/prossimo-paragrafo.mjs",
+    "migrazione": "node scripts/prossima-migrazione.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",

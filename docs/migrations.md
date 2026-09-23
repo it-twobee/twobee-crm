@@ -1,5 +1,19 @@
 # Registro migration
 
+## Come si numera (§423)
+
+Una migration in lavorazione si chiama `XXX_nome.sql`, con `-- XXX —` in testa.
+Il numero si prende un attimo prima del commit, con `npm run migrazione
+XXX_nome.sql`: fa il fetch, guarda `origin/main` e il tuo lavoro, e rinomina.
+Poi si aggiorna qui «La prossima libera è la **NNN**» e si committa subito.
+`lib/migrazioni.check.ts` ferma i numeri doppi, le intestazioni col numero
+vecchio e questa frase se non torna. I doppi storici (080, 081, 109, 223)
+restano, con il motivo scritto nel controllo.
+
+Prima di **applicare**: la verità è il database, non questo registro. Confronta
+le funzioni che la migration riscrive con quelle in produzione, e scrivi qui che
+cosa è andato davvero.
+
 ## Stato consolidato al 2026-09-15
 
 **Verificato sul database il 2026-09-15**, una per una: 205, 206, 207, 213, 214,
@@ -42,9 +56,10 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > dominio progetti; la **254** organizza l'area file (§413); la **255** toglie il
 > blocco che impediva di eliminare un membro per una sola task; la **256** lascia
 > cancellare un account senza portarsi via i file del cliente; la **257** insegna
-> alle guardie del portale cos'è una cancellazione. La **258** è la bozza dei link
-> pubblici ai file dell'area cliente, non ancora su `main`; la **259** slega
-> l'autore delle cartelle. La prossima libera è la **260**.
+> alle guardie del portale cos'è una cancellazione. La **258** non c'è: era il
+> numero di una bozza (i link pubblici dell'area cliente), che adesso è
+> `XXX_area_file_link.sql` e prenderà il suo numero al commit (§423). La
+> **259** slega l'autore delle cartelle. La prossima libera è la **260**.
 
 > **La 249 è nata 247.** È stata scritta e **applicata in produzione** mentre su
 > main arrivavano `247_periodi_e_ricorrenze` e `248_scheletro_periodi`, da una

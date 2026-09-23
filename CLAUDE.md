@@ -67,7 +67,7 @@ database vero, e riscoprirle costa più che leggerle.
   va a controllare.** Quando una fonte manca, dichiaralo («n/d», «stimato»,
   «senza contratto»): mai uno zero.
 - **Gate del repo**: `npx tsc --noEmit` (ESLint non configurato) + gli
-  **novanta** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
+  **novantadue** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
   `lib/tracking/**`) — con `npx tsx lib/<percorso>.check.ts`: devono dire «Tutti
   i controlli passano».
 - **Il numero del paragrafo si prende alla fine** (§406). I `§NNN` sono etichette
@@ -80,6 +80,23 @@ database vero, e riscoprirle costa più che leggerle.
   libero ed esce 1 se non lo è, così si può mettere in uno script. Riusare un
   `§NNN` per **correggere la stessa cosa** è giusto e va fatto: la collisione è
   due lavori diversi con lo stesso numero.
+- **Anche il numero della migration si prende alla fine** (§423). Il 23
+  settembre ci sono state due 254 e una bozza locale 255 che si è scontrata con
+  la 255 arrivata su `main`. Una migration in lavorazione **non ha numero**:
+  si chiama `supabase/migrations/XXX_nome.sql`, con `-- XXX —` in testa. Un
+  attimo prima del commit, `npm run migrazione XXX_nome.sql` le dà il prossimo
+  numero libero guardando anche `origin/main` (fa il fetch da sé). Poi si
+  aggiorna «La prossima libera è la **NNN**» in `docs/migrations.md` e si
+  committa subito. `npm run migrazione 260` esce 1 se quel numero è già preso.
+  Gate: `npx tsx lib/migrazioni.check.ts` ferma i numeri doppi, le
+  intestazioni rimaste al numero vecchio e il registro che non torna.
+- **Prima di applicare una migration, guarda la produzione, non il repo.** Il
+  registro può essere indietro, perché anche gli altri applicano (MCP o SQL
+  Editor), a volte una successiva prima di una precedente. Fai il fetch e
+  confronta le funzioni che la migration riscrive con `pg_get_functiondef`:
+  la 254 applicata dopo la 256 le avrebbe riportato indietro la guardia, e
+  si sarebbe tornati a non poter eliminare un account. Dopo aver applicato,
+  segna nel registro che cosa è andato davvero in produzione.
 - **Non lanciare `npm run build` mentre `npm run dev` gira**: condividono `.next`
   e la pagina si apre senza stili. Se succede: ferma il dev, `rm -rf .next`, riavvia.
 
@@ -112,6 +129,7 @@ database vero, e riscoprirle costa più che leggerle.
 npm run dev        # :3000
 npm run build      # mai mentre gira il dev: condividono .next
 npm run paragrafo  # qual è il prossimo §NNN libero (vedi sotto)
+npm run migrazione # qual è la prossima migration libera, o numera una bozza XXX_
 ```
 `npm run lint` è nel `package.json` ma **non è un gate**: `eslint-config-next` è
 installato e il file di configurazione non c'è, quindi `next lint` apre la
