@@ -12,7 +12,7 @@ Due manuali che si contraddicono sono peggio di uno solo: chi legge non sa
 quale vale, e la risposta giusta («il codice») è quella che nessuno dei due dà.
 Quindi qui resta solo il puntatore, e la memoria del perché.
 
-## Le tre cose che non devono sfuggire
+## Le cose che non devono sfuggire
 
 1. **I colori non si scrivono.** L'app ha tema chiaro e scuro: ogni colore passa
    dai token (`bg-surface`, `text-text-primary`, `text-gold-text`…). Un `#hex` o
@@ -24,12 +24,18 @@ Quindi qui resta solo il puntatore, e la memoria del perché.
 3. **Un file `'use server'` esporta endpoint.** «C'è una sessione» non è un
    permesso. Si può saltare il controllo di ruolo **o** il client di servizio,
    non tutti e due (§329): `npx tsx lib/actions-guard.check.ts`.
+4. **I numeri si prendono alla fine.** Su `main` spingono più sessioni. Il
+   `§NNN` di un paragrafo lo dà `npm run paragrafo` (§406), il numero di una
+   migration `npm run migrazione XXX_nome.sql` (§423), un attimo prima del
+   commit. Una migration in lavorazione si chiama `XXX_nome.sql`.
+5. **Prima di applicare una migration si guarda la produzione**, non il
+   registro: anche gli altri applicano. Il dettaglio è in `CLAUDE.md`.
 
 ## I gate, prima di dire che è fatto
 
 ```bash
 npx tsc --noEmit                       # zero errori
-npx tsx lib/<percorso>.check.ts        # i 48 file lib/**/*.check.ts, exit 0
+TZ=Europe/Rome npx tsx lib/<percorso>.check.ts   # tutti i lib/**/*.check.ts, «Tutti i controlli passano»
 ```
 
 `npm run lint` è nel `package.json` ma non controlla niente: manca la
