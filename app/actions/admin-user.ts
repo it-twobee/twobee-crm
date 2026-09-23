@@ -121,8 +121,12 @@ export async function adminUserTraces(userId: string): Promise<Traccia[]> {
  *
  * Tre cose, e nessuna è pignoleria:
  *
- * - **solo il super admin.** Disattivare è una decisione operativa e la prende
- *   un admin; cancellare non si disfa, e chi la prende deve essere uno solo;
+ * - **admin e super admin** (§419). Era super admin soltanto, e la ragione era
+ *   buona — cancellare non si disfa — ma reggeva solo finché il super admin era
+ *   l'unico a fare pulizia: con gli account di prova che si accumulano, la
+ *   scelta si è rivelata un collo di bottiglia e il committente l'ha cambiata.
+ *   Resta la parte che conta: **un ruolo amministrativo lo elimina solo un
+ *   super admin**, perché lì la cancellazione è anche una perdita di governo;
  * - **mai sé stessi.** Cancellarsi da soli lascia un sistema senza chi lo
  *   governa, e non c'è schermata che lo rimetta a posto;
  * - **mai chi ha lasciato tracce che bloccano.** Se ha task, cronologia o
@@ -135,7 +139,6 @@ export async function adminUserTraces(userId: string): Promise<Traccia[]> {
  */
 export async function adminDeleteUser(userId: string): Promise<{ eliminato: true }> {
   const { callerId, isSuper } = await assertAdmin()
-  if (!isSuper) throw new Error('Solo il super admin può eliminare un membro')
   if (userId === callerId) throw new Error('Non puoi eliminare il tuo stesso account')
 
   const admin = createAdminClient()
@@ -144,6 +147,13 @@ export async function adminDeleteUser(userId: string): Promise<{ eliminato: true
   if (!t) throw new Error('Questo membro non esiste più')
   if (t.email && SUPER_ADMIN_EMAILS.includes(t.email)) {
     throw new Error('Questo account non si elimina: è il super admin di sistema')
+  }
+  /* §419 — un admin fa pulizia, non tocca chi governa: per togliere di mezzo un
+     ruolo amministrativo serve un super admin. Senza questa riga, aprire
+     l'eliminazione agli admin avrebbe aperto anche la strada per eliminarsi
+     l'un l'altro. */
+  if (!isSuper && isAdminRole(t.app_role)) {
+    throw new Error('Un ruolo amministrativo lo elimina solo il super admin')
   }
 
   const bloccanti = (await adminUserTraces(userId)).filter(x => BLOCCA(x.azione))

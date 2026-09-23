@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { humanBytes, materialDownloadHref } from '@/lib/portal/materials'
-import { SPACE_LABEL, crumbsOf, extensionBadge, folderLine } from '@/lib/portal/explorer'
+import { SPACE_LABEL, autoreTesto, crumbsOf, extensionBadge, folderLine } from '@/lib/portal/explorer'
 import type { ClientMaterial, Crumb, FolderSummary, Space } from '@/lib/portal/explorer'
 import { MaterialThumb } from '@/components/shared/MaterialThumb'
 import type { UploadJob } from './uploads'
@@ -92,7 +92,7 @@ export function locationOf(m: Pick<ClientMaterial, 'source' | 'path'>): string {
 }
 
 function meta(m: ClientMaterial) {
-  return `${humanBytes(Number(m.size))} · ${m.uploaded_by_name} · ${formatDate(m.created_at)}`
+  return `${humanBytes(Number(m.size))} · ${autoreTesto(m)} · ${formatDate(m.created_at)}`
 }
 
 export type Selection = { checked: boolean; onChange: (checked: boolean) => void }

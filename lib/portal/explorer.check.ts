@@ -4,7 +4,7 @@
    una risposta sbagliata qui è un file che «non c'è». */
 import assert from 'node:assert/strict'
 import {
-  allFolders, crumbsOf, extensionBadge, foldText, folderMoveTarget, folderNameError, folderRenameTarget, isInside,
+  allFolders, autoreTesto, crumbsOf, extensionBadge, foldText, folderMoveTarget, folderNameError, folderRenameTarget, isInside,
   isJunkFile, joinPath, lastSegment, listFolder, parentPath, renameFile, searchMaterials, sortFiles, sortFolders,
   splitName,
 } from './explorer'
@@ -125,6 +125,12 @@ is('ma sì in una cartella dal nome simile', folderMoveTarget('Brand', 'Brandizz
 is('rinominare tiene il padre', folderRenameTarget('Brand/Loghi', 'Marchi'), { path: 'Brand/Marchi' })
 is('lo stesso nome non è un rinomina', 'error' in folderRenameTarget('Brand/Loghi', 'Loghi'), true)
 is('tutte le cartelle, con i passaggi intermedi', allFolders([{ path: 'Brand/Loghi' }, { path: null }], ['Vuota']), ['Brand', 'Brand/Loghi', 'Vuota'])
+
+/* §419 — un account eliminato slega il file, non se lo porta via. Il nome resta
+   scritto accanto dal giorno del caricamento: senza l'avvertenza chi legge la
+   lista cercherebbe in rubrica una persona che non c'è più. */
+is('autore ancora dei nostri', autoreTesto({ uploaded_by: 'u1', uploaded_by_name: 'Sabrina Nastro' }), 'Sabrina Nastro')
+is('autore eliminato', autoreTesto({ uploaded_by: null, uploaded_by_name: 'michele cristallo' }), 'michele cristallo (non più nel sistema)')
 
 if (failures) { console.log(`\n${failures} controlli falliti.`); process.exit(1) }
 console.log('\nTutti i controlli passano.')

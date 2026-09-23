@@ -1,5 +1,30 @@
 # Dove siamo
 
+## Un account si elimina davvero, il file del cliente resta — §419, 2026-09-23
+
+Scelta del committente, e cambia una regola scritta a §362: **eliminare un
+membro lo fanno admin e super admin**, non più il solo super admin. La ragione
+di prima era buona — cancellare non si disfa — ma reggeva finché il super admin
+era l'unico a fare pulizia, e con gli account di prova che si accumulano era
+diventata un collo di bottiglia. Resta la parte che conta: un **ruolo
+amministrativo** lo elimina solo un super admin, perché lì la cancellazione è
+anche una perdita di governo.
+
+E si accetta il prezzo: quello che una persona ha caricato nell'area di un
+cliente **resta dov'è**, con l'autore slegato. Il nome non si perde —
+`uploaded_by_name` è scritto accanto all'id dal giorno del caricamento — e la
+lista lo mostra con «non più nel sistema»: senza quell'avvertenza chi legge
+cercherebbe in rubrica una persona che non c'è più.
+
+Migration **256**: `portal_materials.uploaded_by` e `portal_events.actor_id`
+diventano slegabili. La guardia del materiale impara l'unica modifica che non
+arriva da una persona — l'autore che diventa NULL, e nient'altro nella riga.
+Le altre colonne del portale hanno guardie proprie e restano per una seconda
+passata: la verifica della migration le elenca.
+
+E le due migration numerate **254** erano due davvero: la mia è diventata
+**255**, quella dell'area file era su `main` per prima.
+
 ## Eliminare un membro non era un vicolo cieco per caso — §418, 2026-09-23
 
 La finestra di eliminazione spiegava perché la porta è chiusa e offriva un
@@ -10,7 +35,7 @@ Sotto c'erano due cose diverse. Una è un difetto vero: `tasks.assignee_id`
 puntava a `profiles` senza clausola di cancellazione, quindi `NO ACTION`, quindi
 una sola task in carico — anche completata, anche assegnata per sbaglio a un
 account del portale (§409) — bloccava per sempre l'eliminazione. Migration
-**254**: `SET NULL`, come le altre colonne di attribuzione dello stesso schema.
+**255**: `SET NULL`, come le altre colonne di attribuzione dello stesso schema.
 La task resta e torna libera.
 
 L'altra non è un difetto: i file caricati nell'area di un cliente e i movimenti

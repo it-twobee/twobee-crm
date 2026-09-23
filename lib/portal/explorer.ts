@@ -10,7 +10,23 @@ import { extensionOf, normalizePath } from './materials'
 export type ClientMaterial = {
   id: string; client_id: string; project_id: string | null; name: string; mime: string | null
   size: number; kind: string; path: string | null; source: 'cliente' | 'team'
-  uploaded_by: string; uploaded_by_name: string; created_at: string; archived_at: string | null
+  /* §419 — l'id può mancare: quando un account viene eliminato la chiave esterna
+     lo slega e il file resta al cliente. Il **nome** resta scritto accanto dal
+     giorno del caricamento, quindi l'autore si legge lo stesso — con la sua
+     avvertenza. Un file senza autore sarebbe stato peggio del file di prima. */
+  uploaded_by: string | null; uploaded_by_name: string; created_at: string; archived_at: string | null
+}
+
+/**
+ * Chi ha caricato, e se è ancora dei nostri (§419).
+ *
+ * Il nome da solo direbbe che la persona c'è: chi legge una lista di file non ha
+ * modo di sapere che quell'account è stato eliminato, e finirebbe per cercarlo
+ * in rubrica. L'avvertenza è corta di proposito — serve a fermare la ricerca,
+ * non a raccontare una storia.
+ */
+export function autoreTesto(m: Pick<ClientMaterial, 'uploaded_by' | 'uploaded_by_name'>): string {
+  return m.uploaded_by ? m.uploaded_by_name : `${m.uploaded_by_name} (non più nel sistema)`
 }
 
 /** I due spazi dell'area: quello che ha caricato il cliente, e il nostro. */

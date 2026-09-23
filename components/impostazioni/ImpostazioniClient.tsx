@@ -480,6 +480,12 @@ function UsersTab({ currentProfile, profiles: initialProfiles, clients }: { curr
   const [profiles, setProfiles] = useState(initialProfiles)
   const [editingUser, setEditingUser] = useState<Profile | null>(null)
   const godMode = isSuperAdmin(currentProfile)
+  /* §419 — le azioni sulla persona (modifica, disattiva, elimina) le fa anche
+     l'admin: il server già lo autorizza — `assertAdmin` passa admin e super
+     admin, e l'anti-escalation impedisce comunque a un admin di assegnare ruoli
+     amministrativi — quindi l'interfaccia era più stretta della porta vera. Una
+     porta nascosta non è una barriera: è solo un giro più lungo. */
+  const puoGestire = godMode || currentProfile.app_role === 'admin'
 
   const [deleting, setDeleting] = useState<Profile | null>(null)
 
@@ -579,7 +585,7 @@ function UsersTab({ currentProfile, profiles: initialProfiles, clients }: { curr
                     </div>
                   )}
                 </div>
-                {godMode && (
+                {puoGestire && (
                   <div className="flex items-center gap-2 shrink-0">
                     <button onClick={() => setEditingUser(p)}
                       className="flex items-center gap-1.5 text-xs text-gold-text border border-gold/30 px-3 py-1.5 rounded-lg hover:bg-gold/10 transition-colors">

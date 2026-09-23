@@ -39,8 +39,10 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > scheletro dei progetti; la **249** la pubblicazione nel portale; la **250** lo
 > spazio file del cliente; la **251** l'area file condivisa; la **252** la misura
 > dell'utilizzo; la **253** rimette i trigger di cronologia persi nel reset del
-> dominio progetti; la **254** organizza l'area file (§413). La prossima libera è
-> la **255**.
+> dominio progetti; la **254** organizza l'area file (§413); la **255** toglie il
+> blocco che impediva di eliminare un membro per una sola task; la **256** lascia
+> cancellare un account senza portarsi via i file del cliente. La prossima libera è
+> la **257**.
 
 > **La 249 è nata 247.** È stata scritta e **applicata in produzione** mentre su
 > main arrivavano `247_periodi_e_ricorrenze` e `248_scheletro_periodi`, da una
@@ -80,9 +82,37 @@ Verificata dal lato applicativo subito dopo: la tabella risponde, e
 che è giusto: il battito arriva col deploy). Additiva, rilanciabile, nessun
 prerequisito oltre `profiles` e `activity_log`.
 
-## 254 — una task sopravvive alla persona (§418, da applicare)
+## 256 — un account si elimina, il file del cliente resta (§419, da applicare)
 
-`254_task_senza_persona.sql`: **da eseguire**. Rilanciabile, tocca solo vincoli.
+`256_autore_ignoto.sql`: **da eseguire**. Rilanciabile. Prerequisiti: **250**,
+**251**, **254**.
+
+Decisione del committente, e va scritta perché non è ovvia: un account si
+elimina davvero, e quello che ha caricato nell'area di un cliente resta dov'è
+con l'autore **ignoto e dichiarato tale**. L'alternativa era tenere in eterno
+account inutilizzati solo perché una volta hanno caricato un file.
+
+`portal_materials.uploaded_by` e `portal_events.actor_id` diventano nullable e
+`ON DELETE SET NULL`. Il nome non si perde: `uploaded_by_name` è scritto accanto
+all'id dal giorno del caricamento, e l'interfaccia lo mostra con «non più nel
+sistema» (`autoreTesto` in `lib/portal/explorer.ts`).
+
+**La guardia va toccata**, ed è la parte delicata: `uploaded_by` sta nell'elenco
+di ciò che non cambia dopo il caricamento, e `ON DELETE SET NULL` è tecnicamente
+un UPDATE — quindi `portal_guard_material` rifiuterebbe. Il corpo è quello della
+**254** ricopiato per intero con una sola aggiunta in testa al ramo UPDATE: passa
+solo se l'autore diventa NULL **e tutto il resto della riga è identico**. Se la
+254 viene riscritta dopo, questa aggiunta va rimessa.
+
+Restano fuori le altre colonne del portale che puntano a una persona
+(`portal_activities.author_id`, `portal_requests`, `portal_approvals`,
+`portal_material_folders.created_by`…): hanno guardie proprie sull'UPDATE che
+vanno lette una per una. La **verifica 2** le elenca, così il prossimo vicolo
+cieco si vede prima di sbatterci.
+
+## 255 — una task sopravvive alla persona (§418, da applicare)
+
+`255_task_senza_persona.sql`: **da eseguire**. Rilanciabile, tocca solo vincoli.
 
 `tasks.assignee_id` puntava a `profiles` senza clausola di cancellazione, e
 senza clausola Postgres sceglie `NO ACTION`: bastava **una** task, anche chiusa,
