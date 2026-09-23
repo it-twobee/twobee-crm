@@ -41,8 +41,8 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > dell'utilizzo; la **253** rimette i trigger di cronologia persi nel reset del
 > dominio progetti; la **254** organizza l'area file (§413); la **255** toglie il
 > blocco che impediva di eliminare un membro per una sola task; la **256** lascia
-> cancellare un account senza portarsi via i file del cliente. La prossima libera è
-> la **257**.
+> cancellare un account senza portarsi via i file del cliente; la **257** insegna
+> alle guardie del portale cos'è una cancellazione. La prossima libera è la **258**.
 
 > **La 249 è nata 247.** È stata scritta e **applicata in produzione** mentre su
 > main arrivavano `247_periodi_e_ricorrenze` e `248_scheletro_periodi`, da una
@@ -81,6 +81,29 @@ Verificata dal lato applicativo subito dopo: la tabella risponde, e
 `ultime_sessioni` e `presenza_totali` rispondono senza errore (zero sessioni,
 che è giusto: il battito arriva col deploy). Additiva, rilanciabile, nessun
 prerequisito oltre `profiles` e `activity_log`.
+
+## 257 — le due guardie che non conoscevano la cancellazione (§420, da applicare)
+
+`257_cancellare_una_persona.sql`: **da eseguire**. Rilanciabile. Prerequisito:
+**256**.
+
+La 256 non bastava, e si è visto solo provando a cancellare davvero. Due cause,
+tutte e due invisibili leggendo il repository: i trigger colpevoli nascono dentro
+un `DO ... EXECUTE format(...)`, quindi cercarli per nome non li trova.
+
+**`portal_immutable`** sta su `portal_events` e rifiuta ogni UPDATE — ma
+`ON DELETE SET NULL` **è** un UPDATE, quindi svuotare `actor_id` era vietato e la
+cancellazione moriva lì. Adesso la guardia ammette una cosa sola: che **ogni**
+differenza fra riga vecchia e nuova sia una colonna di riferimento (`*_id`,
+`*_by`) che diventa NULL. Un testo riscritto o un esito cambiato restano
+rifiutati, che è il motivo per cui quella guardia esiste.
+
+**`portal_log_event`** pretende `x-actor-id` e la server action scriveva col
+service role nudo: si risolve nel codice, con `createActorClient` — la regola sta
+in `docs/cronologia.md` da sempre e a quell'azione non era stata applicata.
+
+La verifica in coda prova tutte e due le strade su un evento vero dentro una
+transazione che si annulla da sé: non scrive e non cancella niente.
 
 ## 256 — un account si elimina, il file del cliente resta (§419, da applicare)
 

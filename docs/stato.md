@@ -1,5 +1,24 @@
 # Dove siamo
 
+## Le due guardie che non conoscevano la cancellazione — §420, 2026-09-23
+
+La 256 non bastava: eliminare un membro continuava a fallire, e in faccia
+arrivava «An error occurred in the Server Components render» — cioè niente.
+
+Due cause, tutte e due trovate solo provandoci davvero, perché i trigger
+colpevoli nascono dentro un `DO ... EXECUTE format(...)` e cercarli nel
+repository non li trova. **`portal_immutable`** rifiuta ogni UPDATE su
+`portal_events`, e `ON DELETE SET NULL` è un UPDATE: svuotare `actor_id` era
+vietato. **`portal_log_event`** pretende `x-actor-id`, e la server action
+scriveva col service role nudo — la regola di `docs/cronologia.md` non era stata
+applicata a quell'azione.
+
+Migration **257** per la prima, `createActorClient` per la seconda. E una terza
+cosa che non c'entra col portale ma è la ragione per cui ci sono volute due
+prove: l'azione adesso **risponde invece di lanciare**. In produzione Next
+maschera il messaggio di un throw da server action, quindi la causa vera
+finiva nei log del server e all'utente arrivava una frase che non dice niente.
+
 ## Un account si elimina davvero, il file del cliente resta — §419, 2026-09-23
 
 Scelta del committente, e cambia una regola scritta a §362: **eliminare un

@@ -375,11 +375,13 @@ function DeleteUserDialog({ user, onClose, onDeleted, onDisattiva }: {
 
   const elimina = async () => {
     setPending(true)
-    try {
-      await adminDeleteUser(user.id)
-      toast.success(`${atteso} eliminato definitivamente`)
-      onDeleted(user.id)
-    } catch (e) { toast.error((e as Error).message); setPending(false) }
+    /* L'azione risponde invece di lanciare: in produzione un throw da server
+       action arriva qui senza messaggio, e «non si è potuto» senza il perché
+       è il modo più veloce per far riprovare tre volte la stessa cosa. */
+    const esito = await adminDeleteUser(user.id).catch((e: Error) => ({ ok: false as const, errore: e.message }))
+    if (!esito.ok) { toast.error(esito.errore); setPending(false); return }
+    toast.success(`${atteso} eliminato definitivamente`)
+    onDeleted(user.id)
   }
 
   return (

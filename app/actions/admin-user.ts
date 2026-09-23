@@ -1,6 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createAdminClient, createActorClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { SUPER_ADMIN_EMAILS, coarseRole, isAdminRole } from '@/lib/permissions'
 import { revalidatePath } from 'next/cache'
@@ -137,11 +137,34 @@ export async function adminUserTraces(userId: string): Promise<Traccia[]> {
  * Quello che **cascade** si porta via viene mostrato prima nella conferma: non
  * si cancella niente che la persona davanti allo schermo non abbia letto.
  */
-export async function adminDeleteUser(userId: string): Promise<{ eliminato: true }> {
+export type EsitoEliminazione = { ok: true } | { ok: false; errore: string }
+
+export async function adminDeleteUser(userId: string): Promise<EsitoEliminazione> {
+  try {
+    return await eliminaMembro(userId)
+  } catch (e) {
+    /* §420 — risponde, non lancia. In produzione Next maschera il messaggio di
+       un throw da server action e al posto della ragione arriva «An error
+       occurred in the Server Components render»: chi sta cancellando un utente
+       si ritrova davanti un errore che non dice niente, e la causa vera —
+       «serve x-actor-id», «il registro è immutabile» — resta nei log del
+       server, dove nessuno la cerca. */
+    console.error('[eliminazione membro]', e)
+    return { ok: false, errore: (e as Error).message }
+  }
+}
+
+async function eliminaMembro(userId: string): Promise<EsitoEliminazione> {
   const { callerId, isSuper } = await assertAdmin()
   if (userId === callerId) throw new Error('Non puoi eliminare il tuo stesso account')
 
-  const admin = createAdminClient()
+  /* §420 — `createActorClient`, non `createAdminClient`, e non è una pignoleria
+     di cronologia: cancellare un profilo fa cadere in cascata gli accessi al
+     portale e slega i suoi materiali, e ognuna di quelle scritture passa da
+     `portal_log_event`, che **pretende** `x-actor-id` e lancia se non lo trova.
+     Col service role nudo la cancellazione moriva su un messaggio che parlava
+     del portale a chi stava cancellando un utente. */
+  const admin = createActorClient(callerId)
   const { data: target } = await admin.from('profiles').select('email, app_role').eq('id', userId).maybeSingle()
   const t = target as { email?: string; app_role?: string } | null
   if (!t) throw new Error('Questo membro non esiste più')
@@ -177,5 +200,5 @@ export async function adminDeleteUser(userId: string): Promise<{ eliminato: true
   }
 
   revalidatePath('/impostazioni')
-  return { eliminato: true }
+  return { ok: true }
 }
