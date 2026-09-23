@@ -7,8 +7,8 @@ import {
 import { formatDate } from '@/lib/utils'
 import { isDriveUrl, driveKind, DRIVE_KIND_LABEL } from '@/lib/drive'
 import { DriveEmbed } from '@/components/shared/DriveEmbed'
-import { ClientFileArea } from '@/components/shared/ClientFileArea'
-import type { ClientMaterial } from '@/components/shared/ClientFileArea'
+import { ClientFileArea } from '@/components/shared/file-area/ClientFileArea'
+import type { ClientMaterial } from '@/lib/portal/explorer'
 import type { Profile } from '@/lib/types/database'
 import { VoceSezione } from '@/components/workspace/VoceSezione'
 import type { Sezione } from '@/lib/task-mood'
@@ -28,16 +28,13 @@ interface DocItem {
 }
 export type DocMaterial = ClientMaterial
 
-export function DocumentiClient({ documents, materials, clients, canWrite, canDeleteClientFiles, viewerId, voce }: {
+export function DocumentiClient({ documents, materials, clients, voce }: {
   /** §351 — la riga sotto il titolo, **solo** nel portale operativo. */
   voce?: Sezione
   documents: DocItem[]
+  /** Per l'elenco delle aziende e la ricerca fra aziende: dentro, l'area carica da sé i suoi (§416). */
   materials: DocMaterial[]
   clients: { id: string; company_name: string }[]
-  canWrite: boolean
-  /** Un file del cliente lo elimina solo un amministratore: agli altri resta archiviare. */
-  canDeleteClientFiles: boolean
-  viewerId: string
 }) {
   const [search, setSearch] = useState('')
   const [filterClient, setFilterClient] = useState<string | null>(null)
@@ -128,8 +125,7 @@ export function DocumentiClient({ documents, materials, clients, canWrite, canDe
             {isOpen(row.id) && <div className="border-t border-border px-4 py-3 space-y-5">
               {row.id === 'senza'
                 ? <p className="text-2xs text-text-tertiary">Documenti senza cliente: non hanno un’area dove caricare.</p>
-                : <ClientFileArea clientId={row.id} materials={row.materials} canWrite={canWrite}
-                    canDeleteClientFiles={canDeleteClientFiles} viewerId={viewerId} />}
+                : <ClientFileArea clientId={row.id} />}
 
               {row.drive.length > 0 && <section>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Link Drive</h3>

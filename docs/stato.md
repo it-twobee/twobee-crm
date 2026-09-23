@@ -1,5 +1,25 @@
 # Dove siamo
 
+## L'area file è un esploratore — §416, 2026-09-23
+
+La scheda File di ogni cliente, e Documenti, non mostrano più due elenchi uno
+sopra l'altro. C'è un esploratore:
+- i due spazi («Nostri», «Dal cliente») e il breadcrumb della cartella
+  corrente, che sta nell'indirizzo;
+- elenco o griglia, l'ordine per data, nome o dimensione, e la vista «Recenti»
+  con tutti i file dall'ultimo arrivato;
+- la ricerca per nome di file e cartelle in tutti e due gli spazi;
+- gli archiviati a richiesta;
+- il drag and drop di file e cartelle dal computer: finiscono nella cartella
+  che si guarda, o in quella su cui li si lascia;
+- tre caricamenti in parallelo, con un totale e il bottone Annulla.
+
+Nessuna migration. Spostare, rinominare e creare cartelle vuote arrivano col
+passo dopo, che tocca il trigger della 251.
+
+Dettaglio in `docs/storage-access.md`. Prova nel browser vero:
+`scripts/check-area-file-browser.mjs`.
+
 ## L'area file ha una porta sola, e chiude — §414, 2026-09-23
 
 Questo è il primo passo per togliere di mezzo il Google Drive interno. L'area

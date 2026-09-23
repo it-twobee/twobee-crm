@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getViewer } from '@/lib/auth'
 import { redirect } from 'next/navigation'
-import { isAdminRole, isSuperAdminRaw, isWorkspaceRole } from '@/lib/permissions'
 import { isMissingPortalSchema } from '@/lib/portal/model'
 import { DocumentiClient } from '@/components/documenti/DocumentiClient'
 import type { DocMaterial } from '@/components/documenti/DocumentiClient'
@@ -9,7 +8,7 @@ import type { DocMaterial } from '@/components/documenti/DocumentiClient'
 export const revalidate = 0
 
 export default async function DocumentiPage() {
-  const { user, profile } = await getViewer()
+  const { user } = await getViewer()
   if (!user) redirect('/login')
   const supabase = await createClient()
 
@@ -27,16 +26,12 @@ export default async function DocumentiPage() {
 
   // §398 — se la 250/251 non è applicata la pagina resta quella dei link Drive.
   const materials = isMissingPortalSchema(materialsRes.error) ? [] : (materialsRes.data ?? [])
-  const admin = isAdminRole(profile?.app_role) || isSuperAdminRaw(profile?.email, profile?.app_role)
 
   return (
     <DocumentiClient
       documents={(docsRes.data ?? []) as unknown as Parameters<typeof DocumentiClient>[0]['documents']}
       materials={materials as unknown as DocMaterial[]}
       clients={(clientsRes.data ?? []) as unknown as { id: string; company_name: string }[]}
-      canWrite={admin || isWorkspaceRole(profile?.app_role)}
-      canDeleteClientFiles={admin}
-      viewerId={user.id}
     />
   )
 }

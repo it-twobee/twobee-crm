@@ -258,6 +258,57 @@ Due letture erano troncate da PostgREST a mille righe:
 La scheda File, inoltre, non si aggiornava: i dati stanno nello stato del
 componente, e `router.refresh()` rilegge solo i componenti server.
 
+## L'esploratore (§416)
+
+L'area file di un cliente è un esploratore, non più un elenco in due gruppi. È
+il primo pezzo per togliere di mezzo il Google Drive interno. Il componente è
+`components/shared/file-area/ClientFileArea.tsx`, lo stesso nella scheda
+cliente e in Documenti. La logica pura — cosa c'è in una cartella, in che
+ordine, cosa trova una ricerca — sta in `lib/portal/explorer.ts`, con il suo
+check.
+
+- **Due spazi, una navigazione.** In alto si sceglie fra «Nostri · N» e «Dal
+  cliente · N»; sotto c'è la cartella corrente con il breadcrumb. Nella scheda
+  cliente cartella e spazio stanno nell'indirizzo (`?spazio=&cartella=`), con
+  `replaceState`. Cambiare cartella non rilegge la pagina dal server e non
+  lascia una voce di cronologia per ogni cartella aperta. Un ricarico, o il
+  ritorno da un'altra pagina via `NavMemory`, riapre la stessa cartella. In
+  Documenti le aree sono tante, una per azienda, e l'indirizzo resta fermo.
+- **Si carica solo in «Nostri».** La rotta scrive sempre `source='team'`, e
+  mettere un file nello spazio del cliente vorrebbe dire farglielo vedere: è
+  una pubblicazione, non un caricamento. Nello spazio del cliente i bottoni
+  non ci sono e un file trascinato viene rifiutato a parole.
+- **Si carica nella cartella che si guarda.**
+  - I file trascinati nell'area vanno nella cartella corrente; quelli
+    trascinati su una cartella vanno dentro di lei.
+  - Le cartelle trascinate dal computer si leggono con `webkitGetAsEntry`, e
+    `readEntries` va chiamato finché torna vuoto: Chrome restituisce cento voci
+    alla volta.
+  - Le voci si prendono dentro l'evento: dopo, il browser svuota il
+    `DataTransfer`.
+  - `.DS_Store`, `Thumbs.db`, `__MACOSX/` e simili si saltano (`isJunkFile`).
+- **I caricamenti** partono tre alla volta, hanno un avanzamento totale e il
+  bottone Annulla, e gli errori si raccolgono in un riepilogo. Prima il primo
+  errore fermava tutto, e ne restava scritto solo uno.
+- **Ordine**: data (default, i più recenti prima), nome (i numeri contano come
+  numeri, «9» prima di «10»), dimensione. Le cartelle stanno sempre sopra: per
+  data le ordina il loro ultimo caricamento, e una cartella vuota va in fondo.
+  L'ordine è una preferenza di chi guarda (`localStorage`).
+- **«Recenti»**: tutti i file dello spazio, da ogni cartella, dall'ultimo
+  arrivato, con scritto dove stanno.
+- **La ricerca** guarda i nomi di file e cartelle in **tutti e due** gli spazi.
+  Tutte le parole devono comparire, in qualunque ordine, senza accenti e senza
+  maiuscole. Una cartella si trova dal suo nome, non dal percorso: cercare
+  «brand» non restituisce ogni file che sta sotto Brand.
+- **Gli archiviati** sono nascosti, come in Documenti, e si vedono a richiesta.
+- **Elimina** chiede conferma nella pagina (`ConfirmDialog`): il `confirm()`
+  nativo non segue il tema.
+- **La griglia** mostra miniature grandi e, per i file che non ne hanno, il
+  tipo scritto (PSD, PDF, ZIP).
+
+Il portale del cliente non cambia layout: condivide con noi solo anteprima,
+miniatura e regole dei percorsi.
+
 ## Verifiche
 
 ```bash
@@ -266,6 +317,8 @@ npx tsx scripts/check-storage-routes.ts
 npx tsx scripts/check-portal-download-route.ts
 npx tsx scripts/check-portal-materials-routes.ts
 npx tsx scripts/check-area-cliente-routes.ts   # rotte del team + scheda File
+npx tsx lib/portal/explorer.check.ts           # cartelle, ordine, ricerca
+NODE_PATH=<playwright> node scripts/check-area-file-browser.mjs   # l'esploratore in un browser vero
 node scripts/check-storage-sql.mjs
 ```
 

@@ -7,7 +7,7 @@ import { getViewer } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { canReadMaterials, canWriteMaterials, isStorageAdmin, isStorageUuid } from '@/lib/storage/access'
 import { isMissingPortalSchema } from '@/lib/portal/model'
-import type { ClientMaterial } from '@/components/shared/ClientFileArea'
+import type { ClientMaterial } from '@/lib/portal/explorer'
 import type { PortalResult } from '@/lib/portal/access'
 
 export type ClientFilesData = {
