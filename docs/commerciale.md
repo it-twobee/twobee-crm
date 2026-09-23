@@ -92,6 +92,45 @@ Il pannello **Controllo** resta in sola lettura, ed è una scelta vecchia che
 regge (§385): lì i rilievi portano alle righe e la decisione si prende sulla
 riga, non dentro l'elenco dei problemi.
 
+## La scheda risponde prima di mostrare i campi — §428
+
+La scheda mostrava ventitré campi tutti uguali in cinque riquadri, ordinati per
+argomento. Ordinare per argomento è giusto per **cercare** un dato ed è inutile
+per **lavorare**: chi apre una scheda non sta cercando un campo, sta decidendo
+cosa fare adesso. E cosa serve adesso dipende da dove sta la trattativa — a un
+lead appena arrivato si chiede un recapito, a uno perso si chiede perché.
+
+In cima adesso ci sono tre cose, tutte da funzioni pure in `lib/sales-scheda.ts`
+con il loro gate:
+
+- **Prossima azione**, una sola. Un elenco di sei cose da fare è un elenco che
+  non si fa. L'ordine è quello del danno, non quello della schermata: senza
+  recapito il lead non si lavora affatto, e dirgli «qualificalo» prima sarebbe
+  un consiglio che non si può seguire.
+- **Cosa manca adesso**: i campi vuoti che contano *in questa fase*, già
+  compilabili. Non tutti i vuoti — quasi ogni riga ne ha dieci, e dieci cose
+  mancanti sono un elenco che si ignora. Su una chiusa si chiede solo il motivo:
+  riempire un perso di campi obbligatori è il modo di far smettere di segnarli.
+- **Lo sappiamo già**: quello che sta nella provenienza Meta e nessuno ha
+  ricopiato. Si **propone**, non si scrive — quei dati li ha dichiarati chi ha
+  compilato il modulo e non sono verificati, e un campo che si riempie da solo
+  non lo ricontrolla nessuno.
+
+Tutto ragiona sul **ruolo** della fase, mai sulla chiave: le fasi si rinominano
+dalle impostazioni (§424).
+
+**La scheda segue lo scorrimento** (`sticky`, non `fixed`): si apriva una riga
+in cima e per rivedere la scheda bisognava risalire. Resta dentro la sua
+colonna, quindi non copre l'elenco, e lo scorrimento interno è suo — è
+l'eccezione dichiarata a §195, perché un pannello laterale non è il corpo della
+pagina.
+
+**Chiuso un buco della Fase 1**: `qualifica`, `tentativi` e `motivo_perso`
+esistevano nel database dalla 258 e non erano visibili da nessuna parte. Adesso
+sono colonne vere. Il motivo è un menu che legge `sales_motivi_perso`: un campo
+libero lì diventa quaranta grafie di «prezzo» e rende inservibile il grafico dei
+persi prima ancora di disegnarlo.
+
 ## Com'era prima: il CRM di Notion, qui dentro
 
 ## Foglio attivo e follow-up nel calendario — 21 settembre 2026

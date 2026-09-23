@@ -564,8 +564,16 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
           </div>
           )}
 
+            {/* §428 — la scheda segue lo scorrimento invece di scivolare via con la
+                pagina: si apre una riga in cima e si legge l'elenco sotto, e prima
+                bisognava risalire per vederla. `sticky` e non `fixed`: resta dentro
+                la colonna, quindi non copre l'elenco e non va spostata a mano quando
+                la finestra cambia. L'altezza è la finestra meno l'intestazione
+                dell'app; lo scorrimento interno è della scheda (§195: lo scroll è
+                della pagina — qui l'eccezione è dichiarata, perché un pannello
+                laterale non è il corpo della pagina). */}
           {aperta && (
-            <div className="fixed inset-0 z-40 bg-background p-4 lg:static lg:inset-auto lg:z-auto lg:p-0 lg:flex-1 lg:min-w-0 lg:max-h-[calc(100vh-14rem)]">
+            <div className="fixed inset-0 z-40 bg-background p-4 lg:sticky lg:top-4 lg:inset-auto lg:z-auto lg:p-0 lg:flex-1 lg:min-w-0 lg:h-[calc(100vh-7rem)]">
               <CrmScheda
                 riga={aperta}
                 pending={pending}

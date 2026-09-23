@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { CAMPI_RIGA } from '@/lib/sales-table'
 import { CrmTable, type RigaCrm } from './CrmTable'
 import { FasiProvider } from './FasiContext'
-import { leggiFasi } from '@/lib/sales-fasi'
+import { leggiFasi, leggiMotiviPerso } from '@/lib/sales-fasi'
 
 /**
  * §371 — il CRM commerciale, nei due portali.
@@ -50,10 +50,10 @@ export async function SalesPage({ base }: { base: string }) {
   /* §424 — le fasi scendono dal server una volta e stanno a disposizione di
      tutta la sezione: sono una tabella che un amministratore cambia mentre il
      tool gira, non più una costante importata da otto componenti. */
-  const fasi = await leggiFasi()
+  const [fasi, motivi] = await Promise.all([leggiFasi(), leggiMotiviPerso()])
 
   return (
-    <FasiProvider fasi={fasi}>
+    <FasiProvider fasi={fasi} motivi={motivi}>
       <CrmTable
         righe={(data ?? []) as unknown as RigaCrm[]}
         puoiEliminare={contesto.access === 'admin' || contesto.access === 'manager'}

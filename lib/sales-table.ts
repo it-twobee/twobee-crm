@@ -18,6 +18,7 @@
 import type { Fase } from './sales-stages'
 
 export type TipoCella =
+  | 'motivo'
   | 'testo'
   | 'lunga'
   | 'email'
@@ -68,6 +69,15 @@ export type Colonna = {
 }
 
 export const PRIORITA = ['High', 'Medium', 'Low'] as const
+/* L'elenco è chiuso e sta nel codice, al contrario delle fasi: è un giudizio a
+   tre valori — dentro, fuori, non lo so ancora — e un quarto vorrebbe dire che
+   non si è capito cosa chiede. Le etichette stanno in `ETICHETTA_QUALIFICA`. */
+export const QUALIFICHE = ['in_target', 'non_in_target', 'da_valutare'] as const
+export const ETICHETTA_QUALIFICA: Record<string, string> = {
+  in_target: 'In target',
+  non_in_target: 'Non in target',
+  da_valutare: 'Da valutare',
+}
 export const MEMBERSHIP = ['Member', 'Not Member', 'Potential'] as const
 
 /**
@@ -78,6 +88,13 @@ export const MEMBERSHIP = ['Member', 'Not Member', 'Potential'] as const
 export const COLONNE: Colonna[] = [
   { campo: 'company_name',    etichetta: 'Company',        tipo: 'testo',     largh: 15, gruppo: 'contatto' },
   { campo: 'stage',           etichetta: 'Status',         tipo: 'fase',      largh: 12, gruppo: 'trattativa' },
+  /* §428 — usciti dalla pipeline con la 258, e finora invisibili: le colonne
+     esistevano nel database e nessuna schermata le mostrava. La qualifica è un
+     giudizio su chi è il lead, i tentativi contano le volte che non ha
+     risposto, il motivo è l'unica cosa che rende leggibile un perso. */
+  { campo: 'qualifica',       etichetta: 'Qualifica',      tipo: 'scelta',    largh: 10, valori: QUALIFICHE, gruppo: 'trattativa' },
+  { campo: 'tentativi',       etichetta: 'Tentativi',      tipo: 'numero',    largh: 7,  secondaria: true, gruppo: 'trattativa' },
+  { campo: 'motivo_perso',    etichetta: 'Motivo del perso', tipo: 'motivo',  largh: 12, secondaria: true, gruppo: 'trattativa' },
   { campo: 'priority',        etichetta: 'Priority',       tipo: 'scelta',    largh: 7,  valori: PRIORITA, gruppo: 'trattativa' },
   { campo: 'contact_name',    etichetta: 'Contact Person', tipo: 'testo',     largh: 12, gruppo: 'contatto' },
   { campo: 'contact_phone',   etichetta: 'Phone',          tipo: 'telefono',  largh: 11, gruppo: 'contatto' },
@@ -202,6 +219,16 @@ export function validaCella(campo: string, grezzo: unknown, fasi: Fase[] = []): 
     return (c.valori ?? []).includes(v)
       ? { ok: true, valore: v }
       : { ok: false, motivo: `«${v}» non è un valore di ${c.etichetta}` }
+  }
+
+  /* §428 — il motivo del perso ha un elenco che vive nel database
+     (`sales_motivi_perso`), quindi qui non si può confrontare con niente: a
+     rifiutare un valore inventato ci pensa la chiave esterna, che è più stretta
+     di qualunque elenco ricopiato e non invecchia. Qui si toglie solo lo
+     spazio, e il vuoto è legittimo — un perso senza motivo è una riga da
+     completare, non un errore. */
+  if (c.tipo === 'motivo') {
+    return vuoto(v) ? { ok: true, valore: null } : { ok: true, valore: v.trim() }
   }
 
   if (vuoto(v)) {

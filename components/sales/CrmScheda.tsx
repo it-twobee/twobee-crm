@@ -19,13 +19,14 @@
  * lavorasse.
  */
 
-import { X, UserPlus, Loader2, ExternalLink, Trash2 } from 'lucide-react'
-import { COLONNE, GRUPPI_SCHEDA, TITOLO_GRUPPO, type Colonna } from '@/lib/sales-table'
+import { X, UserPlus, Loader2, ExternalLink, Trash2, Sparkles, Target, TriangleAlert } from 'lucide-react'
+import { COLONNE, GRUPPI_SCHEDA, TITOLO_GRUPPO, colonnaDi, type Colonna } from '@/lib/sales-table'
 import { CrmCella } from './CrmCella'
 import { MenuFase } from './MenuFase'
+import { useFasi } from './FasiContext'
+import { campiCheServono, prossimaAzione, suggerimenti } from '@/lib/sales-scheda'
 import type { RigaCrm } from './CrmTable'
 import { SalesFollowUps } from './SalesFollowUps'
-import { useFasi } from './FasiContext'
 
 const ORIGINE: [string, string][] = [
   ['piattaforma', 'Piattaforma'], ['campagna', 'Campagna'], ['adset', 'Adset'],
@@ -70,8 +71,17 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pend
   onElimina?: () => void
   pending: boolean
 }) {
+  const { TUTTE } = useFasi()
   const origine = (riga.lead_origine ?? {}) as Record<string, string>
   const voci = ORIGINE.filter(([k]) => origine[k])
+
+  /* §428 — tre domande a cui la scheda risponde prima di mostrare i campi:
+     cosa fare adesso, cosa manca per la fase in cui sta, e cosa sappiamo già
+     da un'altra parte. Sono funzioni pure con il loro gate: qui si disegna. */
+  const azione = prossimaAzione(TUTTE, riga as never, Date.now())
+  const mancanti = campiCheServono(TUTTE, riga as never)
+    .map(colonnaDi).filter((c): c is Colonna => !!c)
+  const proposte = suggerimenti(riga as never, riga as Record<string, unknown>)
 
   return (
     <aside
@@ -139,6 +149,51 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pend
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        {/* Una cosa sola, la più urgente: un elenco di sei cose da fare è un
+            elenco che non si fa. L'ordine è quello del danno — un lead senza
+            recapito non si lavora, e dirgli «qualificalo» prima sarebbe un
+            consiglio che non si può seguire. */}
+        {azione && (
+          <div className={`flex items-start gap-2 px-3 py-2.5 rounded-xl border text-xs ${
+            azione.urgente
+              ? 'bg-warning-dim border-warning/30 text-warning'
+              : 'bg-gold-dim border-gold/30 text-gold-text'}`}>
+            {azione.urgente ? <TriangleAlert className="w-4 h-4 shrink-0 mt-px" /> : <Target className="w-4 h-4 shrink-0 mt-px" />}
+            <span>{azione.testo}</span>
+          </div>
+        )}
+
+        {/* Quello che manca **per questa fase**, subito compilabile: non tutti i
+            campi vuoti — quasi ogni riga ne ha dieci, e dieci cose mancanti sono
+            un elenco che si ignora. */}
+        {mancanti.length > 0 && (
+          <Riquadro titolo="Cosa manca adesso">
+            {mancanti.map(c => <Campo key={c.campo} colonna={c} riga={riga} onSalva={onSalva} />)}
+          </Riquadro>
+        )}
+
+        {/* Lo sappiamo già, e nessuno l'ha ricopiato. Si **propone**: la
+            provenienza Meta è dichiarata da chi ha compilato il modulo e non è
+            verificata, e un campo che si riempie da solo non lo ricontrolla
+            nessuno. */}
+        {proposte.length > 0 && (
+          <section className="border border-border rounded-xl px-3 py-2.5 space-y-2">
+            <p className="flex items-center gap-1.5 text-2xs font-semibold text-text-tertiary uppercase tracking-wide">
+              <Sparkles className="w-3.5 h-3.5" /> Lo sappiamo già
+            </p>
+            {proposte.map(s => (
+              <div key={s.campo} className="flex items-center gap-2 text-2xs">
+                <span className="text-text-tertiary shrink-0">{colonnaDi(s.campo)?.etichetta ?? s.campo}</span>
+                <span className="flex-1 min-w-0 truncate text-text-primary" title={`da ${s.da}`}>{s.valore}</span>
+                <button onClick={() => { void onSalva(s.campo, s.valore) }} disabled={pending}
+                  className="shrink-0 text-2xs font-semibold text-gold-text border border-gold/30 px-2 py-0.5 rounded-lg hover:bg-gold/10 disabled:opacity-40">
+                  Usa
+                </button>
+              </div>
+            ))}
+          </section>
+        )}
+
         <SalesFollowUps key={riga.id} dealId={riga.id} company={riga.company_name || 'Lead'}
           email={typeof riga.contact_email === 'string' ? riga.contact_email : null} />
         {GRUPPI_SCHEDA.filter(g => g !== 'provenienza').map(g => (

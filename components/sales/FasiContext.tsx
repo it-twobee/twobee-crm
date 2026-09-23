@@ -24,7 +24,11 @@ import {
   type Fase, type Gruppo, type Ruolo,
 } from '@/lib/sales-stages'
 
+export type MotivoPerso = { chiave: string; etichetta: string }
+
 type Valore = {
+  /** §428 — i motivi del perso: elenco configurabile come le fasi */
+  MOTIVI: MotivoPerso[]
   /** tutte, anche le spente: una riga vecchia può puntare a una fase ritirata */
   TUTTE: Fase[]
   /** quelle che si possono scegliere adesso, in ordine */
@@ -40,13 +44,14 @@ type Valore = {
 
 const Ctx = createContext<Valore | null>(null)
 
-export function FasiProvider({ fasi, children }: { fasi: Fase[]; children: React.ReactNode }) {
+export function FasiProvider({ fasi, motivi = [], children }: { fasi: Fase[]; motivi?: MotivoPerso[]; children: React.ReactNode }) {
   const valore = useMemo<Valore>(() => {
     /* Se l'elenco non è arrivato si usa il seme invece di mostrare una pagina
        senza stati: trentasei righe senza fase somigliano a un archivio vuoto,
        e chi la vede pensa che si siano persi i dati. */
     const tutte = fasi.length ? ordinate(fasi) : FASI_SEME
     return {
+      MOTIVI: motivi,
       TUTTE: tutte,
       FASI: attive(tutte),
       faseDi: (k) => trova(tutte, k),
@@ -57,7 +62,7 @@ export function FasiProvider({ fasi, children }: { fasi: Fase[]; children: React
       fasiDelGruppo: (g) => delGruppo(tutte, g),
       faseConRuolo: (r) => faseConRuolo(tutte, r),
     }
-  }, [fasi])
+  }, [fasi, motivi])
   return <Ctx.Provider value={valore}>{children}</Ctx.Provider>
 }
 

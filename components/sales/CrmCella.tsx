@@ -38,6 +38,7 @@ export function CrmCella({ colonna, valore, onSalva, disabilitato }: {
   onSalva: (nuovo: unknown) => Promise<void>
   disabilitato?: boolean
 }) {
+  const { MOTIVI } = useFasi()
   const [aperta, setAperta] = useState(false)
   const [bozza, setBozza] = useState('')
   const [pending, setPending] = useState(false)
@@ -84,6 +85,22 @@ export function CrmCella({ colonna, valore, onSalva, disabilitato }: {
           valore ? 'bg-success border-success text-on-success' : 'border-border-strong hover:border-border-interactive'}`}>
         {valore ? <Check className="w-3 h-3" /> : null}
       </button>
+    )
+  }
+
+  // ── il motivo del perso: elenco dal database, mai testo libero ───────────
+  /* §428 — un campo libero qui diventa quaranta grafie di «prezzo» e rende
+     inservibile il grafico dei persi prima ancora di disegnarlo. L'elenco
+     arriva dalle impostazioni, come le fasi. */
+  if (colonna.tipo === 'motivo') {
+    return (
+      <select value={String(valore ?? '')} disabled={disabilitato || pending}
+        aria-label={colonna.etichetta}
+        onChange={e => salva(e.target.value || null)}
+        className="w-full bg-background border border-border-interactive rounded-lg px-2 py-1 text-2xs text-text-primary">
+        <option value="">— non indicato —</option>
+        {MOTIVI.map(m => <option key={m.chiave} value={m.chiave}>{m.etichetta}</option>)}
+      </select>
     )
   }
 

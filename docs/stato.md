@@ -1,5 +1,21 @@
 # Dove siamo
 
+## La scheda del lead risponde prima di mostrare i campi — §428, 2026-09-23
+
+Fase 3 del rifacimento commerciale. In cima alla scheda ci sono **la prossima
+azione** (una sola, la più urgente), **cosa manca adesso** (i campi che contano
+nella fase in cui sta, già compilabili) e **quello che sappiamo già** dalla
+provenienza Meta — proposto, non scritto: quei dati li ha dichiarati chi ha
+compilato il modulo, e un campo che si riempie da solo non lo ricontrolla
+nessuno.
+
+La scheda **segue lo scorrimento** invece di scivolare via: si apriva una riga
+in cima e per rivederla bisognava risalire. `sticky` e non `fixed`, così resta
+nella sua colonna e non copre l'elenco.
+
+E si chiude un buco della Fase 1: `qualifica`, `tentativi` e `motivo_perso`
+esistevano nel database dalla 258 e **non erano visibili da nessuna parte**.
+
 ## L'elenco dei lead si legge — §426, 2026-09-23
 
 Fase 2 del rifacimento commerciale. I **persi** — un terzo dell'archivio —
