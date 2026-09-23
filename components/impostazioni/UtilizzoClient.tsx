@@ -2,12 +2,14 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Activity, ChevronDown, ChevronRight, Search, MousePointerClick, PenLine } from 'lucide-react'
+import { Activity, ChevronDown, ChevronRight, Search, ArrowUpDown } from 'lucide-react'
 import {
-  durataTesto, assenzaTesto, ONLINE_MS, SESSIONI_MOSTRATE, GAP_SESSIONE_MIN,
+  durataTesto, assenzaTesto, ONLINE_MS, GAP_SESSIONE_MIN, SESSIONI_MOSTRATE,
   type PersonaUtilizzo,
 } from '@/lib/presenza'
 import { ROLE_LABELS } from '@/lib/permissions'
+import { Avatar } from '@/components/shared/formkit'
+import { EmptyState } from '@/components/shared/EmptyState'
 import type { AppRole } from '@/lib/types/database'
 
 export type RigaUtilizzo = PersonaUtilizzo & {
@@ -25,241 +27,380 @@ interface Props {
   opzioniGiorni: number[]
 }
 
-const FMT_GIORNO = new Intl.DateTimeFormat('it-IT', { day: '2-digit', month: 'short', timeZone: 'Europe/Rome' })
+const FMT_GIORNO = new Intl.DateTimeFormat('it-IT', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Rome' })
 const FMT_ORA = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' })
 const num = (n: number) => n.toLocaleString('it-IT')
+const MINUTI_ONLINE = Math.round(ONLINE_MS / 60_000)
 
 const PORTALE_LABEL: Record<string, string> = {
-  admin: 'Tool admin', workspace: 'Workspace', portale: 'Portale cliente',
-  risorsa: 'Risorsa esterna', altro: 'Altro',
+  admin: 'Portale Admin', workspace: 'Workspace', portale: 'Portale cliente',
+  risorsa: 'Risorsa esterna', altro: 'Altrove',
 }
 
 type Filtro = 'tutti' | 'online' | 'assenti' | 'mai'
+type Campo = 'presenza' | 'nome' | 'tempo' | 'interazioni' | 'modifiche'
+
+const FILTRI: [Filtro, string][] = [
+  ['tutti', 'Tutti'], ['online', 'Online'], ['assenti', 'Assenti da 7+ giorni'], ['mai', 'Mai entrati'],
+]
+
+const PESO_STATO = { online: 0, offline: 1, mai: 2 } as const
+
+/* Ogni colonna ordina nel verso in cui la si guarda: i nomi dalla A, i numeri
+   dal più grande, la presenza da chi c'è. Un default alfabetico su una colonna
+   di minuti è un click sprecato ogni volta. */
+const ORDINAMENTI: Record<Campo, { cmp: (a: RigaUtilizzo, b: RigaUtilizzo) => number; discendente: boolean }> = {
+  presenza: {
+    discendente: false,
+    cmp: (a, b) => PESO_STATO[a.stato] - PESO_STATO[b.stato]
+      || (a.assenteMs ?? Number.MAX_SAFE_INTEGER) - (b.assenteMs ?? Number.MAX_SAFE_INTEGER),
+  },
+  nome: { discendente: false, cmp: (a, b) => a.nome.localeCompare(b.nome, 'it') },
+  tempo: { discendente: true, cmp: (a, b) => a.attivoFinestraMs - b.attivoFinestraMs },
+  interazioni: { discendente: true, cmp: (a, b) => a.interazioniFinestra - b.interazioniFinestra },
+  modifiche: { discendente: true, cmp: (a, b) => a.azioni - b.azioni },
+}
 
 export function UtilizzoClient({ righe, giorni, opzioniGiorni }: Props) {
   const [q, setQ] = useState('')
   const [filtro, setFiltro] = useState<Filtro>('tutti')
   const [aperta, setAperta] = useState<string | null>(null)
+  const [campo, setCampo] = useState<Campo>('presenza')
+  const [discendente, setDiscendente] = useState(false)
 
   const stats = useMemo(() => ({
     online: righe.filter(r => r.stato === 'online').length,
     attivi: righe.filter(r => r.attivoFinestraMs > 0).length,
+    tempo: righe.reduce((n, r) => n + r.attivoFinestraMs, 0),
     mai: righe.filter(r => r.stato === 'mai').length,
-    /* Chi è entrato e non ha toccato una riga: non è un allarme di per sé —
-       consultare è lavoro — ma è la domanda che porta qui più spesso. */
-    soloLettura: righe.filter(r => r.attivoFinestraMs > 0 && r.azioni === 0).length,
   }), [righe])
+
+  const maiNessuno = stats.mai === righe.length && righe.length > 0
 
   const visibili = useMemo(() => {
     const testo = q.trim().toLowerCase()
-    return righe.filter(r => {
-      if (testo && !`${r.nome} ${r.email} ${r.ruolo}`.toLowerCase().includes(testo)) return false
-      if (filtro === 'online') return r.stato === 'online'
-      if (filtro === 'mai') return r.stato === 'mai'
-      if (filtro === 'assenti') return r.assenteMs !== null && r.assenteMs > 7 * 86_400_000
-      return true
-    })
-  }, [righe, q, filtro])
+    const { cmp } = ORDINAMENTI[campo]
+    return righe
+      .filter(r => {
+        if (testo && !`${r.nome} ${r.email} ${ROLE_LABELS[r.ruolo] ?? ''}`.toLowerCase().includes(testo)) return false
+        if (filtro === 'online') return r.stato === 'online'
+        if (filtro === 'mai') return r.stato === 'mai'
+        if (filtro === 'assenti') return r.assenteMs !== null && r.assenteMs > 7 * 86_400_000
+        return true
+      })
+      .sort((a, b) => (discendente ? -cmp(a, b) : cmp(a, b)) || a.nome.localeCompare(b.nome, 'it'))
+  }, [righe, q, filtro, campo, discendente])
 
-  /* La barra è proporzionale alla sessione più lunga **di tutta la pagina**:
-     normalizzarla per persona farebbe sembrare uguali dieci minuti e tre ore. */
-  const massimo = useMemo(
-    () => Math.max(1, ...righe.flatMap(r => r.sessioni.map(s => s.attivoMs))),
-    [righe],
-  )
+  /* Le barre sono proporzionali al massimo di tutta la pagina: normalizzarle per
+     riga farebbe sembrare uguali dieci minuti e tre ore. */
+  const maxSessione = useMemo(
+    () => Math.max(1, ...righe.flatMap(r => r.sessioni.map(s => s.attivoMs))), [righe])
+  const maxTempo = useMemo(
+    () => Math.max(1, ...righe.map(r => r.attivoFinestraMs)), [righe])
+
+  const ordina = (c: Campo) => {
+    if (c === campo) { setDiscendente(v => !v); return }
+    setCampo(c)
+    setDiscendente(ORDINAMENTI[c].discendente)
+  }
 
   return (
     <div className="max-w-6xl mx-auto space-y-5">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <Activity className="w-5 h-5 text-gold-text" />
+      <header className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex items-start gap-3">
+          <span className="w-9 h-9 rounded-xl bg-gold-dim flex items-center justify-center shrink-0">
+            <Activity className="w-4 h-4 text-gold-text" />
+          </span>
           <div>
             <h1 className="text-xl font-black text-text-primary font-heading">Utilizzo del tool</h1>
-            <p className="text-xs text-text-secondary max-w-2xl">
-              Il tempo è contato sui <strong className="text-text-primary">minuti con almeno un&apos;interazione</strong> —
-              click, tasti, rotella, cambi di pagina — non su quanto la scheda è rimasta aperta.
-              Dopo {GAP_SESSIONE_MIN} minuti di silenzio la sessione si chiude; «online» vuol dire
-              che ha toccato qualcosa negli ultimi {Math.round(ONLINE_MS / 60_000)} minuti.
+            <p className="text-xs text-text-secondary">
+              Chi è dentro adesso, da quanto manca chi non c&apos;è, e quanto ha lavorato davvero.
             </p>
           </div>
         </div>
-        <div className="flex border border-border rounded-xl overflow-hidden">
+        <nav aria-label="Periodo" className="flex border border-border rounded-xl overflow-hidden shrink-0">
           {opzioniGiorni.map(g => (
             <Link key={g} href={`/impostazioni/utilizzo?giorni=${g}`} scroll={false}
+              aria-current={g === giorni ? 'page' : undefined}
               className={`px-3 py-2 text-xs font-semibold transition-colors ${
-                g === giorni ? 'bg-gold-dim text-gold-text' : 'text-text-secondary hover:text-text-primary'}`}>
+                g === giorni ? 'bg-gold-dim text-gold-text' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'}`}>
               {g} giorni
             </Link>
+          ))}
+        </nav>
+      </header>
+
+      {/* La spiegazione sta chiusa: serve una volta, e lasciarla aperta in cima
+          ruba lo spazio ai numeri che si viene a leggere tutti i giorni. */}
+      <details className="group bg-surface border border-border rounded-xl">
+        <summary className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold text-text-secondary cursor-pointer select-none hover:text-text-primary">
+          <ChevronRight className="w-3.5 h-3.5 transition-transform group-open:rotate-90" />
+          Come si conta il tempo
+        </summary>
+        <ul className="px-3 pb-3 pt-0.5 space-y-1.5 text-xs text-text-secondary list-disc list-inside marker:text-text-tertiary">
+          <li>Un minuto conta solo se c&apos;è stata un&apos;<strong className="text-text-primary font-semibold">interazione</strong>: click, tasto, rotella, cambio di pagina — e a scheda in primo piano. Una scheda aperta e ferma non fa tempo.</li>
+          <li>Dopo {GAP_SESSIONE_MIN} minuti senza interazioni la sessione si chiude; la successiva riparte da capo.</li>
+          <li><strong className="text-text-primary font-semibold">Online</strong> vuol dire che ha toccato qualcosa negli ultimi {MINUTI_ONLINE} minuti.</li>
+          <li><strong className="text-text-primary font-semibold">Modifiche</strong> sono le righe cambiate nei dati. Tempo e modifiche rispondono a due domande diverse: si può consultare per un&apos;ora senza toccare niente.</li>
+          <li>Gli accessi al portale cliente non sono misurati.</li>
+        </ul>
+      </details>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+        <Tile label="Online adesso" valore={num(stats.online)} nota={`ultimi ${MINUTI_ONLINE} minuti`}
+          attivo={filtro === 'online'} onClick={() => setFiltro(filtro === 'online' ? 'tutti' : 'online')} />
+        <Tile label="Attivi nel periodo" valore={`${stats.attivi}/${righe.length}`} nota={`in ${giorni} giorni`} />
+        <Tile label="Tempo attivo" valore={durataTesto(stats.tempo)} nota="somma di tutti" />
+        <Tile label="Mai entrati" valore={num(stats.mai)} nota="da quando si misura"
+          attivo={filtro === 'mai'} onClick={() => setFiltro(filtro === 'mai' ? 'tutti' : 'mai')} />
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-tertiary pointer-events-none" />
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Cerca una persona…" aria-label="Cerca una persona"
+            className="w-full bg-surface border border-border-interactive rounded-lg pl-8 pr-3 py-2 text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-gold/40" />
+        </div>
+        <div className="flex border border-border rounded-lg overflow-hidden">
+          {FILTRI.map(([k, label]) => (
+            <button key={k} onClick={() => setFiltro(k)} aria-pressed={filtro === k}
+              className={`px-2.5 py-2 text-2xs font-semibold transition-colors ${
+                filtro === k ? 'bg-gold-dim text-gold-text' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'}`}>
+              {label}
+            </button>
           ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-        <Tile label="Online adesso" value={stats.online} hint={`negli ultimi ${Math.round(ONLINE_MS / 60_000)} min`}
-          active={filtro === 'online'} onClick={() => setFiltro(filtro === 'online' ? 'tutti' : 'online')} />
-        <Tile label="Attivi" value={stats.attivi} hint={`su ${righe.length}, in ${giorni} giorni`} />
-        <Tile label="Solo lettura" value={stats.soloLettura} hint="dentro, nessuna modifica" />
-        <Tile label="Mai entrati" value={stats.mai} hint="da quando si misura"
-          active={filtro === 'mai'} onClick={() => setFiltro(filtro === 'mai' ? 'tutti' : 'mai')} />
-      </div>
-
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-tertiary" />
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Cerca una persona…"
-            aria-label="Cerca una persona"
-            className="w-full bg-surface border border-border-interactive rounded-lg pl-8 pr-3 py-2 text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-gold/40" />
+      {maiNessuno ? (
+        <div className="bg-surface border border-border rounded-2xl">
+          <EmptyState
+            icon={<Activity className="w-5 h-5" />}
+            title="Nessuna sessione registrata"
+            description="La misura parte da quando il tool ha iniziato a contare le interazioni: prima di quel momento non c'è un silenzio, non ci sono dati. Le righe si riempiono man mano che le persone lavorano."
+          />
         </div>
-        {([['tutti', 'Tutti'], ['online', 'Online'], ['assenti', 'Assenti da 7+ giorni'], ['mai', 'Mai entrati']] as [Filtro, string][]).map(([k, label]) => (
-          <button key={k} onClick={() => setFiltro(k)}
-            className={`text-2xs font-semibold px-2.5 py-1.5 rounded-lg border transition-colors ${
-              filtro === k ? 'bg-gold-dim border-gold/40 text-gold-text' : 'bg-surface border-border text-text-secondary hover:text-text-primary'}`}>
-            {label}
-          </button>
-        ))}
-      </div>
+      ) : (
+        <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[780px] text-xs border-collapse">
+              <thead>
+                <tr className="bg-surface-hover">
+                  <Th campo="nome" attuale={campo} discendente={discendente} onSort={ordina}>Persona</Th>
+                  <Th campo="presenza" attuale={campo} discendente={discendente} onSort={ordina}>Stato</Th>
+                  <th scope="col" className="px-3 py-2.5 text-left text-2xs font-bold text-text-tertiary uppercase tracking-wider whitespace-nowrap">
+                    Ultime {SESSIONI_MOSTRATE} sessioni
+                  </th>
+                  <Th campo="tempo" attuale={campo} discendente={discendente} onSort={ordina} destra>Tempo attivo</Th>
+                  <Th campo="interazioni" attuale={campo} discendente={discendente} onSort={ordina} destra>Interazioni</Th>
+                  <Th campo="modifiche" attuale={campo} discendente={discendente} onSort={ordina} destra>Modifiche</Th>
+                  <th className="w-8" />
+                </tr>
+              </thead>
+              <tbody>
+                {visibili.length === 0 && (
+                  <tr><td colSpan={7} className="px-3 py-10 text-center text-xs text-text-tertiary">
+                    Nessuna persona con questi filtri.
+                  </td></tr>
+                )}
+                {visibili.map(r => {
+                  const espansa = aperta === r.profileId
+                  const soloLettura = r.attivoFinestraMs > 0 && r.azioni === 0
+                  return [
+                    <tr key={r.profileId}
+                      onClick={() => setAperta(espansa ? null : r.profileId)}
+                      className={`border-t border-border cursor-pointer transition-colors ${espansa ? 'bg-surface-hover' : 'hover:bg-surface-hover'}`}>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Avatar name={r.nome} url={r.avatar} size={30} />
+                          <div className="min-w-0">
+                            <p className="font-semibold text-text-primary truncate flex items-center gap-1.5">
+                              {r.nome}
+                              {!r.attivo && <Badge tono="spento">disattivato</Badge>}
+                            </p>
+                            <p className="text-2xs text-text-tertiary truncate">{ROLE_LABELS[r.ruolo] ?? r.ruolo}</p>
+                          </div>
+                        </div>
+                      </td>
 
-      <div className="space-y-1.5">
-        {visibili.length === 0 && (
-          <p className="text-xs text-text-tertiary text-center py-8">Nessuna persona con questi filtri.</p>
-        )}
-        {visibili.map(r => {
-          const espansa = aperta === r.profileId
-          return (
-            <div key={r.profileId}
-              className={`bg-surface border rounded-xl overflow-hidden transition-colors ${espansa ? 'border-gold/30' : 'border-border'}`}>
-              <button onClick={() => setAperta(espansa ? null : r.profileId)}
-                aria-expanded={espansa}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-hover transition-colors">
-                {espansa
-                  ? <ChevronDown className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
-                  : <ChevronRight className="w-3.5 h-3.5 text-text-tertiary shrink-0" />}
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className="flex items-center gap-1.5">
+                          <Punto stato={r.stato} />
+                          <span className={r.stato === 'online' ? 'font-semibold text-success' : 'text-text-secondary'}>
+                            {r.stato === 'online' ? 'online' : assenzaTesto(r.assenteMs)}
+                          </span>
+                        </span>
+                      </td>
 
-                <Stato stato={r.stato} />
+                      <td className="px-3 py-2.5">
+                        <Barre sessioni={r.sessioni} massimo={maxSessione} />
+                      </td>
 
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-text-primary truncate">
-                    {r.nome}
-                    {!r.attivo && <span className="ml-2 text-2xs font-medium text-text-tertiary">disattivato</span>}
-                  </p>
-                  <p className="text-2xs text-text-tertiary truncate">
-                    {ROLE_LABELS[r.ruolo] ?? r.ruolo} · {r.stato === 'online' ? 'online adesso' : assenzaTesto(r.assenteMs)}
-                  </p>
-                </div>
+                      <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                        <span className="font-semibold text-text-primary tabular-nums">{durataTesto(r.attivoFinestraMs)}</span>
+                        <span className="block mt-1 h-1 rounded-full bg-surface-active overflow-hidden" aria-hidden>
+                          <span className="block h-full bg-gold rounded-full"
+                            style={{ width: `${Math.round((r.attivoFinestraMs / maxTempo) * 100)}%` }} />
+                        </span>
+                      </td>
 
-                {/* Le ultime sessioni, la più recente a destra: si legge come una
-                    riga del tempo, non come una classifica. */}
-                <div className="hidden sm:flex items-end gap-1 h-8 w-28 shrink-0" aria-hidden>
-                  {[...r.sessioni].reverse().map(s => (
-                    <span key={s.id} title={`${durataTesto(s.attivoMs)} attivi`}
-                      className="flex-1 bg-gold rounded-sm min-h-[3px]"
-                      style={{ height: `${Math.max(8, (s.attivoMs / massimo) * 100)}%` }} />
-                  ))}
-                  {r.sessioni.length === 0 && <span className="flex-1 border-b border-dashed border-border-strong" />}
-                </div>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-text-secondary whitespace-nowrap">
+                        {r.interazioniFinestra > 0 ? num(r.interazioniFinestra) : <span className="text-text-tertiary">—</span>}
+                      </td>
 
-                <Numero label={`ultime ${SESSIONI_MOSTRATE}`} valore={durataTesto(r.attivoUltimeMs)} />
-                <Numero label={`${giorni} giorni`} valore={durataTesto(r.attivoFinestraMs)} />
-                <Numero label="interazioni" valore={num(r.interazioniFinestra)} icona={<MousePointerClick className="w-3 h-3" />} />
-                <Numero label="modifiche" valore={num(r.azioni)} icona={<PenLine className="w-3 h-3" />} />
-              </button>
+                      <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                        {r.azioni > 0
+                          ? <span className="tabular-nums text-text-secondary">{num(r.azioni)}</span>
+                          : soloLettura
+                            ? <Badge tono="neutro">solo lettura</Badge>
+                            : <span className="text-text-tertiary">—</span>}
+                      </td>
 
-              {espansa && (
-                <div className="border-t border-border px-3 py-3 space-y-3">
-                  {r.sessioni.length === 0 ? (
-                    <p className="text-2xs text-text-tertiary">
-                      Nessuna sessione registrata. La misura parte da quando la funzione è stata attivata:
-                      prima di allora non c&apos;è un silenzio, c&apos;è un&apos;assenza di dati.
-                    </p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-2xs">
-                        <thead>
-                          <tr className="text-text-tertiary text-left">
-                            <th className="font-semibold pb-1.5 pr-3">Quando</th>
-                            <th className="font-semibold pb-1.5 pr-3">Finestra</th>
-                            <th className="font-semibold pb-1.5 pr-3 text-right">Attivo</th>
-                            <th className="font-semibold pb-1.5 pr-3 text-right">Durata</th>
-                            <th className="font-semibold pb-1.5 pr-3 text-right">Interazioni</th>
-                            <th className="font-semibold pb-1.5 pr-3">Dove</th>
-                          </tr>
-                        </thead>
-                        <tbody className="text-text-secondary">
-                          {r.sessioni.map(s => (
-                            <tr key={s.id} className="border-t border-border">
-                              <td className="py-1.5 pr-3 text-text-primary whitespace-nowrap">{FMT_GIORNO.format(new Date(s.inizio))}</td>
-                              <td className="py-1.5 pr-3 whitespace-nowrap">{FMT_ORA.format(new Date(s.inizio))}–{FMT_ORA.format(new Date(s.fine))}</td>
-                              <td className="py-1.5 pr-3 text-right text-text-primary font-semibold tabular-nums">{durataTesto(s.attivoMs)}</td>
-                              <td className="py-1.5 pr-3 text-right tabular-nums">{durataTesto(s.durataMs)}</td>
-                              <td className="py-1.5 pr-3 text-right tabular-nums">{num(s.interazioni)}</td>
-                              <td className="py-1.5 pr-3 truncate max-w-[220px]">
-                                {PORTALE_LABEL[s.portale] ?? s.portale}{s.sezione ? ` · ${s.sezione}` : ''}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                      <td className="px-3 py-2.5 text-text-tertiary">
+                        {espansa ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                      </td>
+                    </tr>,
 
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-2xs text-text-tertiary">
-                    {r.sezioniTop.length > 0 && (
-                      <span>
-                        Dove passa il tempo:{' '}
-                        {r.sezioniTop.map(s => `${s.sezione} (${durataTesto(s.battiti * 60_000)})`).join(' · ')}
-                      </span>
-                    )}
-                    <span>
-                      Ultima modifica ai dati:{' '}
-                      {r.ultimaAzione
-                        ? `${FMT_GIORNO.format(new Date(r.ultimaAzione))} ${FMT_ORA.format(new Date(r.ultimaAzione))}`
-                        : `nessuna negli ultimi ${giorni} giorni`}
-                    </span>
-                    <span>{r.sessioniFinestra} sessioni in {giorni} giorni</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
-
-      <p className="text-2xs text-text-tertiary">
-        Le persone del portale cliente non compaiono: il battito non è montato là, e una riga
-        «mai entrato» su qualcuno che non stiamo misurando sarebbe uno zero che sembra un dato.
-      </p>
+                    espansa ? (
+                      <tr key={`${r.profileId}-dettaglio`} className="border-t border-border bg-background">
+                        <td colSpan={7} className="px-3 py-3">
+                          <Dettaglio riga={r} giorni={giorni} massimo={maxSessione} />
+                        </td>
+                      </tr>
+                    ) : null,
+                  ]
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function Stato({ stato }: { stato: PersonaUtilizzo['stato'] }) {
-  const colore = stato === 'online' ? 'bg-success' : stato === 'offline' ? 'bg-border-strong' : 'bg-warning'
-  const titolo = stato === 'online' ? 'Online adesso' : stato === 'offline' ? 'Non collegato' : 'Mai entrato'
-  return <span role="img" aria-label={titolo} title={titolo} className={`w-2 h-2 rounded-full shrink-0 ${colore}`} />
-}
+/* ─────────────────────────────────────────────────────────────── */
 
-function Numero({ label, valore, icona }: { label: string; valore: string; icona?: React.ReactNode }) {
+function Dettaglio({ riga, giorni, massimo }: { riga: RigaUtilizzo; giorni: number; massimo: number }) {
+  if (riga.sessioni.length === 0) {
+    return <p className="text-2xs text-text-tertiary py-2">Nessuna sessione registrata per questa persona.</p>
+  }
   return (
-    <div className="hidden md:block w-24 shrink-0 text-right">
-      <p className="text-xs font-semibold text-text-primary tabular-nums">{valore}</p>
-      <p className="flex items-center justify-end gap-1 text-2xs text-text-tertiary">{icona}{label}</p>
+    <div className="space-y-3">
+      <ul className="space-y-1.5">
+        {riga.sessioni.map(s => (
+          <li key={s.id} className="flex items-center gap-3 flex-wrap text-2xs">
+            <span className="w-28 shrink-0 text-text-primary font-semibold">{FMT_GIORNO.format(new Date(s.inizio))}</span>
+            <span className="w-24 shrink-0 text-text-secondary tabular-nums">
+              {FMT_ORA.format(new Date(s.inizio))}–{FMT_ORA.format(new Date(s.fine))}
+            </span>
+            <span className="w-24 shrink-0 h-1.5 rounded-full bg-surface-active overflow-hidden" aria-hidden>
+              <span className="block h-full bg-gold rounded-full" style={{ width: `${Math.max(4, (s.attivoMs / massimo) * 100)}%` }} />
+            </span>
+            <span className="w-32 shrink-0 text-text-primary">
+              <strong className="font-semibold">{durataTesto(s.attivoMs)}</strong>
+              <span className="text-text-tertiary"> su {durataTesto(s.durataMs)}</span>
+            </span>
+            <span className="w-28 shrink-0 text-text-secondary tabular-nums">{num(s.interazioni)} interazioni</span>
+            <span className="text-text-tertiary truncate">
+              {PORTALE_LABEL[s.portale] ?? s.portale}{s.sezione ? ` · ${s.sezione}` : ''}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-2 border-t border-border text-2xs text-text-tertiary">
+        {riga.sezioniTop.length > 0 && (
+          <span className="flex items-center gap-1.5">
+            Dove passa il tempo:
+            {riga.sezioniTop.map(s => (
+              <span key={s.sezione} className="px-1.5 py-0.5 rounded bg-surface-hover text-text-secondary">
+                {s.sezione} {durataTesto(s.battiti * 60_000)}
+              </span>
+            ))}
+          </span>
+        )}
+        <span>{riga.sessioniFinestra} sessioni in {giorni} giorni</span>
+        <span>
+          Ultima modifica:{' '}
+          {riga.ultimaAzione
+            ? `${FMT_GIORNO.format(new Date(riga.ultimaAzione))}, ${FMT_ORA.format(new Date(riga.ultimaAzione))}`
+            : 'nessuna nel periodo'}
+        </span>
+      </div>
     </div>
   )
 }
 
-function Tile({ label, value, hint, active, onClick }: {
-  label: string; value: number; hint?: string; active?: boolean; onClick?: () => void
+function Barre({ sessioni, massimo }: { sessioni: RigaUtilizzo['sessioni']; massimo: number }) {
+  if (sessioni.length === 0) {
+    return <span className="block w-24 border-b border-dashed border-border-strong" aria-label="nessuna sessione" />
+  }
+  return (
+    /* La più recente a destra: si legge come una riga del tempo, non come una
+       classifica. Il titolo serve al mouse, il riassunto accanto a chi non ce
+       l'ha — su una barra alta otto pixel il numero non si legge comunque. */
+    <span className="flex items-center gap-2">
+      <span className="flex items-end gap-1 h-7 w-24 shrink-0">
+        {[...sessioni].reverse().map(s => (
+          <span key={s.id} title={`${durataTesto(s.attivoMs)} attivi`}
+            className="flex-1 bg-gold/70 rounded-sm min-h-[4px]"
+            style={{ height: `${Math.max(10, (s.attivoMs / massimo) * 100)}%` }} />
+        ))}
+      </span>
+      <span className="text-2xs text-text-tertiary whitespace-nowrap">
+        {durataTesto(sessioni.reduce((n, s) => n + s.attivoMs, 0))}
+      </span>
+    </span>
+  )
+}
+
+function Th({
+  children, campo, attuale, discendente, onSort, destra,
+}: {
+  children: React.ReactNode; campo: Campo; attuale: Campo
+  discendente: boolean; onSort: (c: Campo) => void; destra?: boolean
 }) {
-  const classi = `bg-surface border rounded-xl px-3 py-2.5 text-left transition-colors ${
-    active ? 'border-gold/40 bg-gold-dim' : 'border-border'} ${onClick ? 'hover:border-border-strong' : ''}`
+  const attivo = campo === attuale
+  return (
+    <th scope="col" aria-sort={attivo ? (discendente ? 'descending' : 'ascending') : 'none'}
+      className="px-3 py-2.5 text-2xs font-bold uppercase tracking-wider whitespace-nowrap">
+      <button onClick={() => onSort(campo)}
+        className={`flex items-center gap-1 ${destra ? 'ml-auto' : ''} ${attivo ? 'text-gold-text' : 'text-text-tertiary hover:text-text-secondary'} transition-colors`}>
+        {children}
+        <ArrowUpDown className={`w-3 h-3 ${attivo ? 'opacity-100' : 'opacity-40'}`} />
+      </button>
+    </th>
+  )
+}
+
+function Punto({ stato }: { stato: PersonaUtilizzo['stato'] }) {
+  const tono = stato === 'online' ? 'bg-success' : stato === 'offline' ? 'bg-border-strong' : 'bg-warning'
+  return <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${tono} ${stato === 'online' ? 'ring-2 ring-success/25' : ''}`} aria-hidden />
+}
+
+function Badge({ children, tono }: { children: React.ReactNode; tono: 'neutro' | 'spento' }) {
+  return (
+    <span className={`inline-block px-1.5 py-0.5 rounded text-2xs font-semibold whitespace-nowrap ${
+      tono === 'neutro' ? 'bg-surface-active text-text-secondary' : 'bg-surface-hover text-text-tertiary'}`}>
+      {children}
+    </span>
+  )
+}
+
+function Tile({ label, valore, nota, attivo, onClick }: {
+  label: string; valore: string; nota?: string; attivo?: boolean; onClick?: () => void
+}) {
+  const classi = `block w-full text-left bg-surface border rounded-xl px-3 py-3 transition-colors ${
+    attivo ? 'border-gold/40 bg-gold-dim' : 'border-border'} ${onClick ? 'hover:border-border-strong' : ''}`
   const dentro = (
     <>
-      <p className={`text-lg font-black tabular-nums ${active ? 'text-gold-text' : 'text-text-primary'}`}>{num(value)}</p>
-      <p className="text-2xs font-semibold text-text-secondary uppercase tracking-wider">{label}</p>
-      {hint && <p className="text-2xs text-text-tertiary">{hint}</p>}
+      <p className="text-2xs font-bold text-text-tertiary uppercase tracking-wider">{label}</p>
+      <p className={`text-xl font-black tabular-nums mt-0.5 ${attivo ? 'text-gold-text' : 'text-text-primary'}`}>{valore}</p>
+      {nota && <p className="text-2xs text-text-tertiary">{nota}</p>}
     </>
   )
   return onClick
-    ? <button onClick={onClick} className={classi}>{dentro}</button>
+    ? <button type="button" onClick={onClick} aria-pressed={attivo} className={classi}>{dentro}</button>
     : <div className={classi}>{dentro}</div>
 }

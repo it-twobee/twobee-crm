@@ -62,5 +62,9 @@ export default async function UtilizzoPage({
     }))
     .sort(ordinaPerPresenza)
 
-  return <UtilizzoClient righe={righe} giorni={giorni} opzioniGiorni={[...GIORNI_AMMESSI]} />
+  return (
+    <div className="p-4 sm:p-6">
+      <UtilizzoClient righe={righe} giorni={giorni} opzioniGiorni={[...GIORNI_AMMESSI]} />
+    </div>
+  )
 }
