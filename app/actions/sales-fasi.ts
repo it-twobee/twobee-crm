@@ -28,6 +28,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireSalesConfig } from '@/lib/sales-guard'
 import { problemiFasi, type Fase } from '@/lib/sales-stages'
+import { problemiMotivi, rinumera, type Motivo } from '@/lib/sales-motivi'
 
 export type EsitoFasi = { ok: true } | { ok: false; errori: string[] }
 
@@ -104,6 +105,58 @@ export async function salvaFasi(fasi: Fase[]): Promise<EsitoFasi> {
     return { ok: true }
   } catch (e) {
     console.error('[fasi commerciali]', e)
+    return { ok: false, errori: [(e as Error).message] }
+  }
+}
+
+/**
+ * §435 — i motivi del perso, salvati insieme come le fasi.
+ *
+ * La differenza che conta è nella cancellazione: la chiave esterna dei motivi è
+ * `ON DELETE SET NULL`, quindi il database **non** fermerebbe l'eliminazione di
+ * un motivo usato — la farebbe passare e svuoterebbe il motivo su ogni perso
+ * che lo aveva. Il conteggio qui non è un messaggio più gentile, come per le
+ * fasi: è l'unica barriera.
+ */
+export async function salvaMotivi(motivi: Motivo[]): Promise<EsitoFasi> {
+  try {
+    await requireSalesConfig()
+
+    const puliti: Motivo[] = rinumera((Array.isArray(motivi) ? motivi : []).map(m => ({
+      chiave: String(m?.chiave ?? '').trim(),
+      etichetta: String(m?.etichetta ?? '').trim(),
+      ordine: 0,
+      attivo: m?.attivo !== false,
+    })))
+    const errori = problemiMotivi(puliti)
+    if (errori.length) return { ok: false, errori }
+
+    const admin = createAdminClient()
+    const { data: esistenti } = await admin.from('sales_motivi_perso').select('chiave')
+    const dopo = new Set(puliti.map(m => m.chiave))
+    const sparite = ((esistenti ?? []) as { chiave: string }[]).map(x => x.chiave).filter(k => !dopo.has(k))
+    if (sparite.length) {
+      const { data: usate } = await admin.from('deals').select('motivo_perso').in('motivo_perso', sparite)
+      const conta = new Map<string, number>()
+      for (const r of (usate ?? []) as { motivo_perso: string }[]) conta.set(r.motivo_perso, (conta.get(r.motivo_perso) ?? 0) + 1)
+      if (conta.size) {
+        return {
+          ok: false,
+          errori: Array.from(conta.entries()).map(([k, n]) =>
+            `Il motivo «${k}» è su ${n} ${n === 1 ? 'lead perso' : 'lead persi'}: ritiralo invece di eliminarlo, o resterebbero senza motivo.`),
+        }
+      }
+      const { error } = await admin.from('sales_motivi_perso').delete().in('chiave', sparite)
+      if (error) return { ok: false, errori: [error.message] }
+    }
+
+    const { error } = await admin.from('sales_motivi_perso').upsert(puliti, { onConflict: 'chiave' })
+    if (error) return { ok: false, errori: [error.message] }
+
+    rinfresca()
+    return { ok: true }
+  } catch (e) {
+    console.error('[motivi del perso]', e)
     return { ok: false, errori: [(e as Error).message] }
   }
 }

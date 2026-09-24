@@ -1,5 +1,12 @@
 # Dove siamo
 
+## I motivi del perso si governano — §435, 2026-09-24
+
+In `/impostazioni/commerciale` c'è l'editor dei motivi del perso: aggiungi,
+rinomini, riordini, ritiri. Un motivo già usato non si elimina, perché la
+chiave esterna `ON DELETE SET NULL` svuoterebbe in silenzio il motivo sui persi
+che lo hanno: lo blocca l'azione, contando prima.
+
 ## Il ritorno sul foglio dei lead — §434, 2026-09-24
 
 Il giro notturno e il bottone «Aggiorna dal foglio», dopo aver fatto entrare i

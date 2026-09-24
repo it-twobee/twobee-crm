@@ -695,6 +695,25 @@ Prova a secco: `npx tsx scripts/check-sales-ritorno.ts` calcola le celle senza
 scriverne nessuna. Il 24 settembre: 38 lead abbinati su 38, cinque colonne da
 aggiungere (Y–AC), 121 celle.
 
+## I motivi del perso si governano — §435
+
+Dalla 258 sono una tabella (`sales_motivi_perso`) e il menu della scheda li
+legge da lì, ma cambiarli voleva dire aprire il SQL Editor. Adesso stanno in
+`/impostazioni/commerciale`, sotto le fasi, con lo stesso gesto: si salva tutto
+insieme, i problemi si vedono mentre si scrive (`problemiMotivi`, la stessa
+funzione dell'azione e del gate), si sposta con due bottoni. Accanto a ogni
+motivo, quanti persi lo usano.
+
+**Un motivo usato non si elimina, si ritira** — e qui non è una cortesia come
+per le fasi. La chiave esterna è `ON DELETE SET NULL`: il database non
+fermerebbe niente, svuoterebbe il motivo su ogni perso che lo aveva, e «perché
+perdiamo» cambierebbe senza che nessuno l'abbia toccato. Il conteggio in
+`salvaMotivi` è l'unica barriera, e il bottone per eliminare compare solo
+sui motivi a zero.
+
+La chiave di un motivo nuovo nasce dal nome (`chiaveDa`); quella di uno che
+esiste già non cambia, perché i persi la puntano.
+
 ## Aperto
 
 - **La RLS non conosceva `deal_owners`**: `sales_can_read` (223) guardava solo
