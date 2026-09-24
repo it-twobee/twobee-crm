@@ -5,8 +5,8 @@
 Da `/impostazioni/commerciale` si aggiungono campi alla scheda del lead (nove
 tipi, niente importi), ognuno nel riquadro che si sceglie, compilabili come le
 altre celle. Un campo con dei valori non cambia tipo e non si elimina: si
-ritira. Chiude il piano in nove fasi del commerciale. Migration **262 da
-applicare**: prima, la scheda resta quella di sempre.
+ritira. Chiude il piano in nove fasi del commerciale. Migration **262 applicata** il
+2026-09-24.
 
 ## Priorità e membership si governano — §436, 2026-09-24
 

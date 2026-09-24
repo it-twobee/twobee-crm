@@ -767,7 +767,8 @@ campo nato per un modo di lavorare non deve cambiare la pagina di tutti.
 - **Le chiavi** nascono dal nome e non possono essere quelle delle colonne vere
   (`RISERVATE`); il nome non può essere quello di un campo già nella scheda.
 - **Prima della migration** la pagina regge: `campi_extra` si legge in una
-  query a parte e tollerante, e senza tabella non ci sono campi.
+  query a parte e tollerante, e senza tabella non ci sono campi. La **262** è
+  applicata dal 2026-09-24.
 
 Due ritocchi a `CrmCella` che valgono per tutti: un numero si mostra come
 numero e come euro solo se la colonna lo dichiara (`euro: true`, solo
