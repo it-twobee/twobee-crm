@@ -5,8 +5,7 @@
 Da `/impostazioni/commerciale` si aggiungono, rinominano, riordinano e ritirano
 le voci di Priority e Membership, come i motivi del perso. Le chiavi restano i
 valori già sui lead, cambia l'etichetta; l'ordine dell'editor è l'ordine con
-cui si ordina l'elenco. Migration **261 da applicare**: finché non c'è, il tool
-usa gli elenchi di sempre.
+cui si ordina l'elenco. Migration **261 applicata** il 2026-09-24.
 
 ## I motivi del perso si governano — §435, 2026-09-24
 

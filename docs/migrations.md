@@ -61,7 +61,7 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > `XXX_area_file_link.sql` e prenderà il suo numero al commit (§423). La
 > **259** slega l'autore delle cartelle. La **260** insegna alla RLS dei lead
 > gli Account Owner (§430) — **applicata** il 2026-09-24 (verificato: `sales_can_read_deal` risponde). La **261** porta priorità e membership in due
-> tabelle (§436) — **da applicare**. La prossima libera è la **262**.
+> tabelle (§436) — **applicata** il 2026-09-24 (verificato: CHECK spariti, tabelle seminate, 2 chiavi esterne). La prossima libera è la **262**.
 
 > **La 249 è nata 247.** È stata scritta e **applicata in produzione** mentre su
 > main arrivavano `247_periodi_e_ricorrenze` e `248_scheletro_periodi`, da una
