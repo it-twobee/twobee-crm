@@ -1,5 +1,13 @@
 # Dove siamo
 
+## Chi lavora i lead si sceglie di nuovo — §429, 2026-09-24
+
+In `/impostazioni/commerciale`, sotto le fasi, c'è l'elenco del team con un
+interruttore per `can_view_deals`: la schermata era sparita con il modulo
+vecchio e l'area commerciale la vedevano solo gli admin. La colonna «Vede» dice
+se è tutta la pipeline (manager) o solo le proprie trattative. L'azione passa
+dallo stesso gate della pagina, `requireSalesConfig()`.
+
 ## La scheda del lead risponde prima di mostrare i campi — §428, 2026-09-23
 
 Fase 3 del rifacimento commerciale. In cima alla scheda ci sono **la prossima

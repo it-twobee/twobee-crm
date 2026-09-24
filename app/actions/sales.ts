@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createActorClient, createAdminClient } from '@/lib/supabase/admin'
 import { sincronizzaLead } from '@/lib/sales-sync'
-import { requireSalesAccess } from '@/lib/sales-guard'
+import { requireSalesAccess, requireSalesConfig } from '@/lib/sales-guard'
 import { OUTCOMES, canReadDeal, uuid, validDate, validateDeal, type DealInput, type Delivery, type SalesData, type SalesDeal, type SalesOutcome, type SalesActivity } from '@/lib/sales'
 import { isWorkspaceRole } from '@/lib/permissions'
 import { validaCella, CAMPI_SCRIVIBILI } from '@/lib/sales-table'
@@ -26,9 +26,10 @@ function dbError(error: { code?: string; message: string }): never {
   throw new Error('Operazione non riuscita. I dati inseriti restano disponibili; riprova.')
 }
 
+/* Chi apre l'area a qualcuno la configura: stesso gate dell'editor delle fasi,
+   perché è la stessa pagina e una regola scritta due volte non è una regola. */
 export async function setSalesPermission(profileId: string, enabled: boolean) {
-  const { actor, access } = await requireSalesAccess()
-  if (access !== 'admin') throw new Error('Solo gli admin possono abilitare l’area commerciale')
+  const actor = await requireSalesConfig()
   uuid(profileId)
   if (typeof enabled !== 'boolean') throw new Error('Permesso non valido')
   const db = createActorClient(actor)
@@ -39,6 +40,7 @@ export async function setSalesPermission(profileId: string, enabled: boolean) {
   }, { onConflict: 'profile_id,permission' })
   if (result.error) dbError(result.error)
   refreshSales()
+  revalidatePath('/impostazioni/commerciale')
   revalidatePath('/workspace', 'layout')
 }
 

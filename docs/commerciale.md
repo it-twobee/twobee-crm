@@ -565,13 +565,23 @@ riga, la porta in `Active Client`, e **non tocca i numeri**. Una conversione non
 crea contratti, rate, MRR o fatture: quelli nascono in Economics dal primo
 contratto venduto.
 
+## Chi lavora i lead — §429
+
+La concessione `can_view_deals` aveva perso la sua schermata con il modulo
+vecchio: `setSalesPermission` esisteva, protetta, ma nessuno la chiamava, e
+l'area la vedevano solo gli admin. Adesso sta in `/impostazioni/commerciale`,
+sotto le fasi: stessa pagina, stesso pubblico. Elenca le persone attive del
+workspace — le stesse che l'azione accetta — con un interruttore ciascuna, e
+dice **cosa vede** chi è abilitato: un manager tutte le trattative, gli altri
+solo le proprie (`salesAccess`). «Abilitato» senza dire a cosa fa credere a un
+junior di avere davanti la pipeline intera.
+
+L'azione adesso chiede `requireSalesConfig()`, non più `access === 'admin'`:
+aprire l'area a qualcuno è configurarla, e la pagina che la chiama è già
+chiusa da quel gate. Due porte diverse sulla stessa schermata vorrebbero dire
+che un founder vede un bottone che il server gli rifiuta, o il contrario.
+
 ## Aperto
 
-- **La UI per concedere `can_view_deals` non c'è più.** Stava in
-  `SalesWorkspace`, rimosso con il resto del modulo vecchio. Oggi l'area la
-  vedono gli admin (`salesAccess` li ammette sempre); per abilitare un manager
-  o un senior serve `setSalesPermission`, che esiste ed è protetta, ma non ha
-  una schermata che la chiami. Va rimessa in Impostazioni → utenti, dove
-  stanno gli altri permessi.
 - `deal_activities` e `sales_handoffs` restano in piedi e non sono più scritte
   da nessuna UI: `SalesHandoff` legge ancora la seconda nella scheda progetto.
