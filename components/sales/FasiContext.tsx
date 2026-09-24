@@ -24,6 +24,7 @@ import {
   type Fase, type Gruppo, type Ruolo,
 } from '@/lib/sales-stages'
 
+import type { Campo } from '@/lib/sales-campi'
 import { SCELTE_SEME, etichettaScelta, vociPer, ordini as ordiniDi, type Lista, type Scelte, type Voce } from '@/lib/sales-scelte'
 
 export type MotivoPerso = { chiave: string; etichetta: string }
@@ -37,6 +38,8 @@ type Valore = {
   vociPer: (campo: Lista, attuale?: string | null) => Voce[]
   /** l'ordine per campo, da passare a `ordina` */
   ORDINI: Record<string, string[]>
+  /** §437 — i campi personalizzati della scheda, anche i ritirati */
+  CAMPI: Campo[]
   /** tutte, anche le spente: una riga vecchia può puntare a una fase ritirata */
   TUTTE: Fase[]
   /** quelle che si possono scegliere adesso, in ordine */
@@ -52,8 +55,8 @@ type Valore = {
 
 const Ctx = createContext<Valore | null>(null)
 
-export function FasiProvider({ fasi, motivi = [], scelte = SCELTE_SEME, children }: {
-  fasi: Fase[]; motivi?: MotivoPerso[]; scelte?: Scelte; children: React.ReactNode
+export function FasiProvider({ fasi, motivi = [], scelte = SCELTE_SEME, campi = [], children }: {
+  fasi: Fase[]; motivi?: MotivoPerso[]; scelte?: Scelte; campi?: Campo[]; children: React.ReactNode
 }) {
   const valore = useMemo<Valore>(() => {
     /* Se l'elenco non è arrivato si usa il seme invece di mostrare una pagina
@@ -66,6 +69,7 @@ export function FasiProvider({ fasi, motivi = [], scelte = SCELTE_SEME, children
       etichettaScelta: (c, v) => etichettaScelta(scelte, c, v),
       vociPer: (c, a) => vociPer(scelte, c, a),
       ORDINI: ordiniDi(scelte),
+      CAMPI: campi,
       TUTTE: tutte,
       FASI: attive(tutte),
       faseDi: (k) => trova(tutte, k),
@@ -76,7 +80,7 @@ export function FasiProvider({ fasi, motivi = [], scelte = SCELTE_SEME, children
       fasiDelGruppo: (g) => delGruppo(tutte, g),
       faseConRuolo: (r) => faseConRuolo(tutte, r),
     }
-  }, [fasi, motivi, scelte])
+  }, [fasi, motivi, scelte, campi])
   return <Ctx.Provider value={valore}>{children}</Ctx.Provider>
 }
 

@@ -32,7 +32,7 @@ import { ETICHETTA_GRUPPO, GRUPPI, gruppoDi, type Gruppo } from '@/lib/sales-sta
 import { useFasi } from './FasiContext'
 import { MenuFase } from './MenuFase'
 import { dividiPersi, notaInRiga } from '@/lib/sales-elenco'
-import { salvaCellaDeal, collegaLeadACliente, aggiornaDaFoglio, eliminaLead, impostaOwnerDeal } from '@/app/actions/sales'
+import { salvaCellaDeal, collegaLeadACliente, aggiornaDaFoglio, eliminaLead, impostaOwnerDeal, salvaCampoExtra } from '@/app/actions/sales'
 import { ETICHETTA_QUALIFICA } from '@/lib/sales-table'
 import { NewClientModal } from '@/components/clients/NewClientModal'
 import type { Client } from '@/lib/types/database'
@@ -173,6 +173,26 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
   const perNumeri = useMemo(
     () => applica(cercaIn(righe as unknown as Record<string, unknown>[], cerca), scelte),
     [righe, cerca, scelte])
+
+  /* §437 — un campo personalizzato: ottimistico come le celle, ma sull'oggetto
+     `campi_extra`, e al ritorno vale quello che dice il database — che è anche
+     il posto dove un collega può aver compilato un altro campo intanto. */
+  const salvaExtra = async (riga: RigaCrm, chiave: string, valore: unknown) => {
+    const prima = (riga.campi_extra ?? {}) as Record<string, unknown>
+    const conValore = (o: Record<string, unknown>, v: unknown) => {
+      const n = { ...o }
+      if (v === null || v === undefined || v === '') delete n[chiave]; else n[chiave] = v
+      return n
+    }
+    setRighe(rs => rs.map(r => r.id === riga.id ? { ...r, campi_extra: conValore(prima, valore) } : r))
+    try {
+      const { tutti } = await salvaCampoExtra(riga.id, chiave, valore)
+      setRighe(rs => rs.map(r => r.id === riga.id ? { ...r, campi_extra: tutti } : r))
+    } catch (e) {
+      setRighe(rs => rs.map(r => r.id === riga.id ? { ...r, campi_extra: prima } : r))
+      toast.error((e as Error).message)
+    }
+  }
 
   const salva = async (riga: RigaCrm, campo: string, valore: unknown): Promise<boolean> => {
     const prima = riga[campo]
@@ -628,6 +648,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
                 onSalva={async (campo, valore) => { await salva(aperta, campo, valore) }}
                 persone={persone}
                 onOwner={puoiAssegnare ? ids => salvaOwner(aperta, ids) : undefined}
+                onSalvaExtra={(chiave, v) => salvaExtra(aperta, chiave, v)}
                 onConverti={() => setConverto(aperta)}
                 onElimina={puoiEliminare ? () => setDaEliminare([aperta.id]) : undefined}
               />

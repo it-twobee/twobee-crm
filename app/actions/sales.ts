@@ -8,7 +8,8 @@ import { OUTCOMES, canReadDeal, salesAccess, uuid, validDate, validateDeal, type
 import { isWorkspaceRole } from '@/lib/permissions'
 import { validaCella, CAMPI_SCRIVIBILI } from '@/lib/sales-table'
 import { chiaveIngresso, faseDi } from '@/lib/sales-stages'
-import { leggiFasi, leggiScelte } from '@/lib/sales-fasi'
+import { leggiCampi, leggiFasi, leggiScelte } from '@/lib/sales-fasi'
+import { validaExtra } from '@/lib/sales-campi'
 import { ammesse } from '@/lib/sales-scelte'
 import { somiglianze, spiegaSomiglianza, type Candidato } from '@/lib/sales-dedup'
 import { daPortareSu, type RigaConfronto } from '@/lib/sales-igiene'
@@ -130,6 +131,29 @@ export async function salvaCellaDeal(dealId: string, campo: string, valore: unkn
 
   refreshSales()
   return { valore: esito.valore }
+}
+
+/**
+ * §437 — un campo personalizzato, su un lead.
+ *
+ * La stessa porta delle celle (`requireDealAccess`), e il valore passa dal tipo
+ * del campo **riletto dal database**, non da quello che dice il browser: un
+ * file `'use server'` è un endpoint (§329). Si scrive una chiave sola con
+ * `sales_imposta_campo`, così due persone che compilano due campi della stessa
+ * scheda non si cancellano a vicenda.
+ */
+export async function salvaCampoExtra(dealId: string, chiave: string, valore: unknown) {
+  const { actor } = await requireDealAccess(dealId)
+  const campo = (await leggiCampi()).find(c => c.chiave === chiave)
+  if (!campo) throw new Error('Questo campo non esiste più: ricarica la pagina')
+  const esito = validaExtra(campo, valore)
+  if (!esito.ok) throw new Error(esito.motivo)
+
+  const { data, error } = await createActorClient(actor)
+    .rpc('sales_imposta_campo', { p_deal: dealId, p_chiave: chiave, p_valore: esito.valore })
+  if (error) dbError(error)
+  refreshSales()
+  return { valore: esito.valore, tutti: (data ?? {}) as Record<string, unknown> }
 }
 
 /**

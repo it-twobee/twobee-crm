@@ -30,6 +30,7 @@ import { requireSalesConfig } from '@/lib/sales-guard'
 import { problemiFasi, type Fase } from '@/lib/sales-stages'
 import { problemiMotivi, rinumera, type Motivo } from '@/lib/sales-motivi'
 import { TABELLA, eLista, problemiDi, type Lista, type Voce } from '@/lib/sales-scelte'
+import { opzioniDa, problemiCampi, type Campo } from '@/lib/sales-campi'
 
 export type EsitoFasi = { ok: true } | { ok: false; errori: string[] }
 
@@ -209,6 +210,72 @@ export async function salvaScelte(lista: Lista, voci: Voce[]): Promise<EsitoFasi
     return { ok: true }
   } catch (e) {
     console.error('[scelte commerciali]', e)
+    return { ok: false, errori: [(e as Error).message] }
+  }
+}
+
+/**
+ * §437 — l'elenco dei campi personalizzati, salvato insieme.
+ *
+ * Due cose non si fanno su un campo che ha dei valori sui lead, e il server lo
+ * conta prima invece di fidarsi della schermata: **eliminarlo**, che lascerebbe
+ * i valori orfani e invisibili, e **cambiargli tipo**, che renderebbe «tanti»
+ * il valore di un campo diventato numero. Chi vuole smettere di usarlo lo
+ * ritira: sparisce dalle schede vuote e resta leggibile su quelle compilate.
+ */
+export async function salvaCampi(campi: Campo[]): Promise<EsitoFasi> {
+  try {
+    await requireSalesConfig()
+    const puliti: Campo[] = (Array.isArray(campi) ? campi : []).map((c, i) => ({
+      chiave: String(c?.chiave ?? '').trim(),
+      etichetta: String(c?.etichetta ?? '').trim(),
+      tipo: c?.tipo,
+      opzioni: c?.tipo === 'scelta' ? opzioniDa((Array.isArray(c?.opzioni) ? c.opzioni : []).join(',')) : [],
+      riquadro: c?.riquadro,
+      aiuto: c?.aiuto ? String(c.aiuto).trim().slice(0, 120) || null : null,
+      ordine: (i + 1) * 10,
+      attivo: c?.attivo !== false,
+    })) as Campo[]
+    const errori = problemiCampi(puliti)
+    if (errori.length) return { ok: false, errori }
+
+    const admin = createAdminClient()
+    const { data: prima, error: eLettura } = await admin.from('sales_campi').select('chiave, tipo, etichetta')
+    if (eLettura) return { ok: false, errori: ['Campi personalizzati non ancora attivi: manca la migration sul database.'] }
+    const esistenti = (prima ?? []) as { chiave: string; tipo: string; etichetta: string }[]
+    const dopo = new Map(puliti.map(c => [c.chiave, c]))
+    const toccati = esistenti.filter(e => !dopo.has(e.chiave) || dopo.get(e.chiave)!.tipo !== e.tipo)
+
+    if (toccati.length) {
+      const { data: righe } = await admin.from('deals').select('campi_extra')
+      const usati = new Map<string, number>()
+      for (const r of (righe ?? []) as { campi_extra: Record<string, unknown> | null }[]) {
+        for (const e of toccati) if (r.campi_extra && r.campi_extra[e.chiave] !== undefined) usati.set(e.chiave, (usati.get(e.chiave) ?? 0) + 1)
+      }
+      const bloccati = toccati.filter(e => usati.get(e.chiave))
+      if (bloccati.length) {
+        return {
+          ok: false,
+          errori: bloccati.map(e => dopo.has(e.chiave)
+            ? `«${e.etichetta}» ha già un valore su ${usati.get(e.chiave)} lead: il tipo non si cambia. Crea un campo nuovo e ritira questo.`
+            : `«${e.etichetta}» ha un valore su ${usati.get(e.chiave)} lead: ritiralo invece di eliminarlo.`),
+        }
+      }
+      const via = toccati.filter(e => !dopo.has(e.chiave)).map(e => e.chiave)
+      if (via.length) {
+        const { error } = await admin.from('sales_campi').delete().in('chiave', via)
+        if (error) return { ok: false, errori: [error.message] }
+      }
+    }
+
+    if (puliti.length) {
+      const { error } = await admin.from('sales_campi').upsert(puliti, { onConflict: 'chiave' })
+      if (error) return { ok: false, errori: [error.message] }
+    }
+    rinfresca()
+    return { ok: true }
+  } catch (e) {
+    console.error('[campi personalizzati]', e)
     return { ok: false, errori: [(e as Error).message] }
   }
 }

@@ -33,6 +33,7 @@ const dataIt = (v: string) => {
 
 const euro = (n: number) =>
   new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
+const numero = (n: number) => new Intl.NumberFormat('it-IT', { maximumFractionDigits: 2 }).format(n)
 
 export function CrmCella({ colonna, valore, onSalva, disabilitato }: {
   colonna: Colonna
@@ -170,13 +171,21 @@ export function CrmCella({ colonna, valore, onSalva, disabilitato }: {
     const v = testo()
     const mostrato =
       colonna.tipo === 'data' && v ? dataIt(v)
-      : colonna.tipo === 'numero' && v ? euro(Number(v))
+      : colonna.tipo === 'numero' && v ? (colonna.euro ? euro(Number(v)) : numero(Number(v)))
       : v
-    if (colonna.tipo === 'url' && v) {
+    /* §437 — link, telefono ed email si aprono con un tocco; la matita accanto
+       modifica. Un numero che si deve ricopiare a mano per chiamarlo è un
+       numero che si sbaglia. */
+    const link = !v ? null
+      : colonna.tipo === 'url' ? { href: v, testo: v.replace(/^https?:\/\//, ''), fuori: true }
+      : colonna.tipo === 'telefono' ? { href: `tel:${v.replace(/[^\d+]/g, '')}`, testo: v, fuori: false }
+      : colonna.tipo === 'email' ? { href: `mailto:${v}`, testo: v, fuori: false }
+      : null
+    if (link) {
       return (
         <span className="flex items-center gap-1 min-w-0">
-          <a href={v} target="_blank" rel="noopener noreferrer"
-            className="truncate text-2xs text-gold-text hover:underline" title={v}>{v.replace(/^https?:\/\//, '')}</a>
+          <a href={link.href} {...(link.fuori ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+            className="truncate text-2xs text-gold-text hover:underline" title={v}>{link.testo}</a>
           <button type="button" onClick={apri} aria-label={`Modifica ${colonna.etichetta}`}
             className="text-text-tertiary hover:text-text-primary text-2xs shrink-0">✎</button>
         </span>
@@ -206,7 +215,8 @@ export function CrmCella({ colonna, valore, onSalva, disabilitato }: {
   return (
     <input
       ref={r => { rif.current = r }}
-      type={colonna.tipo === 'data' ? 'date' : colonna.tipo === 'email' ? 'email' : 'text'}
+      type={colonna.tipo === 'data' ? 'date' : colonna.tipo === 'email' ? 'email' : colonna.tipo === 'telefono' ? 'tel' : 'text'}
+      inputMode={colonna.tipo === 'numero' ? 'decimal' : undefined}
       value={bozza} disabled={pending} aria-label={colonna.etichetta} className={inputCls}
       onChange={e => setBozza(e.target.value)} onKeyDown={tastiera} onBlur={() => salva(bozza)} />
   )

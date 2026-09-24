@@ -19,6 +19,7 @@ import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { FASI_SEME, ordinate, type Fase } from '@/lib/sales-stages'
 import { LISTE, SCELTE_SEME, TABELLA, type Scelte, type Voce } from '@/lib/sales-scelte'
+import type { Campo } from '@/lib/sales-campi'
 
 const COLONNE = 'chiave, etichetta, ruolo, tinta, ordine, attiva, descrizione' as const
 
@@ -67,5 +68,21 @@ export const leggiScelte = cache(async (): Promise<Scelte> => {
     return out
   } catch {
     return SCELTE_SEME
+  }
+})
+
+/**
+ * §437 — i campi personalizzati, tutti, anche i ritirati: la scheda mostra un
+ * ritirato se la riga ha un valore. Senza la tabella (migration non applicata)
+ * non ce ne sono, e la scheda resta quella di sempre.
+ */
+export const leggiCampi = cache(async (): Promise<Campo[]> => {
+  try {
+    const sb = await createClient()
+    const { data, error } = await sb.from('sales_campi')
+      .select('chiave, etichetta, tipo, opzioni, riquadro, aiuto, ordine, attivo').order('ordine')
+    return error || !data ? [] : data as unknown as Campo[]
+  } catch {
+    return []
   }
 })

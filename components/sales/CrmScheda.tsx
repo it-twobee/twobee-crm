@@ -23,6 +23,7 @@ import { useState } from 'react'
 import { Check, X, UserPlus, Loader2, ExternalLink, Trash2, Sparkles, Target, TriangleAlert } from 'lucide-react'
 import { COLONNE, GRUPPI_SCHEDA, TITOLO_GRUPPO, colonnaDi, type Colonna } from '@/lib/sales-table'
 import { CrmCella } from './CrmCella'
+import { campiDaMostrare, comeColonna, type Campo as CampoPersonalizzato } from '@/lib/sales-campi'
 import { MenuFase } from './MenuFase'
 import { useFasi } from './FasiContext'
 import { campiCheServono, prossimaAzione, suggerimenti } from '@/lib/sales-scheda'
@@ -95,6 +96,27 @@ function Owner({ riga, persone, onOwner }: {
 
 type Extra = { persone: PersonaCrm[]; onOwner?: (ids: string[]) => Promise<void> }
 
+/** §437 — un campo personalizzato: la cella di sempre, e il suggerimento sotto il nome */
+function CampoExtra({ campo, valore, onSalva }: {
+  campo: CampoPersonalizzato
+  valore: unknown
+  onSalva?: (v: unknown) => Promise<void>
+}) {
+  return (
+    <div className="flex items-start gap-3 px-3 py-2">
+      <span className="w-32 shrink-0 pt-0.5">
+        <span className={`block text-2xs ${campo.attivo ? 'text-text-tertiary' : 'text-text-tertiary line-through'}`}
+          title={campo.attivo ? undefined : 'Campo ritirato: resta leggibile qui'}>{campo.etichetta}</span>
+        {campo.aiuto && <span className="block text-2xs text-text-tertiary opacity-80 leading-snug">{campo.aiuto}</span>}
+      </span>
+      <div className="flex-1 min-w-0">
+        <CrmCella colonna={comeColonna(campo)} valore={valore ?? null}
+          disabilitato={!onSalva} onSalva={async v => { if (onSalva) await onSalva(v) }} />
+      </div>
+    </div>
+  )
+}
+
 /** etichetta a sinistra, valore a destra: si scorre con l'occhio, non si cerca */
 function Campo({ colonna, riga, onSalva, persone, onOwner }: {
   colonna: Colonna
@@ -114,8 +136,10 @@ function Campo({ colonna, riga, onSalva, persone, onOwner }: {
   )
 }
 
-export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pending, persone = [], onOwner }: {
+export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pending, persone = [], onOwner, onSalvaExtra }: {
   riga: RigaCrm
+  /** §437 — un campo personalizzato: un'altra porta, perché è un'altra colonna */
+  onSalvaExtra?: (chiave: string, valore: unknown) => Promise<void>
   persone?: PersonaCrm[]
   /** assente per chi non assegna il lavoro: gli owner si leggono e basta */
   onOwner?: (ids: string[]) => Promise<void>
@@ -126,8 +150,10 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pend
   onElimina?: () => void
   pending: boolean
 }) {
-  const { TUTTE } = useFasi()
+  const { TUTTE, CAMPI } = useFasi()
   const origine = (riga.lead_origine ?? {}) as Record<string, string>
+  const extra = (riga.campi_extra ?? {}) as Record<string, unknown>
+  const nostri = campiDaMostrare(CAMPI, extra)
   const voci = ORIGINE.filter(([k]) => origine[k])
 
   /* §428 — tre domande a cui la scheda risponde prima di mostrare i campi:
@@ -255,6 +281,13 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pend
           <Riquadro key={g} titolo={TITOLO_GRUPPO[g]}>
             {COLONNE.filter(c => c.gruppo === g).map(c => (
               <Campo key={c.campo} colonna={c} riga={riga} onSalva={onSalva} persone={persone} onOwner={onOwner} />
+            ))}
+            {/* §437 — i campi personalizzati in fondo al riquadro che hanno
+                scelto, con la stessa cella: dentro il discorso a cui
+                appartengono, non in un «Altro» in fondo che nessuno apre. */}
+            {nostri.filter(c => c.riquadro === g).map(c => (
+              <CampoExtra key={`extra-${c.chiave}`} campo={c} valore={extra[c.chiave]}
+                onSalva={onSalvaExtra ? v => onSalvaExtra(c.chiave, v) : undefined} />
             ))}
           </Riquadro>
         ))}

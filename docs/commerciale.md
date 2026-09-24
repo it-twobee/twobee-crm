@@ -741,6 +741,38 @@ riempiono anche il giro dal foglio («Meta Ads») e l'import («CSV»): chiuderl
 vorrebbe dire decidere cosa fare dei valori che arrivano da fuori. La costante
 `SALES_SOURCES` in `lib/sales.ts` non la usa più nessuno.
 
+## I campi personalizzati della scheda — §437
+
+Un campo che serve a un modo di lavorare («Dipendenti», «Gestionale usato»,
+«Ha già un sito?») non chiede più una migration: si aggiunge da
+`/impostazioni/commerciale` e compare **solo nella scheda del lead**, nel
+riquadro scelto — non in elenco, non nei filtri, non nei numeri, perché un
+campo nato per un modo di lavorare non deve cambiare la pagina di tutti.
+
+- **Nove tipi**: testo breve, testo lungo, numero, data, sì/no, scelta, link,
+  telefono, email. Telefono ed email si aprono con un tocco. **Nessun
+  importo**: un valore economico scritto a mano su un lead è quello che
+  l'invariante vieta.
+- **Stessa cella di sempre** (`comeColonna` → `CrmCella`): due modi di
+  modificare nella stessa scheda sono uno di troppo. Il campo sta in fondo al
+  riquadro che ha scelto, non in un «Altro» che nessuno apre.
+- **Dati**: definizioni in `sales_campi`, valori in `deals.campi_extra`
+  (`jsonb`), scritti **una chiave alla volta** da `sales_imposta_campo` — due
+  persone che compilano due campi della stessa scheda non si cancellano. Il
+  valore passa da `validaExtra` col tipo **riletto dal database**; il vuoto
+  toglie la chiave.
+- **Un campo con dei valori non cambia tipo e non si elimina**: si ritira, e
+  resta leggibile (barrato) sulle schede che lo hanno compilato. Lo conta
+  `salvaCampi`; nell'editor i bottoni non ci sono.
+- **Le chiavi** nascono dal nome e non possono essere quelle delle colonne vere
+  (`RISERVATE`); il nome non può essere quello di un campo già nella scheda.
+- **Prima della migration** la pagina regge: `campi_extra` si legge in una
+  query a parte e tollerante, e senza tabella non ci sono campi.
+
+Due ritocchi a `CrmCella` che valgono per tutti: un numero si mostra come
+numero e come euro solo se la colonna lo dichiara (`euro: true`, solo
+Fatturato) — «Tentativi» si leggeva «3 €»; e telefono ed email sono link.
+
 ## Aperto
 
 - **La RLS non conosceva `deal_owners`**: `sales_can_read` (223) guardava solo

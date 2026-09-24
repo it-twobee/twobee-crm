@@ -5,7 +5,7 @@ import { CAMPI_RIGA } from '@/lib/sales-table'
 import { CrmTable, type RigaCrm, type PersonaCrm } from './CrmTable'
 import { ADMIN_ROLES } from '@/lib/permissions'
 import { FasiProvider } from './FasiContext'
-import { leggiFasi, leggiMotiviPerso, leggiScelte } from '@/lib/sales-fasi'
+import { leggiCampi, leggiFasi, leggiMotiviPerso, leggiScelte } from '@/lib/sales-fasi'
 
 /**
  * §371 — il CRM commerciale, nei due portali.
@@ -51,7 +51,7 @@ export async function SalesPage({ base }: { base: string }) {
   /* §424 — le fasi scendono dal server una volta e stanno a disposizione di
      tutta la sezione: sono una tabella che un amministratore cambia mentre il
      tool gira, non più una costante importata da otto componenti. */
-  const [fasi, motivi, scelte] = await Promise.all([leggiFasi(), leggiMotiviPerso(), leggiScelte()])
+  const [fasi, motivi, scelte, campi] = await Promise.all([leggiFasi(), leggiMotiviPerso(), leggiScelte(), leggiCampi()])
 
   /* §430 — il service role legge tutto, quindi il perimetro di chi vede solo i
      suoi lead si taglia **qui**, sul server: le righe degli altri non arrivano
@@ -77,7 +77,13 @@ export async function SalesPage({ base }: { base: string }) {
   for (const l of (legami ?? []) as { deal_id: string; profile_id: string }[]) {
     perRiga.set(l.deal_id, [...(perRiga.get(l.deal_id) ?? []), l.profile_id])
   }
-  righe = righe.map(r => ({ ...r, owners: perRiga.get(r.id) ?? [] }))
+  /* §437 — i campi personalizzati in una query a parte, e se fallisce si va
+     avanti senza: prima della migration la colonna non c'è, e chiederla nella
+     select principale farebbe cadere la pagina intera per un riquadro. */
+  const { data: extra } = await admin.from('deals').select('id, campi_extra').in('id', righe.map(r => r.id))
+  const extraDi = new Map(((extra ?? []) as { id: string; campi_extra: Record<string, unknown> | null }[])
+    .map(e => [e.id, e.campi_extra ?? {}]))
+  righe = righe.map(r => ({ ...r, owners: perRiga.get(r.id) ?? [], campi_extra: extraDi.get(r.id) ?? {} }))
 
   const idConcessi = (concessi ?? []).map(c => c.profile_id as string)
   const idOwner = Array.from(new Set((legami ?? []).map(l => l.profile_id as string)))
@@ -94,7 +100,7 @@ export async function SalesPage({ base }: { base: string }) {
     }))
 
   return (
-    <FasiProvider fasi={fasi} motivi={motivi} scelte={scelte}>
+    <FasiProvider fasi={fasi} motivi={motivi} scelte={scelte} campi={campi}>
       <CrmTable
         righe={righe}
         persone={persone}

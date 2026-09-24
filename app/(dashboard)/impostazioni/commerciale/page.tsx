@@ -6,7 +6,8 @@ import { FasiCommercialiClient } from '@/components/impostazioni/FasiCommerciali
 import { Ban, Flag, BadgeCheck } from 'lucide-react'
 import { ElencoVociClient } from '@/components/impostazioni/ElencoVociClient'
 import type { Motivo } from '@/lib/sales-motivi'
-import { leggiScelte } from '@/lib/sales-fasi'
+import { leggiCampi, leggiScelte } from '@/lib/sales-fasi'
+import { CampiPersonalizzatiClient } from '@/components/impostazioni/CampiPersonalizzatiClient'
 import { AccessoCommercialeClient, type PersonaAccesso } from '@/components/impostazioni/AccessoCommercialeClient'
 import { WORKSPACE_ROLES } from '@/lib/permissions'
 import type { AppRole } from '@/lib/types/database'
@@ -45,7 +46,16 @@ export default async function ConfigCommercialePage() {
     piu(perPriorita, r.priority)
     piu(perMembership, r.membership)
   }
-  const scelte = await leggiScelte()
+  const [scelte, campi, { data: extra }] = await Promise.all([
+    leggiScelte(),
+    leggiCampi(),
+    /* §437 — a parte e tollerante: prima della migration la colonna non c'è */
+    db.from('deals').select('campi_extra'),
+  ])
+  const perCampo: Record<string, number> = {}
+  for (const r of (extra ?? []) as { campi_extra: Record<string, unknown> | null }[]) {
+    for (const k of Object.keys(r.campi_extra ?? {})) perCampo[k] = (perCampo[k] ?? 0) + 1
+  }
   const icona = (I: typeof Ban) => <I className="w-4 h-4 text-gold-text" />
 
   const abilitati = new Set((grant ?? []).map(g => g.profile_id as string))
@@ -66,6 +76,7 @@ export default async function ConfigCommercialePage() {
       <ElencoVociClient tipo="membership" titolo="Membership" icona={icona(BadgeCheck)} colonnaConta="Lead"
         segnaposto="Nome della membership" voci={scelte.membership} conta={perMembership}
         spiega="Le voci della colonna Membership. Una voce usata si ritira, non si elimina." />
+      <CampiPersonalizzatiClient campi={campi} conta={perCampo} />
       <AccessoCommercialeClient persone={persone} />
     </div>
   )

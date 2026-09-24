@@ -66,6 +66,8 @@ export type Colonna = {
   secondaria?: boolean
   /** in quale riquadro della scheda finisce */
   gruppo: GruppoScheda
+  /** §437 — il numero è in euro: senza, si mostra come numero («Tentativi: 3», non «3 €») */
+  euro?: boolean
 }
 
 export const PRIORITA = ['High', 'Medium', 'Low'] as const
@@ -107,7 +109,7 @@ export const COLONNE: Colonna[] = [
   { campo: 'source',          etichetta: 'Lead Source',    tipo: 'testo',     largh: 11, gruppo: 'classificazione' },
   { campo: 'last_interaction_at', etichetta: 'Last Contact', tipo: 'data',    largh: 9, gruppo: 'trattativa' },
   { campo: 'started_on',      etichetta: 'Start',          tipo: 'data',      largh: 9, gruppo: 'trattativa' },
-  { campo: 'fatturato',       etichetta: 'Fatturato',      tipo: 'numero',    largh: 10, secondaria: true, gruppo: 'azienda' },
+  { campo: 'fatturato',       etichetta: 'Fatturato',      tipo: 'numero',    largh: 10, secondaria: true, gruppo: 'azienda', euro: true },
   { campo: 'owner_name',      etichetta: 'Owner',          tipo: 'testo',     largh: 12, secondaria: true, gruppo: 'azienda' },
   { campo: 'website',         etichetta: 'Sito web',       tipo: 'url',       largh: 13, secondaria: true, gruppo: 'azienda' },
   { campo: 'address',         etichetta: 'Address',        tipo: 'lunga',     largh: 16, secondaria: true, gruppo: 'azienda' },
