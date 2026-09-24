@@ -32,7 +32,8 @@ import { ETICHETTA_GRUPPO, GRUPPI, gruppoDi, type Gruppo } from '@/lib/sales-sta
 import { useFasi } from './FasiContext'
 import { MenuFase } from './MenuFase'
 import { dividiPersi, notaInRiga } from '@/lib/sales-elenco'
-import { salvaCellaDeal, collegaLeadACliente, aggiornaDaFoglio, eliminaLead } from '@/app/actions/sales'
+import { salvaCellaDeal, collegaLeadACliente, aggiornaDaFoglio, eliminaLead, impostaOwnerDeal } from '@/app/actions/sales'
+import { ETICHETTA_QUALIFICA } from '@/lib/sales-table'
 import { NewClientModal } from '@/components/clients/NewClientModal'
 import type { Client } from '@/lib/types/database'
 import { CrmScheda } from './CrmScheda'
@@ -47,9 +48,12 @@ import { CrmAnalytics } from './CrmAnalytics'
 import { tassoDi, type RigaAnalisi } from '@/lib/sales-analytics'
 import {
   ordina, applica, cerca as cercaIn, opzioni, quantiFiltri,
-  ORDINABILI, FILTRABILI, type Verso, type Scelte,
+  ORDINABILI, FILTRABILI, SENZA_OWNER, type Verso, type Scelte,
 } from '@/lib/sales-filtri'
 import { VoceSezione } from '@/components/workspace/VoceSezione'
+
+/** §430 — chi può comparire come Account Owner, e chi si può ancora scegliere */
+export type PersonaCrm = { id: string; nome: string; assegnabile: boolean }
 
 export type RigaCrm = Record<string, unknown> & {
   id: string
@@ -75,8 +79,11 @@ function quando(v: unknown): string {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}${anno} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
+export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [], puoiAssegnare = false }: {
   righe: RigaCrm[]
+  persone?: PersonaCrm[]
+  /** §430 — admin e manager: gli owner li decide chi assegna il lavoro */
+  puoiAssegnare?: boolean
   /** §378 — admin e manager. Chi non può non vede le caselle, non le vede spente */
   puoiEliminare?: boolean
 }) {
@@ -143,6 +150,22 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
     for (const g of GRUPPI) conta[g] = base.filter(r => { const f = FASI.find(x => x.chiave === r.stage); return f ? gruppoDi(f) === g : false }).length
     return conta
   }, [righe, cerca, scelte])
+
+  const nomeDi = useMemo(() => new Map(persone.map(p => [p.id, p.nome])), [persone])
+
+  /* §430 — gli owner non passano da `salvaCellaDeal`: sono un'altra tabella e
+     un'altra porta (`impostaOwnerDeal`), ma lo stesso gesto ottimistico. */
+  const salvaOwner = async (riga: RigaCrm, ids: string[]) => {
+    const prima = riga.owners
+    setRighe(rs => rs.map(r => r.id === riga.id ? { ...r, owners: ids } : r))
+    try {
+      const { owner } = await impostaOwnerDeal(riga.id, ids)
+      setRighe(rs => rs.map(r => r.id === riga.id ? { ...r, owners: owner } : r))
+    } catch (e) {
+      setRighe(rs => rs.map(r => r.id === riga.id ? { ...r, owners: prima } : r))
+      toast.error((e as Error).message)
+    }
+  }
 
   const salva = async (riga: RigaCrm, campo: string, valore: unknown): Promise<boolean> => {
     const prima = riga[campo]
@@ -473,7 +496,10 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
                         aria-pressed={on}
                         className={`text-2xs px-2 py-1 rounded-lg border transition-colors ${
                           on ? 'border-gold/40 bg-gold/10 text-gold-text' : 'border-border text-text-secondary hover:text-text-primary'}`}>
-                        {f.campo === 'stage' ? etichettaFase(o.valore) : o.valore}
+                        {f.campo === 'stage' ? etichettaFase(o.valore)
+                          : f.campo === 'owners' ? (o.valore === SENZA_OWNER ? 'Nessuno' : nomeDi.get(o.valore) ?? 'Ex collega')
+                          : f.campo === 'qualifica' ? (ETICHETTA_QUALIFICA[o.valore] ?? o.valore)
+                          : o.valore}
                         <span className="ml-1 tabular text-text-tertiary">{o.quante}</span>
                       </button>
                     )
@@ -574,11 +600,13 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false }: {
                 laterale non è il corpo della pagina). */}
           {aperta && (
             <div className="fixed inset-0 z-40 bg-background p-4 lg:sticky lg:top-4 lg:inset-auto lg:z-auto lg:p-0 lg:flex-1 lg:min-w-0 lg:h-[calc(100vh-7rem)]">
-              <CrmScheda
+              <CrmScheda key={aperta.id}
                 riga={aperta}
                 pending={pending}
                 onChiudi={() => setAperta(null)}
                 onSalva={async (campo, valore) => { await salva(aperta, campo, valore) }}
+                persone={persone}
+                onOwner={puoiAssegnare ? ids => salvaOwner(aperta, ids) : undefined}
                 onConverti={() => setConverto(aperta)}
                 onElimina={puoiEliminare ? () => setDaEliminare([aperta.id]) : undefined}
               />

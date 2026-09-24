@@ -1,5 +1,15 @@
 # Dove siamo
 
+## Chi vede solo i suoi lead li vede davvero solo lui — §430, 2026-09-24
+
+Il perimetro «solo i propri» valeva nella RLS e non nella pagina, che legge
+col service role: da §429 un senior abilitato avrebbe visto e modificato tutta
+la pipeline. `requireDealAccess` chiude le azioni sulla singola trattativa,
+`SalesPage` taglia le righe sul server. In produzione non è mai successo (le
+concessioni erano tutte a manager). In più gli Account Owner si leggono e si
+assegnano dalla scheda (admin e manager), e i filtri hanno Account Owner — con
+«Nessuno» — e Qualifica. Aperto: `sales_can_read` non conosce `deal_owners`.
+
 ## Chi lavora i lead si sceglie di nuovo — §429, 2026-09-24
 
 In `/impostazioni/commerciale`, sotto le fasi, c'è l'elenco del team con un

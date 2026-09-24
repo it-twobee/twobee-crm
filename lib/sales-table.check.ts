@@ -115,8 +115,12 @@ is('nessun doppione nella select', new Set(CAMPI_RIGA).size, CAMPI_RIGA.length)
 /* La regola vera, quella che vale anche per il filtro che qualcuno
    aggiungerà: un filtro che legge da una colonna non chiesta non filtra —
    offre zero opzioni e sembra che i dati non ci siano. */
+/* §430 — l'unica eccezione è `owners`, e ha un posto preciso da cui arriva:
+   `SalesPage` lo legge da `deal_owners` e lo mette sulla riga. Se un giorno
+   un secondo filtro ha bisogno di un'eccezione, deve dire da dove arriva. */
+const DA_ALTRA_TABELLA = ['owners']
 is('ogni filtro legge da una colonna chiesta',
-  FILTRABILI.filter(f => !CAMPI_RIGA.includes(f.da ?? f.campo)).map(f => f.campo), [])
+  FILTRABILI.filter(f => !CAMPI_RIGA.includes(f.da ?? f.campo) && !DA_ALTRA_TABELLA.includes(f.campo)).map(f => f.campo), [])
 is('e ogni ordinamento pure',
   ORDINABILI.filter(o => !CAMPI_RIGA.includes(o.campo)).map(o => o.campo), [])
 

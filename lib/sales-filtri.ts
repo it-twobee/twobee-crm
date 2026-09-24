@@ -80,8 +80,21 @@ export const ordina = (fasi: Fase[], righe: Riga[], campo: string, verso: Verso)
  * chiuso o comunque corto. Il testo libero si cerca, non si filtra — un menu
  * con cinquantacinque nomi di azienda è un menu che nessuno apre.
  */
-export const FILTRABILI: { campo: string; etichetta: string; da?: string }[] = [
+export type Filtrabile = {
+  campo: string; etichetta: string; da?: string
+  /** §430 — il valore che si offre per le righe **senza** dato: «nessuno segue
+      questo lead» è una domanda, e senza questa voce non avrebbe un bottone */
+  vuoto?: string
+}
+
+export const SENZA_OWNER = '__nessuno__'
+
+export const FILTRABILI: Filtrabile[] = [
   { campo: 'stage', etichetta: 'Fase' },
+  /* §430 — i due che mancavano: chi segue il lead, ora che il permesso si dà
+     anche a chi non è admin, e la qualifica, che dalla 258 è un campo. */
+  { campo: 'owners', etichetta: 'Account Owner', vuoto: SENZA_OWNER },
+  { campo: 'qualifica', etichetta: 'Qualifica' },
   { campo: 'priority', etichetta: 'Priorità' },
   { campo: 'membership', etichetta: 'Membership' },
   { campo: 'source', etichetta: 'Fonte' },
@@ -95,20 +108,23 @@ export const FILTRABILI: { campo: string; etichetta: string; da?: string }[] = [
 ]
 
 /** i valori che una riga ha per quella variabile: zero, uno o molti (i tag) */
-export function valoriDi(r: Riga, f: { campo: string; da?: string }): string[] {
+export function valoriDi(r: Riga, f: Omit<Filtrabile, 'etichetta'>): string[] {
   const grezzo = f.da ? (r[f.da] as Record<string, unknown> | null)?.[f.campo] : r[f.campo]
-  if (grezzo === null || grezzo === undefined || grezzo === '') return []
-  if (Array.isArray(grezzo)) return grezzo.map(String).filter(Boolean)
-  return [String(grezzo)]
+  const valori = grezzo === null || grezzo === undefined || grezzo === '' ? []
+    : Array.isArray(grezzo) ? grezzo.map(String).filter(Boolean)
+    : [String(grezzo)]
+  return !valori.length && f.vuoto ? [f.vuoto] : valori
 }
 
 /** i valori presenti, col conteggio: si offre solo quello che esiste davvero */
-export function opzioni(righe: Riga[], f: { campo: string; da?: string }): { valore: string; quante: number }[] {
+export function opzioni(righe: Riga[], f: Omit<Filtrabile, 'etichetta'>): { valore: string; quante: number }[] {
   const conta = new Map<string, number>()
   for (const r of righe) for (const v of valoriDi(r, f)) conta.set(v, (conta.get(v) ?? 0) + 1)
   return Array.from(conta.entries())
     .map(([valore, quante]) => ({ valore, quante }))
-    .sort((a, b) => b.quante - a.quante || a.valore.localeCompare(b.valore, 'it'))
+    // «nessuno» non è un valore fra gli altri: sta in fondo, qualunque numero abbia
+    .sort((a, b) => Number(a.valore === f.vuoto) - Number(b.valore === f.vuoto)
+      || b.quante - a.quante || a.valore.localeCompare(b.valore, 'it'))
 }
 
 export type Scelte = Record<string, string[]>

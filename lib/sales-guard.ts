@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
-import { salesAccess } from '@/lib/sales'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { salesAccess, uuid, type SalesAccess } from '@/lib/sales'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 
 export async function getSalesAccess() {
@@ -19,6 +20,48 @@ export async function requireSalesAccess() {
   const context = await getSalesAccess()
   if (!context) throw new Error('Accesso commerciale non abilitato')
   return context
+}
+
+/**
+ * §430 — quali trattative sono di chi chiama.
+ *
+ * «Sue» vuol dire che è fra gli Account Owner (`deal_owners`, 236) o che è
+ * l'assegnatario della riga (`assigned_to`, quello che legge la RLS di 223).
+ * Tutte e due, perché la pagina e le azioni passano dal service role: se ne
+ * guardassimo una sola, la RLS e l'elenco risponderebbero in modo diverso
+ * alla stessa domanda.
+ */
+export async function leadDi(actor: string): Promise<Set<string>> {
+  const db = createAdminClient()
+  const [{ data: owner }, { data: assegnati }] = await Promise.all([
+    db.from('deal_owners').select('deal_id').eq('profile_id', actor),
+    db.from('deals').select('id').eq('assigned_to', actor),
+  ])
+  return new Set([
+    ...(owner ?? []).map(r => r.deal_id as string),
+    ...(assegnati ?? []).map(r => r.id as string),
+  ])
+}
+
+/** admin e manager vedono tutto; chi è `owner` solo le sue (`salesAccess`) */
+export const vedeTutto = (access: SalesAccess) => access === 'admin' || access === 'manager'
+
+/**
+ * §430 — la porta di ogni azione su **una** trattativa.
+ *
+ * `requireSalesAccess()` risponde «può entrare nell'area», non «può toccare
+ * questa riga»: con il permesso concesso a un senior (§429), senza questo
+ * controllo modificava qualunque lead mandando un id che non vede. L'id si
+ * indovina male, ma un file `'use server'` è un endpoint (§329) e la regola
+ * vale anche per chi ha il codice davanti.
+ */
+export async function requireDealAccess(dealId: unknown) {
+  const contesto = await requireSalesAccess()
+  uuid(dealId)
+  if (!vedeTutto(contesto.access) && !(await leadDi(contesto.actor)).has(dealId)) {
+    throw new Error('Questo lead non è fra i tuoi')
+  }
+  return contesto
 }
 
 /**

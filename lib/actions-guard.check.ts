@@ -45,6 +45,9 @@ const GUARD_CONDIVISE = [
      admin e super admin. Chi ha `can_view_deals` lavora i lead, non riordina le
      fasi a tutti. */
   'requireSalesConfig',
+  /* §430 — `requireDealAccess` passa da `requireSalesAccess` e in più chiede
+     se quella riga è di chi chiama: la stessa porta, più stretta. */
+  'requireDealAccess',
 ]
 const LEGGE_SESSIONE = /auth\.getUser\(|getSessionProfile\(|getSessionUser\(|getViewer\(/
 /**

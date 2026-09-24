@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation'
-import { getSalesAccess } from '@/lib/sales-guard'
+import { getSalesAccess, leadDi, vedeTutto } from '@/lib/sales-guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CAMPI_RIGA } from '@/lib/sales-table'
-import { CrmTable, type RigaCrm } from './CrmTable'
+import { CrmTable, type RigaCrm, type PersonaCrm } from './CrmTable'
+import { ADMIN_ROLES } from '@/lib/permissions'
 import { FasiProvider } from './FasiContext'
 import { leggiFasi, leggiMotiviPerso } from '@/lib/sales-fasi'
 
@@ -52,10 +53,52 @@ export async function SalesPage({ base }: { base: string }) {
      tool gira, non più una costante importata da otto componenti. */
   const [fasi, motivi] = await Promise.all([leggiFasi(), leggiMotiviPerso()])
 
+  /* §430 — il service role legge tutto, quindi il perimetro di chi vede solo i
+     suoi lead si taglia **qui**, sul server: le righe degli altri non arrivano
+     nemmeno al browser. Nascondere una riga nell'elenco non è una barriera. */
+  let righe = (data ?? []) as unknown as RigaCrm[]
+  if (!vedeTutto(contesto.access)) {
+    const suoi = await leadDi(contesto.actor)
+    righe = righe.filter(r => suoi.has(r.id))
+  }
+
+  /* §430 — chi segue ogni lead. `owners` non è una colonna di `deals` (236) e
+     la pagina non lo chiedeva: la cella esisteva e restava sempre vuota, e un
+     senior abilitato si trovava un elenco vuoto senza che nessuno potesse
+     dargli un lead. Si assegna fra chi l'area la vede davvero — gli admin e chi
+     ha `can_view_deals` — perché dare un lead a chi non può aprirlo è
+     perderlo. */
+  const admin = createAdminClient()
+  const [{ data: legami }, { data: concessi }] = await Promise.all([
+    admin.from('deal_owners').select('deal_id, profile_id').in('deal_id', righe.map(r => r.id)),
+    admin.from('profile_permissions').select('profile_id').eq('permission', 'can_view_deals').eq('granted', true),
+  ])
+  const perRiga = new Map<string, string[]>()
+  for (const l of (legami ?? []) as { deal_id: string; profile_id: string }[]) {
+    perRiga.set(l.deal_id, [...(perRiga.get(l.deal_id) ?? []), l.profile_id])
+  }
+  righe = righe.map(r => ({ ...r, owners: perRiga.get(r.id) ?? [] }))
+
+  const idConcessi = (concessi ?? []).map(c => c.profile_id as string)
+  const idOwner = Array.from(new Set((legami ?? []).map(l => l.profile_id as string)))
+  const { data: profili } = await admin.from('profiles')
+    .select('id, full_name, app_role, is_active')
+    .or(`app_role.in.(${ADMIN_ROLES.join(',')}),id.in.(${[...idConcessi, ...idOwner].join(',') || '00000000-0000-0000-0000-000000000000'})`)
+    .order('full_name')
+  const persone: PersonaCrm[] = ((profili ?? []) as { id: string; full_name: string | null; app_role: string | null; is_active: boolean | null }[])
+    .map(p => ({
+      id: p.id,
+      nome: p.full_name || 'Senza nome',
+      assegnabile: p.is_active !== false
+        && (ADMIN_ROLES.includes(p.app_role as never) || idConcessi.includes(p.id)),
+    }))
+
   return (
     <FasiProvider fasi={fasi} motivi={motivi}>
       <CrmTable
-        righe={(data ?? []) as unknown as RigaCrm[]}
+        righe={righe}
+        persone={persone}
+        puoiAssegnare={vedeTutto(contesto.access)}
         puoiEliminare={contesto.access === 'admin' || contesto.access === 'manager'}
       />
     </FasiProvider>

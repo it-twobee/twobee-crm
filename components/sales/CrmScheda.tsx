@@ -19,13 +19,14 @@
  * lavorasse.
  */
 
-import { X, UserPlus, Loader2, ExternalLink, Trash2, Sparkles, Target, TriangleAlert } from 'lucide-react'
+import { useState } from 'react'
+import { Check, X, UserPlus, Loader2, ExternalLink, Trash2, Sparkles, Target, TriangleAlert } from 'lucide-react'
 import { COLONNE, GRUPPI_SCHEDA, TITOLO_GRUPPO, colonnaDi, type Colonna } from '@/lib/sales-table'
 import { CrmCella } from './CrmCella'
 import { MenuFase } from './MenuFase'
 import { useFasi } from './FasiContext'
 import { campiCheServono, prossimaAzione, suggerimenti } from '@/lib/sales-scheda'
-import type { RigaCrm } from './CrmTable'
+import type { PersonaCrm, RigaCrm } from './CrmTable'
 import { SalesFollowUps } from './SalesFollowUps'
 
 const ORIGINE: [string, string][] = [
@@ -45,25 +46,79 @@ function Riquadro({ titolo, children }: { titolo: string; children: React.ReactN
   )
 }
 
+/**
+ * §430 — chi segue il lead. Non è una cella di `deals` ma un elenco
+ * (`deal_owners`), quindi non passa da `CrmCella`: in lettura i nomi, e per chi
+ * assegna il lavoro l'elenco di chi l'area la vede, da accendere e spegnere.
+ * Chi non è più assegnabile resta scritto finché qualcuno non lo toglie —
+ * farlo sparire direbbe che il lead non lo seguiva nessuno.
+ */
+function Owner({ riga, persone, onOwner }: {
+  riga: RigaCrm
+  persone: PersonaCrm[]
+  onOwner?: (ids: string[]) => Promise<void>
+}) {
+  const [aperto, setAperto] = useState(false)
+  const scelti = Array.isArray(riga.owners) ? (riga.owners as string[]) : []
+  const nome = (id: string) => persone.find(p => p.id === id)?.nome ?? 'Ex collega'
+  const offerte = persone.filter(p => p.assegnabile || scelti.includes(p.id))
+  const nomi = scelti.map(nome).join(', ')
+
+  if (!onOwner) return <span className="text-2xs text-text-primary">{nomi || <span className="text-text-tertiary">Nessuno</span>}</span>
+  if (!aperto) {
+    return (
+      <button type="button" onClick={() => setAperto(true)}
+        className="block w-full text-left truncate text-2xs text-text-primary hover:text-gold-text">
+        {nomi || <span className="text-text-tertiary">Nessuno · assegna</span>}
+      </button>
+    )
+  }
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap gap-1">
+        {offerte.map(p => {
+          const on = scelti.includes(p.id)
+          return (
+            <button key={p.id} type="button" aria-pressed={on}
+              onClick={() => onOwner(on ? scelti.filter(x => x !== p.id) : [...scelti, p.id])}
+              className={`flex items-center gap-1 text-2xs px-2 py-1 rounded-lg border transition-colors ${
+                on ? 'border-gold/40 bg-gold/10 text-gold-text' : 'border-border text-text-secondary hover:text-text-primary'}`}>
+              {on && <Check className="w-3 h-3" aria-hidden />}{p.nome}
+            </button>
+          )
+        })}
+      </div>
+      <button type="button" onClick={() => setAperto(false)} className="text-2xs text-text-tertiary hover:text-text-primary">Fatto</button>
+    </div>
+  )
+}
+
+type Extra = { persone: PersonaCrm[]; onOwner?: (ids: string[]) => Promise<void> }
+
 /** etichetta a sinistra, valore a destra: si scorre con l'occhio, non si cerca */
-function Campo({ colonna, riga, onSalva }: {
+function Campo({ colonna, riga, onSalva, persone, onOwner }: {
   colonna: Colonna
   riga: RigaCrm
   onSalva: (campo: string, valore: unknown) => Promise<void>
-}) {
+} & Extra) {
   return (
     <div className="flex items-start gap-3 px-3 py-2">
       <span className="w-32 shrink-0 text-2xs text-text-tertiary pt-0.5">{colonna.etichetta}</span>
       <div className="flex-1 min-w-0">
-        <CrmCella colonna={colonna} valore={riga[colonna.campo]}
-          onSalva={v => onSalva(colonna.campo, v)} />
+        {colonna.tipo === 'persone'
+          ? <Owner riga={riga} persone={persone} onOwner={onOwner} />
+          : <CrmCella colonna={colonna} valore={riga[colonna.campo]}
+              onSalva={v => onSalva(colonna.campo, v)} />}
       </div>
     </div>
   )
 }
 
-export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pending }: {
+export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pending, persone = [], onOwner }: {
   riga: RigaCrm
+  persone?: PersonaCrm[]
+  /** assente per chi non assegna il lavoro: gli owner si leggono e basta */
+  onOwner?: (ids: string[]) => Promise<void>
   onChiudi: () => void
   onSalva: (campo: string, valore: unknown) => Promise<void>
   onConverti: () => void
@@ -168,7 +223,7 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pend
             un elenco che si ignora. */}
         {mancanti.length > 0 && (
           <Riquadro titolo="Cosa manca adesso">
-            {mancanti.map(c => <Campo key={c.campo} colonna={c} riga={riga} onSalva={onSalva} />)}
+            {mancanti.map(c => <Campo key={c.campo} colonna={c} riga={riga} onSalva={onSalva} persone={persone} onOwner={onOwner} />)}
           </Riquadro>
         )}
 
@@ -199,14 +254,14 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pend
         {GRUPPI_SCHEDA.filter(g => g !== 'provenienza').map(g => (
           <Riquadro key={g} titolo={TITOLO_GRUPPO[g]}>
             {COLONNE.filter(c => c.gruppo === g).map(c => (
-              <Campo key={c.campo} colonna={c} riga={riga} onSalva={onSalva} />
+              <Campo key={c.campo} colonna={c} riga={riga} onSalva={onSalva} persone={persone} onOwner={onOwner} />
             ))}
           </Riquadro>
         ))}
 
         <Riquadro titolo={TITOLO_GRUPPO.provenienza}>
           {COLONNE.filter(c => c.gruppo === 'provenienza').map(c => (
-            <Campo key={c.campo} colonna={c} riga={riga} onSalva={onSalva} />
+            <Campo key={c.campo} colonna={c} riga={riga} onSalva={onSalva} persone={persone} onOwner={onOwner} />
           ))}
           {/* Quello che ha detto Meta: si legge per capire da dove è arrivato,
               e non si modifica — riscriverlo perderebbe l'unico riferimento. */}

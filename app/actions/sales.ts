@@ -3,8 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { createActorClient, createAdminClient } from '@/lib/supabase/admin'
 import { sincronizzaLead } from '@/lib/sales-sync'
-import { requireSalesAccess, requireSalesConfig } from '@/lib/sales-guard'
-import { OUTCOMES, canReadDeal, uuid, validDate, validateDeal, type DealInput, type Delivery, type SalesData, type SalesDeal, type SalesOutcome, type SalesActivity } from '@/lib/sales'
+import { requireDealAccess, requireSalesAccess, requireSalesConfig, vedeTutto } from '@/lib/sales-guard'
+import { OUTCOMES, canReadDeal, salesAccess, uuid, validDate, validateDeal, type DealInput, type Delivery, type SalesData, type SalesDeal, type SalesOutcome, type SalesActivity } from '@/lib/sales'
 import { isWorkspaceRole } from '@/lib/permissions'
 import { validaCella, CAMPI_SCRIVIBILI } from '@/lib/sales-table'
 import { chiaveIngresso, faseDi } from '@/lib/sales-stages'
@@ -65,7 +65,7 @@ export async function setSalesPermission(profileId: string, enabled: boolean) {
  * si lamenta — un doppio clic sulla CTA è un doppio clic, non un errore.
  */
 export async function collegaLeadACliente(dealId: string, clientId: string) {
-  const { actor } = await requireSalesAccess()
+  const { actor } = await requireDealAccess(dealId)
   const db = createActorClient(actor)
 
   const { data: riga, error: eLettura } = await db
@@ -116,7 +116,7 @@ export async function collegaLeadACliente(dealId: string, clientId: string) {
  * Chi scrive per ultimo vince, e lo vede subito perché la tabella si aggiorna.
  */
 export async function salvaCellaDeal(dealId: string, campo: string, valore: unknown) {
-  const { actor } = await requireSalesAccess()
+  const { actor } = await requireDealAccess(dealId)
   const esito = validaCella(campo, valore, await leggiFasi())
   if (!esito.ok) throw new Error(esito.motivo)
 
@@ -138,9 +138,32 @@ export async function salvaCellaDeal(dealId: string, campo: string, valore: unkn
  * azioni separate vorrebbe dire una finestra in cui la riga ha zero owner.
  */
 export async function impostaOwnerDeal(dealId: string, profileIds: string[]) {
-  const { actor } = await requireSalesAccess()
+  /* §430 — chi segue un lead lo decide chi assegna il lavoro: un owner che si
+     toglie da una riga la perde di vista, e uno che ci aggiunge un collega gli
+     passa un lavoro senza che nessuno l'abbia deciso. */
+  const { actor, access } = await requireDealAccess(dealId)
+  if (!vedeTutto(access)) throw new Error('Gli Account Owner li assegnano admin e manager')
+  if (!Array.isArray(profileIds)) throw new Error('Elenco non valido')
   const db = createActorClient(actor)
   const unici = Array.from(new Set(profileIds.filter(Boolean)))
+  unici.forEach(id => uuid(id))
+  if (unici.length > 5) throw new Error('Al massimo cinque persone su un lead')
+
+  /* Un lead dato a chi non può aprire l'area è un lead perso: stessa regola
+     di `salesAccess`, riletta qui perché il menu della scheda non è una
+     barriera (§329). */
+  if (unici.length) {
+    const [{ data: profili }, { data: concessi }] = await Promise.all([
+      db.from('profiles').select('id, app_role, is_active').in('id', unici),
+      db.from('profile_permissions').select('profile_id')
+        .eq('permission', 'can_view_deals').eq('granted', true).in('profile_id', unici),
+    ])
+    const conPermesso = new Set((concessi ?? []).map(c => c.profile_id as string))
+    const ammessi = new Set(((profili ?? []) as { id: string; app_role: string | null; is_active: boolean | null }[])
+      .filter(p => salesAccess(p.app_role, conPermesso.has(p.id), p.is_active !== false) !== null)
+      .map(p => p.id))
+    if (unici.some(id => !ammessi.has(id))) throw new Error('Si assegna solo a chi vede l’area commerciale')
+  }
 
   const { error: eCancella } = await db.from('deal_owners').delete().eq('deal_id', dealId)
   if (eCancella) dbError(eCancella)
@@ -210,7 +233,7 @@ const CAMPI_DEDUP = 'id,company_name,contact_phone,contact_email,sheet_row_id,st
  * muro e si smette di usare la funzione.
  */
 export async function creaLead(input: NuovoLead, forza = false): Promise<EsitoCreazione> {
-  const { actor } = await requireSalesAccess()
+  const { actor, access } = await requireSalesAccess()
   const db = createActorClient(actor)
 
   const nome = input.companyName.trim()
@@ -255,9 +278,17 @@ export async function creaLead(input: NuovoLead, forza = false): Promise<EsitoCr
     created_by: actor,
   }).select('id').single()
   if (error) dbError(error)
+  const id = (data as { id: string }).id
+
+  /* §430 — chi vede solo i suoi lead ne diventa owner creandolo: altrimenti
+     lo salverebbe e non lo ritroverebbe più nell'elenco. */
+  if (!vedeTutto(access)) {
+    const { error: eOwner } = await db.from('deal_owners').insert({ deal_id: id, profile_id: actor })
+    if (eOwner) dbError(eOwner)
+  }
 
   refreshSales()
-  return { ok: true, id: (data as { id: string }).id }
+  return { ok: true, id }
 }
 
 export type RigaCsv = Record<string, string>

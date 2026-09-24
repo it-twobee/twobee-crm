@@ -581,7 +581,47 @@ aprire l'area a qualcuno è configurarla, e la pagina che la chiama è già
 chiusa da quel gate. Due porte diverse sulla stessa schermata vorrebbero dire
 che un founder vede un bottone che il server gli rifiuta, o il contrario.
 
+## Chi vede solo i suoi lead li vede davvero solo lui — §430
+
+Con §429 il permesso si poteva dare anche a un senior o a un junior, e il
+perimetro «solo i propri» (`salesAccess` → `owner`) non era scritto da nessuna
+parte fuori dalla RLS. La pagina legge col service role, quindi un senior
+abilitato avrebbe visto l'intera pipeline, e `salvaCellaDeal`,
+`collegaLeadACliente` e `impostaOwnerDeal` accettavano qualunque id. In
+produzione non è successo: le quattro concessioni erano tutte a manager.
+
+- **`requireDealAccess(dealId)`** (`lib/sales-guard.ts`) è la porta di ogni
+  azione su una trattativa: `requireSalesAccess` più «questa riga è tua».
+  «Tua» vuol dire Account Owner (`deal_owners`) **o** `assigned_to`, quello
+  che legge la RLS — `leadDi()` le guarda tutte e due.
+- **`SalesPage` taglia sul server**: le righe degli altri non arrivano al
+  browser.
+- **Gli owner li assegnano admin e manager**, e solo a chi l'area la vede
+  (admin o `can_view_deals`, riletto nell'azione): un lead dato a chi non può
+  aprirlo è un lead perso.
+- **Chi crea un lead vedendo solo i suoi ne diventa owner**, o non lo
+  ritroverebbe.
+
+**Gli owner si vedono e si scelgono.** `owners` non è una colonna di `deals`
+e la pagina non lo chiedeva: la cella nella scheda esisteva e restava vuota
+sempre. Ora `SalesPage` lo legge da `deal_owners`, e nella scheda è un
+selettore di persone. Chi non è più assegnabile resta scritto finché qualcuno
+non lo toglie.
+
+**Due filtri in più**: Account Owner — con la voce **«Nessuno»**, in fondo,
+per trovare i lead che non segue nessuno — e Qualifica, che dalla 258 era un
+campo senza filtro. `Filtrabile.vuoto` è il modo generale di dare un bottone
+alle righe senza dato; il gate di `sales-table` dichiara `owners` come
+l'unica eccezione a «ogni filtro legge da una colonna chiesta», con il posto
+da cui arriva.
+
 ## Aperto
 
+- **La RLS non conosce `deal_owners`.** `sales_can_read` (223) guarda solo
+  `assigned_to`, che in produzione è vuoto su tutti i 38 lead. La pagina e le
+  azioni passano dal service role e non ne soffrono; il follow-up nel
+  calendario (`/api/sales/follow-up`) invece legge con la sessione, quindi un
+  senior owner via `deal_owners` si vede rispondere «Lead non accessibile».
+  Serve una migration che allarghi `sales_can_read`.
 - `deal_activities` e `sales_handoffs` restano in piedi e non sono più scritte
   da nessuna UI: `SalesHandoff` legge ancora la seconda nella scheda progetto.

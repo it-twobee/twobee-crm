@@ -10,7 +10,7 @@
 import { FASI_SEME as F } from '@/lib/sales-stages'
 import {
   ordina, confronta, opzioni, applica, valoriDi, cerca, quantiFiltri,
-  ORDINABILI, FILTRABILI, type Riga,
+  ORDINABILI, FILTRABILI, SENZA_OWNER, type Riga,
 } from '@/lib/sales-filtri'
 import { COLONNE } from '@/lib/sales-table'
 
@@ -130,6 +130,25 @@ is('per email', nomi(cerca(testi, '@acme')), ['Acme'])
 is('per telefono', nomi(cerca(testi, '333')), ['Acme'])
 is('e dentro le note', nomi(cerca(testi, 'richiamare')), ['Beta'])
 is('senza testo non taglia', cerca(testi, '  ').length, 2)
+
+console.log('\n— Chi segue il lead, anche quando non lo segue nessuno (§430) —')
+const seguiti: Riga[] = [
+  { company_name: 'Acme', owners: ['anna', 'bruno'] },
+  { company_name: 'Beta', owners: ['anna'] },
+  { company_name: 'Gamma', owners: [] },
+  { company_name: 'Delta' },
+]
+const fOwner = FILTRABILI.find(f => f.campo === 'owners')!
+is('owner è filtrabile', !!fOwner, true)
+is('qualifica è filtrabile', FILTRABILI.some(f => f.campo === 'qualifica'), true)
+is('lista vuota e campo assente sono «nessuno»', [valoriDi(seguiti[2], fOwner), valoriDi(seguiti[3], fOwner)], [[SENZA_OWNER], [SENZA_OWNER]])
+is('i senza owner si contano, e stanno in fondo', opzioni(seguiti, fOwner), [
+  { valore: 'anna', quante: 2 }, { valore: 'bruno', quante: 1 }, { valore: SENZA_OWNER, quante: 2 },
+])
+is('i lead di Anna, due owner compresi', nomi(applica(seguiti, { owners: ['anna'] })), ['Acme', 'Beta'])
+is('quelli che non segue nessuno', nomi(applica(seguiti, { owners: [SENZA_OWNER] })), ['Gamma', 'Delta'])
+is('il vuoto non si inventa dove non è chiesto',
+  valoriDi({ source: '' }, FILTRABILI.find(f => f.campo === 'source')!), [])
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)
