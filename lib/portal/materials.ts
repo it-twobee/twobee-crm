@@ -16,7 +16,7 @@ export type MaterialKind = keyof typeof MATERIAL_KINDS
    contenuti attivi non entrano nemmeno se qualcuno li rinomina, perché si
    guarda il tipo dichiarato e l'estensione insieme. */
 const DOCUMENT_TYPES = [
-  'application/pdf', 'text/plain', 'text/csv',
+  'application/pdf', 'text/plain', 'text/csv', 'text/markdown', 'text/x-markdown',
   'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
@@ -36,9 +36,20 @@ const DESIGN_EXTENSIONS = [
    cartella; questi sono gli archivi che restano file — un rar, un 7z, uno zip
    dentro uno zip. */
 const ARCHIVE_EXTENSIONS = ['zip', 'rar', '7z']
+/* §432 — Un `.md` arriva come `text/markdown`, o senza tipo da Windows; un logo
+   `.svg` come `image/svg+xml`. L'SVG era fra i bloccati perché può contenere
+   script, ma nessuna porta lo esegue: `fileResponseHeaders` lo manda come
+   allegato, con `nosniff` e CSP `sandbox`, e non ha anteprima né miniatura
+   (`RENDERABLE`). L'estensione decide solo se il tipo dichiarato è il suo o
+   manca: un `.svg` che si presenta `text/html` resta fuori. */
+const TYPED_EXTENSIONS: Record<string, { kind: MaterialKind; types: string[] }> = {
+  md: { kind: 'documento', types: ['text/markdown', 'text/x-markdown', 'text/plain'] },
+  markdown: { kind: 'documento', types: ['text/markdown', 'text/x-markdown', 'text/plain'] },
+  svg: { kind: 'immagine', types: ['image/svg+xml'] },
+}
 const BLOCKED_EXTENSIONS = [
   'exe', 'msi', 'bat', 'cmd', 'com', 'scr', 'ps1', 'sh', 'jar', 'app', 'deb', 'rpm',
-  'html', 'htm', 'svg', 'xhtml', 'js', 'mjs', 'php', 'phtml',
+  'html', 'htm', 'xhtml', 'js', 'mjs', 'php', 'phtml',
 ]
 
 export function materialKind(mime: string | null | undefined, name?: string): MaterialKind | null {
@@ -46,6 +57,8 @@ export function materialKind(mime: string | null | undefined, name?: string): Ma
   // L'estensione prima del tipo dichiarato: è l'unica cosa affidabile su questi.
   if (name && DESIGN_EXTENSIONS.includes(extensionOf(name))) return 'documento'
   if (name && ARCHIVE_EXTENSIONS.includes(extensionOf(name))) return 'documento'
+  const typed = name ? TYPED_EXTENSIONS[extensionOf(name)] : undefined
+  if (typed) return !type || type === 'application/octet-stream' || typed.types.includes(type) ? typed.kind : null
   if (type.startsWith('image/') && type !== 'image/svg+xml') return 'immagine'
   if (type.startsWith('video/')) return 'video'
   if (type.startsWith('audio/')) return 'audio'
@@ -67,6 +80,7 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   heic: 'image/heic', tif: 'image/tiff', tiff: 'image/tiff', bmp: 'image/bmp',
   mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm', avi: 'video/x-msvideo', mkv: 'video/x-matroska',
   mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', aac: 'audio/aac', ogg: 'audio/ogg', flac: 'audio/flac',
+  svg: 'image/svg+xml',
   pdf: 'application/pdf', txt: 'text/plain', md: 'text/plain', csv: 'text/csv',
   doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

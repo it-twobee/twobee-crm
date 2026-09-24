@@ -121,8 +121,12 @@ Un file può arrivare a **1 GB**: non passa da `formData()`, che lo terrebbe in
 memoria. `putObjectStream` apre un multipart a pezzi da 8 MiB mentre i byte
 arrivano, conta mentre scrive e **annulla** l'upload appena supera il limite —
 un multipart lasciato aperto occuperebbe spazio senza comparire in elenco, quindi
-l'abort è nel `finally`. Tipi ammessi da elenco chiuso; HTML, SVG, script ed
+l'abort è nel `finally`. Tipi ammessi da elenco chiuso; HTML, script ed
 eseguibili restano fuori, guardando tipo dichiarato ed estensione insieme.
+L'SVG entra (§432): i loghi arrivano così, e nessuna porta lo esegue — si
+scarica come allegato in `sandbox`, senza anteprima né miniatura. Entra solo col
+tipo suo o senza tipo: un `.svg` che si dichiara `text/html` resta fuori. Lo
+stesso per `.md`/`.markdown`, che Windows manda senza tipo.
 
 `serveStoredFile` serve i byte a tutte e due le porte del portale — consegne e
 materiali — con il **Range**: 206 e `Content-Range` per un intervallo, 416 per
@@ -197,7 +201,7 @@ Scelte dichiarate:
 **File di progetto** (`.afdesign`, `.afphoto`, `.afpub`, `.psd`, `.ai`, `.eps`,
 `.indd`, `.sketch`, `.xd`, `.fig`): si riconoscono dall'**estensione**, perché il
 tipo dichiarato o manca o mente, e contano come documenti — si scaricano, non si
-aprono nel browser. L'elenco dei bloccati (HTML, SVG, script, eseguibili)
+aprono nel browser. L'elenco dei bloccati (HTML, script, eseguibili)
 continua a battere questo.
 
 ## Lo spazio c'è prima del portale (§403)

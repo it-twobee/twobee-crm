@@ -138,9 +138,10 @@ serve tutto. Vale anche per le consegne della §395, che prima non lo facevano.
 
 ### Cosa si può caricare
 
-Immagini, video, audio e documenti, da un elenco chiuso. Restano fuori HTML, SVG,
+Immagini, video, audio e documenti, da un elenco chiuso. Restano fuori HTML,
 script ed eseguibili — si guardano **il tipo dichiarato e l'estensione insieme**,
-perché rinominare un file è gratis. Un tipo rifiutato non apre nemmeno lo
+perché rinominare un file è gratis. SVG e Markdown entrano (§432): l'SVG si
+scarica come allegato in `sandbox` e non ha anteprima, quindi non esegue niente. Un tipo rifiutato non apre nemmeno lo
 storage. Se la riga non si scrive, l'oggetto e il metadato vengono rimossi: mai
 un file senza riga, mai una riga senza file.
 

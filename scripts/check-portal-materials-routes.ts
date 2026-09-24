@@ -209,7 +209,7 @@ async function main() {
     [{ ...good, 'x-idempotency-key': 'non-un-uuid' }, 'chiave di idempotenza'],
     [{ ...good, 'x-file-name': '' }, 'nome mancante'],
     [{ ...good, 'x-file-name': 'pagina.html', 'content-type': 'text/html' }, 'contenuto attivo'],
-    [{ ...good, 'x-file-name': 'logo.svg', 'content-type': 'image/svg+xml' }, 'svg'],
+    [{ ...good, 'x-file-name': 'logo.svg', 'content-type': 'text/html' }, 'svg che si dichiara HTML'],
     [{ ...good, 'x-file-name': 'installa.exe', 'content-type': 'application/octet-stream' }, 'eseguibile'],
     [{ ...good, 'content-type': 'application/x-sh' }, 'tipo non ammesso'],
   ] as [Record<string, string>, string][]) {
@@ -217,6 +217,9 @@ async function main() {
     assert.equal(response.status, 400, why)
   }
   assert.equal(calls.filter(c => c === 's3:put').length, 0, 'un tipo rifiutato non apre lo storage')
+  assert.equal((await route.POST(upload('x', { ...good, 'x-file-name': 'logo.svg', 'content-type': 'image/svg+xml' }))).status, 200, 'il logo in SVG entra: si scarica come allegato')
+  assert.equal((await route.POST(upload('x', { ...good, 'x-file-name': 'note.md', 'content-type': 'application/octet-stream' }))).status, 200, 'un .md senza tipo entra')
+  reset()
 
   assert.equal((await route.POST(upload('x', good, `client=${client}&progetto=${outOfScope}`))).status, 200, 'scope totale: ogni progetto va bene')
   reset(); scope = 'selected'; scopedProjects = [project]

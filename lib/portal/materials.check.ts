@@ -50,7 +50,7 @@ assert.match(rejectMaterial({ ...ok, mime: 'application/x-sh' })!, /Ammettiamo/)
 assert.match(rejectMaterial({ ...ok, name: '   ' })!, /nome/)
 assert.match(rejectMaterial({ ...ok, name: `${'x'.repeat(241)}.mp4` })!, /nome/)
 // Il tipo dichiarato non basta: conta anche come si chiama.
-for (const name of ['pagina.html', 'logo.svg', 'installa.exe', 'script.js', 'archivio.jar'])
+for (const name of ['pagina.html', 'installa.exe', 'script.js', 'archivio.jar'])
   assert.match(rejectMaterial({ ...ok, name })!, /non è ammesso/, name)
 // E l'elenco dei bloccati batte quello dei file di progetto.
 assert.equal(rejectMaterial({ name: 'brand.afdesign', mime: 'application/octet-stream', size: 1000 }), null)
@@ -145,4 +145,18 @@ assert.equal(rejectMaterial({ name: 'brand.afdesign', mime: mimeFromName('brand.
 assert.equal(isZipName('Consegna.ZIP'), true)
 assert.equal(isZipName('consegna.zip.pdf'), false)
 
-console.log('Tutti i controlli passano: tipi ammessi, estensioni bloccate, limite per file, quota d’azienda, formati leggibili, Range, file di progetto, anteprime senza promesse, PDF e testo nell’anteprima, CSV con le virgolette, archivi dall’estensione e cartelle dal percorso.')
+// §432 — Markdown e SVG: l'estensione decide, ma solo col tipo suo o senza tipo.
+assert.equal(rejectMaterial({ name: 'README.md', mime: 'text/markdown', size: 10 }), null)
+assert.equal(rejectMaterial({ name: 'note.md', mime: '', size: 10 }), null, 'Windows non dichiara il tipo di un .md')
+assert.equal(rejectMaterial({ name: 'note.markdown', mime: 'application/octet-stream', size: 10 }), null)
+assert.equal(materialKind('text/markdown', 'README.md'), 'documento')
+assert.equal(previewKind('text/markdown', 'README.md'), 'text', 'un .md si legge nell’anteprima')
+assert.equal(rejectMaterial({ name: 'logo-jose-2021.svg', mime: 'image/svg+xml', size: 10 }), null, 'il logo del cliente entra')
+assert.equal(rejectMaterial({ name: 'logo.svg', mime: mimeFromName('logo.svg'), size: 10 }), null, 'anche uscito da uno zip')
+assert.equal(materialKind('image/svg+xml', 'logo.svg'), 'immagine')
+assert.match(rejectMaterial({ name: 'logo.svg', mime: 'text/html', size: 10 })!, /Ammettiamo/, 'un .svg che si dichiara HTML resta fuori')
+assert.equal(materialKind('image/svg+xml', 'logo.png'), null, 'un SVG travestito da png no')
+assert.equal(previewKind('image/svg+xml', 'logo.svg'), null, 'l’SVG si scarica: nessuna anteprima lo esegue')
+assert.equal(hasThumbnail('image/svg+xml', 'logo.svg'), false)
+
+console.log('Tutti i controlli passano: tipi ammessi, estensioni bloccate, limite per file, quota d’azienda, formati leggibili, Range, file di progetto, anteprime senza promesse, PDF e testo nell’anteprima, CSV con le virgolette, archivi dall’estensione, Markdown e SVG, e cartelle dal percorso.')
