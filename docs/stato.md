@@ -1,5 +1,14 @@
 # Dove siamo
 
+## Il ritorno sul foglio dei lead — §434, 2026-09-24
+
+Il giro notturno e il bottone «Aggiorna dal foglio», dopo aver fatto entrare i
+lead nuovi, scrivono sul foglio Meta cinque colonne loro (`Fase OS`, `Qualifica
+OS`, `Owner OS`, `Ultimo contatto OS`, `Motivo perso OS`), e solo dove il valore
+è cambiato. `STATUS` e `Note` non si toccano. Scrive un account di servizio
+Google: **finché `GOOGLE_SHEETS_SA_JSON` non c'è, il ritorno è spento** e il
+riepilogo lo dice. Prova a secco sul foglio vero: 38 lead abbinati su 38.
+
 ## Import dei lead da Excel — §433, 2026-09-24
 
 «Nuovo lead → Da un file» accetta `.xlsx` oltre al CSV, lo apre nel browser e

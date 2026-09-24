@@ -665,6 +665,36 @@ toglie gli zeri davanti ai telefoni. Adesso si carica il `.xlsx` com'è.
 Il vecchio `.xls` (Excel 97) non si legge: è un formato binario diverso, e oggi
 Excel salva in `.xlsx` da vent'anni.
 
+## Il ritorno sul foglio — §434
+
+Il foglio resta l'ingresso («il foglio crea, il tool governa», §370), ma chi lo
+apre vedeva lo stato del lead di quando era entrato, e poi più niente. Adesso il
+giro — il cron delle 03:00 e il bottone «Aggiorna dal foglio», che chiamano la
+stessa `giroFoglio` — prima fa entrare i lead nuovi e poi scrive sul foglio a
+che punto è ognuno.
+
+- **Solo colonne sue**, in fondo: `Fase OS`, `Qualifica OS`, `Owner OS`,
+  `Ultimo contatto OS`, `Motivo perso OS`. `STATUS` e `Note` restano di chi le
+  scrive a mano e non si toccano mai. Le colonne si trovano **per nome**, quindi
+  si possono spostare; se mancano si aggiungono dopo l'ultima, e la griglia si
+  allarga (un foglio nasce con 26 colonne, quello dei lead ne usa già 24).
+- **Solo quello che è cambiato**, per non riempire la cronologia del foglio di
+  trecento modifiche uguali ogni notte. Una riga che nel tool non c'è più
+  (eliminata, §378) resta com'è.
+- **Valori in parole e RAW**: l'etichetta della fase letta dal database col
+  service role (di notte non c'è sessione, e `leggiFasi` tornerebbe al seme),
+  le date come testo `2026-09-22` a Roma.
+- **Account di servizio**, non il Google di una persona: chiave in
+  `GOOGLE_SHEETS_SA_JSON`, foglio condiviso come Editor col suo `client_email`.
+  Il foglio si trova dallo stesso `SALES_SHEET_CSV_URL` dell'ingresso, così le
+  due direzioni non possono puntare a due fogli diversi. **Senza chiave il
+  ritorno non parte e lo dice** nel riepilogo; l'ingresso continua uguale. Un
+  ritorno fallito non fa fallire l'ingresso.
+
+Prova a secco: `npx tsx scripts/check-sales-ritorno.ts` calcola le celle senza
+scriverne nessuna. Il 24 settembre: 38 lead abbinati su 38, cinque colonne da
+aggiungere (Y–AC), 121 celle.
+
 ## Aperto
 
 - **La RLS non conosceva `deal_owners`**: `sales_can_read` (223) guardava solo
@@ -672,5 +702,7 @@ Excel salva in `.xlsx` da vent'anni.
   legge con la sessione — diceva «Lead non accessibile» a un senior owner. La
   **260** lo sistema con `sales_can_read_deal(id, assigned_to)`, stessa regola
   di `leadDi()`. **Applicata** il 2026-09-24.
+- **Il ritorno sul foglio aspetta la chiave** (§434): account di servizio da
+  creare, foglio da condividere, `GOOGLE_SHEETS_SA_JSON` in Coolify.
 - `deal_activities` e `sales_handoffs` restano in piedi e non sono più scritte
   da nessuna UI: `SalesHandoff` legge ancora la seconda nella scheda progetto.

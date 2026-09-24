@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import crypto from 'node:crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { sincronizzaLead } from '@/lib/sales-sync'
+import { giroFoglio } from '@/lib/sales-foglio-google'
 
 /**
  * §370 — i lead dal foglio, una volta all'ora.
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
   }
   try {
-    return NextResponse.json(await sincronizzaLead(createAdminClient()))
+    return NextResponse.json(await giroFoglio(createAdminClient()))
   } catch (e) {
     console.error('[sales-sync] giro fallito:', e)
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Giro fallito' }, { status: 500 })

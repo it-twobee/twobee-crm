@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createActorClient, createAdminClient } from '@/lib/supabase/admin'
-import { sincronizzaLead } from '@/lib/sales-sync'
+import { giroFoglio } from '@/lib/sales-foglio-google'
 import { requireDealAccess, requireSalesAccess, requireSalesConfig, vedeTutto } from '@/lib/sales-guard'
 import { OUTCOMES, canReadDeal, salesAccess, uuid, validDate, validateDeal, type DealInput, type Delivery, type SalesData, type SalesDeal, type SalesOutcome, type SalesActivity } from '@/lib/sales'
 import { isWorkspaceRole } from '@/lib/permissions'
@@ -195,7 +195,7 @@ export async function aggiornaDaFoglio() {
   if (access !== 'admin' && access !== 'manager') {
     throw new Error('Solo admin e manager possono aggiornare dal foglio')
   }
-  const esito = await sincronizzaLead(createAdminClient())
+  const esito = await giroFoglio(createAdminClient())
   refreshSales()
   return esito
 }

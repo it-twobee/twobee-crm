@@ -222,6 +222,13 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
         /* §378 — si dice solo quando ce ne sono: uno «0 eliminati» fisso in
            coda insegna a non leggere la riga. */
         ...(e.ignorati ? [`${e.ignorati} eliminati a mano, non rientrano`] : []),
+        /* §434 — il ritorno si dice sempre, anche quando non è configurato:
+           chi preme il bottone deve sapere se il foglio adesso è allineato. */
+        ...(e.ritorno ? ['errore' in e.ritorno
+          ? `foglio non aggiornato: ${e.ritorno.errore}`
+          : e.ritorno.scritte
+            ? `sul foglio ${e.ritorno.scritte} celle aggiornate${e.ritorno.nuoveColonne.length ? ` e ${e.ritorno.nuoveColonne.length} colonne OS aggiunte` : ''}`
+            : 'sul foglio era già tutto allineato'] : []),
       ].join(' · '))
       if (e.nuovi) { toast.success(`${e.nuovi} lead importati`); location.reload() }
       else toast.success('Nessun lead nuovo: il foglio è allineato')
