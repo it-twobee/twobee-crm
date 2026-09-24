@@ -34,6 +34,9 @@ export type RigaAnalisi = {
   created_at?: string | null
   closed_at?: string | null
   lead_origine?: Record<string, string> | null
+  /** §431 — i numeri si leggono anche per persona e per qualifica */
+  owners?: string[] | null
+  qualifica?: string | null
 }
 
 /* §424 — il ruolo, non la chiave. Con le fasi configurabili un
@@ -107,15 +110,22 @@ export type Riga = { valore: string; totale: number } & Tasso
 export function perDimensione(
   fasi: Fase[],
   righe: RigaAnalisi[],
-  chiave: (r: RigaAnalisi) => string | null | undefined,
+  /* §431 — anche più valori per riga: un lead seguito da due persone conta
+     per tutte e due, perché tutte e due ci hanno lavorato. La somma dei gruppi
+     allora supera il totale, e chi mostra la tabella lo deve dire. */
+  chiave: (r: RigaAnalisi) => string | string[] | null | undefined,
   etichettaVuoto = 'Non indicato',
 ): Riga[] {
   const gruppi = new Map<string, RigaAnalisi[]>()
   for (const r of righe) {
-    const k = (chiave(r) ?? '').trim() || etichettaVuoto
-    const g = gruppi.get(k) ?? []
-    g.push(r)
-    gruppi.set(k, g)
+    const grezzo = chiave(r)
+    const valori = (Array.isArray(grezzo) ? grezzo : [grezzo ?? ''])
+      .map(v => String(v ?? '').trim()).filter(Boolean)
+    for (const k of Array.from(new Set(valori.length ? valori : [etichettaVuoto]))) {
+      const g = gruppi.get(k) ?? []
+      g.push(r)
+      gruppi.set(k, g)
+    }
   }
   return Array.from(gruppi.entries())
     .map(([valore, g]) => ({ valore, totale: g.length, ...tassoDi(fasi, g) }))
@@ -124,6 +134,39 @@ export function perDimensione(
 
 /** una chiave della provenienza Meta: campagna, annuncio, tipologia, tempistica… */
 export const daOrigine = (campo: string) => (r: RigaAnalisi) => r.lead_origine?.[campo]
+
+// ── il periodo ──────────────────────────────────────────────────────────────
+
+/**
+ * §431 — da quando si contano i lead: per **data di arrivo**, non di chiusura.
+ *
+ * La domanda è «come stanno andando i lead che abbiamo preso negli ultimi tre
+ * mesi», e la risposta deve comprendere anche quelli ancora aperti: filtrare per
+ * chiusura terrebbe solo chi ha già finito, e il tasso sembrerebbe migliore di
+ * com'è. Il prezzo è dichiarato: un periodo corto ha molti aperti, e il tasso è
+ * su pochi conclusi — lo dice `affidabile`.
+ *
+ * Una riga senza data di arrivo sta fuori da ogni periodo e dentro «tutto»: non
+ * sappiamo quando è arrivata, e metterla negli ultimi trenta giorni sarebbe
+ * inventarlo.
+ */
+export const PERIODI = [
+  { chiave: 'tutto', etichetta: 'Da sempre', giorni: null },
+  { chiave: '30', etichetta: 'Ultimi 30 giorni', giorni: 30 },
+  { chiave: '90', etichetta: 'Ultimi 3 mesi', giorni: 90 },
+  { chiave: '365', etichetta: 'Ultimo anno', giorni: 365 },
+] as const
+export type Periodo = (typeof PERIODI)[number]['chiave']
+
+export function nelPeriodo<T extends RigaAnalisi>(righe: T[], periodo: Periodo, oggiMs: number): T[] {
+  const giorni = PERIODI.find(p => p.chiave === periodo)?.giorni ?? null
+  if (giorni === null) return righe
+  const da = oggiMs - giorni * 86_400_000
+  return righe.filter(r => {
+    const t = r.created_at ? Date.parse(r.created_at) : NaN
+    return Number.isFinite(t) && t >= da
+  })
+}
 
 // ── quanto ci mette ─────────────────────────────────────────────────────────
 

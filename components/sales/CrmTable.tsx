@@ -167,6 +167,13 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
     }
   }
 
+  /* §431 — i numeri leggono lo stesso insieme dell'elenco (§379: due viste con
+     insiemi diversi sotto gli stessi filtri sono due viste di cui una mente),
+     meno il gruppo di fasi, che su un tasso di conversione non ha senso. */
+  const perNumeri = useMemo(
+    () => applica(cercaIn(righe as unknown as Record<string, unknown>[], cerca), scelte),
+    [righe, cerca, scelte])
+
   const salva = async (riga: RigaCrm, campo: string, valore: unknown): Promise<boolean> => {
     const prima = riga[campo]
     // ottimistico: chi modifica venti celle di fila non aspetta venti volte
@@ -424,7 +431,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
           e poi si smette di credere anche agli altri. Sulla bacheca invece
           servono: il filtro dei gruppi è quello che la porta da dodici
           colonne a quattro. */}
-      {(vista === 'tabella' || vista === 'bacheca') && (
+      {vista !== 'controllo' && (
       <div className="flex items-center gap-2 flex-wrap">
         <label className="relative flex-1 min-w-48 max-w-sm">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" aria-hidden />
@@ -432,6 +439,10 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
             placeholder="Azienda, referente, telefono…"
             className="w-full bg-surface border border-border-interactive rounded-xl pl-8 pr-3 py-2 text-sm text-text-primary" />
         </label>
+        {/* §431 — nei numeri i gruppi e l'ordinamento non ci sono: un tasso di
+            conversione sui soli «aperti» è zero per costruzione, e l'ordine
+            delle righe non cambia un conteggio. Cerca e filtri sì. */}
+        {vista !== 'numeri' && <>
         {(['tutti', ...GRUPPI] as const).map(g => (
           <button key={g} onClick={() => setGruppo(g)}
             className={`text-xs font-semibold px-3 py-2 rounded-xl border transition-colors ${
@@ -457,6 +468,8 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
           {verso === 'su' ? '↑' : '↓'}
         </button>
 
+        </>}
+
         <button onClick={() => setPannello(p => !p)}
           className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border transition-colors ${
             attivi ? 'border-gold/40 bg-gold/10 text-gold-text' : 'border-border text-text-secondary hover:text-text-primary'}`}>
@@ -475,7 +488,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
       {/* Un riquadro per variabile, con i valori che **esistono davvero** e
           quanti sono: offrire un valore che nessuna riga ha porta a zero
           risultati, e si impara in fretta a non usare i filtri. */}
-      {(vista === 'tabella' || vista === 'bacheca') && pannello && (
+      {vista !== 'controllo' && pannello && (
         <div className="border border-border rounded-xl p-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {FILTRABILI.map(f => {
             const ops = opzioni(righe as unknown as Record<string, unknown>[], f)
@@ -511,7 +524,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
         </div>
       )}
 
-      {vista === 'numeri' ? <CrmAnalytics righe={righe as unknown as RigaAnalisi[]} />
+      {vista === 'numeri' ? <CrmAnalytics righe={perNumeri as unknown as RigaAnalisi[]} totale={righe.length} nomeDi={nomeDi} />
       : vista === 'controllo' ? (
         /* §385 — i controlli guardano **tutte** le righe, non quelle
            filtrate: un doppione che sta fuori dalla ricerca è un doppione

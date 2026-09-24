@@ -14,15 +14,20 @@
  * modo più elegante di far spostare del budget per sbaglio.
  */
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { TrendingUp, AlertTriangle } from 'lucide-react'
 import {
-  tassoDi, imbuto, perDimensione, daOrigine, giorniPerChiudere, perCento,
-  SOGLIA_AFFIDABILITA, type RigaAnalisi, type Riga,
+  tassoDi, imbuto, perDimensione, daOrigine, giorniPerChiudere, perCento, nelPeriodo,
+  PERIODI, SOGLIA_AFFIDABILITA, type Periodo, type RigaAnalisi, type Riga,
 } from '@/lib/sales-analytics'
+import { ETICHETTA_QUALIFICA } from '@/lib/sales-table'
 import { useFasi } from './FasiContext'
 
-function Tabella({ titolo, spiega, righe }: { titolo: string; spiega: string; righe: Riga[] }) {
+function Tabella({ titolo, spiega, righe, nome = v => v }: {
+  titolo: string; spiega: string; righe: Riga[]
+  /** §431 — il valore raggruppato non è sempre da leggere: gli owner sono id */
+  nome?: (valore: string) => string
+}) {
   if (!righe.length) return null
   return (
     <div className="border border-border rounded-xl overflow-hidden">
@@ -42,7 +47,7 @@ function Tabella({ titolo, spiega, righe }: { titolo: string; spiega: string; ri
           <tbody>
             {righe.map(r => (
               <tr key={r.valore} className="border-b border-border last:border-0">
-                <td className="px-3 py-1.5 text-2xs text-text-primary max-w-56 truncate" title={r.valore}>{r.valore}</td>
+                <td className="px-3 py-1.5 text-2xs text-text-primary max-w-56 truncate" title={nome(r.valore)}>{nome(r.valore)}</td>
                 <td className="px-3 py-1.5 text-2xs text-right tabular text-success font-semibold">{r.vinti || '—'}</td>
                 <td className="px-3 py-1.5 text-2xs text-right tabular text-text-tertiary">{r.persi || '—'}</td>
                 <td className="px-3 py-1.5 text-2xs text-right tabular text-text-secondary">{r.aperti || '—'}</td>
@@ -68,8 +73,18 @@ function Tabella({ titolo, spiega, righe }: { titolo: string; spiega: string; ri
   )
 }
 
-export function CrmAnalytics({ righe }: { righe: RigaAnalisi[] }) {
+export function CrmAnalytics({ righe: filtrate, totale, nomeDi }: {
+  /** già cercate e filtrate come l'elenco (§431) */
+  righe: RigaAnalisi[]
+  /** quante righe ci sono in tutto, per dire su quante si sta contando */
+  totale: number
+  nomeDi: Map<string, string>
+}) {
   const { TUTTE, classiFase } = useFasi()
+  const [periodo, setPeriodo] = useState<Periodo>('tutto')
+  const righe = useMemo(() => nelPeriodo(filtrate, periodo, Date.now()), [filtrate, periodo])
+  const perOwner = useMemo(() => perDimensione(TUTTE, righe, r => r.owners, 'Nessuno'), [TUTTE, righe])
+  const perQualifica = useMemo(() => perDimensione(TUTTE, righe, r => r.qualifica), [TUTTE, righe])
   const t = useMemo(() => tassoDi(TUTTE, righe), [TUTTE, righe])
   const passi = useMemo(() => imbuto(TUTTE, righe).filter(p => p.quante > 0), [TUTTE, righe])
   const tempo = useMemo(() => giorniPerChiudere(TUTTE, righe), [TUTTE, righe])
@@ -82,6 +97,28 @@ export function CrmAnalytics({ righe }: { righe: RigaAnalisi[] }) {
 
   return (
     <div className="space-y-4">
+      {/* Su cosa si sta contando, detto prima dei numeri: un tasso letto sotto
+          un filtro dimenticato è un tasso sbagliato che sembra giusto. */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <label className="flex items-center gap-1.5 text-xs text-text-secondary">
+          Arrivati
+          <select value={periodo} onChange={e => setPeriodo(e.target.value as Periodo)} aria-label="Periodo di arrivo dei lead"
+            className="bg-surface border border-border-interactive rounded-xl px-2 py-2 text-xs text-text-primary">
+            {PERIODI.map(p => <option key={p.chiave} value={p.chiave}>{p.etichetta}</option>)}
+          </select>
+        </label>
+        <p className="text-2xs text-text-tertiary">
+          {righe.length === totale
+            ? `Calcolati su tutti i ${totale} lead`
+            : `Calcolati su ${righe.length} lead di ${totale}: contano ricerca, filtri e periodo`}
+        </p>
+      </div>
+
+      {!righe.length ? (
+        <p className="text-xs text-text-tertiary border border-border rounded-xl px-3 py-3">
+          Nessun lead in questo insieme: allarga il periodo o togli un filtro.
+        </p>
+      ) : <>
       <div className="grid gap-3 sm:grid-cols-4">
         {[
           { v: perCento(t.tasso), l: 'Conversione', h: `${t.vinti} clienti su ${t.conclusi} conclusi`, forte: true },
@@ -128,7 +165,12 @@ export function CrmAnalytics({ righe }: { righe: RigaAnalisi[] }) {
         <Tabella titolo="Per campagna" spiega="Quale annuncio porta clienti, non solo contatti" righe={perCampagna} />
         <Tabella titolo="Per tipo di attività" spiega="Chi dice di essere, e chi poi firma" righe={perTipologia} />
         <Tabella titolo="Per urgenza dichiarata" spiega="«Subito» converte davvero più di «sto valutando»?" righe={perTempistica} />
+        <Tabella titolo="Per Account Owner" nome={v => v === 'Nessuno' ? v : nomeDi.get(v) ?? 'Ex collega'}
+          spiega="Un lead seguito in due conta per tutti e due: la somma supera il totale" righe={perOwner} />
+        <Tabella titolo="Per qualifica" nome={v => ETICHETTA_QUALIFICA[v] ?? v}
+          spiega="Quelli in target chiudono davvero più degli altri?" righe={perQualifica} />
       </div>
+      </>}
     </div>
   )
 }

@@ -8,7 +8,7 @@
    cento e «non lo sappiamo ancora» portano a due decisioni opposte. */
 
 import {
-  tassoDi, imbuto, perDimensione, daOrigine, giorniPerChiudere, perCento,
+  tassoDi, imbuto, perDimensione, daOrigine, giorniPerChiudere, perCento, nelPeriodo,
   SOGLIA_AFFIDABILITA, type RigaAnalisi,
 } from '@/lib/sales-analytics'
 import { FASI_SEME as F } from '@/lib/sales-stages'
@@ -99,6 +99,39 @@ is('senza righe chiuse non si inventa', giorniPerChiudere(F, [r('in_contatto')])
 is('una riga senza date non entra nel campione',
   giorniPerChiudere(F, [r('cliente_acquisito')]).campione, 0)
 is('con due valori è la media dei due centrali', giorniPerChiudere(F, chiuse.slice(0, 2)).mediana, 15)
+
+console.log('\n— Per persona: un lead in due conta per tutti e due (§431) —')
+const seguiti = [
+  r('cliente_acquisito', { owners: ['anna', 'bruno'] }),
+  r('perso', { owners: ['anna'] }),
+  r('in_contatto', { owners: [] }),
+  r('perso'),
+]
+const perOwner = perDimensione(F, seguiti, x => x.owners, 'Nessuno')
+const di = (v: string) => perOwner.find(g => g.valore === v)
+is('Anna ha due lead, un cliente', [di('anna')?.totale, di('anna')?.vinti], [2, 1])
+is('Bruno conta il cliente in comune', [di('bruno')?.totale, di('bruno')?.vinti], [1, 1])
+is('lista vuota e campo assente finiscono in «Nessuno»', di('Nessuno')?.totale, 2)
+is('lo stesso nome due volte non raddoppia',
+  perDimensione(F, [r('perso', { owners: ['anna', 'anna'] })], x => x.owners)[0].totale, 1)
+is('una chiave singola funziona come prima',
+  perDimensione(F, [r('perso', { source: 'Sito' })], x => x.source)[0].valore, 'Sito')
+
+console.log('\n— Il periodo si conta dall\'arrivo, e non inventa date (§431) —')
+const oggi = Date.parse('2026-09-24T12:00:00Z')
+const arrivi = [
+  r('in_contatto', { created_at: '2026-09-20T00:00:00Z' }),
+  r('perso', { created_at: '2026-07-01T00:00:00Z' }),
+  r('cliente_acquisito', { created_at: '2025-01-01T00:00:00Z', closed_at: '2026-09-10T00:00:00Z' }),
+  r('perso'),
+]
+is('«da sempre» tiene tutto, anche senza data', nelPeriodo(arrivi, 'tutto', oggi).length, 4)
+is('trenta giorni: solo l\'arrivo recente', nelPeriodo(arrivi, '30', oggi).length, 1)
+is('tre mesi: anche luglio', nelPeriodo(arrivi, '90', oggi).length, 2)
+is('conta l\'arrivo, non la chiusura',
+  nelPeriodo(arrivi, '30', oggi).some(x => x.stage === 'cliente_acquisito'), false)
+is('senza data d\'arrivo sta fuori da ogni periodo',
+  nelPeriodo([r('perso')], '365', oggi).length, 0)
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

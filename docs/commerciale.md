@@ -615,12 +615,35 @@ alle righe senza dato; il gate di `sales-table` dichiara `owners` come
 l'unica eccezione a «ogni filtro legge da una colonna chiesta», con il posto
 da cui arriva.
 
+## I numeri leggono quello che legge l'elenco — §431
+
+«Numeri» contava **tutte** le righe mentre l'elenco e la bacheca mostravano
+quelle cercate e filtrate: la regola di §379, due viste con insiemi diversi
+sotto gli stessi filtri, valeva per due viste su tre. Adesso la ricerca e i
+filtri si applicano anche ai numeri, e una riga in testa dice su quanti lead si
+sta contando. Il **gruppo di fasi** resta fuori, e con lui l'ordinamento: un
+tasso sui soli «aperti» è zero per costruzione.
+
+**Il periodo si conta dall'arrivo** (`nelPeriodo`, `PERIODI`): 30 giorni, 3
+mesi, un anno, da sempre. Non dalla chiusura, che terrebbe solo chi ha già
+finito e farebbe sembrare il tasso migliore di com'è. Una riga senza data
+d'arrivo sta fuori da ogni periodo e dentro «da sempre».
+
+**Due tabelle in più**: per Account Owner — un lead seguito in due conta per
+tutti e due, e la tabella lo dice — e per qualifica. `perDimensione` accetta
+ora una chiave con più valori.
+
+**Il valore della pipeline non c'è, ed è voluto.** Sarebbe un numero
+economico scritto a mano su un lead, prima di qualunque contratto: è
+l'invariante «nessun valore economico si digita». Il valore arriva quando
+arriva il contratto, in Economics.
+
 ## Aperto
 
 - **La RLS non conosceva `deal_owners`**: `sales_can_read` (223) guardava solo
   `assigned_to`, vuoto su tutti i lead, e il follow-up nel calendario — che
   legge con la sessione — diceva «Lead non accessibile» a un senior owner. La
   **260** lo sistema con `sales_can_read_deal(id, assigned_to)`, stessa regola
-  di `leadDi()`. **Da applicare.**
+  di `leadDi()`. **Applicata** il 2026-09-24.
 - `deal_activities` e `sales_handoffs` restano in piedi e non sono più scritte
   da nessuna UI: `SalesHandoff` legge ancora la seconda nella scheda progetto.

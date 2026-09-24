@@ -1,5 +1,13 @@
 # Dove siamo
 
+## I numeri leggono quello che legge l'elenco — §431, 2026-09-24
+
+Ricerca e filtri valgono anche per «Numeri», con la riga «calcolati su N lead
+di M». Si sceglie il periodo di arrivo (30 giorni, 3 mesi, un anno, da sempre)
+e ci sono due tabelle nuove, per Account Owner e per qualifica. Niente valore
+della pipeline: sarebbe un valore economico digitato fuori dai contratti.
+Migration **260 applicata**.
+
 ## Chi vede solo i suoi lead li vede davvero solo lui — §430, 2026-09-24
 
 Il perimetro «solo i propri» valeva nella RLS e non nella pagina, che legge
