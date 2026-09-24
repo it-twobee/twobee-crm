@@ -316,6 +316,20 @@ export async function importaLeadCsv(righe: NuovoLead[]): Promise<EsitoImport> {
   if (access !== 'admin' && access !== 'manager') {
     throw new Error('Solo admin e manager possono importare un CSV')
   }
+  /* §433 — il file lo legge il browser, e al server arriva un elenco che
+     chiunque può scrivere a mano: il tetto sta qui, non nel componente. Duemila
+     righe sono dieci volte la lista più lunga vista finora. */
+  if (!Array.isArray(righe) || righe.length > 2000) throw new Error('Al massimo duemila lead per file: dividilo in più parti')
+  const corto = (v: unknown, max: number) => typeof v === 'string' ? v.slice(0, max) : null
+  righe = righe.map(r => ({
+    companyName: corto(r?.companyName, 300) ?? '',
+    contactName: corto(r?.contactName, 300),
+    contactEmail: corto(r?.contactEmail, 300),
+    contactPhone: corto(r?.contactPhone, 60),
+    source: corto(r?.source, 120),
+    notes: corto(r?.notes, 5000),
+    stage: typeof r?.stage === 'string' ? r.stage : undefined,
+  }))
   const db = createActorClient(actor)
 
   const { data, error } = await db.from('deals').select(CAMPI_DEDUP)

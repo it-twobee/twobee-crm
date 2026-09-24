@@ -638,6 +638,33 @@ economico scritto a mano su un lead, prima di qualunque contratto: è
 l'invariante «nessun valore economico si digita». Il valore arriva quando
 arriva il contratto, in Economics.
 
+## Import da file: Excel, il titolo sopra, la mappa si corregge — §433
+
+L'import di §377 leggeva solo CSV, e chi passa una lista di lead la passa in
+Excel: «salva come CSV» è il passaggio in cui Excel su Mac rovina gli accenti e
+toglie gli zeri davanti ai telefoni. Adesso si carica il `.xlsx` com'è.
+
+- **Il file si apre nel browser** con zip.js, che c'era già per l'area file
+  (§421). `lib/sales-xlsx.ts` fa il resto senza rete — da due testi XML a
+  `string[][]`, lo stesso che esce da `leggiCsv` — e da lì il percorso è uno:
+  riconoscimento, anteprima, doppioni. Le celle vuote Excel non le scrive, quindi
+  il posto si legge dal riferimento (`C12`): altrimenti il telefono finirebbe
+  al posto della mail. Si legge il **primo foglio** nell'ordine del file.
+  Tetto di 30 MB sul decompresso, contro gli zip che esplodono.
+- **Il titolo sopra la tabella si salta** (`trovaIntestazione`): si guarda
+  nelle prime dieci righe quella in cui si riconoscono più campi, con l'azienda
+  che pesa più di tutti. Vale anche per i CSV. Provato su un Excel vero con il
+  titolo in A1.
+- **La mappa si corregge nell'anteprima**, un menu per campo. Prima l'errore si
+  vedeva e l'unica via era rinominare la colonna nel file e ricaricarlo.
+- **Il riepilogo dei doppioni dice la riga del file**, contando titolo e righe
+  saltate (`converti` restituisce `origine`).
+- **Il tetto sta sul server**: duemila righe per file e campi accorciati, perché
+  al server arriva un elenco che chiunque può scrivere a mano.
+
+Il vecchio `.xls` (Excel 97) non si legge: è un formato binario diverso, e oggi
+Excel salva in `.xlsx` da vent'anni.
+
 ## Aperto
 
 - **La RLS non conosceva `deal_owners`**: `sales_can_read` (223) guardava solo

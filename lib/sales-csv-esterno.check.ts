@@ -41,7 +41,7 @@ console.log('\n— Quando l\'azienda non c\'è, non si indovina —')
 const senza = riconosci(['Telefono', 'Email'])
 is('nessun nome azienda riconosciuto', senza.companyName, undefined)
 is('e la conversione non produce niente',
-  converti([{ Telefono: '333', Email: 'a@b.it' }], senza), { lead: [], senzaAzienda: 1 })
+  converti([{ Telefono: '333', Email: 'a@b.it' }], senza), { lead: [], senzaAzienda: 1, origine: [] })
 
 console.log('\n— La conversione —')
 const righe = [
@@ -77,6 +77,10 @@ const o2 = converti(dati, m2)
 is('la virgola dentro il nome non spezza la riga', o2.lead[0].companyName, 'Rossi, Mario e figli srl')
 is('due righe lette', o2.lead.length, 2)
 is('e la seconda ha solo l\'azienda', o2.lead[1], { companyName: 'Bianchi SpA', contactName: null, contactEmail: null, contactPhone: null, notes: null, source: null })
+
+console.log('\n— La riga del file si ritrova (§433) —')
+const conBuchi = converti([{ Azienda: 'A' }, { Azienda: '' }, { Azienda: 'C' }], { companyName: 'Azienda' })
+is('le righe saltate non spostano il conto', conBuchi.origine, [0, 2])
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

@@ -1,5 +1,13 @@
 # Dove siamo
 
+## Import dei lead da Excel — §433, 2026-09-24
+
+«Nuovo lead → Da un file» accetta `.xlsx` oltre al CSV, lo apre nel browser e
+lo passa dallo stesso percorso: riconoscimento colonne, anteprima, doppioni. Il
+titolo sopra la tabella si salta da sé, la mappa delle colonne si corregge con
+un menu per campo, i doppioni dicono la riga vera del file. Sul server, tetto
+di duemila righe.
+
 ## I numeri leggono quello che legge l'elenco — §431, 2026-09-24
 
 Ricerca e filtri valgono anche per «Numeri», con la riga «calcolati su N lead

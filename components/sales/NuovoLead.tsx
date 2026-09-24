@@ -21,7 +21,9 @@ import { toast } from 'sonner'
 import { X, Upload, Loader2, AlertTriangle, Check } from 'lucide-react'
 import { creaLead, importaLeadCsv, type EsitoImport } from '@/app/actions/sales'
 import { leggiCsv, conIntestazioni } from '@/lib/sales-import'
-import { riconosci, converti, spiegaMappa, NOME_CAMPO, type Mappa } from '@/lib/sales-csv-esterno'
+import { riconosci, converti, spiegaMappa, trovaIntestazione, NOME_CAMPO, type CampoLead, type Mappa } from '@/lib/sales-csv-esterno'
+import { eExcel } from '@/lib/sales-xlsx'
+import { leggiExcel } from './leggiExcel'
 import { ETICHETTA_GRUPPO, GRUPPI } from '@/lib/sales-stages'
 import { useFasi } from './FasiContext'
 import { PRIORITA } from '@/lib/sales-table'
@@ -70,16 +72,48 @@ export function NuovoLead({ onChiudi, onFatto }: { onChiudi: () => void; onFatto
   const [esito, setEsito] = useState<EsitoImport | null>(null)
   const [importo, setImporto] = useState(false)
 
+  const [tabella, setTabella] = useState<Record<string, string>[]>([])
+  /** §433 — la riga del file che fa da intestazione: sopra può esserci un titolo */
+  const [inizio, setInizio] = useState(0)
+
   const leggiFile = async (file: File) => {
     setEsito(null)
     setNomeFile(file.name)
-    const righe = conIntestazioni(leggiCsv(await file.text()))
+    let grezze: string[][]
+    try {
+      grezze = eExcel(file.name) ? await leggiExcel(file) : leggiCsv(await file.text())
+    } catch (err) {
+      toast.error((err as Error).message); setMappa(null); setDaImportare(null); return
+    }
+    const h = trovaIntestazione(grezze)
+    const righe = conIntestazioni(grezze.slice(h))
     if (!righe.length) { toast.error('Il file è vuoto'); setMappa(null); setDaImportare(null); return }
-    const testa = Object.keys(righe[0])
+    const testa = Object.keys(righe[0]).filter(Boolean)
     const m = riconosci(testa)
+    setInizio(h)
+    setTabella(righe)
     setIntestazioni(testa)
     setMappa(m)
     setDaImportare(converti(righe, m))
+  }
+
+  /* §433 — il riconoscimento indovina quasi sempre, e quando sbaglia si deve
+     poter correggere qui: prima l'anteprima mostrava l'errore e l'unica via
+     era rinominare la colonna nel file e ricaricarlo. */
+  const cambiaColonna = (campo: CampoLead, colonna: string) => {
+    if (!mappa) return
+    const m: Mappa = { ...mappa }
+    for (const k of Object.keys(m) as CampoLead[]) if (colonna && m[k] === colonna) delete m[k]
+    if (colonna) m[campo] = colonna
+    else delete m[campo]
+    setMappa(m)
+    setDaImportare(converti(tabella, m))
+    setEsito(null)
+  }
+  /** la riga del file, contata come la conta chi lo apre: da uno, intestazione compresa */
+  const rigaDelFile = (n: number) => {
+    const i = daImportare?.origine[n - 2]
+    return i === undefined ? n : inizio + i + 2
   }
 
   const importa = async () => {
@@ -189,8 +223,8 @@ export function NuovoLead({ onChiudi, onFatto }: { onChiudi: () => void; onFatto
             <>
               <label className="flex flex-col items-center justify-center gap-2 border border-dashed border-border-strong rounded-xl py-8 cursor-pointer hover:bg-surface-hover transition-colors">
                 <Upload className="w-5 h-5 text-text-tertiary" aria-hidden />
-                <span className="text-xs text-text-secondary">{nomeFile || 'Scegli un file CSV'}</span>
-                <input type="file" accept=".csv,text/csv" className="sr-only"
+                <span className="text-xs text-text-secondary">{nomeFile || 'Scegli un file Excel o CSV'}</span>
+                <input type="file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only"
                   onChange={e => { const f = e.target.files?.[0]; if (f) leggiFile(f) }} />
               </label>
 
@@ -199,21 +233,37 @@ export function NuovoLead({ onChiudi, onFatto }: { onChiudi: () => void; onFatto
                   scoprirlo chiamando un numero che era un'email. */}
               {spiegata && (
                 <div className="border border-border rounded-xl p-3 space-y-2">
+                  {inizio > 0 && (
+                    <p className="text-2xs text-text-tertiary">
+                      Le prime {inizio === 1 ? 'riga è un titolo' : `${inizio} righe sono un titolo`}: la tabella parte dalla riga {inizio + 1}.
+                    </p>
+                  )}
+                  <p className="text-2xs font-semibold text-text-tertiary uppercase tracking-wide">Quale colonna va dove</p>
+                  <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1.5">
+                    {(Object.keys(NOME_CAMPO) as CampoLead[]).map(campo => (
+                      <label key={campo} className="contents">
+                        <span className="text-2xs text-text-primary flex items-center gap-1.5">
+                          {mappa?.[campo]
+                            ? <Check className="w-3 h-3 text-success shrink-0" aria-hidden />
+                            : <span className="w-3 h-3 shrink-0" aria-hidden />}
+                          {NOME_CAMPO[campo]}{campo === 'companyName' && ' *'}
+                        </span>
+                        <select value={mappa?.[campo] ?? ''} onChange={e => cambiaColonna(campo, e.target.value)}
+                          aria-label={`Colonna per ${NOME_CAMPO[campo]}`}
+                          className="bg-surface border border-border-interactive rounded-lg px-2 py-1 text-2xs text-text-primary min-w-0">
+                          <option value="">— non importare</option>
+                          {intestazioni.map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
                   {!mappa?.companyName ? (
                     <p className="text-xs text-error">
-                      Non trovo la colonna con il nome azienda. Rinominala in «Azienda» o «Company» e riprova.
+                      Scegli quale colonna contiene il nome dell&apos;azienda: è l&apos;unica obbligatoria.
                     </p>
                   ) : (
                     <>
-                      <p className="text-2xs font-semibold text-text-tertiary uppercase tracking-wide">Colonne riconosciute</p>
-                      {spiegata.riconosciute.map(r => (
-                        <p key={r.campo} className="text-2xs text-text-secondary flex items-center gap-1.5">
-                          <Check className="w-3 h-3 text-success shrink-0" aria-hidden />
-                          <span className="text-text-primary">{NOME_CAMPO[r.campo]}</span>
-                          <span className="text-text-tertiary">← {r.colonna}</span>
-                        </p>
-                      ))}
-                      {spiegata.ignorate.length > 0 && (
+                      {spiegata && spiegata.ignorate.length > 0 && (
                         <p className="text-2xs text-text-tertiary pt-1">
                           Non importate: {spiegata.ignorate.join(', ')}
                         </p>
@@ -236,7 +286,7 @@ export function NuovoLead({ onChiudi, onFatto }: { onChiudi: () => void; onFatto
                   </p>
                   {esito.doppioni.slice(0, 8).map(d => (
                     <p key={d.riga} className="text-2xs text-text-tertiary">
-                      riga {d.riga} · {d.azienda} — {d.testo}
+                      riga {rigaDelFile(d.riga)} · {d.azienda} — {d.testo}
                     </p>
                   ))}
                   {esito.doppioni.length > 8 && (

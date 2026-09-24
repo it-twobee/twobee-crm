@@ -65,6 +65,31 @@ export function riconosci(intestazioni: string[]): Mappa {
   return mappa
 }
 
+/**
+ * §433 — quale riga è l'intestazione.
+ *
+ * Un file fatto a mano ha spesso un titolo sopra la tabella («Lead fiera
+ * settembre», «Quotazioni 2022/23») e magari una riga vuota: prendere la prima
+ * riga come intestazione farebbe del titolo il nome di una colonna, e non se ne
+ * riconoscerebbe nessuna. Si guarda nelle prime righe quella in cui si
+ * riconoscono più campi, con l'azienda che vale più di tutti gli altri insieme
+ * — è l'unico obbligatorio. A parità vince la prima. Se non si riconosce niente
+ * si prende la prima riga con almeno due celle piene, che è quello che una
+ * persona guarderebbe.
+ */
+export function trovaIntestazione(righe: string[][], guarda = 10): number {
+  let migliore = -1
+  let punti = 0
+  righe.slice(0, guarda).forEach((r, i) => {
+    const m = riconosci(r.map(h => h.trim()).filter(Boolean))
+    const p = Object.keys(m).length + (m.companyName ? 10 : 0)
+    if (p > punti) { punti = p; migliore = i }
+  })
+  if (migliore >= 0) return migliore
+  const piena = righe.slice(0, guarda).findIndex(r => r.filter(v => v.trim()).length >= 2)
+  return piena >= 0 ? piena : 0
+}
+
 export type LeadDaCsv = {
   companyName: string
   contactName?: string | null
@@ -78,18 +103,23 @@ export type LeadDaCsv = {
 export function converti(righe: Record<string, string>[], mappa: Mappa): {
   lead: LeadDaCsv[]
   senzaAzienda: number
+  /** §433 — per ogni lead, la sua posizione in `righe`: il riepilogo dei
+      doppioni deve dire la riga del file, e le righe saltate spostano il conto */
+  origine: number[]
 } {
-  if (!mappa.companyName) return { lead: [], senzaAzienda: righe.length }
+  if (!mappa.companyName) return { lead: [], senzaAzienda: righe.length, origine: [] }
   const prendi = (r: Record<string, string>, c: CampoLead) => {
     const col = mappa[c]
     const v = col ? (r[col] ?? '').trim() : ''
     return v && v !== '-' ? v : null
   }
   const lead: LeadDaCsv[] = []
+  const origine: number[] = []
   let senzaAzienda = 0
-  for (const r of righe) {
+  righe.forEach((r, i) => {
     const azienda = prendi(r, 'companyName')
-    if (!azienda) { senzaAzienda++; continue }
+    if (!azienda) { senzaAzienda++; return }
+    origine.push(i)
     lead.push({
       companyName: azienda,
       contactName: prendi(r, 'contactName'),
@@ -98,8 +128,8 @@ export function converti(righe: Record<string, string>[], mappa: Mappa): {
       notes: prendi(r, 'notes'),
       source: prendi(r, 'source'),
     })
-  }
-  return { lead, senzaAzienda }
+  })
+  return { lead, senzaAzienda, origine }
 }
 
 /** cosa mostrare nell'anteprima: quale colonna è finita dove, e cosa è rimasto fuori */
