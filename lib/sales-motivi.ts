@@ -31,17 +31,24 @@ export function chiaveDa(etichetta: string, esistenti: string[]): string {
   for (let n = 2; ; n++) if (!esistenti.includes(`${radice}_${n}`)) return `${radice}_${n}`
 }
 
-/** le cose che non stanno in piedi, in parole: vuoto vuol dire che si può salvare */
-export function problemiMotivi(motivi: Motivo[]): string[] {
+/**
+ * §436 — le regole di un elenco di voci, qualunque sia: motivi del perso,
+ * priorità, membership. `chiave` è il vincolo sul formato della chiave, che per
+ * i motivi c'è (258) e per priorità e membership no — lì le chiavi sono i valori
+ * che i lead avevano già, `High` e `Not Member` compresi.
+ */
+export function problemiElenco(voci: Motivo[], opz: { perche: string; chiave?: RegExp }): string[] {
   const out: string[] = []
-  if (!motivi.some(m => m.attivo)) out.push('Serve almeno un motivo in uso: senza, un lead perso non si può chiudere con un perché.')
+  if (!voci.some(m => m.attivo)) out.push(`Serve almeno una voce in uso: ${opz.perche}`)
   const chiavi = new Map<string, number>()
   const nomi = new Map<string, string[]>()
-  for (const m of motivi) {
+  for (const m of voci) {
     const e = m.etichetta.trim()
-    if (!e) out.push('C\'è un motivo senza nome.')
+    if (!e) out.push('C\'è una voce senza nome.')
     else if (e.length > MAX_ETICHETTA) out.push(`«${e.slice(0, 20)}…» è troppo lungo: al massimo ${MAX_ETICHETTA} caratteri.`)
-    if (!CHIAVE_MOTIVO.test(m.chiave)) out.push(`«${e || m.chiave}» ha una chiave non valida.`)
+    if (opz.chiave ? !opz.chiave.test(m.chiave) : !m.chiave.trim() || m.chiave.length > MAX_ETICHETTA) {
+      out.push(`«${e || m.chiave}» ha una chiave non valida.`)
+    }
     chiavi.set(m.chiave, (chiavi.get(m.chiave) ?? 0) + 1)
     if (e) {
       const k = e.toLowerCase()
@@ -49,11 +56,15 @@ export function problemiMotivi(motivi: Motivo[]): string[] {
     }
   }
   for (const [k, n] of Array.from(chiavi.entries())) if (n > 1) out.push(`La chiave «${k}» compare ${n} volte.`)
-  /* Due motivi con lo stesso nome dividono in due la stessa risposta, e il
-     conteggio «perché perdiamo» li mostrerebbe come due cause diverse. */
+  /* Due voci con lo stesso nome dividono in due la stessa risposta, e i
+     conteggi le mostrerebbero come due cose diverse. */
   for (const [, v] of Array.from(nomi.entries())) if (v.length > 1) out.push(`«${v[0]}» compare due volte: tienine uno.`)
   return out
 }
+
+/** le cose che non stanno in piedi, in parole: vuoto vuol dire che si può salvare */
+export const problemiMotivi = (motivi: Motivo[]) =>
+  problemiElenco(motivi, { perche: 'senza, un lead perso non si può chiudere con un perché.', chiave: CHIAVE_MOTIVO })
 
 /** l'ordine a decine, come le fasi: lascia spazio per inserire senza rinumerare tutto */
 export const rinumera = (motivi: Motivo[]): Motivo[] => motivi.map((m, i) => ({ ...m, ordine: (i + 1) * 10 }))

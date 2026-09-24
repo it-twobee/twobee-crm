@@ -18,6 +18,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { Check, X } from 'lucide-react'
 import { useFasi } from './FasiContext'
+import { eLista } from '@/lib/sales-scelte'
+import { ETICHETTA_QUALIFICA } from '@/lib/sales-table'
 import { MenuFase } from './MenuFase'
 import type { Colonna } from '@/lib/sales-table'
 
@@ -38,7 +40,7 @@ export function CrmCella({ colonna, valore, onSalva, disabilitato }: {
   onSalva: (nuovo: unknown) => Promise<void>
   disabilitato?: boolean
 }) {
-  const { MOTIVI } = useFasi()
+  const { MOTIVI, etichettaScelta, vociPer } = useFasi()
   const [aperta, setAperta] = useState(false)
   const [bozza, setBozza] = useState('')
   const [pending, setPending] = useState(false)
@@ -122,8 +124,15 @@ export function CrmCella({ colonna, valore, onSalva, disabilitato }: {
 
   // ── le scelte chiuse ──────────────────────────────────────────────────────
   if (colonna.tipo === 'scelta') {
+    /* §436 — priorità e membership vengono dal database e si leggono con la
+       loro etichetta; la qualifica ha le sue. Si salva sempre la chiave. */
+    const nome = (k: string) => eLista(colonna.campo) ? etichettaScelta(colonna.campo, k)
+      : colonna.campo === 'qualifica' ? ETICHETTA_QUALIFICA[k] ?? k : k
+    const voci = eLista(colonna.campo)
+      ? vociPer(colonna.campo, testo()).map(v => v.chiave)
+      : [...(colonna.valori ?? [])]
     if (!aperta) {
-      const v = testo()
+      const v = testo() ? nome(testo()) : ''
       return (
         <button type="button" onClick={apri} disabled={disabilitato}
           className="block w-full text-left truncate text-2xs text-text-primary hover:text-gold-text">
@@ -136,7 +145,7 @@ export function CrmCella({ colonna, valore, onSalva, disabilitato }: {
         aria-label={colonna.etichetta} className={inputCls}
         onChange={e => salva(e.target.value)} onBlur={() => setAperta(false)}>
         <option value="">—</option>
-        {(colonna.valori ?? []).map(v => <option key={v} value={v}>{v}</option>)}
+        {voci.map(v => <option key={v} value={v}>{nome(v)}</option>)}
       </select>
     )
   }

@@ -87,7 +87,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
   /** §378 — admin e manager. Chi non può non vede le caselle, non le vede spente */
   puoiEliminare?: boolean
 }) {
-  const { TUTTE, FASI, etichettaFase, faseConRuolo } = useFasi()
+  const { TUTTE, FASI, etichettaFase, faseConRuolo, etichettaScelta, ORDINI } = useFasi()
   const [righe, setRighe] = useState(iniziali)
   const [cerca, setCerca] = useState('')
   const [gruppo, setGruppo] = useState<string>('tutti')
@@ -138,8 +138,8 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
     let out = cercaIn(righe as unknown as Record<string, unknown>[], cerca)
     if (gruppo !== 'tutti') { const g = gruppo as Gruppo; out = out.filter(r => { const f = FASI.find(x => x.chiave === r.stage); return f ? gruppoDi(f) === g : false }) }
     out = applica(out, scelte)
-    return ordina(TUTTE, out, campoOrd, verso) as unknown as RigaCrm[]
-  }, [righe, cerca, gruppo, scelte, campoOrd, verso])
+    return ordina(TUTTE, out, campoOrd, verso, ORDINI) as unknown as RigaCrm[]
+  }, [righe, cerca, gruppo, scelte, campoOrd, verso, ORDINI])
 
   /* Il conteggio per fase si fa sulle righe **filtrate dalla ricerca** ma non
      dal gruppo: altrimenti scegliendo un gruppo gli altri direbbero zero, e
@@ -519,6 +519,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
                         {f.campo === 'stage' ? etichettaFase(o.valore)
                           : f.campo === 'owners' ? (o.valore === SENZA_OWNER ? 'Nessuno' : nomeDi.get(o.valore) ?? 'Ex collega')
                           : f.campo === 'qualifica' ? (ETICHETTA_QUALIFICA[o.valore] ?? o.valore)
+                          : f.campo === 'priority' || f.campo === 'membership' ? etichettaScelta(f.campo, o.valore)
                           : o.valore}
                         <span className="ml-1 tabular text-text-tertiary">{o.quante}</span>
                       </button>

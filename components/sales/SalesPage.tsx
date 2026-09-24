@@ -5,7 +5,7 @@ import { CAMPI_RIGA } from '@/lib/sales-table'
 import { CrmTable, type RigaCrm, type PersonaCrm } from './CrmTable'
 import { ADMIN_ROLES } from '@/lib/permissions'
 import { FasiProvider } from './FasiContext'
-import { leggiFasi, leggiMotiviPerso } from '@/lib/sales-fasi'
+import { leggiFasi, leggiMotiviPerso, leggiScelte } from '@/lib/sales-fasi'
 
 /**
  * §371 — il CRM commerciale, nei due portali.
@@ -51,7 +51,7 @@ export async function SalesPage({ base }: { base: string }) {
   /* §424 — le fasi scendono dal server una volta e stanno a disposizione di
      tutta la sezione: sono una tabella che un amministratore cambia mentre il
      tool gira, non più una costante importata da otto componenti. */
-  const [fasi, motivi] = await Promise.all([leggiFasi(), leggiMotiviPerso()])
+  const [fasi, motivi, scelte] = await Promise.all([leggiFasi(), leggiMotiviPerso(), leggiScelte()])
 
   /* §430 — il service role legge tutto, quindi il perimetro di chi vede solo i
      suoi lead si taglia **qui**, sul server: le righe degli altri non arrivano
@@ -94,7 +94,7 @@ export async function SalesPage({ base }: { base: string }) {
     }))
 
   return (
-    <FasiProvider fasi={fasi} motivi={motivi}>
+    <FasiProvider fasi={fasi} motivi={motivi} scelte={scelte}>
       <CrmTable
         righe={righe}
         persone={persone}

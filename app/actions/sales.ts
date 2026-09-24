@@ -8,7 +8,8 @@ import { OUTCOMES, canReadDeal, salesAccess, uuid, validDate, validateDeal, type
 import { isWorkspaceRole } from '@/lib/permissions'
 import { validaCella, CAMPI_SCRIVIBILI } from '@/lib/sales-table'
 import { chiaveIngresso, faseDi } from '@/lib/sales-stages'
-import { leggiFasi } from '@/lib/sales-fasi'
+import { leggiFasi, leggiScelte } from '@/lib/sales-fasi'
+import { ammesse } from '@/lib/sales-scelte'
 import { somiglianze, spiegaSomiglianza, type Candidato } from '@/lib/sales-dedup'
 import { daPortareSu, type RigaConfronto } from '@/lib/sales-igiene'
 import { generaSubito } from '@/lib/recurrence-kick'
@@ -117,7 +118,8 @@ export async function collegaLeadACliente(dealId: string, clientId: string) {
  */
 export async function salvaCellaDeal(dealId: string, campo: string, valore: unknown) {
   const { actor } = await requireDealAccess(dealId)
-  const esito = validaCella(campo, valore, await leggiFasi())
+  const [fasi, scelte] = await Promise.all([leggiFasi(), leggiScelte()])
+  const esito = validaCella(campo, valore, fasi, ammesse(scelte))
   if (!esito.ok) throw new Error(esito.motivo)
 
   const { error } = await createActorClient(actor)

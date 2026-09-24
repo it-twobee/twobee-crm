@@ -714,6 +714,33 @@ sui motivi a zero.
 La chiave di un motivo nuovo nasce dal nome (`chiaveDa`); quella di uno che
 esiste già non cambia, perché i persi la puntano.
 
+## Priorità e membership si governano — §436
+
+Dalla 236 erano scritte due volte — una costante e un `CHECK` — e per aggiungere
+una voce servivano una migration e un rilascio. La **261** le porta in due
+tabelle (`sales_priorita`, `sales_membership`), e scendono dal server come le
+fasi: `leggiScelte`, il contesto (`SCELTE`, `etichettaScelta`, `vociPer`,
+`ORDINI`), la cella, i filtri, l'ordinamento, «Nuovo lead» e `validaCella`
+leggono da lì.
+
+- **La chiave è il valore salvato sul lead e non cambia** (`High`, `Not
+  Member`): nessuna riga di `deals` si tocca. Si rinomina l'etichetta.
+- **Chiave esterna `ON DELETE RESTRICT`**, non `SET NULL` come per i motivi:
+  una voce usata non si cancella nemmeno se l'azione se ne dimenticasse.
+- **L'ordine dell'elenco è l'ordine dell'ordinamento**: «High prima di Low»
+  non è più una mappa scritta in `sales-filtri`, ma la posizione nell'editor.
+- **Prima della migration il tool si comporta come prima**: senza tabelle si
+  torna al seme, che è l'elenco di sempre (lo verifica il gate).
+
+L'editor dei motivi (§435) è diventato `ElencoVociClient` e serve tutti e tre
+gli elenchi; le regole sono `problemiDi(tipo, voci)`, la stessa funzione in
+schermata, azione e gate.
+
+**La fonte non è diventata un elenco, ed è voluto.** È un campo libero che
+riempiono anche il giro dal foglio («Meta Ads») e l'import («CSV»): chiuderla
+vorrebbe dire decidere cosa fare dei valori che arrivano da fuori. La costante
+`SALES_SOURCES` in `lib/sales.ts` non la usa più nessuno.
+
 ## Aperto
 
 - **La RLS non conosceva `deal_owners`**: `sales_can_read` (223) guardava solo

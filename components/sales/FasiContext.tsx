@@ -24,11 +24,19 @@ import {
   type Fase, type Gruppo, type Ruolo,
 } from '@/lib/sales-stages'
 
+import { SCELTE_SEME, etichettaScelta, vociPer, ordini as ordiniDi, type Lista, type Scelte, type Voce } from '@/lib/sales-scelte'
+
 export type MotivoPerso = { chiave: string; etichetta: string }
 
 type Valore = {
   /** §428 — i motivi del perso: elenco configurabile come le fasi */
   MOTIVI: MotivoPerso[]
+  /** §436 — priorità e membership, dal database */
+  SCELTE: Scelte
+  etichettaScelta: (campo: string, valore: string | null | undefined) => string
+  vociPer: (campo: Lista, attuale?: string | null) => Voce[]
+  /** l'ordine per campo, da passare a `ordina` */
+  ORDINI: Record<string, string[]>
   /** tutte, anche le spente: una riga vecchia può puntare a una fase ritirata */
   TUTTE: Fase[]
   /** quelle che si possono scegliere adesso, in ordine */
@@ -44,7 +52,9 @@ type Valore = {
 
 const Ctx = createContext<Valore | null>(null)
 
-export function FasiProvider({ fasi, motivi = [], children }: { fasi: Fase[]; motivi?: MotivoPerso[]; children: React.ReactNode }) {
+export function FasiProvider({ fasi, motivi = [], scelte = SCELTE_SEME, children }: {
+  fasi: Fase[]; motivi?: MotivoPerso[]; scelte?: Scelte; children: React.ReactNode
+}) {
   const valore = useMemo<Valore>(() => {
     /* Se l'elenco non è arrivato si usa il seme invece di mostrare una pagina
        senza stati: trentasei righe senza fase somigliano a un archivio vuoto,
@@ -52,6 +62,10 @@ export function FasiProvider({ fasi, motivi = [], children }: { fasi: Fase[]; mo
     const tutte = fasi.length ? ordinate(fasi) : FASI_SEME
     return {
       MOTIVI: motivi,
+      SCELTE: scelte,
+      etichettaScelta: (c, v) => etichettaScelta(scelte, c, v),
+      vociPer: (c, a) => vociPer(scelte, c, a),
+      ORDINI: ordiniDi(scelte),
       TUTTE: tutte,
       FASI: attive(tutte),
       faseDi: (k) => trova(tutte, k),
@@ -62,7 +76,7 @@ export function FasiProvider({ fasi, motivi = [], children }: { fasi: Fase[]; mo
       fasiDelGruppo: (g) => delGruppo(tutte, g),
       faseConRuolo: (r) => faseConRuolo(tutte, r),
     }
-  }, [fasi, motivi])
+  }, [fasi, motivi, scelte])
   return <Ctx.Provider value={valore}>{children}</Ctx.Provider>
 }
 

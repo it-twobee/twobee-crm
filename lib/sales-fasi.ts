@@ -18,6 +18,7 @@
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { FASI_SEME, ordinate, type Fase } from '@/lib/sales-stages'
+import { LISTE, SCELTE_SEME, TABELLA, type Scelte, type Voce } from '@/lib/sales-scelte'
 
 const COLONNE = 'chiave, etichetta, ruolo, tinta, ordine, attiva, descrizione' as const
 
@@ -45,5 +46,26 @@ export const leggiMotiviPerso = cache(async (): Promise<MotivoPerso[]> => {
     return data as unknown as MotivoPerso[]
   } catch {
     return []
+  }
+})
+
+/**
+ * §436 — priorità e membership, tutte le voci, anche le ritirate: una riga
+ * vecchia può averne una. Se la tabella non si legge — la migration non è
+ * ancora applicata — si torna al seme, che è l'elenco di prima.
+ */
+export const leggiScelte = cache(async (): Promise<Scelte> => {
+  try {
+    const sb = await createClient()
+    const letti = await Promise.all(LISTE.map(l =>
+      sb.from(TABELLA[l]).select('chiave, etichetta, ordine, attivo').order('ordine')))
+    const out = { ...SCELTE_SEME }
+    LISTE.forEach((l, i) => {
+      const { data, error } = letti[i]
+      if (!error && data?.length) out[l] = data as unknown as Voce[]
+    })
+    return out
+  } catch {
+    return SCELTE_SEME
   }
 })

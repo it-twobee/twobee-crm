@@ -67,7 +67,7 @@ database vero, e riscoprirle costa più che leggerle.
   va a controllare.** Quando una fonte manca, dichiaralo («n/d», «stimato»,
   «senza contratto»): mai uno zero.
 - **Gate del repo**: `npx tsc --noEmit` (ESLint non configurato) + gli
-  **novantasette** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
+  **novantotto** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
   `lib/tracking/**`) — con `npx tsx lib/<percorso>.check.ts`: devono dire «Tutti
   i controlli passano».
 - **Il numero del paragrafo si prende alla fine** (§406). I `§NNN` sono etichette

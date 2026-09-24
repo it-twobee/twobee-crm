@@ -26,7 +26,6 @@ import { eExcel } from '@/lib/sales-xlsx'
 import { leggiExcel } from './leggiExcel'
 import { ETICHETTA_GRUPPO, GRUPPI } from '@/lib/sales-stages'
 import { useFasi } from './FasiContext'
-import { PRIORITA } from '@/lib/sales-table'
 
 const input = 'w-full bg-background border border-border-interactive rounded-xl px-3 py-2 text-sm text-text-primary'
 const label = 'block text-2xs text-text-tertiary mb-1'
@@ -34,7 +33,7 @@ const label = 'block text-2xs text-text-tertiary mb-1'
 type Doppione = { id: string; testo: string; certo: boolean }
 
 export function NuovoLead({ onChiudi, onFatto }: { onChiudi: () => void; onFatto: () => void }) {
-  const { FASI, fasiDelGruppo, faseConRuolo } = useFasi()
+  const { FASI, fasiDelGruppo, faseConRuolo, vociPer } = useFasi()
   const [scheda, setScheda] = useState<'mano' | 'csv'>('mano')
 
   // ── a mano ───────────────────────────────────────────────────────────────
@@ -188,7 +187,7 @@ export function NuovoLead({ onChiudi, onFatto }: { onChiudi: () => void; onFatto
                   <label className={label} htmlFor="nl-prio">Priorità</label>
                   <select id="nl-prio" value={priorita} onChange={e => setPriorita(e.target.value)} className={input}>
                     <option value="">—</option>
-                    {PRIORITA.map(p => <option key={p} value={p}>{p}</option>)}
+                    {vociPer('priority').map(p => <option key={p.chiave} value={p.chiave}>{p.etichetta}</option>)}
                   </select>
                 </div>
                 <div>

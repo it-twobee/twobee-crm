@@ -1,24 +1,35 @@
 'use client'
 
 /**
- * §435 — l'editor dei motivi del perso.
+ * §435 — l'editor dei motivi del perso; §436 — e di priorità e membership.
  *
  * Lo stesso gesto delle fasi (§425): si salva tutto insieme, i problemi si
- * vedono mentre si scrive con la stessa funzione del server, si sposta con due
- * bottoni. E accanto a ogni motivo **quanti persi lo usano**, perché è quel
- * numero a decidere se si può eliminare o solo ritirare.
+ * vedono mentre si scrive con la stessa funzione del server (`problemiDi`), si
+ * sposta con due bottoni. E accanto a ogni voce **quante righe la usano**,
+ * perché è quel numero a decidere se si può eliminare o solo ritirare.
  */
 
 import { useMemo, useState, useTransition } from 'react'
-import { ArrowDown, ArrowUp, Ban, Loader2, Plus, RotateCcw, Save, Trash2, TriangleAlert } from 'lucide-react'
+import { ArrowDown, ArrowUp, Loader2, Plus, RotateCcw, Save, Trash2, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
-import { salvaMotivi } from '@/app/actions/sales-fasi'
-import { chiaveDa, problemiMotivi, rinumera, MAX_ETICHETTA, type Motivo } from '@/lib/sales-motivi'
+import { salvaMotivi, salvaScelte } from '@/app/actions/sales-fasi'
+import { chiaveDa, rinumera, MAX_ETICHETTA, type Motivo } from '@/lib/sales-motivi'
+import { problemiDi, type TipoElenco } from '@/lib/sales-scelte'
 
-export function MotiviPersoClient({ motivi, conta }: { motivi: Motivo[]; conta: Record<string, number> }) {
+export function ElencoVociClient({ tipo, titolo, spiega, icona, colonnaConta, segnaposto, voci: motivi, conta }: {
+  tipo: TipoElenco
+  titolo: string
+  spiega: string
+  icona: React.ReactNode
+  /** l'intestazione della colonna dei conteggi: «Persi», «Lead» */
+  colonnaConta: string
+  segnaposto: string
+  voci: Motivo[]
+  conta: Record<string, number>
+}) {
   const [righe, setRighe] = useState<Motivo[]>(motivi)
   const [pending, start] = useTransition()
-  const problemi = useMemo(() => problemiMotivi(righe), [righe])
+  const problemi = useMemo(() => problemiDi(tipo, righe), [tipo, righe])
   const cambiato = JSON.stringify(rinumera(righe)) !== JSON.stringify(rinumera(motivi))
 
   /* Un motivo nuovo prende la chiave dal nome mentre lo si scrive; uno che
@@ -38,11 +49,11 @@ export function MotiviPersoClient({ motivi, conta }: { motivi: Motivo[]; conta: 
     const out = [...rs];[out[i], out[j]] = [out[j], out[i]]
     return out
   })
-  const aggiungi = () => setRighe(rs => [...rs, { chiave: chiaveDa('Nuovo motivo', rs.map(r => r.chiave)), etichetta: '', ordine: 0, attivo: true }])
+  const aggiungi = () => setRighe(rs => [...rs, { chiave: chiaveDa('Nuova voce', rs.map(r => r.chiave)), etichetta: '', ordine: 0, attivo: true }])
 
   const salva = () => start(async () => {
-    const esito = await salvaMotivi(rinumera(righe))
-    if (esito.ok) toast.success('Motivi salvati')
+    const esito = tipo === 'motivi' ? await salvaMotivi(rinumera(righe)) : await salvaScelte(tipo, rinumera(righe))
+    if (esito.ok) toast.success(`${titolo}: salvato`)
     else toast.error(esito.errori[0])
   })
 
@@ -51,14 +62,11 @@ export function MotiviPersoClient({ motivi, conta }: { motivi: Motivo[]; conta: 
       <header className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex items-start gap-3">
           <span className="w-9 h-9 rounded-xl bg-gold-dim flex items-center justify-center shrink-0">
-            <Ban className="w-4 h-4 text-gold-text" />
+            {icona}
           </span>
           <div>
-            <h2 className="text-lg font-black text-text-primary font-heading">Motivi del perso</h2>
-            <p className="text-xs text-text-secondary max-w-xl">
-              Le risposte fra cui si sceglie quando un lead si chiude senza esito, e le righe di «perché perdiamo».
-              Un motivo già usato non si elimina: si ritira, e resta scritto sui persi che lo hanno.
-            </p>
+            <h2 className="text-lg font-black text-text-primary font-heading">{titolo}</h2>
+            <p className="text-xs text-text-secondary max-w-xl">{spiega}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -92,8 +100,8 @@ export function MotiviPersoClient({ motivi, conta }: { motivi: Motivo[]; conta: 
             <thead>
               <tr className="bg-surface-hover text-2xs font-bold text-text-tertiary uppercase tracking-wider">
                 <th className="w-16 px-2 py-2.5" />
-                <th scope="col" className="px-3 py-2.5 text-left">Motivo</th>
-                <th scope="col" className="px-3 py-2.5 text-right w-24">Persi</th>
+                <th scope="col" className="px-3 py-2.5 text-left">Voce</th>
+                <th scope="col" className="px-3 py-2.5 text-right w-24">{colonnaConta}</th>
                 <th scope="col" className="px-3 py-2.5 text-center w-24">In uso</th>
                 <th className="w-12" />
               </tr>
@@ -116,21 +124,21 @@ export function MotiviPersoClient({ motivi, conta }: { motivi: Motivo[]; conta: 
                       </div>
                     </td>
                     <td className="px-3 py-2">
-                      <input value={m.etichetta} maxLength={MAX_ETICHETTA} placeholder="Perché si è chiuso"
-                        aria-label="Nome del motivo" onChange={e => cambia(i, { etichetta: e.target.value })}
+                      <input value={m.etichetta} maxLength={MAX_ETICHETTA} placeholder={segnaposto}
+                        aria-label="Nome della voce" onChange={e => cambia(i, { etichetta: e.target.value })}
                         className="w-full bg-surface border border-border-interactive rounded-lg px-2 py-1.5 text-xs text-text-primary" />
                     </td>
                     <td className="px-3 py-2 text-right tabular text-text-secondary">{quanti || '—'}</td>
                     <td className="px-3 py-2 text-center">
                       <input type="checkbox" checked={m.attivo} onChange={e => cambia(i, { attivo: e.target.checked })}
-                        aria-label={`${m.etichetta || 'Motivo'} in uso`} className="accent-[var(--color-gold)]" />
+                        aria-label={`${m.etichetta || 'Voce'} in uso`} className="accent-[var(--color-gold)]" />
                     </td>
                     <td className="px-2 py-2 text-center">
-                      {/* Eliminare si può solo quando nessun perso lo usa: il
+                      {/* Eliminare si può solo quando nessuna riga la usa: il
                           bottone non c'è, invece di esserci e fallire. */}
                       {quanti === 0 && (
                         <button onClick={() => setRighe(rs => rs.filter((_, k) => k !== i))}
-                          aria-label={`Elimina ${m.etichetta || 'motivo'}`}
+                          aria-label={`Elimina ${m.etichetta || 'voce'}`}
                           className="p-1 rounded text-text-tertiary hover:text-error">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -144,7 +152,7 @@ export function MotiviPersoClient({ motivi, conta }: { motivi: Motivo[]; conta: 
         </div>
         <button onClick={aggiungi}
           className="w-full flex items-center justify-center gap-1.5 border-t border-border px-3 py-2.5 text-xs text-text-secondary hover:text-text-primary hover:bg-surface-hover">
-          <Plus className="w-3.5 h-3.5" /> Aggiungi un motivo
+          <Plus className="w-3.5 h-3.5" /> Aggiungi una voce
         </button>
       </div>
     </section>

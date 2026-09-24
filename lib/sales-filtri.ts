@@ -35,7 +35,7 @@ export const ORDINABILI = COLONNE.filter(c => c.tipo !== 'etichette' && c.campo 
  * `null` vuol dire «vuoto» e finisce in fondo: non è zero e non è stringa
  * vuota, che si ordinerebbero come valori veri.
  */
-function chiave(fasi: Fase[], v: unknown, tipo: TipoCella): number | string | null {
+function chiave(fasi: Fase[], v: unknown, tipo: TipoCella, ordine?: string[]): number | string | null {
   if (v === null || v === undefined || v === '') return null
   if (tipo === 'fase') return ordineFase(fasi).get(String(v)) ?? null
   if (tipo === 'numero') { const n = Number(v); return Number.isFinite(n) ? n : null }
@@ -44,7 +44,11 @@ function chiave(fasi: Fase[], v: unknown, tipo: TipoCella): number | string | nu
     return Number.isFinite(t) ? t : String(v).toLowerCase()
   }
   if (tipo === 'si_no') return v ? 1 : 0
-  if (tipo === 'scelta') return ORDINE_SCELTA.get(String(v)) ?? String(v).toLowerCase()
+  if (tipo === 'scelta') {
+    // §436 — l'ordine dell'elenco configurato, se c'è; altrimenti quello di sempre
+    const i = ordine?.indexOf(String(v)) ?? -1
+    return i >= 0 ? i : ORDINE_SCELTA.get(String(v)) ?? String(v).toLowerCase()
+  }
   return String(v).toLowerCase()
 }
 
@@ -57,10 +61,10 @@ const ORDINE_SCELTA = new Map<string, number>([
   ['Member', 0], ['Potential', 1], ['Not Member', 2],
 ])
 
-export function confronta(fasi: Fase[], a: Riga, b: Riga, campo: string, verso: Verso): number {
+export function confronta(fasi: Fase[], a: Riga, b: Riga, campo: string, verso: Verso, ordini: Record<string, string[]> = {}): number {
   const tipo = colonnaDi(campo)?.tipo ?? 'testo'
-  const x = chiave(fasi, a[campo], tipo)
-  const y = chiave(fasi, b[campo], tipo)
+  const x = chiave(fasi, a[campo], tipo, ordini[campo])
+  const y = chiave(fasi, b[campo], tipo, ordini[campo])
   // i vuoti in fondo in entrambi i versi: chi non ha il dato non è «il primo»
   if (x === null && y === null) return 0
   if (x === null) return 1
@@ -70,8 +74,8 @@ export function confronta(fasi: Fase[], a: Riga, b: Riga, campo: string, verso: 
   return String(x).localeCompare(String(y), 'it') * segno
 }
 
-export const ordina = (fasi: Fase[], righe: Riga[], campo: string, verso: Verso): Riga[] =>
-  [...righe].sort((a, b) => confronta(fasi, a, b, campo, verso))
+export const ordina = (fasi: Fase[], righe: Riga[], campo: string, verso: Verso, ordini: Record<string, string[]> = {}): Riga[] =>
+  [...righe].sort((a, b) => confronta(fasi, a, b, campo, verso, ordini))
 
 // ── i filtri ────────────────────────────────────────────────────────────────
 

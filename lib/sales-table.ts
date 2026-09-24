@@ -191,7 +191,11 @@ const vuoto = (v: string) => v.trim() === ''
 /* §424 — `fasi` arriva da fuori: con l'elenco configurabile, «è una fase vera?»
    è una domanda a cui questo file non può rispondere da solo. Chi chiama passa
    l'elenco letto dal database; senza, una fase qualunque passerebbe. */
-export function validaCella(campo: string, grezzo: unknown, fasi: Fase[] = []): Verdetto {
+export function validaCella(
+  campo: string, grezzo: unknown, fasi: Fase[] = [],
+  /** §436 — le chiavi ammesse per le scelte che vivono nel database (priorità, membership) */
+  ammesse: Record<string, string[]> = {},
+): Verdetto {
   const c = colonnaDi(campo)
   if (!c) return { ok: false, motivo: `Colonna sconosciuta: ${campo}` }
   if (!modificabile(c)) return { ok: false, motivo: `«${c.etichetta}» non si modifica` }
@@ -216,7 +220,7 @@ export function validaCella(campo: string, grezzo: unknown, fasi: Fase[] = []): 
 
   if (c.tipo === 'scelta') {
     if (vuoto(v)) return { ok: true, valore: null }
-    return (c.valori ?? []).includes(v)
+    return (ammesse[campo] ?? c.valori ?? []).includes(v)
       ? { ok: true, valore: v }
       : { ok: false, motivo: `«${v}» non è un valore di ${c.etichetta}` }
   }

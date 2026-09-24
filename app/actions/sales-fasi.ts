@@ -29,6 +29,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requireSalesConfig } from '@/lib/sales-guard'
 import { problemiFasi, type Fase } from '@/lib/sales-stages'
 import { problemiMotivi, rinumera, type Motivo } from '@/lib/sales-motivi'
+import { TABELLA, eLista, problemiDi, type Lista, type Voce } from '@/lib/sales-scelte'
 
 export type EsitoFasi = { ok: true } | { ok: false; errori: string[] }
 
@@ -157,6 +158,57 @@ export async function salvaMotivi(motivi: Motivo[]): Promise<EsitoFasi> {
     return { ok: true }
   } catch (e) {
     console.error('[motivi del perso]', e)
+    return { ok: false, errori: [(e as Error).message] }
+  }
+}
+
+/**
+ * §436 — priorità e membership. Lo stesso salvataggio dei motivi, con una
+ * differenza: qui la chiave esterna è `ON DELETE RESTRICT`, quindi il database
+ * rifiuterebbe comunque di cancellare una voce usata — il conteggio serve a
+ * dirlo in parole, e a dire quante righe la usano.
+ */
+export async function salvaScelte(lista: Lista, voci: Voce[]): Promise<EsitoFasi> {
+  try {
+    await requireSalesConfig()
+    if (!eLista(lista)) return { ok: false, errori: ['Elenco sconosciuto'] }
+
+    const puliti: Voce[] = rinumera((Array.isArray(voci) ? voci : []).map(v => ({
+      chiave: String(v?.chiave ?? '').trim(),
+      etichetta: String(v?.etichetta ?? '').trim(),
+      ordine: 0,
+      attivo: v?.attivo !== false,
+    })))
+    const errori = problemiDi(lista, puliti)
+    if (errori.length) return { ok: false, errori }
+
+    const admin = createAdminClient()
+    const { data: esistenti, error: eLettura } = await admin.from(TABELLA[lista]).select('chiave')
+    if (eLettura) return { ok: false, errori: ['Elenco non ancora attivo: manca la migration sul database.'] }
+    const dopo = new Set(puliti.map(v => v.chiave))
+    const sparite = ((esistenti ?? []) as { chiave: string }[]).map(x => x.chiave).filter(k => !dopo.has(k))
+    if (sparite.length) {
+      const { data: usate } = await admin.from('deals').select(lista).in(lista, sparite)
+      const conta = new Map<string, number>()
+      for (const r of (usate ?? []) as unknown as Record<string, string>[]) conta.set(r[lista], (conta.get(r[lista]) ?? 0) + 1)
+      if (conta.size) {
+        return {
+          ok: false,
+          errori: Array.from(conta.entries()).map(([k, n]) =>
+            `«${k}» è su ${n} lead: ritirala invece di eliminarla.`),
+        }
+      }
+      const { error } = await admin.from(TABELLA[lista]).delete().in('chiave', sparite)
+      if (error) return { ok: false, errori: [error.message] }
+    }
+
+    const { error } = await admin.from(TABELLA[lista]).upsert(puliti, { onConflict: 'chiave' })
+    if (error) return { ok: false, errori: [error.message] }
+
+    rinfresca()
+    return { ok: true }
+  } catch (e) {
+    console.error('[scelte commerciali]', e)
     return { ok: false, errori: [(e as Error).message] }
   }
 }
