@@ -617,11 +617,10 @@ da cui arriva.
 
 ## Aperto
 
-- **La RLS non conosce `deal_owners`.** `sales_can_read` (223) guarda solo
-  `assigned_to`, che in produzione è vuoto su tutti i 38 lead. La pagina e le
-  azioni passano dal service role e non ne soffrono; il follow-up nel
-  calendario (`/api/sales/follow-up`) invece legge con la sessione, quindi un
-  senior owner via `deal_owners` si vede rispondere «Lead non accessibile».
-  Serve una migration che allarghi `sales_can_read`.
+- **La RLS non conosceva `deal_owners`**: `sales_can_read` (223) guardava solo
+  `assigned_to`, vuoto su tutti i lead, e il follow-up nel calendario — che
+  legge con la sessione — diceva «Lead non accessibile» a un senior owner. La
+  **260** lo sistema con `sales_can_read_deal(id, assigned_to)`, stessa regola
+  di `leadDi()`. **Da applicare.**
 - `deal_activities` e `sales_handoffs` restano in piedi e non sono più scritte
   da nessuna UI: `SalesHandoff` legge ancora la seconda nella scheda progetto.

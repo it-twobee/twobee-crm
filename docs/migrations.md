@@ -59,7 +59,8 @@ Il dettaglio delle policy e delle verifiche è nel paragrafo §329 sotto.
 > alle guardie del portale cos'è una cancellazione. La **258** non c'è: era il
 > numero di una bozza (i link pubblici dell'area cliente), che adesso è
 > `XXX_area_file_link.sql` e prenderà il suo numero al commit (§423). La
-> **259** slega l'autore delle cartelle. La prossima libera è la **260**.
+> **259** slega l'autore delle cartelle. La **260** insegna alla RLS dei lead
+> gli Account Owner (§430) — **da applicare**. La prossima libera è la **261**.
 
 > **La 249 è nata 247.** È stata scritta e **applicata in produzione** mentre su
 > main arrivavano `247_periodi_e_ricorrenze` e `248_scheletro_periodi`, da una
