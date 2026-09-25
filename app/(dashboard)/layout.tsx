@@ -35,7 +35,8 @@ export default async function DashboardLayout({
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <Header profile={profile as Profile | null} />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden">
+        {/* relative: gli input sr-only (absolute) si ancorano qui, non al body — altrimenti allungano la pagina (§451) */}
+        <main className="relative flex-1 overflow-y-auto overflow-x-hidden">
           <Suspense fallback={null}><NavMemory /></Suspense>
           <PresenceBeat />
           {children}

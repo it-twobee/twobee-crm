@@ -153,7 +153,8 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
             <HeaderActions profile={profile} portal="workspace" />
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto overflow-x-hidden">
+        {/* relative: gli input sr-only (absolute) si ancorano qui, non al body — altrimenti allungano la pagina (§451) */}
+        <main className="relative flex-1 overflow-y-auto overflow-x-hidden">
           {/* §234 — la memoria del percorso c'era solo nel portale admin, quindi
               qui ogni «indietro» cadeva sul fallback. Adesso c'è anche qui, e
               `samePortal` garantisce che quello che registra resti dentro. */}

@@ -206,7 +206,7 @@ L'etichetta viene da `labelOf()`: dice **dove** si torna, non «Indietro».
 una pagina che aggiunge `h-full` + `flex-1 overflow-y-auto` crea uno scroll dentro
 lo scroll, blocca intestazione e avvisi a occupare mezzo schermo e lascia scorrere
 una striscia. Usa `min-h-full` e, se serve tenere le tab a portata di mano,
-`sticky top-0 z-20`.
+`sticky top-0 z-20`. `main` è `relative` (§451): un elemento `absolute` senza antenato posizionato — gli input `sr-only` dei caricamenti — si ancorava al body e, sotto sezioni aperte, allungava il documento; la pagina intera scorreva e sotto restava il grigio.
 
 ## Convenzioni codice
 - Nessun commento salvo WHY non ovvi
