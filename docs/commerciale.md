@@ -879,6 +879,36 @@ con una freccia a parte, e al ricarico sparivano tutti e due. Adesso:
 - Il conteggio «N di M lead» sta nella barra; i numeri leggono gli stessi
   filtri meno il gruppo (§431).
 
+## L'export dei lead e dei contatti — §441
+
+«Esporta» (in testata e nella barra della selezione) scarica i lead in
+**Excel, CSV o PDF**, e c'è solo per **super admin, founder e admin**: un file
+con tutti i recapiti esce dal tool e non si richiama più. La porta vera è la
+route `/api/sales/export`, che rilegge `app_role` (non `role`) dal database
+(`puoEsportare`): manager e senior abilitati al commerciale lavorano i lead, ma
+non li portano fuori.
+
+- **Due export**: il **lead completo** (tutte le colonne della scheda, ultimo
+  contatto, tentativi, prossimo follow-up, campi personalizzati, provenienza
+  Meta, note **e le singole interazioni**) e i **contatti** (nome, azienda,
+  email, telefono, owner, fase).
+- **Quali righe**: le selezionate se ci sono, altrimenti quelle che i filtri
+  mostrano, o tutte. Il browser manda gli id **nell'ordine in cui li vede**, la
+  route li rilegge dal database: il file dice quello che c'è.
+- **Excel**: due fogli (Lead, Interazioni), intestazione bloccata e filtro
+  automatico, scritto a mano come zip di XML (`fileXlsx` + `yazl`), celle di
+  testo. **CSV**: punto e virgola, BOM, CRLF — Excel italiano lo apre in
+  colonne con le accentate giuste; le interazioni stanno in una colonna, una
+  per riga. **PDF** (`jspdf` + `jspdf-autotable`, le sole dipendenze nuove):
+  A4 orizzontale, le colonne che si leggono e sotto il diario; in testa quanti
+  sono, i filtri in una frase (`descrivi`) e chi l'ha esportato quando.
+- **Ogni valore come lo legge una persona**: «Call fissata», il nome
+  dell'owner, «24/09/2026 14:32» a Roma, gli euro nel fatturato.
+- **Nel CSV una formula non parte**: una cella che comincia con `=`, `+`, `-`,
+  `@` prende un apostrofo davanti — tranne i telefoni, che formule non sono.
+- **Nome file** `lead-twobee-AAAA-MM-GG.ext`, `contatti-twobee-…`, col giorno
+  di Roma. Al massimo 5000 righe per volta.
+
 ## Aperto
 
 - **La RLS non conosceva `deal_owners`**: `sales_can_read` (223) guardava solo

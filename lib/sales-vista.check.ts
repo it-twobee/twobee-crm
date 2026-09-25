@@ -7,7 +7,7 @@
    intervallo di date che perde l'ultimo giorno. */
 
 import { FASI_SEME as F } from '@/lib/sales-stages'
-import { applicaStato, dentroData, etichettaFiltroData, inRapida, leggi, scrivi, VUOTO, type StatoElenco } from '@/lib/sales-vista'
+import { applicaStato, descrivi, dentroData, etichettaFiltroData, inRapida, leggi, scrivi, VUOTO, type StatoElenco } from '@/lib/sales-vista'
 
 let fail = 0
 const is = (label: string, got: unknown, want: unknown) => {
@@ -75,6 +75,11 @@ is('intervallo rovesciato si raddrizza', leggi('d.arrivo=2026-09-15..2026-09-01'
 is('«scaduto» vale solo sul follow-up', [leggi('d.contatto=scaduto', gruppi).date.last_interaction_at, leggi('d.followup=scaduto', gruppi).date.next_followup_at], [undefined, { tipo: 'scaduto' }])
 is('al massimo due criteri, senza doppioni', leggi('ordine=stage:su,stage:giu,company_name:su,priority:giu', gruppi).ordine, [{ campo: 'stage', verso: 'su' }, { campo: 'company_name', verso: 'su' }])
 is('giorni fuori misura: ignorati', leggi('d.contatto=piu_vecchio:9999', gruppi).date, {})
+
+console.log('\n— In una frase, per il PDF —')
+is('la vista piena', descrivi(pieno, (c, v) => c === 'stage' ? v.replace('_', ' ') : v === '__nessuno__' ? 'Nessuno' : v, g => g === 'lavorazione' ? 'In lavorazione' : g),
+  'Cerca «rossi» · Da richiamare · In lavorazione · Fase: in contatto, call fissata · Account Owner: Nessuno · Ultimo contatto: Più di 14 giorni fa · Arrivo: 01/09/2026 – 15/09/2026')
+is('la vista vuota non dice niente', descrivi(VUOTO, v => v), '')
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

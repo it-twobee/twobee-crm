@@ -3,7 +3,8 @@ import { getSalesAccess, leadDi, vedeTutto } from '@/lib/sales-guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CAMPI_RIGA } from '@/lib/sales-table'
 import { CrmTable, type RigaCrm, type PersonaCrm } from './CrmTable'
-import { ADMIN_ROLES } from '@/lib/permissions'
+import { ADMIN_ROLES, SUPER_ADMIN_EMAILS } from '@/lib/permissions'
+import { puoEsportare } from '@/lib/sales-export'
 import { FasiProvider } from './FasiContext'
 import { leggiCampi, leggiFasi, leggiMotiviPerso, leggiScelte } from '@/lib/sales-fasi'
 
@@ -99,11 +100,16 @@ export async function SalesPage({ base }: { base: string }) {
         && (ADMIN_ROLES.includes(p.app_role as never) || idConcessi.includes(p.id)),
     }))
 
+  /* §441 — l'export: super admin, founder e admin. Il bottone si nasconde agli altri,
+     la route rilegge il ruolo per conto suo */
+  const { data: io } = await contesto.sb.from('profiles').select('app_role, email').eq('id', contesto.actor).single()
+
   return (
     <FasiProvider fasi={fasi} motivi={motivi} scelte={scelte} campi={campi}>
       <CrmTable
         righe={righe}
         io={contesto.actor}
+        puoiEsportare={puoEsportare(io?.app_role, io?.email, SUPER_ADMIN_EMAILS)}
         persone={persone}
         puoiAssegnare={vedeTutto(contesto.access)}
         puoiEliminare={contesto.access === 'admin' || contesto.access === 'manager'}

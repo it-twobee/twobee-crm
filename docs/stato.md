@@ -1,5 +1,12 @@
 # Dove siamo
 
+## L'export dei lead e dei contatti — §441, 2026-09-25
+
+Fase 4 e ultima del commerciale. «Esporta» scarica il lead completo (campi,
+note, interazioni) o la rubrica dei contatti in Excel, CSV o PDF: le righe
+selezionate, quelle filtrate o tutte. Solo super admin, founder e admin. Nessuna
+migration; due dipendenze nuove, `jspdf` e `jspdf-autotable`.
+
 ## Filtri, ordine e viste che si ritrovano — §440, 2026-09-25
 
 Fase 3 del commerciale. Ogni filtro attivo è una frase che si clicca per

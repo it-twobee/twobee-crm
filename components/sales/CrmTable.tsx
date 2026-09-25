@@ -48,7 +48,8 @@ import { NuovoLead } from './NuovoLead'
 import { CrmAnalytics } from './CrmAnalytics'
 import { tassoDi, type RigaAnalisi } from '@/lib/sales-analytics'
 import { SENZA_OWNER } from '@/lib/sales-filtri'
-import { applicaStato, eNostra, leggi, scrivi, VUOTO, type StatoElenco } from '@/lib/sales-vista'
+import { applicaStato, descrivi, eNostra, leggi, scrivi, VUOTO, type StatoElenco } from '@/lib/sales-vista'
+import { EsportaLead } from './EsportaLead'
 import { BarraFiltri } from './BarraFiltri'
 import { VoceSezione } from '@/components/workspace/VoceSezione'
 
@@ -82,8 +83,10 @@ function quando(v: unknown): string {
 const MEMORIA = 'twobee-crm-elenco'
 const GRUPPI_AMMESSI = ['tutti', ...GRUPPI]
 
-export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [], puoiAssegnare = false, io }: {
+export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [], puoiAssegnare = false, io, puoiEsportare = false }: {
   righe: RigaCrm[]
+  /** §441 — super admin, founder e admin */
+  puoiEsportare?: boolean
   /** §440 — chi guarda: «Miei» è suoi */
   io: string
   persone?: PersonaCrm[]
@@ -187,6 +190,13 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
   }, [righe, stato, contesto])
 
   const nomeDi = useMemo(() => new Map(persone.map(p => [p.id, p.nome])), [persone])
+  /* un valore di filtro in parole: lo usano i chip della barra e la frase in testa al PDF */
+  const etichettaValore = (campo: string, v: string) =>
+    campo === 'stage' ? etichettaFase(v)
+      : campo === 'owners' ? (v === SENZA_OWNER ? 'Nessuno' : nomeDi.get(v) ?? 'Ex collega')
+      : campo === 'qualifica' ? (ETICHETTA_QUALIFICA[v] ?? v)
+      : campo === 'priority' || campo === 'membership' ? etichettaScelta(campo, v)
+      : v
 
   /* §430 — gli owner non passano da `salvaCellaDeal`: sono un'altra tabella e
      un'altra porta (`impostaOwnerDeal`), ma lo stesso gesto ottimistico. */
@@ -489,6 +499,11 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
             className="flex items-center gap-1.5 text-sm font-semibold bg-gold text-on-gold px-4 py-2.5 rounded-xl shadow-soft press">
             <Plus className="w-4 h-4" />Nuovo lead
           </button>
+          {/* §441 — super admin, founder e admin: la porta vera è la route */}
+          {puoiEsportare && vista !== 'controllo' && (
+            <EsportaLead selezionati={selezione} mostrati={viste.map(r => r.id)} tutti={righe.map(r => r.id)}
+              filtri={descrivi(stato, etichettaValore, g => g === 'tutti' ? 'Tutti' : ETICHETTA_GRUPPO[g as Gruppo])} />
+          )}
           <button onClick={aggiorna} disabled={aggiorno}
             title="Rilegge il foglio dei lead: inserisce solo le righe nuove, non tocca quelle che ci sono"
             className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary border border-border px-3 py-2 rounded-xl hover:text-text-primary hover:bg-surface-hover transition-colors disabled:opacity-40">
@@ -521,12 +536,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
             chiave: g, etichetta: g === 'tutti' ? 'Tutti' : ETICHETTA_GRUPPO[g], quante: perGruppo[g] ?? 0,
           }))}
           conOrdine={vista !== 'numeri'}
-          etichette={{ valore: (campo, v) =>
-            campo === 'stage' ? etichettaFase(v)
-              : campo === 'owners' ? (v === SENZA_OWNER ? 'Nessuno' : nomeDi.get(v) ?? 'Ex collega')
-              : campo === 'qualifica' ? (ETICHETTA_QUALIFICA[v] ?? v)
-              : campo === 'priority' || campo === 'membership' ? etichettaScelta(campo, v)
-              : v }}
+          etichette={{ valore: etichettaValore }}
         />
       )}
 
@@ -647,6 +657,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
           <button onClick={() => setSelezione([])} className="text-xs text-text-secondary hover:text-text-primary transition-colors">
             Annulla
           </button>
+          {puoiEsportare && <EsportaLead compatto selezionati={selezione} mostrati={viste.map(r => r.id)} tutti={righe.map(r => r.id)} filtri="" />}
           <button onClick={() => setDaEliminare(selezione)}
             className="ml-auto sm:ml-2 flex items-center gap-1.5 text-sm font-semibold bg-error-dim border border-error/40 text-error px-3 py-1.5 rounded-xl hover:bg-error/20 transition-colors press">
             <Trash2 className="w-3.5 h-3.5" /> Elimina

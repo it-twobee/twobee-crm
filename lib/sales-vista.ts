@@ -262,3 +262,21 @@ export function leggi(query: string | URLSearchParams, gruppiAmmessi: readonly s
 
 /** le chiavi dell'indirizzo che sono nostre: le altre (`?lead=`) si lasciano stare */
 export const eNostra = (k: string) => ['q', 'gruppo', 'vista', 'ordine'].includes(k) || k.startsWith('f.') || k.startsWith('d.')
+
+/**
+ * La vista in una frase, per la testa del PDF: chi apre il file deve sapere
+ * che cosa sta guardando, e «60 lead» senza filtri dice una cosa diversa da
+ * «60 lead · Fase: Call fissata».
+ */
+export function descrivi(s: StatoElenco, valore: (campo: string, v: string) => string, etichettaGruppo?: (g: string) => string): string {
+  const parti: string[] = []
+  if (s.q.trim()) parti.push(`Cerca «${s.q.trim()}»`)
+  if (s.rapida) parti.push(ETICHETTA_RAPIDA[s.rapida])
+  if (s.gruppo !== 'tutti') parti.push(etichettaGruppo ? etichettaGruppo(s.gruppo) : s.gruppo)
+  for (const f of FILTRABILI) {
+    const v = s.scelte[f.campo]
+    if (v?.length) parti.push(`${f.etichetta}: ${v.map(x => valore(f.campo, x)).join(', ')}`)
+  }
+  for (const c of CAMPI_DATA) { const f = s.date[c]; if (f) parti.push(`${ETICHETTA_DATA[c]}: ${etichettaFiltroData(c, f)}`) }
+  return parti.join(' · ')
+}
