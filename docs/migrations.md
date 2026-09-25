@@ -552,7 +552,7 @@ Le suite con fixture restano esclusivamente sul database isolato.
 
 ## 232 — una notifica, un destinatario (§350)
 
-`232_notifications_one_recipient.sql`: **da applicare**. `notifications` ha due
+`232_notifications_one_recipient.sql`: **applicata** (verificato sul database il 2026-09-25). `notifications` ha due
 colonne per la stessa cosa — `profile_id` (001) e `user_id` (arrivato dopo): la
 RLS della 009 le guarda tutte e due, la campanella filtrava sul solo `user_id`,
 e chi scriveva sceglieva. Misurato il 18 settembre 2026: **11 righe su 23** con
@@ -569,7 +569,7 @@ secondo giro non trova più niente.
 
 ## 231 — chi ha assegnato la task (§347)
 
-`231_task_assigned_by.sql`: **da applicare**. Aggiunge
+`231_task_assigned_by.sql`: **applicata** (verificato sul database il 2026-09-25). Aggiunge
 `task_assignees.assigned_by` (FK a `profiles`, `ON DELETE SET NULL`). Sta lì e
 non su `tasks` perché descrive l'assegnazione, non la task: su `tasks` sarebbe
 una copia da riallineare a ogni cambio di titolare.
@@ -589,7 +589,7 @@ Rilanciabile: `ADD COLUMN IF NOT EXISTS`.
 
 ## 230 — via la riga «task», fantasma della sezione Task (§346)
 
-`230_workspace_task_section_cleanup.sql`: **da applicare** (dopo la 229).
+`230_workspace_task_section_cleanup.sql`: **applicata** (verificato sul database il 2026-09-25).
 `workspace_sections` aveva due righe per la stessa cosa — `ad_hoc` («Task»,
 `/workspace/ad-hoc`, attiva) e `task` («Task», `/workspace/task`, spenta e senza
 pagina dal reset 144/146). Dopo la 229 si chiamano anche uguali, e quella morta
@@ -607,7 +607,7 @@ Rilanciabile: il secondo giro non trova più niente da cancellare.
 
 ## 229 — nel workspace la sezione si chiama «Task» (§346)
 
-`229_workspace_task_section_label.sql`: **da applicare**. Solo etichetta e
+`229_workspace_task_section_label.sql`: **applicata** (verificato sul database il 2026-09-25). Solo etichetta e
 descrizione della riga `ad_hoc` in `workspace_sections`: il menu del portale
 operativo diceva ancora «Task Ad Hoc», ma dal §340 quella pagina le contiene
 tutte e l'intestazione dice «Task». Rotta, permessi e ordine non cambiano.
@@ -623,7 +623,7 @@ ma è il posto dove qualcuno un giorno accenderà un link che rimbalza (§211).
 
 ## 228 — la finestra di generazione la decide la cadenza (§346)
 
-`228_recurrence_window_by_frequency.sql`: **da applicare** (dopo la 227).
+`228_recurrence_window_by_frequency.sql`: **applicata** (verificato sul database il 2026-09-25).
 Misurato il 18 settembre 2026 con tutte le regole a trenta giorni: un giro
 avrebbe creato **236 occorrenze**, ~170 dalle sole sei giornaliere. Con la
 finestra per cadenza sono 85, e 33 contando solo le regole che hanno un
@@ -649,7 +649,7 @@ finestra minima e massima per cadenza e quante regole restano senza responsabile
 
 ## 227 — le ricorrenti del wizard nascono lavorabili (§346)
 
-`227_recurring_from_wizard.sql`: **da applicare**. Riscrive
+`227_recurring_from_wizard.sql`: **applicata** (verificato sul database il 2026-09-25). Riscrive
 `create_project_from_template` (ultima definizione: la 155) cambiando **due
 righe sole** del blocco ricorrenti, e fa un backfill.
 
@@ -675,7 +675,7 @@ generate.
 
 ## 226 — richieste di accesso al foglio dei compensi (§344)
 
-`226_report_access.sql`: **da applicare**. Crea `report_access_requests` — chi ha
+`226_report_access.sql`: **applicata** (verificato sul database il 2026-09-25). Crea `report_access_requests` — chi ha
 chiesto di vedere `/api/compensi`, quale mese, e la decisione dell'admin —
 `ENABLE ROW LEVEL SECURITY` senza policy (deny-all come `google_credentials`:
 ci passa solo il service role, dietro le guard applicative). Unico su

@@ -55,7 +55,7 @@ la pipeline. `requireDealAccess` chiude le azioni sulla singola trattativa,
 `SalesPage` taglia le righe sul server. In produzione non è mai successo (le
 concessioni erano tutte a manager). In più gli Account Owner si leggono e si
 assegnano dalla scheda (admin e manager), e i filtri hanno Account Owner — con
-«Nessuno» — e Qualifica. Aperto: `sales_can_read` non conosce `deal_owners`.
+«Nessuno» — e Qualifica. `sales_can_read` che non conosceva `deal_owners` lo chiude la 260 (`sales_can_read_deal`).
 
 ## Chi lavora i lead si sceglie di nuovo — §429, 2026-09-24
 
@@ -721,8 +721,8 @@ di accesso al foglio», in testa a «Erogato soci». Il sì vale **solo per il m
 chiesto** e **scade dopo quindici giorni**; la revoca è immediata, il rifiuto non
 riapre il modulo. Chi ha `canSeeEconomics` non vede nessun cambiamento.
 
-Migration **226 da applicare** (`report_access_requests`, deny-all): finché non
-lo è, la porta mostra il modulo e l'invio dice che non è stato possibile —
+Migration **226 applicata** (verificata il 2026-09-25; `report_access_requests`, deny-all). Prima
+di applicarla la porta mostrava il modulo e l'invio diceva che non era stato possibile —
 nessun 500. Verifiche: TypeScript, 54 check, gate delle action, e le quattro
 facce della porta provate in locale (modulo, nomi rifiutati, errore d'invio).
 Il collaudo autenticato in produzione resta agli utenti. Dettagli in
