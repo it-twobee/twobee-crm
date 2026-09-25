@@ -16,6 +16,7 @@ import {
   setAdHocTaskStatus, deleteAdHocTask, updateAdHocTask,
 } from '@/app/actions/ad-hoc-tasks'
 import { TaskComposer } from './TaskComposer'
+import { MenuStato, ScegliData, ScegliPersona } from './ControlliRiga'
 import { TaskDetailModal, type AssignablePerson, type TaskPatch } from '@/components/tasks/TaskDetailModal'
 import { MilestoneBand } from './MilestoneBand'
 import { BoardView, CalendarView } from './TaskViews'
@@ -60,7 +61,7 @@ type ClientOpt = { id: string; name: string }
    elenchi di colonne scritti a mano divergono al primo ritocco, e
    un'intestazione disallineata è peggio di nessuna intestazione. Da telefono
    restano due colonne (attività e stato) e «dove» scende sotto il titolo. */
-const GRID = 'grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_minmax(0,190px)_100px_140px_84px_20px] gap-x-2.5 gap-y-0.5 items-center'
+const GRID = 'grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_minmax(0,190px)_100px_140px_96px_20px] gap-x-2.5 gap-y-0.5 items-center'
 const plusDays = addDays
 
 type Filter = 'aperte' | 'late' | 'soon' | 'unassigned' | 'tutte'
@@ -572,6 +573,7 @@ export function TaskList({
                         onOpen={() => setDetail(r)}
                         onToggle={() => act(() => setAdHocTaskStatus(r.id, r.client_id, r.status === 'completato' ? 'da_fare' : 'completato'))}
                         onPatch={u => act(() => updateAdHocTask(r.id, r.client_id, u), 'Aggiornata')}
+                        onStatus={s => act(() => setAdHocTaskStatus(r.id, r.client_id, s), STATUS_LABEL[s] ?? 'Aggiornata')}
                         onDelete={() => act(() => deleteAdHocTask(r.id, r.client_id), 'Eliminata')} />
                     ))}
                   </div>
@@ -650,7 +652,7 @@ export type ContestoTask = {
 
 function Row({
   r, profiles, person, assegnante, contesto, clientHref, projectHref, showAssignee, canManage, pending,
-  onOpen, onToggle, onPatch, onDelete,
+  onOpen, onToggle, onPatch, onStatus, onDelete,
 }: {
   r: TaskRow
   profiles: Person[]
@@ -667,6 +669,8 @@ function Row({
   onOpen: () => void
   onToggle: () => void
   onPatch: (u: { assignee_id?: string | null; due_date?: string | null; priority?: Priority }) => void
+  /** §445 — lo stato si cambia dalla riga, con la stessa azione della spunta */
+  onStatus: (s: TaskStatusV2) => void
   onDelete: () => void
 }) {
   const rel = r.due_date && r.status !== 'completato' ? relDays(r.due_date) : null
@@ -737,50 +741,44 @@ function Row({
       {/* 3 · scadenza: la data relativa, e in hover il campo che la sposta.
              Stavano una accanto all'altra e occupavano due colonne per la stessa
              cosa — che è il motivo per cui il progetto era ridotto a 150px. */}
+      {/* §445 — un bottone che apre il mini-calendario, sempre lì: il campo
+             nativo esisteva solo col mouse sopra, e il calendario del browser
+             spariva appena ci si spostava per usarlo */}
       <div className="hidden sm:block min-w-0">
-        <span className={`text-2xs tabular ${canManage ? 'group-hover:hidden' : ''} ${rel?.tone ?? 'text-text-tertiary'}`}>
-          {rel?.text ?? (r.due_date ? r.due_date.slice(5) : '—')}
-        </span>
-        {canManage && (
-          <input type="date" defaultValue={r.due_date ?? ''} aria-label="Scadenza"
-            onBlur={e => { if (e.target.value !== (r.due_date ?? '')) onPatch({ due_date: e.target.value || null }) }}
-            className="hidden group-hover:block w-full text-2xs bg-background border border-border rounded-lg px-1 py-0.5 text-text-secondary" />
-        )}
+        {canManage
+          ? <ScegliData valore={r.due_date} disabilitato={pending} tono={rel?.tone ?? 'text-text-tertiary'}
+              onScegli={d => onPatch({ due_date: d })} etichetta={`Scadenza di ${r.title}`} />
+          : <span className={`text-2xs tabular ${rel?.tone ?? 'text-text-tertiary'}`}>
+              {rel?.text ?? (r.due_date ? r.due_date.slice(5) : '—')}
+            </span>}
       </div>
 
       {/* 4 · chi, e da parte di chi */}
       <div className="hidden sm:flex flex-col justify-center min-w-0">
-        {showAssignee && (
-          <span className={`${canManage ? 'group-hover:hidden' : ''} flex items-center gap-1.5 min-w-0`}>
-            {person
-              ? <><Avatar name={person.full_name} url={person.avatar_url} size={22} />
-                  <span className="text-2xs text-text-secondary truncate">{person.full_name}</span></>
-              : !done && <span className="text-2xs text-warning">non assegnata</span>}
-          </span>
-        )}
+        {showAssignee && (canManage
+          ? <ScegliPersona valore={r.assignee_id} persone={profiles} disabilitato={pending}
+              vuoto={done ? '—' : 'non assegnata'} onScegli={id => onPatch({ assignee_id: id })} />
+          : <span className="flex items-center gap-1.5 min-w-0">
+              {person
+                ? <><Avatar name={person.full_name} url={person.avatar_url} size={22} />
+                    <span className="text-2xs text-text-secondary truncate">{person.full_name}</span></>
+                : !done && <span className="text-2xs text-warning">non assegnata</span>}
+            </span>)}
         {/* §347 — chi l'ha data. Sta sotto il nome e non in un titolo nascosto:
             da telefono un tooltip non esiste, e questa è l'informazione che
             serve per chiedere spiegazioni a qualcuno. */}
         {showAssignee && person && assegnante && (
-          <span className={`${canManage ? 'group-hover:hidden' : ''} text-2xs text-text-tertiary truncate pl-[28px]`}
+          <span className="text-2xs text-text-tertiary truncate pl-[28px]"
             title={`Assegnata da ${assegnante.full_name}`}>
             da {assegnante.full_name.split(' ')[0]}
           </span>
         )}
-        {canManage && (
-          <select value={r.assignee_id ?? ''} onChange={e => onPatch({ assignee_id: e.target.value || null })}
-            aria-label="Assegnatario"
-            className="hidden group-hover:block w-full text-2xs bg-background border border-border rounded-lg px-1 py-0.5 text-text-secondary">
-            <option value="">nessuno</option>
-            {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-          </select>
-        )}
       </div>
 
       {/* 5 · stato */}
-      <span className={`text-2xs font-semibold text-right shrink-0 ${STATUS_TONE[r.status]}`}>
-        {STATUS_LABEL[r.status] ?? r.status}
-      </span>
+      <div className="flex justify-end shrink-0">
+        <MenuStato valore={r.status} disabilitato={!canManage || pending} onScegli={onStatus} />
+      </div>
 
       {canManage && (
         <button onClick={() => { if (confirm(`Eliminare "${r.title}"?`)) onDelete() }} aria-label="Elimina task"

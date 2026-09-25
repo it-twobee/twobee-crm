@@ -12,6 +12,7 @@ import { TaskComposer } from '@/components/tasks/TaskComposer'
 import { CompletedTasks } from '@/components/tasks/CompletedTasks'
 import { TaskDetailModal, type AssignablePerson, type TaskPatch } from '@/components/tasks/TaskDetailModal'
 import { SUPERVISOR_ROLE } from '@/lib/task-roles'
+import { MenuStato } from '@/components/tasks/ControlliRiga'
 import type { Profile, Priority, Visibility, TaskStatusV2 } from '@/lib/types/database'
 
 type Row = {
@@ -20,14 +21,8 @@ type Row = {
   /** §283 — quando è stata completata: da lì si contano i sessanta giorni */
   completed_at?: string | null
 }
-const STATUS_LABEL: Record<string, string> = {
-  da_fare: 'Da fare', in_corso: 'In corso', in_review: 'In review',
-  richiesta_supporto: 'Supporto', completato: 'Completata',
-}
-const TONE: Record<string, string> = {
-  da_fare: 'text-text-tertiary', in_corso: 'text-info', in_review: 'text-warning',
-  richiesta_supporto: 'text-orange', completato: 'text-success',
-}
+/* §445 — stati ed etichette da `task-ui`, come la sezione Task: qui ce n'era
+   una copia, ed è così che «Completata» e «Completato» avevano preso strade diverse */
 const PRIO_DOT: Record<string, string> = { alta: 'bg-error', media: 'bg-warning', bassa: 'bg-text-tertiary' }
 const today = () => new Date().toISOString().slice(0, 10)
 const plusDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10) }
@@ -124,6 +119,12 @@ export function ClientAdHocTab({
 
   const toggle = (r: Row) => start(async () => {
     try { await setAdHocTaskStatus(r.id, clientId, r.status === 'completato' ? 'da_fare' : 'completato'); reload() }
+    catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+  })
+
+  /* §445 — lo stato dalla riga, con la stessa azione della spunta */
+  const cambiaStato = (r: Row, status: TaskStatusV2) => start(async () => {
+    try { await setAdHocTaskStatus(r.id, clientId, status); reload() }
     catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
   })
 
@@ -271,7 +272,9 @@ export function ClientAdHocTab({
                       ? <span className="text-2xs text-text-tertiary shrink-0">senza presidio</span>
                       : null
                 })()}
-                <span className={`text-2xs font-semibold shrink-0 w-20 text-right ${TONE[r.status]}`}>{STATUS_LABEL[r.status] ?? r.status}</span>
+                <div className="shrink-0 w-24 flex justify-end">
+                  <MenuStato valore={r.status} disabilitato={!canManage || pending} onScegli={s => cambiaStato(r, s)} />
+                </div>
                 {canManage && (
                   <button onClick={() => { if (confirm(`Eliminare "${r.title}"?`)) remove(r) }} aria-label="Elimina task"
                     className="text-text-tertiary hover:text-error opacity-0 group-hover:opacity-100 shrink-0">

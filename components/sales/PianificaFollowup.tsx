@@ -29,7 +29,7 @@ import {
   DURATE, conflitti, fasce, giornataLavorativa, primoLibero, scorciatoie, spiegaConflitto, alPasso, type Impegno,
 } from '@/lib/sales-agenda'
 import { giornoEOraRoma, istanteRoma, quandoContatto } from '@/lib/sales-timeline'
-import { MiniCalendario } from './MiniCalendario'
+import { MiniCalendario } from '@/components/shared/MiniCalendario'
 
 const MIN = 60_000
 const ALTEZZA = 26 // px per mezz'ora

@@ -13,7 +13,7 @@
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Download, Loader2 } from 'lucide-react'
-import { Popover } from './Popover'
+import { Popover } from '@/components/shared/Popover'
 import type { Formato, TipoExport } from '@/lib/sales-export'
 
 const chip = (on: boolean) =>

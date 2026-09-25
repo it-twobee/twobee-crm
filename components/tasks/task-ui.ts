@@ -26,6 +26,12 @@ export const TASK_TONE: Record<string, string> = {
   richiesta_supporto: 'text-orange', completato: 'text-success',
 }
 
+/** §445 — lo stato come chip: fondo e inchiostro dello stesso tono, per il menu della riga */
+export const TASK_CHIP: Record<string, string> = {
+  da_fare: 'bg-surface-active text-text-secondary', in_corso: 'bg-info-dim text-info', in_review: 'bg-warning-dim text-warning',
+  richiesta_supporto: 'bg-orange-dim text-orange', completato: 'bg-success-dim text-success',
+}
+
 export const PRIO_DOT: Record<string, string> = { alta: 'bg-error', media: 'bg-warning', bassa: 'bg-text-tertiary' }
 export const PRIO_LABEL: Record<string, string> = { alta: 'Alta priorità', media: 'Priorità media', bassa: 'Bassa priorità' }
 export const PRIO_RANK: Record<string, number> = { alta: 0, media: 1, bassa: 2 }

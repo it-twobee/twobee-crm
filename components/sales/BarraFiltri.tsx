@@ -27,8 +27,8 @@ import {
 } from '@/lib/sales-vista'
 import { leggiViste, salvaVista, eliminaVista, type VistaSalvata } from '@/app/actions/sales-viste'
 import { giornoEOraRoma } from '@/lib/sales-timeline'
-import { Popover } from './Popover'
-import { MiniCalendario } from './MiniCalendario'
+import { Popover } from '@/components/shared/Popover'
+import { MiniCalendario } from '@/components/shared/MiniCalendario'
 
 const chip = (on: boolean) =>
   `text-xs font-semibold px-3 py-1.5 rounded-xl border transition-colors ${on

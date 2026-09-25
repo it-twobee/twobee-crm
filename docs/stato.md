@@ -1,5 +1,14 @@
 # Dove siamo
 
+## Data, stato e assegnatario dalla riga della task — §445, 2026-09-25
+
+Il calendario della scadenza spariva appena si muoveva il mouse (il campo
+esisteva solo in hover): adesso un clic apre il mini-calendario con le scelte
+rapide, e resta aperto. Lo stato si cambia dal chip della riga, anche nella
+scheda cliente e nelle task di progetto. Il menu della fase dei lead scorre
+invece di chiudersi. Primo di quattro blocchi: seguono calendario, personale,
+automazione di Economics.
+
 ## La cronologia ha un nome su fatture, milestone e workstream — §444, 2026-09-25
 
 Diciannove scritture su tabelle con la cronologia passavano dal client di

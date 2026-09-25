@@ -30,7 +30,7 @@ import {
   ETICHETTA_ESITO, ETICHETTA_VERSO, ESITI, TIPI, ETICHETTA_TIPO, giornoEOraRoma, istanteRoma, quandoContatto, titoloVoce,
   type Derivati, type Direzione, type TipoVoce, type Voce,
 } from '@/lib/sales-timeline'
-import { MiniCalendario } from './MiniCalendario'
+import { MiniCalendario } from '@/components/shared/MiniCalendario'
 import { PianificaFollowup, type FollowupDaSpostare } from './PianificaFollowup'
 import { annullaFollowup } from '@/app/actions/sales-agenda'
 

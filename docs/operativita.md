@@ -842,6 +842,30 @@ spiegazioni a qualcuno.
   multi-assegnate per una colonna che serve a dire un nome sarebbe il danno
   peggiore.
 
+## Data, stato e assegnatario si cambiano dalla riga (§445, `components/tasks/ControlliRiga.tsx`)
+La scadenza e l'assegnatario della riga erano un `<input type="date">` e un
+`<select>` che esistevano **solo con il mouse sopra** (`group-hover`). Il
+calendario e l'elenco del browser si aprono fuori dalla riga: appena il
+puntatore ci andava sopra l'hover finiva, il campo spariva e con lui il
+calendario, e la data non si riusciva a cambiare. Adesso sono bottoni sempre
+presenti che aprono un riquadro loro (`Popover` in un portale), che resta aperto
+finché non si sceglie:
+
+- **`ScegliData`**: Oggi, Domani, Lunedì, Tra una settimana, Togli, e il
+  mini-calendario (`components/shared/MiniCalendario.tsx`, lo stesso del
+  commerciale).
+- **`MenuStato`**: lo stato è un chip colorato (`TASK_CHIP` in `task-ui.ts`) e
+  il chip è il bottone, come la fase dei lead. Salva con `setAdHocTaskStatus`,
+  la stessa azione della spunta: la regola di chi può è quella del dettaglio.
+- **`ScegliPersona`**: l'assegnatario con avatar e ricerca.
+
+Gli stessi controlli stanno nel tab Ad hoc della scheda cliente
+(`ClientAdHocTab`, che aveva una sua copia delle etichette) e nel dettaglio
+delle task di progetto (`TaskDetailDrawer`, che aveva un `select` nativo e
+diceva «Completato» invece di «Completata»). Nello stesso giro il menu della
+fase dei lead non si chiude più scorrendo la sua lista: il listener di scroll in
+capture riceveva anche lo scroll del menu stesso.
+
 ## «Le mie attività» è la sezione Task, ristretta a te (§348)
 
 Erano **due liste di task**: la sezione Task e «Le mie attività», ognuna con le

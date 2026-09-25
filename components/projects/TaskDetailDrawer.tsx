@@ -11,17 +11,13 @@ import {
   addTaskComment, deleteTaskComment,
   addChecklistItem, toggleChecklistItem, deleteChecklistItem,
 } from '@/app/actions/tasks'
-import type { Task, TaskStatusV2, Priority, Visibility } from '@/lib/types/database'
+import type { Task, Priority, Visibility } from '@/lib/types/database'
+import { MenuStato } from '@/components/tasks/ControlliRiga'
 
 type Person = { id: string; full_name: string }
 type Comment = { id: string; author_id: string; content: string; created_at: string }
 type Check = { id: string; content: string; is_done: boolean; sort_order: number }
 
-const STATUSES: TaskStatusV2[] = ['da_fare', 'in_corso', 'in_review', 'richiesta_supporto', 'completato']
-const STATUS_LABEL: Record<string, string> = {
-  da_fare: 'Da fare', in_corso: 'In corso', in_review: 'In review',
-  richiesta_supporto: 'Richiesta supporto', completato: 'Completato',
-}
 
 export function TaskDetailDrawer({
   task, profiles, contextLabel, canEdit, canDelete, onClose, onChanged,
@@ -87,11 +83,10 @@ export function TaskDetailDrawer({
           {/* meta grid */}
           <div className="grid grid-cols-2 gap-3">
             <Meta label="Stato">
-              <select value={task.status} disabled={!canEdit || pending}
-                onChange={e => act(() => updateTaskStatus(task.id, e.target.value as TaskStatusV2), 'Stato aggiornato')}
-                className="w-full bg-background border border-border-interactive rounded px-2 py-1.5 text-2xs text-text-primary">
-                {STATUSES.map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-              </select>
+              {/* §445 — lo stesso chip della sezione Task: un select nativo qui e un
+                  menu là erano due gesti diversi per la stessa cosa */}
+              <MenuStato valore={task.status} disabilitato={!canEdit || pending}
+                onScegli={s => act(() => updateTaskStatus(task.id, s), 'Stato aggiornato')} />
             </Meta>
             <Meta label="Priorità">
               <select value={task.priority} disabled={!canEdit || pending}

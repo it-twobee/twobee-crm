@@ -72,8 +72,14 @@ export function MenuFase({ valore, onScegli, disabilitato, etichetta, className 
       setAperto(false)
     }
     /* Chiude anche quando la pagina scorre: un menu ancorato a un rettangolo
-       calcolato una volta resterebbe dov'era mentre la riga scivola via. */
-    const viaConLoScroll = () => setAperto(false)
+       calcolato una volta resterebbe dov'era mentre la riga scivola via.
+       §445 — ma non quando scorre **lui**: il listener è in capture su
+       `window`, quindi riceve anche lo scroll della lista del menu, e al primo
+       scatto di rotella lo chiudeva — sembrava che la lista non scorresse. */
+    const viaConLoScroll = (e: Event) => {
+      if (e.target instanceof Node && menu.current?.contains(e.target)) return
+      setAperto(false)
+    }
     document.addEventListener('mousedown', fuori)
     window.addEventListener('scroll', viaConLoScroll, true)
     window.addEventListener('resize', viaConLoScroll)
