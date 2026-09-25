@@ -1,779 +1,468 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Plus, Loader2, Link2, X, Filter, CheckSquare, Search, Calendar as CalIcon, Users} from 'lucide-react'
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, subDays, isSameMonth, isToday, isSameDay, addMonths, subMonths, addWeeks, subWeeks, addYears, subYears, startOfYear, endOfYear } from 'date-fns'
-import { it } from 'date-fns/locale'
+/**
+ * §446 — il calendario: una barra per scegliere cosa vedere, e le viste che lo
+ * disegnano.
+ *
+ * Prima Giorno e Settimana erano elenchi di card senza orari, le assenze non
+ * c'erano, le task arrivavano come elenco vuoto, e i colleghi si sceglievano da
+ * un menu chiamato «I miei calendari». Adesso tutto passa da `VoceCal`
+ * (`lib/calendario.ts`) e le viste disegnano voci: Giorno e Settimana sono una
+ * griglia oraria con le voci che si sovrappongono affiancate, Mese, Anno e
+ * Periodo leggono le stesse voci. La barra laterale sceglie **chi** (io, i
+ * colleghi) e **cosa** (eventi, task, ferie, milestone), e se lo ricorda.
+ */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
+import { toast } from 'sonner'
+import {
+  ChevronLeft, ChevronRight, Plus, Loader2, Link2, X, Search, Lock, SlidersHorizontal, Calendar as CalIcon, ExternalLink,
+} from 'lucide-react'
 import type { Profile } from '@/lib/types/database'
 import { colorFor } from '@/lib/calendar-colors'
-
-/** Forma restituita da /api/google/events (già normalizzata e filtrata) */
-interface GoogleEvent {
-  id: string
-  profileId: string
-  summary: string
-  start: string
-  end: string
-  allDay: boolean
-  /** true quando è l'agenda di un collega: il titolo è "Occupato" */
-  masked: boolean
-  description?: string | null
-  location?: string | null
-  meetLink?: string | null
-  attendeeEmails?: string[]
-}
-
+import { leggiCalendario } from '@/app/actions/calendario'
+import {
+  FILTRI, delGiorno, disponi, filtra, giornoDopo, grigliaMese, settimanaDi, tuttoIlGiorno, type VoceCal,
+} from '@/lib/calendario'
+import { giornoEOraRoma, istanteRoma } from '@/lib/sales-timeline'
+import { nomeFestivo } from '@/lib/calendario-lavorativo'
+import { MiniCalendario } from '@/components/shared/MiniCalendario'
+import { Avatar } from '@/components/shared/formkit'
 import { CalendarEventForm, type EventForm } from './CalendarEventForm'
 
-function blankEvent(date = ''): EventForm {
+/** Forma restituita da /api/google/events */
+interface GoogleEvent {
+  id: string; profileId: string; summary: string; start: string; end: string; allDay: boolean
+  masked: boolean; privato?: boolean
+  description?: string | null; location?: string | null; meetLink?: string | null; attendeeEmails?: string[]
+}
+interface LocalMeeting { id: string; title: string; meeting_date: string; duration_minutes?: number; description?: string }
+type Persona = Pick<Profile, 'id' | 'full_name' | 'avatar_url'>
+type Vista = 'giorno' | 'settimana' | 'mese' | 'anno' | 'periodo'
+
+const MEMORIA = 'twobee-calendario'
+const ORE = { da: 7, a: 21 }
+const PX_ORA = 48
+const MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
+const GG = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom']
+const oggiRoma = () => giornoEOraRoma(Date.now()).giorno
+const ora = (iso: string) => giornoEOraRoma(Date.parse(iso)).ora
+const numero = (g: string) => Number(g.slice(8))
+const etichettaGiorno = (g: string) => new Date(`${g}T12:00:00Z`).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })
+
+/** i colori di una voce: la persona per eventi e assenze, un tono fisso per task e milestone */
+function stile(v: VoceCal): React.CSSProperties & { className?: string } {
+  if (v.tipo === 'task') return { background: 'var(--color-gold-dim)', color: 'var(--color-gold-text)', borderColor: 'var(--color-gold)' }
+  if (v.tipo === 'milestone') return { background: 'var(--color-accent-dim)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
+  const c = colorFor(v.profileId ?? '')
+  if (v.tipo === 'ferie' || v.tipo === 'permesso') {
+    return {
+      background: `repeating-linear-gradient(135deg, ${c.bg} 0 6px, color-mix(in srgb, ${c.bg} 55%, transparent) 6px 12px)`,
+      color: c.text, borderColor: c.dot,
+    }
+  }
+  if (v.mascherato) return { background: 'var(--color-surface-active)', color: 'var(--color-text-secondary)', borderColor: 'var(--color-border-strong)' }
+  return { background: c.bg, color: c.text, borderColor: c.dot }
+}
+
+function giornoDa(vista: Vista, g: string, n: number) {
+  if (vista === 'giorno') return giornoDopo(g, n)
+  if (vista === 'settimana') return giornoDopo(g, 7 * n)
+  const [a, m] = g.split('-').map(Number)
+  if (vista === 'anno') return `${a + n}-${String(m).padStart(2, '0')}-01`
+  const d = new Date(Date.UTC(a, m - 1 + n, 1))
+  return d.toISOString().slice(0, 10)
+}
+
+function intervallo(vista: Vista, g: string, periodo: { dal: string; al: string }): { dal: string; al: string } {
+  if (vista === 'giorno') return { dal: g, al: g }
+  if (vista === 'settimana') { const s = settimanaDi(g); return { dal: s[0], al: s[6] } }
+  if (vista === 'mese') { const m = grigliaMese(g); return { dal: m[0], al: m[41] } }
+  if (vista === 'anno') return { dal: `${g.slice(0, 4)}-01-01`, al: `${g.slice(0, 4)}-12-31` }
+  return periodo
+}
+
+function eventoAForm(e: GoogleEvent): EventForm {
+  const s = giornoEOraRoma(Date.parse(e.start)), f = giornoEOraRoma(Date.parse(e.end))
   return {
-    id: null, title: '', allDay: false, date, endDate: date,
-    startTime: '09:00', endTime: '10:00', location: '', description: '',
-    addMeet: false, meetLink: null, attendeeIds: [], attendeeEmails: [],
+    id: e.id, title: e.summary, allDay: e.allDay,
+    date: e.allDay ? e.start.slice(0, 10) : s.giorno, endDate: e.allDay ? giornoDopo(e.end.slice(0, 10), -1) : f.giorno,
+    startTime: s.ora, endTime: f.ora, location: e.location ?? '', description: e.description ?? '',
+    addMeet: !!e.meetLink, meetLink: e.meetLink ?? null, attendeeIds: [], attendeeEmails: e.attendeeEmails ?? [],
+    privato: !!e.privato,
   }
 }
+const nuovo = (date: string, startTime = '09:00', endTime = '10:00'): EventForm => ({
+  id: null, title: '', allDay: false, date, endDate: date, startTime, endTime, location: '', description: '',
+  addMeet: false, meetLink: null, attendeeIds: [], attendeeEmails: [], privato: false,
+})
 
-function eventToForm(e: GoogleEvent): EventForm {
-  const startD = new Date(e.start)
-  const endD = new Date(e.end)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return {
-    id: e.id,
-    title: e.summary,
-    allDay: e.allDay,
-    date: e.start.slice(0, 10),
-    endDate: e.end.slice(0, 10),
-    startTime: `${pad(startD.getHours())}:${pad(startD.getMinutes())}`,
-    endTime: `${pad(endD.getHours())}:${pad(endD.getMinutes())}`,
-    location: e.location ?? '',
-    description: e.description ?? '',
-    addMeet: !!e.meetLink,
-    meetLink: e.meetLink ?? null,
-    attendeeIds: [],
-    attendeeEmails: e.attendeeEmails ?? [],
-  }
-}
-
-interface LocalMeeting {
-  id: string; title: string; meeting_date: string; duration_minutes?: number; description?: string
-}
-
-interface CalTask {
-  id: string; title: string; due_date: string | null; status: string; priority: string; assignee_id: string | null
-  assignee: Pick<Profile, 'id' | 'full_name' | 'avatar_url'> | null
-  project: { id: string; name: string; clients: { company_name: string } | null } | null
-}
-
-type ViewMode = 'giorno' | 'settimana' | 'mese' | 'anno' | 'personalizzato'
-
-function getViewRange(vm: ViewMode, date: Date, rs: string, re: string): { from: Date; to: Date } | null {
-  if (vm === 'giorno') {
-    const from = new Date(date); from.setHours(0, 0, 0, 0)
-    const to = new Date(date); to.setHours(23, 59, 59, 999)
-    return { from, to }
-  }
-  if (vm === 'settimana') return { from: startOfWeek(date, { weekStartsOn: 1 }), to: endOfWeek(date, { weekStartsOn: 1 }) }
-  if (vm === 'anno') return { from: startOfYear(date), to: endOfYear(date) }
-  if (vm === 'personalizzato') {
-    if (!rs || !re) return null
-    return { from: new Date(rs + 'T00:00:00'), to: new Date(re + 'T23:59:59') }
-  }
-  return { from: startOfMonth(date), to: endOfMonth(date) }
-}
-
-const EVENT_STYLE = 'bg-info/15 text-info border-info/25'
-const MEETING_STYLE = 'bg-accent/15 text-accent border-accent/25'
-
-function taskStyle(due: string): string {
-  const d = new Date(due); d.setHours(0, 0, 0, 0)
-  const now = new Date(); now.setHours(0, 0, 0, 0)
-  const diff = Math.ceil((d.getTime() - now.getTime()) / 86400000)
-  if (diff < 0) return 'bg-error/15 text-error border-error/25 ring-1 ring-error/30'
-  if (diff <= 3) return 'bg-orange/15 text-orange border-orange/25'
-  if (diff <= 7) return 'bg-warning/15 text-warning border-warning/25'
-  return 'bg-gold/10 text-gold-text border-gold/20'
-}
-
-export function CalendarioClient({
-  isGoogleConnected, localMeetings = [], tasks = [], profiles = [], currentUserId,
-}: {
-  isGoogleConnected: boolean; localMeetings: LocalMeeting[]; tasks?: CalTask[]
-  profiles: Pick<Profile, 'id' | 'full_name' | 'avatar_url'>[]; currentUserId: string
+export function CalendarioClient({ isGoogleConnected, localMeetings = [], profiles = [], currentUserId, base = '' }: {
+  isGoogleConnected: boolean
+  localMeetings: LocalMeeting[]
+  profiles: Persona[]
+  currentUserId: string
+  /** '' nel portale admin, '/workspace' nel workspace: dove portano task e milestone */
+  base?: string
 }) {
-  const [currentDate, setCurrentDate] = useState(new Date())
-  const [viewMode, setViewMode] = useState<ViewMode>('mese')
-  const [googleEvents, setGoogleEvents] = useState<GoogleEvent[]>([])
-  const [loadingEvents, setLoadingEvents] = useState(false)
-  const [selectedDay, setSelectedDay] = useState<Date | null>(null)
-  const [editorEvent, setEditorEvent] = useState<EventForm | null>(null)
-  // Di default vedo solo la mia agenda. Le task sono personali e restano
-  // nascoste finché non le chiedo esplicitamente.
-  const [selectedProfiles, setSelectedProfiles] = useState<string[]>([currentUserId])
-  const [showFilter, setShowFilter] = useState(false)
-  const [showTasks, setShowTasks] = useState(false)
-  const [notConnected, setNotConnected] = useState<string[]>([])
-  const [search, setSearch] = useState('')
-  const [rangeStart, setRangeStart] = useState('')
-  const [rangeEnd, setRangeEnd]     = useState('')
+  const [giorno, setGiorno] = useState(oggiRoma())
+  const [vista, setVista] = useState<Vista>('settimana')
+  const [periodo, setPeriodo] = useState({ dal: oggiRoma(), al: giornoDopo(oggiRoma(), 30) })
+  const [persone, setPersone] = useState<string[]>([currentUserId])
+  const [filtri, setFiltri] = useState<Set<string>>(new Set(['eventi', 'assenze', 'milestone']))
+  const [cerca, setCerca] = useState('')
+  const [google, setGoogle] = useState<GoogleEvent[]>([])
+  const [altre, setAltre] = useState<VoceCal[]>([])
+  const [nonCollegati, setNonCollegati] = useState<string[]>([])
+  const [carico, setCarico] = useState(false)
+  const [editor, setEditor] = useState<EventForm | null>(null)
+  const [aperta, setAperta] = useState<VoceCal | null>(null)
+  const [barra, setBarra] = useState(false)
+  const [qColleghi, setQColleghi] = useState('')
 
-  const fetchEvents = async (from: Date, to: Date, profileIds: string[]) => {
-    if (profileIds.length === 0) { setGoogleEvents([]); return }
-    setLoadingEvents(true)
+  /* ricorda chi e cosa, per questo browser: una preferenza, non un dato */
+  useEffect(() => {
+    try {
+      const m = JSON.parse(window.localStorage.getItem(MEMORIA) ?? '{}') as { persone?: string[]; filtri?: string[]; vista?: Vista }
+      const valide = new Set(profiles.map(p => p.id))
+      if (m.persone?.length) setPersone(Array.from(new Set([currentUserId, ...m.persone.filter(p => valide.has(p))])))
+      if (m.filtri) setFiltri(new Set(m.filtri.filter(f => FILTRI.some(x => x.chiave === f))))
+      if (m.vista && ['giorno', 'settimana', 'mese', 'anno', 'periodo'].includes(m.vista)) setVista(m.vista)
+    } catch { /* senza memoria si parte dal default */ }
+  }, [profiles, currentUserId])
+  useEffect(() => {
+    try { window.localStorage.setItem(MEMORIA, JSON.stringify({ persone, filtri: Array.from(filtri), vista })) } catch { /* pazienza */ }
+  }, [persone, filtri, vista])
+
+  const range = intervallo(vista, giorno, periodo)
+  const carica = useCallback(async () => {
+    setCarico(true)
     try {
       const qs = new URLSearchParams({
-        timeMin: from.toISOString(),
-        timeMax: to.toISOString(),
-        profileIds: profileIds.join(','),
+        timeMin: istanteRoma(range.dal, '00:00') ?? `${range.dal}T00:00:00Z`,
+        timeMax: istanteRoma(giornoDopo(range.al), '00:00') ?? `${range.al}T23:59:59Z`,
+        profileIds: persone.join(','),
       })
-      const res = await fetch(`/api/google/events?${qs}`)
-      if (!res.ok) { setGoogleEvents([]); return }
-      const { events, notConnected: nc } = await res.json()
-      setGoogleEvents(events ?? [])
-      setNotConnected(nc ?? [])
-    } catch { } finally { setLoadingEvents(false) }
+      const [g, a] = await Promise.all([
+        fetch(`/api/google/events?${qs}`).then(r => r.ok ? r.json() : { events: [], notConnected: [] }).catch(() => ({ events: [], notConnected: [] })),
+        leggiCalendario(range.dal, range.al, persone, base).catch(e => { toast.error((e as Error).message); return [] as VoceCal[] }),
+      ])
+      setGoogle(g.events ?? []); setNonCollegati(g.notConnected ?? []); setAltre(a)
+    } finally { setCarico(false) }
+  }, [range.dal, range.al, persone, base])
+  useEffect(() => { void carica() }, [carica])
+
+  const voci = useMemo<VoceCal[]>(() => {
+    const ev: VoceCal[] = google.map(e => ({
+      id: `g:${e.profileId}:${e.id}`, tipo: 'evento', titolo: e.summary,
+      ...(e.allDay ? tuttoIlGiorno(e.start.slice(0, 10), giornoDopo(e.end.slice(0, 10), -1)) : { inizio: e.start, fine: e.end }),
+      tuttoIlGiorno: e.allDay, profileId: e.profileId, mascherato: e.masked, privato: e.privato,
+      modificabile: e.profileId === currentUserId, dettaglio: e.location ?? null, origine: e,
+    }))
+    const riunioni: VoceCal[] = localMeetings.map(m => ({
+      id: `r:${m.id}`, tipo: 'riunione', titolo: m.title, inizio: m.meeting_date,
+      fine: new Date(Date.parse(m.meeting_date) + (m.duration_minutes ?? 60) * 60_000).toISOString(),
+      tuttoIlGiorno: false, profileId: null, dettaglio: m.description ?? null,
+    }))
+    return filtra([...ev, ...riunioni, ...altre], { filtri, cerca })
+  }, [google, localMeetings, altre, filtri, cerca, currentUserId])
+
+  const conta = useMemo(() => {
+    const tutte = [...google.map(() => 'evento'), ...localMeetings.map(() => 'riunione'), ...altre.map(a => a.tipo)]
+    return Object.fromEntries(FILTRI.map(f => [f.chiave, tutte.filter(t => (f.tipi as string[]).includes(t)).length]))
+  }, [google, localMeetings, altre])
+
+  const apri = (v: VoceCal) => {
+    if (v.modificabile && v.origine) { setEditor(eventoAForm(v.origine as GoogleEvent)); return }
+    setAperta(v)
+  }
+  const crea = (g: string, oraDa?: string) => {
+    if (!isGoogleConnected) { toast.message('Collega Google Calendar per creare eventi'); return }
+    const [h] = (oraDa ?? '09:00').split(':').map(Number)
+    setEditor(nuovo(g, oraDa ?? '09:00', `${String(Math.min(23, h + 1)).padStart(2, '0')}:${(oraDa ?? '09:00').slice(3)}`))
   }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    const range = getViewRange(viewMode, currentDate, rangeStart, rangeEnd)
-    if (!range) return
-    fetchEvents(range.from, range.to, selectedProfiles)
-  }, [viewMode, currentDate, rangeStart, rangeEnd, selectedProfiles])
+  const titolo = vista === 'giorno' ? etichettaGiorno(giorno)
+    : vista === 'settimana' ? (() => { const s = settimanaDi(giorno); return `${numero(s[0])} ${MESI[Number(s[0].slice(5, 7)) - 1].slice(0, 3)} – ${numero(s[6])} ${MESI[Number(s[6].slice(5, 7)) - 1].slice(0, 3)} ${s[6].slice(0, 4)}` })()
+    : vista === 'mese' ? `${MESI[Number(giorno.slice(5, 7)) - 1]} ${giorno.slice(0, 4)}`
+    : vista === 'anno' ? giorno.slice(0, 4) : 'Periodo'
 
-  const filteredTasks = useMemo(() => {
-    // Le task restano personali: quelle di un collega non si vedono mai.
-    let t = tasks.filter(tk => tk.assignee_id === currentUserId)
-    if (search) {
-      const q = search.toLowerCase()
-      t = t.filter(tk => tk.title.toLowerCase().includes(q) || tk.project?.name.toLowerCase().includes(q))
-    }
-    return t
-  }, [tasks, currentUserId, search])
+  const colleghi = profiles.filter(p => p.id !== currentUserId && (!qColleghi || p.full_name.toLowerCase().includes(qColleghi.toLowerCase())))
+  const io = profiles.find(p => p.id === currentUserId)
+  const tuttiColleghi = profiles.filter(p => p.id !== currentUserId).every(p => persone.includes(p.id))
 
-  const filteredEvents = useMemo(() => {
-    if (!search) return googleEvents
-    const q = search.toLowerCase()
-    return googleEvents.filter(e => e.summary.toLowerCase().includes(q))
-  }, [googleEvents, search])
+  const Barra = (
+    <aside className="space-y-5">
+      <MiniCalendario valore={giorno} oggi={oggiRoma()} etichetta="Vai al giorno"
+        onScegli={g => { setGiorno(g); if (vista === 'anno' || vista === 'periodo') setVista('giorno'); setBarra(false) }} />
 
-  const filteredMeetings = useMemo(() => {
-    if (!search) return localMeetings
-    const q = search.toLowerCase()
-    return localMeetings.filter(m => m.title.toLowerCase().includes(q))
-  }, [localMeetings, search])
+      <section>
+        <p className="text-2xs font-semibold text-text-tertiary uppercase tracking-wide mb-1.5">Cosa vedere</p>
+        <div className="space-y-0.5">
+          {FILTRI.map(f => {
+            const on = filtri.has(f.chiave)
+            const tinta = f.chiave === 'task' ? 'var(--color-gold)' : f.chiave === 'milestone' ? 'var(--color-accent)' : f.chiave === 'assenze' ? 'var(--color-warning)' : 'var(--color-info)'
+            return (
+              <button key={f.chiave} type="button" role="switch" aria-checked={on}
+                onClick={() => setFiltri(s => { const n = new Set(s); if (n.has(f.chiave)) n.delete(f.chiave); else n.add(f.chiave); return n })}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs hover:bg-surface-hover text-left">
+                <span className="w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0"
+                  style={{ background: on ? tinta : 'transparent', borderColor: tinta }} aria-hidden />
+                <span className={`flex-1 ${on ? 'text-text-primary' : 'text-text-tertiary'}`}>{f.etichetta}</span>
+                <span className="text-2xs text-text-tertiary tabular">{conta[f.chiave] || ''}</span>
+              </button>
+            )
+          })}
+        </div>
+      </section>
 
-  const eventsForDay = (day: Date) => filteredEvents.filter(e => {
-    const dt = e.start
-    return dt && isSameDay(new Date(dt), day)
-  })
-  const meetingsForDay = (day: Date) => filteredMeetings.filter(m => isSameDay(new Date(m.meeting_date), day))
-  const tasksForDay = (day: Date) => showTasks ? filteredTasks.filter(t => t.due_date && isSameDay(new Date(t.due_date), day)) : []
+      <section>
+        <p className="text-2xs font-semibold text-text-tertiary uppercase tracking-wide mb-1.5">Il mio calendario</p>
+        {io && (
+          <div className="flex items-center gap-2 px-2 py-1.5 text-xs">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: colorFor(io.id).dot }} aria-hidden />
+            <span className="flex-1 truncate text-text-primary">{io.full_name} (tu)</span>
+            {nonCollegati.includes(io.id) && <span className="text-2xs text-text-tertiary">Google non collegato</span>}
+          </div>
+        )}
+      </section>
 
-  const refetch = () => {
-    const r = getViewRange(viewMode, currentDate, rangeStart, rangeEnd)
-    if (r) fetchEvents(r.from, r.to, selectedProfiles)
-  }
-  const openCreate = (date?: string) => setEditorEvent(blankEvent(date ?? ''))
-  const openEdit = (e: GoogleEvent) => { if (!e.masked) setEditorEvent(eventToForm(e)) }
-
-  const navPrev = () => {
-    if (viewMode === 'mese') setCurrentDate(subMonths(currentDate, 1))
-    else if (viewMode === 'settimana') setCurrentDate(subWeeks(currentDate, 1))
-    else if (viewMode === 'giorno') setCurrentDate(subDays(currentDate, 1))
-    else if (viewMode === 'anno') setCurrentDate(subYears(currentDate, 1))
-  }
-  const navNext = () => {
-    if (viewMode === 'mese') setCurrentDate(addMonths(currentDate, 1))
-    else if (viewMode === 'settimana') setCurrentDate(addWeeks(currentDate, 1))
-    else if (viewMode === 'giorno') setCurrentDate(addDays(currentDate, 1))
-    else if (viewMode === 'anno') setCurrentDate(addYears(currentDate, 1))
-  }
-  const goToday = () => setCurrentDate(new Date())
-
-  const headerLabel =
-    viewMode === 'mese' ? format(currentDate, 'MMMM yyyy', { locale: it })
-    : viewMode === 'settimana' ? `${format(startOfWeek(currentDate, { weekStartsOn: 1 }), 'd MMM', { locale: it })} — ${format(endOfWeek(currentDate, { weekStartsOn: 1 }), 'd MMM yyyy', { locale: it })}`
-    : viewMode === 'giorno' ? format(currentDate, 'EEEE d MMMM yyyy', { locale: it })
-    : viewMode === 'anno' ? format(currentDate, 'yyyy')
-    : rangeStart && rangeEnd
-      ? `${format(new Date(rangeStart + 'T12:00:00'), 'd MMM', { locale: it })} — ${format(new Date(rangeEnd + 'T12:00:00'), 'd MMM yyyy', { locale: it })}`
-      : 'Periodo personalizzato'
-
-  const selectedDayEvents = selectedDay ? eventsForDay(selectedDay) : []
-  const selectedDayMeetings = selectedDay ? meetingsForDay(selectedDay) : []
-  const selectedDayTasks = selectedDay ? tasksForDay(selectedDay) : []
+      <section>
+        <div className="flex items-center justify-between mb-1.5">
+          <p className="text-2xs font-semibold text-text-tertiary uppercase tracking-wide">Calendario colleghi</p>
+          <button type="button" className="text-2xs text-gold-text hover:underline"
+            onClick={() => setPersone(tuttiColleghi ? [currentUserId] : profiles.map(p => p.id))}>
+            {tuttiColleghi ? 'Nessuno' : 'Tutto il team'}
+          </button>
+        </div>
+        {profiles.length > 8 && (
+          <label className="relative block mb-1.5">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-tertiary" aria-hidden />
+            <input value={qColleghi} onChange={e => setQColleghi(e.target.value)} placeholder="Cerca un collega" aria-label="Cerca un collega"
+              className="w-full bg-background border border-border-interactive rounded-lg pl-7 pr-2 py-1 text-xs text-text-primary" />
+          </label>
+        )}
+        <div className="space-y-0.5 max-h-72 overflow-y-auto">
+          {colleghi.map(p => {
+            const on = persone.includes(p.id)
+            const c = colorFor(p.id)
+            return (
+              <button key={p.id} type="button" role="checkbox" aria-checked={on}
+                onClick={() => setPersone(s => on ? s.filter(x => x !== p.id) : [...s, p.id])}
+                className="w-full flex items-center gap-2 px-2 py-1 rounded-lg text-xs hover:bg-surface-hover text-left">
+                <span className="w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0"
+                  style={{ background: on ? c.dot : 'transparent', borderColor: c.dot }} aria-hidden />
+                <Avatar name={p.full_name} url={p.avatar_url} size={20} />
+                <span className={`flex-1 truncate ${on ? 'text-text-primary' : 'text-text-secondary'}`}>{p.full_name}</span>
+                {on && nonCollegati.includes(p.id) && <span className="text-2xs text-text-tertiary" title="Google non collegato: si vedono solo ferie e permessi">senza Google</span>}
+              </button>
+            )
+          })}
+        </div>
+      </section>
+    </aside>
+  )
 
   return (
-    <div className="flex h-full">
-      <div className="flex-1 p-4 sm:p-6 flex flex-col min-w-0">
-        {/* Header — su schermi stretti va a capo invece di schiacciarsi */}
-        <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-          <div className="flex items-center gap-3 sm:gap-4 flex-wrap min-w-0">
-            {viewMode !== 'personalizzato' ? (
-              <>
-                <h1 className="text-xl sm:text-2xl font-bold text-text-primary capitalize truncate">{headerLabel}</h1>
-                <div className="flex items-center gap-1">
-                  <button onClick={navPrev} className="p-1.5 rounded-lg hover:bg-overlay/[0.04] text-overlay/30 hover:text-text-primary transition-colors">
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <button onClick={goToday} className="px-3 py-1 text-xs bg-overlay/[0.04] rounded-lg text-overlay/40 hover:text-text-primary transition-colors">Oggi</button>
-                  <button onClick={navNext} className="p-1.5 rounded-lg hover:bg-overlay/[0.04] text-overlay/30 hover:text-text-primary transition-colors">
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-overlay/40">Da</span>
-                <input type="date" value={rangeStart} onChange={e => setRangeStart(e.target.value)}
-                  className="bg-overlay/[0.03] border border-overlay/[0.08] rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-gold/40" />
-                <span className="text-xs text-overlay/40">a</span>
-                <input type="date" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)}
-                  className="bg-overlay/[0.03] border border-overlay/[0.08] rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-gold/40" />
-              </div>
-            )}
-            {loadingEvents && <Loader2 className="w-4 h-4 text-gold-text animate-spin" />}
+    <div className="flex min-h-full">
+      <div className="hidden lg:block w-64 shrink-0 border-r border-border p-4">{Barra}</div>
+      {barra && (
+        <div className="lg:hidden fixed inset-0 z-50 bg-scrim" onClick={() => setBarra(false)}>
+          <div className="absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-surface border-r border-border p-4 overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-end mb-2"><button type="button" onClick={() => setBarra(false)} aria-label="Chiudi i filtri" className="text-text-tertiary hover:text-text-primary"><X className="w-5 h-5" /></button></div>
+            {Barra}
           </div>
-          <div className="flex items-center gap-2 flex-wrap min-w-0">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-overlay/20" />
-              <input value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Cerca eventi o task..."
-                className="w-48 bg-overlay/[0.03] border border-overlay/[0.08] rounded-lg pl-8 pr-3 py-1.5 text-xs text-text-primary placeholder-overlay/20 focus:outline-none focus:border-gold/40 transition-colors" />
-              {search && (
-                <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-overlay/20 hover:text-overlay/50">
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-
-            {/* View mode */}
-            <div className="flex bg-overlay/[0.03] border border-overlay/[0.06] rounded-lg p-0.5">
-              {(['giorno', 'settimana', 'mese', 'anno', 'personalizzato'] as ViewMode[]).map(v => (
-                <button key={v} onClick={() => setViewMode(v)}
-                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${viewMode === v ? 'bg-gold text-on-gold font-bold' : 'text-overlay/40 hover:text-text-primary'}`}>
-                  {v === 'giorno' ? 'Giorno' : v === 'settimana' ? 'Sett.' : v === 'mese' ? 'Mese' : v === 'anno' ? 'Anno' : 'Periodo'}
-                </button>
-              ))}
-            </div>
-
-            {/* Task personali: nascoste di default */}
-            <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-              showTasks ? 'bg-gold-dim text-gold-text' : 'text-text-tertiary hover:text-text-primary'
-            }`}>
-              <input type="checkbox" checked={showTasks} onChange={e => setShowTasks(e.target.checked)}
-                className="accent-gold w-3.5 h-3.5" />
-              Mostra le mie task
-            </label>
-
-            {/* I miei calendari */}
-            <div className="relative">
-              <button onClick={() => setShowFilter(!showFilter)}
-                aria-expanded={showFilter}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                  selectedProfiles.length > 1 ? 'bg-gold-dim text-gold-text' : 'text-text-tertiary hover:text-text-primary'
-                }`}>
-                <Users className="w-3.5 h-3.5" aria-hidden="true" />
-                {selectedProfiles.length === 1 ? 'I miei calendari' : `${selectedProfiles.length} calendari`}
-              </button>
-
-              {showFilter && (
-                <div className="absolute right-0 top-full mt-1 rounded-xl border border-border bg-surface p-2 w-60 z-20 shadow-xl">
-                  <p className="text-2xs uppercase tracking-wider text-text-tertiary font-bold px-2 py-1.5">
-                    I miei calendari
-                  </p>
-                  {profiles.map(p => {
-                    const checked = selectedProfiles.includes(p.id)
-                    const col = colorFor(p.id)
-                    const isMe = p.id === currentUserId
-                    const offline = notConnected.includes(p.id)
-                    return (
-                      <label key={p.id}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-surface-hover transition-colors">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => setSelectedProfiles(prev =>
-                            prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev, p.id])}
-                          className="w-3.5 h-3.5 rounded shrink-0"
-                          style={{ accentColor: col.dot }}
-                          aria-label={`Mostra il calendario di ${p.full_name}`}
-                        />
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: col.dot }} aria-hidden="true" />
-                        <span className="flex-1 min-w-0 text-xs text-text-primary truncate">
-                          {isMe ? `${p.full_name} (tu)` : p.full_name}
-                        </span>
-                        {checked && offline && (
-                          <span className="text-2xs text-text-tertiary shrink-0" title="Google non collegato">
-                            non collegato
-                          </span>
-                        )}
-                      </label>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Google Connect / New event */}
-            {!isGoogleConnected ? (
-              <a href="/api/google/auth" className="flex items-center gap-2 px-3 py-1.5 bg-gold text-on-gold rounded-lg text-xs font-bold hover:bg-gold/90 transition-colors">
-                <Link2 className="w-3.5 h-3.5" /> Connetti Google
-              </a>
-            ) : (
-              <>
-                <a href="/api/google/auth" title="Ricollega Google Calendar"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 glass rounded-lg text-xs text-text-secondary hover:text-text-primary hover:border-gold/40 transition-colors">
-                  <Link2 className="w-3.5 h-3.5 text-success" /> Google
-                </a>
-                <button onClick={() => openCreate()} className="flex items-center gap-1.5 px-3 py-1.5 bg-gold text-on-gold rounded-lg text-xs font-bold hover:bg-gold/90 transition-colors">
-                  <Plus className="w-3.5 h-3.5" /> Evento
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Collega Google Calendar — sempre in vista finché non è connesso */}
-        {!isGoogleConnected && (
-          <div className="mb-4 flex items-center gap-3 p-4 rounded-xl border border-gold/30 bg-gold-dim">
-            <CalIcon className="w-5 h-5 text-gold-text shrink-0" aria-hidden="true" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-text-primary">Collega il tuo Google Calendar</p>
-              <p className="text-xs text-text-secondary mt-0.5">
-                Sincronizza i tuoi eventi in tempo reale e crea/modifica appuntamenti direttamente da qui.
-                Vedrai anche quando i colleghi sono occupati.
-              </p>
-            </div>
-            <a href="/api/google/auth"
-              className="flex items-center gap-2 px-4 py-2 bg-gold text-on-gold rounded-lg text-sm font-bold hover:bg-gold/90 transition-colors shrink-0">
-              <Link2 className="w-4 h-4" /> Collega ora
-            </a>
-          </div>
-        )}
-
-        {/* Legend */}
-        <div className="flex items-center gap-4 mb-3 text-2xs">
-          <span className="flex items-center gap-1.5 text-overlay/30">
-            <span className="w-2.5 h-2.5 rounded-sm bg-info/40" /> Eventi
-          </span>
-          <span className="flex items-center gap-1.5 text-overlay/30">
-            <span className="w-2.5 h-2.5 rounded-sm bg-accent/40" /> Riunioni
-          </span>
-          {showTasks && (
-            <span className="flex items-center gap-1.5 text-overlay/30">
-              <span className="w-2.5 h-2.5 rounded-sm bg-gold/40" /> Task
-            </span>
-          )}
-        </div>
-
-        {/* Calendar Grid */}
-        {viewMode === 'mese' ? (
-          <MonthView
-            currentDate={currentDate}
-            eventsForDay={eventsForDay}
-            meetingsForDay={meetingsForDay}
-            tasksForDay={tasksForDay}
-            selectedDay={selectedDay}
-            onSelectDay={d => setSelectedDay(isSameDay(d, selectedDay ?? new Date(0)) ? null : d)}
-          />
-        ) : viewMode === 'settimana' ? (
-          <WeekView
-            currentDate={currentDate}
-            eventsForDay={eventsForDay}
-            meetingsForDay={meetingsForDay}
-            tasksForDay={tasksForDay}
-            selectedDay={selectedDay}
-            onSelectDay={d => setSelectedDay(isSameDay(d, selectedDay ?? new Date(0)) ? null : d)}
-          />
-        ) : viewMode === 'giorno' ? (
-          <DayView
-            currentDate={currentDate}
-            eventsForDay={eventsForDay}
-            meetingsForDay={meetingsForDay}
-            tasksForDay={tasksForDay}
-          />
-        ) : viewMode === 'anno' ? (
-          <YearView
-            currentDate={currentDate}
-            eventsForDay={eventsForDay}
-            meetingsForDay={meetingsForDay}
-            tasksForDay={tasksForDay}
-            selectedDay={selectedDay}
-            onSelectDay={d => setSelectedDay(isSameDay(d, selectedDay ?? new Date(0)) ? null : d)}
-          />
-        ) : (
-          <ListView
-            events={filteredEvents}
-            meetings={filteredMeetings}
-            tasks={filteredTasks}
-            rangeStart={rangeStart}
-            rangeEnd={rangeEnd}
-            onSelectDay={d => setSelectedDay(isSameDay(d, selectedDay ?? new Date(0)) ? null : d)}
-          />
-        )}
-      </div>
-
-      {/* Side panel */}
-      {selectedDay && (
-        <div className="hidden xl:flex w-80 border-l border-overlay/[0.06] p-4 flex-col gap-4 bg-surface shrink-0">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-text-primary capitalize">{format(selectedDay, 'EEEE d MMMM', { locale: it })}</h3>
-              <p className="text-xs text-overlay/30">{selectedDayEvents.length + selectedDayMeetings.length + selectedDayTasks.length} elementi</p>
-            </div>
-            <button onClick={() => setSelectedDay(null)} className="text-overlay/30 hover:text-text-primary"><X className="w-4 h-4" /></button>
-          </div>
-
-          <div className="space-y-2 flex-1 overflow-y-auto">
-            {selectedDayEvents.length > 0 && (
-              <p className="text-2xs font-bold text-info/60 uppercase tracking-wider">Eventi</p>
-            )}
-            {selectedDayEvents.map(e => (
-              <div key={e.id}
-                onClick={() => openEdit(e)}
-                className={`p-3 rounded-xl border ${EVENT_STYLE} ${e.masked ? '' : 'cursor-pointer hover:brightness-110'}`}>
-                <p className="text-sm font-medium">{e.summary}</p>
-                {!e.allDay && (
-                  <p className="text-xs opacity-70 mt-1">{format(new Date(e.start), 'HH:mm')} — {format(new Date(e.end), 'HH:mm')}</p>
-                )}
-                {e.location && <p className="text-2xs opacity-60 mt-1">📍 {e.location}</p>}
-                {!e.masked && <p className="text-2xs opacity-50 mt-1">Tocca per modificare</p>}
-              </div>
-            ))}
-
-            {selectedDayMeetings.length > 0 && (
-              <p className="text-2xs font-bold text-accent/60 uppercase tracking-wider mt-2">Riunioni</p>
-            )}
-            {selectedDayMeetings.map(m => (
-              <div key={m.id} className={`p-3 rounded-xl border ${MEETING_STYLE}`}>
-                <p className="text-sm font-medium">{m.title}</p>
-                {m.duration_minutes && <p className="text-xs opacity-70 mt-1">{m.duration_minutes} minuti</p>}
-              </div>
-            ))}
-
-            {selectedDayTasks.length > 0 && (
-              <p className="text-2xs font-bold text-gold-text/60 uppercase tracking-wider mt-2">Task</p>
-            )}
-            {selectedDayTasks.map(t => (
-              <div key={t.id} className={`p-3 rounded-xl border ${taskStyle(t.due_date!)}`}>
-                <div className="flex items-center gap-1.5 mb-1">
-                  <CheckSquare className="w-3 h-3 opacity-50" />
-                  <p className="text-sm font-medium">{t.title}</p>
-                </div>
-                <div className="flex items-center gap-2 mt-1.5">
-                  {t.assignee && (
-                    <span className="text-2xs opacity-70 flex items-center gap-1">
-                      <span className="w-4 h-4 rounded-full bg-gold/20 flex items-center justify-center text-[8px] font-bold text-gold-text">
-                        {(t.assignee.full_name ?? '?')[0]}
-                      </span>
-                      {t.assignee.full_name}
-                    </span>
-                  )}
-                  {t.project && <span className="text-2xs opacity-60">{t.project.clients?.company_name ?? t.project.name}</span>}
-                </div>
-              </div>
-            ))}
-            {selectedDayEvents.length === 0 && selectedDayMeetings.length === 0 && selectedDayTasks.length === 0 && (
-              <p className="text-xs text-overlay/30">Nessun elemento in questo giorno.</p>
-            )}
-          </div>
-
-          {isGoogleConnected && (
-            <button onClick={() => openCreate(format(selectedDay, 'yyyy-MM-dd'))}
-              className="flex items-center gap-2 justify-center px-3 py-2 glass rounded-xl text-sm text-text-primary hover:border-gold/40 transition-colors">
-              <Plus className="w-4 h-4 text-gold-text" /> Aggiungi evento
-            </button>
-          )}
         </div>
       )}
 
-      {/* Editor evento (crea / modifica / elimina) */}
-      {editorEvent && (
-        <CalendarEventForm
-          form={editorEvent}
-          profiles={profiles}
-          currentUserId={currentUserId}
-          onClose={() => setEditorEvent(null)}
-          onSaved={() => { setEditorEvent(null); refetch() }}
-        />
+      <div className="flex-1 min-w-0 p-4 sm:p-6 space-y-4">
+        <header className="flex items-center gap-2 flex-wrap">
+          <button type="button" onClick={() => setBarra(true)} className="lg:hidden p-2 rounded-lg border border-border text-text-secondary" aria-label="Filtri e colleghi">
+            <SlidersHorizontal className="w-4 h-4" />
+          </button>
+          <button type="button" onClick={() => setGiorno(oggiRoma())} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-border text-text-secondary hover:text-text-primary hover:bg-surface-hover">Oggi</button>
+          {vista !== 'periodo' && (
+            <div className="flex items-center">
+              <button type="button" onClick={() => setGiorno(g => giornoDa(vista, g, -1))} aria-label="Precedente" className="p-1.5 rounded-lg text-text-secondary hover:bg-surface-hover"><ChevronLeft className="w-4 h-4" /></button>
+              <button type="button" onClick={() => setGiorno(g => giornoDa(vista, g, 1))} aria-label="Successivo" className="p-1.5 rounded-lg text-text-secondary hover:bg-surface-hover"><ChevronRight className="w-4 h-4" /></button>
+            </div>
+          )}
+          <h1 className="text-lg sm:text-xl font-bold text-text-primary font-heading first-letter:uppercase">{titolo}</h1>
+          {carico && <Loader2 className="w-4 h-4 text-gold-text animate-spin" aria-label="Carico" />}
+
+          <div className="ml-auto flex items-center gap-2 flex-wrap">
+            <label className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-tertiary" aria-hidden />
+              <input value={cerca} onChange={e => setCerca(e.target.value)} placeholder="Cerca" aria-label="Cerca nel calendario"
+                className="w-40 bg-surface border border-border-interactive rounded-lg pl-8 pr-2 py-1.5 text-xs text-text-primary" />
+            </label>
+            <div className="flex bg-surface-active rounded-xl p-0.5" role="radiogroup" aria-label="Vista">
+              {(['giorno', 'settimana', 'mese', 'anno', 'periodo'] as Vista[]).map(v => (
+                <button key={v} type="button" role="radio" aria-checked={vista === v} onClick={() => setVista(v)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${vista === v ? 'bg-surface text-text-primary shadow-soft' : 'text-text-secondary hover:text-text-primary'}`}>
+                  {v === 'giorno' ? 'Giorno' : v === 'settimana' ? 'Settimana' : v === 'mese' ? 'Mese' : v === 'anno' ? 'Anno' : 'Periodo'}
+                </button>
+              ))}
+            </div>
+            {isGoogleConnected ? (
+              <button type="button" onClick={() => crea(giorno)} className="flex items-center gap-1.5 text-xs font-semibold bg-gold text-on-gold px-3 py-1.5 rounded-lg">
+                <Plus className="w-3.5 h-3.5" />Evento
+              </button>
+            ) : (
+              <a href="/api/google/auth" className="flex items-center gap-1.5 text-xs font-semibold bg-gold text-on-gold px-3 py-1.5 rounded-lg">
+                <Link2 className="w-3.5 h-3.5" />Collega Google
+              </a>
+            )}
+          </div>
+        </header>
+
+        {!isGoogleConnected && (
+          <div className="flex items-center gap-3 p-3 rounded-xl border border-gold/30 bg-gold-dim">
+            <CalIcon className="w-5 h-5 text-gold-text shrink-0" aria-hidden />
+            <p className="text-xs text-text-secondary flex-1">
+              Collega il tuo Google Calendar per vedere i tuoi eventi e crearne di nuovi da qui. Ferie, permessi, task e milestone si vedono comunque.
+            </p>
+          </div>
+        )}
+
+        {vista === 'periodo' && (
+          <div className="flex items-center gap-2 text-xs text-text-secondary">
+            Dal <input type="date" value={periodo.dal} onChange={e => setPeriodo(p => ({ ...p, dal: e.target.value }))} className="bg-surface border border-border-interactive rounded-lg px-2 py-1 text-xs text-text-primary" />
+            al <input type="date" value={periodo.al} min={periodo.dal} onChange={e => setPeriodo(p => ({ ...p, al: e.target.value }))} className="bg-surface border border-border-interactive rounded-lg px-2 py-1 text-xs text-text-primary" />
+          </div>
+        )}
+
+        {vista === 'giorno' || vista === 'settimana'
+          ? <Griglia giorni={vista === 'giorno' ? [giorno] : settimanaDi(giorno)} voci={voci} onApri={apri} onCrea={crea}
+              onGiorno={g => { setGiorno(g); setVista('giorno') }} />
+          : vista === 'mese'
+          ? <Mese giorno={giorno} voci={voci} onApri={apri} onGiorno={g => { setGiorno(g); setVista('giorno') }} />
+          : vista === 'anno'
+          ? <Anno anno={giorno.slice(0, 4)} voci={voci} onGiorno={g => { setGiorno(g); setVista('giorno') }} />
+          : <Elenco dal={periodo.dal} al={periodo.al} voci={voci} onApri={apri} />}
+      </div>
+
+      {aperta && <Dettaglio voce={aperta} persona={profiles.find(p => p.id === aperta.profileId) ?? null} onChiudi={() => setAperta(null)} />}
+      {editor && (
+        <CalendarEventForm form={editor} profiles={profiles} currentUserId={currentUserId}
+          onClose={() => setEditor(null)} onSaved={() => { setEditor(null); void carica() }} />
       )}
     </div>
   )
 }
 
-/* ── MONTH VIEW ─────────────────────────────────── */
-function MonthView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, selectedDay, onSelectDay }: {
-  currentDate: Date
-  eventsForDay: (d: Date) => GoogleEvent[]
-  meetingsForDay: (d: Date) => LocalMeeting[]
-  tasksForDay: (d: Date) => CalTask[]
-  selectedDay: Date | null
-  onSelectDay: (d: Date) => void
-}) {
-  const start = startOfWeek(startOfMonth(currentDate), { weekStartsOn: 0 })
-  const end = endOfWeek(endOfMonth(currentDate), { weekStartsOn: 0 })
-  const days: Date[] = []; let d = start
-  while (d <= end) { days.push(d); d = addDays(d, 1) }
-  // Come Google Calendar: la settimana parte da domenica.
-  const dayNames = ['DOM', 'LUN', 'MAR', 'MER', 'GIO', 'VEN', 'SAB']
+function Chip({ v, onApri, compatto }: { v: VoceCal; onApri: (v: VoceCal) => void; compatto?: boolean }) {
+  const s = stile(v)
+  return (
+    <button type="button" onClick={e => { e.stopPropagation(); onApri(v) }} title={v.titolo}
+      className={`w-full flex items-center gap-1 rounded-md border-l-2 px-1.5 ${compatto ? 'py-0' : 'py-0.5'} text-2xs text-left truncate hover:brightness-95`}
+      style={s}>
+      {v.privato && <Lock className="w-2.5 h-2.5 shrink-0" aria-label="privato" />}
+      {!v.tuttoIlGiorno && <span className="tabular opacity-80 shrink-0">{ora(v.inizio)}</span>}
+      <span className={`truncate ${v.mascherato ? 'italic' : 'font-medium'}`}>{v.tipo === 'milestone' ? `◆ ${v.titolo}` : v.titolo}</span>
+    </button>
+  )
+}
 
-  /** Quante righe evento entrano prima di dover mostrare "+N in più". */
-  const MAX_ROWS = 3
+/** Giorno e Settimana: colonne per giorno, righe per ora, voci alla loro altezza */
+function Griglia({ giorni, voci, onApri, onCrea, onGiorno }: {
+  giorni: string[]; voci: VoceCal[]; onApri: (v: VoceCal) => void; onCrea: (g: string, ora: string) => void; onGiorno: (g: string) => void
+}) {
+  const scorri = useRef<HTMLDivElement>(null)
+  const oggi = oggiRoma()
+  const ore = Array.from({ length: ORE.a - ORE.da }, (_, i) => ORE.da + i)
+  useEffect(() => { if (scorri.current) scorri.current.scrollTop = (9 - ORE.da) * PX_ORA - 8 }, [giorni.join()])
+  const [adesso, setAdesso] = useState(Date.now())
+  useEffect(() => { const t = setInterval(() => setAdesso(Date.now()), 60_000); return () => clearInterval(t) }, [])
+  const minAdesso = (() => { const { ora: o } = giornoEOraRoma(adesso); const [h, m] = o.split(':').map(Number); return (h - ORE.da) * 60 + m })()
+  const colonne = `3.25rem repeat(${giorni.length}, minmax(0, 1fr))`
 
   return (
-    // Due griglie: con una sola, auto-rows-fr allargherebbe anche la riga delle
-    // intestazioni fino all'altezza di una settimana.
-    <div className="flex-1 flex flex-col rounded-xl overflow-hidden border border-border">
-      <div className="grid grid-cols-7 gap-px bg-border shrink-0">
-        {dayNames.map(dn => (
-          <div key={dn} className="bg-surface px-2 py-1.5 text-2xs font-semibold text-text-tertiary text-center tracking-wider">
-            {dn}
+    <div className="border border-border rounded-xl overflow-hidden bg-surface">
+      {/* intestazione e voci di tutto il giorno */}
+      <div className="grid border-b border-border" style={{ gridTemplateColumns: colonne }}>
+        <div />
+        {giorni.map(g => {
+          const dow = (new Date(`${g}T12:00:00Z`).getUTCDay() + 6) % 7
+          const festa = nomeFestivo(g)
+          return (
+            <button key={g} type="button" onClick={() => onGiorno(g)} className="px-1 py-1.5 text-center border-l border-border hover:bg-surface-hover">
+              <span className="block text-2xs uppercase text-text-tertiary">{GG[dow]}</span>
+              <span className={`inline-flex w-7 h-7 items-center justify-center rounded-full text-sm font-semibold tabular ${g === oggi ? 'bg-gold text-on-gold' : dow > 4 ? 'text-text-tertiary' : 'text-text-primary'}`}>{numero(g)}</span>
+              {festa && <span className="block text-2xs text-text-tertiary truncate">{festa}</span>}
+            </button>
+          )
+        })}
+      </div>
+      <div className="grid border-b border-border" style={{ gridTemplateColumns: colonne }}>
+        <div className="text-2xs text-text-tertiary px-1 py-1 text-right">tutto il giorno</div>
+        {giorni.map(g => (
+          <div key={g} className="border-l border-border p-0.5 space-y-0.5 min-h-[1.75rem]">
+            {delGiorno(voci, g).filter(v => v.tuttoIlGiorno).map(v => <Chip key={v.id} v={v} onApri={onApri} compatto />)}
           </div>
         ))}
       </div>
-
-      <div className="grid grid-cols-7 gap-px bg-border flex-1 auto-rows-fr border-t border-border">
-      {days.map(day => {
-        const events = eventsForDay(day)
-        const meetings = meetingsForDay(day)
-        const dayTasks = tasksForDay(day)
-
-        // Un'unica lista ordinata: gli eventi non si mescolano a caso.
-        const rows: { key: string; dot: string; label: string; time: string | null; muted: boolean }[] = [
-          ...events.map(e => ({
-            key: `e-${e.id}`,
-            dot: colorFor(e.profileId).dot,
-            label: e.summary,
-            time: e.allDay ? null : format(new Date(e.start), 'HH:mm'),
-            muted: e.masked,
-          })),
-          ...meetings.map(m => ({
-            key: `m-${m.id}`,
-            dot: 'var(--color-info)',
-            label: m.title,
-            time: format(new Date(m.meeting_date), 'HH:mm'),
-            muted: false,
-          })),
-          ...dayTasks.map(t => ({
-            key: `t-${t.id}`,
-            dot: 'var(--color-text-tertiary)',
-            label: t.title,
-            time: null,
-            muted: false,
-          })),
-        ]
-
-        const visible = rows.slice(0, MAX_ROWS)
-        const hidden = rows.length - visible.length
-        const isSelected = selectedDay && isSameDay(day, selectedDay)
-        const outside = !isSameMonth(day, currentDate)
-
-        return (
-          <div key={day.toISOString()}
-            onClick={() => onSelectDay(day)}
-            className={`bg-surface px-1.5 pt-1 pb-1.5 min-h-[6.5rem] cursor-pointer transition-colors flex flex-col ${
-              outside ? 'opacity-45' : ''
-            } ${isSelected ? 'ring-1 ring-inset ring-gold/50' : 'hover:bg-surface-hover'}`}>
-
-            <div className="flex justify-center mb-1 shrink-0">
-              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium tabular ${
-                isToday(day) ? 'bg-gold text-on-gold font-bold' : 'text-text-primary'
-              }`}>
-                {format(day, 'd')}
-              </span>
-            </div>
-
-            <div className="flex flex-col gap-0.5 min-h-0">
-              {visible.map(r => (
-                <div key={r.key}
-                  className="flex items-center gap-1 px-1 rounded hover:bg-surface-active transition-colors">
-                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: r.dot }} aria-hidden="true" />
-                  {r.time && <span className="text-2xs text-text-tertiary tabular shrink-0">{r.time}</span>}
-                  <span className={`text-2xs truncate ${r.muted ? 'text-text-tertiary italic' : 'text-text-secondary'}`}>
-                    {r.label}
-                  </span>
-                </div>
-              ))}
-
-              {hidden > 0 && (
-                <button
-                  onClick={e => { e.stopPropagation(); onSelectDay(day) }}
-                  className="text-2xs text-text-tertiary hover:text-text-primary px-1 text-left transition-colors">
-                  {hidden} in più
-                </button>
-              )}
-            </div>
+      <div ref={scorri} className="max-h-[36rem] overflow-y-auto">
+        <div className="grid relative" style={{ gridTemplateColumns: colonne, height: ore.length * PX_ORA }}>
+          <div className="relative">
+            {ore.map(h => <span key={h} className="absolute right-1 text-2xs text-text-tertiary tabular -translate-y-1/2" style={{ top: (h - ORE.da) * PX_ORA }}>{h > ORE.da ? `${h}:00` : ''}</span>)}
           </div>
-        )
-      })}
-      </div>
-    </div>
-  )
-}
-
-/* ── DAY VIEW ───────────────────────────────────── */
-function DayView({ currentDate, eventsForDay, meetingsForDay, tasksForDay }: {
-  currentDate: Date
-  eventsForDay: (d: Date) => GoogleEvent[]
-  meetingsForDay: (d: Date) => LocalMeeting[]
-  tasksForDay: (d: Date) => CalTask[]
-}) {
-  const events   = eventsForDay(currentDate)
-  const meetings = meetingsForDay(currentDate)
-  const tasks    = tasksForDay(currentDate)
-  const allEmpty = events.length === 0 && meetings.length === 0 && tasks.length === 0
-
-  return (
-    <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-      {events.map(e => (
-        <div key={e.id} className={`p-4 rounded-xl border ${EVENT_STYLE}`}>
-          <p className="text-sm font-semibold">{e.summary}</p>
-          {!e.allDay && (
-            <p className="text-xs opacity-70 mt-1">
-              {format(new Date(e.start), 'HH:mm')} — {format(new Date(e.end), 'HH:mm')}
-            </p>
-          )}
-        </div>
-      ))}
-      {meetings.map(m => (
-        <div key={m.id} className={`p-4 rounded-xl border ${MEETING_STYLE}`}>
-          <p className="text-sm font-semibold">{m.title}</p>
-          {m.duration_minutes && <p className="text-xs opacity-70 mt-1">{m.duration_minutes} min</p>}
-          {m.description && <p className="text-xs opacity-60 mt-1 line-clamp-2">{m.description}</p>}
-        </div>
-      ))}
-      {tasks.map(t => (
-        <div key={t.id} className={`p-4 rounded-xl border ${taskStyle(t.due_date!)}`}>
-          <div className="flex items-center gap-2">
-            <CheckSquare className="w-4 h-4 opacity-50 shrink-0" />
-            <p className="text-sm font-semibold">{t.title}</p>
-          </div>
-          {t.project && <p className="text-xs opacity-60 mt-1">{t.project.clients?.company_name ?? t.project.name}</p>}
-        </div>
-      ))}
-      {allEmpty && (
-        <div className="flex items-center justify-center py-20">
-          <p className="text-sm text-overlay/30">Nessun elemento per questo giorno</p>
-        </div>
-      )}
-    </div>
-  )
-}
-
-/* ── WEEK VIEW ──────────────────────────────────── */
-function WeekView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, selectedDay, onSelectDay }: {
-  currentDate: Date
-  eventsForDay: (d: Date) => GoogleEvent[]
-  meetingsForDay: (d: Date) => LocalMeeting[]
-  tasksForDay: (d: Date) => CalTask[]
-  selectedDay: Date | null
-  onSelectDay: (d: Date) => void
-}) {
-  const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 })
-  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
-
-  return (
-    <div className="flex-1 grid grid-cols-7 gap-px bg-overlay/[0.04] rounded-xl overflow-hidden">
-      {days.map(day => {
-        const events = eventsForDay(day)
-        const meetings = meetingsForDay(day)
-        const dayTasks = tasksForDay(day)
-        const isSelected = selectedDay && isSameDay(day, selectedDay)
-        return (
-          <div key={day.toISOString()}
-            onClick={() => onSelectDay(day)}
-            className={`bg-surface p-3 cursor-pointer transition-colors flex flex-col min-h-[300px] ${
-              isSelected ? 'ring-1 ring-inset ring-gold/50 bg-gold/[0.03]' : 'hover:bg-overlay/[0.02]'
-            }`}>
-            <div className="text-center mb-3">
-              <p className="text-2xs text-overlay/30 uppercase">{format(day, 'EEE', { locale: it })}</p>
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold mx-auto mt-1 ${
-                isToday(day) ? 'bg-gold text-on-gold' : 'text-text-primary'
-              }`}>{format(day, 'd')}</div>
-            </div>
-            <div className="space-y-1.5 flex-1 overflow-y-auto">
-              {events.map(e => (
-                <div key={e.id} className={`text-2xs px-2 py-1.5 rounded-lg border ${EVENT_STYLE}`}>
-                  <p className="font-medium truncate">{e.summary}</p>
-                  {!e.allDay && (
-                    <p className="opacity-60 mt-0.5">{format(new Date(e.start), 'HH:mm')}</p>
-                  )}
-                </div>
-              ))}
-              {meetings.map(m => (
-                <div key={m.id} className={`text-2xs px-2 py-1.5 rounded-lg border ${MEETING_STYLE}`}>
-                  <p className="font-medium truncate">{m.title}</p>
-                  {m.duration_minutes && <p className="opacity-60 mt-0.5">{m.duration_minutes}min</p>}
-                </div>
-              ))}
-              {dayTasks.map(t => (
-                <div key={t.id} className={`text-2xs px-2 py-1.5 rounded-lg border ${taskStyle(t.due_date!)}`}>
-                  <div className="flex items-center gap-1">
-                    <CheckSquare className="w-2.5 h-2.5 shrink-0 opacity-50" />
-                    <p className="font-medium truncate">{t.title}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-/* ── YEAR VIEW ──────────────────────────────────── */
-function YearView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, selectedDay, onSelectDay }: {
-  currentDate: Date
-  eventsForDay: (d: Date) => GoogleEvent[]
-  meetingsForDay: (d: Date) => LocalMeeting[]
-  tasksForDay: (d: Date) => CalTask[]
-  selectedDay: Date | null
-  onSelectDay: (d: Date) => void
-}) {
-  const year   = currentDate.getFullYear()
-  const months = Array.from({ length: 12 }, (_, i) => new Date(year, i, 1))
-
-  return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="grid grid-cols-4 gap-3">
-        {months.map(monthDate => {
-          const monthStart = startOfWeek(startOfMonth(monthDate), { weekStartsOn: 1 })
-          const monthEnd   = endOfWeek(endOfMonth(monthDate), { weekStartsOn: 1 })
-          const days: Date[] = []; let d = monthStart
-          while (d <= monthEnd) { days.push(d); d = addDays(d, 1) }
-
-          return (
-            <div key={monthDate.getMonth()} className="bg-surface rounded-xl p-3 border border-overlay/[0.04]">
-              <p className="text-xs font-bold text-overlay/60 mb-2 capitalize">
-                {format(monthDate, 'MMMM', { locale: it })}
-              </p>
-              <div className="grid grid-cols-7 gap-0">
-                {['L','M','M','G','V','S','D'].map((n, i) => (
-                  <div key={i} className="text-[8px] text-overlay/20 text-center pb-1">{n}</div>
+          {giorni.map(g => {
+            const disposte = disponi(delGiorno(voci, g), g, ORE)
+            return (
+              <div key={g} className="relative border-l border-border">
+                {ore.map(h => (
+                  <button key={h} type="button" aria-label={`Nuovo evento ${etichettaGiorno(g)} alle ${h}:00`}
+                    onClick={() => onCrea(g, `${String(h).padStart(2, '0')}:00`)}
+                    className={`absolute inset-x-0 border-t border-border hover:bg-gold/5 ${h < 9 || h >= 18 ? 'bg-surface-hover/60' : ''}`}
+                    style={{ top: (h - ORE.da) * PX_ORA, height: PX_ORA }} />
                 ))}
-                {days.map((day, i) => {
-                  const inMonth = isSameMonth(day, monthDate)
-                  const total   = inMonth ? eventsForDay(day).length + meetingsForDay(day).length + tasksForDay(day).length : 0
-                  const isSel   = selectedDay && isSameDay(day, selectedDay)
+                {g === oggi && minAdesso > 0 && minAdesso < (ORE.a - ORE.da) * 60 && (
+                  <div aria-hidden className="absolute inset-x-0 h-0.5 bg-error z-10 pointer-events-none" style={{ top: (minAdesso / 60) * PX_ORA }} />
+                )}
+                {disposte.map(d => {
+                  const s = stile(d.voce)
+                  const w = 100 / d.corsie
                   return (
-                    <button key={i} onClick={() => inMonth && onSelectDay(day)}
-                      className={`relative text-2xs text-center w-5 h-5 rounded-full flex items-center justify-center mx-auto transition-colors ${
-                        !inMonth ? 'invisible' :
-                        isSel ? 'bg-gold text-on-gold font-bold' :
-                        isToday(day) ? 'text-gold-text font-bold' :
-                        'text-overlay/50 hover:text-text-primary hover:bg-overlay/[0.06]'
-                      }`}>
-                      {inMonth ? format(day, 'd') : ''}
-                      {total > 0 && inMonth && !isSel && (
-                        <span className="absolute bottom-0 right-0 w-1 h-1 rounded-full bg-info translate-x-px -translate-y-px" />
-                      )}
+                    <button key={d.voce.id} type="button" onClick={() => onApri(d.voce)} title={`${ora(d.voce.inizio)}–${ora(d.voce.fine)} ${d.voce.titolo}`}
+                      className="absolute rounded-md border-l-[3px] px-1.5 py-0.5 text-left overflow-hidden text-2xs leading-tight hover:brightness-95 z-[5]"
+                      style={{ ...s, top: (d.daMin / 60) * PX_ORA + 1, height: Math.max(18, (d.perMin / 60) * PX_ORA - 2), left: `calc(${w * d.corsia}% + 2px)`, width: `calc(${w}% - 4px)` }}>
+                      <span className={`block truncate ${d.voce.mascherato ? 'italic' : 'font-semibold'}`}>
+                        {d.voce.privato && <Lock className="inline w-2.5 h-2.5 mr-0.5" aria-label="privato" />}{d.voce.titolo}
+                      </span>
+                      {d.perMin >= 40 && <span className="block tabular opacity-80">{ora(d.voce.inizio)}–{ora(d.voce.fine)}</span>}
                     </button>
                   )
                 })}
               </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Mese({ giorno, voci, onApri, onGiorno }: { giorno: string; voci: VoceCal[]; onApri: (v: VoceCal) => void; onGiorno: (g: string) => void }) {
+  const oggi = oggiRoma()
+  const mese = giorno.slice(0, 7)
+  return (
+    <div className="border border-border rounded-xl overflow-hidden bg-surface">
+      <div className="grid grid-cols-7 border-b border-border">
+        {GG.map(g => <span key={g} className="text-2xs uppercase text-text-tertiary text-center py-1.5">{g}</span>)}
+      </div>
+      <div className="grid grid-cols-7">
+        {grigliaMese(giorno).map(g => {
+          const del = delGiorno(voci, g).sort((a, b) => Number(b.tuttoIlGiorno) - Number(a.tuttoIlGiorno) || a.inizio.localeCompare(b.inizio))
+          const fuori = g.slice(0, 7) !== mese
+          return (
+            <div key={g} className={`min-h-[6.5rem] border-b border-l border-border p-1 space-y-0.5 ${fuori ? 'bg-surface-hover/50' : ''}`}>
+              <button type="button" onClick={() => onGiorno(g)} className={`text-2xs font-semibold tabular w-6 h-6 rounded-full ${g === oggi ? 'bg-gold text-on-gold' : fuori ? 'text-text-tertiary' : 'text-text-primary hover:bg-surface-hover'}`}>
+                {numero(g)}
+              </button>
+              {del.slice(0, 3).map(v => <Chip key={v.id} v={v} onApri={onApri} compatto />)}
+              {del.length > 3 && <button type="button" onClick={() => onGiorno(g)} className="text-2xs text-text-tertiary hover:text-text-primary px-1">+{del.length - 3} altri</button>}
             </div>
           )
         })}
@@ -782,84 +471,75 @@ function YearView({ currentDate, eventsForDay, meetingsForDay, tasksForDay, sele
   )
 }
 
-/* ── LIST VIEW (periodo personalizzato) ─────────── */
-function ListView({ events, meetings, tasks, rangeStart, rangeEnd, onSelectDay }: {
-  events: GoogleEvent[]
-  meetings: LocalMeeting[]
-  tasks: CalTask[]
-  rangeStart: string
-  rangeEnd: string
-  onSelectDay: (d: Date) => void
-}) {
-  if (!rangeStart || !rangeEnd) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <p className="text-sm text-overlay/30">Seleziona un intervallo di date sopra</p>
-      </div>
-    )
-  }
-
-  const byDay: Record<string, { ev: GoogleEvent[]; mt: LocalMeeting[]; tk: CalTask[] }> = {}
-  const ensure = (d: string) => { if (!byDay[d]) byDay[d] = { ev: [], mt: [], tk: [] } }
-
-  events.forEach(e => {
-    const d = e.start.slice(0, 10)
-    ensure(d); byDay[d].ev.push(e)
-  })
-  meetings.forEach(m => {
-    const d = m.meeting_date.slice(0, 10)
-    ensure(d); byDay[d].mt.push(m)
-  })
-  tasks.filter(t => t.due_date && t.due_date >= rangeStart && t.due_date <= rangeEnd).forEach(t => {
-    const d = t.due_date!.slice(0, 10)
-    ensure(d); byDay[d].tk.push(t)
-  })
-
-  const sortedDays = Object.keys(byDay).sort()
-
-  if (sortedDays.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <p className="text-sm text-overlay/30">Nessun elemento nel periodo selezionato</p>
-      </div>
-    )
-  }
-
+function Anno({ anno, voci, onGiorno }: { anno: string; voci: VoceCal[]; onGiorno: (g: string) => void }) {
+  const oggi = oggiRoma()
+  const pieni = new Set(voci.flatMap(v => delGiorno([v], v.inizio.slice(0, 10)).length ? [giornoEOraRoma(Date.parse(v.inizio)).giorno] : []))
   return (
-    <div className="flex-1 overflow-y-auto space-y-5 pr-1">
-      {sortedDays.map(day => {
-        const { ev, mt, tk } = byDay[day]
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {MESI.map((m, i) => {
+        const primo = `${anno}-${String(i + 1).padStart(2, '0')}-01`
         return (
-          <div key={day}>
-            <button onClick={() => onSelectDay(new Date(day + 'T12:00:00'))}
-              className="text-2xs font-bold text-overlay/40 uppercase tracking-wider mb-2 hover:text-overlay/60 transition-colors capitalize block">
-              {format(new Date(day + 'T12:00:00'), 'EEEE d MMMM', { locale: it })}
-            </button>
-            <div className="space-y-1.5">
-              {ev.map(e => (
-                <div key={e.id} className={`p-3 rounded-xl border ${EVENT_STYLE}`}>
-                  <p className="text-sm font-medium">{e.summary}</p>
-                  {!e.allDay && <p className="text-xs opacity-70 mt-0.5">{format(new Date(e.start), 'HH:mm')}</p>}
-                </div>
-              ))}
-              {mt.map(m => (
-                <div key={m.id} className={`p-3 rounded-xl border ${MEETING_STYLE}`}>
-                  <p className="text-sm font-medium">{m.title}</p>
-                  {m.duration_minutes && <p className="text-xs opacity-70 mt-0.5">{m.duration_minutes} min</p>}
-                </div>
-              ))}
-              {tk.map(t => (
-                <div key={t.id} className={`p-3 rounded-xl border ${taskStyle(t.due_date!)}`}>
-                  <div className="flex items-center gap-2">
-                    <CheckSquare className="w-3.5 h-3.5 opacity-50 shrink-0" />
-                    <p className="text-sm font-medium">{t.title}</p>
-                  </div>
-                </div>
+          <div key={m} className="border border-border rounded-xl p-3 bg-surface">
+            <p className="text-xs font-semibold text-text-primary capitalize mb-1">{m}</p>
+            <div className="grid grid-cols-7 gap-0.5 text-center">
+              {grigliaMese(primo).map(g => (
+                <button key={g} type="button" onClick={() => onGiorno(g)}
+                  className={`relative h-6 text-2xs tabular rounded ${g.slice(0, 7) !== primo.slice(0, 7) ? 'text-text-tertiary opacity-40' : g === oggi ? 'bg-gold text-on-gold font-bold' : 'text-text-secondary hover:bg-surface-hover'}`}>
+                  {numero(g)}
+                  {pieni.has(g) && g !== oggi && <span aria-hidden className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-gold-text" />}
+                </button>
               ))}
             </div>
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function Elenco({ dal, al, voci, onApri }: { dal: string; al: string; voci: VoceCal[]; onApri: (v: VoceCal) => void }) {
+  const giorni: string[] = []
+  for (let g = dal; g <= al && giorni.length < 400; g = giornoDopo(g)) giorni.push(g)
+  const pieni = giorni.map(g => ({ g, voci: delGiorno(voci, g).sort((a, b) => a.inizio.localeCompare(b.inizio)) })).filter(x => x.voci.length)
+  if (!pieni.length) return <p className="text-sm text-text-tertiary py-8 text-center">Niente in questo periodo con i filtri scelti.</p>
+  return (
+    <div className="space-y-3">
+      {pieni.map(({ g, voci: vv }) => (
+        <section key={g} className="border border-border rounded-xl bg-surface">
+          <h3 className="px-3 py-2 text-xs font-semibold text-text-primary border-b border-border first-letter:uppercase">{etichettaGiorno(g)}</h3>
+          <div className="p-2 space-y-1">{vv.map(v => <Chip key={v.id} v={v} onApri={onApri} />)}</div>
+        </section>
+      ))}
+    </div>
+  )
+}
+
+/** una voce che non si modifica da qui: cosa, quando, di chi, e dove porta */
+function Dettaglio({ voce, persona, onChiudi }: { voce: VoceCal; persona: Persona | null; onChiudi: () => void }) {
+  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onChiudi() }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k) }, [onChiudi])
+  const quando = voce.tuttoIlGiorno
+    ? etichettaGiorno(giornoEOraRoma(Date.parse(voce.inizio)).giorno)
+    : `${etichettaGiorno(giornoEOraRoma(Date.parse(voce.inizio)).giorno)} · ${ora(voce.inizio)}–${ora(voce.fine)}`
+  const tipo = { evento: 'Evento', riunione: 'Riunione', task: 'Task', ferie: 'Assenza', permesso: 'Permesso', milestone: 'Milestone' }[voce.tipo]
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-scrim p-4" onClick={onChiudi}>
+      <div role="dialog" aria-label={voce.titolo} onClick={e => e.stopPropagation()} className="w-full max-w-sm bg-surface border border-border rounded-2xl shadow-pop p-4 space-y-2">
+        <div className="flex items-start gap-2">
+          <span className="mt-1 w-3 h-3 rounded-sm shrink-0" style={{ background: stile(voce).borderColor as string }} aria-hidden />
+          <div className="flex-1 min-w-0">
+            <p className="text-2xs uppercase tracking-wide text-text-tertiary">{tipo}{voce.privato ? ' · privato' : ''}</p>
+            <h3 className={`text-base font-bold text-text-primary ${voce.mascherato ? 'italic' : ''}`}>{voce.titolo}</h3>
+          </div>
+          <button type="button" onClick={onChiudi} aria-label="Chiudi" className="text-text-tertiary hover:text-text-primary"><X className="w-4 h-4" /></button>
+        </div>
+        <p className="text-xs text-text-secondary first-letter:uppercase">{quando}</p>
+        {voce.dettaglio && <p className="text-xs text-text-secondary">{voce.dettaglio}</p>}
+        {persona && <p className="flex items-center gap-1.5 text-xs text-text-secondary"><Avatar name={persona.full_name} url={persona.avatar_url} size={18} />{persona.full_name}</p>}
+        {voce.mascherato && <p className="text-2xs text-text-tertiary">{voce.privato ? 'Evento privato: il titolo lo vede solo chi l’ha creato.' : 'I dettagli degli eventi dei colleghi restano loro.'}</p>}
+        {voce.link && (
+          <Link href={voce.link} className="inline-flex items-center gap-1 text-xs font-semibold text-gold-text hover:underline"><ExternalLink className="w-3.5 h-3.5" />Apri</Link>
+        )}
+      </div>
     </div>
   )
 }

@@ -67,7 +67,7 @@ database vero, e riscoprirle costa più che leggerle.
   va a controllare.** Quando una fonte manca, dichiaralo («n/d», «stimato»,
   «senza contratto»): mai uno zero.
 - **Gate del repo**: `npx tsc --noEmit` (ESLint non configurato) + gli
-  **centocinque** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
+  **centosei** `lib/**/*.check.ts` — anche in sottocartella (`lib/ai/**`,
   `lib/tracking/**`) — con `npx tsx lib/<percorso>.check.ts`: devono dire «Tutti
   i controlli passano».
 - **Il numero del paragrafo si prende alla fine** (§406). I `§NNN` sono etichette
@@ -476,9 +476,15 @@ restano leggibili **solo** dai due, nemmeno dall'admin: la regola vale ancora,
 ## Calendario e Google
 I token stanno in `google_credentials` (RLS deny-all, solo service role).
 **Mai** in `user_metadata`: il client dell'utente lo legge e lo riscrive.
-`/api/google/events?profileIds=a,b` legge le agende dei colleghi; degli eventi
-altrui espone solo `"Occupato"` — niente titolo, descrizione o partecipanti.
-Le task del calendario sono personali e nascoste di default.
+`/api/google/events?profileIds=a,b` legge le agende dei colleghi (§446): lo
+**staff interno** (`vedeTitoliColleghi`: admin, manager, senior, junior, stage)
+legge il **titolo** degli eventi altrui; descrizione, luogo, link e partecipanti
+restano del proprietario. Un evento **privato** (Google `visibility: private`,
+casella «Privato» nel modulo) è `"Occupato"` per tutti, e freelance, partner,
+risorse e portale vedono solo `"Occupato"`. Ferie e permessi approvati sono
+impegni visibili al team (ferie 9–18, permessi nelle loro ore; la malattia si
+scrive «Assenza»). Le task e le milestone del calendario sono solo di chi guarda.
+L'orario di lavoro per conflitti e primo libero è **9–18** ovunque (`ORARIO`).
 
 ## Regole di risposta
 - Zero preamboli. Vai dritto a codice.

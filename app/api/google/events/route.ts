@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { isSuperAdminRaw, isAdminRole, isWorkspaceRole } from '@/lib/permissions'
+import { isSuperAdminRaw, isAdminRole, isWorkspaceRole, vedeTitoliColleghi } from '@/lib/permissions'
 import { ensureCalendarWatch } from '@/lib/google-calendar'
 
 export interface CalendarEvent {
@@ -12,8 +12,10 @@ export interface CalendarEvent {
   start: string
   end: string
   allDay: boolean
-  /** true se il titolo è stato oscurato perché l'evento è di un collega */
+  /** true se il titolo è stato oscurato: evento privato di un collega, o chi guarda non è staff interno */
   masked: boolean
+  /** §446 — l'evento è privato (visibility private/confidential su Google) */
+  privato?: boolean
   // Popolati solo per i propri eventi (masked=false): servono all'editor.
   description?: string | null
   location?: string | null
@@ -65,6 +67,7 @@ export async function GET(req: NextRequest) {
 
   const { data: me } = await supabase
     .from('profiles').select('role, app_role, email').eq('id', user.id).single()
+  const titoliColleghi = vedeTitoliColleghi(me?.app_role ?? null, me?.email ?? null)
 
   const requested = (req.nextUrl.searchParams.get('profileIds') ?? user.id)
     .split(',').map(s => s.trim()).filter(Boolean)
@@ -121,16 +124,22 @@ export async function GET(req: NextRequest) {
         const end = e.end?.dateTime ?? e.end?.date
         if (!start || !end) continue
 
-        // Privacy: dell'agenda di un collega mostriamo solo che è occupato.
-        // Niente titolo, descrizione o partecipanti.
+        /* §446 — dell'agenda di un collega lo staff interno legge il **titolo**
+           (`vedeTitoliColleghi`): per fissare una riunione serve sapere cosa
+           c'è, non solo che c'è qualcosa. Un evento privato resta «Occupato»
+           per tutti, e freelance e partner vedono «Occupato» e basta.
+           Descrizione, luogo, link e partecipanti restano del proprietario. */
+        const privato = e.visibility === 'private' || e.visibility === 'confidential'
+        const titolo = isMine || (titoliColleghi && !privato)
         events.push({
           id: e.id ?? `${profileId}-${start}`,
           profileId,
-          summary: isMine ? (e.summary ?? '(senza titolo)') : 'Occupato',
+          summary: titolo ? (e.summary ?? '(senza titolo)') : 'Occupato',
           start,
           end,
           allDay: !e.start?.dateTime,
-          masked: !isMine,
+          masked: !titolo,
+          privato,
           // Dettagli solo per i propri eventi: dei colleghi non si espone nulla.
           ...(isMine ? {
             description: e.description ?? null,
@@ -167,6 +176,8 @@ interface EventBody {
   timezone?: string
   recurrence?: string       // RRULE, es. 'RRULE:FREQ=WEEKLY'
   reminders?: { method: string; minutes: number }[]
+  /** §446 — privato: su Google `visibility: private`, per i colleghi «Occupato» */
+  privato?: boolean
   clientId?: string | null  // link mirror (non inviato a Google)
   projectId?: string | null // link mirror (non inviato a Google)
 }
@@ -199,6 +210,7 @@ function buildRequestBody(body: EventBody, attendeeEmails: string[]) {
     rb.end = { dateTime: body.end, timeZone: tz }
   }
   if (attendeeEmails.length) rb.attendees = attendeeEmails.map(email => ({ email }))
+  if (body.privato !== undefined) rb.visibility = body.privato ? 'private' : 'default'
   if (body.addMeet) {
     rb.conferenceData = {
       createRequest: { requestId: `twobee-${body.start}`, conferenceSolutionKey: { type: 'hangoutsMeet' } },

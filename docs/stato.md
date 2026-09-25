@@ -1,5 +1,15 @@
 # Dove siamo
 
+## Il calendario ha orari, colleghi e assenze — §446, 2026-09-25
+
+Giorno e Settimana sono una griglia oraria con le voci affiancate; una barra
+laterale sceglie chi (io, i colleghi, tutto il team) e cosa (eventi, task,
+ferie e permessi, milestone). Lo staff interno legge il titolo degli eventi dei
+colleghi, i privati restano «Occupato». Ferie (9–18) e permessi (nelle loro
+ore) sono impegni; l'orario di lavoro è 9–18 ovunque. Corretto l'orario dei
+permessi approvati, scritto male e senza fuso. Resta la 2c: conflitti e primo
+orario libero con gli invitati nel modulo evento.
+
 ## Data, stato e assegnatario dalla riga della task — §445, 2026-09-25
 
 Il calendario della scadenza spariva appena si muoveva il mouse (il campo

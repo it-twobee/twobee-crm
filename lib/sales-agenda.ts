@@ -3,7 +3,7 @@
  * buco libero. Tutto puro e tutto a Roma: il browser di chi pianifica può
  * stare in un altro fuso, «domani alle 9» è quello dell'ufficio.
  *
- * L'orario è uno per tutti, **8–18 dal lunedì al venerdì**, e i festivi sono
+ * L'orario è uno per tutti, **9–18 dal lunedì al venerdì**, e i festivi sono
  * quelli di `calendario-lavorativo`. Un conflitto **avvisa e non blocca**: chi
  * fissa una call alle 19 con un cliente che la vuole alle 19 sa cosa sta
  * facendo, e un selettore che glielo impedisce lo fa tornare al calendario di
@@ -13,7 +13,7 @@
 import { nonLavorativo, nomeFestivo, isWeekend } from './calendario-lavorativo'
 import { giornoEOraRoma, istanteRoma } from './sales-timeline'
 
-export const ORARIO = { da: '08:00', a: '18:00' } as const
+export const ORARIO = { da: '09:00', a: '18:00' } as const
 export const PASSO_MIN = 15
 export const DURATE = [15, 30, 45, 60] as const
 

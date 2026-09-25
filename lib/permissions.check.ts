@@ -1,6 +1,6 @@
 /* Verifica dei permessi di governo progetto (§339). Esegui: npx tsx lib/permissions.check.ts */
 import { readFileSync } from 'node:fs'
-import { canGovernProjects, PROJECT_GOVERN_ROLES, canCreateClients, isAdminRole, coarseRole, canPreviewClientPortal, isPortalAccount, INTERNAL_COARSE_ROLES } from '@/lib/permissions'
+import { canGovernProjects, PROJECT_GOVERN_ROLES, canCreateClients, isAdminRole, coarseRole, canPreviewClientPortal, isPortalAccount, INTERNAL_COARSE_ROLES, vedeTitoliColleghi } from '@/lib/permissions'
 
 let fail = 0
 const is = (label: string, got: unknown, want: unknown) => {
@@ -97,6 +97,12 @@ const senzaFiltro = SORGENTI_ASSEGNATARI.filter(file => {
   return !query.includes("in('role', INTERNAL_COARSE_ROLES)")
 })
 is('i profili del portale non arrivano agli elenchi di assegnazione', senzaFiltro, [])
+
+console.log('\n— §446 · i titoli dei colleghi nel calendario —')
+is('admin, manager, senior, junior, stage li leggono',
+  ['admin', 'founder', 'manager', 'senior', 'junior', 'stage'].every(r => vedeTitoliColleghi(r)), true)
+is('freelance, partner, viewer, cliente no',
+  ['freelance', 'partner', 'viewer', 'client', null].some(r => vedeTitoliColleghi(r)), false)
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

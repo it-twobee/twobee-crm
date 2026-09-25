@@ -5,6 +5,7 @@
  *   npx tsx lib/leave-calendar.check.ts
  */
 import {
+  blocchiAssenza,
   normalize, onDay, upcoming, monthGrid, busiestDay, countdown, covers,
   daysBetween, addDays, type RawRequest, type RawLeave,
 } from './leave-calendar'
@@ -120,6 +121,23 @@ eq('chi non ha ferie non ha countdown', countdown(spans, 'p9', TODAY), null)
 eq('dopo il rientro sparisce', countdown(spans, 'p1', '2026-08-25'), null)
 eq('la barra resta fra 0 e 1',
    [c1!.progress, countdown(spans, 'p1', '2026-08-12')!.progress].every(p => p >= 0 && p <= 1), true)
+
+// §446 — le assenze come blocchi d'orario, e i permessi a ore
+{
+  const lun = (g: string) => [0, 6].includes(new Date(`${g}T12:00:00Z`).getUTCDay())
+  const { spans } = normalize([
+    { id: 'f', profile_id: 'p', type: 'ferie', status: 'approved', start_date: '2026-09-25', end_date: '2026-09-28', notes: null },
+    { id: 'm', profile_id: 'p', type: 'permesso', status: 'approved', start_date: '2026-09-30', end_date: '2026-09-30', notes: null, is_full_day: false, start_time: '14:00:00', end_time: '16:30:00' },
+    { id: 'x', profile_id: 'p', type: 'permesso', status: 'approved', start_date: '2026-10-01', end_date: '2026-10-01', notes: null, is_full_day: false, start_time: '14:00:00', end_time: null },
+  ], [])
+  const per = (id: string) => spans.find(s => s.id === id)!
+  eq('ferie da venerdì a lunedì: niente weekend, 9–18', blocchiAssenza(per('f'), { da: '09:00', a: '18:00' }, lun),
+    [{ giorno: '2026-09-25', da: '09:00', a: '18:00' }, { giorno: '2026-09-28', da: '09:00', a: '18:00' }])
+  eq('il permesso a ore: dal database «14:00:00», qui «14:00»', [per('m').oraDa, per('m').oraA], ['14:00', '16:30'])
+  eq('permesso a ore: il suo blocco', blocchiAssenza(per('m'), { da: '09:00', a: '18:00' }, lun), [{ giorno: '2026-09-30', da: '14:00', a: '16:30' }])
+  eq('senza ora di fine: giornata intera, non un orario inventato', per('x').oraDa, undefined)
+  eq('rifiutata: nessun blocco', blocchiAssenza({ ...per('f'), status: 'rifiutata' }, { da: '09:00', a: '18:00' }, lun), [])
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 if (fails.length) {

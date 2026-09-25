@@ -832,7 +832,7 @@ riquadro Contatti apre `PianificaFollowup`:
   ricordano, non occupano). Un clic sulla fascia fissa l'ora. Legge **solo
   l'agenda di chi pianifica** (`leggiAgenda`, un mese alla volta).
 - **I conflitti avvisano, non bloccano**: sovrapposizione, fuori dall'orario
-  **8–18 lun–ven** (uguale per tutti), festivi, ferie; ferie da approvare
+  **9–18 lun–ven** (uguale per tutti, §446), festivi, ferie; ferie da approvare
   avvisano senza escludere lo slot. Accanto all'avviso, il primo libero dopo
   quello scelto. Tutto in `lib/sales-agenda.ts`, a Roma, con il suo gate.
 - **Senza Google si pianifica lo stesso**: il follow-up vive nel diario e la

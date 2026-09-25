@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import { format, addDays } from 'date-fns'
-import { X, Users, ChevronRight } from 'lucide-react'
+import { X, Users, ChevronRight, Lock } from 'lucide-react'
+import { toast } from 'sonner'
+import { istanteRoma } from '@/lib/sales-timeline'
 import type { Profile } from '@/lib/types/database'
 
 // Form evento unico (Fase 2a), condiviso tra Calendario admin/workspace e
@@ -28,6 +30,8 @@ export interface EventForm {
   reminderMinutes?: number | null
   clientId?: string | null
   projectId?: string | null
+  /** §446 — privato: su Google `visibility: private`, per i colleghi «Occupato» */
+  privato?: boolean
 }
 
 const TIMEZONES = ['Europe/Rome', 'Europe/London', 'Europe/Paris', 'UTC', 'America/New_York']
@@ -72,14 +76,20 @@ export function CalendarEventForm({ form: initial, profiles, currentUserId, onCl
         reminders: form.reminderMinutes != null ? [{ method: 'popup', minutes: form.reminderMinutes }] : undefined,
         clientId: form.clientId ?? undefined,
         projectId: form.projectId ?? undefined,
+        privato: !!form.privato,
       }
       if (form.allDay) {
         const endExclusive = addDays(new Date((form.endDate || form.date) + 'T00:00:00'), 1)
         payload.start = form.date
         payload.end = format(endExclusive, 'yyyy-MM-dd')
       } else {
-        payload.start = new Date(`${form.date}T${form.startTime}:00`).toISOString()
-        payload.end = new Date(`${form.date}T${form.endTime}:00`).toISOString()
+        /* §446 — le ore sono di Roma, non del browser: chi è in trasferta non
+           deve spostare le riunioni dell'ufficio senza saperlo */
+        const inizio = istanteRoma(form.date, form.startTime), fine = istanteRoma(form.date, form.endTime)
+        if (!inizio || !fine) throw new Error('Orario non valido')
+        if (fine <= inizio) throw new Error('La fine deve venire dopo l’inizio')
+        payload.start = inizio
+        payload.end = fine
       }
       if (isEdit) payload.eventId = form.id
       const res = await fetch('/api/google/events', {
@@ -87,9 +97,13 @@ export function CalendarEventForm({ form: initial, profiles, currentUserId, onCl
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Salvataggio non riuscito')
       onSaved()
-    } catch { setSaving(false) }
+    } catch (e) {
+      // §446 — un errore si dice: prima il modulo restava lì senza spiegazioni
+      toast.error((e as Error).message || 'Salvataggio non riuscito')
+      setSaving(false)
+    }
   }
 
   const remove = async () => {
@@ -97,9 +111,9 @@ export function CalendarEventForm({ form: initial, profiles, currentUserId, onCl
     setDeleting(true)
     try {
       const res = await fetch(`/api/google/events?eventId=${encodeURIComponent(form.id)}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error()
+      if (!res.ok) throw new Error('Eliminazione non riuscita')
       onSaved()
-    } catch { setDeleting(false) }
+    } catch (e) { toast.error((e as Error).message); setDeleting(false) }
   }
 
   const toggleGuest = (id: string) =>
@@ -120,10 +134,16 @@ export function CalendarEventForm({ form: initial, profiles, currentUserId, onCl
 
         <input value={form.title} onChange={e => set('title', e.target.value)} placeholder="Aggiungi titolo" className={inputCls} autoFocus />
 
-        <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
-          <input type="checkbox" checked={form.allDay} onChange={e => set('allDay', e.target.checked)} className="accent-gold w-3.5 h-3.5" />
-          Tutto il giorno
-        </label>
+        <div className="flex items-center gap-4 flex-wrap">
+          <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer">
+            <input type="checkbox" checked={form.allDay} onChange={e => set('allDay', e.target.checked)} className="accent-gold w-3.5 h-3.5" />
+            Tutto il giorno
+          </label>
+          <label className="flex items-center gap-2 text-xs text-text-secondary cursor-pointer" title="I colleghi vedono «Occupato» a quell'ora, senza titolo. Privato anche su Google.">
+            <input type="checkbox" checked={!!form.privato} onChange={e => set('privato', e.target.checked)} className="accent-gold w-3.5 h-3.5" />
+            <Lock className="w-3.5 h-3.5" aria-hidden />Privato
+          </label>
+        </div>
 
         <div className="flex gap-2 items-center">
           <input type="date" value={form.date} onChange={e => set('date', e.target.value)} className={inputCls} aria-label="Data" />

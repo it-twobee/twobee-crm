@@ -842,6 +842,36 @@ spiegazioni a qualcuno.
   multi-assegnate per una colonna che serve a dire un nome sarebbe il danno
   peggiore.
 
+## Il calendario: chi, cosa, e a che ora (§446, `lib/calendario.ts`)
+Giorno e Settimana erano elenchi di card senza orari, le assenze non c'erano
+(si vedevano solo se l'evento era arrivato su Google, e come «Occupato»), le
+task arrivavano come elenco vuoto, e i colleghi si sceglievano da un menu
+chiamato «I miei calendari». Adesso:
+
+- **Un tipo solo**, `VoceCal`: eventi Google, riunioni, task, ferie, permessi,
+  milestone. Le viste disegnano voci, i filtri valgono per tutte
+  (`filtra`, `delGiorno`, `giorniDi` — un evento di tre giorni sta su tre).
+- **Giorno e Settimana a griglia oraria** (7–21, `disponi`): le voci che si
+  sovrappongono stanno affiancate in corsie, contate per gruppo; fuori dalle
+  9–18 la fascia è smorzata; la riga rossa è adesso; un clic su una fascia vuota
+  crea un evento a quell'ora.
+- **La barra laterale**: il mini-mese per spostarsi, «Cosa vedere» (Eventi e
+  riunioni, Le mie task, Ferie e permessi, Milestone) col conteggio, «Il mio
+  calendario» e **«Calendario colleghi»** (ricerca, «Tutto il team»). Se lo
+  ricorda il browser (`twobee-calendario`). Sul telefono si apre dal bottone.
+- **Titoli dei colleghi** allo staff interno, privati «Occupato» (vedi
+  CLAUDE.md, *Calendario e Google*). L'elenco dei colleghi è lo staff interno
+  (§409: il portale non entra).
+- **Le assenze** arrivano da `leggiCalendario` (`app/actions/calendario.ts`):
+  le approvate, a blocchi (`blocchiAssenza` in `lib/leave-calendar.ts`) — ferie
+  9–18 nei giorni lavorativi, permessi nelle loro ore. Le stesse regole valgono
+  per l'agenda del follow-up commerciale, che prima trattava un permesso di due
+  ore come una giornata intera.
+- **L'orario dei permessi approvati** si scrive con `istanteRoma`: prima si
+  accodava «:00» all'ora del database («14:00:00:00», non una data) e senza fuso.
+- **Il modulo evento** ha «Privato», usa l'ora di Roma e dice gli errori
+  (prima li ignorava).
+
 ## Data, stato e assegnatario si cambiano dalla riga (§445, `components/tasks/ControlliRiga.tsx`)
 La scadenza e l'assegnatario della riga erano un `<input type="date">` e un
 `<select>` che esistevano **solo con il mouse sopra** (`group-hover`). Il

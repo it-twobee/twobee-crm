@@ -33,11 +33,16 @@ export type Span = {
   to: string
   days: number
   notes: string | null
+  /** §446 — un permesso a ore: dalle, alle (HH:MM, ora di Roma). Assenti = giornata intera */
+  oraDa?: string
+  oraA?: string
 }
 
 export type RawRequest = {
   id: string; profile_id: string; type: string; status: string
   start_date: string | null; end_date: string | null; notes: string | null
+  /** §446 — 085: un permesso può essere di qualche ora */
+  is_full_day?: boolean | null; start_time?: string | null; end_time?: string | null
 }
 export type RawLeave = {
   id: string; user_id: string; type: string; status: string
@@ -99,9 +104,13 @@ export function normalize(requests: RawRequest[], leaves: RawLeave[]): {
     if (!isDate(r.start_date) || !isDate(r.end_date)) {
       dropped.push({ id: r.id, reason: 'senza date' }); continue
     }
+    /* §446 — gli orari solo se ci sono tutti e due e hanno senso: un permesso
+       «dalle 14» senza fine non si disegna, si tratta come giornata intera */
+    const ore = r.is_full_day === false && oraOk(r.start_time) && oraOk(r.end_time) && hhmm(r.start_time!) < hhmm(r.end_time!)
+      ? { oraDa: hhmm(r.start_time!), oraA: hhmm(r.end_time!) } : {}
     push({
       id: r.id, source: 'richiesta', profileId: r.profile_id, kind,
-      status: STATUS[r.status] ?? 'da approvare', from: '', to: '', days: 0, notes: r.notes,
+      status: STATUS[r.status] ?? 'da approvare', from: '', to: '', days: 0, notes: r.notes, ...ore,
     }, r.start_date, r.end_date)
   }
 
@@ -129,6 +138,30 @@ export function normalize(requests: RawRequest[], leaves: RawLeave[]): {
     spans: Array.from(seen.values()).sort((a, b) => a.from.localeCompare(b.from)),
     dropped,
   }
+}
+
+const oraOk = (t: string | null | undefined): t is string => !!t && /^\d{2}:\d{2}(:\d{2})?$/.test(t)
+/** «09:00:00» del database → «09:00» */
+export const hhmm = (t: string) => t.slice(0, 5)
+
+/**
+ * §446 — un'assenza come blocchi d'orario, un giorno per volta: le ferie
+ * occupano la giornata di lavoro (9–18), un permesso a ore il suo intervallo.
+ * I giorni non lavorativi non si contano: le ferie non occupano la domenica.
+ * `nonLavorativo` arriva da chi chiama (`calendario-lavorativo`), per restare puri.
+ */
+export function blocchiAssenza(
+  s: Span,
+  orario: { da: string; a: string },
+  nonLavorativo: (giorno: string) => boolean,
+): { giorno: string; da: string; a: string }[] {
+  if (s.status === 'rifiutata') return []
+  const out: { giorno: string; da: string; a: string }[] = []
+  for (let g = s.from; g <= s.to; g = addDays(g, 1)) {
+    if (nonLavorativo(g)) continue
+    out.push({ giorno: g, da: s.oraDa ?? orario.da, a: s.oraA ?? orario.a })
+  }
+  return out
 }
 
 /** Vale in quel giorno? Le rifiutate non valgono mai: non è successo niente. */

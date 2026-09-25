@@ -5,9 +5,10 @@ import { createActorClient, createAdminClient } from '@/lib/supabase/admin'
 import { requireDealAccess, requireSalesAccess } from '@/lib/sales-guard'
 import { uuid } from '@/lib/sales'
 import { personalGoogleCalendar } from '@/lib/google-calendar'
-import { normalize, addDays, type RawLeave, type RawRequest } from '@/lib/leave-calendar'
+import { normalize, addDays, blocchiAssenza, type RawLeave, type RawRequest } from '@/lib/leave-calendar'
+import { nonLavorativo } from '@/lib/calendario-lavorativo'
 import { istanteRoma } from '@/lib/sales-timeline'
-import { validaFollowup, type Impegno } from '@/lib/sales-agenda'
+import { ORARIO, validaFollowup, type Impegno } from '@/lib/sales-agenda'
 import { CAMPI_DERIVATI, type Derivati } from '@/lib/sales-timeline'
 
 /**
@@ -74,7 +75,7 @@ export async function leggiAgenda(dal: string, al: string): Promise<{ impegni: I
       .eq('type', 'followup').eq('stato', 'in_programma').eq('created_by', actor)
       .gte('occurred_at', timeMin).lt('occurred_at', timeMax),
     // 4. ferie e permessi
-    admin.from('hr_requests').select('id, profile_id, type, status, start_date, end_date, notes').eq('profile_id', actor),
+    admin.from('hr_requests').select('id, profile_id, type, status, start_date, end_date, notes, is_full_day, start_time, end_time').eq('profile_id', actor),
     admin.from('team_leaves').select('id, user_id, type, status, start_date, end_date, notes, days_count').eq('user_id', actor),
     // 5. le task in scadenza
     admin.from('task_assignees').select('task_id').eq('profile_id', actor),
@@ -93,14 +94,19 @@ export async function leggiAgenda(dal: string, al: string): Promise<{ impegni: I
       tuttoIlGiorno: false, occupa: true })
   }
 
+  /* §446 — le assenze come blocchi d'orario: le ferie la giornata di lavoro
+     (9–18), un permesso le sue ore. Un permesso dalle 14 alle 16 lascia libera
+     la mattina, e prima lo trattavamo come giornata intera. */
   const { spans } = normalize((richieste.data ?? []) as RawRequest[], (registro.data ?? []) as RawLeave[])
   for (const s of spans) {
     if (s.status === 'rifiutata' || s.to < dal || s.from > al) continue
-    const inizio = istanteRoma(s.from, '00:00'), fine = istanteRoma(addDays(s.to, 1), '00:00')
-    if (!inizio || !fine) continue
     const approvata = s.status === 'approvata'
-    impegni.push({ id: `l:${s.id}`, tipo: 'ferie', titolo: s.kind === 'ferie' ? 'Ferie' : s.kind === 'permesso' ? 'Permesso' : 'Assenza',
-      inizio, fine, tuttoIlGiorno: true, occupa: approvata, daConfermare: !approvata })
+    for (const b of blocchiAssenza(s, ORARIO, nonLavorativo)) {
+      const inizio = istanteRoma(b.giorno, b.da), fine = istanteRoma(b.giorno, b.a)
+      if (!inizio || !fine) continue
+      impegni.push({ id: `l:${s.id}:${b.giorno}`, tipo: 'ferie', titolo: s.kind === 'ferie' ? 'Ferie' : s.kind === 'permesso' ? 'Permesso' : 'Assenza',
+        inizio, fine, tuttoIlGiorno: false, occupa: approvata, daConfermare: !approvata })
+    }
   }
 
   const idTask = Array.from(new Set(((assegnate.data ?? []) as { task_id: string }[]).map(t => t.task_id)))

@@ -1,6 +1,7 @@
 /* Quando fissare un follow-up (§439).
    Esegui: npx tsx lib/sales-agenda.check.ts
 
+   §446 — l'orario è 9–18 per tutti (era 8–18).
    Le cose da non sbagliare: proporre un sabato, un festivo o le 19 come «primo
    buco libero»; dire «Domani 9:30» di venerdì; e bloccare invece di avvisare. */
 
@@ -22,7 +23,7 @@ const imp = (inizio: string, fine: string, x: Partial<Impegno> = {}): Impegno =>
 const ADESSO = Z('2026-09-25T09:00:00Z')
 
 console.log('\n— La giornata lavorativa —')
-is('giovedì 8–18 di Roma', ((g) => g && [roma(g.da), roma(g.a)])(giornataLavorativa('2026-09-24')), ['2026-09-24 08:00', '2026-09-24 18:00'])
+is('giovedì 9–18 di Roma', ((g) => g && [roma(g.da), roma(g.a)])(giornataLavorativa('2026-09-24')), ['2026-09-24 09:00', '2026-09-24 18:00'])
 is('sabato no', giornataLavorativa('2026-09-26'), null)
 is('Natale no', giornataLavorativa('2026-12-25'), null)
 is('dopo il venerdì viene il lunedì', prossimoLavorativo('2026-09-25'), '2026-09-28')
@@ -45,11 +46,11 @@ is('nel passato', conflitti(Z('2026-09-25T07:00:00Z'), 30, [], ADESSO).map(c => 
 console.log('\n— Il primo buco libero —')
 is('adesso, arrotondato al quarto d\'ora', roma(primoLibero(Z('2026-09-25T09:07:00Z'), 30, [])), '2026-09-25 11:15')
 is('dopo la call', roma(primoLibero(Z('2026-09-25T12:00:00Z'), 30, [call])), '2026-09-25 15:00')
-is('alle 17:50 non ci sta: lunedì alle 8', roma(primoLibero(Z('2026-09-25T15:50:00Z'), 30, [])), '2026-09-28 08:00')
-is('in ferie: il giorno dopo', roma(primoLibero(Z('2026-09-25T09:00:00Z'), 30, [ferie])), '2026-09-28 08:00')
+is('alle 17:50 non ci sta: lunedì alle 9', roma(primoLibero(Z('2026-09-25T15:50:00Z'), 30, [])), '2026-09-28 09:00')
+is('in ferie: il giorno dopo', roma(primoLibero(Z('2026-09-25T09:00:00Z'), 30, [ferie])), '2026-09-28 09:00')
 is('una ferie da approvare non blocca il suggerimento', roma(primoLibero(Z('2026-09-25T09:00:00Z'), 30, [{ ...ferie, daConfermare: true }])), '2026-09-25 11:00')
 const pieno = imp('2026-09-25T06:00:00Z', '2026-09-25T16:00:00Z')
-is('giornata piena: lunedì', roma(primoLibero(Z('2026-09-25T09:00:00Z'), 60, [pieno])), '2026-09-28 08:00')
+is('giornata piena: lunedì', roma(primoLibero(Z('2026-09-25T09:00:00Z'), 60, [pieno])), '2026-09-28 09:00')
 
 console.log('\n— Le scorciatoie —')
 const s = scorciatoie(ADESSO)

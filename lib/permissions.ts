@@ -105,6 +105,20 @@ export function isExternalResource(appRole: string | null | undefined): boolean 
 }
 
 /**
+ * §446 — chi legge il **titolo** degli eventi dei colleghi nel calendario.
+ *
+ * Lo staff interno: admin e dipendenti (manager, senior, junior, stage). Prima
+ * degli altri si vedeva solo «Occupato», e per organizzare una riunione bisognava
+ * chiedere a voce che cosa ci fosse in agenda. Descrizione, invitati e link
+ * restano del proprietario, e un evento privato resta «Occupato» per tutti.
+ * Freelance e partner no: lavorano con noi, non dentro l'agenda di tutti.
+ */
+export function vedeTitoliColleghi(appRole: string | null | undefined, email?: string | null): boolean {
+  return isSuperAdminRaw(email ?? null, appRole ?? null) || isAdminRole(appRole)
+    || ['manager', 'senior', 'junior', 'stage'].includes(appRole ?? '')
+}
+
+/**
  * §316 — Chi vede in chiaro chiavi API e password degli account dei clienti
  * (tab Chiavi e Accessi, azioni `reveal*`). Staff interno: admin e dipendenti.
  * Freelance e partner sono fuori, e `viewer` è sola lettura per definizione.

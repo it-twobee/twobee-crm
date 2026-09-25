@@ -3,6 +3,7 @@ import { getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { CalendarioClient } from '@/components/calendario/CalendarioClient'
 import type { Profile } from '@/lib/types/database'
+import { INTERNAL_COARSE_ROLES } from '@/lib/permissions'
 
 export const revalidate = 0
 
@@ -22,7 +23,10 @@ export default async function WorkspaceCalendarioPage() {
       .select('id, title, meeting_date, duration_minutes, description')
       .gte('meeting_date', startDate)
       .order('meeting_date'),
-    supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true).order('full_name'),
+    /* §409 — i colleghi sono lo staff interno: un account del portale cliente
+       non ha un calendario da mostrare al team, e il filtro sta nella query */
+    supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true)
+      .in('role', INTERNAL_COARSE_ROLES as unknown as string[]).order('full_name'),
   ])
 
   return (
@@ -31,6 +35,7 @@ export default async function WorkspaceCalendarioPage() {
       localMeetings={meetingsRes.data ?? []}
       profiles={(profilesRes.data ?? []) as unknown as Pick<Profile, 'id' | 'full_name' | 'avatar_url'>[]}
       currentUserId={profile.id}
+      base="/workspace"
     />
   )
 }

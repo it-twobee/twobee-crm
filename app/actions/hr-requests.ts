@@ -1,5 +1,7 @@
 'use server'
 
+import { istanteRoma } from '@/lib/sales-timeline'
+import { hhmm } from '@/lib/leave-calendar'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
@@ -69,8 +71,11 @@ export async function approveHrRequest(requestId: string, note?: string): Promis
     if (!r.start_date) throw new Error('La richiesta non ha una data di inizio')
     const end = r.end_date ?? r.start_date
     const allDay = r.is_full_day !== false
-    const startAt = allDay ? `${r.start_date}T00:00:00Z` : `${r.start_date}T${r.start_time ?? '09:00'}:00`
-    const endAt = allDay ? `${end}T23:59:59Z` : `${end}T${r.end_time ?? '18:00'}:00`
+    /* §446 — l'ora del database arriva «14:00:00»: accodarci «:00» dava
+       «14:00:00:00», che non è una data. E senza fuso le 14 di Roma finivano
+       alle 14 di Greenwich, due ore dopo. `istanteRoma` fa tutte e due le cose. */
+    const startAt = allDay ? `${r.start_date}T00:00:00Z` : istanteRoma(r.start_date, hhmm(r.start_time ?? '09:00')) ?? `${r.start_date}T07:00:00Z`
+    const endAt = allDay ? `${end}T23:59:59Z` : istanteRoma(end, hhmm(r.end_time ?? '18:00')) ?? `${end}T16:00:00Z`
 
     const { data: profile } = await admin.from('profiles').select('full_name').eq('id', r.profile_id).single()
     const who = (profile as { full_name: string } | null)?.full_name ?? ''
