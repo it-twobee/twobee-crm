@@ -23,7 +23,7 @@ import { creaLead, importaLeadCsv, type EsitoImport } from '@/app/actions/sales'
 import { leggiCsv, conIntestazioni } from '@/lib/sales-import'
 import { riconosci, converti, spiegaMappa, trovaIntestazione, NOME_CAMPO, type CampoLead, type Mappa } from '@/lib/sales-csv-esterno'
 import { eExcel } from '@/lib/sales-xlsx'
-import { leggiExcel } from './leggiExcel'
+import { leggiExcel } from '@/components/shared/leggiExcel'
 import { ETICHETTA_GRUPPO, GRUPPI } from '@/lib/sales-stages'
 import { useFasi } from './FasiContext'
 

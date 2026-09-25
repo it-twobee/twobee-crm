@@ -23,7 +23,7 @@ export async function leggiExcel(file: File): Promise<string[][]> {
   const leggi = async (nome: string): Promise<string | null> => {
     const v = voci.find(x => x.filename === nome)
     if (!v || v.directory || !v.getData) return null
-    if (v.uncompressedSize > TETTO) throw new Error('Il foglio è troppo grande per essere una lista di lead.')
+    if (v.uncompressedSize > TETTO) throw new Error('Il foglio è troppo grande.')
     return v.getData(new zip.TextWriter())
   }
 

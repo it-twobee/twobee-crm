@@ -262,4 +262,34 @@ già pagato invece di un «duplicate key».
   l'economics: la parte piena della barra dei ricavi è incassato, quella smorzata
   è credito. Zero è sempre visibile e il numero sta scritto accanto al pixel.
 
+## Una porta sola: «Carica documenti» (§449, `/economics/carica`)
+Ogni documento aveva la sua porta — gli estratti in Banca, gli XML in
+Fatturazione — e i firmati `.p7m` e gli zip dello SdI non ne avevano nessuna:
+si aprivano a mano e si caricava un XML per volta. Adesso si trascina tutto
+insieme:
 
+- **Si riconosce dal contenuto** (`tipoFile` in `lib/carica.ts`): fattura XML,
+  firmata, zip, camt.053, CSV, Excel, PDF. Lo zip si apre nel browser e ogni
+  file dentro diventa una voce.
+- **Le firmate** si aprono con `xmlDaP7m` (`lib/p7m.ts`): la busta CMS si legge
+  come struttura ASN.1 e l'OCTET STRING si ricompone anche quando è spezzato in
+  pezzi a lunghezza indefinita — cercare «<?xml» nei byte lasciava le
+  intestazioni dei pezzi in mezzo alla fattura. La firma non si verifica (lo ha
+  fatto l'SdI).
+- **Gli estratti Excel** diventano testo per `parseStatement`
+  (`righeExcelATesto`): si parte dalla prima riga con un'intestazione di
+  estratto (titolo e periodo sopra la tabella si saltano) e le date Excel
+  (numeri) tornano giorno/mese/anno.
+- **Il conto** si suggerisce dal tracciato (`contoSuggerito`: Vivid e camt sul
+  conto Vivid, il tracciato italiano su Intesa, altrimenti il principale) e si
+  cambia prima di caricare.
+- **Dopo il caricamento** il tool aggancia da solo i movimenti **certi**
+  (`confirmSureMatches`, la regola del bottone di §276) e lascia gli altri a
+  Banca e Fatturazione.
+- **I PDF si accettano e non si leggono**: estratti, cedolini e F24 in PDF
+  hanno bisogno di un esempio del tracciato. Un lettore scritto alla cieca
+  darebbe numeri plausibili e sbagliati.
+
+Il collegamento automatico (open banking per Intesa e Vivid, API Aruba per le
+fatture) è in attesa della scelta del fornitore: il confronto è in una pagina a
+parte, con le fonti.

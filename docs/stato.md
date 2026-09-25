@@ -1,5 +1,13 @@
 # Dove siamo
 
+## Carica documenti: una porta sola per banca e fatture — §449, 2026-09-25
+
+`/economics/carica` accetta insieme estratti conto (CSV, Excel, camt.053) e
+fatture (XML, firmate .p7m, zip interi dello SdI), riconosce ogni file dal
+contenuto, suggerisce il conto, carica e poi aggancia da soli i movimenti certi.
+I PDF si accettano e si dice che non si leggono ancora (serve un esempio).
+Open banking e API Aruba aspettano la scelta del fornitore.
+
 ## Personale: costi mese per mese, maturati e scadenze — §448, 2026-09-25
 
 Nuova tab «Costi e maturati»: la matrice mesi × persone sul periodo scelto

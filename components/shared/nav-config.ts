@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, FolderOpen, Settings, CalendarDays, Headphones,
   Ticket, UserCircle2, History, Lightbulb, FolderKanban, Briefcase, ListChecks, ListTodo,
-  Wallet, Target, Handshake, Landmark, Users2, Banknote, FileText, Share2, Table2, Radar, KeyRound, Activity, GitBranch,
+  Wallet, Target, Handshake, Landmark, Users2, Banknote, FileText, Share2, Table2, Radar, KeyRound, Activity, GitBranch, Upload,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -70,6 +70,8 @@ export const navSections: NavSection[] = [
       { href: '/economics/costi', icon: Target, label: 'Costi e budget', adminOnly: true },
       { href: '/economics/personale', icon: Users2, label: 'Personale', adminOnly: true },
       { href: '/economics/fiscale', icon: Landmark, label: 'Fiscale & tasse', adminOnly: true },
+      // §449 — la porta unica: estratti conto e fatture, tutti insieme
+      { href: '/economics/carica', icon: Upload, label: 'Carica documenti', adminOnly: true },
     ],
   },
   {
