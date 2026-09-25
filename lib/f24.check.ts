@@ -4,7 +4,7 @@
  *
  *   npx tsx lib/f24.check.ts
  */
-import { debits, credits, netDue, split, check, findings, costOf, type F24Doc, type F24Line } from './f24'
+import { debits, credits, netDue, split, check, findings, costOf, movimentoDelModello, righeDalModello, type F24Doc, type F24Line } from './f24'
 
 let ok = 0
 const fails: string[] = []
@@ -114,6 +114,26 @@ eq('agosto quadra', check(AGOSTO), { ok: true })
   const p = findings({ doc: AGOSTO, payrollDeclared: 941.42 })
   has('ritenute che non combaciano rimandano al cedolino',
       p.find(x => x.id === 'f24-payroll')?.detail, 'documento batte la stima')
+}
+
+{
+  /* §450 — il PDF del consulente diventa righe, e il modello si segna versato
+     solo quando la banca mostra l'addebito, e uno solo. */
+  const righe = righeDalModello([
+    { sezione: 'erario', codice: '1001', riferimento: '0007 2026', debito: 210, credito: 0 },
+    { sezione: 'erario', codice: '1701', riferimento: '0007 2026', debito: 0, credito: 100 },
+    { sezione: 'inps', codice: '5100', riferimento: 'DM10 1234567890 072026', debito: 471, credito: 0 },
+  ], '2026-07-01')
+  eq('PDF: i mondi delle righe', righe.map(r => `${r.kind}:${r.amount}:${r.period}`),
+     ['ritenute:210:2026-07-01', 'credito:100:2026-07-01', 'inps:471:2026-07-01'])
+  eq('PDF: il modello torna', check({ dueDate: '2026-08-17', total: 581, lines: righe }).ok, true)
+  const doc = { dueDate: '2026-08-17', total: 581 }
+  const tx = (id: string, booked_on: string, amount: number) => ({ id, booked_on, amount })
+  eq('banca: l\'addebito del lunedì dopo la scadenza', movimentoDelModello(doc, [tx('a', '2026-08-18', -581)])?.id, 'a')
+  eq('banca: un incasso dello stesso importo non paga un F24', movimentoDelModello(doc, [tx('a', '2026-08-18', 581)]), null)
+  eq('banca: un mese dopo non è quel modello', movimentoDelModello(doc, [tx('a', '2026-09-16', -581)]), null)
+  eq('banca: due candidati sono un dubbio', movimentoDelModello(doc, [tx('a', '2026-08-17', -581), tx('b', '2026-08-18', -581)]), null)
+  eq('banca: un movimento già agganciato non conta', movimentoDelModello(doc, [tx('a', '2026-08-17', -581), tx('b', '2026-08-18', -581)], new Set(['a']))?.id, 'b')
 }
 
 console.log(fails.length === 0

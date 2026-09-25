@@ -184,3 +184,31 @@ La pagina ragionava su un mese alla volta. La tab **«Costi e maturati»**:
 
 Resta aperta la lettura automatica dei PDF del consulente (cedolini e F24):
 serve un esempio dei documenti per sapere com'è fatto il tracciato.
+
+## I PDF del consulente: cedolini e F24 (§450)
+Il consulente usa **Ranocchi** (elaborati Gialeda). I PDF hanno il testo, e il
+testo da solo non basta: «1.385,94» compare due volte sulla stessa riga, come
+reddito e come imponibile. `lib/pdf-paghe.ts` legge **per posizione** — le
+parole con le coordinate, da pdf.js nel browser (`lib/pdf-pezzi.ts`) — e cerca
+ogni valore sotto la sua etichetta, nella colonna dell'etichetta.
+
+- **Il cedolino si salva da solo solo se quadra al centesimo**: competenze −
+  contributi − IRPEF − addizionali − trattenute + arrotondamento = netto, **e**
+  le voci sommano al totale, **e** il nome è di una persona in organico
+  (`stessaPersona`: «CRISTALLO MICHELE» è «Michele Cristallo»). Un lettore che
+  sbaglia colonna produce numeri plausibili; la quadratura è il controllo che
+  lo scopre. Altrimenti resta «da confermare» col perché, e si salva a mano.
+- **L'arrotondamento precedente non è una trattenuta**: «ALTRE TRATTENUTE» lo
+  contiene, e contarlo due volte sposta il netto. `rounding` = attuale −
+  precedente, `other_deductions` = altre trattenute − precedente.
+- **Gli oneri del datore restano NULL**: arrivano dall'F24 (§235).
+- **L'F24** si legge per righe (codice, riferimento, debito, credito) e
+  sezioni (la riga «TOTALE» chiude la sezione). Deve tornare col saldo finale.
+  Si scrive in due posti, come a mano: la parte del personale in `hr_f24` e il
+  modello intero in `f24_documents` (§301), con le righe per mondo
+  (`righeDalModello`: 1001–1099 e addizionali 38xx ritenute, 6001–6099 IVA,
+  colonna credito → `credito`). **Non si segna versato**: lo fa la banca
+  (`docs/banca.md`). Lo stesso modello caricato due volte (stessa scadenza,
+  stesso totale) non si duplica.
+- I PDF veri non entrano nel repository: `lib/pdf-paghe.check.ts` li ricostruisce
+  con le coordinate del tracciato e valori inventati.

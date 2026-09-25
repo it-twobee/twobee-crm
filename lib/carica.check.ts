@@ -1,7 +1,7 @@
 /* La pagina unica di caricamento (§449).
    Esegui: npx tsx lib/carica.check.ts */
 
-import { contoSuggerito, righeExcelATesto, tipoFile } from '@/lib/carica'
+import { contoSuggerito, daQuanto, esadecimale, ibanDelFile, righeExcelATesto, tipoFile } from '@/lib/carica'
 import { parseStatement } from '@/lib/bank-import'
 
 let fail = 0
@@ -42,6 +42,28 @@ const conti = [
 is('Vivid e camt sul conto Vivid', [contoSuggerito('vivid', conti), contoSuggerito('camt', conti)], ['v', 'v'])
 is('il tracciato italiano su Intesa', contoSuggerito('italiano', conti), 'i')
 is('senza un conto col nome: il principale', contoSuggerito('vivid', [conti[0]]), 'i')
+
+/* §450 — quattro conti Vivid: decide l'IBAN, e dove non c'è ancora si sceglie */
+const BPM = { id: 'b', label: 'Conto corrente Two Bee', bank_name: 'Banco BPM', is_primary: true, iban: null }
+const quattro = [BPM,
+  { id: 'm', label: 'Vivid Marco', bank_name: 'Vivid', is_primary: false, iban: 'IT11 A000 0000 0000 0000 0000 111' },
+  { id: 't', label: 'Vivid Toto', bank_name: 'Vivid', is_primary: false, iban: null },
+  { id: 'w', label: 'Vivid Walter', bank_name: 'Vivid', is_primary: false, iban: null },
+]
+is('IBAN noto: il suo conto', contoSuggerito('camt', quattro, 'IT11A0000000000000000000111'), 'm')
+is('IBAN nuovo fra più Vivid senza IBAN: si sceglie', contoSuggerito('camt', quattro, 'IT22B0000000000000000000222'), null)
+is('IBAN nuovo e un solo Vivid senza IBAN: quello', contoSuggerito('camt', quattro.slice(0, 3), 'IT22B0000000000000000000222'), 't')
+is('il tracciato italiano su Banco BPM', contoSuggerito('italiano', quattro), 'b')
+is('IBAN dal blocco del conto del camt',
+  ibanDelFile('estratto.xml', '<Stmt><Acct>\n <Id>\n  <IBAN>IT22B0000000000000000000222</IBAN></Id></Acct><Ntry><RltdPties><CdtrAcct><Id><IBAN>IT99Z9999999999999999999999</IBAN></Id></CdtrAcct></RltdPties></Ntry>'),
+  'IT22B0000000000000000000222')
+is('IBAN dal nome del file Vivid', ibanDelFile('Statement_IT22B0000000000000000000222_2026_09_01.xml', '<Ntry/>'), 'IT22B0000000000000000000222')
+is('nessun IBAN nel CSV della banca', ibanDelFile('MovimentiCC_OnLine_21_09_2026_11.04.49.csv', '"Data contabile";"Importo"'), null)
+
+is('da quanto: oggi, ieri, giorni, mai',
+  [daQuanto('2026-09-25', '2026-09-25').testo, daQuanto('2026-09-24T10:00:00Z', '2026-09-25').testo, daQuanto('2026-09-01', '2026-09-25').testo, daQuanto(null, '2026-09-25').testo],
+  ['oggi', 'ieri', '24 giorni fa', 'mai'])
+is('impronta in esadecimale', esadecimale(new Uint8Array([0, 15, 255]).buffer), '000fff')
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

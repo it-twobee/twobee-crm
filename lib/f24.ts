@@ -193,3 +193,48 @@ export function findings(i: {
  * erano nostri nemmeno il giorno prima (§225).
  */
 export const costOf = (doc: F24Doc) => split(doc.lines).payroll
+
+/**
+ * Il movimento che paga un modello, se ce n'è **uno solo** (§450).
+ *
+ * Il modello si segna versato quando la banca lo mostra, non quando arriva il
+ * PDF: «da versare il 16» non vuol dire «versato». Si cerca un'uscita dello
+ * stesso importo al centesimo, entro cinque giorni dalla scadenza (l'addebito
+ * del 16 che cade di sabato arriva il lunedì), non già agganciata a un altro
+ * modello. Due candidati sono un dubbio, e un dubbio non si decide da solo.
+ */
+export function movimentoDelModello(
+  doc: { dueDate: string; total: number },
+  txs: { id: string; booked_on: string; amount: number; description?: string | null }[],
+  giaUsati: Set<string> = new Set(),
+): { id: string; booked_on: string } | null {
+  const giorno = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 86_400_000
+  const c = txs.filter(t => !giaUsati.has(t.id)
+    && Math.abs(-t.amount - doc.total) <= TOL
+    && Math.abs(giorno(t.booked_on.slice(0, 10)) - giorno(doc.dueDate)) <= 5)
+  return c.length === 1 ? { id: c[0].id, booked_on: c[0].booked_on.slice(0, 10) } : null
+}
+
+/**
+ * Il modello letto dal PDF (`lib/pdf-paghe.ts`) come righe del documento.
+ * Il codice dice il mondo: 1001–1099 e le addizionali 38xx ritenute, 6001–6099
+ * IVA; quello in colonna credito si sottrae; la sezione INPS/INAIL dice sé.
+ */
+export function righeDalModello(righe: { sezione: string; codice: string; riferimento: string; debito: number; credito: number }[], competenza: string | null): F24Line[] {
+  const out: F24Line[] = []
+  for (const r of righe) {
+    const periodo = (() => {
+      const a = /^00(\d{2})\s+(\d{4})$/.exec(r.riferimento) ?? /(\d{2})(\d{4})$/.exec(r.riferimento)
+      return a && +a[1] >= 1 && +a[1] <= 12 ? `${a[2]}-${a[1]}-01` : competenza
+    })()
+    const c = Number(r.codice)
+    const kind: TributeKind = r.sezione === 'inps' ? 'inps' : r.sezione === 'inail' ? 'inail'
+      : c >= 6001 && c <= 6099 ? 'iva'
+      // le addizionali regionali e comunali trattenute in busta (3802, 3847, 3848) sono ritenute
+      : (c >= 1001 && c <= 1099) || (c >= 3802 && c <= 3848) ? 'ritenute' : 'altro'
+    const label = `${r.codice}${r.sezione === 'erario' ? '' : ` ${r.sezione.toUpperCase()}`}`
+    if (r.debito > 0) out.push({ codice: r.codice, label, kind, amount: r2(r.debito), period: periodo })
+    if (r.credito > 0) out.push({ codice: r.codice, label: `${label} (compensato)`, kind: 'credito', amount: r2(r.credito), period: periodo })
+  }
+  return out
+}

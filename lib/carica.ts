@@ -19,7 +19,9 @@ export type TipoFile =
   | 'banca_camt'     // estratto conto camt.053
   | 'banca_testo'    // CSV/TSV dell'home banking
   | 'banca_excel'    // XLSX dell'home banking
-  | 'pdf'            // estratto, cedolino o F24: da leggere, serve un esempio
+  | 'pdf'            // un PDF: si apre e si guarda se è un cedolino o un F24
+  | 'cedolino'       // cedolino Ranocchi letto dal PDF (§450)
+  | 'f24'            // modello F24 letto dal PDF (§450)
   | 'sconosciuto'
 
 export function tipoFile(nome: string, inizio: string): TipoFile {
@@ -43,6 +45,8 @@ export const ETICHETTA_TIPO: Record<TipoFile, string> = {
   banca_testo: 'Estratto conto CSV',
   banca_excel: 'Estratto conto Excel',
   pdf: 'PDF',
+  cedolino: 'Cedolino',
+  f24: 'Modello F24',
   sconosciuto: 'Non riconosciuto',
 }
 
@@ -74,17 +78,55 @@ export function righeExcelATesto(righe: string[][]): { testo: string; dialetto: 
   return { testo: [intestazione, ...corpo].map(r => r.map(cella).join('\t')).join('\n'), dialetto }
 }
 
-export type Conto = { id: string; label: string; bank_name: string | null; is_primary: boolean }
+export type Conto = { id: string; label: string; bank_name: string | null; is_primary: boolean; iban?: string | null }
+
+export const normIban = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, '').toUpperCase()
 
 /**
- * Su che conto va un estratto. Vivid esporta il suo tracciato e il camt; il
- * tracciato italiano è di Intesa (o di un'altra banca italiana): si cerca il
- * conto col nome giusto, e se non c'è quello principale. È un suggerimento — la
- * pagina lo mostra e si cambia prima di caricare.
+ * §450 — l'IBAN di un estratto: il camt lo scrive nel blocco del conto, e Vivid
+ * lo mette anche nel nome del file. Il CSV di Banco BPM non lo scrive da
+ * nessuna parte, e lì decide il tracciato.
  */
-export function contoSuggerito(d: Dialect, conti: Conto[]): string | null {
-  const con = (s: RegExp) => conti.find(c => s.test(`${c.label} ${c.bank_name ?? ''}`))
-  const principale = conti.find(c => c.is_primary) ?? conti[0]
-  if (d === 'vivid' || d === 'camt') return (con(/vivid/i) ?? principale)?.id ?? null
-  return (con(/intesa|sanpaolo/i) ?? principale)?.id ?? null
+export function ibanDelFile(nome: string, testo: string): string | null {
+  const acct = /<Acct>\s*<Id>\s*<IBAN>\s*([A-Z]{2}\d{2}[A-Z0-9]{10,30})\s*<\/IBAN>/.exec(testo)
+  if (acct) return normIban(acct[1])
+  const n = /(?:^|[^A-Z0-9])([A-Z]{2}\d{2}[A-Z0-9]{11,30})(?:[^A-Z0-9]|$)/.exec(nome.toUpperCase())
+  return n ? n[1] : null
 }
+
+/**
+ * Su che conto va un estratto. **L'IBAN vince**: se un conto l'ha già, è
+ * quello. Se l'IBAN c'è e nessun conto lo conosce, fra quattro conti Vivid il
+ * tracciato non basta a scegliere — si lascia la scelta a chi carica, e la
+ * scelta insegna l'IBAN al conto. Il tracciato italiano è Banco BPM (il conto
+ * principale). È un suggerimento: la pagina lo mostra e si cambia prima di
+ * caricare.
+ */
+export function contoSuggerito(d: Dialect, conti: Conto[], iban: string | null = null): string | null {
+  if (iban) {
+    const suo = conti.find(c => normIban(c.iban) === normIban(iban))
+    if (suo) return suo.id
+  }
+  const tutti = (s: RegExp) => conti.filter(c => s.test(`${c.label} ${c.bank_name ?? ''}`))
+  const principale = conti.find(c => c.is_primary) ?? conti[0]
+  if (d === 'vivid' || d === 'camt') {
+    const vivid = tutti(/vivid/i).filter(c => !iban || !c.iban)
+    if (iban) return vivid.length === 1 ? vivid[0].id : null
+    return (vivid[0] ?? principale)?.id ?? null
+  }
+  return (tutti(/bpm|banco|intesa|sanpaolo/i)[0] ?? principale)?.id ?? null
+}
+
+/**
+ * §450 — quanto è vecchio l'ultimo dato di una fonte, in parole. «Mai» non è
+ * «tanto tempo fa»: una fonte che non è mai arrivata si dice così.
+ */
+export function daQuanto(data: string | null, oggi: string): { testo: string; giorni: number | null } {
+  if (!data) return { testo: 'mai', giorni: null }
+  const g = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 86_400_000
+  const n = Math.round(g(oggi) - g(data.slice(0, 10)))
+  return { testo: n <= 0 ? 'oggi' : n === 1 ? 'ieri' : `${n} giorni fa`, giorni: Math.max(0, n) }
+}
+
+/** l'impronta di un file, come la calcola l'archivio: esadecimale minuscolo */
+export const esadecimale = (b: ArrayBuffer) => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('')

@@ -1,5 +1,16 @@
 # Dove siamo
 
+## Cedolini e F24 dal PDF, archivio dei documenti — §450, 2026-09-25
+
+«Carica documenti» legge i PDF del consulente (Ranocchi): il cedolino che quadra
+al centesimo si salva da solo, gli altri si confermano; l'F24 si registra e
+risulta versato quando la banca mostra l'addebito. Il conto si riconosce
+dall'IBAN (i quattro Vivid), il principale è Banco BPM. Ogni originale va in
+archivio su MinIO con l'impronta, e un file già caricato si riconosce. In alto,
+da quando non arriva ogni fonte. Applicata la **266**. Da fare: configurare la
+copia notturna esterna dell'archivio (rclone, fuori dal codice). Open banking e
+API Aruba restano rinviati: si carica a mano.
+
 ## Carica documenti: una porta sola per banca e fatture — §449, 2026-09-25
 
 `/economics/carica` accetta insieme estratti conto (CSV, Excel, camt.053) e

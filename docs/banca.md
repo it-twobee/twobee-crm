@@ -280,15 +280,36 @@ insieme:
   (`righeExcelATesto`): si parte dalla prima riga con un'intestazione di
   estratto (titolo e periodo sopra la tabella si saltano) e le date Excel
   (numeri) tornano giorno/mese/anno.
-- **Il conto** si suggerisce dal tracciato (`contoSuggerito`: Vivid e camt sul
-  conto Vivid, il tracciato italiano su Intesa, altrimenti il principale) e si
-  cambia prima di caricare.
+- **Il conto** si riconosce dall'**IBAN** quando il file lo dice (§450: il camt
+  nel blocco `<Acct>`, Vivid anche nel nome del file). I conti Vivid sono
+  quattro, e un IBAN che nessun conto conosce non si assegna a occhio: si
+  sceglie una volta e il conto se lo ricorda (`bank_accounts.iban`, 266). Il CSV
+  di Banco BPM l'IBAN non lo scrive, e lì decide il tracciato: italiano → conto
+  principale (Banco BPM; in anagrafica era «Banca Valsabbina», stesso conto).
 - **Dopo il caricamento** il tool aggancia da solo i movimenti **certi**
   (`confirmSureMatches`, la regola del bottone di §276) e lascia gli altri a
   Banca e Fatturazione.
-- **I PDF si accettano e non si leggono**: estratti, cedolini e F24 in PDF
-  hanno bisogno di un esempio del tracciato. Un lettore scritto alla cieca
-  darebbe numeri plausibili e sbagliati.
+- **I PDF del consulente si leggono** (§450, vedi `docs/personale.md`):
+  cedolini Ranocchi e F24. Un PDF che non è né l'uno né l'altro va solo in
+  archivio.
+- **Gli F24 si segnano versati dalla banca** (`pagaF24DaBanca`, a ogni
+  caricamento): un'uscita dello stesso importo al centesimo entro cinque giorni
+  dalla scadenza, e **una sola** (`movimentoDelModello` in `lib/f24.ts`). Il
+  movimento si aggancia al modello (`payment_allocations.f24_id`) e il modello
+  passa la data a `hr_f24` e all'IVA (`markPaid`). Due candidati sono un dubbio,
+  e resta a Banca.
+- **L'archivio** (§450, `economics_documents`, 266): ogni originale va su MinIO
+  con l'impronta SHA-256, da `/api/economics/archivio` — una route e non
+  un'azione, perché un'azione regge un megabyte. Un file già caricato si
+  riconosce **prima** di rifarlo (`documentiNoti`) e si può ricaricare lo stesso.
+  Tabella deny-all, chiave scritta dal server. In alto la pagina dice da quando
+  non arriva ogni fonte (conti, fatture emesse e ricevute, cedolini, F24): un
+  estratto fermo da più di una settimana è in giallo.
+
+**La copia esterna** dell'archivio non è codice: è un job notturno sul VPS
+(`rclone sync` del bucket `twobee-crm`, prefisso `economics/`, verso un Hetzner
+Storage Box o un bucket Backblaze B2), con le credenziali nella configurazione di
+rclone e mai nel repository. Finché non gira, i documenti hanno una copia sola.
 
 Il collegamento automatico (open banking per Intesa e Vivid, API Aruba per le
 fatture) è in attesa della scelta del fornitore: il confronto è in una pagina a
