@@ -28,8 +28,7 @@ import { MenuFase } from './MenuFase'
 import { useFasi } from './FasiContext'
 import { campiCheServono, prossimaAzione, suggerimenti } from '@/lib/sales-scheda'
 import type { PersonaCrm, RigaCrm } from './CrmTable'
-import { SalesFollowUps } from './SalesFollowUps'
-import { CrmTimeline, TimelineProvider, UltimoContatto, useTimeline } from './CrmTimeline'
+import { CrmTimeline, TimelineProvider, UltimoContatto } from './CrmTimeline'
 import type { Derivati } from '@/lib/sales-timeline'
 
 const ORIGINE: [string, string][] = [
@@ -140,13 +139,6 @@ function Campo({ colonna, riga, onSalva, persone, onOwner }: {
   )
 }
 
-/** §438 — i follow-up entrano nel diario: salvarne uno lo fa ricomparire lì */
-function FollowUps({ riga }: { riga: RigaCrm }) {
-  const { ricarica } = useTimeline()
-  return <SalesFollowUps key={riga.id} dealId={riga.id} company={riga.company_name || 'Lead'}
-    email={typeof riga.contact_email === 'string' ? riga.contact_email : null} onCambiato={ricarica} />
-}
-
 export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pending, persone = [], onOwner, onSalvaExtra, onDerivati }: {
   riga: RigaCrm
   /** §438 — il diario ha ricalcolato ultimo contatto e tentativi: la riga li rilegge */
@@ -242,7 +234,9 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pend
         )}
       </div>
 
-      <TimelineProvider dealId={riga.id} onDerivati={onDerivati} iniziali={{
+      <TimelineProvider dealId={riga.id} company={riga.company_name || 'Lead'}
+        email={typeof riga.contact_email === 'string' ? riga.contact_email : null}
+        onDerivati={onDerivati} iniziali={{
         last_interaction_at: (riga.last_interaction_at as string | null) ?? null,
         last_interaction_has_time: riga.last_interaction_has_time !== false,
         tentativi: Number(riga.tentativi ?? 0),
@@ -295,9 +289,10 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pend
         )}
 
         {/* §438 — il diario prima dei campi: è quello che si guarda aprendo
-            una scheda per richiamare qualcuno, e i campi si leggono dopo */}
+            una scheda per richiamare qualcuno, e i campi si leggono dopo.
+            §439 — i follow-up stanno qui dentro: si fissano, si spostano e si
+            chiudono dal diario, non da un secondo riquadro che li ripeteva. */}
         <CrmTimeline />
-        <FollowUps riga={riga} />
         {GRUPPI_SCHEDA.filter(g => g !== 'provenienza').map(g => (
           <Riquadro key={g} titolo={TITOLO_GRUPPO[g]}>
             {COLONNE.filter(c => c.gruppo === g).map(c => (

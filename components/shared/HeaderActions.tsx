@@ -29,7 +29,7 @@ import { ThemeToggle } from '@/components/theme/ThemeToggle'
 const NOTIF_ICONS: Record<string, string> = {
   task_assigned: '✅', milestone_assigned: '⚑', task_due: '⏰', mention: '💬',
   approval_request: '🔔', approval_resolved: '✓', invite: '✉️', new_lead: '🎯',
-  client_lost: '💔', access_request: '🔑',
+  client_lost: '💔', access_request: '🔑', followup_reminder: '📞',
 }
 
 function timeAgo(date: string) {

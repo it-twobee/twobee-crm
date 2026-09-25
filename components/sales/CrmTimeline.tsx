@@ -31,6 +31,8 @@ import {
   type Derivati, type Direzione, type TipoVoce, type Voce,
 } from '@/lib/sales-timeline'
 import { MiniCalendario } from './MiniCalendario'
+import { PianificaFollowup, type FollowupDaSpostare } from './PianificaFollowup'
+import { annullaFollowup } from '@/app/actions/sales-agenda'
 
 const ICONA: Record<TipoVoce, typeof Phone> = {
   chiamata: Phone, email: Mail, whatsapp: MessageCircle, meeting: Users, nota: StickyNote, followup: CalendarClock, contatto: History,
@@ -55,6 +57,9 @@ type Ctx = {
   esito: (id: string, input: Bozza | { annulla: true }) => Promise<void>
   chiudiAppena: () => void
   ricarica: () => void
+  /** apre il selettore: vuoto per un follow-up nuovo, con la voce per spostarlo */
+  pianifica: (v?: Voce) => void
+  annulla: (v: Voce) => Promise<void>
 }
 const TimelineCtx = createContext<Ctx | null>(null)
 const useTimeline = () => {
@@ -74,8 +79,10 @@ type Bozza = {
 
 const PIENO: Derivati = { last_interaction_at: null, last_interaction_has_time: true, tentativi: 0, ultimo_tentativo_at: null, next_followup_at: null }
 
-export function TimelineProvider({ dealId, iniziali, onDerivati, children }: {
+export function TimelineProvider({ dealId, company, email, iniziali, onDerivati, children }: {
   dealId: string
+  company: string
+  email: string | null
   /** quello che l'elenco sa già: la riga si legge prima che il diario arrivi */
   iniziali: Partial<Derivati>
   onDerivati: (d: Derivati) => void
@@ -86,6 +93,7 @@ export function TimelineProvider({ dealId, iniziali, onDerivati, children }: {
   const [derivati, setDerivati] = useState<Derivati>({ ...PIENO, ...iniziali })
   const [lavoro, setLavoro] = useState(false)
   const [appena, setAppena] = useState<{ id: string; fino: number } | null>(null)
+  const [selettore, setSelettore] = useState<{ sposta?: FollowupDaSpostare } | null>(null)
   const onD = useRef(onDerivati)
   onD.current = onDerivati
 
@@ -127,8 +135,38 @@ export function TimelineProvider({ dealId, iniziali, onDerivati, children }: {
     esito: async (id, input) => { await esegui(() => esitoFollowup(id, input)) },
     chiudiAppena: () => setAppena(null),
     ricarica: () => { void carica() },
+    pianifica: v => setSelettore(v
+      ? { sposta: { id: v.id, inizio: v.occurred_at, durata: v.duration_min ?? 30, titolo: v.content ?? `Follow-up · ${company}`, googleEventId: v.google_event_id } }
+      : {}),
+    /* un follow-up su Google si annulla su Google — con i suoi invitati — e il
+       diario lo segue dalla route; uno solo nostro si annulla qui */
+    annulla: async v => {
+      if (!v.google_event_id) { await esegui(() => annullaFollowup(v.id)); return }
+      setLavoro(true)
+      try {
+        const lista = await fetch(`/api/sales/follow-up?dealId=${encodeURIComponent(dealId)}`, { cache: 'no-store' })
+        const dati = await lista.json()
+        if (!lista.ok) throw new Error(dati.error || 'Google Calendar non risponde')
+        const ev = (dati.events as { id: string; etag: string }[]).find(e => e.id === v.google_event_id)
+        if (!ev) throw new Error('L’appuntamento non è più su Google Calendar')
+        const res = await fetch('/api/sales/follow-up', { method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dealId, eventId: ev.id, etag: ev.etag }) })
+        const r = await res.json()
+        if (!res.ok) throw new Error(r.error || 'Annullamento non riuscito')
+        toast.success('Follow-up annullato')
+        await carica()
+      } catch (e) { toast.error((e as Error).message) } finally { setLavoro(false) }
+    },
   }
-  return <TimelineCtx.Provider value={ctx}>{children}</TimelineCtx.Provider>
+  return (
+    <TimelineCtx.Provider value={ctx}>
+      {children}
+      {selettore && (
+        <PianificaFollowup dealId={dealId} company={company} email={email} sposta={selettore.sposta}
+          onFatto={() => { void carica() }} onChiudi={() => setSelettore(null)} />
+      )}
+    </TimelineCtx.Provider>
+  )
 }
 
 /** il giorno e l'ora di Roma di adesso: il browser può stare altrove */
@@ -364,8 +402,8 @@ export function UltimoContatto() {
 }
 
 function VoceRiga({ v }: { v: Voce }) {
-  const { modifica, elimina, esito, lavoro } = useTimeline()
-  const [modo, setModo] = useState<'leggi' | 'modifica' | 'elimina' | 'esito'>('leggi')
+  const { modifica, elimina, esito, lavoro, pianifica, annulla } = useTimeline()
+  const [modo, setModo] = useState<'leggi' | 'modifica' | 'elimina' | 'annulla'>('leggi')
   const I = ICONA[v.type]
   const ms = Date.parse(v.occurred_at)
   const passato = ms <= Date.now()
@@ -419,8 +457,29 @@ function VoceRiga({ v }: { v: Voce }) {
                   {e.etichetta}
                 </button>
               ))}
+              <button type="button" disabled={lavoro} onClick={() => pianifica(v)} className={chip(false)}>Rimanda…</button>
             </div>
           </div>
+        )}
+
+        {inProgramma && !daChiudere && (
+          modo === 'annulla' ? (
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              <span className="text-2xs text-text-secondary">Annullare il follow-up?{v.google_event_id ? ' Gli invitati ricevono l’annullamento.' : ''}</span>
+              <button type="button" disabled={lavoro} onClick={() => { void annulla(v); setModo('leggi') }} className="text-2xs font-semibold text-error hover:underline">Annulla il follow-up</button>
+              <button type="button" onClick={() => setModo('leggi')} className="text-2xs text-text-tertiary hover:text-text-primary">Tienilo</button>
+            </div>
+          ) : (
+            <div className="flex gap-2 mt-1">
+              <button type="button" disabled={lavoro} onClick={() => pianifica(v)} className="inline-flex items-center gap-1 text-2xs text-text-tertiary hover:text-text-primary">
+                <CalendarDays className="w-3 h-3" />Sposta
+              </button>
+              <button type="button" disabled={lavoro} onClick={() => setModo('annulla')} className="inline-flex items-center gap-1 text-2xs text-text-tertiary hover:text-error">
+                <Trash2 className="w-3 h-3" />Annulla
+              </button>
+              {!v.google_event_id && <span className="text-2xs text-text-tertiary">· promemoria in campanella</span>}
+            </div>
+          )
         )}
 
         {modo === 'elimina' ? (
@@ -453,7 +512,7 @@ const PRIMA = 8
  * lead, non a scorrere sei mesi di chiamate.
  */
 export function CrmTimeline() {
-  const { voci, errore, derivati, registra, ricarica } = useTimeline()
+  const { voci, errore, derivati, registra, ricarica, pianifica } = useTimeline()
   const [modulo, setModulo] = useState(false)
   const [tutte, setTutte] = useState(false)
 
@@ -467,6 +526,10 @@ export function CrmTimeline() {
     <section className="border border-border rounded-xl overflow-hidden" aria-label="Timeline dei contatti">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
         <h3 className="text-2xs font-semibold text-text-tertiary uppercase tracking-wide mr-auto">Contatti</h3>
+        <button type="button" onClick={() => pianifica()}
+          className="inline-flex items-center gap-1 text-2xs font-semibold bg-gold text-on-gold px-2 py-0.5 rounded-lg">
+          <CalendarClock className="w-3 h-3" />Pianifica follow-up
+        </button>
         <button type="button" onClick={() => setModulo(v => !v)} aria-expanded={modulo}
           className="inline-flex items-center gap-1 text-2xs font-semibold text-gold-text border border-gold/40 px-2 py-0.5 rounded-lg hover:bg-gold/10">
           <Plus className="w-3 h-3" />Registra

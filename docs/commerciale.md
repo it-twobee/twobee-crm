@@ -816,6 +816,37 @@ prima), e il resto discende:
   ora; i 19 con la data d'arrivo tornano «mai sentiti». Il sync non scrive più
   `last_interaction_at`.
 
+## Il follow-up si fissa guardando la propria giornata — §439
+
+Prima c'era un `datetime-local` e un numero di minuti: l'ora si sceglieva al
+buio, e il conflitto si scopriva su Google. Adesso «Pianifica follow-up» nel
+riquadro Contatti apre `PianificaFollowup`:
+
+- **Si apre sul primo buco libero**, e le scorciatoie mettono giorno e ora
+  insieme: tra un'ora, oggi 15:00, domani mattina/pomeriggio (di venerdì
+  diventa «Lunedì»), tra tre giorni lavorativi, lunedì prossimo, tra due
+  settimane. Durata a chip: 15, 30, 45, 60.
+- **Accanto al mese c'è la giornata**, a fasce di mezz'ora dalle 7 alle 20,
+  con i propri impegni disegnati sopra: Google (se collegato), eventi del tool,
+  gli altri follow-up, ferie e permessi, le task in scadenza (tratteggiate:
+  ricordano, non occupano). Un clic sulla fascia fissa l'ora. Legge **solo
+  l'agenda di chi pianifica** (`leggiAgenda`, un mese alla volta).
+- **I conflitti avvisano, non bloccano**: sovrapposizione, fuori dall'orario
+  **8–18 lun–ven** (uguale per tutti), festivi, ferie; ferie da approvare
+  avvisano senza escludere lo slot. Accanto all'avviso, il primo libero dopo
+  quello scelto. Tutto in `lib/sales-agenda.ts`, a Roma, con il suo gate.
+- **Senza Google si pianifica lo stesso**: il follow-up vive nel diario e la
+  campanella lo ricorda un quarto d'ora prima (264, pg_cron ogni cinque
+  minuti), con il link `?lead=` che apre la scheda nel portale giusto. Con
+  Google resta la strada di sempre (route `/api/sales/follow-up`), che scrive
+  anche il diario; Google lo ricorda da sé, quindi la campanella non ripete.
+- **Si sposta e si annulla dal diario**: «Sposta» riapre lo stesso selettore,
+  «Annulla» chiede conferma (su Google avvisa gli invitati, e spostando
+  l'invito resta). Un follow-up passato ha anche «Rimanda…». Spostarne uno già
+  ricordato cancella il promemoria mandato, così suona di nuovo.
+- Il vecchio riquadro «I tuoi follow-up» (`SalesFollowUps`) non c'è più, e con
+  lui la prova browser che lo guidava: i follow-up comparivano due volte.
+
 ## Aperto
 
 - **La RLS non conosceva `deal_owners`**: `sales_can_read` (223) guardava solo

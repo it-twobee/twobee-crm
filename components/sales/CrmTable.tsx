@@ -24,7 +24,7 @@
  * sono due viste di cui una mente.
  */
 
-import { useState, useMemo, useTransition } from 'react'
+import { useState, useMemo, useTransition, useEffect } from 'react'
 import { toast } from 'sonner'
 import { Search, Loader2, RefreshCw, BarChart3, List, Columns3, ShieldCheck, ArrowUpDown, SlidersHorizontal, X, Plus, Trash2, ChevronRight } from 'lucide-react'
 
@@ -129,6 +129,13 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
      viene ricreata, e un riferimento vecchio mostrerebbe il valore di prima
      accanto a quello nuovo nell'elenco. */
   const attivi = quantiFiltri(scelte)
+  /* §439 — `?lead=<id>` apre la scheda: è dove porta il promemoria della
+     campanella, e un promemoria che ti lascia a cercare il lead in un elenco
+     di quaranta righe ricorda solo metà della cosa. */
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('lead')
+    if (id && iniziali.some(r => r.id === id)) setApertaId(id)
+  }, [iniziali])
   const aperta = apertaId ? righe.find(r => r.id === apertaId) ?? null : null
   const setAperta = (r: RigaCrm | null) => setApertaId(r?.id ?? null)
 

@@ -1,5 +1,14 @@
 # Dove siamo
 
+## Il follow-up si fissa guardando la propria giornata — §439, 2026-09-25
+
+Fase 2 del commerciale. «Pianifica follow-up» apre un mese e, accanto, la
+propria giornata con Google, eventi del tool, altri follow-up, ferie e task:
+si apre sul primo buco libero, le scorciatoie fissano giorno e ora in un clic,
+e i conflitti (8–18 lun–ven, festivi, ferie, sovrapposizioni) avvisano senza
+bloccare. Senza Google si pianifica lo stesso e ricorda la campanella.
+Migration **264 applicata** il 2026-09-25 (il promemoria).
+
 ## La timeline del lead — §438, 2026-09-25
 
 Nella scheda del lead c'è il diario dei contatti (chiamata con esito, email,
