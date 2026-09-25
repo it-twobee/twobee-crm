@@ -14,7 +14,7 @@ import { vatByQuarter, nextDue, type MonthVat, type VatActual, type VatDocs } fr
 import {
   fiscalCalendar, estimateTaxes, setAsideStatus, taxInsights, monthsLeftInYear, upcoming,
   maxiDeduction, taxMeasures,
-  type Provision, type TaxConfig,
+  type Provision, type TaxConfig, type Deadline,
 } from '@/lib/tax'
 import { updateTaxConfig, addProvision, deleteProvision } from '@/app/actions/tax'
 import { EconomicsNav } from '@/components/economics/EconomicsNav'
@@ -32,15 +32,19 @@ const KIND_TONE: Record<string, string> = {
   iva: 'bg-info-dim border-info/40 text-info',
   imposte: 'bg-error-dim border-error/40 text-error',
   dichiarazione: 'bg-surface-active border-border-strong text-text-secondary',
+  personale: 'bg-warning-dim border-warning/40 text-warning',
 }
+const KIND_LABEL: Record<string, string> = { iva: 'IVA', imposte: 'imposte', dichiarazione: 'adempimento', personale: 'F24 personale' }
 
 export function TaxClient({
-  month, today, setupNeeded, config, provisions, vatMonths, vatActuals = [], vatDocs = [],
+  month, today, setupNeeded, config, provisions, vatMonths, vatActuals = [], vatDocs = [], f24Personale = [],
   revenueYtd, costsYtd, nonDeductibleYtd, entertainmentYtd, monthsBooked, costsWithVat, costsWithoutVat,
   vatOnUnpaid, q4Share, hasWelfare, hasTraining, rndSpend,
   newHires = 0, newHiresCost = 0, protectedCost = 0,
   contribRelief = 0, reliefAvailable = 0, impatriates = 0, investments = 0,
 }: {
+  /** §448 — l'F24 del personale, già nella forma delle scadenze */
+  f24Personale?: Deadline[]
   month: string
   today: string
   setupNeeded: boolean
@@ -105,7 +109,9 @@ export function TaxClient({
     () => estimateTaxes(revenueYtd, costsYtd, monthsBooked, config, monthsLeftInYear(today),
       maxi.extraDeduction, nonDeductibleYtd ?? 0),
     [revenueYtd, costsYtd, nonDeductibleYtd, monthsBooked, config, today, maxi])
-  const calendar = useMemo(() => fiscalCalendar(year, today, vat, estimate), [year, today, vat, estimate])
+  /* §448 — lo scadenzario unico: le scadenze d'impresa e l'F24 del personale */
+  const calendar = useMemo(() => [...fiscalCalendar(year, today, vat, estimate), ...f24Personale]
+    .sort((a, b) => a.date.localeCompare(b.date)), [year, today, vat, estimate, f24Personale])
   const aside = useMemo(
     () => setAsideStatus(provisions, next?.toPay ?? 0, estimate.total, monthsBooked),
     [provisions, next, estimate, monthsBooked])
@@ -232,7 +238,7 @@ export function TaxClient({
               }`}>
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <span className={`text-2xs font-semibold px-1.5 py-0.5 rounded border ${KIND_TONE[d.kind]}`}>
-                    {d.kind === 'iva' ? 'IVA' : d.kind === 'imposte' ? 'imposte' : 'adempimento'}
+                    {KIND_LABEL[d.kind] ?? d.kind}
                   </span>
                   <span className="text-2xs text-text-tertiary">fra {d.daysLeft} gg</span>
                 </div>
@@ -592,7 +598,7 @@ export function TaxClient({
             <div key={d.id} className={`flex items-start gap-2.5 px-5 py-2.5 ${d.past ? 'opacity-50' : ''}`}>
               <span className="text-2xs text-text-tertiary w-20 shrink-0 tabular">{fmtDate(d.date)}</span>
               <span className={`text-2xs font-semibold px-1.5 py-0.5 rounded border shrink-0 ${KIND_TONE[d.kind]}`}>
-                {d.kind === 'iva' ? 'IVA' : d.kind === 'imposte' ? 'imposte' : 'adempimento'}
+                {KIND_LABEL[d.kind] ?? d.kind}
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-2xs font-semibold text-text-primary">{d.label}</p>

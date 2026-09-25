@@ -17,7 +17,7 @@ import { costoLavoroDaOrganico, rowToParams } from '@/lib/payroll-map'
 export async function costoLavoroPrevisto(
   db: SupabaseClient,
   mesi: string[],
-): Promise<Map<string, { totale: number; persone: number }> | null> {
+): Promise<Map<string, { totale: number; persone: number; tredicesima: number; quattordicesima: number }> | null> {
   if (!mesi.length) return new Map()
   let persone: Record<string, unknown>[] | null = null
   let parametri: Record<string, unknown>[] | null = null
@@ -33,7 +33,7 @@ export async function costoLavoroPrevisto(
   } catch { return null }
   if (!persone?.length) return null
   const perAnno = new Map((parametri ?? []).map(p => [Number(p.year), rowToParams(p)]))
-  const out = new Map<string, { totale: number; persone: number }>()
+  const out = new Map<string, { totale: number; persone: number; tredicesima: number; quattordicesima: number }>()
   for (const m of mesi) {
     out.set(m, costoLavoroDaOrganico(persone, perAnno.get(Number(m.slice(0, 4))) ?? DEFAULT_PAYROLL_PARAMS, m))
   }

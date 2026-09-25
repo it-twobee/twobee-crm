@@ -8,8 +8,9 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, Plus, Trash2, Users, Wallet, PiggyBank,
   Sparkles, ShieldAlert, AlertTriangle, Lightbulb, Check, Loader2, Download,
   ScrollText, SlidersHorizontal, Info, ArrowRight, BadgeCheck,
-  FileText, Receipt, Landmark, Baby, CalendarDays, Gift, Plane, Percent, Ban,
+  FileText, Receipt, Landmark, Baby, CalendarDays, Gift, Plane, Percent, Ban, BarChart3,
 } from 'lucide-react'
+import { CostiTab } from './CostiTab'
 import { formatCurrency } from '@/lib/utils'
 import { monthLabel, shiftMonth } from '@/lib/pl'
 import { dueOf, dayLabel } from '@/lib/cash-calendar'
@@ -51,13 +52,18 @@ const KIND_TONE: Record<string, string> = {
   autonomo: 'bg-accent/15 text-accent border-accent/30',
 }
 
-type Tab = 'organico' | 'cedolini' | 'fatture' | 'f24' | 'tfr' | 'agevolazioni' | 'contratti' | 'aliquote'
+type Tab = 'organico' | 'costi' | 'cedolini' | 'fatture' | 'f24' | 'tfr' | 'agevolazioni' | 'contratti' | 'aliquote'
 
 export function PersonaleClient({
   month, setupNeeded, ledgerMissing, monthExists, monthLocked, monthRevenue,
   people, params, slips, yearSlips, invoices, f24, tfrMoves, iresPct = 0.24,
-  incentivesMissing = false,
+  incentivesMissing = false, periodo, periodSlips = [], paramsByYear = {}, f24All = [],
 }: {
+  /** §448 — il periodo della matrice dei costi, e i dati per costi, maturati e scadenze */
+  periodo?: { dal: string; al: string }
+  periodSlips?: Payslip[]
+  paramsByYear?: Record<number, PayrollParams>
+  f24All?: { month: string; total: number; paidOn: string | null }[]
   month: string
   /** aliquota IRES da `tax_config`: dice quanto vale la maxi-deduzione */
   iresPct?: number
@@ -289,9 +295,10 @@ export function PersonaleClient({
       )}
 
       {/* ── tab ── */}
-      <div className="flex gap-1 bg-surface border border-border rounded-xl p-1 w-fit">
+      <div className="flex gap-1 bg-surface border border-border rounded-xl p-1 w-fit max-w-full overflow-x-auto">
         {([
           ['organico', 'Organico', Users],
+          ['costi', 'Costi e maturati', BarChart3],
           ['cedolini', 'Cedolini', FileText],
           ['fatture', 'Fatture', Receipt],
           ['f24', 'F24', Landmark],
@@ -550,6 +557,10 @@ export function PersonaleClient({
         </>
       )}
 
+      {tab === 'costi' && periodo && (
+        <CostiTab month={month} people={people} periodo={periodo} slips={periodSlips}
+          paramsByYear={paramsByYear} params={params} tfrMoves={tfrMoves} f24All={f24All} />
+      )}
       {tab === 'cedolini' && (
         <PayslipsTab people={people} slips={slips} params={params} month={month} pending={pending} run={run} />
       )}

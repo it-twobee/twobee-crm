@@ -53,7 +53,8 @@ export type Provision = { id: string; month: string; kind: 'iva' | 'imposte'; am
 
 // ── Scadenzario ──────────────────────────────────────────────────────────────
 
-export type DeadlineKind = 'iva' | 'imposte' | 'dichiarazione'
+/** §448 — `personale`: l'F24 di ritenute e contributi, dallo scadenzario unico */
+export type DeadlineKind = 'iva' | 'imposte' | 'dichiarazione' | 'personale'
 
 export type Deadline = {
   id: string

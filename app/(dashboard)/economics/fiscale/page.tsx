@@ -186,6 +186,33 @@ export default async function FiscalePage({ searchParams }: { searchParams: { m?
     }
   }
 
+  /* §448 — lo scadenzario unico: anche l'F24 del personale, dal 16 del mese
+     dopo. L'importo dall'F24 registrato se c'è, dai cedolini se no, altrimenti
+     niente numero (`lib/scadenze.ts`). */
+  const [{ data: f24Rows }, { data: slipRows }] = await Promise.all([
+    supabase.from('hr_f24').select('month, total, paid_on').gte('month', `${year}-01-01`).lte('month', `${year}-12-01`),
+    supabase.from('hr_payslips').select('*').gte('month', `${year}-01-01`).lte('month', `${year}-12-01`),
+  ])
+  const f24Personale = await (async () => {
+    const { rowToPayslip, rowToPerson, rowToParams } = await import('@/lib/payroll-map')
+    const { DEFAULT_PAYROLL_PARAMS } = await import('@/lib/payroll')
+    const { perF24 } = await import('@/lib/payroll-periodo')
+    const { scadenzeF24Personale } = await import('@/lib/scadenze')
+    const params = prm ? rowToParams(prm as Record<string, unknown>) : DEFAULT_PAYROLL_PARAMS
+    const tipo = new Map(((people ?? []) as Record<string, unknown>[]).map(r => { const p = rowToPerson(r); return [p.id, p.kind] }))
+    const ced = perF24(((slipRows ?? []) as Record<string, unknown>[]).map(rowToPayslip), id => tipo.get(id) ?? null, () => params)
+    const mesi = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}-01`)
+    const oggi = new Date().toISOString().slice(0, 10)
+    const giorni = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000)
+    return scadenzeF24Personale(mesi,
+      ((f24Rows ?? []) as { month: string; total: number; paid_on: string | null }[]).map(f => ({ month: String(f.month).slice(0, 10), total: Number(f.total ?? 0), paidOn: f.paid_on })),
+      ced)
+      // un mese senza cedolini e senza F24 non è una scadenza da mostrare: non c'è nessuno da pagare
+      .filter(x => x.fonte !== 'nessuna' || x.data >= oggi)
+      .map(x => ({ id: x.id, date: x.data, label: x.etichetta, detail: `${x.dettaglio}${x.pagata ? ` · pagato il ${x.pagataIl}` : ''}`,
+        kind: 'personale' as const, amount: x.importo, daysLeft: giorni(oggi, x.data), past: x.pagata || giorni(oggi, x.data) < 0 }))
+  })()
+
   // investimenti in beni strumentali registrati nel piano: alimentano l'iper-ammortamento
   const investments = ((items ?? []) as PlanItem[])
     .filter(i => /hardware|attrezzatur|macchinar|server|pc |computer|impiant|software gestion/i.test(i.label))
@@ -194,6 +221,7 @@ export default async function FiscalePage({ searchParams }: { searchParams: { m?
   return (
     <TaxClient
       month={month}
+      f24Personale={f24Personale}
       newHires={newHires}
       newHiresCost={Math.round(newHiresCost)}
       protectedCost={Math.round(protectedCost)}

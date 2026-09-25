@@ -11,7 +11,7 @@ import { DEFAULT_PAYROLL_PARAMS } from '@/lib/payroll'
 
 export const revalidate = 0
 
-export default async function PersonalePage({ searchParams }: { searchParams: { m?: string } }) {
+export default async function PersonalePage({ searchParams }: { searchParams: { m?: string; dal?: string; al?: string } }) {
   const user = await getSessionUser()
   if (!user) redirect('/login')
   const supabase = await createClient()
@@ -20,6 +20,16 @@ export default async function PersonalePage({ searchParams }: { searchParams: { 
 
   const month = /^\d{4}-\d{2}-01$/.test(searchParams.m ?? '') ? searchParams.m! : monthKey(new Date())
   const year = Number(month.slice(0, 4))
+  /* §448 — il periodo della matrice dei costi: di default l'anno del mese guardato */
+  const mese1 = (v?: string) => (/^\d{4}-\d{2}-01$/.test(v ?? '') ? v! : null)
+  let dal = mese1(searchParams.dal) ?? `${year}-01-01`
+  let al = mese1(searchParams.al) ?? `${year}-12-01`
+  if (al < dal) [dal, al] = [al, dal]
+  /* i cedolini che servono: il periodo, e dal luglio dell'anno prima per la
+     quattordicesima maturata; più tutti i parametri, perché il periodo può
+     attraversare due anni */
+  const daLeggere = [dal, `${year - 1}-07-01`].sort()[0]
+  const finoA = [al, month].sort()[1]
 
   /* §184: il catalogo degli esoneri e l'aliquota IRES arrivano dal database.
      Se la 184 non è stata eseguita valgono i valori del motore, e la pagina
@@ -52,12 +62,20 @@ export default async function PersonalePage({ searchParams }: { searchParams: { 
       supabase.from('hr_invoices').select('*').eq('month', month),
       supabase.from('hr_f24').select('*').eq('month', month).maybeSingle(),
       supabase.from('hr_tfr_movements').select('*'),
+      /* §448 — per la matrice, i maturati e lo scadenzario: sola lettura */
       monthRow
         ? supabase.from('pl_revenue_lines').select('amount_net').eq('month_id', monthRow.id)
         : Promise.resolve({ data: [] }),
     ])
 
   const ledgerMissing = !setupNeeded && !slips && !yearSlips
+  const [{ data: periodSlips }, { data: allParams }, { data: allF24 }] = await Promise.all([
+    supabase.from('hr_payslips').select('*').gte('month', daLeggere).lte('month', finoA),
+    supabase.from('hr_payroll_params').select('*'),
+    supabase.from('hr_f24').select('month, total, paid_on'),
+  ])
+  const paramsByYear = Object.fromEntries(((allParams ?? []) as Record<string, unknown>[])
+    .map(r => [Number(r.year), rowToParams(r, catalog)]))
 
   return (
     <PersonaleClient
@@ -79,6 +97,11 @@ export default async function PersonalePage({ searchParams }: { searchParams: { 
       invoices={(invoices ?? []).map(r => rowToInvoice(r as Record<string, unknown>))}
       f24={f24 ? rowToF24(f24 as Record<string, unknown>) : null}
       tfrMoves={(tfrMoves ?? []).map(r => rowToTfrMovement(r as Record<string, unknown>))}
+      periodo={{ dal, al }}
+      periodSlips={(periodSlips ?? []).map(r => rowToPayslip(r as Record<string, unknown>))}
+      paramsByYear={paramsByYear}
+      f24All={((allF24 ?? []) as { month: string; total: number; paid_on: string | null }[])
+        .map(f => ({ month: String(f.month).slice(0, 10), total: Number(f.total ?? 0), paidOn: f.paid_on }))}
     />
   )
 }

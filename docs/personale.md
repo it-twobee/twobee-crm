@@ -151,4 +151,36 @@ legali (welfare, buoni pasto, apprendistato, premi di risultato) con i loro
 tetti e i loro rischi. «Porta nel conto economico» scrive una riga per persona
 nella voce «Persone», sostituendo le precedenti invece di sommarle.
 
+## Costi mese per mese, maturati e scadenze (§448)
 
+La pagina ragionava su un mese alla volta. La tab **«Costi e maturati»**:
+
+- **La matrice mesi × persone** (`matrice` in `lib/payroll-periodo.ts`) sul
+  periodo scelto — questo mese, trimestre, anno, ultimi 12 mesi, o dal/al.
+  Ogni cella viene **dal cedolino** dove c'è (`payslipViews`: il costo vero, e a
+  dicembre e giugno porta tredicesima e quattordicesima pagate) o **dalla stima
+  da contratto** (`personCost().monthly`, ratei spalmati, in corsivo con «·s»).
+  In testa quante sono vere e quante stimate; al passaggio del mouse lordo,
+  oneri azienda, TFR e buoni. Chi non era ancora assunto o era già uscito non
+  costa (`endsOn` adesso è mappato: prima `end_date` non arrivava al motore).
+- **I maturati alla data** (`maturatiAl`): tredicesima da gennaio, quattordicesima
+  da luglio a giugno, al rateo del contratto sui mesi in forza; pagato dai
+  cedolini dello stesso periodo; resta. Il TFR dal registro (`tfrLedger`): in
+  azienda, al fondo, liquidato. Sotto l'euro è arrotondamento dei ratei, non un
+  debito.
+- **Quando escono** (`calendarioUscite`): tredicesima a dicembre, quattordicesima
+  a giugno, con gli oneri; il TFR in azienda nel mese di cessazione; chi lascia
+  prima prende 13ª e 14ª pro quota alla cessazione. La quota al fondo pensione
+  (`pension_fund_pct`, ora mappato) esce ogni mese.
+- **Gli F24 del personale** (`lib/scadenze.ts`): il 16 del mese dopo o il primo
+  giorno lavorativo; l'importo dall'F24 registrato, o dai cedolini (ritenute,
+  contributi, INAIL — `perF24`), o «n/d». Gli stessi entrano nello
+  **scadenzario di Fiscale**, che adesso è unico: IVA, imposte e F24 personale.
+  I bolli non si calcolano, e si dice.
+- **Nella tenuta di cassa** (`stimaLavoro`) dicembre porta la tredicesima e
+  giugno la quattordicesima di chi è in forza: su settembre 2026 la stima di
+  dicembre passa da 6.949 € a 9.125 €. Se il mese di base è uno dei due, le sue
+  mensilità aggiuntive non si portano agli altri.
+
+Resta aperta la lettura automatica dei PDF del consulente (cedolini e F24):
+serve un esempio dei documenti per sapere com'è fatto il tracciato.

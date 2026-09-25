@@ -1,5 +1,14 @@
 # Dove siamo
 
+## Personale: costi mese per mese, maturati e scadenze — §448, 2026-09-25
+
+Nuova tab «Costi e maturati»: la matrice mesi × persone sul periodo scelto
+(vero dal cedolino, stimato dal contratto, e lo dice), 13ª, 14ª e TFR maturati
+alla data con pagato e residuo, il calendario di quando escono, gli F24 del
+personale al 16. Lo scadenzario di Fiscale diventa unico con gli F24 del
+personale. La tenuta di cassa vede il picco di dicembre e di giugno. Aperto:
+leggere i PDF del consulente, serve un esempio.
+
 ## Il calendario ha orari, colleghi e assenze — §446, 2026-09-25
 
 Giorno e Settimana sono una griglia oraria con le voci affiancate; una barra
@@ -1695,7 +1704,7 @@ partite di giro, quote + costi + subappalti = 31.725 €, differenza 0,00.
    2026-09-25): le nostre senza scadenza scadono per regola, «scaduto» usa le
    fasce della cassa, il grafico ha la lettura per mese di cassa, e il costo del
    lavoro stimato è il mese vero più o meno chi entra o esce dall'organico.
-   Resta aperto il **picco di tredicesima** in dicembre, che la stima non vede.
+   Il **picco di tredicesima** di dicembre adesso c'è (§448).
 2. **Chiudere il travaso Asana** (§215-221): il codice c'è tutto, restano da passare
    in rassegna le 146 board — e poi si toglie la sezione, che è dichiarata temporanea.
 3. **Quotare i progetti che mancano**: 15 contratti su 21 progetti. Chi non ne ha

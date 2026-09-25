@@ -573,14 +573,15 @@ export async function loadProspetto(
   const lavoro = await costoLavoroPrevisto(supabase, [nowMonth, ...chainMonths.map(mm => shiftMonth(mm, -1))])
   const stima = (mm: string) => lavoro
     ? stimaLavoro({ totale: payrollNow, mese: nowMonth }, lavoro, shiftMonth(mm, -1))
-    : { totale: payrollNow, variazione: 0, persone: null }
+    : { totale: payrollNow, variazione: 0, persone: null, aggiuntive: 0 }
   const perche = (mm: string) => {
     const x = stima(mm)
     if (x.persone === null) return undefined
     const base = `l'ultimo mese registrato (${monthLabel(nowMonth).toLowerCase()})`
+    const agg = x.aggiuntive > 0 ? `, più ${eur(x.aggiuntive)} di ${shiftMonth(mm, -1).slice(5, 7) === '12' ? 'tredicesima' : 'quattordicesima'}` : ''
     return x.variazione === 0
-      ? `uguale a ${base}: l'organico non cambia`
-      : `${base}, ${x.variazione > 0 ? 'più' : 'meno'} ${eur(Math.abs(x.variazione))} per chi entra o esce: ${x.persone} persone in forza a ${monthLabel(shiftMonth(mm, -1)).toLowerCase()}`
+      ? `uguale a ${base}${agg}${agg ? '' : ": l'organico non cambia"}`
+      : `${base}, ${x.variazione > 0 ? 'più' : 'meno'} ${eur(Math.abs(x.variazione))} per chi entra o esce${agg}: ${x.persone} persone in forza a ${monthLabel(shiftMonth(mm, -1)).toLowerCase()}`
   }
   const plan: PlanMonth[] = chainMonths.map(mm => {
     const open = openMonths.has(mm)

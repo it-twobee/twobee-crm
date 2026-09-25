@@ -296,7 +296,7 @@ export function CashRunway({ runway: r, bankReady, month }: {
                     {m.estimated > 0 && (
                       <span className="block text-2xs text-text-tertiary"
                         title={r.payrollSource === 'organico'
-                          ? 'Il piano dei costi non contiene il costo del lavoro: qui è quello di questo mese, più o meno chi entra o esce dall’organico'
+                          ? 'Il piano dei costi non contiene il costo del lavoro: qui è quello di questo mese, più o meno chi entra o esce dall’organico, e a dicembre e giugno le mensilità aggiuntive'
                           : 'Il piano dei costi non contiene il costo del lavoro: qui è stimato uguale a questo mese'}>
                         di cui {eur(m.estimated)} stimati
                       </span>

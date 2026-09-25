@@ -7,7 +7,7 @@
  * sanno da dove arrivano i dati.
  */
 import {
-  DEFAULT_PAYROLL_PARAMS, emptyPerson, inForce, personCost,
+  DEFAULT_PAYROLL_PARAMS, emptyPerson, inForce, personCost, accruals,
   type PayrollParams, type PersonInput, type ContractKind, type IrpefBracket,
 } from '@/lib/payroll'
 import { mergeIncentives, type HiringIncentive } from '@/lib/incentives'
@@ -27,6 +27,10 @@ const KINDS: ContractKind[] = [
 export type PersonRow = PersonInput & {
   id: string; role: string | null; tfrOpening: number; active: boolean
   agreedNet: number | null; status: 'attiva' | 'sospesa' | 'cessata'
+  /** §448 — fine del rapporto, se c'è: da lì non costa più, e il TFR in azienda esce */
+  endsOn?: string | null
+  /** §448 — quota del TFR versata a un fondo pensione (182): 0 = resta in azienda */
+  pensionFundPct?: number
 }
 
 /** Le colonne §184 possono non esserci ancora: `has` distingue «no» da «non c'è». */
@@ -71,6 +75,8 @@ export function rowToPerson(r: Record<string, unknown>): PersonRow {
     active: r.is_active !== false && r.status !== 'cessata',
     agreedNet: r.agreed_net == null ? null : Number(r.agreed_net),
     status: (r.status as 'attiva' | 'sospesa' | 'cessata') ?? 'attiva',
+    endsOn: r.end_date ? String(r.end_date).slice(0, 10) : null,
+    pensionFundPct: num(r.pension_fund_pct),
   }
 }
 
@@ -356,12 +362,17 @@ export function costoLavoroDaOrganico(
   righe: Record<string, unknown>[],
   params: PayrollParams,
   month: string,
-): { totale: number; persone: number } {
+): { totale: number; persone: number; tredicesima: number; quattordicesima: number } {
   const testo = (v: unknown) => typeof v === 'string' && v ? v : null
   const inForza = righe.filter(r => r.is_active !== false
     && inForce({ hiredOn: testo(r.hired_on) ?? testo(r.start_date), endsOn: testo(r.end_date) }, month))
-  const totale = inForza.reduce((s, r) => s + personCost(rowToPerson(r), params).monthly, 0)
-  return { totale: Math.round(totale * 100) / 100, persone: inForza.length }
+  const persone = inForza.map(rowToPerson)
+  const totale = persone.reduce((s, p) => s + personCost(p, params).monthly, 0)
+  // §448 — quanto esce a dicembre e a giugno per le mensilità aggiuntive, oneri compresi
+  const tredicesima = persone.reduce((s, p) => s + accruals(p, params).decemberCash, 0)
+  const quattordicesima = persone.reduce((s, p) => s + accruals(p, params).juneCash, 0)
+  const r2 = (n: number) => Math.round(n * 100) / 100
+  return { totale: r2(totale), persone: inForza.length, tredicesima: r2(tredicesima), quattordicesima: r2(quattordicesima) }
 }
 
 /**
@@ -378,11 +389,18 @@ export function costoLavoroDaOrganico(
  */
 export function stimaLavoro(
   base: { totale: number; mese: string },
-  organico: Map<string, { totale: number; persone: number }>,
+  organico: Map<string, { totale: number; persone: number; tredicesima?: number; quattordicesima?: number }>,
   mese: string,
-): { totale: number; variazione: number; persone: number | null } {
+): { totale: number; variazione: number; persone: number | null; aggiuntive: number } {
   const ora = organico.get(mese), allora = organico.get(base.mese)
-  if (!ora || !allora) return { totale: Math.max(0, base.totale), variazione: 0, persone: null }
+  if (!ora || !allora) return { totale: Math.max(0, base.totale), variazione: 0, persone: null, aggiuntive: 0 }
+  /* §448 — dicembre porta la tredicesima e giugno la quattordicesima: le
+     mensilità aggiuntive escono lì, tutte insieme. Se il mese di base è uno dei
+     due, le sue sono già dentro il registrato e si tolgono per gli altri mesi. */
+  const extra = (m: string, o?: { tredicesima?: number; quattordicesima?: number }) =>
+    m.slice(5, 7) === '12' ? o?.tredicesima ?? 0 : m.slice(5, 7) === '06' ? o?.quattordicesima ?? 0 : 0
   const variazione = Math.round((ora.totale - allora.totale) * 100) / 100
-  return { totale: Math.max(0, Math.round((base.totale + variazione) * 100) / 100), variazione, persone: ora.persone }
+  const aggiuntive = Math.round(extra(mese, ora) * 100) / 100
+  const totale = base.totale - extra(base.mese, allora) + variazione + aggiuntive
+  return { totale: Math.max(0, Math.round(totale * 100) / 100), variazione, persone: ora.persone, aggiuntive }
 }
