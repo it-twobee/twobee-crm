@@ -847,6 +847,38 @@ riquadro Contatti apre `PianificaFollowup`:
 - Il vecchio riquadro «I tuoi follow-up» (`SalesFollowUps`) non c'è più, e con
   lui la prova browser che lo guidava: i follow-up comparivano due volte.
 
+## Filtri, ordine e viste che si ritrovano — §440
+
+I filtri erano un pannello di chip sotto la barra, l'ordinamento un `select`
+con una freccia a parte, e al ricarico sparivano tutti e due. Adesso:
+
+- **Uno stato solo** (`StatoElenco` in `lib/sales-vista.ts`): ricerca, gruppo,
+  vista rapida, filtri a scelta, filtri per data, due criteri d'ordine. Sta
+  **nell'indirizzo** (`?f.stage=…&d.contatto=piu_vecchio:14&ordine=…`, scritto
+  con `replaceState`, così cambiare un filtro non rilegge la pagina), si
+  **ricorda** in questo browser (`twobee-crm-elenco`), e si **salva con un
+  nome**. `leggi` accetta solo quello che conosce: un parametro inventato non
+  diventa un filtro che esclude tutto.
+- **Ogni filtro è una frase** («Fase: Nuovo lead, In contatto ×»): si cambia
+  cliccandola, si toglie con la ×. «+ Filtro» elenca le date e le variabili
+  che hanno valori; con più di otto valori c'è la ricerca.
+- **Le date** (ultimo contatto, arrivo, prossimo follow-up) hanno gli
+  intervalli pronti — oggi, ultimi 7/30, più di 7/14/30 giorni fa, mai sentito,
+  scaduto, prossimi 7, nessuno in programma — e l'**intervallo dal calendario**
+  (primo clic l'inizio, secondo la fine; «solo quel giorno», «da lì in poi»).
+  Tutto sui giorni di Roma.
+- **Viste rapide**: Miei (fra gli Account Owner), Da richiamare (follow-up
+  scaduto o di oggi, o fermo da 7 giorni senza niente in programma), Fermi da
+  più di 7 giorni (aperti, contati dall'arrivo se nessuno li ha mai sentiti).
+- **Ordina**: un bottone che dice l'ordine («Ultimo contatto ↓, poi fase ↑»);
+  i cinque campi più usati in cima, gli altri sotto «Altri campi», e un secondo
+  criterio. Si ordina anche sul prossimo follow-up.
+- **Viste salvate** (265): le proprie e quelle che il team ha condiviso. Una
+  vista è la query dell'indirizzo; la cambia o la elimina chi l'ha fatta, o un
+  admin. «Miei» in una vista condivisa resta di chi guarda.
+- Il conteggio «N di M lead» sta nella barra; i numeri leggono gli stessi
+  filtri meno il gruppo (§431).
+
 ## Aperto
 
 - **La RLS non conosceva `deal_owners`**: `sales_can_read` (223) guardava solo

@@ -24,9 +24,9 @@
  * sono due viste di cui una mente.
  */
 
-import { useState, useMemo, useTransition, useEffect } from 'react'
+import { useState, useMemo, useTransition, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
-import { Search, Loader2, RefreshCw, BarChart3, List, Columns3, ShieldCheck, ArrowUpDown, SlidersHorizontal, X, Plus, Trash2, ChevronRight } from 'lucide-react'
+import { Loader2, RefreshCw, BarChart3, List, Columns3, ShieldCheck, Plus, Trash2, ChevronRight } from 'lucide-react'
 
 import { ETICHETTA_GRUPPO, GRUPPI, gruppoDi, type Gruppo } from '@/lib/sales-stages'
 import { useFasi } from './FasiContext'
@@ -47,10 +47,9 @@ import type { RigaIgiene } from '@/lib/sales-igiene'
 import { NuovoLead } from './NuovoLead'
 import { CrmAnalytics } from './CrmAnalytics'
 import { tassoDi, type RigaAnalisi } from '@/lib/sales-analytics'
-import {
-  ordina, applica, cerca as cercaIn, opzioni, quantiFiltri,
-  ORDINABILI, FILTRABILI, SENZA_OWNER, type Verso, type Scelte,
-} from '@/lib/sales-filtri'
+import { SENZA_OWNER } from '@/lib/sales-filtri'
+import { applicaStato, eNostra, leggi, scrivi, VUOTO, type StatoElenco } from '@/lib/sales-vista'
+import { BarraFiltri } from './BarraFiltri'
 import { VoceSezione } from '@/components/workspace/VoceSezione'
 
 /** §430 — chi può comparire come Account Owner, e chi si può ancora scegliere */
@@ -80,8 +79,13 @@ function quando(v: unknown): string {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}${anno} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [], puoiAssegnare = false }: {
+const MEMORIA = 'twobee-crm-elenco'
+const GRUPPI_AMMESSI = ['tutti', ...GRUPPI]
+
+export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [], puoiAssegnare = false, io }: {
   righe: RigaCrm[]
+  /** §440 — chi guarda: «Miei» è suoi */
+  io: string
   persone?: PersonaCrm[]
   /** §430 — admin e manager: gli owner li decide chi assegna il lavoro */
   puoiAssegnare?: boolean
@@ -90,14 +94,12 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
 }) {
   const { TUTTE, FASI, etichettaFase, faseConRuolo, etichettaScelta, ORDINI } = useFasi()
   const [righe, setRighe] = useState(iniziali)
-  const [cerca, setCerca] = useState('')
-  const [gruppo, setGruppo] = useState<string>('tutti')
+  /* §440 — cerca, gruppo, filtri, date e ordine sono **uno** stato, che sta
+     nell'indirizzo e si ricorda: prima erano sette `useState` e al ricarico
+     sparivano tutti. */
+  const [stato, setStatoGrezzo] = useState<StatoElenco>(VUOTO)
   const [converto, setConverto] = useState<RigaCrm | null>(null)
   const [apertaId, setApertaId] = useState<string | null>(null)
-  const [campoOrd, setCampoOrd] = useState('created_at')
-  const [verso, setVerso] = useState<Verso>('giu')
-  const [scelte, setScelte] = useState<Scelte>({})
-  const [pannello, setPannello] = useState(false)
   const [nuovo, setNuovo] = useState(false)
   const [vista, setVista] = useState<'tabella' | 'bacheca' | 'numeri' | 'controllo'>('tabella')
   const [aggiorno, setAggiorno] = useState(false)
@@ -128,7 +130,30 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
   /* La scheda si tiene per **id**, non per oggetto: salvando una cella la riga
      viene ricreata, e un riferimento vecchio mostrerebbe il valore di prima
      accanto a quello nuovo nell'elenco. */
-  const attivi = quantiFiltri(scelte)
+  /* all'apertura: prima l'indirizzo (un link incollato vince), poi l'ultima
+     vista di questo browser, altrimenti tutto. La memoria può mancare — una
+     finestra privata — e l'elenco si apre lo stesso. */
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    if (Array.from(p.keys()).some(eNostra)) { setStatoGrezzo(leggi(p, GRUPPI_AMMESSI)); return }
+    try {
+      const salvata = window.localStorage.getItem(MEMORIA)
+      if (salvata) setStatoGrezzo(leggi(salvata, GRUPPI_AMMESSI))
+    } catch { /* senza memoria si parte da capo */ }
+  }, [])
+  const setStato = useCallback((s: StatoElenco) => {
+    setStatoGrezzo(s)
+    const query = scrivi(s)
+    try { window.localStorage.setItem(MEMORIA, query) } catch { /* resta nell'indirizzo */ }
+    // `replaceState` e non il router: cambiare un filtro non deve rileggere la pagina dal server
+    const p = new URLSearchParams(window.location.search)
+    Array.from(p.keys()).filter(eNostra).forEach(k => p.delete(k))
+    new URLSearchParams(query).forEach((v, k) => p.set(k, v))
+    const qs = p.toString()
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${qs ? `?${qs}` : ''}`)
+  }, [])
+  const leggiQuery = useCallback((q: string) => leggi(q, GRUPPI_AMMESSI), [])
+  const gruppo = stato.gruppo
   /* §439 — `?lead=<id>` apre la scheda: è dove porta il promemoria della
      campanella, e un promemoria che ti lascia a cercare il lead in un elenco
      di quaranta righe ricorda solo metà della cosa. */
@@ -142,22 +167,24 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
   /* §376 — cercare, filtrare, ordinare: in quest'ordine, e tutto e tre nel
      modulo puro. Il gruppo resta un filtro a parte perché è l'unico che si
      usa a colpo d'occhio, senza aprire niente. */
-  const viste = useMemo(() => {
-    let out = cercaIn(righe as unknown as Record<string, unknown>[], cerca)
-    if (gruppo !== 'tutti') { const g = gruppo as Gruppo; out = out.filter(r => { const f = FASI.find(x => x.chiave === r.stage); return f ? gruppoDi(f) === g : false }) }
-    out = applica(out, scelte)
-    return ordina(TUTTE, out, campoOrd, verso, ORDINI) as unknown as RigaCrm[]
-  }, [righe, cerca, gruppo, scelte, campoOrd, verso, ORDINI])
+  const adesso = useMemo(() => Date.now(), [righe, stato])
+  const contesto = useMemo(() => ({
+    fasi: TUTTE, io, adessoMs: adesso, ordini: ORDINI,
+    gruppoDi: (r: Record<string, unknown>) => { const f = FASI.find(x => x.chiave === r.stage); return f ? gruppoDi(f) : null },
+  }), [TUTTE, io, adesso, ORDINI, FASI])
+  const viste = useMemo(
+    () => applicaStato(righe as unknown as Record<string, unknown>[], stato, contesto) as unknown as RigaCrm[],
+    [righe, stato, contesto])
 
   /* Il conteggio per fase si fa sulle righe **filtrate dalla ricerca** ma non
      dal gruppo: altrimenti scegliendo un gruppo gli altri direbbero zero, e
      il numero accanto al filtro serve proprio a sapere quanto c'è di là. */
   const perGruppo = useMemo(() => {
-    const base = applica(cercaIn(righe as unknown as Record<string, unknown>[], cerca), scelte)
+    const base = applicaStato(righe as unknown as Record<string, unknown>[], stato, contesto, { senzaGruppo: true })
     const conta: Record<string, number> = { tutti: base.length }
-    for (const g of GRUPPI) conta[g] = base.filter(r => { const f = FASI.find(x => x.chiave === r.stage); return f ? gruppoDi(f) === g : false }).length
+    for (const g of GRUPPI) conta[g] = base.filter(r => contesto.gruppoDi(r) === g).length
     return conta
-  }, [righe, cerca, scelte])
+  }, [righe, stato, contesto])
 
   const nomeDi = useMemo(() => new Map(persone.map(p => [p.id, p.nome])), [persone])
 
@@ -179,8 +206,8 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
      insiemi diversi sotto gli stessi filtri sono due viste di cui una mente),
      meno il gruppo di fasi, che su un tasso di conversione non ha senso. */
   const perNumeri = useMemo(
-    () => applica(cercaIn(righe as unknown as Record<string, unknown>[], cerca), scelte),
-    [righe, cerca, scelte])
+    () => applicaStato(righe as unknown as Record<string, unknown>[], stato, contesto, { senzaGruppo: true }),
+    [righe, stato, contesto])
 
   /* §437 — un campo personalizzato: ottimistico come le celle, ma sull'oggetto
      `campi_extra`, e al ritorno vale quello che dice il database — che è anche
@@ -317,7 +344,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
   /* §426 — la riga è una funzione perché si disegna due volte: una per le
      trattative vive e una dentro il blocco dei persi. Copiarla avrebbe
      voluto dire due righe che divergono al primo ritocco. */
-  const adesso = Date.now()
+  // `adesso` è quello del filtro: la riga e i filtri devono contare dallo stesso istante
   const rigaElenco = (r: RigaCrm) => {
               const scelta = aperta?.id === r.id
               const telefono = typeof r.contact_phone === 'string' ? r.contact_phone : ''
@@ -481,97 +508,26 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
           servono: il filtro dei gruppi è quello che la porta da dodici
           colonne a quattro. */}
       {vista !== 'controllo' && (
-      <div className="flex items-center gap-2 flex-wrap">
-        <label className="relative flex-1 min-w-48 max-w-sm">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" aria-hidden />
-          <input value={cerca} onChange={e => setCerca(e.target.value)} aria-label="Cerca fra i lead"
-            placeholder="Azienda, referente, telefono…"
-            className="w-full bg-surface border border-border-interactive rounded-xl pl-8 pr-3 py-2 text-sm text-text-primary" />
-        </label>
-        {/* §431 — nei numeri i gruppi e l'ordinamento non ci sono: un tasso di
-            conversione sui soli «aperti» è zero per costruzione, e l'ordine
-            delle righe non cambia un conteggio. Cerca e filtri sì. */}
-        {vista !== 'numeri' && <>
-        {(['tutti', ...GRUPPI] as const).map(g => (
-          <button key={g} onClick={() => setGruppo(g)}
-            className={`text-xs font-semibold px-3 py-2 rounded-xl border transition-colors ${
-              gruppo === g ? 'border-gold/40 bg-gold/10 text-gold-text' : 'border-border text-text-secondary hover:text-text-primary'}`}>
-            {g === 'tutti' ? 'Tutti' : ETICHETTA_GRUPPO[g]}
-            <span className="ml-1.5 tabular text-text-tertiary">{perGruppo[g] ?? 0}</span>
-          </button>
-        ))}
-
-        {/* §376 — ordinare su qualunque colonna. Il verso è un bottone a
-            parte e non due voci nel menu: raddoppierebbe un elenco già lungo
-            per dire una cosa che è sì/no. */}
-        <label className="flex items-center gap-1.5 text-xs text-text-secondary">
-          <ArrowUpDown className="w-3.5 h-3.5 shrink-0" aria-hidden />
-          <select value={campoOrd} onChange={e => setCampoOrd(e.target.value)} aria-label="Ordina per"
-            className="bg-surface border border-border-interactive rounded-xl px-2 py-2 text-xs text-text-primary">
-            {ORDINABILI.map(c => <option key={c.campo} value={c.campo}>{c.etichetta}</option>)}
-          </select>
-        </label>
-        <button onClick={() => setVerso(v => v === 'su' ? 'giu' : 'su')}
-          aria-label={verso === 'su' ? 'Ordine crescente, premi per invertire' : 'Ordine decrescente, premi per invertire'}
-          className="text-xs font-semibold text-text-secondary border border-border px-3 py-2 rounded-xl hover:text-text-primary transition-colors">
-          {verso === 'su' ? '↑' : '↓'}
-        </button>
-
-        </>}
-
-        <button onClick={() => setPannello(p => !p)}
-          className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border transition-colors ${
-            attivi ? 'border-gold/40 bg-gold/10 text-gold-text' : 'border-border text-text-secondary hover:text-text-primary'}`}>
-          <SlidersHorizontal className="w-3.5 h-3.5" />
-          Filtri{attivi > 0 && <span className="tabular">{attivi}</span>}
-        </button>
-        {attivi > 0 && (
-          <button onClick={() => setScelte({})}
-            className="flex items-center gap-1 text-xs text-text-tertiary hover:text-text-primary">
-            <X className="w-3.5 h-3.5" />Azzera
-          </button>
-        )}
-      </div>
-      )}
-
-      {/* Un riquadro per variabile, con i valori che **esistono davvero** e
-          quanti sono: offrire un valore che nessuna riga ha porta a zero
-          risultati, e si impara in fretta a non usare i filtri. */}
-      {vista !== 'controllo' && pannello && (
-        <div className="border border-border rounded-xl p-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {FILTRABILI.map(f => {
-            const ops = opzioni(righe as unknown as Record<string, unknown>[], f)
-            if (!ops.length) return null
-            const scelti = scelte[f.campo] ?? []
-            return (
-              <div key={f.campo}>
-                <p className="text-2xs font-semibold text-text-tertiary uppercase tracking-wide mb-1.5">{f.etichetta}</p>
-                <div className="flex flex-wrap gap-1">
-                  {ops.map(o => {
-                    const on = scelti.includes(o.valore)
-                    return (
-                      <button key={o.valore}
-                        onClick={() => setScelte(p => ({
-                          ...p,
-                          [f.campo]: on ? scelti.filter(x => x !== o.valore) : [...scelti, o.valore],
-                        }))}
-                        aria-pressed={on}
-                        className={`text-2xs px-2 py-1 rounded-lg border transition-colors ${
-                          on ? 'border-gold/40 bg-gold/10 text-gold-text' : 'border-border text-text-secondary hover:text-text-primary'}`}>
-                        {f.campo === 'stage' ? etichettaFase(o.valore)
-                          : f.campo === 'owners' ? (o.valore === SENZA_OWNER ? 'Nessuno' : nomeDi.get(o.valore) ?? 'Ex collega')
-                          : f.campo === 'qualifica' ? (ETICHETTA_QUALIFICA[o.valore] ?? o.valore)
-                          : f.campo === 'priority' || f.campo === 'membership' ? etichettaScelta(f.campo, o.valore)
-                          : o.valore}
-                        <span className="ml-1 tabular text-text-tertiary">{o.quante}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })}
-        </div>
+        <BarraFiltri
+          stato={stato}
+          setStato={setStato}
+          leggiQuery={leggiQuery}
+          righe={righe as unknown as Record<string, unknown>[]}
+          conteggio={{ mostrate: vista === 'numeri' ? perNumeri.length : viste.length, totali: righe.length }}
+          /* §431 — nei numeri i gruppi e l'ordinamento non ci sono: un tasso di
+             conversione sui soli «aperti» è zero per costruzione, e l'ordine
+             delle righe non cambia un conteggio. Cerca e filtri sì. */
+          gruppi={vista === 'numeri' ? undefined : (['tutti', ...GRUPPI] as const).map(g => ({
+            chiave: g, etichetta: g === 'tutti' ? 'Tutti' : ETICHETTA_GRUPPO[g], quante: perGruppo[g] ?? 0,
+          }))}
+          conOrdine={vista !== 'numeri'}
+          etichette={{ valore: (campo, v) =>
+            campo === 'stage' ? etichettaFase(v)
+              : campo === 'owners' ? (v === SENZA_OWNER ? 'Nessuno' : nomeDi.get(v) ?? 'Ex collega')
+              : campo === 'qualifica' ? (ETICHETTA_QUALIFICA[v] ?? v)
+              : campo === 'priority' || campo === 'membership' ? etichettaScelta(campo, v)
+              : v }}
+        />
       )}
 
       {vista === 'numeri' ? <CrmAnalytics righe={perNumeri as unknown as RigaAnalisi[]} totale={righe.length} nomeDi={nomeDi} />
@@ -622,7 +578,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
             {vive.map(rigaElenco)}
             {!vive.length && persi.length > 0 && (
               <p className="px-3 py-8 text-center text-sm text-text-tertiary">
-                Nessuna trattativa aperta{cerca ? ' per questa ricerca' : ''}.
+                Nessuna trattativa aperta{stato.q || stato.rapida || Object.keys(stato.date).length ? ' con questi filtri' : ''}.
               </p>
             )}
 
@@ -647,7 +603,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
             )}
             {!viste.length && (
               <p className="px-3 py-10 text-center text-sm text-text-tertiary">
-                Nessuna riga{cerca ? ' per questa ricerca' : ''}.
+                Nessuna riga{stato.q || stato.rapida || Object.keys(stato.date).length ? ' con questi filtri' : ''}.
               </p>
             )}
           </div>

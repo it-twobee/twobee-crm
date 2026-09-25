@@ -103,6 +103,7 @@ export async function SalesPage({ base }: { base: string }) {
     <FasiProvider fasi={fasi} motivi={motivi} scelte={scelte} campi={campi}>
       <CrmTable
         righe={righe}
+        io={contesto.actor}
         persone={persone}
         puoiAssegnare={vedeTutto(contesto.access)}
         puoiEliminare={contesto.access === 'admin' || contesto.access === 'manager'}

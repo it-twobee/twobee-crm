@@ -1,5 +1,13 @@
 # Dove siamo
 
+## Filtri, ordine e viste che si ritrovano — §440, 2026-09-25
+
+Fase 3 del commerciale. Ogni filtro attivo è una frase che si clicca per
+cambiarla; «+ Filtro» aggiunge variabili e date (intervalli pronti o dal
+calendario); Miei, Da richiamare e Fermi sono a un clic; l'ordine ha un
+secondo criterio. Tutto sta nell'indirizzo, si ricorda al ricarico e si salva
+con un nome, anche per il team. Migration **265 applicata** il 2026-09-25 (le viste).
+
 ## Il follow-up si fissa guardando la propria giornata — §439, 2026-09-25
 
 Fase 2 del commerciale. «Pianifica follow-up» apre un mese e, accanto, la

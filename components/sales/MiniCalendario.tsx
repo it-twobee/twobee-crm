@@ -35,7 +35,7 @@ const spostaMese = (s: string, mesi: number) => {
   return iso(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
 }
 
-export function MiniCalendario({ valore, oggi, onScegli, min, max, segnati, etichetta = 'Scegli il giorno' }: {
+export function MiniCalendario({ valore, oggi, onScegli, min, max, segnati, intervallo, etichetta = 'Scegli il giorno' }: {
   /** YYYY-MM-DD */
   valore: string
   /** YYYY-MM-DD, già nel fuso giusto: il calendario non indovina dove sei */
@@ -45,6 +45,8 @@ export function MiniCalendario({ valore, oggi, onScegli, min, max, segnati, etic
   max?: string
   /** i giorni con qualcosa sopra: un puntino, non un colore di fondo */
   segnati?: Set<string>
+  /** un intervallo da mostrare scelto: gli estremi pieni, i giorni in mezzo tinti */
+  intervallo?: { dal: string | null; al: string | null }
   etichetta?: string
 }) {
   const [fuoco, setFuoco] = useState(valore)
@@ -107,7 +109,9 @@ export function MiniCalendario({ valore, oggi, onScegli, min, max, segnati, etic
       <div ref={griglia} role="grid" aria-label={etichetta} onKeyDown={tasto} className="grid grid-cols-7 gap-0.5">
         {giorni.map((g, i) => {
           if (!g) return <span key={`v${i}`} />
-          const scelto = g === valore
+          const estremo = !!intervallo && (g === intervallo.dal || g === intervallo.al)
+          const inMezzo = !!intervallo?.dal && !!intervallo?.al && g > intervallo.dal && g < intervallo.al
+          const scelto = intervallo ? estremo : g === valore
           const eOggi = g === oggi
           const spento = fuori(g)
           const dow = new Date(`${g}T12:00:00Z`).getUTCDay()
@@ -121,6 +125,7 @@ export function MiniCalendario({ valore, oggi, onScegli, min, max, segnati, etic
               onClick={() => onScegli(g)}
               className={`relative h-8 rounded-lg text-xs tabular transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
                 scelto ? 'bg-gold text-on-gold font-semibold'
+                  : inMezzo ? 'bg-gold-dim text-text-primary'
                   : eOggi ? 'text-gold-text font-semibold ring-1 ring-inset ring-gold/50 hover:bg-surface-hover'
                   : dow === 0 || dow === 6 ? 'text-text-tertiary hover:bg-surface-hover'
                   : 'text-text-primary hover:bg-surface-hover'}`}>

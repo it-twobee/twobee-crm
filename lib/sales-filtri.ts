@@ -61,8 +61,13 @@ const ORDINE_SCELTA = new Map<string, number>([
   ['Member', 0], ['Potential', 1], ['Not Member', 2],
 ])
 
+/* §440 — si ordina anche su campi che non sono colonne della scheda: il
+   prossimo follow-up lo calcola il diario, e senza un tipo si confronterebbe
+   come testo */
+const TIPI_LETTI: Record<string, TipoCella> = { next_followup_at: 'data' }
+
 export function confronta(fasi: Fase[], a: Riga, b: Riga, campo: string, verso: Verso, ordini: Record<string, string[]> = {}): number {
-  const tipo = colonnaDi(campo)?.tipo ?? 'testo'
+  const tipo = colonnaDi(campo)?.tipo ?? TIPI_LETTI[campo] ?? 'testo'
   const x = chiave(fasi, a[campo], tipo, ordini[campo])
   const y = chiave(fasi, b[campo], tipo, ordini[campo])
   // i vuoti in fondo in entrambi i versi: chi non ha il dato non è «il primo»
