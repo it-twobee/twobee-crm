@@ -68,10 +68,11 @@ export function EsportaLead({ selezionati, mostrati, tutti, filtri, compatto = f
   return (
     <>
       <button ref={bottone} type="button" onClick={() => setAperto(v => !v)} aria-expanded={aperto}
+        aria-label="Esporta i lead" title="Esporta i lead"
         className={compatto
           ? 'flex items-center gap-1.5 text-xs font-semibold text-text-secondary border border-border px-3 py-1.5 rounded-lg hover:text-text-primary'
           : 'flex items-center gap-1.5 text-xs font-semibold text-text-secondary border border-border px-3 py-2 rounded-xl hover:text-text-primary hover:bg-surface-hover transition-colors'}>
-        <Download className="w-3.5 h-3.5" />Esporta
+        <Download className="w-3.5 h-3.5" />{compatto ? 'Esporta' : <span className="hidden xl:inline">Esporta</span>}
       </button>
       <Popover ancora={bottone} aperto={aperto} onChiudi={() => setAperto(false)} etichetta="Esporta i lead" larghezza={320}>
         <div className="p-3 space-y-3">

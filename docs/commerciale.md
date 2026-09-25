@@ -908,6 +908,10 @@ non li portano fuori.
   `@` prende un apostrofo davanti — tranne i telefoni, che formule non sono.
 - **Nome file** `lead-twobee-AAAA-MM-GG.ext`, `contatti-twobee-…`, col giorno
   di Roma. Al massimo 5000 righe per volta.
+- **I comandi restano sulla riga del titolo** (§442): con «Esporta» la barra
+  in alto era diventata più larga dello spazio e scendeva sotto il titolo. Il
+  titolo adesso si stringe e i comandi no; sotto i 1280px «Esporta» e
+  «Aggiorna dal foglio» sono solo icona, con il nome in `aria-label`.
 
 ## Aperto
 
