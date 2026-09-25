@@ -72,8 +72,8 @@ export function DocumentiClient({ documents, materials, clients, voce }: {
   })
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="px-4 sm:px-6 py-4 border-b border-border shrink-0">
+    <div className="min-h-full">
+      <div className="sticky top-0 z-20 bg-background px-4 sm:px-6 py-4 border-b border-border">
         <div className="mb-3">
           <h1 className="text-2xl sm:text-3xl font-black text-text-primary font-heading">Documenti</h1>
           {voce && <VoceSezione sezione={voce} />}
@@ -101,7 +101,7 @@ export function DocumentiClient({ documents, materials, clients, voce }: {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-2">
+      <div className="p-4 sm:p-6 space-y-2">
         {!rows.length ? (
           <div className="text-center py-16">
             <FolderOpen className="w-12 h-12 text-text-secondary mx-auto mb-4" aria-hidden="true" />
