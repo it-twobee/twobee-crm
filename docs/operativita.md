@@ -871,6 +871,12 @@ chiamato «I miei calendari». Adesso:
   accodava «:00» all'ora del database («14:00:00:00», non una data) e senza fuso.
 - **Il modulo evento** ha «Privato», usa l'ora di Roma e dice gli errori
   (prima li ignorava).
+- **La disponibilità degli invitati** (§447, `Disponibilita.tsx`): nel modulo,
+  una riga per persona — io e gli invitati — con la giornata 9–18 come barra,
+  gli impegni disegnati sopra (Google di ognuno, ferie e permessi dal tool) e
+  l'orario scelto in oro. Sotto, i conflitti in parole e «Primo orario libero per
+  tutti», che cerca il primo buco comune nelle due settimane dopo. Le regole
+  sono quelle del follow-up (`conflitti`, `primoLibero`): avvisano, non bloccano.
 
 ## Data, stato e assegnatario si cambiano dalla riga (§445, `components/tasks/ControlliRiga.tsx`)
 La scadenza e l'assegnatario della riga erano un `<input type="date">` e un

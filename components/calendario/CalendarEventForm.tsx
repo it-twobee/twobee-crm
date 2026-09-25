@@ -5,6 +5,7 @@ import { format, addDays } from 'date-fns'
 import { X, Users, ChevronRight, Lock } from 'lucide-react'
 import { toast } from 'sonner'
 import { istanteRoma } from '@/lib/sales-timeline'
+import { Disponibilita } from './Disponibilita'
 import type { Profile } from '@/lib/types/database'
 
 // Form evento unico (Fase 2a), condiviso tra Calendario admin/workspace e
@@ -176,6 +177,13 @@ export function CalendarEventForm({ form: initial, profiles, currentUserId, onCl
             </div>
           )}
         </div>
+
+        {/* §447 — la giornata mia e degli invitati, i conflitti, il primo buco comune */}
+        {!form.allDay && form.date && (
+          <Disponibilita giorno={form.date} inizio={form.startTime} fine={form.endTime}
+            persone={[currentUserId, ...form.attendeeIds]} profili={profiles} ioId={currentUserId} eventoId={form.id}
+            onScegli={(g, da, a) => setForm(f => ({ ...f, date: g, endDate: g, startTime: da, endTime: a }))} />
+        )}
 
         <input value={form.location} onChange={e => set('location', e.target.value)} placeholder="Aggiungi luogo" className={inputCls} />
 
