@@ -80,8 +80,16 @@ export function prossimaAzione(fasi: Fase[], r: RigaScheda, oggiMs: number, ferm
   }
   if (ruolo === 'perso' || ruolo === 'vinto') return null
 
+  /* §438 — i tentativi li conta il diario: tre chiamate a vuoto chiedono un
+     altro canale, non una quarta chiamata alla stessa ora */
+  const aVuoto = Number(r.tentativi ?? 0)
+  if (aVuoto >= 3 && ruolo !== 'sospeso') {
+    return { testo: `${aVuoto} tentativi senza risposta: prova un altro orario o scrivigli un messaggio.`, campo: 'last_interaction_at' }
+  }
   if (ruolo === 'nuovo') {
-    return { testo: 'Non l’ha ancora sentito nessuno: chiama e segna com’è andata.', campo: 'tentativi' }
+    return aVuoto > 0
+      ? { testo: `L’hai cercato ${aVuoto === 1 ? 'una volta' : `${aVuoto} volte`} senza risposta: riprova.`, campo: 'last_interaction_at' }
+      : { testo: 'Non l’ha ancora sentito nessuno: chiama e segna com’è andata.', campo: 'last_interaction_at' }
   }
   if (r.qualifica === 'da_valutare' || !pieno(r.qualifica)) {
     return { testo: 'Non sai ancora se è in target: decidilo prima di lavorarci.', campo: 'qualifica' }

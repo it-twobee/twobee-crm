@@ -29,6 +29,8 @@ import { useFasi } from './FasiContext'
 import { campiCheServono, prossimaAzione, suggerimenti } from '@/lib/sales-scheda'
 import type { PersonaCrm, RigaCrm } from './CrmTable'
 import { SalesFollowUps } from './SalesFollowUps'
+import { CrmTimeline, TimelineProvider, UltimoContatto, useTimeline } from './CrmTimeline'
+import type { Derivati } from '@/lib/sales-timeline'
 
 const ORIGINE: [string, string][] = [
   ['piattaforma', 'Piattaforma'], ['campagna', 'Campagna'], ['adset', 'Adset'],
@@ -129,6 +131,8 @@ function Campo({ colonna, riga, onSalva, persone, onOwner }: {
       <div className="flex-1 min-w-0">
         {colonna.tipo === 'persone'
           ? <Owner riga={riga} persone={persone} onOwner={onOwner} />
+          : colonna.campo === 'last_interaction_at'
+          ? <UltimoContatto />
           : <CrmCella colonna={colonna} valore={riga[colonna.campo]}
               onSalva={v => onSalva(colonna.campo, v)} />}
       </div>
@@ -136,8 +140,17 @@ function Campo({ colonna, riga, onSalva, persone, onOwner }: {
   )
 }
 
-export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pending, persone = [], onOwner, onSalvaExtra }: {
+/** §438 — i follow-up entrano nel diario: salvarne uno lo fa ricomparire lì */
+function FollowUps({ riga }: { riga: RigaCrm }) {
+  const { ricarica } = useTimeline()
+  return <SalesFollowUps key={riga.id} dealId={riga.id} company={riga.company_name || 'Lead'}
+    email={typeof riga.contact_email === 'string' ? riga.contact_email : null} onCambiato={ricarica} />
+}
+
+export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pending, persone = [], onOwner, onSalvaExtra, onDerivati }: {
   riga: RigaCrm
+  /** §438 — il diario ha ricalcolato ultimo contatto e tentativi: la riga li rilegge */
+  onDerivati: (d: Derivati) => void
   /** §437 — un campo personalizzato: un'altra porta, perché è un'altra colonna */
   onSalvaExtra?: (chiave: string, valore: unknown) => Promise<void>
   persone?: PersonaCrm[]
@@ -229,6 +242,12 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pend
         )}
       </div>
 
+      <TimelineProvider dealId={riga.id} onDerivati={onDerivati} iniziali={{
+        last_interaction_at: (riga.last_interaction_at as string | null) ?? null,
+        last_interaction_has_time: riga.last_interaction_has_time !== false,
+        tentativi: Number(riga.tentativi ?? 0),
+        next_followup_at: (riga.next_followup_at as string | null) ?? null,
+      }}>
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {/* Una cosa sola, la più urgente: un elenco di sei cose da fare è un
             elenco che non si fa. L'ordine è quello del danno — un lead senza
@@ -275,8 +294,10 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pend
           </section>
         )}
 
-        <SalesFollowUps key={riga.id} dealId={riga.id} company={riga.company_name || 'Lead'}
-          email={typeof riga.contact_email === 'string' ? riga.contact_email : null} />
+        {/* §438 — il diario prima dei campi: è quello che si guarda aprendo
+            una scheda per richiamare qualcuno, e i campi si leggono dopo */}
+        <CrmTimeline />
+        <FollowUps riga={riga} />
         {GRUPPI_SCHEDA.filter(g => g !== 'provenienza').map(g => (
           <Riquadro key={g} titolo={TITOLO_GRUPPO[g]}>
             {COLONNE.filter(c => c.gruppo === g).map(c => (
@@ -312,6 +333,7 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pend
           )}
         </Riquadro>
       </div>
+      </TimelineProvider>
     </aside>
   )
 }

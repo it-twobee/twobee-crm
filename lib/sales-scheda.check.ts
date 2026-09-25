@@ -36,7 +36,12 @@ is('un vinto con anagrafica tace',
   prossimaAzione(F, r({ stage: 'cliente_acquisito', client_id: 'c1' }), OGGI), null)
 
 console.log('\n— Le fasi vive —')
-is('un lead nuovo si chiama', prossimaAzione(F, r({ stage: 'nuovo_lead' }), OGGI)?.campo, 'tentativi')
+/* §438 — i tentativi non si scrivono più: il campo da toccare è l'ultimo
+   contatto, dove sta il bottone «Oggi» che li registra */
+is('un lead nuovo si chiama', prossimaAzione(F, r({ stage: 'nuovo_lead' }), OGGI)?.campo, 'last_interaction_at')
+is('un lead nuovo cercato a vuoto lo dice', prossimaAzione(F, r({ stage: 'nuovo_lead', tentativi: 2 }), OGGI)?.testo,
+  'L’hai cercato 2 volte senza risposta: riprova.')
+is('tre a vuoto: un altro canale', prossimaAzione(F, r({ qualifica: 'in_target', tentativi: 3 }), OGGI)?.testo.startsWith('3 tentativi'), true)
 is('senza qualifica si qualifica',
   prossimaAzione(F, r({ qualifica: 'da_valutare' }), OGGI)?.campo, 'qualifica')
 is('senza ultimo contatto lo si segna',

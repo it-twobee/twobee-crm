@@ -34,6 +34,7 @@ import { MenuFase } from './MenuFase'
 import { dividiPersi, notaInRiga } from '@/lib/sales-elenco'
 import { salvaCellaDeal, collegaLeadACliente, aggiornaDaFoglio, eliminaLead, impostaOwnerDeal, salvaCampoExtra } from '@/app/actions/sales'
 import { ETICHETTA_QUALIFICA } from '@/lib/sales-table'
+import { giorniFa, quandoContatto } from '@/lib/sales-timeline'
 import { NewClientModal } from '@/components/clients/NewClientModal'
 import type { Client } from '@/lib/types/database'
 import { CrmScheda } from './CrmScheda'
@@ -309,12 +310,20 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
   /* §426 — la riga è una funzione perché si disegna due volte: una per le
      trattative vive e una dentro il blocco dei persi. Copiarla avrebbe
      voluto dire due righe che divergono al primo ritocco. */
+  const adesso = Date.now()
   const rigaElenco = (r: RigaCrm) => {
               const scelta = aperta?.id === r.id
               const telefono = typeof r.contact_phone === 'string' ? r.contact_phone : ''
               const referente = typeof r.contact_name === 'string' ? r.contact_name : ''
               const email = typeof r.contact_email === 'string' ? r.contact_email : ''
               const arrivo = quando(r.created_at)
+              /* §438 — quando l'abbiamo sentito, con l'ora: «Ieri 09:10» si
+                 legge senza fare conti, e decide chi chiamare prima. Senza ora
+                 quando nessuno l'ha segnata — mezzanotte non è un orario. */
+              const sentito = quandoContatto(r.last_interaction_at as string | null, r.last_interaction_has_time !== false, adesso)
+              const fermo = (giorniFa(r.last_interaction_at as string | null, adesso) ?? 0) > 14
+              const tentativi = Number(r.tentativi ?? 0)
+              const richiamo = quandoContatto(r.next_followup_at as string | null, true, adesso)
               const nota = notaInRiga(r.notes)
               const org = (r.lead_origine ?? {}) as Record<string, string>
               const contorno = [org.piattaforma, org.tipologia, org.tempistica].filter(Boolean).join(' · ')
@@ -363,6 +372,12 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
                     </span>
                   )}
                   <span className="flex items-center gap-2 mt-px">
+                    <span className={`text-2xs shrink-0 tabular ${!sentito ? 'text-text-tertiary' : fermo ? 'text-warning' : 'text-text-secondary'}`}
+                      title={sentito ? 'Ultimo contatto' : undefined}>
+                      {sentito ? `Sentito ${sentito.charAt(0).toLowerCase()}${sentito.slice(1)}` : 'Mai sentito'}
+                      {tentativi > 0 && <span className="text-warning"> · {tentativi} a vuoto</span>}
+                      {richiamo && <span className="text-gold-text"> · richiamo {richiamo.charAt(0).toLowerCase()}{richiamo.slice(1)}</span>}
+                    </span>
                     {contorno && <span className="text-2xs text-text-tertiary truncate">{contorno}</span>}
                     {arrivo && (
                       /* Giorno **e ora**: due lead dello stesso giorno non
@@ -651,6 +666,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
                 onSalvaExtra={(chiave, v) => salvaExtra(aperta, chiave, v)}
                 onConverti={() => setConverto(aperta)}
                 onElimina={puoiEliminare ? () => setDaEliminare([aperta.id]) : undefined}
+                onDerivati={d => setRighe(rs => rs.map(r => r.id === aperta.id ? { ...r, ...d } : r))}
               />
             </div>
           )}

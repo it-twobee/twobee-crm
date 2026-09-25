@@ -1,5 +1,15 @@
 # Dove siamo
 
+## La timeline del lead — §438, 2026-09-25
+
+Nella scheda del lead c'è il diario dei contatti (chiamata con esito, email,
+messaggio, meeting, nota), e ultimo contatto, tentativi e prossimo follow-up
+li ricalcola il database invece di scriverli a mano. «Oggi» registra una
+chiamata in un clic, con dieci secondi per correggerla; in elenco la riga dice
+«Sentito ieri 09:10». Fase 1 di sette richieste sul commerciale: seguono il
+selettore del follow-up con l'agenda e i conflitti, poi filtri e viste, poi
+l'export. Migration **263 applicata** il 2026-09-25.
+
 ## I campi personalizzati della scheda lead — §437, 2026-09-24
 
 Da `/impostazioni/commerciale` si aggiungono campi alla scheda del lead (nove

@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { FASI_SEME, etichettaFase, ordinate, type Fase } from './sales-stages'
 import { ETICHETTA_QUALIFICA } from './sales-table'
-import { giornoRoma, type LeadRitorno } from './sales-foglio-ritorno'
+import { type LeadRitorno } from './sales-foglio-ritorno'
+import { giornoOraRoma } from './sales-timeline'
 
 /* §434 — quello che il ritorno scrive, letto dal database. Sta fuori dal modulo
    che parla con Google perché quello è `server-only`, e questo lo usa anche la
@@ -11,11 +12,11 @@ import { giornoRoma, type LeadRitorno } from './sales-foglio-ritorno'
 /** quello che il tool sa dei lead venuti dal foglio, già in parole */
 export async function leadDelTool(admin: SupabaseClient, fasi: Fase[]): Promise<LeadRitorno[]> {
   const [{ data: righe }, { data: motivi }] = await Promise.all([
-    admin.from('deals').select('id, sheet_row_id, stage, qualifica, motivo_perso, last_interaction_at')
+    admin.from('deals').select('id, sheet_row_id, stage, qualifica, motivo_perso, last_interaction_at, last_interaction_has_time')
       .not('sheet_row_id', 'is', null),
     admin.from('sales_motivi_perso').select('chiave, etichetta'),
   ])
-  const deals = (righe ?? []) as { id: string; sheet_row_id: string; stage: string | null; qualifica: string | null; motivo_perso: string | null; last_interaction_at: string | null }[]
+  const deals = (righe ?? []) as { id: string; sheet_row_id: string; stage: string | null; qualifica: string | null; motivo_perso: string | null; last_interaction_at: string | null; last_interaction_has_time: boolean | null }[]
   const { data: legami } = deals.length
     ? await admin.from('deal_owners').select('deal_id, profile_id').in('deal_id', deals.map(d => d.id))
     : { data: [] }
@@ -34,7 +35,9 @@ export async function leadDelTool(admin: SupabaseClient, fasi: Fase[]): Promise<
     'Fase OS': d.stage ? etichettaFase(fasi, d.stage) : '',
     'Qualifica OS': d.qualifica ? ETICHETTA_QUALIFICA[d.qualifica] ?? d.qualifica : '',
     'Owner OS': (owner.get(d.id) ?? []).sort((a, b) => a.localeCompare(b, 'it')).join(', '),
-    'Ultimo contatto OS': giornoRoma(d.last_interaction_at),
+    /* §438 — giorno e ora, come nel tool; solo il giorno se l'ora non l'ha
+       segnata nessuno (i contatti registrati prima della timeline) */
+    'Ultimo contatto OS': giornoOraRoma(d.last_interaction_at, d.last_interaction_has_time !== false),
     'Motivo perso OS': d.motivo_perso ? motivo.get(d.motivo_perso) ?? d.motivo_perso : '',
   }))
 }

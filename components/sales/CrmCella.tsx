@@ -22,6 +22,7 @@ import { eLista } from '@/lib/sales-scelte'
 import { ETICHETTA_QUALIFICA } from '@/lib/sales-table'
 import { MenuFase } from './MenuFase'
 import type { Colonna } from '@/lib/sales-table'
+import { quandoContatto } from '@/lib/sales-timeline'
 
 const inputCls = 'w-full bg-background border border-border-interactive rounded px-1.5 py-1 text-2xs text-text-primary'
 
@@ -76,6 +77,14 @@ export function CrmCella({ colonna, valore, onSalva, disabilitato }: {
         {colonna.campo === 'created_at' && v ? dataIt(v) : v || '—'}
       </span>
     )
+  }
+
+  // ── §438 — calcolato dal diario del lead: si legge e basta ──────────────
+  if (colonna.derivato) {
+    const v = colonna.tipo === 'data'
+      ? quandoContatto(typeof valore === 'string' ? valore : null, true, Date.now())
+      : testo()
+    return <span className="block truncate text-2xs text-text-primary">{v || <span className="text-text-tertiary">—</span>}</span>
   }
 
   // ── il sì/no non ha bisogno di aprirsi ───────────────────────────────────

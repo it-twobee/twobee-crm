@@ -124,5 +124,7 @@ const righa = (adesso: string) => (l: LeadImportato) => ({
      oggi è un lead di luglio, e ordinare per «arrivo» metterebbe in cima i
      più vecchi solo perché li abbiamo letti per ultimi. */
   created_at: l.createdAt ?? adesso,
-  last_interaction_at: l.createdAt ?? null,
+  /* §438 — niente ultimo contatto: l'arrivo non è un contatto, e scriverlo
+     qui faceva sembrare già sentito un lead che nessuno aveva chiamato. Lo
+     scrive il diario, quando qualcuno lo sente davvero. */
 })

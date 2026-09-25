@@ -774,6 +774,48 @@ Due ritocchi a `CrmCella` che valgono per tutti: un numero si mostra come
 numero e come euro solo se la colonna lo dichiara (`euro: true`, solo
 Fatturato) — «Tentativi» si leggeva «3 €»; e telefono ed email sono link.
 
+## La timeline del lead — §438
+
+«Last Contact» era una data scritta a mano, senza ora, e «Tentativi» un numero
+scritto a mano: due campi che potevano dire cose diverse, e nessuno dei due
+raccontava cosa fosse successo. In più il sync dal foglio scriveva come ultimo
+contatto la **data di arrivo** — 19 lead su 42 risultavano sentiti senza che
+nessuno li avesse chiamati.
+
+Adesso si registra **cosa è successo**, in `deal_activities` (223, mai usata
+prima), e il resto discende:
+
+- **Tipi ed esiti chiusi**: chiamata (risposto · non risposto · da richiamare ·
+  segreteria), email e messaggio (inviato da noi · ricevuto da lui), meeting
+  (fatto · non si è presentato), nota. Il vincolo `deal_activities_forma` li
+  tiene insieme nel database — con `COALESCE`, perché un CHECK che vale NULL
+  passa, e una chiamata senza esito entrava.
+- **Ultimo contatto, tentativi, prossimo follow-up non si scrivono**: li
+  ricalcola `sales_ricalcola_contatto` a ogni voce (trigger). I tentativi sono
+  quelli **senza risposta dopo l'ultima risposta**; una nota non conta. In
+  `COLONNE` le due colonne sono `derivato`, quindi fuori da `CAMPI_SCRIVIBILI`.
+- **«Oggi»** accanto a Last Contact: un clic registra una chiamata risposta
+  adesso, e per dieci secondi resta una barra per dire che era un'altra cosa —
+  si ferma se ci passi sopra. «Scegli» apre il modulo: Adesso, Ieri, un
+  mini-calendario (`MiniCalendario`, riusato dal follow-up), l'ora, «non
+  ricordo l'ora». Un contatto fatto non può stare nel futuro: per quello c'è il
+  follow-up.
+- **L'ora è di Roma** (`istanteRoma`, `quandoContatto`), non del browser.
+  Senza ora registrata si scrive il giorno, mai mezzanotte.
+- **Follow-up**: pianificato entra come «in programma» (la route lo scrive nel
+  diario con l'id dell'evento Google). Passata l'ora la scheda chiede «Com'è
+  andato?», e solo lì diventa un contatto. Spostarlo non tocca una voce che ha
+  già un esito; annullarlo la segna annullata.
+- **Correzioni**: chi l'ha scritta o un admin. La cronologia ha la voce col suo
+  nome (`log_activity` ha l'etichetta `deal_activities`), e chi non vede il
+  lead non vede nemmeno quella (`sales_history_scope`).
+- **In elenco**: «Sentito ieri 09:10 · 2 a vuoto · richiamo domani 09:30», in
+  arancione oltre i 14 giorni. **Sul foglio** «Ultimo contatto OS» porta data e
+  ora.
+- **Backfill** (263): i 23 contatti segnati a mano sono voci «contatto» senza
+  ora; i 19 con la data d'arrivo tornano «mai sentiti». Il sync non scrive più
+  `last_interaction_at`.
+
 ## Aperto
 
 - **La RLS non conosceva `deal_owners`**: `sales_can_read` (223) guardava solo
@@ -783,5 +825,6 @@ Fatturato) — «Tentativi» si leggeva «3 €»; e telefono ed email sono link
   di `leadDi()`. **Applicata** il 2026-09-24.
 - **Il ritorno sul foglio aspetta la chiave** (§434): account di servizio da
   creare, foglio da condividere, `GOOGLE_SHEETS_SA_JSON` in Coolify.
-- `deal_activities` e `sales_handoffs` restano in piedi e non sono più scritte
-  da nessuna UI: `SalesHandoff` legge ancora la seconda nella scheda progetto.
+- `sales_handoffs` resta in piedi e non la scrive più nessuna UI:
+  `SalesHandoff` la legge ancora nella scheda progetto. `deal_activities` è
+  tornata viva con la timeline (§438).

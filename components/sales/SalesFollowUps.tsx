@@ -15,7 +15,7 @@ function localDate(iso: string) {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
 }
 
-export function SalesFollowUps({ dealId, company, email }: { dealId: string; company: string; email: string | null }) {
+export function SalesFollowUps({ dealId, company, email, onCambiato }: { dealId: string; company: string; email: string | null; onCambiato?: () => void }) {
   const [events, setEvents] = useState<SalesFollowUp[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -69,6 +69,7 @@ export function SalesFollowUps({ dealId, company, email }: { dealId: string; com
       if (!res.ok) throw new Error(data.error || 'Salvataggio non riuscito')
       setEvents(previous => [...previous.filter(x => x.id !== data.event.id), data.event].sort((a, b) => a.start.localeCompare(b.start)))
       setDraft(null)
+      onCambiato?.()
       if (data.warning) toast.warning(data.warning)
       else toast.success('Follow-up salvato nel tuo Google Calendar')
     } catch (e) { setError(e instanceof Error ? e.message : 'Invio non riuscito. Riprova: il modulo è conservato.') }
@@ -85,6 +86,7 @@ export function SalesFollowUps({ dealId, company, email }: { dealId: string; com
       if (!res.ok) throw new Error(data.error || 'Annullamento non riuscito')
       setEvents(previous => previous.filter(x => x.id !== event.id)); setCancelId(null)
       if (draft?.event?.id === event.id) setDraft(null)
+      onCambiato?.()
       if (data.warning) toast.warning(data.warning)
       else toast.success('Appuntamento annullato')
     } catch (e) { setError(e instanceof Error ? e.message : 'Annullamento non riuscito') }

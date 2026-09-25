@@ -68,6 +68,8 @@ export type Colonna = {
   gruppo: GruppoScheda
   /** §437 — il numero è in euro: senza, si mostra come numero («Tentativi: 3», non «3 €») */
   euro?: boolean
+  /** §438 — lo calcola il diario del lead: si legge, non si scrive */
+  derivato?: boolean
 }
 
 export const PRIORITA = ['High', 'Medium', 'Low'] as const
@@ -95,7 +97,7 @@ export const COLONNE: Colonna[] = [
      giudizio su chi è il lead, i tentativi contano le volte che non ha
      risposto, il motivo è l'unica cosa che rende leggibile un perso. */
   { campo: 'qualifica',       etichetta: 'Qualifica',      tipo: 'scelta',    largh: 10, valori: QUALIFICHE, gruppo: 'trattativa' },
-  { campo: 'tentativi',       etichetta: 'Tentativi',      tipo: 'numero',    largh: 7,  secondaria: true, gruppo: 'trattativa' },
+  { campo: 'tentativi',       etichetta: 'Tentativi',      tipo: 'numero',    largh: 7,  secondaria: true, gruppo: 'trattativa', derivato: true },
   { campo: 'motivo_perso',    etichetta: 'Motivo del perso', tipo: 'motivo',  largh: 12, secondaria: true, gruppo: 'trattativa' },
   { campo: 'priority',        etichetta: 'Priority',       tipo: 'scelta',    largh: 7,  valori: PRIORITA, gruppo: 'trattativa' },
   { campo: 'contact_name',    etichetta: 'Contact Person', tipo: 'testo',     largh: 12, gruppo: 'contatto' },
@@ -107,7 +109,7 @@ export const COLONNE: Colonna[] = [
   { campo: 'services',        etichetta: 'Services',       tipo: 'etichette', largh: 14, gruppo: 'classificazione' },
   { campo: 'referral',        etichetta: 'Referral',       tipo: 'testo',     largh: 8, gruppo: 'classificazione' },
   { campo: 'source',          etichetta: 'Lead Source',    tipo: 'testo',     largh: 11, gruppo: 'classificazione' },
-  { campo: 'last_interaction_at', etichetta: 'Last Contact', tipo: 'data',    largh: 9, gruppo: 'trattativa' },
+  { campo: 'last_interaction_at', etichetta: 'Last Contact', tipo: 'data',    largh: 9, gruppo: 'trattativa', derivato: true },
   { campo: 'started_on',      etichetta: 'Start',          tipo: 'data',      largh: 9, gruppo: 'trattativa' },
   { campo: 'fatturato',       etichetta: 'Fatturato',      tipo: 'numero',    largh: 10, secondaria: true, gruppo: 'azienda', euro: true },
   { campo: 'owner_name',      etichetta: 'Owner',          tipo: 'testo',     largh: 12, secondaria: true, gruppo: 'azienda' },
@@ -123,7 +125,10 @@ export const COLONNE: Colonna[] = [
 /** i tipi che non si modificano: leggere non è scrivere */
 const SOLA_LETTURA: TipoCella[] = ['sola_lettura']
 
-export const modificabile = (c: Colonna) => !SOLA_LETTURA.includes(c.tipo)
+/* §438 — ultimo contatto e tentativi li ricalcola il diario a ogni voce:
+   scriverli a mano vorrebbe dire una cella che dice una cosa e una timeline
+   che ne dice un'altra, e al giro dopo il ricalcolo darebbe torto alla cella. */
+export const modificabile = (c: Colonna) => !SOLA_LETTURA.includes(c.tipo) && !c.derivato
 
 /**
  * I campi che l'azione di salvataggio accetta. È **la** barriera: un'azione
@@ -160,6 +165,11 @@ export const CAMPI_LETTURA = [
   'sheet_row_id',
   /* e le date con cui si misura da quanto una trattativa è ferma */
   'last_interaction_at',
+  /* §438 — il diario le ricalcola: se l'ora del contatto non l'ha segnata
+     nessuno, e quando è il prossimo follow-up */
+  'last_interaction_has_time',
+  'ultimo_tentativo_at',
+  'next_followup_at',
 ]
 
 /** quello che la pagina chiede al database: da mostrare, da leggere, e le chiavi */

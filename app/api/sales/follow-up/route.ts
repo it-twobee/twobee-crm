@@ -29,6 +29,33 @@ async function context(rawId: unknown) {
   return { ...auth, db, calendar, dealId, email: deal.contact_email as string | null }
 }
 
+/**
+ * §438 — il follow-up entra nel diario del lead come «in programma»: da lì la
+ * scheda chiede com'è andato quando l'ora è passata, ed è solo allora che conta
+ * come contatto. Se ha già un esito, spostare l'evento non lo riporta indietro.
+ * Il diario non è la fonte dell'appuntamento — lo è Google — quindi un errore
+ * qui si dice e non fa fallire il salvataggio.
+ */
+async function nelDiario(ctx: Awaited<ReturnType<typeof context>>, eventId: string, patch: Record<string, unknown> | null) {
+  try { return await scriviNelDiario(ctx, eventId, patch) } catch { return false }
+}
+async function scriviNelDiario(ctx: Awaited<ReturnType<typeof context>>, eventId: string, patch: Record<string, unknown> | null) {
+  const { data: voce, error } = await ctx.db.from('deal_activities')
+    .select('id,stato').eq('google_event_id', eventId).maybeSingle()
+  if (error) return false
+  if (voce && voce.stato !== 'in_programma') return true
+  if (!patch) {
+    if (!voce) return true
+    const { error: e } = await ctx.db.from('deal_activities').update({ stato: 'annullata', updated_at: new Date().toISOString(), updated_by: ctx.actor }).eq('id', voce.id)
+    return !e
+  }
+  const { error: e } = voce
+    ? await ctx.db.from('deal_activities').update({ ...patch, updated_at: new Date().toISOString(), updated_by: ctx.actor }).eq('id', voce.id)
+    : await ctx.db.from('deal_activities').insert({ ...patch, deal_id: ctx.dealId, type: 'followup', stato: 'in_programma',
+        google_event_id: eventId, created_by: ctx.actor })
+  return !e
+}
+
 function failure(error: unknown) {
   if (error instanceof SyntaxError) return NextResponse.json({ error: 'Richiesta non valida' }, { status: 400 })
   if (error instanceof FollowUpError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.status })
@@ -59,7 +86,10 @@ async function save(req: NextRequest, editing: boolean) {
       calendar_id: 'primary', title: event.summary, start_at: event.start?.dateTime, end_at: event.end?.dateTime,
       all_day: false, timezone: input.timezone, sync_status: 'synced', last_synced_at: new Date().toISOString(),
       updated_at: new Date().toISOString() }, { onConflict: 'profile_id,external_event_id' })
-    return NextResponse.json({ event: presentFollowUp(event), warning: error ? 'Salvato su Google. Il calendario del gestionale si riallineerà alla prossima sincronizzazione.' : undefined })
+    const diario = await nelDiario(ctx, event.id!, { occurred_at: input.start, duration_min: input.duration, content: input.title, has_time: true })
+    return NextResponse.json({ event: presentFollowUp(event), warning: error
+      ? 'Salvato su Google. Il calendario del gestionale si riallineerà alla prossima sincronizzazione.'
+      : diario ? undefined : 'Salvato su Google, ma non è entrato nella timeline del lead: ricarica la scheda.' })
   } catch (error) { return failure(error) }
 }
 
@@ -75,6 +105,7 @@ export async function DELETE(req: NextRequest) {
     if (typeof body.etag !== 'string' || !body.etag || body.etag.length > 200) throw new FollowUpError('Ricarica l’appuntamento prima di annullarlo')
     await removeFollowUp(ctx.calendar.events, ctx.actor, ctx.dealId, eventId, body.etag)
     const { error } = await ctx.db.from('calendar_events').delete().eq('profile_id', ctx.actor).eq('external_event_id', eventId)
+    await nelDiario(ctx, eventId, null)
     return NextResponse.json({ ok: true, warning: error ? 'Annullato su Google. Aggiorna il calendario del gestionale.' : undefined })
   } catch (error) { return failure(error) }
 }
