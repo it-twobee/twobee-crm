@@ -14,7 +14,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   shiftMonth, computeMonth, rowToPlConfig,
   type PlConfig, type RevenueLine, type CostLine, type Partner,
+  monthLabel,
 } from '@/lib/pl'
+import { costoLavoroPrevisto } from '@/lib/payroll-forecast'
+import { eur } from '@/lib/money'
+import { stimaLavoro } from '@/lib/payroll-map'
 import { collectionIndex, fromRevenue, fromCost, dueOf, monthOf } from '@/lib/cash-calendar'
 import {
   linesForMonth, coveredProjects, type Coverage, type Installment, type RevenueStream,
@@ -561,6 +565,23 @@ export async function loadProspetto(
     }
   }
 
+  /* §443 — il costo del lavoro dei mesi che nessuno ha aperto: questo mese
+     vero, più o meno chi entra o esce dall'organico (ogni mese della catena
+     paga quello del mese prima, §224). Col client di chi chiama: l'organico lo
+     legge l'admin (RLS della 181), che è chi apre il prospetto; se non si
+     legge resta la stima «uguale a questo mese», e la riga lo dice. */
+  const lavoro = await costoLavoroPrevisto(supabase, [nowMonth, ...chainMonths.map(mm => shiftMonth(mm, -1))])
+  const stima = (mm: string) => lavoro
+    ? stimaLavoro({ totale: payrollNow, mese: nowMonth }, lavoro, shiftMonth(mm, -1))
+    : { totale: payrollNow, variazione: 0, persone: null }
+  const perche = (mm: string) => {
+    const x = stima(mm)
+    if (x.persone === null) return undefined
+    const base = `l'ultimo mese registrato (${monthLabel(nowMonth).toLowerCase()})`
+    return x.variazione === 0
+      ? `uguale a ${base}: l'organico non cambia`
+      : `${base}, ${x.variazione > 0 ? 'più' : 'meno'} ${eur(Math.abs(x.variazione))} per chi entra o esce: ${x.persone} persone in forza a ${monthLabel(shiftMonth(mm, -1)).toLowerCase()}`
+  }
   const plan: PlanMonth[] = chainMonths.map(mm => {
     const open = openMonths.has(mm)
     /* Un mese aperto si legge dalle righe, uno mai aperto dal contratto e dal
@@ -644,7 +665,8 @@ export async function loadProspetto(
         /* §225 — la stima vale solo se il mese **prima** non è aperto: le
            retribuzioni escono il 20 del mese dopo, e dove quelle righe esistono
            sono già in lista. */
-        payroll: openMonths.has(shiftMonth(mm, -1)) ? 0 : payrollNow,
+        payroll: openMonths.has(shiftMonth(mm, -1)) ? 0 : stima(mm).totale,
+        payrollWhy: perche(mm),
       }),
     }
   })

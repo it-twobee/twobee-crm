@@ -1,5 +1,14 @@
 # Dove siamo
 
+## La Fatturazione legge il calendario della cassa — §443, 2026-09-25
+
+Le fatture nostre senza scadenza scadono per regola (quindici giorni, §177) e
+lo dicono; «scaduta» ha le tre fasce della cassa (in ritardo, scaduta, da
+recuperare); il grafico si legge anche per mese di incasso. Nella tenuta di
+cassa il costo del lavoro dei mesi futuri parte dai cedolini veri e aggiunge
+solo chi entra o esce dall'organico — il costo da contratto da solo faceva 930 €
+al mese di troppo. Nessuna migration.
+
 ## L'export dei lead e dei contatti — §441, 2026-09-25
 
 Fase 4 e ultima del commerciale. «Esporta» scarica il lead completo (campi,
@@ -1654,12 +1663,11 @@ partite di giro, quote + costi + subappalti = 31.725 €, differenza 0,00.
 
 **Aperto, in ordine di importanza:**
 
-1. **Fatturazione al calendario della cassa** (§224): è l'ultima sezione che non
-   legge `dueOf` — previsionale, Banca, Personale e conto economico ci passano già.
-   È una lettura, non una scrittura. Nella stessa riga: il **previsionale del
-   costo del lavoro** è una stima (§225, uguale a questo mese) perché il piano dei
-   costi non contiene l'area Personale; farlo derivare dall'organico come fa
-   `pushPayrollToMonth` toglierebbe l'unica assunzione rimasta nella tenuta di cassa.
+1. ~~**Fatturazione al calendario della cassa** (§224)~~ — **fatto** (§443,
+   2026-09-25): le nostre senza scadenza scadono per regola, «scaduto» usa le
+   fasce della cassa, il grafico ha la lettura per mese di cassa, e il costo del
+   lavoro stimato è il mese vero più o meno chi entra o esce dall'organico.
+   Resta aperto il **picco di tredicesima** in dicembre, che la stima non vede.
 2. **Chiudere il travaso Asana** (§215-221): il codice c'è tutto, restano da passare
    in rassegna le 146 board — e poi si toglie la sezione, che è dichiarata temporanea.
 3. **Quotare i progetti che mancano**: 15 contratti su 21 progetti. Chi non ne ha

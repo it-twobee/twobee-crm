@@ -7,7 +7,7 @@ import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 import { PROFILE_COLUMNS } from '@/lib/profile-columns'
 import { monthKey } from '@/lib/pl'
 import { risksFor, type RiskResult } from '@/lib/risk'
-import { withRectifications, type Invoice } from '@/lib/invoices'
+import { withDueRule, withRectifications, type Invoice } from '@/lib/invoices'
 import { clientBilling } from '@/lib/client-billing'
 import type { ClientEconomicsSummary } from '@/components/clients/ClientiList'
 
@@ -87,7 +87,8 @@ export default async function ClientiPage() {
        dal «da incassare» di Fatturazione, una delle due pagine starebbe
        mentendo e non si saprebbe quale. `withRectifications` perché una fattura
        che una nota di credito ha annullato non è un credito da inseguire. */
-    const fatture: Invoice[] = withRectifications(
+    // §443 — le nostre senza scadenza scadono per regola (§177): lo stesso scaduto di Fatturazione
+    const fatture: Invoice[] = withDueRule(withRectifications(
       ((invoiceRows ?? []) as unknown as Record<string, unknown>[]).map(r => ({
         id: String(r.id), direction: 'emessa' as const, docType: String(r.doc_type ?? 'TD01'),
         number: String(r.number ?? '—'), issuedOn: String(r.issued_on),
@@ -99,7 +100,7 @@ export default async function ClientiPage() {
         dueDate: (r.due_date as string) ?? null, paidOn: (r.paid_on as string) ?? null,
         excludedReason: (r.excluded_reason as string) ?? null,
         rectifiesId: (r.rectifies_id as string) ?? null,
-      })))
+      }))))
     const today = new Date().toISOString().slice(0, 10)
 
     for (const c of clients) {

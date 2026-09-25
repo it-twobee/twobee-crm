@@ -55,10 +55,22 @@ pagato**, che è un'altra cosa e vuole un'altra azione) · `regge`.
   **primo** mese: nella curva servono lì, non nel mese in cui erano attesi.
 - **Una stima si dichiara sulla riga.** Il piano dei costi non contiene l'area
   Personale (§184: la scrive l'organico), quindi ogni mese futuro sembrerebbe
-  costare novemila euro in meno. `payroll` la stima uguale a questo mese e la
-  riga scrive «di cui X stimati» — e **solo** dai mesi che seguono uno non
-  aperto, perché il costo del lavoro di un mese esce in quello dopo e dove le
-  righe ci sono è già contato.
+  costare novemila euro in meno. La stima vale **solo** dai mesi che seguono uno
+  non aperto, perché il costo del lavoro di un mese esce in quello dopo e dove le
+  righe ci sono è già contato, e la riga scrive «di cui X stimati».
+- **La stima è il mese vero più o meno chi entra o esce** (§443,
+  `stimaLavoro` in `lib/payroll-map.ts`, `costoLavoroPrevisto` in
+  `lib/payroll-forecast.ts`). Si parte dal costo del lavoro **registrato** di
+  questo mese — i cedolini — e si aggiunge la differenza di costo da contratto
+  dell'organico in forza nel mese stimato (§233). Il costo da contratto da solo
+  **non è la cassa**: contiene TFR e ratei di tredicesima e quattordicesima, che
+  maturano ogni mese ed escono a dicembre, a giugno o alla cessazione — su
+  settembre 2026 faceva 7.877 € contro i 6.949 € dei cedolini, novecento euro al
+  mese di uscite che non ci sono. A organico fermo la stima è esattamente il mese
+  registrato; se l'organico non si legge si torna a «uguale a questo mese», e la
+  pagina lo dice (`payrollSource`, `payrollWhy`). Il picco di tredicesima in
+  dicembre **non** è ancora nella stima: servirebbe il calendario di cassa dei
+  cedolini, ed è dichiarato aperto.
 - **Il maturato si conta su tutti i mesi** (§233), non sulle righe che il mese
   guardato si trascina: un bonifico non sa di che mese è, e prendere i soli
   arretrati di cassa dava allo stesso registro 18.749 € su luglio e 25.557 € su

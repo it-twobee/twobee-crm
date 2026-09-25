@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { InvoicesClient } from '@/components/invoices/InvoicesClient'
 import { monthKey, shiftMonth } from '@/lib/pl'
 import { linesForMonth, type Installment, type RevenueStream } from '@/lib/revenue'
-import { billingSeries, withRectifications } from '@/lib/invoices'
+import { billingCashSeries, billingSeries, withDueRule, withRectifications } from '@/lib/invoices'
 import type { Invoice, LineRef, TxRef } from '@/lib/invoices'
 
 export const revalidate = 0
@@ -70,7 +70,8 @@ export default async function FatturePage({ searchParams }: { searchParams: { m?
 
   const n = (v: unknown) => Number(v ?? 0)
 
-  const invoices: Invoice[] = withRectifications((rowsSafe ?? []).map((r: Record<string, unknown>) => ({
+  /* §443 — le nostre senza scadenza scadono per regola (§177), come le legge la cassa */
+  const invoices: Invoice[] = withDueRule(withRectifications((rowsSafe ?? []).map((r: Record<string, unknown>) => ({
     id: String(r.id),
     direction: r.direction === 'ricevuta' ? 'ricevuta' : 'emessa',
     docType: String(r.doc_type ?? 'TD01'),
@@ -92,7 +93,7 @@ export default async function FatturePage({ searchParams }: { searchParams: { m?
     fromSdi: r.from_sdi === true,
     sentOn: (r.sent_on as string) ?? null,
     rectifiesId: (r.rectifies_id as string) ?? null,
-  })))
+  }))))
 
   const lines: LineRef[] = [
     ...(rev ?? []).map((r: Record<string, unknown>) => ({
@@ -132,6 +133,7 @@ export default async function FatturePage({ searchParams }: { searchParams: { m?
   return (
     <InvoicesClient
       series={billingSeries(invoices, today, forecast)}
+      cashSeries={billingCashSeries(invoices, today, forecast)}
       month={month}
       setupNeeded={setupNeeded}
       statesReady={statesReady}

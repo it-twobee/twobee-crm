@@ -136,7 +136,7 @@ export const plannedNotYetInMonth = (
   /**
    * §184 — **l'area Personale la scrive l'organico, non il piano.** Le sue voci a
    * piano sono un residuo del seed che nessuno porta mai nel mese, e le righe del
-   * costo del lavoro nascono da `pushPayrollToMonth` **senza** un
+   * costo del lavoro nascono da `pushToProfitLoss`/`pushLedgerToProfitLoss` **senza** un
    * `cost_item_id`: il filtro sopra non le riconosce, quindi le voci di piano
    * comparirebbero accanto a quelle vere. Su agosto erano 8.640 € contati due
    * volte. È la stessa esclusione che `applyPlanToMonth` fa a monte.

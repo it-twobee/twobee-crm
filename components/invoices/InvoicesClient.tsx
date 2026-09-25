@@ -45,7 +45,7 @@ type Tab = 'panoramica' | 'elenco' | 'riconcilia'
 const STATE_FILTER: { key: InvoiceState | 'tutte' | 'non_pagate'; label: string; hint: string }[] = [
   { key: 'tutte', label: 'Tutti gli stati', hint: '' },
   { key: 'non_pagate', label: 'Non pagate', hint: 'scadute, nei termini e senza data insieme' },
-  { key: 'scaduta', label: '· scadute', hint: 'oltre la data attesa' },
+  { key: 'scaduta', label: '· oltre la scadenza', hint: 'in ritardo, scadute o da recuperare' },
   { key: 'attesa', label: '· nei termini', hint: 'attese, non ancora scadute' },
   { key: 'senza_data', label: '· senza data', hint: 'né scadute né attese: invisibili' },
   { key: 'pagata', label: 'Pagate', hint: 'con una data di incasso o di pagamento' },
@@ -87,7 +87,7 @@ function KindBadge({ docType }: { docType: string }) {
 }
 
 export function InvoicesClient({
-  month, setupNeeded, statesReady = true, today, invoices, lines, txs, clients, series = [],
+  month, setupNeeded, statesReady = true, today, invoices, lines, txs, clients, series = [], cashSeries = [],
 }: {
   month: string
   setupNeeded: boolean
@@ -96,6 +96,8 @@ export function InvoicesClient({
   today: string
   /** §278 — emesso, incassato, in attesa e previsionale, mese per mese */
   series?: BillingPoint[]
+  /** §443 — la stessa fatturazione per mese di cassa */
+  cashSeries?: BillingPoint[]
   invoices: Invoice[]
   lines: LineRef[]
   txs: TxRef[]
@@ -106,6 +108,7 @@ export function InvoicesClient({
   const [tab, setTab] = useState<Tab>('panoramica')
   const [dir, setDir] = useState<InvoiceDirection>('emessa')
   const [q, setQ] = useState('')
+  const [lettura, setLettura] = useState<'emesso' | 'cassa'>('emesso')
   const [year, setYear] = useState<string>('tutti')
   const [state, setState] = useState<InvoiceState | 'tutte' | 'non_pagate'>('tutte')
   const [kind, setKind] = useState<DocKind | 'tutti'>('tutti')
@@ -383,17 +386,37 @@ export function InvoicesClient({
       {dir === 'emessa' && series.length > 0 && (
         <section className="bg-surface border border-border rounded-2xl p-5 shadow-soft">
           <div className="flex items-baseline justify-between gap-3 flex-wrap mb-1">
-            <h2 className="text-sm font-bold text-text-primary">Fatturato nel tempo</h2>
-            <span className="text-2xs text-text-tertiary tabular">
-              {eur(series.filter(p => !p.future).reduce((s2, p) => s2 + p.gross, 0))} emessi ·{' '}
-              {eur(series.filter(p => !p.future).reduce((s2, p) => s2 + p.collected, 0))} rientrati ·{' '}
-              {eur(series.filter(p => !p.future).reduce((s2, p) => s2 + p.pending, 0))} in attesa
-              {series.some(p => p.credited > 0) && <> ·{' '}
-                {eur(series.reduce((s2, p) => s2 + p.credited, 0))} stornati</>} ·{' '}
-              {eur(series.filter(p => p.future).reduce((s2, p) => s2 + p.forecast, 0))} previsti entro dicembre
-            </span>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h2 className="text-sm font-bold text-text-primary">Fatturato nel tempo</h2>
+              {/* §443 — due domande diverse sugli stessi documenti: quanto si è
+                  fatturato nel mese (competenza, IVA) e quanto ci entra (cassa) */}
+              <div className="flex bg-surface-active rounded-xl p-0.5" role="radiogroup" aria-label="Lettura del grafico">
+                {([['emesso', 'Emesso'], ['cassa', 'Incassato e da incassare']] as const).map(([k, e]) => (
+                  <button key={k} type="button" role="radio" aria-checked={lettura === k} onClick={() => setLettura(k)}
+                    className={`px-3 py-1 rounded-lg text-2xs font-semibold ${lettura === k ? 'bg-surface text-text-primary shadow-soft' : 'text-text-secondary hover:text-text-primary'}`}>
+                    {e}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {lettura === 'emesso' ? (
+              <span className="text-2xs text-text-tertiary tabular">
+                {eur(series.filter(p => !p.future).reduce((s2, p) => s2 + p.gross, 0))} emessi ·{' '}
+                {eur(series.filter(p => !p.future).reduce((s2, p) => s2 + p.collected, 0))} rientrati ·{' '}
+                {eur(series.filter(p => !p.future).reduce((s2, p) => s2 + p.pending, 0))} in attesa
+                {series.some(p => p.credited > 0) && <> ·{' '}
+                  {eur(series.reduce((s2, p) => s2 + p.credited, 0))} stornati</>} ·{' '}
+                {eur(series.filter(p => p.future).reduce((s2, p) => s2 + p.forecast, 0))} previsti entro dicembre
+              </span>
+            ) : (
+              <span className="text-2xs text-text-tertiary tabular">
+                {eur(cashSeries.filter(p => !p.future).reduce((s2, p) => s2 + p.collected, 0))} incassati ·{' '}
+                {eur(cashSeries.filter(p => !p.future).reduce((s2, p) => s2 + p.pending, 0))} attesi entro questo mese ·{' '}
+                {eur(cashSeries.filter(p => p.future).reduce((s2, p) => s2 + p.forecast, 0))} attesi entro dicembre
+              </span>
+            )}
           </div>
-          <BillingChart data={series} today={today} />
+          <BillingChart data={lettura === 'emesso' ? series : cashSeries} today={today} lettura={lettura} />
           {/* §280 — la leva sta sotto il suo risultato: la barra smorzata dice
               «in attesa», e qui sotto ci sono le fatture che la compongono, una
               per una, col gesto per chiuderle. */}
@@ -738,7 +761,9 @@ export function InvoicesClient({
                         i.sign === -1 ? 'text-error' : 'text-text-primary'}`}>{eur2(signed(i))}</td>
                       <td className="px-2 py-2 text-2xs tabular text-right text-text-tertiary">{eur2(i.sign * i.vatAmount)}</td>
                       <td className="px-2 py-2 text-2xs tabular text-right text-text-secondary">{eur2(signedTotal(i))}</td>
-                      <td className="px-2 py-2 text-2xs text-text-tertiary">{day(i.dueDate)}</td>
+                      <td className="px-2 py-2 text-2xs text-text-tertiary" title={i.dueRule ? 'Nessuna scadenza sul documento: quindici giorni dall’emissione, per regola (§177)' : undefined}>
+                        {day(i.dueDate)}{i.dueRule && <span className="text-text-tertiary"> · regola</span>}
+                      </td>
                       {/* §323 — lo stato lo dice `invoiceStatus`, che è l'unico
                           posto in cui si decide: qui prima c'era una seconda
                           catena di if, e due catene divergono sempre. Il titolo
@@ -1229,8 +1254,10 @@ function PendingInvoices({ invoices, txs, today, pending, run, direction }: {
                 <span className="text-2xs text-text-tertiary shrink-0">
                   {i.dueDate
                     ? late > 0
-                      ? <span className="text-error font-semibold">in ritardo di {late} giorni</span>
-                      : <>attesa il {day(i.dueDate)}</>
+                      /* §443 — la parola della fascia, da `invoiceStatus`: «in ritardo»
+                         fino a quindici giorni, poi «scaduta», poi «da recuperare» */
+                      ? (() => { const st = invoiceStatus(i, today); return <span className={`${st.tone === 'warning' ? 'text-warning' : 'text-error'} font-semibold`}>{st.label}</span> })()
+                      : <>attesa il {day(i.dueDate)}{i.dueRule && ' (per regola)'}</>
                     : <span className="text-warning">senza data attesa</span>}
                 </span>
                 <span className="text-2xs font-bold tabular text-text-primary shrink-0 w-24 text-right">
@@ -1272,7 +1299,7 @@ function PendingInvoices({ invoices, txs, today, pending, run, direction }: {
                     </p>
                     <label className="flex items-center gap-2">
                       <span className="text-2xs text-text-secondary">{v.quando}</span>
-                      <input type="date" defaultValue={i.dueDate ?? ''} disabled={pending}
+                      <input type="date" defaultValue={i.dueRule ? '' : i.dueDate ?? ''} disabled={pending}
                         onChange={e => run(() => setInvoiceDue(i.id, e.target.value || null),
                           e.target.value ? 'Scadenza aggiornata' : 'Scadenza tolta')}
                         className="bg-background border border-border-interactive rounded-lg px-2 py-1 text-2xs text-text-primary" />

@@ -108,6 +108,8 @@ export type Runway = {
   vatDays: number | null
   /** §233 — la scadenza cade entro il mese guardato: è un bonifico, non un fondo */
   vatDueInMonth: boolean
+  /** §443 — da dove viene la stima del costo del lavoro dei mesi non aperti */
+  payrollSource: 'organico' | 'ultimo_mese'
   /** uscite scoperte entro il mese: certe, si pagano comunque */
   toPayGross: number
   toPayCount: number
@@ -197,6 +199,13 @@ export function cashRunway(i: {
    * dove le righe ci sono è già contato.
    */
   payroll?: number
+  /**
+   * §443 — il costo del lavoro **mese per mese dall'organico**, per mese di
+   * competenza. Dove c'è vince su `payroll`: chi entra o esce dall'organico
+   * cambia il costo, e «uguale a questo mese» non lo vede. `payroll` resta il
+   * ripiego se l'organico non si legge.
+   */
+  payrollByMonth?: Record<string, number>
   /**
    * §227 — i compensi **maturati e non ancora erogati**, da `payoutViews`.
    *
@@ -411,7 +420,8 @@ export function cashRunway(i: {
        prima ha righe registrate è già dentro `open`; dove non ce le ha nessuno
        lo conta, e il piano non lo prevede — allora si stima e lo si dice. */
     const prevOpen = k === 0 || plannedBy.get(shiftMonth(m, k - 1))?.open === true
-    const estimated = k > 0 && !prevOpen ? r2(i.payroll ?? 0) : 0
+    const competenza = shiftMonth(m, k - 1)
+    const estimated = k > 0 && !prevOpen ? r2(i.payrollByMonth?.[competenza] ?? i.payroll ?? 0) : 0
 
     /* §227 — i compensi maturati che escono in questo mese. Non sono righe di
        costo — non si scrivono, si ricalcolano — quindi senza questa somma il
@@ -450,6 +460,7 @@ export function cashRunway(i: {
     balance: r2(i.balance),
     vatHeld, vatDeadline: i.vatDeadline, vatLabel: i.vatLabel,
     vatDays: i.vatDays ?? null, vatDueInMonth,
+    payrollSource: i.payrollByMonth && Object.keys(i.payrollByMonth).length ? 'organico' : 'ultimo_mese',
     toPayGross, toPayCount: outs.length, lateOut, lateOutCount: outsLate.length,
     dueIn, dueInCount: insOnTime.length,
     lateIn, lateInCount: insLate.length, lateInOldest,

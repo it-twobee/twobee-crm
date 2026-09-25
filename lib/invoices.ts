@@ -19,6 +19,7 @@
  */
 
 import { eur } from '@/lib/money'
+import { BAND_LABEL, bandOf, dueFromIssue, statusOf, type Band } from '@/lib/cash-calendar'
 import { docKind, DOC_KIND_LABEL, isCreditNote, isDebitNote, type DocKind } from '@/lib/fattura-xml'
 
 export { docKind, DOC_KIND_LABEL, isCreditNote, isDebitNote, type DocKind }
@@ -43,6 +44,12 @@ export type Invoice = {
   total: number
   sign: 1 | -1
   dueDate: string | null
+  /**
+   * §443 — la scadenza non l'ha scritta il documento: viene dalla regola
+   * (§177, quindici giorni dall'emissione). Si dice, e non si spaccia per
+   * quella del documento.
+   */
+  dueRule?: boolean
   paidOn: string | null
   warnings?: string[]
   /** §250 — il documento allegato: PDF o immagine, su storage privato */
@@ -105,6 +112,21 @@ export function withRectifications(invoices: Invoice[]): Invoice[] {
     const n = notes.get(i.id)
     return n ? { ...i, rectifiedBy: n.ids, rectifiedAmount: n.credited } : i
   })
+}
+
+/**
+ * §443 — le fatture **nostre** senza scadenza sul documento scadono per regola.
+ *
+ * La regola c'è ed è nostra (§177): la fattura vale quindici giorni. Lasciarle
+ * «senza data» voleva dire che nessuno le inseguiva, e la cassa (`dueOf`) le
+ * dava già per attese al 15 — due pagine, due risposte. Quelle dei fornitori no:
+ * lì la scadenza la decide chi fattura, e inventarla sarebbe il danno che
+ * `suggestedDue` esiste per evitare. Le note di credito non si incassano.
+ */
+export function withDueRule(invoices: Invoice[]): Invoice[] {
+  return invoices.map(i => i.direction === 'emessa' && i.sign > 0 && !i.dueDate && i.issuedOn
+    ? { ...i, dueDate: dueFromIssue(i.issuedOn, 'giorni_15'), dueRule: true }
+    : i)
 }
 
 /** Quanto di questa fattura una nota di credito ha annullato. */
@@ -199,6 +221,8 @@ export type InvoiceState =
 export type InvoiceStatus = {
   stage: InvoiceStage | null
   state: InvoiceState
+  /** §443 — la fascia della cassa, per chi è atteso o in ritardo */
+  band?: Exclude<Band, 'pagato'>
   /** l'etichetta da mostrare, già in italiano e già col numero dentro */
   label: string
   tone: 'success' | 'error' | 'warning' | 'info' | 'muted'
@@ -272,18 +296,28 @@ export function invoiceStatus(i: Invoice, today: string): InvoiceStatus {
       why: 'nessuna scadenza sul documento: non è né scaduta né attesa, quindi non la cerca nessuno',
     }
   }
-  if (i.dueDate < today) {
+  const regola = i.dueRule ? ' (per regola: quindici giorni dall’emissione)' : ''
+  /* §443 — le fasce della cassa (`bandOf`): «in ritardo» dal giorno dopo,
+     «scaduta» oltre quindici giorni, «da recuperare» oltre quarantacinque. La
+     stessa fattura dice la stessa parola qui, in Banca e nella tenuta di cassa. */
+  const band = bandOf(i.dueDate, today)
+  if (band !== 'atteso') {
     const gg = daysBetween(i.dueDate, today)
+    const giorni = `${gg} ${gg === 1 ? 'giorno' : 'giorni'}`
     return {
-      stage, state: 'scaduta', tone: 'error',
-      label: `scaduta da ${gg} ${gg === 1 ? 'giorno' : 'giorni'}`,
-      why: `attesa il ${i.dueDate}${partlyVoided(i) ? ', stornata in parte' : ''}`,
+      stage, state: 'scaduta', band,
+      tone: band === 'in_ritardo' ? 'warning' : 'error',
+      label: band === 'in_ritardo' ? `in ritardo di ${giorni}`
+        : band === 'scaduto' ? `scaduta da ${giorni}`
+        : `${BAND_LABEL.grave}, ${giorni}`,
+      why: `attesa il ${i.dueDate}${regola}${partlyVoided(i) ? ', stornata in parte' : ''}`,
     }
   }
   return {
-    stage, state: 'attesa', tone: 'info',
+    stage, state: 'attesa', band,
+    tone: 'info',
     label: incassa ? 'da incassare' : 'da pagare',
-    why: `attesa il ${i.dueDate}${partlyVoided(i) ? ', stornata in parte' : ''}`,
+    why: `attesa il ${i.dueDate}${regola}${partlyVoided(i) ? ', stornata in parte' : ''}`,
   }
 }
 
@@ -517,6 +551,68 @@ export function billingSeries(
     cur.setMonth(cur.getMonth() + 1)
   }
   return out
+}
+
+/**
+ * §443 — la stessa fatturazione, letta **per mese di cassa**.
+ *
+ * `billingSeries` risponde a «quanto abbiamo fatturato a luglio» (competenza:
+ * serve all'IVA e al conto economico). Questa risponde a «quanto ci entra a
+ * luglio»: una fattura di luglio incassata a settembre pesa su settembre, una
+ * scoperta pesa sul mese della scadenza, o su questo se è già passata — le
+ * stesse regole della tenuta di cassa (`statusOf`), non una loro copia.
+ *
+ * Stessa forma di `BillingPoint`, perché il grafico è lo stesso: nei mesi
+ * passati `collected` è l'incassato del mese e `pending` quello che vi è
+ * atteso; nei futuri `forecast` somma le fatture già emesse che scadono lì e
+ * quello che i contratti dicono di emettere (emesso il 1°, atteso il 15: lo
+ * stesso mese). In imponibile, come l'altra lettura: i due grafici si
+ * confrontano solo se misurano la stessa cosa.
+ */
+export function billingCashSeries(
+  invoices: Invoice[],
+  today: string,
+  forecast: { month: string; amount: number }[] = [],
+  from?: string,
+): BillingPoint[] {
+  const emesse = invoices.filter(i => i.direction === 'emessa' && i.sign > 0 && managed(i) && !isVoided(i))
+  const now = monthOf(today)
+  const cassa = emesse.map(i => {
+    const netto = r2(i.taxable - rectified(i))
+    const st = statusOf({
+      id: i.id, side: 'entrata', month: monthOf(i.issuedOn), amount: netto,
+      paid: !!i.paidOn, paid_on: i.paidOn, due_date: i.dueDate,
+    }, today)
+    return { netto, mese: st.cashMonth, pagata: !!i.paidOn }
+  })
+  const mesi = [...cassa.map(c => c.mese), ...forecast.map(f => monthOf(f.month))]
+  if (!mesi.length) return []
+  const start = from ?? mesi.sort()[0]
+  const ultimo = [...mesi, now].sort().at(-1)!
+  const end = `${ultimo.slice(0, 4)}-12-01`
+  const fcOf = new Map<string, number>()
+  for (const f of forecast) fcOf.set(monthOf(f.month), r2((fcOf.get(monthOf(f.month)) ?? 0) + f.amount))
+
+  const out: BillingPoint[] = []
+  for (let key = start; key <= end; key = shiftM(key, 1)) {
+    const own = cassa.filter(c => c.mese === key)
+    const collected = sum(own.filter(c => c.pagata).map(c => c.netto))
+    const pending = sum(own.filter(c => !c.pagata).map(c => c.netto))
+    const future = key > now
+    out.push({
+      month: key, issued: r2(collected + pending), gross: r2(collected + pending), credited: 0, unmanaged: 0,
+      collected, pending, count: own.length,
+      forecast: future ? r2((fcOf.get(key) ?? 0) + pending) : 0,
+      future,
+    })
+  }
+  return out
+}
+
+const shiftM = (m: string, n: number) => {
+  const [a, mm] = m.split('-').map(Number)
+  const d = new Date(Date.UTC(a, mm - 1 + n, 1))
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-01`
 }
 
 export type PartyRow = {

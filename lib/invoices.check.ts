@@ -6,7 +6,7 @@ import {
   totals, byMonth, byParty, aging, paymentDays, reconciliation, vatByQuarter, coverage,
   lineCandidates, txCandidates, bankMatching, signed, daysBetween, billingSeries,
   withRectifications, invoiceStatus, invoiceStage, isOpen, isVoided, partlyVoided, rectified,
-  payables, outflow, supplierTerm, suggestedDue,
+  payables, outflow, supplierTerm, suggestedDue, withDueRule, billingCashSeries,
   type Invoice, type LineRef, type TxRef,
 } from '@/lib/invoices'
 
@@ -806,6 +806,43 @@ console.log('\n— §324: un movimento non paga una fattura che non esisteva —
   })
   is('e chi l\'ha già agganciato se lo sente dire',
     f.some(x => x.id === 'movimento-anteriore' && x.severity === 'critico'), true)
+}
+
+{
+  console.log('\n— §443 · la scadenza per regola e le fasce della cassa —')
+  const base: Invoice = {
+    id: 'a', direction: 'emessa', docType: 'TD01', number: '1', issuedOn: '2026-09-01', counterpartyName: 'Acme',
+    counterpartyVat: null, clientId: null, taxable: 1000, vatAmount: 220, total: 1220, sign: 1, dueDate: null, paidOn: null,
+  }
+  const [nostra, fornitore, nota, conData] = withDueRule([
+    base,
+    { ...base, id: 'b', direction: 'ricevuta' },
+    { ...base, id: 'c', sign: -1, docType: 'TD04' },
+    { ...base, id: 'd', dueDate: '2026-10-31' },
+  ])
+  is('nostra senza scadenza: quindici giorni dall\'emissione, dichiarati', [nostra.dueDate, nostra.dueRule], ['2026-09-15', true])
+  is('emessa il 20: scade il 4 del mese dopo, non il 15 già passato', withDueRule([{ ...base, issuedOn: '2026-09-20' }])[0].dueDate, '2026-10-04')
+  is('del fornitore: resta senza data', [fornitore.dueDate, fornitore.dueRule], [null, undefined])
+  is('nota di credito: non si incassa, niente scadenza', nota.dueDate, null)
+  is('la scadenza del documento vince', [conData.dueDate, conData.dueRule], ['2026-10-31', undefined])
+  const st = (today: string) => { const x = invoiceStatus(nostra, today); return [x.state, x.band, x.tone, x.label] }
+  is('prima della scadenza: attesa', st('2026-09-10'), ['attesa', 'atteso', 'info', 'da incassare'])
+  is('il giorno dopo: in ritardo, non ancora scaduta', st('2026-09-20'), ['scaduta', 'in_ritardo', 'warning', 'in ritardo di 5 giorni'])
+  is('oltre quindici giorni: scaduta', st('2026-10-05'), ['scaduta', 'scaduto', 'error', 'scaduta da 20 giorni'])
+  is('oltre quarantacinque: da recuperare', st('2026-11-05'), ['scaduta', 'grave', 'error', 'da recuperare, 51 giorni'])
+  is('la regola si dice', invoiceStatus(nostra, '2026-09-10').why.includes('per regola'), true)
+  is('lo scaduto dei totali la conta', totals([nostra], '2026-09-20').overdue, 1220)
+
+  console.log('\n— §443 · per mese di cassa —')
+  const luglioPagataSett = { ...base, id: 'p', issuedOn: '2026-07-01', dueDate: '2026-07-15', paidOn: '2026-09-03' }
+  const luglioAperta = { ...base, id: 'q', issuedOn: '2026-07-01', dueDate: '2026-07-15', taxable: 500 }
+  const ottobre = { ...base, id: 'r', issuedOn: '2026-09-20', dueDate: '2026-10-20', taxable: 300 }
+  const cs = billingCashSeries([luglioPagataSett, luglioAperta, ottobre], '2026-09-25', [{ month: '2026-10-01', amount: 2000 }], '2026-07-01')
+  const m = (k: string) => cs.find(x => x.month === k)!
+  is('luglio incassata a settembre pesa su settembre', [m('2026-07-01').collected, m('2026-09-01').collected], [0, 1000])
+  is('scoperta e già scaduta: pesa su questo mese', m('2026-09-01').pending, 500)
+  is('ottobre: la fattura che scade lì più i contratti', [m('2026-10-01').future, m('2026-10-01').forecast], [true, 2300])
+  is('fino a dicembre', cs.at(-1)!.month, '2026-12-01')
 }
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)

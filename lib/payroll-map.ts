@@ -7,7 +7,7 @@
  * sanno da dove arrivano i dati.
  */
 import {
-  DEFAULT_PAYROLL_PARAMS, emptyPerson,
+  DEFAULT_PAYROLL_PARAMS, emptyPerson, inForce, personCost,
   type PayrollParams, type PersonInput, type ContractKind, type IrpefBracket,
 } from '@/lib/payroll'
 import { mergeIncentives, type HiringIncentive } from '@/lib/incentives'
@@ -340,3 +340,49 @@ export const PAYSLIP_FIELDS: {
   { key: 'other_employer', label: 'Altri oneri aziendali', group: 'datore' },
   { key: 'tfr_accrued', label: 'TFR maturato nel mese', group: 'datore', hint: 'costo ora, cassa alla fine del rapporto' },
 ]
+
+/**
+ * §443 — quanto costa il lavoro in un mese, **dall'organico**.
+ *
+ * Il piano dei costi non contiene l'area Personale (§184), quindi per i mesi
+ * che nessuno ha ancora aperto la tenuta di cassa stimava «uguale a questo
+ * mese»: un'assunzione che sbaglia proprio quando serve, il mese in cui entra
+ * qualcuno o scade un contratto. Qui si conta come fa `pushToProfitLoss` quando
+ * il mese si apre — chi è in forza quel mese (§233), `personCost().monthly`, TFR
+ * e ratei inclusi — ma senza scrivere niente: è la stessa riga che comparirà,
+ * vista prima.
+ */
+export function costoLavoroDaOrganico(
+  righe: Record<string, unknown>[],
+  params: PayrollParams,
+  month: string,
+): { totale: number; persone: number } {
+  const testo = (v: unknown) => typeof v === 'string' && v ? v : null
+  const inForza = righe.filter(r => r.is_active !== false
+    && inForce({ hiredOn: testo(r.hired_on) ?? testo(r.start_date), endsOn: testo(r.end_date) }, month))
+  const totale = inForza.reduce((s, r) => s + personCost(rowToPerson(r), params).monthly, 0)
+  return { totale: Math.round(totale * 100) / 100, persone: inForza.length }
+}
+
+/**
+ * §443 — la stima del costo del lavoro di un mese futuro: **l'ultimo mese vero,
+ * più o meno chi entra o esce**.
+ *
+ * Il costo da contratto (`personCost`) non è la cassa: contiene TFR e ratei di
+ * tredicesima e quattordicesima, che maturano ogni mese ma escono a dicembre,
+ * a giugno o alla cessazione. Sui dati di settembre 2026 faceva 7.877 € contro
+ * i 6.949 € dei cedolini: novecento euro al mese di uscite che non ci sono. Il
+ * numero vero è quello registrato, e l'organico serve a dire **cosa cambia**:
+ * la differenza fra il costo da contratto del mese e quello del mese di base.
+ * A organico fermo la stima è esattamente il mese registrato.
+ */
+export function stimaLavoro(
+  base: { totale: number; mese: string },
+  organico: Map<string, { totale: number; persone: number }>,
+  mese: string,
+): { totale: number; variazione: number; persone: number | null } {
+  const ora = organico.get(mese), allora = organico.get(base.mese)
+  if (!ora || !allora) return { totale: Math.max(0, base.totale), variazione: 0, persone: null }
+  const variazione = Math.round((ora.totale - allora.totale) * 100) / 100
+  return { totale: Math.max(0, Math.round((base.totale + variazione) * 100) / 100), variazione, persone: ora.persone }
+}

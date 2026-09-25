@@ -16,6 +16,9 @@ import { endOfMonth, dueOf, fromRevenue, fromCost, collectionIndex } from '@/lib
 import { cashRunway, type RunwayLine } from '@/lib/cash-runway'
 import { vatByQuarter, nextDue, vatPending, monthsVat, type VatActual } from '@/lib/vat'
 import { isPayrollCenter } from '@/lib/costs'
+import { costoLavoroPrevisto } from '@/lib/payroll-forecast'
+import { stimaLavoro } from '@/lib/payroll-map'
+import { shiftMonth as spostaMese } from '@/lib/pl'
 import { eur2 } from '@/lib/money'
 import { usedByTx } from '@/lib/tx-links'
 import { buildWindow, takenIn, marginCostsFor } from '@/lib/payout-window'
@@ -447,6 +450,14 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
   }))
   const quarters = vatByQuarter(vatMonths, todayIso, vatActuals)
   const vatNow = nextDue(vatMonths, todayIso, vatActuals)
+  /* §443 — il costo del lavoro dei mesi a venire, dall'organico: chi è in forza
+     in ognuno. I sei mesi del rotolo pagano il lavoro del mese prima, quindi si
+     parte da questo. */
+  const lavoro = await costoLavoroPrevisto(supabase,
+    Array.from({ length: 7 }, (_, k) => spostaMese(month, k)))
+  const lavoroBase = allOpenCost
+    .filter(c => c.month === month && isPayrollCenter(c.category))
+    .reduce((s, c) => s + (c.actual > 0 ? c.actual : c.budget), 0)
   const runway = cashRunway({
     month, today: todayIso, balance: bankBalance,
     open: runwayLines,
@@ -462,9 +473,11 @@ export default async function EconomicsPage({ searchParams }: { searchParams: { 
        senza questa stima il previsionale prometterebbe ogni mese novemila euro
        che non ci sono. Vale quello di **questo** mese: è l'unico numero vero che
        si ha, e la stima è dichiarata riga per riga. */
-    payroll: allOpenCost
-      .filter(c => c.month === month && isPayrollCenter(c.category))
-      .reduce((s, c) => s + (c.actual > 0 ? c.actual : c.budget), 0),
+    payroll: lavoroBase,
+    /* §443 — questo mese vero, più o meno chi entra o esce nei mesi dopo */
+    payrollByMonth: lavoro
+      ? Object.fromEntries(Array.from(lavoro.keys(), m => [m, stimaLavoro({ totale: lavoroBase, mese: month }, lavoro, m).totale]))
+      : undefined,
     /* §227 — i compensi maturati e non erogati. Non sono righe di costo — non si
        scrivono, si ricalcolano — quindi senza questa riga «se paghi tutto»
        pagava fornitori e stipendi e non i soci né i commerciali. */

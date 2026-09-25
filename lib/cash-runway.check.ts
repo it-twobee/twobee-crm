@@ -197,6 +197,13 @@ eq('nemmeno il mese dopo uno aperto', conPaghe.months[1].estimated, 0)
 eq('dal mese dopo uno chiuso sì', conPaghe.months[2].estimated, 9000)
 eq('e la stima entra nell\'uscita', conPaghe.months[2].outflow, m[2].outflow + 9000)
 eq('senza il parametro non si stima niente', m.every(x => x.estimated === 0), true)
+/* §443 — mese per mese dove si sa: chi entra a settembre costa da ottobre,
+   e dove il mese manca vale ancora la stima unica */
+const perMese = cashRunway({ ...base, payroll: 9000, payrollByMonth: { '2026-09-01': 9500 } })
+eq('la stima del mese viene dalla sua competenza', perMese.months[2].estimated, 9500)
+eq('dove manca il mese, il ripiego', perMese.months[3].estimated, 9000)
+eq('e lo dice', perMese.payrollSource === 'organico', true)
+eq('senza, «ultimo mese»', conPaghe.payrollSource === 'ultimo_mese', true)
 
 // ── quando si rompe ─────────────────────────────────────────────────────────
 const magro = cashRunway({ ...base, balance: 9000 })

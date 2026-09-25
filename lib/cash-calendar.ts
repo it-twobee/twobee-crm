@@ -253,15 +253,38 @@ export function termsOf(l: CashLine): Terms {
   return 'stesso_mese'
 }
 
+/**
+ * §443 — la scadenza di un documento emesso in quel giorno, con quei termini.
+ *
+ * È la stessa aritmetica di `dueOf`, che la applica al 1° del mese (la fattura
+ * esce il primo giorno utile, §177): la Fatturazione la applica al giorno vero
+ * di emissione. Una regola sola, due punti di partenza.
+ */
+export function dueFromIssue(issuedOn: string, terms: 'giorni_15' | 'giorni_30' | 'giorni_60' | 'giorni_90'): string {
+  const giorni = { giorni_15: 14, giorni_30: 29, giorni_60: 59, giorni_90: 89 }[terms]
+  return addDays(issuedOn.slice(0, 10), giorni)
+}
+
+/**
+ * §443 — in che fascia sta uno scoperto, dato quando era atteso. La usano la
+ * cassa (`statusOf`) e la Fatturazione (`invoiceStatus`): la stessa fattura
+ * non può essere «in ritardo» in una pagina e «scaduta» in un'altra.
+ */
+export function bandOf(due: string, today: string): Exclude<Band, 'pagato'> {
+  const days = daysBetween(due, today)
+  return days <= 0 ? 'atteso'
+    : days > LATE_BANDS.grave ? 'grave'
+    : days > LATE_BANDS.scaduto ? 'scaduto'
+    : 'in_ritardo'
+}
+
 /** Quando i soldi sono attesi. `due_date` sulla riga è un'eccezione decisa da una persona. */
 export function dueOf(l: CashLine, ctx: CashCtx = {}): string {
   if (l.due_date) return l.due_date
   const first = monthOf(l.month)
   switch (termsOf(l)) {
-    case 'giorni_15': return addDays(first, 14)
-    case 'giorni_30': return addDays(first, 29)
-    case 'giorni_60': return addDays(first, 59)
-    case 'giorni_90': return addDays(first, 89)
+    case 'giorni_15': case 'giorni_30': case 'giorni_60': case 'giorni_90':
+      return dueFromIssue(first, termsOf(l) as 'giorni_15')
     case 'mese_succ_20': return `${shiftMonth(first, 1).slice(0, 8)}20`
     case 'a_incasso': {
       const key = l.project_id ? `${l.project_id}|${first}` : ''
@@ -314,10 +337,7 @@ export function statusOf(l: CashLine, today: string, ctx: CashCtx = {}): CashSta
      deve incassarlo. Se la scadenza è ancora avanti resta dov'è. */
   const dueMonth = monthOf(due)
   const nowMonth = monthOf(today)
-  const band: Band = days <= 0 ? 'atteso'
-    : days > LATE_BANDS.grave ? 'grave'
-    : days > LATE_BANDS.scaduto ? 'scaduto'
-    : 'in_ritardo'
+  const band: Band = bandOf(due, today)
 
   return {
     band, terms, due, days, paidOn: null, assumed: false,

@@ -208,6 +208,27 @@ smette di lavorare prima di uno grande che scade domani.
 - **«Senza data» è una fascia sua**, non un residuo in fondo. Sono i soldi che
   usciranno in un momento che il tool non sa, e nasconderli in un totale li fa
   mancare proprio il giorno in cui il fornitore chiama (§280).
+- **Le nostre senza scadenza scadono per regola** (§443, `withDueRule`). Per le
+  fatture che emettiamo la regola c'è ed è nostra (§177): valgono quindici
+  giorni dall'emissione — la stessa aritmetica di `dueOf`, che parte dal 1° del
+  mese (`dueFromIssue`). La scadenza si dice «per regola» in elenco e nel
+  perché, non si scrive sul documento, e il campo per fissarne una vera resta
+  vuoto. Vale in Fatturazione e nella colonna Pagamenti dei clienti. Le note di
+  credito non si incassano e restano senza. Al 25 settembre 2026 nessuna
+  emessa aperta era senza scadenza: la regola copre le prossime.
+- **Oltre la scadenza ci sono tre parole, le stesse della cassa** (§443,
+  `bandOf` in `lib/cash-calendar.ts`): «in ritardo» dal giorno dopo, «scaduta»
+  oltre quindici giorni, «da recuperare» oltre quarantacinque. Prima bastava un
+  giorno per dire «scaduta», e la stessa fattura era «in ritardo» nella tenuta
+  di cassa. Lo scaduto dei totali non cambia — sono soldi dovuti dal giorno dopo
+  — cambia la parola. Al 25 settembre: 5 in ritardo, 1 scaduta, 1 da recuperare,
+  24.918,50 € in tutto.
+- **Il grafico ha due letture** (§443, `billingCashSeries`): «Emesso», per
+  competenza, com'era, e «Incassato e da incassare», per mese di cassa con le
+  regole di `statusOf` — l'incasso nel mese del movimento, lo scoperto nel mese
+  della scadenza o in questo se è passata, e nei mesi futuri le fatture che
+  scadono lì più i contratti firmati. Imponibile in tutte e due, perché si
+  confrontano.
 - **La scadenza che il documento non dichiara, la dice il fornitore stesso**
   (`supplierTerm`, `suggestedDue`). Metà delle fatture ricevute non porta
   `DataScadenzaPagamento` — il tracciato non la pretende — e inventare trenta

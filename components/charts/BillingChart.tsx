@@ -38,11 +38,14 @@ import type { BillingPoint } from '@/lib/invoices'
  * dal numero la decisione — quindi il numero deve esserci, non essere dedotto
  * dal pixel.
  */
-export function BillingChart({ data, today, height = 240 }: {
+export function BillingChart({ data, today, height = 240, lettura = 'emesso' }: {
   data: BillingPoint[]
   today: string
   height?: number
+  /** §443 — «emesso» per competenza, «cassa» per mese in cui i soldi entrano */
+  lettura?: 'emesso' | 'cassa'
 }) {
+  const cassa = lettura === 'cassa'
   const [mode, setMode] = useState<'barre' | 'linea'>('barre')
   const [hover, setHover] = useState<number | null>(null)
   if (!data.length) return null
@@ -84,12 +87,21 @@ export function BillingChart({ data, today, height = 240 }: {
   return (
     <div className="w-full">
       <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
-        <p className="text-2xs text-text-tertiary max-w-lg">
-          L&apos;altezza è il <strong className="text-text-secondary">fatturato netto</strong>, al netto
-          delle note di credito: la parte piena è rientrata, quella smorzata è ancora attesa.
-          Il tratteggio da{' '}
-          {esteso(nowM).split(' ')[0]} in poi è quello che i contratti firmati dicono di emettere.
-        </p>
+        {cassa ? (
+          <p className="text-2xs text-text-tertiary max-w-lg">
+            Ogni fattura pesa sul mese in cui <strong className="text-text-secondary">entrano i soldi</strong>:
+            quello dell&apos;incasso, o quello della scadenza se è ancora aperta — e questo mese, se la scadenza
+            è già passata. Il tratteggio da {esteso(nowM).split(' ')[0]} in poi somma le fatture che scadono lì
+            e quello che i contratti firmati dicono di emettere. Imponibile, come la lettura «Emesso».
+          </p>
+        ) : (
+          <p className="text-2xs text-text-tertiary max-w-lg">
+            L&apos;altezza è il <strong className="text-text-secondary">fatturato netto</strong>, al netto
+            delle note di credito: la parte piena è rientrata, quella smorzata è ancora attesa.
+            Il tratteggio da{' '}
+            {esteso(nowM).split(' ')[0]} in poi è quello che i contratti firmati dicono di emettere.
+          </p>
+        )}
         <div className="flex bg-surface-active rounded-xl p-0.5 shrink-0">
           {(['barre', 'linea'] as const).map(m => (
             <button key={m} onClick={() => setMode(m)} aria-pressed={mode === m}
@@ -104,7 +116,7 @@ export function BillingChart({ data, today, height = 240 }: {
 
       <div className="relative">
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }} role="img"
-          aria-label="Fatturato emesso, incassato, in attesa e previsionale per mese"
+          aria-label={cassa ? 'Incassato e da incassare per mese di cassa' : 'Fatturato emesso, incassato, in attesa e previsionale per mese'}
           onMouseLeave={() => setHover(null)}>
           <defs>
             <linearGradient id="bill-in" x1="0" y1="0" x2="0" y2="1">
@@ -237,14 +249,16 @@ export function BillingChart({ data, today, height = 240 }: {
               <p className="text-2xs font-bold text-text-primary capitalize">{esteso(h.month)}</p>
               {h.future ? (
                 <>
-                  <Row label="Previsto" value={h.forecast} tone="text-info" />
-                  <p className="text-2xs text-text-tertiary mt-1">dai contratti firmati</p>
+                  <Row label={cassa ? 'Atteso' : 'Previsto'} value={h.forecast} tone="text-info" />
+                  <p className="text-2xs text-text-tertiary mt-1">
+                    {cassa ? (h.pending > 0 ? `${eur(h.pending)} da fatture già emesse, il resto dai contratti` : 'dai contratti firmati') : 'dai contratti firmati'}
+                  </p>
                 </>
               ) : (
                 <>
-                  <Row label="Fatturato netto" value={h.issued} tone="text-text-primary" />
-                  <Row label="Rientrato" value={h.collected} tone="text-success" />
-                  <Row label="In attesa" value={h.pending} tone={h.pending > 0 ? 'text-warning' : 'text-text-tertiary'} />
+                  <Row label={cassa ? 'In cassa nel mese' : 'Fatturato netto'} value={h.issued} tone="text-text-primary" />
+                  <Row label={cassa ? 'Incassato' : 'Rientrato'} value={h.collected} tone="text-success" />
+                  <Row label={cassa ? 'Da incassare' : 'In attesa'} value={h.pending} tone={h.pending > 0 ? 'text-warning' : 'text-text-tertiary'} />
                   <p className="text-2xs text-text-tertiary mt-1">
                     {h.count} fattur{h.count === 1 ? 'a' : 'e'}
                     {h.issued > 0 && ` · ${Math.round((h.collected / h.issued) * 100)}% rientrato`}
@@ -260,9 +274,9 @@ export function BillingChart({ data, today, height = 240 }: {
       </div>
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
-        <Key label="rientrato" color="var(--color-success)" />
-        <Key label="in attesa" color="var(--color-success)" faded />
-        <Key label="previsto dai contratti" color="var(--color-info)" dashed />
+        <Key label={cassa ? 'incassato' : 'rientrato'} color="var(--color-success)" />
+        <Key label={cassa ? 'da incassare' : 'in attesa'} color="var(--color-success)" faded />
+        <Key label={cassa ? 'atteso: fatture in scadenza e contratti' : 'previsto dai contratti'} color="var(--color-info)" dashed />
       </div>
     </div>
   )

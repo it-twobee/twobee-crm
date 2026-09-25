@@ -214,6 +214,8 @@ export function planMonth(i: {
   payouts: { key: string; who: string; kind: 'socio' | 'commerciale'; amount: number; from?: string | null }[]
   /** §225 — il costo del lavoro stimato, per i mesi in cui non c'è una riga */
   payroll?: number
+  /** §443 — da dove viene la stima: senza, è quella «uguale all'ultimo mese» */
+  payrollWhy?: string
   /** §263 — fino a che data il saldo di partenza è un fatto già accaduto */
   anchor?: string | null
   /**
@@ -350,7 +352,7 @@ export function planMonth(i: {
       due: `${i.month.slice(0, 7)}-20`, month: shiftMonth(i.month, -1),
       source: 'organico', state: 'stimato', lateDays: 0, movable: false, inBalance: false,
       declared: false, accrual: false, movesIn: true, on: true,
-      why: 'stimato uguale all\'ultimo mese registrato: il piano non contiene il personale',
+      why: i.payrollWhy ?? 'stimato uguale all\'ultimo mese registrato: il piano non contiene il personale',
     })
   }
 

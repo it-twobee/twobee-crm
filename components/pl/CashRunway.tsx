@@ -295,7 +295,9 @@ export function CashRunway({ runway: r, bankReady, month }: {
                     )}
                     {m.estimated > 0 && (
                       <span className="block text-2xs text-text-tertiary"
-                        title="Il piano dei costi non contiene il costo del lavoro: qui è stimato uguale a questo mese">
+                        title={r.payrollSource === 'organico'
+                          ? 'Il piano dei costi non contiene il costo del lavoro: qui è quello di questo mese, più o meno chi entra o esce dall’organico'
+                          : 'Il piano dei costi non contiene il costo del lavoro: qui è stimato uguale a questo mese'}>
                         di cui {eur(m.estimated)} stimati
                       </span>
                     )}
@@ -321,9 +323,13 @@ export function CashRunway({ runway: r, bankReady, month }: {
             pesano sul <strong className="text-text-secondary">primo</strong> mese, non su quello in cui erano
             attesi: nella curva servono qui. Sui mesi già aperti valgono le righe registrate, sugli altri i
             contratti e il piano — sommarli entrambi conterebbe due volte lo stesso canone. Il costo del
-            lavoro dei mesi non aperti è <strong className="text-text-secondary">stimato uguale a questo
-            mese</strong>: il piano dei costi non lo contiene, e senza la stima ogni mese futuro sembrerebbe
-            costare novemila euro in meno. I <strong className="text-text-secondary">compensi</strong> escono
+            lavoro dei mesi non aperti {r.payrollSource === 'organico'
+              ? <>è <strong className="text-text-secondary">quello di questo mese</strong>, più o meno chi entra
+                  o esce dall&apos;organico in quel mese — dai cedolini veri, non dal costo da contratto, che conta
+                  anche ratei e TFR che quel mese non escono</>
+              : <>è <strong className="text-text-secondary">stimato uguale a questo mese</strong>, perché
+                  l&apos;organico non si è potuto leggere</>}: il piano dei costi non lo contiene, e senza ogni mese
+            futuro sembrerebbe costare novemila euro in meno. I <strong className="text-text-secondary">compensi</strong> escono
             nel mese dopo quello in cui maturano — come il costo del lavoro, che si paga il 20 — e i bonifici
             già usciti sono imputati dal più vecchio.
           </p>
