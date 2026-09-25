@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient, createActorClient } from '@/lib/supabase/admin'
+import { createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { generaSubito } from '@/lib/recurrence-kick'
 import type {
@@ -30,7 +30,7 @@ export async function createWorkstream(input: {
   visibility?: Visibility
 }) {
   const uid = await requireStaff()
-  const { data, error } = await createAdminClient().from('project_workstreams').insert({
+  const { data, error } = await createActorClient(uid).from('project_workstreams').insert({
     project_id: input.project_id,
     name: input.name.trim(),
     workstream_type: input.workstream_type,
@@ -55,16 +55,16 @@ export async function updateWorkstream(id: string, projectId: string, updates: {
   priority?: Priority
   visibility?: Visibility
 }) {
-  await requireStaff()
-  const { error } = await createAdminClient().from('project_workstreams').update(updates).eq('id', id)
+  const uid = await requireStaff()
+  const { error } = await createActorClient(uid).from('project_workstreams').update(updates).eq('id', id)
   if (error) throw new Error(error.message)
   rev(projectId)
 }
 
 export async function deleteWorkstream(id: string, projectId: string) {
-  await requireStaff()
+  const uid = await requireStaff()
   // milestone e task figlie cadono via ON DELETE CASCADE
-  const { error } = await createAdminClient().from('project_workstreams').delete().eq('id', id)
+  const { error } = await createActorClient(uid).from('project_workstreams').delete().eq('id', id)
   if (error) throw new Error(error.message)
   rev(projectId)
 }

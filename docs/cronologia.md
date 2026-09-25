@@ -19,6 +19,18 @@ manda l'id in `x-actor-id`; il trigger lo legge da `request.headers`. **Se
 aggiungi una scrittura su una tabella loggata, usa quello, non
 `createAdminClient()`** — altrimenti la modifica non ha un nome sopra.
 
+**L'inventario delle scritture anonime** (§444, `lib/attribuzione.check.ts`).
+La regola sopra c'era dal §179, e al 25 settembre 2026 diciannove scritture la
+saltavano: tutte le azioni delle fatture (pagata, scadenza, esclusa, inviata,
+eliminata, PDF), creare, modificare ed eliminare milestone e workstream. Nessuna
+dava errore — scrivevano, e in cronologia risultava «Sistema». Il gate elenca
+ogni `.from('<tabella loggata>').insert/update/delete/upsert` delle azioni e
+delle route che passa da `createAdminClient()` — scritto di fila o tramite la
+variabile che lo vale **per ultima** — e fallisce se ne trova una fuori
+dall'elenco delle eccezioni, che è chiuso e vuole un perché. L'elenco delle
+tabelle loggate è quello della 253 più `deal_activities` (263): una tabella che
+ottiene la cronologia va aggiunta anche lì.
+
 **Il buco del 20 luglio 2026** (§412). Dal 20 luglio al 23 settembre 2026
 `activity_log` **non ha ricevuto una riga da `tasks`, `projects` e `invoices`**,
 mentre quelle tabelle cambiavano ogni giorno — 149 task toccate nei soli trenta

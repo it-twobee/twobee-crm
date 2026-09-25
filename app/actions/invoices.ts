@@ -1,6 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createAdminClient, createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { requireEconomicsAdmin as requireAdmin } from '@/lib/economics-guard'
 import { parseFattura, invoiceKey, invoiceWarnings, type ParsedInvoice } from '@/lib/fattura-xml'
@@ -57,7 +57,7 @@ export async function importInvoices(
   files: { name: string; xml: string }[],
 ): Promise<ImportReport> {
   const uid = await requireAdmin()
-  const admin = createAdminClient()
+  const admin = createActorClient(uid)
   const vat = await ownVat()
 
   const report: ImportReport = {
@@ -210,8 +210,8 @@ export async function unlinkInvoiceFromLine(lineId: string, kind: 'ricavo' | 'co
  * il tool ha già davanti.
  */
 export async function linkInvoiceToTx(invoiceId: string, txId: string) {
-  await requireAdmin()
-  const admin = createAdminClient()
+  const uid = await requireAdmin()
+  const admin = createActorClient(uid)
   const { data: tx, error: e0 } = await admin.from('bank_transactions')
     .select('booked_on, amount, source').eq('id', txId).single()
   if (e0) throw new Error(e0.message)
@@ -242,8 +242,8 @@ export async function unlinkInvoiceFromTx(txId: string) {
 
 /** La data di incasso o pagamento, a mano: contanti, compensazioni, giroconti. */
 export async function setInvoicePaid(invoiceId: string, paidOn: string | null) {
-  await requireAdmin()
-  const { error } = await createAdminClient().from('invoices')
+  const uid = await requireAdmin()
+  const { error } = await createActorClient(uid).from('invoices')
     .update({ paid_on: paidOn }).eq('id', invoiceId)
   if (error) throw new Error(error.message)
   rev()
@@ -263,12 +263,12 @@ export async function setInvoicePaid(invoiceId: string, paidOn: string | null) {
  * torna a essere un credito come prima.
  */
 export async function setInvoiceUnmanaged(invoiceId: string, reason: string | null) {
-  await requireAdmin()
+  const uid = await requireAdmin()
   const testo = reason?.trim() ?? ''
   if (reason !== null && !testo) {
     throw new Error('Serve la ragione: una fattura tolta dai conti senza il perché non si legge')
   }
-  const { error } = await createAdminClient().from('invoices')
+  const { error } = await createActorClient(uid).from('invoices')
     .update({ excluded_reason: reason === null ? null : testo }).eq('id', invoiceId)
   /* 42703 = la 210 non è stata eseguita. Va detto, non fatto fallire in silenzio. */
   if (error?.code === '42703') throw new Error('Esegui prima la migration 210_invoice_unmanaged.sql')
@@ -288,9 +288,9 @@ export async function setInvoiceUnmanaged(invoiceId: string, reason: string | nu
  * Cancellarla si può (`null`): una data inventata è peggio di nessuna data.
  */
 export async function setInvoiceDue(invoiceId: string, dueDate: string | null) {
-  await requireAdmin()
+  const uid = await requireAdmin()
   if (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) throw new Error('Data non valida')
-  const { error } = await createAdminClient().from('invoices')
+  const { error } = await createActorClient(uid).from('invoices')
     .update({ due_date: dueDate }).eq('id', invoiceId)
   if (error) throw new Error(error.message)
   rev()
@@ -310,9 +310,9 @@ export async function setInvoiceDue(invoiceId: string, dueDate: string | null) {
  * scaricata spacciandola per quando l'abbiamo mandata.
  */
 export async function setInvoiceSent(invoiceId: string, sentOn: string | null) {
-  await requireAdmin()
+  const uid = await requireAdmin()
   if (sentOn && !/^\d{4}-\d{2}-\d{2}$/.test(sentOn)) throw new Error('Data non valida')
-  const { error } = await createAdminClient().from('invoices')
+  const { error } = await createActorClient(uid).from('invoices')
     .update({ sent_on: sentOn }).eq('id', invoiceId)
   if (error?.code === '42703') throw new Error('Esegui prima la migration 219_invoice_states.sql')
   if (error) throw new Error(error.message)
@@ -331,9 +331,9 @@ export async function setInvoiceSent(invoiceId: string, sentOn: string | null) {
  * se il file lo dichiarasse.
  */
 export async function setInvoiceRectifies(noteId: string, targetId: string | null) {
-  await requireAdmin()
+  const uid = await requireAdmin()
   if (targetId === noteId) throw new Error('Una nota non può stornare sé stessa')
-  const { error } = await createAdminClient().from('invoices')
+  const { error } = await createActorClient(uid).from('invoices')
     .update({ rectifies_id: targetId }).eq('id', noteId)
   if (error?.code === '42703') throw new Error('Esegui prima la migration 219_invoice_states.sql')
   if (error) throw new Error(error.message)
@@ -342,8 +342,8 @@ export async function setInvoiceRectifies(noteId: string, targetId: string | nul
 
 /** Il cliente giusto, quando la partita IVA non bastava ad agganciarlo. */
 export async function setInvoiceClient(invoiceId: string, clientId: string | null) {
-  await requireAdmin()
-  const { error } = await createAdminClient().from('invoices')
+  const uid = await requireAdmin()
+  const { error } = await createActorClient(uid).from('invoices')
     .update({ client_id: clientId }).eq('id', invoiceId)
   if (error) throw new Error(error.message)
   rev()
@@ -357,8 +357,8 @@ export async function setInvoiceClient(invoiceId: string, clientId: string | nul
  * l'XML corretto, che è l'unico posto dove quei numeri hanno un'origine.
  */
 export async function deleteInvoice(invoiceId: string) {
-  await requireAdmin()
-  const { error } = await createAdminClient().from('invoices').delete().eq('id', invoiceId)
+  const uid = await requireAdmin()
+  const { error } = await createActorClient(uid).from('invoices').delete().eq('id', invoiceId)
   if (error) throw new Error(error.message)
   rev()
 }
@@ -404,7 +404,7 @@ export type ManualInvoice = {
 
 export async function addInvoiceManually(input: ManualInvoice): Promise<{ id: string }> {
   const uid = await requireAdmin()
-  const admin = createAdminClient()
+  const admin = createActorClient(uid)
 
   const number = input.number.trim()
   const name = input.counterpartyName.trim()
@@ -469,7 +469,7 @@ export async function addInvoiceManually(input: ManualInvoice): Promise<{ id: st
  * un link che resta valido finché non scade.
  */
 export async function attachInvoicePdf(invoiceId: string, form: FormData): Promise<{ path: string }> {
-  await requireAdmin()
+  const uid = await requireAdmin()
   const file = form.get('file')
   if (!(file instanceof File) || file.size === 0) throw new Error('Nessun file')
   if (file.size > 15 * 1024 * 1024) throw new Error('Il file supera i 15 MB')
@@ -479,7 +479,7 @@ export async function attachInvoicePdf(invoiceId: string, form: FormData): Promi
     throw new Error('Formato non ammesso: PDF o immagine')
   }
 
-  const admin = createAdminClient()
+  const admin = createActorClient(uid)
   const { data: inv } = await admin.from('invoices')
     .select('id, number, issued_on, pdf_path').eq('id', invoiceId).maybeSingle()
   if (!inv) throw new Error('Fattura non trovata')
@@ -501,8 +501,8 @@ export async function attachInvoicePdf(invoiceId: string, form: FormData): Promi
 }
 
 export async function removeInvoicePdf(invoiceId: string) {
-  await requireAdmin()
-  const admin = createAdminClient()
+  const uid = await requireAdmin()
+  const admin = createActorClient(uid)
   const { data: inv } = await admin.from('invoices').select('pdf_path').eq('id', invoiceId).maybeSingle()
   const path = (inv as { pdf_path: string | null } | null)?.pdf_path
   if (path) { try { await deleteObject(path) } catch { /* già sparito */ } }

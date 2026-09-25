@@ -1,5 +1,13 @@
 # Dove siamo
 
+## La cronologia ha un nome su fatture, milestone e workstream — §444, 2026-09-25
+
+Diciannove scritture su tabelle con la cronologia passavano dal client di
+servizio e risultavano «Sistema»: segnare pagata una fattura, cambiarne la
+scadenza, eliminarla, creare o spostare una milestone o una workstream. Adesso
+passano da `createActorClient(uid)`, e `lib/attribuzione.check.ts` fa
+l'inventario di tutte le azioni e le route, così la prossima non sfugge.
+
 ## La Fatturazione legge il calendario della cassa — §443, 2026-09-25
 
 Le fatture nostre senza scadenza scadono per regola (quindici giorni, §177) e
@@ -1676,8 +1684,9 @@ partite di giro, quote + costi + subappalti = 31.725 €, differenza 0,00.
 4. **`promoteLineToPlan`** esiste in `app/actions/costs.ts` ma non ha un pulsante
    nell'economics del progetto: una spesa registrata a mano non si può ancora
    promuovere a ricorrente da lì.
-5. **Attribuzione parziale**: `createActorClient` è adottato in `clients.ts`,
-   `projects.ts`, `tasks.ts`, `ad-hoc-tasks.ts`, `create-project.ts` e
-   `delete-client.ts`. Gli altri percorsi che scrivono su tabelle loggate (deals,
-   tickets, objectives) continuano a registrare «Sistema» finché non passano
-   anche loro.
+5. ~~**Attribuzione parziale**~~ — **fatto** (§444, 2026-09-25). Deals e ticket
+   erano già attribuiti (azioni del commerciale con `createActorClient`, ticket
+   con la sessione); a scrivere «Sistema» erano fatture, milestone e workstream,
+   ora sistemate. `lib/attribuzione.check.ts` le cerca in tutte le azioni e le
+   route. Resta anonimo il giro del foglio dei lead (`lib/sales-sync.ts`) anche
+   quando lo lancia il bottone: è in `lib/`, fuori dall'inventario.

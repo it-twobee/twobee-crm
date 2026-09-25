@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient, createActorClient } from '@/lib/supabase/admin'
+import { createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { notificaAssegnazione } from '@/lib/notify'
 import { generaSubito } from '@/lib/recurrence-kick'
@@ -27,8 +27,8 @@ export async function createMilestone(input: {
   deliverable?: string | null
   visibility?: Visibility
 }) {
-  await requireStaff()
-  const { data, error } = await createAdminClient().from('milestones').insert({
+  const uid = await requireStaff()
+  const { data, error } = await createActorClient(uid).from('milestones').insert({
     project_id: input.project_id,
     workstream_id: input.workstream_id,
     title: input.title.trim(),
@@ -53,7 +53,7 @@ export async function updateMilestone(id: string, projectId: string, updates: {
   owner_id?: string | null
 }) {
   const uid = await requireStaff()
-  const admin = createAdminClient()
+  const admin = createActorClient(uid)
   const patch: Record<string, unknown> = { ...updates }
   if (updates.status === 'completata') patch.completed_at = new Date().toISOString()
   /* §350 — prendere in carico una consegna è la seconda cosa che vale una
@@ -77,9 +77,9 @@ export async function updateMilestone(id: string, projectId: string, updates: {
 }
 
 export async function deleteMilestone(id: string, projectId: string) {
-  await requireStaff()
+  const uid = await requireStaff()
   // le task collegate cadono via ON DELETE CASCADE
-  const { error } = await createAdminClient().from('milestones').delete().eq('id', id)
+  const { error } = await createActorClient(uid).from('milestones').delete().eq('id', id)
   if (error) throw new Error(error.message)
   rev(projectId)
 }
