@@ -1,5 +1,13 @@
 # Dove siamo
 
+## Carica documenti: gli agganci automatici si vedono e si annullano — §452, 2026-09-26
+
+Dopo il caricamento, gli abbinamenti che il tool fa da solo (movimento ↔ riga,
+F24 ↔ addebito) compaiono uno per uno col perché, e ognuno si annulla dalla
+stessa riga; quelli che la regola non decide restano in fila col motivo e un
+link a Banca. Chiude l'ultima parte del blocco «automazione Economics»: casi
+certi da soli, dubbi in fila, annullabile. Nessuna migration.
+
 ## Cedolini e F24 dal PDF, archivio dei documenti — §450, 2026-09-25
 
 «Carica documenti» legge i PDF del consulente (Ranocchi): il cedolino che quadra

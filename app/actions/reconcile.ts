@@ -4,6 +4,7 @@ import { createAdminClient, createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { requireEconomicsAdmin as requireAdmin } from '@/lib/economics-guard'
 import { usedByTx } from '@/lib/tx-links'
+import type { SureMatch, Ambiguous } from '@/lib/auto-match'
 
 /**
  * §254 — La riconciliazione è **molti a uno**, non uno a uno.
@@ -602,6 +603,10 @@ export async function undoPayment(lineId: string, kind: 'ricavo' | 'costo') {
  */
 export async function confirmSureMatches(): Promise<{
   fatti: number; importo: number; saltati: number
+  /** le coppie agganciate, per mostrarle una per una e poterle disfare */
+  voci: SureMatch[]
+  /** quelle che la regola non decide, col perché */
+  dubbi: Ambiguous[]
 }> {
   const uid = await requireAdmin()
   const admin = createAdminClient()
@@ -639,9 +644,10 @@ export async function confirmSureMatches(): Promise<{
     })),
   ].filter(l => l.month && l.net > 0)
 
-  const { pairs } = sureMatches((txs ?? []) as never, lines as never)
+  const { pairs, ambiguous } = sureMatches((txs ?? []) as never, lines as never)
 
   let fatti = 0, saltati = 0, importo = 0
+  const voci: SureMatch[] = []
   for (const p of pairs) {
     try {
       /* Stessa strada della conferma singola (§261): quota, allocazione, colonna
@@ -652,10 +658,31 @@ export async function confirmSureMatches(): Promise<{
       const table = p.kind === 'ricavo' ? 'pl_revenue_lines' : 'pl_cost_lines'
       await admin.from(table).update({ paid: true, paid_on: p.date }).eq('id', p.lineId)
       fatti++
+      voci.push(p)
       importo = r2(importo + Math.abs(p.amount))
     } catch { saltati++ }
   }
 
   rev()
-  return { fatti, importo, saltati }
+  return { fatti, importo, saltati, voci, dubbi: ambiguous }
+}
+
+/**
+ * Disfa **una** coppia di `confirmSureMatches`, non la riga intera: se sulla
+ * riga c'era altro lo si lascia, e si toglie solo quel movimento. La riga torna
+ * scoperta perché lo era — la regola prende solo righe non pagate — e un aggancio
+ * fatto da solo deve potersi togliere con lo stesso gesto con cui lo si vede.
+ */
+export async function annullaAbbinamento(txId: string, lineId: string, kind: 'ricavo' | 'costo') {
+  const uid = await requireAdmin()
+  const field = kind === 'ricavo' ? 'revenue_line_id' : 'cost_line_id'
+  const table = kind === 'ricavo' ? 'pl_revenue_lines' : 'pl_cost_lines'
+  const admin = createAdminClient()
+  await admin.from('bank_tx_lines').delete().eq('tx_id', txId).eq(field, lineId)
+  const { error } = await createActorClient(uid).from('bank_transactions')
+    .update({ [field]: null, matched_at: null, matched_by: null }).eq('id', txId).eq(field, lineId)
+  if (error) throw new Error(error.message)
+  const { error: e2 } = await admin.from(table).update({ paid: false, paid_on: null }).eq('id', lineId)
+  if (e2) throw new Error(e2.message)
+  rev()
 }

@@ -96,11 +96,13 @@ export async function salvaF24Letto(f: F24Letto): Promise<{ gia: boolean; id: st
  * importo intorno alla scadenza, e una sola (`movimentoDelModello`). Si aggancia
  * il movimento al modello e il modello dice ai suoi domini la data.
  */
-export async function pagaF24DaBanca(): Promise<{ fatti: number; docs: string[] }> {
+export type F24DaBanca = { docId: string; txId: string; data: string; totale: number; scadenza: string }
+
+export async function pagaF24DaBanca(): Promise<{ fatti: number; docs: string[]; voci: F24DaBanca[] }> {
   const uid = await requireAdmin()
   const admin = createAdminClient()
   const { data: docs, error } = await admin.from('f24_documents').select('id, due_date, total').is('paid_on', null)
-  if (error || !docs?.length) return { fatti: 0, docs: [] }
+  if (error || !docs?.length) return { fatti: 0, docs: [], voci: [] }
   const date = (docs as { due_date: string }[]).map(d => String(d.due_date).slice(0, 10)).sort()
   const piu = (d: string, n: number) => new Date(Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10) + n)).toISOString().slice(0, 10)
   const [{ data: txs }, { data: usati }] = await Promise.all([
@@ -110,6 +112,7 @@ export async function pagaF24DaBanca(): Promise<{ fatti: number; docs: string[] 
   ])
   const presi = new Set(((usati ?? []) as { tx_id: string }[]).map(u => u.tx_id))
   const fatti: string[] = []
+  const voci: F24DaBanca[] = []
   for (const d of docs as { id: string; due_date: string; total: number }[]) {
     const m = movimentoDelModello({ dueDate: String(d.due_date).slice(0, 10), total: Number(d.total) },
       ((txs ?? []) as { id: string; booked_on: string; amount: number }[]).map(t => ({ ...t, amount: Number(t.amount) })), presi)
@@ -122,9 +125,19 @@ export async function pagaF24DaBanca(): Promise<{ fatti: number; docs: string[] 
     presi.add(m.id)
     await markPaid(d.id, m.booked_on)
     fatti.push(d.id)
+    voci.push({ docId: d.id, txId: m.id, data: m.booked_on, totale: Number(d.total), scadenza: String(d.due_date).slice(0, 10) })
   }
   if (fatti.length) rev()
-  return { fatti: fatti.length, docs: fatti }
+  return { fatti: fatti.length, docs: fatti, voci }
+}
+
+/** Il gemello: toglie l'aggancio fatto da solo e il modello torna da versare, in tutti i suoi domini. */
+export async function annullaF24DaBanca(docId: string, txId: string) {
+  const uid = await requireAdmin()
+  const { error } = await createActorClient(uid).from('payment_allocations')
+    .delete().eq('f24_id', docId).eq('tx_id', txId)
+  if (error) throw new Error(error.message)
+  await markPaid(docId, null)
 }
 
 /** La prima volta che si sceglie il conto per un IBAN, il conto se lo ricorda. */

@@ -288,7 +288,14 @@ insieme:
   principale (Banco BPM; in anagrafica era «Banca Valsabbina», stesso conto).
 - **Dopo il caricamento** il tool aggancia da solo i movimenti **certi**
   (`confirmSureMatches`, la regola del bottone di §276) e lascia gli altri a
-  Banca e Fatturazione.
+  Banca e Fatturazione. Gli agganci fatti da soli si vedono **uno per uno**,
+  col perché, e ognuno ha «Annulla» (§452): `annullaAbbinamento` toglie solo
+  quel movimento da quella riga — non `detachAll`, che si porterebbe via anche
+  quello che c'era prima — e la riga torna scoperta, com'era; per l'F24
+  `annullaF24DaBanca` toglie l'allocazione e `markPaid(doc, null)` riporta il
+  modello da versare in tutti i suoi domini. I movimenti che la regola non
+  decide (due righe per un movimento, due movimenti per una riga) restano in
+  fila sotto, col motivo, e si aprono in Banca.
 - **I PDF del consulente si leggono** (§450, vedi `docs/personale.md`):
   cedolini Ranocchi e F24. Un PDF che non è né l'uno né l'altro va solo in
   archivio.

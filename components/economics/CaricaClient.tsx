@@ -15,6 +15,11 @@
  * altri restano da confermare col perché. Un F24 si registra, ma versato lo
  * dice la banca. Ogni originale va in archivio (MinIO) con la sua impronta, e
  * un file già caricato si riconosce prima di rifarlo.
+ *
+ * §452 — quello che il tool aggancia da solo si vede **coppia per coppia**, col perché,
+ * e ognuna si annulla dalla stessa riga; i movimenti che la regola non decide
+ * restano in fila col motivo. Un aggancio automatico che si può solo contare
+ * non si può controllare.
  */
 
 import { useRef, useState } from 'react'
@@ -23,8 +28,9 @@ import { toast } from 'sonner'
 import { Upload, Loader2, CheckCircle2, AlertTriangle, FileText, X, Banknote, Receipt, Users, Landmark, Archive } from 'lucide-react'
 import { importInvoices } from '@/app/actions/invoices'
 import { importBankCsv } from '@/app/actions/bank'
-import { confirmSureMatches } from '@/app/actions/reconcile'
-import { documentiNoti, pagaF24DaBanca, ricordaIban, salvaCedolino, salvaF24Letto } from '@/app/actions/carica'
+import { annullaAbbinamento, confirmSureMatches } from '@/app/actions/reconcile'
+import { annullaF24DaBanca, documentiNoti, pagaF24DaBanca, ricordaIban, salvaCedolino, salvaF24Letto, type F24DaBanca } from '@/app/actions/carica'
+import type { SureMatch, Ambiguous } from '@/lib/auto-match'
 import {
   ETICHETTA_TIPO, contoSuggerito, esadecimale, ibanDelFile, normIban, righeExcelATesto, tipoFile,
   type Conto, type TipoFile,
@@ -81,6 +87,8 @@ export function CaricaClient({ conti, persone, fonti }: { conti: Conto[]; person
   const [lavoro, setLavoro] = useState(false)
   const [sopra, setSopra] = useState(false)
   const [esito, setEsito] = useState<string[] | null>(null)
+  const [auto, setAuto] = useState<{ righe: SureMatch[]; f24: F24DaBanca[]; dubbi: Ambiguous[] } | null>(null)
+  const [annullati, setAnnullati] = useState<Set<string>>(new Set())
   const input = useRef<HTMLInputElement>(null)
   const aggiorna = (id: string, x: Partial<Voce>) => setVoci(v => v.map(y => y.id === id ? { ...y, ...x } : y))
 
@@ -172,6 +180,7 @@ export function CaricaClient({ conti, persone, fonti }: { conti: Conto[]; person
 
   async function aggiungi(files: FileList | File[]) {
     setEsito(null)
+    setAuto(null)
     const nuove: Voce[] = []
     for (const f of Array.from(files)) nuove.push(...await leggi(f))
     /* un file già in archivio non si rifà: lo si dice, e si può ricaricare lo stesso */
@@ -268,8 +277,18 @@ export function CaricaClient({ conti, persone, fonti }: { conti: Conto[]; person
       if (p.fatti) righe.push(`${p.fatti} F24 segnati versati: la banca mostra l’addebito`)
       if (archivioKo.length) righe.push(`Archivio: ${Array.from(new Set(archivioKo)).join(', ')}`)
       setEsito(righe)
+      setAuto({ righe: m.voci, f24: p.voci, dubbi: m.dubbi })
+      setAnnullati(new Set())
       toast.success('Caricamento finito')
     } catch (e) { toast.error((e as Error).message) } finally { setLavoro(false) }
+  }
+
+  async function annulla(chiave: string, fai: () => Promise<void>) {
+    try {
+      await fai()
+      setAnnullati(a => new Set(a).add(chiave))
+      toast.success('Aggancio annullato: torna da abbinare')
+    } catch (e) { toast.error((e as Error).message) }
   }
 
   const daFare = voci.filter(v => v.stato === 'pronto' || v.stato === 'solo_archivio')
@@ -303,7 +322,7 @@ export function CaricaClient({ conti, persone, fonti }: { conti: Conto[]; person
               {conta(v => v.tipo === 'fattura')} fatture · {conta(v => v.tipo.startsWith('banca'))} estratti · {conta(v => v.tipo === 'cedolino')} cedolini · {conta(v => v.tipo === 'f24')} F24
               {guardare > 0 && ` · ${guardare} da guardare`}
             </span>
-            <button type="button" onClick={() => { setVoci([]); setEsito(null) }} className="ml-auto text-2xs text-text-tertiary hover:text-text-primary">Svuota</button>
+            <button type="button" onClick={() => { setVoci([]); setEsito(null); setAuto(null) }} className="ml-auto text-2xs text-text-tertiary hover:text-text-primary">Svuota</button>
             <button type="button" onClick={() => void carica()} disabled={lavoro || !daFare.length}
               className="flex items-center gap-1.5 text-sm font-semibold bg-gold text-on-gold px-4 py-2 rounded-xl disabled:opacity-40">
               {lavoro ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}Carica {daFare.length}
@@ -363,6 +382,70 @@ export function CaricaClient({ conti, persone, fonti }: { conti: Conto[]; person
           <p className="text-2xs text-text-secondary pt-1">
             I movimenti non certi restano da guardare in <Link href="/economics/banca" className="text-gold-text underline">Banca</Link>, le fatture in <Link href="/economics/fatturazione" className="text-gold-text underline">Fatturazione</Link>, cedolini e F24 in <Link href="/economics/personale" className="text-gold-text underline">Personale</Link>.
           </p>
+        </section>
+      )}
+
+      {auto && (auto.righe.length > 0 || auto.f24.length > 0) && (
+        <section className="bg-surface border border-border rounded-2xl">
+          <p className="px-4 py-3 border-b border-border text-xs font-semibold text-text-primary">Agganciati da soli</p>
+          <ul className="divide-y divide-border">
+            {auto.righe.map(r => {
+              const k = `${r.txId}:${r.lineId}`
+              const via = annullati.has(k)
+              return (
+                <li key={k} className="flex items-center gap-3 px-4 py-2">
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs truncate ${via ? 'text-text-tertiary line-through' : 'text-text-primary'}`}>
+                      {r.who} · {r.label}
+                    </p>
+                    <p className="text-2xs text-text-tertiary">{r.date.split('-').reverse().join('/')} · {eur(Math.abs(r.amount))} € · {r.why}</p>
+                  </div>
+                  {via ? <span className="text-2xs text-text-tertiary">annullato</span> : (
+                    <button type="button" onClick={() => void annulla(k, () => annullaAbbinamento(r.txId, r.lineId, r.kind))}
+                      className="text-2xs text-gold-text hover:underline">Annulla</button>
+                  )}
+                </li>
+              )
+            })}
+            {auto.f24.map(f => {
+              const k = `${f.txId}:${f.docId}`
+              const via = annullati.has(k)
+              return (
+                <li key={k} className="flex items-center gap-3 px-4 py-2">
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs truncate ${via ? 'text-text-tertiary line-through' : 'text-text-primary'}`}>
+                      F24 in scadenza il {f.scadenza.split('-').reverse().join('/')} · versato
+                    </p>
+                    <p className="text-2xs text-text-tertiary">addebito del {f.data.split('-').reverse().join('/')} · {eur(f.totale)} € al centesimo intorno alla scadenza</p>
+                  </div>
+                  {via ? <span className="text-2xs text-text-tertiary">annullato</span> : (
+                    <button type="button" onClick={() => void annulla(k, () => annullaF24DaBanca(f.docId, f.txId))}
+                      className="text-2xs text-gold-text hover:underline">Annulla</button>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
+
+      {auto && auto.dubbi.length > 0 && (
+        <section className="bg-surface border border-border rounded-2xl">
+          <p className="px-4 py-3 border-b border-border text-xs font-semibold text-text-primary">
+            Da decidere a mano · {auto.dubbi.length}
+          </p>
+          <ul className="divide-y divide-border">
+            {auto.dubbi.map(d => (
+              <li key={d.txId} className="flex items-center gap-3 px-4 py-2">
+                <AlertTriangle className="w-4 h-4 text-warning shrink-0" aria-hidden />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-text-primary truncate">{d.who} · {eur(Math.abs(d.amount))} € · {d.date.split('-').reverse().join('/')}</p>
+                  <p className="text-2xs text-text-tertiary">{d.why}</p>
+                </div>
+                <Link href="/economics/banca" className="text-2xs text-gold-text hover:underline shrink-0">Apri in Banca</Link>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
     </div>

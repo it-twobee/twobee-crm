@@ -105,7 +105,7 @@ export async function saveF24(input: F24Input): Promise<{ id: string; iva: numbe
  * usciti **insieme**. Prima la data si scriveva a mano in due tabelle, e le due
  * mani potevano non essere d'accordo.
  */
-export async function markPaid(docId: string, paidOn: string) {
+export async function markPaid(docId: string, paidOn: string | null) {
   await requireAdmin()
   const admin = createAdminClient()
 
