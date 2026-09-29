@@ -6,7 +6,7 @@ import { requireEconomicsAdmin as requireAdmin } from '@/lib/economics-guard'
 import { classify, transferPairs, type TxKind } from '@/lib/bank'
 import { bankActual } from '@/lib/bank-actual'
 import {
-  parseStatement, buildImportRows, merchant, treatment, FAMILY_LABEL, CHECK_FAMILIES,
+  parseStatement, buildImportRows, riscritture, merchant, treatment, FAMILY_LABEL, CHECK_FAMILIES,
   DEDUCTIBILITY, type SpendFamily,
 } from '@/lib/bank-import'
 
@@ -45,6 +45,8 @@ export async function importBankCsv(accountId: string, csv: string): Promise<{
   motivi: string[]
   /** §381 — righe nascoste da una regola: entrano nel saldo, non nei conti */
   nascosti: string[]
+  /** §455 — righe già in archivio che la banca ha riesportato con un'altra descrizione */
+  riscritte: number
   /** §382 — il saldo dichiarato dalla banca, se il formato lo dice */
   dichiarato: { amount: number; on: string } | null
 }> {
@@ -58,11 +60,14 @@ export async function importBankCsv(accountId: string, csv: string): Promise<{
      numero di occorrenza, quindi il taglio è all'ultima barra — e regge anche se
      la descrizione ne contiene una. */
   const { data: have } = await admin.from('bank_transactions')
-    .select('import_hash').eq('account_id', accountId).not('import_hash', 'is', null)
-  const esistenti = (have ?? []).map((r: { import_hash: string }) => r.import_hash)
+    .select('import_hash, booked_on, amount').eq('account_id', accountId).not('import_hash', 'is', null)
+  const archivio = (have ?? []) as { import_hash: string; booked_on: string; amount: number }[]
+  const esistenti = archivio.map(r => r.import_hash)
 
   const rows = buildImportRows(accountId, parsed, esistenti)
-  const nuovi = rows.filter(r => !r.duplicate).map(({ duplicate: _, ...r }) => r)
+  /* §455 — la stessa riga con un'altra descrizione non entra una seconda volta */
+  const riscritte = riscritture(rows, archivio)
+  const nuovi = rows.filter((r, i) => !r.duplicate && !riscritte.has(i)).map(({ duplicate: _, ...r }) => r)
 
   for (let i = 0; i < nuovi.length; i += 100) {
     const { error } = await admin.from('bank_transactions').insert(nuovi.slice(i, i + 100))
@@ -91,7 +96,8 @@ export async function importBankCsv(accountId: string, csv: string): Promise<{
   const date = rows.map(r => r.booked_on).sort()
   rev()
   return {
-    letti: rows.length, nuovi: nuovi.length, duplicati: rows.length - nuovi.length,
+    letti: rows.length, nuovi: nuovi.length, duplicati: rows.length - nuovi.length - riscritte.size,
+    riscritte: riscritte.size,
     scartati: skipped.length, dialetto: dialect,
     dal: date[0] ?? null, al: date.at(-1) ?? null,
     motivi: skipped.slice(0, 3),

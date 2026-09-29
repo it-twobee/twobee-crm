@@ -6,7 +6,7 @@ import {
   allowanceView, suggestFunding,
   type BankTx, type PlLineRef, type Expected,
 } from '@/lib/bank'
-import { parseStatement, buildImportRows } from '@/lib/bank-import'
+import { parseStatement, buildImportRows, riscritture } from '@/lib/bank-import'
 
 let fail = 0
 const eq = (label: string, got: number, want: number, tol = 0.01) => {
@@ -504,6 +504,28 @@ console.log('\n— §252 · La stessa persona scritta in due modi —')
   /* L'impronta è per conto: lo stesso movimento su due conti è due fatti. */
   is('l\'archivio di un altro conto non blocca niente',
     buildImportRows('altro', primo, a.map(r => r.import_hash)).filter(r => !r.duplicate).length, 2)
+
+  /* §455 — la banca riscrive la descrizione di una riga già scaricata. */
+  const ieri = parseStatement(csv([
+    riga('21/09/2026', '-1545,00', 'vostra disposizione - vs.riferim. mb0b18962831 prenotazione instant'),
+    riga('21/09/2026', '-1500,00', 'vostra disposizione - favore gabriele saraiello'),
+  ])).rows
+  const archivio = buildImportRows('conto', ieri, []).map(r => ({ booked_on: r.booked_on, amount: r.amount, import_hash: r.import_hash }))
+  const oggi = buildImportRows('conto', parseStatement(csv([
+    riga('21/09/2026', '-1545,00', 'vostra disposizione - vs.disp. rif. mb0b18962831 favore beneficiari vari distinta'),
+    riga('21/09/2026', '-1500,00', 'vostra disposizione - favore gabriele saraiello'),
+    riga('22/09/2026', '-1545,00', 'vostra disposizione - favore un altro'),
+  ])).rows, archivio.map(a => a.import_hash))
+  const rs = riscritture(oggi, archivio)
+  is('la riga riscritta si riconosce', rs.size, 1)
+  is('ed è quella del 21 con lo stesso importo', rs.has(0), true)
+  is('lo stesso importo un altro giorno è un movimento nuovo', rs.has(2), false)
+  is('una riga ancora nel file non è orfana', riscritture(
+    buildImportRows('conto', ieri, archivio.map(a => a.import_hash)), archivio).size, 0)
+  /* Due disposizioni identiche lo stesso giorno: se il file le porta tutte e due non c'è orfano. */
+  const gem = buildImportRows('conto', gemelli, [])
+  is('i gemelli non sono riscritture', riscritture(buildImportRows('conto', gemelli.concat(gemelli.slice(0, 1)), gem.map(r => r.import_hash)),
+    gem.map(r => ({ booked_on: r.booked_on, amount: r.amount, import_hash: r.import_hash }))).size, 0)
 
   /* Dove la banca mette la controparte in chiaro (Vivid) decide `merchant`, ed è
      il motivo per cui ventisei codici FACEBK diventano una riga sola. */

@@ -154,8 +154,8 @@ export function BankClient({
         .toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
       const periodo = r.dal && r.al ? ` (${gg(r.dal)} → ${gg(r.al)})` : ''
       if (!r.nuovi) {
-        toast.info(r.duplicati
-          ? `Nessun movimento nuovo: tutti e ${r.duplicati} erano già in archivio${periodo}`
+        toast.info(r.duplicati + r.riscritte
+          ? `Nessun movimento nuovo: tutti e ${r.duplicati + r.riscritte} erano già in archivio${r.riscritte ? ` (${r.riscritte} con un'altra descrizione)` : ''}${periodo}`
           : `Nessun movimento riconosciuto nel file${periodo}`)
       } else {
         toast.success(`${r.nuovi} movimenti nuovi su ${r.letti} letti${periodo}`

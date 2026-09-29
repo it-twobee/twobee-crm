@@ -261,7 +261,7 @@ export function CaricaClient({ conti, persone, fonti }: { conti: Conto[]; person
           const r = await importBankCsv(b.conto, b.testo!)
           if (b.iban && !conti.find(c => c.id === b.conto)?.iban) await ricordaIban(b.conto, b.iban).catch(() => {})
           const conto = conti.find(c => c.id === b.conto)?.label ?? 'conto'
-          const e = `${r.nuovi} movimenti nuovi, ${r.duplicati} già presenti`
+          const e = `${r.nuovi} movimenti nuovi, ${r.duplicati} già presenti${r.riscritte ? `, ${r.riscritte} già presenti con un'altra descrizione` : ''}`
           righe.push(`${conto}: ${e}${r.scartati ? `, ${r.scartati} scartati` : ''}${r.dal ? ` (${r.dal} → ${r.al})` : ''}`)
           dopo(await archivia(b, `${conto}: ${e}`, { account_id: b.conto }))
           aggiorna(b.id, { stato: 'caricato', nota: e })

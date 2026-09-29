@@ -490,6 +490,40 @@ export function buildImportRows(
   })
 }
 
+/**
+ * §455 — lo stesso movimento riesportato con un'altra descrizione. La banca a
+ * volte riscrive una riga già scaricata: BPM trasforma la «prenotazione
+ * instant» in «distinta beneficiari vari», Vivid il canone da «Fees and charges
+ * Plan price» in «Vivid Money S.A.». L'impronta contiene la descrizione, quindi
+ * la riga nuova entrava come un movimento in più e il saldo scendeva due volte
+ * (1.546,50 € sul BPM, 96 € sul Vivid il 29 settembre).
+ *
+ * Una riga nuova è una riscrittura quando nel periodo coperto dal file c'è un
+ * movimento in archivio che il file **non contiene più**, con la stessa data e
+ * lo stesso importo. Il movimento che sparisce è la prova: due disposizioni
+ * identiche lo stesso giorno sono due fatti, ma allora il file le porta tutte
+ * e due. Resta quella in archivio, che ha già i suoi abbinamenti.
+ */
+export function riscritture(
+  rows: ImportRow[],
+  existing: { booked_on: string; amount: number; import_hash: string }[],
+): Map<number, string> {
+  const out = new Map<number, string>()
+  const date = rows.map(r => r.booked_on).sort()
+  if (!date.length) return out
+  const nelFile = new Set(rows.filter(r => r.duplicate).map(r => r.import_hash))
+  const orfani = existing.filter(e =>
+    e.booked_on >= date[0] && e.booked_on <= date[date.length - 1] && !nelFile.has(e.import_hash))
+  const presi = new Set<string>()
+  rows.forEach((r, i) => {
+    if (r.duplicate) return
+    const o = orfani.find(e => !presi.has(e.import_hash) && e.booked_on === r.booked_on
+      && Math.abs(Number(e.amount) - r.amount) < 0.005)
+    if (o) { presi.add(o.import_hash); out.set(i, o.import_hash) }
+  })
+  return out
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // I fornitori delle carte
 // ═══════════════════════════════════════════════════════════════════════════

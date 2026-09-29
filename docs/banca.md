@@ -61,6 +61,16 @@ importati ne reinserirebbe ogni riga. Ricostruita la stessa coppia
 `controparte — causale`, su 57 movimenti letti **52 sono stati riconosciuti** e
 5 erano nuovi davvero.
 
+**§455 — ma la descrizione la cambia anche la banca** (`riscritture`). BPM
+riesporta la «prenotazione instant» di un bonifico come «distinta beneficiari
+vari», Vivid il canone da «Fees and charges Plan price» a «Vivid Money S.A.»:
+stessa data, stesso importo, impronta diversa, e il 29 settembre il saldo era
+sotto di 1.546,50 € sul BPM e di 96 € sul Vivid. Una riga nuova è una
+riscrittura se nel periodo del file c'è un movimento in archivio che il file
+**non porta più**, con la stessa data e lo stesso importo: resta quello in
+archivio, che ha già i suoi abbinamenti. Due disposizioni identiche nello
+stesso giorno non si toccano, perché il file le porta tutte e due.
+
 Tre cose che il camt dice diversamente, e ognuna è un modo di sbagliare:
 
 - **Il segno non sta nell'importo**: sta in `CdtDbtInd`. Leggerlo male non
