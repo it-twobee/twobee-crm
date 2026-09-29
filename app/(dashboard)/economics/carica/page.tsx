@@ -18,9 +18,11 @@ export default async function CaricaPage() {
   const supabase = await createClient()
   const oggi = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' })
 
-  const conAiban = await supabase.from('bank_accounts').select('id, label, bank_name, is_primary, iban').eq('is_active', true).order('is_primary', { ascending: false })
+  /* §454 — le tasche dei soci (§191, `owner_partner_id`) non hanno un estratto da caricare:
+     in elenco restavano «mai» per sempre. Restano conti veri per compensi e Banca, qui no. */
+  const conAiban = await supabase.from('bank_accounts').select('id, label, bank_name, is_primary, iban').eq('is_active', true).is('owner_partner_id', null).order('is_primary', { ascending: false })
   const conti = (conAiban.error
-    ? (await supabase.from('bank_accounts').select('id, label, bank_name, is_primary').eq('is_active', true).order('is_primary', { ascending: false })).data
+    ? (await supabase.from('bank_accounts').select('id, label, bank_name, is_primary').eq('is_active', true).is('owner_partner_id', null).order('is_primary', { ascending: false })).data
     : conAiban.data) ?? []
 
   const ultimo = async (q: PromiseLike<{ data: unknown }>, campo: string) => {
