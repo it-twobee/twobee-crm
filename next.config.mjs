@@ -46,6 +46,10 @@ const nextConfig = {
     // Cache del router lato client: tornare indietro non rifà il giro al server
     // per mezzo minuto. Le mutazioni la invalidano da sé via revalidatePath.
     staleTimes: { dynamic: 30, static: 300 },
+    // §453 — «Carica» manda XML delle fatture e testo degli estratti come
+    // argomenti di server action: oltre 1 MB (il default) Next risponde 413 e in
+    // produzione resta solo «An error occurred in the Server Components render».
+    serverActions: { bodySizeLimit: "25mb" },
   },
 };
 

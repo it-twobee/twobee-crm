@@ -67,6 +67,17 @@ export type Fonte = { id: string; gruppo: 'banca' | 'fatture' | 'personale'; eti
 
 const TETTO_ZIP = 200 * 1024 * 1024
 const eur = (n: number) => n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+function aBlocchi<T>(xs: T[], peso: (x: T) => number, max: number): T[][] {
+  const out: T[][] = []
+  let cur: T[] = [], tot = 0
+  for (const x of xs) {
+    if (cur.length && tot + peso(x) > max) { out.push(cur); cur = []; tot = 0 }
+    cur.push(x); tot += peso(x)
+  }
+  if (cur.length) out.push(cur)
+  return out
+}
+
 const meseIt = (m: string) => new Date(`${m.slice(0, 7)}-15`).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })
 const tipoArchivio = (t: TipoFile) => t === 'fattura' ? 'fattura' : t.startsWith('banca') ? 'estratto' : t === 'cedolino' ? 'cedolino' : t === 'f24' ? 'f24' : 'altro'
 
@@ -230,7 +241,12 @@ export function CaricaClient({ conti, persone, fonti }: { conti: Conto[]; person
       const pronte = voci.filter(v => v.stato === 'pronto' || v.stato === 'solo_archivio')
       const fatture = pronte.filter(v => v.tipo === 'fattura' && v.testo)
       if (fatture.length) {
-        const r = await importInvoices(fatture.map(v => ({ name: v.nome, xml: v.testo! })))
+        /* a blocchi: uno zip dello SdI intero in una chiamata sola supera il limite del corpo (§453) */
+        const r = { nuovi: 0, duplicati: 0, agganciati: 0, falliti: [] as { file: string; motivo: string }[] }
+        for (const blocco of aBlocchi(fatture, v => v.testo!.length, 4_000_000)) {
+          const x = await importInvoices(blocco.map(v => ({ name: v.nome, xml: v.testo! })))
+          r.nuovi += x.nuovi; r.duplicati += x.duplicati; r.agganciati += x.agganciati ?? 0; r.falliti.push(...x.falliti)
+        }
         righe.push(`Fatture: ${r.nuovi} nuove, ${r.duplicati} già in archivio${r.falliti.length ? `, ${r.falliti.length} non lette` : ''}${r.agganciati ? `, ${r.agganciati} collegate ai clienti` : ''}`)
         for (const v of fatture) {
           const ko = r.falliti.find(ff => ff.file === v.nome)
