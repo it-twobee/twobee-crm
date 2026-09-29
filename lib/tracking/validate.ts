@@ -72,4 +72,4 @@ export function parseGa4MeasurementId(value: unknown): string {
   return v
 }
 
-export const text =(value: unknown, max = 500): string => String(value ?? '').trim().slice(0, max)
+export const text = (value: unknown, max = 500): string => String(value ?? '').trim().slice(0, max)
