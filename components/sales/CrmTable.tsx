@@ -26,7 +26,7 @@
 
 import { useState, useMemo, useTransition, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
-import { Loader2, RefreshCw, BarChart3, List, Columns3, ShieldCheck, Plus, Trash2, ChevronRight } from 'lucide-react'
+import { Loader2, RefreshCw, BarChart3, List, Columns3, Table2, ShieldCheck, Plus, Trash2, ChevronRight } from 'lucide-react'
 
 import { ETICHETTA_GRUPPO, GRUPPI, gruppoDi, type Gruppo } from '@/lib/sales-stages'
 import { useFasi } from './FasiContext'
@@ -40,6 +40,7 @@ import type { Client } from '@/lib/types/database'
 import { CrmScheda } from './CrmScheda'
 import { EliminaLead } from './EliminaLead'
 import { CrmBacheca } from './CrmBacheca'
+import { CrmFoglio } from './CrmFoglio'
 import { ConfermaFase } from './ConfermaFase'
 import { CrmControllo } from './CrmControllo'
 import { controlla, quanteGravi } from '@/lib/sales-igiene'
@@ -104,7 +105,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
   const [converto, setConverto] = useState<RigaCrm | null>(null)
   const [apertaId, setApertaId] = useState<string | null>(null)
   const [nuovo, setNuovo] = useState(false)
-  const [vista, setVista] = useState<'tabella' | 'bacheca' | 'numeri' | 'controllo'>('tabella')
+  const [vista, setVista] = useState<'tabella' | 'foglio' | 'bacheca' | 'numeri' | 'controllo'>('tabella')
   const [aggiorno, setAggiorno] = useState(false)
   const [esitoSync, setEsitoSync] = useState<string | null>(null)
   /* La selezione vive sugli **id** e non sulle righe, come in Clienti: una
@@ -127,9 +128,19 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
      ti fa credere di averlo risolto. Conta le righe toccate, non i rilievi:
      una riga che sbaglia tre cose è un problema, e dire «tre» farebbe
      sembrare l'archivio peggio di com'è. */
-  const daControllare = useMemo(
-    () => quanteGravi(controlla(TUTTE, righe as unknown as RigaIgiene[], new Date().toISOString().slice(0, 10))),
+  const rilieviTutti = useMemo(
+    () => controlla(TUTTE, righe as unknown as RigaIgiene[], new Date().toISOString().slice(0, 10)),
     [TUTTE, righe])
+  const daControllare = useMemo(() => quanteGravi(rilieviTutti), [rilieviTutti])
+  /* la riga del Foglio porta un segno se ha un rilievo, col più pesante: il dettaglio resta in Controllo */
+  const rilieviPerRiga = useMemo(() => {
+    const m = new Map<string, { peso: 'grave' | 'attenzione'; frase: string }>()
+    for (const ril of rilieviTutti) for (const g of ril.gruppi) for (const id of g.ids) {
+      if (m.get(id)?.peso === 'grave') continue
+      m.set(id, { peso: ril.peso, frase: `${ril.titolo}: ${g.perche}` })
+    }
+    return m
+  }, [rilieviTutti])
   /* La scheda si tiene per **id**, non per oggetto: salvando una cella la riga
      viene ricreata, e un riferimento vecchio mostrerebbe il valore di prima
      accanto a quello nuovo nell'elenco. */
@@ -474,6 +485,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
           <div className="flex items-center border border-border rounded-xl overflow-hidden">
             {([
               ['tabella', 'Elenco', List],
+              ['foglio', 'Foglio', Table2],
               ['bacheca', 'Bacheca', Columns3],
               ['numeri', 'Numeri', BarChart3],
               ['controllo', 'Controllo', ShieldCheck],
@@ -561,7 +573,18 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
            Sotto i 1024px la scheda prende tutto lo schermo invece di
            schiacciare l'elenco a una colonna di dieci caratteri. */
         <div className="flex gap-4 items-start">
-          {vista === 'bacheca' ? (
+          {vista === 'foglio' ? (
+            <div className={`flex-1 min-w-0 ${aperta ? 'hidden lg:block' : ''}`}>
+              <CrmFoglio
+                righe={viste as unknown as import('@/lib/sales-foglio').RigaFoglio[]}
+                apertaId={apertaId}
+                onApri={id => setApertaId(apertaId === id ? null : id)}
+                nomeDi={nomeDi}
+                rilievi={rilieviPerRiga}
+                adessoMs={adesso}
+              />
+            </div>
+          ) : vista === 'bacheca' ? (
             /* §379 — la bacheca prende le **stesse** righe dell'elenco, già
                cercate, filtrate e ordinate: due viste che mostrano insiemi
                diversi sotto gli stessi filtri sono due viste di cui una

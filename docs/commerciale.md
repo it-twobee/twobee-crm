@@ -913,6 +913,37 @@ non li portano fuori.
   titolo adesso si stringe e i comandi no; sotto i 1280px «Esporta» e
   «Aggiorna dal foglio» sono solo icona, con il nome in `aria-label`.
 
+## La vista Foglio — §457
+
+Quarta modalità accanto a Elenco, Bacheca, Numeri e Controllo: una griglia
+compatta (righe da 28px) per **scorrere decine di trattative e vederle
+insieme**, dove l'elenco a tre righe per lead risponde a «chi chiamo adesso».
+Prende le righe già cercate e filtrate da `CrmTable` (§379: due viste sotto gli
+stessi filtri mostrano lo stesso insieme).
+
+`lib/sales-foglio.ts` è la parte pura, `components/sales/CrmFoglio.tsx` disegna.
+**Un solo testo per cella** (`testoCella`): quello che si vede, si ordina, si
+spunta nel filtro di colonna e finisce nel TSV/CSV è la stessa stringa. Le
+colonne sono quelle di `COLONNE` più quattro calcolate in sola lettura
+(richiamo, giorni dal contatto, età, piattaforma). I persi restano in blocco
+chiuso in fondo qualunque sia il raggruppamento (§426); il segno di igiene sulla
+riga viene da `controlla()`, con il dettaglio in Controllo.
+
+Colonne (visibili, ordine, larghezze), ordine, filtri di colonna e gruppo si
+ricordano **per browser** (`twobee-crm-foglio`, senza migration) e vengono
+riallineati alle colonne esistenti a ogni lettura (`leggiStato`).
+
+**Passo 1 (fatto): sola lettura.** Ordine e filtro per colonna, gruppi
+(fase/responsabile/origine), colonne fisse, ridimensiona/riordina/nascondi,
+copia TSV e CSV. **Passo 2 (da fare):** modifica delle celle con salvataggio in
+batch e «Salva», selezione a intervallo, incolla e trascina per riempire,
+tastiera stile Sheets, Ctrl+Z sulle sole modifiche non salvate, riga vuota per
+aggiungere, conflitto per `revision` con «Tieni la mia / Prendi la sua». Le
+regole già decise: incolla con valori non validi → la cella diventa rossa e si
+salva il resto; sotto i 768px il foglio è sola lettura; i valori economici non
+si scrivono; il responsabile si sceglie fra i soli profili interni (§409).
+Gate: `npx tsx lib/sales-foglio.check.ts`.
+
 ## Aperto
 
 - **La RLS non conosceva `deal_owners`**: `sales_can_read` (223) guardava solo
