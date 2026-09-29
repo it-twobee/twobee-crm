@@ -154,7 +154,7 @@ export function detectTags(html: string): FoundTags {
 
 export type EvaluationInput = Pick<
   ClientTracking,
-  'archetype' | 'gtm_container_id' | 'meta_pixel_id' | 'status_gtm' | 'status_ga4' | 'status_meta_pixel' | 'status_klaviyo'
+  'archetype' | 'gtm_container_id' | 'meta_pixel_id' | 'ga4_measurement_id' | 'status_gtm' | 'status_ga4' | 'status_meta_pixel' | 'status_klaviyo'
 >
 export type Evaluation = { changes: TrackingChange[]; notes: string[]; gtmPresente: boolean }
 
@@ -199,12 +199,14 @@ export function evaluate(tracking: EvaluationInput, found: FoundTags): Evaluatio
   // qui non si declassa — l'incoerenza si segnala soltanto.
   const configuredPixel = (tracking.meta_pixel_id ?? '').trim()
   const pixelMismatch = !!configuredPixel && found.metaIds.length > 0 && !found.metaIds.includes(configuredPixel)
+  const configuredGa4 = (tracking.ga4_measurement_id ?? '').trim().toUpperCase()
+  const ga4Mismatch = !!configuredGa4 && found.ga4Ids.length > 0 && !found.ga4Ids.includes(configuredGa4)
 
   const positives: { key: ChannelKey; label: string; hit: boolean; reason: string; viaApi?: string }[] = [
     {
       key: 'ga4',
       label: 'GA4',
-      hit: found.ga4Ids.length > 0 || found.gtagLoaded,
+      hit: !ga4Mismatch && (found.ga4Ids.length > 0 || found.gtagLoaded),
       reason: found.ga4Ids.length ? `Measurement ID ${found.ga4Ids.join(', ')} nel sorgente` : 'gtag.js caricato direttamente nel sorgente',
       viaApi: 'La prova reale è "Dati GA4 recenti", che interroga la Data API.',
     },
@@ -224,6 +226,10 @@ export function evaluate(tracking: EvaluationInput, found: FoundTags): Evaluatio
 
     if (channel.key === 'meta_pixel' && pixelMismatch) {
       notes.push(`Disallineamento Pixel: in scheda ${configuredPixel}, sul sito ${found.metaIds.join(', ')}.`)
+      continue
+    }
+    if (channel.key === 'ga4' && ga4Mismatch) {
+      notes.push(`Disallineamento GA4: in scheda ${configuredGa4}, sul sito ${found.ga4Ids.join(', ')}.`)
       continue
     }
 

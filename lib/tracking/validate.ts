@@ -60,4 +60,16 @@ export function parseGa4PropertyId(value: unknown): string {
   return v
 }
 
-export const text = (value: unknown, max = 500): string => String(value ?? '').trim().slice(0, max)
+/** L'ID che il tag installa sul sito: il numero della property va nell'altro campo. */
+export function parseGa4MeasurementId(value: unknown): string {
+  const v = String(value ?? '').replace(/\s+/g, '').toUpperCase()
+  if (v && /^(PROPERTIES\/)?\d+$/.test(v)) {
+    throw new TrackingError(400, 'Questo è il Property ID GA4: qui serve l\'ID misurazione, che inizia con G- (es. G-ABC123DEF4)')
+  }
+  if (v && !/^G-[A-Z0-9]{6,}$/.test(v)) {
+    throw new TrackingError(400, 'ID misurazione GA4 non valido (formato atteso: G-XXXXXXXXXX)')
+  }
+  return v
+}
+
+export const text =(value: unknown, max = 500): string => String(value ?? '').trim().slice(0, max)

@@ -59,7 +59,7 @@ is('172.32 è pubblico', (() => { assertPublicHost('https://172.32.0.1/'); retur
 const none: FoundTags = { gtmIds: [], ga4Ids: [], gtagLoaded: false, metaIds: [], fbevents: false, klaviyo: false }
 const withGtm: FoundTags = { ...none, gtmIds: ['GTM-ABC1234'] }
 const row = (o: Partial<EvaluationInput> = {}): EvaluationInput => ({
-  archetype: 'ecommerce', gtm_container_id: 'GTM-ABC1234', meta_pixel_id: '',
+  archetype: 'ecommerce', gtm_container_id: 'GTM-ABC1234', meta_pixel_id: '', ga4_measurement_id: '',
   status_gtm: 'todo', status_ga4: 'todo', status_meta_pixel: 'todo', status_klaviyo: 'todo', ...o,
 })
 const fields = (r: ReturnType<typeof evaluate>) => r.changes.map(c => `${c.field}:${c.from}>${c.to}`)
@@ -100,6 +100,20 @@ is('GA4 active, niente GTM né GA4 → nessuna modifica, nota da controllare',
 r = evaluate(row({ status_gtm: 'active' }), { ...withGtm, ga4Ids: ['G-XXXXXXX'] })
 is('GA4 trovato → active', fields(r), ['status_ga4:todo>active'])
 is('  reason con Measurement ID', r.changes[0]?.reason, 'Measurement ID G-XXXXXXX nel sorgente')
+
+r = evaluate(row({ status_gtm: 'active', ga4_measurement_id: 'G-XXXXXXX' }), { ...withGtm, ga4Ids: ['G-XXXXXXX'] })
+is('ID misurazione combacia → active', fields(r), ['status_ga4:todo>active'])
+
+r = evaluate(row({ status_gtm: 'active', ga4_measurement_id: 'g-xxxxxxx' }), { ...withGtm, ga4Ids: ['G-XXXXXXX'] })
+is('ID misurazione in scheda minuscolo → confrontato maiuscolo', fields(r), ['status_ga4:todo>active'])
+
+r = evaluate(row({ status_gtm: 'active', ga4_measurement_id: 'G-AAAAAAA' }), { ...withGtm, ga4Ids: ['G-XXXXXXX'] })
+is('ID misurazione diverso → nessuna modifica', fields(r).filter(f => f.startsWith('status_ga4')), [])
+is('  nota disallineamento GA4', r.notes.includes('Disallineamento GA4: in scheda G-AAAAAAA, sul sito G-XXXXXXX.'), true)
+
+r = evaluate(row({ status_gtm: 'active', ga4_measurement_id: 'G-AAAAAAA' }), withGtm)
+is('ID in scheda, sul sito niente ma GTM c\'è → solo la nota via GTM',
+  [fields(r).filter(f => f.startsWith('status_ga4')), r.notes.some(n => n.startsWith('GA4 non compare'))], [[], true])
 
 r = evaluate(row({ status_gtm: 'active' }), { ...withGtm, gtagLoaded: true })
 is('gtag.js senza ID → active con reason gtag', r.changes[0]?.reason, 'gtag.js caricato direttamente nel sorgente')

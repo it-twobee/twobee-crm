@@ -54,6 +54,16 @@ container `localhost` risolve in IPv6 e Next ascolta solo su IPv4, quindi
 minuti. Se Traefik risponde 504 sui giri lunghi, la route passa a «avvia e
 rispondi 202» senza toccare `runQa`.
 
+**Due identificativi GA4, due campi** (§455). In Configurazione c'è l'**ID
+misurazione** (`ga4_measurement_id`, `G-XXXXXXXXXX`): è quello che il tag
+installa sul sito, e si legge dal pannello del flusso web. Il **Property ID**
+(`ga4_property_id`, solo cifre) resta nel tab Report: serve alla Data API, non
+al sito. Si confondono di continuo, quindi ognuno dei due campi rifiuta l'altro
+formato e dice quale campo cercavi. La verifica sito confronta l'ID misurazione
+con quello che trova nell'HTML: se è diverso **non promuove** GA4 e scrive
+«Disallineamento GA4», come per il Pixel. Se l'ID non compare perché lo carica
+GTM, vale la regola asimmetrica sopra: nessun declassamento.
+
 **Report.** GA4 via service account (JWT RS256 fatto a mano con `node:crypto`,
 niente `google-auth-library`), Klaviyo con chiave per cliente, Meta con token
 condiviso; 30 giorni che **chiudono ieri** più i 30 precedenti; funnel B2B a
@@ -65,7 +75,23 @@ definizioni report sono **JSON importati come moduli**
 una lettura da `fs` non verrebbe tracciata. Gli id delle voci di checklist sono
 chiavi a DB: rinominarne uno perde la spunta.
 
-Gate: `npx tsx lib/tracking/{crypto,vocab,site-check,meta,checklist,reporting,csv,qa-checks}.check.ts`.
+**La checklist dice cosa fare, non come** (§456, template versione 2). Era di
+22–27 voci per archetipo, con le variabili di GTM e i singoli eventi di micro
+conversione: nessuno la spuntava fino in fondo, quindi non diceva a che punto
+eravamo. Adesso sono le tappe che contano, uguali per tutti — GTM (crea,
+installa, invita), GA4 (proprietà, tag di misurazione, eventi chiave, invito),
+Meta (Pixel, tag su GTM, segmenti di pubblico, **fatturazione**, invito),
+Google Ads (collegamento, conversioni, **principali e secondarie**,
+**fatturazione**, invito), consenso e collaudo — più **una sola voce di
+conversione per archetipo**: `purchase` per l'e-commerce, `generate_lead` per il
+lead gen, la prenotazione confermata per l'hospitality, con il gemello Meta.
+Klaviyo resta solo sull'e-commerce, con le sue quattro voci. Gli id delle voci
+rimaste sono gli stessi di prima, quindi le spunte restano; le voci tolte
+lasciano righe orfane in `tracking_checklist_state`, che `mergeChecklist`
+ignora. I tre JSON nascono dalla stessa base: se cambi una voce comune,
+cambiala in tutti e tre.
+
+Gate: `npx tsx lib/tracking/{crypto,vocab,validate,site-check,meta,checklist,reporting,csv,qa-checks}.check.ts`.
 Env: `VAULT_KEY`, `TRACKING_CRON_SECRET` (entrambe `openssl rand -hex 32`),
 opzionali `TWOBEE_GA4_TOKEN_URL`, `TWOBEE_GA4_DATA_URL`, `TWOBEE_META_BASE`,
 `TWOBEE_KLAVIYO_BASE`, `TWOBEE_KLAVIYO_REVISION`.

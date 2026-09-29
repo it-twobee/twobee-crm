@@ -1,122 +1,124 @@
 {
   "archetype": "ecommerce",
   "title": "E-commerce (Shopify)",
-  "version": 1,
-  "note": "Checklist di setup tracking per e-commerce Shopify. Gli id delle voci sono usati come chiave a DB: non rinominarli, al massimo aggiungine di nuovi.",
+  "version": 2,
+  "note": "Checklist di setup tracking per e-commerce. Gli id delle voci sono usati come chiave a DB: non rinominarli, al massimo aggiungine di nuovi.",
   "sections": [
     {
-      "id": "config",
-      "title": "Configurazione base",
+      "id": "gtm",
+      "title": "Google Tag Manager",
       "items": [
         {
+          "id": "gtm-create",
+          "title": "Crea il container GTM",
+          "detail": "Account e container web intestati al cliente, non a noi: se il rapporto finisce, i dati restano suoi."
+        },
+        {
           "id": "gtm-installed",
-          "title": "Container GTM installato",
-          "detail": "Snippet head + noscript body in theme.liquid. Su Shopify Plus va aggiunto anche a checkout.liquid, altrimenti il purchase non viene tracciato."
+          "title": "Installa GTM sul sito",
+          "detail": "Snippet head + noscript body su tutte le pagine, landing page incluse."
+        },
+        {
+          "id": "gtm-invite",
+          "title": "Invita i colleghi su GTM",
+          "detail": "Accesso con permesso Pubblica a chi lavora sul cliente."
+        }
+      ]
+    },
+    {
+      "id": "ga4",
+      "title": "Google Analytics 4",
+      "items": [
+        {
+          "id": "ga4-property",
+          "title": "Crea la proprietà GA4 e il flusso web",
+          "detail": "Fuso orario e valuta del cliente. L'ID misurazione (G-…) va in Configurazione, il Property ID nel tab Report."
         },
         {
           "id": "ga4-config",
-          "title": "Tag di configurazione GA4",
-          "detail": "Google Tag con Measurement ID, trigger All Pages. Verificare che non ci sia anche un gtag hardcoded nel tema (doppio conteggio)."
-        },
-        {
-          "id": "referral-exclusions",
-          "title": "Esclusione referral pagamenti",
-          "detail": "In GA4 (Admin > Data Streams > Configure tag settings) escludere paypal.com, stripe.com, checkout.shopify.com e il PSP usato. Senza questo le vendite risultano referral."
-        },
-        {
-          "id": "internal-traffic",
-          "title": "Filtro traffico interno",
-          "detail": "IP agenzia e cliente esclusi in GA4. Attivare il filtro (non lasciarlo in Testing)."
-        },
-        {
-          "id": "currency-value",
-          "title": "Valuta coerente",
-          "detail": "Il campo currency negli eventi ecommerce deve essere ISO-4217 (EUR) e coerente con la valuta di GA4, altrimenti i ricavi non vengono sommati."
-        }
-      ]
-    },
-    {
-      "id": "datalayer",
-      "title": "DataLayer e variabili",
-      "items": [
-        {
-          "id": "dl-ecommerce-object",
-          "title": "Push dataLayer con oggetto ecommerce",
-          "detail": "Per view_item, add_to_cart, begin_checkout, purchase: items[] con item_id, item_name, price, quantity, più value, currency, transaction_id sul purchase."
-        },
-        {
-          "id": "dv-items",
-          "title": "Variabile Data Layer: ecommerce.items",
-          "detail": "Versione 2, senza valore di default."
-        },
-        {
-          "id": "dv-value",
-          "title": "Variabile Data Layer: ecommerce.value"
-        },
-        {
-          "id": "dv-currency",
-          "title": "Variabile Data Layer: ecommerce.currency"
-        },
-        {
-          "id": "dv-transaction-id",
-          "title": "Variabile Data Layer: ecommerce.transaction_id",
-          "detail": "Serve anche per la deduplica degli ordini e per l'event_id di Meta."
-        }
-      ]
-    },
-    {
-      "id": "ga4-events",
-      "title": "Eventi GA4",
-      "items": [
-        {
-          "id": "ev-view-item",
-          "title": "view_item",
-          "detail": "Trigger Custom Event sul push della scheda prodotto."
-        },
-        {
-          "id": "ev-add-to-cart",
-          "title": "add_to_cart",
-          "detail": "Attenzione ai temi con aggiunta via AJAX: il push deve avvenire dopo la risposta del carrello, non al click."
-        },
-        {
-          "id": "ev-begin-checkout",
-          "title": "begin_checkout"
+          "title": "Tag di misurazione GA4 su GTM",
+          "detail": "Google Tag con l'ID misurazione, trigger All Pages."
         },
         {
           "id": "ev-purchase",
-          "title": "purchase",
-          "detail": "Sulla thank-you page. Verificare che non spari due volte al refresh della pagina."
+          "title": "Evento purchase su GA4",
+          "detail": "Con value, currency e transaction_id. Verificare che non parta due volte al refresh della thank-you page."
         },
         {
           "id": "mark-conversions",
-          "title": "purchase e begin_checkout marcati come conversioni",
-          "detail": "GA4 > Admin > Events > Mark as key event."
+          "title": "Imposta gli eventi chiave",
+          "detail": "GA4 > Amministrazione > Eventi > segna come evento chiave la conversione principale."
+        },
+        {
+          "id": "ga4-invite",
+          "title": "Invita i colleghi su GA4",
+          "detail": "Ruolo Editor a chi lavora sul cliente."
         }
       ]
     },
     {
       "id": "meta",
-      "title": "Meta Pixel",
+      "title": "Meta",
       "items": [
         {
+          "id": "meta-pixel-create",
+          "title": "Crea il Meta Pixel",
+          "detail": "Nel Business Manager del cliente. Il Pixel ID va in Configurazione."
+        },
+        {
           "id": "meta-base",
-          "title": "Pixel base via GTM",
-          "detail": "Un solo punto di installazione: se è attiva anche l'app Facebook di Shopify, disattivare una delle due."
+          "title": "Tag del Meta Pixel su GTM",
+          "detail": "Un solo punto di installazione: se il CMS ha già un'integrazione Meta attiva, spegnerne una delle due."
         },
         {
           "id": "meta-events",
-          "title": "ViewContent, AddToCart, InitiateCheckout, Purchase",
-          "detail": "Con content_ids, content_type, value e currency. I content_ids devono combaciare con quelli del catalogo."
+          "title": "Eventi e-commerce Meta",
+          "detail": "ViewContent, AddToCart, InitiateCheckout, Purchase con value e currency."
         },
         {
-          "id": "meta-dedup",
-          "title": "event_id per deduplica",
-          "detail": "Necessario se è attiva anche la Conversion API, altrimenti gli acquisti vengono contati due volte."
+          "id": "meta-audiences",
+          "title": "Crea i segmenti di pubblico",
+          "detail": "Visitatori del sito, chi ha convertito (da escludere), lookalike sui clienti."
         },
         {
-          "id": "meta-capi",
-          "title": "Conversion API attiva (opzionale)",
-          "detail": "Via app Shopify o server-side. Migliora l'attribuzione con iOS e ad blocker."
+          "id": "meta-billing",
+          "title": "Controlla la fatturazione Meta",
+          "detail": "Metodo di pagamento valido, intestazione e dati fiscali del cliente."
+        },
+        {
+          "id": "meta-invite",
+          "title": "Invita i colleghi nel Business Manager",
+          "detail": "Accesso a Pixel, account pubblicitario e pagina."
+        }
+      ]
+    },
+    {
+      "id": "ads",
+      "title": "Google Ads",
+      "items": [
+        {
+          "id": "ads-linked",
+          "title": "Collega Google Ads a GA4"
+        },
+        {
+          "id": "ads-conversion-import",
+          "title": "Crea le azioni di conversione",
+          "detail": "Importate da GA4 oppure con tag di conversione dedicato: una sola fonte, per non contare doppio."
+        },
+        {
+          "id": "ads-primary-secondary",
+          "title": "Imposta conversioni principali e secondarie",
+          "detail": "Principale solo quella su cui si ottimizza l'offerta; micro-conversioni come secondarie."
+        },
+        {
+          "id": "ads-billing",
+          "title": "Controlla la fatturazione Google Ads",
+          "detail": "Metodo di pagamento valido, profilo pagamenti e dati fiscali del cliente."
+        },
+        {
+          "id": "ads-invite",
+          "title": "Invita i colleghi su Google Ads",
+          "detail": "Accesso Standard o Amministratore dall'MCC."
         }
       ]
     },
@@ -152,23 +154,13 @@
       "items": [
         {
           "id": "consent-mode",
-          "title": "Consent Mode v2 + CMP",
-          "detail": "Tag in attesa del consenso, con ad_user_data e ad_personalization gestiti. Verificare che il consenso di default sia 'denied' prima dell'interazione."
+          "title": "Consent Mode v2 + banner cookie",
+          "detail": "Consenso di default 'denied', tag in attesa del consenso."
         },
         {
           "id": "preview-debug",
-          "title": "Collaudo in GTM Preview e GA4 DebugView",
-          "detail": "Percorrere l'intero funnel: prodotto, carrello, checkout, acquisto."
-        },
-        {
-          "id": "purchase-match",
-          "title": "Riconciliazione ordini",
-          "detail": "Confronto ordini Shopify vs purchase GA4 su 7 giorni: scostamento accettabile sotto il 5%."
-        },
-        {
-          "id": "no-duplicates",
-          "title": "Nessun doppio conteggio",
-          "detail": "Cercare gtag, fbq e klaviyo.js hardcoded nel tema oltre a quelli in GTM."
+          "title": "Collaudo in GTM Preview",
+          "detail": "Tag Assistant + GA4 DebugView + Eventi di test in Meta Events Manager, anche da mobile."
         }
       ]
     }

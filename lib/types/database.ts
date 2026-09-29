@@ -1071,6 +1071,7 @@ export interface ClientTracking {
   gtm_container_id: string
   meta_pixel_id: string
   ga4_property_id: string
+  ga4_measurement_id: string
   lead_event: string
   status_gtm: TrackingStatus
   status_ga4: TrackingStatus

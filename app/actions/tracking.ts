@@ -8,7 +8,7 @@ import { TrackingError } from '@/lib/tracking/errors'
 import { channelsFor, CHANNEL_KEYS, type TrackingStatus } from '@/lib/tracking/vocab'
 import {
   normalizeUrl, parseArchetype, parseStatus, parseGtmContainerId, parseLeadEvent,
-  parseMetaPixelId, parseGa4PropertyId, text,
+  parseMetaPixelId, parseGa4PropertyId, parseGa4MeasurementId, text,
 } from '@/lib/tracking/validate'
 import { fetchSite, detectTags, evaluate, assertPublicHost, type FoundTags, type EvaluationInput } from '@/lib/tracking/site-check'
 import { templateFor, mergeChecklist, hasItem, EMPTY_CHECKLIST, type MergedChecklist, type ChecklistItemState } from '@/lib/tracking/checklist'
@@ -37,7 +37,7 @@ export async function getClientTracking(clientId: string) {
 }
 
 export type ClientTrackingPatch = Partial<Pick<ClientTracking,
-  'archetype' | 'cms' | 'gtm_container_id' | 'meta_pixel_id' | 'ga4_property_id' | 'lead_event' |
+  'archetype' | 'cms' | 'gtm_container_id' | 'meta_pixel_id' | 'ga4_property_id' | 'ga4_measurement_id' | 'lead_event' |
   'status_gtm' | 'status_ga4' | 'status_meta_pixel' | 'status_klaviyo' | 'status_gsc'
 >>
 
@@ -56,6 +56,7 @@ export async function upsertClientTracking(clientId: string, patch: ClientTracki
     if ('gtm_container_id' in patch) row.gtm_container_id = parseGtmContainerId(patch.gtm_container_id)
     if ('meta_pixel_id' in patch) row.meta_pixel_id = parseMetaPixelId(patch.meta_pixel_id)
     if ('ga4_property_id' in patch) row.ga4_property_id = parseGa4PropertyId(patch.ga4_property_id)
+    if ('ga4_measurement_id' in patch) row.ga4_measurement_id = parseGa4MeasurementId(patch.ga4_measurement_id)
     if ('lead_event' in patch) row.lead_event = parseLeadEvent(patch.lead_event)
     for (const f of STATUS_FIELDS) if (f in patch) row[f] = parseStatus(f, patch[f])
 
@@ -133,7 +134,7 @@ export async function runSiteCheck(clientId: string) {
     if (!client) throw new TrackingError(404, 'Cliente non trovato')
     if (!client.website) throw new TrackingError(409, "Aggiungi l'URL del sito prima di lanciare la verifica")
     const t = (tracking ?? {
-      archetype: null, gtm_container_id: '', meta_pixel_id: '',
+      archetype: null, gtm_container_id: '', meta_pixel_id: '', ga4_measurement_id: '',
       status_gtm: 'todo', status_ga4: 'todo', status_meta_pixel: 'todo', status_klaviyo: 'todo',
     }) as EvaluationInput
 

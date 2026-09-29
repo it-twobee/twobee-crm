@@ -15,16 +15,16 @@ import { SiteCheckSection } from './SiteCheckSection'
 import { QaSection } from './QaSection'
 
 const EMPTY: Omit<ClientTracking, 'client_id' | 'created_at' | 'updated_at' | 'updated_by'> = {
-  archetype: null, cms: '', gtm_container_id: '', meta_pixel_id: '', ga4_property_id: '', lead_event: '',
+  archetype: null, cms: '', gtm_container_id: '', meta_pixel_id: '', ga4_property_id: '', ga4_measurement_id: '', lead_event: '',
   status_gtm: 'todo', status_ga4: 'todo', status_meta_pixel: 'todo', status_klaviyo: 'todo', status_gsc: 'todo',
 }
 
-type Form = { archetype: string; cms: string; gtm_container_id: string; meta_pixel_id: string; website: string }
+type Form = { archetype: string; cms: string; gtm_container_id: string; ga4_measurement_id: string; meta_pixel_id: string; website: string }
 
 export function ClientTrackingTab({ clientId, website: initialWebsite }: { clientId: string; website: string }) {
   const [tracking, setTracking] = useState<ClientTracking | null>(null)
   const [loaded, setLoaded] = useState(false)
-  const [form, setForm] = useState<Form>({ archetype: '', cms: '', gtm_container_id: '', meta_pixel_id: '', website: initialWebsite })
+  const [form, setForm] = useState<Form>({ archetype: '', cms: '', gtm_container_id: '', ga4_measurement_id: '', meta_pixel_id: '', website: initialWebsite })
   const [website, setWebsite] = useState(initialWebsite)
   const [pending, start] = useTransition()
   /* la verifica del sito e il QA aggiornano gli stati: quando finiscono si ricarica */
@@ -37,7 +37,8 @@ export function ClientTrackingTab({ clientId, website: initialWebsite }: { clien
     setWebsite(res.data.website)
     const t = res.data.tracking ?? EMPTY
     setForm({
-      archetype: t.archetype ?? '', cms: t.cms, gtm_container_id: t.gtm_container_id, meta_pixel_id: t.meta_pixel_id,
+      archetype: t.archetype ?? '', cms: t.cms, gtm_container_id: t.gtm_container_id,
+      ga4_measurement_id: t.ga4_measurement_id ?? '', meta_pixel_id: t.meta_pixel_id,
       website: res.data.website,
     })
     setLoaded(true)
@@ -53,6 +54,7 @@ export function ClientTrackingTab({ clientId, website: initialWebsite }: { clien
     const patch: ClientTrackingPatch = {
       archetype: (form.archetype || null) as ClientTracking['archetype'],
       cms: form.cms, gtm_container_id: form.gtm_container_id, meta_pixel_id: form.meta_pixel_id,
+      ga4_measurement_id: form.ga4_measurement_id,
     }
     const res = await upsertClientTracking(clientId, patch)
     if (!res.ok) { toast.error(res.error); return }
@@ -76,7 +78,8 @@ export function ClientTrackingTab({ clientId, website: initialWebsite }: { clien
 
   const statusOptions = STATUSES.map(s => ({ value: s.value, label: s.label }))
   const dirty = form.archetype !== (current.archetype ?? '') || form.cms !== current.cms ||
-    form.gtm_container_id !== current.gtm_container_id || form.meta_pixel_id !== current.meta_pixel_id || form.website !== website
+    form.gtm_container_id !== current.gtm_container_id || form.ga4_measurement_id !== (current.ga4_measurement_id ?? '') ||
+    form.meta_pixel_id !== current.meta_pixel_id || form.website !== website
 
   return (
     <div className="space-y-4">
@@ -103,6 +106,10 @@ export function ClientTrackingTab({ clientId, website: initialWebsite }: { clien
           <Field label="ID container GTM" hint="GTM-XXXXXXX">
             <input value={form.gtm_container_id} onChange={e => setForm(f => ({ ...f, gtm_container_id: e.target.value }))}
               className={`${inputCls} font-mono`} placeholder="GTM-ABC1234" />
+          </Field>
+          <Field label="ID misurazione GA4" hint="G-XXXXXXXXXX, non il Property ID">
+            <input value={form.ga4_measurement_id} onChange={e => setForm(f => ({ ...f, ga4_measurement_id: e.target.value }))}
+              className={`${inputCls} font-mono`} placeholder="G-ABC123DEF4" />
           </Field>
           <Field label="Pixel ID Meta" hint="solo cifre, non è un segreto">
             <input value={form.meta_pixel_id} onChange={e => setForm(f => ({ ...f, meta_pixel_id: e.target.value }))}
