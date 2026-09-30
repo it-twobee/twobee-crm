@@ -1,7 +1,7 @@
 /* Vista Foglio del commerciale. Esegui: npx tsx lib/sales-foglio.check.ts */
 import {
   COLONNE_FOGLIO, STATO_FOGLIO, VISIBILI_DI_PARTENZA, VUOTE, colonneVisibili, comeCsv, comeTsv, distinti,
-  filtraColonne, leggiStato, ordinaRighe, raggruppa, testoCella, totali, type CtxFoglio, type RigaFoglio,
+  filtraColonne, interpreta, leggiData, leggiStato, leggiTsv, ripeti, stessoValore, colonnaModificabile, testoEditor, type CtxInterpreta, ordinaRighe, raggruppa, testoCella, totali, type CtxFoglio, type RigaFoglio,
 } from '@/lib/sales-foglio'
 import { FASI_SEME, etichettaFase } from '@/lib/sales-stages'
 
@@ -56,6 +56,54 @@ const cols = colonneVisibili({ ...STATO_FOGLIO, visibili: ['company_name', 'note
 is('TSV: a capo nelle note non spezza la riga', comeTsv([r('9', { company_name: 'X', notes: 'a\nb\tc' })], cols, ctx).split('\n').length, 2)
 is('CSV: le virgolette si raddoppiano', comeCsv([r('9', { company_name: 'X "Y"; Z' })], cols, ctx).includes('"X ""Y""; Z"'), true)
 is('totali', totali(righe, ctx), { righe: 3, tentativi: 7 })
+
+console.log('\n— Date scritte in fretta —')
+const oggi = new Date(2026, 8, 29)
+is('domani', leggiData('domani', oggi), '2026-09-30')
+is('+7g', leggiData('+7g', oggi), '2026-10-06')
+is('+2s', leggiData('+2s', oggi), '2026-10-13')
+is('12/10 → quest\'anno', leggiData('12/10', oggi), '2026-10-12')
+is('12/1 → gennaio prossimo, non il passato', leggiData('12/1', oggi), '2027-01-12')
+is('oggi stesso non slitta di un anno', leggiData('29/9', oggi), '2026-09-29')
+is('12/10/27', leggiData('12/10/27', oggi), '2027-10-12')
+is('31/2 non esiste', leggiData('31/2', oggi), null)
+is('parole a caso', leggiData('boh', oggi), null)
+is('ISO passa', leggiData('2026-10-12', oggi), '2026-10-12')
+
+console.log('\n— Incolla da Sheets —')
+is('due righe due colonne', leggiTsv('a\tb\nc\td'), [['a', 'b'], ['c', 'd']])
+is('a capo fra virgolette non spezza', leggiTsv('"x\ny"\tb\nc\td'), [['x\ny', 'b'], ['c', 'd']])
+is('riga finale vuota ignorata', leggiTsv('a\tb\n'), [['a', 'b']])
+is('virgolette raddoppiate', leggiTsv('"di ""Rossi"""'), [['di "Rossi"']])
+
+console.log('\n— Da testo a valore —')
+const ci: CtxInterpreta = {
+  fasi: FASI_SEME, ammesse: { priority: ['High', 'Low'] }, motivi: [{ chiave: 'prezzo', etichetta: 'Prezzo alto' }],
+  persone: [{ id: 'a', nome: 'Anna' }, { id: 'b', nome: 'Bruno' }], etichettaScelta: (_c, v) => v, oggi,
+}
+const nl = FASI_SEME[0]
+is('fase per etichetta', interpreta('stage', nl.etichetta, ci), { ok: true, valore: nl.chiave })
+is('fase inesistente', interpreta('stage', 'Boh', ci).ok, false)
+is('qualifica per etichetta', interpreta('qualifica', 'In target', ci), { ok: true, valore: 'in_target' })
+is('priorità senza maiuscole', interpreta('priority', 'high', ci), { ok: true, valore: 'High' })
+is('motivo per etichetta', interpreta('motivo_perso', 'Prezzo alto', ci), { ok: true, valore: 'prezzo' })
+is('owner per nome', interpreta('owners', 'Anna, Bruno', ci), { ok: true, valore: ['a', 'b'] })
+is('owner sconosciuto: errore, non un id', interpreta('owners', 'Carlo', ci).ok, false)
+is('data scritta a mano', interpreta('started_on', '12/10', ci), { ok: true, valore: '2026-10-12' })
+is('data illeggibile', interpreta('started_on', 'mai', ci).ok, false)
+is('email storta', interpreta('contact_email', 'rossi', ci).ok, false)
+is('azienda vuota non passa', interpreta('company_name', '', ci).ok, false)
+is('colonna calcolata non si scrive', interpreta('giorni_contatto', '3', ci).ok, false)
+is('il tentativo è del diario', colonnaModificabile('tentativi'), false)
+is('l\'azienda si scrive', colonnaModificabile('company_name'), true)
+is('l\'editor mostra la data all\'italiana', testoEditor('2026-10-12', 'started_on', ctx), '12/10/2026')
+
+console.log('\n— Confronto e riempimento —')
+is('vuoto = null = stringa vuota', stessoValore(null, ''), true)
+is('l\'ordine dei tag non conta', stessoValore(['a', 'b'], ['b', 'a']), true)
+is('un valore diverso è diverso', stessoValore('a', 'b'), false)
+is('lista vuota = niente', stessoValore([], null), true)
+is('il blocco si ripete in ciclo', ripeti([['x'], ['y']], 5), [['x'], ['y'], ['x'], ['y'], ['x']])
 
 console.log(fail ? `\n${fail} controlli falliti` : '\nTutti i controlli passano')
 process.exit(fail ? 1 : 0)

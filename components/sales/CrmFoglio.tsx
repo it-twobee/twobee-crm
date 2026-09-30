@@ -9,8 +9,12 @@
  * lo stesso insieme, §379) e ci aggiunge quello che è solo del foglio: colonne
  * scelte, ordinate e ridimensionate, ordine e filtro per colonna, gruppi.
  *
- * Questo passo è in sola lettura; la modifica delle celle arriva dopo. Clic su
- * una riga apre la scheda, come nell'elenco.
+ * **Si modifica sopra una copia.** Le celle toccate vivono in `bozza` finché non
+ * si preme «Salva»: un solo giro (`salvaBatchDeal`), con il valore che si
+ * vedeva all'inizio per accorgersi di un collega. Una cella non valida diventa
+ * rossa e le altre si salvano; una riga cambiata da un altro si ferma intera e
+ * chiede «Tieni la mia / Prendi la sua». Sotto i 768px il foglio è in sola
+ * lettura e il clic su una riga apre la scheda, come nell'elenco.
  *
  * Le colonne e i filtri si ricordano per browser (`localStorage`), e la
  * memoria può mancare: senza, il foglio si apre lo stesso con i default.
@@ -18,13 +22,16 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowDown, ArrowUp, ChevronRight, ClipboardCopy, Columns3, Download, Filter, RotateCcw } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronRight, ClipboardCopy, Columns3, Download, ExternalLink, Filter, RotateCcw, Save, Undo2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useFasi } from './FasiContext'
 import { giorniFa } from '@/lib/sales-timeline'
+import { salvaBatchDeal, type ModificaRiga } from '@/app/actions/sales'
+import { ETICHETTA_QUALIFICA, QUALIFICHE, colonnaDi } from '@/lib/sales-table'
+import { ammesse } from '@/lib/sales-scelte'
 import {
-  COLONNE_FOGLIO, ETICHETTA_GRUPPAZIONE, STATO_FOGLIO, colonneVisibili, comeCsv, comeTsv, distinti, filtraColonne,
+  COLONNE_FOGLIO, colonnaModificabile, interpreta, leggiTsv, ripeti, stessoValore, testoEditor, ETICHETTA_GRUPPAZIONE, STATO_FOGLIO, colonneVisibili, comeCsv, comeTsv, distinti, filtraColonne,
   leggiStato, ordinaRighe, raggruppa, testoCella, totali, colFoglio,
   type ColFoglio, type CtxFoglio, type Gruppazione, type RigaFoglio, type StatoFoglio,
 } from '@/lib/sales-foglio'
@@ -32,8 +39,15 @@ import {
 const MEMORIA = 'twobee-crm-foglio'
 const ALTEZZA_RIGA = 'h-7'
 
+type Bozza = Record<string, Record<string, { testo: string; valore?: unknown; errore?: string }>>
+type Pos = { r: number; c: number }
+
 type Props = {
   righe: RigaFoglio[]
+  persone: { id: string; nome: string; assegnabile: boolean }[]
+  puoiAssegnare: boolean
+  /** scrive nella tabella dell'elenco i valori che il server ha confermato */
+  onAggiorna: (id: string, valori: Record<string, unknown>) => void
   apertaId: string | null
   onApri: (id: string) => void
   nomeDi: Map<string, string>
@@ -42,8 +56,8 @@ type Props = {
   adessoMs: number
 }
 
-export function CrmFoglio({ righe, apertaId, onApri, nomeDi, rilievi, adessoMs }: Props) {
-  const { TUTTE, etichettaFase, classiFase } = useFasi()
+export function CrmFoglio({ righe, persone, puoiAssegnare, onAggiorna, apertaId, onApri, nomeDi, rilievi, adessoMs }: Props) {
+  const { TUTTE, FASI, MOTIVI, SCELTE, etichettaFase, classiFase, etichettaScelta } = useFasi()
   const [stato, setStatoGrezzo] = useState<StatoFoglio>(STATO_FOGLIO)
   const [pronto, setPronto] = useState(false)
   const [chiusi, setChiusi] = useState<string[]>([])
@@ -78,6 +92,244 @@ export function CrmFoglio({ righe, apertaId, onApri, nomeDi, rilievi, adessoMs }
   const sezioni = useMemo(() => raggruppa(TUTTE, ordinate, stato.gruppo, ctx), [TUTTE, ordinate, stato.gruppo, ctx])
   const somme = useMemo(() => totali(ordinate, ctx), [ordinate, ctx])
   const nFiltri = Object.keys(stato.filtri).length
+
+  // ── modifica ────────────────────────────────────────────────────────────────
+  const [largo, setLargo] = useState(true)
+  useEffect(() => {
+    const m = window.matchMedia('(min-width: 768px)')
+    const f = () => setLargo(m.matches)
+    f(); m.addEventListener('change', f)
+    return () => m.removeEventListener('change', f)
+  }, [])
+  const modifica = largo
+
+  const [bozza, setBozza] = useState<Bozza>({})
+  const [storia, setStoria] = useState<Bozza[]>([])
+  const [conflitti, setConflitti] = useState<Record<string, Record<string, unknown>>>({})
+  const [salvando, setSalvando] = useState(false)
+  const base = useRef<Record<string, Record<string, unknown>>>({})
+  const [sel, setSel] = useState<Pos | null>(null)
+  const [ancora, setAncora] = useState<Pos | null>(null)
+  const [editing, setEditing] = useState<{ pos: Pos; testo: string } | null>(null)
+  const premuto = useRef(false)
+  const area = useRef<HTMLDivElement>(null)
+
+  const persona = useMemo(() => persone.filter(p => p.assegnabile), [persone])
+  const perId = useMemo(() => new Map(righe.map(r => [r.id, r])), [righe])
+  const ctxI = useMemo(() => ({
+    fasi: TUTTE, ammesse: ammesse(SCELTE), motivi: MOTIVI, persone: persona,
+    etichettaScelta: (campo: string, chiave: string) => etichettaScelta(campo, chiave), oggi: new Date(),
+  }), [TUTTE, SCELTE, MOTIVI, persona, etichettaScelta])
+
+  const chiusa = (s: { chiave: string; persi?: boolean }) => s.persi ? !chiusi.includes('aperto:persi') : chiusi.includes(s.chiave)
+  const piatte = useMemo(() => sezioni.flatMap(s => chiusa(s) ? [] : s.righe),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sezioni, chiusi])
+  const indice = useMemo(() => new Map(piatte.map((r, i) => [r.id, i])), [piatte])
+  const scrivibile = (c: ColFoglio) => colonnaModificabile(c.chiave) && (c.chiave !== 'owners' || puoiAssegnare)
+
+  const testoDi = (r: RigaFoglio, chiave: string) => bozza[r.id]?.[chiave]?.testo ?? testoCella(r, chiave, ctx)
+  const grezzoDi = (r: RigaFoglio, chiave: string) => {
+    const b = bozza[r.id]?.[chiave]
+    return b ? b.testo : testoEditor(r[chiave], chiave, ctx)
+  }
+
+  const applica = (mod: { id: string; chiave: string; testo: string }[]) => {
+    if (!mod.length) return
+    const dopo: Bozza = { ...bozza }
+    for (const { id, chiave, testo } of mod) {
+      const riga = perId.get(id)
+      if (!riga) continue
+      const i = interpreta(chiave, testo, ctxI)
+      const b = (base.current[id] ??= {})
+      if (!(chiave in b)) b[chiave] = riga[chiave]
+      const celle = { ...(dopo[id] ?? {}) }
+      if (i.ok && stessoValore(i.valore, b[chiave])) delete celle[chiave]
+      else celle[chiave] = i.ok ? { testo, valore: i.valore } : { testo, errore: i.motivo }
+      if (Object.keys(celle).length) dopo[id] = celle
+      else { delete dopo[id]; delete base.current[id] }
+    }
+    setStoria(s => [...s.slice(-49), bozza])
+    setBozza(dopo)
+  }
+
+  const annulla = () => {
+    const u = storia[storia.length - 1]
+    if (!u) return
+    setBozza(u); setStoria(s => s.slice(0, -1))
+    for (const id of Object.keys(base.current)) if (!u[id]) delete base.current[id]
+  }
+  const scarta = () => { setBozza({}); setStoria([]); setConflitti({}); base.current = {} }
+
+  const nModifiche = Object.values(bozza).reduce((n, r) => n + Object.values(r).filter(c => !c.errore).length, 0)
+  const nErrori = Object.values(bozza).reduce((n, r) => n + Object.values(r).filter(c => c.errore).length, 0)
+  const sporco = nModifiche + nErrori > 0
+  useEffect(() => {
+    if (!sporco) return
+    const f = (e: BeforeUnloadEvent) => { e.preventDefault() }
+    window.addEventListener('beforeunload', f)
+    return () => window.removeEventListener('beforeunload', f)
+  }, [sporco])
+
+  const salva = async (soloId?: string) => {
+    const modifiche: ModificaRiga[] = []
+    for (const [id, celle] of Object.entries(bozza)) {
+      if (soloId && id !== soloId) continue
+      const ok = Object.entries(celle).filter(([, c]) => !c.errore)
+      if (!ok.length) continue
+      modifiche.push({
+        id,
+        base: Object.fromEntries(ok.map(([k]) => [k, base.current[id]?.[k] ?? null])),
+        campi: Object.fromEntries(ok.map(([k, c]) => [k, c.valore])),
+      })
+    }
+    if (!modifiche.length) return
+    setSalvando(true)
+    try {
+      const esiti = await salvaBatchDeal(modifiche)
+      const dopo: Bozza = { ...bozza }
+      const nuoviConflitti = { ...conflitti }
+      let salvate = 0
+      for (const e of esiti) {
+        if (Object.keys(e.conflitti).length) { nuoviConflitti[e.id] = e.conflitti; continue }
+        delete nuoviConflitti[e.id]
+        if (Object.keys(e.salvati).length) { onAggiorna(e.id, e.salvati); salvate += Object.keys(e.salvati).length }
+        const celle = { ...(dopo[e.id] ?? {}) }
+        for (const k of Object.keys(e.salvati)) { delete celle[k]; if (base.current[e.id]) base.current[e.id][k] = e.salvati[k] }
+        for (const [k, motivo] of Object.entries(e.errori)) if (celle[k]) celle[k] = { ...celle[k], errore: motivo }
+        if (Object.keys(celle).length) dopo[e.id] = celle; else { delete dopo[e.id]; delete base.current[e.id] }
+      }
+      setBozza(dopo); setConflitti(nuoviConflitti); setStoria([])
+      const nc = Object.keys(nuoviConflitti).length
+      if (salvate) toast.success(`${salvate} ${salvate === 1 ? 'cella salvata' : 'celle salvate'}`)
+      if (nc) toast.error(`${nc} ${nc === 1 ? 'riga è stata cambiata' : 'righe sono state cambiate'} da un collega: scegli cosa tenere`)
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally { setSalvando(false) }
+  }
+
+  const prendiLaSua = (id: string) => {
+    const loro = conflitti[id]
+    if (loro) onAggiorna(id, loro)
+    const dopo = { ...bozza }; delete dopo[id]; delete base.current[id]
+    const c = { ...conflitti }; delete c[id]
+    setBozza(dopo); setConflitti(c)
+  }
+  const tieniLaMia = async (id: string) => {
+    base.current[id] = { ...(base.current[id] ?? {}), ...conflitti[id] }
+    const c = { ...conflitti }; delete c[id]
+    setConflitti(c)
+    await salva(id)
+  }
+
+  const intervallo = (): { r0: number; r1: number; c0: number; c1: number } | null => {
+    if (!sel) return null
+    const a = ancora ?? sel
+    return { r0: Math.min(a.r, sel.r), r1: Math.max(a.r, sel.r), c0: Math.min(a.c, sel.c), c1: Math.max(a.c, sel.c) }
+  }
+  const dentro = (r: number, c: number) => { const x = intervallo(); return !!x && r >= x.r0 && r <= x.r1 && c >= x.c0 && c <= x.c1 }
+
+  const vai = (r: number, c: number, estendi = false) => {
+    const rr = Math.max(0, Math.min(piatte.length - 1, r)), cc = Math.max(0, Math.min(colonne.length - 1, c))
+    if (!estendi) setAncora(null)
+    else if (!ancora && sel) setAncora(sel)
+    setSel({ r: rr, c: cc })
+  }
+  const apriEditor = (pos: Pos, testo?: string) => {
+    const r = piatte[pos.r], c = colonne[pos.c]
+    if (!r || !c || !scrivibile(c)) return
+    setEditing({ pos, testo: testo ?? grezzoDi(r, c.chiave) })
+  }
+  const chiudiEditor = (conferma: boolean) => {
+    const e = editing
+    setEditing(null)
+    if (e && conferma) {
+      const r = piatte[e.pos.r], c = colonne[e.pos.c]
+      if (r && c && e.testo !== grezzoDi(r, c.chiave)) applica([{ id: r.id, chiave: c.chiave, testo: e.testo }])
+    }
+    area.current?.focus()
+  }
+
+  const celleSelezionate = () => {
+    const x = intervallo(); if (!x) return []
+    const out: string[][] = []
+    for (let r = x.r0; r <= x.r1; r++) out.push(colonne.slice(x.c0, x.c1 + 1).map(c => testoDi(piatte[r], c.chiave)))
+    return out
+  }
+  const incolla = (blocco: string[][]) => {
+    const x = intervallo(); if (!x || !blocco.length) return
+    const singola = blocco.length === 1 && blocco[0].length === 1
+    const righeN = singola ? x.r1 - x.r0 + 1 : blocco.length
+    const colN = singola ? x.c1 - x.c0 + 1 : Math.max(...blocco.map(b => b.length))
+    const sorgente = singola ? ripeti(blocco, righeN) : blocco
+    const mod: { id: string; chiave: string; testo: string }[] = []
+    for (let i = 0; i < righeN && x.r0 + i < piatte.length; i++) {
+      for (let j = 0; j < colN && x.c0 + j < colonne.length; j++) {
+        const c = colonne[x.c0 + j]
+        if (!scrivibile(c)) continue
+        mod.push({ id: piatte[x.r0 + i].id, chiave: c.chiave, testo: singola ? sorgente[i][0] : sorgente[i][j] ?? '' })
+      }
+    }
+    applica(mod)
+  }
+  const riempiGiu = () => {
+    const x = intervallo(); if (!x || x.r1 === x.r0) return
+    const mod: { id: string; chiave: string; testo: string }[] = []
+    for (let j = x.c0; j <= x.c1; j++) {
+      const c = colonne[j]; if (!scrivibile(c)) continue
+      const t = testoDi(piatte[x.r0], c.chiave) === '' ? '' : grezzoDi(piatte[x.r0], c.chiave)
+      for (let r = x.r0 + 1; r <= x.r1; r++) mod.push({ id: piatte[r].id, chiave: c.chiave, testo: t })
+    }
+    applica(mod)
+  }
+  const svuota = () => {
+    const x = intervallo(); if (!x) return
+    const mod: { id: string; chiave: string; testo: string }[] = []
+    for (let r = x.r0; r <= x.r1; r++) for (let j = x.c0; j <= x.c1; j++) {
+      if (scrivibile(colonne[j])) mod.push({ id: piatte[r].id, chiave: colonne[j].chiave, testo: '' })
+    }
+    applica(mod)
+  }
+
+  const tasto = (e: React.KeyboardEvent) => {
+    if (editing || !modifica) return
+    const mod = e.metaKey || e.ctrlKey
+    const k = e.key
+    if (mod && k.toLowerCase() === 's') { e.preventDefault(); void salva(); return }
+    if (mod && k.toLowerCase() === 'z') { e.preventDefault(); annulla(); return }
+    if (!sel) return
+    if (mod && k.toLowerCase() === 'd') { e.preventDefault(); riempiGiu(); return }
+    if (mod && k.toLowerCase() === 'a') { e.preventDefault(); setAncora({ r: 0, c: 0 }); setSel({ r: piatte.length - 1, c: colonne.length - 1 }); return }
+    if (mod) return
+    const passo: Record<string, [number, number]> = { ArrowDown: [1, 0], ArrowUp: [-1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }
+    if (passo[k]) { e.preventDefault(); vai(sel.r + passo[k][0], sel.c + passo[k][1], e.shiftKey); return }
+    if (k === 'Tab') { e.preventDefault(); vai(sel.r, sel.c + (e.shiftKey ? -1 : 1)); return }
+    if (k === 'Enter' || k === 'F2') { e.preventDefault(); apriEditor(sel); return }
+    if (k === 'Escape') { setAncora(null); return }
+    if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); svuota(); return }
+    if (k.length === 1 && !e.altKey) { e.preventDefault(); apriEditor(sel, k) }
+  }
+  const copiaCelle = (e: React.ClipboardEvent) => {
+    if (editing || !modifica || !sel) return
+    e.preventDefault()
+    e.clipboardData.setData('text/plain', celleSelezionate().map(r => r.join('\t')).join('\n'))
+  }
+  const incollaCelle = (e: React.ClipboardEvent) => {
+    if (editing || !modifica || !sel) return
+    e.preventDefault()
+    incolla(leggiTsv(e.clipboardData.getData('text/plain')))
+  }
+
+  const opzioni = (chiave: string): string[] => {
+    const c = colonnaDi(chiave)
+    if (!c) return []
+    if (c.tipo === 'fase') return FASI.map(f => f.etichetta)
+    if (c.tipo === 'motivo') return MOTIVI.map(m => m.etichetta)
+    if (chiave === 'qualifica') return QUALIFICHE.map(q => ETICHETTA_QUALIFICA[q])
+    if (c.tipo === 'scelta') return (ammesse(SCELTE)[chiave] ?? c.valori ?? []).map(v => etichettaScelta(chiave, v))
+    if (chiave === 'owners') return persona.map(p => p.nome)
+    return []
+  }
 
   const ordina = (chiave: string) => setStato(s => ({
     ...s,
@@ -161,6 +413,23 @@ export function CrmFoglio({ righe, apertaId, onApri, nomeDi, rilievi, adessoMs }
             {nFiltri > 0 && `${nFiltri} filtri di colonna`}{nFiltri > 0 && stato.sort && ' · '}{stato.sort && 'ordinato'} · azzera
           </button>
         )}
+        {modifica && sporco && (
+          <span className="flex items-center gap-1.5 text-2xs">
+            <span className="text-text-secondary">
+              <span className="tabular font-semibold text-text-primary">{nModifiche}</span> da salvare
+              {nErrori > 0 && <> · <span className="tabular font-semibold text-error">{nErrori}</span> da correggere</>}
+            </span>
+            <button onClick={() => void salva()} disabled={salvando || nModifiche === 0} title="Salva tutto (Ctrl+S)"
+              className="flex items-center gap-1.5 font-semibold bg-gold text-on-gold px-2.5 py-1 rounded-lg disabled:opacity-50">
+              <Save className="w-3.5 h-3.5" />{salvando ? 'Salvo…' : 'Salva'}
+            </button>
+            <button onClick={annulla} disabled={!storia.length} title="Annulla l'ultima modifica (Ctrl+Z)"
+              className="flex items-center gap-1 font-semibold text-text-secondary border border-border px-2 py-1 rounded-lg hover:text-text-primary hover:bg-surface-hover disabled:opacity-40">
+              <Undo2 className="w-3.5 h-3.5" />Annulla
+            </button>
+            <button onClick={scarta} className="font-semibold text-text-secondary hover:text-text-primary">Scarta tutto</button>
+          </span>
+        )}
         <span className="ml-auto flex items-center gap-1.5">
           <button onClick={copia} title="Copia la vista come TSV, da incollare in Google Sheets"
             className="flex items-center gap-1.5 text-2xs font-semibold text-text-secondary border border-border px-2.5 py-1 rounded-lg hover:text-text-primary hover:bg-surface-hover">
@@ -173,7 +442,25 @@ export function CrmFoglio({ righe, apertaId, onApri, nomeDi, rilievi, adessoMs }
         </span>
       </div>
 
-      <div className="overflow-auto max-h-[calc(100vh-14rem)]">
+      {Object.keys(conflitti).length > 0 && (
+        <div role="alert" className="px-3 py-2 border-b border-border bg-warning-dim text-2xs text-text-primary space-y-1">
+          <p className="font-semibold">Un collega ha cambiato queste righe mentre lavoravi: non le ho toccate.</p>
+          {Object.keys(conflitti).map(id => (
+            <p key={id} className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold">{String(perId.get(id)?.company_name || 'Lead senza nome')}</span>
+              <span className="text-text-secondary">
+                {Object.entries(conflitti[id]).map(([k, v]) => `${colFoglio(k)?.etichetta ?? k}: ${testoEditor(v, k, ctx) || '—'}`).join(' · ')}
+              </span>
+              <button onClick={() => void tieniLaMia(id)} className="font-semibold text-gold-text hover:underline">Tieni la mia</button>
+              <button onClick={() => prendiLaSua(id)} className="font-semibold text-text-secondary hover:text-text-primary hover:underline">Prendi la sua</button>
+            </p>
+          ))}
+        </div>
+      )}
+
+      <div ref={area} tabIndex={modifica ? 0 : undefined} onKeyDown={tasto} onCopy={copiaCelle} onPaste={incollaCelle}
+        onMouseUp={() => { premuto.current = false }} onMouseLeave={() => { premuto.current = false }}
+        className="overflow-auto max-h-[calc(100vh-14rem)] outline-none">
         <table className="border-separate border-spacing-0 text-xs text-text-primary" style={{ tableLayout: 'fixed', width: colonne.reduce((s, c) => s + larg(c), 0) }}>
           <colgroup>{colonne.map(c => <col key={c.chiave} style={{ width: larg(c) }} />)}</colgroup>
           <thead>
@@ -220,22 +507,70 @@ export function CrmFoglio({ righe, apertaId, onApri, nomeDi, rilievi, adessoMs }
                   {s.righe.map(r => {
                     const scelta = apertaId === r.id
                     const rilievo = rilievi.get(r.id)
+                    const ri = indice.get(r.id) ?? -1
                     return (
-                      <tr key={`${s.chiave}:${r.id}`} onClick={() => onApri(r.id)} aria-selected={scelta}
-                        className={`group cursor-pointer ${ALTEZZA_RIGA} ${scelta ? 'bg-gold-dim' : 'hover:bg-surface-hover'}`}>
-                        {colonne.map((c, i) => (
-                          <td key={c.chiave}
-                            className={`${ALTEZZA_RIGA} px-2 border-b border-border border-r border-r-border truncate whitespace-nowrap ${
-                              i === 0 ? `sticky left-0 z-10 font-semibold ${scelta ? 'bg-gold-dim' : 'bg-background group-hover:bg-surface-hover'}` : ''} ${
-                              colFoglio(c.chiave)?.tipo === 'numero' ? 'text-right tabular' : ''}`}
-                            title={c.chiave === 'stage' ? undefined : testoCella(r, c.chiave, ctx) || undefined}>
-                            {i === 0 && rilievo && (
-                              <span role="img" aria-label={rilievo.frase} title={rilievo.frase}
-                                className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle ${rilievo.peso === 'grave' ? 'bg-error' : 'bg-warning'}`} />
-                            )}
-                            {celle(r, c)}
-                          </td>
-                        ))}
+                      <tr key={`${s.chiave}:${r.id}`} onClick={modifica ? undefined : () => onApri(r.id)} aria-selected={scelta}
+                        className={`group ${modifica ? '' : 'cursor-pointer'} ${ALTEZZA_RIGA} ${scelta ? 'bg-gold-dim' : 'hover:bg-surface-hover'}`}>
+                        {colonne.map((c, i) => {
+                          const b = bozza[r.id]?.[c.chiave]
+                          const inSel = modifica && dentro(ri, i)
+                          const attiva = modifica && sel?.r === ri && sel.c === i
+                          const inEditor = editing?.pos.r === ri && editing.pos.c === i
+                          const inConflitto = !!conflitti[r.id] && c.chiave in conflitti[r.id]
+                          return (
+                            <td key={c.chiave}
+                              onMouseDown={modifica ? e => {
+                                if (e.button !== 0 || inEditor) return
+                                premuto.current = true
+                                if (e.shiftKey && sel) setAncora(a => a ?? sel); else setAncora(null)
+                                setSel({ r: ri, c: i })
+                                area.current?.focus()
+                              } : undefined}
+                              onMouseEnter={modifica ? () => { if (premuto.current && sel) { setAncora(a => a ?? sel); setSel({ r: ri, c: i }) } } : undefined}
+                              onDoubleClick={modifica ? () => apriEditor({ r: ri, c: i }) : undefined}
+                              aria-invalid={b?.errore ? true : undefined}
+                              className={`${ALTEZZA_RIGA} px-2 border-b border-border border-r border-r-border truncate whitespace-nowrap ${
+                                i === 0 ? `sticky left-0 z-10 font-semibold ${scelta ? 'bg-gold-dim' : 'bg-background group-hover:bg-surface-hover'}` : ''} ${
+                                colFoglio(c.chiave)?.tipo === 'numero' ? 'text-right tabular' : ''} ${
+                                b?.errore ? 'bg-error-dim text-error' : b ? 'bg-warning-dim' : ''} ${
+                                inSel && !attiva ? 'bg-gold-dim' : ''} ${
+                                attiva ? 'outline outline-2 -outline-offset-2 outline-gold relative z-10' : ''} ${
+                                inConflitto ? 'outline outline-1 -outline-offset-1 outline-warning' : ''} ${
+                                modifica && !scrivibile(c) ? 'text-text-secondary' : ''} select-none`}
+                              title={b?.errore ?? (c.chiave === 'stage' ? undefined : testoDi(r, c.chiave) || undefined)}>
+                              {inEditor && editing ? (
+                                <>
+                                  <input autoFocus value={editing.testo} list={`opz-${c.chiave}`}
+                                    onChange={e => setEditing({ pos: editing.pos, testo: e.target.value })}
+                                    onBlur={() => chiudiEditor(true)}
+                                    onKeyDown={e => {
+                                      e.stopPropagation()
+                                      if (e.key === 'Enter') { e.preventDefault(); const p = editing.pos; chiudiEditor(true); vai(p.r + 1, p.c) }
+                                      else if (e.key === 'Tab') { e.preventDefault(); const p = editing.pos; chiudiEditor(true); vai(p.r, p.c + (e.shiftKey ? -1 : 1)) }
+                                      else if (e.key === 'Escape') { e.preventDefault(); chiudiEditor(false) }
+                                    }}
+                                    aria-label={`Modifica ${c.etichetta}`}
+                                    className="w-full h-full bg-background text-xs text-text-primary outline-none" />
+                                  <datalist id={`opz-${c.chiave}`}>{opzioni(c.chiave).map(o => <option key={o} value={o} />)}</datalist>
+                                </>
+                              ) : (
+                                <>
+                                  {i === 0 && rilievo && (
+                                    <span role="img" aria-label={rilievo.frase} title={rilievo.frase}
+                                      className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle ${rilievo.peso === 'grave' ? 'bg-error' : 'bg-warning'}`} />
+                                  )}
+                                  {b ? b.testo : celle(r, c)}
+                                  {modifica && i === 0 && (
+                                    <button onClick={e => { e.stopPropagation(); onApri(r.id) }} aria-label={`Apri la scheda di ${testoCella(r, c.chiave, ctx) || 'questo lead'}`}
+                                      className="float-right mt-1.5 opacity-0 group-hover:opacity-100 focus:opacity-100 text-text-tertiary hover:text-text-primary">
+                                      <ExternalLink className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                            </td>
+                          )
+                        })}
                       </tr>
                     )
                   })}

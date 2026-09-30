@@ -577,6 +577,9 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
             <div className={`flex-1 min-w-0 ${aperta ? 'hidden lg:block' : ''}`}>
               <CrmFoglio
                 righe={viste as unknown as import('@/lib/sales-foglio').RigaFoglio[]}
+                persone={persone}
+                puoiAssegnare={puoiAssegnare}
+                onAggiorna={(id, v) => setRighe(rs => rs.map(r => r.id === id ? { ...r, ...v } : r))}
                 apertaId={apertaId}
                 onApri={id => setApertaId(apertaId === id ? null : id)}
                 nomeDi={nomeDi}

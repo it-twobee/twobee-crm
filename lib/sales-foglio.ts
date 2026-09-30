@@ -13,7 +13,7 @@
  * si legge da nessuna parte.
  */
 
-import { COLONNE, ETICHETTA_QUALIFICA } from './sales-table'
+import { COLONNE, ETICHETTA_QUALIFICA, QUALIFICHE, modificabile, validaCella, colonnaDi } from './sales-table'
 import { dividiPersi } from './sales-elenco'
 import { giorniFa } from './sales-timeline'
 import type { Fase } from './sales-stages'
@@ -276,4 +276,161 @@ const cellaCsv = (t: string) => (/[";\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}
 export function comeCsv(righe: RigaFoglio[], colonne: ColFoglio[], ctx: CtxFoglio): string {
   return `﻿${[colonne.map(c => cellaCsv(c.etichetta)).join(';'),
     ...righe.map(r => colonne.map(c => cellaCsv(testoCella(r, c.chiave, ctx))).join(';'))].join('\r\n')}`
+}
+
+// ── modifica ────────────────────────────────────────────────────────────────
+
+/** una colonna si scrive solo se è un campo di `deals` che `validaCella` accetta: le calcolate e le derivate no */
+export const colonnaModificabile = (chiave: string): boolean => {
+  const c = colonnaDi(chiave)
+  return !!c && modificabile(c)
+}
+
+const p2 = (n: number) => String(n).padStart(2, '0')
+const iso = (d: Date) => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`
+
+/**
+ * Una data come la scrive chi ha fretta: `12/10`, `12/10/26`, `domani`, `+7g`,
+ * `+2s`, o già in ISO. Senza anno vale il **prossimo** in cui quel giorno cade
+ * (una data d'incontro scritta a settembre come «12/1» è gennaio, non il
+ * passato). Restituisce `AAAA-MM-GG` o `null` se non la capisce: mai una data
+ * inventata.
+ */
+export function leggiData(testo: string, oggi: Date): string | null {
+  const t = testo.trim().toLowerCase()
+  if (!t) return null
+  const base = new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate())
+  const giorni = (n: number) => { const d = new Date(base); d.setDate(d.getDate() + n); return iso(d) }
+  if (t === 'oggi') return giorni(0)
+  if (t === 'domani') return giorni(1)
+  if (t === 'ieri') return giorni(-1)
+  let m = /^([+-])(\d{1,3})\s*([gds])$/.exec(t)
+  if (m) return giorni((m[1] === '-' ? -1 : 1) * Number(m[2]) * (m[3] === 's' ? 7 : 1))
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return valida(t)
+  m = /^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2}|\d{4}))?$/.exec(t)
+  if (!m) return null
+  const g = Number(m[1]), me = Number(m[2])
+  if (m[3]) return valida(`${m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3])}-${p2(me)}-${p2(g)}`)
+  const quest = valida(`${base.getFullYear()}-${p2(me)}-${p2(g)}`)
+  if (!quest) return null
+  return quest >= iso(base) ? quest : valida(`${base.getFullYear() + 1}-${p2(me)}-${p2(g)}`)
+}
+
+/** `2026-02-31` non è una data anche se ha la forma giusta */
+function valida(s: string): string | null {
+  const d = new Date(`${s}T12:00:00`)
+  return Number.isNaN(d.getTime()) || iso(d) !== s ? null : s
+}
+
+/**
+ * Il testo incollato dagli appunti (TSV di Sheets/Excel) come righe di celle.
+ * Le celle con a capo dentro arrivano fra virgolette e non spezzano la riga.
+ */
+export function leggiTsv(testo: string): string[][] {
+  const righe: string[][] = []
+  let riga: string[] = [], cella = '', dentro = false
+  const chiudiRiga = () => { riga.push(cella); righe.push(riga); riga = []; cella = '' }
+  const t = testo.replace(/\r\n?/g, '\n')
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i]
+    if (dentro) {
+      if (ch === '"' && t[i + 1] === '"') { cella += '"'; i++ }
+      else if (ch === '"') dentro = false
+      else cella += ch
+    } else if (ch === '"' && cella === '') dentro = true
+    else if (ch === '\t') { riga.push(cella); cella = '' }
+    else if (ch === '\n') chiudiRiga()
+    else cella += ch
+  }
+  if (cella !== '' || riga.length) chiudiRiga()
+  return righe
+}
+
+export type CtxInterpreta = {
+  fasi: Fase[]
+  ammesse: Record<string, string[]>
+  motivi: { chiave: string; etichetta: string }[]
+  persone: { id: string; nome: string }[]
+  etichettaScelta: (campo: string, chiave: string) => string
+  oggi: Date
+}
+
+export type Interpretato = { ok: true; valore: unknown } | { ok: false; motivo: string }
+
+const uguale = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
+
+/**
+ * Da quello che c'è scritto in una cella (a mano o incollato) al valore che il
+ * database accetta. Le etichette tornano chiavi — «Nuovo lead» → `nuovo_lead`,
+ * «In target» → `in_target`, il nome di un collega → il suo id — poi passa da
+ * `validaCella`, la stessa porta del server: se qui passa, lì passa.
+ * Il responsabile lo scioglie **fra le persone assegnabili** (§409), quindi un
+ * nome che non è fra loro è un errore e non un id inventato.
+ */
+export function interpreta(chiave: string, testo: string, ctx: CtxInterpreta): Interpretato {
+  const c = colonnaDi(chiave)
+  if (!c || !modificabile(c)) return { ok: false, motivo: 'Questa colonna non si modifica' }
+  const t = testo.trim()
+
+  if (chiave === 'owners') {
+    if (!t) return { ok: true, valore: [] }
+    const ids: string[] = []
+    for (const nome of t.split(/[,;]/).map(x => x.trim()).filter(Boolean)) {
+      const p = ctx.persone.find(x => uguale(x.nome, nome))
+      if (!p) return { ok: false, motivo: `«${nome}» non è fra chi può seguire un lead` }
+      if (!ids.includes(p.id)) ids.push(p.id)
+    }
+    return { ok: true, valore: ids }
+  }
+
+  let grezzo: unknown = t
+  if (c.tipo === 'fase') {
+    const f = ctx.fasi.find(x => uguale(x.chiave, t) || uguale(x.etichetta, t))
+    grezzo = f ? f.chiave : t
+  } else if (c.tipo === 'motivo') {
+    grezzo = ctx.motivi.find(m => uguale(m.chiave, t) || uguale(m.etichetta, t))?.chiave ?? t
+  } else if (chiave === 'qualifica') {
+    grezzo = QUALIFICHE.find(q => uguale(q, t) || uguale(ETICHETTA_QUALIFICA[q], t)) ?? t
+  } else if (c.tipo === 'scelta') {
+    const ammessi = ctx.ammesse[chiave] ?? c.valori ?? []
+    grezzo = ammessi.find(v => uguale(v, t) || uguale(ctx.etichettaScelta(chiave, v), t)) ?? t
+  } else if (c.tipo === 'data' && t) {
+    const d = leggiData(t, ctx.oggi)
+    if (!d) return { ok: false, motivo: `«${t}» non è una data: scrivi 12/10, domani o +7g` }
+    grezzo = d
+  } else if (c.tipo === 'si_no') {
+    grezzo = /^(s[iì]|true|x|1|vero)$/i.test(t)
+  }
+  const v = validaCella(chiave, grezzo, ctx.fasi, ctx.ammesse)
+  return v.ok ? { ok: true, valore: v.valore } : { ok: false, motivo: v.motivo }
+}
+
+/** i valori che l'editor mostra all'apertura: il testo del valore, non quello della cella */
+export function testoEditor(v: unknown, chiave: string, ctx: CtxFoglio): string {
+  if (chiave === 'owners') return (Array.isArray(v) ? (v as string[]) : []).map(ctx.nomeDi).join(', ')
+  if (v === null || v === undefined) return ''
+  if (Array.isArray(v)) return v.join(', ')
+  if (typeof v === 'boolean') return v ? 'Sì' : ''
+  if (colFoglio(chiave)?.tipo === 'data') {
+    const g = String(v).slice(0, 10)
+    return /^\d{4}-\d{2}-\d{2}$/.test(g) ? `${g.slice(8)}/${g.slice(5, 7)}/${g.slice(0, 4)}` : String(v)
+  }
+  return String(v)
+}
+
+/** uguaglianza di due valori di cella: vuoto è vuoto, l'ordine di tag e owner non conta */
+export function stessoValore(a: unknown, b: unknown): boolean {
+  const norm = (v: unknown): string | boolean | null => {
+    if (v === undefined || v === null || v === '') return null
+    if (Array.isArray(v)) return v.length ? JSON.stringify(v.map(String).sort()) : null
+    if (typeof v === 'boolean') return v || null
+    return String(v)
+  }
+  return norm(a) === norm(b)
+}
+
+/** riempimento: il blocco sorgente ripetuto in ciclo per `n` righe (Ctrl+D e trascinamento) */
+export function ripeti<T>(sorgente: T[][], n: number): T[][] {
+  if (!sorgente.length) return []
+  return Array.from({ length: n }, (_, i) => sorgente[i % sorgente.length])
 }

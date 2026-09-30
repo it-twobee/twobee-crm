@@ -7,6 +7,7 @@ import { requireDealAccess, requireSalesAccess, requireSalesConfig, vedeTutto } 
 import { OUTCOMES, canReadDeal, salesAccess, uuid, validDate, validateDeal, type DealInput, type Delivery, type SalesData, type SalesDeal, type SalesOutcome, type SalesActivity } from '@/lib/sales'
 import { isWorkspaceRole } from '@/lib/permissions'
 import { validaCella, CAMPI_SCRIVIBILI } from '@/lib/sales-table'
+import { stessoValore } from '@/lib/sales-foglio'
 import { chiaveIngresso, faseDi } from '@/lib/sales-stages'
 import { leggiCampi, leggiFasi, leggiScelte } from '@/lib/sales-fasi'
 import { validaExtra } from '@/lib/sales-campi'
@@ -131,6 +132,103 @@ export async function salvaCellaDeal(dealId: string, campo: string, valore: unkn
 
   refreshSales()
   return { valore: esito.valore }
+}
+
+export type ModificaRiga = {
+  id: string
+  /** i valori che chi modifica **vedeva** quando ha cominciato: il confronto per accorgersi di un collega */
+  base: Record<string, unknown>
+  campi: Record<string, unknown>
+}
+export type EsitoRigaBatch = {
+  id: string
+  /** i valori scritti, come li ha confermati il server */
+  salvati: Record<string, unknown>
+  /** cella → perché non è stata scritta */
+  errori: Record<string, string>
+  /** cella → il valore che c'è ora nel database. Se non è vuoto la riga **non è stata toccata** */
+  conflitti: Record<string, unknown>
+}
+
+/**
+ * La vista Foglio salva **a blocchi**: molte celle, molte righe, un solo giro.
+ *
+ * Ogni cella passa dalle stesse porte di `salvaCellaDeal` — accesso al lead,
+ * `validaCella`, client dell'attore — e non da una scorciatoia: un file
+ * `'use server'` esporta un endpoint (§329), e il batch non deve essere la
+ * strada in cui i controlli si dimenticano.
+ *
+ * **Accorgersi di un collega.** La cella singola vince l'ultimo (§371) perché
+ * si salva a ogni tasto; qui si è lavorato a lungo su una copia, quindi ogni
+ * modifica porta con sé il valore che si vedeva (`base`) e il server lo
+ * confronta con quello vero. Se una cella è cambiata nel frattempo la riga
+ * **si ferma intera** e torna il valore attuale: scrivere mezza riga sopra il
+ * lavoro di un altro produce una combinazione che nessuno dei due ha deciso.
+ * Un valore non valido, invece, ferma solo la sua cella: il resto si salva.
+ */
+export async function salvaBatchDeal(modifiche: ModificaRiga[]): Promise<EsitoRigaBatch[]> {
+  if (!Array.isArray(modifiche)) throw new Error('Richiesta non valida')
+  if (modifiche.length > 500) throw new Error('Al massimo 500 righe per volta')
+  const [fasi, scelte] = await Promise.all([leggiFasi(), leggiScelte()])
+  const ammessi = ammesse(scelte)
+  const esiti: EsitoRigaBatch[] = []
+
+  for (const m of modifiche) {
+    const esito: EsitoRigaBatch = { id: String(m?.id ?? ''), salvati: {}, errori: {}, conflitti: {} }
+    esiti.push(esito)
+    const campi = Object.keys(m?.campi ?? {})
+    try {
+      const { actor, access } = await requireDealAccess(m.id)
+      if (campi.length > 40) throw new Error('Troppe celle su una riga')
+      const fuori = campi.filter(c => c !== 'owners' && !CAMPI_SCRIVIBILI.includes(c))
+      fuori.forEach(c => { esito.errori[c] = 'Questa cella non si modifica' })
+      const db = createActorClient(actor)
+      const scrivibili = campi.filter(c => !fuori.includes(c))
+
+      const normali = scrivibili.filter(c => c !== 'owners')
+      const { data: attuale, error: eLettura } = normali.length
+        ? await db.from('deals').select(normali.join(',')).eq('id', m.id).single()
+        : { data: {} as Record<string, unknown>, error: null }
+      if (eLettura) dbError(eLettura)
+      const ora = (attuale ?? {}) as unknown as Record<string, unknown>
+      for (const c of normali) {
+        if (!stessoValore(ora[c], m.base?.[c])) esito.conflitti[c] = ora[c] ?? null
+      }
+      if (scrivibili.includes('owners')) {
+        const { data: legami, error } = await db.from('deal_owners').select('profile_id').eq('deal_id', m.id)
+        if (error) dbError(error)
+        const correnti = (legami ?? []).map(l => l.profile_id as string)
+        if (!stessoValore(correnti, m.base?.owners)) esito.conflitti.owners = correnti
+      }
+      if (Object.keys(esito.conflitti).length) continue
+
+      const aggiorna: Record<string, unknown> = {}
+      for (const c of normali) {
+        const v = validaCella(c, m.campi[c], fasi, ammessi)
+        if (v.ok) aggiorna[c] = v.valore; else esito.errori[c] = v.motivo
+      }
+      if (Object.keys(aggiorna).length) {
+        const { error } = await db.from('deals')
+          .update({ ...aggiorna, updated_at: new Date().toISOString() }).eq('id', m.id)
+        if (error) dbError(error)
+        Object.assign(esito.salvati, aggiorna)
+      }
+      if (scrivibili.includes('owners')) {
+        if (!vedeTutto(access)) esito.errori.owners = 'Gli Account Owner li assegnano admin e manager'
+        else {
+          try {
+            const { owner } = await impostaOwnerDeal(m.id, m.campi.owners as string[])
+            esito.salvati.owners = owner
+          } catch (e) { esito.errori.owners = (e as Error).message }
+        }
+      }
+    } catch (e) {
+      const motivo = (e as Error).message
+      for (const c of campi) esito.errori[c] ??= motivo
+    }
+  }
+  refreshSales()
+  return esiti
 }
 
 /**

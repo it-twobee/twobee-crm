@@ -933,16 +933,38 @@ Colonne (visibili, ordine, larghezze), ordine, filtri di colonna e gruppo si
 ricordano **per browser** (`twobee-crm-foglio`, senza migration) e vengono
 riallineati alle colonne esistenti a ogni lettura (`leggiStato`).
 
-**Passo 1 (fatto): sola lettura.** Ordine e filtro per colonna, gruppi
+**Passo 1 (fatto, §457): sola lettura.** Ordine e filtro per colonna, gruppi
 (fase/responsabile/origine), colonne fisse, ridimensiona/riordina/nascondi,
-copia TSV e CSV. **Passo 2 (da fare):** modifica delle celle con salvataggio in
-batch e «Salva», selezione a intervallo, incolla e trascina per riempire,
-tastiera stile Sheets, Ctrl+Z sulle sole modifiche non salvate, riga vuota per
-aggiungere, conflitto per `revision` con «Tieni la mia / Prendi la sua». Le
-regole già decise: incolla con valori non validi → la cella diventa rossa e si
-salva il resto; sotto i 768px il foglio è sola lettura; i valori economici non
-si scrivono; il responsabile si sceglie fra i soli profili interni (§409).
-Gate: `npx tsx lib/sales-foglio.check.ts`.
+copia TSV e CSV.
+
+**Passo 2 (fatto, §458): modifica delle celle.** Si lavora su una **copia**:
+le celle toccate stanno in `bozza` (gialle) finché non si preme «Salva» o
+Ctrl+S. Un solo giro, `salvaBatchDeal` in `app/actions/sales.ts` (al massimo 500
+righe), e ogni cella passa dalle stesse porte di `salvaCellaDeal`: accesso al
+lead, `validaCella`, client dell'attore.
+- **Testo → valore** (`interpreta`): le etichette tornano chiavi («Nuovo lead»,
+  «In target», il nome di un collega), le date si scrivono `12/10`, `domani`,
+  `+7g`, `+2s`. Il responsabile si scioglie fra i soli profili assegnabili
+  (§409); un nome che non c'è è un errore, mai un id inventato.
+- **Tastiera:** frecce, Tab, Invio/F2 per aprire, un carattere apre l'editor,
+  Canc svuota, Ctrl+C/V (TSV di Sheets, anche multi-cella), Ctrl+D riempie
+  verso il basso, Ctrl+Z annulla le sole modifiche non salvate, Ctrl+A.
+  Un valore solo incollato su un intervallo riempie tutto l'intervallo.
+- **Cella non valida → rossa** col motivo; il resto della riga e le altre righe
+  si salvano. Le colonne calcolate e i valori economici non si scrivono; gli
+  Account Owner li assegnano solo admin e manager (lo ripete anche il server).
+- **Un collega ha cambiato la riga:** ogni modifica porta il valore che si
+  vedeva (`base`) e il server lo confronta con quello vero. Se è diverso la riga
+  **si ferma intera** (mezza riga sopra il lavoro di un altro è una
+  combinazione che nessuno ha deciso) e compare «Tieni la mia / Prendi la sua».
+  Il confronto è per valore, non per `revision`: nessuna migration.
+- Sotto i 768px il foglio è in sola lettura e il clic apre la scheda; dai 768px
+  in su il clic seleziona, la scheda si apre dall'icona accanto all'azienda.
+- `beforeunload` avvisa se ci sono modifiche non salvate.
+
+**Ancora da fare:** trascinare la maniglia per riempire (oggi c'è Ctrl+D), la
+riga vuota in fondo per aggiungere un lead, la conferma visiva del cambio fase
+verso «Perso» (il motivo si compila a mano). Gate: `npx tsx lib/sales-foglio.check.ts`.
 
 ## Aperto
 
