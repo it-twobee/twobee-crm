@@ -306,8 +306,11 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
             ? `sul foglio ${e.ritorno.scritte} celle aggiornate${e.ritorno.nuoveColonne.length ? ` e ${e.ritorno.nuoveColonne.length} colonne OS aggiunte` : ''}`
             : 'sul foglio era già tutto allineato'] : []),
       ].join(' · '))
-      if (e.nuovi) { toast.success(`${e.nuovi} lead importati`); location.reload() }
-      else toast.success('Nessun lead nuovo: il foglio è allineato')
+      /* Si ricarica sempre: il giro automatico può aver già importato il lead,
+         e `righe` è uno stato iniziale — senza ricarico la pagina aperta
+         resta quella di prima e «nessun nuovo» sembra un bottone rotto. */
+      toast.success(e.nuovi ? `${e.nuovi} lead importati` : 'Foglio allineato: elenco ricaricato')
+      location.reload()
     } catch (err) {
       const m = (err as Error).message
       setEsitoSync(m); toast.error(m)

@@ -144,7 +144,7 @@ la distribuzione tramite Coolify. Il portale cliente resta sul proprio branch.
 Su Coolify, applicazione `twobee-crm` / `os.twobee.it`, sono configurate in
 runtime `SALES_SHEET_CSV_URL` e `SALES_SYNC_SECRET`. Il foglio usa la scheda
 `gid=0` del documento `1JO5tPW_47VtyNsrDdbD7xy9V22T3dNa5UlqPVBhM8dM`.
-Task **`sales-sheet-daily`**, `0 3 * * *` nel fuso dello scheduler Coolify,
+Task **`sales-sheet-daily`**, oggi ogni 30 minuti in Coolify (la cadenza sta lì, non nel repo; in origine `0 3 * * *`) nel fuso dello scheduler,
 timeout 150 secondi:
 
 ```sh
@@ -978,3 +978,7 @@ verso «Perso» (il motivo si compila a mano). Gate: `npx tsx lib/sales-foglio.c
 - `sales_handoffs` resta in piedi e non la scrive più nessuna UI:
   `SalesHandoff` la legge ancora nella scheda progetto. `deal_activities` è
   tornata viva con la timeline (§438).
+
+### §459 — «Aggiorna dal foglio» ricarica sempre
+
+Con il giro ogni 30 minuti il lead è spesso già dentro quando si preme il tasto: «nessun nuovo» e la pagina aperta (`useState(iniziali)` in `CrmTable`) restava vecchia. Ora il tasto ricarica sempre.
