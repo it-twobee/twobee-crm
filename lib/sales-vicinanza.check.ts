@@ -15,8 +15,10 @@ const v = (stage: string, ultimo: string | null = '2026-10-01T10:00:00Z', arrivo
 is('il livello cresce lungo il percorso',
   ['nuovo_lead', 'non_raggiunto', 'in_contatto', 'call_fissata', 'preventivo_inviato', 'contratto_inviato'].map(s => v(s)!.livello),
   [8, 24, 40, 56, 72, 88])
-is('cliente acquisito: 100 e vinto', v('cliente_acquisito'), { livello: 100, tono: 'vinto', giorniFermo: null })
-is('perso: zero, grigio', v('perso'), { livello: 0, tono: 'perso', giorniFermo: null })
+is('cliente acquisito: 100 e vinto', [v('cliente_acquisito')!.livello, v('cliente_acquisito')!.tono], [100, 'vinto'])
+is('perso: zero, grigio', [v('perso')!.livello, v('perso')!.tono], [0, 'perso'])
+is('la spiegazione: base, fattore e prossima fase', [v('call_fissata')!.base, v('call_fissata')!.fattore, v('call_fissata')!.prossima], [56, 1, 'Preventivo inviato'])
+is('l’ultima fase del percorso non ha una prossima', v('contratto_inviato')!.prossima, null)
 is('pending: fermo, a un livello fisso', v('pending')!.livello, LIVELLO_FERMO)
 is('una fase che non esiste più non inventa un numero', v('mai_vista'), null)
 is('fino a 7 giorni nessuna perdita', fattoreRecenza(7), 1)

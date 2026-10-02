@@ -1026,8 +1026,12 @@ diventare cliente.
   posto della nota del foglio**, che resta nella scheda; senza interazioni la
   riga mostra ancora la nota del foglio. Follow-up in programma, contatti storici
   e voci «stato» non contano. Si aggiorna insieme alla timeline (`Derivati.ultima_voce`).
-- **Il contachilometri** (`Contachilometri.tsx`, semicerchio con lancetta, rosso →
-  giallo → verde sui token del tema) dipende da **due cose sole**
+- **Il contachilometri** (`Contachilometri.tsx`, §465: arco di 180° con il
+  gradiente rosso → giallo → verde **fisso lungo l'arco**, tacche, manopola che
+  corre sull'arco, numero digitale al centro, si riempie all'apertura e si ferma
+  con `prefers-reduced-motion`; il clic apre il calcolo — fase, base, giorni di
+  fermo, punti persi, prossimo passo — e un orologio segna i fermi da più di 14
+  giorni; solo token del tema) dipende da **due cose sole**
   (`lib/sales-vicinanza.ts`): la fase, che dà il livello di base da 8 a 88 lungo
   il percorso vivo (il codice chiede il ruolo, mai la chiave), e la recenza —
   invariata fino a 7 giorni dall'ultimo contatto, poi scende fino a metà del

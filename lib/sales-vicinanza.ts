@@ -20,7 +20,18 @@
 import { attive, faseDi, type Fase } from './sales-stages'
 import { giorniFa } from './sales-timeline'
 
-export type Vicinanza = { livello: number; tono: 'vivo' | 'vinto' | 'perso' | 'fermo'; giorniFermo: number | null }
+export type Vicinanza = {
+  livello: number
+  tono: 'vivo' | 'vinto' | 'perso' | 'fermo'
+  giorniFermo: number | null
+  /** §465 — come si arriva al numero, perché un cruscotto che non si spiega non si crede */
+  faseEtichetta: string
+  base: number
+  /** quanto della base resta dopo la recenza, 0–1 */
+  fattore: number
+  /** la fase dopo questa nel percorso, o null se è l'ultima */
+  prossima: string | null
+}
 
 const MIN = 8, MAX = 88
 const SOGLIA_GIORNI = 7, TETTO_GIORNI = 45, FATTORE_MINIMO = 0.5
@@ -37,15 +48,20 @@ export function vicinanza(i: {
 }): Vicinanza | null {
   const f = faseDi(i.fasi, i.stage)
   if (!f) return null
-  if (f.ruolo === 'vinto') return { livello: 100, tono: 'vinto', giorniFermo: null }
-  if (f.ruolo === 'perso') return { livello: 0, tono: 'perso', giorniFermo: null }
-  if (f.ruolo === 'sospeso') return { livello: LIVELLO_FERMO, tono: 'fermo', giorniFermo: null }
+  const chiusa = { giorniFermo: null, faseEtichetta: f.etichetta, fattore: 1, prossima: null }
+  if (f.ruolo === 'vinto') return { ...chiusa, livello: 100, base: 100, tono: 'vinto' }
+  if (f.ruolo === 'perso') return { ...chiusa, livello: 0, base: 0, tono: 'perso' }
+  if (f.ruolo === 'sospeso') return { ...chiusa, livello: LIVELLO_FERMO, base: LIVELLO_FERMO, tono: 'fermo' }
 
   const percorso = attive(i.fasi).filter(x => x.ruolo === 'nuovo' || x.ruolo === 'in_corso')
   const idx = Math.max(0, percorso.findIndex(x => x.chiave === f.chiave))
   const base = percorso.length > 1 ? MIN + (idx / (percorso.length - 1)) * (MAX - MIN) : MIN
   const giorni = giorniFa(i.ultimoContatto ?? i.arrivo, i.adessoMs)
-  return { livello: Math.round(base * fattoreRecenza(giorni)), tono: 'vivo', giorniFermo: giorni }
+  const fattore = fattoreRecenza(giorni)
+  return {
+    livello: Math.round(base * fattore), tono: 'vivo', giorniFermo: giorni,
+    faseEtichetta: f.etichetta, base: Math.round(base), fattore, prossima: percorso[idx + 1]?.etichetta ?? null,
+  }
 }
 
 /** rosso → giallo → verde sui token del tema: mai un hex, o il tema chiaro si rompe */
