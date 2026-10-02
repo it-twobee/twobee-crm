@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { CAMPI_RIGA } from '@/lib/sales-table'
 import { CrmTable, type RigaCrm, type PersonaCrm } from './CrmTable'
 import { ADMIN_ROLES, SUPER_ADMIN_EMAILS, isSuperAdminRaw } from '@/lib/permissions'
+import { leggiUltime } from '@/lib/sales-ultima'
 import { puoEsportare } from '@/lib/sales-export'
 import { FasiProvider } from './FasiContext'
 import { leggiCampi, leggiFasi, leggiMotiviPerso, leggiScelte } from '@/lib/sales-fasi'
@@ -84,7 +85,8 @@ export async function SalesPage({ base }: { base: string }) {
   const { data: extra } = await admin.from('deals').select('id, campi_extra').in('id', righe.map(r => r.id))
   const extraDi = new Map(((extra ?? []) as { id: string; campi_extra: Record<string, unknown> | null }[])
     .map(e => [e.id, e.campi_extra ?? {}]))
-  righe = righe.map(r => ({ ...r, owners: perRiga.get(r.id) ?? [], campi_extra: extraDi.get(r.id) ?? {} }))
+  const ultime = await leggiUltime(admin, righe.map(r => r.id))
+  righe = righe.map(r => ({ ...r, owners: perRiga.get(r.id) ?? [], campi_extra: extraDi.get(r.id) ?? {}, ultima_voce: ultime.get(r.id) ?? null }))
 
   const idConcessi = (concessi ?? []).map(c => c.profile_id as string)
   const idOwner = Array.from(new Set((legami ?? []).map(l => l.profile_id as string)))

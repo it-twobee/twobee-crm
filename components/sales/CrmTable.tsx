@@ -52,6 +52,9 @@ import { SENZA_OWNER } from '@/lib/sales-filtri'
 import { applicaStato, descrivi, eNostra, leggi, scrivi, VUOTO, type StatoElenco } from '@/lib/sales-vista'
 import { EsportaLead } from './EsportaLead'
 import { BarraFiltri } from './BarraFiltri'
+import { Contachilometri } from './Contachilometri'
+import { rigaUltima, type UltimaVoce } from '@/lib/sales-ultima'
+import { vicinanza } from '@/lib/sales-vicinanza'
 import { VoceSezione } from '@/components/workspace/VoceSezione'
 
 /** §430 — chi può comparire come Account Owner, e chi si può ancora scegliere */
@@ -396,6 +399,9 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
               const tentativi = Number(r.tentativi ?? 0)
               const richiamo = quandoContatto(r.next_followup_at as string | null, true, adesso)
               const nota = notaInRiga(r.notes)
+              const ultima = rigaUltima(r.ultima_voce as UltimaVoce | null | undefined, adesso)
+              const vic = vicinanza({ fasi: TUTTE, stage: String(r.stage), ultimoContatto: r.last_interaction_at as string | null,
+                arrivo: r.created_at as string | null, adessoMs: adesso })
               const org = (r.lead_origine ?? {}) as Record<string, string>
               const contorno = [org.piattaforma, org.tipologia, org.tempistica].filter(Boolean).join(' · ')
               return (
@@ -437,7 +443,15 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
                       che qualcuno ha scritto a mano, e tenerlo dietro un clic
                       voleva dire aprire trenta schede per ritrovare l'unica che
                       diceva qualcosa. Una riga sola: il resto sta nella scheda. */}
-                  {nota && (
+                  {ultima ? (
+                    /* §463 — la nota dell'ultima interazione prende il posto di
+                       quella del foglio: è più fresca e dice cosa è successo
+                       dopo. La nota del foglio resta nella scheda. */
+                    <span className="block text-2xs truncate mt-0.5" title={[ultima.titolo, ultima.testo].filter(Boolean).join(' — ')}>
+                      <span className="font-semibold text-text-secondary">{ultima.titolo}</span>
+                      {ultima.testo && <span className="text-text-primary/80"> — {ultima.testo}</span>}
+                    </span>
+                  ) : nota && (
                     <span className="block text-2xs text-text-primary/80 truncate mt-0.5" title={String(r.notes ?? '')}>
                       {nota}
                     </span>
@@ -467,6 +481,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
                     trascinamento (§379): quella serve perché un trascinamento
                     mancato sposta una scheda senza che chi l'ha fatto se ne
                     accorga, mentre questo è un gesto dichiarato. */}
+                {vic && <Contachilometri v={vic} className="hidden sm:block" />}
                 <MenuFase
                   valore={r.stage as string}
                   etichetta={`Fase di ${r.company_name || 'questo lead'}`}

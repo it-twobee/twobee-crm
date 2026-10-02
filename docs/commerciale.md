@@ -1014,6 +1014,31 @@ Gate: `npx tsx lib/sales-regole-stato.check.ts`. Il ritorno sul foglio Google
 (manca `GOOGLE_SHEETS_SA_JSON` o la condivisione): quando si riattiva scriverà
 anche «Non raggiunto», che è una fase come le altre.
 
+## Nota dell'ultima interazione e contachilometri — §463
+
+In elenco la riga dice cosa è successo per ultimo e quanto il lead è vicino a
+diventare cliente.
+
+- **La nota** è quella dell'ultima interazione vera (`sales_ultime_voci`, 269:
+  una riga per lead — una select sul diario si fermerebbe a mille righe e i
+  lead più vecchi resterebbero muti): «Chiamata · Non risposto · Ieri 09:10 —
+  testo». Se l'interazione non ha testo si legge solo tipo ed esito. **Prende il
+  posto della nota del foglio**, che resta nella scheda; senza interazioni la
+  riga mostra ancora la nota del foglio. Follow-up in programma, contatti storici
+  e voci «stato» non contano. Si aggiorna insieme alla timeline (`Derivati.ultima_voce`).
+- **Il contachilometri** (`Contachilometri.tsx`, semicerchio con lancetta, rosso →
+  giallo → verde sui token del tema) dipende da **due cose sole**
+  (`lib/sales-vicinanza.ts`): la fase, che dà il livello di base da 8 a 88 lungo
+  il percorso vivo (il codice chiede il ruolo, mai la chiave), e la recenza —
+  invariata fino a 7 giorni dall'ultimo contatto, poi scende fino a metà del
+  livello a 45 giorni; un lead mai sentito conta dall'arrivo. Cliente acquisito
+  100, Perso 0 in grigio, Pending «in pausa» in grigio a 40: non si sa a che punto
+  era, e inventarlo sarebbe un numero plausibile e sbagliato. Nascosto sotto i
+  640 px. Tentativi, qualifica e priorità **non** entrano: sono già scritti in riga.
+- Senza la 269 l'elenco si apre lo stesso, senza note.
+
+Gate: `npx tsx lib/sales-vicinanza.check.ts`.
+
 ## Aperto
 
 - **La RLS non conosceva `deal_owners`**: `sales_can_read` (223) guardava solo

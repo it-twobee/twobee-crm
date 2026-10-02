@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createActorClient, createAdminClient } from '@/lib/supabase/admin'
 import { requireDealAccess, requireSalesAccess } from '@/lib/sales-guard'
 import { uuid } from '@/lib/sales'
+import { leggiUltime } from '@/lib/sales-ultima'
 import { personalGoogleCalendar } from '@/lib/google-calendar'
 import { normalize, addDays, blocchiAssenza, type RawLeave, type RawRequest } from '@/lib/leave-calendar'
 import { nonLavorativo } from '@/lib/calendario-lavorativo'
@@ -129,8 +130,9 @@ export async function leggiAgenda(dal: string, al: string): Promise<{ impegni: I
 }
 
 async function derivati(dealId: string): Promise<Derivati> {
-  const { data } = await createAdminClient().from('deals').select(CAMPI_DERIVATI).eq('id', dealId).single()
-  return data as unknown as Derivati
+  const admin = createAdminClient()
+  const { data } = await admin.from('deals').select(CAMPI_DERIVATI).eq('id', dealId).single()
+  return { ...(data as unknown as Derivati), ultima_voce: (await leggiUltime(admin, [dealId])).get(dealId) ?? null }
 }
 
 /**

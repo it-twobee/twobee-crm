@@ -66,6 +66,8 @@ export type Derivati = {
   tentativi: number
   ultimo_tentativo_at: string | null
   next_followup_at: string | null
+  /** §463 — l'ultima interazione, per la riga dell'elenco: la legge il server, non è una colonna */
+  ultima_voce?: import('./sales-ultima').UltimaVoce | null
 }
 export const CAMPI_DERIVATI = 'last_interaction_at,last_interaction_has_time,tentativi,ultimo_tentativo_at,next_followup_at'
 

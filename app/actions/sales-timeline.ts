@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createActorClient, createAdminClient } from '@/lib/supabase/admin'
 import { requireDealAccess } from '@/lib/sales-guard'
 import { uuid } from '@/lib/sales'
+import { leggiUltime } from '@/lib/sales-ultima'
 import { CAMPI_DERIVATI, TIPI, validaVoce, type Derivati, type TipoVoce, type Voce } from '@/lib/sales-timeline'
 
 /**
@@ -36,7 +37,7 @@ function errore(e: { code?: string; message: string }): never {
 async function derivati(dealId: string): Promise<Derivati> {
   const { data, error } = await createAdminClient().from('deals').select(CAMPI_DERIVATI).eq('id', dealId).single()
   if (error) errore(error)
-  return data as unknown as Derivati
+  return { ...(data as unknown as Derivati), ultima_voce: (await leggiUltime(createAdminClient(), [dealId])).get(dealId) ?? null }
 }
 
 type VoceDb = { deal_id: string; created_by: string | null; stato: string; type: TipoVoce }
