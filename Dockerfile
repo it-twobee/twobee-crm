@@ -31,7 +31,9 @@ ARG SUPABASE_SERVICE_ROLE_KEY
 ARG COOLIFY_GIT_COMMIT
 ARG SOURCE_COMMIT
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+# Cache di Next fra un deploy e l'altro: senza, ogni push ricompila tutto da zero.
+# Serve BuildKit (Coolify lo usa); il mount non finisce nell'immagine.
+RUN --mount=type=cache,target=/app/.next/cache npm run build
 
 # --- runner: immagine finale snella ---
 FROM base AS runner
