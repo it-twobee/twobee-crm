@@ -144,6 +144,7 @@ export async function pianificaFollowup(dealId: string, input: unknown) {
   const { error } = await createActorClient(actor).from('deal_activities').insert({
     deal_id: dealId, type: 'followup', stato: 'in_programma', occurred_at: v.valore.inizio,
     duration_min: v.valore.durata, content: v.valore.titolo, has_time: true, created_by: actor,
+    is_meeting: v.valore.isMeeting === true,
   })
   if (error) throw new Error(error.code === '42703' ? 'Follow-up da attivare: manca la migration' : 'Non è stato possibile salvare il follow-up')
   refresh()

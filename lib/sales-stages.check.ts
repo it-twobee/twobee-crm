@@ -5,7 +5,7 @@
    la prima configurazione. Verifica le regole che devono valere su qualunque
    elenco — le stesse che l'editor controlla prima di salvare, perché sono la
    stessa funzione. */
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   CLASSI_TINTA, ETICHETTA_GRUPPO, ETICHETTA_RUOLO, FASI_SEME, RUOLI, TINTE,
@@ -28,7 +28,7 @@ console.log('\n— Il seme è un elenco valido —')
 /* Se il seme non passasse le sue stesse regole, il database nascerebbe già
    rotto e l'editor si rifiuterebbe di salvare quello che ha trovato dentro. */
 is('nessun problema', problemiFasi(FASI_SEME), [])
-is('otto fasi', FASI_SEME.length, 8)
+is('nove fasi', FASI_SEME.length, 9)
 is('una porta d’ingresso', FASI_SEME.filter(x => x.ruolo === 'nuovo').length, 1)
 is('una sola vinta', FASI_SEME.filter(x => x.ruolo === 'vinto').length, 1)
 
@@ -70,7 +70,7 @@ console.log('\n— Aperte e chiuse —')
 is('sospeso è ancora aperta', eAperta(FASI_SEME, 'pending'), true)
 is('vinta non lo è', eAperta(FASI_SEME, 'cliente_acquisito'), false)
 is('persa nemmeno', eAperta(FASI_SEME, 'perso'), false)
-is('le aperte sono sei', chiaviAperte(FASI_SEME).length, 6)
+is('le aperte sono sei', chiaviAperte(FASI_SEME).length, 7)
 
 console.log('\n— Quanto è avanti una trattativa —')
 /* Non è la posizione nell'elenco: «Perso» può stare in cima e un lead nuovo non
@@ -83,7 +83,7 @@ is('sospesa sta sopra la persa ma sotto il percorso', r('perso') < r('pending') 
 
 console.log('\n— I gruppi li dice il ruolo —')
 is('l’ingresso apre', gruppoDi(FASI_SEME[0]), 'apertura')
-is('le trattative vive sono lavorazione', fasiDelGruppo(FASI_SEME, 'lavorazione').length, 4)
+is('le trattative vive sono lavorazione', fasiDelGruppo(FASI_SEME, 'lavorazione').length, 5)
 is('vinta, persa e sospesa sono uscite', fasiDelGruppo(FASI_SEME, 'uscita').map(x => x.chiave), ['cliente_acquisito', 'pending', 'perso'])
 is('ogni gruppo ha la sua etichetta', Object.keys(ETICHETTA_GRUPPO).length, 3)
 is('ogni ruolo pure', Object.keys(ETICHETTA_RUOLO).sort(), [...RUOLI].sort())
@@ -96,14 +96,18 @@ is('una fase sconosciuta resta neutra', classiFase(FASI_SEME, 'mai_vista'), CLAS
 console.log('\n— L’ordine è quello dichiarato, non quello di arrivo —')
 const mescolate = [...FASI_SEME].reverse()
 is('si riordina da sé', ordinate(mescolate).map(x => x.ordine), FASI_SEME.map(x => x.ordine))
-is('le spente escono dalle scelte', attive([...FASI_SEME, f('vecchia', 'in_corso', 'gold', 99, false)]).length, 8)
+is('le spente escono dalle scelte', attive([...FASI_SEME, f('vecchia', 'in_corso', 'gold', 99, false)]).length, 9)
 is('ma restano leggibili', faseDi([...FASI_SEME, f('vecchia', 'in_corso', 'gold', 99, false)], 'vecchia')?.chiave, 'vecchia')
 
 console.log('\n— Il seme e la migration dicono la stessa cosa —')
 /* Il seme popola il database la prima volta: se i due elenchi divergono, una
    installazione nuova parte con fasi diverse da quelle di qui, e il sintomo
    arriva mesi dopo su un ambiente che nessuno sta guardando. */
-const sql = readFileSync(join(process.cwd(), 'supabase/migrations/258_fasi_commerciali.sql'), 'utf8')
+/* «Non raggiunto» nasce con la migration dello stato dalle interazioni, il cui
+   numero si prende alla fine: la si trova dal nome, non dal numero. */
+const dir = join(process.cwd(), 'supabase/migrations')
+const sql = [readFileSync(join(dir, '258_fasi_commerciali.sql'), 'utf8'),
+  ...readdirSync(dir).filter(n => n.endsWith('_stato_da_interazioni.sql')).map(n => readFileSync(join(dir, n), 'utf8'))].join('\n')
 for (const x of FASI_SEME) {
   is(`la migration semina «${x.chiave}»`, sql.includes(`('${x.chiave}',`), true)
 }

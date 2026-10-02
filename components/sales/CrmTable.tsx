@@ -26,7 +26,7 @@
 
 import { useState, useMemo, useTransition, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
-import { Loader2, RefreshCw, BarChart3, List, Columns3, Table2, ShieldCheck, Plus, Trash2, ChevronRight } from 'lucide-react'
+import { Loader2, RefreshCw, BarChart3, List, Columns3, Table2, ShieldCheck, Plus, Trash2, ChevronRight, Bell } from 'lucide-react'
 
 import { ETICHETTA_GRUPPO, GRUPPI, gruppoDi, type Gruppo } from '@/lib/sales-stages'
 import { useFasi } from './FasiContext'
@@ -84,7 +84,7 @@ function quando(v: unknown): string {
 const MEMORIA = 'twobee-crm-elenco'
 const GRUPPI_AMMESSI = ['tutti', ...GRUPPI]
 
-export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [], puoiAssegnare = false, io, puoiEsportare = false }: {
+export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [], puoiAssegnare = false, io, puoiEsportare = false, fasiDaSegnare = [] }: {
   righe: RigaCrm[]
   /** §441 — super admin, founder e admin */
   puoiEsportare?: boolean
@@ -95,6 +95,8 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
   puoiAssegnare?: boolean
   /** §378 — admin e manager. Chi non può non vede le caselle, non le vede spente */
   puoiEliminare?: boolean
+  /** §461 — fasi da segnare con la campanella (solo super admin): chi è lì aspetta un richiamo */
+  fasiDaSegnare?: string[]
 }) {
   const { TUTTE, FASI, etichettaFase, faseConRuolo, etichettaScelta, ORDINI } = useFasi()
   const [righe, setRighe] = useState(iniziali)
@@ -197,6 +199,17 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
     const base = applicaStato(righe as unknown as Record<string, unknown>[], stato, contesto, { senzaGruppo: true })
     const conta: Record<string, number> = { tutti: base.length }
     for (const g of GRUPPI) conta[g] = base.filter(r => contesto.gruppoDi(r) === g).length
+    return conta
+  }, [righe, stato, contesto])
+
+  /* §461 — il numero su ogni chip di stato segue gli altri filtri ma non il
+     proprio: scegliendo «In contatto» gli altri direbbero zero, e il numero
+     serve proprio a sapere quanti ce ne sono altrove. */
+  const perFase = useMemo(() => {
+    const { stage: _s, ...resto } = stato.scelte
+    const base = applicaStato(righe as unknown as Record<string, unknown>[], { ...stato, scelte: resto }, contesto)
+    const conta: Record<string, number> = {}
+    for (const r of base) { const k = String((r as { stage?: unknown }).stage ?? ''); conta[k] = (conta[k] ?? 0) + 1 }
     return conta
   }, [righe, stato, contesto])
 
@@ -432,6 +445,9 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
                   <span className="flex items-center gap-2 mt-px">
                     <span className={`text-2xs shrink-0 tabular ${!sentito ? 'text-text-tertiary' : fermo ? 'text-warning' : 'text-text-secondary'}`}
                       title={sentito ? 'Ultimo contatto' : undefined}>
+                      {fasiDaSegnare.includes(String(r.stage)) && (
+                        <Bell className="inline w-3 h-3 mr-1 -mt-0.5 text-warning" aria-label="Da richiamare" />
+                      )}
                       {sentito ? `Sentito ${sentito.charAt(0).toLowerCase()}${sentito.slice(1)}` : 'Mai sentito'}
                       {tentativi > 0 && <span className="text-warning"> · {tentativi} a vuoto</span>}
                       {richiamo && <span className="text-gold-text"> · richiamo {richiamo.charAt(0).toLowerCase()}{richiamo.slice(1)}</span>}
@@ -554,6 +570,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
           gruppi={vista === 'numeri' ? undefined : (['tutti', ...GRUPPI] as const).map(g => ({
             chiave: g, etichetta: g === 'tutti' ? 'Tutti' : ETICHETTA_GRUPPO[g], quante: perGruppo[g] ?? 0,
           }))}
+          fasi={vista === 'numeri' ? undefined : FASI.map(f => ({ chiave: f.chiave, etichetta: f.etichetta, quante: perFase[f.chiave] ?? 0 }))}
           conOrdine={vista !== 'numeri'}
           etichette={{ valore: etichettaValore }}
         />

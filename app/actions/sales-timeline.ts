@@ -70,7 +70,7 @@ export async function leggiTimeline(dealId: string): Promise<{ voci: Voce[]; der
   const voci: Voce[] = righe.map(({ created_by, ...r }) => ({
     ...r,
     autore: created_by ? nome.get(created_by) ?? 'Ex collega' : null,
-    modificabile: access === 'admin' || (!!created_by && created_by === actor),
+    modificabile: r.type !== 'stato' && (access === 'admin' || (!!created_by && created_by === actor)),
   }))
   return { voci, derivati: await derivati(dealId) }
 }
@@ -94,6 +94,7 @@ export async function modificaVoce(id: string, input: unknown) {
   if (!puoToccare(voce, contesto)) throw new Error('La correggono chi l’ha scritta e gli amministratori')
   /* un follow-up si sposta dal calendario e si chiude con l'esito; un
      contatto storico si corregge diventando una voce vera, di un tipo vero */
+  if (voce.type === 'stato') throw new Error('Il cambio di stato lo scrive il sistema: per correggerlo, cambia la fase dalla scheda')
   if (voce.type === 'followup') throw new Error('Un follow-up si sposta dal calendario, o si chiude con l’esito')
   const v = validaVoce(input, Date.now(), TIPI)
   if (!v.ok) throw new Error(v.motivo)
@@ -109,6 +110,7 @@ export async function eliminaVoce(id: string) {
   const contesto = await requireDealAccess(voce.deal_id)
   const { actor } = contesto
   if (!puoToccare(voce, contesto)) throw new Error('La eliminano chi l’ha scritta e gli amministratori')
+  if (voce.type === 'stato') throw new Error('Il cambio di stato lo scrive il sistema: si toglie eliminando l’interazione che l’ha causato')
   if (voce.type === 'followup' && voce.stato === 'in_programma') {
     throw new Error('È un appuntamento in calendario: annullalo dal riquadro dei follow-up')
   }

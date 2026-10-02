@@ -65,6 +65,7 @@ export type Fase = {
  */
 export const FASI_SEME: Fase[] = [
   { chiave: 'nuovo_lead',         etichetta: 'Nuovo lead',         ruolo: 'nuovo',    tinta: 'info',    ordine: 10, attiva: true },
+  { chiave: 'non_raggiunto',      etichetta: 'Non raggiunto',      ruolo: 'in_corso', tinta: 'neutro',  ordine: 15, attiva: true },
   { chiave: 'in_contatto',        etichetta: 'In contatto',        ruolo: 'in_corso', tinta: 'orange',  ordine: 20, attiva: true },
   { chiave: 'call_fissata',       etichetta: 'Call fissata',       ruolo: 'in_corso', tinta: 'accent',  ordine: 30, attiva: true },
   { chiave: 'preventivo_inviato', etichetta: 'Preventivo inviato', ruolo: 'in_corso', tinta: 'gold',    ordine: 40, attiva: true },

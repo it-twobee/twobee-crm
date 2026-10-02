@@ -31,6 +31,7 @@ import { problemiFasi, type Fase } from '@/lib/sales-stages'
 import { problemiMotivi, rinumera, type Motivo } from '@/lib/sales-motivi'
 import { TABELLA, eLista, problemiDi, type Lista, type Voce } from '@/lib/sales-scelte'
 import { opzioniDa, problemiCampi, type Campo } from '@/lib/sales-campi'
+import { problemiRegole, type RegolaStato } from '@/lib/sales-regole-stato'
 
 export type EsitoFasi = { ok: true } | { ok: false; errori: string[] }
 
@@ -278,4 +279,47 @@ export async function salvaCampi(campi: Campo[]): Promise<EsitoFasi> {
     console.error('[campi personalizzati]', e)
     return { ok: false, errori: [(e as Error).message] }
   }
+}
+
+/**
+ * §461 — le regole con cui un'interazione sposta la fase.
+ *
+ * Si cambia **dove portano**, non quali esistono: le combinazioni tipo/esito le
+ * decide il diario (il vincolo `deal_activities_forma`), non una schermata. La
+ * fase di arrivo si ricontrolla qui con la stessa funzione del pannello — un
+ * file `'use server'` è un endpoint (§329) — e il database ricontrolla ancora
+ * con la chiave esterna.
+ */
+export async function salvaRegoleStato(regole: RegolaStato[]): Promise<EsitoFasi> {
+  try {
+    await requireSalesConfig()
+    const admin = createAdminClient()
+    const [{ data: note, error: eNote }, fasi] = await Promise.all([
+      admin.from('sales_regole_stato').select('chiave'),
+      leggiFasiAdmin(),
+    ])
+    if (eNote) return { ok: false, errori: ['Regole da attivare: manca la migration sul database'] }
+    const puliti: RegolaStato[] = (Array.isArray(regole) ? regole : []).map((r, i) => ({
+      chiave: String(r?.chiave ?? ''),
+      etichetta: String(r?.etichetta ?? r?.chiave ?? ''),
+      fase: r?.fase ? String(r.fase) : null,
+      avvisa: r?.avvisa === true,
+      ordine: i,
+    }))
+    const errori = problemiRegole(puliti, fasi, ((note ?? []) as { chiave: string }[]).map(n => n.chiave))
+    if (errori.length) return { ok: false, errori }
+    for (const r of puliti) {
+      const { error } = await admin.from('sales_regole_stato').update({ fase: r.fase, avvisa: r.avvisa }).eq('chiave', r.chiave)
+      if (error) return { ok: false, errori: [error.message] }
+    }
+    rinfresca()
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, errori: [e instanceof Error ? e.message : 'Salvataggio non riuscito'] }
+  }
+}
+
+async function leggiFasiAdmin(): Promise<Fase[]> {
+  const { data } = await createAdminClient().from('sales_stages').select('chiave, etichetta, ruolo, tinta, ordine, attiva, descrizione').order('ordine')
+  return (data ?? []) as unknown as Fase[]
 }

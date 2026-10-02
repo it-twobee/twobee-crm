@@ -24,6 +24,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { toast } from 'sonner'
 import {
   Phone, Mail, MessageCircle, Users, StickyNote, CalendarClock, History, Loader2, Plus, CalendarDays, Pencil, Trash2,
+  FileText, FileSignature, ArrowRightLeft,
 } from 'lucide-react'
 import { leggiTimeline, registraVoce, modificaVoce, eliminaVoce, esitoFollowup } from '@/app/actions/sales-timeline'
 import {
@@ -36,6 +37,7 @@ import { annullaFollowup } from '@/app/actions/sales-agenda'
 
 const ICONA: Record<TipoVoce, typeof Phone> = {
   chiamata: Phone, email: Mail, whatsapp: MessageCircle, meeting: Users, nota: StickyNote, followup: CalendarClock, contatto: History,
+  preventivo: FileText, contratto: FileSignature, stato: ArrowRightLeft,
 }
 const chip = (on: boolean) =>
   `text-2xs px-2 py-1 rounded-lg border transition-colors ${on

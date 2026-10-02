@@ -81,6 +81,7 @@ export function PianificaFollowup({ dealId, company, email, sposta, onFatto, onC
   const [durata, setDurata] = useState(sposta?.durata ?? 30)
   const [titolo, setTitolo] = useState(sposta?.titolo ?? `Follow-up · ${company}`)
   const [invita, setInvita] = useState(false)
+  const [eMeeting, setEMeeting] = useState(true)
   /* un mese alla volta, e ogni mese letto resta: tornare indietro non rilegge */
   const [perMese, setPerMese] = useState<Record<string, Impegno[]>>({})
   const [google, setGoogle] = useState<StatoGoogle | null>(null)
@@ -162,12 +163,12 @@ export function PianificaFollowup({ dealId, company, email, sposta, onFatto, onC
       } else if (google === 'collegato') {
         const res = await fetch('/api/sales/follow-up', { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ dealId, requestId: crypto.randomUUID(), title: titolo, start,
-            duration: durata, timezone: 'Europe/Rome', inviteContact: invita }) })
+            duration: durata, timezone: 'Europe/Rome', inviteContact: invita, isMeeting: eMeeting }) })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'Salvataggio non riuscito')
         if (data.warning) toast.warning(data.warning)
       } else {
-        await pianificaFollowup(dealId, { inizio: start, durata, titolo })
+        await pianificaFollowup(dealId, { inizio: start, durata, titolo, isMeeting: eMeeting })
       }
       toast.success(`Follow-up ${sposta ? 'spostato a' : 'fissato per'} ${quandoContatto(start, true, Date.now()).toLowerCase()}`)
       onFatto()
@@ -239,6 +240,12 @@ export function PianificaFollowup({ dealId, company, email, sposta, onFatto, onC
                 <input value={titolo} onChange={e => setTitolo(e.target.value)} maxLength={200}
                   className="mt-1 w-full bg-background border border-border-interactive rounded-lg px-2 py-1.5 text-xs text-text-primary" />
               </label>
+              {!sposta && (
+                <label className="flex items-start gap-2 text-2xs text-text-secondary">
+                  <input type="checkbox" checked={eMeeting} onChange={e => setEMeeting(e.target.checked)} className="mt-0.5 accent-gold" />
+                  <span>È una call o un meeting<span className="block text-text-tertiary">Il lead passa a «Call fissata». Toglilo per un semplice promemoria.</span></span>
+                </label>
+              )}
               {google === 'collegato' && !sposta?.id ? (
                 <label className="flex items-start gap-2 text-2xs text-text-secondary">
                   <input type="checkbox" checked={invita} disabled={!email} onChange={e => setInvita(e.target.checked)} className="mt-0.5 accent-gold" />

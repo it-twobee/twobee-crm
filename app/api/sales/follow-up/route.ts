@@ -86,7 +86,8 @@ async function save(req: NextRequest, editing: boolean) {
       calendar_id: 'primary', title: event.summary, start_at: event.start?.dateTime, end_at: event.end?.dateTime,
       all_day: false, timezone: input.timezone, sync_status: 'synced', last_synced_at: new Date().toISOString(),
       updated_at: new Date().toISOString() }, { onConflict: 'profile_id,external_event_id' })
-    const diario = await nelDiario(ctx, event.id!, { occurred_at: input.start, duration_min: input.duration, content: input.title, has_time: true })
+    const diario = await nelDiario(ctx, event.id!, { occurred_at: input.start, duration_min: input.duration, content: input.title, has_time: true,
+      ...(input.isMeeting === undefined ? {} : { is_meeting: input.isMeeting }) })
     return NextResponse.json({ event: presentFollowUp(event), warning: error
       ? 'Salvato su Google. Il calendario del gestionale si riallineerà alla prossima sincronizzazione.'
       : diario ? undefined : 'Salvato su Google, ma non è entrato nella timeline del lead: ricarica la scheda.' })

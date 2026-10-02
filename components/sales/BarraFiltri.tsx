@@ -376,7 +376,7 @@ function Viste({ stato, setStato, leggiQuery }: { stato: StatoElenco; setStato: 
   )
 }
 
-export function BarraFiltri({ stato, setStato, righe, etichette, conteggio, gruppi, conOrdine, leggiQuery }: {
+export function BarraFiltri({ stato, setStato, righe, etichette, conteggio, gruppi, fasi, conOrdine, leggiQuery }: {
   stato: StatoElenco
   setStato: (s: StatoElenco) => void
   /** tutte le righe: le opzioni dei filtri si contano su quello che esiste */
@@ -385,6 +385,8 @@ export function BarraFiltri({ stato, setStato, righe, etichette, conteggio, grup
   conteggio: { mostrate: number; totali: number }
   /** i gruppi di fase, col loro numero; assenti nella vista dei numeri */
   gruppi?: { chiave: string; etichetta: string; quante: number }[]
+  /** §461 — una fase per chip, col suo numero: quanti lead ci sono ora, dato il resto dei filtri */
+  fasi?: { chiave: string; etichetta: string; quante: number }[]
   conOrdine: boolean
   leggiQuery: (q: string) => StatoElenco
 }) {
@@ -428,6 +430,26 @@ export function BarraFiltri({ stato, setStato, righe, etichette, conteggio, grup
           {conteggio.mostrate === conteggio.totali ? `${conteggio.totali} lead` : `${conteggio.mostrate} di ${conteggio.totali} lead`}
         </span>
       </div>
+
+      {fasi && (
+        <div className="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Filtra per stato">
+          {fasi.map(f => {
+            const scelte = stato.scelte.stage ?? []
+            const on = scelte.includes(f.chiave)
+            return (
+              <button key={f.chiave} type="button" aria-pressed={on}
+                onClick={() => {
+                  const prossime = on ? scelte.filter(x => x !== f.chiave) : [...scelte, f.chiave]
+                  const { stage: _tolta, ...resto } = stato.scelte
+                  setStato({ ...stato, scelte: prossime.length ? { ...resto, stage: prossime } : resto })
+                }}
+                className={chip(on)}>
+                {f.etichetta}<span className="ml-1.5 tabular text-text-tertiary">{f.quante}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       <div className="flex items-center gap-1.5 flex-wrap">
         {gruppi?.map(g => (

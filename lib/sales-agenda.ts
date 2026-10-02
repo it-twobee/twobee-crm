@@ -183,7 +183,7 @@ export function fasce(giorno: string, passoMin = 30): number[] {
   return out
 }
 
-export type NuovoFollowup = { inizio: string; durata: number; titolo: string }
+export type NuovoFollowup = { inizio: string; durata: number; titolo: string; isMeeting?: boolean }
 
 /**
  * Un follow-up dal browser (§329: un file `'use server'` è un endpoint). Nel
@@ -200,5 +200,5 @@ export function validaFollowup(raw: unknown, adessoMs: number): { ok: true; valo
   if (!Number.isInteger(v.durata) || (v.durata as number) < 5 || (v.durata as number) > 1440) return { ok: false, motivo: 'La durata va da 5 minuti a 24 ore' }
   const titolo = typeof v.titolo === 'string' ? v.titolo.trim() : ''
   if (!titolo || titolo.length > 200) return { ok: false, motivo: 'Il titolo va da 1 a 200 caratteri' }
-  return { ok: true, valore: { inizio: new Date(ms).toISOString(), durata: v.durata as number, titolo } }
+  return { ok: true, valore: { inizio: new Date(ms).toISOString(), durata: v.durata as number, titolo, ...(typeof v.isMeeting === 'boolean' ? { isMeeting: v.isMeeting } : {}) } }
 }

@@ -6,6 +6,8 @@ export type FollowUpInput = {
   duration: number
   timezone: string
   inviteContact: boolean
+  /** §461 — una call o un meeting fissato: è ciò che porta il lead a «Call fissata». Assente = non si tocca */
+  isMeeting?: boolean
   eventId?: string
   etag?: string
 }
@@ -52,7 +54,7 @@ export function validateFollowUp(raw: unknown): FollowUpInput {
   const eventId = v.eventId === undefined ? undefined : followUpEventId(v.eventId)
   if (eventId && (typeof v.etag !== 'string' || !v.etag || v.etag.length > 200)) throw new FollowUpError('Ricarica l’appuntamento prima di modificarlo')
   return { dealId, requestId, title: v.title.trim(), start: new Date(v.start).toISOString(), duration: Number(v.duration),
-    timezone: v.timezone, inviteContact: v.inviteContact, eventId, etag: eventId ? v.etag as string : undefined }
+    timezone: v.timezone, inviteContact: v.inviteContact, isMeeting: typeof v.isMeeting === 'boolean' ? v.isMeeting : undefined, eventId, etag: eventId ? v.etag as string : undefined }
 }
 
 export function followUpEmail(invite: boolean, email: string | null): string | null {

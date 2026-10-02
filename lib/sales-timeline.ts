@@ -7,8 +7,9 @@
  * vivesse anche qui, la scheda e l'elenco potrebbero dire due numeri diversi.
  */
 
-export const TIPI = ['chiamata', 'email', 'whatsapp', 'meeting', 'nota'] as const
-export type TipoVoce = typeof TIPI[number] | 'followup' | 'contatto'
+export const TIPI = ['chiamata', 'email', 'whatsapp', 'meeting', 'preventivo', 'contratto', 'nota'] as const
+/** `stato` lo scrive solo il database, quando le interazioni spostano la fase: non si registra */
+export type TipoVoce = typeof TIPI[number] | 'followup' | 'contatto' | 'stato'
 export type Direzione = 'uscita' | 'entrata'
 export type StatoVoce = 'fatta' | 'in_programma' | 'annullata'
 
@@ -17,9 +18,12 @@ export const ETICHETTA_TIPO: Record<TipoVoce, string> = {
   email: 'Email',
   whatsapp: 'Messaggio',
   meeting: 'Meeting',
+  preventivo: 'Preventivo inviato',
+  contratto: 'Contratto inviato',
   nota: 'Nota',
   followup: 'Follow-up',
   contatto: 'Contatto',
+  stato: 'Cambio di stato',
 }
 
 /** gli esiti ammessi, per tipo. Email e messaggi non hanno esito: hanno un verso */
@@ -128,6 +132,7 @@ export function validaVoce(raw: unknown, adessoMs: number, tipi: readonly TipoVo
 /** «Chiamata · Non risposto», «Email · Inviato da noi», «Nota» */
 export function titoloVoce(v: Pick<Voce, 'type' | 'outcome' | 'direction' | 'stato'>): string {
   const base = ETICHETTA_TIPO[v.type]
+  if (v.type === 'stato') return 'Stato aggiornato'
   if (v.type === 'followup') return v.stato === 'annullata' ? 'Follow-up annullato' : 'Follow-up in programma'
   if (v.outcome) return `${base} · ${ETICHETTA_ESITO[v.outcome] ?? v.outcome}`
   if (v.direction) return `${base} · ${ETICHETTA_VERSO[v.direction]}`

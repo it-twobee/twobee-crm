@@ -966,6 +966,54 @@ lead, `validaCella`, client dell'attore.
 riga vuota in fondo per aggiungere un lead, la conferma visiva del cambio fase
 verso «Perso» (il motivo si compila a mano). Gate: `npx tsx lib/sales-foglio.check.ts`.
 
+## Lo stato segue le interazioni — §461
+
+Prima la fase si spostava a mano e raccontava il momento in cui qualcuno si
+ricordava di aggiornarla. Adesso ogni interazione registrata sul lead
+(`deal_activities`) può spostarla, e la regola vive **nel database**: il trigger
+sul diario chiama `sales_applica_stato`, quindi l'interfaccia, la route del
+calendario e qualunque scrittura futura passano tutte dalla stessa porta.
+
+- **Decide l'ultima per data** (`occurred_at`), non l'ultima inserita. Note,
+  contatti storici e le voci `stato` scritte dal trigger non contano.
+- **Le regole sono dati** (`sales_regole_stato`, una riga per combinazione
+  tipo/esito, governate da Configurazione → «Stato dalle interazioni»). Di
+  partenza: chiamata risposta, email e messaggi (inviati o ricevuti) → In
+  contatto; chiamata non risposta, segreteria, da richiamare, meeting non
+  presentato → **Non raggiunto**; preventivo → Preventivo inviato; contratto →
+  Contratto inviato; call o meeting fissato → Call fissata. **Meeting fatto**
+  e follow-up generico non spostano niente: dopo un meeting fatto il lead può
+  andare a preventivo, in pending o perso, e lo decide una persona.
+- **Solo trattative vive come arrivo** (ruolo `in_corso`): mai «Nuovo lead»,
+  mai le uscite. Un lead già in Perso, Cliente acquisito o Pending non si
+  tocca (`problemiRegole` lo impedisce anche nel pannello).
+- **Si può tornare indietro**, e correggere o eliminare un'interazione
+  ricalcola dalle rimaste. Chi sposta la fase a mano viene riscritto dalla
+  prossima interazione: l'ultimo che scrive vince.
+- **«Call fissata» viene da un follow-up marcato «È una call o un meeting»**
+  (`deal_activities.is_meeting`, casella nel modulo del follow-up, accesa di
+  default). Un follow-up senza la casella resta un promemoria.
+- **Non raggiunto** (`non_raggiunto`, ordine 15) è una fase vera, mossa dal
+  trigger. Il contatore `tentativi` (§438) resta com'è: la 258 aveva tolto i
+  tentativi dalla pipeline perché il lead rimbalzava avanti e indietro, e qui
+  il rimbalzo è voluto e scritto in timeline.
+- **Ogni cambio scrive una voce `stato`** accanto all'interazione («In contatto
+  → Non raggiunto · Chiamata · non risposto»), non modificabile. Le regole con
+  `avvisa` mandano una notifica (`lead_stato`) ai super admin.
+- **Tipi nuovi** nel diario: Preventivo inviato e Contratto inviato.
+- **Filtro per stato**: una riga di chip sopra l'elenco, a scelta multipla, col
+  numero per fase. Il numero segue gli altri filtri ma non il proprio; sta
+  nell'indirizzo come ogni altro filtro (`f.stage=…`), quindi vale anche per
+  Foglio, export e link condivisi.
+- **Riallineamento una tantum**: `npx tsx scripts/riallinea-stati-lead.ts`
+  mostra l'anteprima, `--applica` scrive (senza notifiche). Si guarda sempre
+  prima: può far retrocedere un lead spostato avanti a mano.
+
+Gate: `npx tsx lib/sales-regole-stato.check.ts`. Il ritorno sul foglio Google
+(§434) **non è stato toccato** e in produzione non scrive ancora «Fase OS»
+(manca `GOOGLE_SHEETS_SA_JSON` o la condivisione): quando si riattiva scriverà
+anche «Non raggiunto», che è una fase come le altre.
+
 ## Aperto
 
 - **La RLS non conosceva `deal_owners`**: `sales_can_read` (223) guardava solo
