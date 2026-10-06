@@ -553,6 +553,18 @@ e quelle non eseguite vengono registrate a fine incremento.
   non modificato qui perché indipendente dal portale cliente.
 - Il login instradava il recupero password come un accesso ordinario: corretto
   nell'intervento accessi del 21 settembre, ancora da distribuire.
+- **§466 — la tendina dell'anteprima non cambiava azienda.** Il cliente
+  selezionato lo calcolava il layout, e Next non ri-renderizza un layout quando
+  cambia solo `?client=`: la pagina sotto cambiava, la tendina tornava
+  sull'azienda di prima e tutti i link del menu restavano sulla vecchia, così
+  il primo clic riportava indietro. `PortalShell` ora legge `?client=` con
+  `useSearchParams` e sceglie con la stessa `selectCompany` del server.
+- **§466 — l'anteprima mostrava più del cliente.** In anteprima vale
+  `portal_staff_read`, che vede tutte le righe: `getPortalData` non ripeteva i
+  filtri delle policy del cliente, e passavano le versioni ritirate (249) e i
+  file «Nostri» (`source='team'`, 251). Ogni query del lettore ripete il filtro
+  della policy cliente: l'anteprima deve vedere esattamente quello che vede
+  il cliente.
 
 ## Verifiche eseguite — 19 settembre 2026
 

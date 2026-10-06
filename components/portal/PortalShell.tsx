@@ -1,14 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 import { ArrowUpRight, Home, FolderOpen, FolderUp, ListChecks, MessageSquare, LogOut } from 'lucide-react'
 import { Logo } from '@/components/shared/Logo'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { PortalSwitcher } from '@/components/shared/PortalSwitcher'
 import { createClient } from '@/lib/supabase/client'
-import { portalHref, type PortalCompany } from '@/lib/portal/model'
+import { portalHref, selectCompany, type PortalCompany } from '@/lib/portal/model'
 
 const SECTIONS = [
   { href: '/portale', label: 'Home', icon: Home },
@@ -21,15 +21,19 @@ const SECTIONS = [
   { href: '/portale/richieste', label: 'Richieste', icon: MessageSquare },
 ]
 
-export function PortalShell({ children, companies, selected, preview, canAccessAdmin, name }: {
-  children: React.ReactNode; companies: PortalCompany[]; selected: string | null; preview: boolean; canAccessAdmin: boolean; name: string
+export function PortalShell({ children, companies, preview, canAccessAdmin, name }: {
+  children: React.ReactNode; companies: PortalCompany[]; preview: boolean; canAccessAdmin: boolean; name: string
 }) {
   const pathname = usePathname()
   const isHome = pathname === '/portale'
   const router = useRouter()
   const [signingOut, setSigningOut] = useState(false)
   const [error, setError] = useState('')
-  const company = companies.find(c => c.id === selected)
+  /* §466 — l'azienda si legge dall'indirizzo, non dal layout: Next non
+     ri-renderizza un layout quando cambia solo `?client=`, e la tendina
+     tornava sull'azienda di prima portandosi dietro tutti i link. */
+  const company = selectCompany(companies, useSearchParams().get('client') ?? undefined)
+  const selected = company?.id ?? null
 
   async function signOut() {
     setSigningOut(true)
