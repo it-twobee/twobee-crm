@@ -27,6 +27,6 @@ export function GET() {
        essere passato al build. Quindi la nota dice **cosa impostare**. */
     nota: process.env.BUILD_SHA
       ? undefined
-      : 'BUILD_SHA non impostata. Nel container lo SHA arriva solo dal build: in Coolify aggiungi COOLIFY_GIT_COMMIT (o SOURCE_COMMIT) fra le Build Variable dell\'applicazione. In sviluppo senza git è normale.',
+      : 'BUILD_SHA non impostata. Nel container lo SHA arriva solo dal build: in Coolify attiva Configuration → Advanced → «Include Source Commit in Build», che passa SOURCE_COMMIT al Dockerfile. In sviluppo senza git è normale.',
   })
 }

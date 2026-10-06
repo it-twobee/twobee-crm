@@ -532,6 +532,13 @@ o con `SOURCE_COMMIT` arriva. **Resta da fare una cosa a mano**: marcare la
 variabile come Build Variable nell'applicazione su Coolify. Finché non è fatta,
 l'endpoint continua a rispondere vuoto — con la nota che adesso spiega perché.
 
+**Aggiornamento del 6 ottobre 2026.** La Build Variable non era la strada: Coolify
+lo SHA lo conosce già come `SOURCE_COMMIT`, ma per default lo tiene **fuori dal
+build** per non invalidare la cache. Si accende in Configuration → Advanced →
+«Include Source Commit in Build» (`include_source_commit_in_build`), fatto via API
+dopo l'aggiornamento di Coolify alla 4.3.23. Verificato: dopo un redeploy forzato
+`/api/version` risponde `sha: 3f307501b15e`, lo stesso di `origin/main`.
+
 Il perché è arrivato dal vivo: il deploy di `b8c800c` è fallito e quello dopo è
 passato, e per sapere quale codice stesse girando è servito incrociare
 `builtAt` con gli orari dei deploy. Con tre sessioni che spingono su `main` è
