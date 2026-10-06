@@ -11,6 +11,7 @@ export const STORAGE_FOLDERS = [
   'feedback',     // screenshot/allegati alle proposte feedback (staff-wide)
   'deliverables', // consegne al cliente: sempre legate a un progetto (§395)
   'materiali',    // spazio file del cliente: sempre sotto un'azienda (§397)
+  'social',       // creatività dei contenuti social: sempre sotto un progetto (§467)
   'misc',         // generico
 ] as const
 
@@ -29,6 +30,7 @@ export const FOLDER_LABELS: Record<StorageFolder, string> = {
   feedback: 'Allegati feedback',
   deliverables: 'Consegne al cliente',
   materiali: 'Materiali del cliente',
+  social: 'Creatività social',
   misc: 'Generico',
 }
 

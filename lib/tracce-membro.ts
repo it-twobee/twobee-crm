@@ -39,6 +39,9 @@ const VOCI: Record<string, Voce> = {
   portal_memberships:   { uno: 'accesso al portale cliente',     molti: 'accessi al portale cliente' },
   portal_requests:      { uno: 'richiesta dal portale',          molti: 'richieste dal portale' },
   portal_approvals:     { uno: 'approvazione nel portale',       molti: 'approvazioni nel portale' },
+  social_contents:      { uno: 'contenuto social',               molti: 'contenuti social' },
+  social_content_media: { uno: 'creatività social caricata',     molti: 'creatività social caricate' },
+  social_content_links: { uno: 'link di un post pubblicato',     molti: 'link di post pubblicati' },
 }
 
 /** «1 task assegnata» · «3 file caricati» · «2 in una_tabella_che_non_conosco». */

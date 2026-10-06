@@ -53,6 +53,7 @@ const PROTECTED_PATHS = [
   '/tracking',
   '/portale',
   '/progetti',
+  '/social',
   '/economics',
   '/ad-hoc',
   '/le-mie-attivita',

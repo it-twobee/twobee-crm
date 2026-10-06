@@ -8,8 +8,9 @@ import { BackLink } from '@/components/shared/BackLink'
 import { formatCurrency, formatDate, getPaymentBadge } from '@/lib/utils'
 import type { Client, ClientContact, ClientKpi, Profile, ClientStakeholder, ClientInteraction, ClientLabel } from '@/lib/types/database'
 import { setClientLabel } from '@/app/actions/clients'
-import { SUPER_ADMIN_EMAILS, canSeeTrackingSecrets, canSeeClientAnagrafica, canManageClientPortal } from '@/lib/permissions'
+import { SUPER_ADMIN_EMAILS, canSeeTrackingSecrets, canSeeClientAnagrafica, canManageClientPortal, canGovernProjects } from '@/lib/permissions'
 import { PORTAL_TAB } from '@/lib/portal/access'
+import { SOCIAL_TAB } from '@/lib/social'
 import { ClientFilesTab } from '@/components/clients/tabs/ClientFilesTab'
 import { clientName } from '@/lib/utils'
 import { mrrOrigin, economicsHref, CONTRACT_PERIOD_HINT, PAYMENT_STATUS_HINT } from '@/lib/economics-source'
@@ -27,6 +28,7 @@ const ClientReportTab = dynamic(() => import('@/components/tracking/ClientReport
 const ClientKeysTab = dynamic(() => import('@/components/tracking/ClientKeysTab').then(m => ({ default: m.ClientKeysTab })))
 const ClientLoginsTab = dynamic(() => import('@/components/tracking/ClientLoginsTab').then(m => ({ default: m.ClientLoginsTab })))
 const ClientPortalTab = dynamic(() => import('./tabs/ClientPortalTab').then(m => ({ default: m.ClientPortalTab })))
+const ClientSocialTab = dynamic(() => import('./tabs/ClientSocialTab').then(m => ({ default: m.ClientSocialTab })))
 import { ClientAlertBanner } from './ClientAlertBanner'
 import type { RiskResult } from '@/lib/risk'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
@@ -58,6 +60,8 @@ interface Props {
   typeCount?: number
   /** §197: rischio calcolato dal server (`lib/risk.ts`), non da `clients.risk_score` */
   risk?: RiskResult
+  /** §467: il cliente ha almeno un progetto social, quindi un calendario dei contenuti */
+  hasSocial?: boolean
 }
 
 const LABEL_TEXT: Record<string, string> = {
@@ -199,7 +203,7 @@ export function ClientPageClient({
   client, contacts, kpis,
   teamMembers, stakeholders, interactions, currentProfile, allProfiles,
   openTickets, initialTab, hideEconomics = false, backHref = '/clienti', economics,
-  contractsCount = null, mrrFromContracts = null, hasBilling = false, typeCount = 0, risk,
+  contractsCount = null, mrrFromContracts = null, hasBilling = false, typeCount = 0, risk, hasSocial = false,
 }: Props) {
   /* §176: il canone è la somma dei contratti attivi dei progetti. L'anagrafica
      non si scrive più, quindi un numero «da anagrafica» è un residuo: meglio
@@ -226,6 +230,8 @@ export function ClientPageClient({
     { label: 'Panoramica', index: 0 },
     ...(canSeeAnagrafica ? [{ label: 'Anagrafica', index: 1 }] : []),
     { label: 'Progetti', index: 2 },
+    // §467 — il calendario dei contenuti, solo dove c'è un progetto social
+    ...(hasSocial ? [{ label: 'Social', index: SOCIAL_TAB }] : []),
     { label: 'Task Ad Hoc', index: 3 },
     { label: 'Task al cliente', index: 4 },
     { label: 'Tracking', index: 6 },
@@ -397,6 +403,8 @@ export function ClientPageClient({
         {activeTab === 11 && <ClientFilesTab key={client.id} clientId={client.id}
           portalTabHref={canManagePortal ? `${portalBase}/clienti/${client.id}?tab=${PORTAL_TAB}` : undefined} />}
         {activeTab === PORTAL_TAB && canManagePortal && <ClientPortalTab key={client.id} clientId={client.id} contacts={contacts} />}
+        {activeTab === SOCIAL_TAB && hasSocial && <ClientSocialTab key={client.id} clientId={client.id} socialHref={`${portalBase}/social`}
+          me={{ id: currentProfile.id, governa: canGovernProjects(currentProfile), lettore: currentProfile.app_role === 'viewer' }} />}
       </div>
     </div>
   )

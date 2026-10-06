@@ -7,7 +7,7 @@ import {
   LayoutDashboard, CheckSquare, FolderKanban, Calendar, MessageSquare,
   FileText, Heart, User, UserCircle2, Users, BarChart3, Bot, TrendingUp,
   ListChecks, ListTodo, Headset, Briefcase, Headphones, Ticket, Receipt, History,
-  Lightbulb, Gauge, ChevronLeft, ChevronRight, ChevronDown, LogOut, Trash2, Radar, Handshake} from 'lucide-react'
+  Lightbulb, Gauge, ChevronLeft, ChevronRight, ChevronDown, LogOut, Trash2, Radar, Handshake, Megaphone} from 'lucide-react'
 import { useState, useCallback, useEffect } from 'react'
 import { ROLE_LABELS } from '@/lib/permissions'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
@@ -44,6 +44,8 @@ export const ICON_MAP: Record<string, React.ComponentType<{ className?: string }
   // «Costi e budget»: un'icona per due sezioni le fa confondere quanto due
   // icone per una sola.
   Handshake,
+  // §467 — Social: la stessa del portale admin
+  Megaphone,
 }
 
 // Etichette dei gruppi della sidebar. L'ordine è dato da group_order in tabella;
@@ -67,6 +69,7 @@ const GROUP_FALLBACK: Record<string, { key: string; order: number }> = {
   clienti_attivi:      { key: 'clienti',   order: 2 },
   customer_care:       { key: 'clienti',   order: 2 },
   ticket:              { key: 'clienti',   order: 2 },
+  social:              { key: 'clienti',   order: 2 },
   hr:                  { key: 'team',      order: 3 },
   buste_paga:          { key: 'team',      order: 3 },
   documenti_personali: { key: 'team',      order: 3 },

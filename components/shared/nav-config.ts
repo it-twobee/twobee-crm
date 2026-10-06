@@ -2,6 +2,7 @@ import {
   LayoutDashboard, Users, FolderOpen, Settings, CalendarDays, Headphones,
   Ticket, UserCircle2, History, Lightbulb, FolderKanban, Briefcase, ListChecks, ListTodo,
   Wallet, Target, Handshake, Landmark, Users2, Banknote, FileText, Share2, Table2, Radar, KeyRound, Activity, GitBranch, Upload,
+  Megaphone,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -36,6 +37,8 @@ export const navSections: NavSection[] = [
          andare ma non come si chiama la voce. */
       { href: '/commerciale', icon: Handshake, label: 'Commerciale', adminOnly: true },
       { href: '/progetti', icon: Briefcase, label: 'Progetti' },
+      // §467 — il calendario dei contenuti di tutti i progetti social
+      { href: '/social', icon: Megaphone, label: 'Social' },
       { href: '/ad-hoc', icon: ListTodo, label: 'Task' },
       // §316 — stato tracking e QA giornaliero, per tutti i clienti
       { href: '/tracking', icon: Radar, label: 'Tracking' },

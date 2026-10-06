@@ -29,7 +29,8 @@ delle route che passa da `createAdminClient()` — scritto di fila o tramite la
 variabile che lo vale **per ultima** — e fallisce se ne trova una fuori
 dall'elenco delle eccezioni, che è chiuso e vuole un perché. L'elenco delle
 tabelle loggate è quello della 253 più `deal_activities` (263): una tabella che
-ottiene la cronologia va aggiunta anche lì.
+ottiene la cronologia va aggiunta anche lì. Da §467 c'è anche `social_contents`
+(etichetta «12/11 · Tema», `docs/social.md`).
 
 **Il buco del 20 luglio 2026** (§412). Dal 20 luglio al 23 settembre 2026
 `activity_log` **non ha ricevuto una riga da `tasks`, `projects` e `invoices`**,

@@ -457,6 +457,18 @@ capita, e un `.rar` del cliente veniva rifiutato. Rar e 7z restano file, perché
 nel browser non si aprono. Il tipo di un file che esce da uno zip si deduce dal
 nome (`mimeFromName`).
 
+## Le creatività social — cartella `social` (§467)
+
+Come `materiali`, è in `OWN_DOOR_FOLDERS`: le API generiche la rifiutano in
+lettura, cancellazione, condivisione e creazione di contesti. Le porte sono
+`/api/social/media/**` (`lib/social-guard.ts`): ruolo, poi riga del contenuto
+letta con la RLS, poi diritto sul contenuto. La riga `files` ha
+`entity_type='project'` e la stessa chiave del media (`social_guard_media`), e
+`storage_context_access` per `social` risponde `false`, quindi nessuno legge
+quelle righe con la sessione: le legge il service role dopo la guardia.
+Miniature in `social/miniature/<id>.webp`, generate da `lib/storage/thumb.ts`,
+lo stesso codice dei materiali. Dettaglio in `docs/social.md`.
+
 ## Verifiche
 
 ```bash

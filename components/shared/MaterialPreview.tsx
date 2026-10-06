@@ -18,7 +18,7 @@ import { TextPreview } from '@/components/shared/TextPreview'
    mega. Si scorre fra i file della cartella con le frecce. */
 export type PreviewFile = { id: string; name: string; mime: string | null; size: number }
 
-export function MaterialPreview<T extends PreviewFile>({ file, files, onNavigate, onClose, aside }: {
+export function MaterialPreview<T extends PreviewFile>({ file, files, onNavigate, onClose, aside, hrefOf = materialDownloadHref }: {
   file: T
   /** I file fra cui scorrere, nell'ordine in cui si vedono. */
   files?: T[]
@@ -26,12 +26,14 @@ export function MaterialPreview<T extends PreviewFile>({ file, files, onNavigate
   onClose: () => void
   /** Quello che accompagna il file, accanto: le note del team. */
   aside?: React.ReactNode
+  /** La porta da cui arrivano i byte: i materiali per default, le creatività social (§467). */
+  hrefOf?: (id: string) => string
 }) {
   const dialog = useRef<HTMLDivElement>(null)
   const close = useRef<HTMLButtonElement>(null)
   const [actual, setActual] = useState(false)
   const kind = previewKind(file.mime, file.name, Number(file.size))
-  const href = materialDownloadHref(file.id)
+  const href = hrefOf(file.id)
   const list = files?.length ? files : [file]
   const index = list.findIndex(f => f.id === file.id)
   const prev = index > 0 ? list[index - 1] : null

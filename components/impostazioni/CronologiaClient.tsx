@@ -37,6 +37,8 @@ const ENTITY_LABELS: Record<string, { label: string; color: string }> = {
   objectives:  { label: 'Obiettivi',   color: 'text-accent' },
   key_results: { label: 'Key Result',  color: 'text-accent' },
   decisions:   { label: 'Decisioni',   color: 'text-text-secondary' },
+  // §467 — il calendario social
+  social_contents: { label: 'Contenuti social', color: 'text-accent' },
 }
 
 const ACTION_CONFIG = {

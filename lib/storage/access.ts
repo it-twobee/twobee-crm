@@ -9,8 +9,10 @@ export type StorageContext = Pick<StorageFile, 'folder' | 'entity_type' | 'entit
 /* Cartelle con una porta loro. L'area file del cliente ha rotte, quota e
    regole proprie (`/api/area-cliente/**`, `/api/portale/materiali/**`): dalle
    API generiche un DELETE toglieva i byte e poi il trigger rifiutava il
-   metadato, e il download li serviva a chi la RLS dei materiali esclude. */
-const OWN_DOOR_FOLDERS: readonly string[] = ['materiali']
+   metadato, e il download li serviva a chi la RLS dei materiali esclude.
+   §467 — le creatività social hanno le loro (`/api/social/media/**`): la riga
+   del contenuto decide chi le vede, non la cartella. */
+const OWN_DOOR_FOLDERS: readonly string[] = ['materiali', 'social']
 
 export function isStorageStaff(actor: StorageActor) {
   return actor.active && ((actor.role === 'admin' && isAdminRole(actor.appRole))

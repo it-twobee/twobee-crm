@@ -12,6 +12,7 @@ import type { CostActual } from '@/lib/costs'
 import type { RevenueStream, Installment } from '@/lib/revenue'
 import type { Client, ClientContact, ClientKpi, Profile, ClientStakeholder, ClientInteraction } from '@/lib/types/database'
 import { PROFILE_COLUMNS } from '@/lib/profile-columns'
+import { SOCIAL_SERVICE_TYPE } from '@/lib/social'
 
 export const revalidate = 0
 
@@ -36,6 +37,7 @@ export default async function ClientePage({ params, searchParams }: Props) {
     { data: kpis },
     { count: openTickets },
     { data: intData },
+    { count: socialCount },
   ] = await Promise.all([
     supabase.from('clients').select('*').eq('id', id).single(),
     supabase.from('client_contacts').select('*').eq('client_id', id).order('is_primary', { ascending: false }),
@@ -48,6 +50,9 @@ export default async function ClientePage({ params, searchParams }: Props) {
     supabase.from('client_interactions')
       .select('*, conductor:profiles!client_interactions_conducted_by_fkey(id, full_name, avatar_url)')
       .eq('client_id', id).order('date', { ascending: false }),
+    // §467 — la tab Social c'è solo dove c'è un progetto social
+    supabase.from('projects').select('id', { count: 'exact', head: true })
+      .eq('client_id', id).eq('service_type', SOCIAL_SERVICE_TYPE).is('deleted_at', null),
   ])
 
   if (!client) notFound()
@@ -228,6 +233,7 @@ export default async function ClientePage({ params, searchParams }: Props) {
       allProfiles={(allProfiles ?? []) as Profile[]}
       interactions={(intData ?? []) as ClientInteraction[]}
       openTickets={openTickets ?? 0}
+      hasSocial={(socialCount ?? 0) > 0}
       initialTab={tab ? parseInt(tab) : undefined}
       economics={economics}
       contractsCount={contractsCount}

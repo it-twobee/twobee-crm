@@ -27,6 +27,7 @@ database vero, e riscoprirle costa più che leggerle.
 | portale cliente, inviti, accessi azienda/progetto e recupero password | `docs/portale-cliente.md` |
 | file interni, cartelle, upload/download e link pubblici (`lib/storage/**`, `/api/files/**`), area file dei clienti e sezione Documenti | `docs/storage-access.md` |
 | utilizzo del tool, presenza, `lib/presenza.ts`, `os_sessions`, `/impostazioni/utilizzo` | `docs/presenza.md` |
+| contenuti social, `/social`, `lib/social.ts`, piano editoriale, creatività social | `docs/social.md` |
 
 ## Invarianti — valgono anche senza aprire i doc
 - **Nessun valore economico si digita**: contratti e rate sono l'unica scrittura,
@@ -217,12 +218,12 @@ una striscia. Usa `min-h-full` e, se serve tenere le tab a portata di mano,
 - Server Action: `'use server'` + `revalidatePath('/path')`
 
 ## DB — tabelle chiave
-- `clients`: `company_name, client_type (growth|digital|growth_digital), package, mrr, client_label, risk_score`
-- `projects`: `client_id, name, status, project_type, project_kind (growth|digital), sprint_current`
+- `clients`: `company_name, client_type (growth|digital|growth_digital), mrr, client_label, risk_score`
+- `projects`: `client_id, name, area (marketing|growth|digital), service_type, service_subtype, operating_model, status, manager_id, deleted_at, portal_*`. `project_type`/`project_kind` non esistono più (reset 144/147): il servizio è `service_type` (es. `social_media_management`)
 - `client_kpis`: KPI mensili, unique `(client_id, month)`
 - `chat_channels`: `type (cliente|interno|task|customer_care|cliente_interno|team|dm), client_id, project_id, team_key`
 - `chat_messages`: `channel_id, sender_id, content`
-- `tasks`: `project_id, title, status (da_fare|in_corso|completato), is_milestone, due_date, assignee_id (PRIMARIO)`
+- `tasks`: `task_type (project|ad_hoc|cliente), project_id, workstream_id, milestone_id, title, status, due_date, assignee_id (PRIMARIO)` — le milestone sono una tabella (`milestones`), non un flag
 - `task_assignees`: multi-assegnatario `(task_id, profile_id, is_primary_owner, role)`. **Sorgente canonica** dei 0..N assegnatari; `tasks.assignee_id` resta il primario (= primo della lista) perché molte viste lo leggono. Scrivi SEMPRE via `setTaskAssignees`/`bulkSetTaskAssignees` (service role), che tengono i due in sync.
 - `objectives`: OKR aziendali con `progress, status`
 - `deals`: pipeline commerciale con `stage`

@@ -52,6 +52,12 @@ const founder: StorageActor = { ...manager, role: 'admin', appRole: 'founder' }
 assert.equal(canReadFile(founder, material), false, 'il download generico non serve un materiale')
 assert.equal(canDeleteFile(founder, material), false, 'la DELETE generica non toglie i byte di un materiale')
 assert.equal(canDeleteFile(founder, { uploaded_by: own }), true, 'senza cartella resta la regola del proprietario')
+// §467 — anche le creatività social: le serve la riga del contenuto, non la cartella.
+const creativity = { ...file, folder: 'social' as const, object_key: 'social/p/reel.mp4', uploaded_by: own }
+assert.equal(parseStorageContext('social', 'project', 'f2462000-0000-4000-8000-000000000001'), null)
+assert.equal(canReadFile(founder, creativity), false, 'il download generico non serve una creatività social')
+assert.equal(canDeleteFile(founder, creativity), false, 'la DELETE generica non toglie i byte di una creatività')
+assert.equal(canShareFile(founder, { ...creativity, entity_type: 'project' }), false, 'una creatività non ha link anonimi')
 // Chi apre l'area file: la lista di portal_is_staff(), non quella dello storage.
 for (const appRole of ['manager', 'senior', 'junior', 'stage']) assert.equal(canReadMaterials({ ...manager, appRole }), true, appRole)
 assert.equal(canReadMaterials(founder), true)

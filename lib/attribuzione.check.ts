@@ -26,6 +26,8 @@ const is = (label: string, got: unknown, want: unknown) => {
 export const LOGGATE = [
   'clients', 'projects', 'project_workstreams', 'milestones', 'tasks',
   'deals', 'invoices', 'tickets', 'objectives', 'key_results', 'decisions', 'deal_activities',
+  // §467 — il calendario social
+  'social_contents',
 ]
 
 /**

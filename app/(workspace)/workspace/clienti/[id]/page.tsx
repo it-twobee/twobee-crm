@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation'
 import { ClientPageClient } from '@/components/clients/ClientPageClient'
 import type { Client, ClientContact, ClientKpi, Profile, ClientStakeholder, ClientInteraction } from '@/lib/types/database'
 import { PROFILE_COLUMNS } from '@/lib/profile-columns'
+import { SOCIAL_SERVICE_TYPE } from '@/lib/social'
 
 export const revalidate = 0
 
@@ -31,6 +32,7 @@ export default async function WorkspaceClientePage({ params, searchParams }: Pro
     { data: kpis },
     { count: openTickets },
     { data: intData },
+    { count: socialCount },
   ] = await Promise.all([
     supabase.from('clients_workspace').select('*').eq('id', id).single(),
     supabase.from('client_contacts').select('*').eq('client_id', id).order('is_primary', { ascending: false }),
@@ -43,6 +45,9 @@ export default async function WorkspaceClientePage({ params, searchParams }: Pro
       .select('*, conductor:profiles!client_interactions_conducted_by_fkey(id, full_name, avatar_url)')
       .eq('client_id', id)
       .order('date', { ascending: false }),
+    // §467 — la tab Social c'è solo dove c'è un progetto social
+    supabase.from('projects').select('id', { count: 'exact', head: true })
+      .eq('client_id', id).eq('service_type', SOCIAL_SERVICE_TYPE).is('deleted_at', null),
   ])
 
   if (!client) notFound()
@@ -65,6 +70,7 @@ export default async function WorkspaceClientePage({ params, searchParams }: Pro
       openTickets={openTickets ?? 0}
       hideEconomics
       backHref="/workspace/clienti"
+      hasSocial={(socialCount ?? 0) > 0}
       initialTab={tab === undefined ? undefined : Number(tab)}
     />
   )

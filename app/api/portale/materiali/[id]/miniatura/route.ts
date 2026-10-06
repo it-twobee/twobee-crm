@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getObject, putObject } from '@/lib/storage/s3'
+import { THUMB_SOURCE_MAX_BYTES, makeThumbnail, readAll, thumbHeaders } from '@/lib/storage/thumb'
 import { isStorageUuid } from '@/lib/storage/access'
 import { hasThumbnail, previewKind, thumbObjectKey } from '@/lib/portal/materials'
 
@@ -24,34 +25,6 @@ export const dynamic = 'force-dynamic'
    server (`pdf-parse`, che lo porta con sé insieme al canvas nativo). Vale la
    stessa regola di `sharp`: se il modulo non carica, niente miniatura, e resta
    l'icona. */
-const THUMB_EDGE = 320
-/** Oltre questa soglia l'originale non si carica in memoria per farne un francobollo. */
-const SOURCE_MAX_BYTES = 40 * 1024 * 1024
-
-async function readAll(stream: ReadableStream<Uint8Array>): Promise<Buffer> {
-  const reader = stream.getReader()
-  const chunks: Uint8Array[] = []
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (value) chunks.push(value)
-    if (done) break
-  }
-  return Buffer.concat(chunks)
-}
-
-function thumbHeaders(length: number) {
-  return new Headers({
-    'Content-Type': 'image/webp',
-    'Content-Length': String(length),
-    // Cinque minuti: abbastanza per scorrere un elenco senza rigenerare niente,
-    // abbastanza poco perché una revoca dell'accesso si senta subito. `private`
-    // tiene la copia nel browser di chi guarda, fuori da ogni cache condivisa.
-    'Cache-Control': 'private, max-age=300',
-    'X-Content-Type-Options': 'nosniff',
-    'Referrer-Policy': 'no-referrer',
-  })
-}
-
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await createClient()
   const { data: { user } } = await session.auth.getUser()
@@ -66,7 +39,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   if (!hasThumbnail(material.data.mime, material.data.name)) {
     return NextResponse.json({ error: 'Senza miniatura' }, { status: 404 })
   }
-  if (Number(material.data.size) > SOURCE_MAX_BYTES) {
+  if (Number(material.data.size) > THUMB_SOURCE_MAX_BYTES) {
     return NextResponse.json({ error: 'Originale troppo grande per una miniatura' }, { status: 404 })
   }
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return NextResponse.json({ error: 'Non configurato' }, { status: 503 })
@@ -83,16 +56,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
   let thumb: Buffer
   try {
-    const sharp = (await import('sharp')).default
-    let source = await readAll((await getObject(stored.data.storage_key)).body)
-    if (previewKind(material.data.mime, material.data.name) === 'pdf') source = await firstPage(source)
-    thumb = await sharp(source, { failOn: 'none' })
-      // `rotate()` senza argomenti applica l'orientamento EXIF: senza, le foto
-      // scattate col telefono arrivano coricate.
-      .rotate()
-      .resize(THUMB_EDGE, THUMB_EDGE, { fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: 70 })
-      .toBuffer()
+    const source = await readAll((await getObject(stored.data.storage_key)).body)
+    thumb = await makeThumbnail(source, previewKind(material.data.mime, material.data.name) === 'pdf')
   } catch {
     return NextResponse.json({ error: 'Miniatura non disponibile' }, { status: 404 })
   }
@@ -100,18 +65,4 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   // Se il salvataggio fallisce si serve lo stesso: la prossima visita riproverà.
   try { await putObject(key, thumb, 'image/webp') } catch { /* si rigenererà */ }
   return new Response(new Uint8Array(thumb), { headers: thumbHeaders(thumb.length) })
-}
-
-/** La prima pagina di un PDF, come PNG largo quanto la miniatura. */
-async function firstPage(pdf: Buffer): Promise<Buffer> {
-  const { PDFParse } = await import('pdf-parse')
-  const parser = new PDFParse({ data: new Uint8Array(pdf) })
-  try {
-    const shot = await parser.getScreenshot({ partial: [1], desiredWidth: THUMB_EDGE, imageDataUrl: false, imageBuffer: true })
-    const page = shot.pages[0]
-    if (!page?.data?.length) throw new Error('pagina vuota')
-    return Buffer.from(page.data)
-  } finally {
-    await parser.destroy()
-  }
 }
