@@ -295,26 +295,37 @@ check.
 - **I caricamenti** partono tre alla volta, hanno un avanzamento totale e il
   bottone Annulla, e gli errori si raccolgono in un riepilogo. Prima il primo
   errore fermava tutto, e ne restava scritto solo uno.
-- **Il canestro** (§468, `UploadCourt.tsx`). Scelti i file, ognuno parte in
-  basso a sinistra e finisce nella retina; poi la sua riga entra nel pannello,
-  con la barra **del singolo file** — con la sola barra del totale non si
-  sapeva quale dei tre fosse fermo. Il file già scartato in partenza (troppo
-  grande, tipo vietato, spazio finito) prende il ferro e cade fuori, e la sua
-  riga dice perché. Regole:
-  - **L'animazione non trattiene niente**: l'invio parte subito, i tiri sono
-    solo un contorno. Una riga resta nascosta finché il suo file è per aria,
-    al massimo `durata + 1,5 s` (il ripiego vale anche se il browser non chiude
-    l'animazione, per esempio in una scheda in background).
-  - **La traiettoria è una parabola vera**: Bézier quadratica col parametro
-    lineare, cioè velocità orizzontale costante e gravità costante; il
-    secondo tratto parte lungo la tangente d'arrivo, quindi non c'è spigolo
-    fra il volo e la caduta nella retina. La scena sta al centro e non supera
-    i 260 px: più larga, il tiro diventa radente ed entra di lato.
-  - Oltre **dodici** file il resto parte in un tiro solo, «+N»: una cartella
-    da trecento file non è una partita.
-  - Con `prefers-reduced-motion` il campo non c'è proprio: restano le righe.
-  - Colori dai token (`--color-gold-text` per ferro e tabellone, che in tema
-    chiaro scurisce): un `#hex` nello SVG non segue il tema.
+- **Il canestro** (§468, `UploadGame.tsx`). Scelti i file con «Carica file»
+  o «Carica cartella» si apre una finestra: il file sta in basso a sinistra,
+  lo si **tira indietro come una fionda** e lo si lascia andare; i puntini
+  mostrano dove andrà. **Il caricamento di quel file parte quando entra nel
+  canestro**; se esce torna in mano e si ritira. La prima versione tirava da
+  sola: la mira era l'unica cosa che il committente voleva fosse dell'utente.
+  Ogni file ha la sua riga con la **barra del singolo file** — con la sola
+  barra del totale non si sapeva quale dei tre fosse fermo. Regole:
+  - **Il gioco non tiene in ostaggio nessuno.** «Carica senza tirare» manda
+    tutto quello che resta, Invio sul file fa un tiro che entra, e con
+    `prefers-reduced-motion` la finestra non si apre: i file partono subito.
+  - **Chiudere non carica.** Chi è ancora in mano (`status: 'mira'`) non è mai
+    partito, e «Annulla» o Esc lo lasciano lì (`discard`); chi è già entrato
+    continua a salire e lo si segue nel pannello sotto la barra.
+  - **Il trascinamento non passa dal canestro**: lasciar cadere dei file
+    sull'area è già un gesto, e partono come prima (`start` = `prepare` +
+    `launch`).
+  - **Un pallone per cartella o zip**, uno per file sciolto, e oltre otto
+    palloni la scelta diventa uno solo («N file»): trecento file non sono una
+    partita. Il pallone è `UploadJob.group`.
+  - Lo scartato in partenza (troppo grande, tipo vietato, spazio finito) non
+    diventa un pallone: la sua riga compare subito e dice perché.
+  - **Fisica**: gravità e forza della fionda scalano con l'altezza del campo,
+    e la corda piena vale una volta e mezza il tiro giusto — a due terzi si
+    entra, e c'è margine per sbagliare nei due versi. Il ferro respinge, la
+    retina frena e lascia cadere; il file conta più piccolo di come si vede,
+    perché un buon tiro che sfiora deve entrare.
+  - La finestra sta **in alto**, non al centro: le righe che arrivano la
+    allungano verso il basso, e il campo non si sposta sotto la mano.
+  - Colori dai token (`--color-gold-text` per ferro, tabellone e puntini, che
+    in tema chiaro scurisce): un `#hex` nello SVG non segue il tema.
 - **Ordine**: data (default, i più recenti prima), nome (i numeri contano come
   numeri, «9» prima di «10»), dimensione. Le cartelle stanno sempre sopra: per
   data le ordina il loro ultimo caricamento, e una cartella vuota va in fondo.

@@ -10,8 +10,8 @@ import { humanBytes, materialDownloadHref } from '@/lib/portal/materials'
 import { SPACE_LABEL, autoreTesto, crumbsOf, extensionBadge, folderLine } from '@/lib/portal/explorer'
 import type { ClientMaterial, Crumb, FolderSummary, Space } from '@/lib/portal/explorer'
 import { MaterialThumb } from '@/components/shared/MaterialThumb'
+import { jobBadge } from './uploads'
 import type { UploadJob } from './uploads'
-import { UploadCourt, jobBadge, useReducedMotion, useShots } from './UploadCourt'
 
 /* §416 — I pezzi dell'esploratore. Nessuna decisione qui dentro: chi può fare
    cosa lo decide `ClientFileArea`, che passa a ogni riga le voci del suo menu. */
@@ -240,25 +240,12 @@ export function Breadcrumb({ space, path, onGo, dropFor }: {
   </nav>
 }
 
-export function UploadPanel({ jobs, active, opening, totals, onCancel, onDismiss }: {
-  jobs: UploadJob[]
-  active: boolean
-  opening?: boolean
-  totals: { bytes: number; loaded: number; done: number; failed: number; cancelled: number }
-  onCancel: () => void
-  onDismiss: () => void
-}) {
-  if (opening) return <div role="status" aria-live="polite" className="flex items-center gap-2 rounded-xl border border-border bg-surface p-3 text-2xs text-text-secondary">
-    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Apro lo zip: i file che contiene diventano una cartella.
-  </div>
-  return <UploadSummary jobs={jobs} active={active} totals={totals} onCancel={onCancel} onDismiss={onDismiss} />
-}
-
 const JOB_STATE: Record<UploadJob['status'], string> = {
-  attesa: 'In coda', invio: '', fatto: 'Caricato', errore: 'Non caricato', annullato: 'Annullato',
+  mira: 'Da tirare', attesa: 'In coda', invio: '', fatto: 'Caricato', errore: 'Non caricato', annullato: 'Annullato',
 }
 
-function JobRow({ job }: { job: UploadJob }) {
+/** §468 — Una riga per file, con la sua barra: con la sola barra del totale non si sapeva quale fosse fermo. */
+export function JobRow({ job }: { job: UploadJob }) {
   const percent = job.status === 'fatto' ? 100 : job.size ? Math.min(100, Math.round((job.loaded / job.size) * 100)) : 0
   const bar = job.status === 'fatto' ? 'bg-success' : job.status === 'errore' ? 'bg-error' : job.status === 'annullato' ? 'bg-border-strong' : 'bg-gold'
   return <li className="animate-slide-up rounded-lg border border-border bg-background px-2.5 py-2">
@@ -281,31 +268,30 @@ function JobRow({ job }: { job: UploadJob }) {
   </li>
 }
 
-/* §468 — Prima c'era solo la barra del totale: con tre file non si sapeva
-   quale fosse fermo. Ogni file ha la sua riga, che entra quando il suo tiro
-   è finito nel canestro (vedi `UploadCourt`). */
-function UploadSummary({ jobs, active, totals, onCancel, onDismiss }: {
+export function UploadPanel({ jobs, active, opening, totals, onCancel, onDismiss }: {
   jobs: UploadJob[]
   active: boolean
+  opening?: boolean
   totals: { bytes: number; loaded: number; done: number; failed: number; cancelled: number }
   onCancel: () => void
   onDismiss: () => void
 }) {
-  const reduced = useReducedMotion()
-  const shots = useShots(jobs, !reduced)
-  if (!jobs.length) return null
-  const failed = jobs.filter(job => job.status === 'errore')
-  const counted = jobs.length - failed.filter(job => !job.loaded).length
+  if (opening) return <div role="status" aria-live="polite" className="flex items-center gap-2 rounded-xl border border-border bg-surface p-3 text-2xs text-text-secondary">
+    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Apro lo zip: i file che contiene diventano una cartella.
+  </div>
+  // Chi è ancora in mano nel canestro non è partito: qui non c'è.
+  const sent = jobs.filter(job => job.status !== 'mira')
+  if (!sent.length) return null
+  const failed = sent.filter(job => job.status === 'errore')
+  const counted = sent.length - failed.filter(job => !job.loaded).length
   const percent = totals.bytes ? Math.min(100, Math.round((totals.loaded / totals.bytes) * 100)) : 100
-  const court = !reduced && (active || shots.busy)
-  const landed = jobs.filter(job => !shots.airborne.has(job.key))
-  return <div role="status" aria-live="polite" className="animate-fade-in rounded-xl border border-border bg-surface p-3">
+  return <div role="status" aria-live="polite" className="rounded-xl border border-border bg-surface p-3">
     <div className="flex flex-wrap items-center gap-2">
       {active && <Loader2 className="h-4 w-4 animate-spin text-text-secondary" aria-hidden="true" />}
       <p className="min-w-0 flex-1 text-2xs text-text-secondary">
         {active
           ? <>Carico {totals.done + 1 > counted ? counted : totals.done + 1} di {counted} · {humanBytes(totals.loaded)} di {humanBytes(totals.bytes)}</>
-          : <>Caricati {totals.done} di {jobs.length}{totals.cancelled ? ` · ${totals.cancelled} annullati` : ''}{failed.length ? ` · ${failed.length} non caricati` : ''}</>}
+          : <>Caricati {totals.done} di {sent.length}{totals.cancelled ? ` · ${totals.cancelled} annullati` : ''}{failed.length ? ` · ${failed.length} non caricati` : ''}</>}
       </p>
       {active
         ? <button type="button" className={buttonCls} onClick={onCancel}>Annulla</button>
@@ -313,17 +299,12 @@ function UploadSummary({ jobs, active, totals, onCancel, onDismiss }: {
             <X className="h-4 w-4" aria-hidden="true" />
           </button>}
     </div>
-    {active && jobs.length > 1 && <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-hover">
+    {active && sent.length > 1 && <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-hover">
       <div className="h-full rounded-full bg-gold transition-[width]" style={{ width: `${percent}%` }} />
     </div>}
-    {!reduced && <div className={`grid transition-[grid-template-rows,margin] duration-500 ease-snap ${court ? 'mt-3 grid-rows-[1fr]' : 'mt-0 grid-rows-[0fr]'}`}>
-      <div className="min-h-0 overflow-hidden">
-        <UploadCourt flying={shots.flying} busy={shots.busy} land={shots.land} />
-      </div>
-    </div>}
-    {!!landed.length && <ul className="mt-2 max-h-64 space-y-1.5 overflow-y-auto">
-      {landed.map(job => <JobRow key={job.key} job={job} />)}
-    </ul>}
+    <ul className="mt-2 max-h-64 space-y-1.5 overflow-y-auto">
+      {sent.map(job => <JobRow key={job.key} job={job} />)}
+    </ul>
   </div>
 }
 

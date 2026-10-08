@@ -23,6 +23,8 @@ import {
 import type { DropProps, MenuItem } from './items'
 import { MoveDialog, NameDialog } from './dialogs'
 import { pickedFromDrop, pickedFromInput, useUploads } from './uploads'
+import type { PickedFile } from './uploads'
+import { UploadGame, useReducedMotion } from './UploadGame'
 
 /* §416 — L'area file di un cliente, vista da noi: un esploratore, non più un
    elenco. È **una sola** e sta in due posti — la scheda del cliente e la
@@ -145,6 +147,9 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
   }, [syncUrl, prefs.space, path])
 
   const uploads = useUploads({ clientId, onFinished: reload })
+  // §468 — Scelti dal computer, i file si tirano nel canestro; trascinati qui, partono e basta.
+  const [game, setGame] = useState(false)
+  const reducedMotion = useReducedMotion()
 
   const materials = useMemo(() => data?.materials ?? [], [data])
   const visible = useMemo(() => showArchived ? materials : materials.filter(m => !m.archived_at), [materials, showArchived])
@@ -184,6 +189,11 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
   // con un elenco parziale non lo si sa, e allora decide il server file per file.
   const spaceLeft = data.truncated ? undefined : quotaLeft(materials.reduce((sum, m) => sum + (Number(m.size) || 0), 0))
   const canUploadHere = canWrite && space === 'team'
+  const choose = (picked: PickedFile[]) => {
+    if (reducedMotion) { void uploads.start(picked, path, spaceLeft); return }
+    setGame(true)
+    void uploads.prepare(picked, path, spaceLeft)
+  }
   const canRemove = (m: ClientMaterial) =>
     m.source === 'cliente' ? data.canDeleteClientFiles : (data.canDeleteClientFiles || m.uploaded_by === data.viewerId)
 
@@ -496,12 +506,15 @@ export function ClientFileArea({ clientId, portalTabHref, syncUrl = false }: {
       <span className="text-2xs text-text-tertiary">Per mettere in ordine i file del cliente: trascinali sulle cartelle.</span>
     </div>}
 
+    {game && <UploadGame jobs={uploads.jobs} opening={uploads.opening} target={path ? path.split('/').pop()! : SPACE_LABEL.team}
+      onLaunch={uploads.launch} onClose={() => { uploads.discard(); setGame(false) }} />}
+
     {canUploadHere && !searching && <div className="flex flex-wrap items-center gap-2">
       <input ref={fileInput} type="file" multiple className="sr-only" aria-label="Scegli i file da caricare"
-        onChange={e => { if (e.target.files?.length) void uploads.start(pickedFromInput(e.target.files), path, spaceLeft); e.target.value = '' }} />
+        onChange={e => { if (e.target.files?.length) choose(pickedFromInput(e.target.files)); e.target.value = '' }} />
       <input ref={folderInput} type="file" multiple className="sr-only" aria-label="Scegli una cartella da caricare"
         {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
-        onChange={e => { if (e.target.files?.length) void uploads.start(pickedFromInput(e.target.files), path, spaceLeft); e.target.value = '' }} />
+        onChange={e => { if (e.target.files?.length) choose(pickedFromInput(e.target.files)); e.target.value = '' }} />
       <button type="button" className={buttonCls} disabled={uploads.active} onClick={() => fileInput.current?.click()}>
         <Upload className="h-3.5 w-3.5" aria-hidden="true" />Carica file
       </button>
