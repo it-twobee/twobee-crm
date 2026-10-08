@@ -725,6 +725,33 @@ chiamava nessuno. Quattro cause in fila, e ognuna bastava da sola.
   dell'ultima generazione. Un motore fermo e un motore che gira non possono
   avere la stessa faccia.
 
+## «Si ripete», dove la task nasce (§469)
+
+Il motore c'era, ma ci si arrivava da una porta sola: il pannello «Attività
+ricorrenti», che compare solo sulle workstream continuative. Chi apriva «Nuova
+attività continuativa» — o una task qualsiasi dalla sezione Task — trovava la
+scadenza e basta, e due feedback del team (29 settembre e 7 ottobre) chiedevano
+la stessa cosa: «ogni quanto si ripete, e fino a quando».
+
+- **Il composer delle task di progetto (`TaskComposer`) chiede «Si ripete»**:
+  no · ogni giorno · ogni settimana (coi giorni) · ogni mese. Non sulle subtask,
+  che vivono della madre, e non sulle ad hoc: il motore genera dentro una
+  milestone, e le ad hoc non ne hanno.
+- **La data diventa «Fino al»**: su una serie la scadenza è di ogni occorrenza,
+  e quella scritta nel modulo è la fine del ciclo (`end_date`). Vuota = senza
+  fine. Accanto, «Dal», e l'anteprima delle prossime tre date (§338).
+- **L'assegnatario è obbligatorio** quando si ripete: senza responsabile la
+  regola resta ferma (§346), e «l'ho messa» con niente che arriva è peggio di
+  un pulsante spento.
+- **La regola si notifica una volta**, alla creazione, dentro `createRecurring`
+  — quindi anche dal pannello: il motore non notifica mai (§350).
+- **Il pannello «Attività ricorrenti» compare dove c'è una regola**, anche su
+  una workstream a termine: una serie nata dal composer che non si vede non si
+  può né correggere né fermare.
+
+Resta la finestra del motore: una giornaliera mette **sette** righe davanti,
+non una alla volta. È la scelta di §346 e non si cambia da qui.
+
 ## La sezione Task mostra anche le milestone (§346)
 
 Una milestone non compariva in **nessun** elenco di lavoro: non nella sezione

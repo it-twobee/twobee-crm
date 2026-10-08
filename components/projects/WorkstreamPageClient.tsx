@@ -283,8 +283,10 @@ export function WorkstreamPageClient({
 
       <div className="p-4 sm:p-6">
         <div className="max-w-5xl space-y-6 animate-fade-in">
-          {/* ricorrenti */}
-          {ws.workstream_type === 'recurring' && (
+          {/* ricorrenti — §469: anche su una workstream a termine, se ce n'è una:
+              dal composer delle task una regola nasce ovunque, e una regola
+              che non si vede non si può né correggere né fermare */}
+          {(ws.workstream_type === 'recurring' || recurring.length > 0) && (
             <RecurringPanel recurring={recurring} projectId={project.id} clientId={project.client_id}
               wsId={ws.id} systemMilestoneId={systemMilestoneId}
               servizio={{ service_type: project.service_type, service_subtype: project.service_subtype }}

@@ -6,6 +6,8 @@ import { revalidatePath } from 'next/cache'
 import type { RecurrenceFrequency, Priority, Visibility } from '@/lib/types/database'
 import { runRecurrences } from '@/lib/recurrence-run'
 import { generaSubito } from '@/lib/recurrence-kick'
+import { ruleLabel } from '@/lib/recurrence'
+import { notificaAssegnazione } from '@/lib/notify'
 
 async function requireStaff(): Promise<string> {
   const sb = await createClient()
@@ -41,6 +43,8 @@ export async function createRecurring(input: {
   workstream_id: string
   milestone_id: string
   title: string
+  /** §353 — i «Dettagli»: il motore li copia su ogni occorrenza */
+  description?: string | null
   frequency: RecurrenceFrequency
   interval?: number
   weekdays?: number[] | null
@@ -51,7 +55,7 @@ export async function createRecurring(input: {
   owner_id?: string | null
   priority?: Priority
   visibility?: Visibility
-}) {
+}): Promise<string> {
   const uid = await requireStaff()
   const { data, error } = await createAdminClient().from('recurring_task_templates').insert({
     client_id: input.client_id,
@@ -59,6 +63,7 @@ export async function createRecurring(input: {
     workstream_id: input.workstream_id,
     milestone_id: input.milestone_id,
     title: input.title.trim(),
+    description: input.description?.trim() || null,
     frequency: input.frequency,
     interval: input.interval ?? 1,
     weekdays: input.weekdays && input.weekdays.length ? input.weekdays : null,
@@ -80,8 +85,16 @@ export async function createRecurring(input: {
     created_by: uid,
   }).select('id').single()
   if (error) throw new Error(error.message)
-  await generaSubito({ taskTemplateId: String((data as { id: string }).id) })
+  const id = String((data as { id: string }).id)
+  await generaSubito({ taskTemplateId: id })
+  /* §350 — il motore non notifica (trenta occorrenze uguali seppellirebbero
+     tutto il resto): la regola si assegna una volta, e quella volta suona. */
+  await notificaAssegnazione({
+    destinatario: input.owner_id, autore: uid, titolo: input.title.trim(),
+    dettaglio: `si ripete ${ruleLabel({ ...input, start_date: input.start_date || new Date().toISOString().slice(0, 10) })}`,
+  })
   rev(input.project_id)
+  return id
 }
 
 export async function updateRecurring(id: string, projectId: string, updates: {

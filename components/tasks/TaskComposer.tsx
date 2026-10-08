@@ -9,6 +9,8 @@ import {
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import { createProjectTask } from '@/app/actions/tasks'
 import { createAdHocTask } from '@/app/actions/ad-hoc-tasks'
+import { createRecurring } from '@/app/actions/recurring'
+import { occurrencesBetween, ruleLabel, type RecurrenceRule } from '@/lib/recurrence'
 import { createClientQuick } from '@/app/actions/clients'
 import {
   ModalShell, Group, Field, Segmented, SearchInput, PickRow, Avatar, Empty, inputCls,
@@ -108,6 +110,15 @@ export function TaskComposer({
   const [priority, setPriority] = useState<Priority>('media')
   const [clientVisible, setClientVisible] = useState(false)
   const [again, setAgain] = useState(false)
+  /* §469 — «Si ripete»: la task diventa una regola (`recurring_task_templates`) e il
+     motore delle ricorrenze (§337) mette le occorrenze in «le mie attività».
+     La data che si scrive qui diventa la **fine del ciclo**, non la scadenza:
+     ogni occorrenza ha la sua. Solo sui progetti, perché il motore genera
+     dentro una milestone; e non sulle subtask, che vivono della loro madre. */
+  const oggi = new Date().toISOString().slice(0, 10)
+  const [repeat, setRepeat] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none')
+  const [repeatFrom, setRepeatFrom] = useState(oggi)
+  const [repeatDays, setRepeatDays] = useState<number[]>([])
 
   // cascata progetto → workstream → milestone (solo quando il dove si sceglie)
   const [ws, setWs] = useState<{ id: string; name: string }[]>([])
@@ -218,7 +229,23 @@ export function TaskComposer({
     : kind === 'project' ? (!!projectId && !!wsId && !!msId)
     : kind === 'cliente' ? (!!clientId && !noClient)
     : !!clientId
+  const canRepeat = kind === 'project' && !fixed?.parentTaskId
+  const repeating = canRepeat && repeat !== 'none'
+  const rule: RecurrenceRule | null = repeating ? {
+    frequency: repeat as RecurrenceRule['frequency'],
+    weekdays: repeat === 'weekly' && repeatDays.length ? repeatDays : null,
+    start_date: repeatFrom || oggi,
+    end_date: due || null,
+  } : null
+  const prossime = rule
+    ? occurrencesBetween(rule, rule.start_date,
+      new Date(Date.parse(`${rule.start_date}T00:00:00Z`) + 92 * 86400000).toISOString().slice(0, 10), 3)
+    : []
+  /* §346 — una regola senza responsabile resta ferma: il motore non fabbrica
+     lavoro di nessuno. Crearla così vorrebbe dire «l'ho messa» e non vederla
+     arrivare mai, quindi l'assegnatario qui è obbligatorio. */
   const canSubmit = !!title.trim() && destinationReady
+    && (!repeating || (!!assignee && prossime.length > 0))
 
   const Icon = fixed?.variant === 'subtask' ? CornerDownRight
     : fixed?.variant === 'continuous' ? Repeat
@@ -266,7 +293,19 @@ export function TaskComposer({
   const submit = () => start(async () => {
     try {
       let id: string
-      if (kind === 'project') {
+      if (rule) {
+        id = await createRecurring({
+          client_id: effectiveClientId,
+          project_id: fixed?.projectId ?? projectId,
+          workstream_id: fixed?.workstreamId ?? wsId,
+          milestone_id: fixed?.milestoneId ?? msId,
+          title: title.trim(), description: description.trim() || null,
+          frequency: rule.frequency, weekdays: rule.weekdays ?? null,
+          start_date: rule.start_date, end_date: rule.end_date ?? null,
+          owner_id: assignee, priority,
+          visibility: clientVisible ? 'client_visible' : 'internal',
+        })
+      } else if (kind === 'project') {
         id = await createProjectTask({
           client_id: effectiveClientId,
           project_id: fixed?.projectId ?? projectId,
@@ -287,7 +326,8 @@ export function TaskComposer({
           visibility: clientVisible ? 'client_visible' : 'internal',
         })
       }
-      toast.success(heading.replace('Nuova', 'Creata'))
+      toast.success(rule ? `Si ripete ${ruleLabel(rule)}` : heading.replace('Nuova', 'Creata'),
+        rule ? { description: `La prima è il ${fmtGiorno(prossime[0])}, in «le mie attività» di chi la riceve.` } : undefined)
       onCreated?.({
         id, kind, clientId: effectiveClientId,
         projectId: fixed?.projectId ?? projectId, workstreamId: fixed?.workstreamId ?? wsId,
@@ -478,6 +518,7 @@ export function TaskComposer({
           hint={kind === 'cliente'
             ? (contacts === null ? 'scegli prima il cliente'
               : contacts.length ? 'referente registrato' : 'nessun referente registrato')
+            : repeating ? (assignee ? 'riceve ogni occorrenza' : 'serve: senza, la serie non parte')
             : undefined}>
           <div className="flex items-center gap-2">
             {person && <Avatar name={person.full_name} url={person.avatar_url} />}
@@ -488,10 +529,64 @@ export function TaskComposer({
             </select>
           </div>
         </Field>
-        <Field label="Scadenza">
-          <input type="date" value={due} onChange={e => setDue(e.target.value)} className={inputCls} aria-label="Scadenza" />
+        <Field label={repeating ? 'Fino al' : 'Scadenza'} hint={repeating ? (due ? 'fine del ciclo' : 'vuota: senza fine') : undefined}>
+          <input type="date" value={due} onChange={e => setDue(e.target.value)} className={inputCls}
+            aria-label={repeating ? 'Fine del ciclo' : 'Scadenza'} />
         </Field>
       </div>
+
+      {/* non un <Field>: è un <label>, e un clic sull'anteprima premerebbe «No» */}
+      {canRepeat && (
+        <div>
+          <span className="block text-2xs font-semibold text-text-secondary mb-1.5">Si ripete</span>
+          <Segmented ariaLabel="Ripetizione" value={repeat}
+            onChange={v => {
+              setRepeat(v)
+              /* passando a «si ripete» la scadenza scritta prima non è la fine
+                 del ciclo: tenerla chiuderebbe la serie lo stesso giorno */
+              if (v !== 'none' && repeat === 'none' && due && due <= (repeatFrom || oggi)) setDue('')
+            }}
+            options={[
+              { value: 'none', label: 'No' }, { value: 'daily', label: 'Ogni giorno' },
+              { value: 'weekly', label: 'Ogni settimana' }, { value: 'monthly', label: 'Ogni mese' },
+            ]} />
+          {repeating && (
+            <div className="mt-2 space-y-2">
+              {repeat === 'weekly' && (
+                <div className="flex items-center gap-1 flex-wrap" role="group" aria-label="Giorni della settimana">
+                  {GIORNI_BREVI.map(([lab, n]) => {
+                    const on = repeatDays.length ? repeatDays.includes(n)
+                      : new Date(`${repeatFrom || oggi}T00:00:00Z`).getUTCDay() === n
+                    return (
+                      <button key={n} type="button" aria-pressed={on}
+                        onClick={() => setRepeatDays(prev => {
+                          const base = prev.length ? prev : [new Date(`${repeatFrom || oggi}T00:00:00Z`).getUTCDay()]
+                          return base.includes(n) ? base.filter(x => x !== n) : [...base, n]
+                        })}
+                        className={`text-2xs font-semibold px-2 py-1 rounded-lg border ${on ? 'bg-gold text-on-gold border-gold' : 'border-border text-text-secondary hover:bg-surface-hover'}`}>
+                        {lab}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+              <label className="flex items-center gap-2 text-2xs text-text-tertiary">Dal
+                <input type="date" value={repeatFrom} onChange={e => setRepeatFrom(e.target.value)}
+                  aria-label="Prima occorrenza" className={`${inputCls} flex-1`} />
+              </label>
+              <p className="text-2xs text-text-tertiary bg-surface border border-border rounded-lg px-2.5 py-1.5">
+                {prossime.length === 0
+                  ? <span className="text-warning">Così non cade nessuna data: controlla «Dal» e «Fino al».</span>
+                  : <>
+                    <strong className="text-text-secondary">{ruleLabel(rule!)}</strong>
+                    {' · '}prossime: {prossime.map(fmtGiorno).join(' · ')}
+                    {' · '}arrivano da sole nelle attività di chi la riceve, ognuna con la sua data.
+                  </>}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {kind === 'cliente' && (
         <Field label="Chi la presidia, da noi" hint="secondo livello: controlla che arrivi">
@@ -540,6 +635,11 @@ export function TaskComposer({
     </ModalShell>
   )
 }
+
+const GIORNI_BREVI: [string, number][] = [['Lun', 1], ['Mar', 2], ['Mer', 3], ['Gio', 4], ['Ven', 5], ['Sab', 6], ['Dom', 0]]
+
+const fmtGiorno = (d: string) =>
+  new Date(`${d}T00:00:00`).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
 
 function Skeleton() {
   return <div className="space-y-1.5">{[0, 1].map(i => <div key={i} className="h-11 rounded-xl bg-surface-active animate-pulse" />)}</div>
