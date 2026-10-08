@@ -11,6 +11,7 @@ import { SPACE_LABEL, autoreTesto, crumbsOf, extensionBadge, folderLine } from '
 import type { ClientMaterial, Crumb, FolderSummary, Space } from '@/lib/portal/explorer'
 import { MaterialThumb } from '@/components/shared/MaterialThumb'
 import type { UploadJob } from './uploads'
+import { UploadCourt, jobBadge, useReducedMotion, useShots } from './UploadCourt'
 
 /* §416 — I pezzi dell'esploratore. Nessuna decisione qui dentro: chi può fare
    cosa lo decide `ClientFileArea`, che passa a ogni riga le voci del suo menu. */
@@ -250,11 +251,55 @@ export function UploadPanel({ jobs, active, opening, totals, onCancel, onDismiss
   if (opening) return <div role="status" aria-live="polite" className="flex items-center gap-2 rounded-xl border border-border bg-surface p-3 text-2xs text-text-secondary">
     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Apro lo zip: i file che contiene diventano una cartella.
   </div>
+  return <UploadSummary jobs={jobs} active={active} totals={totals} onCancel={onCancel} onDismiss={onDismiss} />
+}
+
+const JOB_STATE: Record<UploadJob['status'], string> = {
+  attesa: 'In coda', invio: '', fatto: 'Caricato', errore: 'Non caricato', annullato: 'Annullato',
+}
+
+function JobRow({ job }: { job: UploadJob }) {
+  const percent = job.status === 'fatto' ? 100 : job.size ? Math.min(100, Math.round((job.loaded / job.size) * 100)) : 0
+  const bar = job.status === 'fatto' ? 'bg-success' : job.status === 'errore' ? 'bg-error' : job.status === 'annullato' ? 'bg-border-strong' : 'bg-gold'
+  return <li className="animate-slide-up rounded-lg border border-border bg-background px-2.5 py-2">
+    <div className="flex items-center gap-2">
+      <span className="shrink-0 rounded bg-gold-dim px-1.5 text-2xs font-bold leading-5 text-gold-text">{jobBadge(job)}</span>
+      <span className="min-w-0 flex-1 truncate text-2xs font-semibold text-text-primary" title={job.name}>{job.name}</span>
+      <span className={`shrink-0 text-2xs ${job.status === 'fatto' ? 'text-success' : job.status === 'errore' ? 'text-error' : 'text-text-secondary'}`}>
+        {job.status === 'invio' ? `${percent}%` : JOB_STATE[job.status]}
+      </span>
+    </div>
+    <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-surface-hover">
+      <div className={`h-full rounded-full transition-[width] duration-300 ${bar}`} style={{ width: `${job.status === 'errore' ? 100 : percent}%` }} />
+    </div>
+    <p className="mt-1 flex gap-2 text-2xs">
+      <span className={`min-w-0 flex-1 ${job.status === 'errore' ? 'text-error' : 'text-text-tertiary'}`}>
+        {job.status === 'errore' ? job.error : job.status === 'fatto' ? 'Nell’area del cliente' : job.path ? `In «${job.path.split('/').pop()}»` : ''}
+      </span>
+      <span className="shrink-0 text-text-tertiary">{humanBytes(job.size)}</span>
+    </p>
+  </li>
+}
+
+/* §468 — Prima c'era solo la barra del totale: con tre file non si sapeva
+   quale fosse fermo. Ogni file ha la sua riga, che entra quando il suo tiro
+   è finito nel canestro (vedi `UploadCourt`). */
+function UploadSummary({ jobs, active, totals, onCancel, onDismiss }: {
+  jobs: UploadJob[]
+  active: boolean
+  totals: { bytes: number; loaded: number; done: number; failed: number; cancelled: number }
+  onCancel: () => void
+  onDismiss: () => void
+}) {
+  const reduced = useReducedMotion()
+  const shots = useShots(jobs, !reduced)
   if (!jobs.length) return null
   const failed = jobs.filter(job => job.status === 'errore')
   const counted = jobs.length - failed.filter(job => !job.loaded).length
   const percent = totals.bytes ? Math.min(100, Math.round((totals.loaded / totals.bytes) * 100)) : 100
-  return <div role="status" aria-live="polite" className="rounded-xl border border-border bg-surface p-3">
+  const court = !reduced && (active || shots.busy)
+  const landed = jobs.filter(job => !shots.airborne.has(job.key))
+  return <div role="status" aria-live="polite" className="animate-fade-in rounded-xl border border-border bg-surface p-3">
     <div className="flex flex-wrap items-center gap-2">
       {active && <Loader2 className="h-4 w-4 animate-spin text-text-secondary" aria-hidden="true" />}
       <p className="min-w-0 flex-1 text-2xs text-text-secondary">
@@ -268,14 +313,16 @@ export function UploadPanel({ jobs, active, opening, totals, onCancel, onDismiss
             <X className="h-4 w-4" aria-hidden="true" />
           </button>}
     </div>
-    {active && <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-hover">
+    {active && jobs.length > 1 && <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-hover">
       <div className="h-full rounded-full bg-gold transition-[width]" style={{ width: `${percent}%` }} />
     </div>}
-    {!!failed.length && <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto">
-      {failed.map(job => <li key={job.key} className="text-2xs">
-        <span className="font-semibold text-text-primary">{job.name}</span>
-        <span className="text-error"> — {job.error}</span>
-      </li>)}
+    {!reduced && <div className={`grid transition-[grid-template-rows,margin] duration-500 ease-snap ${court ? 'mt-3 grid-rows-[1fr]' : 'mt-0 grid-rows-[0fr]'}`}>
+      <div className="min-h-0 overflow-hidden">
+        <UploadCourt flying={shots.flying} busy={shots.busy} land={shots.land} />
+      </div>
+    </div>}
+    {!!landed.length && <ul className="mt-2 max-h-64 space-y-1.5 overflow-y-auto">
+      {landed.map(job => <JobRow key={job.key} job={job} />)}
     </ul>}
   </div>
 }

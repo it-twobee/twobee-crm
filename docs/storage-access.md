@@ -295,6 +295,26 @@ check.
 - **I caricamenti** partono tre alla volta, hanno un avanzamento totale e il
   bottone Annulla, e gli errori si raccolgono in un riepilogo. Prima il primo
   errore fermava tutto, e ne restava scritto solo uno.
+- **Il canestro** (§468, `UploadCourt.tsx`). Scelti i file, ognuno parte in
+  basso a sinistra e finisce nella retina; poi la sua riga entra nel pannello,
+  con la barra **del singolo file** — con la sola barra del totale non si
+  sapeva quale dei tre fosse fermo. Il file già scartato in partenza (troppo
+  grande, tipo vietato, spazio finito) prende il ferro e cade fuori, e la sua
+  riga dice perché. Regole:
+  - **L'animazione non trattiene niente**: l'invio parte subito, i tiri sono
+    solo un contorno. Una riga resta nascosta finché il suo file è per aria,
+    al massimo `durata + 1,5 s` (il ripiego vale anche se il browser non chiude
+    l'animazione, per esempio in una scheda in background).
+  - **La traiettoria è una parabola vera**: Bézier quadratica col parametro
+    lineare, cioè velocità orizzontale costante e gravità costante; il
+    secondo tratto parte lungo la tangente d'arrivo, quindi non c'è spigolo
+    fra il volo e la caduta nella retina. La scena sta al centro e non supera
+    i 260 px: più larga, il tiro diventa radente ed entra di lato.
+  - Oltre **dodici** file il resto parte in un tiro solo, «+N»: una cartella
+    da trecento file non è una partita.
+  - Con `prefers-reduced-motion` il campo non c'è proprio: restano le righe.
+  - Colori dai token (`--color-gold-text` per ferro e tabellone, che in tema
+    chiaro scurisce): un `#hex` nello SVG non segue il tema.
 - **Ordine**: data (default, i più recenti prima), nome (i numeri contano come
   numeri, «9» prima di «10»), dimensione. Le cartelle stanno sempre sopra: per
   data le ordina il loro ultimo caricamento, e una cartella vuota va in fondo.
