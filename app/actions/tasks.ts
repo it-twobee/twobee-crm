@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient, createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import { notificaAssegnazione } from '@/lib/notify'
+import { scriviAssegnatari, elencoAssegnatari } from '@/lib/task-assignees'
 import type { TaskStatusV2, Priority, Visibility } from '@/lib/types/database'
 
 async function requireStaff(): Promise<string> {
@@ -26,6 +26,8 @@ export async function createProjectTask(input: {
   description?: string | null
   priority?: Priority
   assignee_id?: string | null
+  /** più persone già alla nascita: il primo è il primario */
+  assignee_ids?: string[]
   due_date?: string | null
   visibility?: Visibility
   parent_task_id?: string | null
@@ -43,18 +45,13 @@ export async function createProjectTask(input: {
     created_by: uid,
   }).select('id').single()
   if (error) throw new Error(error.message)
-  if (input.assignee_id) {
-    /* §347 — chi ha assegnato, anche da qui: era l'unico percorso di creazione
-       che scriveva il ponte senza autore, e una task nata assegnata è
-       esattamente quella per cui si va a cercare a chi chiedere. */
-    const { error: e2 } = await admin.from('task_assignees')
-      .insert({ task_id: data.id, profile_id: input.assignee_id, is_primary_owner: true, assigned_by: uid })
-    if (e2) throw new Error(e2.message)
-    // §350 — e chi la riceve lo deve sapere adesso, non al prossimo ricarico
-    await notificaAssegnazione({
-      destinatario: input.assignee_id, autore: uid, titolo: input.title.trim(), db: admin,
-    })
-  }
+  /* §347 — chi ha assegnato, anche da qui; §350 — e chi la riceve lo sa adesso.
+     §470 — tutte le persone insieme: prima se ne sceglieva una, si salvava e si
+     riapriva per aggiungere la seconda. */
+  await scriviAssegnatari(admin, {
+    taskId: data.id, ids: elencoAssegnatari(input.assignee_id, input.assignee_ids),
+    autore: uid, titolo: input.title.trim(),
+  })
   revalidatePath(`/progetti/${input.project_id}`)
   return data.id as string
 }
@@ -93,21 +90,11 @@ export async function setTaskAssignees(taskId: string, profileIds: string[], pri
   const { error: del } = await admin.from('task_assignees').delete().eq('task_id', taskId)
   if (del) throw new Error(del.message)
   if (profileIds.length) {
-    const primary = primaryId && profileIds.includes(primaryId) ? primaryId : profileIds[0]
-    // §347 — chi ha assegnato, non chi ha creato la task: sono due domande, e
-    // la seconda non risponde alla prima quando il lavoro cambia mano
-    const rows = profileIds.map(pid => ({
-      task_id: taskId, profile_id: pid, is_primary_owner: pid === primary, assigned_by: uid,
-    }))
-    const { error } = await admin.from('task_assignees').insert(rows)
-    if (error) throw new Error(error.message)
-    /* §350 — uno per uno, e mai a chi ha premuto: assegnare tre persone manda
-       tre notifiche, non tre a testa. */
     const { data: t } = await admin.from('tasks').select('title').eq('id', taskId).maybeSingle()
-    const titolo = (t as { title?: string } | null)?.title ?? 'Task assegnata'
-    for (const pid of profileIds) {
-      await notificaAssegnazione({ destinatario: pid, autore: uid, titolo, db: admin })
-    }
+    await scriviAssegnatari(admin, {
+      taskId, ids: elencoAssegnatari(profileIds), primario: primaryId, autore: uid,
+      titolo: (t as { title?: string } | null)?.title ?? 'Task assegnata',
+    })
   } else {
     // nessun assegnatario: azzera il primario (il trigger scatta solo su task_assignees)
     const { error } = await admin.from('tasks').update({ assignee_id: null }).eq('id', taskId)

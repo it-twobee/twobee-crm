@@ -752,6 +752,26 @@ la stessa cosa: «ogni quanto si ripete, e fino a quando».
 Resta la finestra del motore: una giornaliera mette **sette** righe davanti,
 non una alla volta. È la scelta di §346 e non si cambia da qui.
 
+## Più assegnatari alla nascita (§470)
+
+Il composer aveva una tendina sola: per dare la task a due persone si creava,
+si riapriva e si aggiungeva la seconda. Adesso le persone scelte sono chip, e
+sotto resta «+ aggiungi un'altra persona»; la prima è la principale
+(`tasks.assignee_id`). `createProjectTask` e `createAdHocTask` accettano
+`assignee_ids`.
+
+- **La scrittura è una**: `scriviAssegnatari` in `lib/task-assignees.ts` — il
+  ponte con l'autore (§347) e una notifica a testa (§350). La usano le due
+  creazioni e `setTaskAssignees`, che prima se la scrivevano ognuna da sé. Non
+  è un file `'use server'`: è un pezzo delle azioni, non un endpoint (§329).
+- **La task al cliente resta a una persona**: è il referente che la deve fare,
+  e il presidio nostro è il campo a parte.
+- **Una serie ha un responsabile solo** (`recurring_task_templates.owner_id`):
+  con «si ripete» e due persone scelte il pulsante resta spento e lo dice.
+  Togliere in silenzio la seconda farebbe credere di averla assegnata.
+- **Il blocco non è un `<Field>`**: `Field` è un `<label>`, e un clic
+  sull'etichetta premeva la × del primo chip.
+
 ## La sezione Task mostra anche le milestone (§346)
 
 Una milestone non compariva in **nessun** elenco di lavoro: non nella sezione

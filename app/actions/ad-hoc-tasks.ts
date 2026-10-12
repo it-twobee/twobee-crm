@@ -5,6 +5,7 @@ import { createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { notificaAssegnazione } from '@/lib/notify'
 import { SUPERVISOR_ROLE } from '@/lib/task-roles'
+import { scriviAssegnatari, elencoAssegnatari } from '@/lib/task-assignees'
 import type { TaskStatusV2, Priority, Visibility } from '@/lib/types/database'
 
 async function requireStaff(): Promise<string> {
@@ -27,6 +28,8 @@ export async function createAdHocTask(input: {
   client_id: string | null
   title: string
   assignee_id?: string | null
+  /** più persone già alla nascita: il primo è il primario */
+  assignee_ids?: string[]
   due_date?: string | null
   priority?: Priority
   visibility?: Visibility
@@ -53,21 +56,13 @@ export async function createAdHocTask(input: {
   }).select('id').single()
   if (error) throw new Error(error.message)
 
-  // assegnatario primario via task_assignees (il trigger sincronizza tasks.assignee_id)
-  if (input.assignee_id) {
-    const { error: e2 } = await admin.from('task_assignees')
-      // §347 — chi ha deciso che la facesse lei: senza, chi la riceve non sa a
-      // chi chiedere spiegazioni, e `created_by` risponde a un'altra domanda
-      .insert({ task_id: data.id, profile_id: input.assignee_id, is_primary_owner: true, assigned_by: uid })
-    if (e2) throw new Error(e2.message)
-    // §350 — chi la riceve deve saperlo adesso, non al prossimo ricarico
-    await notificaAssegnazione({
-      destinatario: input.assignee_id, autore: uid, titolo: input.title.trim(), db: admin,
-    })
-  }
+  // assegnatari via task_assignees (il trigger sincronizza tasks.assignee_id);
+  // §470 — tutti alla nascita, non uno e poi «riapri e aggiungi»
+  const ids = elencoAssegnatari(input.assignee_id, input.assignee_ids)
+  await scriviAssegnatari(admin, { taskId: data.id, ids, autore: uid, titolo: input.title.trim() })
   // il supervisore non è il titolare: resta secondo livello, così tasks.assignee_id
   // continua a puntare a chi la deve fare davvero
-  if (input.supervisor_id && input.supervisor_id !== input.assignee_id) {
+  if (input.supervisor_id && !ids.includes(input.supervisor_id)) {
     const { error: e3 } = await admin.from('task_assignees').insert({
       task_id: data.id, profile_id: input.supervisor_id,
       is_primary_owner: false, role_in_task: SUPERVISOR_ROLE, assigned_by: uid,

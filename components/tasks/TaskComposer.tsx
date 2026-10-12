@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useTransition } from 'react'
 import { toast } from 'sonner'
 import {
   CheckSquare, CornerDownRight, Repeat, Briefcase, FolderTree, Flag,
-  Eye, EyeOff, ListTodo, Building2, ShieldCheck, CircleSlash, UserPlus, Sprout,
+  Eye, EyeOff, ListTodo, Building2, ShieldCheck, CircleSlash, UserPlus, Sprout, X,
 } from 'lucide-react'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import { createProjectTask } from '@/app/actions/tasks'
@@ -104,7 +104,10 @@ export function TaskComposer({
      dopo, aprendo il dettaglio, vuol dire non averli mai — il contesto finisce
      nel titolo e chi la riceve legge una riga lunga il doppio e incompleta. */
   const [description, setDescription] = useState('')
-  const [assignee, setAssignee] = useState('')
+  /* §470 — più persone già qui: prima se ne sceglieva una, si salvava e si
+     riapriva la task per aggiungere la seconda. Il primo è il primario. */
+  const [assignees, setAssignees] = useState<string[]>([])
+  const assignee = assignees[0] ?? ''
   const [supervisor, setSupervisor] = useState('')
   const [due, setDue] = useState(fixed?.defaultDue ?? '')
   const [priority, setPriority] = useState<Priority>('media')
@@ -194,7 +197,7 @@ export function TaskComposer({
 
   // il primo referente è il titolare naturale
   useEffect(() => {
-    if (kind === 'cliente' && contacts && contacts.length && !assignee) setAssignee(contacts[0].id)
+    if (kind === 'cliente' && contacts && contacts.length && !assignee) setAssignees([contacts[0].id])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, contacts])
 
@@ -243,9 +246,19 @@ export function TaskComposer({
     : []
   /* §346 — una regola senza responsabile resta ferma: il motore non fabbrica
      lavoro di nessuno. Crearla così vorrebbe dire «l'ho messa» e non vederla
-     arrivare mai, quindi l'assegnatario qui è obbligatorio. */
+     arrivare mai, quindi l'assegnatario qui è obbligatorio. E uno solo: la
+     serie ha un `owner_id`, e togliere in silenzio gli altri vorrebbe dire
+     che chi li ha scelti crede di averli assegnati. */
+  const troppiPerSerie = repeating && assignees.length > 1
   const canSubmit = !!title.trim() && destinationReady
-    && (!repeating || (!!assignee && prossime.length > 0))
+    && (!repeating || (assignees.length === 1 && prossime.length > 0))
+  const scelti = assignees
+    .map(id => assigneeOptions.find(p => p.id === id))
+    .filter((p): p is Person => !!p)
+  const hintAssegnatari = repeating
+    ? (troppiPerSerie ? 'una serie ha un responsabile solo: lasciane uno'
+      : assignee ? 'riceve ogni occorrenza' : 'serve: senza, la serie non parte')
+    : scelti.length > 1 ? 'il primo è il principale' : undefined
 
   const Icon = fixed?.variant === 'subtask' ? CornerDownRight
     : fixed?.variant === 'continuous' ? Repeat
@@ -313,14 +326,14 @@ export function TaskComposer({
           milestone_id: fixed?.milestoneId ?? msId,
           parent_task_id: fixed?.parentTaskId ?? null,
           title: title.trim(), description: description.trim() || null,
-          assignee_id: assignee || null, due_date: due || null,
+          assignee_ids: assignees, due_date: due || null,
           priority, visibility: clientVisible ? 'client_visible' : 'internal',
         })
       } else {
         id = await createAdHocTask({
           client_id: effectiveClientId, task_type: kind === 'cliente' ? 'cliente' : 'ad_hoc',
           title: title.trim(), description: description.trim() || null,
-          assignee_id: assignee || null,
+          assignee_ids: assignees,
           supervisor_id: kind === 'cliente' ? (supervisor || null) : null,
           due_date: due || null, priority,
           visibility: clientVisible ? 'client_visible' : 'internal',
@@ -347,7 +360,7 @@ export function TaskComposer({
         <div>
           <Segmented ariaLabel="Tipo di task" value={kind}
             onChange={k => {
-              setKind(k); setQ(''); setAssignee(''); setSupervisor('')
+              setKind(k); setQ(''); setAssignees([]); setSupervisor('')
               /* §321 — «nessun cliente» vale solo per una task nostra: passando
                  a «Al cliente» resterebbe scelto un cliente che non esiste, con
                  Crea spento e niente che lo spieghi. Si torna a chiedere. */
@@ -415,10 +428,10 @@ export function TaskComposer({
 
       {pick && kind !== 'project' && (
         <Group label="Cliente" meta={clientId
-          ? <button type="button" onClick={() => { setClientId(''); setAssignee('') }} className="text-2xs font-semibold text-gold-text">Cambia</button>
+          ? <button type="button" onClick={() => { setClientId(''); setAssignees([]) }} className="text-2xs font-semibold text-gold-text">Cambia</button>
           : undefined}>
           {clientId && (noClient || client) ? (
-            <PickRow selected onClick={() => { setClientId(''); setAssignee('') }}
+            <PickRow selected onClick={() => { setClientId(''); setAssignees([]) }}
               icon={noClient
                 ? <span className="w-8 h-8 rounded-full bg-surface-active flex items-center justify-center shrink-0">
                     <CircleSlash className="w-4 h-4 text-text-tertiary" />
@@ -513,22 +526,54 @@ export function TaskComposer({
       </Field>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field
-          label={kind === 'cliente' ? 'Chi la deve fare, lato cliente' : 'Assegnatario'}
-          hint={kind === 'cliente'
-            ? (contacts === null ? 'scegli prima il cliente'
-              : contacts.length ? 'referente registrato' : 'nessun referente registrato')
-            : repeating ? (assignee ? 'riceve ogni occorrenza' : 'serve: senza, la serie non parte')
-            : undefined}>
-          <div className="flex items-center gap-2">
-            {person && <Avatar name={person.full_name} url={person.avatar_url} />}
-            <select value={assignee} onChange={e => setAssignee(e.target.value)} className={inputCls}
-              aria-label="Assegnatario" disabled={kind === 'cliente' && !assigneeOptions.length}>
-              <option value="">— nessuno —</option>
-              {assigneeOptions.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+        {kind === 'cliente' ? (
+          <Field label="Chi la deve fare, lato cliente"
+            hint={contacts === null ? 'scegli prima il cliente'
+              : contacts.length ? 'referente registrato' : 'nessun referente registrato'}>
+            <div className="flex items-center gap-2">
+              {person && <Avatar name={person.full_name} url={person.avatar_url} />}
+              <select value={assignee} onChange={e => setAssignees(e.target.value ? [e.target.value] : [])} className={inputCls}
+                aria-label="Assegnatario" disabled={!assigneeOptions.length}>
+                <option value="">— nessuno —</option>
+                {assigneeOptions.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+              </select>
+            </div>
+          </Field>
+        ) : (
+          /* non un <Field>: è un <label>, e un clic sull'etichetta premerebbe
+             la × del primo chip, togliendo la persona senza volerlo */
+          <div>
+            <span className="flex items-baseline gap-2 mb-1.5">
+              <span className="text-2xs font-semibold text-text-secondary">Assegnatari</span>
+              {hintAssegnatari && (
+                <span className={`text-2xs ${troppiPerSerie ? 'text-warning' : 'text-text-tertiary'}`}>{hintAssegnatari}</span>
+              )}
+            </span>
+            {scelti.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-1.5">
+                {scelti.map((p, i) => (
+                  <span key={p.id} title={i === 0 && scelti.length > 1 ? 'Principale' : undefined}
+                    className="flex items-center gap-1.5 pl-1 pr-1.5 py-0.5 rounded-full border border-border bg-surface text-2xs text-text-primary min-w-0">
+                    <Avatar name={p.full_name} url={p.avatar_url} size={20} />
+                    <span className="truncate">{p.full_name}</span>
+                    <button type="button" aria-label={`Togli ${p.full_name}`}
+                      onClick={() => setAssignees(a => a.filter(x => x !== p.id))}
+                      className="text-text-tertiary hover:text-error shrink-0">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <select value="" className={inputCls}
+              onChange={e => { const v = e.target.value; if (v) setAssignees(a => a.includes(v) ? a : [...a, v]) }}
+              aria-label={scelti.length ? 'Aggiungi un\'altra persona' : 'Assegnatario'}>
+              <option value="">{scelti.length ? '+ aggiungi un\'altra persona' : 'Scegli chi la fa…'}</option>
+              {assigneeOptions.filter(p => !assignees.includes(p.id))
+                .map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
             </select>
           </div>
-        </Field>
+        )}
         <Field label={repeating ? 'Fino al' : 'Scadenza'} hint={repeating ? (due ? 'fine del ciclo' : 'vuota: senza fine') : undefined}>
           <input type="date" value={due} onChange={e => setDue(e.target.value)} className={inputCls}
             aria-label={repeating ? 'Fine del ciclo' : 'Scadenza'} />
