@@ -1043,6 +1043,14 @@ diventare cliente.
 
 Gate: `npx tsx lib/sales-vicinanza.check.ts`.
 
+## QR per la rubrica — §471, `lib/sales-vcard.ts`
+
+In cima alla scheda del lead, sopra la prossima azione, c'è il QR di una vCard
+(`QrContatto`): la fotocamera del telefono propone «Aggiungi ai contatti». Senza
+nome e senza telefono o email il QR **non c'è** e la scheda lo dice: un codice
+di un contatto vuoto sembrerebbe valido. Bianco su nero fisso, non a token: in
+tema scuro un QR a colori non si legge. Gate: `npx tsx lib/sales-vcard.check.ts`.
+
 ## Aperto
 
 - **La RLS non conosceva `deal_owners`**: `sales_can_read` (223) guardava solo

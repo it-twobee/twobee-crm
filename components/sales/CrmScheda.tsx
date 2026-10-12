@@ -28,6 +28,7 @@ import { MenuFase } from './MenuFase'
 import { useFasi } from './FasiContext'
 import { campiCheServono, prossimaAzione, suggerimenti } from '@/lib/sales-scheda'
 import type { PersonaCrm, RigaCrm } from './CrmTable'
+import { QrContatto } from './QrContatto'
 import { CrmTimeline, TimelineProvider, UltimoContatto } from './CrmTimeline'
 import type { Derivati } from '@/lib/sales-timeline'
 
@@ -247,6 +248,8 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pend
             elenco che non si fa. L'ordine è quello del danno — un lead senza
             recapito non si lavora, e dirgli «qualificalo» prima sarebbe un
             consiglio che non si può seguire. */}
+        <QrContatto riga={riga} />
+
         {azione && (
           <div className={`flex items-start gap-2 px-3 py-2.5 rounded-xl border text-xs ${
             azione.urgente
