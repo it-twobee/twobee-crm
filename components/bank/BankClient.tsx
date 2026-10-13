@@ -2003,6 +2003,7 @@ function CreateCost({ tx, centers, pending, run }: {
           const r = await createCostFromTx({
             txIds: [tx.id], month: `${tx.booked_on.slice(0, 7)}-01`, category: area,
           })
+          if ('errore' in r) { toast.error(r.errore); return }
           toast.success(`Voce creata in «${area}» per ${eur(r.importo)} e agganciata`)
         })}
         disabled={pending}

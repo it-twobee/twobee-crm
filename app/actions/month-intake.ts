@@ -242,7 +242,8 @@ export async function applyIntake(month: string, decisions: IntakeDecision[]): P
          voce col lordo del movimento e gliela aggancia. Riscriverlo qui avrebbe
          creato la seconda copia della stessa regola. */
       const r = await createCostFromTx({ txIds: [d.txId], month, category: d.category, label: d.label })
-      creati++; totale = r2(totale + Number(r.importo ?? 0))
+      if ('errore' in r) throw new Error(r.errore)
+      creati++; totale = r2(totale + r.importo)
     } catch (e) {
       falliti.push({ txId: d.txId, why: e instanceof Error ? e.message : 'Errore' })
     }
