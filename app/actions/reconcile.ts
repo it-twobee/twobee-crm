@@ -278,14 +278,14 @@ export async function createCostFromTx(input: {
   month: string
   category: string
   label?: string
-}): Promise<{ lineId: string; importo: number } | { errore: string }> {
+}): Promise<{ lineId: string; importo: number } | { errore: string; daAprire?: string }> {
   const uid = await requireAdmin()
   const admin = createAdminClient()
   if (!input.txIds.length) return { errore: 'Nessun movimento selezionato' }
 
   const { data: monthRow } = await admin.from('pl_months')
     .select('id, status').eq('month', input.month).maybeSingle()
-  if (!monthRow) return { errore: 'Il mese non è ancora aperto: aprilo dal conto economico, poi crea la voce' }
+  if (!monthRow) return { errore: 'Il mese non è ancora aperto', daAprire: input.month }
   if ((monthRow as { status: string }).status === 'chiuso') {
     return { errore: 'Il mese è chiuso: riaprilo per aggiungere una voce' }
   }
