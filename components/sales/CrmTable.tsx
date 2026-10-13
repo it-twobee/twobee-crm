@@ -26,7 +26,7 @@
 
 import { useState, useMemo, useTransition, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
-import { Loader2, RefreshCw, BarChart3, List, Columns3, Table2, ShieldCheck, Plus, Trash2, ChevronRight, Bell } from 'lucide-react'
+import { Loader2, RefreshCw, BarChart3, List, Columns3, Table2, ShieldCheck, Plus, Trash2, ChevronRight } from 'lucide-react'
 
 import { ETICHETTA_GRUPPO, GRUPPI, gruppoDi, type Gruppo } from '@/lib/sales-stages'
 import { useFasi } from './FasiContext'
@@ -87,7 +87,7 @@ function quando(v: unknown): string {
 const MEMORIA = 'twobee-crm-elenco'
 const GRUPPI_AMMESSI = ['tutti', ...GRUPPI]
 
-export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [], puoiAssegnare = false, io, puoiEsportare = false, fasiDaSegnare = [] }: {
+export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [], puoiAssegnare = false, io, puoiEsportare = false }: {
   righe: RigaCrm[]
   /** §441 — super admin, founder e admin */
   puoiEsportare?: boolean
@@ -99,7 +99,6 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
   /** §378 — admin e manager. Chi non può non vede le caselle, non le vede spente */
   puoiEliminare?: boolean
   /** §461 — fasi da segnare con la campanella (solo super admin): chi è lì aspetta un richiamo */
-  fasiDaSegnare?: string[]
 }) {
   const { TUTTE, FASI, etichettaFase, faseConRuolo, etichettaScelta, ORDINI } = useFasi()
   const [righe, setRighe] = useState(iniziali)
@@ -459,9 +458,6 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
                   <span className="flex items-center gap-2 mt-px">
                     <span className={`text-2xs shrink-0 tabular ${!sentito ? 'text-text-tertiary' : fermo ? 'text-warning' : 'text-text-secondary'}`}
                       title={sentito ? 'Ultimo contatto' : undefined}>
-                      {fasiDaSegnare.includes(String(r.stage)) && (
-                        <Bell className="inline w-3 h-3 mr-1 -mt-0.5 text-warning" aria-label="Da richiamare" />
-                      )}
                       {sentito ? `Sentito ${sentito.charAt(0).toLowerCase()}${sentito.slice(1)}` : 'Mai sentito'}
                       {tentativi > 0 && <span className="text-warning"> · {tentativi} a vuoto</span>}
                       {richiamo && <span className="text-gold-text"> · richiamo {richiamo.charAt(0).toLowerCase()}{richiamo.slice(1)}</span>}

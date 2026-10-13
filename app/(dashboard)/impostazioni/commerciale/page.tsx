@@ -8,8 +8,6 @@ import { ElencoVociClient } from '@/components/impostazioni/ElencoVociClient'
 import type { Motivo } from '@/lib/sales-motivi'
 import { leggiCampi, leggiScelte } from '@/lib/sales-fasi'
 import { CampiPersonalizzatiClient } from '@/components/impostazioni/CampiPersonalizzatiClient'
-import { RegoleStatoClient } from '@/components/impostazioni/RegoleStatoClient'
-import type { RegolaStato } from '@/lib/sales-regole-stato'
 import { AccessoCommercialeClient, type PersonaAccesso } from '@/components/impostazioni/AccessoCommercialeClient'
 import { WORKSPACE_ROLES } from '@/lib/permissions'
 import type { AppRole } from '@/lib/types/database'
@@ -48,8 +46,6 @@ export default async function ConfigCommercialePage() {
     piu(perPriorita, r.priority)
     piu(perMembership, r.membership)
   }
-  /* §461 — tollerante: prima della migration la tabella non c'è e il pannello sparisce */
-  const { data: regole } = await db.from('sales_regole_stato').select('chiave, etichetta, fase, avvisa, ordine').order('ordine')
   const [scelte, campi, { data: extra }] = await Promise.all([
     leggiScelte(),
     leggiCampi(),
@@ -69,7 +65,6 @@ export default async function ConfigCommercialePage() {
   return (
     <div className="p-4 sm:p-6 space-y-10">
       <FasiCommercialiClient fasi={fasi} conta={conta} />
-      {regole?.length ? <RegoleStatoClient regole={regole as RegolaStato[]} fasi={fasi} /> : null}
       <ElencoVociClient tipo="motivi" titolo="Motivi del perso" icona={icona(Ban)} colonnaConta="Persi"
         segnaposto="Perché si è chiuso" voci={(motivi ?? []) as Motivo[]} conta={perMotivo}
         spiega="Le risposte fra cui si sceglie quando un lead si chiude senza esito, e le righe di «perché perdiamo». Un motivo già usato non si elimina: si ritira, e resta scritto sui persi che lo hanno." />
