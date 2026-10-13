@@ -787,10 +787,24 @@ export function BankClient({
                       ))}
                     </div>
                   ) : (
-                    <p className="text-2xs text-text-tertiary mt-1.5">
-                      Nessuna riga aperta con questo importo. Se è un costo che non è a piano, registralo
-                      prima nel conto economico del suo mese.
-                    </p>
+                    /* Un'uscita senza riga aperta non va registrata a mano prima:
+                       la voce nasce dal movimento, nel mese in cui è uscita, e le
+                       si aggancia nello stesso gesto (§254, `createCostFromTx`).
+                       Le entrate no: i ricavi si leggono dai contratti. */
+                    t.amount < 0 && (t.source === 'banca' || t.source === 'manuale') ? (
+                      <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                        <p className="text-2xs text-text-tertiary">
+                          Nessuna riga aperta con questo importo: aggiungila al conto economico di{' '}
+                          {monthLabel(`${t.booked_on.slice(0, 7)}-01`)}.
+                        </p>
+                        <CreateCost tx={t} centers={centers} pending={pending} run={run} />
+                      </div>
+                    ) : (
+                      <p className="text-2xs text-text-tertiary mt-1.5">
+                        Nessuna riga aperta con questo importo. Per un incasso serve la riga del
+                        ricavo, che nasce dal contratto o dalla rata.
+                      </p>
+                    )
                   )}
                 </div>
               )
