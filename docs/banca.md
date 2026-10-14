@@ -212,12 +212,6 @@ raddoppierebbe il costo del personale senza che nessuno lo cerchi. Il
 controllo è anche nell'azione, prima del vincolo, per poter dire **chi** è
 già pagato invece di un «duplicate key».
 
-- **Da riconciliare: l'uscita senza riga si crea lì** (§473, su §254/3). Se per un'uscita
-  non c'è nessuna riga aperta, il pannello offre «crea la voce» (`CreateCost`,
-  `createCostFromTx`): la voce nasce nel mese del movimento, nell'area scelta
-  (default «Spese fuori piano»; «Banca» per commissioni e imposte), col lordo
-  uscito, e il movimento le si aggancia. Il mese deve essere aperto e non
-  chiuso. Per le **entrate** no: i ricavi nascono da contratti e rate.
 - **Giroconti fra conti propri**: `pairTransfers` appaia i due lati per importo
   opposto e data vicina. Senza, la liquidità totale sembra scendere e la lista da
   riconciliare chiede due volte lo stesso fatto.

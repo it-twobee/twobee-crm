@@ -268,33 +268,29 @@ export async function detachAll(lineId: string, kind: 'ricavo' | 'costo') {
  * L'importo è **lordo di quello che è uscito**: da un movimento non si sa
  * quanta IVA c'era dentro, e inventarne una scorporerebbe un credito che
  * nessuna fattura dimostra. Se poi la fattura arriva, si corregge dalla riga.
- *
- * I motivi attesi (mese non aperto o chiuso, niente uscite) tornano come
- * `{ errore }`: in produzione Next nasconde il testo di un errore lanciato da
- * una server action, e l'utente leggerebbe solo «An error occurred».
  */
 export async function createCostFromTx(input: {
   txIds: string[]
   month: string
   category: string
   label?: string
-}): Promise<{ lineId: string; importo: number } | { errore: string; daAprire?: string }> {
+}): Promise<{ lineId: string; importo: number }> {
   const uid = await requireAdmin()
   const admin = createAdminClient()
-  if (!input.txIds.length) return { errore: 'Nessun movimento selezionato' }
+  if (!input.txIds.length) throw new Error('Nessun movimento selezionato')
 
   const { data: monthRow } = await admin.from('pl_months')
     .select('id, status').eq('month', input.month).maybeSingle()
-  if (!monthRow) return { errore: 'Il mese non è ancora aperto', daAprire: input.month }
+  if (!monthRow) throw new Error('Apri prima il mese dal conto economico')
   if ((monthRow as { status: string }).status === 'chiuso') {
-    return { errore: 'Il mese è chiuso: riaprilo per aggiungere una voce' }
+    throw new Error('Il mese è chiuso: riaprilo per aggiungere una voce')
   }
 
   const { data: txs } = await admin.from('bank_transactions')
     .select('id, amount, source, counterparty, description, booked_on').in('id', input.txIds)
   const buoni = (txs ?? []).filter((t: Record<string, unknown>) =>
     (t.source === 'banca' || t.source === 'manuale') && Number(t.amount ?? 0) < 0)
-  if (!buoni.length) return { errore: 'Servono movimenti in uscita passati da un conto' }
+  if (!buoni.length) throw new Error('Servono movimenti in uscita passati da un conto')
 
   const importo = r2(buoni.reduce((s: number, t: Record<string, unknown>) =>
     s + Math.abs(Number(t.amount ?? 0)), 0))

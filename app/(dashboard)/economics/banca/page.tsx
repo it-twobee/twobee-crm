@@ -62,7 +62,6 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
      riconciliazione a quel conto. */
   const { data: coverRows } = await supabase.from('bank_account_centers').select('account_id, center_id')
   const { data: centerRows } = await supabase.from('cost_centers').select('id, name')
-  const { data: mesiAperti } = await supabase.from('pl_months').select('month').eq('status', 'aperto').order('month', { ascending: false })
   const { data: itemRows } = await supabase.from('cost_items')
     .select('label, amount, frequency, center_id, project_id, is_active')
     .eq('is_active', true).is('project_id', null)
@@ -425,7 +424,6 @@ export default async function BancaPage({ searchParams }: { searchParams: { m?: 
          e una lettura per area con dentro trentaquattro commissioni non la apre
          più nessuno. */
       centers={(centerRows ?? []).map((c: { id: string; name: string }) => c.name)}
-      mesiAperti={(mesiAperti ?? []).map((m: { month: string }) => String(m.month).slice(0, 10))}
       expected={expected}
       months={(plMonths ?? []).map((m: { month: string }) => m.month)}
       plByMonth={plByMonth}
