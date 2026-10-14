@@ -364,7 +364,7 @@ export async function groupCommissions(month: string, kinds = COMMISSION_KINDS):
   }
 
   const from = month.slice(0, 10)
-  const to = `${month.slice(0, 8)}31`
+  const to = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10)
   const { data: txs } = await admin.from('bank_transactions')
     .select('id, amount, kind, source, cost_line_id, revenue_line_id')
     .gte('booked_on', from).lte('booked_on', to)
