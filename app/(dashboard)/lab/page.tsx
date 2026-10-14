@@ -1,9 +1,10 @@
+import Link from 'next/link'
 import { FlaskConical } from 'lucide-react'
 
 export const revalidate = 0
 
 const SEZIONI = [
-  { nome: 'Mese', nota: 'Conto economico e prospetto in una pagina, con il piano costi dentro.' },
+  { nome: 'Mese', nota: 'Conto economico e prospetto in una pagina, con il piano costi dentro.', href: '/lab/novembre' },
   { nome: 'Fatturazione', nota: 'Una sola azione per riga: emessa, incassata.' },
   { nome: 'Banca', nota: 'Da riconciliare per mese, con «crea la voce» accanto alla riga.' },
 ]
@@ -22,7 +23,9 @@ export default function LabPage() {
       <ul className="divide-y divide-border border border-border rounded-xl bg-surface">
         {SEZIONI.map(s => (
           <li key={s.nome} className="px-4 py-3">
-            <p className="text-sm font-semibold text-text-primary">{s.nome}</p>
+            <p className="text-sm font-semibold text-text-primary">
+              {s.href ? <Link href={s.href} className="text-gold-text underline">{s.nome}</Link> : s.nome}
+            </p>
             <p className="text-2xs text-text-tertiary">{s.nota}</p>
           </li>
         ))}
