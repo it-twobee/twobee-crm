@@ -55,6 +55,7 @@ const PROTECTED_PATHS = [
   '/progetti',
   '/social',
   '/economics',
+  '/lab',
   '/ad-hoc',
   '/le-mie-attivita',
 ]

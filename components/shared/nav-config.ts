@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Users, FolderOpen, Settings, CalendarDays, Headphones,
   Ticket, UserCircle2, History, Lightbulb, FolderKanban, Briefcase, ListChecks, ListTodo,
   Wallet, Target, Handshake, Landmark, Users2, Banknote, FileText, Share2, Table2, Radar, KeyRound, Activity, GitBranch, Upload,
-  Megaphone,
+  Megaphone, FlaskConical,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -99,6 +99,7 @@ export const navSections: NavSection[] = [
       /* §410 — chi usa il tool, quanto e da quanto non entra. Solo super admin:
          è l'unica pagina che parla delle persone invece che del lavoro. */
       { href: '/impostazioni/utilizzo', icon: Activity, label: 'Utilizzo', superAdminOnly: true },
+      { href: '/lab', icon: FlaskConical, label: 'Laboratorio', superAdminOnly: true },
       { href: '/impostazioni', icon: Settings, label: 'Impostazioni', adminOnly: true },
       { href: '/impostazioni/tracking', icon: KeyRound, label: 'Chiavi tracking', adminOnly: true },
       /* §425 — la forma del percorso commerciale: riordinarla cambia la
