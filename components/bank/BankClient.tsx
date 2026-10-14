@@ -12,6 +12,7 @@ import {
   Wallet, ArrowRight, CheckCircle2,
 } from 'lucide-react'
 import { createCostFromTx, groupCommissions, confirmSureMatches } from '@/app/actions/reconcile'
+import { openMonth } from '@/app/actions/pl'
 import { sureMatches } from '@/lib/auto-match'
 import { formatCurrency } from '@/lib/utils'
 import { monthLabel } from '@/lib/pl'
@@ -73,7 +74,7 @@ type PlMonth = {
 export function BankClient({
   month, today, setupNeeded, accounts, cedolini, txs, openLines, expected, months, plByMonth, unproven,
   payableNow = 0,
-  clientNames, spendItems, centers = [],
+  clientNames, spendItems, centers = [], mesiAperti = [],
 }: {
   month: string
   today: string
@@ -98,6 +99,7 @@ export function BankClient({
   clientNames: Record<string, string>
   /** §255 — le aree di costo, per dire dove finisce una voce creata dal movimento */
   centers?: string[]
+  mesiAperti?: string[]
   /** §190 — le voci di piano che ciascun conto paga, per il fabbisogno del bonifico */
   spendItems: Record<string, { label: string; amount: number; center_id: string | null; centerName: string | null }[]>
 }) {
@@ -787,10 +789,24 @@ export function BankClient({
                       ))}
                     </div>
                   ) : (
-                    <p className="text-2xs text-text-tertiary mt-1.5">
-                      Nessuna riga aperta con questo importo. Se è un costo che non è a piano, registralo
-                      prima nel conto economico del suo mese.
-                    </p>
+                    /* Un'uscita senza riga aperta non va registrata a mano prima:
+                       la voce nasce dal movimento, nel mese in cui è uscita, e le
+                       si aggancia nello stesso gesto (§254, `createCostFromTx`).
+                       Le entrate no: i ricavi si leggono dai contratti. */
+                    t.amount < 0 && (t.source === 'banca' || t.source === 'manuale') ? (
+                      <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                        <p className="text-2xs text-text-tertiary">
+                          Nessuna riga aperta con questo importo: aggiungila al conto economico di{' '}
+                          {monthLabel(`${t.booked_on.slice(0, 7)}-01`)}.
+                        </p>
+                        <CreateCost tx={t} centers={centers} mesiAperti={mesiAperti} pending={pending} run={run} />
+                      </div>
+                    ) : (
+                      <p className="text-2xs text-text-tertiary mt-1.5">
+                        Nessuna riga aperta con questo importo. Per un incasso serve la riga del
+                        ricavo, che nasce dal contratto o dalla rata.
+                      </p>
+                    )
                   )}
                 </div>
               )
@@ -1060,7 +1076,7 @@ export function BankClient({
                                 quindi con l'importo giusto per definizione. */}
                             {!t.revenue_line_id && !t.cost_line_id && t.amount < 0
                               && (t.source === 'banca' || t.source === 'manuale') && (
-                              <CreateCost tx={t} centers={centers} pending={pending} run={run} />
+                              <CreateCost tx={t} centers={centers} mesiAperti={mesiAperti} pending={pending} run={run} />
                             )}
                             {t.source !== 'banca' && (
                               <button onClick={() => run(() => deleteTx(t.id), 'Movimento rimosso')} disabled={pending}
@@ -1969,17 +1985,27 @@ function CashBridgePanel({ plByMonth, txs, opening, balance, payableNow }: {
  * `commissione` o `imposta` va in «Banca», tutto il resto in «Spese fuori
  * piano». Un default giusto nove volte su dieci vale più di un menu vuoto.
  */
-function CreateCost({ tx, centers, pending, run }: {
+function CreateCost({ tx, centers, mesiAperti, pending, run }: {
   tx: BankTx
   centers: string[]
+  mesiAperti: string[]
   pending: boolean
   run: (fn: () => Promise<unknown>, ok?: string) => void
 }) {
   const suggerita = tx.kind === 'commissione' || tx.kind === 'imposta' ? 'Banca' : 'Spese fuori piano'
   const [area, setArea] = useState(suggerita)
   const lista = centers.length ? centers : [suggerita]
+  /* il mese in cui la voce entra nel conto economico: di norma quello di uscita,
+     ma si può scegliere — un mese ancora da aprire si apre dal toast */
+  const delMovimento = `${tx.booked_on.slice(0, 7)}-01`
+  const mesi = Array.from(new Set([delMovimento, ...mesiAperti])).sort().reverse()
+  const [mese, setMese] = useState(delMovimento)
   return (
     <span className="inline-flex items-center gap-1.5">
+      <select value={mese} onChange={e => setMese(e.target.value)} aria-label="Mese del conto economico"
+        className="bg-background border border-border-interactive rounded-lg px-1.5 py-0.5 text-2xs text-text-secondary">
+        {mesi.map(m => <option key={m} value={m}>{monthLabel(m)}{mesiAperti.includes(m) ? '' : ' (da aprire)'}</option>)}
+      </select>
       <select value={area} onChange={e => setArea(e.target.value)} aria-label="Area della nuova voce"
         className="bg-background border border-border-interactive rounded-lg px-1.5 py-0.5 text-2xs text-text-secondary">
         {Array.from(new Set([suggerita, ...lista])).map(c => <option key={c} value={c}>{c}</option>)}
@@ -1987,8 +2013,25 @@ function CreateCost({ tx, centers, pending, run }: {
       <button
         onClick={() => run(async () => {
           const r = await createCostFromTx({
-            txIds: [tx.id], month: `${tx.booked_on.slice(0, 7)}-01`, category: area,
+            txIds: [tx.id], month: mese, category: area,
           })
+          if ('errore' in r) {
+            const mese = r.daAprire
+            /* Aprire un mese genera le entrate dai contratti e applica il piano:
+               non si fa da sé, ma con un clic che lo dice. */
+            toast.error(r.errore, mese ? {
+              duration: 15000,
+              action: { label: `Apri ${monthLabel(mese)} e crea la voce`, onClick: () => {
+                run(async () => {
+                  await openMonth(mese)
+                  const r2 = await createCostFromTx({ txIds: [tx.id], month: mese, category: area })
+                  if ('errore' in r2) { toast.error(r2.errore); return }
+                  toast.success(`Mese aperto. Voce creata in «${area}» per ${eur(r2.importo)} e agganciata`)
+                })
+              } },
+            } : undefined)
+            return
+          }
           toast.success(`Voce creata in «${area}» per ${eur(r.importo)} e agganciata`)
         })}
         disabled={pending}
