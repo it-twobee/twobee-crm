@@ -5,6 +5,9 @@ import { plannedForMonth, isPayrollCenter, FREQUENCY_LABEL, type CostItem } from
 import { rowContext, toRevenueLine, toCostLine } from '@/lib/pl-rows'
 import { costoLavoroPrevisto } from '@/lib/payroll-forecast'
 import { eur2 } from '@/lib/money'
+import Link from 'next/link'
+import { ChevronLeft, ChevronRight, ChevronDown, Info } from 'lucide-react'
+import type { ReactNode } from 'react'
 
 export const revalidate = 0
 
@@ -13,6 +16,70 @@ const num = (v: unknown) => Number(v ?? 0)
 const r2 = (n: number) => Math.round(n * 100) / 100
 
 const NOV = '2026-11-01'
+
+/* Mobile first: tutto è una colonna di righe che vanno a capo, mai una tabella
+   che scorre di lato. Da `md` le stesse righe si allargano, non cambiano forma. */
+function Section({ title, total, note, empty, defaultOpen = true, children }: {
+  title: string; total?: string; note?: string; empty?: string; defaultOpen?: boolean; children?: ReactNode
+}) {
+  return (
+    <details open={defaultOpen} className="group bg-surface border border-border rounded-2xl overflow-hidden">
+      <summary className="flex items-center gap-3 px-4 min-h-[56px] cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+        <span className="flex-1 min-w-0">
+          <span className="block text-sm font-semibold text-text-primary">{title}</span>
+          {note && <span className="block text-2xs text-text-tertiary leading-snug">{note}</span>}
+        </span>
+        {total && <span className="text-sm font-semibold text-text-primary tabular-nums">{total}</span>}
+        <ChevronDown className="w-4 h-4 text-text-tertiary transition-transform group-open:rotate-180" aria-hidden />
+      </summary>
+      <div className="border-t border-border">
+        {empty ? <p className="px-4 py-5 text-sm text-text-tertiary">{empty}</p> : children}
+      </div>
+    </details>
+  )
+}
+
+function Row({ title, sub, amount, strong }: { title: string; sub?: string; amount: string; strong?: boolean }) {
+  return (
+    <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-border/60 last:border-b-0">
+      <div className="min-w-0">
+        <p className={`text-sm leading-snug break-words ${strong ? 'font-semibold text-text-primary' : 'text-text-primary'}`}>{title}</p>
+        {sub && <p className="text-2xs text-text-tertiary leading-snug mt-0.5 break-words">{sub}</p>}
+      </div>
+      <p className={`text-sm tabular-nums whitespace-nowrap ${strong ? 'font-semibold text-text-primary' : 'text-text-secondary'}`}>{amount}</p>
+    </div>
+  )
+}
+
+function Callout({ tone = 'info', children }: { tone?: 'info' | 'warning'; children: ReactNode }) {
+  const c = tone === 'warning' ? 'bg-warning-dim text-warning' : 'bg-surface-hover text-text-secondary'
+  return (
+    <div className={`flex gap-2 rounded-xl px-3 py-2.5 text-2xs leading-snug ${c}`}>
+      <Info className="w-4 h-4 shrink-0 mt-px" aria-hidden />
+      <div className="min-w-0">{children}</div>
+    </div>
+  )
+}
+
+function Stat({ label, value, sub, wide }: { label: string; value: string; sub: string; wide?: boolean }) {
+  return (
+    <div className={`bg-surface border border-border rounded-2xl px-4 py-3 ${wide ? 'col-span-2 md:col-span-1' : ''}`}>
+      <p className="text-2xs text-text-tertiary">{label}</p>
+      <p className={`font-semibold text-text-primary tabular-nums ${wide ? 'text-2xl' : 'text-xl'}`}>{value}</p>
+      <p className="text-2xs text-text-tertiary leading-snug">{sub}</p>
+    </div>
+  )
+}
+
+function MonthLink({ href, label, dir }: { href: string; label: string; dir: 'prev' | 'next' }) {
+  const Icon = dir === 'prev' ? ChevronLeft : ChevronRight
+  return (
+    <Link href={href} aria-label={label}
+      className="flex items-center justify-center w-11 h-11 rounded-xl border border-border text-text-secondary hover:bg-surface-hover press">
+      <Icon className="w-5 h-5" />
+    </Link>
+  )
+}
 
 export default async function NovembrePage({ searchParams }: { searchParams: { m?: string } }) {
   const month = /^\d{4}-\d{2}-01$/.test(searchParams.m ?? '') ? searchParams.m! : NOV
@@ -93,127 +160,130 @@ export default async function NovembrePage({ searchParams }: { searchParams: { m
   const costoTot = r2(sum(internal) + sum(subs) + (lavoro ?? 0))
   const margine = r2(revenue - costoTot)
 
-  const Card = ({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) => (
-    <section className="bg-surface border border-border rounded-xl mb-4 overflow-hidden">
-      <header className="px-4 py-3 border-b border-border">
-        <h2 className="text-sm font-semibold text-text-primary">{title}</h2>
-        {note && <p className="text-2xs text-text-tertiary mt-0.5">{note}</p>}
-      </header>
-      {children}
-    </section>
-  )
-  const Th = ({ children, right }: { children: React.ReactNode; right?: boolean }) =>
-    <th className={`px-4 py-2 text-2xs font-semibold text-text-tertiary ${right ? 'text-right' : 'text-left'}`}>{children}</th>
-  const Td = ({ children, right, strong }: { children: React.ReactNode; right?: boolean; strong?: boolean }) =>
-    <td className={`px-4 py-2 text-2xs ${strong ? 'font-semibold text-text-primary' : 'text-text-secondary'} ${right ? 'text-right tabular-nums' : ''}`}>{children}</td>
+  const byClient = new Map<string, { name: string; total: number; lines: typeof lines }>()
+  for (const l of lines) {
+    const k = l.client_id ?? 'fuori'
+    const cur = byClient.get(k) ?? { name: (l.client_id && clientName.get(l.client_id)) || 'Fuori anagrafica', total: 0, lines: [] }
+    cur.total = r2(cur.total + l.amount_net)
+    cur.lines.push(l)
+    byClient.set(k, cur)
+  }
+  const clientsSorted = Array.from(byClient.values()).sort((a, b) => b.total - a.total)
+  const costPct = revenue > 0 ? Math.min(100, Math.round((costoTot / revenue) * 100)) : 0
 
   return (
-    <div className="min-h-full p-6 max-w-4xl">
-      <p className="text-2xs text-text-tertiary mb-1">Laboratorio · sola lettura, non scrive niente</p>
-      <h1 className="text-lg font-semibold text-text-primary mb-1">{monthLabel(month)}</h1>
-      <p className="text-sm text-text-secondary mb-5">
-        Quello che il mese sarà, calcolato solo da contratti, rate, voci ricorrenti e organico.
-        Nessun numero è digitato.
-      </p>
-
-      <div className="grid grid-cols-3 gap-3 mb-5">
-        {[
-          ['Entrate previste', eur2(revenue), `${lines.length} righe, IVA esclusa`],
-          ['Uscite previste', eur2(costoTot), lavoro == null ? 'senza costo del lavoro (n/d)' : 'struttura, subappalti e lavoro'],
-          ['Margine', eur2(margine), revenue > 0 ? `${Math.round((margine / revenue) * 100)}% delle entrate` : 'nessuna entrata'],
-        ].map(([k, v, n]) => (
-          <div key={k} className="bg-surface border border-border rounded-xl px-4 py-3">
-            <p className="text-2xs text-text-tertiary">{k}</p>
-            <p className="text-lg font-semibold text-text-primary tabular-nums">{v}</p>
-            <p className="text-2xs text-text-tertiary">{n}</p>
+    <div className="min-h-full pb-10">
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border">
+        <div className="max-w-3xl mx-auto px-4 py-2 flex items-center gap-2">
+          <MonthLink href={`/lab/novembre?m=${shiftMonth(month, -1)}`} label={`Mese precedente: ${monthLabel(shiftMonth(month, -1))}`} dir="prev" />
+          <div className="flex-1 text-center min-w-0">
+            <h1 className="text-base font-semibold text-text-primary leading-tight">{monthLabel(month)}</h1>
+            <p className="text-2xs text-text-tertiary">Laboratorio · sola lettura</p>
           </div>
-        ))}
+          <MonthLink href={`/lab/novembre?m=${shiftMonth(month, 1)}`} label={`Mese successivo: ${monthLabel(shiftMonth(month, 1))}`} dir="next" />
+        </div>
       </div>
 
-      <Card title="Entrate" note="Canoni attivi e rate in scadenza nel mese: le righe che «Prepara il mese» scriverebbe.">
-        {lines.length === 0 ? <p className="px-4 py-6 text-2xs text-text-tertiary">Nessun canone né rata in questo mese.</p> : (
-          <div className="overflow-x-auto"><table className="w-full">
-            <thead><tr><Th>Cliente</Th><Th>Voce</Th><Th>Tipo</Th><Th right>Imponibile</Th></tr></thead>
-            <tbody className="divide-y divide-border/60">
-              {lines.map((l, i) => (
-                <tr key={i}>
-                  <Td strong>{(l.client_id && clientName.get(l.client_id)) || 'fuori anagrafica'}</Td>
-                  <Td>{l.label}</Td><Td>{l.kind}{l.pass_through ? ' · partita di giro' : ''}</Td>
-                  <Td right>{eur2(l.amount_net)}</Td>
-                </tr>
-              ))}
-            </tbody>
-          </table></div>
-        )}
-      </Card>
-
-      <Card title="Uscite di struttura" note="Voci ricorrenti che cadono nel mese.">
-        <div className="overflow-x-auto"><table className="w-full">
-          <thead><tr><Th>Voce</Th><Th>Area</Th><Th>Frequenza</Th><Th right>Importo</Th></tr></thead>
-          <tbody className="divide-y divide-border/60">
-            {internal.map(i => (
-              <tr key={i.id}>
-                <Td strong>{i.label}</Td><Td>{i.center_id ? centerName.get(i.center_id) ?? '—' : '—'}</Td>
-                <Td>{FREQUENCY_LABEL[i.frequency]}</Td><Td right>{eur2(i.amount)}</Td>
-              </tr>
-            ))}
-            <tr><Td strong>Totale</Td><Td> </Td><Td> </Td><Td right strong>{eur2(sum(internal))}</Td></tr>
-          </tbody>
-        </table></div>
-      </Card>
-
-      <Card title="Costo del lavoro"
-        note="Viene dall'organico (Personale). Le voci HR del piano costi sono elencate sotto ma non sommate: il lavoro conterebbe due volte.">
-        <div className="px-4 py-3 text-2xs text-text-secondary">
-          {lavoro == null
-            ? <span className="text-warning">n/d: l&apos;organico non si legge o è vuoto. Non è zero.</span>
-            : <>Dall&apos;organico: <strong className="text-text-primary tabular-nums">{eur2(lavoro)}</strong></>}
-          {hr.length > 0 && (
-            <p className="mt-2 text-text-tertiary">
-              Voci HR nel piano (non sommate): {hr.map(i => `${i.label} ${eur2(i.amount)}`).join(' · ')} — totale {eur2(sum(hr))}
-            </p>
+      <div className="max-w-3xl mx-auto px-4 pt-4 space-y-4">
+        <Callout>
+          Calcolato solo da contratti, rate, voci ricorrenti e organico. Nessun numero è digitato.
+          {month !== monthKey(new Date()) && (
+            <> <Link href={`/lab/novembre?m=${monthKey(new Date())}`} className="underline text-gold-text">Vai a {monthLabel(monthKey(new Date()))}</Link></>
           )}
+        </Callout>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <Stat wide label="Margine previsto" value={eur2(margine)}
+            sub={revenue > 0 ? `${Math.round((margine / revenue) * 100)}% delle entrate` : 'nessuna entrata'} />
+          <Stat label="Entrate" value={eur2(revenue)} sub={`${lines.length} ${lines.length === 1 ? 'riga' : 'righe'}, IVA esclusa`} />
+          <Stat label="Uscite" value={eur2(costoTot)} sub={lavoro == null ? 'senza costo del lavoro (n/d)' : 'struttura, subappalti, lavoro'} />
         </div>
-      </Card>
 
-      <Card title="Lavori affidati fuori" note="Subappalti: voci di piano legate a un progetto. Tolgono margine a quel lavoro.">
-        {subs.length === 0 ? <p className="px-4 py-6 text-2xs text-text-tertiary">Nessun subappalto previsto nel mese.</p> : (
-          <div className="overflow-x-auto"><table className="w-full">
-            <thead><tr><Th>Fornitore</Th><Th>Progetto</Th><Th right>Importo</Th></tr></thead>
-            <tbody className="divide-y divide-border/60">
-              {subs.map(i => (
-                <tr key={i.id}>
-                  <Td strong>{i.supplier || i.label}</Td>
-                  <Td>{(i.project_id && projectName.get(i.project_id)) || '—'}</Td>
-                  <Td right>{eur2(i.amount)}</Td>
-                </tr>
-              ))}
-            </tbody>
-          </table></div>
+        {revenue > 0 && (
+          <div aria-label={`Le uscite assorbono il ${costPct}% delle entrate`}>
+            <div className="h-2 rounded-full bg-surface-active overflow-hidden">
+              <div className="h-full rounded-full" style={{ width: `${costPct}%`, background: costoTot > revenue ? 'var(--color-error)' : 'var(--color-accent)' }} />
+            </div>
+            <p className="text-2xs text-text-tertiary mt-1">Le uscite assorbono il {Math.round((costoTot / revenue) * 100)}% delle entrate</p>
+          </div>
         )}
-      </Card>
 
-      <Card title="Compensi dei soci sul maturato del mese"
-        note="Stima con le regole del piano compensi sulle righe attese. Non è l'erogazione del 20: quella paga il maturato del mese prima, incassato entro quel giorno, e quello che il cliente non ha pagato slitta alla finestra dopo.">
-        <div className="overflow-x-auto"><table className="w-full">
-          <thead><tr><Th>Socio</Th><Th right>Erogato</Th><Th right>Digital</Th><Th right>Provvigione</Th><Th right>Totale spettante</Th></tr></thead>
-          <tbody className="divide-y divide-border/60">
-            {t.perPartner.map(p => (
-              <tr key={p.partner.id}>
-                <Td strong>{p.partner.label}</Td>
-                <Td right>{eur2(p.delivery + p.residual)}</Td><Td right>{eur2(p.digital)}</Td>
-                <Td right>{eur2(p.salesShare)}</Td><Td right strong>{eur2(p.total)}</Td>
-              </tr>
-            ))}
-          </tbody>
-        </table></div>
-      </Card>
+        <Section title="Entrate" total={eur2(revenue)} note="Canoni attivi e rate del mese"
+          empty={lines.length === 0 ? 'Nessun canone né rata in questo mese.' : undefined}>
+          {clientsSorted.map(c => (
+            <div key={c.name}>
+              <Row strong title={c.name} sub={c.lines.length > 1 ? `${c.lines.length} voci` : undefined} amount={eur2(c.total)} />
+              {c.lines.length > 1 && c.lines.map((l, i) => (
+                <div key={i} className="flex items-start justify-between gap-3 pl-8 pr-4 py-2 border-b border-border/60 last:border-b-0 bg-surface-hover/40">
+                  <p className="text-2xs text-text-secondary leading-snug break-words min-w-0">
+                    {l.label}{l.pass_through ? ' · partita di giro' : ''} · {l.kind}
+                  </p>
+                  <p className="text-2xs text-text-secondary tabular-nums whitespace-nowrap">{eur2(l.amount_net)}</p>
+                </div>
+              ))}
+            </div>
+          ))}
+        </Section>
 
-      <p className="text-2xs text-text-tertiary">
-        Mese precedente: <a className="text-gold-text underline" href={`/lab/novembre?m=${shiftMonth(month, -1)}`}>{monthLabel(shiftMonth(month, -1))}</a>
-        {' · '}successivo: <a className="text-gold-text underline" href={`/lab/novembre?m=${shiftMonth(month, 1)}`}>{monthLabel(shiftMonth(month, 1))}</a>
-        {' · '}oggi: <a className="text-gold-text underline" href={`/lab/novembre?m=${monthKey(new Date())}`}>{monthLabel(monthKey(new Date()))}</a>
-      </p>
+        <Section title="Uscite di struttura" total={eur2(sum(internal))} note="Voci ricorrenti che cadono nel mese"
+          empty={internal.length === 0 ? 'Nessuna voce ricorrente in questo mese.' : undefined}>
+          {internal.map(i => (
+            <Row key={i.id} title={i.label}
+              sub={`${i.center_id ? centerName.get(i.center_id) ?? 'Senza area' : 'Senza area'} · ${FREQUENCY_LABEL[i.frequency]}`}
+              amount={eur2(i.amount)} />
+          ))}
+        </Section>
+
+        <Section title="Costo del lavoro" total={lavoro == null ? 'n/d' : eur2(lavoro)} note="Dall'organico (Personale)">
+          <div className="p-4 space-y-3">
+            {lavoro == null
+              ? <Callout tone="warning">L&apos;organico non si legge o è vuoto: il costo del lavoro non è zero, è sconosciuto.</Callout>
+              : <p className="text-sm text-text-secondary">Costo previsto per il mese, calcolato dall&apos;organico in forza.</p>}
+            {hr.length > 0 && (
+              <Callout>
+                Voci HR nel piano costi, <strong>non sommate</strong> per non contare il lavoro due volte:{' '}
+                {hr.map(i => `${i.label} ${eur2(i.amount)}`).join(' · ')} (totale {eur2(sum(hr))}).
+              </Callout>
+            )}
+          </div>
+        </Section>
+
+        <Section title="Lavori affidati fuori" total={eur2(sum(subs))} note="Subappalti: tolgono margine al progetto"
+          empty={subs.length === 0 ? 'Nessun subappalto previsto in questo mese.' : undefined}>
+          {subs.map(i => (
+            <Row key={i.id} title={i.supplier || i.label}
+              sub={(i.project_id && projectName.get(i.project_id)) || undefined} amount={eur2(i.amount)} />
+          ))}
+        </Section>
+
+        <Section title="Compensi dei soci" note="Sul maturato del mese">
+          <div className="p-4 space-y-3">
+            <Callout>
+              Stima con le regole del piano compensi sulle righe attese. Non è l&apos;erogazione del 20: quella paga il maturato del mese prima,
+              incassato entro quel giorno, e quello che il cliente non ha pagato slitta alla finestra dopo.
+            </Callout>
+            {t.perPartner.length === 0
+              ? <p className="text-sm text-text-tertiary">Nessun socio attivo.</p>
+              : (
+                <div className="grid gap-3 md:grid-cols-3">
+                  {t.perPartner.map(p => (
+                    <div key={p.partner.id} className="rounded-xl border border-border px-4 py-3">
+                      <p className="text-2xs text-text-tertiary">{p.partner.label}</p>
+                      <p className="text-xl font-semibold text-text-primary tabular-nums">{eur2(p.total)}</p>
+                      <dl className="mt-2 space-y-0.5 text-2xs text-text-secondary">
+                        {([['Erogato', p.delivery + p.residual], ['Digital', p.digital], ['Provvigione', p.salesShare]] as [string, number][]).map(([k, v]) => (
+                          <div key={k} className="flex justify-between gap-2">
+                            <dt>{k}</dt><dd className="tabular-nums">{eur2(v)}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                  ))}
+                </div>
+              )}
+          </div>
+        </Section>
+      </div>
     </div>
   )
 }
