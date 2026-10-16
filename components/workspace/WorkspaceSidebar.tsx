@@ -7,7 +7,7 @@ import {
   LayoutDashboard, CheckSquare, FolderKanban, Calendar, MessageSquare,
   FileText, Heart, User, UserCircle2, Users, BarChart3, Bot, TrendingUp,
   ListChecks, ListTodo, Headset, Briefcase, Headphones, Ticket, Receipt, History,
-  Lightbulb, Gauge, ChevronLeft, ChevronRight, ChevronDown, LogOut, Trash2, Radar, Handshake, Megaphone} from 'lucide-react'
+  Lightbulb, Gauge, ChevronLeft, ChevronRight, ChevronDown, LogOut, Trash2, Radar, Handshake, Megaphone, Trophy} from 'lucide-react'
 import { useState, useCallback, useEffect } from 'react'
 import { ROLE_LABELS } from '@/lib/permissions'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
@@ -46,6 +46,8 @@ export const ICON_MAP: Record<string, React.ComponentType<{ className?: string }
   Handshake,
   // §467 — Social: la stessa del portale admin
   Megaphone,
+  // §477 — Sfida LinkedIn: la stessa del portale admin
+  Trophy,
 }
 
 // Etichette dei gruppi della sidebar. L'ordine è dato da group_order in tabella;

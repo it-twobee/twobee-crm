@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Users, FolderOpen, Settings, CalendarDays, Headphones,
   Ticket, UserCircle2, History, Lightbulb, FolderKanban, Briefcase, ListChecks, ListTodo,
   Wallet, Target, Handshake, Landmark, Users2, Banknote, FileText, Share2, Table2, Radar, KeyRound, Activity, GitBranch, Upload,
-  Megaphone, FlaskConical,
+  Megaphone, FlaskConical, Trophy,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -79,7 +79,11 @@ export const navSections: NavSection[] = [
   },
   {
     label: 'Team',
-    items: [{ href: '/hr', icon: UserCircle2, label: 'HR & Team' }],
+    items: [
+      { href: '/hr', icon: UserCircle2, label: 'HR & Team' },
+      // §477 — la sfida LinkedIn del mese: impression e reazioni dei post del team
+      { href: '/linkedin', icon: Trophy, label: 'Sfida LinkedIn' },
+    ],
   },
   {
     /* §215 — sezione TEMPORANEA per il travaso da Asana. Va tolta, con la

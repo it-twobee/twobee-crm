@@ -54,6 +54,7 @@ const PROTECTED_PATHS = [
   '/portale',
   '/progetti',
   '/social',
+  '/linkedin',
   '/economics',
   '/lab',
   '/ad-hoc',

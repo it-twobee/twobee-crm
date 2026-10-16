@@ -28,6 +28,7 @@ database vero, e riscoprirle costa più che leggerle.
 | file interni, cartelle, upload/download e link pubblici (`lib/storage/**`, `/api/files/**`), area file dei clienti e sezione Documenti | `docs/storage-access.md` |
 | utilizzo del tool, presenza, `lib/presenza.ts`, `os_sessions`, `/impostazioni/utilizzo` | `docs/presenza.md` |
 | contenuti social, `/social`, `lib/social.ts`, piano editoriale, creatività social | `docs/social.md` |
+| sfida LinkedIn del team, `/linkedin`, `lib/linkedin.ts`, l'estensione in `public/estensione-linkedin/` | `docs/sfida-linkedin.md` |
 
 ## Invarianti — valgono anche senza aprire i doc
 - **Nessun valore economico si digita**: contratti e rate sono l'unica scrittura,
