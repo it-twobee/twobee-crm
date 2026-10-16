@@ -345,6 +345,22 @@ check.
 Il portale del cliente non cambia layout: condivide con noi solo anteprima,
 miniatura e regole dei percorsi.
 
+## In Documenti ogni azienda ha la sua cartella, anche vuota (§478)
+
+L'elenco di Documenti nasceva **dai file**: un'azienda compariva solo se ne
+aveva almeno uno (il 16 ottobre 2026, 8 su 16), e per caricare il primo
+bisognava sceglierla dal filtro. Il feedback del 13 ottobre «manca la cartella
+Two Bee» era questo: Twobee c'era, interna e visibile al workspace, ma senza
+file. Il primo è arrivato un'ora dopo il feedback.
+
+Ora `DocumentiClient` mette in elenco **tutte** le aziende che la pagina gli
+passa (`clients` per l'admin, `clients_workspace` per il workspace), anche
+vuote, chiuse di default. Restano fuori i **persi senza file** (`isLost`): lì
+non si lavora più, e quelli con file restano perché i file ci sono. Con la
+ricerca un'azienda compare anche **per nome**, come promette il segnaposto
+«Cerca per nome, cartella o cliente». Il filtro su un'azienda mostra solo
+quella.
+
 ## Organizzare: cartelle vuote, spostare, rinominare (§413, migration 254)
 
 Il percorso resta la verità del file (§398), e il portale del cliente non

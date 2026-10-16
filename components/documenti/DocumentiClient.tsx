@@ -11,6 +11,8 @@ import { ClientFileArea } from '@/components/shared/file-area/ClientFileArea'
 import type { ClientMaterial } from '@/lib/portal/explorer'
 import type { Profile } from '@/lib/types/database'
 import { VoceSezione } from '@/components/workspace/VoceSezione'
+import { isLost } from '@/lib/clients'
+import type { ClientLabel } from '@/lib/types/database'
 import type { Sezione } from '@/lib/task-mood'
 
 /* §398 — L'archivio comune è l'**area file di un cliente** vista da noi: quello
@@ -34,7 +36,7 @@ export function DocumentiClient({ documents, materials, clients, voce }: {
   documents: DocItem[]
   /** Per l'elenco delle aziende e la ricerca fra aziende: dentro, l'area carica da sé i suoi (§416). */
   materials: DocMaterial[]
-  clients: { id: string; company_name: string }[]
+  clients: { id: string; company_name: string; client_label?: ClientLabel | null }[]
 }) {
   const [search, setSearch] = useState('')
   const [filterClient, setFilterClient] = useState<string | null>(null)
@@ -53,8 +55,17 @@ export function DocumentiClient({ documents, materials, clients, voce }: {
     && (!search.trim() || matches(d.name))
   ), [documents, filterClient, search])
 
+  /* §478 — ogni azienda ha la sua cartella, anche vuota. L'elenco nasceva dai
+     file: un'azienda senza file non c'era, e per caricarne il primo bisognava
+     sceglierla dal filtro. Il 13 ottobre «manca la cartella Two Bee» era
+     questo: Twobee c'era, ma non aveva ancora un file. I persi senza file
+     restano fuori, perché lì non si lavora più; con la ricerca un'azienda
+     compare anche per nome. */
   const rows = useMemo(() => {
     const ids = new Set([...visibleMaterials.map(m => m.client_id), ...visibleDocs.map(d => d.client_id ?? 'senza')])
+    if (!filterClient) clients.forEach(c => {
+      if (search.trim() ? matches(c.company_name) : !isLost(c)) ids.add(c.id)
+    })
     if (filterClient) ids.add(filterClient)
     return Array.from(ids).map(id => ({
       id,
@@ -63,7 +74,7 @@ export function DocumentiClient({ documents, materials, clients, voce }: {
       materials: visibleMaterials.filter(m => m.client_id === id),
       drive: visibleDocs.filter(d => (d.client_id ?? 'senza') === id),
     })).sort((a, b) => a.label.localeCompare(b.label, 'it'))
-  }, [visibleMaterials, visibleDocs, clients, filterClient])
+  }, [visibleMaterials, visibleDocs, clients, filterClient, search])
 
   const searching = search.trim().length > 0
   const isOpen = (id: string) => searching || !!filterClient || openClients.has(id)
