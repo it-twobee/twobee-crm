@@ -1,12 +1,14 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { isMese, meseDopo, etichettaMese } from '@/lib/social'
-import { meseCorrente, type PostSfida } from '@/lib/linkedin'
+import { meseCorrente, giornoRoma, type PostSfida } from '@/lib/linkedin'
 
 export type SfidaData = {
   mese: string
   etichetta: string
   corrente: string
+  /** il giorno di Roma, deciso sul server: il conto alla rovescia non cambia fra server e browser */
+  oggi: string
   etichettaCorrente: string
   prima: string
   dopo: string | null
@@ -20,7 +22,7 @@ export async function loadSfida(db: SupabaseClient, meseRichiesto?: string): Pro
   const corrente = meseCorrente()
   const mese = isMese(meseRichiesto) && meseRichiesto <= corrente ? meseRichiesto : corrente
   const base = {
-    mese, etichetta: etichettaMese(mese), corrente, etichettaCorrente: etichettaMese(corrente),
+    mese, etichetta: etichettaMese(mese), corrente, etichettaCorrente: etichettaMese(corrente), oggi: giornoRoma(),
     prima: meseDopo(mese, -1), dopo: mese < corrente ? meseDopo(mese) : null,
   }
   const { data, error } = await db.from('linkedin_posts')
@@ -30,8 +32,11 @@ export async function loadSfida(db: SupabaseClient, meseRichiesto?: string): Pro
   const righe = (data ?? []) as Omit<PostSfida, 'autore'>[]
   const ids = Array.from(new Set(righe.map(r => r.profile_id)))
   const { data: persone } = ids.length
-    ? await db.from('profiles').select('id, full_name').in('id', ids)
+    ? await db.from('profiles').select('id, full_name, avatar_url').in('id', ids)
     : { data: [] }
-  const nomi = new Map(((persone ?? []) as { id: string; full_name: string | null }[]).map(p => [p.id, p.full_name ?? '']))
-  return { ...base, manca: false, posts: righe.map(r => ({ ...r, autore: nomi.get(r.profile_id) || 'Senza nome' })) }
+  const chi = new Map(((persone ?? []) as { id: string; full_name: string | null; avatar_url: string | null }[]).map(p => [p.id, p]))
+  return {
+    ...base, manca: false,
+    posts: righe.map(r => ({ ...r, autore: chi.get(r.profile_id)?.full_name || 'Senza nome', avatar: chi.get(r.profile_id)?.avatar_url ?? null })),
+  }
 }

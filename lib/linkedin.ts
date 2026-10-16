@@ -152,11 +152,13 @@ export type PostSfida = {
   updated_at: string
   profile_id: string
   autore: string
+  avatar?: string | null
 }
 
 export type RigaClassifica = {
   profile_id: string
   autore: string
+  avatar: string | null
   post: number
   reazioni: number
   commenti: number
@@ -173,7 +175,7 @@ export function classifica(posts: PostSfida[], criterio: Criterio = 'impression'
   const per = new Map<string, RigaClassifica>()
   for (const p of posts) {
     const r = per.get(p.profile_id) ?? {
-      profile_id: p.profile_id, autore: p.autore, post: 0, reazioni: 0, commenti: 0,
+      profile_id: p.profile_id, autore: p.autore, avatar: p.avatar ?? null, post: 0, reazioni: 0, commenti: 0,
       impression: 0, impressionParziali: false, ultimoCaricamento: p.updated_at,
     }
     r.post++
@@ -191,4 +193,40 @@ export function classifica(posts: PostSfida[], criterio: Criterio = 'impression'
 export function ordinaPost(posts: PostSfida[], criterio: Criterio = 'impression'): PostSfida[] {
   const v = (p: PostSfida) => criterio === 'post' ? Date.parse(p.published_at) : (p[criterio] ?? -1)
   return [...posts].sort((a, b) => v(b) - v(a) || Date.parse(b.published_at) - Date.parse(a.published_at))
+}
+
+/** Il giorno di Roma, «2026-10-16». */
+export const giornoRoma = (ora = new Date()) => ora.toLocaleDateString('en-CA', { timeZone: 'Europe/Rome' })
+
+/**
+ * Quanti giorni mancano alla chiusura: 0 è l'ultimo giorno, `null` un mese
+ * chiuso (o futuro). Dalle stringhe, quindi niente fuso.
+ */
+export function giorniAllaChiusura(mese: string, oggi: string): number | null {
+  if (oggi.slice(0, 7) !== mese) return null
+  const [a, m] = mese.split('-').map(Number)
+  const ultimo = new Date(Date.UTC(a, m, 0)).getUTCDate()
+  return ultimo - Number(oggi.slice(8, 10))
+}
+
+/** L'ultimo giorno del mese, «2026-10-31». */
+export function ultimoGiorno(mese: string): string {
+  const [a, m] = mese.split('-').map(Number)
+  return `${mese}-${String(new Date(Date.UTC(a, m, 0)).getUTCDate()).padStart(2, '0')}`
+}
+
+export type Distacco =
+  | { tipo: 'solo' }
+  | { tipo: 'vantaggio'; su: string; di: number }
+  | { tipo: 'insegue'; chi: string; di: number }
+
+/**
+ * Il distacco, per il criterio della classifica: chi è primo vede il vantaggio
+ * sul secondo, gli altri quanto manca per superare chi hanno davanti (un
+ * pareggio non è un sorpasso: serve uno in più).
+ */
+export function distacco(righe: RigaClassifica[], i: number, criterio: Criterio): Distacco {
+  const v = (r: RigaClassifica) => r[criterio]
+  if (i === 0) return righe.length < 2 ? { tipo: 'solo' } : { tipo: 'vantaggio', su: righe[1].autore, di: v(righe[0]) - v(righe[1]) }
+  return { tipo: 'insegue', chi: righe[i - 1].autore, di: v(righe[i - 1]) - v(righe[i]) + 1 }
 }

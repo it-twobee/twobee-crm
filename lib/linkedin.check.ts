@@ -2,7 +2,7 @@
 import { createRequire } from 'node:module'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { msDaUrn, meseRoma, meseCorrente, parseCsv, leggiCsvSfida, classifica, ordinaPost, COLONNE, type PostSfida } from '@/lib/linkedin'
+import { msDaUrn, meseRoma, meseCorrente, parseCsv, leggiCsvSfida, classifica, ordinaPost, distacco, giorniAllaChiusura, ultimoGiorno, giornoRoma, COLONNE, type PostSfida } from '@/lib/linkedin'
 import { crc32, zipStore } from '@/lib/zip-store'
 
 let fail = 0
@@ -150,6 +150,19 @@ console.log('\n— La classifica —')
   is('impression mancanti: parziali, non zero', [imp[2].impressionParziali, imp[2].impression], [true, 0])
   is('per reazioni', classifica(posts, 'reazioni').map(r => r.autore), ['Bruno', 'Anna', 'Carla'])
   is('i post senza impression vanno in fondo', ordinaPost(posts, 'impression').map(x => x.impression), [1000, 900, 500, null])
+  is('il primo vede il vantaggio sul secondo', distacco(imp, 0, 'impression'), { tipo: 'vantaggio', su: 'Bruno', di: 600 })
+  is('il secondo vede quanto manca per il sorpasso', distacco(imp, 1, 'impression'), { tipo: 'insegue', chi: 'Anna', di: 601 })
+  is('da soli non c\'è distacco', distacco(imp.slice(0, 1), 0, 'impression'), { tipo: 'solo' })
+}
+
+console.log('\n— Il conto alla rovescia —')
+{
+  is('16 ottobre: mancano 15 giorni', giorniAllaChiusura('2026-10', '2026-10-16'), 15)
+  is('31 ottobre: è l\'ultimo giorno', giorniAllaChiusura('2026-10', '2026-10-31'), 0)
+  is('febbraio 2028 è bisestile', giorniAllaChiusura('2028-02', '2028-02-01'), 28)
+  is('un mese chiuso non ha conto alla rovescia', giorniAllaChiusura('2026-09', '2026-10-16'), null)
+  is('l\'ultimo giorno di settembre', ultimoGiorno('2026-09'), '2026-09-30')
+  is('il giorno di Roma', giornoRoma(new Date('2026-09-30T22:30:00Z')), '2026-10-01')
 }
 
 console.log('\n— La migration e il codice parlano delle stesse colonne —')
