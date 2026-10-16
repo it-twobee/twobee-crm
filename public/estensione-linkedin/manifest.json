@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "TwoBee · Sfida LinkedIn",
-  "version": "1.0.0",
-  "description": "Legge reazioni, commenti e impression dei tuoi post del mese e scarica il CSV da caricare su TwoBee OS.",
+  "version": "1.1.0",
+  "description": "Legge reazioni, commenti e impression dei tuoi post e scarica il CSV da caricare su TwoBee OS.",
   "permissions": ["scripting"],
   "host_permissions": ["https://www.linkedin.com/*"],
   "background": { "service_worker": "background.js" },
-  "action": { "default_title": "Sfida LinkedIn: raccogli i post del mese" }
+  "action": { "default_title": "Sfida LinkedIn", "default_popup": "popup.html" }
 }

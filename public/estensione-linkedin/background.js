@@ -1,6 +1,7 @@
-/* TwoBee · Sfida LinkedIn — il clic sull'icona.
+/* TwoBee · Sfida LinkedIn — la finestrella chiede, qui si esegue.
    Porta la scheda sulla tua attività (i soli post: «shares»), aspetta che il
-   feed arrivi e lancia la raccolta. Non legge niente fuori da linkedin.com. */
+   feed arrivi, passa l'intervallo alla pagina e lancia la raccolta. Non legge
+   niente fuori da linkedin.com. */
 
 var ATTIVITA = 'https://www.linkedin.com/in/me/recent-activity/shares/'
 var SU_ATTIVITA = /^https:\/\/www\.linkedin\.com\/in\/[^/]+\/recent-activity\/(shares|all)\//
@@ -21,8 +22,10 @@ function caricata(tabId) {
   })
 }
 
-chrome.action.onClicked.addListener(async function (tab) {
-  var tabId = tab.id
+async function avvia(msg) {
+  var schede = await chrome.tabs.query({ active: true, lastFocusedWindow: true })
+  var tab = schede[0]
+  var tabId = tab && tab.id
   if (!tabId) return
   if (!SU_ATTIVITA.test(tab.url || '')) {
     // fuori da LinkedIn non si tocca la scheda di chi lavora: se ne apre una
@@ -31,5 +34,17 @@ chrome.action.onClicked.addListener(async function (tab) {
     await caricata(tabId)
     await new Promise(function (r) { setTimeout(r, 2500) })
   }
+  await chrome.scripting.executeScript({
+    target: { tabId: tabId },
+    func: function (opz) { window.__twobeeOpzioni = opz },
+    args: [{ dal: msg.dal, al: msg.al, diagnostica: msg.tipo === 'diagnostica' }],
+  })
   await chrome.scripting.executeScript({ target: { tabId: tabId }, files: ['raccolta.js'] })
+}
+
+chrome.runtime.onMessage.addListener(function (msg, _mittente, rispondi) {
+  if (msg && (msg.tipo === 'raccogli' || msg.tipo === 'diagnostica')) {
+    rispondi({ ok: true })
+    avvia(msg)
+  }
 })

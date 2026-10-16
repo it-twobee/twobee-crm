@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Sfida LinkedIn</title>
+<style>
+  body { width: 290px; margin: 0; padding: 16px; background: #141414; color: #f5f5f5; font: 15px/1.45 system-ui, sans-serif; }
+  strong { display: block; color: #F5C800; margin-bottom: 10px; }
+  .riga { display: flex; gap: 10px; }
+  label { flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #c8c8c8; }
+  input { font: inherit; font-size: 14px; padding: 6px; border-radius: 8px; border: 1px solid #555; background: #1f1f1f; color: #f5f5f5; color-scheme: dark; }
+  .nota { font-size: 13px; color: #c8c8c8; margin: 10px 0 0; min-height: 1em; }
+  .nota.errore { color: #ff8a80; }
+  button { width: 100%; margin-top: 12px; font: inherit; font-size: 14px; border-radius: 10px; padding: 9px 12px; cursor: pointer; }
+  #vai { background: #F5C800; color: #111; font-weight: 600; border: 0; }
+  #diag { background: transparent; color: #f5f5f5; border: 1px solid #555; margin-top: 8px; }
+  button:focus-visible, input:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+</style>
+</head>
+<body>
+  <strong>TwoBee · Sfida LinkedIn</strong>
+  <form id="modulo">
+    <div class="riga">
+      <label>Dal <input type="date" id="dal" required></label>
+      <label>Al <input type="date" id="al" required></label>
+    </div>
+    <p class="nota" id="nota" role="status"></p>
+    <button type="submit" id="vai">Raccogli i post</button>
+  </form>
+  <button type="button" id="diag">Scarica la pagina per la diagnostica</button>
+  <script src="popup.js"></script>
+</body>
+</html>

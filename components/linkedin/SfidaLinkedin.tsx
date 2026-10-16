@@ -168,10 +168,11 @@ export function SfidaLinkedin({ data, me, base }: { data: SfidaData; me: string;
         <ol className="mt-3 list-decimal space-y-1.5 pl-5">
           <li>Scarica l&apos;estensione e decomprimi lo zip: ottieni la cartella <code>twobee-sfida-linkedin</code>.</li>
           <li>In Chrome apri <code>chrome://extensions</code>, attiva «Modalità sviluppatore» in alto a destra, premi «Carica estensione non pacchettizzata» e scegli quella cartella. Si fa una volta sola; vale anche per Edge e Brave.</li>
-          <li>Con LinkedIn aperto e il tuo account collegato, clicca l&apos;icona dell&apos;estensione: apre la tua attività, scorre i post del mese e scarica il CSV.</li>
+          <li>Con LinkedIn aperto e il tuo account collegato, clicca l&apos;icona dell&apos;estensione: nella finestrella le date sono già quelle del mese, premi «Raccogli i post». Apre la tua attività, scorre i post e scarica il CSV.</li>
           <li>Torna qui e premi «Carica il CSV». Ricaricalo quando vuoi: i numeri si aggiornano, non si duplicano.</li>
         </ol>
-        <p className="mt-3 text-2xs text-text-tertiary">I post sono attribuiti a chi è collegato all&apos;OS quando carica il file. Le impression le vede solo l&apos;autore del post: per questo ognuno carica i propri.</p>
+        <p className="mt-3 text-2xs text-text-tertiary">Avevi già l&apos;estensione? Scaricala di nuovo, sostituisci la cartella e premi l&apos;icona di ricarica sulla sua scheda in <code>chrome://extensions</code>: la versione giusta ha la finestrella con le date.</p>
+        <p className="mt-2 text-2xs text-text-tertiary">I post sono attribuiti a chi è collegato all&apos;OS quando carica il file. Le impression le vede solo l&apos;autore del post: per questo ognuno carica i propri.</p>
       </details>
     </div>
   )

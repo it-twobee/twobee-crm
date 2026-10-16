@@ -60,6 +60,31 @@ console.log('\n— L\'estensione legge i numeri —')
   is('«Anna and 9 others» = 10', est.reazioniDa('Anna and 9 others'), 10)
   is('«45» = 45', est.reazioniDa('45'), 45)
   is('niente numero → null', est.numeroDa('Consiglia'), null)
+  is('«Claudia Amodei e 78 altre persone» = 79', est.reazioniDa('Claudia Amodei e 78 altre persone'), 79)
+  is('«Tu e altri 5» = 6', est.altriDa('Tu e altri 5'), 6)
+  is('un nome senza altri non è un conteggio', est.altriDa('Claudia Amodei'), null)
+}
+
+console.log('\n— Le reazioni senza parola, sulla riga dei commenti —')
+{
+  is('«18 · 3 commenti · 1 diffusione post» → 18', est.numeroNudo('18\n3 commenti · 1 diffusione post'), 18)
+  is('sulla stessa riga: «18 3 commenti»', est.numeroNudo('18 3 commenti'), 18)
+  is('«Claudia Amodei e 78 altre persone 18 commenti» → 79', est.numeroNudo('Claudia Amodei e 78 altre persone\n18 commenti'), 79)
+  is('solo commenti: niente reazioni', est.numeroNudo('3 commenti · 1 diffusione post'), null)
+  is('le impression non sono reazioni', est.numeroNudo('1.207 impressioni'), null)
+  is('«1s» non è un numero', est.numeroNudo('Michele • 1s •'), null)
+  is('«1.204» con il punto', est.numeroNudo('1.204\n12 commenti'), 1204)
+  is('le icone delle reazioni si riconoscono', ['like', 'PRAISE', 'Consiglia', 'empathy', 'Michele Cristallo'].map(n => est.ICONE_REAZIONI.test(n)), [true, true, true, true, false])
+}
+
+console.log('\n— L\'intervallo della finestrella —')
+{
+  const ora = Date.parse('2026-10-16T10:00:00Z')
+  is('di default: dal 1° del mese a oggi', est.intervalloDi({}, ora), { dal: '2026-10-01', al: '2026-10-16' })
+  is('quello scelto', est.intervalloDi({ dal: '2026-10-03', al: '2026-10-09' }, ora), { dal: '2026-10-03', al: '2026-10-09' })
+  is('al rovescio si raddrizza', est.intervalloDi({ dal: '2026-10-09', al: '2026-10-03' }, ora), { dal: '2026-10-03', al: '2026-10-09' })
+  is('una data storta vale il default', est.intervalloDi({ dal: 'ieri', al: '2026-10-09' }, ora), { dal: '2026-10-01', al: '2026-10-09' })
+  is('il giorno è quello di Roma', est.giornoRoma(Date.parse('2026-09-30T22:30:00Z')), '2026-10-01')
 }
 
 console.log('\n— Il CSV dell\'estensione lo legge l\'OS —')
@@ -148,9 +173,9 @@ console.log('\n— Lo zip dell\'estensione —')
   is('due voci', v.getUint16(fine + 10, true), 2)
   is('la directory centrale è dove dice', v.getUint32(z.length - 22 + 16, true) + v.getUint32(fine + 12, true), fine)
   const files = readdirSync(join(process.cwd(), 'public', 'estensione-linkedin')).sort()
-  is('l\'estensione ha i suoi tre file', files, ['background.js', 'manifest.json', 'raccolta.js'])
+  is('l\'estensione ha i suoi file', files, ['background.js', 'manifest.json', 'popup.html', 'popup.js', 'raccolta.js'])
   const manifest = JSON.parse(readFileSync(join(process.cwd(), 'public', 'estensione-linkedin', 'manifest.json'), 'utf8'))
-  is('manifest V3, solo linkedin.com', [manifest.manifest_version, manifest.host_permissions], [3, ['https://www.linkedin.com/*']])
+  is('manifest V3, solo linkedin.com, con la finestrella', [manifest.manifest_version, manifest.host_permissions, manifest.action.default_popup], [3, ['https://www.linkedin.com/*'], 'popup.html'])
 }
 
 console.log(fail ? `\n${fail} controlli falliti.` : '\nTutti i controlli passano.')
