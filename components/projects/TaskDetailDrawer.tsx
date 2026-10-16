@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useTransition } from 'react'
 import { toast } from 'sonner'
 import {
-  X, Trash2, Check, Plus, Repeat, Send, Loader2,
+  X, Trash2, Check, Plus, Repeat, Send, Loader2, Flag,
 } from 'lucide-react'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import {
@@ -11,6 +11,8 @@ import {
   addTaskComment, deleteTaskComment,
   addChecklistItem, toggleChecklistItem, deleteChecklistItem,
 } from '@/app/actions/tasks'
+import { trasformaTaskInMilestone } from '@/app/actions/milestones'
+import { motivoNonTrasformabile } from '@/lib/task-milestone'
 import type { Task, Priority, Visibility } from '@/lib/types/database'
 import { MenuStato } from '@/components/tasks/ControlliRiga'
 
@@ -59,6 +61,20 @@ export function TaskDetailDrawer({
   })
 
   const done = checklist ? checklist.filter(c => c.is_done).length : 0
+
+  /* §479 — creare una milestone è governo, come eliminare: stesso diritto. */
+  const trasformabile = (canDelete ?? true) && motivoNonTrasformabile(task) === null
+  const trasforma = () => {
+    if (!confirm('La task diventa una milestone nel calendario del progetto, con la stessa data e lo stesso responsabile.\n\nLa task resta dentro la milestone, con commenti, checklist e sotto-task. Procedere?')) return
+    start(async () => {
+      try {
+        const r = await trasformaTaskInMilestone(task.id)
+        toast.success(`Ora è la milestone «${r.title}»`, { description: 'La trovi nel calendario di Progetti, con la task dentro.' })
+        onChanged()
+        onClose()
+      } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+    })
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-scrim animate-fade-in" onClick={onClose}>
@@ -215,6 +231,12 @@ export function TaskDetailDrawer({
                 <Trash2 className="w-3.5 h-3.5" />Elimina
               </button>
             ) : <span />}
+            {trasformabile && (
+              <button onClick={trasforma} disabled={pending}
+                className="ml-auto mr-2 flex items-center gap-1 text-2xs font-semibold text-gold-text hover:opacity-80 disabled:opacity-40">
+                <Flag className="w-3.5 h-3.5" aria-hidden="true" />Trasforma in milestone
+              </button>
+            )}
             {pending && <Loader2 className="w-4 h-4 text-text-tertiary animate-spin" />}
           </div>
         )}

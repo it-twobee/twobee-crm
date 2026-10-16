@@ -772,6 +772,38 @@ sotto resta «+ aggiungi un'altra persona»; la prima è la principale
 - **Il blocco non è un `<Field>`**: `Field` è un `<label>`, e un clic
   sull'etichetta premeva la × del primo chip.
 
+## Una task diventa milestone (§479, `lib/task-milestone.ts`)
+
+Feedback del 13 ottobre 2026: certe task dentro una milestone sono consegne
+vere, e vanno nel calendario di Progetti — che mostra solo le milestone (§328).
+Nel pannello della task, accanto a «Elimina», c'è **«Trasforma in milestone»**.
+
+- **La task entra nella milestone nuova** (decisione del committente). Una task
+  ha commenti, checklist, sotto-task e più assegnatari; una milestone no.
+  Farla sparire avrebbe lasciato quel dettaglio solo nella cronologia. Il
+  prezzo è una milestone con dentro una task dello stesso nome.
+- **La milestone nasce dalla task**: nome con la convention `M{n} · …` (n =
+  consegne già nella corsia, più uno, come `NewMilestoneModal`), stessa data,
+  responsabile = l'assegnatario primario, stato tradotto
+  (`in_review` → `in_approvazione`, `completato` → `completata`,
+  `richiesta_supporto` → `in_corso`). Nasce **interna**: farla vedere al
+  cliente è una pubblicazione, non un effetto collaterale. Il responsabile
+  riceve la notifica di consegna, se non è chi trasforma.
+- **La task e le sue sotto-task passano con un'istruzione sola**. Se lo
+  spostamento fallisce la milestone appena nata si toglie: con `ON DELETE
+  CASCADE` porterebbe con sé le task, ma non ce n'è ancora nessuna dentro. Il
+  prefisso `M{n}` del nome della task segue la milestone nuova.
+- **Chi**: lo stesso diritto di eliminare (`canDelete`, chi governa il
+  progetto): creare una milestone è governo (§322). Sul server
+  `requireStaff`, come le altre azioni delle milestone.
+- **Cosa no**: le ad hoc e le task del cliente (non hanno una corsia), le
+  sotto-task (si trasforma quella che le contiene) e le occorrenze ricorrenti
+  (la prossima nascerebbe di nuovo task).
+
+Provato il 16 ottobre 2026 sulla produzione dentro una transazione annullata:
+milestone `in_approvazione` accettata dai vincoli, una task spostata, due righe
+di cronologia. Gate: `npx tsx lib/task-milestone.check.ts`.
+
 ## La sezione Task mostra anche le milestone (§346)
 
 Una milestone non compariva in **nessun** elenco di lavoro: non nella sezione

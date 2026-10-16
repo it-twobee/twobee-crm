@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { notificaAssegnazione } from '@/lib/notify'
 import { generaSubito } from '@/lib/recurrence-kick'
 import type { MilestoneStatus, Visibility, ProjectTemplateNode } from '@/lib/types/database'
+import { motivoNonTrasformabile, milestoneDaTask, titoloNellaMilestone, type TaskDaTrasformare } from '@/lib/task-milestone'
 
 async function requireStaff(): Promise<string> {
   const sb = await createClient()
@@ -175,4 +176,64 @@ export async function createMilestoneDaModello(input: {
 
   rev(input.project_id)
   return { id: msId, task: task.length, ricorrenti: ricorrenti.length }
+}
+
+/**
+ * §479 — la task diventa milestone, e ci entra dentro: si crea la consegna
+ * con nome `M{n}`, data e responsabile della task, poi la task e le sue
+ * sotto-task passano alla milestone nuova con commenti, checklist e
+ * assegnatari. Lo spostamento è **un'istruzione sola**: se fallisce, la
+ * milestone appena nata si toglie senza portarsi dietro niente (le task
+ * cadrebbero con lei, via ON DELETE CASCADE, solo se ci fossero già entrate).
+ */
+export async function trasformaTaskInMilestone(taskId: string): Promise<{ milestoneId: string; title: string }> {
+  const uid = await requireStaff()
+  const admin = createActorClient(uid)
+  const { data, error } = await admin.from('tasks')
+    .select('id, title, status, due_date, assignee_id, task_type, project_id, workstream_id, parent_task_id, is_recurring_instance, deleted_at')
+    .eq('id', taskId).maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) throw new Error('Task non trovata')
+  const t = data as TaskDaTrasformare & { id: string }
+  const no = motivoNonTrasformabile(t)
+  if (no) throw new Error(no)
+
+  const { count, error: e1 } = await admin.from('milestones').select('id', { count: 'exact', head: true })
+    .eq('workstream_id', t.workstream_id!).eq('milestone_type', 'delivery')
+  if (e1) throw new Error(e1.message)
+  const consegne = count ?? 0
+  const m = milestoneDaTask(t, consegne)
+
+  const { data: nuova, error: e2 } = await admin.from('milestones').insert({
+    project_id: t.project_id, workstream_id: t.workstream_id, title: m.title,
+    milestone_type: 'delivery', status: m.status, due_date: m.due_date, owner_id: m.owner_id,
+    completed_at: m.status === 'completata' ? new Date().toISOString() : null,
+    approval_required: false, visibility: 'internal',
+  }).select('id').single()
+  if (e2) throw new Error(e2.message)
+  const milestoneId = (nuova as { id: string }).id
+
+  const { data: spostate, error: e3 } = await admin.from('tasks').update({ milestone_id: milestoneId })
+    .or(`id.eq.${t.id},parent_task_id.eq.${t.id}`).select('id, title')
+  if (e3) {
+    await admin.from('milestones').delete().eq('id', milestoneId)
+    throw new Error(e3.message)
+  }
+  for (const r of (spostate ?? []) as { id: string; title: string }[]) {
+    const nome = titoloNellaMilestone(r.title, consegne)
+    if (nome !== r.title) await admin.from('tasks').update({ title: nome }).eq('id', r.id)
+  }
+
+  if (m.owner_id && m.owner_id !== uid) {
+    await notificaAssegnazione({
+      destinatario: m.owner_id, autore: uid, tipo: 'milestone_assigned',
+      titolo: m.title, dettaglio: 'milestone da consegnare',
+      link: `/workspace/progetti/${t.project_id}/workstream/${t.workstream_id}`,
+      db: admin,
+    })
+  }
+  rev(t.project_id!)
+  revalidatePath('/progetti')
+  revalidatePath('/workspace/progetti')
+  return { milestoneId, title: m.title }
 }
