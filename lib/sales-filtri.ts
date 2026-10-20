@@ -16,6 +16,7 @@
 
 import { COLONNE, colonnaDi, type TipoCella } from './sales-table'
 import { attive, type Fase } from './sales-stages'
+import { tipiAds, rangoFatturato, SENZA_TIPO_ADS } from './sales-ads'
 
 /* L'ordine della pipeline, non l'alfabeto: «In contatto» viene prima di
    «Preventivo inviato» perché viene prima, non perché comincia per I. Si
@@ -64,12 +65,17 @@ const ORDINE_SCELTA = new Map<string, number>([
 /* §440 — si ordina anche su campi che non sono colonne della scheda: il
    prossimo follow-up lo calcola il diario, e senza un tipo si confronterebbe
    come testo */
-const TIPI_LETTI: Record<string, TipoCella> = { next_followup_at: 'data' }
+const TIPI_LETTI: Record<string, TipoCella> = { next_followup_at: 'data', fatturato_rango: 'numero' }
+
+/* §480 — campi che non sono colonne: si ricavano da `lead_origine`, e vanno
+   letti da qui sia per ordinare che per filtrare */
+export const letto = (r: Riga, campo: string): unknown =>
+  campo === 'fatturato_rango' ? rangoFatturato(r.lead_origine as Record<string, unknown> | null) : r[campo]
 
 export function confronta(fasi: Fase[], a: Riga, b: Riga, campo: string, verso: Verso, ordini: Record<string, string[]> = {}): number {
   const tipo = colonnaDi(campo)?.tipo ?? TIPI_LETTI[campo] ?? 'testo'
-  const x = chiave(fasi, a[campo], tipo, ordini[campo])
-  const y = chiave(fasi, b[campo], tipo, ordini[campo])
+  const x = chiave(fasi, letto(a, campo), tipo, ordini[campo])
+  const y = chiave(fasi, letto(b, campo), tipo, ordini[campo])
   // i vuoti in fondo in entrambi i versi: chi non ha il dato non è «il primo»
   if (x === null && y === null) return 0
   if (x === null) return 1
@@ -110,6 +116,7 @@ export const FILTRABILI: Filtrabile[] = [
   { campo: 'referral', etichetta: 'Referral' },
   { campo: 'tags', etichetta: 'Tag' },
   { campo: 'services', etichetta: 'Servizi' },
+  { campo: 'tipo_ads', etichetta: 'Ads', da: 'lead_origine', vuoto: SENZA_TIPO_ADS },
   { campo: 'piattaforma', etichetta: 'Piattaforma', da: 'lead_origine' },
   { campo: 'campagna', etichetta: 'Campagna', da: 'lead_origine' },
   { campo: 'tipologia', etichetta: 'Tipo attività', da: 'lead_origine' },
@@ -118,7 +125,8 @@ export const FILTRABILI: Filtrabile[] = [
 
 /** i valori che una riga ha per quella variabile: zero, uno o molti (i tag) */
 export function valoriDi(r: Riga, f: Omit<Filtrabile, 'etichetta'>): string[] {
-  const grezzo = f.da ? (r[f.da] as Record<string, unknown> | null)?.[f.campo] : r[f.campo]
+  const grezzo = f.campo === 'tipo_ads' ? tipiAds(r.lead_origine as Record<string, unknown> | null)
+    : f.da ? (r[f.da] as Record<string, unknown> | null)?.[f.campo] : r[f.campo]
   const valori = grezzo === null || grezzo === undefined || grezzo === '' ? []
     : Array.isArray(grezzo) ? grezzo.map(String).filter(Boolean)
     : [String(grezzo)]

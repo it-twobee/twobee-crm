@@ -34,6 +34,7 @@
  * solo segnale che dice dove stai per lasciare la scheda.
  */
 
+import BadgeLead from './BadgeLead'
 import { useState } from 'react'
 import { GRUPPI, gruppoDi, type Gruppo } from '@/lib/sales-stages'
 import { useFasi } from './FasiContext'
@@ -123,6 +124,7 @@ export function CrmBacheca({ righe, gruppo, apertaId, onApri, onSposta }: {
                     <p className="text-xs font-semibold text-text-primary truncate">
                       {r.company_name || 'Senza nome'}
                     </p>
+                    <BadgeLead origine={org} className="mt-1 flex-wrap" />
                     {(referente || telefono) && (
                       <p className="text-2xs text-text-secondary truncate mt-0.5">
                         {[referente, telefono].filter(Boolean).join(' · ')}

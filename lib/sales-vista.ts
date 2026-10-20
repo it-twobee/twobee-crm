@@ -159,6 +159,7 @@ export const CRITERI: { campo: string; etichetta: string }[] = [
   { campo: 'company_name', etichetta: 'Azienda' },
   { campo: 'priority', etichetta: 'Priorità' },
   { campo: 'tentativi', etichetta: 'Tentativi' },
+  { campo: 'fatturato_rango', etichetta: 'Fatturato dichiarato' },
   ...ORDINABILI
     .filter(c => !['last_interaction_at', 'created_at', 'stage', 'company_name', 'priority', 'tentativi'].includes(c.campo))
     .map(c => ({ campo: c.campo, etichetta: c.etichetta })),

@@ -49,6 +49,8 @@ import { NuovoLead } from './NuovoLead'
 import { CrmAnalytics } from './CrmAnalytics'
 import { tassoDi, type RigaAnalisi } from '@/lib/sales-analytics'
 import { SENZA_OWNER } from '@/lib/sales-filtri'
+import { SENZA_TIPO_ADS } from '@/lib/sales-ads'
+import BadgeLead from './BadgeLead'
 import { applicaStato, descrivi, eNostra, leggi, scrivi, VUOTO, type StatoElenco } from '@/lib/sales-vista'
 import { EsportaLead } from './EsportaLead'
 import { BarraFiltri } from './BarraFiltri'
@@ -220,6 +222,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
   const etichettaValore = (campo: string, v: string) =>
     campo === 'stage' ? etichettaFase(v)
       : campo === 'owners' ? (v === SENZA_OWNER ? 'Nessuno' : nomeDi.get(v) ?? 'Ex collega')
+      : campo === 'tipo_ads' && v === SENZA_TIPO_ADS ? 'Né IA né e-commerce'
       : campo === 'qualifica' ? (ETICHETTA_QUALIFICA[v] ?? v)
       : campo === 'priority' || campo === 'membership' ? etichettaScelta(campo, v)
       : v
@@ -428,8 +431,11 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
                 <button onClick={() => setAperta(scelta ? null : r)}
                   aria-current={scelta ? 'true' : undefined}
                   className="flex-1 min-w-0 text-left py-2.5">
-                  <span className="block min-w-0 text-sm font-semibold text-text-primary truncate">
-                    {r.company_name || 'Senza nome'}
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="min-w-0 text-sm font-semibold text-text-primary truncate">
+                      {r.company_name || 'Senza nome'}
+                    </span>
+                    <BadgeLead origine={r.lead_origine as Record<string, unknown> | null} />
                   </span>
                   {/* §376 — referente, email e telefono si leggono senza
                       aprire la scheda: sono le tre cose che servono per
