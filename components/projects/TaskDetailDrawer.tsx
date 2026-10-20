@@ -65,11 +65,11 @@ export function TaskDetailDrawer({
   /* §479 — creare una milestone è governo, come eliminare: stesso diritto. */
   const trasformabile = (canDelete ?? true) && motivoNonTrasformabile(task) === null
   const trasforma = () => {
-    if (!confirm('La task diventa una milestone nel calendario del progetto, con la stessa data e lo stesso responsabile.\n\nLa task resta dentro la milestone, con commenti, checklist e sotto-task. Procedere?')) return
+    if (!confirm('La task diventa una milestone nel calendario del progetto, con la stessa data, lo stesso responsabile e la stessa descrizione. Le sotto-task diventano le task della milestone.\n\nLa task sparisce: commenti, checklist e gli altri assegnatari non passano alla milestone. Procedere?')) return
     start(async () => {
       try {
         const r = await trasformaTaskInMilestone(task.id)
-        toast.success(`Ora è la milestone «${r.title}»`, { description: 'La trovi nel calendario di Progetti, con la task dentro.' })
+        toast.success(`Ora è la milestone «${r.title}»`, { description: 'La trovi nel calendario di Progetti.' })
         onChanged()
         onClose()
       } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }

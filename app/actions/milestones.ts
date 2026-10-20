@@ -179,18 +179,18 @@ export async function createMilestoneDaModello(input: {
 }
 
 /**
- * §479 — la task diventa milestone, e ci entra dentro: si crea la consegna
- * con nome `M{n}`, data e responsabile della task, poi la task e le sue
- * sotto-task passano alla milestone nuova con commenti, checklist e
- * assegnatari. Lo spostamento è **un'istruzione sola**: se fallisce, la
- * milestone appena nata si toglie senza portarsi dietro niente (le task
- * cadrebbero con lei, via ON DELETE CASCADE, solo se ci fossero già entrate).
+ * §479 — la task **diventa** la milestone: si crea la consegna con nome
+ * `M{n}`, data, responsabile e descrizione della task, la task si elimina e le
+ * sue sotto-task diventano le task della milestone. Ogni passo disfa i
+ * precedenti se fallisce: la milestone nasce vuota, quindi toglierla non porta
+ * via niente (le task cadrebbero con lei, via ON DELETE CASCADE, solo se ci
+ * fossero già entrate).
  */
 export async function trasformaTaskInMilestone(taskId: string): Promise<{ milestoneId: string; title: string }> {
   const uid = await requireStaff()
   const admin = createActorClient(uid)
   const { data, error } = await admin.from('tasks')
-    .select('id, title, status, due_date, assignee_id, task_type, project_id, workstream_id, parent_task_id, is_recurring_instance, deleted_at')
+    .select('id, title, description, status, due_date, assignee_id, task_type, project_id, workstream_id, parent_task_id, is_recurring_instance, deleted_at')
     .eq('id', taskId).maybeSingle()
   if (error) throw new Error(error.message)
   if (!data) throw new Error('Task non trovata')
@@ -205,7 +205,7 @@ export async function trasformaTaskInMilestone(taskId: string): Promise<{ milest
   const m = milestoneDaTask(t, consegne)
 
   const { data: nuova, error: e2 } = await admin.from('milestones').insert({
-    project_id: t.project_id, workstream_id: t.workstream_id, title: m.title,
+    project_id: t.project_id, workstream_id: t.workstream_id, title: m.title, description: m.description,
     milestone_type: 'delivery', status: m.status, due_date: m.due_date, owner_id: m.owner_id,
     completed_at: m.status === 'completata' ? new Date().toISOString() : null,
     approval_required: false, visibility: 'internal',
@@ -213,11 +213,17 @@ export async function trasformaTaskInMilestone(taskId: string): Promise<{ milest
   if (e2) throw new Error(e2.message)
   const milestoneId = (nuova as { id: string }).id
 
-  const { data: spostate, error: e3 } = await admin.from('tasks').update({ milestone_id: milestoneId })
-    .or(`id.eq.${t.id},parent_task_id.eq.${t.id}`).select('id, title')
+  const { error: e3 } = await admin.from('tasks').update({ deleted_at: new Date().toISOString() }).eq('id', t.id)
   if (e3) {
     await admin.from('milestones').delete().eq('id', milestoneId)
     throw new Error(e3.message)
+  }
+  const { data: spostate, error: e4 } = await admin.from('tasks').update({ milestone_id: milestoneId, parent_task_id: null })
+    .eq('parent_task_id', t.id).is('deleted_at', null).select('id, title')
+  if (e4) {
+    await admin.from('tasks').update({ deleted_at: null }).eq('id', t.id)
+    await admin.from('milestones').delete().eq('id', milestoneId)
+    throw new Error(e4.message)
   }
   for (const r of (spostate ?? []) as { id: string; title: string }[]) {
     const nome = titoloNellaMilestone(r.title, consegne)

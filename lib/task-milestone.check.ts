@@ -29,6 +29,8 @@ is('il responsabile è l\'assegnatario', m.owner_id, 'u1')
 is('in corso resta in corso', m.status, 'in_corso')
 is('senza prefisso il nome si scrive uguale', milestoneDaTask({ ...base, title: 'Shooting' }, 0).title, 'M1 · Shooting')
 is('senza assegnatario, senza responsabile', milestoneDaTask({ ...base, assignee_id: null }, 0).owner_id, null)
+is('la descrizione passa alla milestone', milestoneDaTask({ ...base, description: ' Script da approvare ' }, 0).description, 'Script da approvare')
+is('senza descrizione, niente descrizione', milestoneDaTask({ ...base, description: '  ' }, 0).description, null)
 
 console.log('\n— Gli stati si traducono —')
 is('in revisione → in approvazione', STATO_MILESTONE_DA_TASK.in_review, 'in_approvazione')
@@ -36,7 +38,7 @@ is('completato → completata', STATO_MILESTONE_DA_TASK.completato, 'completata'
 is('richiesta di supporto è lavoro in corso', STATO_MILESTONE_DA_TASK.richiesta_supporto, 'in_corso')
 is('ogni stato della task ha il suo', Object.keys(STATO_MILESTONE_DA_TASK).sort(), ['completato', 'da_fare', 'in_corso', 'in_review', 'richiesta_supporto'])
 
-console.log('\n— Il nome della task dentro la milestone nuova —')
+console.log('\n— Il nome di una sotto-task dentro la milestone nuova —')
 is('il prefisso vecchio segue la milestone', titoloNellaMilestone('M1 · Consegna demo', 3), 'M4 · Consegna demo')
 is('senza prefisso non si tocca', titoloNellaMilestone('Consegna demo', 3), 'Consegna demo')
 

@@ -778,21 +778,27 @@ Feedback del 13 ottobre 2026: certe task dentro una milestone sono consegne
 vere, e vanno nel calendario di Progetti — che mostra solo le milestone (§328).
 Nel pannello della task, accanto a «Elimina», c'è **«Trasforma in milestone»**.
 
-- **La task entra nella milestone nuova** (decisione del committente). Una task
-  ha commenti, checklist, sotto-task e più assegnatari; una milestone no.
-  Farla sparire avrebbe lasciato quel dettaglio solo nella cronologia. Il
-  prezzo è una milestone con dentro una task dello stesso nome.
+- **La task diventa la milestone, non ci entra dentro** (20 ottobre 2026). La
+  prima versione la spostava nella milestone nuova per non perdere commenti,
+  checklist e assegnatari. Chi la usa l'ha rimandata indietro: il risultato era
+  un riquadro con due cose da spuntare per lo stesso lavoro, la milestone e una
+  task con lo stesso nome. Adesso la task **si elimina** (`deleted_at`): la
+  descrizione passa alla milestone, le sotto-task diventano le sue task,
+  mentre commenti, checklist e gli assegnatari oltre al primo restano sulla
+  riga eliminata, e il messaggio di conferma lo dice prima.
 - **La milestone nasce dalla task**: nome con la convention `M{n} · …` (n =
-  consegne già nella corsia, più uno, come `NewMilestoneModal`), stessa data,
-  responsabile = l'assegnatario primario, stato tradotto
+  consegne già nella corsia, più uno, come `NewMilestoneModal`), stessa data e
+  descrizione, responsabile = l'assegnatario primario, stato tradotto
   (`in_review` → `in_approvazione`, `completato` → `completata`,
   `richiesta_supporto` → `in_corso`). Nasce **interna**: farla vedere al
   cliente è una pubblicazione, non un effetto collaterale. Il responsabile
   riceve la notifica di consegna, se non è chi trasforma.
-- **La task e le sue sotto-task passano con un'istruzione sola**. Se lo
-  spostamento fallisce la milestone appena nata si toglie: con `ON DELETE
-  CASCADE` porterebbe con sé le task, ma non ce n'è ancora nessuna dentro. Il
-  prefisso `M{n}` del nome della task segue la milestone nuova.
+- **Tre passi, e ognuno disfa i precedenti**: milestone, eliminazione della
+  task, spostamento delle sotto-task (un'istruzione sola, con
+  `parent_task_id` azzerato). Se uno fallisce la task torna viva e la
+  milestone appena nata si toglie: con `ON DELETE CASCADE` porterebbe con sé
+  le task, ma non ce n'è ancora nessuna dentro. Il prefisso `M{n}` nel nome di
+  una sotto-task segue la milestone nuova.
 - **Chi**: lo stesso diritto di eliminare (`canDelete`, chi governa il
   progetto): creare una milestone è governo (§322). Sul server
   `requireStaff`, come le altre azioni delle milestone.
@@ -802,7 +808,8 @@ Nel pannello della task, accanto a «Elimina», c'è **«Trasforma in milestone�
 
 Provato il 16 ottobre 2026 sulla produzione dentro una transazione annullata:
 milestone `in_approvazione` accettata dai vincoli, una task spostata, due righe
-di cronologia. Gate: `npx tsx lib/task-milestone.check.ts`.
+di cronologia. La versione del 20 ottobre si è provata allo stesso modo.
+Gate: `npx tsx lib/task-milestone.check.ts`.
 
 ## La sezione Task mostra anche le milestone (§346)
 
