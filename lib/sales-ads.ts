@@ -26,7 +26,10 @@ export function tipiAds(o: Origine): TipoAds[] {
   const p = parole(testo)
   const tipi: TipoAds[] = []
   if (p.includes('ia') || p.includes('ai')) tipi.push('IA')
-  if (ECOMMERCE.test(testo)) tipi.push('E-commerce')
+  /* la campagna «Test» è la campagna e-commerce: la parola intera, e solo nel
+     nome della campagna — in un annuncio «test» può essere una variante */
+  const inCampagna = parole(typeof o.campagna === 'string' ? o.campagna : '')
+  if (ECOMMERCE.test(testo) || inCampagna.includes('test')) tipi.push('E-commerce')
   return tipi
 }
 

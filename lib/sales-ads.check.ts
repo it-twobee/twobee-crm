@@ -17,6 +17,8 @@ is('annuncio «…IA usato al 2%»', tipiAds({ campagna: 'TwoBee_2026_Lug_Contat
 is('«Italia» non è IA', tipiAds({ adset: 'TwoBee_Adv+_Centro-Nord Italia_Adv+_NA', annuncio: 'Video_9x16_23s_Margine' }), [])
 is('e-commerce in campagna', tipiAds({ campagna: 'TwoBee_Ecommerce_Lead' }), ['E-commerce'])
 is('«E-commerce» con trattino', tipiAds({ adset: 'Broad E-commerce' }), ['E-commerce'])
+is('campagna «Test» è e-commerce', tipiAds({ campagna: 'TwoBee_2026_Test' }), ['E-commerce'])
+is('«test» nell\'annuncio non basta', tipiAds({ campagna: 'Lancio', annuncio: 'Video test A' }), [])
 is('entrambi', tipiAds({ campagna: 'IA', annuncio: 'ecommerce' }), ['IA', 'E-commerce'])
 is('senza origine', tipiAds(null), [])
 
