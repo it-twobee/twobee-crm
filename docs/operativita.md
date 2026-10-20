@@ -1023,6 +1023,15 @@ una lista propria è la prima cosa che si legge.
 - Il dettaglio è lo stesso modale in tutte e due le pagine, con dentro chi ha
   assegnato (§347). Il pannello laterale di «Le mie attività» non c'è più: era
   un secondo modo di aprire la stessa cosa.
+- **La colonna «Chi» dice perché la riga è tua** (§481, `conChi` in
+  `lib/task-board.ts`). Mostra il responsabile, e una task dove sei uno dei
+  sette assegnatari si leggeva «Annalisa Smiraglia»: sembrava di un altro,
+  finita lì per sbaglio. Sotto il nome c'è «con te», «con te e altri 5» o, se
+  la task è tua e la condividi, «con Gabriele» / «con altri 2»; il nome intero
+  di tutti sta nel titolo al passaggio del mouse. Se sei l'unico non dice
+  niente. Le due pagine personali leggono **tutti** gli assegnatari delle
+  task in elenco da `task_assignees`; nel workspace la stessa lettura serve
+  anche al conteggio dei colleghi di §363, che resta sulle sole aperte.
 
 **E il modale dice la verità** (§349). Si intitolava «Dettaglio task ad hoc» su
 **qualunque** task, comprese quelle di progetto — un titolo che afferma una cosa

@@ -82,12 +82,16 @@ export default async function MieAttivitaPage() {
      ancora la stessa di stamattina — se nel frattempo hai chiuso le tre task
      ferme non si ripiega su una battuta generica: si tace. */
   const oggiRoma = giornoAzienda()
-  const aperteMie = (tasks ?? []).filter(t => t.status !== 'completato').map(t => t.id)
+  const aperteMie = new Set((tasks ?? []).filter(t => t.status !== 'completato').map(t => t.id))
+  const taskIds = (tasks ?? []).map(t => t.id)
   const [copyRes, condivise, richieste, registro] = await Promise.all([
     supabase.from('person_copy').select('template, situazione')
       .eq('profile_id', userId).eq('giorno', oggiRoma).eq('chiave', 'attivita').maybeSingle(),
-    aperteMie.length
-      ? supabase.from('task_assignees').select('task_id, profile_id').in('task_id', aperteMie)
+    /* §481 — di **tutte** le mie task, non solo delle aperte: servono anche
+       alla colonna «Chi», che dice con chi la condividi. Il conteggio dei
+       colleghi qui sotto resta sulle aperte. */
+    taskIds.length
+      ? supabase.from('task_assignees').select('task_id, profile_id').in('task_id', taskIds)
       : Promise.resolve({ data: [] as { task_id: string; profile_id: string }[] }),
     supabase.from('hr_requests').select('id, profile_id, type, status, start_date, end_date, notes'),
     supabase.from('team_leaves').select('id, user_id, type, status, start_date, end_date, notes, days_count'),
@@ -95,8 +99,10 @@ export default async function MieAttivitaPage() {
 
   const nomeDi = new Map((profiles ?? []).map(p => [p.id, (p.full_name ?? '').split(' ')[0]]))
   const conta = new Map<string, number>()
+  const assegnatari: Record<string, string[]> = {}
   for (const a of (condivise.data ?? []) as { task_id: string; profile_id: string }[]) {
-    if (a.profile_id !== userId) conta.set(a.profile_id, (conta.get(a.profile_id) ?? 0) + 1)
+    (assegnatari[a.task_id] ??= []).push(a.profile_id)
+    if (a.profile_id !== userId && aperteMie.has(a.task_id)) conta.set(a.profile_id, (conta.get(a.profile_id) ?? 0) + 1)
   }
   const { spans } = normalize(
     (richieste.data ?? []) as RawRequest[],
@@ -140,6 +146,8 @@ export default async function MieAttivitaPage() {
       milestones={(tappe ?? []) as MilestoneInput[]}
       milestoneTasks={(msTasks ?? []) as { milestone_id: string | null; status: string }[]}
       assignedBy={assignedBy}
+      assegnatari={assegnatari}
+      io={userId}
       profiles={(profiles ?? []).map(p => ({ ...p, client_id: null }))}
       canManage
       canCreateClient={canCreateClients(profile.app_role)}

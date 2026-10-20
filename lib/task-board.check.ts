@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 ;(globalThis as unknown as { React: unknown }).React = React
 import {
   tappeRows, filtraTappe, tappeCounts, isTappaAperta,
-  progettoBreve, workstreamBreve, urgenzaDi, type MilestoneInput,
+  progettoBreve, workstreamBreve, urgenzaDi, conChi, type MilestoneInput,
 } from '@/lib/task-board'
 import { MilestoneBand } from '@/components/tasks/MilestoneBand'
 
@@ -177,6 +177,20 @@ is('nomina il responsabile', uno.includes('Sabrina Nastro'), true)
 is('senza milestone non si stampa niente', html([ms({ id: 'a', milestone_type: 'system', due_date: null })]), '')
 is('senza responsabile lo scrive',
   html([ms({ id: 'a', owner_id: null })]).includes('senza responsabile'), true)
+
+console.log('\n— Con chi la condividi (§481) —')
+const nomi: Record<string, string> = { an: 'Annalisa', mi: 'Michele', ga: 'Gabriele', sa: 'Sabrina' }
+const cc = (tutti: string[], primario: string | null, io = 'mi') => conChi(tutti, primario, io, id => nomi[id])
+is('solo mia: niente da spiegare', cc(['mi'], 'mi'), null)
+is('mia, senza righe in task_assignees', cc([], 'mi'), null)
+is('mia, con un altro: il suo nome', cc(['mi', 'ga'], 'mi'), 'con Gabriele')
+is('mia, con altri due', cc(['mi', 'ga', 'sa'], 'mi'), 'con altri 2')
+is('di Annalisa, ci sono anch\'io', cc(['an', 'mi'], 'an'), 'con te')
+is('di Annalisa, con me e un altro', cc(['an', 'mi', 'ga'], 'an'), 'con te e Gabriele')
+is('di Annalisa, con me e altri cinque', cc(['an', 'mi', 'ga', 'sa', 'x1', 'x2', 'x3'], 'an'), 'con te e altri 5')
+is('un profilo senza nome resta contato', cc(['an', 'mi', 'x1'], 'an'), 'con te e un altro')
+is('un doppione non conta due volte', cc(['an', 'mi', 'ga', 'ga'], 'an'), 'con te e Gabriele')
+is('non ci sono: non dice «con te»', cc(['an', 'ga'], 'an'), 'con Gabriele')
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

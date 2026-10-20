@@ -56,7 +56,8 @@ export default async function LeMieAttivitaPage() {
   const { data: tasks } = await supabase
     .from('tasks').select('*').is('deleted_at', null).or(orFilter).order('due_date', { ascending: true, nullsFirst: false })
 
-  const [{ data: projects }, { data: workstreams }, { data: msTasks }, { data: profiles }] = await Promise.all([
+  const taskIds = (tasks ?? []).map(t => t.id)
+  const [{ data: projects }, { data: workstreams }, { data: msTasks }, { data: profiles }, { data: condivise }] = await Promise.all([
     /* §353 — **tutti** i progetti attivi, non solo quelli dove ho già una task:
        da «Nuova task» si sceglie anche una milestone di un progetto, e un
        elenco che mostra solo i propri obbliga a uscire dalla pagina per
@@ -70,7 +71,16 @@ export default async function LeMieAttivitaPage() {
     msIds.length ? supabase.from('tasks').select('milestone_id, status').is('deleted_at', null).in('milestone_id', msIds)
       : Promise.resolve({ data: [] }),
     supabase.from('profiles').select('id, full_name, avatar_url, app_role').eq('is_active', true).order('full_name'),
+    /* §481 — **tutti** gli assegnatari delle mie task: la colonna «Chi» dice il
+       responsabile, e senza gli altri una task dove sono uno dei sette sembra
+       di un altro finita qui per sbaglio */
+    taskIds.length ? supabase.from('task_assignees').select('task_id, profile_id').in('task_id', taskIds)
+      : Promise.resolve({ data: [] as { task_id: string; profile_id: string }[] }),
   ])
+  const assegnatari: Record<string, string[]> = {}
+  for (const a of (condivise ?? []) as { task_id: string; profile_id: string }[]) {
+    (assegnatari[a.task_id] ??= []).push(a.profile_id)
+  }
 
   const clientIds = Array.from(new Set([
     ...(tasks ?? []).map(t => t.client_id),
@@ -98,6 +108,8 @@ export default async function LeMieAttivitaPage() {
       milestones={(tappe ?? []) as MilestoneInput[]}
       milestoneTasks={(msTasks ?? []) as { milestone_id: string | null; status: string }[]}
       assignedBy={assignedBy}
+      assegnatari={assegnatari}
+      io={user.id}
       profiles={(profiles ?? []).map(p => ({ ...p, client_id: null }))}
       canManage
       canCreateClient={canCreateClients(appRole)}

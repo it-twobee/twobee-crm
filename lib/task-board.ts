@@ -271,3 +271,22 @@ export function urgenzaDi(
   if (due < t) return 'scaduta'
   return due <= piu(t, 1) ? 'imminente' : null
 }
+
+/**
+ * §481 — **perché questa riga è nella tua lista.** La colonna «Chi» mostra il
+ * responsabile, e in «Le mie attività» una task dove sei uno dei sette
+ * assegnatari si leggeva «Annalisa Smiraglia»: sembrava roba sua finita lì per
+ * sbaglio. La riga sotto il nome dice con chi la condividi, e se ci sei anche tu.
+ * `null` quando sei l'unico: non c'è niente da spiegare.
+ */
+export function conChi(
+  assegnatari: string[],
+  primario: string | null,
+  io: string,
+  nome: (id: string) => string | null | undefined,
+): string | null {
+  const altri = Array.from(new Set(assegnatari)).filter(id => id !== primario && id !== io)
+  const coda = altri.length === 0 ? '' : altri.length === 1 ? (nome(altri[0]) || 'un altro') : `altri ${altri.length}`
+  if (io !== primario && assegnatari.includes(io)) return coda ? `con te e ${coda}` : 'con te'
+  return coda ? `con ${coda}` : null
+}

@@ -25,7 +25,7 @@ import {
   today, addDays, relDays, nextMonday, COLUMNS,
 } from './task-ui'
 import { verdetto as verdettoDi, sottotitolo, seme, type Momento } from '@/lib/task-mood'
-import { tappeRows, filtraTappe, progettoBreve, workstreamBreve, urgenzaDi, type MilestoneInput } from '@/lib/task-board'
+import { tappeRows, filtraTappe, progettoBreve, workstreamBreve, urgenzaDi, conChi, type MilestoneInput } from '@/lib/task-board'
 import type { Priority, Visibility, TaskStatusV2 } from '@/lib/types/database'
 
 export type TaskRow = {
@@ -78,8 +78,8 @@ const PROJ_ACCENTS = ['bg-gold', 'bg-info', 'bg-accent', 'bg-success', 'bg-orang
 type ProjectOpt = { id: string; name: string; client_id?: string | null }
 
 export function TaskList({
-  rows, clients, clientiPerCrea, projects = [], workstreams = [], milestones = [], milestoneTasks, assignedBy = {}, profiles, canManage,
-  canCreateClient = false, clientBase = '/clienti', projectBase = '/progetti',
+  rows, clients, clientiPerCrea, projects = [], workstreams = [], milestones = [], milestoneTasks, assignedBy = {}, assegnatari = {}, io,
+  profiles, canManage, canCreateClient = false, clientBase = '/clienti', projectBase = '/progetti',
   personale = false, titolo, segnalazione,
 }: {
   rows: TaskRow[]
@@ -104,6 +104,11 @@ export function TaskList({
   /** §347 — chi ha deciso l'assegnazione, per task: viene da `task_assignees`,
       che è la sorgente canonica. Vuoto per le assegnazioni di prima della 231. */
   assignedBy?: Record<string, string | null>
+  /** §481 — tutti gli assegnatari, per task, da `task_assignees`: con `io`, la
+      colonna «Chi» dice con chi la condividi e se ci sei anche tu */
+  assegnatari?: Record<string, string[]>
+  /** §481 — chi guarda, sulla lista personale */
+  io?: string
   profiles: Person[]
   canManage: boolean
   /** §317 — admin e manager possono aprire un'anagrafica dal composer */
@@ -570,6 +575,9 @@ export function TaskList({
                            spiegazioni. Nullo = assegnata prima che lo
                            registrassimo: lo dice il dettaglio, non la riga. */
                         assegnante={person(assignedBy[r.id] ?? null)}
+                        condivisa={io ? conChi(assegnatari[r.id] ?? [], r.assignee_id, io,
+                          id => person(id)?.full_name.split(' ')[0]) : null}
+                        tuttiGliAssegnatari={(assegnatari[r.id] ?? []).map(id => person(id)?.full_name).filter(Boolean).join(', ')}
                         onOpen={() => setDetail(r)}
                         onToggle={() => act(() => setAdHocTaskStatus(r.id, r.client_id, r.status === 'completato' ? 'da_fare' : 'completato'))}
                         onPatch={u => act(() => updateAdHocTask(r.id, r.client_id, u), 'Aggiornata')}
@@ -651,7 +659,7 @@ export type ContestoTask = {
 }
 
 function Row({
-  r, profiles, person, assegnante, contesto, clientHref, projectHref, showAssignee, canManage, pending,
+  r, profiles, person, assegnante, condivisa, tuttiGliAssegnatari, contesto, clientHref, projectHref, showAssignee, canManage, pending,
   onOpen, onToggle, onPatch, onStatus, onDelete,
 }: {
   r: TaskRow
@@ -659,6 +667,9 @@ function Row({
   person: Person | null
   /** §347 — chi ha assegnato, quando lo sappiamo */
   assegnante: Person | null
+  /** §481 — «con te e altri 5», da `conChi`; null se non c'è niente da dire */
+  condivisa: string | null
+  tuttiGliAssegnatari: string
   contesto: ContestoTask
   clientHref: string | null
   /** §346 — dove porta il nome del progetto: la sua scheda */
@@ -764,6 +775,11 @@ function Row({
                     <span className="text-2xs text-text-secondary truncate">{person.full_name}</span></>
                 : !done && <span className="text-2xs text-warning">non assegnata</span>}
             </span>)}
+        {showAssignee && condivisa && (
+          <span className="text-2xs text-text-secondary truncate pl-[28px]" title={`Assegnata a ${tuttiGliAssegnatari}`}>
+            {condivisa}
+          </span>
+        )}
         {/* §347 — chi l'ha data. Sta sotto il nome e non in un titolo nascosto:
             da telefono un tooltip non esiste, e questa è l'informazione che
             serve per chiedere spiegazioni a qualcuno. */}
