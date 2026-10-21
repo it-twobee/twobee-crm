@@ -23,10 +23,10 @@ export function applyNaming(structure: WWorkstream[], ctx: NamingCtx): WWorkstre
   return structure.map(w => ({
     ...w,
     name: workstreamName(ctx, w.name),
-    milestones: w.milestones.map((m, j) => ({
+    milestones: w.milestones.map(m => ({
       ...m,
-      title: milestoneName(j, m.title),
-      tasks: m.tasks.map(t => ({ ...t, title: taskName(j, t.title) })),
+      title: milestoneName(m.title),
+      tasks: m.tasks.map(t => ({ ...t, title: taskName(t.title) })),
     })),
   }))
 }
@@ -36,9 +36,9 @@ export function offConventionCount(structure: WWorkstream[], ctx: NamingCtx): nu
   let n = 0
   structure.forEach(w => {
     if (!isConform(w.name, workstreamName(ctx, w.name))) n++
-    w.milestones.forEach((m, j) => {
-      if (!isConform(m.title, milestoneName(j, m.title))) n++
-      m.tasks.forEach(t => { if (!isConform(t.title, taskName(j, t.title))) n++ })
+    w.milestones.forEach(m => {
+      if (!isConform(m.title, milestoneName(m.title))) n++
+      m.tasks.forEach(t => { if (!isConform(t.title, taskName(t.title))) n++ })
     })
   })
   return n
@@ -101,11 +101,11 @@ export function StepStruttura({
   const addMs = (wk: string) => updWs(wk, w => ({
     ...w,
     milestones: [...w.milestones, newMilestone(
-      milestoneName(w.milestones.length, 'Nuova milestone'), w.visibility, w.owner_id,
+      milestoneName('Nuova milestone'), w.visibility, w.owner_id,
     )],
   }))
-  const addTask = (wk: string, mk: string, msIndex: number) => updMs(wk, mk, m => ({
-    ...m, tasks: [...m.tasks, newTask(taskName(msIndex, 'Nuova task'), m.visibility)],
+  const addTask = (wk: string, mk: string) => updMs(wk, mk, m => ({
+    ...m, tasks: [...m.tasks, newTask(taskName('Nuova task'), m.visibility)],
   }))
   const addRec = (wk: string) => updWs(wk, w => ({
     ...w, recurring: [...w.recurring, newRecurring('Nuova attività ricorrente', w.visibility, w.owner_id)],
@@ -229,8 +229,8 @@ export function StepStruttura({
                       </p>
                     )}
 
-                    {w.milestones.map((m, mi) => {
-                      const msOff = !isConform(m.title, milestoneName(mi, m.title))
+                    {w.milestones.map(m => {
+                      const msOff = !isConform(m.title, milestoneName(m.title))
                       return (
                         <div key={m.key} className="pl-4 rounded-lg border border-border/60 p-2 space-y-1.5">
                           <div className="flex items-center gap-2">
@@ -238,7 +238,7 @@ export function StepStruttura({
                             <input value={m.title} aria-label="Titolo milestone"
                               onChange={e => updMs(w.key, m.key, x => ({ ...x, title: e.target.value }))}
                               className="flex-1 min-w-0 bg-transparent text-sm font-medium text-text-primary border-b border-transparent focus:border-border-interactive outline-none" />
-                            {msOff && <OffBadge onFix={() => updMs(w.key, m.key, x => ({ ...x, title: milestoneName(mi, x.title) }))} />}
+                            {msOff && <OffBadge onFix={() => updMs(w.key, m.key, x => ({ ...x, title: milestoneName(x.title) }))} />}
                             <input type="date" value={m.due_date ?? ''} aria-label="Scadenza milestone"
                               onChange={e => updMs(w.key, m.key, x => ({ ...x, due_date: e.target.value || null, rel_days: null }))}
                               className={`text-2xs bg-background border rounded-lg px-1.5 py-1 shrink-0 ${
@@ -334,7 +334,7 @@ export function StepStruttura({
                               )}
                             </div>
                           ))}
-                          <button type="button" onClick={() => addTask(w.key, m.key, mi)}
+                          <button type="button" onClick={() => addTask(w.key, m.key)}
                             className="ml-5 flex items-center gap-1 text-2xs text-text-tertiary hover:text-gold-text">
                             <Plus className="w-3 h-3" />Task
                           </button>

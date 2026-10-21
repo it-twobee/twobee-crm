@@ -416,7 +416,6 @@ function MilestoneModal({ projects, base, onClose, onDone, notify }: {
   const [wsId, setWsId] = useState('')
   const [q, setQ] = useState('')
   const [corsie, setCorsie] = useState<WsOpt[]>([])
-  const [tappe, setTappe] = useState<number>(0)
   const [profili, setProfili] = useState<{ id: string; full_name: string; avatar_url: string | null }[]>([])
 
   const project = projects.find(p => p.id === projectId)
@@ -448,25 +447,13 @@ function MilestoneModal({ projects, base, onClose, onDone, notify }: {
     return () => { vivo = false }
   }, [projectId])
 
-  /* Quante consegne ci sono già: è l'indice del prefisso «M{n}» della
-     convention, e senza si ricomincerebbe da M1 su una corsia già piena. */
-  useEffect(() => {
-    if (!wsId) { setTappe(0); return }
-    let vivo = true
-    void createBrowserClient().from('milestones').select('id, milestone_type').eq('workstream_id', wsId)
-      .then(({ data }) => {
-        if (!vivo) return
-        setTappe((data ?? []).filter((m: { milestone_type: string }) => m.milestone_type === 'delivery').length)
-      })
-    return () => { vivo = false }
-  }, [wsId])
 
   const apri = (id: string) => `${base}/progetti/${projectId}/workstream/${wsId}?ms=${id}`
 
   return (
     <NewMilestoneModal
       context={ws ? ws.name : project ? project.name : 'In quale corsia?'}
-      index={tappe} profiles={profili} pending={pending}
+      profiles={profili} pending={pending}
       clientVisibleAllowed={!!project?.client_id}
       servizio={project ? { service_type: project.service_type, service_subtype: project.service_subtype } : null}
       destinazionePronta={!!projectId && !!wsId}
@@ -522,7 +509,7 @@ function MilestoneModal({ projects, base, onClose, onDone, notify }: {
         try {
           const r = await createMilestoneDaModello({
             project_id: projectId, workstream_id: wsId, node_id: m.nodeId,
-            title: milestoneName(tappe, m.nome),
+            title: milestoneName(m.nome),
           })
           notify(`«${m.nome}» creata${r.task ? `: ${r.task} task` : ''}`, apri(r.id))
           onDone(); router.refresh()

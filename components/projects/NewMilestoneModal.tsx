@@ -5,7 +5,7 @@ import { Flag, Eye, EyeOff, CalendarDays, Loader2 } from 'lucide-react'
 import { ModalShell, Field, Avatar, inputCls } from '@/components/shared/formkit'
 import { CorsieDelServizio, useServiceCatalog } from '@/components/projects/WorkstreamPresets'
 import { modelliDiTipo, type ModelloNodo } from '@/lib/workstream-presets'
-import { milestoneName, bareMilestone } from '@/lib/project-naming'
+import { milestoneName } from '@/lib/project-naming'
 import type { Visibility } from '@/lib/types/database'
 
 type Person = { id: string; full_name: string; avatar_url: string | null }
@@ -19,13 +19,11 @@ export type NewMilestoneValues = {
 }
 
 export function NewMilestoneModal({
-  context, index, profiles, pending, clientVisibleAllowed = true, suggestedDue,
+  context, profiles, pending, clientVisibleAllowed = true, suggestedDue,
   servizio = null, destinazione, destinazionePronta = true,
   onClose, onCreate, onCreaDaModello,
 }: {
   context: string
-  /** posizione nella timeline: alimenta il prefisso "M{n} ·" della convention */
-  index: number
   profiles: Person[]
   pending: boolean
   clientVisibleAllowed?: boolean
@@ -51,7 +49,7 @@ export function NewMilestoneModal({
   const [approval, setApproval] = useState(false)
 
   const person = profiles.find(p => p.id === owner)
-  const finalName = title.trim() ? milestoneName(index, bareMilestone(title)) : ''
+  const finalName = milestoneName(title)
 
   /* §405 — le tappe che questo servizio ha di solito, con dentro i loro task.
      Stessa lista del wizard, stessa funzione: la domanda «cosa si fa qui» non
@@ -90,11 +88,10 @@ export function NewMilestoneModal({
         </div>
       ))}
 
-      <Field label="Titolo" hint="il prefisso M{n} lo mette la convention">
+      <Field label="Titolo">
         {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
         <input value={title} onChange={e => setTitle(e.target.value)} autoFocus className={inputCls}
           placeholder="Kickoff e brief, Consegna sito, Go live…" />
-        {finalName && <span className="block text-2xs text-text-tertiary mt-1.5 truncate">Diventerà: {finalName}</span>}
       </Field>
 
       <div className="grid gap-3 sm:grid-cols-2">

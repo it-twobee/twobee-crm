@@ -196,7 +196,7 @@ Il wizard mette le milestone del template e poi non ci si rientra: l'unico posto
 per aggiungerne una era la pagina del singolo workstream, che dal progetto si
 raggiunge solo aprendola. Ora ogni riga della scheda Workstream porta il
 conteggio e un tasto «Milestone» — la stessa `NewMilestoneModal` del workstream,
-così la convention del titolo `M{n}` la scrive un posto solo — il calendario ha
+così il titolo di una milestone nasce in un posto solo — il calendario ha
 un «+» per corsia, e lo stato vuoto («nessuna milestone datata») offre il gesto
 invece di descriverlo. La riga della lista è diventata un `div` col click sul
 figlio: due `<button>` annidati non sono HTML valido.
@@ -560,10 +560,10 @@ dentro il progetto. Adesso c'è, e non è una modale nuova: è **la stessa**
 fa il composer delle task. Due moduli con gli stessi campi divergono al primo
 campo aggiunto, e la stessa tappa nascerebbe diversa a seconda della porta.
 
-Il dove porta due cose che non si indovinano: **il servizio** del progetto, che
-dice quali tappe propone il modello (§405), e **quante consegne** ci sono già
-nella corsia, che è l'indice del prefisso «M{n}» della convention — senza, ogni
-tappa nuova ricomincerebbe da M1 su una corsia già piena.
+Il dove porta una cosa che non si indovina: **il servizio** del progetto, che
+dice quali tappe propone il modello (§405). Portava anche **quante consegne**
+c'erano già nella corsia, per l'indice del prefisso «M{n}»: il prefisso non
+c'è più (§485), e il conteggio è sparito con lui.
 
 **§392 — il giro su tutti** (`POST /api/periods/run`, `PERIODS_CRON_SECRET`,
 task pianificato alle 04:00). Una volta al giorno e non più spesso: un
@@ -772,6 +772,27 @@ sotto resta «+ aggiungi un'altra persona»; la prima è la principale
 - **Il blocco non è un `<Field>`**: `Field` è un `<label>`, e un clic
   sull'etichetta premeva la × del primo chip.
 
+## Milestone e task hanno il titolo libero: niente più «M1 ·» (§485, `lib/project-naming.ts`)
+
+Feedback del 21 ottobre 2026: «molti si confondono con questa naming, meglio
+lasciare il titolo della milestone libero». La convention del 27 luglio
+metteva l'indice della milestone davanti al titolo di milestone e task
+(«M1 · Kickoff», «M1 · Brief creativo»), e il numero confondeva più di quanto
+ordinasse: si spostava se si aggiungeva una consegna in mezzo, e una task
+«M2 · …» finita nella milestone 3 diceva una cosa falsa. L'ordine lo dà la
+data; il numerino accanto al titolo nel riquadro lo calcola la pagina e resta.
+
+- **`milestoneName(title)` e `taskName(title)` non aggiungono più niente**:
+  tolgono solo un prefisso vecchio, così un nome incollato da prima o un
+  modello vecchio esce pulito. Il parametro dell'indice è sparito da tutte le
+  porte (`NewMilestoneModal`, wizard, scheda progetto, corsia, «Crea», task →
+  milestone), e con lui il conteggio delle consegne che lo alimentava.
+- **I nomi già scritti sono stati ripuliti** il 21 ottobre: 75 milestone e 37
+  task, una voce di cronologia per riga col nome di prima. Le 69 notifiche
+  restano com'erano: sono messaggi già mandati.
+- Progetto e workstream non cambiano: il loro contesto («Cliente · Area ·
+  Servizio») serve perché quei nomi compaiono isolati.
+
 ## Il colore della persona (§483, `lib/calendar-colors.ts`, migration 274)
 
 Nel calendario milestone il responsabile è il pallino in basso a destra della
@@ -816,9 +837,9 @@ Nel pannello della task, accanto a «Elimina», c'è **«Trasforma in milestone�
   descrizione passa alla milestone, le sotto-task diventano le sue task,
   mentre commenti, checklist e gli assegnatari oltre al primo restano sulla
   riga eliminata, e il messaggio di conferma lo dice prima.
-- **La milestone nasce dalla task**: nome con la convention `M{n} · …` (n =
-  consegne già nella corsia, più uno, come `NewMilestoneModal`), stessa data e
-  descrizione, responsabile = l'assegnatario primario, stato tradotto
+- **La milestone nasce dalla task**: stesso titolo (senza un vecchio prefisso
+  «M{n} ·», §485), stessa data e descrizione, responsabile = l'assegnatario
+  primario, stato tradotto
   (`in_review` → `in_approvazione`, `completato` → `completata`,
   `richiesta_supporto` → `in_corso`). Nasce **interna**: farla vedere al
   cliente è una pubblicazione, non un effetto collaterale. Il responsabile
@@ -827,8 +848,8 @@ Nel pannello della task, accanto a «Elimina», c'è **«Trasforma in milestone�
   task, spostamento delle sotto-task (un'istruzione sola, con
   `parent_task_id` azzerato). Se uno fallisce la task torna viva e la
   milestone appena nata si toglie: con `ON DELETE CASCADE` porterebbe con sé
-  le task, ma non ce n'è ancora nessuna dentro. Il prefisso `M{n}` nel nome di
-  una sotto-task segue la milestone nuova.
+  le task, ma non ce n'è ancora nessuna dentro. Una sotto-task che portava un
+  vecchio prefisso `M{n}` lo perde.
 - **Chi**: lo stesso diritto di eliminare (`canDelete`, chi governa il
   progetto): creare una milestone è governo (§322). Sul server
   `requireStaff`, come le altre azioni delle milestone.

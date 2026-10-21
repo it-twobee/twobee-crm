@@ -179,8 +179,8 @@ export async function createMilestoneDaModello(input: {
 }
 
 /**
- * §479 — la task **diventa** la milestone: si crea la consegna con nome
- * `M{n}`, data, responsabile e descrizione della task, la task si elimina e le
+ * §479 — la task **diventa** la milestone: si crea la consegna con titolo,
+ * data, responsabile e descrizione della task, la task si elimina e le
  * sue sotto-task diventano le task della milestone. Ogni passo disfa i
  * precedenti se fallisce: la milestone nasce vuota, quindi toglierla non porta
  * via niente (le task cadrebbero con lei, via ON DELETE CASCADE, solo se ci
@@ -198,11 +198,7 @@ export async function trasformaTaskInMilestone(taskId: string): Promise<{ milest
   const no = motivoNonTrasformabile(t)
   if (no) throw new Error(no)
 
-  const { count, error: e1 } = await admin.from('milestones').select('id', { count: 'exact', head: true })
-    .eq('workstream_id', t.workstream_id!).eq('milestone_type', 'delivery')
-  if (e1) throw new Error(e1.message)
-  const consegne = count ?? 0
-  const m = milestoneDaTask(t, consegne)
+  const m = milestoneDaTask(t)
 
   const { data: nuova, error: e2 } = await admin.from('milestones').insert({
     project_id: t.project_id, workstream_id: t.workstream_id, title: m.title, description: m.description,
@@ -226,7 +222,7 @@ export async function trasformaTaskInMilestone(taskId: string): Promise<{ milest
     throw new Error(e4.message)
   }
   for (const r of (spostate ?? []) as { id: string; title: string }[]) {
-    const nome = titoloNellaMilestone(r.title, consegne)
+    const nome = titoloNellaMilestone(r.title)
     if (nome !== r.title) await admin.from('tasks').update({ title: nome }).eq('id', r.id)
   }
 

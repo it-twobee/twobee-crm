@@ -7,7 +7,7 @@
    spuntare per lo stesso lavoro. Adesso **la task diventa la milestone**: si
    elimina, la descrizione passa alla milestone e le sotto-task ne diventano le
    task. Commenti, checklist e assegnatari oltre al primo non passano. */
-import { milestoneName, taskName, bareTask } from '@/lib/project-naming'
+import { milestoneName, taskName } from '@/lib/project-naming'
 import type { MilestoneStatus, TaskStatusV2, TaskType } from '@/lib/types/database'
 
 /** Gli stati non si chiamano uguali: la task si spunta, la milestone si consegna. */
@@ -43,14 +43,14 @@ export function motivoNonTrasformabile(t: TaskDaTrasformare): string | null {
 }
 
 /**
- * La milestone nuova: titolo con la convention `M{n} · …` (n = quante consegne
- * ha già la corsia, più uno), stessa data e descrizione, responsabile =
- * l'assegnatario primario. Nasce interna: farla vedere al cliente è una
- * pubblicazione, non un effetto collaterale.
+ * La milestone nuova: lo stesso titolo (senza un vecchio prefisso «M{n} ·»,
+ * §485), stessa data e descrizione, responsabile = l'assegnatario primario.
+ * Nasce interna: farla vedere al cliente è una pubblicazione, non un effetto
+ * collaterale.
  */
-export function milestoneDaTask(t: TaskDaTrasformare, consegneEsistenti: number) {
+export function milestoneDaTask(t: TaskDaTrasformare) {
   return {
-    title: milestoneName(consegneEsistenti, bareTask(t.title)),
+    title: milestoneName(t.title),
     description: t.description?.trim() || null,
     status: STATO_MILESTONE_DA_TASK[t.status] ?? 'da_fare',
     due_date: t.due_date,
@@ -58,7 +58,7 @@ export function milestoneDaTask(t: TaskDaTrasformare, consegneEsistenti: number)
   }
 }
 
-/** Il nome di una sotto-task segue la milestone se portava il prefisso della vecchia: «M1 · Demo» → «M4 · Demo». */
-export function titoloNellaMilestone(title: string, consegneEsistenti: number): string {
-  return /^M\d+\s*·\s*/.test(title) ? taskName(consegneEsistenti, title) : title
+/** Una sotto-task che diventa task della milestone perde il vecchio prefisso: «M1 · Demo» → «Demo». */
+export function titoloNellaMilestone(title: string): string {
+  return taskName(title)
 }

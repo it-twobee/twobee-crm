@@ -772,7 +772,7 @@ export function ProjectDetailClient({
       </div>
 
       {msWs && (
-        <NewMilestoneModal context={msWs.name} index={wsDeliveryMs(msWs.id).length} profiles={profiles}
+        <NewMilestoneModal context={msWs.name} profiles={profiles}
           pending={pending} clientVisibleAllowed={!!project.client_id}
           suggestedDue={msWs.end_date ?? project.target_end_date}
           servizio={{ service_type: project.service_type, service_subtype: project.service_subtype }}
@@ -781,7 +781,7 @@ export function ProjectDetailClient({
             try {
               const r = await createMilestoneDaModello({
                 project_id: project.id, workstream_id: msWs.id, node_id: m.nodeId,
-                title: milestoneName(wsDeliveryMs(msWs.id).length, m.nome),
+                title: milestoneName(m.nome),
               })
               toast.success(`«${m.nome}» creata${r.task ? `: ${r.task} task` : ''}`)
               setMsWs(null); router.refresh()

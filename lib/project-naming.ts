@@ -3,12 +3,19 @@
  *
  *   Progetto    ACME · Growth · Lead Generation
  *   Workstream  ACME · Lead Generation — Setup
- *   Milestone   M1 · Kickoff e brief
- *   Task        M1 · Brief creativo
+ *   Milestone   Kickoff e brief
+ *   Task        Brief creativo
  *
  * Il contesto si ripete su progetto e workstream perché quei nomi compaiono
  * isolati (calendario globale, ricerca, notifiche); milestone e task vivono
- * dentro la gerarchia e portano solo l'indice della milestone.
+ * dentro la gerarchia e hanno il titolo libero.
+ *
+ * §485 — milestone e task portavano l'indice della milestone, «M1 · …». Tolto
+ * il 21 ottobre 2026 su richiesta di chi le usa: il numero confondeva più di
+ * quanto ordinasse — cambiava se si aggiungeva una consegna in mezzo, e una
+ * task «M2 · …» dentro la milestone 3 diceva una cosa falsa. L'ordine lo dà la
+ * data, e il numero accanto al titolo nel riquadro lo calcola la pagina. I
+ * `bareXxx()` restano: tolgono il prefisso a un nome vecchio.
  *
  * Ogni `xxxName()` ha il suo `bareXxx()` inverso: applicare la convention a un
  * nome già conforme è idempotente, e rinominare il cliente non impila prefissi.
@@ -43,14 +50,12 @@ export function workstreamName(ctx: NamingCtx, title: string): string {
   return `${prefix} — ${bare}`
 }
 
-export function milestoneName(index: number, title: string): string {
-  const bare = bareMilestone(title)
-  return bare ? `M${index + 1} · ${bare}` : `M${index + 1}`
+export function milestoneName(title: string): string {
+  return bareMilestone(title)
 }
 
-export function taskName(milestoneIndex: number, title: string): string {
-  const bare = bareTask(title)
-  return bare ? `M${milestoneIndex + 1} · ${bare}` : bare
+export function taskName(title: string): string {
+  return bareTask(title)
 }
 
 // ── inversi: tolgono il prefisso se già presente ────────────────────────────

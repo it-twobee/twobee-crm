@@ -22,15 +22,15 @@ is('una ricorrente no', motivoNonTrasformabile({ ...base, is_recurring_instance:
 is('una eliminata no', motivoNonTrasformabile({ ...base, deleted_at: '2026-10-10T00:00:00Z' }) !== null, true)
 
 console.log('\n— La milestone che nasce —')
-const m = milestoneDaTask(base, 3)
-is('il nome segue la convention: quarta consegna della corsia', m.title, 'M4 · Consegna demo al cliente')
+const m = milestoneDaTask(base)
+is('il titolo resta, senza il vecchio prefisso (§485)', m.title, 'Consegna demo al cliente')
 is('stessa data', m.due_date, '2026-10-28')
 is('il responsabile è l\'assegnatario', m.owner_id, 'u1')
 is('in corso resta in corso', m.status, 'in_corso')
-is('senza prefisso il nome si scrive uguale', milestoneDaTask({ ...base, title: 'Shooting' }, 0).title, 'M1 · Shooting')
-is('senza assegnatario, senza responsabile', milestoneDaTask({ ...base, assignee_id: null }, 0).owner_id, null)
-is('la descrizione passa alla milestone', milestoneDaTask({ ...base, description: ' Script da approvare ' }, 0).description, 'Script da approvare')
-is('senza descrizione, niente descrizione', milestoneDaTask({ ...base, description: '  ' }, 0).description, null)
+is('senza prefisso il nome si scrive uguale', milestoneDaTask({ ...base, title: 'Shooting' }).title, 'Shooting')
+is('senza assegnatario, senza responsabile', milestoneDaTask({ ...base, assignee_id: null }).owner_id, null)
+is('la descrizione passa alla milestone', milestoneDaTask({ ...base, description: ' Script da approvare ' }).description, 'Script da approvare')
+is('senza descrizione, niente descrizione', milestoneDaTask({ ...base, description: '  ' }).description, null)
 
 console.log('\n— Gli stati si traducono —')
 is('in revisione → in approvazione', STATO_MILESTONE_DA_TASK.in_review, 'in_approvazione')
@@ -39,8 +39,8 @@ is('richiesta di supporto è lavoro in corso', STATO_MILESTONE_DA_TASK.richiesta
 is('ogni stato della task ha il suo', Object.keys(STATO_MILESTONE_DA_TASK).sort(), ['completato', 'da_fare', 'in_corso', 'in_review', 'richiesta_supporto'])
 
 console.log('\n— Il nome di una sotto-task dentro la milestone nuova —')
-is('il prefisso vecchio segue la milestone', titoloNellaMilestone('M1 · Consegna demo', 3), 'M4 · Consegna demo')
-is('senza prefisso non si tocca', titoloNellaMilestone('Consegna demo', 3), 'Consegna demo')
+is('il prefisso vecchio si toglie', titoloNellaMilestone('M1 · Consegna demo'), 'Consegna demo')
+is('senza prefisso non si tocca', titoloNellaMilestone('Consegna demo'), 'Consegna demo')
 
 console.log(fail ? `\n${fail} controlli falliti.` : '\nTutti i controlli passano.')
 process.exit(fail ? 1 : 0)

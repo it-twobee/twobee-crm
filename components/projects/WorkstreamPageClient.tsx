@@ -394,7 +394,7 @@ export function WorkstreamPageClient({
       )}
 
       {addingMs && (
-        <NewMilestoneModal context={ws.name} index={deliveryMs.length} profiles={profiles} pending={pending}
+        <NewMilestoneModal context={ws.name} profiles={profiles} pending={pending}
           clientVisibleAllowed={!!project.client_id} suggestedDue={ws.end_date}
           servizio={{ service_type: project.service_type, service_subtype: project.service_subtype }}
           onClose={() => setAddingMs(false)} onCreate={submitMilestone}
@@ -402,7 +402,7 @@ export function WorkstreamPageClient({
             act(async () => {
               const r = await createMilestoneDaModello({
                 project_id: project.id, workstream_id: ws.id, node_id: m.nodeId,
-                title: milestoneName(deliveryMs.length, m.nome),
+                title: milestoneName(m.nome),
               })
               return r
             }, 'Milestone creata dal modello')
