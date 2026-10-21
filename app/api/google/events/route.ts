@@ -237,7 +237,6 @@ async function syncMirror(
     external_event_id: googleEvent.id,
     calendar_id: 'primary',
     client_id: body.clientId ?? null,
-    project_id: body.projectId ?? null,
     title: body.title ?? '(senza titolo)',
     description: body.description ?? null,
     location: body.location ?? null,
@@ -252,8 +251,12 @@ async function syncMirror(
     last_synced_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }
-  // Non blocchiamo la risposta all'utente se il mirror fallisce: Google resta la fonte.
-  await admin.from('calendar_events').upsert(row as never, { onConflict: 'profile_id,external_event_id' })
+  /* Non blocchiamo la risposta all'utente se il mirror fallisce: Google resta la
+     fonte. §489 — ma l'errore si scrive nei log: qui `project_id`, una colonna
+     tolta col reset dei progetti, faceva fallire ogni scrittura senza che
+     nessuno lo vedesse. */
+  const { error } = await admin.from('calendar_events').upsert(row as never, { onConflict: 'profile_id,external_event_id' })
+  if (error) console.error('[google-events] mirror non aggiornato:', error.message)
 }
 
 /** OAuth del solo utente corrente: si può scrivere unicamente sul proprio calendario. */

@@ -1,5 +1,21 @@
 # Dove siamo
 
+## Il calendario di Google torna nel tool: diecimila errori al giorno spariti — §489, 2026-10-21
+
+Visti nel pannello Observability di Supabase («Database 79,9% errors», «API
+Gateway 33% warnings»): in 24 ore circa **5.000 letture e 5.000 scritture su
+`calendar_events` fallite**, tutte con «column calendar_events.project_id does
+not exist». La colonna era stata tolta col reset del dominio progetti, ma la
+sincronizzazione Google → tool (`syncMirrorFromGoogle`, chiamata dal webhook
+a ogni modifica su un calendario collegato) la leggeva e la scriveva per ogni
+evento, e la scrittura dopo un evento creato dal tool
+(`/api/google/events`) pure. Gli errori erano ignorati, quindi **le modifiche
+fatte su Google non arrivavano nel calendario del tool** e nessuno lo vedeva.
+
+Tolta la colonna dalle tre query; gli errori di quelle scritture ora finiscono
+nei log del container. `calendar_events` non ha trigger di cronologia: le
+scritture che adesso riescono non riempiono `activity_log`.
+
 ## Cambiare pagina costa la metà: identità in locale, query in parallelo — §488, 2026-10-21
 
 Segnalazione: «passando da una voce all'altra se ne vanno diversi secondi».

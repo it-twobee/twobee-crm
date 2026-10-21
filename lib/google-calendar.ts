@@ -68,20 +68,23 @@ export async function syncMirrorFromGoogle(admin: Admin, profileId: string) {
     const end = e.end?.dateTime ?? e.end?.date
     if (!start || !end) continue
 
+    /* §489 — `project_id` non c'è più (reset del dominio progetti): chiederlo
+       faceva fallire lettura e scrittura di **ogni** evento, in silenzio —
+       circa diecimila errori al giorno, e le modifiche fatte su Google non
+       arrivavano nel calendario del tool. */
     const { data: existing } = await admin.from('calendar_events')
-      .select('client_id, project_id, kind, hr_request_id')
+      .select('client_id, kind, hr_request_id')
       .eq('profile_id', profileId).eq('external_event_id', e.id).maybeSingle()
     const ex = existing as {
-      client_id: string | null; project_id: string | null
+      client_id: string | null
       kind: string | null; hr_request_id: string | null
     } | null
 
-    await admin.from('calendar_events').upsert({
+    const { error: errMirror } = await admin.from('calendar_events').upsert({
       profile_id: profileId,
       external_event_id: e.id,
       calendar_id: 'primary',
       client_id: ex?.client_id ?? null,
-      project_id: ex?.project_id ?? null,
       // un'assenza resta un'assenza anche quando torna indietro da Google:
       // i campi Google vincono sul contenuto, non sulla natura dell'evento
       kind: ex?.kind ?? 'evento',
@@ -98,6 +101,8 @@ export async function syncMirrorFromGoogle(admin: Admin, profileId: string) {
       last_synced_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     } as never, { onConflict: 'profile_id,external_event_id' })
+    // un errore qui non ferma la sincronizzazione, ma deve vedersi nei log
+    if (errMirror) console.error('[google-calendar] mirror non aggiornato:', errMirror.message)
   }
 }
 
