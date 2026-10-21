@@ -21,7 +21,7 @@ import { giornoEOraRoma, istanteRoma, quandoContatto } from '@/lib/sales-timelin
 import { giornoDopo } from '@/lib/calendario'
 import { colorFor } from '@/lib/calendar-colors'
 
-type Persona = { id: string; full_name: string }
+type Persona = { id: string; full_name: string; avatar_color?: string | null }
 type GoogleEvent = { id: string; profileId: string; summary: string; start: string; end: string; allDay: boolean; masked: boolean }
 
 const MIN = 60_000
@@ -103,7 +103,7 @@ export function Disponibilita({ giorno, inizio, fine, persone, profili, ioId, ev
             <div className="relative flex-1 h-4 rounded bg-surface-active overflow-hidden" aria-label={`Agenda di ${nome(p)}`}>
               {suoi.map(i => (
                 <span key={i.id} title={`${giornoEOraRoma(Date.parse(i.inizio)).ora}–${giornoEOraRoma(Date.parse(i.fine)).ora} ${i.titolo}`}
-                  className="absolute inset-y-0" style={{ left: `${pos(Date.parse(i.inizio))}%`, width: `${Math.max(1.5, pos(Date.parse(i.fine)) - pos(Date.parse(i.inizio)))}%`, background: colorFor(p).dot, opacity: i.tipo === 'ferie' ? 0.45 : 0.8 }} />
+                  className="absolute inset-y-0" style={{ left: `${pos(Date.parse(i.inizio))}%`, width: `${Math.max(1.5, pos(Date.parse(i.fine)) - pos(Date.parse(i.inizio)))}%`, background: colorFor(p, profili.find(x => x.id === p)?.avatar_color).dot, opacity: i.tipo === 'ferie' ? 0.45 : 0.8 }} />
               ))}
               {da && a && (
                 <span aria-hidden className="absolute inset-y-0 border-2 border-gold rounded-sm" style={{ left: `${pos(Date.parse(da))}%`, width: `${Math.max(2, pos(Date.parse(a)) - pos(Date.parse(da)))}%` }} />

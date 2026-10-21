@@ -33,7 +33,7 @@ export default async function WorkspaceProjectDetailPage({ params, searchParams 
     supabase.from('tasks').select('*').eq('project_id', params.projectId).is('deleted_at', null).order('created_at'),
     supabase.from('recurring_task_templates').select('*').eq('project_id', params.projectId).order('created_at'),
     supabase.from('project_members').select('profile_id, role_in_project').eq('project_id', params.projectId),
-    supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true).in('role', INTERNAL_COARSE_ROLES),
+    supabase.from('profiles').select('id, full_name, avatar_url, avatar_color').eq('is_active', true).in('role', INTERNAL_COARSE_ROLES),
   ])
 
   if (!project) notFound()
@@ -55,7 +55,7 @@ export default async function WorkspaceProjectDetailPage({ params, searchParams 
       tasks={(tasks ?? []) as Task[]}
       recurring={(recurring ?? []) as RecurringTaskTemplate[]}
       memberIds={memberIds}
-      profiles={(profiles ?? []) as { id: string; full_name: string; avatar_url: string | null }[]}
+      profiles={(profiles ?? []) as { id: string; full_name: string; avatar_url: string | null; avatar_color: string | null }[]}
       backHref="/workspace/progetti"
       canManageProject={canManageProject}
       canEditTasks

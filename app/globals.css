@@ -86,6 +86,19 @@
      bandierine che ci stanno sopra. */
   --color-cal-marketing: #171029;
 
+  /* §483 — il colore della persona: il pallino del responsabile nel calendario
+     milestone e gli eventi del Calendario. Otto tinte categoriali, in un ordine
+     validato (separazione per daltonismo ≥ 8.4, visione normale ≥ 19.3 fra
+     vicine, ≥ 3:1 sul fondo). Il testo non le indossa mai: resta text-primary. */
+  --color-persona-blu: #3987E5;
+  --color-persona-arancio: #D95926;
+  --color-persona-acqua: #199E70;
+  --color-persona-giallo: #C98500;
+  --color-persona-magenta: #D55181;
+  --color-persona-verde: #008300;
+  --color-persona-viola: #9085E9;
+  --color-persona-rosso: #E66767;
+
   --overlay-tint: 255,255,255;
   --shadow-color: rgba(0,0,0,0.45);
   --color-scrim: rgba(0,0,0,0.72);
@@ -163,6 +176,18 @@
   --color-cal-festivo: #F6EFDD;
   /* sulla carta: un violetto tenue, distinguibile dal grigio e dall'ambra */
   --color-cal-marketing: #F0ECFB;
+
+  /* §483 — le stesse otto tinte, ripassate per la carta. Acqua, giallo e
+     magenta stanno sotto 3:1 sul bianco: il nome della persona c'è sempre
+     accanto o al passaggio del mouse, quindi il colore non è mai l'unico canale. */
+  --color-persona-blu: #2A78D6;
+  --color-persona-arancio: #EB6834;
+  --color-persona-acqua: #1BAF7A;
+  --color-persona-giallo: #EDA100;
+  --color-persona-magenta: #E87BA4;
+  --color-persona-verde: #008300;
+  --color-persona-viola: #4A3AA7;
+  --color-persona-rosso: #E34948;
 
   --overlay-tint: 16,24,40;
   --shadow-color: rgba(16,24,40,0.10);

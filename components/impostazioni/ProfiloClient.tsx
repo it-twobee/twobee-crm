@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { Suspense } from 'react'
 import { Loader2, Eye, EyeOff, User, Mail, Lock, CheckCircle2, Camera } from 'lucide-react'
 import { AVATAR_BUCKET, AVATAR_LATO, AVATAR_MAX_ORIGINALE, ritaglioQuadrato, percorsoAvatar, percorsoDaLink } from '@/lib/avatar'
+import { COLORI_PERSONA, NOME_COLORE, colorePersona, isColorePersona, type ColorePersona } from '@/lib/calendar-colors'
 import { BackLink } from '@/components/shared/BackLink'
 import type { Profile } from '@/lib/types/database'
 import Link from 'next/link'
@@ -42,6 +43,9 @@ export function ProfiloClient({ profile, userEmail }: Props) {
   const [avatar, setAvatar] = useState(profile.avatar_url)
   const [savingAvatar, setSavingAvatar] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const [colore, setColore] = useState<ColorePersona | null>(isColorePersona(profile.avatar_color) ? profile.avatar_color : null)
+  const [savingColore, setSavingColore] = useState(false)
+  const coloreAttivo = colorePersona(profile.id, colore)
 
   const [name, setName] = useState(profile.full_name)
   const [phone, setPhone] = useState(profile.phone ?? '')
@@ -88,6 +92,19 @@ export function ProfiloClient({ profile, userEmail }: Props) {
     } finally {
       setSavingAvatar(false)
     }
+  }
+
+  /* §483 — nel calendario milestone il pallino del responsabile è largo dieci
+     pixel: una foto lì non si riconosce, un colore sì */
+  const scegliColore = async (c: ColorePersona) => {
+    if (c === colore) return
+    setSavingColore(true)
+    const { error } = await createClient().from('profiles').update({ avatar_color: c }).eq('id', profile.id)
+    setSavingColore(false)
+    if (error) { toast.error(/avatar_color/.test(error.message) ? 'Manca la migration del colore' : error.message); return }
+    setColore(c)
+    router.refresh()
+    toast.success(`Il tuo colore ora è ${NOME_COLORE[c].toLowerCase()}`)
   }
 
   const togliFoto = async () => {
@@ -198,6 +215,25 @@ export function ProfiloClient({ profile, userEmail }: Props) {
                 Togli
               </button>
             )}
+          </div>
+          <p className="text-xs text-text-secondary mt-3 mb-1.5">
+            Il tuo colore: <strong className="text-text-primary">{NOME_COLORE[coloreAttivo]}</strong>
+            {!colore && <span className="text-text-tertiary"> (automatico, scegline uno)</span>}
+            <span className="block text-text-tertiary">È il tuo pallino nel calendario milestone e il colore dei tuoi eventi in Calendario.</span>
+          </p>
+          <div role="radiogroup" aria-label="Il tuo colore" className="flex flex-wrap gap-2">
+            {COLORI_PERSONA.map(c => {
+              const on = c === coloreAttivo
+              return (
+                <button key={c} type="button" role="radio" aria-checked={on} aria-label={NOME_COLORE[c]} title={NOME_COLORE[c]}
+                  onClick={() => scegliColore(c)} disabled={savingColore}
+                  className="w-6 h-6 rounded-full transition-transform hover:scale-110 disabled:opacity-60"
+                  style={{
+                    background: `var(--color-persona-${c})`,
+                    boxShadow: on ? '0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-text-primary)' : undefined,
+                  }} />
+              )
+            })}
           </div>
         </div>
       </div>

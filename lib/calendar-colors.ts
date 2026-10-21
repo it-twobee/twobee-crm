@@ -1,30 +1,37 @@
 /**
- * Colore stabile per collega, derivato dal suo id.
+ * Il colore della persona: il pallino del responsabile nel calendario milestone,
+ * gli eventi e le assenze nel Calendario. Esegui il gate: npx tsx lib/calendar-colors.check.ts
  *
- * Deve essere: (1) deterministico — lo stesso collega ha sempre lo stesso colore,
- * anche dopo un reload; (2) leggibile su fondo chiaro e scuro. Per questo la
- * palette non usa i colori grezzi di Tailwind ma coppie calibrate, e il pallino
- * usa la variante "solida" mentre il testo usa quella ad alto contrasto.
+ * §483 — **lo sceglie la persona**, in «Il mio profilo» (`profiles.avatar_color`).
+ * Nel calendario milestone il pallino è largo dieci pixel: una foto lì dentro
+ * non si riconosce, un colore sì. Chi non ha scelto ne riceve uno stabile,
+ * derivato dal suo id — deterministico, quindi uguale dopo ogni ricarica.
+ *
+ * Otto tinte categoriali in un ordine validato in tutti e due i temi, e solo
+ * otto: una nona generata a mano finirebbe accanto a una delle altre. Il testo
+ * non indossa mai la tinta (sul bianco tre di queste stanno sotto 3:1): resta
+ * `text-primary`, e il colore lo porta il bordo o il pallino accanto.
  */
 
+export const COLORI_PERSONA = ['blu', 'arancio', 'acqua', 'giallo', 'magenta', 'verde', 'viola', 'rosso'] as const
+export type ColorePersona = typeof COLORI_PERSONA[number]
+
+export const NOME_COLORE: Record<ColorePersona, string> = {
+  blu: 'Blu', arancio: 'Arancio', acqua: 'Acqua', giallo: 'Giallo',
+  magenta: 'Magenta', verde: 'Verde', viola: 'Viola', rosso: 'Rosso',
+}
+
 export interface CalendarColor {
-  /** Riempimento del pallino / della barra evento */
+  /** Riempimento del pallino, bordo dell'evento */
   dot: string
   /** Sfondo tenue del chip */
   bg: string
-  /** Testo del chip: sempre leggibile sul proprio sfondo */
+  /** Testo del chip: mai la tinta, sempre leggibile sul proprio sfondo */
   text: string
 }
 
-// Ogni voce funziona in entrambi i temi perché passa dai token, non da hex fissi.
-const PALETTE: CalendarColor[] = [
-  { dot: 'var(--color-gold)',    bg: 'var(--color-gold-dim)',    text: 'var(--color-gold-text)' },
-  { dot: 'var(--color-info)',    bg: 'var(--color-info-dim)',    text: 'var(--color-info)' },
-  { dot: 'var(--color-success)', bg: 'var(--color-success-dim)', text: 'var(--color-success)' },
-  { dot: 'var(--color-accent)',  bg: 'var(--color-accent-dim)',  text: 'var(--color-accent)' },
-  { dot: 'var(--color-orange)',  bg: 'var(--color-orange-dim)',  text: 'var(--color-orange)' },
-  { dot: 'var(--color-error)',   bg: 'var(--color-error-dim)',   text: 'var(--color-error)' },
-]
+export const isColorePersona = (v: unknown): v is ColorePersona =>
+  typeof v === 'string' && (COLORI_PERSONA as readonly string[]).includes(v)
 
 /** Hash stabile e semplice: due id diversi cadono raramente sullo stesso colore. */
 function hash(id: string): number {
@@ -33,8 +40,18 @@ function hash(id: string): number {
   return Math.abs(h)
 }
 
-export function colorFor(profileId: string): CalendarColor {
-  return PALETTE[hash(profileId) % PALETTE.length]
+/** La tinta di una persona: quella scelta, se è una delle otto; altrimenti quella del suo id. */
+export function colorePersona(profileId: string, scelto?: string | null): ColorePersona {
+  return isColorePersona(scelto) ? scelto : COLORI_PERSONA[hash(profileId) % COLORI_PERSONA.length]
 }
 
-export const PALETTE_SIZE = PALETTE.length
+export function coloreDa(c: ColorePersona): CalendarColor {
+  const v = `var(--color-persona-${c})`
+  return { dot: v, bg: `color-mix(in srgb, ${v} 16%, transparent)`, text: 'var(--color-text-primary)' }
+}
+
+export function colorFor(profileId: string, scelto?: string | null): CalendarColor {
+  return coloreDa(colorePersona(profileId, scelto))
+}
+
+export const PALETTE_SIZE = COLORI_PERSONA.length

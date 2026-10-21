@@ -772,6 +772,36 @@ sotto resta «+ aggiungi un'altra persona»; la prima è la principale
 - **Il blocco non è un `<Field>`**: `Field` è un `<label>`, e un clic
   sull'etichetta premeva la × del primo chip.
 
+## Il colore della persona (§483, `lib/calendar-colors.ts`, migration 274)
+
+Nel calendario milestone il responsabile è il pallino in basso a destra della
+bandierina: largo dieci pixel. Ci stava la foto profilo (§482), e lì dentro una
+foto non si riconosce. Adesso **è un colore, e lo sceglie la persona** in «Il
+mio profilo», sotto la foto: otto tinte, `profiles.avatar_color`. Chi non ha
+scelto ne ha una stabile derivata dall'id, quindi i pallini sono già diversi
+fra loro anche prima che qualcuno scelga.
+
+- **È lo stesso colore del Calendario.** Eventi, assenze e l'elenco dei
+  colleghi lo derivavano già dall'id con sei token di stato; ora passano tutti
+  da `colorFor(id, scelto)`. Una persona con due colori in due pagine non si
+  riconosce in nessuna delle due.
+- **Otto tinte categoriali, non i colori di stato.** Rosso, arancio e verde
+  della bandierina dicono «in ritardo», «scade», «fatta»: il pallino della
+  persona non può prenderli in prestito. Le otto (`--color-persona-*` in
+  `globals.css`, scuro e chiaro) vengono da una tavolozza validata: fra tinte
+  vicine separazione per daltonismo ≥ 8.4 e per visione normale ≥ 19.3, ≥ 3:1
+  sul fondo scuro. Sul bianco acqua, giallo e magenta stanno sotto 3:1, e il
+  colore non è mai l'unico canale: il nome è nel riepilogo al passaggio del
+  mouse, con il pallino accanto.
+- **Il testo non indossa la tinta**: il chip di un evento ha fondo tenue e
+  bordo colorati, testo `text-primary`.
+- La colonna si legge nelle pagine Progetti e Calendario e nel profilo, **non**
+  in `SESSION_PROFILE_COLUMNS`: quella passa da ogni layout, e una colonna in
+  più senza la migration spegnerebbe l'app intera.
+
+Gate: `npx tsx lib/calendar-colors.check.ts` — controlla anche che i token ci
+siano in tutti e due i temi e che il vincolo del database ammetta le stesse otto.
+
 ## Una task diventa milestone (§479, `lib/task-milestone.ts`)
 
 Feedback del 13 ottobre 2026: certe task dentro una milestone sono consegne

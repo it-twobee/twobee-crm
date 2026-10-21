@@ -73,6 +73,8 @@ export interface Profile {
   role: Role
   app_role: AppRole
   avatar_url: string | null
+  /** §483 — una delle otto di `COLORI_PERSONA`; null = quella derivata dall'id */
+  avatar_color?: string | null
   email: string
   phone: string | null
   area: string | null

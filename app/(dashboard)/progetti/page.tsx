@@ -23,7 +23,7 @@ export default async function ProgettiPage({ searchParams }: { searchParams: { c
     { data: templates }, { data: nodes }, { data: projects },
   ] = await Promise.all([
     supabase.from('clients').select('id, company_name, display_name, client_label, is_internal, internal_kind').order('company_name'),
-    supabase.from('profiles').select('id, full_name, app_role, avatar_url').eq('is_active', true).in('role', INTERNAL_COARSE_ROLES).order('full_name'),
+    supabase.from('profiles').select('id, full_name, app_role, avatar_url, avatar_color').eq('is_active', true).in('role', INTERNAL_COARSE_ROLES).order('full_name'),
     supabase.from('service_catalog').select('*').order('area').order('sort_order'),
     supabase.from('project_templates').select('*').order('sort_order'),
     supabase.from('project_template_nodes').select('*').order('sort_order'),
@@ -66,7 +66,7 @@ export default async function ProgettiPage({ searchParams }: { searchParams: { c
       areaIniziale={areaIniziale}
       progettiMiei={progettiMiei}
       clients={clientOpts}
-      profiles={(profiles ?? []) as { id: string; full_name: string; app_role: string | null; avatar_url: string | null }[]}
+      profiles={(profiles ?? []) as { id: string; full_name: string; app_role: string | null; avatar_url: string | null; avatar_color: string | null }[]}
       services={(services ?? []) as ServiceCatalogEntry[]}
       templates={(templates ?? []) as ProjectTemplate[]}
       nodes={(nodes ?? []) as ProjectTemplateNode[]}

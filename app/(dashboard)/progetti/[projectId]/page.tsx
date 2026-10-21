@@ -36,7 +36,7 @@ export default async function ProjectDetailPage({ params, searchParams }: { para
     supabase.from('tasks').select('*').eq('project_id', params.projectId).is('deleted_at', null).order('created_at'),
     supabase.from('recurring_task_templates').select('*').eq('project_id', params.projectId).order('created_at'),
     supabase.from('project_members').select('profile_id, role_in_project').eq('project_id', params.projectId),
-    supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true).in('role', INTERNAL_COARSE_ROLES),
+    supabase.from('profiles').select('id, full_name, avatar_url, avatar_color').eq('is_active', true).in('role', INTERNAL_COARSE_ROLES),
   ])
 
   const memberIds = (members ?? []).map(m => m.profile_id)
@@ -103,7 +103,7 @@ export default async function ProjectDetailPage({ params, searchParams }: { para
       tasks={(tasks ?? []) as Task[]}
       recurring={(recurring ?? []) as RecurringTaskTemplate[]}
       memberIds={memberIds}
-      profiles={(profiles ?? []) as { id: string; full_name: string; avatar_url: string | null }[]}
+      profiles={(profiles ?? []) as { id: string; full_name: string; avatar_url: string | null; avatar_color: string | null }[]}
       /* §342 — `panoramica` ora è una scelta esplicita: il default è passato
          alle workstream, quindi un link che la voleva deve poterla chiedere. */
       initialTab={searchParams.tab === 'workstream' ? 'workstream'

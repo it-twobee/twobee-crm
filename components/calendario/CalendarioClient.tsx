@@ -38,7 +38,7 @@ interface GoogleEvent {
   description?: string | null; location?: string | null; meetLink?: string | null; attendeeEmails?: string[]
 }
 interface LocalMeeting { id: string; title: string; meeting_date: string; duration_minutes?: number; description?: string }
-type Persona = Pick<Profile, 'id' | 'full_name' | 'avatar_url'>
+type Persona = Pick<Profile, 'id' | 'full_name' | 'avatar_url' | 'avatar_color'>
 type Vista = 'giorno' | 'settimana' | 'mese' | 'anno' | 'periodo'
 
 const MEMORIA = 'twobee-calendario'
@@ -55,7 +55,7 @@ const etichettaGiorno = (g: string) => new Date(`${g}T12:00:00Z`).toLocaleDateSt
 function stile(v: VoceCal): React.CSSProperties & { className?: string } {
   if (v.tipo === 'task') return { background: 'var(--color-gold-dim)', color: 'var(--color-gold-text)', borderColor: 'var(--color-gold)' }
   if (v.tipo === 'milestone') return { background: 'var(--color-accent-dim)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
-  const c = colorFor(v.profileId ?? '')
+  const c = colorFor(v.profileId ?? '', v.colore)
   if (v.tipo === 'ferie' || v.tipo === 'permesso') {
     return {
       background: `repeating-linear-gradient(135deg, ${c.bg} 0 6px, color-mix(in srgb, ${c.bg} 55%, transparent) 6px 12px)`,
@@ -165,8 +165,10 @@ export function CalendarioClient({ isGoogleConnected, localMeetings = [], profil
       fine: new Date(Date.parse(m.meeting_date) + (m.duration_minutes ?? 60) * 60_000).toISOString(),
       tuttoIlGiorno: false, profileId: null, dettaglio: m.description ?? null,
     }))
+    const scelti = new Map(profiles.map(p => [p.id, p.avatar_color ?? null]))
     return filtra([...ev, ...riunioni, ...altre], { filtri, cerca })
-  }, [google, localMeetings, altre, filtri, cerca, currentUserId])
+      .map(v => v.profileId ? { ...v, colore: scelti.get(v.profileId) ?? null } : v)
+  }, [google, localMeetings, altre, filtri, cerca, currentUserId, profiles])
 
   const conta = useMemo(() => {
     const tutte = [...google.map(() => 'evento'), ...localMeetings.map(() => 'riunione'), ...altre.map(a => a.tipo)]
@@ -221,7 +223,7 @@ export function CalendarioClient({ isGoogleConnected, localMeetings = [], profil
         <p className="text-2xs font-semibold text-text-tertiary uppercase tracking-wide mb-1.5">Il mio calendario</p>
         {io && (
           <div className="flex items-center gap-2 px-2 py-1.5 text-xs">
-            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: colorFor(io.id).dot }} aria-hidden />
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: colorFor(io.id, io.avatar_color).dot }} aria-hidden />
             <span className="flex-1 truncate text-text-primary">{io.full_name} (tu)</span>
             {nonCollegati.includes(io.id) && <span className="text-2xs text-text-tertiary">Google non collegato</span>}
           </div>
@@ -246,7 +248,7 @@ export function CalendarioClient({ isGoogleConnected, localMeetings = [], profil
         <div className="space-y-0.5 max-h-72 overflow-y-auto">
           {colleghi.map(p => {
             const on = persone.includes(p.id)
-            const c = colorFor(p.id)
+            const c = colorFor(p.id, p.avatar_color)
             return (
               <button key={p.id} type="button" role="checkbox" aria-checked={on}
                 onClick={() => setPersone(s => on ? s.filter(x => x !== p.id) : [...s, p.id])}

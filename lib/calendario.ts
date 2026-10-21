@@ -34,6 +34,8 @@ export type VoceCal = {
   tuttoIlGiorno: boolean
   /** di chi è: il colore della persona. Null per le voci che non sono di nessuno */
   profileId: string | null
+  /** §483 — la tinta che la persona ha scelto in «Il mio profilo», se l'ha scelta */
+  colore?: string | null
   /** il titolo non si vede: evento privato di un collega, o chi guarda non è dello staff */
   mascherato?: boolean
   privato?: boolean

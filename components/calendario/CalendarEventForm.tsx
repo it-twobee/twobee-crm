@@ -52,7 +52,7 @@ const REMINDER_OPTS: { v: string; label: string }[] = [
 
 export function CalendarEventForm({ form: initial, profiles, currentUserId, onClose, onSaved }: {
   form: EventForm
-  profiles: Pick<Profile, 'id' | 'full_name' | 'avatar_url'>[]
+  profiles: Pick<Profile, 'id' | 'full_name' | 'avatar_url' | 'avatar_color'>[]
   currentUserId: string
   onClose: () => void
   onSaved: () => void

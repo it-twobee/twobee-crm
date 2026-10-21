@@ -18,8 +18,9 @@ import {
   thumbGeometry, thumbOffset, scrolledPercent, scrollFromDrag, scrollFromTrack, stepOf,
   centerDay, scrollForCenterDay,
 } from '@/lib/gantt-scroll'
+import { colorFor } from '@/lib/calendar-colors'
 
-type Person = { id: string; full_name: string; avatar_url: string | null }
+type Person = { id: string; full_name: string; avatar_url: string | null; avatar_color?: string | null }
 type GanttTask = Pick<Task, 'id' | 'milestone_id' | 'status' | 'parent_task_id'>
 
 /** Corsia generica: una workstream nel dettaglio progetto, un progetto nella vista globale. */
@@ -463,7 +464,10 @@ export function ProjectGantt({
                     {hmRel && <span className={hmRel.tone}>· {hmRel.text}</span>}
                   </div>
                   <div className="flex items-center gap-2 text-2xs text-text-secondary">
-                    <User className="w-3.5 h-3.5 text-text-tertiary shrink-0" /><span className="truncate">{hmOwner ? hmOwner.full_name : 'Non assegnata'}</span>
+                    {hmOwner
+                      ? <span className="w-3 h-3 mx-px rounded-full shrink-0" style={{ background: colorFor(hmOwner.id, hmOwner.avatar_color).dot }} aria-hidden />
+                      : <User className="w-3.5 h-3.5 text-text-tertiary shrink-0" />}
+                    <span className="truncate">{hmOwner ? hmOwner.full_name : 'Non assegnata'}</span>
                   </div>
                   <div className="flex items-center gap-2 text-2xs text-text-secondary">
                     <CheckSquare className="w-3.5 h-3.5 text-text-tertiary shrink-0" /><span className="tabular">{hmDone}/{hmTasks.length} task</span>
@@ -703,10 +707,14 @@ export function ProjectGantt({
                         style={{ left: model.x(parse(m.due_date!)) + DAY_W / 2 + stacked * 12 }}>
                         <span className={`relative w-7 h-7 rounded-full border flex items-center justify-center transition-transform hover:scale-110 ${tone.pill}`}>
                           <MIcon className={`w-3.5 h-3.5 ${tone.flag}`} />
+                          {/* §483 — il responsabile è un colore, non una foto: a
+                              dieci pixel una foto non si riconosce. Il colore lo
+                              sceglie ognuno in «Il mio profilo», e il nome resta
+                              nel riepilogo al passaggio del mouse. */}
                           {owner && (
-                            <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-gold border-2 border-surface overflow-hidden" aria-label={`Responsabile: ${owner.full_name}`}>
-                              {owner.avatar_url && <img src={owner.avatar_url} className="w-full h-full object-cover" alt="" />}
-                            </span>
+                            <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-surface"
+                              style={{ background: colorFor(owner.id, owner.avatar_color).dot }}
+                              aria-label={`Responsabile: ${owner.full_name}`} />
                           )}
                         </span>
                       </button>

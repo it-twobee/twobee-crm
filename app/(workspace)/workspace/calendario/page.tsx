@@ -25,7 +25,7 @@ export default async function WorkspaceCalendarioPage() {
       .order('meeting_date'),
     /* §409 — i colleghi sono lo staff interno: un account del portale cliente
        non ha un calendario da mostrare al team, e il filtro sta nella query */
-    supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true)
+    supabase.from('profiles').select('id, full_name, avatar_url, avatar_color').eq('is_active', true)
       .in('role', INTERNAL_COARSE_ROLES as unknown as string[]).order('full_name'),
   ])
 
@@ -33,7 +33,7 @@ export default async function WorkspaceCalendarioPage() {
     <CalendarioClient
       isGoogleConnected={isGoogleConnected}
       localMeetings={meetingsRes.data ?? []}
-      profiles={(profilesRes.data ?? []) as unknown as Pick<Profile, 'id' | 'full_name' | 'avatar_url'>[]}
+      profiles={(profilesRes.data ?? []) as unknown as Pick<Profile, 'id' | 'full_name' | 'avatar_url' | 'avatar_color'>[]}
       currentUserId={profile.id}
       base="/workspace"
     />
