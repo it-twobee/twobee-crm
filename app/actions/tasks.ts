@@ -109,6 +109,32 @@ export async function deleteTask(taskId: string) {
   if (error) throw new Error(error.message)
 }
 
+/**
+ * §486 — l'ordine delle task dentro una milestone. Le posizioni le calcola
+ * `nuovePosizioni` (`lib/task-order.ts`): di solito una riga sola. Qui si
+ * controlla che le task siano tutte di quella milestone e di primo livello —
+ * un id preso da un'altra milestone non deve cambiare posto a niente.
+ */
+export async function riordinaTask(milestoneId: string, posizioni: { id: string; position: number }[]) {
+  const uid = await requireStaff()
+  if (!posizioni.length) return
+  if (posizioni.length > 500 || posizioni.some(p => !Number.isFinite(p.position))) throw new Error('Ordine non valido')
+  const admin = createActorClient(uid)
+  const ids = Array.from(new Set(posizioni.map(p => p.id)))
+  const { data, error } = await admin.from('tasks').select('id, milestone_id, parent_task_id, project_id, deleted_at').in('id', ids)
+  if (error) throw new Error(error.message)
+  const righe = (data ?? []) as { id: string; milestone_id: string | null; parent_task_id: string | null; project_id: string | null; deleted_at: string | null }[]
+  if (righe.length !== ids.length || righe.some(t => t.milestone_id !== milestoneId || t.parent_task_id || t.deleted_at)) {
+    throw new Error('Le task non sono tutte di questa milestone')
+  }
+  for (const p of posizioni) {
+    const { error: e } = await admin.from('tasks').update({ position: p.position }).eq('id', p.id).eq('milestone_id', milestoneId)
+    if (e) throw new Error(/position/.test(e.message) ? 'Manca la migration dell\'ordine delle task' : e.message)
+  }
+  const projectId = righe[0]?.project_id
+  if (projectId) revalidatePath(`/progetti/${projectId}`)
+}
+
 // ── commenti ──────────────────────────────────────────────────────────────────
 export async function addTaskComment(taskId: string, content: string, visibility: Visibility = 'internal') {
   const uid = await requireStaff()

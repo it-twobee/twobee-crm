@@ -772,6 +772,34 @@ sotto resta «+ aggiungi un'altra persona»; la prima è la principale
 - **Il blocco non è un `<Field>`**: `Field` è un `<label>`, e un clic
   sull'etichetta premeva la × del primo chip.
 
+## Le task di una milestone si mettono in ordine (§486, `lib/task-order.ts`, migration 275)
+
+Feedback del 21 ottobre 2026: costruendo il processo standard dei social serve
+che certe task stiano prima di altre nel riquadro della milestone, «come le
+playlist di Spotify». L'ordine era quello di creazione, e per cambiarlo
+bisognava ricreare le task.
+
+- **Si trascina dalla maniglia** a sinistra della riga, o la si mette a fuoco
+  e si usano **le frecce su e giù** (`TaskRiordinabili`). La lista si sposta
+  subito e il salvataggio arriva dopo; se fallisce torna com'era. Vale nel
+  riquadro della milestone e nel blocco «Operatività continua».
+- **Solo a lista intera.** Con un filtro attivo (in ritardo, in scadenza, non
+  assegnate, nascondi completate) una parte delle task non si vede, e «mettila
+  prima di questa» non direbbe dove finisce rispetto a quelle nascoste: lì la
+  maniglia non c'è. Non c'è nemmeno da telefono, dove il trascinamento del
+  browser non funziona.
+- **Chi**: chi governa la corsia, come per creare una task (`canManage`). Sul
+  server `requireStaff`, e l'azione `riordinaTask` controlla che le task siano
+  tutte di quella milestone, di primo livello e non eliminate.
+- **Una riga scritta per spostamento.** `position` ha i buchi: la task
+  spostata prende la media fra le due vicine, e la cronologia riceve una voce
+  sola invece di una per ogni task scalata. Si rinumera tutta la lista solo la
+  prima volta — quando le posizioni non ci sono ancora — o quando fra due
+  vicine non c'è più spazio, dopo una cinquantina di spostamenti nello stesso
+  buco.
+- **Una task nuova va in fondo**: senza posizione vale l'ordine di creazione,
+  dopo quelle già ordinate.
+
 ## Milestone e task hanno il titolo libero: niente più «M1 ·» (§485, `lib/project-naming.ts`)
 
 Feedback del 21 ottobre 2026: «molti si confondono con questa naming, meglio

@@ -23,6 +23,8 @@ import { Avatar, Segmented, inputCls } from '@/components/shared/formkit'
 import { TaskDetailDrawer } from './TaskDetailDrawer'
 import { TaskComposer } from '@/components/tasks/TaskComposer'
 import { NewMilestoneModal, type NewMilestoneValues } from './NewMilestoneModal'
+import { TaskRiordinabili } from './TaskRiordinabili'
+import { ordinaTask } from '@/lib/task-order'
 import type {
   Project, ProjectWorkstream, Milestone, Task, RecurringTaskTemplate, RecurringMilestoneTemplate,
   WorkstreamStatus, MilestoneStatus, RecurrenceFrequency,
@@ -109,7 +111,8 @@ export function WorkstreamPageClient({
   const systemMilestoneId = systemMs[0]?.id ?? deliveryMs[0]?.id ?? ''
 
   const wsDone = ws.status === 'completed'
-  const allTasks = tasks.filter(t => !t.parent_task_id)
+  // §486 — nell'ordine scelto (`position`), poi in quello di creazione
+  const allTasks = ordinaTask(tasks.filter(t => !t.parent_task_id))
   const done = tasks.filter(t => t.status === 'completato').length
   const progress = tasks.length ? Math.round((done / tasks.length) * 100) : 0
 
@@ -487,11 +490,13 @@ function ContinuousBlock({
             {totalTasks.length === 0 ? 'Nessuna attività continuativa.' : 'Nessuna attività per il filtro attivo.'}
           </p>
         )}
-        {tasks.map(t => (
-          <TaskRow key={t.id} t={t} subs={subtasksOf(t.id)} project={project} wsId={wsId}
-            profiles={profiles} canEdit={canEditTask(t)} canManage={canEdit}
-            act={act} onOpenTask={onOpenTask} onAddSub={onAddSub} />
-        ))}
+        <TaskRiordinabili milestoneId={m.id} tasks={tasks}
+          attivo={canEdit && tasks.length > 1 && tasks.length === totalTasks.length}
+          render={t => (
+            <TaskRow t={t} subs={subtasksOf(t.id)} project={project} wsId={wsId}
+              profiles={profiles} canEdit={canEditTask(t)} canManage={canEdit}
+              act={act} onOpenTask={onOpenTask} onAddSub={onAddSub} />
+          )} />
       </div>
     </section>
   )
@@ -657,11 +662,14 @@ function MilestoneNode({
 
         {/* task */}
         <div className="border-t border-border p-2 space-y-0.5">
-          {tasks.map(t => (
-            <TaskRow key={t.id} t={t} subs={subtasksOf(t.id)} project={project} wsId={wsId}
-              profiles={profiles} canEdit={canEditTask(t)} canManage={canManage}
-              act={act} onOpenTask={onOpenTask} onAddSub={onAddSub} />
-          ))}
+          {/* §486 — l'ordine si sceglie: maniglia o frecce, solo a lista intera */}
+          <TaskRiordinabili milestoneId={m.id} tasks={tasks}
+            attivo={canManage && tasks.length > 1 && tasks.length === totalTasks.length}
+            render={t => (
+              <TaskRow t={t} subs={subtasksOf(t.id)} project={project} wsId={wsId}
+                profiles={profiles} canEdit={canEditTask(t)} canManage={canManage}
+                act={act} onOpenTask={onOpenTask} onAddSub={onAddSub} />
+            )} />
           {tasks.length === 0 && (
             <p className="text-2xs text-text-tertiary px-2 py-1.5">
               {totalTasks.length === 0 ? 'Nessuna task in questa milestone.' : 'Nessuna task per il filtro attivo.'}

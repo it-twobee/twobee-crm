@@ -978,6 +978,8 @@ export interface Task {
   project_id: string | null
   workstream_id: string | null
   milestone_id: string | null
+  /** §486 — l'ordine dentro la milestone; null = ordine di creazione (`lib/task-order.ts`) */
+  position?: number | null
   title: string
   description: string | null
   status: TaskStatusV2
