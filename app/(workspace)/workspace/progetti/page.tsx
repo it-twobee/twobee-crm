@@ -3,7 +3,7 @@ import { INTERNAL_COARSE_ROLES } from '@/lib/permissions'
 import { getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { ProgettiClient } from '@/components/projects/ProgettiClient'
-import { areaDiPartenza } from '@/lib/area-persona'
+import { areaDiPartenza, milestoneMie, soloMieDiPartenza } from '@/lib/area-persona'
 import type {
   ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode,
   ProjectWorkstream, Milestone, Task, ClientLabel,
@@ -55,9 +55,19 @@ export default async function WorkspaceProgettiPage({ searchParams }: { searchPa
     ? await Promise.all([
         supabase.from('project_workstreams').select('*').in('project_id', activeIds).order('sort_order'),
         supabase.from('milestones').select('*').in('project_id', activeIds).order('sort_order'),
-        supabase.from('tasks').select('id, milestone_id, status, parent_task_id').in('project_id', activeIds).is('deleted_at', null),
+        supabase.from('tasks').select('id, milestone_id, status, parent_task_id, assignee_id').in('project_id', activeIds).is('deleted_at', null),
       ])
     : [{ data: [] }, { data: [] }, { data: [] }]
+
+  /* §487 — le milestone in cui chi guarda è incluso: responsabile, o con una
+     task dentro (primaria o fra gli assegnatari). Servono a «Le mie». */
+  const { data: assegnazioni } = await supabase.from('task_assignees').select('task_id').eq('profile_id', profile.id)
+  const milestoneMieIds = milestoneMie({
+    io: profile.id,
+    milestones: (milestones ?? []) as { id: string; owner_id: string | null }[],
+    tasks: (calTasks ?? []) as { id: string; milestone_id: string | null; assignee_id: string | null }[],
+    taskMie: (assegnazioni ?? []).map(a => a.task_id as string),
+  })
 
   // Solo la label: nel workspace le aree non esistono (§326) e la VIEW non espone
   // `internal_kind` — passare `is_internal` da solo farebbe passare un lavoro
@@ -67,6 +77,7 @@ export default async function WorkspaceProgettiPage({ searchParams }: { searchPa
 
   return (
     <ProgettiClient voce="progetti" areaIniziale={areaIniziale}
+      milestoneMie={milestoneMieIds} soloMieIniziale={soloMieDiPartenza(profile.app_role)}
       clients={clientOpts}
       profiles={(profiles ?? []) as { id: string; full_name: string; app_role: string | null; avatar_url: string | null; avatar_color: string | null }[]}
       services={(services ?? []) as ServiceCatalogEntry[]}

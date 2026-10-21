@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Plus, FolderKanban, Search, ChevronRight, Users } from 'lucide-react'
@@ -43,6 +43,8 @@ const LIVE_STATUSES = ['active', 'draft', 'on_hold']
 
 const INTERNAL_KEY = '__internal__'
 const FAR = '9999-12-31'
+/** §487 — dove il browser ricorda «Le mie» o «Tutte» */
+const VISTA_KEY = 'twobee-progetti-vista'
 const DAY = 86400000
 /** Sotto questa soglia il cliente è presidiato: niente badge. */
 const QUIET_DAYS = 10
@@ -92,12 +94,16 @@ function quietBadge(info: ReturnType<typeof quietInfo>) {
 
 export function ProgettiClient({
   clients, profiles, services, templates, nodes, projects, workstreams, milestones, calTasks, initialClientId, openWizard,
-  basePath = '/progetti', canCreate = true, voce, areaIniziale = '',
+  basePath = '/progetti', canCreate = true, voce, areaIniziale = '', milestoneMie = [], soloMieIniziale = false,
 }: {
   /** §351 — la riga sotto il titolo, solo nel portale operativo */
   voce?: Sezione
   /** §358 — l'area con cui si apre: quella di chi guarda, vuota per chi governa */
   areaIniziale?: AreaFiltro
+  /** §487 — le milestone in cui chi guarda è incluso (`milestoneMie`) */
+  milestoneMie?: string[]
+  /** §487 — se il calendario parte da «Le mie»: sì per chi non governa */
+  soloMieIniziale?: boolean
   clients: { id: string; name: string; client_label?: ClientLabel | null; is_internal?: boolean | null; internal_kind?: InternalKind | null }[]
   profiles: { id: string; full_name: string; app_role: string | null; avatar_url?: string | null }[]
   services: ServiceCatalogEntry[]
@@ -124,6 +130,19 @@ export function ProgettiClient({
      sembrare che il filtro abbia cancellato tutto. */
   const [tornaAOggi, setTornaAOggi] = useState(0)
   const cambiaArea = (v: AreaFiltro) => { setArea(v); setTornaAOggi(n => n + 1) }
+  /* §487 — «Le mie» o «Tutte». Il default viene dal ruolo, la scelta resta nel
+     browser: si legge dopo il montaggio, perché sul server non c'è. */
+  const [soloMie, setSoloMie] = useState(soloMieIniziale)
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(VISTA_KEY)
+      if (v === 'mie' || v === 'tutte') setSoloMie(v === 'mie')
+    } catch { /* storage non disponibile: vale il default */ }
+  }, [])
+  const cambiaVista = (mie: boolean) => {
+    setSoloMie(mie); setTornaAOggi(n => n + 1)
+    try { localStorage.setItem(VISTA_KEY, mie ? 'mie' : 'tutte') } catch { /* resta per questa visita */ }
+  }
   /* §341 — l'elenco in fondo era una griglia piatta di trenta schede in cui i
      progetti dello stesso cliente stavano sparsi: per sapere cosa c'è aperto su
      iCura bisognava scorrere tutto e tenerlo a mente. Il calendario qui sopra è
@@ -152,6 +171,17 @@ export function ProgettiClient({
     m.forEach(arr => arr.sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1)))
     return m
   }, [milestones])
+  /** §487 — quelle che si disegnano: tutte, o solo quelle in cui sei incluso */
+  const msVisibili = useMemo(() => {
+    if (!soloMie) return msByProject
+    const mie = new Set(milestoneMie)
+    const m = new Map<string, Milestone[]>()
+    msByProject.forEach((arr, pid) => {
+      const f = arr.filter(x => mie.has(x.id))
+      if (f.length) m.set(pid, f)
+    })
+    return m
+  }, [msByProject, soloMie, milestoneMie])
 
   // Un gruppo per ogni cliente da presidiare, anche senza progetti: chi è fermo si
   // vede solo se la sua riga c'è. I progetti interni stanno in un gruppo a parte.
@@ -172,10 +202,14 @@ export function ProgettiClient({
       else byClient.set(key, [p])
     })
     const build = (id: string, name: string) => {
-      const ps = (byClient.get(id) ?? []).slice()
-      const ms = ps.flatMap(p => msByProject.get(p.id) ?? []).sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1))
-      ps.sort((a, b) => (nextOpen(msByProject.get(a.id)) ?? FAR) < (nextOpen(msByProject.get(b.id)) ?? FAR) ? -1 : 1)
-      return { id, name, projects: ps, milestones: ms }
+      /* §487 — con «Le mie» restano i progetti in cui hai almeno una milestone */
+      const ps = (byClient.get(id) ?? []).filter(p => !soloMie || msVisibili.has(p.id))
+      const ms = ps.flatMap(p => msVisibili.get(p.id) ?? []).sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1))
+      /* «fermo» si misura su tutte le milestone del cliente, non sulle tue:
+         un cliente su cui il team lavora non è fermo perché tu non ci sei */
+      const tutte = ps.flatMap(p => msByProject.get(p.id) ?? [])
+      ps.sort((a, b) => (nextOpen(msVisibili.get(a.id)) ?? FAR) < (nextOpen(msVisibili.get(b.id)) ?? FAR) ? -1 : 1)
+      return { id, name, projects: ps, milestones: ms, tutte }
     }
     /* persi, fermi, lead e società collegate non hanno un presidio da misurare
        (§328). §354 — con un'area scelta restano solo i clienti che in
@@ -183,14 +217,14 @@ export function ProgettiClient({
        sotto il filtro «growth» direbbe una cosa falsa — il cliente i progetti
        ce li ha, solo non di quell'area. */
     const list = clients.filter(countsInDelivery).map(c => build(c.id, c.name))
-      .filter(g => !area || g.projects.length > 0)
+      .filter(g => (!area && !soloMie) || g.projects.length > 0)
     // ordine da calendario: chi ha la prossima milestone aperta più vicina sta in cima
     return list.sort((a, b) => {
       const da = nextOpen(a.milestones) ?? FAR
       const db = nextOpen(b.milestones) ?? FAR
       return da === db ? a.name.localeCompare(b.name) : (da < db ? -1 : 1)
     })
-  }, [projects, clients, msByProject, area]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [projects, clients, msByProject, msVisibili, area, soloMie]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const lanes: GanttLane[] = useMemo(() => {
     const out: GanttLane[] = []
@@ -215,7 +249,7 @@ export function ProgettiClient({
           ? { expanded: open, onToggle: () => setOpenClients(o => ({ ...o, [g.id]: !o[g.id] })) }
           : undefined,
         badge: g.projects.length
-          ? quietBadge(quietInfo(g.milestones))
+          ? quietBadge(quietInfo(g.tutte))
           : {
             text: '0 progetti', tone: 'bg-error-dim border-error/40 text-error',
             title: 'Nessun progetto in corso',
@@ -224,7 +258,7 @@ export function ProgettiClient({
         emptyLabel: open ? '' : g.projects.length ? 'nessuna milestone datata' : 'nessun progetto in corso',
       })
       if (open) g.projects.forEach(p => {
-        const pms = msByProject.get(p.id) ?? []
+        const pms = msVisibili.get(p.id) ?? []
         out.push({
           id: p.id,
           /* §354 — dentro la riga di un cliente il nome del cliente è già
@@ -241,9 +275,9 @@ export function ProgettiClient({
       })
     })
     return out
-  }, [groups, openClients, msByProject]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [groups, openClients, msVisibili]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const quietCount = useMemo(() => groups.filter(g => !g.projects.length || quietInfo(g.milestones).quiet).length, [groups])
+  const quietCount = useMemo(() => groups.filter(g => !g.projects.length || quietInfo(g.tutte).quiet).length, [groups])
   const msCount = useMemo(() => groups.reduce((n, g) => n + g.milestones.length, 0), [groups])
 
   const wsName = (m: Milestone) => {
@@ -330,12 +364,14 @@ export function ProgettiClient({
           return w ? `${basePath}/${w.project_id}/workstream/${w.id}?ms=${m.id}` : null
         }}
         contextHref={m => (m.project_id ? `${basePath}/${m.project_id}` : null)}
-        emptyHint="Nessun cliente attivo: il calendario mostra una riga per cliente e i progetti in corso nella tendina."
+        emptyHint={soloMie
+          ? 'Nessuna milestone in cui sei incluso: responsabile, o con una task dentro. In «Tutte» vedi quelle del team.'
+          : 'Nessun cliente attivo: il calendario mostra una riga per cliente e i progetti in corso nella tendina.'}
         /* §354 — 320 e non 260: con «Cliente · Area · Servizio» il nome del
            progetto arrivava ai puntini dopo tre parole. Qui ci sta intero, e
            accanto resta posto per il badge dei fermi. */
         labelWidth={320}
-        headerControls={<AreaPicker value={area} onChange={cambiaArea} />}
+        headerControls={<><VistaPicker soloMie={soloMie} onChange={cambiaVista} /><AreaPicker value={area} onChange={cambiaArea} /></>}
         vaiAOggi={tornaAOggi}
       />
 
@@ -468,6 +504,21 @@ function ProjectCard({ p, basePath, clientName, serviceLabel, showClient }: {
  * calendario — dove si vede l'effetto — e nella barra dell'elenco, dove stava
  * già: stesso stato, quindi non possono divergere.
  */
+/** §487 — «Le mie» o «Tutte»: stesso disegno del filtro area, accanto a lui */
+function VistaPicker({ soloMie, onChange }: { soloMie: boolean; onChange: (mie: boolean) => void }) {
+  return (
+    <div className="flex bg-surface-active rounded-xl p-0.5 shrink-0" role="radiogroup" aria-label="Quali milestone">
+      {([[true, 'Le mie'], [false, 'Tutte']] as [boolean, string][]).map(([v, label]) => (
+        <button key={label} type="button" role="radio" aria-checked={soloMie === v} onClick={() => onChange(v)}
+          title={v ? 'Le milestone di cui sei responsabile o in cui hai una task' : 'Le milestone di tutto il team'}
+          className={`px-2.5 py-1 rounded-lg text-2xs font-semibold whitespace-nowrap transition-colors ${
+            soloMie === v ? 'bg-gold text-on-gold' : 'text-text-secondary hover:text-text-primary'
+          }`}>{label}</button>
+      ))}
+    </div>
+  )
+}
+
 function AreaPicker({ value, onChange }: { value: AreaFiltro; onChange: (v: AreaFiltro) => void }) {
   return (
     <div className="flex bg-surface-active rounded-xl p-0.5 shrink-0" role="radiogroup" aria-label="Filtra per area">

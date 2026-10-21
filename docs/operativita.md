@@ -772,6 +772,32 @@ sotto resta «+ aggiungi un'altra persona»; la prima è la principale
 - **Il blocco non è un `<Field>`**: `Field` è un `<label>`, e un clic
   sull'etichetta premeva la × del primo chip.
 
+## In Progetti: «Le mie» milestone o «Tutte» (§487, `milestoneMie` in `lib/area-persona.ts`)
+
+Feedback del 21 ottobre 2026, richiesta di Annalisa: poter guardare nel
+calendario di Progetti solo le milestone che riguardano lei, e lasciare la
+panoramica completa a chi coordina. Sul calendario c'è un comando in più,
+accanto al filtro area: **«Le mie · Tutte»**.
+
+- **Incluso** vuol dire responsabile della milestone, oppure con una task lì
+  dentro — primaria o fra gli assegnatari, anche una sotto-task. Non basta
+  essere membro del progetto: c'è chi è membro di quasi tutto, e il calendario
+  «suo» tornerebbe quello di tutti. Sui dati del 21 ottobre, su 80 milestone
+  in corso: Annalisa 27, Agostino 12, Sabrina 31.
+- **Si parte dal ruolo**: admin, founder e super admin da «Tutte», gli altri
+  da «Le mie». Toto e Marco ci cadono dentro per ruolo; Sabrina è manager come
+  Annalisa, quindi il ruolo non la distingue — passa a «Tutte» una volta e
+  **il browser se lo ricorda** (`twobee-progetti-vista`). È un default, non un
+  confine: chi lavora in team può sempre guardare il lavoro degli altri, come
+  già può aprire ogni progetto. Se un giorno servisse chiudere davvero la
+  panoramica a tre persone, ci vuole un flag per persona, non un elenco di
+  nomi nel codice.
+- **Con «Le mie»** restano i clienti e i progetti in cui hai almeno una
+  milestone; il badge «fermo» resta misurato su **tutte** le milestone del
+  cliente — un cliente su cui il team lavora non è fermo perché tu non ci sei.
+  I due comandi si sommano: «Le mie» + «Marketing» sono le tue milestone
+  marketing. L'elenco dei progetti sotto il calendario non cambia.
+
 ## Le task di una milestone si mettono in ordine (§486, `lib/task-order.ts`, migration 275)
 
 Feedback del 21 ottobre 2026: costruendo il processo standard dei social serve

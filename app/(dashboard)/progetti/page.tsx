@@ -3,7 +3,7 @@ import { INTERNAL_COARSE_ROLES } from '@/lib/permissions'
 import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { ProgettiClient } from '@/components/projects/ProgettiClient'
-import { areaDiPartenza } from '@/lib/area-persona'
+import { areaDiPartenza, milestoneMie, soloMieDiPartenza } from '@/lib/area-persona'
 import type {
   ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode,
   ProjectWorkstream, Milestone, Task,
@@ -52,9 +52,19 @@ export default async function ProgettiPage({ searchParams }: { searchParams: { c
     ? await Promise.all([
         supabase.from('project_workstreams').select('*').in('project_id', activeIds).order('sort_order'),
         supabase.from('milestones').select('*').in('project_id', activeIds).order('sort_order'),
-        supabase.from('tasks').select('id, milestone_id, status, parent_task_id').in('project_id', activeIds).is('deleted_at', null),
+        supabase.from('tasks').select('id, milestone_id, status, parent_task_id, assignee_id').in('project_id', activeIds).is('deleted_at', null),
       ])
     : [{ data: [] }, { data: [] }, { data: [] }]
+
+  /* §487 — le milestone in cui chi guarda è incluso: responsabile, o con una
+     task dentro (primaria o fra gli assegnatari). Servono a «Le mie». */
+  const { data: assegnazioni } = await supabase.from('task_assignees').select('task_id').eq('profile_id', user.id)
+  const milestoneMieIds = milestoneMie({
+    io: user.id,
+    milestones: (milestones ?? []) as { id: string; owner_id: string | null }[],
+    tasks: (calTasks ?? []) as { id: string; milestone_id: string | null; assignee_id: string | null }[],
+    taskMie: (assegnazioni ?? []).map(a => a.task_id as string),
+  })
 
   const clientOpts = (clients ?? []).map(c => ({
     id: c.id, name: c.display_name || c.company_name,
@@ -64,6 +74,8 @@ export default async function ProgettiPage({ searchParams }: { searchParams: { c
   return (
     <ProgettiClient
       areaIniziale={areaIniziale}
+      milestoneMie={milestoneMieIds}
+      soloMieIniziale={soloMieDiPartenza(profile?.app_role)}
       clients={clientOpts}
       profiles={(profiles ?? []) as { id: string; full_name: string; app_role: string | null; avatar_url: string | null; avatar_color: string | null }[]}
       services={(services ?? []) as ServiceCatalogEntry[]}

@@ -37,6 +37,41 @@ export function nellArea(areaProgetto: string | null | undefined, filtro: AreaFi
   return !filtro || (areaProgetto ?? '').trim().toLowerCase() === filtro
 }
 
+/**
+ * §487 — **le milestone in cui una persona è inclusa**: ne è responsabile, o ha
+ * una task lì dentro — primaria o fra gli assegnatari, anche una sotto-task.
+ * Non basta essere membro del progetto: c'è chi è membro di quasi tutto, e il
+ * calendario «suo» tornerebbe quello di tutti.
+ *
+ * Feedback del 21 ottobre 2026: chi lavora su poche consegne vuole guardare la
+ * propria linea temporale senza quelle degli altri in mezzo.
+ */
+export function milestoneMie(input: {
+  io: string
+  milestones: { id: string; owner_id: string | null }[]
+  tasks: { id: string; milestone_id: string | null; assignee_id?: string | null }[]
+  /** gli id delle task in cui `io` compare in `task_assignees` */
+  taskMie?: string[]
+}): string[] {
+  const mieTask = new Set(input.taskMie ?? [])
+  const out = new Set<string>()
+  for (const m of input.milestones) if (m.owner_id === input.io) out.add(m.id)
+  for (const t of input.tasks) {
+    if (t.milestone_id && (t.assignee_id === input.io || mieTask.has(t.id))) out.add(t.milestone_id)
+  }
+  return Array.from(out)
+}
+
+/**
+ * §487 — con quale vista si apre il calendario: chi governa parte da «Tutte»,
+ * gli altri dalle proprie. Resta un default, come l'area (§358): un clic lo
+ * cambia e il browser se lo ricorda — chi coordina il lavoro di tutti ma non è
+ * admin passa a «Tutte» una volta sola.
+ */
+export function soloMieDiPartenza(appRole: string | null | undefined): boolean {
+  return !vedeTutto(appRole)
+}
+
 /** chi governa non ha un'area: governa tutto, e il calendario glielo mostra */
 export function vedeTutto(appRole: string | null | undefined): boolean {
   return appRole === 'admin' || appRole === 'founder' || appRole === 'super_admin'
