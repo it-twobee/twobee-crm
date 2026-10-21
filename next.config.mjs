@@ -43,9 +43,13 @@ const nextConfig = {
     // Import a barile: `import { X } from 'pkg'` tirava dentro tutto il pacchetto.
     // lucide-react e date-fns sono già nella lista di Next, queste si aggiungono.
     optimizePackageImports: ["sonner", "@supabase/supabase-js", "@supabase/ssr"],
-    // Cache del router lato client: tornare indietro non rifà il giro al server
-    // per mezzo minuto. Le mutazioni la invalidano da sé via revalidatePath.
-    staleTimes: { dynamic: 30, static: 300 },
+    // Cache del router lato client: tornare su una pagina vista da poco non rifà
+    // il giro al server. §491 — due minuti invece di mezzo: Supabase a tratti si
+    // ferma per secondi, e ogni visita evitata è un blocco in meno. Una modifica
+    // propria si vede sempre subito: le azioni del server la svuotano con
+    // revalidatePath, le scritture dal browser con `MemoriaPagine`. Quelle degli
+    // altri arrivano al più con due minuti di ritardo, tornando su una pagina.
+    staleTimes: { dynamic: 120, static: 300 },
     // §453 — «Carica» manda XML delle fatture e testo degli estratti come
     // argomenti di server action: oltre 1 MB (il default) Next risponde 413 e in
     // produzione resta solo «An error occurred in the Server Components render».

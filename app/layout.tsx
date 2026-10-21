@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter, League_Spartan } from 'next/font/google'
 import { ThemeProvider } from '@/components/theme/ThemeProvider'
 import { ThemedToaster } from '@/components/theme/ThemedToaster'
+import { MemoriaPagine } from '@/components/shared/MemoriaPagine'
 import './globals.css'
 
 const inter = Inter({
@@ -46,6 +47,7 @@ export default function RootLayout({
         <ThemeProvider>
           {children}
           <ThemedToaster />
+          <MemoriaPagine />
         </ThemeProvider>
       </body>
     </html>

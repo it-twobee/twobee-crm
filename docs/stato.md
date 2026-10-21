@@ -1,5 +1,31 @@
 # Dove siamo
 
+## Le pagine viste restano due minuti, le proprie modifiche si vedono subito — §491, 2026-10-21
+
+Il blocco intermittente di Supabase (§488: il 4,8% delle richieste oltre il
+secondo, fino a 160 s, con il database che risponde in millisecondi —
+segnalato al supporto con `cf-ray` e `request_id`) non si toglie da qui. Si
+paga meno spesso:
+
+- **Memoria delle pagine a due minuti** (`staleTimes.dynamic` da 30 a 120 in
+  `next.config.mjs`): tornare su una sezione vista da poco non passa da
+  Supabase.
+- **Una modifica propria si vede sempre subito.** Le azioni del server
+  svuotavano già la memoria (`revalidatePath`); le scritture fatte dal browser
+  col client Supabase no — customer care, scheda cliente, HR, ticket,
+  impostazioni, onboarding. Ora il client del browser le annuncia
+  (`lib/router-cache.ts`, `lib/supabase/client.ts`) e `MemoriaPagine`, nel
+  layout radice, svuota la memoria. Le RPC restano fuori: passano in POST anche
+  quando leggono, e una lettura che ricarica la pagina farebbe un giro senza
+  fine. Le modifiche degli **altri** arrivano al più con due minuti di ritardo,
+  tornando su una pagina già vista.
+- **Lo scheletro anche fra le sezioni del workspace**
+  (`app/(workspace)/workspace/loading.tsx`): quello del gruppo avvolgeva il
+  segmento `workspace`, che non cambia passando dalla dashboard alle attività,
+  quindi la pagina vecchia restava ferma e il clic sembrava non preso.
+- **Sincronizzazione Google in tre richieste** invece di due per evento (176
+  in fila con 88 eventi): cancellazione degli annullati, lettura, upsert.
+
 ## Il calendario di Google torna nel tool: diecimila errori al giorno spariti — §489, 2026-10-21
 
 Visti nel pannello Observability di Supabase («Database 79,9% errors», «API

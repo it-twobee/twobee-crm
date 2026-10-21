@@ -58,31 +58,40 @@ export async function syncMirrorFromGoogle(admin: Admin, profileId: string) {
     items = data.items ?? []
   } catch { return }
 
-  for (const e of items) {
-    if (!e.id) continue
-    if (e.status === 'cancelled') {
-      await admin.from('calendar_events').delete().eq('profile_id', profileId).eq('external_event_id', e.id)
-      continue
-    }
+  /* §491 — tre richieste per tutto il calendario, non due per evento: con 88
+     eventi la sincronizzazione ne mandava 176 in fila a Supabase ogni volta
+     che Google segnalava una modifica. Gli errori vanno nei log: §489 è nato da
+     un errore che qui veniva ignorato a ogni evento. */
+  const annullati = items.filter(e => e.id && e.status === 'cancelled').map(e => e.id as string)
+  if (annullati.length) {
+    const { error } = await admin.from('calendar_events').delete()
+      .eq('profile_id', profileId).in('external_event_id', annullati)
+    if (error) console.error('[google-calendar] eventi annullati non tolti:', error.message)
+  }
+
+  const vivi = items.filter(e => e.id && e.status !== 'cancelled')
+  if (!vivi.length) return
+  /* §489 — `project_id` non c'è più (reset del dominio progetti): chiederlo
+     faceva fallire lettura e scrittura di **ogni** evento, in silenzio —
+     circa diecimila errori al giorno, e le modifiche fatte su Google non
+     arrivavano nel calendario del tool. */
+  const { data: esistenti, error: errLettura } = await admin.from('calendar_events')
+    .select('external_event_id, client_id, kind, hr_request_id')
+    .eq('profile_id', profileId).in('external_event_id', vivi.map(e => e.id as string))
+  // senza le righe di prima un'assenza tornerebbe «evento»: meglio non scrivere
+  if (errLettura) { console.error('[google-calendar] mirror non letto:', errLettura.message); return }
+  type Ex = { external_event_id: string; client_id: string | null; kind: string | null; hr_request_id: string | null }
+  const prima = new Map(((esistenti ?? []) as Ex[]).map(r => [r.external_event_id, r]))
+
+  const ora = new Date().toISOString()
+  const righe = vivi.flatMap(e => {
     const start = e.start?.dateTime ?? e.start?.date
     const end = e.end?.dateTime ?? e.end?.date
-    if (!start || !end) continue
-
-    /* §489 — `project_id` non c'è più (reset del dominio progetti): chiederlo
-       faceva fallire lettura e scrittura di **ogni** evento, in silenzio —
-       circa diecimila errori al giorno, e le modifiche fatte su Google non
-       arrivavano nel calendario del tool. */
-    const { data: existing } = await admin.from('calendar_events')
-      .select('client_id, kind, hr_request_id')
-      .eq('profile_id', profileId).eq('external_event_id', e.id).maybeSingle()
-    const ex = existing as {
-      client_id: string | null
-      kind: string | null; hr_request_id: string | null
-    } | null
-
-    const { error: errMirror } = await admin.from('calendar_events').upsert({
+    if (!start || !end) return []
+    const ex = prima.get(e.id as string)
+    return [{
       profile_id: profileId,
-      external_event_id: e.id,
+      external_event_id: e.id as string,
       calendar_id: 'primary',
       client_id: ex?.client_id ?? null,
       // un'assenza resta un'assenza anche quando torna indietro da Google:
@@ -98,12 +107,14 @@ export async function syncMirrorFromGoogle(admin: Admin, profileId: string) {
       meet_link: e.hangoutLink ?? null,
       recurrence: (e.recurrence ?? [])[0] ?? null,
       sync_status: 'synced',
-      last_synced_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    } as never, { onConflict: 'profile_id,external_event_id' })
-    // un errore qui non ferma la sincronizzazione, ma deve vedersi nei log
-    if (errMirror) console.error('[google-calendar] mirror non aggiornato:', errMirror.message)
-  }
+      last_synced_at: ora,
+      updated_at: ora,
+    }]
+  })
+  if (!righe.length) return
+  const { error: errMirror } = await admin.from('calendar_events')
+    .upsert(righe as never, { onConflict: 'profile_id,external_event_id' })
+  if (errMirror) console.error('[google-calendar] mirror non aggiornato:', errMirror.message)
 }
 
 /**
