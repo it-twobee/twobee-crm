@@ -1,5 +1,36 @@
 # Dove siamo
 
+## Cambiare pagina costa la metà: identità in locale, query in parallelo — §488, 2026-10-21
+
+Segnalazione: «passando da una voce all'altra se ne vanno diversi secondi».
+Misurato dal server di produzione (Varsavia, OVH) verso Supabase: il database
+risponde in 0-30 ms (`x-envoy-upstream-service-time`), ma l'andata e ritorno
+intera vale **74 ms di mediana per una query, 378 ms per il server di auth**,
+e una volta su dieci oltre il secondo — fino a 7-37 s. Il ritardo sta fra
+Cloudflare e Supabase, non su questa macchina e non nel database; status page
+pulita. Non si toglie da qui: si paga **meno volte**.
+
+- **L'identità si verifica in locale** (`getClaims`): il progetto firma i token
+  con chiavi ES256, e la chiave pubblica resta in memoria dieci minuti. Prima
+  ogni navigazione chiedeva al server di auth due volte (middleware e layout),
+  il workspace tre (`getSalesAccess`). Provato con un token vero: 242 ms la
+  prima volta, poi 3 ms; un token manomesso è rifiutato. Il prezzo: una
+  sessione chiusa resta valida fino alla scadenza del token (un'ora) —
+  disattivazione e ruolo invece restano immediati, li decide `profiles`.
+  `lib/auth.ts` (`getSessionUser` → `SessionUser`, solo `id` ed `email`),
+  `middleware.ts`, `lib/sales-guard.ts`, `lib/economics-guard.ts`. Le altre
+  server action restano su `getUser`: pagano solo quando si scrive.
+- **Le query in ondate, non in fila**: «Le mie attività» (workspace 6 → 3
+  ondate, admin 5 → 3), Progetti (4 → 2), layout del workspace (2 → 1).
+- **Misura** (mediana di 5, stessa macchina e stesso Supabase, sessione di
+  prova poi chiusa): home workspace 0,70 → 0,53 s · Le mie attività 0,80 →
+  0,51 · Progetti 0,84 → 0,41 · Calendario 0,48 → 0,20 · Clienti 0,52 → 0,29 ·
+  Ad hoc 0,47 → 0,26. I picchi di rete restano, più rari perché le occasioni
+  di prenderli sono meno.
+- **Il primo giro di ogni pagina** su un browser appena installato scarica in
+  più il suo JavaScript (50-170 KB compressi): poi resta in cache un anno
+  (`immutable`). È la parte «solo la prima volta» della segnalazione.
+
 ## Carica documenti: gli agganci automatici si vedono e si annullano — §452, 2026-09-26
 
 Dopo il caricamento, gli abbinamenti che il tool fa da solo (movimento ↔ riga,

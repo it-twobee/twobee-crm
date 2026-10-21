@@ -109,7 +109,16 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  /* §488 — il token si verifica **qui**, con la chiave pubblica del progetto
+     (ES256, tenuta in memoria dieci minuti), invece di chiederlo al server di
+     auth: misurato da questo server, quella chiamata costava 378 ms di mediana
+     e oltre un secondo una volta su dieci, a ogni navigazione e a ogni prefetch.
+     Se il token è scaduto `getClaims` lo rinnova come faceva `getUser`. Quello
+     che si perde è la revoca istantanea di una sessione rubata (vale fino alla
+     scadenza del token, un'ora); disattivazione e cambio di ruolo restano
+     immediati, perché li decide la riga di `profiles` qui sotto. */
+  const { data: verificato } = await supabase.auth.getClaims()
+  const user = verificato?.claims?.sub ? { id: verificato.claims.sub } : null
 
   const redirectTo = (path: string) => {
     const url = request.nextUrl.clone()

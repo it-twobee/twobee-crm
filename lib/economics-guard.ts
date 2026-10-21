@@ -19,6 +19,7 @@
  * l'azione nasce aperta.
  */
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser } from '@/lib/auth'
 import { canSeeEconomics } from '@/lib/permissions'
 
 export const ECONOMICS_DENIED = 'Permesso negato: il dominio economico è riservato agli admin'
@@ -30,7 +31,8 @@ export const ECONOMICS_DENIED = 'Permesso negato: il dominio economico è riserv
  */
 export async function requireEconomicsAdmin(): Promise<string> {
   const sb = await createClient()
-  const { data: { user } } = await sb.auth.getUser()
+  // §488 — identità verificata in locale e memoizzata per richiesta
+  const user = await getSessionUser()
   if (!user) throw new Error('Non autenticato')
   const { data: p } = await sb.from('profiles')
     .select('email, app_role').eq('id', user.id).maybeSingle()
@@ -41,7 +43,7 @@ export async function requireEconomicsAdmin(): Promise<string> {
 /** La stessa domanda senza lanciare: serve alle pagine, che reindirizzano. */
 export async function hasEconomicsAccess(): Promise<boolean> {
   const sb = await createClient()
-  const { data: { user } } = await sb.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return false
   const { data: p } = await sb.from('profiles')
     .select('email, app_role').eq('id', user.id).maybeSingle()

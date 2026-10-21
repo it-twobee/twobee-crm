@@ -21,6 +21,7 @@ export default async function ProgettiPage({ searchParams }: { searchParams: { c
   const [
     { data: clients }, { data: profiles }, { data: services },
     { data: templates }, { data: nodes }, { data: projects },
+    { data: membri }, { data: assegnazioni },
   ] = await Promise.all([
     supabase.from('clients').select('id, company_name, display_name, client_label, is_internal, internal_kind').order('company_name'),
     supabase.from('profiles').select('id, full_name, app_role, avatar_url, avatar_color').eq('is_active', true).in('role', INTERNAL_COARSE_ROLES).order('full_name'),
@@ -29,13 +30,14 @@ export default async function ProgettiPage({ searchParams }: { searchParams: { c
     supabase.from('project_template_nodes').select('*').order('sort_order'),
     supabase.from('projects').select('id, name, status, area, service_type, client_id, created_at, manager_id')
       .is('deleted_at', null).order('created_at', { ascending: false }),
+    /* §488 — non dipendono da niente: partono con le altre invece di aspettarle */
+    supabase.from('project_members').select('project_id').eq('profile_id', user.id),
+    supabase.from('task_assignees').select('task_id').eq('profile_id', user.id),
   ])
 
   /* §358 — qui ci arriva solo chi governa, quindi il calendario si apre su
      «Tutte» (`areaDiPartenza` lo decide dal ruolo). I progetti propri servono
      a dedurre l'area di partenza; non attraversano più il filtro (§484). */
-  const { data: membri } = await supabase.from('project_members')
-    .select('project_id').eq('profile_id', user.id)
   const progettiMiei = Array.from(new Set([
     ...(membri ?? []).map(m => m.project_id as string),
     ...(projects ?? []).filter(p => (p as { manager_id?: string | null }).manager_id === user.id).map(p => p.id),
@@ -58,7 +60,6 @@ export default async function ProgettiPage({ searchParams }: { searchParams: { c
 
   /* §487 — le milestone in cui chi guarda è incluso: responsabile, o con una
      task dentro (primaria o fra gli assegnatari). Servono a «Le mie». */
-  const { data: assegnazioni } = await supabase.from('task_assignees').select('task_id').eq('profile_id', user.id)
   const milestoneMieIds = milestoneMie({
     io: user.id,
     milestones: (milestones ?? []) as { id: string; owner_id: string | null }[],

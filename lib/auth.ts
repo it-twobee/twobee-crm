@@ -25,11 +25,21 @@ export const SESSION_PROFILE_COLUMNS = 'id, full_name, role, app_role, avatar_ur
 
 export type SessionProfile = Profile & { google_connected: boolean | null }
 
-/** L'utente autenticato, verificato dal server di auth. `null` se non c'è. */
-export const getSessionUser = cache(async () => {
+/** Chi è autenticato: l'id e l'email del token, l'unica parte che le pagine leggono. */
+export type SessionUser = { id: string; email: string | null }
+
+/**
+ * L'utente autenticato, `null` se non c'è. §488 — la firma del token si
+ * verifica in locale con la chiave pubblica del progetto (`getClaims`), non
+ * con una chiamata al server di auth: era la seconda della navigazione, dopo
+ * quella del middleware, e da sola valeva un terzo di secondo. Ruolo e
+ * attivazione restano letti da `profiles` qui sotto, a ogni richiesta.
+ */
+export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  return user
+  const { data } = await supabase.auth.getClaims()
+  const c = data?.claims
+  return c?.sub ? { id: c.sub, email: typeof c.email === 'string' ? c.email : null } : null
 })
 
 /**

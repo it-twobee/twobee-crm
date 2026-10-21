@@ -45,7 +45,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
 
   const supabase = await createClient()
   const oggiRoma = giornoAzienda()
-  const [sectionsRes, permsRes, momentiRes, rosaRes] = await Promise.all([
+  const [sectionsRes, permsRes, momentiRes, rosaRes, venditeAccesso] = await Promise.all([
     // `*` di proposito: group_key/group_order arrivano dalla 087 e un elenco
     // esplicito fallirebbe dove non fosse applicata. Sono quindici righe.
     supabase.from('workspace_sections').select('*').eq('is_active', true).order('sort_order'),
@@ -58,6 +58,9 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     supabase.from('person_copy').select('chiave, template, fatti')
       .eq('profile_id', user.id).eq('giorno', oggiRoma),
     supabase.from('profiles').select('full_name').eq('is_active', true),
+    /* §488 — dentro il giro parallelo: stava in coda, dopo le altre, e ogni
+       pagina del workspace pagava due andate e ritorni in più in fila */
+    getSalesAccess(),
   ])
 
   /* I nomi di tutta l'azienda: servono al validatore per riconoscere un
@@ -107,7 +110,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   const HIDDEN_WORKSPACE_KEYS = ['chat', 'portfolio', 'workload', 'cestino']
   visibleSections = (visibleSections ?? []).filter((s: { key: string }) => !HIDDEN_WORKSPACE_KEYS.includes(s.key))
   visibleSections = visibleSections.filter((s: { key: string }) => s.key !== 'commerciale')
-  if (await getSalesAccess()) visibleSections.push({
+  if (venditeAccesso) visibleSections.push({
     id: 'commerciale', key: 'commerciale', label: 'Commerciale', route: '/workspace/commerciale',
     icon: 'TrendingUp', sort_order: 25, group_key: 'clienti', group_order: 2,
   })

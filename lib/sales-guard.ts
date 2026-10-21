@@ -1,11 +1,15 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSessionUser } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { salesAccess, uuid, type SalesAccess } from '@/lib/sales'
 import { SUPER_ADMIN_EMAILS } from '@/lib/permissions'
 
 export async function getSalesAccess() {
   const sb = await createClient()
-  const { data: { user } } = await sb.auth.getUser()
+  /* §488 — l'identità verificata in locale e memoizzata per richiesta
+     (`getSessionUser`): qui faceva una terza chiamata al server di auth, dentro
+     il layout del workspace, a ogni pagina */
+  const user = await getSessionUser()
   if (!user) return null
   const [{ data: p, error }, { data: grant }] = await Promise.all([
     sb.from('profiles').select('app_role,is_active').eq('id', user.id).single(),
