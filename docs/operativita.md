@@ -1215,10 +1215,15 @@ Tre cose sulla sezione Progetti, tutte sullo stesso schermo.
   super admin — parte da «Tutte», perché governa tutto. Resta un default, non un
   confine: si cambia con un clic, e a parità vince l'ordine dell'elenco, perché
   un default che cambia da solo a ogni ricarico è peggio di nessun default.
-- **I progetti in cui sei dentro non spariscono mai.** Filtrare per area è utile
-  finché non nasconde il lavoro tuo: un manager growth che presidia un digital
-  deve continuare a vederne le scadenze anche con «growth» scelto, o il
-  calendario gli racconta una settimana che non è la sua.
+- ~~I progetti in cui sei dentro non spariscono mai~~ — **tolta il 21 ottobre
+  2026 (§484): il filtro area è un confine.** L'eccezione teneva visibili i
+  progetti propri anche fuori dall'area scelta, e su chi è dentro a tutto il
+  filtro smetteva di filtrare: una manager che presidia growth e marketing
+  sceglieva «Marketing» e la riga di Home Design si apriva sul suo Lead
+  Generation. Segnalato da lei due volte (9 e 21 ottobre), con la richiesta
+  esplicita: «solo i progetti di quell'unico dipartimento». La regola è una,
+  `nellArea` in `lib/area-persona.ts`, e la usano calendario ed elenco; il
+  lavoro proprio di tutte le aree si vede con «Tutte».
 - **Ogni cambio di filtro riporta il calendario su oggi.** Le corsie cambiano
   sotto i piedi e la finestra resta dov'era: restare fermi a dicembre davanti a
   una griglia vuota fa sembrare che il filtro abbia cancellato tutto. §345 aveva

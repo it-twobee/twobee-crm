@@ -8,7 +8,7 @@ import { ProjectWizard } from './ProjectWizard'
 import { ProjectGantt, type GanttLane } from './ProjectGantt'
 import { countsInDelivery, type InternalKind } from '@/lib/clients'
 import { progettoBreve } from '@/lib/task-board'
-import { AREE, type AreaFiltro } from '@/lib/area-persona'
+import { AREE, nellArea, type AreaFiltro } from '@/lib/area-persona'
 import { VoceSezione } from '@/components/workspace/VoceSezione'
 import type { Sezione } from '@/lib/task-mood'
 import type {
@@ -92,14 +92,12 @@ function quietBadge(info: ReturnType<typeof quietInfo>) {
 
 export function ProgettiClient({
   clients, profiles, services, templates, nodes, projects, workstreams, milestones, calTasks, initialClientId, openWizard,
-  basePath = '/progetti', canCreate = true, voce, areaIniziale = '', progettiMiei = [],
+  basePath = '/progetti', canCreate = true, voce, areaIniziale = '',
 }: {
   /** §351 — la riga sotto il titolo, solo nel portale operativo */
   voce?: Sezione
   /** §358 — l'area con cui si apre: quella di chi guarda, vuota per chi governa */
   areaIniziale?: AreaFiltro
-  /** §358 — i progetti in cui la persona è dentro: non spariscono mai dal filtro */
-  progettiMiei?: string[]
   clients: { id: string; name: string; client_label?: ClientLabel | null; is_internal?: boolean | null; internal_kind?: InternalKind | null }[]
   profiles: { id: string; full_name: string; app_role: string | null; avatar_url?: string | null }[]
   services: ServiceCatalogEntry[]
@@ -163,13 +161,9 @@ export function ProgettiClient({
        continuavano a mostrare tutto e le due metà della pagina rispondevano a
        due domande diverse. Stesso stato, un solo comando — che sta sia in
        testata al calendario sia nella barra dell'elenco. */
-    /* §358 — **i progetti in cui sei dentro restano sempre**. Filtrare per area
-       è utile finché non nasconde il lavoro tuo: un manager growth che presidia
-       un digital deve continuare a vederne le scadenze anche con «growth»
-       scelto, o il calendario gli racconta una settimana che non è la sua. */
-    const miei = new Set(progettiMiei)
-    const live = projects.filter(p =>
-      LIVE_STATUSES.includes(p.status) && (!area || p.area === area || miei.has(p.id)))
+    /* §484 — l'area è un confine, anche per i progetti in cui sei dentro (§358
+       li teneva sempre, e su chi è dentro a tutto il filtro non filtrava) */
+    const live = projects.filter(p => LIVE_STATUSES.includes(p.status) && nellArea(p.area, area))
     const byClient = new Map<string, ProjectRow[]>()
     live.forEach(p => {
       const key = p.client_id ?? INTERNAL_KEY
@@ -196,7 +190,7 @@ export function ProgettiClient({
       const db = nextOpen(b.milestones) ?? FAR
       return da === db ? a.name.localeCompare(b.name) : (da < db ? -1 : 1)
     })
-  }, [projects, clients, msByProject, area, progettiMiei]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [projects, clients, msByProject, area]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const lanes: GanttLane[] = useMemo(() => {
     const out: GanttLane[] = []
@@ -263,7 +257,7 @@ export function ProgettiClient({
   }
 
   const filtered = useMemo(() => projects.filter(p =>
-    (!area || p.area === area || progettiMiei.includes(p.id)) &&
+    nellArea(p.area, area) &&
     (!projClient || (p.client_id ?? INTERNAL_KEY) === projClient) &&
     (!q || p.name.toLowerCase().includes(q.toLowerCase()) || clientName(p.client_id).toLowerCase().includes(q.toLowerCase())),
   ), [projects, area, projClient, q]) // eslint-disable-line react-hooks/exhaustive-deps

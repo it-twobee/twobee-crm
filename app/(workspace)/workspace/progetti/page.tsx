@@ -35,9 +35,8 @@ export default async function WorkspaceProgettiPage({ searchParams }: { searchPa
   ])
 
   /* §358 — i progetti in cui questa persona è dentro, come membro o come PM:
-     servono a due cose diverse — dedurre con quale area aprire il calendario
-     (`profiles.area` è vuota per tutti: misurato) e non far sparire il lavoro
-     suo quando filtra. */
+     servono a dedurre con quale area aprire il calendario (`profiles.area` è
+     vuota per tutti: misurato). Non attraversano più il filtro (§484). */
   const { data: membri } = await supabase.from('project_members')
     .select('project_id').eq('profile_id', profile.id)
   const progettiMiei = Array.from(new Set([
@@ -67,7 +66,7 @@ export default async function WorkspaceProgettiPage({ searchParams }: { searchPa
     ({ id: c.id, name: c.display_name || c.company_name, client_label: c.client_label }))
 
   return (
-    <ProgettiClient voce="progetti" areaIniziale={areaIniziale} progettiMiei={progettiMiei}
+    <ProgettiClient voce="progetti" areaIniziale={areaIniziale}
       clients={clientOpts}
       profiles={(profiles ?? []) as { id: string; full_name: string; app_role: string | null; avatar_url: string | null; avatar_color: string | null }[]}
       services={(services ?? []) as ServiceCatalogEntry[]}

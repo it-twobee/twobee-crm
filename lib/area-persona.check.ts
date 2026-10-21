@@ -1,6 +1,6 @@
 /* Con quale area si apre il calendario (§358).
    Esegui: npx tsx lib/area-persona.check.ts */
-import { areaDiPartenza, vedeTutto, AREE } from '@/lib/area-persona'
+import { areaDiPartenza, vedeTutto, nellArea, AREE } from '@/lib/area-persona'
 
 let fail = 0
 const is = (label: string, got: unknown, want: unknown) => {
@@ -48,6 +48,14 @@ const pari = { appRole: 'manager', areeDeiProgetti: ['marketing', 'growth', 'dig
 is('tre a uno pari → la prima dell\'elenco', areaDiPartenza(pari), AREE[0])
 is('e non cambia rileggendo', areaDiPartenza(pari), areaDiPartenza(pari))
 is('l\'ordine è growth, digital, marketing', [...AREE], ['growth', 'digital', 'marketing'])
+
+console.log('\n— Il filtro è un confine (§484) —')
+is('«Marketing»: un progetto marketing resta', nellArea('marketing', 'marketing'), true)
+is('«Marketing»: un growth sparisce, anche se è tuo', nellArea('growth', 'marketing'), false)
+is('«Marketing»: un progetto senza area sparisce', nellArea(null, 'marketing'), false)
+is('«Tutte»: resta tutto', AREE.every(a => nellArea(a, '')), true)
+is('«Tutte»: anche senza area', nellArea(null, ''), true)
+is('maiuscole e spazi non contano', nellArea(' Marketing ', 'marketing'), true)
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

@@ -33,7 +33,7 @@ export default async function ProgettiPage({ searchParams }: { searchParams: { c
 
   /* §358 — qui ci arriva solo chi governa, quindi il calendario si apre su
      «Tutte» (`areaDiPartenza` lo decide dal ruolo). I progetti propri servono
-     lo stesso: se un admin sceglie un'area, i suoi non devono sparire. */
+     a dedurre l'area di partenza; non attraversano più il filtro (§484). */
   const { data: membri } = await supabase.from('project_members')
     .select('project_id').eq('profile_id', user.id)
   const progettiMiei = Array.from(new Set([
@@ -64,7 +64,6 @@ export default async function ProgettiPage({ searchParams }: { searchParams: { c
   return (
     <ProgettiClient
       areaIniziale={areaIniziale}
-      progettiMiei={progettiMiei}
       clients={clientOpts}
       profiles={(profiles ?? []) as { id: string; full_name: string; app_role: string | null; avatar_url: string | null; avatar_color: string | null }[]}
       services={(services ?? []) as ServiceCatalogEntry[]}

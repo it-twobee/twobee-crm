@@ -24,6 +24,19 @@ export type AreaFiltro = '' | Area
 
 const AMMESSE = new Set<string>(AREE)
 
+/**
+ * §484 — **il filtro area è un confine**: con «Marketing» scelto restano i soli
+ * progetti marketing, nel calendario e nell'elenco. §358 teneva sempre visibili
+ * i progetti in cui la persona è dentro, e su chi è dentro a tutto — una
+ * manager che presidia growth e marketing — il filtro smetteva di filtrare:
+ * scegliendo «Marketing» la riga di un cliente si apriva sul suo Lead
+ * Generation. Segnalato due volte, il 9 e il 21 ottobre. Il lavoro proprio di
+ * ogni area si vede con «Tutte».
+ */
+export function nellArea(areaProgetto: string | null | undefined, filtro: AreaFiltro): boolean {
+  return !filtro || (areaProgetto ?? '').trim().toLowerCase() === filtro
+}
+
 /** chi governa non ha un'area: governa tutto, e il calendario glielo mostra */
 export function vedeTutto(appRole: string | null | undefined): boolean {
   return appRole === 'admin' || appRole === 'founder' || appRole === 'super_admin'
