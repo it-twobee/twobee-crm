@@ -516,6 +516,25 @@ quelle righe con la sessione: le legge il service role dopo la guardia.
 Miniature in `social/miniature/<id>.webp`, generate da `lib/storage/thumb.ts`,
 lo stesso codice dei materiali. Dettaglio in `docs/social.md`.
 
+## La foto profilo — bucket Supabase `avatars` (§482, migration 273)
+
+**Non passa da MinIO né da `/api/files/**`**, ed è voluto: la foto si mostra
+con un `<img src={avatar_url}>` in ogni elenco, barra laterale e calendario,
+quindi il link deve aprirsi senza una porta autenticata davanti. Una foto
+profilo non è un documento: il bucket è pubblico. La scrittura invece è chiusa:
+ognuno scrive, sostituisce e toglie solo nella cartella col proprio id
+(`storage.foldername(name)[1] = auth.uid()`), e `profiles.avatar_url` lo
+modifica solo il proprietario (224).
+
+Si carica da «Il mio profilo» (`components/impostazioni/ProfiloClient.tsx`):
+il browser ritaglia il quadrato (un ritratto perde più sotto che sopra, perché
+la faccia sta nel terzo alto) e lo porta a 256 px in WebP, o JPEG dove il
+browser non sa scrivere WebP. Il nome del file cambia a ogni caricamento,
+così il link nuovo non viene servito dalla cache del vecchio. L'ordine è
+carica → scrivi nel profilo → togli la vecchia: se il profilo non si aggiorna
+si toglie la nuova, e `avatar_url` non punta mai a un file che non c'è. Regole
+pure in `lib/avatar.ts`, gate `npx tsx lib/avatar.check.ts`.
+
 ## Verifiche
 
 ```bash
