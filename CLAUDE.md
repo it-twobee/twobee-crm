@@ -55,6 +55,14 @@ database vero, e riscoprirle costa più che leggerle.
   non basta — è solo `client`, e un invito al portale crea un **guest**. Se
   serve qualcosa dal cliente si usa la **task al cliente**, che sceglie fra i
   referenti di quell'azienda.
+- **Senza login non si tocca niente** (§492, migration 277–278). Il ruolo
+  `anon` — chiunque abbia la chiave pubblica, che sta nel JavaScript di ogni
+  browser — non ha permessi su tabelle, viste, sequenze e funzioni di
+  `public`, e quelle nuove nascono chiuse. Una pagina pubblica che legge dati
+  passa dal service role in una route (`/api/invite/*`, `/api/public/*`); una
+  RPC davvero pubblica si apre con un `GRANT` scritto e motivato. Una funzione
+  `SECURITY DEFINER` chiamabile da `authenticated` deve controllare **chi**
+  chiama: fra gli autenticati ci sono anche i clienti del portale.
 - **Il ruolo non arriva mai dal client.** `profiles.role` è ciò che
   `get_my_role()` legge per la RLS: non si scrive da un corpo JSON né dai
   metadati di un invito — il trigger `handle_new_user` li ricopia. `app_role`

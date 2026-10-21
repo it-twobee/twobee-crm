@@ -1,5 +1,27 @@
 # Dove siamo
 
+## Senza login non si tocca niente — §492, 2026-10-21
+
+Controllo di sicurezza sugli avvisi del linter di Supabase. Con la sola chiave
+pubblica — quella che ogni browser scarica nel JavaScript, quindi di fatto
+pubblica su internet — si potevano chiamare 47 funzioni privilegiate, fra cui
+una che **creava progetti a nome di chiunque**, una che dava **le ferie di
+qualunque persona** e alcune che **riscrivevano dati economici**; una vista
+(`invoice_hr_hints`, §490) dava i nomi dei collaboratori agganciati alle
+fatture. Le tabelle reggevano grazie alla RLS, ma il ruolo anonimo aveva tutti
+i permessi su tutte, `TRUNCATE` compreso.
+
+Migration 276–278: niente più accesso anonimo a funzioni, tabelle, viste e
+sequenze, e le nuove nascono chiuse. Dentro, per chi è loggato, non cambia
+niente — tranne che un cliente del portale non vede più ferie e contatori del
+team. Ogni passo provato prima in una transazione annullata con tre utenti
+(anonimo, staff, ospite del portale) e poi da internet con la chiave pubblica.
+
+Restano, da decidere: `function_search_path_mutable` (71 funzioni senza
+`search_path` fisso, rischio basso perché l'API non lascia creare oggetti),
+la **protezione dalle password già trapelate** (un interruttore in Auth →
+Settings), il bucket `chat-attachments` pubblico (un file solo, di giugno).
+
 ## Le pagine viste restano due minuti, le proprie modifiche si vedono subito — §491, 2026-10-21
 
 Il blocco intermittente di Supabase (§488: il 4,8% delle richieste oltre il
