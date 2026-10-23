@@ -20,7 +20,7 @@ database vero, e riscoprirle costa più che leggerle.
 | `activity_log`, ripristino, versioni, attribuzione | `docs/cronologia.md` |
 | workspace, workload, ferie, sezione Task (`lib/task-board.ts`), ricorrenti (`lib/recurrence*.ts`), widget dashboard, progetti/workstream/milestone | `docs/operativita.md` |
 | `lib/tracking/**`, tab Tracking/Report/Chiavi/Accessi, QA giornaliero | `docs/tracking.md` |
-| `lib/ai/**`, assistente Ctrl+J, tool e azioni rischiose | `docs/ai-assistant.md` |
+| `lib/ai/**`, assistente Ctrl+J, tool e azioni rischiose, connettore di Claude (`lib/mcp/**`, `/api/mcp`, `/oauth/consent`) | `docs/ai-assistant.md` |
 | `/asana` (sezione temporanea, da togliere a travaso finito) | `docs/asana.md` |
 | «a che punto siamo», cosa è applicato, cosa è aperto | `docs/stato.md` |
 | commerciale, opportunità, lead commerciali, esiti, passaggio alla delivery | `docs/commerciale.md` |

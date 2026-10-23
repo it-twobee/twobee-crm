@@ -120,3 +120,61 @@ Gate: `npx tsx lib/ai/tools/result.check.ts` (15 controlli su `listInfo` e
 `capResult`, coi casi che a mano non si incrociano — lista da 400 elementi,
 elemento singolo non riducibile, `count` assente).
 
+
+## Il connettore di Claude (§493, `lib/mcp/**`, `/api/mcp`)
+
+Gli stessi strumenti di Ctrl+J, dentro Claude: si aggiunge da **Connettori →
+Aggiungi connettore personalizzato** con l'indirizzo del gestionale seguito da
+`/api/mcp`. Il login è quello del gestionale, e ognuno vede quello che vede già.
+
+**Come entra.** Claude chiama `/api/mcp` senza token e riceve 401 con
+`resource_metadata`: i metadati (`/.well-known/oauth-protected-resource/api/mcp`,
+un rewrite verso `/api/mcp/risorsa`) dicono che i token li rilascia **Supabase
+Auth**, col server OAuth 2.1 del progetto e la registrazione automatica dei
+client. Supabase manda la persona su `/oauth/consent` («Autorizza Claude»): chi
+non ha fatto login passa dal login e torna lì (`portalLoginDestination` ammette
+quel solo `next`, nella sua forma esatta). Il token che Claude riceve è un JWT
+del progetto come quello del browser, quindi **la RLS vale identica**.
+
+**Da configurare una volta, nel pannello di Supabase**: Authentication → OAuth
+Server → attivo, percorso di autorizzazione `/oauth/consent`, registrazione
+dinamica dei client attiva; il Site URL deve essere il dominio del gestionale.
+Il 23 ottobre 2026 era spento (`OAuth server is disabled`).
+
+**L'identità arriva dal token, non dal cookie** (`conToken` in
+`lib/supabase/server.ts`). Gli strumenti chiamano i server action, e i server
+action riconoscono l'utente con `createClient()`: dentro `conToken()` quel
+client usa il token, e `getUser()`/`getClaims()` verificano quello. Così
+`requireStaff`, `getSessionUser` e tutti gli altri guard valgono senza
+riscriverli. Fuori da `conToken()` non cambia niente.
+
+**Chi**: lo staff interno attivo (`puoUsareIlConnettore`). Portale cliente
+(§409), invitati e risorse esterne no. La pagina di consenso lo ripete per dire
+«no» subito, ma **la barriera è l'endpoint**: chiunque abbia una sessione può
+chiedere un token a Supabase senza passare dalla pagina, e `/api/mcp` rifiuta
+con 403 il token di chi non è staff, a ogni richiesta. La superficie la decide
+il ruolo: chi non è admin legge i clienti da `clients_workspace` (§211).
+
+**Cosa**: il catalogo di `toolsFor(ctx)`, tolti `ESCLUSI` — `open_page` (apre
+una pagina nel pannello Ctrl+J, in Claude non c'è niente da aprire) e
+`delete_task` (eliminare resta fuori dalla prima versione). Uno strumento nuovo
+dell'assistente deve finire in `TITOLI` o in `ESCLUSI`: il controllo lo ferma
+finché qualcuno non decide. Gli strumenti che modificano non hanno
+`readOnlyHint`, quindi Claude chiede il permesso prima di usarli: è quella la
+conferma, al posto della card di Ctrl+J. `assign_task`, che in Ctrl+J
+parcheggia in `ai_pending_actions`, qui esegue dopo il permesso di Claude.
+Ogni chiamata finisce in `ai_tool_calls` con `conversation_id` vuoto.
+
+**Il protocollo** (`lib/mcp/protocollo.ts`) è JSON-RPC senza stato:
+`initialize`, `ping`, `tools/list`, `tools/call`; ogni POST ha la sua risposta
+in JSON, le notifiche rispondono 202, `GET` risponde 405 (nessuno stream).
+Versioni 2025-06-18, 2025-03-26, 2024-11-05. Gli errori di uno strumento
+tornano nel risultato con `isError`, come in Ctrl+J: il modello li legge e si
+corregge.
+
+**Cosa non c'è**: il legame del token alla risorsa (RFC 8707). Supabase
+rilascia token con `aud: authenticated`, validi per tutto il progetto, quindi
+`/api/mcp` accetta anche il token di una sessione del browser: è la stessa
+persona con gli stessi permessi.
+
+Gate: `npx tsx lib/mcp/protocollo.check.ts`.

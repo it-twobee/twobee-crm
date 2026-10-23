@@ -59,7 +59,8 @@ function parseArgs(raw: string): Record<string, unknown> | null {
   }
 }
 
-async function auditToolCall(
+/** Anche il connettore di Claude (§493) scrive qui, con `conversation_id` vuoto. */
+export async function auditToolCall(
   c: AssistantCtx, conversationId: string | null, tool: AnyTool,
   args: unknown, ok: boolean, error: string | null, latency: number,
 ) {

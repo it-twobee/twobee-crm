@@ -20,6 +20,15 @@ const nextConfig = {
   },
   output: "standalone",
   poweredByHeader: false,
+  // §493 — i metadati del connettore di Claude stanno dove li cerca lo standard
+  // (RFC 9728), ma li serve una rotta normale: una cartella `.well-known` dentro
+  // `app/` è un nome che il router non garantisce.
+  async rewrites() {
+    return [
+      { source: "/.well-known/oauth-protected-resource", destination: "/api/mcp/risorsa" },
+      { source: "/.well-known/oauth-protected-resource/:path*", destination: "/api/mcp/risorsa" },
+    ];
+  },
   // `next build` e `next dev` condividono `.next`: lanciare il build mentre il
   // dev gira lascia il server a servire chunk CSS sostituiti e la pagina si
   // apre senza stili. Con NEXT_BUILD_DIR il build va altrove e non si toccano.

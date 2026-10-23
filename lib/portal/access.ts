@@ -38,8 +38,16 @@ export function portalAccessPath(clientId: string, workspace = false) {
   return `${workspace ? '/workspace' : ''}/clienti/${clientId}?tab=${PORTAL_TAB}`
 }
 
+/* §493 — l'unico ritorno libero dopo il login è la pagina che autorizza
+   Claude, e solo nella sua forma esatta: un `next` qualunque sarebbe un
+   reindirizzamento aperto verso un sito esterno. */
+const RITORNO_CONSENSO = /^\/oauth\/consent\?authorization_id=[A-Za-z0-9_-]{1,200}$/
+
 export function portalLoginDestination(search: string) {
-  const clientId = new URLSearchParams(search).get('client')
+  const params = new URLSearchParams(search)
+  const next = params.get('next')
+  if (next && RITORNO_CONSENSO.test(next)) return next
+  const clientId = params.get('client')
   return isUuid(clientId) ? portalHref('/portale', clientId) : '/dashboard'
 }
 
