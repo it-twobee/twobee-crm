@@ -19,6 +19,8 @@ import {
   centerDay, scrollForCenterDay,
 } from '@/lib/gantt-scroll'
 import { colorFor } from '@/lib/calendar-colors'
+import { STATO_COME_MILESTONE, type TaskInCalendario } from '@/lib/task-calendario'
+import { STATUS_LABEL as TASK_STATUS_LABEL } from '@/components/tasks/task-ui'
 
 type Person = { id: string; full_name: string; avatar_url: string | null; avatar_color?: string | null }
 type GanttTask = Pick<Task, 'id' | 'milestone_id' | 'status' | 'parent_task_id'>
@@ -33,6 +35,8 @@ export type GanttLane = {
   /** barra di durata (solo workstream a termine) */
   bar?: { start: string; end: string | null } | null
   milestones: Milestone[]
+  /** §479 — task segnate per il calendario: restano nella loro milestone, qui si disegnano alla loro scadenza */
+  taskInCalendario?: TaskInCalendario[]
   /** 0 = riga di raggruppamento (cliente), 1 = figlia (progetto) */
   depth?: number
   /** riga richiudibile: mostra il chevron nella colonna nomi */
@@ -51,8 +55,14 @@ export type GanttLane = {
   href?: string | null
 }
 
+type StatoTappa = Pick<Milestone, 'status' | 'milestone_type' | 'due_date'>
+
+/** §479 — una task nel calendario si legge con l'icona e il colore della milestone nello stesso stato. */
+const comeTappa = (t: TaskInCalendario): StatoTappa =>
+  ({ status: STATO_COME_MILESTONE[t.status] ?? 'da_fare', milestone_type: 'delivery', due_date: t.due_date })
+
 /** L'icona dice che tipo di milestone è e a che punto sta, senza aprire il recap. */
-function milestoneIcon(m: Milestone, todayIso: string) {
+function milestoneIcon(m: StatoTappa, todayIso: string) {
   if (m.status === 'completata') return CheckCircle2
   if (m.milestone_type === 'system') return Repeat
   if (m.status === 'in_approvazione') return ShieldCheck
@@ -86,6 +96,7 @@ const LANE_H = 56   // altezza corsia (più respiro)
    ferme, e la catena si spezza all'origine. */
 const NO_WS: ProjectWorkstream[] = []
 const NO_MS: Milestone[] = []
+const NO_TC: TaskInCalendario[] = []
 
 /* §355 — **mezzanotte UTC, non locale.** Con la mezzanotte locale le colonne si
    costruivano a Roma e si rileggevano con `toISOString()`, che è UTC: due ore
@@ -98,13 +109,17 @@ const MONTHS = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'L
 const WEEKDAY_SHORT = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab']
 
 export function ProjectGantt({
-  workstreams = NO_WS, milestones = NO_MS, tasks, profiles, onOpenMilestone,
+  workstreams = NO_WS, milestones = NO_MS, taskInCalendario = NO_TC, tasks, profiles, onOpenMilestone,
   title = 'Calendario milestone', laneSubtitle, laneAccent, labelWidth = LABEL_W, headerControls, vaiAOggi,
   lanes: externalLanes, laneLabel = 'workstream', milestoneContext, emptyHint, emptyAction,
-  onAddMilestone, headerNote, headerHint, laneHref, milestoneHref, contextHref,
+  onAddMilestone, headerNote, headerHint, laneHref, milestoneHref, contextHref, taskContext,
 }: {
   workstreams?: ProjectWorkstream[]
   milestones?: Milestone[]
+  /** §479 — task segnate per il calendario, per le corsie derivate dalle workstream */
+  taskInCalendario?: TaskInCalendario[]
+  /** §479 — la riga di contesto di una task nel recap: dove sta (progetto · workstream · milestone) */
+  taskContext?: (t: TaskInCalendario) => string | null
   tasks?: GanttTask[]
   profiles?: Person[]
   onOpenMilestone?: (workstreamId: string, milestoneId: string) => void
@@ -151,6 +166,7 @@ export function ProjectGantt({
   const scrollRef = useRef<HTMLDivElement>(null)
   const [zoom, setZoom] = useState<Zoom>('giorni')
   const [hover, setHover] = useState<{ m: Milestone; ctx: string; rect: DOMRect } | null>(null)
+  const [hoverTask, setHoverTask] = useState<{ t: TaskInCalendario; ctx: string; rect: DOMRect } | null>(null)
   const [hint, setHint] = useState<{ title: string; detail?: string; rect: DOMRect } | null>(null)
   const [mounted, setMounted] = useState(false)
   useEffect(() => { setMounted(true) }, [])
@@ -163,7 +179,7 @@ export function ProjectGantt({
   const tieniAperto = () => { if (hoverTimer.current) clearTimeout(hoverTimer.current) }
   const chiudiTraPoco = () => {
     tieniAperto()
-    hoverTimer.current = setTimeout(() => setHover(null), 160)
+    hoverTimer.current = setTimeout(() => { setHover(null); setHoverTask(null) }, 160)
   }
   useEffect(() => () => { if (hoverTimer.current) clearTimeout(hoverTimer.current) }, [])
   const DAY_W = ZOOMS[zoom]
@@ -193,14 +209,16 @@ export function ProjectGantt({
         bar: w.workstream_type === 'project' && w.start_date ? { start: w.start_date, end: w.end_date } : null,
         href: laneHref?.(w) ?? null,
         milestones: collassa(milestones.filter(m => m.workstream_id === w.id && m.due_date)),
+        taskInCalendario: taskInCalendario.filter(t => t.workstream_id === w.id && t.due_date),
       }))
-      .filter(l => l.milestones.length > 0)
-  }, [externalLanes, workstreams, milestones, laneSubtitle, laneAccent, laneHref, todayIso])
+      .filter(l => l.milestones.length > 0 || l.taskInCalendario.length > 0)
+  }, [externalLanes, workstreams, milestones, taskInCalendario, laneSubtitle, laneAccent, laneHref, todayIso])
 
   const model = useMemo(() => {
     const dates: number[] = []
     lanes.forEach(l => {
       l.milestones.forEach(m => { if (m.due_date) dates.push(parse(m.due_date)) })
+      l.taskInCalendario?.forEach(t => { if (t.due_date) dates.push(parse(t.due_date)) })
       if (l.bar?.start) dates.push(parse(l.bar.start))
       if (l.bar?.end) dates.push(parse(l.bar.end))
     })
@@ -353,7 +371,7 @@ export function ProjectGantt({
     )
   }
 
-  const msTone = (m: Milestone) => {
+  const msTone = (m: StatoTappa) => {
     if (m.status === 'completata') return { pill: 'bg-success-dim border-success/40', flag: 'text-success' }
     if (m.milestone_type === 'system') return { pill: 'bg-surface-active border-border-strong', flag: 'text-text-tertiary' }
     if (m.due_date && m.due_date < todayIso) return { pill: 'bg-error-dim border-error/40', flag: 'text-error' }
@@ -368,6 +386,10 @@ export function ProjectGantt({
   const hmTasks = hm ? (tasks ?? []).filter(t => t.milestone_id === hm.id && !t.parent_task_id) : []
   const hmDone = hmTasks.filter(t => t.status === 'completato').length
   const hmRel = hm?.due_date ? relDaysLabel(hm.due_date, todayIso) : null
+  const ht = hoverTask?.t
+  const htOwner = ht ? person(ht.assignee_id) : null
+  const htRel = ht?.due_date ? relDaysLabel(ht.due_date, todayIso) : null
+  const nTaskInCalendario = lanes.reduce((n, l) => n + (l.taskInCalendario?.length ?? 0), 0)
 
   return (
     <div className="relative bg-surface border border-border rounded-2xl shadow-soft overflow-hidden">
@@ -382,7 +404,7 @@ export function ProjectGantt({
             className="text-2xs text-text-tertiary cursor-help text-left">{headerNote}</button>
         ) : (
           <span className="text-2xs text-text-tertiary">
-            {headerNote ?? <>· {lanes.reduce((n, l) => n + l.milestones.length, 0)} milestone · {lanes.length} {laneLabel}</>}
+            {headerNote ?? <>· {lanes.reduce((n, l) => n + l.milestones.length, 0)} milestone{nTaskInCalendario > 0 && <> · {nTaskInCalendario} task in calendario</>} · {lanes.length} {laneLabel}</>}
           </span>
         )}
         <div className="ml-auto flex items-center gap-2 flex-wrap justify-end">
@@ -479,6 +501,51 @@ export function ProjectGantt({
                     Il titolo apre la milestone, la riga sopra il progetto.
                   </p>
                 )}
+              </div>
+            </div>
+          )
+        })(),
+        document.body,
+      )}
+
+      {/* §479 — recap di una task nel calendario: dove sta, quando scade, di chi è */}
+      {mounted && ht && hoverTask && createPortal(
+        (() => {
+          const r = hoverTask.rect
+          const above = r.top > 150
+          const tone = msTone(comeTappa(ht))
+          const TIcon = milestoneIcon(comeTappa(ht), todayIso)
+          const apri = () => { if (ht.workstream_id && ht.milestone_id) onOpenMilestone?.(ht.workstream_id, ht.milestone_id) }
+          return (
+            <div style={{ position: 'fixed', left: r.left + r.width / 2, top: above ? r.top - 8 : r.bottom + 8, transform: `translate(-50%, ${above ? '-100%' : '0'})`, zIndex: 60 }}
+              className="w-64"
+              onMouseEnter={tieniAperto} onMouseLeave={chiudiTraPoco}>
+              <div className="bg-surface border border-border-strong rounded-xl shadow-pop p-3 animate-fade-in">
+                <button type="button" className="block w-full text-left hover:opacity-80" onClick={apri}>
+                  <div className="flex items-start gap-2">
+                    <TIcon className={`w-4 h-4 mt-0.5 shrink-0 ${tone.flag}`} />
+                    <span className="text-sm font-bold text-text-primary leading-snug">{ht.title}</span>
+                  </div>
+                </button>
+                <div className="mt-2.5 space-y-1.5">
+                  <div className="flex items-center gap-2 text-2xs text-text-secondary">
+                    <FolderTree className="w-3.5 h-3.5 text-gold-text shrink-0" /><span className="truncate">{hoverTask.ctx}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-2xs text-text-secondary">
+                    <CalIcon className="w-3.5 h-3.5 text-text-tertiary shrink-0" /><span className="tabular">{ht.due_date}</span>
+                    {htRel && <span className={htRel.tone}>· {htRel.text}</span>}
+                  </div>
+                  <div className="flex items-center gap-2 text-2xs text-text-secondary">
+                    {htOwner
+                      ? <span className="w-3 h-3 mx-px rounded-full shrink-0" style={{ background: colorFor(htOwner.id, htOwner.avatar_color).dot }} aria-hidden />
+                      : <User className="w-3.5 h-3.5 text-text-tertiary shrink-0" />}
+                    <span className="truncate">{htOwner ? htOwner.full_name : 'Non assegnata'}</span>
+                    <span className={`ml-auto text-2xs font-semibold px-2 py-0.5 rounded-full border ${tone.pill} ${tone.flag}`}>{TASK_STATUS_LABEL[ht.status] ?? ht.status}</span>
+                  </div>
+                </div>
+                <p className="mt-2.5 pt-2 border-t border-border/60 text-2xs text-text-tertiary">
+                  È una task: sta dentro la sua milestone, e il titolo la apre.
+                </p>
               </div>
             </div>
           )
@@ -684,7 +751,7 @@ export function ProjectGantt({
                   {l.bar && (
                     <div className="absolute top-1/2 -translate-y-1/2 h-2 rounded-full bg-gold-dim border border-gold/30" style={{ left: bs + DAY_W / 2, width: Math.max(DAY_W, be - bs) }} />
                   )}
-                  {l.milestones.length === 0 && l.emptyLabel !== '' && (
+                  {l.milestones.length === 0 && !l.taskInCalendario?.length && l.emptyLabel !== '' && (
                     <span className="absolute top-1/2 -translate-y-1/2 text-2xs text-text-tertiary/70 whitespace-nowrap pointer-events-none"
                       style={{ left: model.todayLeft + DAY_W / 2 + 14 }}>{l.emptyLabel ?? 'nessuna milestone datata'}</span>
                   )}
@@ -699,6 +766,7 @@ export function ProjectGantt({
                         onClick={() => onOpenMilestone?.(m.workstream_id, m.id)}
                         onMouseEnter={e => {
                           tieniAperto()
+                          setHoverTask(null)
                           setHover({ m, ctx: milestoneContext?.(m) ?? l.name, rect: e.currentTarget.getBoundingClientRect() })
                         }}
                         onMouseLeave={chiudiTraPoco}
@@ -715,6 +783,39 @@ export function ProjectGantt({
                             <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-surface"
                               style={{ background: colorFor(owner.id, owner.avatar_color).dot }}
                               aria-label={`Responsabile: ${owner.full_name}`} />
+                          )}
+                        </span>
+                      </button>
+                    )
+                  })}
+                  {/* §479 — la task segnata: un quadrato, non un cerchio, perché
+                      non è una milestone — sta dentro una — ma con la stessa
+                      icona e lo stesso colore di una milestone nello stesso stato. */}
+                  {l.taskInCalendario?.map(t => {
+                    if (!t.due_date) return null
+                    const tone = msTone(comeTappa(t))
+                    const TIcon = milestoneIcon(comeTappa(t), todayIso)
+                    const owner = person(t.assignee_id)
+                    const stacked = sameDay.get(t.due_date) ?? 0
+                    sameDay.set(t.due_date, stacked + 1)
+                    return (
+                      <button key={`t:${t.id}`}
+                        onClick={() => { if (t.workstream_id && t.milestone_id) onOpenMilestone?.(t.workstream_id, t.milestone_id) }}
+                        onMouseEnter={e => {
+                          tieniAperto()
+                          setHover(null)
+                          setHoverTask({ t, ctx: taskContext?.(t) ?? l.name, rect: e.currentTarget.getBoundingClientRect() })
+                        }}
+                        onMouseLeave={chiudiTraPoco}
+                        aria-label={`Task ${t.title}`}
+                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10"
+                        style={{ left: model.x(parse(t.due_date)) + DAY_W / 2 + stacked * 12 }}>
+                        <span className={`relative w-6 h-6 rounded-md border flex items-center justify-center transition-transform hover:scale-110 ${tone.pill}`}>
+                          <TIcon className={`w-3 h-3 ${tone.flag}`} />
+                          {owner && (
+                            <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-surface"
+                              style={{ background: colorFor(owner.id, owner.avatar_color).dot }}
+                              aria-label={`Assegnata a ${owner.full_name}`} />
                           )}
                         </span>
                       </button>
@@ -796,6 +897,11 @@ export function ProjectGantt({
             <Icon className="w-3 h-3" aria-hidden />{label}
           </span>
         ))}
+        {nTaskInCalendario > 0 && (
+          <span className="flex items-center gap-1 text-2xs text-text-tertiary">
+            <span className="w-3 h-3 rounded-sm border border-current" aria-hidden />Task in calendario
+          </span>
+        )}
       </div>
     </div>
   )

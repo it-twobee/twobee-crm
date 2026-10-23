@@ -727,7 +727,12 @@ function TaskRow({
           className={`flex-1 min-w-0 text-left text-sm truncate ${t.status === 'completato' ? 'text-text-tertiary line-through' : 'text-text-primary'} hover:text-gold-text`}>
           {t.title}
         </button>
-        {subs.length > 0 && <span className="text-2xs text-text-tertiary tabular shrink-0">{doneSubs}/{subs.length}</span>}
+        {t.on_calendar && (
+          <span title="Nel calendario di Progetti" aria-label="Nel calendario di Progetti" className="shrink-0 text-gold-text">
+            <Flag className="w-3.5 h-3.5" aria-hidden />
+          </span>
+        )}
+        {subs.length > 0 &&<span className="text-2xs text-text-tertiary tabular shrink-0">{doneSubs}/{subs.length}</span>}
         {rel && <span className={`text-2xs tabular shrink-0 ${rel.tone}`}>{rel.text}</span>}
         {assignee
           ? <span title={assignee.full_name} className="shrink-0"><Avatar name={assignee.full_name} url={assignee.avatar_url} size={22} /></span>

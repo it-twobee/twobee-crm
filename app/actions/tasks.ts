@@ -5,6 +5,7 @@ import { createAdminClient, createActorClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { scriviAssegnatari, elencoAssegnatari } from '@/lib/task-assignees'
 import type { TaskStatusV2, Priority, Visibility } from '@/lib/types/database'
+import { motivoFuoriCalendario, type TaskDaSegnare } from '@/lib/task-calendario'
 
 async function requireStaff(): Promise<string> {
   const sb = await createClient()
@@ -107,6 +108,29 @@ export async function deleteTask(taskId: string) {
   const { error } = await createActorClient(uid).from('tasks')
     .update({ deleted_at: new Date().toISOString() }).eq('id', taskId)
   if (error) throw new Error(error.message)
+}
+
+/**
+ * §479 — la task va (o esce) dal calendario di Progetti e **resta dov'è**:
+ * stessa milestone, stessi commenti, checklist e assegnatari. Si scrive solo
+ * il segno: niente milestone nuova, niente eliminazione.
+ */
+export async function mettiNelCalendario(taskId: string, on: boolean) {
+  const uid = await requireStaff()
+  const admin = createActorClient(uid)
+  const { data, error } = await admin.from('tasks')
+    .select('id, task_type, project_id, workstream_id, milestone_id, parent_task_id, is_recurring_instance, deleted_at')
+    .eq('id', taskId).maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) throw new Error('Task non trovata')
+  const t = data as TaskDaSegnare & { id: string }
+  const no = on ? motivoFuoriCalendario(t) : null
+  if (no) throw new Error(no)
+  const { error: e } = await admin.from('tasks').update({ on_calendar: on }).eq('id', taskId)
+  if (e) throw new Error(/on_calendar/.test(e.message) ? 'Manca la migration del calendario delle task' : e.message)
+  if (t.project_id) { revalidatePath(`/progetti/${t.project_id}`); revalidatePath(`/workspace/progetti/${t.project_id}`) }
+  revalidatePath('/progetti')
+  revalidatePath('/workspace/progetti')
 }
 
 /**

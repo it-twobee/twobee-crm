@@ -20,6 +20,7 @@ import {
 } from '@/components/shared/formkit'
 import { workstreamPrefixFromProjectName, applyWorkstreamPrefix, stripWorkstreamPrefix, milestoneName } from '@/lib/project-naming'
 import { ProjectGantt } from './ProjectGantt'
+import { taskInCalendario, type TaskInCalendario } from '@/lib/task-calendario'
 import {
   WorkstreamPresets, PeriodiDelProgetto, CorsieDelServizio, useServiceCatalog,
 } from './WorkstreamPresets'
@@ -103,6 +104,12 @@ export function ProjectDetailClient({
      render: `ProjectGantt` la tiene fra le dipendenze del proprio `useMemo`. */
   const wsHref = useCallback((w: ProjectWorkstream) => `${wsBase}/${w.id}`, [wsBase])
   const openMilestone = (wsId: string, msId: string) => router.push(`${wsBase}/${wsId}?ms=${msId}`)
+  /* §479 — le task segnate per il calendario; stabili per la stessa ragione di `wsHref` */
+  const segnate = useMemo(() => taskInCalendario(tasks), [tasks])
+  const taskCtx = (t: TaskInCalendario) => [
+    workstreams.find(w => w.id === t.workstream_id)?.name,
+    milestones.find(m => m.id === t.milestone_id)?.title,
+  ].filter(Boolean).join(' · ') || null
 
   const name = (id: string | null) => id ? (profiles.find(p => p.id === id)?.full_name ?? '—') : '—'
   const openMs = milestones.filter(m => m.status !== 'completata' && m.milestone_type === 'delivery')
@@ -746,6 +753,7 @@ export function ProjectDetailClient({
                 erano due schermate di bandierine prima del contenuto. */}
             <div className="pt-1">
               <ProjectGantt workstreams={workstreams} milestones={milestones} tasks={tasks} profiles={profiles} onOpenMilestone={openMilestone}
+                taskInCalendario={segnate} taskContext={taskCtx}
                 /* §345 — dal nome della corsia si apre la workstream: è la
                    stessa destinazione della riga qui sopra, e chi sta guardando
                    le date non deve risalire all'elenco per arrivarci. */

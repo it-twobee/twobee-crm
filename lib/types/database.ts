@@ -980,6 +980,8 @@ export interface Task {
   milestone_id: string | null
   /** §486 — l'ordine dentro la milestone; null = ordine di creazione (`lib/task-order.ts`) */
   position?: number | null
+  /** §479 — resta nella sua milestone e compare anche nel calendario di Progetti (`lib/task-calendario.ts`) */
+  on_calendar?: boolean
   title: string
   description: string | null
   status: TaskStatusV2

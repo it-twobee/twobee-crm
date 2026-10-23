@@ -4,6 +4,7 @@ import { getSessionProfile } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { ProgettiClient } from '@/components/projects/ProgettiClient'
 import { areaDiPartenza, milestoneMie, soloMieDiPartenza } from '@/lib/area-persona'
+import { COLONNE_TASK_IN_CALENDARIO, taskInCalendarioMie, type TaskInCalendario } from '@/lib/task-calendario'
 import type {
   ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode,
   ProjectWorkstream, Milestone, Task, ClientLabel,
@@ -53,13 +54,18 @@ export default async function WorkspaceProgettiPage({ searchParams }: { searchPa
 
   // Dati per il calendario milestone globale: progetti in corso (esclude completati/archiviati)
   const activeIds = (projects ?? []).filter(p => ['active', 'draft', 'on_hold'].includes(p.status)).map(p => p.id)
-  const [{ data: workstreams }, { data: milestones }, { data: calTasks }] = activeIds.length
+  const [{ data: workstreams }, { data: milestones }, { data: calTasks }, { data: segnate }] = activeIds.length
     ? await Promise.all([
         supabase.from('project_workstreams').select('*').in('project_id', activeIds).order('sort_order'),
         supabase.from('milestones').select('*').in('project_id', activeIds).order('sort_order'),
         supabase.from('tasks').select('id, milestone_id, status, parent_task_id, assignee_id').in('project_id', activeIds).is('deleted_at', null),
+        /* §479 — le task segnate per il calendario. Senza la migration la query
+           fallisce e il calendario resta quello delle sole milestone. */
+        supabase.from('tasks').select(COLONNE_TASK_IN_CALENDARIO).in('project_id', activeIds)
+          .eq('on_calendar', true).is('deleted_at', null).is('parent_task_id', null).not('due_date', 'is', null),
       ])
-    : [{ data: [] }, { data: [] }, { data: [] }]
+    : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }]
+  const taskSegnate = (segnate ?? []) as unknown as TaskInCalendario[]
 
   /* §487 — le milestone in cui chi guarda è incluso: responsabile, o con una
      task dentro (primaria o fra gli assegnatari). Servono a «Le mie». */
@@ -68,6 +74,9 @@ export default async function WorkspaceProgettiPage({ searchParams }: { searchPa
     milestones: (milestones ?? []) as { id: string; owner_id: string | null }[],
     tasks: (calTasks ?? []) as { id: string; milestone_id: string | null; assignee_id: string | null }[],
     taskMie: (assegnazioni ?? []).map(a => a.task_id as string),
+  })
+  const taskInCalendarioMieIds = taskInCalendarioMie({
+    io: profile.id, tasks: taskSegnate, taskMie: (assegnazioni ?? []).map(a => a.task_id as string),
   })
 
   // Solo la label: nel workspace le aree non esistono (§326) e la VIEW non espone
@@ -87,6 +96,8 @@ export default async function WorkspaceProgettiPage({ searchParams }: { searchPa
       projects={(projects ?? []) as { id: string; name: string; status: string; area: string; service_type: string; client_id: string; created_at: string }[]}
       workstreams={(workstreams ?? []) as ProjectWorkstream[]}
       milestones={(milestones ?? []) as Milestone[]}
+      taskInCalendario={taskSegnate}
+      taskInCalendarioMie={taskInCalendarioMieIds}
       calTasks={(calTasks ?? []) as Pick<Task, 'id' | 'milestone_id' | 'status' | 'parent_task_id'>[]}
       basePath="/workspace/progetti"
       canCreate={canCreate}

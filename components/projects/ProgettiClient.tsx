@@ -10,6 +10,7 @@ import { countsInDelivery, type InternalKind } from '@/lib/clients'
 import { progettoBreve } from '@/lib/task-board'
 import { AREE, nellArea, type AreaFiltro } from '@/lib/area-persona'
 import { VoceSezione } from '@/components/workspace/VoceSezione'
+import type { TaskInCalendario } from '@/lib/task-calendario'
 import type { Sezione } from '@/lib/task-mood'
 import type {
   ServiceCatalogEntry, ProjectTemplate, ProjectTemplateNode,
@@ -53,9 +54,13 @@ const isoToday = () => new Date().toISOString().slice(0, 10)
 const dayDiff = (a: string, b: string) =>
   Math.round((new Date(a + 'T00:00:00').getTime() - new Date(b + 'T00:00:00').getTime()) / DAY)
 
-/** Prima milestone aperta: serve solo a ordinare le corsie. */
-function nextOpen(ms?: Milestone[]) {
-  return ms?.find(m => m.status !== 'completata' && m.due_date)?.due_date ?? null
+/** Prima scadenza aperta, milestone o task nel calendario (§479): serve solo a ordinare le corsie. */
+function nextOpen(items?: { status: string; due_date: string | null }[]) {
+  let min: string | null = null
+  for (const x of items ?? []) {
+    if (x.due_date && x.status !== 'completata' && x.status !== 'completato' && (!min || x.due_date < min)) min = x.due_date
+  }
+  return min
 }
 
 /**
@@ -63,7 +68,7 @@ function nextOpen(ms?: Milestone[]) {
  * «Fermo» = nulla da almeno 10 giorni E nulla nei prossimi 10 — il caso in cui
  * un cliente esce dal radar senza che nessuna scadenza lo riporti dentro.
  */
-function quietInfo(ms: Milestone[]) {
+function quietInfo(ms: { due_date: string | null }[]) {
   const today = isoToday()
   const dated = ms.map(m => m.due_date).filter((d): d is string => !!d).sort()
   const past = dated.filter(d => d < today)
@@ -81,21 +86,26 @@ function quietBadge(info: ReturnType<typeof quietInfo>) {
   if (info.sinceLast === null) return {
     text: 'mai',
     tone,
-    title: 'Mai una milestone datata',
+    title: 'Mai una consegna datata',
     detail: `Nessuna scadenza né in passato né nei prossimi ${QUIET_DAYS} giorni: niente riporterà questo cliente nel calendario.`,
   }
   return {
     text: `fermo ${info.sinceLast}g`,
     tone,
     title: 'Cliente fermo',
-    detail: `Ultima milestone ${info.sinceLast} giorni fa e ${info.untilNext === null ? 'nessuna in programma' : `la prossima tra ${info.untilNext} giorni`}: il chip compare quando non succede nulla da ${QUIET_DAYS} giorni e nulla è previsto nei prossimi ${QUIET_DAYS}.`,
+    detail: `Ultima consegna (milestone o task nel calendario) ${info.sinceLast} giorni fa e ${info.untilNext === null ? 'nessuna in programma' : `la prossima tra ${info.untilNext} giorni`}: il chip compare quando non succede nulla da ${QUIET_DAYS} giorni e nulla è previsto nei prossimi ${QUIET_DAYS}.`,
   }
 }
 
 export function ProgettiClient({
   clients, profiles, services, templates, nodes, projects, workstreams, milestones, calTasks, initialClientId, openWizard,
   basePath = '/progetti', canCreate = true, voce, areaIniziale = '', milestoneMie = [], soloMieIniziale = false,
+  taskInCalendario, taskInCalendarioMie = [],
 }: {
+  /** §479 — le task segnate per il calendario: restano nella loro milestone */
+  taskInCalendario?: TaskInCalendario[]
+  /** §479/§487 — quelle di cui chi guarda è assegnatario (`taskInCalendarioMie`) */
+  taskInCalendarioMie?: string[]
   /** §351 — la riga sotto il titolo, solo nel portale operativo */
   voce?: Sezione
   /** §358 — l'area con cui si apre: quella di chi guarda, vuota per chi governa */
@@ -171,6 +181,30 @@ export function ProgettiClient({
     m.forEach(arr => arr.sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1)))
     return m
   }, [milestones])
+  /** §479 — le task nel calendario, per progetto e in ordine di data */
+  const tcByProject = useMemo(() => {
+    const m = new Map<string, TaskInCalendario[]>()
+    ;(taskInCalendario ?? []).forEach(t => {
+      if (!t.due_date || !t.project_id) return
+      const arr = m.get(t.project_id)
+      if (arr) arr.push(t)
+      else m.set(t.project_id, [t])
+    })
+    m.forEach(arr => arr.sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1)))
+    return m
+  }, [taskInCalendario])
+  const tcVisibili = useMemo(() => {
+    if (!soloMie) return tcByProject
+    const mie = new Set(taskInCalendarioMie)
+    const m = new Map<string, TaskInCalendario[]>()
+    tcByProject.forEach((arr, pid) => {
+      const f = arr.filter(x => mie.has(x.id))
+      if (f.length) m.set(pid, f)
+    })
+    return m
+  }, [tcByProject, soloMie, taskInCalendarioMie])
+  const msById = useMemo(() => new Map((milestones ?? []).map(m => [m.id, m])), [milestones])
+
   /** §487 — quelle che si disegnano: tutte, o solo quelle in cui sei incluso */
   const msVisibili = useMemo(() => {
     if (!soloMie) return msByProject
@@ -202,14 +236,18 @@ export function ProgettiClient({
       else byClient.set(key, [p])
     })
     const build = (id: string, name: string) => {
-      /* §487 — con «Le mie» restano i progetti in cui hai almeno una milestone */
-      const ps = (byClient.get(id) ?? []).filter(p => !soloMie || msVisibili.has(p.id))
+      /* §487 — con «Le mie» restano i progetti in cui hai almeno una milestone
+         (o una task nel calendario, §479) */
+      const ps = (byClient.get(id) ?? []).filter(p => !soloMie || msVisibili.has(p.id) || tcVisibili.has(p.id))
       const ms = ps.flatMap(p => msVisibili.get(p.id) ?? []).sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1))
+      const tc = ps.flatMap(p => tcVisibili.get(p.id) ?? [])
       /* «fermo» si misura su tutte le milestone del cliente, non sulle tue:
-         un cliente su cui il team lavora non è fermo perché tu non ci sei */
-      const tutte = ps.flatMap(p => msByProject.get(p.id) ?? [])
-      ps.sort((a, b) => (nextOpen(msVisibili.get(a.id)) ?? FAR) < (nextOpen(msVisibili.get(b.id)) ?? FAR) ? -1 : 1)
-      return { id, name, projects: ps, milestones: ms, tutte }
+         un cliente su cui il team lavora non è fermo perché tu non ci sei.
+         §479 — una task nel calendario è una consegna: conta anche lei. */
+      const tutte = ps.flatMap(p => [...(msByProject.get(p.id) ?? []), ...(tcByProject.get(p.id) ?? [])])
+      const prossima = (pid: string) => nextOpen([...(msVisibili.get(pid) ?? []), ...(tcVisibili.get(pid) ?? [])]) ?? FAR
+      ps.sort((a, b) => (prossima(a.id) < prossima(b.id) ? -1 : 1))
+      return { id, name, projects: ps, milestones: ms, taskInCalendario: tc, tutte }
     }
     /* persi, fermi, lead e società collegate non hanno un presidio da misurare
        (§328). §354 — con un'area scelta restano solo i clienti che in
@@ -220,11 +258,11 @@ export function ProgettiClient({
       .filter(g => (!area && !soloMie) || g.projects.length > 0)
     // ordine da calendario: chi ha la prossima milestone aperta più vicina sta in cima
     return list.sort((a, b) => {
-      const da = nextOpen(a.milestones) ?? FAR
-      const db = nextOpen(b.milestones) ?? FAR
+      const da = nextOpen([...a.milestones, ...a.taskInCalendario]) ?? FAR
+      const db = nextOpen([...b.milestones, ...b.taskInCalendario]) ?? FAR
       return da === db ? a.name.localeCompare(b.name) : (da < db ? -1 : 1)
     })
-  }, [projects, clients, msByProject, msVisibili, area, soloMie]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [projects, clients, msByProject, msVisibili, tcByProject, tcVisibili, area, soloMie]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const lanes: GanttLane[] = useMemo(() => {
     const out: GanttLane[] = []
@@ -245,6 +283,7 @@ export function ProgettiClient({
         // da chiusa la riga cliente porta le milestone di tutti i suoi progetti;
         // da aperta le lascia alle righe figlie, per non disegnarle due volte
         milestones: open ? [] : g.milestones,
+        taskInCalendario: open ? [] : g.taskInCalendario,
         toggle: g.projects.length
           ? { expanded: open, onToggle: () => setOpenClients(o => ({ ...o, [g.id]: !o[g.id] })) }
           : undefined,
@@ -259,6 +298,7 @@ export function ProgettiClient({
       })
       if (open) g.projects.forEach(p => {
         const pms = msVisibili.get(p.id) ?? []
+        const ptc = tcVisibili.get(p.id) ?? []
         out.push({
           id: p.id,
           /* §354 — dentro la riga di un cliente il nome del cliente è già
@@ -270,20 +310,29 @@ export function ProgettiClient({
           depth: 1,
           href: `${basePath}/${p.id}`,
           milestones: pms,
-          badge: quietBadge(quietInfo(pms)),
+          taskInCalendario: ptc,
+          badge: quietBadge(quietInfo([...pms, ...ptc])),
         })
       })
     })
     return out
-  }, [groups, openClients, msVisibili]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [groups, openClients, msVisibili, tcVisibili]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const quietCount = useMemo(() => groups.filter(g => !g.projects.length || quietInfo(g.tutte).quiet).length, [groups])
   const msCount = useMemo(() => groups.reduce((n, g) => n + g.milestones.length, 0), [groups])
+  const tcCount = useMemo(() => groups.reduce((n, g) => n + g.taskInCalendario.length, 0), [groups])
 
   const wsName = (m: Milestone) => {
     const w = wsById.get(m.workstream_id)
     const p = projects.find(x => x.id === m.project_id)
     return [p?.name, w?.name].filter(Boolean).join(' · ') || null
+  }
+  /** §479 — dove sta la task: progetto · workstream · la milestone che la contiene */
+  const taskCtx = (t: TaskInCalendario) => {
+    const w = t.workstream_id ? wsById.get(t.workstream_id) : undefined
+    const p = projects.find(x => x.id === t.project_id)
+    const m = t.milestone_id ? msById.get(t.milestone_id) : undefined
+    return [p?.name, w?.name, m?.title].filter(Boolean).join(' · ') || null
   }
   const openMilestone = (wsId: string, msId: string) => {
     const w = wsById.get(wsId)
@@ -348,15 +397,16 @@ export function ProgettiClient({
       <ProjectGantt
         title="Calendario milestone · per cliente"
         lanes={lanes}
-        headerNote={<>· {groups.length} clienti · {msCount} milestone{quietCount > 0 && <span className="text-warning font-semibold"> · {quietCount} fermi</span>}</>}
+        headerNote={<>· {groups.length} clienti · {msCount} milestone{tcCount > 0 && <> · {tcCount} task in calendario</>}{quietCount > 0 && <span className="text-warning font-semibold"> · {quietCount} fermi</span>}</>}
         headerHint={{
           title: 'Clienti nel calendario',
-          detail: `Ogni cliente attivo ha una riga, anche senza progetti. «Fermi» sono quelli senza milestone da ${QUIET_DAYS} giorni e senza nulla in programma nei prossimi ${QUIET_DAYS}. Persi, sospesi, lead e società collegate non compaiono.`,
+          detail: `Ogni cliente attivo ha una riga, anche senza progetti. I quadrati sono task messe nel calendario: restano dentro la loro milestone. «Fermi» sono quelli senza consegne da ${QUIET_DAYS} giorni e senza nulla in programma nei prossimi ${QUIET_DAYS}. Persi, sospesi, lead e società collegate non compaiono.`,
         }}
         tasks={calTasks ?? []}
         profiles={profiles as { id: string; full_name: string; avatar_url: string | null }[]}
         onOpenMilestone={openMilestone}
         milestoneContext={wsName}
+        taskContext={taskCtx}
         /* §345 — dal riquadro in hover si esce: il titolo apre la milestone,
            la riga «Progetto · Workstream» apre il progetto. */
         milestoneHref={m => {
@@ -365,7 +415,7 @@ export function ProgettiClient({
         }}
         contextHref={m => (m.project_id ? `${basePath}/${m.project_id}` : null)}
         emptyHint={soloMie
-          ? 'Nessuna milestone in cui sei incluso: responsabile, o con una task dentro. In «Tutte» vedi quelle del team.'
+          ? 'Nessuna milestone in cui sei incluso — responsabile, o con una task dentro — e nessuna tua task nel calendario. In «Tutte» vedi quelle del team.'
           : 'Nessun cliente attivo: il calendario mostra una riga per cliente e i progetti in corso nella tendina.'}
         /* §354 — 320 e non 260: con «Cliente · Area · Servizio» il nome del
            progetto arrivava ai puntini dopo tre parole. Qui ci sta intero, e

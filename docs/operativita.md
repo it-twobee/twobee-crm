@@ -877,44 +877,43 @@ fra loro anche prima che qualcuno scelga.
 Gate: `npx tsx lib/calendar-colors.check.ts` — controlla anche che i token ci
 siano in tutti e due i temi e che il vincolo del database ammetta le stesse otto.
 
-## Una task diventa milestone (§479, `lib/task-milestone.ts`)
+## Una task nel calendario di Progetti (§479, `lib/task-calendario.ts`)
 
 Feedback del 13 ottobre 2026: certe task dentro una milestone sono consegne
 vere, e vanno nel calendario di Progetti — che mostra solo le milestone (§328).
-Nel pannello della task, accanto a «Elimina», c'è **«Trasforma in milestone»**.
+Nel pannello della task, accanto a «Elimina», c'è **«Mostra nel calendario»**
+(e, una volta segnata, «Togli dal calendario»).
 
-- **La task diventa la milestone, non ci entra dentro** (20 ottobre 2026). La
-  prima versione la spostava nella milestone nuova per non perdere commenti,
-  checklist e assegnatari. Chi la usa l'ha rimandata indietro: il risultato era
-  un riquadro con due cose da spuntare per lo stesso lavoro, la milestone e una
-  task con lo stesso nome. Adesso la task **si elimina** (`deleted_at`): la
-  descrizione passa alla milestone, le sotto-task diventano le sue task,
-  mentre commenti, checklist e gli assegnatari oltre al primo restano sulla
-  riga eliminata, e il messaggio di conferma lo dice prima.
-- **La milestone nasce dalla task**: stesso titolo (senza un vecchio prefisso
-  «M{n} ·», §485), stessa data e descrizione, responsabile = l'assegnatario
-  primario, stato tradotto
-  (`in_review` → `in_approvazione`, `completato` → `completata`,
-  `richiesta_supporto` → `in_corso`). Nasce **interna**: farla vedere al
-  cliente è una pubblicazione, non un effetto collaterale. Il responsabile
-  riceve la notifica di consegna, se non è chi trasforma.
-- **Tre passi, e ognuno disfa i precedenti**: milestone, eliminazione della
-  task, spostamento delle sotto-task (un'istruzione sola, con
-  `parent_task_id` azzerato). Se uno fallisce la task torna viva e la
-  milestone appena nata si toglie: con `ON DELETE CASCADE` porterebbe con sé
-  le task, ma non ce n'è ancora nessuna dentro. Una sotto-task che portava un
-  vecchio prefisso `M{n}` lo perde.
+- **La task resta dov'è** (23 ottobre 2026). Le prime due versioni erano
+  «Trasforma in milestone», e tutte e due creavano un riquadro nuovo e
+  toglievano la task da quello in cui stava: il 16 ottobre la spostavano nella
+  milestone nuova (un riquadro con due cose da spuntare per lo stesso lavoro,
+  rimandata indietro da Sabrina), il 20 ottobre la eliminavano e la milestone
+  prendeva il suo posto. Il 23 ottobre «Build Ads» è uscita così da «Refresh
+  Black Friday Visionark», ed era proprio questo che non andava: la task è
+  parte di quella milestone. Adesso il pulsante scrive solo `tasks.on_calendar`.
+  Milestone, commenti, checklist e assegnatari non si toccano.
+- **Nel calendario è un quadrato, non un cerchio**: non è una milestone, ci sta
+  dentro. Icona e colore sono quelli di una milestone nello stesso stato
+  (`STATO_COME_MILESTONE`: `in_review` → in approvazione, `completato` →
+  completata), il pallino è l'assegnatario primario. Il riquadro al passaggio
+  del mouse dice progetto · workstream · milestone, e il titolo apre la
+  milestone che la contiene. Nel riquadro della milestone la riga della task ha
+  una bandierina.
+- **Compare alla sua scadenza**: senza data è segnata ma non si disegna, e il
+  messaggio di conferma lo dice.
+- **Conta come una consegna**: nell'ordine delle righe del calendario e nel
+  «fermo» del cliente. Con «Le mie» (§487) si vedono quelle di cui sei
+  assegnatario, primario o no (`taskInCalendarioMie`).
 - **Chi**: lo stesso diritto di eliminare (`canDelete`, chi governa il
-  progetto): creare una milestone è governo (§322). Sul server
-  `requireStaff`, come le altre azioni delle milestone.
+  progetto): decidere cosa sta nel calendario è governo (§322). Sul server
+  `requireStaff`, come le altre azioni delle task.
 - **Cosa no**: le ad hoc e le task del cliente (non hanno una corsia), le
-  sotto-task (si trasforma quella che le contiene) e le occorrenze ricorrenti
-  (la prossima nascerebbe di nuovo task).
+  sotto-task (si segna quella che le contiene) e le occorrenze ricorrenti
+  (la prossima nascerebbe senza segno).
 
-Provato il 16 ottobre 2026 sulla produzione dentro una transazione annullata:
-milestone `in_approvazione` accettata dai vincoli, una task spostata, due righe
-di cronologia. La versione del 20 ottobre si è provata allo stesso modo.
-Gate: `npx tsx lib/task-milestone.check.ts`.
+Gate: `npx tsx lib/task-calendario.check.ts`. Controlla anche che
+`mettiNelCalendario` non crei milestone, non elimini e non sposti la task.
 
 ## La sezione Task mostra anche le milestone (§346)
 

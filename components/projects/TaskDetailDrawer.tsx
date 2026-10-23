@@ -9,10 +9,9 @@ import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import {
   updateTask, updateTaskStatus, setTaskAssignees, deleteTask,
   addTaskComment, deleteTaskComment,
-  addChecklistItem, toggleChecklistItem, deleteChecklistItem,
+  addChecklistItem, toggleChecklistItem, deleteChecklistItem, mettiNelCalendario,
 } from '@/app/actions/tasks'
-import { trasformaTaskInMilestone } from '@/app/actions/milestones'
-import { motivoNonTrasformabile } from '@/lib/task-milestone'
+import { motivoFuoriCalendario } from '@/lib/task-calendario'
 import type { Task, Priority, Visibility } from '@/lib/types/database'
 import { MenuStato } from '@/components/tasks/ControlliRiga'
 
@@ -62,16 +61,22 @@ export function TaskDetailDrawer({
 
   const done = checklist ? checklist.filter(c => c.is_done).length : 0
 
-  /* §479 — creare una milestone è governo, come eliminare: stesso diritto. */
-  const trasformabile = (canDelete ?? true) && motivoNonTrasformabile(task) === null
-  const trasforma = () => {
-    if (!confirm('La task diventa una milestone nel calendario del progetto, con la stessa data, lo stesso responsabile e la stessa descrizione. Le sotto-task diventano le task della milestone.\n\nLa task sparisce: commenti, checklist e gli altri assegnatari non passano alla milestone. Procedere?')) return
+  /* §479 — la task resta nella sua milestone e compare anche nel calendario
+     di Progetti. Decidere cosa sta nel calendario è governo, come eliminare. */
+  const [inCalendario, setInCalendario] = useState(!!task.on_calendar)
+  const segnabile = (canDelete ?? true) && motivoFuoriCalendario(task) === null
+  const calendario = () => {
+    const on = !inCalendario
     start(async () => {
       try {
-        const r = await trasformaTaskInMilestone(task.id)
-        toast.success(`Ora è la milestone «${r.title}»`, { description: 'La trovi nel calendario di Progetti.' })
+        await mettiNelCalendario(task.id, on)
+        setInCalendario(on)
+        toast.success(on ? 'Nel calendario di Progetti' : 'Tolta dal calendario', {
+          description: on
+            ? (task.due_date ? 'Resta in questa milestone, e compare nel calendario alla sua scadenza.' : 'Resta in questa milestone. Compare nel calendario quando ha una scadenza.')
+            : 'Resta in questa milestone.',
+        })
         onChanged()
-        onClose()
       } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
     })
   }
@@ -231,10 +236,11 @@ export function TaskDetailDrawer({
                 <Trash2 className="w-3.5 h-3.5" />Elimina
               </button>
             ) : <span />}
-            {trasformabile && (
-              <button onClick={trasforma} disabled={pending}
-                className="ml-auto mr-2 flex items-center gap-1 text-2xs font-semibold text-gold-text hover:opacity-80 disabled:opacity-40">
-                <Flag className="w-3.5 h-3.5" aria-hidden="true" />Trasforma in milestone
+            {segnabile && (
+              <button onClick={calendario} disabled={pending} aria-pressed={inCalendario}
+                title={inCalendario ? 'Togli dal calendario di Progetti: la task resta in questa milestone' : 'Mostra nel calendario di Progetti: la task resta in questa milestone'}
+                className={`ml-auto mr-2 flex items-center gap-1 text-2xs font-semibold hover:opacity-80 disabled:opacity-40 ${inCalendario ? 'text-text-secondary' : 'text-gold-text'}`}>
+                <Flag className="w-3.5 h-3.5" aria-hidden="true" />{inCalendario ? 'Togli dal calendario' : 'Mostra nel calendario'}
               </button>
             )}
             {pending && <Loader2 className="w-4 h-4 text-text-tertiary animate-spin" />}
