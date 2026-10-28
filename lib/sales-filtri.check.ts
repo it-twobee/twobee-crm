@@ -10,7 +10,7 @@
 import { FASI_SEME as F } from '@/lib/sales-stages'
 import {
   ordina, confronta, opzioni, applica, valoriDi, cerca, quantiFiltri,
-  ORDINABILI, FILTRABILI, SENZA_OWNER, type Riga,
+  ORDINABILI, FILTRABILI, SENZA_OWNER, SENZA_MODULO, nomeModulo, type Riga,
 } from '@/lib/sales-filtri'
 import { COLONNE } from '@/lib/sales-table'
 
@@ -149,6 +149,25 @@ is('i lead di Anna, due owner compresi', nomi(applica(seguiti, { owners: ['anna'
 is('quelli che non segue nessuno', nomi(applica(seguiti, { owners: [SENZA_OWNER] })), ['Gamma', 'Delta'])
 is('il vuoto non si inventa dove non è chiesto',
   valoriDi({ source: '' }, FILTRABILI.find(f => f.campo === 'source')!), [])
+
+
+console.log('\n— §495 · Per modulo Meta —')
+{
+  const moduli: Riga[] = [
+    { company_name: 'Uno', lead_origine: { form: 'Modulo 1  - Lancio' } },
+    { company_name: 'Due', lead_origine: { form: 'Modulo 1  - Lancio' } },
+    { company_name: 'Tre', lead_origine: { form: 'Modulo IA', scheda: 'Modulo 2 - IA' } },
+    { company_name: 'Quattro', lead_origine: null },
+  ]
+  const MODULO = FILTRABILI.find(f => f.campo === 'form')!
+  is('un conteggio per modulo, e chi non viene dal foglio in fondo',
+    opzioni(moduli, MODULO).map(o => [o.valore, o.quante]),
+    [['Modulo 1  - Lancio', 2], ['Modulo IA', 1], [SENZA_MODULO, 1]])
+  is('si filtra per modulo', nomi(applica(moduli, { form: ['Modulo IA'] })), ['Tre'])
+  is('e per «fuori dal foglio»', nomi(applica(moduli, { form: [SENZA_MODULO] })), ['Quattro'])
+  is('il nome si legge senza i doppi spazi di Meta', nomeModulo('Modulo 1  - Lancio'), 'Modulo 1 - Lancio')
+  is('e il vuoto ha un nome', nomeModulo(SENZA_MODULO), 'Fuori dal foglio')
+}
 
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

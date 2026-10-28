@@ -48,7 +48,7 @@ import type { RigaIgiene } from '@/lib/sales-igiene'
 import { NuovoLead } from './NuovoLead'
 import { CrmAnalytics } from './CrmAnalytics'
 import { tassoDi, type RigaAnalisi } from '@/lib/sales-analytics'
-import { SENZA_OWNER } from '@/lib/sales-filtri'
+import { SENZA_OWNER, SENZA_MODULO, nomeModulo, opzioni } from '@/lib/sales-filtri'
 import { SENZA_TIPO_ADS } from '@/lib/sales-ads'
 import BadgeLead from './BadgeLead'
 import { applicaStato, descrivi, eNostra, leggi, scrivi, VUOTO, type StatoElenco } from '@/lib/sales-vista'
@@ -217,12 +217,22 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
     return conta
   }, [righe, stato, contesto])
 
+  /* §495 — quanti lead per modulo Meta, con la stessa regola dei chip di
+     stato: seguono gli altri filtri ma non il proprio */
+  const perModulo = useMemo(() => {
+    const { form: _f, ...resto } = stato.scelte
+    const base = applicaStato(righe as unknown as Record<string, unknown>[], { ...stato, scelte: resto }, contesto)
+    return opzioni(base, { campo: 'form', da: 'lead_origine', vuoto: SENZA_MODULO })
+      .map(o => ({ chiave: o.valore, etichetta: nomeModulo(o.valore), quante: o.quante }))
+  }, [righe, stato, contesto])
+
   const nomeDi = useMemo(() => new Map(persone.map(p => [p.id, p.nome])), [persone])
   /* un valore di filtro in parole: lo usano i chip della barra e la frase in testa al PDF */
   const etichettaValore = (campo: string, v: string) =>
     campo === 'stage' ? etichettaFase(v)
       : campo === 'owners' ? (v === SENZA_OWNER ? 'Nessuno' : nomeDi.get(v) ?? 'Ex collega')
       : campo === 'tipo_ads' && v === SENZA_TIPO_ADS ? 'Né IA né e-commerce'
+      : campo === 'form' ? nomeModulo(v)
       : campo === 'qualifica' ? (ETICHETTA_QUALIFICA[v] ?? v)
       : campo === 'priority' || campo === 'membership' ? etichettaScelta(campo, v)
       : v
@@ -594,6 +604,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
             chiave: g, etichetta: g === 'tutti' ? 'Tutti' : ETICHETTA_GRUPPO[g], quante: perGruppo[g] ?? 0,
           }))}
           fasi={vista === 'numeri' ? undefined : FASI.map(f => ({ chiave: f.chiave, etichetta: f.etichetta, quante: perFase[f.chiave] ?? 0 }))}
+          moduli={perModulo}
           conOrdine={vista !== 'numeri'}
           etichette={{ valore: etichettaValore }}
         />

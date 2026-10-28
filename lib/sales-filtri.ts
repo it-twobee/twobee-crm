@@ -103,6 +103,10 @@ export type Filtrabile = {
 }
 
 export const SENZA_OWNER = '__nessuno__'
+/** §495 — i lead che non vengono da un modulo Meta: a mano, da un file, da un'altra fonte */
+export const SENZA_MODULO = '__fuori_foglio__'
+/** il nome del modulo come lo scrive Meta, senza i doppi spazi («Modulo 1  - Lancio») */
+export const nomeModulo = (v: string) => v === SENZA_MODULO ? 'Fuori dal foglio' : v.replace(/\s+/g, ' ').trim()
 
 export const FILTRABILI: Filtrabile[] = [
   { campo: 'stage', etichetta: 'Fase' },
@@ -120,8 +124,8 @@ export const FILTRABILI: Filtrabile[] = [
   { campo: 'piattaforma', etichetta: 'Piattaforma', da: 'lead_origine' },
   { campo: 'campagna', etichetta: 'Campagna', da: 'lead_origine' },
   /* §494 — il modulo Meta: ogni inserzione ha il suo, e i lead del modulo IA
-     si cercano da qui */
-  { campo: 'form', etichetta: 'Modulo', da: 'lead_origine' },
+     si cercano da qui. §495 — con la voce per chi non viene dal foglio */
+  { campo: 'form', etichetta: 'Modulo', da: 'lead_origine', vuoto: SENZA_MODULO },
   { campo: 'tipologia', etichetta: 'Tipo attività', da: 'lead_origine' },
   { campo: 'tempistica', etichetta: 'Quando vuole partire', da: 'lead_origine' },
 ]

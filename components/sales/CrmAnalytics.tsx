@@ -21,6 +21,7 @@ import {
   PERIODI, SOGLIA_AFFIDABILITA, type Periodo, type RigaAnalisi, type Riga,
 } from '@/lib/sales-analytics'
 import { ETICHETTA_QUALIFICA } from '@/lib/sales-table'
+import { nomeModulo } from '@/lib/sales-filtri'
 import { useFasi } from './FasiContext'
 
 function Tabella({ titolo, spiega, righe, nome = v => v }: {
@@ -90,6 +91,9 @@ export function CrmAnalytics({ righe: filtrate, totale, nomeDi }: {
   const tempo = useMemo(() => giorniPerChiudere(TUTTE, righe), [TUTTE, righe])
   const perFonte = useMemo(() => perDimensione(TUTTE, righe, r => r.source), [TUTTE, righe])
   const perCampagna = useMemo(() => perDimensione(TUTTE, righe, daOrigine('campagna')), [TUTTE, righe])
+  /* §495 — la campagna non basta: Modulo 1 e modulo IA girano anche sulla
+     stessa campagna «…Solo IA», e a distinguerli è il modulo compilato */
+  const perModulo = useMemo(() => perDimensione(TUTTE, righe, daOrigine('form'), 'Fuori dal foglio'), [TUTTE, righe])
   const perTipologia = useMemo(() => perDimensione(TUTTE, righe, daOrigine('tipologia')), [TUTTE, righe])
   const perTempistica = useMemo(() => perDimensione(TUTTE, righe, daOrigine('tempistica')), [TUTTE, righe])
 
@@ -162,6 +166,7 @@ export function CrmAnalytics({ righe: filtrate, totale, nomeDi }: {
 
       <div className="grid gap-3 lg:grid-cols-2">
         <Tabella titolo="Per fonte" spiega="Da dove arrivano quelli che chiudono" righe={perFonte} />
+        <Tabella titolo="Per modulo" nome={nomeModulo} spiega="Quale modulo Meta porta clienti, non solo contatti" righe={perModulo} />
         <Tabella titolo="Per campagna" spiega="Quale annuncio porta clienti, non solo contatti" righe={perCampagna} />
         <Tabella titolo="Per tipo di attività" spiega="Chi dice di essere, e chi poi firma" righe={perTipologia} />
         <Tabella titolo="Per urgenza dichiarata" spiega="«Subito» converte davvero più di «sto valutando»?" righe={perTempistica} />

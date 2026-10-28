@@ -376,7 +376,7 @@ function Viste({ stato, setStato, leggiQuery }: { stato: StatoElenco; setStato: 
   )
 }
 
-export function BarraFiltri({ stato, setStato, righe, etichette, conteggio, gruppi, fasi, conOrdine, leggiQuery }: {
+export function BarraFiltri({ stato, setStato, righe, etichette, conteggio, gruppi, fasi, moduli, conOrdine, leggiQuery }: {
   stato: StatoElenco
   setStato: (s: StatoElenco) => void
   /** tutte le righe: le opzioni dei filtri si contano su quello che esiste */
@@ -387,10 +387,32 @@ export function BarraFiltri({ stato, setStato, righe, etichette, conteggio, grup
   gruppi?: { chiave: string; etichetta: string; quante: number }[]
   /** §461 — una fase per chip, col suo numero: quanti lead ci sono ora, dato il resto dei filtri */
   fasi?: { chiave: string; etichetta: string; quante: number }[]
+  /** §495 — un modulo Meta per chip, con lo stesso conteggio delle fasi */
+  moduli?: { chiave: string; etichetta: string; quante: number }[]
   conOrdine: boolean
   leggiQuery: (q: string) => StatoElenco
 }) {
   const attivi = quantiAttivi(stato)
+  /* un chip accende o spegne un valore della sua scelta, e la scelta vuota
+     sparisce dallo stato: fasi e moduli passano tutti e due da qui */
+  const alterna = (campo: string, valore: string) => {
+    const scelte = stato.scelte[campo] ?? []
+    const prossime = scelte.includes(valore) ? scelte.filter(x => x !== valore) : [...scelte, valore]
+    const { [campo]: _tolta, ...resto } = stato.scelte
+    setStato({ ...stato, scelte: prossime.length ? { ...resto, [campo]: prossime } : resto })
+  }
+  const righeChip = (campo: string, voci: { chiave: string; etichetta: string; quante: number }[], etichetta: string) => (
+    <div className="flex items-center gap-1.5 flex-wrap" role="group" aria-label={etichetta}>
+      {voci.map(v => {
+        const on = (stato.scelte[campo] ?? []).includes(v.chiave)
+        return (
+          <button key={v.chiave} type="button" aria-pressed={on} onClick={() => alterna(campo, v.chiave)} className={chip(on)}>
+            {v.etichetta}<span className="ml-1.5 tabular text-text-tertiary">{v.quante}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
   const filtriScelta = FILTRABILI.filter(f => stato.scelte[f.campo]?.length)
   const filtriData = CAMPI_DATA.filter(c => stato.date[c])
   const [q, setQ] = useState(stato.q)
@@ -431,25 +453,10 @@ export function BarraFiltri({ stato, setStato, righe, etichette, conteggio, grup
         </span>
       </div>
 
-      {fasi && (
-        <div className="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Filtra per stato">
-          {fasi.map(f => {
-            const scelte = stato.scelte.stage ?? []
-            const on = scelte.includes(f.chiave)
-            return (
-              <button key={f.chiave} type="button" aria-pressed={on}
-                onClick={() => {
-                  const prossime = on ? scelte.filter(x => x !== f.chiave) : [...scelte, f.chiave]
-                  const { stage: _tolta, ...resto } = stato.scelte
-                  setStato({ ...stato, scelte: prossime.length ? { ...resto, stage: prossime } : resto })
-                }}
-                className={chip(on)}>
-                {f.etichetta}<span className="ml-1.5 tabular text-text-tertiary">{f.quante}</span>
-              </button>
-            )
-          })}
-        </div>
-      )}
+      {fasi && righeChip('stage', fasi, 'Filtra per stato')}
+      {/* §495 — da quale modulo Meta sono arrivati: con un modulo solo la riga
+          non dice niente, e non si mostra */}
+      {moduli && moduli.length > 1 && righeChip('form', moduli, 'Filtra per modulo')}
 
       <div className="flex items-center gap-1.5 flex-wrap">
         {gruppi?.map(g => (

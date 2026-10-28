@@ -1075,6 +1075,24 @@ della variabile>"`. Il 28 ottobre: 97 lead nel Modulo 1, 2 nel Modulo 2 - IA
 più le prove sul modulo IA in `sales-import`, `sales-sync`, `sales-ads` e
 `sales-igiene`.
 
+## Quanti per modulo, in Elenco e in Numeri — §495
+
+Il totale c'era («104 righe · 75 ancora aperti»), la suddivisione per modulo no:
+il filtro «Modulo» del §494 stava dentro «+ Filtro», e per sapere quanti lead
+aveva portato il modulo IA bisognava aprirlo. Adesso sotto i chip delle fasi c'è
+una riga **per modulo** — `Modulo 1 - Lancio 97 · Modulo IA 2 · Fuori dal foglio
+5` al 28 ottobre — con la regola dei chip di stato: il numero segue ricerca e
+altri filtri ma non il proprio, e un clic filtra. Con un modulo solo la riga non
+compare. In **Numeri** c'è la tabella «Per modulo», accanto a «Per campagna»:
+la campagna non basta, perché Modulo 1 e modulo IA girano anche sulla stessa
+campagna «…Solo IA».
+
+Il raggruppamento è per `lead_origine.form`, il nome del modulo che Meta scrive
+su ogni lead — anche su quelli entrati prima delle schede —, senza i doppi spazi
+(`nomeModulo`). «Fuori dal foglio» sono i lead inseriti a mano o da un file
+(`SENZA_MODULO`). Il codice dei chip è uno solo per fasi e moduli (`alterna` in
+`BarraFiltri`). Gate: `npx tsx lib/sales-filtri.check.ts`.
+
 ## Aperto
 
 - **La RLS non conosceva `deal_owners`**: `sales_can_read` (223) guardava solo
