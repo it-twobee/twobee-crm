@@ -162,9 +162,21 @@ export function suggerimenti(r: RigaScheda, valori: Record<string, unknown>): Su
   return out
 }
 
-/** «circa 500.000 €» → «500000». `null` se dentro non c'è un numero. */
+/**
+ * «circa 500.000 €» → «500000». `null` se dentro non c'è un numero, **o se ce
+ * n'è più d'uno**.
+ *
+ * §496 — i moduli Meta rispondono a fasce: «500.000 € – 1 m€» diventava
+ * 5000001 togliendo tutto quello che non era una cifra, e «250.000–500.000 €»
+ * duecentocinquanta miliardi. Una fascia non è un numero; resta nel badge e
+ * in «Da dove arriva», dove si legge per quello che è. Anche un tetto o una
+ * soglia («meno di», «oltre», «fino a») non è il fatturato.
+ */
 export function soloNumero(v: string | null | undefined): string | null {
   if (!v) return null
-  const cifre = v.replace(/[^\d]/g, '')
+  if (/\b(meno|oltre|fino|tra|almeno|più|piu)\b/i.test(v)) return null
+  const numeri = v.match(/\d[\d.,]*/g) ?? []
+  if (numeri.length !== 1) return null
+  const cifre = numeri[0].replace(/[^\d]/g, '')
   return cifre.length >= 3 ? cifre : null
 }

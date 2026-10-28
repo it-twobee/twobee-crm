@@ -1093,6 +1093,61 @@ su ogni lead — anche su quelli entrati prima delle schede —, senza i doppi s
 (`SENZA_MODULO`). Il codice dei chip è uno solo per fasi e moduli (`alterna` in
 `BarraFiltri`). Gate: `npx tsx lib/sales-filtri.check.ts`.
 
+## Il commerciale sul telefono, e tre bug che non si vedevano — §496
+
+Revisione fatta con la skill `design-taste-frontend` (regole per le schermate
+di lavoro, ispettore a 1440 / 768 / 390 nei due temi), tenendo palette e
+caratteri del design system. Le misure vengono da una pagina di prova locale
+con i componenti veri e 104 lead inventati, che non sta nel repository.
+
+**Bug.**
+- **Le classi colore con l'opacità non esistevano.** I token sono
+  `var(--color-*)` senza `<alpha-value>`, e Tailwind 3 scarta in silenzio
+  `bg-gold/10`, `border-error/40`, `text-text-primary/80`. Nel commerciale
+  erano 53: la riga del lead aperto non si evidenziava, le barre di «Dove sono
+  adesso» erano invisibili, i bordi di avvisi e conferme prendevano il colore
+  di default. Adesso sono `[color:color-mix(in_srgb,var(--color-x)_N%,transparent)]`.
+  **Nel resto dell'app ce ne sono ancora circa 920**, in 111 file: la
+  correzione generale (una riga in `tailwind.config.ts`) cambia l'aspetto di
+  molte pagine insieme, ed è una decisione a parte.
+- **«Lo sappiamo già» inventava il fatturato.** `soloNumero` toglieva tutto
+  quello che non era una cifra: «500.000 € – 1 m€» diventava 5000001,
+  «250.000–500.000 €» duecentocinquanta miliardi, «Meno di 500.000 €» 500000.
+  Adesso un numero si propone solo se la risposta ne contiene uno e non è un
+  tetto o una soglia. In produzione un lead ha già 500000 salvato da «Meno di
+  500.000 €»: da ricontrollare a mano.
+- Un'emoji usata come icona di modifica nelle celle (`✎`): ora è l'icona della matita.
+
+**Telefono.**
+- La testata porta «Nuovo lead» sulla riga del titolo: prima stava dopo le
+  cinque viste e a 390px finiva fuori dallo schermo. Le viste sono una riga
+  che scorre di lato; «Esporta» sul telefono resta nella barra della selezione.
+- I filtri, sotto i 1024px, sono ricerca + «Filtri (n)» + i gruppi in una riga
+  che scorre; viste rapide, fasi, moduli, altri filtri e ordine stanno in un
+  pannello a tutto schermo con «Mostra N lead». Prima erano quindici righe di
+  chip e il primo lead cominciava sotto il primo schermo; adesso a 390px parte
+  a metà. Ogni pezzo della barra è scritto una volta e messo nei due posti.
+- Nella riga il nome ha la prima riga per sé: la fase sta in alto a destra,
+  fatturato e tipo di ads scendono nei dettagli, la provenienza si taglia
+  invece di andare a capo. Referente, telefono ed email passano a 13px.
+- Nella scheda il QR lascia il posto ad «Aggiungi ai contatti»: il telefono
+  che lo inquadrerebbe è quello in mano. Apre la stessa vCard da un `blob:`.
+- In Numeri le quattro cifre sono una griglia 2×2, le tabelle stanno nello
+  schermo (prima colonna più stretta, «Conv.») e i nomi di campagna perdono la
+  parte che hanno tutti in comune («TwoBee_2026_Lug_…»), col nome intero nel
+  `title`.
+
+**Desktop.**
+- Tre righe di filtri invece di quattro: l'ordine accanto al conteggio, i
+  moduli sulla riga dei gruppi.
+- Il contachilometri non sta sui lead appena arrivati: lì segnava sempre l'8%
+  in rosso, su ogni riga, e ripeteva «Mai sentito». Il posto resta, per le date.
+
+Ispettore dopo: 0 errori di misura salvo uno difendibile (la riga dei gruppi
+scorre di lato e tocca il bordo, come chiede la regola per il telefono); il
+testo sotto i 13px passa dall'87% al 62%; l'avviso sui bordi «bianchi» è un
+falso positivo (`rgba(255,255,255,.10)` letto senza l'alfa).
+
 ## Aperto
 
 - **La RLS non conosceva `deal_owners`**: `sales_can_read` (223) guardava solo

@@ -16,7 +16,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react'
-import { Check, X } from 'lucide-react'
+import { Check, Pencil, X } from 'lucide-react'
 import { useFasi } from './FasiContext'
 import { eLista } from '@/lib/sales-scelte'
 import { ETICHETTA_QUALIFICA } from '@/lib/sales-table'
@@ -196,7 +196,7 @@ export function CrmCella({ colonna, valore, onSalva, disabilitato }: {
           <a href={link.href} {...(link.fuori ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
             className="truncate text-2xs text-gold-text hover:underline" title={v}>{link.testo}</a>
           <button type="button" onClick={apri} aria-label={`Modifica ${colonna.etichetta}`}
-            className="text-text-tertiary hover:text-text-primary text-2xs shrink-0">✎</button>
+            className="text-text-tertiary hover:text-text-primary shrink-0"><Pencil className="w-3 h-3" aria-hidden /></button>
         </span>
       )
     }

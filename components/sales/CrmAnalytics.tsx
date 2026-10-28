@@ -24,6 +24,22 @@ import { ETICHETTA_QUALIFICA } from '@/lib/sales-table'
 import { nomeModulo } from '@/lib/sales-filtri'
 import { useFasi } from './FasiContext'
 
+/**
+ * §496 — i nomi di campagna di Meta cominciano tutti uguali
+ * («TwoBee_2026_Lug_Contatti_Campagna Lancio 1…»), e tagliati a 144px sul
+ * telefono diventavano sei righe identiche. Si toglie la parte che hanno in
+ * comune, fino all'ultimo separatore: resta quello che le distingue, e il nome
+ * intero sta nel `title` della cella.
+ */
+function senzaPrefisso(valori: string[]): (v: string) => string {
+  if (valori.length < 2) return v => v
+  let comune = valori[0]
+  for (const v of valori) while (!v.startsWith(comune)) comune = comune.slice(0, -1)
+  const taglio = Math.max(comune.lastIndexOf('_'), comune.lastIndexOf(' '), comune.lastIndexOf('-')) + 1
+  if (taglio < 8) return v => v
+  return v => (v.startsWith(comune.slice(0, taglio)) && v.length > taglio ? `…${v.slice(taglio)}` : v)
+}
+
 function Tabella({ titolo, spiega, righe, nome = v => v }: {
   titolo: string; spiega: string; righe: Riga[]
   /** §431 — il valore raggruppato non è sempre da leggere: gli owner sono id */
@@ -40,19 +56,24 @@ function Tabella({ titolo, spiega, righe, nome = v => v }: {
         <table className="w-full text-left">
           <thead>
             <tr className="border-b border-border">
+              {/* §496 — sul telefono la prima colonna si stringe e «Conversione»
+                  si accorcia: cinque colonne a 390px stanno solo così, senza
+                  costringere a scorrere per leggere il tasso */}
               {['', 'Clienti', 'Persi', 'Aperti', 'Conversione'].map((h, i) => (
-                <th key={h || i} className={`px-3 py-1.5 text-2xs font-semibold text-text-tertiary uppercase ${i ? 'text-right' : ''}`}>{h}</th>
+                <th key={h || i} className={`px-2 sm:px-3 py-1.5 text-2xs font-semibold text-text-tertiary whitespace-nowrap ${i ? 'text-right' : ''}`}>
+                  {h === 'Conversione' ? <><span className="sm:hidden">Conv.</span><span className="hidden sm:inline">{h}</span></> : h}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {righe.map(r => (
               <tr key={r.valore} className="border-b border-border last:border-0">
-                <td className="px-3 py-1.5 text-2xs text-text-primary max-w-56 truncate" title={nome(r.valore)}>{nome(r.valore)}</td>
-                <td className="px-3 py-1.5 text-2xs text-right tabular text-success font-semibold">{r.vinti || '—'}</td>
-                <td className="px-3 py-1.5 text-2xs text-right tabular text-text-tertiary">{r.persi || '—'}</td>
-                <td className="px-3 py-1.5 text-2xs text-right tabular text-text-secondary">{r.aperti || '—'}</td>
-                <td className="px-3 py-1.5 text-2xs text-right">
+                <td className="px-2 sm:px-3 py-1.5 text-2xs text-text-primary max-w-[9rem] sm:max-w-56 truncate" title={nome(r.valore).startsWith('…') ? r.valore : nome(r.valore)}>{nome(r.valore)}</td>
+                <td className="px-2 sm:px-3 py-1.5 text-2xs text-right tabular text-success font-semibold">{r.vinti || '—'}</td>
+                <td className="px-2 sm:px-3 py-1.5 text-2xs text-right tabular text-text-tertiary">{r.persi || '—'}</td>
+                <td className="px-2 sm:px-3 py-1.5 text-2xs text-right tabular text-text-secondary">{r.aperti || '—'}</td>
+                <td className="px-2 sm:px-3 py-1.5 text-2xs text-right whitespace-nowrap">
                   <span className={r.affidabile ? 'text-text-primary font-semibold tabular' : 'text-text-tertiary tabular'}>
                     {perCento(r.tasso)}
                   </span>
@@ -123,7 +144,7 @@ export function CrmAnalytics({ righe: filtrate, totale, nomeDi }: {
           Nessun lead in questo insieme: allarga il periodo o togli un filtro.
         </p>
       ) : <>
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
           { v: perCento(t.tasso), l: 'Conversione', h: `${t.vinti} clienti su ${t.conclusi} conclusi`, forte: true },
           { v: String(t.aperti), l: 'Ancora aperti', h: 'su cui si può agire' },
@@ -156,9 +177,15 @@ export function CrmAnalytics({ righe: filtrate, totale, nomeDi }: {
         <div className="space-y-1">
           {passi.map(p => (
             <div key={p.chiave} className="flex items-center gap-2">
-              <span className={`text-2xs px-2 py-0.5 rounded-full shrink-0 w-44 truncate ${classiFase(p.chiave)}`}>{p.etichetta}</span>
-              <span className="h-2 rounded-full bg-gold/40" style={{ width: `${(p.quante / massimo) * 60}%` }} />
-              <span className="text-2xs tabular text-text-secondary">{p.quante}</span>
+              <span className={`text-2xs px-2 py-0.5 rounded-full shrink-0 w-32 sm:w-44 truncate ${classiFase(p.chiave)}`}>{p.etichetta}</span>
+              {/* §496 — la barra misura lo spazio che resta, non la riga intera:
+                  a 390px etichetta e barra al 60% della riga non ci stavano, e
+                  il numero finiva fuori. Fino a lì, la classe `bg-gold/40` non
+                  esisteva e la barra non si vedeva proprio. */}
+              <span className="flex-1 min-w-0 flex items-center gap-2">
+                <span className="h-2 rounded-full bg-[color:color-mix(in_srgb,var(--color-gold)_40%,transparent)]" style={{ width: `${(p.quante / massimo) * 85}%` }} />
+                <span className="text-2xs tabular text-text-secondary">{p.quante}</span>
+              </span>
             </div>
           ))}
         </div>
@@ -167,7 +194,8 @@ export function CrmAnalytics({ righe: filtrate, totale, nomeDi }: {
       <div className="grid gap-3 lg:grid-cols-2">
         <Tabella titolo="Per fonte" spiega="Da dove arrivano quelli che chiudono" righe={perFonte} />
         <Tabella titolo="Per modulo" nome={nomeModulo} spiega="Quale modulo Meta porta clienti, non solo contatti" righe={perModulo} />
-        <Tabella titolo="Per campagna" spiega="Quale annuncio porta clienti, non solo contatti" righe={perCampagna} />
+        <Tabella titolo="Per campagna" spiega="Quale annuncio porta clienti, non solo contatti" righe={perCampagna}
+          nome={senzaPrefisso(perCampagna.map(r => r.valore).filter(v => v !== 'Non indicato'))} />
         <Tabella titolo="Per tipo di attività" spiega="Chi dice di essere, e chi poi firma" righe={perTipologia} />
         <Tabella titolo="Per urgenza dichiarata" spiega="«Subito» converte davvero più di «sto valutando»?" righe={perTempistica} />
         <Tabella titolo="Per Account Owner" nome={v => v === 'Nessuno' ? v : nomeDi.get(v) ?? 'Ex collega'}

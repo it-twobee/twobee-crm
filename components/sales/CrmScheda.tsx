@@ -81,7 +81,7 @@ function Owner({ riga, persone, onOwner }: {
             <button key={p.id} type="button" aria-pressed={on}
               onClick={() => onOwner(on ? scelti.filter(x => x !== p.id) : [...scelti, p.id])}
               className={`flex items-center gap-1 text-2xs px-2 py-1 rounded-lg border transition-colors ${
-                on ? 'border-gold/40 bg-gold/10 text-gold-text' : 'border-border text-text-secondary hover:text-text-primary'}`}>
+                on ? 'border-[color:color-mix(in_srgb,var(--color-gold)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--color-gold)_10%,transparent)] text-gold-text' : 'border-border text-text-secondary hover:text-text-primary'}`}>
               {on && <Check className="w-3 h-3" aria-hidden />}{p.nome}
             </button>
           )
@@ -202,7 +202,7 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pend
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border shrink-0 flex-wrap">
         {typeof riga.contact_phone === 'string' && riga.contact_phone && (
           <a href={`tel:${riga.contact_phone.replace(/\s/g, '')}`}
-            className="text-xs font-semibold text-gold-text border border-gold/30 px-3 py-1.5 rounded-xl hover:bg-gold/10 transition-colors">
+            className="text-xs font-semibold text-gold-text border border-[color:color-mix(in_srgb,var(--color-gold)_30%,transparent)] px-3 py-1.5 rounded-xl hover:bg-[color:color-mix(in_srgb,var(--color-gold)_10%,transparent)] transition-colors">
             Chiama
           </a>
         )}
@@ -225,7 +225,7 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pend
         {onElimina && (
           <button onClick={onElimina} disabled={pending}
             aria-label={`Elimina il lead ${riga.company_name ?? ''}`.trim()}
-            className={`flex items-center gap-1.5 text-xs font-semibold text-error border border-error/30 px-3 py-1.5 rounded-xl hover:bg-error-dim transition-colors disabled:opacity-40 ${riga.client_id ? 'ml-auto' : ''}`}>
+            className={`flex items-center gap-1.5 text-xs font-semibold text-error border border-[color:color-mix(in_srgb,var(--color-error)_30%,transparent)] px-3 py-1.5 rounded-xl hover:bg-error-dim transition-colors disabled:opacity-40 ${riga.client_id ? 'ml-auto' : ''}`}>
             <Trash2 className="w-3.5 h-3.5" />Elimina
           </button>
         )}
@@ -249,8 +249,8 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pend
         {azione && (
           <div className={`flex items-start gap-2 px-3 py-2.5 rounded-xl border text-xs ${
             azione.urgente
-              ? 'bg-warning-dim border-warning/30 text-warning'
-              : 'bg-gold-dim border-gold/30 text-gold-text'}`}>
+              ? 'bg-warning-dim border-[color:color-mix(in_srgb,var(--color-warning)_30%,transparent)] text-warning'
+              : 'bg-gold-dim border-[color:color-mix(in_srgb,var(--color-gold)_30%,transparent)] text-gold-text'}`}>
             {azione.urgente ? <TriangleAlert className="w-4 h-4 shrink-0 mt-px" /> : <Target className="w-4 h-4 shrink-0 mt-px" />}
             <span>{azione.testo}</span>
           </div>
@@ -279,7 +279,7 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pend
                 <span className="text-text-tertiary shrink-0">{colonnaDi(s.campo)?.etichetta ?? s.campo}</span>
                 <span className="flex-1 min-w-0 truncate text-text-primary" title={`da ${s.da}`}>{s.valore}</span>
                 <button onClick={() => { void onSalva(s.campo, s.valore) }} disabled={pending}
-                  className="shrink-0 text-2xs font-semibold text-gold-text border border-gold/30 px-2 py-0.5 rounded-lg hover:bg-gold/10 disabled:opacity-40">
+                  className="shrink-0 text-2xs font-semibold text-gold-text border border-[color:color-mix(in_srgb,var(--color-gold)_30%,transparent)] px-2 py-0.5 rounded-lg hover:bg-[color:color-mix(in_srgb,var(--color-gold)_10%,transparent)] disabled:opacity-40">
                   Usa
                 </button>
               </div>

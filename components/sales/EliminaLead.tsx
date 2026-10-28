@@ -53,7 +53,7 @@ export function EliminaLead({ nomi, inAnagrafica, pending, onAnnulla, onConferma
             {nomi.length > 8 && <span className="text-2xs text-text-secondary self-center">+{nomi.length - 8} altri</span>}
           </div>
 
-          <div className="bg-error-dim border border-error/30 rounded-xl p-3">
+          <div className="bg-error-dim border border-[color:color-mix(in_srgb,var(--color-error)_30%,transparent)] rounded-xl p-3">
             <p className="text-2xs font-bold text-error uppercase tracking-wider mb-1.5">Sparisce anche</p>
             <p className="text-xs text-text-primary">
               La storia della trattativa: attività, account owner e scheda di passaggio alla delivery.
@@ -80,7 +80,7 @@ export function EliminaLead({ nomi, inAnagrafica, pending, onAnnulla, onConferma
             Annulla
           </button>
           <button onClick={onConferma} disabled={pending}
-            className="ml-auto flex items-center gap-1.5 text-sm font-semibold bg-error-dim border border-error/40 text-error px-4 py-2 rounded-xl hover:bg-error/20 disabled:opacity-40 press">
+            className="ml-auto flex items-center gap-1.5 text-sm font-semibold bg-error-dim border border-[color:color-mix(in_srgb,var(--color-error)_40%,transparent)] text-error px-4 py-2 rounded-xl hover:bg-[color:color-mix(in_srgb,var(--color-error)_20%,transparent)] disabled:opacity-40 press">
             {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
             Elimina
           </button>

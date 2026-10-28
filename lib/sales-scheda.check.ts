@@ -89,6 +89,12 @@ is('con le migliaia', soloNumero('circa 500.000 €'), '500000')
 is('un numero corto non è un fatturato', soloNumero('12'), null)
 is('e una frase senza cifre nemmeno', soloNumero('non saprei'), null)
 is('niente resta niente', soloNumero(null), null)
+/* §496 — le fasce dei moduli Meta non sono numeri */
+is('una fascia non diventa 5000001', soloNumero('500.000 € – 1 m€ / anno'), null)
+is('né duecentocinquanta miliardi', soloNumero('250.000–500.000 €'), null)
+is('un tetto non è il fatturato', soloNumero('Meno di 500.000 € / anno'), null)
+is('nemmeno una soglia', soloNumero('Fino a 250.000 €'), null)
+is('e la fascia non si propone', suggerimenti({ lead_origine: { fatturato_dichiarato: '500.000 € – 1 m€ / anno' } }, {}).find(s => s.campo === 'fatturato'), undefined)
 
 console.log('\n— I giorni —')
 is('ieri', giorniDa(gg(1), OGGI), 1)

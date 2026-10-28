@@ -28,7 +28,7 @@ import { useState, useMemo, useTransition, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { Loader2, RefreshCw, BarChart3, List, Columns3, Table2, ShieldCheck, Plus, Trash2, ChevronRight } from 'lucide-react'
 
-import { ETICHETTA_GRUPPO, GRUPPI, gruppoDi, type Gruppo } from '@/lib/sales-stages'
+import { ETICHETTA_GRUPPO, GRUPPI, gruppoDi, ruoloDi, type Gruppo } from '@/lib/sales-stages'
 import { useFasi } from './FasiContext'
 import { MenuFase } from './MenuFase'
 import { dividiPersi, notaInRiga } from '@/lib/sales-elenco'
@@ -435,8 +435,8 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
                    quando ha il fuoco da tastiera, e dove l'hover non esiste
                    (`hover: none`): sul telefono non comparirebbe mai. */
                 <div key={r.id}
-                  className={`group flex items-center gap-2.5 px-3 transition-colors ${
-                    scelta ? 'bg-gold/10' : 'hover:bg-surface-hover'}`}>
+                  className={`group relative flex items-center gap-2.5 px-3 transition-colors ${
+                    scelta ? 'bg-[color:color-mix(in_srgb,var(--color-gold)_10%,transparent)]' : 'hover:bg-surface-hover'}`}>
                   {puoiEliminare && (
                     <input type="checkbox" checked={selezione.includes(r.id)} onChange={() => scegli(r.id)}
                       aria-label={`Seleziona ${r.company_name || 'il lead senza nome'}`}
@@ -447,17 +447,21 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
                 <button onClick={() => setAperta(scelta ? null : r)}
                   aria-current={scelta ? 'true' : undefined}
                   className="flex-1 min-w-0 text-left py-2.5">
-                  <span className="flex items-center gap-2 min-w-0">
+                  {/* §496 — sul telefono il nome ha la riga tutta per sé: la fase
+                      sta in alto a destra sopra le altre righe, e fatturato e tipo
+                      di ads scendono nella riga dei dettagli. Prima i tre si
+                      prendevano la larghezza e del nome restavano tre lettere. */}
+                  <span className="flex items-center gap-2 min-w-0 pr-[8.5rem] sm:pr-0">
                     <span className="min-w-0 text-sm font-semibold text-text-primary truncate">
                       {r.company_name || 'Senza nome'}
                     </span>
-                    <BadgeLead origine={r.lead_origine as Record<string, unknown> | null} />
+                    <BadgeLead origine={r.lead_origine as Record<string, unknown> | null} className="hidden sm:flex" />
                   </span>
                   {/* §376 — referente, email e telefono si leggono senza
                       aprire la scheda: sono le tre cose che servono per
                       decidere se chiamare adesso, e tenerle dietro un clic
                       voleva dire aprire ventinove schede per trovarne una. */}
-                  <span className="block text-2xs text-text-secondary truncate mt-0.5">
+                  <span className="block text-xs text-text-secondary truncate mt-0.5">
                     {[referente, telefono, email].filter(Boolean).join(' · ') || 'Nessun recapito'}
                   </span>
                   {/* §426 — la nota si legge senza aprire niente: è il campo
@@ -470,21 +474,24 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
                        dopo. La nota del foglio resta nella scheda. */
                     <span className="block text-2xs truncate mt-0.5" title={[ultima.titolo, ultima.testo].filter(Boolean).join(' — ')}>
                       <span className="font-semibold text-text-secondary">{ultima.titolo}</span>
-                      {ultima.testo && <span className="text-text-primary/80"> — {ultima.testo}</span>}
+                      {ultima.testo && <span className="text-[color:color-mix(in_srgb,var(--color-text-primary)_80%,transparent)]"> — {ultima.testo}</span>}
                     </span>
                   ) : nota && (
-                    <span className="block text-2xs text-text-primary/80 truncate mt-0.5" title={String(r.notes ?? '')}>
+                    <span className="block text-2xs text-[color:color-mix(in_srgb,var(--color-text-primary)_80%,transparent)] truncate mt-0.5" title={String(r.notes ?? '')}>
                       {nota}
                     </span>
                   )}
-                  <span className="flex items-center gap-2 mt-px">
-                    <span className={`text-2xs shrink-0 tabular ${!sentito ? 'text-text-tertiary' : fermo ? 'text-warning' : 'text-text-secondary'}`}
+                  <span className="flex flex-wrap sm:flex-nowrap items-center gap-x-2 gap-y-0.5 mt-px">
+                    <BadgeLead origine={r.lead_origine as Record<string, unknown> | null} className="sm:hidden" />
+                    <span className={`text-2xs sm:shrink-0 tabular ${!sentito ? 'text-text-tertiary' : fermo ? 'text-warning' : 'text-text-secondary'}`}
                       title={sentito ? 'Ultimo contatto' : undefined}>
                       {sentito ? `Sentito ${sentito.charAt(0).toLowerCase()}${sentito.slice(1)}` : 'Mai sentito'}
                       {tentativi > 0 && <span className="text-warning"> · {tentativi} a vuoto</span>}
                       {richiamo && <span className="text-gold-text"> · richiamo {richiamo.charAt(0).toLowerCase()}{richiamo.slice(1)}</span>}
                     </span>
-                    {contorno && <span className="text-2xs text-text-tertiary truncate">{contorno}</span>}
+                    {/* base zero: si prende lo spazio che resta e si taglia, invece
+                        di andare a capo e allungare la riga sul telefono */}
+                    {contorno && <span className="text-2xs text-text-tertiary truncate min-w-0 flex-1 basis-0 sm:flex-initial sm:basis-auto">{contorno}</span>}
                     {arrivo && (
                       /* Giorno **e ora**: due lead dello stesso giorno non
                          sono la stessa cosa se uno è arrivato alle nove e
@@ -499,16 +506,49 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
                     trascinamento (§379): quella serve perché un trascinamento
                     mancato sposta una scheda senza che chi l'ha fatto se ne
                     accorga, mentre questo è un gesto dichiarato. */}
-                {vic && <Contachilometri v={vic} className="hidden sm:block" />}
+                {/* §496 — non sui lead appena arrivati: lì segna sempre l'8% in
+                    rosso, uguale su ogni riga, e ripete quello che la riga dice
+                    già («Mai sentito»). Il posto resta, o le date non
+                    sarebbero più in colonna. */}
+                {vic && ruoloDi(TUTTE, String(r.stage)) !== 'nuovo'
+                  ? <Contachilometri v={vic} className="hidden sm:block" />
+                  : <span className="hidden sm:block w-[60px] shrink-0" aria-hidden />}
                 <MenuFase
                   valore={r.stage as string}
                   etichetta={`Fase di ${r.company_name || 'questo lead'}`}
-                  className="shrink-0 max-w-[10rem]"
+                  className="shrink-0 max-w-[8rem] sm:max-w-[10rem] absolute right-3 top-2.5 sm:static"
                   onScegli={fase => { void salva(r, 'stage', fase) }}
                 />
                 </div>
               )
   }
+
+  /* i comandi della testata: sul telefono accanto al titolo, da 1024px in su
+     dopo le viste. Due posti, una definizione */
+  const azioni = (
+    <>
+          {/* L'azione primaria della pagina, quindi piena e con `press` come
+              «Nuova task» e «Nuovo Cliente»: l'oro è il riempimento, non
+              l'inchiostro (§design system). */}
+          {/* «Nuovo lead» viene prima di «Aggiorna»: aggiungere è la cosa
+              che si fa più spesso, e il foglio si rilegge da solo di notte. */}
+          <button onClick={() => setNuovo(true)}
+            className="flex items-center gap-1.5 text-sm font-semibold bg-gold text-on-gold px-4 py-2.5 rounded-xl shadow-soft press">
+            <Plus className="w-4 h-4" />Nuovo lead
+          </button>
+          {/* §441 — super admin, founder e admin: la porta vera è la route */}
+          {puoiEsportare && vista !== 'controllo' && (
+            <span className="hidden sm:contents"><EsportaLead selezionati={selezione} mostrati={viste.map(r => r.id)} tutti={righe.map(r => r.id)}
+              filtri={descrivi(stato, etichettaValore, g => g === 'tutti' ? 'Tutti' : ETICHETTA_GRUPPO[g as Gruppo])} /></span>
+          )}
+          <button onClick={aggiorna} disabled={aggiorno} aria-label="Aggiorna dal foglio"
+            title="Rilegge il foglio dei lead: inserisce solo le righe nuove, non tocca quelle che ci sono"
+            className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary border border-border px-3 py-2 rounded-xl hover:text-text-primary hover:bg-surface-hover transition-colors disabled:opacity-40">
+            <RefreshCw className={`w-3.5 h-3.5 ${aggiorno ? 'animate-spin' : ''}`} />
+            <span className="hidden xl:inline">{aggiorno ? 'Leggo il foglio…' : 'Aggiorna dal foglio'}</span>
+          </button>
+    </>
+  )
 
   return (
     <div className="max-w-none p-4 sm:p-6 space-y-5">
@@ -520,9 +560,17 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
           «Esporta» la riga era diventata più larga dello spazio e andava a capo.
           Il titolo si stringe (la frase di §351 va a capo lei), i comandi no, e
           sotto i 1280px i due secondari restano solo icona. */}
-      <div className="flex items-start justify-between gap-3 flex-wrap lg:flex-nowrap">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl sm:text-3xl font-black text-text-primary font-heading">Commerciale</h1>
+      {/* §496 — sul telefono la riga del titolo porta l'azione primaria: prima
+          stava in fondo al gruppo dei comandi, dopo le cinque viste, e a 390px
+          finiva fuori dallo schermo senza che niente lo dicesse. Le viste vanno
+          sotto, in una riga che scorre di lato invece di essere tagliata; da
+          1024px in su tutto torna sulla riga del titolo. */}
+      <div className="space-y-3 lg:space-y-0 lg:flex lg:items-start lg:justify-between lg:gap-3">
+        <div className="min-w-0 lg:flex-1">
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-2xl sm:text-3xl font-black text-text-primary font-heading">Commerciale</h1>
+            <div className="flex items-center gap-2 shrink-0 lg:hidden">{azioni}</div>
+          </div>
           <VoceSezione sezione="commerciale" />
           <p className="text-text-secondary text-sm mt-0.5">
             <span className="tabular font-semibold text-text-primary">{viste.length}</span> righe
@@ -531,10 +579,11 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
             {t.aperti > 0 && <> · <span className="text-gold-text font-semibold tabular">{t.aperti}</span> ancora aperti</>}
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap lg:flex-nowrap shrink-0 justify-end">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto min-w-0">
           {/* §379 — tre viste, quindi tre bottoni e non un interruttore che
               cicla: con due, «cosa c'è dopo» si indovinava premendo. */}
-          <div className="flex items-center border border-border rounded-xl overflow-hidden">
+          <div className="inline-flex items-center border border-border rounded-xl overflow-hidden">
             {([
               ['tabella', 'Elenco', List],
               ['foglio', 'Foglio', Table2],
@@ -547,7 +596,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
                    `var(--color-*)` senza `<alpha-value>`, quindi le classi
                    con l'opacità non vengono generate e lo stato attivo non
                    si vedrebbe. */
-                className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-2 transition-colors ${
+                className={`flex items-center gap-1.5 shrink-0 whitespace-nowrap text-xs font-semibold px-3 py-2 transition-colors ${
                   vista === v ? 'bg-gold-dim text-gold-text' : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'}`}>
                 <Icona className="w-3.5 h-3.5" />{etichetta}
                 {v === 'controllo' && daControllare > 0 && (
@@ -558,26 +607,8 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
               </button>
             ))}
           </div>
-          {/* L'azione primaria della pagina, quindi piena e con `press` come
-              «Nuova task» e «Nuovo Cliente»: l'oro è il riempimento, non
-              l'inchiostro (§design system). */}
-          {/* «Nuovo lead» viene prima di «Aggiorna»: aggiungere è la cosa
-              che si fa più spesso, e il foglio si rilegge da solo di notte. */}
-          <button onClick={() => setNuovo(true)}
-            className="flex items-center gap-1.5 text-sm font-semibold bg-gold text-on-gold px-4 py-2.5 rounded-xl shadow-soft press">
-            <Plus className="w-4 h-4" />Nuovo lead
-          </button>
-          {/* §441 — super admin, founder e admin: la porta vera è la route */}
-          {puoiEsportare && vista !== 'controllo' && (
-            <EsportaLead selezionati={selezione} mostrati={viste.map(r => r.id)} tutti={righe.map(r => r.id)}
-              filtri={descrivi(stato, etichettaValore, g => g === 'tutti' ? 'Tutti' : ETICHETTA_GRUPPO[g as Gruppo])} />
-          )}
-          <button onClick={aggiorna} disabled={aggiorno} aria-label="Aggiorna dal foglio"
-            title="Rilegge il foglio dei lead: inserisce solo le righe nuove, non tocca quelle che ci sono"
-            className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary border border-border px-3 py-2 rounded-xl hover:text-text-primary hover:bg-surface-hover transition-colors disabled:opacity-40">
-            <RefreshCw className={`w-3.5 h-3.5 ${aggiorno ? 'animate-spin' : ''}`} />
-            <span className="hidden xl:inline">{aggiorno ? 'Leggo il foglio…' : 'Aggiorna dal foglio'}</span>
-          </button>
+          </div>
+          <div className="hidden lg:flex items-center gap-2 shrink-0">{azioni}</div>
         </div>
       </div>
 
@@ -743,7 +774,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
           </button>
           {puoiEsportare && <EsportaLead compatto selezionati={selezione} mostrati={viste.map(r => r.id)} tutti={righe.map(r => r.id)} filtri="" />}
           <button onClick={() => setDaEliminare(selezione)}
-            className="ml-auto sm:ml-2 flex items-center gap-1.5 text-sm font-semibold bg-error-dim border border-error/40 text-error px-3 py-1.5 rounded-xl hover:bg-error/20 transition-colors press">
+            className="ml-auto sm:ml-2 flex items-center gap-1.5 text-sm font-semibold bg-error-dim border border-[color:color-mix(in_srgb,var(--color-error)_40%,transparent)] text-error px-3 py-1.5 rounded-xl hover:bg-[color:color-mix(in_srgb,var(--color-error)_20%,transparent)] transition-colors press">
             <Trash2 className="w-3.5 h-3.5" /> Elimina
           </button>
         </div>

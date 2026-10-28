@@ -19,6 +19,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import {
   Search, Plus, X, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, Bookmark, Check, Trash2, Share2, Users, PhoneCall, Hourglass, CalendarRange,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { FILTRABILI, opzioni, type Riga, type Scelte } from '@/lib/sales-filtri'
 import {
@@ -32,7 +33,7 @@ import { MiniCalendario } from '@/components/shared/MiniCalendario'
 
 const chip = (on: boolean) =>
   `text-xs font-semibold px-3 py-1.5 rounded-xl border transition-colors ${on
-    ? 'border-gold/40 bg-gold-dim text-gold-text'
+    ? 'border-[color:color-mix(in_srgb,var(--color-gold)_40%,transparent)] bg-gold-dim text-gold-text'
     : 'border-border text-text-secondary hover:text-text-primary hover:bg-surface-hover'}`
 const voce = 'w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-text-primary hover:bg-surface-hover'
 const ICONA_RAPIDA: Record<Rapida, typeof Users> = { miei: Users, richiamare: PhoneCall, fermi: Hourglass }
@@ -159,7 +160,7 @@ function Filtro({ variabile, stato, setStato, righe, etichette }: {
     testo = etichettaFiltroData(variabile.campo, stato.date[variabile.campo]!)
   }
   return (
-    <span className="inline-flex items-center rounded-xl border border-gold/40 bg-gold-dim text-gold-text text-xs max-w-full">
+    <span className="inline-flex items-center rounded-xl border border-[color:color-mix(in_srgb,var(--color-gold)_40%,transparent)] bg-gold-dim text-gold-text text-xs max-w-full">
       <button ref={bottone} type="button" onClick={() => setAperto(v => !v)} aria-expanded={aperto}
         className="pl-3 pr-1 py-1.5 truncate max-w-[18rem]" title={`${variabile.etichetta}: ${testo}`}>
         <span className="text-text-secondary">{variabile.etichetta}:</span> <span className="font-semibold">{testo}</span>
@@ -424,60 +425,158 @@ export function BarraFiltri({ stato, setStato, righe, etichette, conteggio, grup
     return () => clearTimeout(t)
   }, [q, stato, setStato])
 
+  const [pannello, setPannello] = useState(false)
+  useEffect(() => {
+    if (!pannello) return
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setPannello(false) }
+    window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  }, [pannello])
+
+  /* §496 — ogni pezzo una volta sola: sul desktop sta in riga, sotto i 1024px
+     dentro il pannello dei filtri. Due copie della stessa barra sarebbero due
+     barre che divergono al primo ritocco. */
+  const cerca = (
+    <label className="relative flex-1 min-w-0 lg:min-w-48 lg:max-w-sm">
+      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" aria-hidden />
+      <input value={q} onChange={e => setQ(e.target.value)} aria-label="Cerca fra i lead" placeholder="Azienda, referente, telefono…"
+        className="w-full bg-surface border border-border-interactive rounded-xl pl-8 pr-8 py-2 text-sm text-text-primary" />
+      {q && <button type="button" onClick={() => { setQ(''); setStato({ ...stato, q: '' }) }} aria-label="Svuota la ricerca"
+        className="absolute right-2 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary"><X className="w-4 h-4" /></button>}
+    </label>
+  )
+  /* le tre domande di ogni mattina, a un clic: si escludono a vicenda */
+  const rapide = (
+    <div className="flex items-center gap-1.5 flex-wrap" role="radiogroup" aria-label="Viste rapide">
+      {RAPIDE.map(r => {
+        const I = ICONA_RAPIDA[r]
+        const on = stato.rapida === r
+        return (
+          <button key={r} type="button" role="radio" aria-checked={on} onClick={() => setStato({ ...stato, rapida: on ? null : r })}
+            className={`inline-flex items-center gap-1.5 ${chip(on)}`}>
+            <I className="w-3.5 h-3.5" />{ETICHETTA_RAPIDA[r]}
+          </button>
+        )
+      })}
+    </div>
+  )
+  const chipGruppi = gruppi?.map(g => (
+    <button key={g.chiave} type="button" onClick={() => setStato({ ...stato, gruppo: g.chiave })} aria-pressed={stato.gruppo === g.chiave}
+      className={`shrink-0 whitespace-nowrap ${chip(stato.gruppo === g.chiave)}`}>
+      {g.etichetta}<span className="ml-1.5 tabular text-text-tertiary">{g.quante}</span>
+    </button>
+  ))
+  /* §495 — da quale modulo Meta sono arrivati: con un modulo solo la riga
+     non dice niente, e non si mostra */
+  const conModuli = !!moduli && moduli.length > 1
+  const altriFiltri = (
+    <>
+      {filtriData.map(c => <Filtro key={c} variabile={{ tipo: 'data', campo: c, etichetta: ETICHETTA_DATA[c] }} stato={stato} setStato={setStato} righe={righe} etichette={etichette} />)}
+      {filtriScelta.map(f => <Filtro key={f.campo} variabile={{ tipo: 'scelta', campo: f.campo, etichetta: f.etichetta }} stato={stato} setStato={setStato} righe={righe} etichette={etichette} />)}
+      <AggiungiFiltro stato={stato} setStato={setStato} righe={righe} etichette={etichette} />
+    </>
+  )
+  const filtrato = attivi > 0 || !!stato.q || stato.gruppo !== 'tutti'
+  const azzera = filtrato && (
+    <button type="button" onClick={() => { setQ(''); setStato({ ...VUOTO, ordine: stato.ordine }) }}
+      className="inline-flex items-center gap-1 text-xs text-text-tertiary hover:text-text-primary px-1">
+      <X className="w-3.5 h-3.5" />Azzera
+    </button>
+  )
+  const quanti = conteggio.mostrate === conteggio.totali ? `${conteggio.totali} lead` : `${conteggio.mostrate} di ${conteggio.totali} lead`
+
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 flex-wrap">
-        <label className="relative flex-1 min-w-48 max-w-sm">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" aria-hidden />
-          <input value={q} onChange={e => setQ(e.target.value)} aria-label="Cerca fra i lead" placeholder="Azienda, referente, telefono…"
-            className="w-full bg-surface border border-border-interactive rounded-xl pl-8 pr-8 py-2 text-sm text-text-primary" />
-          {q && <button type="button" onClick={() => { setQ(''); setStato({ ...stato, q: '' }) }} aria-label="Svuota la ricerca"
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary"><X className="w-4 h-4" /></button>}
-        </label>
-        {/* le tre domande di ogni mattina, a un clic: si escludono a vicenda */}
-        <div className="flex items-center gap-1.5 flex-wrap" role="radiogroup" aria-label="Viste rapide">
-          {RAPIDE.map(r => {
-            const I = ICONA_RAPIDA[r]
-            const on = stato.rapida === r
-            return (
-              <button key={r} type="button" role="radio" aria-checked={on} onClick={() => setStato({ ...stato, rapida: on ? null : r })}
-                className={`inline-flex items-center gap-1.5 ${chip(on)}`}>
-                <I className="w-3.5 h-3.5" />{ETICHETTA_RAPIDA[r]}
-              </button>
-            )
-          })}
+      {/* §496 — sotto i 1024px: la ricerca, un bottone per tutto il resto, e i
+          gruppi in una riga che scorre di lato. Prima erano quindici righe di
+          chip a 390px, e il primo lead cominciava sotto il primo schermo. */}
+      <div className="lg:hidden space-y-2">
+        <div className="flex items-center gap-2">
+          {cerca}
+          <button type="button" onClick={() => setPannello(true)} aria-haspopup="dialog"
+            className={`inline-flex items-center gap-1.5 shrink-0 self-stretch ${chip(attivi > 0)}`}>
+            <SlidersHorizontal className="w-3.5 h-3.5" aria-hidden />Filtri
+            {attivi > 0 && <span className="tabular">{attivi}</span>}
+          </button>
         </div>
-        <Viste stato={stato} setStato={setStato} leggiQuery={leggiQuery} />
-        <span className="ml-auto text-2xs text-text-tertiary tabular" aria-live="polite">
-          {conteggio.mostrate === conteggio.totali ? `${conteggio.totali} lead` : `${conteggio.mostrate} di ${conteggio.totali} lead`}
-        </span>
-      </div>
-
-      {fasi && righeChip('stage', fasi, 'Filtra per stato')}
-      {/* §495 — da quale modulo Meta sono arrivati: con un modulo solo la riga
-          non dice niente, e non si mostra */}
-      {moduli && moduli.length > 1 && righeChip('form', moduli, 'Filtra per modulo')}
-
-      <div className="flex items-center gap-1.5 flex-wrap">
-        {gruppi?.map(g => (
-          <button key={g.chiave} type="button" onClick={() => setStato({ ...stato, gruppo: g.chiave })} aria-pressed={stato.gruppo === g.chiave}
-            className={chip(stato.gruppo === g.chiave)}>
-            {g.etichetta}<span className="ml-1.5 tabular text-text-tertiary">{g.quante}</span>
-          </button>
-        ))}
-        {gruppi && <span className="w-px h-5 bg-border mx-1" aria-hidden />}
-        {filtriData.map(c => <Filtro key={c} variabile={{ tipo: 'data', campo: c, etichetta: ETICHETTA_DATA[c] }} stato={stato} setStato={setStato} righe={righe} etichette={etichette} />)}
-        {filtriScelta.map(f => <Filtro key={f.campo} variabile={{ tipo: 'scelta', campo: f.campo, etichetta: f.etichetta }} stato={stato} setStato={setStato} righe={righe} etichette={etichette} />)}
-        <AggiungiFiltro stato={stato} setStato={setStato} righe={righe} etichette={etichette} />
-        {conOrdine && <Ordina stato={stato} setStato={setStato} />}
-        {(attivi > 0 || stato.q || stato.gruppo !== 'tutti') && (
-          <button type="button" onClick={() => { setQ(''); setStato({ ...VUOTO, ordine: stato.ordine }) }}
-            className="inline-flex items-center gap-1 text-xs text-text-tertiary hover:text-text-primary px-1">
-            <X className="w-3.5 h-3.5" />Azzera
-          </button>
+        {gruppi && (
+          <div className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
+            <div className="flex items-center gap-1.5 w-max">{chipGruppi}</div>
+          </div>
+        )}
+        {filtrato && (
+          <div className="flex items-center gap-2">
+            <span className="text-2xs text-text-tertiary tabular" aria-live="polite">{quanti}</span>
+            {azzera}
+          </div>
         )}
       </div>
+
+      <div className="hidden lg:block space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {cerca}
+          {rapide}
+          <Viste stato={stato} setStato={setStato} leggiQuery={leggiQuery} />
+          {/* l'ordine riguarda l'elenco intero: sta accanto al conteggio, e
+              la riga dei gruppi non va più a capo per lui */}
+          <span className="ml-auto flex items-center gap-2">
+            {conOrdine && <Ordina stato={stato} setStato={setStato} />}
+            <span className="text-2xs text-text-tertiary tabular" aria-live="polite">{quanti}</span>
+          </span>
+        </div>
+
+        {fasi && righeChip('stage', fasi, 'Filtra per stato')}
+
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {chipGruppi}
+          {gruppi && <span className="w-px h-5 bg-border mx-1" aria-hidden />}
+          {/* §496 — i moduli sulla riga dei gruppi: una riga di chip in meno */}
+          {conModuli && (
+            <>
+              {righeChip('form', moduli!, 'Filtra per modulo')}
+              <span className="w-px h-5 bg-border mx-1" aria-hidden />
+            </>
+          )}
+          {altriFiltri}
+          {azzera}
+        </div>
+      </div>
+
+      {pannello && (
+        <div className="lg:hidden fixed inset-0 z-50 bg-background flex flex-col" role="dialog" aria-modal="true" aria-label="Filtri">
+          <div className="flex items-center justify-between gap-3 px-4 h-14 border-b border-border shrink-0">
+            <h2 className="text-base font-bold text-text-primary">Filtri</h2>
+            <button type="button" onClick={() => setPannello(false)} aria-label="Chiudi i filtri"
+              className="p-2 -mr-2 text-text-secondary hover:text-text-primary"><X className="w-5 h-5" /></button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
+            <Sezione titolo="Viste rapide">
+              <div className="space-y-2">{rapide}<Viste stato={stato} setStato={setStato} leggiQuery={leggiQuery} /></div>
+            </Sezione>
+            {fasi && <Sezione titolo="Fase">{righeChip('stage', fasi, 'Filtra per stato')}</Sezione>}
+            {conModuli && <Sezione titolo="Modulo">{righeChip('form', moduli!, 'Filtra per modulo')}</Sezione>}
+            <Sezione titolo="Altri filtri"><div className="flex items-center gap-1.5 flex-wrap">{altriFiltri}</div></Sezione>
+            {conOrdine && <Sezione titolo="Ordine"><Ordina stato={stato} setStato={setStato} /></Sezione>}
+          </div>
+          <div className="flex items-center gap-3 px-4 py-3 border-t border-border shrink-0">
+            {azzera}
+            <button type="button" onClick={() => setPannello(false)}
+              className="ml-auto text-sm font-semibold bg-gold text-on-gold px-4 py-2.5 rounded-xl press">
+              Mostra {conteggio.mostrate} lead
+            </button>
+          </div>
+        </div>
+      )}
     </div>
+  )
+}
+
+function Sezione({ titolo, children }: { titolo: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <h3 className="text-2xs font-semibold text-text-tertiary mb-2">{titolo}</h3>
+      {children}
+    </section>
   )
 }
 

@@ -41,7 +41,7 @@ const ICONA: Record<TipoVoce, typeof Phone> = {
 }
 const chip = (on: boolean) =>
   `text-2xs px-2 py-1 rounded-lg border transition-colors ${on
-    ? 'border-gold/40 bg-gold/10 text-gold-text font-semibold'
+    ? 'border-[color:color-mix(in_srgb,var(--color-gold)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--color-gold)_10%,transparent)] text-gold-text font-semibold'
     : 'border-border text-text-secondary hover:text-text-primary hover:bg-surface-hover'}`
 const bottone = 'text-2xs font-semibold px-2.5 py-1 rounded-lg border border-border text-text-secondary hover:text-text-primary hover:bg-surface-hover disabled:opacity-40'
 
@@ -225,7 +225,7 @@ function ModuloVoce({ iniziale, titolo, onSalva, onChiudi, tipi = TIPI }: {
     : new Date(`${giorno}T12:00:00Z`).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
 
   return (
-    <form onSubmit={salva} className="space-y-2.5 rounded-xl border border-gold/30 bg-surface p-3" aria-label={titolo}>
+    <form onSubmit={salva} className="space-y-2.5 rounded-xl border border-[color:color-mix(in_srgb,var(--color-gold)_30%,transparent)] bg-surface p-3" aria-label={titolo}>
       <p className="text-2xs font-semibold text-text-tertiary uppercase tracking-wide">{titolo}</p>
 
       <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Che cosa">
@@ -339,7 +339,7 @@ function BarraAppena() {
   return (
     <div role="status" onMouseEnter={() => setFermo(true)} onMouseLeave={() => setFermo(false)}
       onFocus={() => setFermo(true)} onBlur={() => setFermo(false)}
-      className="mt-1.5 rounded-lg border border-gold/30 bg-gold-dim px-2 py-1.5 space-y-1.5">
+      className="mt-1.5 rounded-lg border border-[color:color-mix(in_srgb,var(--color-gold)_30%,transparent)] bg-gold-dim px-2 py-1.5 space-y-1.5">
       <p className="text-2xs text-text-primary">
         <span className="font-semibold">{titoloVoce(voce)}</span> registrata adesso. Era un’altra cosa?
       </p>
@@ -385,7 +385,7 @@ export function UltimoContatto() {
         </span>
         <button type="button" disabled={lavoro} onClick={() => void oggi()}
           title="Registra una chiamata risposta adesso"
-          className="inline-flex items-center gap-1 text-2xs font-semibold text-gold-text border border-gold/40 px-2 py-0.5 rounded-lg hover:bg-gold/10 disabled:opacity-40">
+          className="inline-flex items-center gap-1 text-2xs font-semibold text-gold-text border border-[color:color-mix(in_srgb,var(--color-gold)_40%,transparent)] px-2 py-0.5 rounded-lg hover:bg-[color:color-mix(in_srgb,var(--color-gold)_10%,transparent)] disabled:opacity-40">
           {lavoro ? <Loader2 className="w-3 h-3 animate-spin" /> : <Phone className="w-3 h-3" />}Oggi
         </button>
         <button type="button" onClick={() => setModulo(v => !v)} aria-expanded={modulo}
@@ -434,8 +434,8 @@ function VoceRiga({ v }: { v: Voce }) {
   return (
     <li className={`relative flex gap-2.5 py-2 ${v.stato === 'annullata' ? 'opacity-60' : ''}`}>
       <span className={`shrink-0 mt-0.5 w-6 h-6 rounded-full flex items-center justify-center border ${
-        daChiudere ? 'border-warning/40 bg-warning-dim text-warning'
-          : inProgramma ? 'border-gold/40 bg-gold-dim text-gold-text'
+        daChiudere ? 'border-[color:color-mix(in_srgb,var(--color-warning)_40%,transparent)] bg-warning-dim text-warning'
+          : inProgramma ? 'border-[color:color-mix(in_srgb,var(--color-gold)_40%,transparent)] bg-gold-dim text-gold-text'
           : 'border-border bg-surface text-text-secondary'}`}>
         <I className="w-3.5 h-3.5" aria-hidden />
       </span>
@@ -533,7 +533,7 @@ export function CrmTimeline() {
           <CalendarClock className="w-3 h-3" />Pianifica follow-up
         </button>
         <button type="button" onClick={() => setModulo(v => !v)} aria-expanded={modulo}
-          className="inline-flex items-center gap-1 text-2xs font-semibold text-gold-text border border-gold/40 px-2 py-0.5 rounded-lg hover:bg-gold/10">
+          className="inline-flex items-center gap-1 text-2xs font-semibold text-gold-text border border-[color:color-mix(in_srgb,var(--color-gold)_40%,transparent)] px-2 py-0.5 rounded-lg hover:bg-[color:color-mix(in_srgb,var(--color-gold)_10%,transparent)]">
           <Plus className="w-3 h-3" />Registra
         </button>
       </div>

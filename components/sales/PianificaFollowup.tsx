@@ -35,14 +35,14 @@ const MIN = 60_000
 const ALTEZZA = 26 // px per mezz'ora
 const chip = (on: boolean) =>
   `text-2xs px-2 py-1 rounded-lg border transition-colors ${on
-    ? 'border-gold/40 bg-gold/10 text-gold-text font-semibold'
+    ? 'border-[color:color-mix(in_srgb,var(--color-gold)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--color-gold)_10%,transparent)] text-gold-text font-semibold'
     : 'border-border text-text-secondary hover:text-text-primary hover:bg-surface-hover'}`
 
 const COLORE: Record<Impegno['tipo'], string> = {
-  google: 'bg-info-dim border-info/40 text-info',
-  interno: 'bg-info-dim border-info/40 text-info',
-  followup: 'bg-gold-dim border-gold/40 text-gold-text',
-  ferie: 'bg-warning-dim border-warning/40 text-warning',
+  google: 'bg-info-dim border-[color:color-mix(in_srgb,var(--color-info)_40%,transparent)] text-info',
+  interno: 'bg-info-dim border-[color:color-mix(in_srgb,var(--color-info)_40%,transparent)] text-info',
+  followup: 'bg-gold-dim border-[color:color-mix(in_srgb,var(--color-gold)_40%,transparent)] text-gold-text',
+  ferie: 'bg-warning-dim border-[color:color-mix(in_srgb,var(--color-warning)_40%,transparent)] text-warning',
   task: 'bg-surface-active border-border text-text-secondary',
 }
 
@@ -280,7 +280,7 @@ export function PianificaFollowup({ dealId, company, email, sposta, onFatto, onC
               )}
               {!lavoro && <p className="text-2xs text-warning mb-1.5">Non è un giorno lavorativo.</p>}
               <div ref={griglia} className="relative max-h-[20rem] overflow-y-auto rounded-lg border border-border">
-                {!impegni && <div className="absolute inset-0 z-10 flex items-center justify-center bg-surface/60"><Loader2 className="w-4 h-4 animate-spin text-text-tertiary" /></div>}
+                {!impegni && <div className="absolute inset-0 z-10 flex items-center justify-center bg-[color:color-mix(in_srgb,var(--color-surface)_60%,transparent)]"><Loader2 className="w-4 h-4 animate-spin text-text-tertiary" /></div>}
                 <div className="relative" style={{ height: righe.length * ALTEZZA }}>
                   {righe.map(t => {
                     const dentro = !!lavoro && t >= lavoro.da && t < lavoro.a
@@ -290,7 +290,7 @@ export function PianificaFollowup({ dealId, company, email, sposta, onFatto, onC
                       <button key={t} type="button" disabled={passato} onClick={() => scegli(alPasso(Math.max(t, Date.now())))}
                         aria-label={`Fissa alle ${o}`}
                         className={`absolute left-0 right-0 flex items-start gap-2 px-1.5 border-t border-border text-left disabled:cursor-not-allowed ${
-                          dentro ? 'hover:bg-gold/10' : 'bg-surface-hover hover:bg-gold/10'} ${passato ? 'opacity-40' : ''}`}
+                          dentro ? 'hover:bg-[color:color-mix(in_srgb,var(--color-gold)_10%,transparent)]' : 'bg-surface-hover hover:bg-[color:color-mix(in_srgb,var(--color-gold)_10%,transparent)]'} ${passato ? 'opacity-40' : ''}`}
                         style={{ top: ((t - base) / (30 * MIN)) * ALTEZZA, height: ALTEZZA }}>
                         <span className="text-2xs text-text-tertiary tabular w-9 shrink-0 pt-0.5">{o.endsWith(':00') ? o : ''}</span>
                       </button>
@@ -310,7 +310,7 @@ export function PianificaFollowup({ dealId, company, email, sposta, onFatto, onC
                   })}
                   {inizio && giornoEOraRoma(inizio).giorno === giorno && (
                     <div className={`absolute left-11 right-1 rounded border-2 px-1.5 text-2xs font-semibold pointer-events-none ${
-                      problemi.length ? 'border-warning bg-warning-dim text-warning' : 'border-gold bg-gold/15 text-gold-text'}`}
+                      problemi.length ? 'border-warning bg-warning-dim text-warning' : 'border-gold bg-[color:color-mix(in_srgb,var(--color-gold)_15%,transparent)] text-gold-text'}`}
                       style={{ top: ((inizio - base) / (30 * MIN)) * ALTEZZA, height: Math.max(ALTEZZA, (durata / 30) * ALTEZZA) }}>
                       {giornoEOraRoma(inizio).ora} · {company}
                     </div>
@@ -326,14 +326,14 @@ export function PianificaFollowup({ dealId, company, email, sposta, onFatto, onC
 
         <footer className="border-t border-border px-4 py-3 space-y-2 shrink-0">
           {problemi.length > 0 && (
-            <div role="status" className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning-dim px-2.5 py-1.5">
+            <div role="status" className="flex items-start gap-2 rounded-lg border border-[color:color-mix(in_srgb,var(--color-warning)_30%,transparent)] bg-warning-dim px-2.5 py-1.5">
               <TriangleAlert className="w-4 h-4 text-warning shrink-0 mt-px" />
               <div className="text-2xs text-warning space-y-0.5 flex-1">
                 {problemi.map((c, n) => <p key={n}>{spiegaConflitto(c)}</p>)}
                 <p className="text-text-secondary">Puoi salvarlo lo stesso.</p>
               </div>
               {alternativa && (
-                <button type="button" onClick={() => scegli(alternativa)} className="shrink-0 text-2xs font-semibold text-gold-text border border-gold/40 px-2 py-1 rounded-lg hover:bg-gold/10">
+                <button type="button" onClick={() => scegli(alternativa)} className="shrink-0 text-2xs font-semibold text-gold-text border border-[color:color-mix(in_srgb,var(--color-gold)_40%,transparent)] px-2 py-1 rounded-lg hover:bg-[color:color-mix(in_srgb,var(--color-gold)_10%,transparent)]">
                   Primo libero: {quandoContatto(new Date(alternativa).toISOString(), true, Date.now())}
                 </button>
               )}

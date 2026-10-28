@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
-import { QrCode } from 'lucide-react'
+import { QrCode, UserPlus } from 'lucide-react'
 import { vcardDi } from '@/lib/sales-vcard'
 import type { RigaCrm } from './CrmTable'
 
@@ -10,6 +10,11 @@ import type { RigaCrm } from './CrmTable'
  * Il QR è una vCard: la fotocamera del telefono propone «Aggiungi ai contatti».
  * Il colore è fisso nero su bianco perché un QR a colori di tema non si legge
  * in scuro: è l'eccezione ai token, come un codice a barre.
+ *
+ * §496 — sul telefono il QR non serve: il telefono che lo inquadrerebbe è
+ * quello che si ha in mano. Al suo posto un bottone apre la stessa vCard, e il
+ * sistema propone «Aggiungi ai contatti». Un `blob:` e non un `data:`: Chrome
+ * su Android non apre un `data:` dalla pagina.
  */
 export function QrContatto({ riga }: { riga: RigaCrm }) {
   const vcard = vcardDi({
@@ -31,15 +36,26 @@ export function QrContatto({ riga }: { riga: RigaCrm }) {
 
   if (!vcard) {
     return (
-      <p className="flex items-center gap-2 px-3 py-2.5 border border-border rounded-xl text-2xs text-text-tertiary">
+      <p className="hidden sm:flex items-center gap-2 px-3 py-2.5 border border-border rounded-xl text-2xs text-text-tertiary">
         <QrCode className="w-4 h-4 shrink-0" aria-hidden />
         QR contatto non disponibile: servono un nome e un telefono o un&apos;email.
       </p>
     )
   }
 
+  const aggiungi = () => {
+    const url = URL.createObjectURL(new Blob([vcard], { type: 'text/vcard;charset=utf-8' }))
+    window.location.href = url
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  }
+
   return (
-    <section className="flex items-center gap-4 px-3 py-3 border border-border rounded-xl">
+    <>
+    <button type="button" onClick={aggiungi}
+      className="sm:hidden w-full flex items-center justify-center gap-2 px-3 py-2.5 border border-border rounded-xl text-sm font-semibold text-text-primary hover:bg-surface-hover transition-colors">
+      <UserPlus className="w-4 h-4" aria-hidden />Aggiungi ai contatti
+    </button>
+    <section className="hidden sm:flex items-center gap-4 px-3 py-3 border border-border rounded-xl">
       <div
         role="img"
         aria-label={`QR code per salvare ${String(riga.contact_name || riga.company_name || 'il contatto')} in rubrica`}
@@ -51,5 +67,6 @@ export function QrContatto({ riga }: { riga: RigaCrm }) {
         <p>Inquadra con la fotocamera del telefono e scegli «Aggiungi ai contatti».</p>
       </div>
     </section>
+    </>
   )
 }

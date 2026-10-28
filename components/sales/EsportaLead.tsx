@@ -18,7 +18,7 @@ import type { Formato, TipoExport } from '@/lib/sales-export'
 
 const chip = (on: boolean) =>
   `flex-1 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${on
-    ? 'border-gold/40 bg-gold-dim text-gold-text font-semibold'
+    ? 'border-[color:color-mix(in_srgb,var(--color-gold)_40%,transparent)] bg-gold-dim text-gold-text font-semibold'
     : 'border-border text-text-secondary hover:text-text-primary hover:bg-surface-hover'}`
 
 type Righe = 'selezione' | 'mostrate' | 'tutte'

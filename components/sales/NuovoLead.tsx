@@ -202,7 +202,7 @@ export function NuovoLead({ onChiudi, onFatto }: { onChiudi: () => void; onFatto
 
               {/* Non «errore»: dice cosa ha trovato e lascia decidere. */}
               {doppioni && (
-                <div className="border border-warning/40 bg-warning-dim rounded-xl p-3 space-y-1.5">
+                <div className="border border-[color:color-mix(in_srgb,var(--color-warning)_40%,transparent)] bg-warning-dim rounded-xl p-3 space-y-1.5">
                   <p className="flex items-center gap-1.5 text-xs font-semibold text-text-primary">
                     <AlertTriangle className="w-4 h-4 text-warning shrink-0" aria-hidden />
                     {doppioni.length === 1 ? 'Ne esiste già uno simile' : `Ne esistono già ${doppioni.length} simili`}

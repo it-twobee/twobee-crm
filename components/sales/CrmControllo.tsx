@@ -77,9 +77,9 @@ export function CrmControllo({ righe, onApri, onFatto, conFoglio = false }: {
         const grave = ril.peso === 'grave'
         return (
           <section key={ril.chiave}
-            className={`border rounded-xl overflow-hidden ${grave ? 'border-error/40' : 'border-border'}`}>
+            className={`border rounded-xl overflow-hidden ${grave ? 'border-[color:color-mix(in_srgb,var(--color-error)_40%,transparent)]' : 'border-border'}`}>
             <header className={`flex items-start gap-2.5 px-4 py-3 border-b ${
-              grave ? 'bg-error-dim border-error/30' : 'bg-surface border-border'}`}>
+              grave ? 'bg-error-dim border-[color:color-mix(in_srgb,var(--color-error)_30%,transparent)]' : 'bg-surface border-border'}`}>
               {grave
                 ? <AlertTriangle className="w-4 h-4 text-error shrink-0 mt-0.5" aria-hidden />
                 : <Info className="w-4 h-4 text-warning shrink-0 mt-0.5" aria-hidden />}
@@ -161,7 +161,7 @@ function IlFoglio() {
   }, [])
 
   if (errore) {
-    return <p className="text-2xs text-error border border-error/40 rounded-xl px-4 py-3">Il foglio non si è potuto controllare: {errore}</p>
+    return <p className="text-2xs text-error border border-[color:color-mix(in_srgb,var(--color-error)_40%,transparent)] rounded-xl px-4 py-3">Il foglio non si è potuto controllare: {errore}</p>
   }
   if (!stato) {
     return (
@@ -179,8 +179,8 @@ function IlFoglio() {
   }
 
   return (
-    <section className={`border rounded-xl overflow-hidden ${grave ? 'border-error/40' : 'border-border'}`}>
-      <header className={`flex items-start gap-2.5 px-4 py-3 border-b ${grave ? 'bg-error-dim border-error/30' : 'bg-surface border-border'}`}>
+    <section className={`border rounded-xl overflow-hidden ${grave ? 'border-[color:color-mix(in_srgb,var(--color-error)_40%,transparent)]' : 'border-border'}`}>
+      <header className={`flex items-start gap-2.5 px-4 py-3 border-b ${grave ? 'bg-error-dim border-[color:color-mix(in_srgb,var(--color-error)_30%,transparent)]' : 'bg-surface border-border'}`}>
         {grave
           ? <AlertTriangle className="w-4 h-4 text-error shrink-0 mt-0.5" aria-hidden />
           : nonLette.length
@@ -343,7 +343,7 @@ function Affiancate({ ids, perche, righe, onApri, onFatto }: {
       {/* §387 — non più «ricopia»: lo fa l'unione. Resta l'elenco, perché
           quello che passa da una riga all'altra va visto prima, non dopo. */}
       {porta.length > 0 && (
-        <div className="mt-2 bg-warning-dim border border-warning/30 rounded-xl p-2.5">
+        <div className="mt-2 bg-warning-dim border border-[color:color-mix(in_srgb,var(--color-warning)_30%,transparent)] rounded-xl p-2.5">
           <p className="text-2xs font-bold text-warning uppercase tracking-wider mb-1">
             Unendo, passa sulla riga tenuta
           </p>
@@ -403,7 +403,7 @@ function Affiancate({ ids, perche, righe, onApri, onFatto }: {
         </div>
       ) : (
         <button onClick={() => setConferma(true)} disabled={pending}
-          className="mt-2 flex items-center gap-1.5 text-2xs font-semibold text-gold-text border border-gold/30 px-3 py-1.5 rounded-xl hover:bg-gold-dim transition-colors disabled:opacity-40">
+          className="mt-2 flex items-center gap-1.5 text-2xs font-semibold text-gold-text border border-[color:color-mix(in_srgb,var(--color-gold)_30%,transparent)] px-3 py-1.5 rounded-xl hover:bg-gold-dim transition-colors disabled:opacity-40">
           <Merge className="w-3.5 h-3.5" />
           Unisci in «{nome(tieni)}»
         </button>
